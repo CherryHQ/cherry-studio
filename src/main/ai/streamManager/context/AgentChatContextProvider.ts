@@ -8,6 +8,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { application } from '@main/core/application'
+import { topicNamingService } from '@main/services/TopicNamingService'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId } from '@shared/data/types/model'
@@ -35,6 +36,15 @@ function toReservedAgentUIMessage(row: AgentSessionMessageEntity): CherryUIMessa
       ...(row.stats?.totalTokens ? { totalTokens: row.stats.totalTokens } : {})
     }
   } as CherryUIMessage
+}
+
+function getMainTextFromMessageParts(parts: CherryUIMessage['parts'] | undefined): string {
+  return (
+    parts
+      ?.filter((part): part is Extract<CherryUIMessage['parts'][number], { type: 'text' }> => part.type === 'text')
+      .map((part) => part.text)
+      .join('\n') ?? ''
+  )
 }
 
 export class AgentChatContextProvider implements ChatContextProvider {
@@ -107,6 +117,10 @@ export class AgentChatContextProvider implements ChatContextProvider {
           data: { parts: userMessageParts }
         }
       })
+      void topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(
+        sessionId,
+        getMainTextFromMessageParts(savedUserMessage.data.parts)
+      )
 
       application.get('AgentSessionRuntimeService').enqueueUserMessage(sessionId, userMessage)
 
@@ -161,6 +175,10 @@ export class AgentChatContextProvider implements ChatContextProvider {
         }
       ]
     })
+    void topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(
+      sessionId,
+      getMainTextFromMessageParts(savedMessages[0]?.data.parts)
+    )
 
     // Author the turn span's input/identity here (where the agent + user message live).
     applyTurnInputAttributes(turnTrace.rootSpan, {

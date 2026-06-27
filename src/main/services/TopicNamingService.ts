@@ -1,4 +1,3 @@
-import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { modelService } from '@data/services/ModelService'
 import { topicService } from '@data/services/TopicService'
@@ -33,6 +32,23 @@ const agentSessionRenameLocks = new Set<string>()
 //      topic releases its entry naturally.
 const SUMMARY_NAMED_KEY_PREFIX = 'topic.summary_named:'
 const SUMMARY_NAMED_TTL_MS = 60 * 60 * 1000
+const DEFAULT_AGENT_SESSION_NAMES = new Set([
+  '',
+  'common.unnamed',
+  'unnamed',
+  'untitled',
+  '未命名',
+  '无题',
+  '無題',
+  'không tên',
+  'sem nome',
+  'без имени',
+  'χωρίς όνομα',
+  'unbenannt',
+  'sans nom',
+  'sin nombre',
+  'fără nume'
+])
 
 function summaryNamedKey(topicId: string): string {
   return `${SUMMARY_NAMED_KEY_PREFIX}${topicId}`
@@ -93,6 +109,25 @@ function truncateText(text: string, maxLength = 50): string {
   const normalized = text.trim().replace(/\s+/g, ' ')
   if (normalized.length <= maxLength) return normalized
   return normalized.slice(0, maxLength).trim()
+}
+
+function normalizeAgentSessionName(name: string | null | undefined): string {
+  return (name ?? '').trim().replace(/\s+/g, ' ').toLocaleLowerCase()
+}
+
+function isDefaultAgentSessionName(name: string | null | undefined): boolean {
+  return DEFAULT_AGENT_SESSION_NAMES.has(normalizeAgentSessionName(name))
+}
+
+function firstUserMessageTitle(userText: string): string {
+  return removeSpecialCharactersForTopicName(truncateText(userText))
+}
+
+function canAutoRenameAgentSessionName(name: string | null | undefined, userText?: string): boolean {
+  if (isDefaultAgentSessionName(name)) return true
+  if (userText === undefined) return false
+  const temporaryTitle = firstUserMessageTitle(userText)
+  return !!temporaryTitle && normalizeAgentSessionName(name) === normalizeAgentSessionName(temporaryTitle)
 }
 
 function buildStructuredConversation(messages: StructuredMessage[]): string {
@@ -158,6 +193,23 @@ export class TopicNamingService {
     }
   }
 
+  async maybeRenameAgentSessionFromFirstUserMessage(sessionId: string, userText: string): Promise<void> {
+    const enabled = application.get('PreferenceService').get('topic.naming.enabled')
+    if (!enabled) return
+
+    const session = await agentSessionService.getById(sessionId).catch(() => null)
+    if (session?.isNameManuallyEdited) return
+    if (!session || !canAutoRenameAgentSessionName(session.name)) return
+
+    const nextName = firstUserMessageTitle(userText)
+    if (!nextName || nextName === (session.name ?? '').trim()) return
+
+    const updated = await agentSessionService.update(sessionId, { name: nextName, isNameManuallyEdited: false })
+    if (updated) {
+      this.notifyAgentSessionAutoRenamed(sessionId)
+    }
+  }
+
   /**
    * Rename an agent session's name based on the first user+assistant exchange.
    *
@@ -185,8 +237,9 @@ export class TopicNamingService {
     try {
       const session = await agentSessionService.getById(sessionId).catch(() => null)
       if (!session || !session.agentId) return
-      const agent = await agentService.getAgent(session.agentId).catch(() => null)
-      if (!agent || !agent.model) return
+      if (session.isNameManuallyEdited) return
+      if (!canAutoRenameAgentSessionName(session.name, userText)) return
+      const uniqueModelId = await this.resolveNamingModelId()
 
       const structuredConversation: StructuredMessage[] = [
         { role: 'user', mainText: cleanMarkdownImages(userText) },
@@ -195,15 +248,18 @@ export class TopicNamingService {
 
       const title = await this.generateSummaryTitle(
         agentId,
-        agent.model,
+        uniqueModelId,
         buildStructuredConversation(structuredConversation)
       )
       if (!title) return
 
       const nextName = removeSpecialCharactersForTopicName(title)
-      if (!nextName || nextName === (session.name ?? '').trim()) return
+      const latestSession = await agentSessionService.getById(sessionId).catch(() => null)
+      if (latestSession?.isNameManuallyEdited) return
+      if (!latestSession || !canAutoRenameAgentSessionName(latestSession.name, userText)) return
+      if (!nextName || nextName === (latestSession.name ?? '').trim()) return
 
-      const updated = await agentSessionService.update(sessionId, { name: nextName })
+      const updated = await agentSessionService.update(sessionId, { name: nextName, isNameManuallyEdited: false })
       if (updated) {
         this.notifyAgentSessionAutoRenamed(sessionId)
       }

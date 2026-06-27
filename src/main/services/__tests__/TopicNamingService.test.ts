@@ -160,16 +160,13 @@ describe('TopicNamingService', () => {
     )
   })
 
-  it('keeps agent session naming on the agent model when topic naming model preference is invalid', async () => {
-    MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.model_id', 'bad-value')
+  it('uses topic.naming.model_id for agent session summary naming', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.model_id', 'openai::gpt-4o-mini')
     mocks.getSession.mockResolvedValue({
       id: 'session-1',
       agentId: 'agent-1',
-      name: 'Old Session'
-    })
-    mocks.getAgent.mockResolvedValue({
-      id: 'agent-1',
-      model: 'anthropic::claude-3'
+      name: 'common.unnamed',
+      isNameManuallyEdited: false
     })
 
     await createService().maybeRenameAgentSession('agent-1', 'session-1', 'User request', {
@@ -180,9 +177,84 @@ describe('TopicNamingService', () => {
     expect(mocks.generateText).toHaveBeenCalledWith(
       expect.objectContaining({
         assistantId: 'agent-1',
-        uniqueModelId: 'anthropic::claude-3'
+        uniqueModelId: 'openai::gpt-4o-mini'
       })
     )
-    expect(mocks.updateSession).toHaveBeenCalledWith('session-1', { name: 'Generated Title' })
+    expect(mocks.updateSession).toHaveBeenCalledWith('session-1', {
+      name: 'Generated Title',
+      isNameManuallyEdited: false
+    })
+  })
+
+  it('renames default unnamed agent sessions from the first user message without generating a summary', async () => {
+    mocks.getSession.mockResolvedValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      name: '未命名',
+      isNameManuallyEdited: false
+    })
+    mocks.updateSession.mockResolvedValue({ id: 'session-1' })
+
+    await createService().maybeRenameAgentSessionFromFirstUserMessage(
+      'session-1',
+      'Please inspect the renderer startup path and suggest fixes'
+    )
+
+    expect(mocks.generateText).not.toHaveBeenCalled()
+    expect(mocks.updateSession).toHaveBeenCalledWith('session-1', {
+      name: 'Please inspect the renderer startup path and sugge',
+      isNameManuallyEdited: false
+    })
+    expect(mocks.broadcast).toHaveBeenCalledWith('agent-session:auto-renamed', { sessionId: 'session-1' })
+  })
+
+  it('does not first-message rename an agent session that already has a real title', async () => {
+    mocks.getSession.mockResolvedValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      name: 'Release planning',
+      isNameManuallyEdited: true
+    })
+
+    await createService().maybeRenameAgentSessionFromFirstUserMessage('session-1', 'New user text')
+
+    expect(mocks.updateSession).not.toHaveBeenCalled()
+    expect(mocks.broadcast).not.toHaveBeenCalled()
+  })
+
+  it('does not summary-rename agent sessions that already have a real title', async () => {
+    mocks.getSession.mockResolvedValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      name: 'Release planning',
+      isNameManuallyEdited: true
+    })
+
+    await createService().maybeRenameAgentSession('agent-1', 'session-1', 'User request', {
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Agent response' }]
+    } as never)
+
+    expect(mocks.generateText).not.toHaveBeenCalled()
+    expect(mocks.updateSession).not.toHaveBeenCalled()
+  })
+
+  it('allows summary rename after the first-message temporary agent session title', async () => {
+    mocks.getSession.mockResolvedValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      name: 'User request',
+      isNameManuallyEdited: false
+    })
+
+    await createService().maybeRenameAgentSession('agent-1', 'session-1', 'User request', {
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Agent response' }]
+    } as never)
+
+    expect(mocks.updateSession).toHaveBeenCalledWith('session-1', {
+      name: 'Generated Title',
+      isNameManuallyEdited: false
+    })
   })
 })

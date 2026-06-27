@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   saveMessage: vi.fn(),
   saveMessages: vi.fn(),
+  maybeRenameAgentSessionFromFirstUserMessage: vi.fn(),
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
   runtimeBeginTurn: vi.fn(),
@@ -33,7 +34,10 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
 }))
 
 vi.mock('@main/services/TopicNamingService', () => ({
-  topicNamingService: { maybeRenameAgentSession: mocks.maybeRenameAgentSession }
+  topicNamingService: {
+    maybeRenameAgentSessionFromFirstUserMessage: mocks.maybeRenameAgentSessionFromFirstUserMessage,
+    maybeRenameAgentSession: mocks.maybeRenameAgentSession
+  }
 }))
 
 vi.mock('@main/core/application', () => ({
@@ -213,6 +217,15 @@ describe('AgentChatContextProvider', () => {
       })
     ])
     expect(prepared.listeners).toEqual([subscriber])
+  })
+
+  it('triggers first-user-message session rename after submit-message persists the user row', async () => {
+    const subscriber = makeSubscriber()
+    mocks.runtimeIsSessionBusy.mockReturnValue(false)
+
+    await provider.prepareDispatch(subscriber, openReq({ userMessageParts: [{ type: 'text', text: 'hello session' }] }))
+
+    expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).toHaveBeenCalledWith('session-1', 'hello session')
   })
 
   it('rejects agent sessions without a registered runtime driver', async () => {
