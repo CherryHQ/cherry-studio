@@ -67,11 +67,11 @@ vi.mock('@renderer/data/DataApiService', () => ({
   dataApiService: dataApiMock
 }))
 
-vi.mock('@renderer/hooks/agents/useChannels', () => ({
+vi.mock('@renderer/hooks/agent/useChannels', () => ({
   useChannels: () => ({ channels: [] })
 }))
 
-vi.mock('@renderer/hooks/agents/useTasks', () => ({
+vi.mock('@renderer/hooks/agent/useTasks', () => ({
   useCreateTask: () => ({ createTask: taskMutationMocks.createTask }),
   useDeleteTask: () => ({ deleteTask: taskMutationMocks.deleteTask }),
   useRunTask: () => ({ runTask: taskMutationMocks.runTask }),

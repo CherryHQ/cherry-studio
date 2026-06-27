@@ -249,6 +249,8 @@ Choose number based on what the directory **conceptually contains**, not on whic
 
 Decision rule: ask "does this directory hold **many of X**?" — yes → plural; no → singular. When two readings both make sense, pick the one that matches the directory's **default import name** (e.g. `import { ... } from './config'` reads naturally with `config/` singular).
 
+**Same stem, different number — decide by role, not by the word.** A name like `agent` is not inherently singular or plural; its number follows the role the directory plays. The `agents/` listed above is the **collection-bucket** reading — e.g. `src/main/ai/agents/`, which holds many agent implementations (`builtin/`, `cherryclaw/`, …). The same stem is **singular** when the directory is a feature **namespace** that groups one feature's code rather than many agents — `src/renderer/hooks/agent/` (holds the agent feature's hooks, not agents) and `src/renderer/components/chat/agent/` are singular, matching their sibling namespaces (`hooks/chat/`, `hooks/tab/`, `hooks/translate/`). Reading the `agents/` entry as "the word *agent* is always plural" is the trap: apply the decision rule to the directory's actual contents.
+
 ### 4.10 Feature Modules — `features/` vs Type Buckets
 
 A **feature module** is a self-contained domain directory under a process root's `features/` bucket — `src/main/features/` and `src/renderer/features/` — that co-locates *everything* one domain owns: its services or components, domain-local utils and hooks, and any adapters, routes, or other domain-specific helpers, in one tree.
