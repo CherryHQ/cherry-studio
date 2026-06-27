@@ -1,5 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
+import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { useOptionalShellActions } from '@renderer/components/chat/panes/Shell'
 import {
   ResourceEntityRail,
@@ -12,23 +13,21 @@ import {
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
-import { useAssistantsApi } from '@renderer/hooks/useAssistant'
+import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { usePins } from '@renderer/hooks/usePins'
 import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
-import {
-  type AssistantGroupAction,
-  type AssistantGroupActionContext,
-  executeAssistantGroupAction,
-  resolveAssistantGroupActions
-} from '@renderer/pages/home/Tabs/components/assistantGroupActions'
 import { sortTopicsForDisplayGroups } from '@renderer/pages/home/Tabs/components/topicsHelpers'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { Bot, Plus } from 'lucide-react'
+import { Bot, Edit3, PinIcon, PinOffIcon, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('AssistantResourceList')
+
+const ASSISTANT_ENTITY_EDIT_ACTION_ID = 'assistant-entity.edit'
+const ASSISTANT_ENTITY_TOGGLE_PIN_ACTION_ID = 'assistant-entity.toggle-pin'
+const ASSISTANT_ENTITY_DELETE_ACTION_ID = 'assistant-entity.delete'
 
 type AssistantResourceListProps = {
   activeAssistantId?: string | null
@@ -67,6 +66,7 @@ export function AssistantResourceList({
     pinnedIds: assistantPinnedIds,
     togglePin: toggleAssistantPin
   } = usePins('assistant')
+  const { deleteAssistant } = useAssistantMutations()
   const { deleteTopicsByAssistantId, refreshTopics } = useTopicMutations()
   const topicPinnedIdSet = useMemo(() => new Set(topicPinnedIds), [topicPinnedIds])
   const [deletingAssistantId, setDeletingAssistantId] = useState<string | null>(null)
@@ -149,18 +149,15 @@ export function AssistantResourceList({
     [isAssistantPinActionDisabled, refreshAssistants, t, toggleAssistantPin]
   )
 
-  const handleDeleteAssistantTopics = useCallback(
+  const handleDeleteAssistant = useCallback(
     async (assistantId: string) => {
       if (deletingAssistantId) return
-
-      const targetTopics = topics.filter((topic) => topic.assistantId === assistantId)
-      if (targetTopics.length === 0) return
 
       setDeletingAssistantId(assistantId)
       try {
         const confirmed = await window.modal.confirm({
-          title: t('assistants.clear.title'),
-          content: t('assistants.clear.content'),
+          title: t('assistants.delete.title'),
+          content: t('assistants.delete.content'),
           okText: t('common.delete'),
           cancelText: t('common.cancel'),
           centered: true,
@@ -170,17 +167,19 @@ export function AssistantResourceList({
         })
         if (!confirmed) return
 
-        const result = await deleteTopicsByAssistantId(assistantId)
+        await deleteTopicsByAssistantId(assistantId)
+        await deleteAssistant(assistantId)
         if (activeAssistantId === assistantId) {
           closeRightPane?.()
-          await onStartDraftAssistant(assistantId)
+          await onStartDraftAssistant(null)
         }
 
-        window.toast.success(t('chat.topics.manage.delete.success', { count: result.deletedCount }))
+        await refreshAssistants()
         await refreshTopics()
+        window.toast.success(t('common.delete_success'))
       } catch (err) {
-        logger.error('Failed to delete assistant topics from old-view rail', { assistantId, err })
-        window.toast.error(t('chat.topics.manage.delete.error'))
+        logger.error('Failed to delete assistant from old-view rail', { assistantId, err })
+        window.toast.error(formatErrorMessageWithPrefix(err, t('common.delete_failed')))
       } finally {
         setDeletingAssistantId(null)
       }
@@ -188,48 +187,69 @@ export function AssistantResourceList({
     [
       activeAssistantId,
       closeRightPane,
+      deleteAssistant,
       deleteTopicsByAssistantId,
       deletingAssistantId,
       onStartDraftAssistant,
+      refreshAssistants,
       refreshTopics,
-      t,
-      topics
-    ]
-  )
-
-  const buildActionContext = useCallback(
-    (assistantId: string): AssistantGroupActionContext => ({
-      assistantId,
-      deleteTopicsDisabled: deletingAssistantId !== null || !topics.some((topic) => topic.assistantId === assistantId),
-      disabled: isAssistantPinActionDisabled,
-      onDeleteAllTopics: handleDeleteAssistantTopics,
-      onEdit: openAssistantEditor,
-      onTogglePin: handleToggleAssistantPin,
-      pinned: assistantPinnedIdSet.has(assistantId),
       t
-    }),
-    [
-      assistantPinnedIdSet,
-      deletingAssistantId,
-      handleDeleteAssistantTopics,
-      handleToggleAssistantPin,
-      isAssistantPinActionDisabled,
-      openAssistantEditor,
-      t,
-      topics
     ]
   )
 
   const getContextMenuActions = useCallback(
-    (item: ResourceEntityRailItem) => resolveAssistantGroupActions(buildActionContext(item.id)),
-    [buildActionContext]
+    (item: ResourceEntityRailItem): ResolvedAction[] => {
+      const pinned = assistantPinnedIdSet.has(item.id)
+
+      return [
+        {
+          id: ASSISTANT_ENTITY_EDIT_ACTION_ID,
+          label: t('assistants.edit.title'),
+          icon: <Edit3 size={14} />,
+          order: 10,
+          danger: false,
+          availability: { visible: true, enabled: true },
+          children: []
+        },
+        {
+          id: ASSISTANT_ENTITY_TOGGLE_PIN_ACTION_ID,
+          label: pinned ? t('assistants.unpin.title') : t('assistants.pin.title'),
+          icon: pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />,
+          order: 20,
+          danger: false,
+          availability: { visible: true, enabled: !isAssistantPinActionDisabled },
+          children: []
+        },
+        {
+          id: ASSISTANT_ENTITY_DELETE_ACTION_ID,
+          label: t('assistants.delete.title'),
+          icon: <Trash2 size={14} className="lucide-custom text-destructive" />,
+          group: 'danger',
+          order: 30,
+          danger: true,
+          availability: { visible: true, enabled: deletingAssistantId === null },
+          children: []
+        }
+      ]
+    },
+    [assistantPinnedIdSet, deletingAssistantId, isAssistantPinActionDisabled, t]
   )
 
   const handleContextMenuAction = useCallback(
-    (item: ResourceEntityRailItem, action: AssistantGroupAction) => {
-      void executeAssistantGroupAction(action, buildActionContext(item.id))
+    (item: ResourceEntityRailItem, action: ResolvedAction) => {
+      if (action.id === ASSISTANT_ENTITY_EDIT_ACTION_ID) {
+        openAssistantEditor(item.id)
+        return
+      }
+      if (action.id === ASSISTANT_ENTITY_TOGGLE_PIN_ACTION_ID) {
+        void handleToggleAssistantPin(item.id)
+        return
+      }
+      if (action.id === ASSISTANT_ENTITY_DELETE_ACTION_ID) {
+        void handleDeleteAssistant(item.id)
+      }
     },
-    [buildActionContext]
+    [handleDeleteAssistant, handleToggleAssistantPin, openAssistantEditor]
   )
 
   return (

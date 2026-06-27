@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { useOptionalShellActions } from '@renderer/components/chat/panes/Shell'
 import {
   ResourceEntityRail,
@@ -15,23 +16,21 @@ import { useAgents } from '@renderer/hooks/agents/useAgent'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { usePins } from '@renderer/hooks/usePins'
 import {
-  type AgentGroupAction,
-  type AgentGroupActionContext,
-  executeAgentGroupAction,
-  resolveAgentGroupActions
-} from '@renderer/pages/agents/components/agentGroupActions'
-import {
   type SessionListItem,
   sortSessionsForDisplayGroups
 } from '@renderer/pages/agents/components/sessionListHelpers'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import { Plus } from 'lucide-react'
+import { Pin, PinOff, Plus, SquarePen, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('AgentResourceList')
+
+const AGENT_ENTITY_EDIT_ACTION_ID = 'agent-entity.edit'
+const AGENT_ENTITY_TOGGLE_PIN_ACTION_ID = 'agent-entity.toggle-pin'
+const AGENT_ENTITY_DELETE_ACTION_ID = 'agent-entity.delete'
 
 type AgentResourceListProps = {
   activeAgentId?: string | null
@@ -70,6 +69,9 @@ export function AgentResourceList({
     pinnedIds: agentPinnedIds,
     togglePin: toggleAgentPin
   } = usePins('agent')
+  const { trigger: deleteAgent } = useMutation('DELETE', '/agents/:agentId', {
+    refresh: ['/agents', '/agent-sessions']
+  })
   const { trigger: deleteAgentSessions } = useMutation('DELETE', '/agents/:agentId/sessions', {
     refresh: ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
   })
@@ -159,20 +161,15 @@ export function AgentResourceList({
     [isAgentPinActionDisabled, refetchAgents, t, toggleAgentPin]
   )
 
-  const handleDeleteAgentSessions = useCallback(
+  const handleDeleteAgent = useCallback(
     async (agentId: string) => {
       if (deletingAgentId) return
-
-      const targetSessionIds = sessionItems
-        .filter((session) => session.agentId === agentId)
-        .map((session) => session.id)
-      if (targetSessionIds.length === 0) return
 
       setDeletingAgentId(agentId)
       try {
         const confirmed = await window.modal.confirm({
-          title: t('agent.session.agent.delete.title'),
-          content: t('agent.session.agent.delete.content'),
+          title: t('agent.delete.title'),
+          content: t('agent.delete.content'),
           okText: t('common.delete'),
           cancelText: t('common.cancel'),
           centered: true,
@@ -183,56 +180,88 @@ export function AgentResourceList({
         if (!confirmed) return
 
         await deleteAgentSessions({ params: { agentId } })
+        await deleteAgent({ params: { agentId } })
         if (activeAgentId === agentId) {
           closeRightPane?.()
-          await onStartDraftAgent(agentId)
+          await onStartMissingAgentDraft?.()
         }
 
+        await refetchAgents()
         await reload()
         window.toast.success(t('common.delete_success'))
       } catch (err) {
-        logger.error('Failed to delete agent sessions from old-view rail', { agentId, err, targetSessionIds })
-        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.agent.delete.error.failed')))
+        logger.error('Failed to delete agent from old-view rail', { agentId, err })
+        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.delete.error.failed')))
       } finally {
         setDeletingAgentId(null)
       }
     },
-    [activeAgentId, closeRightPane, deleteAgentSessions, deletingAgentId, onStartDraftAgent, reload, sessionItems, t]
-  )
-
-  const buildActionContext = useCallback(
-    (agentId: string): AgentGroupActionContext => ({
-      agentId,
-      deleteSessionsDisabled: !!deletingAgentId || !sessionItems.some((session) => session.agentId === agentId),
-      onDeleteSessions: handleDeleteAgentSessions,
-      onEdit: openAgentEditor,
-      onTogglePin: handleToggleAgentPin,
-      pinDisabled: isAgentPinActionDisabled,
-      pinned: agentPinnedIdSet.has(agentId),
-      t
-    }),
     [
-      agentPinnedIdSet,
+      activeAgentId,
+      closeRightPane,
+      deleteAgent,
+      deleteAgentSessions,
       deletingAgentId,
-      handleDeleteAgentSessions,
-      handleToggleAgentPin,
-      isAgentPinActionDisabled,
-      openAgentEditor,
-      sessionItems,
+      onStartMissingAgentDraft,
+      refetchAgents,
+      reload,
       t
     ]
   )
 
   const getContextMenuActions = useCallback(
-    (item: ResourceEntityRailItem) => resolveAgentGroupActions(buildActionContext(item.id)),
-    [buildActionContext]
+    (item: ResourceEntityRailItem): ResolvedAction[] => {
+      const pinned = agentPinnedIdSet.has(item.id)
+
+      return [
+        {
+          id: AGENT_ENTITY_EDIT_ACTION_ID,
+          label: t('agent.edit.title'),
+          icon: <SquarePen size={14} />,
+          order: 10,
+          danger: false,
+          availability: { visible: true, enabled: true },
+          children: []
+        },
+        {
+          id: AGENT_ENTITY_TOGGLE_PIN_ACTION_ID,
+          label: pinned ? t('agent.unpin.title') : t('agent.pin.title'),
+          icon: pinned ? <PinOff size={14} /> : <Pin size={14} />,
+          order: 20,
+          danger: false,
+          availability: { visible: true, enabled: !isAgentPinActionDisabled },
+          children: []
+        },
+        {
+          id: AGENT_ENTITY_DELETE_ACTION_ID,
+          label: t('agent.delete.title'),
+          icon: <Trash2 size={14} className="lucide-custom text-destructive" />,
+          group: 'danger',
+          order: 30,
+          danger: true,
+          availability: { visible: true, enabled: deletingAgentId === null },
+          children: []
+        }
+      ]
+    },
+    [agentPinnedIdSet, deletingAgentId, isAgentPinActionDisabled, t]
   )
 
   const handleContextMenuAction = useCallback(
-    (item: ResourceEntityRailItem, action: AgentGroupAction) => {
-      void executeAgentGroupAction(action, buildActionContext(item.id))
+    (item: ResourceEntityRailItem, action: ResolvedAction) => {
+      if (action.id === AGENT_ENTITY_EDIT_ACTION_ID) {
+        openAgentEditor(item.id)
+        return
+      }
+      if (action.id === AGENT_ENTITY_TOGGLE_PIN_ACTION_ID) {
+        void handleToggleAgentPin(item.id)
+        return
+      }
+      if (action.id === AGENT_ENTITY_DELETE_ACTION_ID) {
+        void handleDeleteAgent(item.id)
+      }
     },
-    [buildActionContext]
+    [handleDeleteAgent, handleToggleAgentPin, openAgentEditor]
   )
 
   return (
