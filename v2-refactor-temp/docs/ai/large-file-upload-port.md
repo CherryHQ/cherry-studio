@@ -62,5 +62,5 @@ remains the canonical reference until this port lands.
 - v1 block→part conversion (`convertFileBlockToTextPart` /
   `convertFileBlockToFilePart`). v2 Main operates on `data.parts` directly,
   so block conversion isn't on the critical path.
-- OCR. PDF text extraction currently uses `extractPdfText` (`@shared/utils/pdf`).
+- OCR. PDF text extraction currently uses `extractPdfText` (`@main/utils/pdf`).
   Swapping to a real OCR service is a separate epic.
