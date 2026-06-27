@@ -1,7 +1,7 @@
 import { FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FilePath } from '@shared/types/file'
-import { toSafeFileUrl } from '@shared/utils/file/urlUtil'
+import { toSafeFileUrl } from '@shared/utils/file/url'
 import { File, FileCode2, FileImage, FileJson, FileSpreadsheet, FileText, FileType2, Presentation } from 'lucide-react'
 import type { ComponentType, ReactNode } from 'react'
 

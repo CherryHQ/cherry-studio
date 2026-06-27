@@ -6966,7 +6966,6 @@
       "cherryin": {
         "api_host": {
           "acceleration": "加速度領域",
-          "backup": "バックアップドメイン",
           "international": "国際ドメイン"
         }
       },

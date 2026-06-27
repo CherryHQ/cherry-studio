@@ -32,7 +32,7 @@
  * | `includeRefCount`   | `GET /files/entries/ref-counts?entryIds=...` (still DataApi, dedicated)|
  * | `includeDangling`   | File IPC `getDanglingState` / `batchGetDanglingStates` (FS-backed)     |
  * | `includePath`       | File IPC `getPhysicalPath` / `batchGetPhysicalPaths` (main resolver)   |
- * | `includeUrl`        | Shared pure helper `toSafeFileUrl(path, ext)` in `@shared/utils/file/urlUtil`, composed in-process from the `FilePath` returned by `getPhysicalPath` (no dedicated IPC) |
+ * | `includeUrl`        | Shared pure helper `toSafeFileUrl(path, ext)` in `@shared/utils/file/url`, composed in-process from the `FilePath` returned by `getPhysicalPath` (no dedicated IPC) |
  *
  * Renderers compose data by fetching the entry list here, then calling the relevant
  * batch IPC methods with the retrieved ids. Wrap the two-step pattern in a dedicated

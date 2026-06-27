@@ -1,11 +1,11 @@
 import { application } from '@application'
 import { WebContentsListener } from '@main/ai/streamManager/listeners/WebContentsListener'
+import { serializeError } from '@main/ai/utils/serializeError'
 import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { IpcError } from '@shared/ipc/errors'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import type { aiRequestSchemas } from '@shared/ipc/schemas/ai'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
-import { serializeError } from '@shared/utils/error'
 
 /**
  * Thin adapters for the AI routes. The non-streaming model ops delegate to `AiService`;

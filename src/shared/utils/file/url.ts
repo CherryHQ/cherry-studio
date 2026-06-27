@@ -45,7 +45,7 @@
  * access, or main-process singletons belongs in File IPC.
  */
 
-import type { FilePath, FileURLString } from '@shared/types/file'
+import type { FilePath, FileUrlString } from '@shared/types/file'
 
 // ─── Danger extension policy ───
 
@@ -161,7 +161,7 @@ function dirnameSimple(absolutePath: string): string {
  * @param absolutePath Absolute filesystem path (Unix or Windows form).
  * @returns `file://` URL suitable for `<img src>` / `<video src>` / `<embed>`.
  */
-export function toFileUrl(absolutePath: FilePath): FileURLString {
+export function toFileUrl(absolutePath: FilePath): FileUrlString {
   let normalized: string = absolutePath.replace(/\\/g, '/')
   if (/^[A-Za-z]:/.test(normalized)) {
     normalized = '/' + normalized
@@ -187,7 +187,7 @@ export function toFileUrl(absolutePath: FilePath): FileURLString {
  * Throws `TypeError` for a non-`file:` URL and `URIError` for malformed
  * percent-encoding (via `decodeURIComponent`).
  */
-export function fileUrlToPath(fileUrl: FileURLString | URL): string {
+export function fileUrlToPath(fileUrl: FileUrlString | URL): string {
   const url = typeof fileUrl === 'string' ? new URL(fileUrl) : fileUrl
   if (url.protocol !== 'file:') {
     throw new TypeError('Expected a file:// URL')
@@ -214,7 +214,7 @@ export function fileUrlToPath(fileUrl: FileURLString | URL): string {
  * @param absolutePath Absolute filesystem path (from `getPhysicalPath` IPC).
  * @param ext File extension without leading dot (from `FileEntry.ext`), or `null`.
  */
-export function toSafeFileUrl(absolutePath: FilePath, ext: string | null): FileURLString {
+export function toSafeFileUrl(absolutePath: FilePath, ext: string | null): FileUrlString {
   const effectivePath = isDangerExt(ext) ? dirnameSimple(absolutePath) : absolutePath
   return toFileUrl(effectivePath as FilePath)
 }

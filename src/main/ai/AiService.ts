@@ -20,7 +20,7 @@ import { type Assistant } from '@shared/data/types/assistant'
 import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { Base64String, URLString } from '@shared/types/file/common'
+import type { Base64String, UrlString } from '@shared/types/file/common'
 import { isEmbeddingModel, isFunctionCallingModel, isRerankModel } from '@shared/utils/model'
 import {
   type EmbeddingModelUsage,
@@ -115,10 +115,10 @@ export interface AiImageResult {
  */
 export function imageInputEntryParams(
   value: string
-): { source: 'base64'; data: Base64String } | { source: 'url'; url: URLString } {
+): { source: 'base64'; data: Base64String } | { source: 'url'; url: UrlString } {
   return value.startsWith('data:')
     ? { source: 'base64', data: value as Base64String }
-    : { source: 'url', url: value as URLString }
+    : { source: 'url', url: value as UrlString }
 }
 
 /**

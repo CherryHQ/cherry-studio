@@ -1,3 +1,5 @@
+import { trim } from 'lodash'
+
 /**
  * Matches an API version at the end of a URL (with optional trailing slash).
  * Used to detect and extract versions only from the trailing position.
@@ -40,7 +42,7 @@ export function splitApiKeyString(keyStr: string): string[] {
  * @param host - The host or path string to check.
  * @returns True if the path contains a version string, false otherwise.
  */
-export function hasAPIVersion(host?: string): boolean {
+export function hasApiVersion(host?: string): boolean {
   if (!host) return false
 
   try {
@@ -147,4 +149,47 @@ export function isWithTrailingSharp<T extends string>(url: T): boolean {
  */
 export function withoutTrailingSharp<T extends string>(url: T): T {
   return url.replace(/#$/, '') as T
+}
+
+/**
+ * Formats an API host URL by normalizing it and optionally appending an API version.
+ *
+ * @param host - The API host URL to format. Leading/trailing whitespace will be trimmed and trailing slashes removed.
+ * @param supportApiVersion - Whether the API version is supported. Defaults to `true`.
+ * @param apiVersion - The API version to append if needed. Defaults to `'v1'`.
+ *
+ * @returns The formatted API host URL. If the host is empty after normalization, returns an empty string.
+ *          If the host ends with '#', API version is not supported, or the host already contains a version, returns the normalized host with trailing '#' removed.
+ *          Otherwise, returns the host with the API version appended.
+ *
+ * @example
+ * formatApiHost('https://api.example.com/') // Returns 'https://api.example.com/v1'
+ * formatApiHost('https://api.example.com#') // Returns 'https://api.example.com'
+ * formatApiHost('https://api.example.com/v2', true, 'v1') // Returns 'https://api.example.com/v2'
+ */
+export function formatApiHost(host?: string, supportApiVersion: boolean = true, apiVersion: string = 'v1'): string {
+  const normalizedHost = withoutTrailingSlash(trim(host))
+  if (!normalizedHost) {
+    return ''
+  }
+
+  const shouldAppendApiVersion = !(normalizedHost.endsWith('#') || !supportApiVersion || hasApiVersion(normalizedHost))
+
+  if (shouldAppendApiVersion) {
+    return `${normalizedHost}/${apiVersion}`
+  } else {
+    return withoutTrailingSharp(normalizedHost)
+  }
+}
+
+/**
+ * Normalise an Ollama base URL: strip trailing `/v1` / `/api` / `/chat`,
+ * append `/api`.
+ */
+export function formatOllamaApiHost(host: string): string {
+  const normalizedHost = withoutTrailingSlash(host)
+    ?.replace(/\/v1$/, '')
+    ?.replace(/\/api$/, '')
+    ?.replace(/\/chat$/, '')
+  return formatApiHost(normalizedHost + '/api', false)
 }

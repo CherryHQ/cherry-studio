@@ -1,4 +1,4 @@
-import { buildKeywordRegexes, type KeywordMatchMode } from './keywordSearch'
+import { buildKeywordRegexes, type KeywordMatchMode } from '@shared/utils/keywordSearch'
 
 const SEARCH_SNIPPET_CONTEXT_LINES = 1
 const SEARCH_SNIPPET_MAX_LINES = 12

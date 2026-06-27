@@ -6970,7 +6970,6 @@
       "cherryin": {
         "api_host": {
           "acceleration": "加速域名",
-          "backup": "备用域名",
           "international": "国际域名"
         }
       },

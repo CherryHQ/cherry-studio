@@ -54,10 +54,6 @@ vi.mock('@application', () => ({
   }
 }))
 
-vi.mock('..', () => ({
-  toAsarUnpackedPath: (filePath: string) => filePath
-}))
-
 vi.mock('semver', () => ({
   gte: (version: string, range: string) => {
     const [aMaj, aMin, aPat] = version.split('.').map(Number)

@@ -14,18 +14,13 @@ interface CherryInSettingsProps {
 
 const API_HOST_OPTIONS = [
   {
-    value: 'open.cherryin.cc',
-    labelKey: 'settings.provider.cherryin.api_host.acceleration',
-    description: 'open.cherryin.cc'
-  },
-  {
     value: 'open.cherryin.net',
-    labelKey: 'settings.provider.cherryin.api_host.international',
+    labelKey: 'settings.provider.cherryin.api_host.acceleration',
     description: 'open.cherryin.net'
   },
   {
     value: 'open.cherryin.ai',
-    labelKey: 'settings.provider.cherryin.api_host.backup',
+    labelKey: 'settings.provider.cherryin.api_host.international',
     description: 'open.cherryin.ai'
   }
 ]

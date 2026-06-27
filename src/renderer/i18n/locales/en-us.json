@@ -6970,7 +6970,6 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Acceleration domain",
-          "backup": "Backup domain",
           "international": "International domain"
         }
       },
