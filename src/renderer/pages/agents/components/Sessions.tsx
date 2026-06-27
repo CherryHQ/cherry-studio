@@ -53,7 +53,6 @@ import {
   History,
   ListFilter,
   MoreHorizontal,
-  PanelLeft,
   SquarePen
 } from 'lucide-react'
 import { memo, type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -135,13 +134,11 @@ function SessionListOptionsMenu({
   mode,
   onChange,
   onOpenHistoryRecords,
-  onToggleSidebar,
   sectionId
 }: {
   mode: AgentSessionDisplayMode
   onChange: (mode: AgentSessionDisplayMode) => void
   onOpenHistoryRecords?: () => void
-  onToggleSidebar: () => void
   sectionId?: string
 }) {
   const { t } = useTranslation()
@@ -188,7 +185,7 @@ function SessionListOptionsMenu({
               />
             </>
           )}
-          <MenuDivider />
+          {onOpenHistoryRecords && <MenuDivider />}
           {onOpenHistoryRecords && (
             <MenuItem
               size="sm"
@@ -200,16 +197,6 @@ function SessionListOptionsMenu({
               }}
             />
           )}
-          {onOpenHistoryRecords && <MenuDivider />}
-          <MenuItem
-            size="sm"
-            icon={<PanelLeft size={16} />}
-            label={t('settings.shortcuts.toggle_left_sidebar')}
-            onClick={() => {
-              onToggleSidebar()
-              setOpen(false)
-            }}
-          />
         </MenuList>
       </PopoverContent>
     </Popover>
@@ -371,7 +358,6 @@ const Sessions = ({
   const isRightPanel = presentation === 'right-panel'
   const conversationNav = useConversationNavigation('agents')
   const [groupNow] = useState(() => new Date())
-  const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
   const [sessionExpansionTime, setSessionExpansionTime] = usePersistCache('ui.agent.session.expansion.time')
   const [sessionExpansionAgent, setSessionExpansionAgent] = usePersistCache('ui.agent.session.expansion.agent')
@@ -669,10 +655,6 @@ const Sessions = ({
       findLatestCreateSessionSeed(filteredGroupedSessions, (session) => sessionGroupBy(session)?.id === groupId),
     [filteredGroupedSessions, sessionGroupBy]
   )
-  const handleToggleSidebar = useCallback(() => {
-    void setShowSidebar(!showSidebar)
-  }, [setShowSidebar, showSidebar])
-
   const handleDeleteSession = useCallback(
     async (id: string) => {
       const success = await deleteSession(id)
@@ -1492,7 +1474,6 @@ const Sessions = ({
                 mode={displayMode}
                 onChange={(nextMode) => void setSessionDisplayMode(nextMode)}
                 onOpenHistoryRecords={onOpenHistoryRecords}
-                onToggleSidebar={handleToggleSidebar}
                 sectionId={
                   displayMode === 'agent'
                     ? SESSION_AGENT_SECTION_ID

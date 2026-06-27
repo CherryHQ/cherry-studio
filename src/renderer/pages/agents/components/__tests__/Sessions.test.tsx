@@ -490,8 +490,7 @@ vi.mock('react-i18next', () => ({
         'selector.common.sort.asc': 'Oldest first',
         'selector.common.sort.desc': 'Newest first',
         'selector.common.sort_label': 'Sort',
-        'selector.common.unpin': 'Unpin',
-        'settings.shortcuts.toggle_left_sidebar': 'Toggle Left Sidebar'
+        'selector.common.unpin': 'Unpin'
       }
       return labels[key] ?? key
     }
@@ -1299,15 +1298,6 @@ describe('Sessions', () => {
       workspace: { type: 'user', workspaceId: 'ws-b' }
     })
     await vi.waitFor(() => expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith(null, null))
-  })
-
-  it('toggles the left agent sidebar from the list options menu', () => {
-    render(<SessionsForTest />)
-
-    openSessionListOptions()
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle Left Sidebar' }))
-
-    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('topic.tab.show', false)
   })
 
   it('reveals a history-selected session hidden by search and show-more with row focus', async () => {
