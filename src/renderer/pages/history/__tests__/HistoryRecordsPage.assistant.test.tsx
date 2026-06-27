@@ -1306,7 +1306,6 @@ describe('HistoryRecordsPage locale resources', () => {
       'status.failed',
       'status.running',
       'table.emptyValue',
-      'table.messages',
       'table.actions',
       'table.session',
       'table.time',
