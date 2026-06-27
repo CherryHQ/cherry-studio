@@ -10,8 +10,8 @@
 // types-contracts,registry,hooks}.md.
 
 // type-only imports keep this module side-effect-free (no runtime cycle with contexts).
-import type { DbColumnName, DbTableName, ForeignKeyFact, PrimaryKeyFact } from './dbSchemaRefs'
-import type { BackupDomain, ConflictStrategy } from './domains'
+import type { FileRefSourceType } from '@shared/data/types/file/ref'
+
 // Hook-context types live in contexts.ts (they reference the BackupScopedDb class);
 // BackupContributorOperations below references them. This is a type-only intra-layer
 // edge (erased at runtime), not a neutral→services reverse dependency.
@@ -24,7 +24,8 @@ import type {
   RestoreResourceResult,
   RowTransformContext
 } from './contexts'
-import type { FileRefSourceType } from '@shared/data/types/file/ref'
+import type { DbColumnName, DbTableName, ForeignKeyFact, PrimaryKeyFact } from './dbSchemaRefs'
+import type { BackupDomain, ConflictStrategy } from './domains'
 
 // ─── Reference + identity classification ───────────────────────────────────────
 

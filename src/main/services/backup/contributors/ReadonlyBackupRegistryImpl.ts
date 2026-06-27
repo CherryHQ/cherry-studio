@@ -29,8 +29,8 @@ import {
   type ForeignKeyFact,
   type PrimaryKeyFact
 } from '@main/data/db/backup/dbSchemaRefs'
-import { INFRASTRUCTURE_TABLES } from '@main/data/db/backup/exclusions'
 import { BACKUP_DOMAINS, type BackupDomain } from '@main/data/db/backup/domains'
+import { INFRASTRUCTURE_TABLES } from '@main/data/db/backup/exclusions'
 import type { FileRefSourceType } from '@shared/data/types/file/ref'
 
 /** Brand marking a genuinely finalized registry instance. */

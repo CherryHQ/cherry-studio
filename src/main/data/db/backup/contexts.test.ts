@@ -1,12 +1,12 @@
 // Tests for the BackupScopedDb allowedTables write boundary and BackupReadonlyDb
 // (the runtime parts of contexts.ts). The contributor-types.ts interfaces are pure
 // types — their correctness is enforced by tsc, not runtime assertions.
-import { describe, expect, it } from 'vitest'
-import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
-
 import type { DbOrTx } from '@main/data/db/types'
-import type { DbTableName } from './dbSchemaRefs'
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { describe, expect, it } from 'vitest'
+
 import { BackupReadonlyDb, BackupScopedDb, ContributorWriteBoundaryViolationError } from './contexts'
+import type { DbTableName } from './dbSchemaRefs'
 
 // Two throwaway tables for boundary checks. Their names are what the guard compares
 // against the allowedTables set.

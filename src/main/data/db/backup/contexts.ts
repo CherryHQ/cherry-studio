@@ -9,14 +9,13 @@
 //
 // Contract: openspec/.../modular-backup-contributor/{contexts,hooks}.md.
 
+import type { LoggerService } from '@logger'
+import type { DbOrTx } from '@main/data/db/types'
 import { getTableName, type Table } from 'drizzle-orm'
 
-import type { DbOrTx } from '@main/data/db/types'
-import type { LoggerService } from '@logger'
-
 import type { AggregateBoundary, ReadonlyBackupRegistry } from './contributor-types'
-import type { BackupDomain, ConflictStrategy } from './domains'
 import type { DbTableName } from './dbSchemaRefs'
+import type { BackupDomain, ConflictStrategy } from './domains'
 
 /** spec writes `Logger` but the codebase only has `LoggerService` (withContext returns it). */
 export type Logger = LoggerService

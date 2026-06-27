@@ -6,8 +6,6 @@
 // declaration that should trip it. The fixture maps 14 domains onto 14 real
 // tables (FK-free where possible) and covers all 4 FileRefSourceTypes, so it
 // satisfies #1–#25 without the real B-track contributors.
-import { describe, expect, it } from 'vitest'
-
 import type {
   AggregateBoundary,
   BackupContributor,
@@ -17,13 +15,14 @@ import type {
   JsonSoftReferencePolicy,
   RowScope
 } from '@main/data/db/backup/contributor-types'
-import { BACKUP_DOMAINS, type BackupDomain } from '@main/data/db/backup/domains'
 import {
   DB_PRIMARY_KEYS,
   type DbColumnName,
   type DbTableName,
   type PrimaryKeyFact
 } from '@main/data/db/backup/dbSchemaRefs'
+import { BACKUP_DOMAINS, type BackupDomain } from '@main/data/db/backup/domains'
+import { describe, expect, it } from 'vitest'
 
 import { ContributorFinalizeError } from './ContributorFinalizeError'
 import { ContributorManager } from './ContributorManager'
