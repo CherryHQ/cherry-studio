@@ -501,6 +501,30 @@ describe('AgentPage', () => {
     expect(screen.queryByTestId('agent-side-panel')).not.toBeInTheDocument()
   })
 
+  it('selects the latest historical session by default when entering old view without a route session', async () => {
+    agentPageMocks.workView = 'old'
+    agentPageMocks.routeSearch = {}
+    agentPageMocks.oldViewSessions = [
+      {
+        ...agentPageMocks.persistedSession,
+        id: 'session-older',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      },
+      {
+        ...agentPageMocks.persistedSession,
+        id: 'session-latest',
+        updatedAt: '2026-01-03T00:00:00.000Z'
+      }
+    ]
+
+    render(<AgentPage />)
+
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-latest'))
+    expect(screen.getByTestId('active-session')).toHaveTextContent('session-latest')
+    expect(screen.getByTestId('draft-session')).toHaveTextContent('')
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+  })
+
   it('creates and activates an empty session after selecting an agent from the old-view picker', async () => {
     agentPageMocks.workView = 'old'
     agentPageMocks.routeSearch = {}

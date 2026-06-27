@@ -46,13 +46,34 @@ function isUserWorkspaceSession(session: AgentSessionEntity | null | undefined):
   return !!session?.workspaceId && session.workspace?.type !== 'system'
 }
 
+function findLatestUpdatedSession<T extends { updatedAt?: string }>(sessions: readonly T[]): T | undefined {
+  let latestSession: T | undefined
+  let latestUpdatedAtMs = Number.NEGATIVE_INFINITY
+
+  for (const session of sessions) {
+    const parsedUpdatedAtMs = session.updatedAt ? Date.parse(session.updatedAt) : Number.NEGATIVE_INFINITY
+    const updatedAtMs = Number.isFinite(parsedUpdatedAtMs) ? parsedUpdatedAtMs : Number.NEGATIVE_INFINITY
+    if (!latestSession || updatedAtMs > latestUpdatedAtMs) {
+      latestSession = session
+      latestUpdatedAtMs = updatedAtMs
+    }
+  }
+
+  return latestSession
+}
+
 const AgentPage = () => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [workView] = usePreference('chat.work_view')
   const isOldView = workView === 'old'
   // Old view shares this full-sessions source with the rail; new view leaves it disabled (no fetch).
   // The picker uses it to reuse an empty placeholder session instead of stacking new ones.
-  const { sessions: oldViewSessions } = useAgentSessionsSource({ enabled: isOldView })
+  const {
+    sessions: oldViewSessions,
+    isLoadingAll: isOldViewSessionsLoading = false,
+    isFullyLoaded: isOldViewSessionsFullyLoaded = true
+  } = useAgentSessionsSource({ enabled: isOldView })
+  const isOldViewSessionHistoryReady = !isOldView || (!isOldViewSessionsLoading && isOldViewSessionsFullyLoaded)
   const routeSearch = parseAgentRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
   const currentTab = useCurrentTab()
   const routeSessionId = routeSearch.sessionId
@@ -551,6 +572,26 @@ const AgentPage = () => {
       return
     }
 
+    if (missingAgentDraft || activeSessionId || visibleDraftSession) {
+      initialDraftSessionEvaluatedRef.current = true
+      return
+    }
+
+    if (isOldView) {
+      if (!isOldViewSessionHistoryReady) return
+
+      const latestSession = findLatestUpdatedSession(oldViewSessions)
+      if (latestSession) {
+        initialDraftSessionEvaluatedRef.current = true
+        setPendingLocateMessageId(undefined)
+        pendingSelectedSessionRef.current = latestSession
+        setDraftSessionState(null)
+        setMissingAgentDraft(false)
+        setActiveSessionId(latestSession.id)
+        return
+      }
+    }
+
     if (isAgentsLoading) return
 
     if (!agents.length) {
@@ -559,11 +600,6 @@ const AgentPage = () => {
         setActiveSessionId(null)
       }
       setMissingAgentDraft(true)
-      return
-    }
-
-    if (missingAgentDraft || activeSessionId || visibleDraftSession) {
-      initialDraftSessionEvaluatedRef.current = true
       return
     }
 
@@ -577,9 +613,13 @@ const AgentPage = () => {
     agents,
     isAgentsLoading,
     isMessageOnlyView,
+    isOldView,
+    isOldViewSessionHistoryReady,
     lastUsedAgentId,
     missingAgentDraft,
+    oldViewSessions,
     setActiveSessionId,
+    setDraftSessionState,
     startDraftSession,
     visibleDraftSession
   ])

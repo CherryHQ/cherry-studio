@@ -575,6 +575,21 @@ describe('HomePage', () => {
     expect(screen.queryByTestId('home-tabs')).not.toBeInTheDocument()
   })
 
+  it('selects the latest historical topic by default when entering old view without a route topic', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.preferenceValues.set('chat.conversation_view', 'old')
+    homeMocks.oldViewTopics = [
+      { ...historyTopic, id: 'topic-older', updatedAt: '2026-01-01T00:00:00.000Z' },
+      { ...historyTopic, id: 'topic-latest', updatedAt: '2026-01-03T00:00:00.000Z' }
+    ]
+
+    render(<HomePage />)
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-latest'))
+    expect(screen.queryByTestId('draft-composer')).not.toBeInTheDocument()
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
   it('creates and activates an empty topic after selecting an existing assistant from the old-view picker', async () => {
     homeMocks.preferenceValues.set('chat.conversation_view', 'old')
     homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-2' })

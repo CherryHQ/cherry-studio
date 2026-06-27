@@ -68,6 +68,22 @@ type DraftAssistantSelection = {
   assistantId?: string
 }
 
+function findLatestUpdatedTopic<T extends { updatedAt?: string }>(topics: readonly T[]): T | undefined {
+  let latestTopic: T | undefined
+  let latestUpdatedAtMs = Number.NEGATIVE_INFINITY
+
+  for (const topic of topics) {
+    const parsedUpdatedAtMs = topic.updatedAt ? Date.parse(topic.updatedAt) : Number.NEGATIVE_INFINITY
+    const updatedAtMs = Number.isFinite(parsedUpdatedAtMs) ? parsedUpdatedAtMs : Number.NEGATIVE_INFINITY
+    if (!latestTopic || updatedAtMs > latestUpdatedAtMs) {
+      latestTopic = topic
+      latestUpdatedAtMs = updatedAtMs
+    }
+  }
+
+  return latestTopic
+}
+
 type DraftChatSendOptions = {
   files?: FileMetadata[]
   mentionedModels?: UniqueModelId[]
@@ -93,7 +109,12 @@ const HomePage: FC = () => {
   const isOldView = conversationView === 'old'
   // Old view shares this full-topics source with the rail; new view leaves it disabled (no fetch).
   // The picker uses it to reuse an empty placeholder topic instead of stacking new ones.
-  const { topics: oldViewTopics } = useAssistantTopicsSource({ enabled: isOldView })
+  const {
+    topics: oldViewTopics,
+    isLoadingAll: isOldViewTopicsLoading = false,
+    isFullyLoaded: isOldViewTopicsFullyLoaded = true
+  } = useAssistantTopicsSource({ enabled: isOldView })
+  const isOldViewTopicHistoryReady = !isOldView || (!isOldViewTopicsLoading && isOldViewTopicsFullyLoaded)
   const [historyRecordsOpen, setHistoryRecordsOpen] = useState(false)
   const [assistantPickerOpen, setAssistantPickerOpen] = useState(false)
 
@@ -382,6 +403,17 @@ const HomePage: FC = () => {
     if (!shouldUseDraft || draftAssistantStartStateRef.current.firstLaunchStarted || state?.topic) return
     if (draftAssistantSelectionSnapshot || activeTopic || isActiveTopicLoading) return
     if (!isAssistantListResolved) return
+    if (isOldView && !isOldViewTopicHistoryReady) return
+
+    if (isOldView && !routeAssistantId) {
+      const latestTopic = findLatestUpdatedTopic(oldViewTopics)
+      if (latestTopic) {
+        draftAssistantStartStateRef.current.firstLaunchStarted = true
+        setDraftAssistantSelectionState(undefined)
+        setActiveTopic(mapApiTopicToRendererTopic(latestTopic))
+        return
+      }
+    }
 
     draftAssistantStartStateRef.current.firstLaunchStarted = true
     startDraftAssistantSelection(routeAssistantId ? { assistantId: routeAssistantId } : undefined)
@@ -390,7 +422,12 @@ const HomePage: FC = () => {
     draftAssistantSelectionSnapshot,
     isActiveTopicLoading,
     isAssistantListResolved,
+    isOldView,
+    isOldViewTopicHistoryReady,
+    oldViewTopics,
     routeAssistantId,
+    setActiveTopic,
+    setDraftAssistantSelectionState,
     shouldUseDraft,
     startDraftAssistantSelection,
     state?.topic
