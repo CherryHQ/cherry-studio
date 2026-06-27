@@ -47,7 +47,7 @@ vi.mock('@renderer/components/CodeViewer', () => ({
   default: mocks.CodeViewer
 }))
 
-vi.mock('@renderer/context/CodeStyleProvider', () => ({
+vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({ activeCmTheme: 'light' })
 }))
 

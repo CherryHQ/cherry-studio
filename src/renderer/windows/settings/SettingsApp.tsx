@@ -1,24 +1,19 @@
 import { Alert, Button } from '@cherrystudio/ui'
+import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
+import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import TopViewContainer from '@renderer/components/TopView'
-import AntdProvider from '@renderer/context/AntdProvider'
-import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
-import { NotificationProvider } from '@renderer/context/NotificationProvider'
-import StyleSheetManager from '@renderer/context/StyleSheetManager'
-import { ThemeProvider } from '@renderer/context/ThemeProvider'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import i18n from '@renderer/i18n'
 import { routeTree } from '@renderer/routeTree.gen'
 import NavigationService from '@renderer/services/NavigationService'
-import store from '@renderer/store'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import { normalizeSettingsPath } from '@shared/data/types/settingsPath'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
 import { type CSSProperties, useEffect, useMemo } from 'react'
-import { Provider } from 'react-redux'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -94,35 +89,27 @@ function SettingsApp({ initialPath }: { initialPath: string }): React.ReactEleme
   useSettingsWindowFormControlText()
 
   return (
-    <Provider store={store}>
-      <QueryClientProvider client={queryClient}>
-        <StyleSheetManager>
-          <ThemeProvider>
-            <AntdProvider>
-              <NotificationProvider>
-                <CodeStyleProvider>
-                  <CommandContextKeyProvider>
-                    <CommandProvider>
-                      <TopViewContainer>
-                        <div
-                          className={cn(
-                            'flex h-screen w-screen overflow-hidden text-foreground',
-                            settingsWindowFormControlTextClassName,
-                            isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
-                          )}
-                          style={shellStyle}>
-                          <SettingsWindowRouter initialPath={initialPath} />
-                        </div>
-                      </TopViewContainer>
-                    </CommandProvider>
-                  </CommandContextKeyProvider>
-                </CodeStyleProvider>
-              </NotificationProvider>
-            </AntdProvider>
-          </ThemeProvider>
-        </StyleSheetManager>
-      </QueryClientProvider>
-    </Provider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <CodeStyleProvider>
+          <CommandContextKeyProvider>
+            <CommandProvider>
+              <TopViewContainer>
+                <div
+                  className={cn(
+                    'flex h-screen w-screen overflow-hidden text-foreground',
+                    settingsWindowFormControlTextClassName,
+                    isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
+                  )}
+                  style={shellStyle}>
+                  <SettingsWindowRouter initialPath={initialPath} />
+                </div>
+              </TopViewContainer>
+            </CommandProvider>
+          </CommandContextKeyProvider>
+        </CodeStyleProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   )
 }
 

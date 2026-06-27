@@ -94,7 +94,7 @@ import { application } from '@application'
 const cacheService = application.get('CacheService')
 ```
 
-Main does not expose casual methods or Persist storage. Persist sync goes through Main as an IPC relay only.
+Main does not expose casual methods. Main has its own persist storage — an independent JSON file (`{userData}/cache.json`) accessed via `getPersist` / `setPersist` / `hasPersist`, separate from the renderer's `localStorage` persist and never shared with it. Renderer-origin persist sync still goes through Main as an IPC relay only.
 
 ### Internal and Shared Access
 

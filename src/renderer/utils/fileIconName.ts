@@ -248,7 +248,7 @@ export function getFileIconName(filePath: string): string {
   // Check compound extensions (e.g. .d.ts, .spec.ts)
   const parts = filename.split('.')
   if (parts.length > 2) {
-    const compoundExt = parts.slice(-2).join('.')
+    const compoundExt = parts.slice(-2).join('.').toLowerCase()
     if (extensionMap[compoundExt]) return extensionMap[compoundExt]
   }
 

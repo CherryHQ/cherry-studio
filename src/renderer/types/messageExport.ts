@@ -1,6 +1,6 @@
 import type { CherryMessagePart, CherryUIMessage, MessageStats, MessageStatus } from '@shared/data/types/message'
 
-import type { Model } from './index'
+import type { Model } from './model'
 import type { Message } from './newMessage'
 
 export interface MessageExportView {

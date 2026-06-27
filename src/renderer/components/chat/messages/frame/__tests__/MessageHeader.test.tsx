@@ -23,11 +23,11 @@ vi.mock('@renderer/config/models', () => ({
   getModelLogo: () => null
 }))
 
-vi.mock('@renderer/context/ThemeProvider', () => ({
+vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'light' })
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/naming', () => ({
   firstLetter: (value: string) => value.slice(0, 1),
   isEmoji: () => false,
   removeLeadingEmoji: (value: string) => value

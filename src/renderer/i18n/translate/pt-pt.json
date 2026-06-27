@@ -224,7 +224,12 @@
           "runFailed": "Falha ao executar a tarefa",
           "updateFailed": "Falha ao atualizar a tarefa"
         },
-        "intervalPlaceholder": "Intervalo em minutos",
+        "frequency": {
+          "everyPrefix": "A cada",
+          "everySuffix": "minutos",
+          "label": "Frequência de execução"
+        },
+        "intervalPlaceholder": "Pelo menos 1",
         "intervalUnit": "minutos",
         "lastRun": "Última execução",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Intervalo",
-          "label": "Tipo de agendamento",
           "once": "Uma vez"
         },
-        "scheduleValue": "Valor do agendamento",
         "status": {
           "active": "Ativo",
           "completed": "Concluído",
@@ -277,7 +280,7 @@
           "minutesAgo": "{{count}}m atrás"
         },
         "timeout": {
-          "label": "Tempo esgotado",
+          "label": "Tempo máximo de execução",
           "placeholder": "Sem limite"
         },
         "title": "Tarefas agendadas"
@@ -2345,6 +2348,7 @@
   "files": {
     "actions": "Ações",
     "all": "Todos os Arquivos",
+    "audio": "Áudio",
     "batch_delete": "excluir em massa",
     "batch_operation": "Selecionar tudo",
     "count": "Número de Arquivos",
@@ -2358,22 +2362,52 @@
       },
       "title": "Excluir Arquivo"
     },
+    "delete_or_remove": "Excluir / remover",
     "document": "Documento",
+    "drag_upload": "Arraste os ficheiros aqui para fazer upload",
     "edit": "Editar",
+    "empty": {
+      "no_match_description": "Nenhum arquivo corresponde aos filtros atuais",
+      "no_match_title": "Nenhum arquivo correspondente encontrado"
+    },
     "error": {
-      "open_path": "Não foi possível abrir o caminho: {{path}}"
+      "delete_failed": "Falha ao excluir arquivos",
+      "delete_partial_failed": "Alguns arquivos não puderam ser excluídos",
+      "import_failed": "Falha ao importar arquivos",
+      "import_partial_failed": "Alguns arquivos não puderam ser importados",
+      "open_path": "Não foi possível abrir o caminho: {{path}}",
+      "rename_failed": "Falha ao renomear o arquivo",
+      "restore_failed": "Falha ao restaurar arquivos",
+      "restore_partial_failed": "Alguns arquivos não puderam ser restaurados"
     },
     "file": "Arquivo",
+    "footer_count": "{{count}} ficheiros",
+    "footer_selected_count": "{{count}} selecionado",
     "image": "Imagem",
+    "missing": "Ausente",
+    "modified_at": "Modificado em",
     "name": "Nome do Arquivo",
     "open": "Abrir",
+    "other": "Outro",
+    "permanent_delete": "Excluir permanentemente",
+    "permanent_delete_confirm": {
+      "description": "Isso removerá permanentemente {{count}} arquivo(s). Esta ação não pode ser desfeita.",
+      "title": "Excluir arquivos permanentemente?"
+    },
     "preview": {
       "error": "Falha ao abrir o arquivo"
     },
+    "remove_from_library": "Remover da biblioteca",
+    "rename": "Renomear",
+    "restore": "Restaurar",
+    "selected_count": "{{count}} ficheiros selecionados",
+    "show_in_folder": "Mostrar na pasta",
     "size": "Tamanho",
     "text": "Texto",
     "title": "Arquivo",
-    "type": "Tipo"
+    "trash": "Lixo",
+    "type": "Tipo",
+    "video": "Vídeo"
   },
   "globalSearch": {
     "clear": "Limpar pesquisa",
@@ -2767,6 +2801,8 @@
       "chunk_overlap_invalid": "A sobreposição de blocos deve ser maior ou igual a 0",
       "chunk_overlap_must_be_smaller": "A sobreposição de blocos deve ser menor que o tamanho do bloco",
       "chunk_overlap_requires_chunk_size": "O tamanho do bloco é obrigatório quando a sobreposição de blocos está definida",
+      "chunk_separator": "Separador",
+      "chunk_separator_required": "Separador é obrigatório quando o particionamento inteligente está desativado",
       "chunk_size": "Tamanho do Chunk",
       "chunk_size_change_warning": "As alterações no tamanho do chunk e na sobreposição aplicam-se apenas ao conteúdo recém-adicionado",
       "chunk_size_invalid": "O tamanho do bloco deve ser maior que 0",
@@ -2779,6 +2815,7 @@
       "file_processing_hint": "O processamento de arquivos é executado automaticamente durante a importação do documento. Escolher o provedor certo pode melhorar a qualidade da análise do documento.",
       "hints": {
         "chunk_overlap": "Número de tokens sobrepostos mantidos entre blocos adjacentes para reduzir quebras semânticas.",
+        "chunk_separator": "Delimitador no qual o texto é dividido, em forma escapada. Com a divisão inteligente ativada, ele adiciona um ponto de interrupção; com ela desativada, o texto é dividido apenas por esse delimitador.",
         "chunk_size": "Contagem-alvo de tokens para cada fragmento de documento. Isso afeta a granularidade da recuperação e o comprimento do contexto.",
         "document_count": "Número máximo de blocos de documentos retornados para cada recuperação. Valores mais altos cobrem mais conteúdo, mas utilizam mais contexto.",
         "embedding_model": "Usado para converter o conteúdo da base de conhecimento em vetores. Alterar o modelo geralmente exige reindexar o conteúdo existente.",
@@ -2786,6 +2823,7 @@
         "processor": "Analisador utilizado ao importar arquivos para extrair o texto principal, tabelas e conteúdo relacionado.",
         "rerank_model": "Modelo usado para reordenar os resultados iniciais da recuperação e melhorar a relevância final dos chunks.",
         "search_mode": "Escolha um modo de recuperação: busca vetorial para correspondência semântica, busca de texto completo para palavras-chave ou busca híbrida para ambos.",
+        "smart_chunking": "Dividir automaticamente ao longo da estrutura Markdown (títulos, blocos de código, parágrafos) e nunca dividir dentro de um bloco de código. Desative para dividir puramente pelo separador.",
         "threshold": "Limiar de similaridade para filtrar blocos de baixa relevância. Valores mais altos tornam a recuperação mais estrita.",
         "threshold_disabled": "Este modo de recuperação retorna resultados ordenados e não utiliza um limiar de similaridade."
       },
@@ -2805,6 +2843,7 @@
         "vector": "Busca Vetorial"
       },
       "separator_rule": "Regra Separadora",
+      "smart_chunking": "Fragmentação Inteligente",
       "threshold": "Limite de Similaridade",
       "tokens_unit": "tokens"
     },
@@ -3709,13 +3748,13 @@
         "translationFiles": "arquivos de tradução",
         "upload": "Carregar",
         "uploading": "Fazendo upload",
-        "view": "[to be translated]:View",
+        "view": "Visualizar",
         "viewing": "Visualização",
-        "webPage": "[to be translated]:web page",
-        "webSearch": "[to be translated]:web content",
-        "workspace": "[to be translated]:workspace",
-        "write": "[to be translated]:Save",
-        "writing": "[to be translated]:Saving"
+        "webPage": "página web",
+        "webSearch": "conteúdo web",
+        "workspace": "área de trabalho",
+        "write": "Salvar",
+        "writing": "Salvando"
       },
       "approvalRequired": "Ferramenta \"{{tool}}\" requer aprovação",
       "autoApproveEnabled": "Esta ferramenta tem aprovação automática ativada",
@@ -3737,12 +3776,12 @@
         "search": "Pesquisar",
         "skill": "Habilidade",
         "task": "Tarefa",
-        "taskCreate": "[to be translated]:Create task",
-        "taskGet": "[to be translated]:View task",
-        "taskList": "[to be translated]:List tasks",
-        "taskOutput": "[to be translated]:View task output",
-        "taskStop": "[to be translated]:Stop task",
-        "taskUpdate": "[to be translated]:Update task",
+        "taskCreate": "Criar tarefa",
+        "taskGet": "Ver tarefa",
+        "taskList": "Listar tarefas",
+        "taskOutput": "Ver saída da tarefa",
+        "taskStop": "Parar tarefa",
+        "taskUpdate": "Atualizar tarefa",
         "todoWrite": "Fazer Escrever",
         "tool": "Ferramenta",
         "webFetch": "Busca na Web",
@@ -3837,64 +3876,6 @@
       "partial_failure": "{{count}} resultados da pesquisa, algumas pesquisas falharam"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "Adicionar ao Launchpad",
-    "add_to_sidebar": "Adicionar à Barra Lateral",
-    "popup": {
-      "close": "Fechar MinApp",
-      "devtools": "Ferramentas de Desenvolvedor",
-      "goBack": "Voltar",
-      "goForward": "Avançar",
-      "minimize": "Minimizar MinApp",
-      "openExternal": "Abrir no Navegador",
-      "open_link_external_off": "Atual: Abrir links na janela padrão",
-      "open_link_external_on": "Atual: Abrir links no navegador",
-      "refresh": "Atualizar",
-      "rightclick_copyurl": "Clique com o botão direito para copiar o URL"
-    },
-    "remove_from_launchpad": "Remover do Launchpad",
-    "remove_from_sidebar": "Remover da Barra Lateral",
-    "sidebar": {
-      "close": {
-        "title": "Fechar"
-      },
-      "closeall": {
-        "title": "Fechar Todos"
-      },
-      "hide": {
-        "title": "Ocultar"
-      },
-      "remove_custom": {
-        "title": "Excluir Aplicativo Personalizado"
-      }
-    },
-    "title": "MinApp"
-  },
-  "minapps": {
-    "ant-ling": "Ant Ling",
-    "baichuan": "Baichuan",
-    "baidu-ai-search": "Pesquisa de IA da Baidu",
-    "chatglm": "ChatGLM",
-    "dangbei": "Dangbei",
-    "doubao": "Doubao",
-    "hailuo": "Hailuo",
-    "ima": "ima",
-    "metaso": "Metaso",
-    "minimax-agent": "Agente Minimax CN",
-    "minimax-global": "Agente Minimax",
-    "nami-ai": "Nami IA",
-    "nami-ai-search": "Nami AI Search",
-    "qwen": "Qwen",
-    "sensechat": "SenseChat",
-    "stepfun": "Stepfun",
-    "tencent-yuanbao": "Yuanbao",
-    "tiangong-ai": "Skywork",
-    "wanzhi": "Wanzhi",
-    "wenxin": "ERNIE",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "Xiaoyi",
-    "zhihu": "Zhihu"
-  },
   "miniApp": {
     "add_to_launchpad": "Adicionar ao Painel de Inicialização",
     "add_to_sidebar": "Adicionar à Barra Lateral",
@@ -3905,15 +3886,13 @@
     "hide_failed": "Failed to hide mini-app",
     "pin_failed": "Falha ao fixar o miniaplicativo",
     "popup": {
-      "close": "Fechar aplicativo",
       "devtools": "Ferramentas de Desenvolvedor",
       "goBack": "Voltar",
       "goForward": "Avançar",
       "openExternal": "Abrir no navegador",
       "open_link_external_off": "Atual: Abrir links em janela padrão",
       "open_link_external_on": "Atual: Abrir links no navegador",
-      "refresh": "Atualizar",
-      "rightclick_copyurl": "Copiar URL com botão direito"
+      "refresh": "Atualizar"
     },
     "remove_from_launchpad": "Remover do Painel de Inicialização",
     "remove_from_sidebar": "Remover da Barra Lateral",
@@ -3925,17 +3904,8 @@
     },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
-      "close": {
-        "title": "Fechar"
-      },
-      "closeall": {
-        "title": "Fechar Tudo"
-      },
       "hide": {
         "title": "Ocultar"
-      },
-      "remove_custom": {
-        "title": "Excluir aplicativo personalizado"
       }
     },
     "title": "Pequeno aplicativo",
@@ -3955,7 +3925,6 @@
     "minimax-agent": "MiniMax Agent CN",
     "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
     "sensechat": "SenseChat",
     "stepfun": "Stepfun",
@@ -6464,8 +6433,6 @@
         "confirm_delete_message": "confirmar antes de excluir a mensagem",
         "confirm_regenerate_message": "Confirmar antes de regenerar a mensagem",
         "enable_quick_triggers": "Ativar menu rápido com '/' e '@'",
-        "paste_long_text_as_file": "Colar texto longo como arquivo",
-        "paste_long_text_threshold": "Limite de texto longo",
         "send_shortcuts": "Atalhos de envio",
         "show_estimated_tokens": "Mostrar número estimado de tokens",
         "title": "Configurações de entrada"
@@ -6489,37 +6456,22 @@
     "miniApps": {
       "cache_change_notice": "As alterações entrarão em vigor após a abertura ou remoção dos mini aplicativos até atingir o número definido",
       "cache_description": "Defina o número máximo de mini aplicativos que permanecerão ativos simultaneamente",
-      "cache_settings": "Configurações de Cache",
       "cache_title": "Quantidade de Mini Aplicativos no Cache",
       "custom": {
-        "conflicting_ids": "Conflito com IDs padrão: {{ids}}",
-        "duplicate_ids": "IDs duplicadas encontradas: {{ids}}",
-        "edit_description": "Edite aqui as configurações do aplicativo personalizado. Cada aplicativo deve conter os campos id, name, url e logo.",
+        "create_title": "Criar mini app personalizada",
         "edit_title": "Editar Aplicativo Personalizado",
-        "id": "ID",
-        "id_error": "A ID é obrigatória.",
-        "id_placeholder": "Digite a ID",
-        "logo": "Logo",
         "logo_file": "Enviar Arquivo da Logo",
-        "logo_upload_button": "Enviar",
         "logo_upload_error": "Falha no envio da Logo.",
         "logo_upload_label": "Enviar Logo",
-        "logo_upload_success": "Logo enviada com sucesso.",
-        "logo_url": "URL da Logo",
-        "logo_url_label": "URL da Logo",
-        "logo_url_placeholder": "Digite a URL da Logo",
         "name": "Nome",
-        "name_error": "O nome é obrigatório.",
         "name_placeholder": "Digite o nome",
-        "placeholder": "Digite a configuração do aplicativo personalizado (formato JSON)",
         "remove_error": "Falha ao excluir o aplicativo personalizado.",
         "remove_success": "Aplicativo personalizado excluído com sucesso.",
-        "save": "Salvar",
         "save_error": "Falha ao salvar o aplicativo personalizado.",
         "save_success": "Aplicativo personalizado salvo com sucesso.",
         "title": "Aplicativo Personalizado",
         "url": "URL",
-        "url_error": "A URL é obrigatória.",
+        "url_invalid": "Introduza um URL http, https ou file válido.",
         "url_placeholder": "Digite a URL"
       },
       "disabled": "Mini Aplicativos Ocultos",
@@ -6541,65 +6493,7 @@
         "title": "Filtro de área do mini programa"
       },
       "reset_tooltip": "Redefinir para os valores padrão",
-      "title": "Configurações do Mini Aplicativo",
       "visible": "Mini Aplicativos Visíveis"
-    },
-    "miniapps": {
-      "cache_change_notice": "As alterações entrarão em vigor quando o número de miniaplicativos abertos atingir o valor definido.",
-      "cache_description": "Defina o número máximo de mini aplicativos ativos a manter na memória",
-      "cache_settings": "Configurações de Cache",
-      "cache_title": "Limite de Cache do Mini App",
-      "custom": {
-        "conflicting_ids": "IDs conflitantes com aplicativos padrão: {{ids}}",
-        "duplicate_ids": "IDs duplicados encontrados: {{ids}}",
-        "edit_description": "Edite a configuração do mini app personalizado aqui. Cada app deve incluir os campos id, name, url e logo.",
-        "edit_title": "Editar Mini App Personalizado",
-        "id": "ID",
-        "id_error": "ID é obrigatório.",
-        "id_placeholder": "Insira o ID",
-        "logo": "Logo",
-        "logo_file": "Carregar Arquivo de Logotipo",
-        "logo_upload_button": "Carregar",
-        "logo_upload_error": "Falha ao fazer upload do logotipo.",
-        "logo_upload_label": "Carregar Logotipo",
-        "logo_upload_success": "Logotipo carregado com sucesso.",
-        "logo_url": "URL do Logotipo",
-        "logo_url_label": "URL do logO",
-        "logo_url_placeholder": "Insira o URL do logotipo",
-        "name": "Nome",
-        "name_error": "Nome é obrigatório.",
-        "name_placeholder": "Insira o nome",
-        "placeholder": "Insira a configuração personalizada do mini app (formato JSON)",
-        "remove_error": "Falha ao remover o miniaplicativo personalizado.",
-        "remove_success": "Mini app personalizado removido com sucesso.",
-        "save": "Salvar",
-        "save_error": "Falha ao salvar o miniaplicativo personalizado.",
-        "save_success": "Mini app personalizado salvo com sucesso.",
-        "title": "Personalizado",
-        "url": "URL",
-        "url_error": "URL é obrigatória.",
-        "url_placeholder": "Insira o URL"
-      },
-      "disabled": "Mini Apps Ocultos",
-      "display_title": "Configurações de Exibição do Mini App",
-      "empty": "Clique no ícone de ocultar em um aplicativo à esquerda e ele será movido para cá.",
-      "hide_app": "Ocultar {{name}}",
-      "open_link_external": {
-        "title": "Abrir links de nova janela no navegador"
-      },
-      "region": {
-        "auto": "Detecção automática",
-        "cn": "China",
-        "description": "Filtragem de mini-programas não suportados com base na região",
-        "global": "Global",
-        "title": "Filtro de Mini Programa"
-      },
-      "reset_tooltip": "Restaurar para o padrão",
-      "show_app": "Mostrar {{name}}",
-      "sidebar_description": "Mostrar mini apps ativos na barra lateral",
-      "sidebar_title": "Exibição de Mini Apps Ativos na Barra Lateral",
-      "title": "Configurações de Mini Apps",
-      "visible": "Mini Apps Visíveis"
     },
     "model": "Modelo padrão",
     "models": {
@@ -6734,6 +6628,7 @@
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
         "large_group_hidden": "Mostrar mais {{count}} modelos",
+        "model_in_use_by_knowledge_base": "Este modelo é utilizado por uma base de conhecimento e não pode ser eliminado.",
         "operation_failed": "Model operation failed.",
         "refetch_list": "Obter novamente a lista de modelos",
         "reload_catalog": "Refresh list",
@@ -6868,14 +6763,14 @@
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
-      "customToolsEmpty": "[to be translated]:No custom tools yet. Add one to get started.",
+      "customToolsEmpty": "Ainda não há ferramentas personalizadas. Adicione uma para começar.",
       "description": "Gerencie ferramentas binárias e dependências de runtime necessárias para o aplicativo.",
       "duplicateName": "A tool with the same name already exists",
       "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "[to be translated]:Install",
+      "install": "Instalar",
       "installError": "Failed to install tool",
       "installing": "Instalando...",
-      "invalidTool": "[to be translated]:Invalid tool name or key",
+      "invalidTool": "Nome ou chave de ferramenta inválida",
       "notInstalled": "Não instalado",
       "openBinariesDir": "Open binaries directory",
       "remove": "Remove tool",

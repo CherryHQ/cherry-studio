@@ -1,4 +1,4 @@
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import type { ReactNode } from 'react'
 
 interface ProviderFieldProps {

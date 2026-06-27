@@ -64,7 +64,7 @@ The charters imply a direction; dependencies flow toward the business-agnostic f
 - **`ai/` is foundational within the business tier**: `features/` and `services/` may depend on it; it must not import a feature.
 - **Feature domains are mutually isolated**: a `features/<domain>/` must not import a **sibling** feature — share through `services/`, `ai/`, `data/`, or `@shared`.
 - **`ipc/` is the boundary adapter**: it resolves services through the DI container (`application.get`) rather than importing domain modules directly.
-- **No renderer imports**: `src/main` and `src/preload` must not import renderer code. Cross-process types live in `@shared`, main-only types stay in `src/main` — see [Shared Layer Architecture](./shared-layer-architecture.md) for placement. Enforced by an ESLint `no-restricted-imports` rule banning `@types` / `@renderer` in `src/main` + `src/preload`; §7 tracks the one remaining exception.
+- **No renderer imports**: `src/main` and `src/preload` must not import renderer code. Cross-process types live in `@shared`, main-only types stay in `src/main` — see [Shared Layer Architecture](./shared-layer-architecture.md) for placement. Enforced by an ESLint `no-restricted-imports` rule banning `@renderer` in `src/main` + `src/preload`; §7 tracks the one remaining exception.
 
 Two dependencies cut across **every** directory and are **not** layering edges — they are ambient infrastructure access: `@logger` (logging) and `@application` (the DI container / service locator). A raw import scan shows almost everything "depending on `core`" only because of these two; the rules above concern direct module imports between domains.
 

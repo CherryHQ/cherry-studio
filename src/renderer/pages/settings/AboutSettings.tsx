@@ -4,12 +4,11 @@ import LogoAvatar from '@renderer/components/Icons/LogoAvatar'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
 import { APP_NAME, AppLogo } from '@renderer/config/env'
-import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
+import { useTheme } from '@renderer/hooks/useTheme'
 import i18n from '@renderer/i18n'
 import { ipcApi } from '@renderer/ipc'
-import { runAsyncFunction } from '@renderer/utils'
 import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { debounce } from 'lodash'
 import { BadgeQuestionMark, Briefcase, Bug, Building2, Github, Globe, Mail, Rss } from 'lucide-react'
@@ -150,11 +149,11 @@ const AboutSettings: FC = () => {
   }
 
   useEffect(() => {
-    void runAsyncFunction(async () => {
+    void (async () => {
       const appInfo = await window.api.getAppInfo()
       setVersion(appInfo.version)
       setIsPortable(appInfo.isPortable)
-    })
+    })()
   }, [])
 
   const onOpenDocs = () => {

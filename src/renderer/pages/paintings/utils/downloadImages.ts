@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import type { FileMetadata } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types/file'
 import i18next from 'i18next'
 
 import { fileEntryToMetadata } from './fileEntryAdapter'

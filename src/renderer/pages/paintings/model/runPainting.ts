@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import type { FileMetadata } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types/file'
 import { createPaintingGenerateError, normalizePaintingGenerateError } from '@shared/ai/paintingGenerateError'
 
 import { downloadImages } from '../utils/downloadImages'

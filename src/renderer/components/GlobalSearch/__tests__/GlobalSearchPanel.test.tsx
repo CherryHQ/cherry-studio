@@ -30,7 +30,8 @@ const mocks = vi.hoisted(() => ({
   tabs: [] as Tab[],
   preferenceValues: {
     'app.user.name': 'JD',
-    'ui.sidebar.favorites': ['assistants', 'agents', 'translate']
+    'ui.sidebar.favorites': ['assistants', 'agents', 'translate'],
+    'feature.paintings.default_provider': 'zhipu'
   } as Record<string, unknown>,
   persistCacheValues: {
     'ui.chat.last_used_topic_id': undefined,
@@ -225,10 +226,6 @@ vi.mock('@renderer/components/Icons/MiniAppIcon', () => ({
   default: ({ app }: any) => <span aria-hidden="true">{app.logo ?? 'mini-app-icon'}</span>
 }))
 
-vi.mock('@renderer/features/command', () => ({
-  CommandContextMenu: ({ children }: any) => children
-}))
-
 vi.mock('@renderer/components/VirtualList', async () => {
   const React = await vi.importActual<ReactModule>('react')
 
@@ -296,7 +293,7 @@ vi.mock('@data/hooks/usePreference', () => ({
   ]
 }))
 
-vi.mock('@renderer/hooks/useTabs', () => ({
+vi.mock('@renderer/hooks/tab', () => ({
   useTabs: () => ({
     activeTab: mocks.activeTab,
     openTab: mocks.openTab,
@@ -334,10 +331,6 @@ vi.mock('@renderer/hooks/useConversationNavigation', () => ({
         })
     }
   }
-}))
-
-vi.mock('@renderer/hooks/useSettings', () => ({
-  useSettings: () => ({ defaultPaintingProvider: 'zhipu' })
 }))
 
 vi.mock('@renderer/hooks/useMiniApps', () => ({
@@ -400,7 +393,7 @@ vi.mock('@renderer/services/EventService', () => ({
   EventEmitter: { emit: mocks.eventEmit }
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/style', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 
@@ -551,7 +544,8 @@ describe('GlobalSearchPanel', () => {
     mocks.sessionMessageQueryResult = undefined
     mocks.preferenceValues = {
       'app.user.name': 'JD',
-      'ui.sidebar.favorites': ['assistants', 'agents', 'translate']
+      'ui.sidebar.favorites': ['assistants', 'agents', 'translate'],
+      'feature.paintings.default_provider': 'zhipu'
     }
     mocks.persistCacheValues = {
       'ui.chat.last_used_topic_id': undefined,
