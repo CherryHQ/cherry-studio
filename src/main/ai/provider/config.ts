@@ -227,12 +227,15 @@ function buildCodexConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
 
 function buildCodexFetch() {
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const creds = await application.get('CodexOauthService').getValidAccessToken()
-    if (!creds) {
+    const creds = await application.get('OAuthRuntimeService').getValidAccessToken(OPENAI_CODEX_PROVIDER_ID)
+    if (!creds?.accessToken) {
       throw new Error('Not signed in to OpenAI Codex. Open the provider settings and sign in again.')
     }
 
-    const headers = buildCodexRequestHeaders(init?.headers, creds)
+    const headers = buildCodexRequestHeaders(init?.headers, {
+      accessToken: creds.accessToken,
+      accountId: creds.accountId ?? null
+    })
     const body = coerceCodexRequestBody(init?.body)
 
     return customFetch(input, { ...init, headers, body })
@@ -271,7 +274,8 @@ function buildGrokCliConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
 
 function buildGrokCliFetch() {
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const accessToken = await application.get('GrokCliOauthService').getValidAccessToken()
+    const credentials = await application.get('OAuthRuntimeService').getValidAccessToken(GROK_CLI_PROVIDER_ID)
+    const accessToken = credentials?.accessToken
     if (!accessToken) {
       throw new Error('Not signed in to Grok CLI. Open the provider settings and sign in again.')
     }

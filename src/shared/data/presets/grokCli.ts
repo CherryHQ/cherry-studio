@@ -3,7 +3,7 @@
  * (`cli-chat-proxy.grok.com`) using the user's SuperGrok subscription via OAuth
  * (PKCE + OIDC discovery), instead of an `api.x.ai` API key. Like `openai-codex`
  * it is a normal chat provider whose OAuth the app manages itself:
- * `GrokCliOauthService` runs the loopback authorization-code flow, stores
+ * `OAuthRuntimeService` runs the loopback authorization-code flow, stores
  * `access`/`refresh` in the provider's `authConfig`, and the runtime config
  * builder injects the bearer token + Grok CLI proxy headers and rewrites the
  * Responses body into the shape xAI's proxy accepts (refreshing on expiry).

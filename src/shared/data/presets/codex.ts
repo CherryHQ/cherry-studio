@@ -3,7 +3,7 @@
  * endpoint using the user's existing ChatGPT Plus/Pro subscription via OAuth
  * (PKCE), instead of a platform API key. Unlike `claude-code` (agent-only,
  * credential reused from the CLI), Codex is usable for normal chat and the app
- * manages the OAuth flow itself: `CodexOauthService` runs the loopback-server
+ * manages the OAuth flow itself: `OAuthRuntimeService` runs the loopback-server
  * authorization-code flow, stores `access`/`refresh`/`accountId` in the
  * provider's `authConfig`, and the runtime config builder injects the bearer
  * token + `chatgpt-account-id` header per request (refreshing on expiry).
