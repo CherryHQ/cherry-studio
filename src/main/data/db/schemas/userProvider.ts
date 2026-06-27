@@ -37,10 +37,10 @@ export const userProviderTable = sqliteTable(
     name: text().notNull(),
 
     /**
-     * Preset/bundled logo reference (`icon:<providerId>` ref), or
-     * null for preset providers that render a bundled icon by id. Holds a key /
-     * ref / url only — never a data URL. User-uploaded custom logos are stored
-     * on disk and referenced via {@link logoFileId} instead.
+     * Preset/bundled logo reference (`icon:<providerId>` ref), or null for
+     * preset providers that render a bundled icon by id. Holds an icon key /
+     * ref only — never a remote URL or data URL. User-uploaded custom logos
+     * are stored on disk and referenced via {@link logoFileId} instead.
      */
     logoKey: text('logo_key'),
 

@@ -7,8 +7,8 @@ import * as z from 'zod'
  * the two can never be set together. Mirrors the avatar `profile.set_avatar`
  * convention (`{ kind: ... }`).
  *
- * - `{ kind: 'key', key }`  → preset icon id / `icon:<id>` ref / remote URL,
- *   stored inline on the owner row's `logoKey` column. Never a data URL — an
+ * - `{ kind: 'key', key }`  → preset icon id / `icon:<id>` ref, stored inline
+ *   on the owner row's `logoKey` column. Never a remote URL or data URL — an
  *   uploaded image goes through `kind: 'file'`.
  * - `{ kind: 'file', fileId }` → opaque file-entry id the renderer pre-stored
  *   (via `file.batch_create_internal_entries`); stored on `logoFileId`.
@@ -19,7 +19,7 @@ import * as z from 'zod'
  * (`logoFileId ?? logoKey`).
  */
 
-/** Preset icon id / `icon:<id>` ref / remote URL. Short — uploads use `kind: 'file'`. */
+/** Preset icon id / `icon:<id>` ref. Short — uploads use `kind: 'file'`. */
 export const LogoKeySchema = z.string().min(1).max(2048)
 
 const LogoKeyVariant = z.strictObject({ kind: z.literal('key'), key: LogoKeySchema })

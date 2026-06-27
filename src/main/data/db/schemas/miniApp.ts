@@ -36,7 +36,7 @@ export const miniAppTable = sqliteTable(
 
     /**
      * Preset/bundled logo reference — a `getMiniAppsLogo` icon id (e.g.
-     * `'application'`) or remote URL. Holds a key / ref only — never a
+     * `'application'`). Holds an icon key / ref only — never a remote URL or
      * data URL. User-uploaded custom logos are stored on disk and referenced
      * via {@link logoFileId} instead.
      */
