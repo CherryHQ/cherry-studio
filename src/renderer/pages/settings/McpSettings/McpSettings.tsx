@@ -17,6 +17,7 @@ import {
   Input,
   RadioGroup,
   RadioGroupItem,
+  SegmentedControl,
   Select,
   SelectContent,
   SelectItem,
@@ -25,8 +26,6 @@ import {
   Switch,
   Tabs,
   TabsContent,
-  TabsList,
-  TabsTrigger,
   Textarea
 } from '@cherrystudio/ui'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -1128,21 +1127,23 @@ const McpSettings: React.FC = () => {
               </SettingTitle>
               <SettingDivider className="mb-0" />
               <div className="mt-1 flex min-w-0 items-center justify-between gap-2">
-                <TabsList className="min-w-0 max-w-full overflow-x-auto">
-                  {tabs.map((tab) => (
-                    <TabsTrigger key={tab.key} value={tab.key}>
-                      {tab.label}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
+                <SegmentedControl<TabKey>
+                  value={activeTabValue}
+                  options={tabs.map((tab) => ({ value: tab.key, label: tab.label }))}
+                  onValueChange={setActiveTab}
+                  size="sm"
+                  className="min-w-0 max-w-full overflow-x-auto border-0 bg-muted/60"
+                  aria-label={t('settings.mcp.title')}
+                />
                 {activeTabValue === 'tools' && tools.length > 0 && (
-                  <div className="shrink-0 pt-1">
+                  <div className="flex h-7 shrink-0 items-center">
                     <CollapsibleSearchBar
                       onSearch={setToolSearchText}
                       placeholder={t('common.search')}
                       tooltip={t('common.search')}
                       maxWidth={220}
-                      style={{ borderRadius: 20 }}
+                      collapsedSize={28}
+                      style={{ borderRadius: 14 }}
                     />
                   </div>
                 )}
