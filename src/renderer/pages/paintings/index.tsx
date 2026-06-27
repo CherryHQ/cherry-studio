@@ -117,28 +117,26 @@ const PaintingPage: FC = () => {
                   <Artboard painting={currentPainting} isLoading={generating} onCancel={onCancel} />
                 </div>
                 <div className={paintingClasses.promptDock}>
-                  <div className={paintingClasses.promptDockInner}>
-                    <QuickPanelProvider>
-                      <PaintingComposer
-                        painting={composerPainting}
-                        generating={generating}
-                        onPromptChange={(prompt) => patchPainting({ prompt } as Partial<PaintingData>)}
-                        onInputFilesChange={(inputFiles) => patchPainting({ inputFiles } as Partial<PaintingData>)}
-                        onGenerate={submit}
-                        onCancel={onCancel}
-                        onModelSelect={switchModel}
-                        onConfigChange={patchPainting}
-                        onGenerateRandomSeed={(key) =>
-                          patchPainting({
-                            params: {
-                              ...currentPainting.params,
-                              [key]: String(Math.floor(Math.random() * 1_000_000))
-                            }
-                          })
-                        }
-                      />
-                    </QuickPanelProvider>
-                  </div>
+                  <QuickPanelProvider>
+                    <PaintingComposer
+                      painting={composerPainting}
+                      generating={generating}
+                      onPromptChange={(prompt) => patchPainting({ prompt } as Partial<PaintingData>)}
+                      onInputFilesChange={(inputFiles) => patchPainting({ inputFiles } as Partial<PaintingData>)}
+                      onGenerate={submit}
+                      onCancel={onCancel}
+                      onModelSelect={switchModel}
+                      onConfigChange={patchPainting}
+                      onGenerateRandomSeed={(key) =>
+                        patchPainting({
+                          params: {
+                            ...currentPainting.params,
+                            [key]: String(Math.floor(Math.random() * 1_000_000))
+                          }
+                        })
+                      }
+                    />
+                  </QuickPanelProvider>
                 </div>
               </div>
             </div>

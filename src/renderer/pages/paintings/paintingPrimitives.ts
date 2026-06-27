@@ -12,7 +12,6 @@ export const paintingClasses = {
   centerStage: 'flex min-h-0 min-w-0 flex-1 flex-col',
   /** Pins the prompt visually to the bottom of the middle column. */
   promptDock: 'shrink-0 bg-background px-2 pt-2 pb-2',
-  promptDockInner: 'mx-auto w-full max-w-[960px]',
   historyStrip:
     'flex h-full w-[68px] shrink-0 flex-col gap-2 overflow-y-auto border-border-subtle border-r bg-background px-2 py-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
   historyAddButton:
