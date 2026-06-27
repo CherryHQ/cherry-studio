@@ -89,8 +89,7 @@ export class OAuthRuntimeService extends BaseService {
 
   private async persistTokens(
     definition: OAuthRuntimeProviderDefinition,
-    tokenData: { access_token: string; refresh_token?: string; expires_in?: number },
-    context: OAuthRuntimeProviderContext = {}
+    tokenData: { access_token: string; refresh_token?: string; expires_in?: number }
   ): Promise<void> {
     const current = await this.tokenStore.get(definition.providerId)
     const accountId = definition.extractAccountId?.(tokenData.access_token) ?? current?.accountId
@@ -163,7 +162,7 @@ export class OAuthRuntimeService extends BaseService {
         const client = await definition.createClient(callback.context)
         const tokenData = await client.exchangeCode(callback.code, callback.codeVerifier)
         const sideEffectResult = await definition.beforePersistTokens?.(tokenData, callback.context)
-        await this.persistTokens(definition, tokenData, callback.context)
+        await this.persistTokens(definition, tokenData)
         await providerService.update(providerId, { isEnabled: true })
         transport.sendConsumedResult(callback.state, callback.initiatorWindowId, { apiKeys: sideEffectResult?.apiKeys })
         this.logger.info(`${providerId} deep-link sign-in succeeded`)
@@ -274,7 +273,7 @@ export class OAuthRuntimeService extends BaseService {
     try {
       const client = await definition.createClient(context)
       const tokenData = await client.refresh(refreshToken)
-      await this.persistTokens(definition, tokenData, context)
+      await this.persistTokens(definition, tokenData)
       return tokenData.access_token
     } catch (error) {
       this.logger.error(`Failed to refresh ${definition.providerId} token`, error as Error)
