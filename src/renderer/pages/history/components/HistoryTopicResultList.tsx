@@ -257,9 +257,10 @@ const HistoryTopicRow = ({
   onTogglePin
 }: HistoryTopicRowProps) => (
   <div
-    className={cn(historyTableGridClassName, historyBodyRowClassName, 'min-h-11')}
+    className={cn(historyTableGridClassName, historyBodyRowClassName, 'min-h-11 cursor-pointer')}
     data-state={isSelected ? 'selected' : undefined}
-    role="row">
+    role="row"
+    onClick={onOpen}>
     <HistorySelectionCell
       checked={isSelected}
       disabled={isPinned}
@@ -288,7 +289,8 @@ const HistoryTopicRow = ({
         historyFixedActionCellClassName,
         showFixedActionShadow && historyFixedActionShadowClassName
       )}
-      role="cell">
+      role="cell"
+      onClick={(event) => event.stopPropagation()}>
       <HistoryActionsCell
         actions={actions}
         deleteLabel={deleteLabel}

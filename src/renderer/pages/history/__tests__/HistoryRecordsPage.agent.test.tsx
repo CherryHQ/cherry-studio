@@ -408,14 +408,9 @@ describe('HistoryRecordsPage agent mode', () => {
 
     fireEvent.click(alphaRow)
 
-    expect(onRecordSelect).not.toHaveBeenCalled()
-    expect(onClose).not.toHaveBeenCalled()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Alpha session' }))
-
-    expect(hookMocks.openConversationTab).toHaveBeenCalledWith('session-alpha', 'Alpha session', { forceNew: true })
-    expect(onRecordSelect).not.toHaveBeenCalled()
-    expect(onClose).not.toHaveBeenCalled()
+    expect(hookMocks.openConversationTab).not.toHaveBeenCalled()
+    expect(onRecordSelect).toHaveBeenCalledWith('session-alpha')
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
   it('filters sessions by selected agent source', () => {
@@ -548,30 +543,24 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
   })
 
-  it('activates a session when the history title is clicked', () => {
+  it('activates a session in the current page when the history row is clicked', () => {
     const { onClose, onRecordSelect } = setupAgentHistory()
     const betaRow = screen.getByText('Beta session').closest('[role="row"]')
 
     expect(betaRow).not.toBeNull()
     fireEvent.click(betaRow as HTMLElement)
 
-    expect(onRecordSelect).not.toHaveBeenCalled()
-    expect(onClose).not.toHaveBeenCalled()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Beta session' }))
-
-    expect(hookMocks.openConversationTab).toHaveBeenCalledWith('session-beta', 'Beta session', { forceNew: true })
-    expect(onRecordSelect).not.toHaveBeenCalled()
-    expect(onClose).not.toHaveBeenCalled()
+    expect(hookMocks.openConversationTab).not.toHaveBeenCalled()
+    expect(onRecordSelect).toHaveBeenCalledWith('session-beta')
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('falls back to record selection when no conversation tab context exists', () => {
+  it('activates a session in the current page when the history title is clicked', () => {
     const { onClose, onRecordSelect } = setupAgentHistory()
-    hookMocks.openConversationTab.mockReturnValueOnce(undefined)
 
     fireEvent.click(screen.getByRole('button', { name: 'Alpha session' }))
 
-    expect(hookMocks.openConversationTab).toHaveBeenCalledWith('session-alpha', 'Alpha session', { forceNew: true })
+    expect(hookMocks.openConversationTab).not.toHaveBeenCalled()
     expect(onRecordSelect).toHaveBeenCalledWith('session-alpha')
     expect(onClose).toHaveBeenCalledTimes(1)
   })

@@ -264,9 +264,10 @@ const HistorySessionRow = ({
 
   return (
     <div
-      className={cn(historyTableGridClassName, historyBodyRowClassName, 'min-h-13')}
+      className={cn(historyTableGridClassName, historyBodyRowClassName, 'min-h-13 cursor-pointer')}
       data-state={isSelected ? 'selected' : undefined}
-      role="row">
+      role="row"
+      onClick={onOpen}>
       <HistorySelectionCell
         checked={isSelected}
         disabled={isPinned}
@@ -304,7 +305,8 @@ const HistorySessionRow = ({
           historyFixedActionCellClassName,
           showFixedActionShadow && historyFixedActionShadowClassName
         )}
-        role="cell">
+        role="cell"
+        onClick={(event) => event.stopPropagation()}>
         <HistoryActionsCell
           actions={actions}
           deleteLabel={deleteLabel}

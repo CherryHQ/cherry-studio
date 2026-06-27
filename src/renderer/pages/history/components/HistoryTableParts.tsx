@@ -165,7 +165,10 @@ export const HistorySelectionCell = ({
   label,
   onCheckedChange
 }: HistorySelectionCellProps) => (
-  <div className={cn(historyBodyCellClassName, 'justify-center px-2')} role="cell">
+  <div
+    className={cn(historyBodyCellClassName, 'justify-center px-2')}
+    role="cell"
+    onClick={(event) => event.stopPropagation()}>
     <Checkbox
       size="sm"
       checked={checked}

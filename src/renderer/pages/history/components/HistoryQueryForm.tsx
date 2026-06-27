@@ -111,10 +111,9 @@ const HistoryQueryForm = ({
             </span>
           </Button>
           <div className="relative w-[236px] max-w-[26vw]">
-            <Search
-              size={14}
-              className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2.5 text-foreground-muted"
-            />
+            <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-foreground-muted">
+              <Search className="size-3.5" />
+            </span>
             <Input
               value={searchText}
               className="h-8 rounded-md border-border-subtle bg-card pl-8 text-xs shadow-none"
