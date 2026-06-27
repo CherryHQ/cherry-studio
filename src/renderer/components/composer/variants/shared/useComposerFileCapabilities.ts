@@ -1,6 +1,15 @@
-import { isGenerateImageModel, isGenerateImageModels, isVisionModel, isVisionModels } from '@renderer/utils/model'
+import {
+  isAudioModel,
+  isAudioModels,
+  isGenerateImageModel,
+  isGenerateImageModels,
+  isVideoModel,
+  isVideoModels,
+  isVisionModel,
+  isVisionModels
+} from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
-import { documentExts, imageExts, textExts } from '@shared/utils/file/fileExtensions'
+import { audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file/fileExtensions'
 import { useMemo } from 'react'
 
 export interface ComposerFileCapabilities {
@@ -27,17 +36,25 @@ function isMultiModelArgs(
 /**
  * Derives which file kinds the composer accepts from the active model(s).
  *
- * Agent passes a single resolved `model`; chat passes its mentioned `models` plus a
- * `fallbackModel` (the assistant model used when nothing is mentioned). Vision / image
- * support requires every mentioned model to qualify, or — with none mentioned — the
- * fallback model.
+ * The args-object form is the **chat** surface; the bare-model form is the **agent**
+ * surface. They differ because chat runs every attachment through the main-process
+ * router (`prepareChatMessages`), which inlines any non-native file as extracted/OCR'd
+ * text — so on chat an image is always acceptable (sent natively to a vision model,
+ * OCR text otherwise) and document/text files always work, regardless of the model.
+ * The agent runs on a separate runtime with no text-extraction fallback, so it stays
+ * gated on the model's native input modalities (vision / edit-image for images).
+ *
+ * Audio/video have no text fallback on either surface, so both gate them strictly on
+ * the model's audio/video input capability. Vision / image support requires every
+ * mentioned model to qualify, or — with none mentioned — the fallback model.
  */
 export function useComposerFileCapabilities(model: Model | undefined): ComposerFileCapabilities
 export function useComposerFileCapabilities(args: ComposerFileCapabilitiesArgs): ComposerFileCapabilities
 export function useComposerFileCapabilities(
   input: Model | undefined | ComposerFileCapabilitiesArgs
 ): ComposerFileCapabilities {
-  const { models, fallbackModel } = isMultiModelArgs(input) ? input : { models: EMPTY_MODELS, fallbackModel: input }
+  const isChatSurface = isMultiModelArgs(input)
+  const { models, fallbackModel } = isChatSurface ? input : { models: EMPTY_MODELS, fallbackModel: input }
 
   const isVisionSupported = useMemo(
     () => (models.length > 0 ? isVisionModels(models) : fallbackModel ? isVisionModel(fallbackModel) : false),
@@ -48,15 +65,30 @@ export function useComposerFileCapabilities(
       models.length > 0 ? isGenerateImageModels(models) : fallbackModel ? isGenerateImageModel(fallbackModel) : false,
     [models, fallbackModel]
   )
-  const canAddImageFile = isVisionSupported || isGenerateImageSupported
-  const canAddTextFile = isVisionSupported || (!isVisionSupported && !isGenerateImageSupported)
+  const isAudioSupported = useMemo(
+    () => (models.length > 0 ? isAudioModels(models) : fallbackModel ? isAudioModel(fallbackModel) : false),
+    [models, fallbackModel]
+  )
+  const isVideoSupported = useMemo(
+    () => (models.length > 0 ? isVideoModels(models) : fallbackModel ? isVideoModel(fallbackModel) : false),
+    [models, fallbackModel]
+  )
+
+  // Chat OCRs images for any model; agent stays native-only (vision / edit-image).
+  const canAddImageFile = isChatSurface || isVisionSupported || isGenerateImageSupported
+  // Chat always extracts text; agent disallows it only for a pure image generator.
+  const canAddTextFile = isChatSurface || isVisionSupported || !isGenerateImageSupported
+  const canAddAudioFile = isAudioSupported
+  const canAddVideoFile = isVideoSupported
 
   const supportedExts = useMemo(() => {
-    if (canAddImageFile && canAddTextFile) return [...imageExts, ...documentExts, ...textExts]
-    if (canAddImageFile) return [...imageExts]
-    if (canAddTextFile) return [...documentExts, ...textExts]
-    return []
-  }, [canAddImageFile, canAddTextFile])
+    const exts: string[] = []
+    if (canAddImageFile) exts.push(...imageExts)
+    if (canAddAudioFile) exts.push(...audioExts)
+    if (canAddVideoFile) exts.push(...videoExts)
+    if (canAddTextFile) exts.push(...documentExts, ...textExts)
+    return exts
+  }, [canAddImageFile, canAddAudioFile, canAddVideoFile, canAddTextFile])
 
   return { canAddImageFile, canAddTextFile, supportedExts }
 }
