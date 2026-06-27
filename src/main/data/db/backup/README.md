@@ -28,6 +28,14 @@ See `docs/references/backup/backup-architecture.md` §7 (placement / neutral lay
 | `dbSchemaRefs.test.ts` | Product tests — membership, camelCase keys, PK heuristic (H1–H5), FK edge cases, FTS mapping |
 | `scripts/generate-backup-schema-refs.ts` | The codegen — Drizzle runtime reflection (`getTableConfig`) over `src/main/data/db/schemas/`, biome-formatted emit. Run `pnpm backup:refs:generate`; verify with `pnpm backup:refs:check` (byte-equal, CI-enforced). |
 
+### Track A1b — contributor type contracts
+
+| File | Contents |
+|------|----------|
+| `contributor-types.ts` | Pure types — `BackupContributor` / `EntityGraphSchema` / `EntityReference` / `ReferenceKind` / `AggregateBoundary`+`AggregateMember` / `IdentityClass` / `BackupContributorPolicy` (OmittedReferenceOverride/UniqueMergeRule/FieldMergePolicy) / `BackupContributorOperations` (6 hooks) / `FileRefSourcePolicy` / `JsonSoftReferencePolicy` / `RowScope` + the `ReadonlyBackupRegistry` query interface. |
+| `contexts.ts` | `BackupScopedDb` (drizzle wrapper, `allowedTables` write-boundary guard) / `BackupReadonlyDb` (select-only) / `ContributorWriteBoundaryViolationError` / `BackupContextBase` + 6 per-hook context subtypes / `RestoreResourceResult` / `BackupProgressEmitter` / `BackupPhase`. |
+| `contexts.test.ts` | Tests — allowedTables guard (allow own / throw cross-domain on insert+update+delete), error payload, select-unrestricted, BackupReadonlyDb select-only. |
+
 ## TODO (later tracks — depend on codegen or upstream)
 
 These are part of the plan but NOT in this change. Each will land in its own focused
@@ -35,8 +43,6 @@ change with convergence review.
 
 | File / module | Track | Status / blocker |
 |----|----|----|
-| eslint `no-restricted-syntax` guard | A1b | spec codegen.md L199 / types-contracts L87: ban hand-editing `@generated` files + ban `'x' as DbTableName` / `as DbColumnName` casts. **Deferred to A1b**: the rule needs file-specific `overrides` (a blanket `Program:has(DB_TABLES)` selector would also flag consumers that merely import `DB_TABLES`), so it lands with the first real consumer. |
-| `contributor-types.ts` | A1b (ready) | Pure types (`BackupContributor` / `EntityGraphSchema` / `EntityReference` / `AggregateBoundary` / `PrimaryKeyFact` / `BackupContributorPolicy`). Depends on `DbTableName` / `DbColumnName` from `dbSchemaRefs.ts` (A2 ✓ done) — now unblocked. |
-| `contexts.ts` | A1b (ready) | Typed hook contexts (`BackupScopedDb` / `BackupReadonlyDb` / `BackupContextBase` + per-hook subtypes, `allowedTables` write-boundary guard). Depends on `dbSchemaRefs.ts` (A2 ✓) + `DbOrTx` — now unblocked. |
-| `contributors/` + `ContributorManager` + `finalize` | A3 / B | 14-domain contributor declarations + non-lifecycle singleton + 25-invariant finalize. Depends on A1 + A2 (✓ done). |
+| eslint `no-restricted-syntax` guard | (defer) | spec codegen.md L199 / types-contracts L87: ban hand-editing `@generated` files + ban `'x' as DbTableName` / `as DbColumnName` casts. Deferred until the first real consumer: the rule needs file-specific `overrides` (a blanket `Program:has(DB_TABLES)` selector would also flag files that merely import `DB_TABLES`). Lands with the first contributor (A3). |
+| `contributors/` + `ContributorManager` + `finalize` | A3 / B | 14-domain contributor declarations + non-lifecycle singleton + 25-invariant finalize. Depends on A1 + A2 + A1b (✓ done). |
 | orchestrator / `BackupService` / `RestoreSafetyManager` | C / D / E | Export / restore / safety. **Blocked on upstream gating** (DbService `restoreDbFromSnapshot` / `verifyLiveDb` / `withExclusiveAccess`, PreferenceService `reloadFromDb` / `armWriteGate`, lifecycle `@WriteSilenceable` decorators, business-Service restore hooks) — see `/Users/gd32/Downloads/backup-upstream-issues/`. |
