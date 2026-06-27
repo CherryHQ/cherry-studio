@@ -8,7 +8,8 @@ import { net } from 'electron'
 import * as z from 'zod'
 
 import { OAuthServiceError } from '../errors'
-import type { OAuthRuntimeProviderDefinition } from './types'
+import { ApiKeysResponseSchema, CHERRYIN_CONFIG, validateCherryInApiHost } from '../CherryInOAuthConfig'
+import type { OAuthRuntimeProviderDefinition, OAuthRuntimeProviderContext } from './types'
 
 const CODEX_CONFIG = {
   CLIENT_ID: 'app_EMoamEEZ73f0CkXaXp7hrann',
@@ -75,6 +76,33 @@ async function discoverGrok(): Promise<Discovery> {
   return grokDiscoveryCache
 }
 
+function resolveCherryInContext(context?: OAuthRuntimeProviderContext): { oauthServer: string; apiHost: string } {
+  const oauthServer = context?.oauthServer ?? CHERRYIN_CONFIG.ALLOWED_HOSTS[0]
+  validateCherryInApiHost(oauthServer)
+
+  const apiHost = context?.apiHost ?? oauthServer
+  validateCherryInApiHost(apiHost)
+  return { oauthServer, apiHost }
+}
+
+async function fetchCherryInApiKeys(accessToken: string, apiHost: string): Promise<string> {
+  const response = await net.fetch(`${apiHost}/api/v1/oauth/tokens`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${accessToken}` }
+  })
+
+  if (!response.ok) {
+    throw new OAuthServiceError(`Failed to fetch API keys: ${response.status}`)
+  }
+
+  const keysArray = ApiKeysResponseSchema.parse(await response.json())
+  const apiKeys = keysArray.filter(Boolean).join(',')
+  if (!apiKeys) {
+    throw new OAuthServiceError('No API keys received')
+  }
+  return apiKeys
+}
+
 export const oauthProviderDefinitions = {
   [OPENAI_CODEX_PROVIDER_ID]: {
     providerId: OPENAI_CODEX_PROVIDER_ID,
@@ -129,10 +157,22 @@ export const oauthProviderDefinitions = {
   },
   [SystemProviderIds.cherryin]: {
     providerId: SystemProviderIds.cherryin,
-    clientId: '',
-    transport: { type: 'deep-link' },
-    createClient: () => {
-      throw new OAuthServiceError('CherryIN OAuth is not registered in OAuthRuntimeService yet')
+    clientId: CHERRYIN_CONFIG.CLIENT_ID,
+    transport: { type: 'deep-link', config: { redirectUri: CHERRYIN_CONFIG.REDIRECT_URI } },
+    createClient: (context?: OAuthRuntimeProviderContext) => {
+      const { oauthServer, apiHost } = resolveCherryInContext(context)
+      const tokenHost = context?.oauthServer ?? apiHost
+      return new PkceOAuthClient({
+        clientId: CHERRYIN_CONFIG.CLIENT_ID,
+        authorizeUrl: `${oauthServer}/oauth2/auth`,
+        tokenUrl: `${tokenHost}/oauth2/token`,
+        redirectUri: CHERRYIN_CONFIG.REDIRECT_URI,
+        scope: CHERRYIN_CONFIG.SCOPES
+      })
+    },
+    beforePersistTokens: async (tokenData, context) => {
+      const { apiHost } = resolveCherryInContext(context)
+      return { apiKeys: await fetchCherryInApiKeys(tokenData.access_token, apiHost) }
     }
   }
 } satisfies Record<string, OAuthRuntimeProviderDefinition>

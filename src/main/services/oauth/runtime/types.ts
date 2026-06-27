@@ -33,10 +33,27 @@ export interface LoopbackCallbackConfig {
   redirectUri: string
 }
 
+export interface DeepLinkCallbackConfig {
+  redirectUri: string
+}
+
+export interface OAuthRuntimeProviderContext {
+  oauthServer?: string
+  apiHost?: string
+}
+
+export interface OAuthTokenExchangeSideEffectResult {
+  apiKeys?: string
+}
+
 export interface OAuthRuntimeProviderDefinition {
   providerId: string
   clientId: string
-  transport: { type: 'loopback'; config: LoopbackCallbackConfig } | { type: 'deep-link' }
-  createClient(): PkceOAuthClient | Promise<PkceOAuthClient>
+  transport: { type: 'loopback'; config: LoopbackCallbackConfig } | { type: 'deep-link'; config: DeepLinkCallbackConfig }
+  createClient(context?: OAuthRuntimeProviderContext): PkceOAuthClient | Promise<PkceOAuthClient>
   extractAccountId?(accessToken: string): string | null
+  beforePersistTokens?(
+    tokenData: { access_token: string; refresh_token?: string; expires_in?: number },
+    context: OAuthRuntimeProviderContext
+  ): Promise<OAuthTokenExchangeSideEffectResult | void>
 }

@@ -4,10 +4,17 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { shell } from 'electron'
 
 import { OAuthServiceError } from '../errors'
+import { DeepLinkCallbackTransport } from './DeepLinkCallbackTransport'
 import { LoopbackCallbackTransport } from './LoopbackCallbackTransport'
 import { ProviderAuthConfigOAuthTokenStore } from './OAuthTokenStore'
 import { oauthProviderDefinitions } from './providerDefinitions'
-import type { OAuthAccount, OAuthRuntimeProviderDefinition, OAuthTokenCredentials, OAuthTokenStore } from './types'
+import type {
+  OAuthAccount,
+  OAuthRuntimeProviderContext,
+  OAuthRuntimeProviderDefinition,
+  OAuthTokenCredentials,
+  OAuthTokenStore
+} from './types'
 
 const SIGN_IN_TIMEOUT_MS = 10 * 60 * 1000
 const TOKEN_EXPIRY_BUFFER_MS = 60 * 1000
@@ -19,6 +26,7 @@ export class OAuthRuntimeService extends BaseService {
   private readonly tokenStore: OAuthTokenStore = new ProviderAuthConfigOAuthTokenStore()
   private readonly definitions = oauthProviderDefinitions
   private readonly transports = new Map<string, LoopbackCallbackTransport>()
+  private readonly deepLinkTransports = new Map<string, DeepLinkCallbackTransport>()
   private readonly refreshPromises = new Map<string, Promise<string | null>>()
 
   protected onStop(): void {
@@ -35,6 +43,10 @@ export class OAuthRuntimeService extends BaseService {
       transport.close()
     }
     this.transports.clear()
+    for (const transport of this.deepLinkTransports.values()) {
+      transport.close()
+    }
+    this.deepLinkTransports.clear()
   }
 
   private getDefinition(providerId: string): OAuthRuntimeProviderDefinition {
@@ -58,13 +70,27 @@ export class OAuthRuntimeService extends BaseService {
     return transport
   }
 
+  private getDeepLinkTransport(definition: OAuthRuntimeProviderDefinition): DeepLinkCallbackTransport {
+    if (definition.transport.type !== 'deep-link') {
+      throw new OAuthServiceError(`OAuth provider does not support deep-link sign-in: ${definition.providerId}`)
+    }
+
+    let transport = this.deepLinkTransports.get(definition.providerId)
+    if (!transport) {
+      transport = new DeepLinkCallbackTransport(definition.transport.config)
+      this.deepLinkTransports.set(definition.providerId, transport)
+    }
+    return transport
+  }
+
   private isExpired(expiresAt: number | undefined): boolean {
     return expiresAt !== undefined && Date.now() >= expiresAt - TOKEN_EXPIRY_BUFFER_MS
   }
 
   private async persistTokens(
     definition: OAuthRuntimeProviderDefinition,
-    tokenData: { access_token: string; refresh_token?: string; expires_in?: number }
+    tokenData: { access_token: string; refresh_token?: string; expires_in?: number },
+    context: OAuthRuntimeProviderContext = {}
   ): Promise<void> {
     const current = await this.tokenStore.get(definition.providerId)
     const accountId = definition.extractAccountId?.(tokenData.access_token) ?? current?.accountId
@@ -96,7 +122,9 @@ export class OAuthRuntimeService extends BaseService {
       await shell.openExternal(authUrl)
       const code = await codePromise
 
-      await this.persistTokens(definition, await client.exchangeCode(code, codeVerifier))
+      const tokenData = await client.exchangeCode(code, codeVerifier)
+      await definition.beforePersistTokens?.(tokenData, {})
+      await this.persistTokens(definition, tokenData)
       await providerService.update(providerId, { isEnabled: true })
       this.logger.info(`${providerId} sign-in succeeded`)
       return this.getAccount(providerId)
@@ -106,6 +134,69 @@ export class OAuthRuntimeService extends BaseService {
     } finally {
       transport.close()
     }
+  }
+
+  public startDeepLinkFlow = async (
+    event: Electron.IpcMainInvokeEvent,
+    providerId: string,
+    context: OAuthRuntimeProviderContext = {}
+  ): Promise<{ authUrl: string; state: string }> => {
+    const definition = this.getDefinition(providerId)
+    const transport = this.getDeepLinkTransport(definition)
+    const client = await definition.createClient(context)
+    const { authUrl, state, codeVerifier } = client.createAuthorizationRequest()
+    return transport.registerAuthorizationRequest(authUrl, state, codeVerifier, event, context)
+  }
+
+  public handleDeepLinkCallback = async (url: URL): Promise<void> => {
+    for (const [providerId, transport] of this.deepLinkTransports.entries()) {
+      const definition = this.getDefinition(providerId)
+      if (definition.transport.type !== 'deep-link') continue
+
+      const state = url.searchParams.get('state')
+      const initiatorWindowId = state ? transport.getInitiatorWindowId(state) : null
+
+      try {
+        const callback = transport.consumeCallback(url)
+        if (!callback) continue
+
+        const client = await definition.createClient(callback.context)
+        const tokenData = await client.exchangeCode(callback.code, callback.codeVerifier)
+        const sideEffectResult = await definition.beforePersistTokens?.(tokenData, callback.context)
+        await this.persistTokens(definition, tokenData, callback.context)
+        await providerService.update(providerId, { isEnabled: true })
+        transport.sendConsumedResult(callback.state, callback.initiatorWindowId, { apiKeys: sideEffectResult?.apiKeys })
+        this.logger.info(`${providerId} deep-link sign-in succeeded`)
+        return
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        this.logger.error(`${providerId} deep-link callback failed`, error as Error)
+        if (state && initiatorWindowId) {
+          transport.sendConsumedResult(state, initiatorWindowId, { error: message })
+          return
+        }
+        throw error instanceof OAuthServiceError ? error : new OAuthServiceError(message, error)
+      }
+    }
+  }
+
+  public saveTokens = async (
+    providerId: string,
+    data: { accessToken: string; refreshToken?: string; expiresAt?: number; accountId?: string },
+    clientId?: string
+  ): Promise<void> => {
+    const definition = this.getDefinition(providerId)
+    const current = await this.tokenStore.get(providerId)
+    await this.tokenStore.set(
+      providerId,
+      {
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken ?? current?.refreshToken,
+        expiresAt: data.expiresAt,
+        accountId: data.accountId ?? current?.accountId
+      },
+      clientId ?? definition.clientId
+    )
   }
 
   public getAccount = async (providerId: string): Promise<OAuthAccount> => {
@@ -132,7 +223,10 @@ export class OAuthRuntimeService extends BaseService {
     this.logger.info(`Cleared ${providerId} OAuth tokens`)
   }
 
-  public getValidAccessToken = async (providerId: string): Promise<OAuthTokenCredentials | null> => {
+  public getValidAccessToken = async (
+    providerId: string,
+    context: OAuthRuntimeProviderContext = {}
+  ): Promise<OAuthTokenCredentials | null> => {
     const definition = this.getDefinition(providerId)
     const config = await this.tokenStore.get(providerId)
     if (!config?.accessToken) return null
@@ -146,18 +240,22 @@ export class OAuthRuntimeService extends BaseService {
       return null
     }
 
-    const accessToken = await this.refreshAccessToken(definition, config.refreshToken)
+    const accessToken = await this.refreshAccessToken(definition, config.refreshToken, context)
     if (!accessToken) return null
 
     const refreshed = await this.tokenStore.get(providerId)
     return { accessToken, accountId: refreshed?.accountId ?? null }
   }
 
-  private refreshAccessToken(definition: OAuthRuntimeProviderDefinition, refreshToken: string): Promise<string | null> {
+  private refreshAccessToken(
+    definition: OAuthRuntimeProviderDefinition,
+    refreshToken: string,
+    context: OAuthRuntimeProviderContext
+  ): Promise<string | null> {
     const providerId = definition.providerId
     let refreshPromise = this.refreshPromises.get(providerId)
     if (!refreshPromise) {
-      refreshPromise = this.doRefresh(definition, refreshToken).finally(() => {
+      refreshPromise = this.doRefresh(definition, refreshToken, context).finally(() => {
         this.refreshPromises.delete(providerId)
       })
       this.refreshPromises.set(providerId, refreshPromise)
@@ -165,11 +263,15 @@ export class OAuthRuntimeService extends BaseService {
     return refreshPromise
   }
 
-  private async doRefresh(definition: OAuthRuntimeProviderDefinition, refreshToken: string): Promise<string | null> {
+  private async doRefresh(
+    definition: OAuthRuntimeProviderDefinition,
+    refreshToken: string,
+    context: OAuthRuntimeProviderContext
+  ): Promise<string | null> {
     try {
-      const client = await definition.createClient()
+      const client = await definition.createClient(context)
       const tokenData = await client.refresh(refreshToken)
-      await this.persistTokens(definition, tokenData)
+      await this.persistTokens(definition, tokenData, context)
       return tokenData.access_token
     } catch (error) {
       this.logger.error(`Failed to refresh ${definition.providerId} token`, error as Error)
