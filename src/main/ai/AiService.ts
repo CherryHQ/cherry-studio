@@ -21,7 +21,7 @@ import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Base64String, URLString } from '@shared/types/file/common'
-import { isEmbeddingModel, isRerankModel } from '@shared/utils/model'
+import { isEmbeddingModel, isFunctionCallingModel, isRerankModel } from '@shared/utils/model'
 import {
   type EmbeddingModelUsage,
   isToolUIPart,
@@ -31,8 +31,8 @@ import {
 } from 'ai'
 
 import { isAgentSessionTopic } from './agentSession/topic'
+import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities } from './messages/messageCapabilities'
-import { resolveUIMessageFileUrls } from './messages/messageConverter'
 import { resolveImageTransport } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
@@ -345,13 +345,17 @@ export class AiService extends BaseService {
       throw new Error(`Agent session stream ${request.chatId} requires an agent-session runtime request`)
     }
 
-    const { sdkConfig, tools, plugins, system, options, model, hookParts } = await this.buildAgentParamsFor(
-      request,
-      signal,
-      extraFeatures
-    )
+    const { sdkConfig, tools, plugins, system, options, model, hookParts, nativeFileSupport, fileAttachments } =
+      await this.buildAgentParamsFor(request, signal, extraFeatures)
 
-    const preparedMessages = await resolveUIMessageFileUrls(request.messages ?? [])
+    // Route attachments: native files stay inline, non-native become capped text
+    // (always visible — never gated on the model calling read_file).
+    const preparedMessages = await prepareChatMessages(request.messages ?? [], {
+      attachments: fileAttachments,
+      nativeSupport: nativeFileSupport,
+      isToolCapable: isFunctionCallingModel(model),
+      signal
+    })
 
     const agent = new Agent({
       providerId: sdkConfig.providerId,

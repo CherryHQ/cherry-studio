@@ -6,9 +6,9 @@
  * is created here, when the message is actually sent. Each attachment is
  * promoted to an internal `FileEntry` via `createInternalEntry` (Cherry copies
  * the bytes into its own storage); the resulting `fileEntryId` lives in
- * `providerMetadata.cherry` so `fileProcessor.resolveFileUIPart` (main) can read
- * it path-independently — see `packages/shared/data/types/uiParts.ts` for the
- * accessor + Zod.
+ * `providerMetadata.cherry` so `fileProcessor.materializeNativeFilePart` (main)
+ * can read it path-independently — see `packages/shared/data/types/uiParts.ts`
+ * for the accessor + Zod.
  */
 
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
