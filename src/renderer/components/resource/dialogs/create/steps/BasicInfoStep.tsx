@@ -40,6 +40,7 @@ export function BasicInfoStep({ form, portalContainer, fallbackAvatar, modelFilt
           setEmojiPickerOpen={setEmojiPickerOpen}
           fallback={fallbackAvatar}
           portalContainer={portalContainer}
+          size="sm"
         />
         <TextInputField
           form={form}

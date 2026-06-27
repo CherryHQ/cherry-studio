@@ -324,13 +324,15 @@ export function AvatarField({
   emojiPickerOpen,
   setEmojiPickerOpen,
   fallback,
-  portalContainer
+  portalContainer,
+  size
 }: {
   form: UseFormReturn<any>
   emojiPickerOpen: boolean
   setEmojiPickerOpen: (open: boolean) => void
   fallback: string
   portalContainer: HTMLElement | null
+  size?: 'sm' | 'md'
 }) {
   const { t } = useTranslation()
   const avatar = form.watch('avatar')
@@ -350,6 +352,7 @@ export function AvatarField({
             onChange={field.onChange}
             ariaLabel={t('library.config.dialogs.create.avatar_aria')}
             portalContainer={portalContainer}
+            size={size}
           />
           <FormMessage />
         </FormItem>
