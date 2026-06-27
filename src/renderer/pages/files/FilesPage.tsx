@@ -901,15 +901,18 @@ function FilesPage() {
       <div
         className={`relative flex min-w-0 flex-1 flex-col transition-colors ${dragOver ? 'bg-accent/25' : ''}`}
         onDragOver={(e) => {
-          if (isTrash) return
           e.preventDefault()
+          if (isTrash) {
+            setDragOver(false)
+            return
+          }
           setDragOver(true)
         }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => {
-          if (isTrash) return
           e.preventDefault()
           setDragOver(false)
+          if (isTrash) return
           const paths = Array.from(e.dataTransfer.files)
             .map((file) => window.api.file.getPathForFile(file))
             .filter((path): path is string => Boolean(path))

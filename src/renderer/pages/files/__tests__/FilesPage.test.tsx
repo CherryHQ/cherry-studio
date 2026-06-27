@@ -6,7 +6,7 @@ import type { FileEntry } from '@shared/data/types/file'
 import { IpcError } from '@shared/ipc/errors'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { mockUseInfiniteQuery, mockUseQuery } from '@test-mocks/renderer/useDataApi'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const platformState = vi.hoisted(() => ({
@@ -777,6 +777,39 @@ describe('FilesPage file operations', () => {
       })
       expect(refetchStats).toHaveBeenCalled()
     })
+  })
+
+  it('cancels native file drops in the trash view without importing', () => {
+    const fileApi = window.api.file as typeof window.api.file & { getPathForFile: (file: File) => string }
+    fileApi.getPathForFile = vi.fn(() => '/tmp/import.md')
+    mockUseInfiniteQuery.mockImplementation((_path, options) => ({
+      pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? [{ items: [trashedEntry] }] : [],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }))
+    render(<FilesPage />)
+
+    fireEvent.click(screen.getByText('files.trash'))
+    const target = screen.getByText('trashed.txt')
+    const file = new File(['content'], 'import.md', { type: 'text/markdown' })
+    const dragOverEvent = createEvent.dragOver(target, { dataTransfer: { files: [file] } })
+    const dropEvent = createEvent.drop(target, { dataTransfer: { files: [file] } })
+    const preventDragOverDefault = vi.spyOn(dragOverEvent, 'preventDefault')
+    const preventDropDefault = vi.spyOn(dropEvent, 'preventDefault')
+
+    fireEvent(target, dragOverEvent)
+    fireEvent(target, dropEvent)
+
+    expect(preventDragOverDefault).toHaveBeenCalled()
+    expect(preventDropDefault).toHaveBeenCalled()
+    expect(fileApi.getPathForFile).not.toHaveBeenCalled()
+    expect(ipcMocks.request).not.toHaveBeenCalledWith('file.batch_create_internal_entries', expect.anything())
   })
 
   it('chunks dropped file imports at the create-route batch cap', async () => {
