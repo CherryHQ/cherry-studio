@@ -131,7 +131,10 @@ describe('CherryInOauthService', () => {
       monthlyUsageTokens: null,
       monthlySpend: 6.82
     })
-    expect(runtimeMocks.getValidAccessToken).toHaveBeenCalledWith('cherryin', { apiHost: 'https://open.cherryin.ai' })
+    expect(runtimeMocks.getValidAccessToken).toHaveBeenCalledWith('cherryin', {
+      apiHost: 'https://open.cherryin.ai',
+      forceRefresh: false
+    })
     expect(netMocks.fetch).toHaveBeenCalledWith(
       'https://open.cherryin.ai/api/v1/oauth/balance',
       expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer oauth-access' }) })

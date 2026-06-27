@@ -40,6 +40,7 @@ export interface DeepLinkCallbackConfig {
 export interface OAuthRuntimeProviderContext {
   oauthServer?: string
   apiHost?: string
+  forceRefresh?: boolean
 }
 
 export interface OAuthTokenExchangeSideEffectResult {

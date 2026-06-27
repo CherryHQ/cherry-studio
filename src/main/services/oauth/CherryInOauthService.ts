@@ -207,21 +207,50 @@ export class CherryInOauthService extends BaseService {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<Response> => {
-    const credentials = await application.get('OAuthRuntimeService').getValidAccessToken(CHERRYIN_PROVIDER_ID, { apiHost })
-    if (!credentials?.accessToken) {
-      throw new CherryInOauthServiceError('OAuth session expired: failed to refresh access token', undefined, 'OAuthSessionExpired')
+    const getCredentials = async (forceRefresh = false): Promise<{ accessToken: string } | null> => {
+      const credentials = await application
+        .get('OAuthRuntimeService')
+        .getValidAccessToken(CHERRYIN_PROVIDER_ID, { apiHost, forceRefresh })
+      return credentials?.accessToken ? { accessToken: credentials.accessToken } : null
     }
 
-    const requestOptions: RequestInit = {
-      ...options,
-      headers: {
-        ...options.headers,
-        Authorization: `Bearer ${credentials.accessToken}`,
-        'Content-Type': 'application/json'
+    const makeRequest = async (accessToken: string): Promise<Response> => {
+      const requestOptions: RequestInit = {
+        ...options,
+        headers: {
+          ...options.headers,
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      }
+
+      return net.fetch(`${apiHost}${endpoint}`, requestOptions)
+    }
+
+    const credentials = await getCredentials()
+    if (!credentials) {
+      throw new CherryInOauthServiceError(
+        'OAuth session expired: failed to refresh access token',
+        undefined,
+        'OAuthSessionExpired'
+      )
+    }
+
+    let response = await makeRequest(credentials.accessToken)
+
+    if (response.status === 401) {
+      logger.info('Got 401, forcing CherryIN OAuth token refresh')
+      const refreshedCredentials = await getCredentials(true)
+      if (refreshedCredentials) {
+        response = await makeRequest(refreshedCredentials.accessToken)
+      } else {
+        throw new CherryInOauthServiceError(
+          'OAuth session expired: failed to refresh access token',
+          undefined,
+          'OAuthSessionExpired'
+        )
       }
     }
-
-    const response = await net.fetch(`${apiHost}${endpoint}`, requestOptions)
 
     if (response.status === 401) {
       await this.logUnauthorizedResponse(apiHost, endpoint, response, {

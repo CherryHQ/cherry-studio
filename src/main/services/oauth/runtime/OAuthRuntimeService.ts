@@ -231,7 +231,7 @@ export class OAuthRuntimeService extends BaseService {
     const config = await this.tokenStore.get(providerId)
     if (!config?.accessToken) return null
 
-    if (!this.isExpired(config.expiresAt)) {
+    if (!context.forceRefresh && !this.isExpired(config.expiresAt)) {
       return { accessToken: config.accessToken, accountId: config.accountId ?? null }
     }
 
@@ -241,7 +241,10 @@ export class OAuthRuntimeService extends BaseService {
     }
 
     const accessToken = await this.refreshAccessToken(definition, config.refreshToken, context)
-    if (!accessToken) return null
+    if (!accessToken) {
+      await this.tokenStore.clear(providerId)
+      return null
+    }
 
     const refreshed = await this.tokenStore.get(providerId)
     return { accessToken, accountId: refreshed?.accountId ?? null }
