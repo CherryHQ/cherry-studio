@@ -105,7 +105,7 @@ export function canManageProvider(provider: Provider): boolean {
 }
 
 export function isProviderSupportAuth(provider: Pick<Provider, 'id'>): boolean {
-  const supportProviders = ['302ai', 'silicon', 'aihubmix', 'ppio', 'tokenflux', 'aionly']
+  const supportProviders = ['302ai', 'silicon', 'aihubmix', 'ppio', 'aionly']
   return supportProviders.includes(provider.id)
 }
 

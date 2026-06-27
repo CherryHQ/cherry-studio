@@ -38,6 +38,7 @@ import { legacyChatModelToUniqueId } from './transformers/ModelTransformers'
 const logger = loggerService.withContext('ProviderModelMigrator')
 
 const BATCH_SIZE = 100
+const RETIRED_PROVIDER_IDS = new Set(['cephalon', 'tokenflux'])
 
 const PROVIDER_MODEL_MIGRATION_ERROR_IDS = {
   prepare: 'provider_model_prepare_failed',
@@ -286,6 +287,7 @@ export class ProviderModelMigrator extends BaseMigrator {
       const dedupedProviders: LegacyProvider[] = []
       let skippedProviders = 0
       let skippedManagedProviders = 0
+      let skippedRetiredProviders = 0
       let skippedInvalidId = 0
       let skippedInvalidModels = 0
       let skippedDuplicateModels = 0
@@ -318,6 +320,10 @@ export class ProviderModelMigrator extends BaseMigrator {
           skippedManagedProviders++
           continue
         }
+        if (RETIRED_PROVIDER_IDS.has(provider.id)) {
+          skippedRetiredProviders++
+          continue
+        }
         if (seenIds.has(provider.id)) {
           skippedProviders++
           logger.warn('Duplicate provider ID skipped', { providerId: provider.id })
@@ -346,6 +352,9 @@ export class ProviderModelMigrator extends BaseMigrator {
       if (skippedManagedProviders > 0) {
         warnings.push(`Skipped ${skippedManagedProviders} managed CherryAI provider(s)`)
       }
+      if (skippedRetiredProviders > 0) {
+        warnings.push(`Skipped ${skippedRetiredProviders} retired provider(s)`)
+      }
       if (skippedProviders > 0) {
         warnings.push(`Skipped ${skippedProviders} duplicate provider(s)`)
       }
@@ -362,6 +371,7 @@ export class ProviderModelMigrator extends BaseMigrator {
       logger.info('Preparation completed', {
         providerCount: this.providers.length,
         skippedManagedProviders,
+        skippedRetiredProviders,
         skippedProviders,
         modelCount: this.totalModelCount,
         pinnedModelCount: this.pinnedModelIds.length

@@ -6,7 +6,6 @@ const logger = loggerService.withContext('Utils:oauth')
 const SILICON_CLIENT_ID = 'SFaJLLq0y6CAMoyDm81aMu'
 const PPIO_CLIENT_ID = '37d0828c96b34936a600b62c'
 const PPIO_APP_SECRET = import.meta.env.RENDERER_VITE_PPIO_APP_SECRET || ''
-export const TOKENFLUX_HOST = 'https://tokenflux.ai'
 
 export const oauthWithSiliconFlow = async (setKey) => {
   const authUrl = `https://account.siliconflow.cn/oauth?client_id=${SILICON_CLIENT_ID}`
@@ -140,21 +139,6 @@ export const oauthWithPPIO = async (setKey) => {
   })
 }
 
-export const oauthWithTokenFlux = async () => {
-  const callbackUrl = `${TOKENFLUX_HOST}/auth/callback?redirect_to=/dashboard/api-keys`
-  const resp = await fetch(`${TOKENFLUX_HOST}/api/auth/auth-url?type=login&callback=${callbackUrl}`, {})
-  if (!resp.ok) {
-    window.toast.error(i18n.t('settings.provider.oauth.error'))
-    return
-  }
-  const data = await resp.json()
-  const authUrl = data.data.url
-  window.open(
-    authUrl,
-    'oauth',
-    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
-  )
-}
 export const oauthWith302AI = async (setKey) => {
   const authUrl = 'https://dash.302.ai/sso/login?app=cherry-ai.com&name=Cherry%20Studio'
 
@@ -289,11 +273,6 @@ export const providerCharge = async (provider: string) => {
       width: 720,
       height: 900
     },
-    tokenflux: {
-      url: `https://tokenflux.ai/dashboard/billing`,
-      width: 900,
-      height: 700
-    },
     ppio: {
       url: 'https://ppio.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio&redirect=/billing',
       width: 900,
@@ -329,11 +308,6 @@ export const providerBills = async (provider: string) => {
     },
     aihubmix: {
       url: `https://console.aihubmix.com/statistics?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`,
-      width: 900,
-      height: 700
-    },
-    tokenflux: {
-      url: `https://tokenflux.ai/dashboard/billing`,
       width: 900,
       height: 700
     },
