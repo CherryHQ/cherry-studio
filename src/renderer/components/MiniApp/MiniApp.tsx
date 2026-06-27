@@ -97,7 +97,7 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
   const handleHide = () => {
     updateAppStatus(app.appId, 'disabled')
       .then(() => {
-        setOpenedKeepAliveMiniApps(openedKeepAliveMiniApps.filter((item) => item.appId !== app.appId))
+        setOpenedKeepAliveMiniApps((items) => items.filter((item) => item.appId !== app.appId))
       })
       .catch(reportFailure('miniApp.hide_failed'))
   }

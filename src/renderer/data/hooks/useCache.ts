@@ -11,9 +11,14 @@ import type {
 } from '@shared/data/cache/cacheSchemas'
 import { DefaultSharedCache, DefaultUseCache } from '@shared/data/cache/cacheSchemas'
 import { findMatchingSharedCacheSchemaKey, isTemplateKey, templateToRegex } from '@shared/data/cache/templateKey'
+import type { SetStateAction } from 'react'
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
 
 const logger = loggerService.withContext('useCache')
+
+function resolveSetStateAction<T>(action: SetStateAction<T>, prevValue: T): T {
+  return typeof action === 'function' ? (action as (prevValue: T) => T)(prevValue) : action
+}
 
 // ============================================================================
 // Template Matching Utilities
@@ -140,7 +145,7 @@ function getSharedCacheDefaultValue<K extends SharedCacheKey>(key: K): InferShar
 export function useCache<K extends UseCacheKey>(
   key: K,
   initValue?: InferUseCacheValue<K>
-): [InferUseCacheValue<K>, (value: InferUseCacheValue<K>) => void] {
+): [InferUseCacheValue<K>, (value: SetStateAction<InferUseCacheValue<K>>) => void] {
   // Get the default value for this key (works with both fixed and template keys)
   const defaultValue = getUseCacheDefaultValue(key)
 
@@ -196,10 +201,12 @@ export function useCache<K extends UseCacheKey>(
    * @param newValue - New value to store in cache
    */
   const setValue = useCallback(
-    (newValue: InferUseCacheValue<K>) => {
-      cacheService.set(key, newValue)
+    (newValue: SetStateAction<InferUseCacheValue<K>>) => {
+      const prevValue = cacheService.get(key) ?? initValue ?? defaultValue!
+      const nextValue = resolveSetStateAction(newValue, prevValue)
+      cacheService.set(key, nextValue)
     },
-    [key]
+    [key, initValue, defaultValue]
   )
 
   return [value ?? initValue ?? defaultValue!, setValue]
@@ -238,7 +245,7 @@ export function useCache<K extends UseCacheKey>(
 export function useSharedCache<K extends SharedCacheKey>(
   key: K,
   initValue?: InferSharedCacheValue<K>
-): [InferSharedCacheValue<K>, (value: InferSharedCacheValue<K>) => void] {
+): [InferSharedCacheValue<K>, (value: SetStateAction<InferSharedCacheValue<K>>) => void] {
   /**
    * Subscribe to shared cache changes using React's useSyncExternalStore
    * This ensures the component re-renders when the shared cache value changes
@@ -300,10 +307,13 @@ export function useSharedCache<K extends SharedCacheKey>(
    * @param newValue - New value to store in shared cache
    */
   const setValue = useCallback(
-    (newValue: InferSharedCacheValue<K>) => {
-      cacheService.setShared(key, newValue)
+    (newValue: SetStateAction<InferSharedCacheValue<K>>) => {
+      const prevValue =
+        cacheService.getShared(key) ?? initValue ?? (getSharedCacheDefaultValue(key) as InferSharedCacheValue<K>)
+      const nextValue = resolveSetStateAction(newValue, prevValue)
+      cacheService.setShared(key, nextValue)
     },
-    [key]
+    [key, initValue]
   )
 
   return [value ?? initValue ?? (getSharedCacheDefaultValue(key) as InferSharedCacheValue<K>), setValue]
@@ -332,7 +342,7 @@ export function useSharedCache<K extends SharedCacheKey>(
  */
 export function usePersistCache<K extends RendererPersistCacheKey>(
   key: K
-): [RendererPersistCacheSchema[K], (value: RendererPersistCacheSchema[K]) => void] {
+): [RendererPersistCacheSchema[K], (value: SetStateAction<RendererPersistCacheSchema[K]>) => void] {
   /**
    * Subscribe to persist cache changes using React's useSyncExternalStore
    * This ensures the component re-renders when the persist cache value changes
@@ -359,8 +369,10 @@ export function usePersistCache<K extends RendererPersistCacheKey>(
    * @param newValue - New value to store in persist cache (must match schema type)
    */
   const setValue = useCallback(
-    (newValue: RendererPersistCacheSchema[K]) => {
-      cacheService.setPersist(key, newValue)
+    (newValue: SetStateAction<RendererPersistCacheSchema[K]>) => {
+      const prevValue = cacheService.getPersist(key)
+      const nextValue = resolveSetStateAction(newValue, prevValue)
+      cacheService.setPersist(key, nextValue)
     },
     [key]
   )

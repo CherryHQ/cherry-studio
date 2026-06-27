@@ -248,6 +248,22 @@ describe('useMiniApps', () => {
       // Check cache values directly since mock useCache doesn't trigger re-renders
       expect(MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive')).toEqual(newApps)
     })
+
+    it('should apply openedKeepAliveMiniApps functional updater to latest cache value', async () => {
+      const staleApp = createMiniApp('stale-app')
+      const latestApp = createMiniApp('latest-app')
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [staleApp])
+      const { result } = renderHook(() => useMiniApps())
+      const setOpenedKeepAliveMiniApps = result.current.setOpenedKeepAliveMiniApps
+
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [staleApp, latestApp])
+
+      await act(async () => {
+        setOpenedKeepAliveMiniApps((apps) => apps.filter((app) => app.appId !== 'stale-app'))
+      })
+
+      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive')).toEqual([latestApp])
+    })
   })
 
   // === Mutations ===
