@@ -90,7 +90,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault()
-        handleOpen(e)
+        void handleOpen(e)
       }
     },
     [handleOpen]
