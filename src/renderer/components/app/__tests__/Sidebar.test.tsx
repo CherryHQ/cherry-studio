@@ -193,7 +193,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-import { resolveSidebarAppTabEntryUrl } from '@renderer/config/sidebar'
+import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
 
 import Sidebar from '../Sidebar'
 
@@ -287,7 +287,7 @@ describe('app Sidebar', () => {
     expect(mocks.emitResourceListReveal).not.toHaveBeenCalled()
   })
 
-  it('focuses an existing sidebar app tab instead of reusing the active tab', () => {
+  it('reuses the active tab even when another sidebar app tab exists', () => {
     mocks.sidebarFavorites = ['agents']
     mocks.activeTab = {
       id: 'chat',
@@ -300,9 +300,14 @@ describe('app Sidebar', () => {
     render(<Sidebar />)
     fireEvent.click(screen.getByTestId('sidebar-item-agents'))
 
-    expect(mocks.setActiveTab).toHaveBeenCalledWith('agents-1')
-    expect(mocks.emitResourceListReveal).toHaveBeenCalledWith({ source: 'agents', tabId: 'agents-1' })
-    expect(mocks.updateTab).not.toHaveBeenCalled()
+    expect(mocks.updateTab).toHaveBeenCalledWith('chat', {
+      url: '/app/agents',
+      title: 'Work',
+      icon: undefined,
+      metadata: undefined
+    })
+    expect(mocks.emitResourceListReveal).toHaveBeenCalledWith({ source: 'agents', tabId: 'chat' })
+    expect(mocks.setActiveTab).not.toHaveBeenCalled()
     expect(mocks.openTab).not.toHaveBeenCalled()
   })
 

@@ -213,7 +213,7 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   useComposerTokenReconcile: () => mocks.reconcileTokens
 }))
 
-vi.mock('@renderer/hooks/agents/useAgent', () => ({
+vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgent: () => ({
     agent: {
       id: 'agent-1',
@@ -228,11 +228,11 @@ vi.mock('@renderer/hooks/agents/useAgent', () => ({
   useUpdateAgent: () => ({ updateModel: mocks.updateModel })
 }))
 
-vi.mock('@renderer/hooks/agents/useAgentModelFilter', () => ({
+vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelFilter: () => undefined
 }))
 
-vi.mock('@renderer/hooks/agents/useAgentSessionContextUsage', () => ({
+vi.mock('@renderer/hooks/agent/useAgentSessionContextUsage', () => ({
   useAgentSessionContextUsage: () => ({
     usage:
       mocks.contextUsagePercentage === null
@@ -255,11 +255,11 @@ vi.mock('@renderer/hooks/agents/useAgentSessionContextUsage', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/agents/useAgentSessionCompaction', () => ({
+vi.mock('@renderer/hooks/agent/useAgentSessionCompaction', () => ({
   useAgentSessionCompaction: () => ({ status: 'idle' })
 }))
 
-vi.mock('@renderer/hooks/agents/useSession', () => ({
+vi.mock('@renderer/hooks/agent/useSession', () => ({
   useSession: () => ({
     session: {
       id: 'session-1',

@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   isGenerateImageModels: vi.fn()
 }))
 
-vi.mock('@renderer/config/models', () => mocks)
+vi.mock('@renderer/utils/model', () => mocks)
 
 const model = (id: string) => ({ id }) as unknown as Model
 

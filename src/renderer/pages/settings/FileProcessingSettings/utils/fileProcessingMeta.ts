@@ -1,7 +1,7 @@
 import type { CompoundIcon } from '@cherrystudio/ui'
 import { Application, Doc2x, Intel, Mineru, Mistral, Paddleocr, TesseractJs } from '@cherrystudio/ui/icons'
 import { isWin } from '@renderer/config/constant'
-import { TESSERACT_LANG_MAP } from '@renderer/config/ocr'
+import { TESSERACT_LANG_MAP } from '@renderer/pages/settings/FileProcessingSettings/ocr'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileProcessorFeatureCapability, FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 

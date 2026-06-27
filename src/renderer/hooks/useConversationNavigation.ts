@@ -3,13 +3,13 @@ import {
   type ResourceListRevealSource
 } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
+import { type TabsContextValue, useOptionalTabsContext } from '@renderer/hooks/tab'
 import {
   buildSidebarAppOpenMetadata,
   getSidebarApp,
   getSidebarAppTabInstanceKey,
   tabBelongsToApp
-} from '@renderer/config/sidebar'
-import { type TabsContextValue, useOptionalTabsContext } from '@renderer/hooks/tab'
+} from '@renderer/utils/sidebar'
 import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useMemo } from 'react'
