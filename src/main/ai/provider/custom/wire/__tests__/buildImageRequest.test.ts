@@ -167,3 +167,47 @@ describe('buildVendorProviderOptions — Google native image family (contribute 
     })
   })
 })
+
+// DashScope: mapped {negative_prompt, seed, style} under the `dashscope` key over
+// a passthrough of the vendor bag the async transport reads (modelDescriptor /
+// langs). Mapped fields win over bag entries of the same name. Oracle = the
+// dashscope emitter through buildImageProviderOptions over the split params.
+function oracleDashscope(paramValues: Record<string, unknown>): Record<string, Record<string, unknown>> {
+  const { structured, vendorBag } = splitParamValues(paramValues)
+  return buildImageProviderOptions('dashscope', {
+    ...structured,
+    providerOptions: { dashscope: vendorBag as Record<string, unknown> }
+  }) as Record<string, Record<string, unknown>>
+}
+
+describe('buildVendorProviderOptions — DashScope (passthrough, mapped wins)', () => {
+  it('forwards the vendor bag (modelDescriptor / langs), mapped fields winning, auto preserved', () => {
+    const paramValues = {
+      negativePrompt: 'no blur',
+      seed: 42,
+      numImages: 1,
+      modelDescriptor: { id: 'qwen-mt-image', endpoint: '/api/v1/services/aigc/image', isSync: false },
+      sourceLang: 'auto', // a bag value of 'auto' must survive (jsonBag doesn't compact)
+      negative_prompt: 'bag-loses' // colliding bag entry — mapped negativePrompt overrides it
+    }
+    const { vendorBag } = splitParamValues(paramValues)
+    const result = buildVendorProviderOptions('dashscope', paramValues, WIRE_REGISTRY.dashscope, vendorBag)
+    expect(result).toEqual(oracleDashscope(paramValues))
+    expect(result).toEqual({
+      dashscope: {
+        modelDescriptor: { id: 'qwen-mt-image', endpoint: '/api/v1/services/aigc/image', isSync: false },
+        sourceLang: 'auto',
+        negative_prompt: 'no blur',
+        seed: 42
+      }
+    })
+  })
+
+  it('maps style and returns {} when nothing maps and the bag is empty', () => {
+    const withStyle = { style: 'watercolor', numImages: 1 }
+    expect(buildVendorProviderOptions('dashscope', withStyle, WIRE_REGISTRY.dashscope, {})).toEqual(
+      oracleDashscope(withStyle)
+    )
+    expect(buildVendorProviderOptions('dashscope', {}, WIRE_REGISTRY.dashscope, {})).toEqual({})
+  })
+})

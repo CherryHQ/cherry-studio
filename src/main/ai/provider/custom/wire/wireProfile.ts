@@ -72,6 +72,23 @@ export const OPENAI_WIRE_PROFILE: WireProfile = {
 }
 
 /**
+ * DashScope native image API (qwen-image / wanx / wan2.5 / qwen-mt-image …).
+ * Reproduces the `dashscope` emitter: the mapped sampling fields under the
+ * `dashscope` key, over a `passthrough` of the vendor bag the submit/poll
+ * transport reads (`modelDescriptor`, `sourceLang`/`targetLang`, …) — without it,
+ * `dashscopeTransport.submit` throws "Missing modelDescriptor". Mapped fields win
+ * over bag entries of the same name. The async transport runs on the job system;
+ * this bag is what it receives as `providerParams`.
+ */
+export const DASHSCOPE_WIRE_PROFILE: WireProfile = {
+  fields: {
+    negativePrompt: { to: 'negative_prompt' },
+    seed: { to: 'seed' },
+    style: { to: 'style' }
+  }
+}
+
+/**
  * Google native image family (`@ai-sdk/google` gemini-image / Imagen).
  * Reproduces the `google` emitter: a flat lowercased `personGeneration` (the
  * registry stores it uppercase like `@google/genai`'s `ALLOW_ALL`, but
@@ -121,7 +138,8 @@ export const WIRE_REGISTRY: Record<string, WireRegistration> = {
   cherryin: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   newapi: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   google: { profile: GOOGLE_WIRE_PROFILE },
-  'google-vertex': { profile: GOOGLE_WIRE_PROFILE }
+  'google-vertex': { profile: GOOGLE_WIRE_PROFILE },
+  dashscope: { profile: DASHSCOPE_WIRE_PROFILE, passthrough: true }
 }
 
 /**
