@@ -225,7 +225,9 @@ describe('AgentChatContextProvider', () => {
 
     await provider.prepareDispatch(subscriber, openReq({ userMessageParts: [{ type: 'text', text: 'hello session' }] }))
 
-    expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).toHaveBeenCalledWith('session-1', 'hello session')
+    expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).toHaveBeenCalledWith('session-1', {
+      parts: [{ type: 'text', text: 'hello session' }]
+    })
   })
 
   it('rejects agent sessions without a registered runtime driver', async () => {

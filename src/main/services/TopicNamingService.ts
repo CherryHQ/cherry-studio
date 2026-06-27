@@ -75,7 +75,11 @@ function getParts(
 }
 
 function getMainTextContentFromMessage(message: Message): string {
-  return getParts(message.data)
+  return getMainTextContentFromMessageData(message.data)
+}
+
+function getMainTextContentFromMessageData(data: MessageData | undefined): string {
+  return getParts(data)
     .filter((part) => part.type === 'text' && typeof part.text === 'string')
     .map((part) => part.text?.trim())
     .filter(Boolean)
@@ -193,7 +197,10 @@ export class TopicNamingService {
     }
   }
 
-  async maybeRenameAgentSessionFromFirstUserMessage(sessionId: string, userText: string): Promise<void> {
+  async maybeRenameAgentSessionFromFirstUserMessage(
+    sessionId: string,
+    userMessage: MessageData | string | undefined
+  ): Promise<void> {
     const enabled = application.get('PreferenceService').get('topic.naming.enabled')
     if (!enabled) return
 
@@ -201,6 +208,7 @@ export class TopicNamingService {
     if (session?.isNameManuallyEdited) return
     if (!session || !canAutoRenameAgentSessionName(session.name)) return
 
+    const userText = typeof userMessage === 'string' ? userMessage : getMainTextContentFromMessageData(userMessage)
     const nextName = firstUserMessageTitle(userText)
     if (!nextName || nextName === (session.name ?? '').trim()) return
 

@@ -208,6 +208,29 @@ describe('TopicNamingService', () => {
     expect(mocks.broadcast).toHaveBeenCalledWith('agent-session:auto-renamed', { sessionId: 'session-1' })
   })
 
+  it('extracts first-message agent session names from message data', async () => {
+    mocks.getSession.mockResolvedValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      name: '未命名',
+      isNameManuallyEdited: false
+    })
+    mocks.updateSession.mockResolvedValue({ id: 'session-1' })
+
+    await createService().maybeRenameAgentSessionFromFirstUserMessage('session-1', {
+      parts: [
+        { type: 'text', text: '  Inspect renderer startup  ' },
+        { type: 'file', url: 'file://trace.log', mediaType: 'text/plain' },
+        { type: 'text', text: 'suggest fixes' }
+      ]
+    } as never)
+
+    expect(mocks.updateSession).toHaveBeenCalledWith('session-1', {
+      name: 'Inspect renderer startup suggest fixes',
+      isNameManuallyEdited: false
+    })
+  })
+
   it('does not first-message rename an agent session that already has a real title', async () => {
     mocks.getSession.mockResolvedValue({
       id: 'session-1',
