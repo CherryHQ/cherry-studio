@@ -226,10 +226,6 @@ vi.mock('@renderer/components/Icons/MiniAppIcon', () => ({
   default: ({ app }: any) => <span aria-hidden="true">{app.logo ?? 'mini-app-icon'}</span>
 }))
 
-vi.mock('@renderer/features/command', () => ({
-  CommandContextMenu: ({ children }: any) => children
-}))
-
 vi.mock('@renderer/components/VirtualList', async () => {
   const React = await vi.importActual<ReactModule>('react')
 
@@ -302,7 +298,7 @@ vi.mock('@data/hooks/usePreference', () => ({
   ]
 }))
 
-vi.mock('@renderer/hooks/useTabs', () => ({
+vi.mock('@renderer/hooks/tab', () => ({
   useTabs: () => ({
     activeTab: mocks.activeTab,
     openTab: mocks.openTab,

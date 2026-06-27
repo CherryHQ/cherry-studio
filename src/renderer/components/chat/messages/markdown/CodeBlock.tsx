@@ -1,7 +1,7 @@
 import { ClickableFilePath } from '@renderer/components/chat/messages/tools/agent/ClickableFilePath'
 import { CodeBlockView, HtmlArtifactsCard } from '@renderer/components/CodeBlockView'
-import { isWin } from '@renderer/config/constant'
 import { getCodeBlockId } from '@renderer/utils/markdown'
+import { isWin } from '@renderer/utils/platform'
 import type { Node } from 'mdast'
 import React, { memo, useCallback, useMemo } from 'react'
 import { useIsCodeFenceIncomplete } from 'streamdown'

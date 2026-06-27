@@ -1,3 +1,4 @@
+import type * as ModelModule from '@renderer/utils/model'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -46,7 +47,8 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
-vi.mock('@renderer/config/models', () => ({
+vi.mock('@renderer/utils/model', async (importOriginal) => ({
+  ...(await importOriginal<typeof ModelModule>()),
   getModelLogo: () => null
 }))
 

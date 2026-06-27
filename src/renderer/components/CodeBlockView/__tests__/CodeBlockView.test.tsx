@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   CodeViewer: vi.fn(({ value }) => <div data-testid="code-viewer">{value}</div>)
 }))
 
-vi.mock('@renderer/context/CodeStyleProvider', () => ({
+vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({ activeCmTheme: 'light' })
 }))
 

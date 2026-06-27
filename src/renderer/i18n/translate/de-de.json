@@ -3876,64 +3876,6 @@
       "partial_failure": "{{count}} Suchergebnisse, einige Suchvorgänge sind fehlgeschlagen"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "Zum Launchpad hinzufügen",
-    "add_to_sidebar": "Zur Seitenleiste hinzufügen",
-    "popup": {
-      "close": "MinApp schließen",
-      "devtools": "Entwicklertools",
-      "goBack": "Zurück",
-      "goForward": "Weiter gehen",
-      "minimize": "Minimieren MinApp",
-      "openExternal": "Im Browser öffnen",
-      "open_link_external_off": "Aktuell: Links im Standardfenster öffnen",
-      "open_link_external_on": "Aktuell: Links im Browser öffnen",
-      "refresh": "Aktualisieren",
-      "rightclick_copyurl": "Rechtsklick, um die URL zu kopieren"
-    },
-    "remove_from_launchpad": "Von Launchpad entfernen",
-    "remove_from_sidebar": "Aus der Seitenleiste entfernen",
-    "sidebar": {
-      "close": {
-        "title": "Schließen"
-      },
-      "closeall": {
-        "title": "Alle schließen"
-      },
-      "hide": {
-        "title": "Verstecken"
-      },
-      "remove_custom": {
-        "title": "Benutzerdefinierte App löschen"
-      }
-    },
-    "title": "MinApp"
-  },
-  "minapps": {
-    "ant-ling": "Ameisenling",
-    "baichuan": "Baichuan",
-    "baidu-ai-search": "Baidu AI-Suche",
-    "chatglm": "ChatGLM",
-    "dangbei": "Dangbei",
-    "doubao": "Doubao",
-    "hailuo": "Hailuo",
-    "ima": "ima",
-    "metaso": "Metaso",
-    "minimax-agent": "Minimax-Agent CN",
-    "minimax-global": "Minimax-Agent",
-    "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami KI-Suche",
-    "qwen": "Qwen",
-    "sensechat": "SenseChat",
-    "stepfun": "Stepfun",
-    "tencent-yuanbao": "Yuanbao",
-    "tiangong-ai": "Skywork",
-    "wanzhi": "Wanzhi",
-    "wenxin": "ERNIE",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "Xiaoyi",
-    "zhihu": "Zhihu"
-  },
   "miniApp": {
     "add_to_launchpad": "Zu Launchpad hinzufügen",
     "add_to_sidebar": "Zur Seitenleiste hinzufügen",
@@ -3944,15 +3886,13 @@
     "hide_failed": "Failed to hide mini-app",
     "pin_failed": "Fehler beim Anheften der Mini-App",
     "popup": {
-      "close": "Mini-App schließen",
       "devtools": "Entwicklertools",
       "goBack": "Zurück",
       "goForward": "Vorwärts",
       "openExternal": "In Browser öffnen",
       "open_link_external_off": "Aktuell: Links im Standardfenster öffnen",
       "open_link_external_on": "Aktuell: Links im Browser öffnen",
-      "refresh": "Aktualisieren",
-      "rightclick_copyurl": "Rechtsklick zum Kopieren der URL"
+      "refresh": "Aktualisieren"
     },
     "remove_from_launchpad": "Aus Launchpad entfernen",
     "remove_from_sidebar": "Aus Seitenleiste entfernen",
@@ -3964,17 +3904,8 @@
     },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
-      "close": {
-        "title": "Schließen"
-      },
-      "closeall": {
-        "title": "Alle schließen"
-      },
       "hide": {
         "title": "Ausblenden"
-      },
-      "remove_custom": {
-        "title": "Benutzerdefinierte App entfernen"
       }
     },
     "title": "Mini-Apps",
@@ -3994,7 +3925,6 @@
     "minimax-agent": "MiniMax Agent CN",
     "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI-Suche",
     "qwen": "Qwen",
     "sensechat": "SenseChat",
     "stepfun": "StepFun AI",
@@ -6526,37 +6456,22 @@
     "miniApps": {
       "cache_change_notice": "Änderung wird wirksam wenn Anzahl geöffneter Mini-Apps auf festgelegten Wert angepasst wird",
       "cache_description": "Maximale Anzahl gleichzeitig aktiver Mini-Apps festlegen",
-      "cache_settings": "Cache-Einstellungen",
       "cache_title": "Anzahl gecachter Mini-Apps",
       "custom": {
-        "conflicting_ids": "Konflikt mit Standard-App-ID: {{ids}}",
-        "duplicate_ids": "Duplizierte ID gefunden: {{ids}}",
-        "edit_description": "Hier die Konfiguration der benutzerdefinierten Mini-App bearbeiten. Jede App muss id, name, url und logo-Felder enthalten",
+        "create_title": "Benutzerdefinierte Mini-App erstellen",
         "edit_title": "Benutzerdefinierte Mini-App bearbeiten",
-        "id": "ID",
-        "id_error": "ID ist Pflichtfeld",
-        "id_placeholder": "Bitte ID eingeben",
-        "logo": "Logo",
         "logo_file": "Logo-Datei hochladen",
-        "logo_upload_button": "Hochladen",
         "logo_upload_error": "Logo-Upload fehlgeschlagen",
         "logo_upload_label": "Logo hochladen",
-        "logo_upload_success": "Logo erfolgreich hochgeladen",
-        "logo_url": "Logo-URL",
-        "logo_url_label": "Logo-URL",
-        "logo_url_placeholder": "Bitte Logo-URL eingeben",
         "name": "Name",
-        "name_error": "Name ist Pflichtfeld",
         "name_placeholder": "Bitte Namen eingeben",
-        "placeholder": "Bitte benutzerdefinierte Mini-App-Konfiguration eingeben (JSON-Format)",
         "remove_error": "Löschen der benutzerdefinierten Mini-App fehlgeschlagen",
         "remove_success": "Benutzerdefinierte Mini-App erfolgreich gelöscht",
-        "save": "Speichern",
         "save_error": "Benutzerdefinierte Mini-App-Speicherung fehlgeschlagen",
         "save_success": "Benutzerdefinierte Mini-App erfolgreich gespeichert",
         "title": "Benutzerdefiniert",
         "url": "URL",
-        "url_error": "URL ist Pflichtfeld",
+        "url_invalid": "Geben Sie eine gültige http-, https- oder file-URL ein.",
         "url_placeholder": "Bitte URL eingeben"
       },
       "disabled": "Ausgeblendete Mini-Apps",
@@ -6578,65 +6493,7 @@
         "title": "Bereichsfilterung für Mini-Programme"
       },
       "reset_tooltip": "Zurücksetzen auf Standardwert",
-      "title": "Mini-App-Einstellungen",
       "visible": "Angezeigte Mini-Apps"
-    },
-    "miniapps": {
-      "cache_change_notice": "Die Änderungen treten in Kraft, wenn die Anzahl der geöffneten Mini-Apps den festgelegten Wert erreicht.",
-      "cache_description": "Legen Sie die maximale Anzahl aktiver Mini-Apps fest, die im Speicher gehalten werden sollen.",
-      "cache_settings": "Cache-Einstellungen",
-      "cache_title": "Mini-App-Cache-Limit",
-      "custom": {
-        "conflicting_ids": "Konfliktierende IDs mit Standard-Apps: {{ids}}",
-        "duplicate_ids": "Doppelte IDs gefunden: {{ids}}",
-        "edit_description": "Bearbeiten Sie hier die benutzerdefinierte Mini-App-Konfiguration. Jede App sollte die Felder id, name, url und logo enthalten.",
-        "edit_title": "Benutzerdefinierte Mini-App bearbeiten",
-        "id": "ID",
-        "id_error": "ID ist erforderlich.",
-        "id_placeholder": "ID eingeben",
-        "logo": "Logo",
-        "logo_file": "Logo-Datei hochladen",
-        "logo_upload_button": "Hochladen",
-        "logo_upload_error": "Logo-Upload fehlgeschlagen.",
-        "logo_upload_label": "Logo hochladen",
-        "logo_upload_success": "Logo erfolgreich hochgeladen.",
-        "logo_url": "Logo-URL",
-        "logo_url_label": "Logo-URL",
-        "logo_url_placeholder": "Logo-URL eingeben",
-        "name": "Name",
-        "name_error": "Name ist erforderlich.",
-        "name_placeholder": "Name eingeben",
-        "placeholder": "Benutzerdefinierte Mini-App-Konfiguration eingeben (JSON-Format)",
-        "remove_error": "Fehler beim Entfernen der benutzerdefinierten Mini-App.",
-        "remove_success": "Benutzerdefinierte Mini-App erfolgreich entfernt.",
-        "save": "Speichern",
-        "save_error": "Fehler beim Speichern der benutzerdefinierten Mini-App.",
-        "save_success": "Benutzerdefinierte Mini-App erfolgreich gespeichert.",
-        "title": "Benutzerdefiniert",
-        "url": "URL",
-        "url_error": "URL ist erforderlich.",
-        "url_placeholder": "URL eingeben"
-      },
-      "disabled": "Versteckte Mini-Apps",
-      "display_title": "Mini-App-Anzeigeeinstellungen",
-      "empty": "Klicke auf das Ausblenden-Symbol bei einer App links, und sie wird hierher verschoben",
-      "hide_app": "{{name}} ausblenden",
-      "open_link_external": {
-        "title": "Neue-Fenster-Links im Browser öffnen"
-      },
-      "region": {
-        "auto": "Automatisch erkennen",
-        "cn": "China",
-        "description": "Filtern nicht unterstützter Mini-Programme basierend auf der Region",
-        "global": "Global",
-        "title": "Mini-Programm-Filter"
-      },
-      "reset_tooltip": "Auf Standard zurücksetzen",
-      "show_app": "Zeige {{name}}",
-      "sidebar_description": "Aktive Mini-Apps in der Seitenleiste anzeigen",
-      "sidebar_title": "Seitenleiste Aktive Mini-Apps-Anzeige",
-      "title": "Mini-Apps-Einstellungen",
-      "visible": "Sichtbare Mini-Apps"
     },
     "model": "Standardmodell",
     "models": {
@@ -7108,7 +6965,6 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Beschleunigungsdomäne",
-          "backup": "Sicherungsdomäne",
           "international": "Internationale Domäne"
         }
       },

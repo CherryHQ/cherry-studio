@@ -42,7 +42,7 @@ import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/a
 import { application } from '@main/core/application'
 import { isLinux, isWin } from '@main/core/platform'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
-import { toAsarUnpackedPath } from '@main/utils'
+import { toAsarUnpackedPath } from '@main/utils/asar'
 import { getPathStatus, type PathStatus } from '@main/utils/file/pathStatus'
 import { getAppLanguage, t } from '@main/utils/language'
 import { autoDiscoverGitBash, getBinaryPath } from '@main/utils/process'

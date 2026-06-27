@@ -4,7 +4,7 @@ import type { FileEntry } from '@shared/data/types/file'
 import { IpcError } from '@shared/ipc/errors'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import type { FilePath } from '@shared/types/file'
-import { isDangerExt } from '@shared/utils/file/urlUtil'
+import { isDangerExt } from '@shared/utils/file/url'
 
 function getEffectiveExt(entry: FileEntry, physicalPath: FilePath): string | null {
   const fallbackPath = physicalPath.replace(/[\s.]+$/, '')

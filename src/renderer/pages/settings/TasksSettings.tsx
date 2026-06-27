@@ -31,11 +31,11 @@ import {
 import { loggerService } from '@logger'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useTheme } from '@renderer/context/ThemeProvider'
 import { dataApiService } from '@renderer/data/DataApiService'
-import { useChannels } from '@renderer/hooks/agents/useChannels'
-import { useCreateTask, useDeleteTask, useRunTask, useTaskLogs, useUpdateTask } from '@renderer/hooks/agents/useTasks'
+import { useChannels } from '@renderer/hooks/agent/useChannels'
+import { useCreateTask, useDeleteTask, useRunTask, useTaskLogs, useUpdateTask } from '@renderer/hooks/agent/useTasks'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
+import { useTheme } from '@renderer/hooks/useTheme'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type {
   AgentEntity,
