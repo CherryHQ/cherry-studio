@@ -73,12 +73,6 @@ vi.mock('@renderer/hooks/tab', () => ({
   })
 }))
 
-vi.mock('@renderer/config/env', () => ({
-  AppLogo: 'app-logo.png',
-  UserAvatar: 'user-avatar.png',
-  isLocalAi: false
-}))
-
 vi.mock('../../Popups/UserPopup', () => ({
   default: {
     show: vi.fn()

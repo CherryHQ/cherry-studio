@@ -1,4 +1,4 @@
-import { isProd } from '@renderer/config/constant'
+import { isProd } from '@renderer/utils/platform'
 import type { ComponentType } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'

@@ -522,9 +522,9 @@ export class AiStreamManager extends BaseService {
     // Replay buffered chunks from every execution's ring buffer so late
     // listeners catch up. Ordering within a single execution is preserved;
     // across executions chunks are interleaved in the order we see each
-    // execution's buffer (acceptable: the Renderer demuxes by executionId).
+    // execution's buffer (acceptable: the Renderer demuxes by executionId + anchor).
     for (const exec of stream.executions.values()) {
-      for (const chunk of exec.buffer) listener.onChunk(chunk.chunk, chunk.executionId)
+      for (const chunk of exec.buffer) listener.onChunk(chunk.chunk, chunk.executionId, chunk.anchorMessageId)
     }
     return true
   }
@@ -591,7 +591,8 @@ export class AiStreamManager extends BaseService {
       exec.buffer.shift()
       exec.droppedChunks += 1
     }
-    exec.buffer.push({ topicId, executionId: sourceModelId, chunk })
+    const anchorMessageId = exec.anchorMessageId
+    exec.buffer.push({ topicId, executionId: sourceModelId, anchorMessageId, chunk })
 
     // Synchronous fan-out (listeners must not block the loop). Inline
     // liveness scrub so dead listeners go before the next onChunk runs.
@@ -602,7 +603,7 @@ export class AiStreamManager extends BaseService {
         continue
       }
       try {
-        listener.onChunk(chunk, sourceModelId)
+        listener.onChunk(chunk, sourceModelId, anchorMessageId)
       } catch (err) {
         logger.warn('Listener threw', { topicId, listenerId: id, event: 'onChunk', err })
       }
@@ -715,6 +716,7 @@ export class AiStreamManager extends BaseService {
       finalMessage,
       status: 'error',
       modelId: exec.modelId,
+      anchorMessageId: exec.anchorMessageId,
       isTopicDone,
       timings: { ...exec.timings }
     }
@@ -1081,6 +1083,7 @@ export class AiStreamManager extends BaseService {
       finalMessage: exec.finalMessage,
       status: 'success',
       modelId: exec.modelId,
+      anchorMessageId: exec.anchorMessageId,
       isTopicDone,
       // Snapshot timings so listeners see a stable copy even if the
       // execution object is mutated after dispatch.
@@ -1098,6 +1101,7 @@ export class AiStreamManager extends BaseService {
       finalMessage: exec.finalMessage,
       status: 'paused' as const,
       modelId: exec.modelId,
+      anchorMessageId: exec.anchorMessageId,
       isTopicDone,
       timings: { ...exec.timings }
     }
