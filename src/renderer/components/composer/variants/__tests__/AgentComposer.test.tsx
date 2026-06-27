@@ -530,6 +530,7 @@ describe('AgentComposer', () => {
     )
 
     expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-shortcut', 'chat.model.select')
+    expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).toHaveClass('text-foreground/85')
 
     fireEvent.click(screen.getByText('select model 2'))
 
@@ -550,7 +551,10 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(screen.getByText('Claude Sonnet 4.5 | Anthropic').closest('button')).toBeDisabled()
+    const modelLabel = screen.getByText('Claude Sonnet 4.5 | Anthropic')
+    expect(modelLabel).not.toHaveClass('text-muted-foreground')
+    expect(modelLabel).not.toHaveClass('text-foreground/85')
+    expect(modelLabel.closest('button')).toBeDisabled()
     expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-shortcut', '')
 
     fireEvent.click(screen.getByText('select model 2'))

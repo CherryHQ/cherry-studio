@@ -398,7 +398,14 @@ const AgentComposerModelControl = ({
       ) : (
         <Sparkles size={16} aria-hidden className="text-muted-foreground" />
       )}
-      <span className={cn('max-w-40 text-xs text-muted-foreground', labelClassName)}>{modelLabel}</span>
+      <span
+        className={cn(
+          'max-w-40 text-xs',
+          canChangeModel ? (model ? 'text-foreground/85' : 'text-muted-foreground') : undefined,
+          labelClassName
+        )}>
+        {modelLabel}
+      </span>
       {canChangeModel ? <ChevronDown size={14} aria-hidden className={chevronClassName} /> : null}
     </Button>
   )
