@@ -11,19 +11,19 @@ describe('Provider DTO logo validation', () => {
     ).toBe(true)
   })
 
-  it('accepts an uploaded-file logo on create', () => {
+  it('rejects an uploaded-file logo on create — uploads go through provider.set_logo', () => {
     expect(
       CreateProviderSchema.safeParse({ providerId: 'p', name: 'n', logo: { kind: 'file', fileId: FILE_ID } }).success
-    ).toBe(true)
+    ).toBe(false)
   })
 
-  it('rejects a bare string logo — a union variant must be chosen', () => {
+  it('rejects a bare string logo — only a preset key is allowed', () => {
     expect(
       CreateProviderSchema.safeParse({ providerId: 'p', name: 'n', logo: 'data:image/png;base64,abc' }).success
     ).toBe(false)
   })
 
-  it('rejects setting both key and fileId at once', () => {
+  it('rejects extra fields on the key variant', () => {
     expect(
       CreateProviderSchema.safeParse({ providerId: 'p', name: 'n', logo: { kind: 'key', key: 'x', fileId: FILE_ID } })
         .success
@@ -36,11 +36,16 @@ describe('Provider DTO logo validation', () => {
     )
   })
 
-  it('accepts a clear intent on update', () => {
-    expect(UpdateProviderSchema.safeParse({ logo: { kind: 'clear' } }).success).toBe(true)
-  })
-
   it('rejects a clear intent on create (no such variant)', () => {
     expect(CreateProviderSchema.safeParse({ providerId: 'p', name: 'n', logo: { kind: 'clear' } }).success).toBe(false)
+  })
+
+  it('rejects a logo field on update — logo edits go through provider.set_logo', () => {
+    expect(UpdateProviderSchema.safeParse({ logo: { kind: 'clear' } }).success).toBe(false)
+    expect(UpdateProviderSchema.safeParse({ logo: { kind: 'key', key: 'icon:openai' } }).success).toBe(false)
+  })
+
+  it('accepts a non-logo update (e.g. name)', () => {
+    expect(UpdateProviderSchema.safeParse({ name: 'Renamed' }).success).toBe(true)
   })
 })
