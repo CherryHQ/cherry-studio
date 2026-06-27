@@ -6,9 +6,12 @@ import { ClickableFilePath } from './ClickableFilePath'
 import { SkeletonValue, ToolHeader } from './GenericTools'
 import { AgentToolsType, type WriteToolInput, type WriteToolOutput } from './types'
 
-export function WriteTool({ input }: { input?: WriteToolInput; output?: WriteToolOutput }): ToolDisclosureItem {
+export function WriteTool({ input, output }: { input?: WriteToolInput; output?: WriteToolOutput }): ToolDisclosureItem {
   const filename = input?.file_path?.split('/').pop()
   const language = getLanguageByFilePath(input?.file_path ?? '')
+  // A Write creates the file: until the tool call completes (output present),
+  // the file may not exist on disk yet, so the path must not be clickable.
+  const fileWritten = output !== undefined
 
   return {
     key: AgentToolsType.Write,
@@ -20,7 +23,7 @@ export function WriteTool({ input }: { input?: WriteToolInput; output?: WriteToo
           <SkeletonValue
             value={
               input?.file_path ? (
-                <ClickableFilePath path={input.file_path} displayName={filename} interactive={false} />
+                <ClickableFilePath path={input.file_path} displayName={filename} interactive={fileWritten} />
               ) : undefined
             }
             width="200px"
