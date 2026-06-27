@@ -237,9 +237,9 @@ export interface WebSearchProvider {
 // CodeCLI Types
 // ============================================================================
 
-import { codeCLI } from '@shared/types/codeCli'
+import { CodeCli } from '@shared/types/codeCli'
 
-export const CODE_CLI_IDS = Object.values(codeCLI) as unknown as readonly [
+export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
   'qwen-code',
   'claude-code',
   'gemini-cli',
@@ -256,7 +256,7 @@ export type CodeCliOverride = {
   enabled?: boolean
   modelId?: string | null
   envVars?: string
-  /** Terminal app name — should match `terminalApps` enum values */
+  /** Terminal app name — should match `TerminalApp` enum values */
   terminal?: string
   currentDirectory?: string
   directories?: string[]

@@ -1,7 +1,7 @@
-import type { FilePath, FileURLString } from '@shared/types/file'
+import type { FilePath, FileUrlString } from '@shared/types/file'
 import { describe, expect, it } from 'vitest'
 
-import { fileUrlToPath, isDangerExt, toFileUrl, toSafeFileUrl } from '../urlUtil'
+import { fileUrlToPath, isDangerExt, toFileUrl, toSafeFileUrl } from '../url'
 
 describe('isDangerExt', () => {
   it('returns false for null and empty string', () => {
@@ -94,7 +94,7 @@ describe('fileUrlToPath', () => {
   })
 
   it('throws on malformed percent-encoding', () => {
-    expect(() => fileUrlToPath('file:///foo/%zz.pdf' as FileURLString)).toThrow(URIError)
+    expect(() => fileUrlToPath('file:///foo/%zz.pdf' as FileUrlString)).toThrow(URIError)
   })
 })
 

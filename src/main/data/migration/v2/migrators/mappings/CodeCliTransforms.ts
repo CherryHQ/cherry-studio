@@ -1,12 +1,12 @@
 /**
- * Transform functions for codeCLI migration
+ * Transform functions for CodeCli migration
  *
  * Converts legacy Redux codeTools state into v2 preference values
  * using the Layered Preset pattern (overrides per tool).
  */
 
 import { CODE_CLI_IDS, type CodeCliOverride, type CodeCliOverrides } from '@shared/data/preference/preferenceTypes'
-import { terminalApps } from '@shared/types/codeCli'
+import { TerminalApp } from '@shared/types/codeCli'
 
 import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/ModelTransformers'
 import type { TransformResult } from './ComplexPreferenceMappings'
@@ -69,7 +69,7 @@ export function transformCodeCliToOverrides(sources: CodeCliSourceData): CodeCli
   const currentDirectory = typeof sources.currentDirectory === 'string' ? sources.currentDirectory : ''
   const selectedTool = typeof sources.selectedCliTool === 'string' ? sources.selectedCliTool : null
   const selectedTerminal =
-    typeof sources.selectedTerminal === 'string' ? sources.selectedTerminal : terminalApps.systemDefault
+    typeof sources.selectedTerminal === 'string' ? sources.selectedTerminal : TerminalApp.SYSTEM_DEFAULT
 
   // Collect all valid tool keys
   const allToolKeys = new Set<string>()
@@ -100,7 +100,7 @@ export function transformCodeCliToOverrides(sources: CodeCliSourceData): CodeCli
     if (isSelected) {
       if (directories.length > 0) override.directories = directories
       if (currentDirectory) override.currentDirectory = currentDirectory
-      if (selectedTerminal !== terminalApps.systemDefault) override.terminal = selectedTerminal
+      if (selectedTerminal !== TerminalApp.SYSTEM_DEFAULT) override.terminal = selectedTerminal
     }
 
     if (Object.keys(override).length > 0) {
