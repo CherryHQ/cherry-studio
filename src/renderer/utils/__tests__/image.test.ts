@@ -60,6 +60,21 @@ describe('utils/image', () => {
       expect(result).toBeInstanceOf(File)
       expect(result.name).toBe('compressed.png')
     })
+
+    it('should pass custom compression options', async () => {
+      const file = new File(['img'], 'img.png', { type: 'image/png' })
+
+      await compressImage(file, { maxSizeMB: 0.25, maxWidthOrHeight: 256 })
+
+      expect(imageCompression).toHaveBeenLastCalledWith(
+        file,
+        expect.objectContaining({
+          maxSizeMB: 0.25,
+          maxWidthOrHeight: 256,
+          useWebWorker: false
+        })
+      )
+    })
   })
 
   describe('fileToAvatarDataUrl', () => {

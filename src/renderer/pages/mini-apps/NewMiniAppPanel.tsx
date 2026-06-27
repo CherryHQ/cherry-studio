@@ -11,40 +11,76 @@ import {
   Input
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { LogoAvatar } from '@renderer/components/Icons'
+import { getMiniAppsLogo } from '@renderer/config/miniApps'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { fileToAvatarDataUrl } from '@renderer/utils/image'
-import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
+import { compressImage, convertToBase64 } from '@renderer/utils/image'
+import { uuid } from '@renderer/utils/uuid'
+import { MINI_APP_LOGO_MAX_LENGTH, MiniAppUrlSchema } from '@shared/data/api/schemas/miniApps'
+import type { MiniApp } from '@shared/data/types/miniApp'
 import { Upload } from 'lucide-react'
 import type { ChangeEvent, FC } from 'react'
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
   open: boolean
+  app?: MiniApp | null
   onClose: () => void
 }
 
 const logger = loggerService.withContext('NewMiniAppPanel')
+const miniAppLogoCompressionOptions = {
+  maxSizeMB: 0.25,
+  maxWidthOrHeight: 256,
+  useWebWorker: false
+} as const
 
-const NewMiniAppPanel: FC<Props> = ({ open, onClose }) => {
+const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
   const { t } = useTranslation()
-  const { miniApps, disabled, pinned, createCustomMiniApp } = useMiniApps()
+  const { createCustomMiniApp, updateCustomMiniApp } = useMiniApps()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const uploadGenerationRef = useRef(0)
+  const isEditing = app != null
 
-  const [id, setId] = useState('')
   const [name, setName] = useState('')
   const [url, setUrl] = useState('')
   const [logo, setLogo] = useState('')
-  const [logoUrl, setLogoUrl] = useState('')
+  const [logoChanged, setLogoChanged] = useState(false)
+  const [logoProcessing, setLogoProcessing] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   const reset = () => {
-    setId('')
+    uploadGenerationRef.current += 1
     setName('')
     setUrl('')
     setLogo('')
-    setLogoUrl('')
+    setLogoChanged(false)
+    setLogoProcessing(false)
   }
+
+  useEffect(() => {
+    uploadGenerationRef.current += 1
+    setLogoChanged(false)
+    setLogoProcessing(false)
+    if (!open) {
+      setName('')
+      setUrl('')
+      setLogo('')
+      return
+    }
+    if (!app) {
+      setName('')
+      setUrl('')
+      setLogo('')
+      return
+    }
+
+    const currentLogo = app.logo ?? ''
+    setName(app.name)
+    setUrl(app.url)
+    setLogo(currentLogo)
+  }, [app, open])
 
   const handleClose = () => {
     reset()
@@ -57,52 +93,63 @@ const NewMiniAppPanel: FC<Props> = ({ open, onClose }) => {
     }
   }
 
-  const canSubmit = useMemo(() => id.trim() && name.trim() && url.trim() && !submitting, [id, name, url, submitting])
-
-  const existingAppIds = useMemo(
-    () => new Set([...miniApps, ...disabled, ...pinned].map((a) => a.appId)),
-    [miniApps, disabled, pinned]
+  const canSubmit = useMemo(
+    () => Boolean(name.trim() && url.trim()) && !submitting && !logoProcessing,
+    [logoProcessing, name, submitting, url]
   )
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
+
+    const uploadGeneration = ++uploadGenerationRef.current
+    setLogoProcessing(true)
     try {
-      // Normalize the upload (non-GIF → ≤128px, oversized GIFs rejected) so the
-      // stored logo string stays small instead of encoding the original image.
-      const dataUrl = await fileToAvatarDataUrl(file)
-      setLogo(dataUrl)
-      setLogoUrl('')
-      window.toast.success(t('settings.miniApps.custom.logo_upload_success'))
+      const processedFile = file.type === 'image/gif' ? file : await compressImage(file, miniAppLogoCompressionOptions)
+      const encoded = await convertToBase64(processedFile)
+      if (typeof encoded !== 'string' || encoded.length > MINI_APP_LOGO_MAX_LENGTH) {
+        throw new Error('MiniApp logo exceeds max payload size')
+      }
+      if (uploadGenerationRef.current !== uploadGeneration) return
+      setLogo(encoded)
+      setLogoChanged(true)
     } catch (error) {
-      logger.error('Failed to process uploaded mini app logo', error as Error)
-      const message =
-        error instanceof Error && error.message ? error.message : t('settings.miniApps.custom.logo_upload_error')
-      window.toast.error(message)
+      if (uploadGenerationRef.current !== uploadGeneration) return
+      logger.error('Failed to process uploaded custom mini app logo', error as Error)
+      window.toast.error(t('settings.miniApps.custom.logo_upload_error'))
+    } finally {
+      if (uploadGenerationRef.current === uploadGeneration) {
+        setLogoProcessing(false)
+      }
     }
   }
 
   const handleSubmit = async () => {
-    const trimmedId = id.trim()
-    if (PRESETS_MINI_APPS.some((app) => app.id === trimmedId)) {
-      window.toast.error(t('settings.miniApps.custom.conflicting_ids', { ids: trimmedId }))
+    const trimmedUrl = url.trim()
+    if (!MiniAppUrlSchema.safeParse(trimmedUrl).success) {
+      window.toast.error(t('settings.miniApps.custom.url_invalid'))
       return
     }
-    if (existingAppIds.has(trimmedId)) {
-      window.toast.error(t('settings.miniApps.custom.duplicate_ids', { ids: trimmedId }))
-      return
-    }
+
     setSubmitting(true)
     try {
-      await createCustomMiniApp({
-        appId: trimmedId,
+      const basePayload = {
         name: name.trim(),
-        url: url.trim(),
-        logo: logo.trim() || 'application',
-        bordered: false,
-        supportedRegions: ['CN', 'Global']
-      })
+        url: trimmedUrl
+      }
+      if (isEditing) {
+        await updateCustomMiniApp(
+          app.appId,
+          logoChanged ? { ...basePayload, logo: logo.trim() || 'application' } : basePayload
+        )
+      } else {
+        await createCustomMiniApp({
+          appId: uuid(),
+          ...basePayload,
+          logo: logo.trim() || 'application'
+        })
+      }
       window.toast.success(t('settings.miniApps.custom.save_success'))
       handleClose()
     } catch (error) {
@@ -113,26 +160,42 @@ const NewMiniAppPanel: FC<Props> = ({ open, onClose }) => {
     }
   }
 
-  const hasUploadedLogo = logo.startsWith('data:') && !logoUrl
+  const hasUploadedLogo = logo.startsWith('data:')
+  const logoValue = logo.trim() || 'application'
+  const previewLogo = getMiniAppsLogo(logoValue) ?? logoValue
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent aria-describedby={undefined} className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{t('settings.miniApps.custom.edit_title')}</DialogTitle>
+          <DialogTitle>
+            {t(isEditing ? 'settings.miniApps.custom.edit_title' : 'settings.miniApps.custom.create_title')}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
           <Field>
-            <FieldLabel htmlFor="miniapp-id" required>
-              {t('settings.miniApps.custom.id')}
-            </FieldLabel>
-            <Input
-              id="miniapp-id"
-              value={id}
-              onChange={(e) => setId(e.target.value)}
-              placeholder={t('settings.miniApps.custom.id_placeholder')}
-            />
+            <div className="flex flex-col items-center gap-3">
+              <button
+                type="button"
+                className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => fileInputRef.current?.click()}
+                aria-label={t('settings.miniApps.custom.logo_upload_label')}>
+                <LogoAvatar logo={previewLogo} size={64} />
+              </button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={hasUploadedLogo ? 'secondary' : 'outline'}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="gap-1.5">
+                  <Upload size={12} />
+                  {t('settings.miniApps.custom.logo_file')}
+                </Button>
+              </div>
+            </div>
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
           </Field>
 
           <Field>
@@ -156,38 +219,6 @@ const NewMiniAppPanel: FC<Props> = ({ open, onClose }) => {
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder={t('settings.miniApps.custom.url_placeholder')}
-            />
-          </Field>
-
-          <Field>
-            <div className="flex items-center justify-between gap-2">
-              <FieldLabel htmlFor="miniapp-logo">{t('settings.miniApps.custom.logo')}</FieldLabel>
-              <Button
-                type="button"
-                size="sm"
-                variant={hasUploadedLogo ? 'secondary' : 'outline'}
-                onClick={() => fileInputRef.current?.click()}
-                className="gap-1.5">
-                <Upload size={12} />
-                {t('settings.miniApps.custom.logo_file')}
-              </Button>
-            </div>
-            <Input
-              id="miniapp-logo"
-              value={logoUrl}
-              onChange={(e) => {
-                setLogoUrl(e.target.value)
-                setLogo(e.target.value)
-              }}
-              placeholder={t('settings.miniApps.custom.logo_url_placeholder')}
-            />
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => void handleFileChange(e)}
-              aria-label={t('settings.miniApps.custom.logo_upload_label')}
             />
           </Field>
         </div>

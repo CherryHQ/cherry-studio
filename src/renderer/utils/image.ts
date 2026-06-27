@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
-import imageCompression from 'browser-image-compression'
+import imageCompression, { type Options as ImageCompressionOptions } from 'browser-image-compression'
 import * as htmlToImage from 'html-to-image'
 
 const logger = loggerService.withContext('Utils:image')
@@ -25,14 +25,12 @@ export const convertToBase64 = (file: File): Promise<string | ArrayBuffer | null
  * @param options 可覆盖最大体积 / 最大边长（默认 1MB / 300px）
  * @returns {Promise<File>} 压缩后的图像文件
  */
-export const compressImage = async (
-  file: File,
-  options?: { maxSizeMB?: number; maxWidthOrHeight?: number }
-): Promise<File> => {
+export const compressImage = async (file: File, options: ImageCompressionOptions = {}): Promise<File> => {
   return await imageCompression(file, {
-    maxSizeMB: options?.maxSizeMB ?? 1,
-    maxWidthOrHeight: options?.maxWidthOrHeight ?? 300,
-    useWebWorker: false
+    maxSizeMB: 1,
+    maxWidthOrHeight: 300,
+    useWebWorker: false,
+    ...options
   })
 }
 

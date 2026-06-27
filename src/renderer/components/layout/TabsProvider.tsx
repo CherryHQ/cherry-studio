@@ -1,16 +1,17 @@
 import { loggerService } from '@logger'
 import { resolveSidebarAppTabEntryUrl } from '@renderer/config/sidebar'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
+import { type OpenTabOptions, TabsContext, type TabsContextValue } from '@renderer/hooks/tab'
 import { TabLruManager } from '@renderer/services/TabLruManager'
 import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
-import type { Tab, TabSavedState, TabType } from '@shared/data/cache/cacheValueTypes'
+import type { Tab, TabSavedState } from '@shared/data/cache/cacheValueTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ReactNode } from 'react'
-import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { v4 as uuid } from 'uuid'
 
-const logger = loggerService.withContext('TabsContext')
+const logger = loggerService.withContext('TabsProvider')
 
 const DEFAULT_TAB: Tab = {
   id: 'home',
@@ -40,64 +41,6 @@ function withLocalizedRouteTitle(tab: Tab): Tab {
 function isSettingsRouteTab(tab: Tab): boolean {
   return tab.type === 'route' && tab.url.startsWith('/settings')
 }
-
-/**
- * Options for opening a tab
- */
-export interface OpenTabOptions {
-  /** Force open a new tab even if one with the same URL exists */
-  forceNew?: boolean
-  /** Tab title (defaults to URL path) */
-  title?: string
-  /** Tab type (defaults to 'route') */
-  type?: TabType
-  /** Custom tab ID (auto-generated if not provided) */
-  id?: string
-  /** Per-entity icon descriptor (e.g. mini-app logo string); rendered in the tab bar when set */
-  icon?: string
-  /** Optional tab metadata copied into the newly-created tab. */
-  metadata?: Tab['metadata']
-  /**
-   * Materialize the tab as pinned. Set when a detached sub-window re-creates a tab
-   * from its init payload so the pinned state survives the detach → re-attach round-trip.
-   */
-  isPinned?: boolean
-}
-
-export interface TabsContextValue {
-  // State
-  tabs: Tab[]
-  activeTabId: string
-  activeTab: Tab | undefined
-  isLoading: boolean
-
-  // Basic operations
-  addTab: (tab: Tab) => void
-  closeTab: (id: string) => void
-  setActiveTab: (id: string) => void
-  updateTab: (id: string, updates: Partial<Tab>) => void
-  setTabs: (newTabs: Tab[] | ((prev: Tab[]) => Tab[])) => void
-
-  // High-level Tab operations
-  openTab: (url: string, options?: OpenTabOptions) => string
-
-  // LRU operations
-  hibernateTab: (tabId: string) => void
-  wakeTab: (tabId: string) => void
-  pinTab: (id: string) => void
-  unpinTab: (id: string) => void
-
-  // Drag and drop
-  reorderTabs: (type: 'pinned' | 'normal', oldIndex: number, newIndex: number) => void
-
-  // Detach
-  detachTab: (tabId: string) => void
-
-  // Attach (from detached window)
-  attachTab: (tabData: Tab) => void
-}
-
-const TabsContext = createContext<TabsContextValue | null>(null)
 
 type TabsProviderProps = {
   children: ReactNode
@@ -177,49 +120,6 @@ export function TabsProvider({
     const currentPinnedTabs = includePinnedTabs ? pinnedTabs || [] : []
     return [...currentPinnedTabs.map(withLocalizedRouteTitle), ...normalTabs.map(withLocalizedRouteTitle)]
   }, [includePinnedTabs, pinnedTabs, normalTabs, i18n.language])
-
-  /**
-   * Hibernate tab (manual)
-   */
-  const hibernateTab = useCallback(
-    (tabId: string) => {
-      const tab = tabs.find((t) => t.id === tabId)
-      if (!tab || tab.isDormant) return
-
-      const savedState: TabSavedState = { scrollPosition: 0 }
-      logger.info('Tab hibernated (manual)', { tabId, route: tab.url })
-
-      if (storesPinned(tab)) {
-        setPinnedTabs((prev) => prev.map((t) => (t.id === tabId ? { ...t, isDormant: true, savedState } : t)))
-      } else {
-        setNormalTabs((prev) => prev.map((t) => (t.id === tabId ? { ...t, isDormant: true, savedState } : t)))
-      }
-    },
-    [tabs, setPinnedTabs, storesPinned]
-  )
-
-  /**
-   * Wake up tab
-   */
-  const wakeTab = useCallback(
-    (tabId: string) => {
-      const tab = tabs.find((t) => t.id === tabId)
-      if (!tab || !tab.isDormant) return
-
-      logger.info('Tab awakened', { tabId, route: tab.url })
-
-      if (storesPinned(tab)) {
-        setPinnedTabs((prev) =>
-          prev.map((t) => (t.id === tabId ? { ...t, isDormant: false, lastAccessTime: Date.now() } : t))
-        )
-      } else {
-        setNormalTabs((prev) =>
-          prev.map((t) => (t.id === tabId ? { ...t, isDormant: false, lastAccessTime: Date.now() } : t))
-        )
-      }
-    },
-    [tabs, setPinnedTabs, storesPinned]
-  )
 
   const updateTab = useCallback(
     (id: string, updates: Partial<Tab>) => {
@@ -313,17 +213,6 @@ export function TabsProvider({
       setActiveTabIdState(newActiveId)
     },
     [tabs, activeTabId, setPinnedTabs, storesPinned]
-  )
-
-  const setTabs = useCallback(
-    (newTabs: Tab[] | ((prev: Tab[]) => Tab[])) => {
-      const resolvedTabs = typeof newTabs === 'function' ? newTabs(tabs) : newTabs
-      const pinned = resolvedTabs.filter((t) => storesPinned(t))
-      const normal = resolvedTabs.filter((t) => !storesPinned(t))
-      setPinnedTabs(pinned)
-      setNormalTabs(normal)
-    },
-    [tabs, setPinnedTabs, storesPinned]
   )
 
   /**
@@ -503,14 +392,11 @@ export function TabsProvider({
     closeTab,
     setActiveTab,
     updateTab,
-    setTabs,
 
     // High-level Tab operations
     openTab,
 
-    // LRU operations
-    hibernateTab,
-    wakeTab,
+    // Pin operations
     pinTab,
     unpinTab,
 
@@ -525,16 +411,4 @@ export function TabsProvider({
   }
 
   return <TabsContext value={value}>{children}</TabsContext>
-}
-
-export function useTabsContext() {
-  const context = use(TabsContext)
-  if (!context) {
-    throw new Error('useTabsContext must be used within a TabsProvider')
-  }
-  return context
-}
-
-export function useOptionalTabsContext() {
-  return use(TabsContext)
 }

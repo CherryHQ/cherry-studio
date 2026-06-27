@@ -119,11 +119,13 @@ describe('useMiniAppVisibility', () => {
     expect(mocks.updateAppStatus).toHaveBeenCalledWith('a', 'disabled')
   })
 
-  it('reorderVisible reorders within the visible list and calls reorderMiniAppsByStatus with the moved row partition', () => {
+  it('reorderVisible reorders within the combined visible list', () => {
+    mocks.miniApps = [stubApp('a'), { ...stubApp('p'), status: 'pinned' }, stubApp('b')]
+
     const { result } = renderHook(() => useMiniAppVisibility())
     act(() => result.current.reorderVisible(0, 1))
-    expect(result.current.visible.map((a) => a.appId)).toEqual(['b', 'a'])
-    expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledWith('enabled', result.current.visible)
+    expect(result.current.visible.map((a) => a.appId)).toEqual(['p', 'a', 'b'])
+    expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledWith('visible', result.current.visible)
   })
 
   it('reorderVisible is a no-op when oldIndex === newIndex', () => {
