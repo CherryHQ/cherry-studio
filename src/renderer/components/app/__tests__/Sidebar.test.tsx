@@ -51,10 +51,6 @@ vi.mock('@data/hooks/usePreference', () => ({
   }
 }))
 
-vi.mock('@renderer/config/env', () => ({
-  AppLogo: 'logo.png'
-}))
-
 vi.mock('@renderer/hooks/useAvatar', () => ({
   default: () => undefined
 }))

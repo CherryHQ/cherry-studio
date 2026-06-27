@@ -23,7 +23,7 @@ Four layers. Dependencies may only flow **downward** (1 → 2 → 3 → 4).
 |---|---|---|---|
 | 1 | **App / composition** | `windows/`, `routes/`, top-level `pages/` (cross-domain shells only) | Entry points, provider mounting, router, app shell; composes features |
 | 2 | **Domain** | `features/<domain>/` | One business domain's vertical slice; mutually isolated from sibling features (consumed from above by the app layer) |
-| 3 | **Shared** (no single owner) | `components/` → `hooks/` / `services/` → `utils/` / `data/` / `ipc/` / `workers/`; plus `config/` / `i18n/` / `assets/` / `types/` | Cross-domain reusable artifacts |
+| 3 | **Shared** (no single owner) | `components/` → `hooks/` / `services/` → `utils/` / `data/` / `ipc/` / `workers/`; plus `i18n/` / `assets/` / `types/` | Cross-domain reusable artifacts |
 | 4 | **Primitives** | `packages/ui` (`@cherrystudio/ui`), `@shared`, `@logger` | App-agnostic foundation |
 
 Rules:
@@ -70,7 +70,6 @@ src/renderer/
 ├── services/     # Shared    — non-component singletons / runtime logic
 ├── utils/        # Shared    — cross-domain pure functions
 ├── data/ ipc/ workers/  # Shared infra — data access, IpcApi bridge, web workers
-├── config/       # Shared    — app-global constants only
 └── i18n/ assets/ types/ # Shared — locale, static assets, cross-domain types
 
 packages/ui (@cherrystudio/ui)  # Primitive — app-agnostic design system
@@ -88,7 +87,7 @@ src/shared                       # Primitive — cross-process types / contracts
 | `hooks/` | **Cross-domain** reusable hooks | services, utils, data, @shared | import features/pages/components; retain a domain's hooks once that domain has its own feature (§4.1) |
 | `utils/` | **Cross-domain** pure functions | @shared, third-party only | import any higher layer |
 | `data/`, `ipc/`, `workers/` | Foundational subsystems (data layer, IPC bridge, web workers) | utils, @shared | import features/pages/components |
-| `config/`, `i18n/`, `assets/`, `types/` | **App-global** config / locale / static assets / shared types only; domain-specific entries move into the owning feature | — | hold domain-specific content |
+| `i18n/`, `assets/`, `types/` | **App-global** locale / static assets / shared types only; domain-specific entries move into the owning feature | — | hold domain-specific content |
 | `packages/ui` | App-agnostic design system (Shadcn + Tailwind primitives + generic composites) | third-party only | import any `@renderer/*` |
 
 **Routing `services/` vs `hooks/` vs `utils/`.** The decisive test is the module's *shape*: pure / stateless → `utils/`; uses React lifecycle / state / context → `hooks/`; a stateful class owning state / resources → a `Service` / `Manager` (top-level `services/` when cross-domain); renders JSX → `components/` / `pages/`.
@@ -194,7 +193,7 @@ A small domain's pieces (components, pages, hooks, services, utils) may legitima
 | Cross-page imports | `pages/<domain>/` import each other (`pages → pages` coupling) | a page must not import another page; route shared needs through the shared layer |
 | `transport/` | a renderer-side AI-streaming runtime (`IpcChatTransport`, `TopicStreamSubscription`, `streamDispatchCoordinator`) occupies its own top-level directory; consumed across chat, quick-assistant and selection surfaces, pairing with the cross-process `@shared/ai/transport` contract | a **cross-surface `ai` runtime**, not chat-exclusive: by shape (stateful singletons / classes) it sinks into the shared `services/` bucket (e.g. `services/aiTransport/`); not its own top-level directory (Naming Conventions §4.8) |
 | `queue/` | a single-file capability (`NotificationQueue`) occupies its own top-level directory | belongs with its owning logic; not its own top-level directory (Naming Conventions §4.8) |
-| `config/` | by-kind bucket mixing app-global constants (`constant.ts` ~80 consumers, `env.ts`) with domain static data (`providers.ts` ~1.4k lines, `models/`, `agent.ts`, …) | dissolve: app-global residue (`constant.ts`, `env.ts`) stays; domain config/data → its owning domain |
+| `config/` | by-kind bucket mixing app-global constants (`constant.ts`, `env.ts`) with domain static data (`providers.ts` ~1.4k lines, `models/`, `agent.ts`, …) | **dissolved** during the v2 refactor: platform predicates → `utils/platform`; domain constants → owning domains; `env.ts` assets / `APP_NAME` inlined at consumers; directory removed |
 | `utils/` root barrel | `src/renderer/utils/index.ts` (11 `export *`) imported bucket-root by ~127 `@renderer/utils` consumers; `utils/messageUtils/` is a multi-file topic subdir with **no `index.ts`** | drop the root barrel (import `@renderer/utils/<topic>`); give `messageUtils/` one curated `index.ts` (named exports, no `export *`) |
 | `databases/` | v1 Dexie | removed during the v2 refactor (do not model) |
 | Domain promotion | large multi-file domains (`chat` ≈ `pages/home` + `components/chat` + `components/composer`; `knowledge` ≈ `pages/knowledge` + …) are scattered across the shared type-buckets, and **no `features/` directory exists yet** | promote the largest domains into `features/<domain>/` per the §4.1 trigger (`chat` and `knowledge` first) |

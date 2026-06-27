@@ -17,7 +17,6 @@ import {
 import CodeViewer from '@renderer/components/CodeViewer'
 import ImageViewer from '@renderer/components/ImageViewer'
 import type { BasicPreviewHandles } from '@renderer/components/Preview'
-import { MAX_COLLAPSED_CODE_HEIGHT } from '@renderer/config/constant'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { pyodideService } from '@renderer/services/PyodideService'
 import { getExtensionByLanguage } from '@renderer/utils/codeLanguage'
@@ -28,7 +27,7 @@ import dayjs from 'dayjs'
 import React, { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
+import { MAX_COLLAPSED_CODE_HEIGHT, SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
 import StatusBar from './StatusBar'
 import type { ViewMode } from './types'
 
