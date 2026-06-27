@@ -211,3 +211,58 @@ describe('buildVendorProviderOptions — DashScope (passthrough, mapped wins)', 
     expect(buildVendorProviderOptions('dashscope', {}, WIRE_REGISTRY.dashscope, {})).toEqual({})
   })
 })
+
+// aihubmix: the OpenAI image body + seed, dual-keyed under openai + aihubmix.
+function oracleVendor(
+  providerId: string,
+  paramValues: Record<string, unknown>
+): Record<string, Record<string, unknown>> {
+  const { structured, vendorBag } = splitParamValues(paramValues)
+  const providerOptions = Object.keys(vendorBag).length ? { [providerId]: vendorBag } : undefined
+  return buildImageProviderOptions(providerId, { ...structured, providerOptions }) as Record<
+    string,
+    Record<string, unknown>
+  >
+}
+
+function engineVendor(providerId: string, paramValues: Record<string, unknown>) {
+  const { vendorBag } = splitParamValues(paramValues)
+  return buildVendorProviderOptions(providerId, paramValues, WIRE_REGISTRY[providerId], vendorBag)
+}
+
+describe('buildVendorProviderOptions — aihubmix (openai body + seed, dual-keyed)', () => {
+  it('reproduces the aihubmix emitter: openai fields + seed under openai + aihubmix', () => {
+    const paramValues = { quality: 'high', background: 'transparent', seed: 9, numImages: 1 }
+    const result = engineVendor('aihubmix', paramValues)
+    expect(result).toEqual(oracleVendor('aihubmix', paramValues))
+    expect(result).toEqual({
+      openai: { quality: 'high', background: 'transparent', seed: 9 },
+      aihubmix: { quality: 'high', background: 'transparent', seed: 9 }
+    })
+  })
+})
+
+describe('buildVendorProviderOptions — dmxapi (cross-key: dmxapi body + google.imageConfig via `also`)', () => {
+  it('dual-keys snake_case under dmxapi + imageResolution/aspectRatio into google.imageConfig', () => {
+    const paramValues = {
+      negativePrompt: 'no blur',
+      seed: 7,
+      aspectRatio: 'ASPECT_1_1',
+      imageResolution: '4K',
+      numImages: 1
+    }
+    const result = engineVendor('dmxapi', paramValues)
+    expect(result).toEqual(oracleVendor('dmxapi', paramValues))
+    expect(result).toEqual({
+      dmxapi: { negative_prompt: 'no blur', seed: 7 },
+      google: { imageConfig: { aspectRatio: '1:1', imageSize: '4K' } }
+    })
+  })
+
+  it('omits the google sibling key when no aspectRatio / imageResolution is set', () => {
+    const paramValues = { negativePrompt: 'x', numImages: 1 }
+    const result = engineVendor('dmxapi', paramValues)
+    expect(result).toEqual(oracleVendor('dmxapi', paramValues))
+    expect(result).toEqual({ dmxapi: { negative_prompt: 'x' } })
+  })
+})

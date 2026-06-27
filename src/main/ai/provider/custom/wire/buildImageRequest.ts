@@ -92,6 +92,15 @@ export function buildVendorProviderOptions(
 ): Record<string, Record<string, JSONValue>> {
   const mapped = buildImageRequest(paramValues, registration.profile)
   const body = registration.passthrough ? { ...jsonBag(vendorBag), ...mapped } : mapped
-  if (Object.keys(body).length === 0) return {}
-  return registration.dualOpenAI ? { openai: body, [providerId]: body } : { [providerId]: body }
+  const result: Record<string, Record<string, JSONValue>> = {}
+  if (Object.keys(body).length > 0) {
+    result[providerId] = body
+    if (registration.dualOpenAI) result.openai = body
+  }
+  // Sibling-key bodies (dmxapi → google.imageConfig), emitted only when non-empty.
+  for (const extra of registration.also ?? []) {
+    const extraBody = buildImageRequest(paramValues, extra.profile)
+    if (Object.keys(extraBody).length > 0) result[extra.key] = extraBody
+  }
+  return result
 }

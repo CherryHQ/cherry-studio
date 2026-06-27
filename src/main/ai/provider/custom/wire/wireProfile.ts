@@ -72,6 +72,19 @@ export const OPENAI_WIRE_PROFILE: WireProfile = {
 }
 
 /**
+ * aihubmix aggregator. Reproduces the `aihubmix` emitter: the OpenAI image body
+ * PLUS `seed` (aihubmix's backends — Doubao Seedream / Qwen-Image / FLUX / iRAG /
+ * Ideogram — mostly accept `seed`, unlike OpenAI's own model). Dual-keyed under
+ * `openai` + `aihubmix` by the registry.
+ */
+export const AIHUBMIX_WIRE_PROFILE: WireProfile = {
+  fields: {
+    ...OPENAI_WIRE_PROFILE.fields,
+    seed: { to: 'seed' }
+  }
+}
+
+/**
  * DashScope native image API (qwen-image / wanx / wan2.5 / qwen-mt-image …).
  * Reproduces the `dashscope` emitter: the mapped sampling fields under the
  * `dashscope` key, over a `passthrough` of the vendor bag the submit/poll
@@ -85,6 +98,16 @@ export const DASHSCOPE_WIRE_PROFILE: WireProfile = {
     negativePrompt: { to: 'negative_prompt' },
     seed: { to: 'seed' },
     style: { to: 'style' }
+  }
+}
+
+/** `aspectRatio` (normalized) → google `imageConfig.aspectRatio`. Shared by the
+ *  google family and the dmxapi gateway's google-routed block; an invalid value
+ *  contributes nothing, so the deep-merge leaves no `imageConfig.aspectRatio`. */
+const aspectRatioImageConfigRule: WireRule = {
+  contribute: (v): Record<string, JSONValue> => {
+    const normalized = normalizeAspectRatio(String(v))
+    return normalized ? { imageConfig: { aspectRatio: normalized } } : {}
   }
 }
 
@@ -102,13 +125,36 @@ export const DASHSCOPE_WIRE_PROFILE: WireProfile = {
 export const GOOGLE_WIRE_PROFILE: WireProfile = {
   fields: {
     personGeneration: { to: 'personGeneration', map: (v) => String(v).toLowerCase() },
-    aspectRatio: {
-      contribute: (v): Record<string, JSONValue> => {
-        const normalized = normalizeAspectRatio(String(v))
-        return normalized ? { imageConfig: { aspectRatio: normalized } } : {}
-      }
-    },
+    aspectRatio: aspectRatioImageConfigRule,
     size: { contribute: (v) => ({ imageConfig: { imageSize: v as JSONValue } }) }
+  }
+}
+
+/**
+ * dmxapi multi-backend gateway. The factory routes models to native adapters
+ * (gemini-image/imagen → google, gpt-image/dall-e → openai, custom → bespoke
+ * transport, else openai-compat), so the emitter dual-keys across two provider
+ * keys: a snake_case body under `dmxapi` (primary profile) and a `google`
+ * `imageConfig` block (the `also` profile) so gemini-image picks up the form's
+ * `aspectRatio` + `imageResolution` (1K/2K/4K — no top-level AI SDK field).
+ */
+export const DMXAPI_WIRE_PROFILE: WireProfile = {
+  fields: {
+    negativePrompt: { to: 'negative_prompt' },
+    seed: { to: 'seed' },
+    quality: { to: 'quality' }
+  }
+}
+
+/** dmxapi's google-routed block: aspectRatio + `imageResolution` (a vendor-bag
+ *  field, not `size`) into `imageConfig`. Delivered under the `google` key via
+ *  the registration's `also`. */
+export const DMXAPI_GOOGLE_PROFILE: WireProfile = {
+  fields: {
+    aspectRatio: aspectRatioImageConfigRule,
+    imageResolution: {
+      contribute: (v): Record<string, JSONValue> => (typeof v === 'string' ? { imageConfig: { imageSize: v } } : {})
+    }
   }
 }
 
@@ -120,6 +166,10 @@ export interface WireRegistration {
   /** Forward vendor-bag fields the profile doesn't map (diffusion family) — the
    *  legacy `jsonBagFields` merge, profile-mapped fields winning on collision. */
   readonly passthrough?: boolean
+  /** Additional bodies delivered under sibling provider keys (the dmxapi gateway
+   *  routes a `google.imageConfig` block to the google adapter). Each is built
+   *  from the same `paramValues` and emitted only when non-empty. */
+  readonly also?: ReadonlyArray<{ readonly key: string; readonly profile: WireProfile }>
 }
 
 /**
@@ -139,7 +189,9 @@ export const WIRE_REGISTRY: Record<string, WireRegistration> = {
   newapi: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   google: { profile: GOOGLE_WIRE_PROFILE },
   'google-vertex': { profile: GOOGLE_WIRE_PROFILE },
-  dashscope: { profile: DASHSCOPE_WIRE_PROFILE, passthrough: true }
+  dashscope: { profile: DASHSCOPE_WIRE_PROFILE, passthrough: true },
+  aihubmix: { profile: AIHUBMIX_WIRE_PROFILE, dualOpenAI: true },
+  dmxapi: { profile: DMXAPI_WIRE_PROFILE, also: [{ key: 'google', profile: DMXAPI_GOOGLE_PROFILE }] }
 }
 
 /**
