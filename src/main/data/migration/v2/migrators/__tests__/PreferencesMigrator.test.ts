@@ -1,3 +1,8 @@
+import { existsSync, mkdtempSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
+import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq, sql } from 'drizzle-orm'
@@ -8,6 +13,10 @@ import { DexieSettingsReader, type DexieSettingsRecord } from '../../utils/Dexie
 import { LocalStorageReader } from '../../utils/LocalStorageReader'
 import { ReduxStateReader } from '../../utils/ReduxStateReader'
 import { PreferencesMigrator } from '../PreferencesMigrator'
+
+/** A valid 1×1 PNG so `sharp` can transcode the avatar to WebP during migration. */
+const PNG_1X1 =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 
 interface SeedSources {
   redux?: Record<string, unknown>
@@ -23,7 +32,7 @@ interface SeedSources {
  * accepts. ElectronStore is stubbed to match the read-only contract on
  * `MigrationContext.sources.electronStore`.
  */
-function createTestContext(sources: SeedSources, db: unknown): MigrationContext {
+function createTestContext(sources: SeedSources, db: unknown, filesDataDir?: string): MigrationContext {
   return {
     sources: {
       electronStore: {
@@ -48,7 +57,7 @@ function createTestContext(sources: SeedSources, db: unknown): MigrationContext 
       error: () => {},
       debug: () => {}
     },
-    paths: {}
+    paths: { filesDataDir }
   } as unknown as MigrationContext
 }
 
@@ -308,6 +317,40 @@ describe('PreferencesMigrator', () => {
       expect(await countDefaultRows(dbh.db)).toBe(1)
       const [lang] = await selectByKey(dbh.db, 'app.language')
       expect(lang.value).toBe('pre-existing')
+    })
+  })
+
+  describe('avatar promotion', () => {
+    it('promotes a v1 base64 avatar to a file:<id> ref + file_entry + file_ref', async () => {
+      const filesDataDir = mkdtempSync(path.join(os.tmpdir(), 'pref-avatar-mig-'))
+      const ctx = createTestContext({ dexieSettings: [{ id: 'image://avatar', value: PNG_1X1 }] }, dbh.db, filesDataDir)
+      await migrator.prepare(ctx)
+      await migrator.execute(ctx)
+
+      const [avatarRow] = await selectByKey(dbh.db, 'app.user.avatar')
+      expect(typeof avatarRow.value).toBe('string')
+      expect(avatarRow.value).toMatch(/^file:/)
+
+      const fileId = (avatarRow.value as string).slice('file:'.length)
+      expect(existsSync(path.join(filesDataDir, `${fileId}.webp`))).toBe(true)
+
+      const [entry] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, fileId))
+      expect(entry?.origin).toBe('internal')
+      expect(entry?.ext).toBe('webp')
+
+      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceType, 'user_avatar'))
+      expect(refs).toHaveLength(1)
+      expect(refs[0].fileEntryId).toBe(fileId)
+      expect(refs[0].role).toBe('avatar')
+    })
+
+    it('passes a non-image avatar (emoji) through unchanged', async () => {
+      const ctx = createTestContext({ dexieSettings: [{ id: 'image://avatar', value: '😀' }] }, dbh.db)
+      await migrator.prepare(ctx)
+      await migrator.execute(ctx)
+
+      const [avatarRow] = await selectByKey(dbh.db, 'app.user.avatar')
+      expect(avatarRow.value).toBe('😀')
     })
   })
 

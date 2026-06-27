@@ -6,6 +6,7 @@ import { preferenceTable } from '@data/db/schemas/preference'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import { tagStoredFileRef, USER_AVATAR_SOURCE_ID, userAvatarRef } from '@shared/data/types/file'
 import { and, eq, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
@@ -17,8 +18,15 @@ import {
   LOCALSTORAGE_MAPPINGS,
   REDUX_STORE_MAPPINGS
 } from './mappings/PreferencesMappings'
+import { migrateBase64ImageToFileEntry } from './utils/logoMigration'
 
 const logger = loggerService.withContext('PreferencesMigrator')
+
+/** The user avatar's single-file `file_ref` slot (mirrors `profile.set_avatar`). */
+const AVATAR_REF = { sourceType: userAvatarRef.sourceType, sourceId: USER_AVATAR_SOURCE_ID, role: 'avatar' }
+
+/** The preference key holding the user avatar (`image://avatar` in v1). */
+const AVATAR_PREFERENCE_KEY = 'app.user.avatar'
 
 interface MigrationItem {
   originalKey: string
@@ -216,6 +224,21 @@ export class PreferencesMigrator extends BaseMigrator {
 
       // Use transaction for atomic insert
       await db.transaction(async (tx) => {
+        // Promote a v1 base64 avatar (`image://avatar`) to an on-disk WebP
+        // file_entry + file_ref, then store a `file:<id>` ref instead of the raw
+        // base64 — mirroring provider / mini-app logos. Emoji / preset / '' (and
+        // a failed transcode → '') pass through unchanged.
+        for (const item of this.preparedItems) {
+          if (
+            item.targetKey === AVATAR_PREFERENCE_KEY &&
+            typeof item.value === 'string' &&
+            item.value.startsWith('data:')
+          ) {
+            const fileId = await migrateBase64ImageToFileEntry(tx, ctx.paths.filesDataDir, AVATAR_REF, item.value)
+            item.value = fileId ? tagStoredFileRef(fileId) : ''
+          }
+        }
+
         // Batch insert all preferences
         const insertValues = this.preparedItems.map((item) => ({
           scope,

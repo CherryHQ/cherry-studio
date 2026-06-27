@@ -1,6 +1,6 @@
 import { application } from '@application'
 import { fileRefService } from '@data/services/FileRefService'
-import { USER_AVATAR_SOURCE_ID, userAvatarRef } from '@shared/data/types/file'
+import { tagStoredFileRef, USER_AVATAR_SOURCE_ID, userAvatarRef } from '@shared/data/types/file'
 import type { profileRequestSchemas } from '@shared/ipc/schemas/profile'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
@@ -23,7 +23,9 @@ export const profileHandlers: IpcHandlersFor<typeof profileRequestSchemas> = {
 
     if (input.kind === 'file') {
       await fileRefService.create({ fileEntryId: input.fileId, ...AVATAR_SLOT, role: 'avatar' })
-      await preferences.set('app.user.avatar', input.fileId)
+      // Store a `file:<id>` ref so the renderer resolves it the same way as
+      // provider / mini-app logos (not a bare id it would have to sniff).
+      await preferences.set('app.user.avatar', tagStoredFileRef(input.fileId))
       return
     }
 

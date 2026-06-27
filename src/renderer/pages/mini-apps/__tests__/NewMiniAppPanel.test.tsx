@@ -45,18 +45,18 @@ vi.mock('@renderer/utils/uuid', () => ({
 }))
 
 vi.mock('@renderer/utils/storedImage', () => {
-  // Re-implement the pure resolve/is helpers (the real module pulls in i18n,
-  // which isn't initialized in this suite); only storeImageUpload is a spy.
-  const FILE_ENTRY_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-  const isStoredImageId = (value?: string | null): value is string => !!value && FILE_ENTRY_ID_RE.test(value)
+  // Re-implement the pure resolver (the real module pulls in i18n, which isn't
+  // initialized in this suite); only storeImageUpload is a spy. A `file:<id>`
+  // ref resolves to the on-disk WebP; everything else passes through.
   return {
     storeImageUpload: mocks.storeImageUpload,
-    isStoredImageId,
     resolveStoredImageSrc: (value?: string | null, filesPath?: string) => {
       if (!value) return undefined
-      if (!isStoredImageId(value)) return value
-      if (!filesPath) return undefined
-      return `file://${filesPath}/${value}.webp`
+      if (value.startsWith('file:') && !value.startsWith('file://')) {
+        if (!filesPath) return undefined
+        return `file://${filesPath}/${value.slice('file:'.length)}.webp`
+      }
+      return value
     }
   }
 })
@@ -249,7 +249,7 @@ describe('NewMiniAppPanel', () => {
           orderKey: 'a0',
           name: 'Old App',
           url: 'https://old.app',
-          logo: STORED_ID
+          logo: `file:${STORED_ID}`
         }}
         onClose={vi.fn()}
       />

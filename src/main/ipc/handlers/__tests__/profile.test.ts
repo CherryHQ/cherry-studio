@@ -36,7 +36,8 @@ describe('profileHandlers.set_avatar', () => {
 
     expect(cleanupBySourceMock).toHaveBeenCalledWith(AVATAR_SLOT)
     expect(createRefMock).toHaveBeenCalledWith({ fileEntryId: FILE_ID, ...AVATAR_SLOT, role: 'avatar' })
-    expect(preferences.set).toHaveBeenCalledWith('app.user.avatar', FILE_ID)
+    // Stored as a `file:<id>` ref so the renderer resolves it like a logo.
+    expect(preferences.set).toHaveBeenCalledWith('app.user.avatar', `file:${FILE_ID}`)
   })
 
   it('clears the slot ref and stores an emoji value', async () => {

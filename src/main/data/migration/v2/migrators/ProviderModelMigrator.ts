@@ -35,7 +35,7 @@ import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
 import { type OldLlmSettings, transformModel, transformProvider } from './mappings/ProviderModelMappings'
 import { legacyChatModelToUniqueId } from './transformers/ModelTransformers'
-import { migrateBase64LogoToFileEntry } from './utils/logoMigration'
+import { migrateBase64ImageToFileEntry } from './utils/logoMigration'
 
 const logger = loggerService.withContext('ProviderModelMigrator')
 
@@ -69,7 +69,7 @@ interface LlmState {
 
 /** The provider logo slot for a given providerId (mirrors ProviderService). */
 function providerLogoSlot(providerId: string) {
-  return { sourceType: providerLogoRef.sourceType, sourceId: providerId }
+  return { sourceType: providerLogoRef.sourceType, sourceId: providerId, role: 'logo' }
 }
 
 function createModelId(providerId: string, modelId: string): UniqueModelId | null {
@@ -407,7 +407,7 @@ export class ProviderModelMigrator extends BaseMigrator {
           // `logoKey` stays for preset/url refs only.
           const logo = ctx.sources.dexieSettings.get<string>(`image://provider-${provider.id}`)
           const logoFileId = logo
-            ? await migrateBase64LogoToFileEntry(tx, ctx.paths.filesDataDir, providerLogoSlot(provider.id), logo)
+            ? await migrateBase64ImageToFileEntry(tx, ctx.paths.filesDataDir, providerLogoSlot(provider.id), logo)
             : null
           providerRowsWithoutOrderKey.push(logoFileId ? { ...row, logoFileId, logoKey: null } : row)
         }

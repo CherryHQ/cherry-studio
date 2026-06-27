@@ -119,9 +119,8 @@ vi.mock('@renderer/ipc', () => ({
 vi.mock('@renderer/utils/storedImage', () => ({
   storeImageUpload: mocks.storeImageUpload,
   // useAvatar resolves the avatar Preference through this; the avatar test uses a
-  // plain file:// value (not a stored id), so pass it through unchanged.
-  resolveStoredImageSrc: (value?: string | null) => value ?? undefined,
-  isStoredImageId: () => false
+  // plain file:// value (not a `file:<id>` ref), so pass it through unchanged.
+  resolveStoredImageSrc: (value?: string | null) => value ?? undefined
 }))
 
 vi.mock('@renderer/utils/naming', () => ({

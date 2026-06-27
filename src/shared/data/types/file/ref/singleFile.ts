@@ -42,3 +42,18 @@ export const userAvatarRef = defineSingleFileRef('user_avatar', ['avatar'])
 
 /** The avatar is a singleton — there is one user avatar, keyed by this constant. */
 export const USER_AVATAR_SOURCE_ID = 'default'
+
+/**
+ * Prefix tagging an uploaded entity image in its owner's **display value**
+ * (`provider.logo` / `miniApp.logo` / the `app.user.avatar` preference), e.g.
+ * `file:0190f3c4-…`. The owner's API tags an uploaded file this way so the
+ * renderer's `resolveStoredImageSrc` resolves it by prefix (→ `file://…/{id}.webp`)
+ * instead of guessing from the value's shape; every other form (icon ref / emoji
+ * / preset id) passes through. Distinct from an already-resolved `file://…` URL.
+ */
+export const STORED_FILE_REF_PREFIX = 'file:'
+
+/** Tag a file-entry id as a stored-image reference for an owner's display value. */
+export function tagStoredFileRef(id: string): string {
+  return `${STORED_FILE_REF_PREFIX}${id}`
+}

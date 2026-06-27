@@ -19,7 +19,7 @@ import { DataApiErrorFactory } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
-import { miniAppLogoRef } from '@shared/data/types/file'
+import { miniAppLogoRef, tagStoredFileRef } from '@shared/data/types/file'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
 import { and, asc, desc, eq, gt, inArray, lt, ne } from 'drizzle-orm'
 
@@ -61,9 +61,9 @@ function rowToMiniApp(row: MiniAppRow): MiniApp {
     presetMiniAppId,
     name: clean.name,
     url: clean.url,
-    // Uploaded logos live on disk (logoFileId); fall back to the preset/url
-    // string in `logoKey`. Public type is a single optional string.
-    logo: clean.logoFileId ?? clean.logoKey,
+    // Uploaded logos live on disk: emit a `file:<id>` ref the renderer resolves;
+    // otherwise the preset icon key. Public type is a single optional string.
+    logo: clean.logoFileId ? tagStoredFileRef(clean.logoFileId) : clean.logoKey,
     status: clean.status,
     orderKey: clean.orderKey,
     createdAt: timestampToISO(clean.createdAt),

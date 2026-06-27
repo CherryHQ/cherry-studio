@@ -313,7 +313,8 @@ describe('useMiniApps', () => {
     it('should resolve an uploaded-logo file id to a file:// tab icon when syncing', async () => {
       const storedId = '0190f3c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f'
       const existing = createMiniApp('custom-app', { presetMiniAppId: null })
-      const updated = { ...existing, name: 'New App', logo: storedId }
+      // The service returns an uploaded logo as a `file:<id>` ref.
+      const updated = { ...existing, name: 'New App', logo: `file:${storedId}` }
       const trigger = vi.fn().mockResolvedValue(updated)
       MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/:appId', trigger)
       MockUseCacheUtils.setCacheValue('app.path.files', '/files')

@@ -417,8 +417,8 @@ describe('MiniAppService', () => {
       const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'logo-app'))
       expect(row.logoKey).toBeNull()
       expect(row.logoFileId).toBe(FILE_ID)
-      // Public DTO collapses to the file id.
-      expect(created.logo).toBe(FILE_ID)
+      // Public DTO emits a `file:<id>` ref for the renderer to resolve.
+      expect(created.logo).toBe(`file:${FILE_ID}`)
       const refs = await logoRefs('logo-app')
       expect(refs).toHaveLength(1)
       expect(refs[0].fileEntryId).toBe(FILE_ID)

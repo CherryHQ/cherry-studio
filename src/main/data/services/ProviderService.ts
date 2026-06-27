@@ -22,7 +22,7 @@ import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import { isManagedCherryAiProviderId } from '@shared/data/presets/cherryai'
-import { providerLogoRef } from '@shared/data/types/file'
+import { providerLogoRef, tagStoredFileRef } from '@shared/data/types/file'
 import type {
   ApiKeyEntry,
   AuthConfig,
@@ -122,9 +122,9 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     id: row.providerId,
     presetProviderId: row.presetProviderId ?? undefined,
     name: row.name,
-    // Uploaded logos live on disk (logoFileId); fall back to the preset/url
-    // string in `logoKey`. Public type is a single optional string.
-    logo: row.logoFileId ?? row.logoKey ?? undefined,
+    // Uploaded logos live on disk: emit a `file:<id>` ref the renderer resolves;
+    // otherwise the preset icon key. Public type is a single optional string.
+    logo: row.logoFileId ? tagStoredFileRef(row.logoFileId) : (row.logoKey ?? undefined),
     description: presetMetadata.description,
     websites: presetMetadata.websites,
     endpointConfigs: row.endpointConfigs ?? undefined,

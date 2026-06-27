@@ -16,7 +16,7 @@ import type { MigrationContext } from '../core/MigrationContext'
 import { assignOrderKeysByScope } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import { transformMiniApp } from './mappings/MiniAppMappings'
-import { migrateBase64LogoToFileEntry } from './utils/logoMigration'
+import { migrateBase64ImageToFileEntry } from './utils/logoMigration'
 
 type MiniAppRowWithoutOrderKey = Omit<InsertMiniAppRow, 'orderKey'>
 
@@ -28,7 +28,7 @@ function orderKeyScopeForStatus(status: MiniAppStatus | undefined): 'visible' | 
 
 /** The mini-app logo slot for a given appId (mirrors MiniAppService). */
 function miniAppLogoSlot(appId: string) {
-  return { sourceType: miniAppLogoRef.sourceType, sourceId: appId }
+  return { sourceType: miniAppLogoRef.sourceType, sourceId: appId, role: 'logo' }
 }
 
 export class MiniAppMigrator extends BaseMigrator {
@@ -195,7 +195,7 @@ export class MiniAppMigrator extends BaseMigrator {
         // logoKey (url / icon ref) is left as-is.
         for (const row of this.preparedRows) {
           if (row.logoKey?.startsWith('data:')) {
-            row.logoFileId = await migrateBase64LogoToFileEntry(
+            row.logoFileId = await migrateBase64ImageToFileEntry(
               tx,
               ctx.paths.filesDataDir,
               miniAppLogoSlot(row.appId),

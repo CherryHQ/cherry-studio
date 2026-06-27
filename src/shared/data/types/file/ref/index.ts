@@ -52,7 +52,14 @@ import {
   paintingRoleSchema,
   paintingSourceType
 } from './painting'
-import { miniAppLogoRef, providerLogoRef, USER_AVATAR_SOURCE_ID, userAvatarRef } from './singleFile'
+import {
+  miniAppLogoRef,
+  providerLogoRef,
+  STORED_FILE_REF_PREFIX,
+  tagStoredFileRef,
+  USER_AVATAR_SOURCE_ID,
+  userAvatarRef
+} from './singleFile'
 import { tempSessionFileRefSchema, tempSessionRefFields, tempSessionRoles, tempSessionSourceType } from './tempSession'
 
 // ─── SourceType type (load-bearing — keys the OrphanRefScanner registry) ───
@@ -143,6 +150,8 @@ export {
   paintingRoleSchema,
   paintingSourceType,
   providerLogoRef,
+  STORED_FILE_REF_PREFIX,
+  tagStoredFileRef,
   tempSessionFileRefSchema,
   tempSessionRefFields,
   tempSessionRoles,
