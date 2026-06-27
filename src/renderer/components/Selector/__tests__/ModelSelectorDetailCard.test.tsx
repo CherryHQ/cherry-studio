@@ -1,3 +1,4 @@
+import type * as ModelModule from '@renderer/utils/model'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { render, screen } from '@testing-library/react'
@@ -11,7 +12,8 @@ const { mockGetModelSupportedReasoningEffortOptions } = vi.hoisted(() => ({
   mockGetModelSupportedReasoningEffortOptions: vi.fn()
 }))
 
-vi.mock('@renderer/config/models/reasoning', () => ({
+vi.mock('@renderer/utils/model', async (importOriginal) => ({
+  ...(await importOriginal<typeof ModelModule>()),
   getModelSupportedReasoningEffortOptions: mockGetModelSupportedReasoningEffortOptions
 }))
 

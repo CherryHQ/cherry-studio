@@ -1,5 +1,5 @@
-import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useProviderAuthConfig } from '@renderer/hooks/useProvider'
+import { PROVIDER_URLS } from '@renderer/pages/settings/ProviderSettings/providerUrls'
 import type { Provider } from '@shared/data/types/provider'
 import { getProviderHostTopology } from '@shared/utils/providerTopology'
 import { useMemo } from 'react'

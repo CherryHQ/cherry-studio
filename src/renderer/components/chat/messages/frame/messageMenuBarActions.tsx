@@ -1,10 +1,10 @@
 import { loggerService } from '@logger'
-import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/components/Icons'
 import {
   DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS,
   type MessageMenuBarButtonId,
   STREAMING_DISABLED_BUTTON_IDS
-} from '@renderer/config/registry/messageMenuBar'
+} from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
+import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/components/Icons'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'

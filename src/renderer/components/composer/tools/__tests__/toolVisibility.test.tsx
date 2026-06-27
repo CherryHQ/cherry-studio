@@ -7,7 +7,7 @@ const { mockIsGenerateImageModel, mockIsReasoningModel, mockIsSupportedToolUse }
   mockIsSupportedToolUse: vi.fn()
 }))
 
-vi.mock('@renderer/config/models', () => ({
+vi.mock('@renderer/utils/model', () => ({
   isGenerateImageModel: (...args: unknown[]) => mockIsGenerateImageModel(...args),
   isReasoningModel: (...args: unknown[]) => mockIsReasoningModel(...args)
 }))
@@ -32,7 +32,7 @@ vi.mock('@renderer/components/composer/tools/components/WebSearchButton', () => 
   WebSearchToolRuntime: () => null
 }))
 
-vi.mock('@renderer/hooks/agents/useAgent', () => ({
+vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgent: () => ({ agent: undefined })
 }))
 

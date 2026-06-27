@@ -161,7 +161,7 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useQuery: useQueryMock
 }))
 
-vi.mock('@renderer/hooks/agents/useAgentTools', () => ({
+vi.mock('@renderer/hooks/agent/useAgentTools', () => ({
   useAgentTools: () => ({
     tools: agentTools,
     isLoading: false,
