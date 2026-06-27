@@ -1,5 +1,5 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import type ReactType from 'react'
 import type { ReactNode } from 'react'
@@ -9,7 +9,9 @@ const mocks = vi.hoisted(() => ({
   TopView: {
     show: vi.fn(),
     hide: vi.fn()
-  }
+  },
+  ipcRequest: vi.fn(async () => undefined),
+  normalizeImageToWebp: vi.fn(async () => new Uint8Array([1, 2, 3]))
 }))
 
 type PopoverContextValue = {
@@ -86,7 +88,16 @@ vi.mock('@cherrystudio/ui', () => {
         </div>
       ) : null
     },
-    PopoverTrigger: ({ children }: { children: ReactNode; asChild?: boolean }) => children,
+    PopoverTrigger: ({ children }: { children: ReactNode; asChild?: boolean }) => {
+      const context = React.use(PopoverContext)
+      // The real trigger opens the popover on click; wire that here so tests can
+      // reach the file-upload / emoji controls inside PopoverContent.
+      return (
+        <div data-testid="popover-trigger" onClick={() => context.onOpenChange?.(true)}>
+          {children}
+        </div>
+      )
+    },
     RowFlex: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
       <div data-testid="row-flex" {...props}>
         {children}
@@ -99,8 +110,12 @@ vi.mock('@renderer/components/TopView', () => ({
   TopView: mocks.TopView
 }))
 
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mocks.ipcRequest }
+}))
+
 vi.mock('@renderer/utils/image', () => ({
-  fileToAvatarDataUrl: vi.fn(async () => 'data:image/png;base64,avatar')
+  normalizeImageToWebp: mocks.normalizeImageToWebp
 }))
 
 vi.mock('@renderer/utils/naming', () => ({
@@ -130,6 +145,7 @@ describe('UserPopup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockUsePreferenceUtils.resetMocks()
+    window.toast = { error: vi.fn() } as any
   })
 
   afterEach(() => {
@@ -144,5 +160,24 @@ describe('UserPopup', () => {
 
     expect(screen.getByTestId('avatar-image')).toHaveClass('object-cover')
     expect(screen.getByTestId('avatar-image')).toHaveAttribute('src', avatar)
+  })
+
+  it('uploads an avatar as normalized WebP bytes via profile.set_avatar', async () => {
+    await renderUserPopup()
+
+    // Open the avatar popover to reveal the upload control + hidden file input.
+    fireEvent.click(screen.getByTestId('popover-trigger'))
+
+    const file = new File(['png'], 'a.png', { type: 'image/png' })
+    const input = screen.getByTestId('dialog-content').querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [file] } })
+
+    await waitFor(() => {
+      expect(mocks.normalizeImageToWebp).toHaveBeenCalledWith(file)
+      expect(mocks.ipcRequest).toHaveBeenCalledWith('profile.set_avatar', {
+        kind: 'image',
+        data: new Uint8Array([1, 2, 3])
+      })
+    })
   })
 })

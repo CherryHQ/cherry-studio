@@ -1,3 +1,4 @@
+import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { LogoAvatar } from '@renderer/components/Icons'
 import { getMiniAppsLogo } from '@renderer/config/miniApps'
@@ -5,6 +6,7 @@ import { useCurrentTab, useCurrentTabId } from '@renderer/hooks/tab'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { resolveStoredImageSrc } from '@renderer/utils/storedImage'
 import { getWebviewLoaded, onWebviewStateChange, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { DataApiError, ErrorCode } from '@shared/data/api'
 import type { MiniApp } from '@shared/data/types/miniApp'
@@ -36,6 +38,7 @@ const MiniAppPage: FC = () => {
   const updateTab = tabsContext?.updateTab
   const { openMiniAppKeepAlive } = useMiniAppPopup()
   const { allApps, openedKeepAliveMiniApps, isLoading, error } = useMiniApps()
+  const [filesPath] = useCache('app.path.files')
 
   // Find the app from all available apps (including transient ones in the keep-alive list)
   const app = useMemo((): MiniApp | null => {
@@ -54,13 +57,16 @@ const MiniAppPage: FC = () => {
   useEffect(() => {
     if (!app || !displayName || !currentTabId || !currentTab || !updateTab) return
     if (!isMiniAppTabUrl(currentTab.url, app.appId)) return
-    if (currentTab.title === displayName && currentTab.icon === app.logo) return
+    // Resolve an uploaded-logo file id to a file:// src so TabIcon (which has no
+    // filesPath) can render it directly; preset ids / urls pass through.
+    const tabIcon = resolveStoredImageSrc(app.logo, filesPath) ?? app.logo
+    if (currentTab.title === displayName && currentTab.icon === tabIcon) return
 
     updateTab(currentTabId, {
       title: displayName,
-      icon: app.logo
+      icon: tabIcon
     })
-  }, [app, currentTab, currentTabId, displayName, updateTab])
+  }, [app, currentTab, currentTabId, displayName, filesPath, updateTab])
 
   useEffect(() => {
     if (isLoading) return
@@ -213,7 +219,7 @@ const MiniAppPage: FC = () => {
       <WebviewSearch webviewRef={webviewRef} isWebviewReady={isReady} appId={app.appId} />
       {!isReady && (
         <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
-          <LogoAvatar logo={getMiniAppsLogo(app.logo) ?? app.logo} size={60} />
+          <LogoAvatar logo={getMiniAppsLogo(app.logo) ?? resolveStoredImageSrc(app.logo, filesPath)} size={60} />
           <BeatLoader color="var(--color-text-2)" size={8} style={{ marginTop: 12 }} />
         </div>
       )}

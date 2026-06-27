@@ -22,15 +22,7 @@ describe('FileRefSourceType', () => {
     // Defensive: this assertion locks the currently-registered set.
     // Adding a new variant must also extend (a) the discriminated union and
     // (b) the OrphanRefScanner registry — see ref/README.md.
-    expect([...allSourceTypes]).toEqual([
-      'temp_session',
-      'knowledge_item',
-      'chat_message',
-      'painting',
-      'provider_logo',
-      'user_avatar',
-      'mini_app_logo'
-    ])
+    expect([...allSourceTypes]).toEqual(['temp_session', 'knowledge_item', 'chat_message', 'painting'])
   })
 })
 

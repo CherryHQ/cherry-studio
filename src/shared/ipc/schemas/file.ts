@@ -3,7 +3,6 @@ import {
   DanglingStateSchema,
   FileEntryIdSchema,
   FileEntrySchema,
-  FileRefSourceTypeSchema,
   SafeExtSchema,
   SafeNameSchema
 } from '@shared/data/types/file'
@@ -62,13 +61,6 @@ const batchCreateInternalEntriesInputSchema = z.strictObject({
   items: z.array(createInternalEntryInputSchema).min(1).max(FILE_IPC_MAX_BATCH_CREATE_ITEMS)
 })
 
-/** Identifies one entity file slot: which entity owns it and how it's used. */
-const entitySlotSchema = z.strictObject({
-  sourceType: FileRefSourceTypeSchema,
-  sourceId: z.string().min(1),
-  role: z.string().min(1)
-})
-
 /**
  * File IPC schemas — filesystem-backed FileManager operations.
  *
@@ -91,14 +83,6 @@ export const fileRequestSchemas = {
   'file.batch_create_internal_entries': defineRoute({
     input: batchCreateInternalEntriesInputSchema,
     output: batchCreateResultSchema
-  }),
-  'file.put_entity_file': defineRoute({
-    input: entitySlotSchema.extend({ data: z.instanceof(Uint8Array), ext: SafeExtSchema }),
-    output: z.strictObject({ fileId: FileEntryIdSchema })
-  }),
-  'file.clear_entity_file': defineRoute({
-    input: entitySlotSchema,
-    output: z.void()
   }),
   'file.batch_trash': defineRoute({ input: fileEntryIdsInputSchema, output: batchMutationResultSchema }),
   'file.batch_restore': defineRoute({ input: fileEntryIdsInputSchema, output: batchMutationResultSchema }),

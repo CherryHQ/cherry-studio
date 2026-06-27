@@ -112,6 +112,13 @@
       "when": 1782457417155,
       "tag": "0015_tranquil_terrax",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1782532237204,
+      "tag": "0016_thick_starbolt",
+      "breakpoints": true
     }
   ],
   "version": "7"

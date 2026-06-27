@@ -1,4 +1,6 @@
+import { useCache } from '@data/hooks/useCache'
 import { getMiniAppsLogo } from '@renderer/config/miniApps'
+import { resolveStoredImageSrc } from '@renderer/utils/storedImage'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { FC } from 'react'
 
@@ -11,6 +13,7 @@ interface Props {
 }
 
 const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style, sidebar = false }) => {
+  const [filesPath] = useCache('app.path.files')
   // Preset-derived apps already include seeded display fields.
   if (app.logo) {
     const logo = getMiniAppsLogo(app.logo)
@@ -42,7 +45,7 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style, 
 
     return (
       <img
-        src={typeof logo === 'string' ? logo : app.logo}
+        src={typeof logo === 'string' ? logo : resolveStoredImageSrc(app.logo, filesPath)}
         className="select-none rounded-2xl border border-border"
         style={{
           width: `${size}px`,

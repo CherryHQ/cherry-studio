@@ -20,7 +20,7 @@ interface UseProviderEditorParams {
  * branch decision lives in the params, not a closure.
  */
 export type SubmitProviderEditorParams =
-  | { mode: 'edit'; name: string; defaultChatEndpoint: EndpointType; logo?: string | null }
+  | { mode: 'edit'; name: string; defaultChatEndpoint: EndpointType; logo?: string | Uint8Array<ArrayBuffer> | null }
   | {
       mode: 'create'
       name: string
@@ -29,7 +29,7 @@ export type SubmitProviderEditorParams =
       presetProviderId?: string
       authConfig?: AuthConfig
       apiKeys?: ApiKeyEntry[]
-      logo?: string | null
+      logo?: string | Uint8Array<ArrayBuffer> | null
     }
 
 export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams) {

@@ -310,6 +310,27 @@ describe('useMiniApps', () => {
       expect(mockTabs.updateTab).not.toHaveBeenCalledWith('tab-2', expect.anything())
     })
 
+    it('should resolve an uploaded-logo file id to a file:// tab icon when syncing', async () => {
+      const storedId = '0190f3c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f'
+      const existing = createMiniApp('custom-app', { presetMiniAppId: null })
+      const updated = { ...existing, name: 'New App', logo: storedId }
+      const trigger = vi.fn().mockResolvedValue(updated)
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/:appId', trigger)
+      MockUseCacheUtils.setCacheValue('app.path.files', '/files')
+      mockTabs.tabs = [{ id: 'tab-1', url: '/app/mini-app/custom-app' }]
+
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await result.current.updateCustomMiniApp('custom-app', { name: 'New App', logo: new Uint8Array([1]) })
+      })
+
+      expect(mockTabs.updateTab).toHaveBeenCalledWith('tab-1', {
+        title: 'New App',
+        icon: `file:///files/${storedId}.webp`
+      })
+    })
+
     it('should clean opened cache, tabs, and webview state after removing a custom miniapp', async () => {
       const existing = createMiniApp('custom-app', { presetMiniAppId: null })
       const other = createMiniApp('other-app')

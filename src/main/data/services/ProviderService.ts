@@ -16,10 +16,12 @@ import { getDataService, registerDataService } from '@data/services/dataServiceR
 import { pinService } from '@data/services/PinService'
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
+import { deleteEntityImage, storeEntityImage } from '@main/services/file/entityImageFile'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import { isManagedCherryAiProviderId } from '@shared/data/presets/cherryai'
+import type { FileEntryId } from '@shared/data/types/file'
 import type {
   ApiKeyEntry,
   AuthConfig,
@@ -119,7 +121,9 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     id: row.providerId,
     presetProviderId: row.presetProviderId ?? undefined,
     name: row.name,
-    logo: row.logo ?? undefined,
+    // Uploaded logos live on disk (logoFileId); fall back to the preset/url
+    // string in `logo`. Public type is a single optional string.
+    logo: row.logoFileId ?? row.logo ?? undefined,
     description: presetMetadata.description,
     websites: presetMetadata.websites,
     endpointConfigs: row.endpointConfigs ?? undefined,
@@ -130,6 +134,27 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     settings,
     isEnabled: row.isEnabled
   }
+}
+
+/**
+ * Resolve a `logo` DTO value into the `logo` / `logoFileId` columns.
+ *
+ * - `Uint8Array` → store a new WebP file_entry; `logoFileId = newId`, `logo = null`.
+ *   `newFileId` is returned so a failed row write can compensate by deleting it.
+ * - `string` → preset id / url in `logo`; `logoFileId = null`.
+ * - `null` → clear both (update only).
+ *
+ * `undefined` is handled by callers (field left unchanged) and never reaches here.
+ */
+async function resolveLogoColumns(
+  logo: string | Uint8Array | null,
+  name: string
+): Promise<{ logo: string | null; logoFileId: FileEntryId | null; newFileId: FileEntryId | null }> {
+  if (logo instanceof Uint8Array) {
+    const newFileId = await storeEntityImage(logo, name)
+    return { logo: null, logoFileId: newFileId, newFileId }
+  }
+  return { logo: logo ?? null, logoFileId: null, newFileId: null }
 }
 
 class ProviderService {
@@ -223,11 +248,16 @@ class ProviderService {
 
     const db = application.get('DbService').getDb()
 
+    // Uploads store the file BEFORE the row write so a failed insert can
+    // compensate by deleting the orphaned file_entry (see catch below).
+    const logoColumns = await resolveLogoColumns(dto.logo ?? null, dto.providerId)
+
     const values: NewUserProviderInput = {
       providerId: dto.providerId,
       presetProviderId: dto.presetProviderId ?? null,
       name: dto.name,
-      logo: dto.logo ?? null,
+      logo: logoColumns.logo,
+      logoFileId: logoColumns.logoFileId,
       endpointConfigs: dto.endpointConfigs ?? null,
       defaultChatEndpoint: dto.defaultChatEndpoint ?? null,
       apiKeys: dto.apiKeys ?? [],
@@ -237,17 +267,23 @@ class ProviderService {
       isEnabled: false
     }
 
-    const row = await withSqliteErrors(
-      async () =>
-        await db.transaction(async (tx) => {
-          return (await insertWithOrderKey(tx, userProviderTable, values, {
-            pkColumn: userProviderTable.providerId
-          })) as UserProviderRow
-        }),
-      {
-        unique: () => DataApiErrorFactory.conflict(`Provider '${dto.providerId}' already exists`, 'Provider')
-      } satisfies SqliteErrorHandlers
-    )
+    let row: UserProviderRow
+    try {
+      row = await withSqliteErrors(
+        async () =>
+          await db.transaction(async (tx) => {
+            return (await insertWithOrderKey(tx, userProviderTable, values, {
+              pkColumn: userProviderTable.providerId
+            })) as UserProviderRow
+          }),
+        {
+          unique: () => DataApiErrorFactory.conflict(`Provider '${dto.providerId}' already exists`, 'Provider')
+        } satisfies SqliteErrorHandlers
+      )
+    } catch (error) {
+      await deleteEntityImage(logoColumns.newFileId)
+      throw error
+    }
 
     logger.info('Created provider', { providerId: dto.providerId })
 
@@ -260,53 +296,76 @@ class ProviderService {
   async update(providerId: string, dto: UpdateProviderDto): Promise<Provider> {
     assertManagedCherryAiProviderPatchAllowed(providerId, dto)
 
+    // Uploads store the file BEFORE the row write so a failed write can
+    // compensate (deleteEntityImage(newFileId)); the previous file_entry is
+    // deleted only after a successful write.
+    const logoColumns = dto.logo !== undefined ? await resolveLogoColumns(dto.logo, providerId) : null
+    let previousLogoFileId: FileEntryId | null = null
+
     // Read + merge + write the providerSettings JSON in ONE serialized write
     // transaction. A bare read-then-update would let two concurrent PATCHes both
     // read the same old providerSettings and have the later write clobber the
     // other's keys (lost update); withWriteTx serializes them so each merges on
     // the latest row value.
-    const row = await application.get('DbService').withWriteTx(async (tx) => {
-      // Read the raw row's providerSettings, not the merged entity. PATCH
-      // semantics require merging with the stored partial, not with runtime
-      // defaults — otherwise DEFAULT_PROVIDER_SETTINGS would be persisted
-      // into the row and break the "row stores only overrides" contract.
-      const [current] = await tx
-        .select({ providerSettings: userProviderTable.providerSettings })
-        .from(userProviderTable)
-        .where(eq(userProviderTable.providerId, providerId))
-        .limit(1)
+    let row: UserProviderRow
+    try {
+      row = await application.get('DbService').withWriteTx(async (tx) => {
+        // Read the raw row's providerSettings, not the merged entity. PATCH
+        // semantics require merging with the stored partial, not with runtime
+        // defaults — otherwise DEFAULT_PROVIDER_SETTINGS would be persisted
+        // into the row and break the "row stores only overrides" contract.
+        const [current] = await tx
+          .select({
+            providerSettings: userProviderTable.providerSettings,
+            logoFileId: userProviderTable.logoFileId
+          })
+          .from(userProviderTable)
+          .where(eq(userProviderTable.providerId, providerId))
+          .limit(1)
 
-      if (!current) {
-        throw DataApiErrorFactory.notFound('Provider', providerId)
-      }
-
-      const updates: Partial<InsertUserProviderRow> = {}
-
-      if (dto.name !== undefined) updates.name = dto.name
-      if (dto.logo !== undefined) updates.logo = dto.logo ?? null
-      if (dto.endpointConfigs !== undefined) updates.endpointConfigs = dto.endpointConfigs
-      if (dto.defaultChatEndpoint !== undefined) updates.defaultChatEndpoint = dto.defaultChatEndpoint
-      if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
-      if (dto.apiFeatures !== undefined) updates.apiFeatures = dto.apiFeatures
-      if (dto.providerSettings !== undefined) {
-        updates.providerSettings = {
-          ...(current.providerSettings as Partial<ProviderSettings> | null),
-          ...dto.providerSettings
+        if (!current) {
+          throw DataApiErrorFactory.notFound('Provider', providerId)
         }
-      }
-      if (dto.isEnabled !== undefined) updates.isEnabled = dto.isEnabled
 
-      const [updated] = await tx
-        .update(userProviderTable)
-        .set(updates)
-        .where(eq(userProviderTable.providerId, providerId))
-        .returning()
+        previousLogoFileId = current.logoFileId ?? null
 
-      if (!updated) {
-        throw DataApiErrorFactory.notFound('Provider', providerId)
-      }
-      return updated
-    })
+        const updates: Partial<InsertUserProviderRow> = {}
+
+        if (dto.name !== undefined) updates.name = dto.name
+        if (logoColumns) {
+          updates.logo = logoColumns.logo
+          updates.logoFileId = logoColumns.logoFileId
+        }
+        if (dto.endpointConfigs !== undefined) updates.endpointConfigs = dto.endpointConfigs
+        if (dto.defaultChatEndpoint !== undefined) updates.defaultChatEndpoint = dto.defaultChatEndpoint
+        if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
+        if (dto.apiFeatures !== undefined) updates.apiFeatures = dto.apiFeatures
+        if (dto.providerSettings !== undefined) {
+          updates.providerSettings = {
+            ...(current.providerSettings as Partial<ProviderSettings> | null),
+            ...dto.providerSettings
+          }
+        }
+        if (dto.isEnabled !== undefined) updates.isEnabled = dto.isEnabled
+
+        const [updated] = await tx
+          .update(userProviderTable)
+          .set(updates)
+          .where(eq(userProviderTable.providerId, providerId))
+          .returning()
+
+        if (!updated) {
+          throw DataApiErrorFactory.notFound('Provider', providerId)
+        }
+        return updated
+      })
+    } catch (error) {
+      if (logoColumns) await deleteEntityImage(logoColumns.newFileId)
+      throw error
+    }
+
+    // Logo changed (upload / preset / clear): drop the superseded file_entry.
+    if (logoColumns) await deleteEntityImage(previousLogoFileId)
 
     logger.info('Updated provider', { providerId, changes: Object.keys(dto) })
 
@@ -625,9 +684,10 @@ class ProviderService {
   async delete(providerId: string): Promise<void> {
     const db = application.get('DbService').getDb()
 
+    let logoFileId: FileEntryId | null = null
     await db.transaction(async (tx) => {
       const [provider] = await tx
-        .select({ presetProviderId: userProviderTable.presetProviderId })
+        .select({ presetProviderId: userProviderTable.presetProviderId, logoFileId: userProviderTable.logoFileId })
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, providerId))
         .limit(1)
@@ -635,6 +695,8 @@ class ProviderService {
       if (!provider) {
         throw DataApiErrorFactory.notFound('Provider', providerId)
       }
+
+      logoFileId = provider.logoFileId ?? null
 
       // Block deletion of canonical preset rows. `presetProviderId === providerId`
       // covers presets that group under themselves; the registry check also
@@ -668,6 +730,9 @@ class ProviderService {
         throw DataApiErrorFactory.notFound('Provider', providerId)
       }
     })
+
+    // Reclaim the uploaded logo file (FK `set null` already cleared the ref).
+    await deleteEntityImage(logoFileId)
 
     logger.info('Deleted provider', { providerId })
   }

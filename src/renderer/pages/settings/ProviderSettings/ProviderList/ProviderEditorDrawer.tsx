@@ -5,7 +5,7 @@ import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
-import { fileToAvatarDataUrl } from '@renderer/utils/image'
+import { normalizeImageToWebp } from '@renderer/utils/image'
 import { cn, generateColorFromChar, getForegroundColor } from '@renderer/utils/style'
 import { uuid } from '@renderer/utils/uuid'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
@@ -98,13 +98,30 @@ export default function ProviderEditorDrawer({
   const [apiKey, setApiKey] = useState('')
   const [secondaryUrls, setSecondaryUrls] = useState<Record<string, string>>({})
   const [moreEndpointsOpen, setMoreEndpointsOpen] = useState(false)
+  // `logo` is the preview value only (a preset id / url / object URL for a
+  // staged upload). When the user uploads, `logoUploadBytes` holds the encoded
+  // WebP that gets submitted; a preset/clear leaves it null and submits the
+  // string/null instead.
   const [logo, setLogo] = useState<string | null>(null)
+  const [logoUploadBytes, setLogoUploadBytes] = useState<Uint8Array<ArrayBuffer> | null>(null)
   const [logoDirty, setLogoDirty] = useState(false)
   const [logoPickerOpen, setLogoPickerOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [nameTouched, setNameTouched] = useState(false)
   const [baseUrlTouched, setBaseUrlTouched] = useState(false)
   const previousOpenRef = useRef(false)
+  // Object URL backing the upload preview; revoked when it's replaced or the
+  // component unmounts so blobs don't leak.
+  const previewObjectUrlRef = useRef<string | null>(null)
+
+  const revokePreviewObjectUrl = () => {
+    if (previewObjectUrlRef.current) {
+      URL.revokeObjectURL(previewObjectUrlRef.current)
+      previewObjectUrlRef.current = null
+    }
+  }
+
+  useEffect(() => () => revokePreviewObjectUrl(), [])
 
   const editingProvider = mode?.kind === 'edit' ? mode.provider : null
   const duplicateSource = mode?.kind === 'duplicate' ? mode.source : null
@@ -140,6 +157,8 @@ export default function ProviderEditorDrawer({
     setMoreEndpointsOpen(false)
     setLogoDirty(false)
     setLogoPickerOpen(false)
+    revokePreviewObjectUrl()
+    setLogoUploadBytes(null)
   }, [open, editingProvider, duplicateSource])
 
   useEffect(() => {
@@ -169,13 +188,18 @@ export default function ProviderEditorDrawer({
     }
 
     try {
-      const storedLogo = await fileToAvatarDataUrl(file)
-      setLogo(storedLogo)
+      // Submit pre-encoded WebP bytes; show the original file as a preview via an
+      // object URL (revoking any previous one) without round-tripping to disk.
+      const bytes = await normalizeImageToWebp(file)
+      revokePreviewObjectUrl()
+      previewObjectUrlRef.current = URL.createObjectURL(file)
+      setLogo(previewObjectUrlRef.current)
+      setLogoUploadBytes(bytes)
       setLogoDirty(true)
     } catch (error) {
-      // fileToAvatarDataUrl can reject on an oversized GIF (with a clear i18n
-      // message) or a corrupt/unsupported file — surface its message, falling
-      // back to a generic one, instead of silently doing nothing.
+      // normalizeImageToWebp can reject on a corrupt/unsupported file — surface
+      // its message, falling back to a generic one, instead of silently doing
+      // nothing.
       logger.error('Failed to process uploaded provider logo', error as Error)
       const message =
         error instanceof Error && error.message ? error.message : t('settings.provider.logo_upload_failed')
@@ -187,12 +211,16 @@ export default function ProviderEditorDrawer({
     const trimmedName = name.trim()
     if (!trimmedName || !mode) return null
 
+    // A staged upload sends its WebP bytes; otherwise the preview string (preset
+    // id / url) or `null` (clear) is the value.
+    const logoValue = logoUploadBytes ?? logo
+
     if (mode.kind === 'edit') {
       return {
         mode: 'edit',
         name: trimmedName,
         defaultChatEndpoint: mode.provider.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-        logo: logoDirty ? logo : undefined
+        logo: logoDirty ? logoValue : undefined
       }
     }
 
@@ -217,7 +245,7 @@ export default function ProviderEditorDrawer({
         endpointConfigs,
         authConfig: { type: 'api-key' },
         apiKeys: apiKeysPayload,
-        logo: logo ?? undefined
+        logo: logoValue ?? undefined
       }
     }
 
@@ -230,7 +258,7 @@ export default function ProviderEditorDrawer({
         defaultChatEndpoint,
         presetProviderId: source.presetProviderId,
         authConfig: emptyAuthConfigFor(source.authType),
-        logo: logo ?? undefined
+        logo: logoValue ?? undefined
       }
       if (duplicateNeedsBaseUrl(source.authType)) {
         const endpointConfigs: Partial<Record<EndpointType, EndpointConfig>> = {}
@@ -325,11 +353,15 @@ export default function ProviderEditorDrawer({
           avatarForegroundColor={avatarForegroundColor}
           onUpload={(event) => void handleUploadChange(event)}
           onPick={(providerId) => {
+            revokePreviewObjectUrl()
+            setLogoUploadBytes(null)
             setLogo(`icon:${providerId}`)
             setLogoDirty(true)
             setLogoPickerOpen(false)
           }}
           onReset={() => {
+            revokePreviewObjectUrl()
+            setLogoUploadBytes(null)
             setLogo(null)
             setLogoDirty(true)
           }}

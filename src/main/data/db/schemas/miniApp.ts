@@ -9,6 +9,7 @@ import { sql } from 'drizzle-orm'
 import { check, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, orderKeyColumns, scopedOrderKeyIndex } from './_columnHelpers'
+import { fileEntryTable } from './file'
 
 export type MiniAppStatus = 'enabled' | 'disabled' | 'pinned'
 
@@ -32,7 +33,22 @@ export const miniAppTable = sqliteTable(
 
     name: text().notNull(),
     url: text().notNull(),
+
+    /**
+     * Preset/bundled logo reference — a `getMiniAppsLogo` icon id (e.g.
+     * `'application'`) or remote URL. User-uploaded custom logos are stored on
+     * disk and referenced via {@link logoFileId} instead; `logo` is not used for
+     * uploads.
+     */
     logo: text(),
+
+    /**
+     * Custom user-uploaded logo: FK to the on-disk `file_entry` holding a
+     * normalized 128×128 WebP. NULL when the app has no uploaded logo (falls
+     * back to {@link logo} / the bundled icon). `set null` on delete so pruning
+     * the file entry clears the reference automatically.
+     */
+    logoFileId: text('logo_file_id').references(() => fileEntryTable.id, { onDelete: 'set null' }),
 
     status: text().$type<MiniAppStatus>().notNull().default('enabled'),
 

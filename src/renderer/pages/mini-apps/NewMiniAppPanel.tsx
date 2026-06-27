@@ -10,13 +10,15 @@ import {
   FieldLabel,
   Input
 } from '@cherrystudio/ui'
+import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { LogoAvatar } from '@renderer/components/Icons'
 import { getMiniAppsLogo } from '@renderer/config/miniApps'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { compressImage, convertToBase64 } from '@renderer/utils/image'
+import { normalizeImageToWebp } from '@renderer/utils/image'
+import { resolveStoredImageSrc } from '@renderer/utils/storedImage'
 import { uuid } from '@renderer/utils/uuid'
-import { MINI_APP_LOGO_MAX_LENGTH, MiniAppUrlSchema } from '@shared/data/api/schemas/miniApps'
+import { MiniAppUrlSchema } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { Upload } from 'lucide-react'
 import type { ChangeEvent, FC } from 'react'
@@ -30,31 +32,44 @@ interface Props {
 }
 
 const logger = loggerService.withContext('NewMiniAppPanel')
-const miniAppLogoCompressionOptions = {
-  maxSizeMB: 0.25,
-  maxWidthOrHeight: 256,
-  useWebWorker: false
-} as const
 
 const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
   const { t } = useTranslation()
   const { createCustomMiniApp, updateCustomMiniApp } = useMiniApps()
+  const [filesPath] = useCache('app.path.files')
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const uploadGenerationRef = useRef(0)
   const isEditing = app != null
 
   const [name, setName] = useState('')
   const [url, setUrl] = useState('')
+  // `logo` is the preview value only (a preset id / url / object URL for a
+  // staged upload). `logoUploadBytes` holds the encoded WebP submitted on save;
+  // a non-upload submits the `'application'` default string instead.
   const [logo, setLogo] = useState('')
+  const [logoUploadBytes, setLogoUploadBytes] = useState<Uint8Array<ArrayBuffer> | null>(null)
   const [logoChanged, setLogoChanged] = useState(false)
   const [logoProcessing, setLogoProcessing] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  // Object URL backing the upload preview; revoked when replaced/unmounted.
+  const previewObjectUrlRef = useRef<string | null>(null)
+
+  const revokePreviewObjectUrl = () => {
+    if (previewObjectUrlRef.current) {
+      URL.revokeObjectURL(previewObjectUrlRef.current)
+      previewObjectUrlRef.current = null
+    }
+  }
+
+  useEffect(() => () => revokePreviewObjectUrl(), [])
 
   const reset = () => {
     uploadGenerationRef.current += 1
     setName('')
     setUrl('')
     setLogo('')
+    revokePreviewObjectUrl()
+    setLogoUploadBytes(null)
     setLogoChanged(false)
     setLogoProcessing(false)
   }
@@ -63,6 +78,8 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
     uploadGenerationRef.current += 1
     setLogoChanged(false)
     setLogoProcessing(false)
+    revokePreviewObjectUrl()
+    setLogoUploadBytes(null)
     if (!open) {
       setName('')
       setUrl('')
@@ -106,13 +123,13 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
     const uploadGeneration = ++uploadGenerationRef.current
     setLogoProcessing(true)
     try {
-      const processedFile = file.type === 'image/gif' ? file : await compressImage(file, miniAppLogoCompressionOptions)
-      const encoded = await convertToBase64(processedFile)
-      if (typeof encoded !== 'string' || encoded.length > MINI_APP_LOGO_MAX_LENGTH) {
-        throw new Error('MiniApp logo exceeds max payload size')
-      }
+      // Submit pre-encoded WebP bytes; preview the original file via an object URL.
+      const bytes = await normalizeImageToWebp(file)
       if (uploadGenerationRef.current !== uploadGeneration) return
-      setLogo(encoded)
+      revokePreviewObjectUrl()
+      previewObjectUrlRef.current = URL.createObjectURL(file)
+      setLogo(previewObjectUrlRef.current)
+      setLogoUploadBytes(bytes)
       setLogoChanged(true)
     } catch (error) {
       if (uploadGenerationRef.current !== uploadGeneration) return
@@ -138,16 +155,16 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
         name: name.trim(),
         url: trimmedUrl
       }
+      // A staged upload submits its WebP bytes; otherwise the `'application'`
+      // preset string is the value.
+      const logoPayload = logoUploadBytes ?? 'application'
       if (isEditing) {
-        await updateCustomMiniApp(
-          app.appId,
-          logoChanged ? { ...basePayload, logo: logo.trim() || 'application' } : basePayload
-        )
+        await updateCustomMiniApp(app.appId, logoChanged ? { ...basePayload, logo: logoPayload } : basePayload)
       } else {
         await createCustomMiniApp({
           appId: uuid(),
           ...basePayload,
-          logo: logo.trim() || 'application'
+          logo: logoPayload
         })
       }
       window.toast.success(t('settings.miniApps.custom.save_success'))
@@ -160,9 +177,11 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
     }
   }
 
-  const hasUploadedLogo = logo.startsWith('data:')
+  const hasUploadedLogo = logoUploadBytes != null
   const logoValue = logo.trim() || 'application'
-  const previewLogo = getMiniAppsLogo(logoValue) ?? logoValue
+  // Resolve a stored file id (an existing app's uploaded logo) to a file:// URL;
+  // preset ids resolve to their CompoundIcon, object URLs / urls pass through.
+  const previewLogo = getMiniAppsLogo(logoValue) ?? resolveStoredImageSrc(logoValue, filesPath)
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>

@@ -4,14 +4,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import NewMiniAppPanel from '../NewMiniAppPanel'
 
+const STORED_ID = '0190f3c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f'
+
 const mocks = vi.hoisted(() => ({
   miniApps: [],
   disabled: [],
   pinned: [],
   createCustomMiniApp: vi.fn().mockResolvedValue(undefined),
   updateCustomMiniApp: vi.fn().mockResolvedValue(undefined),
-  compressImage: vi.fn(),
-  convertToBase64: vi.fn(),
+  normalizeImageToWebp: vi.fn(),
   dialogOnOpenChange: undefined as ((open: boolean) => void) | undefined
 }))
 
@@ -23,6 +24,10 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
     createCustomMiniApp: mocks.createCustomMiniApp,
     updateCustomMiniApp: mocks.updateCustomMiniApp
   })
+}))
+
+vi.mock('@data/hooks/useCache', () => ({
+  useCache: () => ['/files', vi.fn()]
 }))
 
 vi.mock('@renderer/components/Icons', () => ({
@@ -38,8 +43,7 @@ vi.mock('@renderer/utils/uuid', () => ({
 }))
 
 vi.mock('@renderer/utils/image', () => ({
-  compressImage: mocks.compressImage,
-  convertToBase64: mocks.convertToBase64
+  normalizeImageToWebp: mocks.normalizeImageToWebp
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -91,10 +95,11 @@ beforeEach(() => {
   mocks.dialogOnOpenChange = undefined
   mocks.createCustomMiniApp.mockClear()
   mocks.updateCustomMiniApp.mockClear()
-  mocks.compressImage.mockReset()
-  mocks.convertToBase64.mockReset()
-  mocks.compressImage.mockImplementation(async (file: File) => file)
-  mocks.convertToBase64.mockResolvedValue('data:image/png;base64,compressed')
+  mocks.normalizeImageToWebp.mockReset()
+  mocks.normalizeImageToWebp.mockResolvedValue(new Uint8Array([1, 2, 3]))
+  // jsdom has no object-URL impl; stub so the upload preview path runs.
+  URL.createObjectURL = vi.fn(() => 'blob:miniapp-logo')
+  URL.revokeObjectURL = vi.fn()
   ;(window as unknown as { toast: { success: () => void; error: () => void; info: () => void } }).toast = {
     success: vi.fn(),
     error: vi.fn(),
@@ -218,6 +223,26 @@ describe('NewMiniAppPanel', () => {
     })
   })
 
+  it('resolves an existing stored-id logo to a file:// preview', () => {
+    render(
+      <NewMiniAppPanel
+        open={true}
+        app={{
+          appId: 'custom-app',
+          presetMiniAppId: null,
+          status: 'enabled',
+          orderKey: 'a0',
+          name: 'Old App',
+          url: 'https://old.app',
+          logo: STORED_ID
+        }}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByAltText('miniapp-logo-preview')).toHaveAttribute('data-logo', `file:///files/${STORED_ID}.webp`)
+  })
+
   it('submits a replacement logo only after selecting a new logo file while editing', async () => {
     const { container } = render(
       <NewMiniAppPanel
@@ -243,10 +268,7 @@ describe('NewMiniAppPanel', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByAltText('miniapp-logo-preview')).toHaveAttribute(
-        'data-logo',
-        'data:image/png;base64,compressed'
-      )
+      expect(screen.getByAltText('miniapp-logo-preview')).toHaveAttribute('data-logo', 'blob:miniapp-logo')
     })
 
     fireEvent.change(screen.getByPlaceholderText('settings.miniApps.custom.name_placeholder'), {
@@ -261,12 +283,12 @@ describe('NewMiniAppPanel', () => {
       expect(mocks.updateCustomMiniApp).toHaveBeenCalledWith('custom-app', {
         name: 'New App',
         url: 'https://new.app',
-        logo: 'data:image/png;base64,compressed'
+        logo: new Uint8Array([1, 2, 3])
       })
     })
   })
 
-  it('compresses and shows the selected logo file immediately', async () => {
+  it('normalizes and previews the selected logo file immediately', async () => {
     const { container } = render(<NewMiniAppPanel open={true} onClose={vi.fn()} />)
 
     const file = new File(['avatar'], 'avatar.png', { type: 'image/png' })
@@ -277,23 +299,44 @@ describe('NewMiniAppPanel', () => {
     })
 
     await waitFor(() => {
-      expect(mocks.compressImage).toHaveBeenCalledWith(
-        file,
-        expect.objectContaining({ maxSizeMB: 0.25, maxWidthOrHeight: 256 })
-      )
-      expect(screen.getByAltText('miniapp-logo-preview')).toHaveAttribute(
-        'data-logo',
-        'data:image/png;base64,compressed'
-      )
+      expect(mocks.normalizeImageToWebp).toHaveBeenCalledWith(file)
+      expect(screen.getByAltText('miniapp-logo-preview')).toHaveAttribute('data-logo', 'blob:miniapp-logo')
       expect(window.toast.success).not.toHaveBeenCalled()
     })
   })
 
+  it('submits the uploaded logo as WebP bytes when creating', async () => {
+    const { container } = render(<NewMiniAppPanel open={true} onClose={vi.fn()} />)
+    fireEvent.change(screen.getByPlaceholderText('settings.miniApps.custom.name_placeholder'), {
+      target: { value: 'My App' }
+    })
+    fireEvent.change(screen.getByPlaceholderText('settings.miniApps.custom.url_placeholder'), {
+      target: { value: 'https://my.app' }
+    })
+
+    const file = new File(['avatar'], 'avatar.png', { type: 'image/png' })
+    fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, {
+      target: { files: [file] }
+    })
+    await waitFor(() => expect(mocks.normalizeImageToWebp).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('button', { name: /common\.save/ }))
+
+    await waitFor(() => {
+      expect(mocks.createCustomMiniApp).toHaveBeenCalledWith({
+        appId: 'generated-id',
+        name: 'My App',
+        url: 'https://my.app',
+        logo: new Uint8Array([1, 2, 3])
+      })
+    })
+  })
+
   it('disables saving while the selected logo file is still processing', async () => {
-    let resolveLogo: (value: string) => void = () => {}
-    mocks.convertToBase64.mockImplementationOnce(
+    let resolveLogo: (value: Uint8Array) => void = () => {}
+    mocks.normalizeImageToWebp.mockImplementationOnce(
       () =>
-        new Promise<string>((resolve) => {
+        new Promise<Uint8Array>((resolve) => {
           resolveLogo = resolve
         })
     )
@@ -312,14 +355,14 @@ describe('NewMiniAppPanel', () => {
     fireEvent.change(fileInput as HTMLInputElement, {
       target: { files: [file] }
     })
-    await waitFor(() => expect(mocks.convertToBase64).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(mocks.normalizeImageToWebp).toHaveBeenCalledTimes(1))
 
     const saveBtn = screen.getByRole('button', { name: /common\.save/ })
     expect(saveBtn).toBeDisabled()
     expect(mocks.createCustomMiniApp).not.toHaveBeenCalled()
 
     await act(async () => {
-      resolveLogo('data:image/png;base64,late')
+      resolveLogo(new Uint8Array([9, 9, 9]))
     })
 
     await waitFor(() => expect(saveBtn).not.toBeDisabled())
@@ -330,15 +373,15 @@ describe('NewMiniAppPanel', () => {
         appId: 'generated-id',
         name: 'My App',
         url: 'https://my.app',
-        logo: 'data:image/png;base64,late'
+        logo: new Uint8Array([9, 9, 9])
       })
     })
   })
 
-  it('rejects selected logo files that remain too large after processing', async () => {
+  it('surfaces a toast and keeps the default preview when processing the logo fails', async () => {
     const { container } = render(<NewMiniAppPanel open={true} onClose={vi.fn()} />)
 
-    mocks.convertToBase64.mockResolvedValueOnce(`data:image/png;base64,${'a'.repeat(1024 * 1024)}`)
+    mocks.normalizeImageToWebp.mockRejectedValueOnce(new Error('decode failed'))
 
     const file = new File(['avatar'], 'avatar.png', { type: 'image/png' })
     const fileInput = container.querySelector('input[type="file"]')
@@ -354,10 +397,10 @@ describe('NewMiniAppPanel', () => {
   })
 
   it('ignores stale logo upload results after switching edited apps', async () => {
-    let resolveLogo: (value: string) => void = () => {}
-    mocks.convertToBase64.mockImplementationOnce(
+    let resolveLogo: (value: Uint8Array) => void = () => {}
+    mocks.normalizeImageToWebp.mockImplementationOnce(
       () =>
-        new Promise<string>((resolve) => {
+        new Promise<Uint8Array>((resolve) => {
           resolveLogo = resolve
         })
     )
@@ -384,7 +427,7 @@ describe('NewMiniAppPanel', () => {
     fireEvent.change(fileInput as HTMLInputElement, {
       target: { files: [file] }
     })
-    await waitFor(() => expect(mocks.convertToBase64).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(mocks.normalizeImageToWebp).toHaveBeenCalledTimes(1))
 
     rerender(
       <NewMiniAppPanel
@@ -403,7 +446,7 @@ describe('NewMiniAppPanel', () => {
     )
 
     await act(async () => {
-      resolveLogo('data:image/png;base64,late')
+      resolveLogo(new Uint8Array([9, 9, 9]))
     })
 
     expect(screen.getByAltText('miniapp-logo-preview')).toHaveAttribute('data-logo', 'https://b.app/logo.png')
@@ -411,9 +454,9 @@ describe('NewMiniAppPanel', () => {
 
   it('does not show upload errors after the panel closes', async () => {
     let rejectLogo: (error: Error) => void = () => {}
-    mocks.convertToBase64.mockImplementationOnce(
+    mocks.normalizeImageToWebp.mockImplementationOnce(
       () =>
-        new Promise<string>((_, reject) => {
+        new Promise<Uint8Array>((_, reject) => {
           rejectLogo = reject
         })
     )
@@ -426,7 +469,7 @@ describe('NewMiniAppPanel', () => {
     fireEvent.change(fileInput as HTMLInputElement, {
       target: { files: [file] }
     })
-    await waitFor(() => expect(mocks.convertToBase64).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(mocks.normalizeImageToWebp).toHaveBeenCalledTimes(1))
 
     rerender(<NewMiniAppPanel open={false} onClose={vi.fn()} />)
     await act(async () => {

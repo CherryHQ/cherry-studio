@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ProviderEditorDrawer from '../ProviderEditorDrawer'
 
 const mocks = vi.hoisted(() => ({
-  fileToAvatarDataUrl: vi.fn(),
+  normalizeImageToWebp: vi.fn(),
   providerAvatarPrimitive: vi.fn()
 }))
 
@@ -72,7 +72,7 @@ vi.mock('@renderer/components/ProviderLogoPicker', () => ({
 }))
 
 vi.mock('@renderer/utils/image', () => ({
-  fileToAvatarDataUrl: (...args: any[]) => mocks.fileToAvatarDataUrl(...args)
+  normalizeImageToWebp: (...args: any[]) => mocks.normalizeImageToWebp(...args)
 }))
 
 vi.mock('@renderer/utils/style', () => ({
@@ -99,16 +99,18 @@ vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
 describe('ProviderEditorDrawer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.fileToAvatarDataUrl.mockResolvedValue('data:image/png;base64,stored-provider-logo')
+    mocks.normalizeImageToWebp.mockResolvedValue(new Uint8Array([1, 2, 3]))
+    // jsdom has no object-URL impl; stub so the upload preview path runs.
+    URL.createObjectURL = vi.fn(() => 'blob:provider-logo')
+    URL.revokeObjectURL = vi.fn()
     window.toast = {
       error: vi.fn()
     } as unknown as typeof window.toast
   })
 
-  it('encodes an uploaded logo via fileToAvatarDataUrl and previews the result', async () => {
+  it('encodes an uploaded logo to WebP bytes and previews it via an object URL', async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined)
     const file = new File(['png'], 'avatar.png', { type: 'image/png' })
-    mocks.fileToAvatarDataUrl.mockResolvedValue('data:image/png;base64,stored-provider-logo')
 
     render(
       <ProviderEditorDrawer
@@ -125,18 +127,54 @@ describe('ProviderEditorDrawer', () => {
     })
 
     await waitFor(() => {
-      expect(mocks.fileToAvatarDataUrl).toHaveBeenCalledWith(file)
-      expect(screen.getByTestId('provider-avatar-preview')).toHaveAttribute(
-        'data-logo',
-        'data:image/png;base64,stored-provider-logo'
+      expect(mocks.normalizeImageToWebp).toHaveBeenCalledWith(file)
+      expect(screen.getByTestId('provider-avatar-preview')).toHaveAttribute('data-logo', 'blob:provider-logo')
+    })
+  })
+
+  it('submits the uploaded logo as WebP bytes', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    const file = new File(['png'], 'avatar.png', { type: 'image/png' })
+
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{
+          kind: 'edit',
+          provider: {
+            id: 'custom-provider',
+            name: 'Custom Provider',
+            defaultChatEndpoint: 'openai-chat-completions'
+          } as any
+        }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [file] }
+    })
+    await waitFor(() => expect(screen.getByTestId('provider-avatar-preview')).toHaveAttribute('data-logo'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          logo: new Uint8Array([1, 2, 3]),
+          mode: 'edit',
+          name: 'Custom Provider'
+        })
       )
     })
   })
 
   it("surfaces the error's message when encoding the uploaded logo fails", async () => {
     const file = new File(['png'], 'avatar.png', { type: 'image/png' })
-    // e.g. the oversized-GIF rejection carries a clear i18n message — surface it.
-    mocks.fileToAvatarDataUrl.mockRejectedValue(new Error('Image is too large (max 256 KB)'))
+    // A corrupt/unsupported file rejection carries a clear message — surface it.
+    mocks.normalizeImageToWebp.mockRejectedValue(new Error('Image is too large (max 256 KB)'))
 
     render(
       <ProviderEditorDrawer
@@ -159,7 +197,7 @@ describe('ProviderEditorDrawer', () => {
 
   it('falls back to a generic toast when the failure has no message', async () => {
     const file = new File(['png'], 'avatar.png', { type: 'image/png' })
-    mocks.fileToAvatarDataUrl.mockRejectedValue(new Error(''))
+    mocks.normalizeImageToWebp.mockRejectedValue(new Error(''))
 
     render(
       <ProviderEditorDrawer

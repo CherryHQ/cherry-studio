@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { fileEntryTable } from '@data/db/schemas/file'
 import { miniAppTable } from '@data/db/schemas/miniApp'
 import { miniAppService } from '@data/services/MiniAppService'
 import { ErrorCode } from '@shared/data/api'
@@ -385,6 +386,87 @@ describe('MiniAppService', () => {
           { id: 'disabled-1', anchor: { position: 'first' } }
         ])
       ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+    })
+  })
+
+  describe('logo file lifecycle', () => {
+    let nextFileId = 0
+    const permanentDelete = vi.fn(async () => undefined)
+
+    /**
+     * Wrap the mocked `application.get` so `FileManager` is available. The mock
+     * mirrors production: `storeEntityImage` → `createInternalEntry` inserts a
+     * real `file_entry` row (so the `logoFileId` FK passes), `deleteEntityImage`
+     * → `permanentDelete` is tracked. Other services pass through.
+     */
+    beforeEach(() => {
+      nextFileId = 0
+      permanentDelete.mockClear()
+      const original = (application.get as Mock).getMockImplementation()!
+      ;(application.get as Mock).mockImplementation((name: string) => {
+        if (name === 'FileManager') {
+          return {
+            createInternalEntry: vi.fn(async ({ data, name: fileName, ext }) => {
+              const id = `019606a0-0000-7000-8000-00000000f0${String(nextFileId++).padStart(2, '0')}`
+              await dbh.db
+                .insert(fileEntryTable)
+                .values({ id, origin: 'internal', name: fileName, ext, size: (data as Uint8Array).length })
+              return { id }
+            }),
+            permanentDelete
+          }
+        }
+        return original(name)
+      })
+    })
+
+    it('create with Uint8Array stores a file and sets logoFileId (logo column null)', async () => {
+      const created = await miniAppService.create({
+        appId: 'logo-app',
+        name: 'Logo App',
+        url: 'https://logo.app',
+        logo: new Uint8Array([1, 2, 3])
+      })
+
+      const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'logo-app'))
+      expect(row.logo).toBeNull()
+      expect(row.logoFileId).toBeTruthy()
+      // Public DTO collapses to the file id.
+      expect(created.logo).toBe(row.logoFileId)
+    })
+
+    it('update from upload to preset string clears logoFileId and prunes the old file', async () => {
+      await miniAppService.create({
+        appId: 'logo-app',
+        name: 'Logo App',
+        url: 'https://logo.app',
+        logo: new Uint8Array([1, 2, 3])
+      })
+      const [before] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'logo-app'))
+      const oldFileId = before.logoFileId
+
+      const updated = await miniAppService.update('logo-app', { logo: 'application' })
+
+      const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'logo-app'))
+      expect(row.logo).toBe('application')
+      expect(row.logoFileId).toBeNull()
+      expect(updated.logo).toBe('application')
+      expect(permanentDelete).toHaveBeenCalledWith(oldFileId)
+    })
+
+    it('delete reclaims the uploaded logo file', async () => {
+      await miniAppService.create({
+        appId: 'logo-app',
+        name: 'Logo App',
+        url: 'https://logo.app',
+        logo: new Uint8Array([1, 2, 3])
+      })
+      const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'logo-app'))
+      const fileId = row.logoFileId
+
+      await miniAppService.delete('logo-app')
+
+      expect(permanentDelete).toHaveBeenCalledWith(fileId)
     })
   })
 })

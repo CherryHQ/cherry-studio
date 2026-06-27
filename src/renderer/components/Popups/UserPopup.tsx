@@ -17,9 +17,9 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import useAvatar from '@renderer/hooks/useAvatar'
+import { ipcApi } from '@renderer/ipc'
+import { normalizeImageToWebp } from '@renderer/utils/image'
 import { isEmoji } from '@renderer/utils/naming'
-import { clearEntityImage, putEntityImageFromFile } from '@renderer/utils/storedImage'
-import { USER_AVATAR_SOURCE_ID, userAvatarSourceType } from '@shared/data/types/file'
 import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -36,7 +36,6 @@ type AvatarPopoverView = 'menu' | 'emoji'
 
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [userName, setUserName] = usePreference('app.user.name')
-  const [, setAvatar] = usePreference('app.user.avatar')
 
   const [open, setOpen] = useState(true)
   const [avatarPopoverOpen, setAvatarPopoverOpen] = useState(false)
@@ -58,11 +57,12 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     }
   }
 
+  // The `profile.set_avatar` handler owns the `app.user.avatar` Preference write
+  // (and prunes any superseded file); the Preference auto-syncs back to
+  // `useAvatar`, so these flows don't write the value themselves.
   const handleEmojiClick = async (emoji: string) => {
     try {
-      // Switching to an emoji removes any previously stored avatar file.
-      await clearEntityImage(userAvatarSourceType, USER_AVATAR_SOURCE_ID, 'avatar')
-      await setAvatar(emoji)
+      await ipcApi.request('profile.set_avatar', { kind: 'value', value: emoji })
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: any) {
@@ -72,9 +72,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   const handleReset = async () => {
     try {
-      await clearEntityImage(userAvatarSourceType, USER_AVATAR_SOURCE_ID, 'avatar')
       // Empty value falls back to the bundled default avatar (see useAvatar).
-      await setAvatar('')
+      await ipcApi.request('profile.set_avatar', { kind: 'value', value: '' })
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: any) {
@@ -84,9 +83,9 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   const handleUploadAvatar = async (file: File) => {
     try {
-      // Main normalizes the upload to a 128×128 WebP file and returns its id.
-      const fileId = await putEntityImageFromFile(file, userAvatarSourceType, USER_AVATAR_SOURCE_ID, 'avatar')
-      await setAvatar(fileId)
+      // Normalize the upload to a 128×128 WebP here; the handler stores the file
+      // and writes its id to the avatar Preference.
+      await ipcApi.request('profile.set_avatar', { kind: 'image', data: await normalizeImageToWebp(file) })
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: any) {

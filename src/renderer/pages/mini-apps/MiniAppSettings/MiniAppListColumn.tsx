@@ -1,6 +1,8 @@
 import { Scrollbar, Sortable, Tooltip } from '@cherrystudio/ui'
+import { useCache } from '@data/hooks/useCache'
 import { LogoAvatar } from '@renderer/components/Icons'
 import { getMiniAppsLogo } from '@renderer/config/miniApps'
+import { resolveStoredImageSrc } from '@renderer/utils/storedImage'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { ArrowLeftToLine, ArrowRightToLine } from 'lucide-react'
 import type { FC } from 'react'
@@ -22,6 +24,7 @@ interface Props {
 /** One column of the visible / hidden list pair. Fills the height of its parent row. */
 const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder, emptyText, toggleAction }) => {
   const { t } = useTranslation()
+  const [filesPath] = useCache('app.path.files')
 
   const Icon = toggleAction === 'hide' ? ArrowRightToLine : ArrowLeftToLine
   const getToggleLabel = (displayName: string) =>
@@ -74,7 +77,10 @@ const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder,
                      * CompoundIcon before passing to LogoAvatar so preset icons render
                      * via Icon.Avatar instead of being treated as a broken image URL.
                      */}
-                    <LogoAvatar logo={getMiniAppsLogo(app.logo) ?? app.logo} size={16} />
+                    <LogoAvatar
+                      logo={getMiniAppsLogo(app.logo) ?? resolveStoredImageSrc(app.logo, filesPath)}
+                      size={16}
+                    />
                     <span className="min-w-0 flex-1 truncate text-left text-foreground text-sm">{displayName}</span>
                     <span
                       className="flex size-6 shrink-0 items-center justify-center text-muted-foreground/40"

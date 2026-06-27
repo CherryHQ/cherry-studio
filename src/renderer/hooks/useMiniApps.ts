@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import { computeMinimalMoves } from '@renderer/data/utils/reorder'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import i18n from '@renderer/i18n'
+import { resolveStoredImageSrc } from '@renderer/utils/storedImage'
 import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
@@ -214,6 +215,7 @@ export const useMiniApps = () => {
   const [currentMiniAppId, setCurrentMiniAppId] = useCache('mini_app.current_id')
   const [miniAppShow, setMiniAppShow] = useCache('mini_app.show')
   const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
+  const [filesPath] = useCache('app.path.files')
   const tabsContext = useOptionalTabsContext()
 
   // === Mutations (DataApi) ===
@@ -332,13 +334,23 @@ export const useMiniApps = () => {
       }
 
       const title = updated.nameKey ? i18n.t(updated.nameKey) : updated.name
+      // Resolve an uploaded-logo file id to a file:// src for TabIcon; preset
+      // ids / urls pass through.
+      const icon = resolveStoredImageSrc(updated.logo, filesPath) ?? updated.logo
       for (const tab of tabsContext?.tabs ?? []) {
         if (miniAppIdFromTabUrl(tab.url) === updated.appId) {
-          tabsContext?.updateTab(tab.id, { title, icon: updated.logo })
+          tabsContext?.updateTab(tab.id, { title, icon })
         }
       }
     },
-    [openedKeepAliveMiniApps, openedOneOffMiniApp, setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp, tabsContext]
+    [
+      filesPath,
+      openedKeepAliveMiniApps,
+      openedOneOffMiniApp,
+      setOpenedKeepAliveMiniApps,
+      setOpenedOneOffMiniApp,
+      tabsContext
+    ]
   )
 
   const cleanupOpenedCustomMiniApp = useCallback(

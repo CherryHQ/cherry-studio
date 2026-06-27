@@ -1,19 +1,15 @@
 /**
- * Stored entity-image helpers (avatar / provider logo / mini-app logo).
+ * Stored entity-image display helpers (avatar / provider logo / mini-app logo).
  *
- * These images live as normalized 128×128 WebP files on disk; the DB/Preference
- * stores only the file-entry id. The renderer:
- * - resolves a stored id → a `file://…/{id}.webp` URL for `<img src>` display,
- *   passing through every other value form (emoji / `icon:<id>` / preset id /
- *   `http(s)` / `data:`) unchanged;
- * - normalizes uploads to a 128×128 WebP **here** (consumer side), then stores
- *   the bytes via the content-agnostic `file.put_entity_file` IpcApi route, which
- *   returns the new id. The main file layer carries no image knowledge.
+ * These images live as normalized 128×128 WebP files on disk; each business
+ * **owner** (the avatar Preference, the provider / mini-app row) holds the
+ * file-entry id directly. Uploads no longer go through a generic file route —
+ * each owner's own API (e.g. `profile.set_avatar`, the provider / mini-app
+ * DataApi mutations) receives the pre-encoded WebP bytes and writes the
+ * reference itself. This module only resolves a stored id → a
+ * `file://…/{id}.webp` URL for `<img src>` display, passing through every other
+ * value form (emoji / `icon:<id>` / preset id / `http(s)` / `data:`) unchanged.
  */
-
-import { ipcApi } from '@renderer/ipc'
-import { normalizeImageToWebp } from '@renderer/utils/image'
-import type { FileRefSourceType } from '@shared/data/types/file'
 
 /** file_entry ids are UUIDs (v7); anything else is an emoji / icon ref / url / preset id. */
 const FILE_ENTRY_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -35,24 +31,4 @@ export function resolveStoredImageSrc(value?: string | null, filesPath?: string)
   if (!isStoredImageId(value)) return value
   if (!filesPath) return undefined
   return `file://${filesPath}/${value}.webp`
-}
-
-/**
- * Normalize an uploaded image to a 128×128 WebP and persist it in the entity
- * slot, returning the new file-entry id to store as the entity's reference.
- */
-export async function putEntityImageFromFile(
-  file: File,
-  sourceType: FileRefSourceType,
-  sourceId: string,
-  role: string
-): Promise<string> {
-  const data = await normalizeImageToWebp(file)
-  const { fileId } = await ipcApi.request('file.put_entity_file', { data, ext: 'webp', sourceType, sourceId, role })
-  return fileId
-}
-
-/** Remove the entity's stored image (file + ref), if any. */
-export async function clearEntityImage(sourceType: FileRefSourceType, sourceId: string, role: string): Promise<void> {
-  await ipcApi.request('file.clear_entity_file', { sourceType, sourceId, role })
 }

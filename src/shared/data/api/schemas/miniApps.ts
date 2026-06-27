@@ -21,7 +21,14 @@ export const MINI_APP_ID_REGEX = /^[A-Za-z0-9_-]+$/
 export const MINI_APP_LOGO_MAX_LENGTH = 1024 * 1024
 export const MINI_APP_ALLOWED_URL_PROTOCOLS = ['http:', 'https:', 'file:'] as const
 
-const MiniAppLogoSchema = z.string().min(1).max(MINI_APP_LOGO_MAX_LENGTH)
+/**
+ * MiniApp logo input. Two forms:
+ * - `string` — a preset icon id / url, stored inline on the row's `logo` column
+ *   (capped at {@link MINI_APP_LOGO_MAX_LENGTH}).
+ * - `Uint8Array` — a pre-encoded WebP upload, stored on disk as a `file_entry`
+ *   and referenced by the row's `logoFileId`.
+ */
+const MiniAppLogoSchema = z.union([z.string().min(1).max(MINI_APP_LOGO_MAX_LENGTH), z.instanceof(Uint8Array)])
 export const MiniAppUrlSchema = z.string().min(1).refine(isAllowedMiniAppUrl, {
   message: 'url must be a valid http, https, or file URL'
 })
@@ -42,9 +49,10 @@ export const CreateMiniAppSchema = z.strictObject({
   appId: z.string().regex(MINI_APP_ID_REGEX, 'appId can only contain letters, numbers, underscore, and hyphen'),
   name: z.string().min(1),
   url: MiniAppUrlSchema,
-  // Logos are stored inline (data URLs / SVG / remote URLs) and end up in the
-  // SQLite row alongside the app metadata. Cap at 1 MiB to keep a runaway data
-  // URL from blowing up the row size and the SwR cache value.
+  // string = preset icon id / url (stored inline in the SQLite row, capped at
+  // 1 MiB to keep a runaway data URL from blowing up the row and SwR cache);
+  // Uint8Array = pre-encoded WebP upload (stored on disk as a file_entry,
+  // referenced by logoFileId).
   logo: MiniAppLogoSchema
 })
 export type CreateMiniAppDto = z.infer<typeof CreateMiniAppSchema>

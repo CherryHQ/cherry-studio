@@ -20,9 +20,7 @@
 import { application } from '@application'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { messageTable } from '@data/db/schemas/message'
-import { miniAppTable } from '@data/db/schemas/miniApp'
 import { paintingTable } from '@data/db/schemas/painting'
-import { userProviderTable } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import type { FileRefSourceType } from '@shared/data/types/file'
 import { inArray } from 'drizzle-orm'
@@ -113,54 +111,6 @@ export const paintingChecker: SourceTypeChecker<'painting'> = {
   }
 }
 
-export const providerLogoChecker: SourceTypeChecker<'provider_logo'> = {
-  sourceType: 'provider_logo',
-  checkExists: async (sourceIds) => {
-    if (sourceIds.length === 0) return new Set()
-    const db = application.get('DbService').getDb()
-    const alive = new Set<string>()
-    for (let i = 0; i < sourceIds.length; i += SQLITE_INARRAY_CHUNK) {
-      const chunk = sourceIds.slice(i, i + SQLITE_INARRAY_CHUNK)
-      const rows = await runWithBusyRetry(() =>
-        db
-          .select({ id: userProviderTable.providerId })
-          .from(userProviderTable)
-          .where(inArray(userProviderTable.providerId, chunk))
-      )
-      for (const r of rows) alive.add(r.id)
-    }
-    return alive
-  }
-}
-
-export const miniAppLogoChecker: SourceTypeChecker<'mini_app_logo'> = {
-  sourceType: 'mini_app_logo',
-  checkExists: async (sourceIds) => {
-    if (sourceIds.length === 0) return new Set()
-    const db = application.get('DbService').getDb()
-    const alive = new Set<string>()
-    for (let i = 0; i < sourceIds.length; i += SQLITE_INARRAY_CHUNK) {
-      const chunk = sourceIds.slice(i, i + SQLITE_INARRAY_CHUNK)
-      const rows = await runWithBusyRetry(() =>
-        db.select({ id: miniAppTable.appId }).from(miniAppTable).where(inArray(miniAppTable.appId, chunk))
-      )
-      for (const r of rows) alive.add(r.id)
-    }
-    return alive
-  }
-}
-
-/**
- * The user avatar is a singleton managed explicitly via the
- * `file.put_entity_file` / `file.clear_entity_file` IpcApi routes; its ref is
- * never orphaned by source existence. Treat every sourceId as alive so the
- * sweeper leaves it alone.
- */
-export const userAvatarChecker: SourceTypeChecker<'user_avatar'> = {
-  sourceType: 'user_avatar',
-  checkExists: async (sourceIds) => new Set(sourceIds)
-}
-
 async function runWithBusyRetry<T>(op: () => Promise<T>): Promise<T> {
   try {
     return await op()
@@ -198,10 +148,7 @@ export function createDefaultOrphanCheckerRegistry(): OrphanCheckerRegistry {
     temp_session: tempSessionChecker,
     knowledge_item: knowledgeItemChecker,
     chat_message: chatMessageChecker,
-    painting: paintingChecker,
-    provider_logo: providerLogoChecker,
-    user_avatar: userAvatarChecker,
-    mini_app_logo: miniAppLogoChecker
+    painting: paintingChecker
   }
 }
 

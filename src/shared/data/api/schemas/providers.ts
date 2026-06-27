@@ -69,12 +69,16 @@ export const CreateProviderSchema = z.strictObject({
   /** Display name (required on create) */
   name: z.string().min(1),
   /**
-   * Custom logo for a user-defined provider, stored inline on the row: a data
-   * URL, raw SVG, remote URL, or an `icon:<providerId>` ref to a bundled brand
-   * icon (resolved by `ProviderAvatarPrimitive`). Size-capped so a runaway data
-   * URL can't bloat the row and the cached entity — see {@link LOGO_MAX_BASE64_BYTES}.
+   * Custom logo for a user-defined provider. Two forms:
+   * - `string` — a preset icon id / url (data URL, raw SVG, remote URL, or an
+   *   `icon:<providerId>` ref to a bundled brand icon resolved by
+   *   `ProviderAvatarPrimitive`). Stored inline on the row's `logo` column.
+   *   Size-capped so a runaway data URL can't bloat the row and the cached
+   *   entity — see {@link LOGO_MAX_BASE64_BYTES}.
+   * - `Uint8Array` — a pre-encoded WebP upload, stored on disk as a `file_entry`
+   *   and referenced by the row's `logoFileId`.
    */
-  logo: z.string().min(1).max(LOGO_MAX_BASE64_BYTES).optional(),
+  logo: z.union([z.string().min(1).max(LOGO_MAX_BASE64_BYTES), z.instanceof(Uint8Array)]).optional(),
   /** Per-endpoint-type configuration */
   endpointConfigs: ProviderEndpointConfigsSchema.optional(),
   /** Default text generation endpoint (kebab-case `EndpointType` value) */
@@ -110,11 +114,16 @@ export const UpdateProviderSchema = ProviderMutableFieldsSchema.partial().extend
   isEnabled: z.boolean().optional(),
   /**
    * Custom logo. `null` clears it (falls back to the bundled icon); a non-empty
-   * string sets it; omitted leaves it unchanged. `.min(1)` rejects `""` so
-   * `null` is the sole clear signal (no silent `"" ?? null` asymmetry). Nullable,
-   * so it lives here rather than in the picked create fields (which can't express clear).
+   * `string` sets a preset icon id / url; a `Uint8Array` is a pre-encoded WebP
+   * upload stored on disk as a `file_entry` (referenced by `logoFileId`);
+   * omitted leaves it unchanged. `.min(1)` rejects `""` so `null` is the sole
+   * clear signal (no silent `"" ?? null` asymmetry). Nullable, so it lives here
+   * rather than in the picked create fields (which can't express clear).
    */
-  logo: z.string().min(1).max(LOGO_MAX_BASE64_BYTES).nullable().optional()
+  logo: z
+    .union([z.string().min(1).max(LOGO_MAX_BASE64_BYTES), z.instanceof(Uint8Array)])
+    .nullable()
+    .optional()
 })
 export type UpdateProviderDto = z.infer<typeof UpdateProviderSchema>
 

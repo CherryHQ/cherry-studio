@@ -15,10 +15,12 @@ import { application } from '@application'
 import { type InsertMiniAppRow, type MiniAppRow, type MiniAppStatus, miniAppTable } from '@data/db/schemas/miniApp'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { loggerService } from '@logger'
+import { deleteEntityImage, storeEntityImage } from '@main/services/file/entityImageFile'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
+import type { FileEntryId } from '@shared/data/types/file'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
 import { and, asc, desc, eq, gt, inArray, lt, ne } from 'drizzle-orm'
 
@@ -58,7 +60,9 @@ function rowToMiniApp(row: MiniAppRow): MiniApp {
     presetMiniAppId,
     name: clean.name,
     url: clean.url,
-    logo: clean.logo,
+    // Uploaded logos live on disk (logoFileId); fall back to the preset/url
+    // string in `logo`. Public type is a single optional string.
+    logo: clean.logoFileId ?? clean.logo,
     status: clean.status,
     orderKey: clean.orderKey,
     createdAt: timestampToISO(clean.createdAt),
@@ -74,6 +78,27 @@ function rowToMiniApp(row: MiniAppRow): MiniApp {
   }
 
   return app
+}
+
+/**
+ * Resolve a `logo` DTO value into the `logo` / `logoFileId` columns.
+ *
+ * - `Uint8Array` → store a new WebP file_entry; `logoFileId = newId`, `logo = null`.
+ *   `newFileId` is returned so a failed row write can compensate by deleting it.
+ * - `string` → preset id / url in `logo`; `logoFileId = null`.
+ * - `null` → clear both (update only).
+ *
+ * `undefined` is handled by callers (field left unchanged) and never reaches here.
+ */
+async function resolveLogoColumns(
+  logo: string | Uint8Array | null,
+  name: string
+): Promise<{ logo: string | null; logoFileId: FileEntryId | null; newFileId: FileEntryId | null }> {
+  if (logo instanceof Uint8Array) {
+    const newFileId = await storeEntityImage(logo, name)
+    return { logo: null, logoFileId: newFileId, newFileId }
+  }
+  return { logo: logo ?? null, logoFileId: null, newFileId: null }
 }
 
 export class MiniAppService {
@@ -116,31 +141,42 @@ export class MiniAppService {
     }
 
     const status: MiniAppStatus = 'enabled'
-    const row = await withSqliteErrors(
-      () =>
-        application.get('DbService').withWriteTx(async (tx) => {
-          const inserted = await insertWithOrderKey(
-            tx,
-            miniAppTable,
-            {
-              appId: dto.appId,
-              presetMiniAppId: null,
-              name: dto.name,
-              url: dto.url,
-              logo: dto.logo,
-              status
-            },
-            {
-              pkColumn: miniAppTable.appId,
-              position: 'last',
-              scope: orderScopeForStatus(status)
-            }
-          )
-          return inserted as MiniAppRow | undefined
-        }),
-      defaultHandlersFor('MiniApp', dto.appId)
-    )
+    // Uploads store the file BEFORE the row write so a failed insert can
+    // compensate by deleting the orphaned file_entry (see catch below).
+    const logoColumns = await resolveLogoColumns(dto.logo, dto.appId)
+    let row: MiniAppRow | undefined
+    try {
+      row = await withSqliteErrors(
+        () =>
+          application.get('DbService').withWriteTx(async (tx) => {
+            const inserted = await insertWithOrderKey(
+              tx,
+              miniAppTable,
+              {
+                appId: dto.appId,
+                presetMiniAppId: null,
+                name: dto.name,
+                url: dto.url,
+                logo: logoColumns.logo,
+                logoFileId: logoColumns.logoFileId,
+                status
+              },
+              {
+                pkColumn: miniAppTable.appId,
+                position: 'last',
+                scope: orderScopeForStatus(status)
+              }
+            )
+            return inserted as MiniAppRow | undefined
+          }),
+        defaultHandlersFor('MiniApp', dto.appId)
+      )
+    } catch (error) {
+      await deleteEntityImage(logoColumns.newFileId)
+      throw error
+    }
     if (!row) {
+      await deleteEntityImage(logoColumns.newFileId)
       throw DataApiErrorFactory.internal(new Error('Insert returned no rows'), 'MiniApp.create')
     }
     logger.info('Created custom miniapp', { appId: row.appId, orderKey: row.orderKey })
@@ -170,85 +206,109 @@ export class MiniAppService {
       )
     }
 
-    const row = await withSqliteErrors(
-      () =>
-        application.get('DbService').withWriteTx(async (tx) => {
-          const [existing] = await tx
-            .select({
-              presetMiniAppId: miniAppTable.presetMiniAppId,
-              status: miniAppTable.status,
-              orderKey: miniAppTable.orderKey
-            })
-            .from(miniAppTable)
-            .where(eq(miniAppTable.appId, appId))
-            .limit(1)
-          if (!existing) throw DataApiErrorFactory.notFound('MiniApp', appId)
+    // Uploads store the file BEFORE the row write so a failed write can
+    // compensate (deleteEntityImage(newFileId)); the previous file_entry is
+    // deleted only after a successful write.
+    const logoColumns = dto.logo !== undefined ? await resolveLogoColumns(dto.logo, appId) : null
+    let previousLogoFileId: FileEntryId | null = null
 
-          if (hasCustomUpdate && existing.presetMiniAppId !== null) {
-            throw DataApiErrorFactory.invalidOperation(
-              `update miniapp ${appId}`,
-              'preset-derived miniapp user-facing fields cannot be edited'
-            )
-          }
+    let row: MiniAppRow | undefined
+    try {
+      row = await withSqliteErrors(
+        () =>
+          application.get('DbService').withWriteTx(async (tx) => {
+            const [existing] = await tx
+              .select({
+                presetMiniAppId: miniAppTable.presetMiniAppId,
+                status: miniAppTable.status,
+                orderKey: miniAppTable.orderKey,
+                logoFileId: miniAppTable.logoFileId
+              })
+              .from(miniAppTable)
+              .where(eq(miniAppTable.appId, appId))
+              .limit(1)
+            if (!existing) throw DataApiErrorFactory.notFound('MiniApp', appId)
 
-          const updates: Partial<InsertMiniAppRow> = {}
+            if (hasCustomUpdate && existing.presetMiniAppId !== null) {
+              throw DataApiErrorFactory.invalidOperation(
+                `update miniapp ${appId}`,
+                'preset-derived miniapp user-facing fields cannot be edited'
+              )
+            }
 
-          if (dto.name !== undefined) updates.name = dto.name
-          if (dto.url !== undefined) updates.url = dto.url
-          if (dto.logo !== undefined) updates.logo = dto.logo
+            previousLogoFileId = existing.logoFileId ?? null
 
-          if (hasStatusUpdate) {
-            const targetStatus = dto.status as MiniAppStatus
-            updates.status = targetStatus
-            if (existing.status !== targetStatus) {
-              if (isVisibleStatus(existing.status) && isVisibleStatus(targetStatus)) {
-                const visibleScope = and(orderScopeForStatus(targetStatus), ne(miniAppTable.appId, appId))
-                const [before] = await tx
-                  .select({ orderKey: miniAppTable.orderKey })
-                  .from(miniAppTable)
-                  .where(and(visibleScope, lt(miniAppTable.orderKey, existing.orderKey)))
-                  .orderBy(desc(miniAppTable.orderKey))
-                  .limit(1)
-                const [same] = await tx
-                  .select({ orderKey: miniAppTable.orderKey })
-                  .from(miniAppTable)
-                  .where(and(visibleScope, eq(miniAppTable.orderKey, existing.orderKey)))
-                  .limit(1)
-                const [after] = await tx
-                  .select({ orderKey: miniAppTable.orderKey })
-                  .from(miniAppTable)
-                  .where(and(visibleScope, gt(miniAppTable.orderKey, existing.orderKey)))
-                  .orderBy(asc(miniAppTable.orderKey))
-                  .limit(1)
+            const updates: Partial<InsertMiniAppRow> = {}
 
-                if (same) {
-                  updates.orderKey =
-                    existing.status === 'enabled'
-                      ? generateOrderKeyBetween(before?.orderKey ?? null, same.orderKey)
-                      : generateOrderKeyBetween(same.orderKey, after?.orderKey ?? null)
-                } else if (before || after) {
-                  updates.orderKey = generateOrderKeyBetween(before?.orderKey ?? null, after?.orderKey ?? null)
+            if (dto.name !== undefined) updates.name = dto.name
+            if (dto.url !== undefined) updates.url = dto.url
+            if (logoColumns) {
+              updates.logo = logoColumns.logo
+              updates.logoFileId = logoColumns.logoFileId
+            }
+
+            if (hasStatusUpdate) {
+              const targetStatus = dto.status as MiniAppStatus
+              updates.status = targetStatus
+              if (existing.status !== targetStatus) {
+                if (isVisibleStatus(existing.status) && isVisibleStatus(targetStatus)) {
+                  const visibleScope = and(orderScopeForStatus(targetStatus), ne(miniAppTable.appId, appId))
+                  const [before] = await tx
+                    .select({ orderKey: miniAppTable.orderKey })
+                    .from(miniAppTable)
+                    .where(and(visibleScope, lt(miniAppTable.orderKey, existing.orderKey)))
+                    .orderBy(desc(miniAppTable.orderKey))
+                    .limit(1)
+                  const [same] = await tx
+                    .select({ orderKey: miniAppTable.orderKey })
+                    .from(miniAppTable)
+                    .where(and(visibleScope, eq(miniAppTable.orderKey, existing.orderKey)))
+                    .limit(1)
+                  const [after] = await tx
+                    .select({ orderKey: miniAppTable.orderKey })
+                    .from(miniAppTable)
+                    .where(and(visibleScope, gt(miniAppTable.orderKey, existing.orderKey)))
+                    .orderBy(asc(miniAppTable.orderKey))
+                    .limit(1)
+
+                  if (same) {
+                    updates.orderKey =
+                      existing.status === 'enabled'
+                        ? generateOrderKeyBetween(before?.orderKey ?? null, same.orderKey)
+                        : generateOrderKeyBetween(same.orderKey, after?.orderKey ?? null)
+                  } else if (before || after) {
+                    updates.orderKey = generateOrderKeyBetween(before?.orderKey ?? null, after?.orderKey ?? null)
+                  } else {
+                    updates.orderKey = existing.orderKey
+                  }
                 } else {
-                  updates.orderKey = existing.orderKey
+                  const [tail] = await tx
+                    .select({ orderKey: miniAppTable.orderKey })
+                    .from(miniAppTable)
+                    .where(and(orderScopeForStatus(targetStatus), ne(miniAppTable.appId, appId)))
+                    .orderBy(desc(miniAppTable.orderKey))
+                    .limit(1)
+                  updates.orderKey = generateOrderKeyBetween(tail?.orderKey ?? null, null)
                 }
-              } else {
-                const [tail] = await tx
-                  .select({ orderKey: miniAppTable.orderKey })
-                  .from(miniAppTable)
-                  .where(and(orderScopeForStatus(targetStatus), ne(miniAppTable.appId, appId)))
-                  .orderBy(desc(miniAppTable.orderKey))
-                  .limit(1)
-                updates.orderKey = generateOrderKeyBetween(tail?.orderKey ?? null, null)
               }
             }
-          }
 
-          const [updated] = await tx.update(miniAppTable).set(updates).where(eq(miniAppTable.appId, appId)).returning()
-          return updated
-        }),
-      defaultHandlersFor('MiniApp', appId)
-    )
+            const [updated] = await tx
+              .update(miniAppTable)
+              .set(updates)
+              .where(eq(miniAppTable.appId, appId))
+              .returning()
+            return updated
+          }),
+        defaultHandlersFor('MiniApp', appId)
+      )
+    } catch (error) {
+      if (logoColumns) await deleteEntityImage(logoColumns.newFileId)
+      throw error
+    }
     if (!row) throw DataApiErrorFactory.notFound('MiniApp', appId)
+    // Logo changed (upload / preset / clear): drop the superseded file_entry.
+    if (logoColumns) await deleteEntityImage(previousLogoFileId)
     logger.info('Updated miniapp', { appId, changes: Object.keys(dto) })
     return rowToMiniApp(row)
   }
@@ -258,11 +318,12 @@ export class MiniAppService {
    * Mirrors {@link ProviderService.delete}'s preset guard.
    */
   async delete(appId: string): Promise<void> {
+    let logoFileId: FileEntryId | null = null
     await withSqliteErrors(
       async () =>
         application.get('DbService').withWriteTx(async (tx) => {
           const [existing] = await tx
-            .select({ presetMiniAppId: miniAppTable.presetMiniAppId })
+            .select({ presetMiniAppId: miniAppTable.presetMiniAppId, logoFileId: miniAppTable.logoFileId })
             .from(miniAppTable)
             .where(eq(miniAppTable.appId, appId))
             .limit(1)
@@ -275,10 +336,13 @@ export class MiniAppService {
             )
           }
 
+          logoFileId = existing.logoFileId ?? null
           await tx.delete(miniAppTable).where(eq(miniAppTable.appId, appId))
         }),
       defaultHandlersFor('MiniApp', appId)
     )
+    // Reclaim the uploaded logo file (FK `set null` already cleared the ref).
+    await deleteEntityImage(logoFileId)
     logger.info('Deleted miniapp', { appId })
   }
 
