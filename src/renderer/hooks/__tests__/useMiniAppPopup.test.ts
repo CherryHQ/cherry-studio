@@ -7,7 +7,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock side-effect dependencies BEFORE importing the hook
 vi.mock('@renderer/utils/webviewStateManager', () => ({
-  clearWebviewState: vi.fn()
+  clearWebviewState: vi.fn(),
+  setWebviewLoaded: vi.fn()
 }))
 
 const mockWindowApi = vi.hoisted(() => ({
@@ -21,10 +22,20 @@ const mockWindowApi = vi.hoisted(() => ({
 const mockTabs = vi.hoisted(() => ({
   tabs: [] as Array<{ id: string; url: string; isPinned?: boolean; type: 'route' }>,
   hasContext: true,
-  openTab: vi.fn()
+  closeTab: vi.fn(),
+  openTab: vi.fn(),
+  updateTab: vi.fn()
 }))
 vi.mock('@renderer/hooks/tab', () => ({
-  useOptionalTabsContext: () => (mockTabs.hasContext ? { tabs: mockTabs.tabs, openTab: mockTabs.openTab } : null)
+  useOptionalTabsContext: () =>
+    mockTabs.hasContext
+      ? {
+          tabs: mockTabs.tabs,
+          closeTab: mockTabs.closeTab,
+          openTab: mockTabs.openTab,
+          updateTab: mockTabs.updateTab
+        }
+      : null
 }))
 
 // Import mocked modules
@@ -71,7 +82,9 @@ describe('useMiniAppPopup', () => {
     mockClearWebviewState.mockClear()
     mockTabs.tabs = []
     mockTabs.hasContext = true
+    mockTabs.closeTab.mockClear()
     mockTabs.openTab.mockClear()
+    mockTabs.updateTab.mockClear()
     mockWindowApi.openWebsite.mockReset()
     mockWindowApi.openPath.mockReset()
     mockWindowApi.openWebsite.mockResolvedValue(undefined)

@@ -106,7 +106,7 @@ describe('CacheService persist tier', () => {
     service.setPersist(PROBE, 7)
     expect(fs.existsSync(cacheFile)).toBe(false) // still debounced
 
-    vi.advanceTimersByTime(200)
+    vi.advanceTimersByTime(350)
 
     expect(fs.existsSync(cacheFile)).toBe(true)
     expect(fs.existsSync(`${cacheFile}.tmp`)).toBe(false) // temp renamed away
@@ -120,7 +120,7 @@ describe('CacheService persist tier', () => {
     service.setPersist(PROBE, 1)
     service.setPersist(PROBE, 2)
     service.setPersist(PROBE, 3)
-    vi.advanceTimersByTime(200)
+    vi.advanceTimersByTime(350)
 
     expect(saveSpy).toHaveBeenCalledTimes(1)
     expect(service.getPersist(PROBE)).toBe(3)
@@ -129,7 +129,7 @@ describe('CacheService persist tier', () => {
   it('skips scheduling a write when setting the same value (isEqual)', async () => {
     await initService()
     service.setPersist(PROBE, 5)
-    vi.advanceTimersByTime(200)
+    vi.advanceTimersByTime(350)
 
     const schedSpy = vi.spyOn(service, 'schedulePersistSave')
     service.setPersist(PROBE, 5) // same value — no-op
@@ -142,7 +142,7 @@ describe('CacheService persist tier', () => {
   it('reloads persisted values on a fresh service instance', async () => {
     await initService()
     service.setPersist(PROBE, 7)
-    vi.advanceTimersByTime(200)
+    vi.advanceTimersByTime(350)
     await service.onStop()
 
     await initService() // new instance reads the same file
@@ -179,7 +179,7 @@ describe('CacheService persist tier', () => {
     vi.mocked(BrowserWindow.getAllWindows).mockClear()
 
     service.setPersist(PROBE, 1)
-    vi.advanceTimersByTime(200)
+    vi.advanceTimersByTime(350)
 
     expect(BrowserWindow.getAllWindows).not.toHaveBeenCalled()
   })
@@ -191,7 +191,7 @@ describe('CacheService persist tier', () => {
 
     // A subsequent save must not re-persist the unknown key.
     service.setPersist(PROBE, 4)
-    vi.advanceTimersByTime(200)
+    vi.advanceTimersByTime(350)
 
     const onDisk = JSON.parse(fs.readFileSync(cacheFile, 'utf-8'))
     expect(onDisk).not.toHaveProperty('stale.removed_key')
@@ -216,7 +216,131 @@ describe('CacheService persist tier', () => {
     await initService() // loadPersist: file absent → defaults, no throw
     service.setPersist(PROBE, 5)
 
-    expect(() => vi.advanceTimersByTime(200)).not.toThrow() // savePersistSync swallows it
+    expect(() => vi.advanceTimersByTime(350)).not.toThrow() // savePersistSync swallows it
     expect(service.getPersist(PROBE)).toBe(5) // in-memory value intact
+  })
+
+  // ---------- hasPersist: differs-from-default semantics ----------
+  //
+  // `hasPersist` answers "has this key been overridden", i.e. does the effective
+  // value DIFFER from the schema default — NOT "is the key present in the backing
+  // store". Because loadPersist seeds every schema key, store membership is always
+  // true and would carry no information.
+  describe('hasPersist (differs-from-default)', () => {
+    it('is false when the value equals the schema default (never set)', async () => {
+      await initService()
+      expect(service.hasPersist(PROBE)).toBe(false)
+    })
+
+    it('is true once an overriding (non-default) value is set', async () => {
+      await initService()
+      service.setPersist(PROBE, 42)
+      expect(service.hasPersist(PROBE)).toBe(true)
+    })
+
+    it('is false when the set value happens to equal the default', async () => {
+      await initService()
+      service.setPersist(PROBE, 0) // 0 is the schema default
+      expect(service.hasPersist(PROBE)).toBe(false)
+    })
+
+    it('is false for a file whose stored value equals the default (not "present on disk")', async () => {
+      // The discriminating case: old membership-based semantics would report true.
+      fs.writeFileSync(cacheFile, JSON.stringify({ [PROBE]: 0 }), 'utf-8')
+      await initService()
+      expect(service.getPersist(PROBE)).toBe(0)
+      expect(service.hasPersist(PROBE)).toBe(false)
+    })
+  })
+
+  // ---------- deletePersist: reset-to-default semantics ----------
+  describe('deletePersist (reset-to-default)', () => {
+    it('resets an overridden value back to the schema default', async () => {
+      await initService()
+      service.setPersist(PROBE, 42)
+      service.deletePersist(PROBE)
+      expect(service.getPersist(PROBE)).toBe(0)
+      expect(service.hasPersist(PROBE)).toBe(false)
+    })
+
+    it('schedules a debounced save so the reset reaches disk', async () => {
+      await initService()
+      service.setPersist(PROBE, 42)
+      vi.advanceTimersByTime(350)
+
+      service.deletePersist(PROBE)
+      vi.advanceTimersByTime(350)
+      expect(JSON.parse(fs.readFileSync(cacheFile, 'utf-8'))[PROBE]).toBe(0)
+    })
+
+    it('is a no-op when the value is already the default', async () => {
+      await initService()
+      const schedSpy = vi.spyOn(service, 'schedulePersistSave')
+      service.deletePersist(PROBE) // already default → nothing to drop
+      expect(schedSpy).not.toHaveBeenCalled()
+    })
+  })
+
+  // ---------- subscribePersistChange: main-local change notifications ----------
+  //
+  // Same model as subscribeChange (internal tier): main-only, never relayed to
+  // renderers, fires only on actual value changes.
+  describe('subscribePersistChange', () => {
+    it('fires with (newValue, oldValue) when a value changes', async () => {
+      await initService()
+      const cb = vi.fn()
+      service.subscribePersistChange(PROBE, cb)
+
+      service.setPersist(PROBE, 42)
+      expect(cb).toHaveBeenCalledWith(42, 0)
+    })
+
+    it('does not fire when setting the same value (isEqual short-circuit)', async () => {
+      await initService()
+      service.setPersist(PROBE, 42)
+      const cb = vi.fn()
+      service.subscribePersistChange(PROBE, cb)
+
+      service.setPersist(PROBE, 42) // same value
+      expect(cb).not.toHaveBeenCalled()
+    })
+
+    it('fires on deletePersist with the default as the new value', async () => {
+      await initService()
+      service.setPersist(PROBE, 42)
+      const cb = vi.fn()
+      service.subscribePersistChange(PROBE, cb)
+
+      service.deletePersist(PROBE)
+      expect(cb).toHaveBeenCalledWith(0, 42)
+    })
+
+    it('stops firing after unsubscribe', async () => {
+      await initService()
+      const cb = vi.fn()
+      const unsub = service.subscribePersistChange(PROBE, cb)
+      unsub()
+
+      service.setPersist(PROBE, 42)
+      expect(cb).not.toHaveBeenCalled()
+    })
+
+    it('does not retroactively fire for subscribers attached after load', async () => {
+      fs.writeFileSync(cacheFile, JSON.stringify({ [PROBE]: 7 }), 'utf-8')
+      await initService() // load installs the override silently
+      const cb = vi.fn()
+      service.subscribePersistChange(PROBE, cb)
+      expect(cb).not.toHaveBeenCalled()
+    })
+
+    it('does not broadcast over IPC when notifying persist subscribers', async () => {
+      await initService()
+      const { BrowserWindow } = await import('electron')
+      vi.mocked(BrowserWindow.getAllWindows).mockClear()
+      service.subscribePersistChange(PROBE, vi.fn())
+
+      service.setPersist(PROBE, 1)
+      expect(BrowserWindow.getAllWindows).not.toHaveBeenCalled()
+    })
   })
 })
