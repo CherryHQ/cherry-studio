@@ -1,5 +1,4 @@
 import {
-  Badge,
   Command,
   CommandGroup,
   CommandInput,
@@ -20,7 +19,6 @@ export type ConversationPickerItem = {
   name: string
   icon: ReactNode
   searchText?: string
-  trailingLabel?: string
 }
 
 export type ConversationPickerLabels = {
@@ -47,8 +45,6 @@ type ConversationPickerDialogProps<T extends ConversationPickerItem> = {
   createAction?: ConversationPickerCreateAction
   /** Rendered between the search box and the list — e.g. a source toggle. */
   toolbar?: ReactNode
-  /** Cap the number of rows shown before any search; the full list stays searchable. */
-  previewLimit?: number
   /** When set, the list renders this many rows at a time and grows by `pageSize` on scroll-to-bottom. */
   pageSize?: number
   isLoading?: boolean
@@ -70,7 +66,6 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
   onSelect,
   createAction,
   toolbar,
-  previewLimit,
   pageSize,
   isLoading = false,
   showCloseButton = true
@@ -92,9 +87,8 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
 
   const visibleItems = useMemo(() => {
     if (pageSize) return matchedItems.slice(0, visibleCount)
-    if (query.trim() || !previewLimit || previewLimit <= 0) return matchedItems
-    return matchedItems.slice(0, previewLimit)
-  }, [matchedItems, pageSize, previewLimit, query, visibleCount])
+    return matchedItems
+  }, [matchedItems, pageSize, visibleCount])
 
   const hasMore = Boolean(pageSize) && visibleItems.length < matchedItems.length
 
@@ -171,11 +165,6 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
                       <span className="min-w-0 flex-1 truncate font-medium text-foreground text-sm leading-5">
                         {item.name}
                       </span>
-                      {item.trailingLabel ? (
-                        <Badge variant="secondary" className="ml-auto shrink-0 font-normal text-foreground-muted">
-                          {item.trailingLabel}
-                        </Badge>
-                      ) : null}
                     </CommandItem>
                   ))}
                 </CommandGroup>

@@ -21,8 +21,7 @@ const ITEMS: ConversationPickerItem[] = [
       <span data-testid="alpha-icon" className="text-base leading-none">
         🙂
       </span>
-    ),
-    trailingLabel: 'Added'
+    )
   },
   {
     id: 'catalog:product',
@@ -77,7 +76,6 @@ describe('ConversationPickerDialog', () => {
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(screen.getByText('Alpha Assistant')).toBeInTheDocument()
-    expect(screen.getByText('Added')).toBeInTheDocument()
 
     // The list scrolls inside the shared Scrollbar viewport (auto-hiding thumb), not the cmdk list.
     expect(screen.getByText('Alpha Assistant').closest('[data-scrolling]')).toBeInTheDocument()
@@ -119,35 +117,6 @@ describe('ConversationPickerDialog', () => {
 
     expect(screen.getByText('Alpha Assistant')).toBeInTheDocument()
     expect(screen.queryByText('Product Manager')).not.toBeInTheDocument()
-  })
-
-  it('caps the preview before search while keeping the full list searchable', () => {
-    const items: ConversationPickerItem[] = [
-      ITEMS[0],
-      ...Array.from({ length: 55 }, (_, index) => ({
-        id: `catalog:${index}`,
-        name: index === 54 ? 'Hidden Specialist' : `Catalog Preset ${index + 1}`,
-        searchText: index === 54 ? 'deep-hidden-prompt' : undefined,
-        icon: <span className="text-base leading-none">🤖</span>
-      }))
-    ]
-
-    render(
-      <ConversationPickerDialog
-        open
-        onOpenChange={vi.fn()}
-        items={items}
-        labels={LABELS}
-        previewLimit={50}
-        onSelect={vi.fn()}
-      />
-    )
-
-    expect(screen.queryByText('Hidden Specialist')).not.toBeInTheDocument()
-
-    fireEvent.change(screen.getByPlaceholderText('Search resources'), { target: { value: 'deep-hidden-prompt' } })
-
-    expect(screen.getByText('Hidden Specialist')).toBeInTheDocument()
   })
 
   it('pins the create action at the top, triggers it, and hides it while searching', () => {
