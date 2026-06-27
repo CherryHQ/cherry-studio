@@ -314,7 +314,6 @@
     "electron-store": "^8.2.0",
     "electron-updater": "6.7.0",
     "electron-vite": "5.0.0",
-    "electron-window-state": "^5.0.3",
     "elysia": "^1.4.28",
     "emittery": "^1.0.3",
     "emoji-picker-element": "^1.22.1",
