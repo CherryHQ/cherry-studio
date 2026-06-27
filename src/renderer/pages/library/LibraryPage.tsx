@@ -8,7 +8,7 @@ import {
 } from '@renderer/components/resource/dialogs'
 import { isSelectableAssistantModel } from '@renderer/components/resource/dialogs/form/assistantModelFilter'
 import PromptEditDialog from '@renderer/components/resource/dialogs/PromptEditDialog'
-import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
+import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { InstalledSkill } from '@shared/data/types/agent'
