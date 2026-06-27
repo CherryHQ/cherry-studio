@@ -1,9 +1,11 @@
-import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import type { KnowledgeRagConfigFormValues } from '../types'
 import { parseRequiredInteger } from './validate'
+
+const DEFAULT_KNOWLEDGE_DOCUMENT_COUNT = 6
+const DEFAULT_KNOWLEDGE_THRESHOLD = 0.0
 
 export const createKnowledgeRagConfigFormValues = (base: KnowledgeBase): KnowledgeRagConfigFormValues => ({
   fileProcessorId: base.fileProcessorId ?? null,

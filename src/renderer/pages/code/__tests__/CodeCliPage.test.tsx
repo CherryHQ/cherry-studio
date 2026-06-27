@@ -98,7 +98,7 @@ vi.mock('@renderer/components/Selector/model', async () => {
   }
 })
 
-vi.mock('@renderer/config/constant', () => ({
+vi.mock('@renderer/utils/platform', () => ({
   isMac: false,
   isWin: false
 }))
