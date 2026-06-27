@@ -101,34 +101,6 @@ const PaintingPage: FC = () => {
         <div className="flex h-full flex-1 flex-col">
           <div className={paintingClasses.frame}>
             <div className={paintingClasses.surface}>
-              <div className={paintingClasses.centerPane}>
-                <div className={paintingClasses.centerStage}>
-                  <Artboard painting={currentPainting} isLoading={generating} onCancel={onCancel} />
-                </div>
-                <div className={paintingClasses.promptDock}>
-                  <QuickPanelProvider>
-                    <PaintingComposer
-                      painting={composerPainting}
-                      generating={generating}
-                      onPromptChange={(prompt) => patchPainting({ prompt } as Partial<PaintingData>)}
-                      onInputFilesChange={(inputFiles) => patchPainting({ inputFiles } as Partial<PaintingData>)}
-                      onGenerate={submit}
-                      onCancel={onCancel}
-                      onModelSelect={switchModel}
-                      onConfigChange={patchPainting}
-                      onGenerateRandomSeed={(key) =>
-                        patchPainting({
-                          params: {
-                            ...currentPainting.params,
-                            [key]: String(Math.floor(Math.random() * 1_000_000))
-                          }
-                        })
-                      }
-                    />
-                  </QuickPanelProvider>
-                </div>
-              </div>
-
               <PaintingStrip
                 selectedPaintingId={currentPainting.id}
                 runningPaintingId={generating ? currentPainting.id : undefined}
@@ -139,6 +111,36 @@ const PaintingPage: FC = () => {
                 onSelectPainting={list.select}
                 onAddPainting={list.add}
               />
+
+              <div className={paintingClasses.centerPane}>
+                <div className={paintingClasses.centerStage}>
+                  <Artboard painting={currentPainting} isLoading={generating} onCancel={onCancel} />
+                </div>
+                <div className={paintingClasses.promptDock}>
+                  <div className={paintingClasses.promptDockInner}>
+                    <QuickPanelProvider>
+                      <PaintingComposer
+                        painting={composerPainting}
+                        generating={generating}
+                        onPromptChange={(prompt) => patchPainting({ prompt } as Partial<PaintingData>)}
+                        onInputFilesChange={(inputFiles) => patchPainting({ inputFiles } as Partial<PaintingData>)}
+                        onGenerate={submit}
+                        onCancel={onCancel}
+                        onModelSelect={switchModel}
+                        onConfigChange={patchPainting}
+                        onGenerateRandomSeed={(key) =>
+                          patchPainting({
+                            params: {
+                              ...currentPainting.params,
+                              [key]: String(Math.floor(Math.random() * 1_000_000))
+                            }
+                          })
+                        }
+                      />
+                    </QuickPanelProvider>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
