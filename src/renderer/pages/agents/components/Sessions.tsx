@@ -676,17 +676,15 @@ const Sessions = ({
         const deletedSession =
           (index !== -1 ? filteredGroupedSessions[index] : undefined) ??
           sessionItemsRef.current.find((session) => session.id === id)
-        const seed = buildCreateSessionSeed(
-          deletedSession
-            ? {
-                agentId: agentIdFilter ?? deletedSession.agentId,
-                workspace: deletedSession.workspace,
-                workspaceId: deletedSession.workspaceId
-              }
-            : agentIdFilter
-              ? { agentId: agentIdFilter, workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } }
-              : null
-        )
+        const seed = deletedSession
+          ? buildCreateSessionSeed({
+              agentId: agentIdFilter ?? deletedSession.agentId,
+              workspace: deletedSession.workspace,
+              workspaceId: deletedSession.workspaceId
+            })
+          : agentIdFilter
+            ? { agentId: agentIdFilter, workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } }
+            : null
         if (seed?.agentId && onStartDraftSession) {
           await onStartDraftSession({
             agentId: seed.agentId,
