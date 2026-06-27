@@ -127,12 +127,14 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
 
       try {
         await reorder(activeId, buildResourceListItemDropAnchor(payload))
-        await refetchEntities()
       } catch (error) {
         setOptimisticOrderIds(null)
         onReorderError(error)
         await refetchEntities().catch(() => undefined)
+        return
       }
+
+      await refetchEntities().catch(() => undefined)
     },
     [items, onReorderError, refetchEntities, reorder]
   )
