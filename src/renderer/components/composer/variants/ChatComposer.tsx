@@ -19,11 +19,11 @@ import { getComposerToolConfig } from '@renderer/components/composer/tools/regis
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { AssistantSelector } from '@renderer/components/resource'
 import { ModelSelector } from '@renderer/components/Selector'
-import { useIsActiveTab } from '@renderer/context/TabIdContext'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
@@ -34,7 +34,7 @@ import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildFilePartsForAttachments } from '@renderer/utils/file/buildFileParts'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import { canModelUseAssistantWebSearch } from '@renderer/utils/modelReconcile'
+import { canModelUseAssistantWebSearch } from '@renderer/utils/model'
 import { getLeadingEmoji } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
@@ -312,6 +312,7 @@ const renderChatHomeControls: ChatComposerControlsRenderer = (props) => ({
 
 type ChatComposerRootProps = ChatComposerProps & {
   renderControls: ChatComposerControlsRenderer
+  forceNarrowLayout?: boolean
 }
 
 const ChatComposerRoot = ({
@@ -324,7 +325,8 @@ const ChatComposerRoot = ({
   useMentionedModelSelector,
   onDraftAssistantChange,
   onNewTopic,
-  renderControls
+  renderControls,
+  forceNarrowLayout = false
 }: ChatComposerRootProps) => {
   const resolvedScopeKey = scopeKey ?? topic?.id
   const resolvedTopicId = topicId ?? topic?.id
@@ -371,6 +373,7 @@ const ChatComposerRoot = ({
             onDraftAssistantChange={onDraftAssistantChange}
             onNewTopic={onNewTopic}
             renderControls={renderControls}
+            forceNarrowLayout={forceNarrowLayout}
           />
         ) : null}
       </ComposerToolRuntimeProvider>
@@ -383,6 +386,7 @@ interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'scopeKey'> {
   initialDraft: ChatComposerDraftCache
   actionsRef: React.RefObject<ProviderActionHandlers>
   renderControls: ChatComposerControlsRenderer
+  forceNarrowLayout?: boolean
 }
 
 const ChatComposerInner = ({
@@ -396,7 +400,8 @@ const ChatComposerInner = ({
   useMentionedModelSelector,
   onDraftAssistantChange,
   onNewTopic,
-  renderControls
+  renderControls,
+  forceNarrowLayout = false
 }: ChatComposerInnerProps) => {
   const streamScopeKey = topicId ?? scopeKey
   const awaitingApproval = useTopicAwaitingApproval(streamScopeKey)
@@ -997,7 +1002,7 @@ const ChatComposerInner = ({
         enableSpellCheck={enableSpellCheck}
         editable={!searching}
         fontSize={fontSize}
-        narrowMode={narrowMode}
+        narrowMode={forceNarrowLayout || narrowMode}
         onFocus={() => setSearching(false)}
         onActionsChange={handleSurfaceActionsChange}
         getToolLaunchers={() => getLaunchers()}
@@ -1013,7 +1018,9 @@ const ChatComposer = (props: ChatComposerProps) => {
 }
 
 export const ChatHomeComposer = (props: ChatComposerProps) => {
-  return <ChatComposerRoot {...props} useMentionedModelSelector renderControls={renderChatHomeControls} />
+  return (
+    <ChatComposerRoot {...props} useMentionedModelSelector forceNarrowLayout renderControls={renderChatHomeControls} />
+  )
 }
 
 export const ChatPlacementComposer = ({
@@ -1026,6 +1033,7 @@ export const ChatPlacementComposer = ({
       {...props}
       onDraftAssistantChange={isHome ? onDraftAssistantChange : undefined}
       useMentionedModelSelector
+      forceNarrowLayout={isHome}
       renderControls={isHome ? renderChatHomeControls : renderChatToolbarControls}
     />
   )

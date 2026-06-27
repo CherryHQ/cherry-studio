@@ -10,7 +10,7 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { ResetIcon } from '@renderer/components/Icons'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
 import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'

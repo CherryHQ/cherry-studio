@@ -1,5 +1,5 @@
 import { DragDropContext } from '@hello-pangea/dnd'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
 import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'

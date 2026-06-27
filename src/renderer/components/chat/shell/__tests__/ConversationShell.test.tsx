@@ -1,5 +1,5 @@
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
-import type * as ConstantConfig from '@renderer/config/constant'
+import type * as ConstantConfig from '@renderer/utils/platform'
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -19,7 +19,7 @@ vi.mock('@renderer/components/QuickPanel', () => ({
   QuickPanelProvider: ({ children }: { children: ReactNode }) => <div data-testid="quick-panel">{children}</div>
 }))
 
-vi.mock('@renderer/config/constant', async (importOriginal) => {
+vi.mock('@renderer/utils/platform', async (importOriginal) => {
   const actual = await importOriginal<typeof ConstantConfig>()
   return {
     ...actual,

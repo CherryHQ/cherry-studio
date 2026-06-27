@@ -19,9 +19,9 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { isMac } from '@renderer/config/constant'
-import { AppLogo } from '@renderer/config/env'
+import AppLogo from '@renderer/assets/images/logo.png'
 import { loggerService } from '@renderer/services/LoggerService'
+import { isMac } from '@renderer/utils/platform'
 import { MigrationIpcChannels, type MigrationStage } from '@shared/data/migration/v2/types'
 import {
   AlertTriangle,

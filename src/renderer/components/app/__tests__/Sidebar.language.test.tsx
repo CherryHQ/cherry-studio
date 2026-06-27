@@ -61,7 +61,7 @@ vi.mock('@renderer/hooks/useModel', () => ({
   modelGenerating: vi.fn().mockResolvedValue(undefined)
 }))
 
-vi.mock('@renderer/hooks/useTabs', () => ({
+vi.mock('@renderer/hooks/tab', () => ({
   useTabs: () => ({
     activeTab: {
       id: 'home',
@@ -71,12 +71,6 @@ vi.mock('@renderer/hooks/useTabs', () => ({
     openTab: vi.fn(),
     updateTab: vi.fn()
   })
-}))
-
-vi.mock('@renderer/config/env', () => ({
-  AppLogo: 'app-logo.png',
-  UserAvatar: 'user-avatar.png',
-  isLocalAi: false
 }))
 
 vi.mock('../../Popups/UserPopup', () => ({

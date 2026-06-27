@@ -27,7 +27,7 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('..', () => ({
+vi.mock('../asar', () => ({
   toAsarUnpackedPath: vi.fn((filePath: string) => filePath)
 }))
 
