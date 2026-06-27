@@ -61,6 +61,13 @@ own data fetching, pins, deletion, and context menus.
 
 - Fixed above the sortable entity list: Home adds an assistant, Agent adds an
   agent. Entities cannot be dragged above it.
+- The "+" opens a shared searchable picker (`ConversationPickerDialog`, wrapped
+  per surface by `AssistantConversationPickerDialog` / `AgentConversationPickerDialog`)
+  to switch to or create an entity. It has a "create new" row and pagination; for
+  assistants it filters between 资源库 (the user's assistants) and 助手库 (the
+  preset catalog, via `useAssistantCatalogPresets`).
+- A history-records button next to "+" opens the History Records / global-history
+  page (`onOpenHistoryRecords`).
 - After creating a new entity the main chat enters its blank state; the entity
   still does not appear in the rail until it owns a topic/session.
 
@@ -118,6 +125,19 @@ level instead of prop-threaded).
 - Switching assistant/agent clears the right-list search; switching topic/session
   within the same entity does not.
 
+## Composer triggers (old view)
+
+In old view the left rail owns entity switching, so the composer's entity trigger is
+repurposed for **edit-in-place** instead of opening a switcher:
+
+- `ChatComposer` / `AgentComposer` take an `assistantTriggerMode` / `agentTriggerMode`
+  prop (`'selector'` | `'edit'`). Old view passes `'edit'`; Home/draft and new view
+  keep `'selector'`. In `'edit'` mode the trigger opens the resource edit dialog
+  (`ResourceEditDialogHost`) for the current entity.
+- The agent composer's per-agent **model selector is removed** — model / plan model /
+  small model now live in the agent edit dialog. The agent switcher is also hidden
+  inside active sessions (an active session is bound to its agent).
+
 ## Data flow
 
 No DataApi endpoint filters topics/sessions by entity — both panes derive from one
@@ -159,6 +179,12 @@ site, so the open state survives the remount. This is scoped to old view
 - `components/chat/resources/variants/AssistantResourceList.tsx`,
   `AgentResourceList.tsx` — per-variant data adapters.
 - `components/chat/panes/Shell/resourcePane.tsx` — `resources` tab injection.
+- `components/resource/ConversationPickerDialog.tsx` — shared entity/conversation
+  picker; wrapped by `pages/home/components/AssistantConversationPickerDialog.tsx`
+  and `pages/agents/components/AgentConversationPickerDialog.tsx`.
+- `components/composer/variants/ChatComposer.tsx`,
+  `AgentComposer.tsx` — `assistantTriggerMode` / `agentTriggerMode` edit-in-place.
+- `hooks/useAssistantCatalogPresets.ts` — preset catalog feeding the assistant picker.
 - `hooks/resourceViewSources.ts` — shared full-list sources.
 - `pages/home/HomePage.tsx`, `pages/agents/AgentPage.tsx`,
   `pages/agents/AgentChat.tsx` — page wiring + agent pane persistence.
