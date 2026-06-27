@@ -131,6 +131,11 @@ jobs:
       - name: Type Check
         run: pnpm typecheck
 
+      - name: Backup Schema Refs Check
+        # Fails if dbSchemaRefs.ts is stale vs the Drizzle schemas — run
+        # pnpm backup:refs:generate after changing src/main/data/db/schemas/**.
+        run: pnpm backup:refs:check
+
       - name: DB Migrations Check
         run: |
           # 1) Snapshot chain integrity — exits 1 on duplicate id / forked prevId (e.g. #15438).
