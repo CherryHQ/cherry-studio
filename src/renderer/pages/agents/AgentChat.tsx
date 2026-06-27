@@ -6,7 +6,11 @@ import {
   EmptyState
 } from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
-import type { ResourcePaneConfig } from '@renderer/components/chat/panes/Shell'
+import {
+  type ResourcePaneConfig,
+  ResourcePaneCountButton,
+  type ResourcePaneCountButtonProps
+} from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
 import { AgentHomeComposer, MissingAgentHomeComposer } from '@renderer/components/composer/variants/AgentComposer'
@@ -87,6 +91,7 @@ interface AgentChatProps {
   replacingDraftAgent?: boolean
   replacingDraftWorkspace?: boolean
   resourcePane?: ResourcePaneConfig | null
+  resourcePaneCount?: ResourcePaneCountButtonProps
   resourcePaneRevealRequest?: ResourceListRevealRequest
   workPaneOpen?: boolean
   onWorkPaneOpenChange?: (open: boolean) => void
@@ -120,6 +125,7 @@ const AgentChat = ({
   replacingDraftAgent,
   replacingDraftWorkspace,
   resourcePane,
+  resourcePaneCount,
   resourcePaneRevealRequest,
   workPaneOpen,
   onWorkPaneOpenChange
@@ -155,6 +161,13 @@ const AgentChat = ({
   const visibleWorkspace = sessionSnapshot?.workspace ?? draftAgentConversation?.workspace ?? null
   const { agent: activeAgent } = useAgent(visibleAgentId)
   const draftConversationKey = draftAgentConversation ? getDraftConversationKey(draftAgentConversation) : null
+  const resourcePaneTopRightTool = resourcePane ? (
+    <>
+      {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} />}
+      <AgentRightPane.FilesToggle />
+    </>
+  ) : undefined
+  const resourcePaneTopRightToolReserve = resourcePaneCount ? 'history' : 'single'
 
   useEffect(() => {
     const conversationId = draftConversationKey
@@ -237,7 +250,8 @@ const AgentChat = ({
           paneOpen={paneOpen}
           panePosition={panePosition}
           onPaneCollapse={onPaneCollapse}
-          topRightTool={resourcePane ? <AgentRightPane.FilesToggle /> : undefined}
+          topRightTool={resourcePaneTopRightTool}
+          topRightToolReserve={resourcePaneTopRightToolReserve}
           center={<ConversationCenterState state="loading" />}
           centerOverlay={resourcePane ? <AgentRightPane.MaximizedOverlay /> : undefined}
           rightPane={<AgentRightPane.Host />}
@@ -328,7 +342,8 @@ const AgentChat = ({
               onSidebarToggle={onSidebarToggle}
             />
           }
-          topRightTool={resourcePane ? <AgentRightPane.FilesToggle /> : undefined}
+          topRightTool={resourcePaneTopRightTool}
+          topRightToolReserve={resourcePaneTopRightToolReserve}
           center={
             <ConversationStageCenter
               placement="home"
@@ -380,7 +395,8 @@ const AgentChat = ({
               onSidebarToggle={onSidebarToggle}
             />
           }
-          topRightTool={resourcePane ? <AgentRightPane.FilesToggle /> : undefined}
+          topRightTool={resourcePaneTopRightTool}
+          topRightToolReserve={resourcePaneTopRightToolReserve}
           center={
             <ConversationStageCenter
               placement="home"
@@ -465,6 +481,7 @@ const AgentChat = ({
       onLocateMessageHandled={onLocateMessageHandled}
       onPaneCollapse={onPaneCollapse}
       resourcePane={resourcePane}
+      resourcePaneCount={resourcePaneCount}
       resourcePaneRevealRequest={resourcePaneRevealRequest}
       workPaneOpen={workPaneOpen}
       onWorkPaneOpenChange={onWorkPaneOpenChange}
@@ -517,6 +534,7 @@ interface AgentChatSessionFrameProps {
   onNewSessionDraft?: () => void | Promise<void>
   onCreateEmptySession?: () => void | Promise<void>
   resourcePane?: ResourcePaneConfig | null
+  resourcePaneCount?: ResourcePaneCountButtonProps
   resourcePaneRevealRequest?: ResourceListRevealRequest
   workPaneOpen?: boolean
   onWorkPaneOpenChange?: (open: boolean) => void
@@ -548,6 +566,7 @@ const AgentChatSessionFrame = ({
   onNewSessionDraft,
   onCreateEmptySession,
   resourcePane,
+  resourcePaneCount,
   resourcePaneRevealRequest,
   workPaneOpen,
   onWorkPaneOpenChange
@@ -668,11 +687,12 @@ const AgentChatSessionFrame = ({
         }
         topRightTool={
           <>
+            {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} />}
             <AgentRightPane.InfoCard />
             <AgentRightPane.FilesToggle />
           </>
         }
-        topRightToolReserve="double"
+        topRightToolReserve={resourcePaneCount ? 'history' : 'double'}
         center={
           <ConversationStageCenter
             placement="docked"

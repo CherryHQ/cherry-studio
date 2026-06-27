@@ -244,7 +244,10 @@ vi.mock('react-i18next', () => ({
     type: '3rdParty'
   },
   useTranslation: () => ({
-    t: (key: string) => key
+    t: (key: string) =>
+      ({
+        'agent.session.list.title': '任务'
+      })[key] ?? key
   })
 }))
 
@@ -265,6 +268,7 @@ vi.mock('../AgentChat', () => ({
     locateMessageId,
     pane,
     paneOpen,
+    resourcePaneCount,
     resourcePane,
     showResourceListControls,
     workPaneOpen,
@@ -293,6 +297,7 @@ vi.mock('../AgentChat', () => ({
     locateMessageId?: string
     pane?: ReactNode
     paneOpen?: boolean
+    resourcePaneCount?: { label: string; count: number }
     resourcePane?: { node?: ReactNode; label?: string } | null
     showResourceListControls?: boolean
     workPaneOpen?: boolean
@@ -310,6 +315,11 @@ vi.mock('../AgentChat', () => ({
       <output data-testid="pane-open">{String(paneOpen)}</output>
       <output data-testid="work-pane-open">{String(workPaneOpen)}</output>
       <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
+      {resourcePaneCount && (
+        <output data-testid="resource-pane-count">
+          {resourcePaneCount.label}:{resourcePaneCount.count}
+        </output>
+      )}
       <button type="button" onClick={() => void onDraftWorkspaceChange?.('workspace-next')}>
         Select workspace
       </button>
@@ -499,6 +509,21 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('session-resource-panel')).toHaveAttribute('data-agent-id', 'agent-a')
     expect(screen.getByTestId('session-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
     expect(screen.queryByTestId('agent-side-panel')).not.toBeInTheDocument()
+  })
+
+  it('passes the current agent task count to the old-view top button', () => {
+    agentPageMocks.workView = 'old'
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+    agentPageMocks.oldViewSessions = [
+      { ...agentPageMocks.persistedSession, id: 'session-a' },
+      { ...agentPageMocks.persistedSession, id: 'session-b' },
+      { ...agentPageMocks.persistedSession, id: 'session-other', agentId: 'agent-b' }
+    ]
+
+    render(<AgentPage />)
+
+    expect(screen.getByTestId('resource-pane-count')).toHaveTextContent('任务:2')
   })
 
   it('selects the latest historical session by default when entering old view without a route session', async () => {

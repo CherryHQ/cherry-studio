@@ -18,7 +18,7 @@ export interface ConversationShellProps {
   panePosition?: ChatPanePosition
   topBar?: ReactNode
   topRightTool?: ReactNode
-  topRightToolReserve?: 'single' | 'double'
+  topRightToolReserve?: 'single' | 'double' | 'history'
   center: ReactNode
   sidePanel?: ReactNode
   centerOverlay?: ReactNode
@@ -111,7 +111,7 @@ type TopBarProps = {
   isWindow: boolean
   leftPaneOpen: boolean
   leading?: ReactNode
-  topRightToolReserve: 'single' | 'double'
+  topRightToolReserve: 'single' | 'double' | 'history'
   children?: ReactNode
 }
 
@@ -137,10 +137,14 @@ const ConversationShellTopBar = ({ isWindow, leftPaneOpen, leading, topRightTool
         // plus the OS window controls corner on frameless Win/Linux (--window-controls-width, 0px elsewhere).
         !maximized &&
           (isWindow
-            ? 'pr-[calc(7rem+var(--window-controls-width,0px))]'
-            : topRightToolReserve === 'double'
-              ? 'pr-[76px]'
-              : 'pr-11')
+            ? topRightToolReserve === 'history'
+              ? 'pr-[calc(12.5rem+var(--window-controls-width,0px))]'
+              : 'pr-[calc(7rem+var(--window-controls-width,0px))]'
+            : topRightToolReserve === 'history'
+              ? 'pr-[156px]'
+              : topRightToolReserve === 'double'
+                ? 'pr-[76px]'
+                : 'pr-11')
       )}>
       {leading}
       {children}

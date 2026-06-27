@@ -317,6 +317,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
     t: (key: string) =>
       ({
         'chat.home.welcome_title': 'Welcome',
+        'chat.topics.title': '对话',
         'common.loading': 'Loading...',
         'history.error.topic_not_found': 'Conversation not found'
       })[key] ?? key
@@ -333,7 +334,8 @@ vi.mock('../Chat', () => ({
     onCreateEmptyTopic,
     onNewTopic,
     onLocateMessageHandled,
-    onPaneCollapse
+    onPaneCollapse,
+    resourcePaneCount
   }: {
     activeTopic: Topic
     pane?: ReactNode
@@ -344,6 +346,7 @@ vi.mock('../Chat', () => ({
     onNewTopic?: (payload?: { assistantId?: string | null }) => void | Promise<void>
     onLocateMessageHandled?: () => void
     onPaneCollapse?: () => void
+    resourcePaneCount?: { label: string; count: number }
   }) => (
     <section>
       <output data-testid="active-topic">{activeTopic.id}</output>
@@ -351,6 +354,11 @@ vi.mock('../Chat', () => ({
       <output data-testid="pane-open">{String(paneOpen)}</output>
       <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
       <output data-testid="locate-message-id">{locateMessageId ?? ''}</output>
+      {resourcePaneCount && (
+        <output data-testid="resource-pane-count">
+          {resourcePaneCount.label}:{resourcePaneCount.count}
+        </output>
+      )}
       {onNewTopic && (
         <button type="button" onClick={() => onNewTopic()}>
           New topic
@@ -573,6 +581,19 @@ describe('HomePage', () => {
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-assistant-id', 'assistant-1')
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
     expect(screen.queryByTestId('home-tabs')).not.toBeInTheDocument()
+  })
+
+  it('passes the current assistant conversation count to the old-view top button', () => {
+    homeMocks.preferenceValues.set('chat.conversation_view', 'old')
+    homeMocks.oldViewTopics = [
+      { ...historyTopic, id: 'topic-a' },
+      { ...historyTopic, id: 'topic-b' },
+      { ...historyTopic, id: 'topic-other', assistantId: 'assistant-2' }
+    ]
+
+    render(<HomePage />)
+
+    expect(screen.getByTestId('resource-pane-count')).toHaveTextContent('对话:2')
   })
 
   it('selects the latest historical topic by default when entering old view without a route topic', async () => {

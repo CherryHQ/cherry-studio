@@ -1,7 +1,7 @@
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import type { ResourcePaneConfig } from '@renderer/components/chat/panes/Shell'
+import type { ResourcePaneConfig, ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { AgentResourceList } from '@renderer/components/chat/resources/variants/AgentResourceList'
@@ -756,6 +756,13 @@ const AgentPage = () => {
   }, [isOldView, workPaneOpen])
 
   const activeResourceAgentId = visibleSession?.agentId ?? visibleDraftSession?.agentId ?? null
+  const sessionResourcePaneCount: ResourcePaneCountButtonProps | undefined =
+    isOldView && activeResourceAgentId
+      ? {
+          label: t('agent.session.list.title'),
+          count: oldViewSessions.filter((session) => session.agentId === activeResourceAgentId).length
+        }
+      : undefined
   const createAndActivateEmptySession = useCallback(async () => {
     const agentId = activeResourceAgentId
     if (!agentId) return
@@ -872,6 +879,7 @@ const AgentPage = () => {
           replacingDraftAgent={replacingDraftAgent}
           replacingDraftWorkspace={replacingDraftWorkspace}
           resourcePane={resourcePane}
+          resourcePaneCount={sessionResourcePaneCount}
           resourcePaneRevealRequest={sessionRevealRequest}
           workPaneOpen={isOldView ? workPaneOpen : undefined}
           onWorkPaneOpenChange={isOldView ? setWorkPaneOpen : undefined}

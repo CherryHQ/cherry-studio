@@ -1,6 +1,7 @@
+import { ResourcePaneCountButton, Shell } from '@renderer/components/chat/panes/Shell'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import type * as ConstantConfig from '@renderer/config/constant'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -102,6 +103,26 @@ describe('ConversationShell', () => {
     expect(topBarWrapper).toHaveClass('pr-[76px]')
     expect(topRightTool).toHaveClass('gap-0.5')
     expect(topRightTool).not.toHaveClass('w-7.5')
+  })
+
+  it('opens the resource pane from the history count button and hides the navbar cluster', () => {
+    render(
+      <Shell defaultTab="resources">
+        <ConversationShell
+          topBar={<div data-testid="top-bar" />}
+          topRightTool={<ResourcePaneCountButton label="对话" count={6} />}
+          topRightToolReserve="history"
+          center={<div />}
+        />
+      </Shell>
+    )
+
+    const topBarWrapper = screen.getByTestId('top-bar').parentElement
+    expect(topBarWrapper).toHaveClass('pr-[156px]')
+
+    fireEvent.click(screen.getByRole('button', { name: '对话 6' }))
+
+    expect(screen.queryByRole('button', { name: '对话 6' })).not.toBeInTheDocument()
   })
 
   it('uses normal title-bar padding when the left pane is open in window mode', () => {

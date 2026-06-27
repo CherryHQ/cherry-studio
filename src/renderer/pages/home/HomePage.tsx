@@ -8,7 +8,12 @@ import {
   EmptyState,
   LoadingState
 } from '@renderer/components/chat'
-import { type ResourcePaneConfig, useResourcePane } from '@renderer/components/chat/panes/Shell'
+import {
+  type ResourcePaneConfig,
+  ResourcePaneCountButton,
+  type ResourcePaneCountButtonProps,
+  useResourcePane
+} from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { AssistantResourceList } from '@renderer/components/chat/resources/variants/AssistantResourceList'
@@ -283,6 +288,14 @@ const HomePage: FC = () => {
   // are distinguishable in the tab bar (every tab labels itself — not gated on active).
   const visibleAssistantId = visibleTopic?.assistantId ?? draftAssistantSelectionSnapshot?.assistantId
   const { assistant: visibleAssistant } = useAssistantApiById(visibleAssistantId ?? undefined)
+  const topicResourcePaneCount = useMemo<ResourcePaneCountButtonProps | undefined>(() => {
+    if (!isOldView || !visibleAssistantId) return undefined
+
+    return {
+      label: t('chat.topics.title'),
+      count: oldViewTopics.filter((topic) => topic.assistantId === visibleAssistantId).length
+    }
+  }, [isOldView, oldViewTopics, t, visibleAssistantId])
   const isDraftView = !isMessageOnlyView && !!draftAssistantSelectionSnapshot
   const tabInstanceTopicId =
     !isMessageOnlyView && !isDraftView ? (visibleTopic?.id ?? routeActiveTopicId ?? undefined) : undefined
@@ -702,6 +715,7 @@ const HomePage: FC = () => {
             showResourceListControls={!isMessageOnlyView && !isWindowFrame}
             sidebarOpen={effectiveShowSidebar}
             onSidebarToggle={toggleResourceListOpen}
+            resourcePaneCount={topicResourcePaneCount}
             welcomeText={t('chat.home.welcome_title')}
           />
         </ContentContainer>
@@ -730,6 +744,7 @@ const HomePage: FC = () => {
           onSidebarToggle={toggleResourceListOpen}
           locateMessageId={pendingLocateMessageId}
           onLocateMessageHandled={handleLocateMessageHandled}
+          resourcePaneCount={topicResourcePaneCount}
         />
       </ContentContainer>
       {assistantPickerDialog}
@@ -749,6 +764,7 @@ type DraftWelcomeChatProps = {
   onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
   onSend: (text: string, options?: DraftChatSendOptions) => Promise<void>
+  resourcePaneCount?: ResourcePaneCountButtonProps
   showResourceListControls?: boolean
   sidebarOpen?: boolean
   onSidebarToggle?: () => void
@@ -766,6 +782,7 @@ function DraftWelcomeChat({
   onCreateEmptyTopic,
   onDraftAssistantChange,
   onSend,
+  resourcePaneCount,
   showResourceListControls,
   sidebarOpen,
   onSidebarToggle,
@@ -801,7 +818,15 @@ function DraftWelcomeChat({
           onSidebarToggle={onSidebarToggle}
         />
       }
-      topRightTool={resourcePane ? <TopicRightPane.Toggle /> : undefined}
+      topRightTool={
+        resourcePane ? (
+          <>
+            {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} />}
+            <TopicRightPane.Toggle />
+          </>
+        ) : undefined
+      }
+      topRightToolReserve={resourcePaneCount ? 'history' : 'single'}
       center={
         <ConversationStageCenter placement="home" main={null} composer={composer} homeWelcomeText={welcomeText} />
       }
