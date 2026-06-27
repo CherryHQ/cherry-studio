@@ -590,10 +590,9 @@ const api = {
       providerId: string,
       directory: string,
       env: Record<string, string>,
-      options?: { autoUpdateToLatest?: boolean; terminal?: string },
-      config?: Record<string, unknown>
+      options?: { autoUpdateToLatest?: boolean; terminal?: string }
     ): Promise<CodeToolsRunResult> =>
-      ipcRenderer.invoke(IpcChannel.CodeCli_Run, cliTool, model, providerId, directory, env, options, config),
+      ipcRenderer.invoke(IpcChannel.CodeCli_Run, cliTool, model, providerId, directory, env, options),
     getAvailableTerminals: (): Promise<TerminalConfig[]> =>
       ipcRenderer.invoke(IpcChannel.CodeCli_GetAvailableTerminals),
     setCustomTerminalPath: (terminalId: string, path: string): Promise<void> =>

@@ -1,8 +1,8 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import { isMac, isWin } from '@renderer/config/constant'
 import type { CliNamedConfig } from '@shared/data/preference/preferenceTypes'
 import type { TerminalConfig } from '@shared/types/codeCli'
-import { Play } from 'lucide-react'
+import { FolderOpen, Play } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -30,6 +30,9 @@ export const CurrentConfigPanel: FC<CurrentConfigPanelProps> = ({
 }) => {
   const { t } = useTranslation()
   const showTerminals = (isMac || isWin) && terminals.length > 0
+  // Prefer the persisted terminal; fall back to the first available one so the
+  // picker never shows a blank value before the user makes a choice.
+  const effectiveTerminal = selectedTerminal ?? terminals[0]?.id ?? ''
 
   return (
     <div className="space-y-3 border-border/15 border-t pt-4">
@@ -43,11 +46,10 @@ export const CurrentConfigPanel: FC<CurrentConfigPanelProps> = ({
 
       <div className="space-y-1.5">
         <label className="text-foreground/70 text-xs">{t('code.working_directory')}</label>
-        <div className="flex items-center gap-2">
-          <div className="min-w-0 flex-1 truncate rounded-md border border-border-muted bg-muted/30 px-3 py-2 font-mono text-foreground text-xs">
-            {config.directory || t('code.folder_placeholder')}
-          </div>
-          <Button variant="secondary" size="lg" onClick={onSelectFolder} className="shrink-0">
+        <div className="flex w-full items-center">
+          <Input value={config.directory ?? ''} placeholder={t('code.folder_placeholder')} readOnly tabIndex={-1} />
+          <Button variant="default" onClick={onSelectFolder} className="ml-2 shrink-0">
+            <FolderOpen size={16} />
             {t('code.select_folder')}
           </Button>
         </div>
@@ -70,16 +72,18 @@ export const CurrentConfigPanel: FC<CurrentConfigPanelProps> = ({
       {showTerminals && (
         <div className="space-y-1.5">
           <label className="text-foreground/70 text-xs">{t('code.terminal')}</label>
-          <select
-            value={selectedTerminal ?? ''}
-            onChange={(e) => onSelectTerminal(e.target.value)}
-            className="w-full rounded-md border border-border-muted bg-muted/30 px-3 py-2 text-foreground text-sm">
-            {terminals.map((terminal) => (
-              <option key={terminal.id} value={terminal.id}>
-                {terminal.name}
-              </option>
-            ))}
-          </select>
+          <Select value={effectiveTerminal} onValueChange={(value) => onSelectTerminal(value)}>
+            <SelectTrigger size="sm" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {terminals.map((terminal) => (
+                <SelectItem key={terminal.id} value={terminal.id}>
+                  {terminal.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
     </div>

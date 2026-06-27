@@ -63,64 +63,6 @@ export interface CodexChatReasoning {
 }
 
 /**
- * Claude Code provider config (→ ~/.claude/settings.json).
- */
-export interface ClaudeProviderConfig {
-  baseUrl: string
-  model: string
-  apiKey?: string
-  authToken?: string
-  haikuModel?: string
-  sonnetModel?: string
-  opusModel?: string
-  timeoutMs?: string
-  maxOutputTokens?: string
-  disableNonessentialTraffic?: number
-  autoCompactWindow?: string
-  disableExperimentalBetas?: string
-  enableToolSearch?: boolean
-  skipWebFetchPreflight?: boolean
-  includeCoAuthoredBy?: boolean
-  effortLevel?: string
-  enabledPlugins?: Record<string, boolean>
-}
-
-/**
- * OpenAI Codex provider config (→ ~/.codex/config.toml + auth.json).
- */
-export interface CodexProviderConfig {
-  apiKey: string
-  baseUrl: string
-  providerName: string
-  model: string
-  reasoningEffort?: string
-  disableResponseStorage?: boolean
-  personality?: string
-  verbosity?: string
-  contextWindow?: number
-  autoCompactTokenLimit?: number
-  reviewModel?: string
-}
-
-/**
- * OpenCode provider config (→ ~/.config/opencode/opencode.json).
- */
-export interface OpenCodeProviderConfig {
-  apiKey: string
-  baseUrl: string
-  providerName: string
-  providerType: string
-  endpointType: string
-  model: string
-  modelName: string
-  isReasoning: boolean
-  supportsReasoningEffort: boolean
-  budgetTokens?: number
-  contextLimit?: number
-  outputLimit?: number
-}
-
-/**
  * Hermes provider config (→ ~/.hermes/config.yaml).
  */
 export interface HermesProviderConfig {
@@ -133,12 +75,3 @@ export interface HermesProviderConfig {
   contextLength?: number
   maxTokens?: number
 }
-
-export interface CliProviderConfigMap {
-  [codeCLI.claudeCode]: ClaudeProviderConfig
-  [codeCLI.openaiCodex]: CodexProviderConfig
-  [codeCLI.openCode]: OpenCodeProviderConfig
-  [codeCLI.hermes]: HermesProviderConfig
-}
-
-export type CliProviderConfig = CliProviderConfigMap[keyof CliProviderConfigMap]

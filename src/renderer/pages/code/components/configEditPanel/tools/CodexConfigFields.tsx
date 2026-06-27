@@ -17,8 +17,15 @@ export interface CodexConfigFieldsProps {
 const DEFAULT_AUTH = `{
   "OPENAI_API_KEY": null
 }`
-const DEFAULT_TOML = `model = "gpt-5"
-model_provider = "Cherry"`
+const DEFAULT_TOML = `model_provider = "custom"
+model = "gpt-5.5"
+model_reasoning_effort = "high"
+disable_response_storage = true
+
+[model_providers.custom]
+name = "custom"
+wire_api = "responses"
+requires_openai_auth = true`
 
 function asString(value: unknown, fallback: string): string {
   return typeof value === 'string' ? value : fallback
@@ -44,7 +51,7 @@ export const CodexConfigFields: FC<CodexConfigFieldsProps> = ({ config, onChange
   )
 
   return (
-    <>
+    <div className="space-y-4">
       <Section title={t('code.adv.codex.auth_json')} description={t('code.config_json_hint')}>
         <CodeEditor
           theme={activeCmTheme}
@@ -74,6 +81,6 @@ export const CodexConfigFields: FC<CodexConfigFieldsProps> = ({ config, onChange
           options={{ lineNumbers: true, foldGutter: true, keymap: true }}
         />
       </Section>
-    </>
+    </div>
   )
 }

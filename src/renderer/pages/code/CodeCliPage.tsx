@@ -2,6 +2,7 @@ import { Button } from '@cherrystudio/ui'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
+import { injectCliConfig } from '@renderer/services/codeCli'
 import { loggerService } from '@renderer/services/LoggerService'
 import type { CliNamedConfig } from '@shared/data/preference/preferenceTypes'
 import { CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
@@ -49,7 +50,6 @@ const CodeCliPage: FC = () => {
     selectedTerminal,
     addConfig,
     updateConfig,
-    duplicateConfig,
     deleteConfig,
     setCurrentConfig,
     selectTool,
@@ -86,17 +86,19 @@ const CodeCliPage: FC = () => {
           ...(values.config ? { config: values.config } : {})
         })
         await setCurrentConfig(selectedCliTool, newId)
+        try {
+          await injectCliConfig({
+            cliTool: selectedCliTool,
+            modelId: values.modelId,
+            configBlob: values.config
+          })
+        } catch (err) {
+          logger.error('Failed to inject CLI config on create:', err as Error)
+          window.toast.error(t('code.apply_failed'))
+        }
       }
     },
     [panel, selectedCliTool, updateConfig, addConfig, setCurrentConfig]
-  )
-
-  const handleDuplicate = useCallback(
-    async (config: CliNamedConfig) => {
-      await duplicateConfig(selectedCliTool, config.id)
-      window.toast.success(t('code.duplicate_success'))
-    },
-    [duplicateConfig, selectedCliTool, t]
   )
 
   const handleDelete = useCallback(
@@ -109,9 +111,23 @@ const CodeCliPage: FC = () => {
 
   const handleToggleCurrent = useCallback(
     (config: CliNamedConfig) => {
-      void setCurrentConfig(selectedCliTool, config.id)
+      const isEnabling = currentConfig?.id !== config.id
+      void (async () => {
+        await setCurrentConfig(selectedCliTool, isEnabling ? config.id : null)
+        if (!isEnabling) return
+        try {
+          await injectCliConfig({
+            cliTool: selectedCliTool,
+            modelId: config.modelId,
+            configBlob: config.config
+          })
+        } catch (err) {
+          logger.error('Failed to inject CLI config on enable:', err as Error)
+          window.toast.error(t('code.apply_failed'))
+        }
+      })()
     },
-    [setCurrentConfig, selectedCliTool]
+    [setCurrentConfig, selectedCliTool, currentConfig, t]
   )
 
   const handleSelectFolder = useCallback(async () => {
@@ -123,15 +139,13 @@ const CodeCliPage: FC = () => {
     }
   }, [currentConfig, selectFolder])
 
-  // Launch the current config: apply its config body to the tool's native
-  // config file (claude-code writes ~/.claude/settings.json, cc-switch style),
-  // then open a terminal running the CLI in the config's directory.
+  // The native config file is written at "enable" time, not here — launch only
+  // opens a terminal running the CLI in the config's directory.
   const handleLaunch = useCallback(async () => {
     if (!currentConfig || !currentConfig.directory) {
       window.toast.error(t('code.folder_placeholder'))
       return
     }
-    const config = currentConfig.config ?? {}
     const { providerId, modelId: rawModelId } = isUniqueModelId(currentConfig.modelId)
       ? parseUniqueModelId(currentConfig.modelId)
       : { providerId: '', modelId: currentConfig.modelId }
@@ -142,8 +156,7 @@ const CodeCliPage: FC = () => {
         providerId,
         currentConfig.directory,
         {},
-        { terminal: selectedTerminal ?? undefined },
-        config
+        { terminal: selectedTerminal ?? undefined }
       )
       if (!runResult.success) {
         window.toast.error(runResult.message)
@@ -234,7 +247,6 @@ const CodeCliPage: FC = () => {
                   currentConfigId={currentConfig?.id ?? null}
                   resolveMeta={resolveConfigMeta}
                   onEdit={openEditPanel}
-                  onDuplicate={handleDuplicate}
                   onDelete={handleDelete}
                   onToggleCurrent={handleToggleCurrent}
                 />

@@ -1,20 +1,28 @@
-import { Button, Dialog, DialogContent, DialogFooter, DialogTitle, Input } from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { ModelSelector } from '@renderer/components/Selector/model'
 import { useModelById } from '@renderer/hooks/useModel'
 import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
+import {
+  SettingContainer,
+  SettingDivider,
+  SettingGroup,
+  SettingHelpText,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '@renderer/pages/settings'
 import type { CliNamedConfig } from '@shared/data/preference/preferenceTypes'
-import type { EndpointType, Model } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
 import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { codeCLI } from '@shared/types/codeCli'
 import { ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { CLI_TOOLS, getCodeCliApiBaseUrl } from '../../cliTools'
-import { CLIIcon } from '../CLIIcon'
-import { FormField, Section } from './PanelPrimitives'
+import { CLI_TOOLS } from '../../cliTools'
 import { ClaudeConfigFields } from './tools/ClaudeConfigFields'
 import { CodexConfigFields } from './tools/CodexConfigFields'
 import { HermesConfigFields } from './tools/HermesConfigFields'
@@ -35,16 +43,10 @@ export interface ConfigEditPanelProps {
   }) => Promise<void>
 }
 
-// Short labels for the endpoint-type badge in the provider context bar.
-const ENDPOINT_LABEL: Partial<Record<EndpointType, string>> = {
-  'anthropic-messages': 'Anthropic',
-  'openai-chat-completions': 'OpenAI',
-  'openai-responses': 'Responses'
-}
-
 export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
   const { open, onClose, cliTool, modelFilter, onSubmit } = props
   const { t } = useTranslation()
+  const { theme } = useTheme()
   const { providers } = useProviders()
   const providerMap = useMemo(() => new Map(providers.map((p) => [p.id, p])), [providers])
 
@@ -78,27 +80,19 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
 
   const selectedProvider = selectedModelRecord ? providerMap.get(selectedModelRecord.providerId) : undefined
 
-  // Fetch the provider's metadata for the endpoint context bar.
-  const providerContext = useMemo(() => {
-    if (!selectedProvider) return null
-    const anthropicBaseUrl =
-      getCodeCliApiBaseUrl(selectedProvider.id, 'anthropic') ??
-      selectedProvider.endpointConfigs?.['anthropic-messages']?.baseUrl
-    const useAnthropic = cliTool === 'claude-code' && Boolean(anthropicBaseUrl)
-    const endpointType = useAnthropic ? 'anthropic-messages' : selectedProvider.defaultChatEndpoint
-    const baseUrl = useAnthropic
-      ? anthropicBaseUrl
-      : endpointType
-        ? selectedProvider.endpointConfigs?.[endpointType]?.baseUrl
-        : undefined
-    return {
-      name: getProviderDisplayName(selectedProvider),
-      endpointLabel: endpointType ? (ENDPOINT_LABEL[endpointType] ?? endpointType) : undefined,
-      baseUrl
-    }
-  }, [selectedProvider, cliTool])
+  // Auto-fill the config name (once per selected model) so the list keeps a
+  // readable label without forcing the user to type one before saving.
+  const lastAutoFilledFor = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    if (!selectedModelRecord) return
+    if (lastAutoFilledFor.current === selectedModelRecord.id) return
+    lastAutoFilledFor.current = selectedModelRecord.id
+    setName((prev) => (prev.trim() ? prev : selectedModelRecord.name || selectedModelRecord.id))
+  }, [selectedModelRecord])
 
-  const canSubmit = name.trim().length > 0 && !!modelId
+  // Model selection alone is sufficient to save — credentials and base URL
+  // are resolved from the model service at launch time, never required here.
+  const canSubmit = !!modelId
 
   const renderModelTrigger = () => (
     <button
@@ -157,68 +151,55 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
 
   return (
     <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : undefined)}>
-      <DialogContent size="lg" aria-describedby={undefined} className="flex max-h-[85vh] flex-col p-0">
-        <div className="flex h-12 shrink-0 items-center gap-2.5 border-border/15 border-b pr-12 pl-6">
-          <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10">
-            <CLIIcon id={cliTool} size={16} className="text-primary" />
-          </div>
-          <DialogTitle className="flex min-w-0 items-center gap-1.5 text-left font-medium text-sm leading-none">
-            <span className="truncate text-foreground">{toolMeta?.label ?? cliTool}</span>
-            <span className="shrink-0 rounded bg-accent/50 px-1.5 py-0.5 font-normal text-[10px] text-muted-foreground/70">
-              {props.config ? t('code.edit_config') : t('code.add_config')}
-            </span>
-          </DialogTitle>
-        </div>
+      <DialogContent
+        size="lg"
+        aria-describedby={undefined}
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        className="flex max-h-[85vh] flex-col">
+        <DialogHeader>
+          <DialogTitle>{toolMeta?.label ?? cliTool}</DialogTitle>
+        </DialogHeader>
 
-        <div className="scrollbar-thin min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-5">
-          {providerContext && (
-            <div className="flex items-center gap-2 rounded-lg border border-border/40 bg-accent/15 px-3 py-2">
-              <span className="shrink-0 font-medium text-foreground text-xs">{providerContext.name}</span>
-              {providerContext.endpointLabel && (
-                <span className="shrink-0 rounded bg-accent/60 px-1.5 py-0.5 text-[10px] text-muted-foreground/70">
-                  {providerContext.endpointLabel}
-                </span>
-              )}
-              {providerContext.baseUrl && (
-                <span className="truncate font-mono text-[11px] text-muted-foreground/55">
-                  {providerContext.baseUrl}
-                </span>
-              )}
-              <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/50">
-                {t('code.endpoint_key_in_model_service')}
-              </span>
-            </div>
-          )}
-
-          <Section title={t('code.basic_info')}>
-            <FormField label={t('code.config_name')}>
+        <SettingContainer theme={theme} style={{ background: 'transparent' }}>
+          <SettingGroup theme={theme}>
+            <SettingTitle>{t('code.basic_info')}</SettingTitle>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('code.config_name')}</SettingRowTitle>
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder={t('code.config_name_placeholder')}
+                className="h-9 max-w-[300px]"
               />
-            </FormField>
-          </Section>
+            </SettingRow>
+          </SettingGroup>
 
-          <Section title={t('code.model')}>
-            <div className="space-y-2.5">
-              <ModelSelector
-                multiple={false}
-                selectionType="id"
-                value={modelId}
-                onSelect={setModelId}
-                filter={modelFilter}
-                showTagFilter
-                trigger={renderModelTrigger()}
-              />
-              <p className="text-[11px] text-muted-foreground/50">{t('code.model_hint_config')}</p>
-            </div>
-          </Section>
+          <SettingGroup theme={theme}>
+            <SettingTitle>{t('code.model')}</SettingTitle>
+            <SettingDivider />
+            <ModelSelector
+              multiple={false}
+              selectionType="id"
+              value={modelId}
+              onSelect={setModelId}
+              filter={modelFilter}
+              showTagFilter
+              trigger={renderModelTrigger()}
+            />
+            <SettingHelpText className="mt-2">{t('code.model_hint_config')}</SettingHelpText>
+          </SettingGroup>
 
-          {renderToolFields()}
-        </div>
+          {renderToolFields() && (
+            <SettingGroup theme={theme}>
+              <SettingTitle>{t('code.tool_parameters')}</SettingTitle>
+              <SettingDivider />
+              {renderToolFields()}
+            </SettingGroup>
+          )}
+        </SettingContainer>
 
-        <DialogFooter className="shrink-0 justify-end gap-2 border-border/15 border-t px-6 py-3">
+        <DialogFooter className="justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={onClose} disabled={submitting}>
             {t('common.cancel')}
           </Button>

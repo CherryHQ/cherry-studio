@@ -143,6 +143,34 @@ describe('useCodeCli', () => {
     })
   })
 
+  describe('addConfig + setCurrentConfig (sequential write)', () => {
+    // Regression: `CodeCliPage.handlePanelSubmit` calls addConfig() then
+    // setCurrentConfig() back-to-back. `usePreference`'s setter takes a plain
+    // value, so the second write used to read a stale configs snapshot and
+    // wipe the just-added provider — leaving an empty list ("no configs yet")
+    // with a dangling `current` pointer.
+    it('preserves the added provider when selecting it immediately after', async () => {
+      const mockSetter = setupUpdaterMock({} as CodeCliConfigs)
+      const { result } = renderHook(() => useCodeCli())
+
+      let newId = ''
+      await act(async () => {
+        newId = await result.current.addConfig(codeCLI.claudeCode, {
+          name: 'New',
+          providerId: 'anthropic',
+          modelId: 'anthropic::claude-4'
+        })
+        await result.current.setCurrentConfig(codeCLI.claudeCode, newId)
+      })
+
+      expect(mockSetter).toHaveBeenCalledTimes(2)
+      const lastWrite = mockSetter.mock.calls[1][0] as CodeCliConfigs
+      const toolState = lastWrite[codeCLI.claudeCode]
+      expect(toolState.providers[newId]).toBeDefined()
+      expect(toolState.current).toBe(newId)
+    })
+  })
+
   describe('updateConfig', () => {
     it('should patch an existing config', async () => {
       const mockSetter = setupUpdaterMock({

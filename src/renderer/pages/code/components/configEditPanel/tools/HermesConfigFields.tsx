@@ -25,7 +25,7 @@ export const HermesConfigFields: FC<HermesConfigFieldsProps> = ({ config, onChan
   const [open, setOpen] = useState(false)
 
   return (
-    <>
+    <div className="space-y-4">
       <AdvancedConfigToggle open={open} onToggle={() => setOpen((o) => !o)}>
         <div className="grid grid-cols-1 items-start gap-x-4 gap-y-4 xl:grid-cols-2">
           {NUMBER_FIELDS.map((field) => (
@@ -41,6 +41,6 @@ export const HermesConfigFields: FC<HermesConfigFieldsProps> = ({ config, onChan
           ))}
         </div>
       </AdvancedConfigToggle>
-    </>
+    </div>
   )
 }

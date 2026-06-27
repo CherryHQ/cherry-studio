@@ -1937,6 +1937,7 @@
     "add_provider_hint": "在 设置 → 模型服务 添加服务商",
     "adv": {
       "claude": {
+        "context_column": "1M",
         "disable_auto_upgrade": "禁用自动更新",
         "effort_max": "努力程度: Max",
         "enable_teammates": "启用 Teammates",
@@ -1944,10 +1945,12 @@
         "fable_model": "Fable 模型",
         "haiku_model": "Haiku 模型",
         "hide_attribution": "隐藏 AI 署名",
+        "model_column": "实际请求模型",
         "model_roles": "模型角色映射",
         "model_roles_hint": "覆盖后台子任务（如压缩、标题）使用的模型。留空则跟随主模型。",
         "options": "快捷选项",
         "opus_model": "Opus 模型",
+        "role_column": "角色",
         "sonnet_model": "Sonnet 模型"
       },
       "codex": {
@@ -1970,6 +1973,7 @@
       },
       "select_placeholder": "请选择…"
     },
+    "apply_failed": "写入 CLI 配置到系统文件失败",
     "auto_update_to_latest": "检查更新并安装最新版本",
     "basic_info": "基本信息",
     "bun_required_message": "运行 CLI 工具需要安装 Bun 环境",
@@ -1990,12 +1994,10 @@
     "custom_path_required": "此终端需要设置自定义路径",
     "custom_path_set": "自定义终端路径设置成功",
     "description": "快速启动多个代码 CLI 工具，提高开发效率",
-    "duplicate": "复制",
-    "duplicate_success": "已复制",
+    "disable": "禁用",
     "edit_config": "编辑配置",
     "enable": "启用",
     "enabled": "已启用",
-    "endpoint_key_in_model_service": "端点 / Key 在 模型服务",
     "env_vars_help": "输入自定义环境变量（每行一个，格式：KEY=value）",
     "environment_variables": "环境变量",
     "folder_placeholder": "选择工作目录",

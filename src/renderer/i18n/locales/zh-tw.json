@@ -1937,6 +1937,7 @@
     "add_provider_hint": "在 設定 → 模型服務 新增服務商",
     "adv": {
       "claude": {
+        "context_column": "1M",
         "disable_auto_upgrade": "停用自動更新",
         "effort_max": "努力程度: Max",
         "enable_teammates": "啟用 Teammates",
@@ -1944,10 +1945,12 @@
         "fable_model": "Fable 模型",
         "haiku_model": "Haiku 模型",
         "hide_attribution": "隱藏 AI 署名",
+        "model_column": "實際請求模型",
         "model_roles": "模型角色對應",
         "model_roles_hint": "覆寫背景子任務（如壓縮、標題）使用的模型。留空則跟隨主模型。",
         "options": "快捷選項",
         "opus_model": "Opus 模型",
+        "role_column": "角色",
         "sonnet_model": "Sonnet 模型"
       },
       "codex": {
@@ -1990,12 +1993,10 @@
     "custom_path_required": "此終端機需要設定自訂路徑",
     "custom_path_set": "自訂終端機路徑設定成功",
     "description": "快速啟動多個程式碼 CLI 工具，提高開發效率",
-    "duplicate": "複製",
-    "duplicate_success": "已複製",
+    "disable": "停用",
     "edit_config": "編輯設定",
     "enable": "啟用",
     "enabled": "已啟用",
-    "endpoint_key_in_model_service": "端點 / Key 在 模型服務",
     "env_vars_help": "輸入自訂環境變數（每行一個，格式：KEY=value）",
     "environment_variables": "環境變數",
     "folder_placeholder": "選擇工作目錄",

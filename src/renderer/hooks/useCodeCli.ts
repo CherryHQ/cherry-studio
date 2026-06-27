@@ -7,7 +7,7 @@ import type {
   CodeCliToolState
 } from '@shared/data/preference/preferenceTypes'
 import { codeCLI } from '@shared/types/codeCli'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useCodeCli')
 
@@ -39,6 +39,13 @@ function orderedConfigs(state: CodeCliToolState): CliNamedConfig[] {
 export const useCodeCli = () => {
   const [configs, setConfigs] = usePreference(PREFERENCE_KEY)
 
+  // Mirror configs in a ref so sequential writes chain correctly: usePreference's
+  // setter takes a plain value, so two awaited writes back-to-back would otherwise
+  // have the second read a stale snapshot and clobber the first (e.g. addConfig()
+  // immediately followed by setCurrentConfig() wiped the just-added provider).
+  const configsRef = useRef(configs)
+  configsRef.current = configs
+
   const [selectedCliTool, setSelectedCliTool] = useState<codeCLI>(DEFAULT_TOOL)
 
   const selectTool = useCallback((tool: codeCLI) => {
@@ -63,10 +70,13 @@ export const useCodeCli = () => {
   /** Patch a single tool's state. */
   const patchToolState = useCallback(
     async (toolId: CodeCliId, patch: (prev: CodeCliToolState) => CodeCliToolState) => {
-      const prev = getToolState(toolId, configs)
-      await setConfigs({ ...configs, [toolId]: patch(prev) })
+      const latest = configsRef.current
+      const prev = getToolState(toolId, latest)
+      const next = { ...latest, [toolId]: patch(prev) }
+      configsRef.current = next
+      await setConfigs(next)
     },
-    [configs, setConfigs]
+    [setConfigs]
   )
 
   /** Add a new named config for a tool. Returns the new config id. */
@@ -113,30 +123,6 @@ export const useCodeCli = () => {
     [patchToolState]
   )
 
-  /** Duplicate an existing config under a new id. */
-  const duplicateConfig = useCallback(
-    async (toolId: CodeCliId, configId: string): Promise<string | null> => {
-      const existing = getToolState(toolId, configs).providers[configId]
-      if (!existing) return null
-      const id = generateConfigId()
-      const orderLen = orderedConfigs(getToolState(toolId, configs)).length
-      const copy: CliNamedConfig = {
-        ...existing,
-        id,
-        name: `${existing.name} copy`,
-        createdAt: Date.now(),
-        sortIndex: orderLen
-      }
-      await patchToolState(toolId, (prev) => ({
-        ...prev,
-        providers: { ...prev.providers, [id]: copy }
-      }))
-      logger.info('Duplicated CLI config', { toolId, from: configId, to: id })
-      return id
-    },
-    [configs, patchToolState]
-  )
-
   /** Delete a named config; clears `current` if it was active. */
   const deleteConfig = useCallback(
     async (toolId: CodeCliId, configId: string) => {
@@ -155,7 +141,7 @@ export const useCodeCli = () => {
 
   /** Set the tool's active config. */
   const setCurrentConfig = useCallback(
-    async (toolId: CodeCliId, configId: string) => {
+    async (toolId: CodeCliId, configId: string | null) => {
       await patchToolState(toolId, (prev) => ({ ...prev, current: configId }))
     },
     [patchToolState]
@@ -255,7 +241,6 @@ export const useCodeCli = () => {
     // config CRUD
     addConfig,
     updateConfig,
-    duplicateConfig,
     deleteConfig,
     setCurrentConfig,
     reorderConfigs,

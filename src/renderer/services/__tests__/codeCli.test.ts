@@ -1,0 +1,211 @@
+import { dataApiService } from '@data/DataApiService'
+import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
+import { codeCLI } from '@shared/types/codeCli'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { injectCliConfig } from '../codeCli'
+
+/** Per-path DataApi.get mock returning provider / api-keys / model payloads.
+ * Prefixes are matched longest-first so `/providers/:id/api-keys` is not
+ * shadowed by the `/providers/:id` entry. */
+function mockGet(handlers: Record<string, () => unknown>) {
+  const prefixes = Object.keys(handlers).sort((a, b) => b.length - a.length)
+  vi.mocked(dataApiService.get).mockImplementation(async (path: string) => {
+    for (const prefix of prefixes) {
+      if (path.startsWith(prefix)) return handlers[prefix]()
+    }
+    return undefined
+  })
+}
+
+const anthropicProvider = {
+  id: 'anthropic',
+  name: 'Anthropic',
+  endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } },
+  defaultChatEndpoint: 'anthropic-messages'
+} as unknown as Provider
+
+const openaiCompatProvider = {
+  id: 'deepseek',
+  name: 'DeepSeek',
+  endpointConfigs: {
+    'openai-chat-completions': { baseUrl: 'https://api.deepseek.com/v1' }
+  },
+  defaultChatEndpoint: 'openai-chat-completions'
+} as unknown as Provider
+
+const enabledKey: ApiKeyEntry = { id: 'k1', key: 'sk-secret', isEnabled: true }
+
+describe('injectCliConfig', () => {
+  let written: { path: string; content: string } | null
+  let existing: Record<string, string>
+
+  beforeEach(() => {
+    written = null
+    existing = {}
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        resolvePath: vi.fn(async (p: string) => `/resolved${p}`),
+        file: {
+          readExternal: vi.fn(async (absPath: string) => existing[absPath] ?? ''),
+          write: vi.fn(async (absPath: string, content: string) => {
+            written = { path: absPath, content }
+          })
+        }
+      }
+    })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('is a no-op for hermes / openclaw (still injected in main run())', async () => {
+    mockGet({})
+    await injectCliConfig({ cliTool: codeCLI.hermes, modelId: 'p::m' })
+    await injectCliConfig({ cliTool: codeCLI.openclaw, modelId: 'p::m' })
+    expect(written).toBeNull()
+    expect(dataApiService.get).not.toHaveBeenCalled()
+  })
+
+  it('throws when the provider cannot be resolved', async () => {
+    mockGet({ '/providers/ghost': () => undefined })
+    await expect(injectCliConfig({ cliTool: codeCLI.claudeCode, modelId: 'ghost::claude-4' })).rejects.toThrow(
+      /Provider not found/
+    )
+  })
+
+  describe('claude-code (~/.claude/settings.json)', () => {
+    it('injects ANTHROPIC_AUTH_TOKEN/BASE_URL/MODEL into the env block', async () => {
+      mockGet({
+        '/providers/anthropic': () => anthropicProvider,
+        '/providers/anthropic/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await injectCliConfig({
+        cliTool: codeCLI.claudeCode,
+        modelId: 'anthropic::claude-sonnet-4-5'
+      })
+
+      expect(written).not.toBeNull()
+      const parsed = JSON.parse(written!.content)
+      expect(parsed.env).toEqual({
+        ANTHROPIC_BASE_URL: 'https://api.anthropic.com',
+        ANTHROPIC_AUTH_TOKEN: 'sk-secret',
+        ANTHROPIC_MODEL: 'claude-sonnet-4-5'
+      })
+    })
+
+    it('deep-merges, preserving unrelated keys (mcpServers/theme) and clearing stale managed env keys', async () => {
+      existing['/resolved~/.claude/settings.json'] = JSON.stringify({
+        mcpServers: { fs: { command: 'npx' } },
+        theme: 'dark',
+        env: { ANTHROPIC_AUTH_TOKEN: 'sk-stale', KEEP: '1' }
+      })
+      mockGet({
+        '/providers/anthropic': () => anthropicProvider,
+        '/providers/anthropic/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await injectCliConfig({
+        cliTool: codeCLI.claudeCode,
+        modelId: 'anthropic::claude-sonnet-4-5'
+      })
+
+      const parsed = JSON.parse(written!.content)
+      expect(parsed.mcpServers).toEqual({ fs: { command: 'npx' } })
+      expect(parsed.theme).toBe('dark')
+      expect(parsed.env.KEEP).toBe('1')
+      // stale token dropped, new token injected
+      expect(parsed.env.ANTHROPIC_AUTH_TOKEN).toBe('sk-secret')
+    })
+
+    it('drops previous config quick-options / model-roles / attribution on switch', async () => {
+      // Simulate a native file written by a previous config that had every
+      // Cherry-managed field set. The new config asserts none of them, so all
+      // Cherry-managed keys must be cleared (each config is independent).
+      existing['/resolved~/.claude/settings.json'] = JSON.stringify({
+        theme: 'dark',
+        attribution: { commit: '', pr: '' },
+        env: {
+          KEEP: '1',
+          ANTHROPIC_DEFAULT_SONNET_MODEL: 'old-sonnet',
+          ANTHROPIC_DEFAULT_SONNET_MODEL_NAME: 'old-sonnet',
+          ANTHROPIC_DEFAULT_FABLE_MODEL: 'old-fable',
+          ANTHROPIC_DEFAULT_FABLE_MODEL_NAME: 'old-fable',
+          ENABLE_TOOL_SEARCH: 'true',
+          CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: '1',
+          CLAUDE_CODE_EFFORT_LEVEL: 'max',
+          DISABLE_AUTOUPDATER: '1'
+        }
+      })
+      mockGet({
+        '/providers/anthropic': () => anthropicProvider,
+        '/providers/anthropic/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await injectCliConfig({
+        cliTool: codeCLI.claudeCode,
+        modelId: 'anthropic::claude-sonnet-4-5'
+        // no configBlob: nothing re-asserted
+      })
+
+      const parsed = JSON.parse(written!.content)
+      // unrelated key preserved
+      expect(parsed.theme).toBe('dark')
+      expect(parsed.env.KEEP).toBe('1')
+      // stale managed env keys dropped
+      expect(parsed.env).not.toHaveProperty('ANTHROPIC_DEFAULT_SONNET_MODEL')
+      expect(parsed.env).not.toHaveProperty('ANTHROPIC_DEFAULT_SONNET_MODEL_NAME')
+      expect(parsed.env).not.toHaveProperty('ANTHROPIC_DEFAULT_FABLE_MODEL')
+      expect(parsed.env).not.toHaveProperty('ANTHROPIC_DEFAULT_FABLE_MODEL_NAME')
+      expect(parsed.env).not.toHaveProperty('ENABLE_TOOL_SEARCH')
+      expect(parsed.env).not.toHaveProperty('CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS')
+      expect(parsed.env).not.toHaveProperty('CLAUDE_CODE_EFFORT_LEVEL')
+      expect(parsed.env).not.toHaveProperty('DISABLE_AUTOUPDATER')
+      // stale attribution dropped
+      expect(parsed).not.toHaveProperty('attribution')
+    })
+  })
+
+  describe('codex (~/.codex/config.toml)', () => {
+    it('writes a merged TOML with a Cherry-* provider and the model', async () => {
+      // smol-toml parses on read to verify the round-trip
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await injectCliConfig({
+        cliTool: codeCLI.openaiCodex,
+        modelId: 'deepseek::deepseek-chat'
+      })
+
+      expect(written).not.toBeNull()
+      // re-parse the written TOML to assert structure
+      const { parse: parseToml } = await import('smol-toml')
+      const parsed = parseToml(written!.content) as Record<string, any>
+      expect(parsed.model).toBe('deepseek-chat')
+      expect(parsed.model_provider).toBe('Cherry-DeepSeek')
+      expect(parsed.model_providers['Cherry-DeepSeek'].base_url).toBe('https://api.deepseek.com/v1')
+      expect(parsed.model_providers['Cherry-DeepSeek'].experimental_bearer_token).toBe('sk-secret')
+    })
+
+    it('throws when the provider has no usable baseUrl', async () => {
+      const noUrl = { ...openaiCompatProvider, endpointConfigs: {} } as unknown as Provider
+      mockGet({
+        '/providers/deepseek': () => noUrl,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+      await expect(
+        injectCliConfig({ cliTool: codeCLI.openaiCodex, modelId: 'deepseek::deepseek-chat' })
+      ).rejects.toThrow(/required fields/)
+    })
+  })
+})

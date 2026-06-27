@@ -1,6 +1,6 @@
-import { Badge, Button, Switch, Tooltip } from '@cherrystudio/ui'
+import { Badge, Button, Tooltip } from '@cherrystudio/ui'
 import type { CliNamedConfig } from '@shared/data/preference/preferenceTypes'
-import { Copy, Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Power, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -10,7 +10,6 @@ export interface ConfigCardProps {
   modelName?: string
   isCurrent: boolean
   onEdit: (config: CliNamedConfig) => void
-  onDuplicate: (config: CliNamedConfig) => void
   onDelete: (config: CliNamedConfig) => void
   onToggleCurrent: (config: CliNamedConfig) => void
 }
@@ -22,7 +21,6 @@ export const ConfigCard: FC<ConfigCardProps> = ({
   modelName,
   isCurrent,
   onEdit,
-  onDuplicate,
   onDelete,
   onToggleCurrent
 }) => {
@@ -60,6 +58,15 @@ export const ConfigCard: FC<ConfigCardProps> = ({
       </div>
 
       <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <Tooltip content={isCurrent ? t('code.disable') : t('code.enable')} side="bottom">
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={() => onToggleCurrent(config)}
+            className={`size-6 ${isCurrent ? 'text-primary' : 'text-muted-foreground/40 hover:text-foreground'}`}>
+            <Power size={12} />
+          </Button>
+        </Tooltip>
         <Tooltip content={t('common.edit')} side="bottom">
           <Button
             variant="ghost"
@@ -67,15 +74,6 @@ export const ConfigCard: FC<ConfigCardProps> = ({
             onClick={() => onEdit(config)}
             className="size-6 text-muted-foreground/40 hover:text-foreground">
             <Pencil size={10} />
-          </Button>
-        </Tooltip>
-        <Tooltip content={t('code.duplicate')} side="bottom">
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={() => onDuplicate(config)}
-            className="size-6 text-muted-foreground/40 hover:text-foreground">
-            <Copy size={10} />
           </Button>
         </Tooltip>
         <Tooltip content={t('common.delete')} side="bottom">
@@ -87,7 +85,6 @@ export const ConfigCard: FC<ConfigCardProps> = ({
             <Trash2 size={10} />
           </Button>
         </Tooltip>
-        <Switch size="sm" checked={isCurrent} onCheckedChange={() => onToggleCurrent(config)} />
       </div>
     </div>
   )

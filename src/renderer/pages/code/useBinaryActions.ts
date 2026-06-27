@@ -5,7 +5,7 @@ import type { codeCLI } from '@shared/types/codeCli'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { CLI_BINARY_NAMES } from './useCliVersionStatuses'
+import { CLI_BINARY_NAMES } from './cliTools'
 
 const logger = loggerService.withContext('useBinaryActions')
 

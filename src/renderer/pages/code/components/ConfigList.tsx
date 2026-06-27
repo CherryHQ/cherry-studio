@@ -10,7 +10,6 @@ export interface ConfigListProps {
   currentConfigId: string | null
   resolveMeta: (config: CliNamedConfig) => { providerName?: string; modelName?: string }
   onEdit: (config: CliNamedConfig) => void
-  onDuplicate: (config: CliNamedConfig) => void
   onDelete: (config: CliNamedConfig) => void
   onToggleCurrent: (config: CliNamedConfig) => void
 }
@@ -21,7 +20,6 @@ export const ConfigList: FC<ConfigListProps> = ({
   currentConfigId,
   resolveMeta,
   onEdit,
-  onDuplicate,
   onDelete,
   onToggleCurrent
 }) => {
@@ -49,7 +47,6 @@ export const ConfigList: FC<ConfigListProps> = ({
             modelName={meta.modelName}
             isCurrent={currentConfigId === config.id}
             onEdit={onEdit}
-            onDuplicate={onDuplicate}
             onDelete={onDelete}
             onToggleCurrent={onToggleCurrent}
           />

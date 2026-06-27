@@ -5,18 +5,10 @@ import type { BinaryState } from '@shared/data/preference/preferenceTypes'
 import { codeCLI } from '@shared/types/codeCli'
 import { useEffect, useRef, useState } from 'react'
 
+import { CLI_BINARY_NAMES } from './cliTools'
 import type { VersionStatus } from './types'
 
 const logger = loggerService.withContext('useCliVersionStatus')
-
-/** CLI tool id → installed binary name (the shim mise exposes). */
-export const CLI_BINARY_NAMES: Record<codeCLI, string> = {
-  [codeCLI.claudeCode]: 'claude',
-  [codeCLI.openaiCodex]: 'codex',
-  [codeCLI.openCode]: 'opencode',
-  [codeCLI.openclaw]: 'openclaw',
-  [codeCLI.hermes]: 'hermes'
-}
 
 type RegistryEntry = { name: string; tool: string }
 

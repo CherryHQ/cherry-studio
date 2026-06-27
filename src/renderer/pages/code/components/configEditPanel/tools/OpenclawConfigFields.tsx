@@ -28,7 +28,7 @@ export const OpenclawConfigFields: FC<OpenclawConfigFieldsProps> = ({ config, on
   const reasoningActive = env.OPENCLAW_REASONING === 'true'
 
   return (
-    <>
+    <div className="space-y-4">
       <TogglePill
         label={t('code.adv.openclaw.reasoning')}
         active={reasoningActive}
@@ -50,6 +50,6 @@ export const OpenclawConfigFields: FC<OpenclawConfigFieldsProps> = ({ config, on
           ))}
         </div>
       </AdvancedConfigToggle>
-    </>
+    </div>
   )
 }

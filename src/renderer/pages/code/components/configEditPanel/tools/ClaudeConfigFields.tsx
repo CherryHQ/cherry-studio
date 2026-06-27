@@ -1,22 +1,18 @@
-import { Button, CodeEditor, Input } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
-import { parseJSON } from '@renderer/utils/json'
-import { Wand2 } from 'lucide-react'
+import { Input, Switch } from '@cherrystudio/ui'
+import { SettingHelpText } from '@renderer/pages/settings'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { AdvancedConfigToggle } from '../AdvancedConfigToggle'
-import { FormField, Section } from '../PanelPrimitives'
 import { TogglePill } from '../TogglePill'
 
 /** Each role writes BOTH the request model and its display name. */
 const MODEL_ROLES = [
-  { roleKey: 'sonnet', labelKey: 'code.adv.claude.sonnet_model', placeholder: 'claude-sonnet-4-5' },
-  { roleKey: 'opus', labelKey: 'code.adv.claude.opus_model', placeholder: 'claude-opus-4-1' },
-  { roleKey: 'fable', labelKey: 'code.adv.claude.fable_model', placeholder: 'claude-fable-1' },
-  { roleKey: 'haiku', labelKey: 'code.adv.claude.haiku_model', placeholder: 'claude-haiku-4-5' }
+  { roleKey: 'sonnet', labelKey: 'code.adv.claude.sonnet_model', placeholder: 'claude-sonnet-4-5', supports1M: true },
+  { roleKey: 'opus', labelKey: 'code.adv.claude.opus_model', placeholder: 'claude-opus-4-1', supports1M: true },
+  { roleKey: 'fable', labelKey: 'code.adv.claude.fable_model', placeholder: 'claude-fable-1', supports1M: true },
+  { roleKey: 'haiku', labelKey: 'code.adv.claude.haiku_model', placeholder: 'claude-haiku-4-5', supports1M: false }
 ] as const
 
 const ROLE_ENV: Record<string, { model: string; name: string }> = {
@@ -25,6 +21,8 @@ const ROLE_ENV: Record<string, { model: string; name: string }> = {
   fable: { model: 'ANTHROPIC_DEFAULT_FABLE_MODEL', name: 'ANTHROPIC_DEFAULT_FABLE_MODEL_NAME' },
   haiku: { model: 'ANTHROPIC_DEFAULT_HAIKU_MODEL', name: 'ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME' }
 }
+
+const ONE_M_MARKER = '[1M]'
 
 /** Boolean env toggles. `onValue` is the exact string written to env. */
 const BOOLEAN_TOGGLES = [
@@ -54,47 +52,31 @@ function isAttributionHidden(config: Record<string, unknown>): boolean {
   return attr.commit === '' && attr.pr === ''
 }
 
-function toJson(value: unknown): string | null {
-  try {
-    return JSON.stringify(value, null, 2)
-  } catch {
-    return null
+function hasOneMMarker(value: string): boolean {
+  return value.trimEnd().toLowerCase().endsWith(ONE_M_MARKER.toLowerCase())
+}
+
+function stripOneMMarker(value: string): string {
+  const trimmed = value.trimEnd()
+  if (trimmed.toLowerCase().endsWith(ONE_M_MARKER.toLowerCase())) {
+    return trimmed.slice(0, -ONE_M_MARKER.length).trimEnd()
   }
+  return value
+}
+
+function setOneMMarker(value: string, enabled: boolean): string {
+  const base = stripOneMMarker(value).trim()
+  return enabled ? `${base} ${ONE_M_MARKER}` : base
 }
 
 /** Self-contained Claude Code configuration fields. */
 export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({ config, onChange }) => {
   const { t } = useTranslation()
-  const { activeCmTheme } = useCodeStyle()
-  const [fontSize] = usePreference('chat.message.font_size')
 
   const env = useMemo(() => getEnv(config), [config])
   const hideAttribution = useMemo(() => isAttributionHidden(config), [config])
 
-  // Raw JSON editor buffer. It mirrors `config` but is only overwritten when
-  // `config` changes from OUTSIDE the editor (structured fields or a config
-  // switch). We detect that by comparing the serialized form recorded at the
-  // last commit — so the editor is never clobbered mid-typing, and the config
-  // section is never collapsed by an in-panel edit.
-  const [configText, setConfigText] = useState(() => toJson(config) ?? '{}')
-  const syncedSerialized = useRef(toJson(config) ?? '{}')
   const [advancedOpen, setAdvancedOpen] = useState(false)
-
-  useEffect(() => {
-    const serialized = toJson(config) ?? '{}'
-    if (serialized !== syncedSerialized.current) {
-      syncedSerialized.current = serialized
-      setConfigText(serialized)
-    }
-  }, [config])
-
-  const commit = useCallback(
-    (next: Record<string, unknown>) => {
-      syncedSerialized.current = toJson(next) ?? '{}'
-      onChange(next)
-    },
-    [onChange]
-  )
 
   const updateEnvField = useCallback(
     (envKey: string, value: string) => {
@@ -104,11 +86,9 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({ config, onChan
       } else {
         delete nextEnv[envKey]
       }
-      const next = { ...config, env: nextEnv }
-      setConfigText(toJson(next) ?? '{}')
-      commit(next)
+      onChange({ ...config, env: nextEnv })
     },
-    [env, config, commit]
+    [env, config, onChange]
   )
 
   /** Set a model role: writes both _MODEL and _MODEL_NAME. */
@@ -123,121 +103,83 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({ config, onChan
         delete nextEnv[model]
         delete nextEnv[name]
       }
-      const next = { ...config, env: nextEnv }
-      setConfigText(toJson(next) ?? '{}')
-      commit(next)
+      onChange({ ...config, env: nextEnv })
     },
-    [env, config, commit]
+    [env, config, onChange]
   )
 
   const toggleHideAttribution = useCallback(
     (hide: boolean) => {
       const { ...rest } = config
       delete rest.attribution
-      const next = hide ? { ...rest, attribution: { commit: '', pr: '' } } : rest
-      setConfigText(toJson(next) ?? '{}')
-      commit(next)
+      onChange(hide ? { ...rest, attribution: { commit: '', pr: '' } } : rest)
     },
-    [config, commit]
+    [config, onChange]
   )
-
-  const handleConfigTextChange = useCallback(
-    (next: string) => {
-      setConfigText(next)
-      const parsed = parseJSON(next)
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        commit(parsed as Record<string, unknown>)
-      }
-    },
-    [commit]
-  )
-
-  const handleFormat = useCallback(() => {
-    setConfigText((prev) => {
-      const formatted = toJson(parseJSON(prev)) ?? prev
-      const parsed = parseJSON(formatted)
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        commit(parsed as Record<string, unknown>)
-      }
-      return formatted
-    })
-  }, [commit])
 
   return (
     <div className="space-y-4">
-      {/* Quick options — grouped so the pills read as a deliberate toolbar. */}
-      <div className="rounded-lg border border-border/40 bg-muted/20 p-3">
-        <div className="mb-2 text-xs font-medium text-muted-foreground">{t('code.adv.claude.options')}</div>
-        <div className="flex flex-wrap gap-1.5">
-          {BOOLEAN_TOGGLES.map((field) => {
-            const active = env[field.envKey] === field.onValue
-            return (
-              <TogglePill
-                key={field.envKey}
-                label={t(field.labelKey)}
-                active={active}
-                onClick={() => updateEnvField(field.envKey, active ? '' : field.onValue)}
-              />
-            )
-          })}
-          <TogglePill
-            label={t('code.adv.claude.hide_attribution')}
-            active={hideAttribution}
-            onClick={() => toggleHideAttribution(!hideAttribution)}
-          />
-        </div>
+      {/* Quick options — rendered directly under the Tool Parameters group title */}
+      <div className="flex flex-wrap gap-1.5">
+        {BOOLEAN_TOGGLES.map((field) => {
+          const active = env[field.envKey] === field.onValue
+          return (
+            <TogglePill
+              key={field.envKey}
+              label={t(field.labelKey)}
+              active={active}
+              onClick={() => updateEnvField(field.envKey, active ? '' : field.onValue)}
+            />
+          )
+        })}
+        <TogglePill
+          label={t('code.adv.claude.hide_attribution')}
+          active={hideAttribution}
+          onClick={() => toggleHideAttribution(!hideAttribution)}
+        />
       </div>
 
       <AdvancedConfigToggle open={advancedOpen} onToggle={() => setAdvancedOpen((o) => !o)}>
-        {/* Model role mapping — responsive grid (label-above-input cells). */}
-        <div className="space-y-2.5">
-          <div className="flex items-baseline gap-2">
-            <span className="font-medium text-foreground/80 text-xs">{t('code.adv.claude.model_roles')}</span>
-            <span className="text-[11px] text-muted-foreground/50">{t('code.adv.claude.model_roles_hint')}</span>
+        {/* Model role mapping (role | model | 1M) */}
+        <SettingHelpText className="mb-2">{t('code.adv.claude.model_roles_hint')}</SettingHelpText>
+        <div className="overflow-hidden rounded-lg border border-border/40">
+          <div className="flex items-center gap-2 bg-accent/20 px-3 py-1.5 text-[10px] text-muted-foreground/55">
+            <span className="w-14 shrink-0">{t('code.adv.claude.role_column')}</span>
+            <span className="min-w-0 flex-1">{t('code.adv.claude.model_column')}</span>
+            <span className="w-9 shrink-0 text-center">{t('code.adv.claude.context_column')}</span>
           </div>
-          <div className="grid grid-cols-1 items-start gap-x-4 gap-y-4 xl:grid-cols-3">
-            {MODEL_ROLES.map((field) => (
-              <FormField key={field.roleKey} label={t(field.labelKey)}>
+          {MODEL_ROLES.map((field, i) => {
+            const model = ROLE_ENV[field.roleKey].model
+            const rawValue = env[model] ?? ''
+            const base = stripOneMMarker(rawValue)
+            const uses1M = hasOneMMarker(rawValue)
+            return (
+              <div
+                key={field.roleKey}
+                className={`flex items-center gap-2 px-3 py-2 ${i > 0 ? 'border-border/20 border-t' : ''}`}>
+                <span className="w-14 shrink-0 text-foreground text-xs">{t(field.labelKey)}</span>
                 <Input
-                  value={env[ROLE_ENV[field.roleKey].model] ?? ''}
-                  onChange={(e) => updateModelRole(field.roleKey, e.target.value)}
+                  value={base}
+                  onChange={(e) => updateModelRole(field.roleKey, setOneMMarker(e.target.value, uses1M))}
                   placeholder={field.placeholder}
                   autoComplete="off"
                   className="font-mono"
                 />
-              </FormField>
-            ))}
-          </div>
+                <div className="flex w-9 shrink-0 justify-center">
+                  {field.supports1M && (
+                    <Switch
+                      checked={uses1M}
+                      onCheckedChange={(checked) =>
+                        updateModelRole(field.roleKey, setOneMMarker(base, checked === true))
+                      }
+                    />
+                  )}
+                </div>
+              </div>
+            )
+          })}
         </div>
       </AdvancedConfigToggle>
-
-      {/* Raw JSON config */}
-      <Section
-        title={t('code.raw_config')}
-        description={t('code.config_json_hint')}
-        action={
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleFormat}
-            className="gap-1 px-2 py-0.5 text-[11px] text-muted-foreground/70 hover:text-foreground">
-            <Wand2 size={11} />
-            {t('code.format_json')}
-          </Button>
-        }>
-        <CodeEditor
-          theme={activeCmTheme}
-          fontSize={fontSize - 4}
-          value={configText}
-          language="json"
-          onChange={handleConfigTextChange}
-          height="200px"
-          expanded={false}
-          wrapped
-          className="overflow-hidden rounded-md border border-border/40"
-          options={{ lint: true, lineNumbers: true, foldGutter: true, keymap: true }}
-        />
-      </Section>
     </div>
   )
 }
