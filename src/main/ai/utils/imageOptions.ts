@@ -235,19 +235,13 @@ const EMITTERS: Record<string, Emitter> = {
 /**
  * The provider ids still routed to {@link buildImageProviderOptions} rather than
  * the WireProfile engine — the bespoke emitters whose wire the engine doesn't
- * model yet (`google`'s `imageConfig`, `dmxapi`'s cross-key dual-keying,
- * `dashscope`'s `parameters.*` envelope, `aihubmix`'s `seed`-in-body). The
- * openai family + the plain diffusion fallback have migrated, so they're absent.
- * Shrinks to empty as each migrates, at which point `buildImageProviderOptions`
- * and this set both go away.
+ * model yet (`dmxapi`'s cross-key dual-keying, `dashscope`'s `parameters.*`
+ * envelope, `aihubmix`'s `seed`-in-body). The openai + google families and the
+ * plain diffusion fallback have migrated, so they're absent. Shrinks to empty as
+ * each migrates, at which point `buildImageProviderOptions` and this set both go
+ * away.
  */
-export const LEGACY_EMITTER_PROVIDERS: ReadonlySet<string> = new Set([
-  'aihubmix',
-  'dashscope',
-  'dmxapi',
-  'google',
-  'google-vertex'
-])
+export const LEGACY_EMITTER_PROVIDERS: ReadonlySet<string> = new Set(['aihubmix', 'dashscope', 'dmxapi'])
 
 /**
  * Build AI SDK `providerOptions` for image generation, mirroring the chat-side

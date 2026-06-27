@@ -15,12 +15,21 @@
 import type { CanonicalParamKey } from '@shared/data/types/model'
 import type { JSONValue } from 'ai'
 
-/** Maps one canonical param to a vendor body field. `to` is the literal wire
- *  name (no implicit snake_case); `map` is an optional value transform that may
- *  read sibling params via `all`. */
+import { normalizeAspectRatio } from '../../../utils/aiSdkNativeBindings'
+
+/**
+ * Maps one canonical param to the vendor body. A rule is either a one-to-one
+ * field map (`to` + optional `map`) or a one-to-many escape hatch (`contribute`).
+ */
 export interface WireRule {
-  to: string
+  /** Literal wire field name (no implicit snake_case). Omit when using `contribute`. */
+  to?: string
+  /** Value transform for the `to` field; may read sibling params via `all`. */
   map?: (value: unknown, all: Record<string, unknown>) => JSONValue
+  /** One-to-many / nested escape hatch: return a partial body merged into the
+   *  result (nested plain objects are deep-merged, e.g. google's `imageConfig`
+   *  assembled from `aspectRatio` + `size`). Mutually exclusive with `to`/`map`. */
+  contribute?: (value: unknown, all: Record<string, unknown>) => Record<string, JSONValue>
 }
 
 export interface WireProfile {
@@ -62,6 +71,30 @@ export const OPENAI_WIRE_PROFILE: WireProfile = {
   }
 }
 
+/**
+ * Google native image family (`@ai-sdk/google` gemini-image / Imagen).
+ * Reproduces the `google` emitter: a flat lowercased `personGeneration` (the
+ * registry stores it uppercase like `@google/genai`'s `ALLOW_ALL`, but
+ * `@ai-sdk/google`'s option schema validates lowercase) + an `imageConfig` block
+ * assembled from `aspectRatio` (normalized) and `size` via `contribute`.
+ * Gemini-image reads `providerOptions.google.imageConfig`; Imagen reads the
+ * top-level `aspectRatio` (which still flows via the native binding into
+ * imageParams), so emitting it here is required for the former, harmless for the
+ * latter. The empty `imageConfig` is dropped by the contribute deep-merge.
+ */
+export const GOOGLE_WIRE_PROFILE: WireProfile = {
+  fields: {
+    personGeneration: { to: 'personGeneration', map: (v) => String(v).toLowerCase() },
+    aspectRatio: {
+      contribute: (v): Record<string, JSONValue> => {
+        const normalized = normalizeAspectRatio(String(v))
+        return normalized ? { imageConfig: { aspectRatio: normalized } } : {}
+      }
+    },
+    size: { contribute: (v) => ({ imageConfig: { imageSize: v as JSONValue } }) }
+  }
+}
+
 /** A provider's engine registration: its body profile + delivery flags. */
 export interface WireRegistration {
   readonly profile: WireProfile
@@ -86,7 +119,9 @@ export const WIRE_REGISTRY: Record<string, WireRegistration> = {
   'azure-responses': { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   huggingface: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   cherryin: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
-  newapi: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true }
+  newapi: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
+  google: { profile: GOOGLE_WIRE_PROFILE },
+  'google-vertex': { profile: GOOGLE_WIRE_PROFILE }
 }
 
 /**

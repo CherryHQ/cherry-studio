@@ -114,3 +114,56 @@ describe('buildVendorProviderOptions — OpenAI image family (dual-keyed)', () =
     expect(buildVendorProviderOptions('openai', paramValues, WIRE_REGISTRY.openai, vendorBag)).toEqual({})
   })
 })
+
+// The Google native image family (google / google-vertex) builds a nested
+// `imageConfig` block from aspectRatio + size via the `contribute` escape hatch,
+// plus a lowercased flat `personGeneration`. Oracle = the legacy `google` emitter
+// through buildImageProviderOptions over the split params.
+function oracleGoogle(paramValues: Record<string, unknown>): Record<string, Record<string, unknown>> {
+  const { structured } = splitParamValues(paramValues)
+  return buildImageProviderOptions('google', { ...structured }) as Record<string, Record<string, unknown>>
+}
+
+function engineGoogle(providerId: string, paramValues: Record<string, unknown>) {
+  const { vendorBag } = splitParamValues(paramValues)
+  return buildVendorProviderOptions(providerId, paramValues, WIRE_REGISTRY[providerId], vendorBag)
+}
+
+describe('buildVendorProviderOptions — Google native image family (contribute / nested imageConfig)', () => {
+  const cases: Array<[string, Record<string, unknown>, Record<string, Record<string, unknown>>]> = [
+    [
+      'personGeneration + imageSize',
+      { personGeneration: 'allow_adult', size: '1024x1024', numImages: 1 },
+      { google: { imageConfig: { imageSize: '1024x1024' }, personGeneration: 'allow_adult' } }
+    ],
+    [
+      'normalized aspectRatio + imageSize into imageConfig',
+      { aspectRatio: 'ASPECT_16_9', size: '2048x2048', numImages: 1 },
+      { google: { imageConfig: { aspectRatio: '16:9', imageSize: '2048x2048' } } }
+    ],
+    [
+      'lowercases registry-uppercase personGeneration, no imageConfig when size unset',
+      { personGeneration: 'ALLOW_ALL', numImages: 1 },
+      { google: { personGeneration: 'allow_all' } }
+    ]
+  ]
+
+  it.each(cases)('reproduces the google emitter: %s', (_label, paramValues, expected) => {
+    const result = engineGoogle('google', paramValues)
+    expect(result).toEqual(oracleGoogle(paramValues))
+    expect(result).toEqual(expected)
+  })
+
+  it('drops an invalid aspectRatio so no empty imageConfig survives (== legacy compact)', () => {
+    const paramValues = { aspectRatio: 'weird', numImages: 1 }
+    expect(engineGoogle('google', paramValues)).toEqual(oracleGoogle(paramValues))
+    expect(engineGoogle('google', paramValues)).toEqual({})
+  })
+
+  it('google-vertex shares the same profile', () => {
+    const paramValues = { aspectRatio: 'ASPECT_1_1', size: '1024x1024', numImages: 1 }
+    expect(engineGoogle('google-vertex', paramValues)).toEqual({
+      'google-vertex': { imageConfig: { aspectRatio: '1:1', imageSize: '1024x1024' } }
+    })
+  })
+})

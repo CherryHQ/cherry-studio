@@ -2,13 +2,38 @@ import type { JSONValue } from 'ai'
 
 import type { WireProfile, WireRegistration } from './wireProfile'
 
+function isPlainObject(v: unknown): v is Record<string, JSONValue> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
+/**
+ * Merge a `contribute()` result into the body: deep-merge nested plain objects
+ * (google's `imageConfig` assembled from `aspectRatio` + `size`) and drop empty
+ * leaves (`undefined` / `''` / `'auto'`) plus any object that prunes to empty —
+ * mirroring the legacy `compact()` so an unset `aspectRatio` leaves no
+ * `imageConfig.aspectRatio` and an all-empty block leaves no `imageConfig` key.
+ */
+function mergeContribution(body: Record<string, JSONValue>, contribution: Record<string, JSONValue>): void {
+  for (const [k, v] of Object.entries(contribution)) {
+    if (isPlainObject(v)) {
+      const target = isPlainObject(body[k]) ? body[k] : {}
+      mergeContribution(target, v)
+      if (Object.keys(target).length > 0) body[k] = target
+    } else if (v !== undefined && v !== '' && v !== 'auto') {
+      body[k] = v
+    }
+  }
+}
+
 /**
  * Map a canonical `paramValues` bag to a vendor request body via the profile's
  * field rules. Drops `undefined` / `''` / `null` / `'auto'` — mirroring the old
- * `compact()` so the body is byte-identical to `buildImageProviderOptions`'
- * diffusion path. Native params (`n`/`size`/`seed`/`aspectRatio`) are NOT this
- * function's concern except where a profile re-declares one in the body (silicon
- * duplicates `seed`).
+ * `compact()` so the body is byte-identical to `buildImageProviderOptions`. A
+ * `to`/`map` rule sets one field; a `contribute` rule merges a partial body (the
+ * one-to-many / nested escape hatch). Native params (`n`/`size`/`seed`/
+ * `aspectRatio`) are NOT this function's concern except where a profile
+ * re-declares one in the body (silicon duplicates `seed`; google nests
+ * `aspectRatio`/`size` into `imageConfig`).
  */
 export function buildImageRequest(
   paramValues: Record<string, unknown>,
@@ -19,7 +44,11 @@ export function buildImageRequest(
     if (!rule) continue
     const value = paramValues[key]
     if (value === undefined || value === '' || value === null || value === 'auto') continue
-    body[rule.to] = rule.map ? rule.map(value, paramValues) : (value as JSONValue)
+    if (rule.contribute) {
+      mergeContribution(body, rule.contribute(value, paramValues))
+    } else if (rule.to) {
+      body[rule.to] = rule.map ? rule.map(value, paramValues) : (value as JSONValue)
+    }
   }
   return body
 }
