@@ -224,7 +224,12 @@
           "runFailed": "Aufgabe konnte nicht ausgeführt werden",
           "updateFailed": "Aktualisierung der Aufgabe fehlgeschlagen"
         },
-        "intervalPlaceholder": "Intervall in Minuten",
+        "frequency": {
+          "everyPrefix": "Alle",
+          "everySuffix": "Minuten",
+          "label": "Ausführungshäufigkeit"
+        },
+        "intervalPlaceholder": "Mindestens 1",
         "intervalUnit": "Minuten",
         "lastRun": "Letzte Ausführung",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Intervall",
-          "label": "Zeitplantyp",
           "once": "Einmalig"
         },
-        "scheduleValue": "Zeitplanwert",
         "status": {
           "active": "Aktiv",
           "completed": "Abgeschlossen",
@@ -277,7 +280,7 @@
           "minutesAgo": "vor {{count}} m"
         },
         "timeout": {
-          "label": "Zeitlimit überschritten",
+          "label": "Maximale Ausführungszeit",
           "placeholder": "Kein Limit"
         },
         "title": "Geplante Aufgaben"
@@ -2345,6 +2348,7 @@
   "files": {
     "actions": "Aktionen",
     "all": "Alle Dateien",
+    "audio": "Audio",
     "batch_delete": "Stapellöschung",
     "batch_operation": "Alle auswählen",
     "count": "Dateien",
@@ -2358,22 +2362,52 @@
       },
       "title": "Datei löschen"
     },
+    "delete_or_remove": "Löschen / entfernen",
     "document": "Dokument",
+    "drag_upload": "Dateien hierher ziehen zum Hochladen",
     "edit": "Bearbeiten",
+    "empty": {
+      "no_match_description": "Keine Dateien entsprechen den aktuellen Filtern",
+      "no_match_title": "Keine passenden Dateien gefunden"
+    },
     "error": {
-      "open_path": "Pfad konnte nicht geöffnet werden: {{path}}"
+      "delete_failed": "Fehler beim Löschen der Dateien",
+      "delete_partial_failed": "Einige Dateien konnten nicht gelöscht werden",
+      "import_failed": "Fehler beim Importieren der Dateien",
+      "import_partial_failed": "Einige Dateien konnten nicht importiert werden",
+      "open_path": "Pfad konnte nicht geöffnet werden: {{path}}",
+      "rename_failed": "Fehler beim Umbenennen der Datei",
+      "restore_failed": "Fehler beim Wiederherstellen der Dateien",
+      "restore_partial_failed": "Einige Dateien konnten nicht wiederhergestellt werden."
     },
     "file": "Datei",
+    "footer_count": "{{count}} Dateien",
+    "footer_selected_count": "{{count}} ausgewählt",
     "image": "Bild",
+    "missing": "Fehlt",
+    "modified_at": "Geändert am",
     "name": "Dateiname",
     "open": "Öffnen",
+    "other": "Andere",
+    "permanent_delete": "Dauerhaft löschen",
+    "permanent_delete_confirm": {
+      "description": "Dies wird {{count}} Datei(en) dauerhaft entfernen. Diese Aktion kann nicht rückgängig gemacht werden.",
+      "title": "Dateien dauerhaft löschen?"
+    },
     "preview": {
       "error": "Datei konnte nicht geöffnet werden"
     },
+    "remove_from_library": "Aus der Bibliothek entfernen",
+    "rename": "Umbenennen",
+    "restore": "Wiederherstellen",
+    "selected_count": "{{count}} Dateien ausgewählt",
+    "show_in_folder": "Im Ordner anzeigen",
     "size": "Größe",
     "text": "Text",
     "title": "Dateien",
-    "type": "Typ"
+    "trash": "Müll",
+    "type": "Typ",
+    "video": "Video"
   },
   "globalSearch": {
     "clear": "Suche löschen",
@@ -2496,25 +2530,25 @@
         "title": "Ausgewählte Konversationen verschieben"
       },
       "empty": {
-        "description": "[to be translated]:No conversations for the current filters.",
-        "sessionsDescription": "[to be translated]:No tasks for the current filters.",
+        "description": "Keine Gespräche für die aktuellen Filter.",
+        "sessionsDescription": "Keine Aufgaben für die aktuellen Filter.",
         "sessionsTitle": "Keine Aufgaben",
-        "title": "[to be translated]:No conversations"
+        "title": "Keine Gespräche"
       },
       "loading": {
-        "description": "[to be translated]:Loading conversation list.",
-        "sessionsDescription": "[to be translated]:Loading task list.",
-        "sessionsTitle": "[to be translated]:Loading tasks",
-        "title": "[to be translated]:Loading conversations"
+        "description": "Unterhaltungsliste wird geladen.",
+        "sessionsDescription": "Aufgabenliste wird geladen.",
+        "sessionsTitle": "Aufgaben laden",
+        "title": "Konversationen werden geladen"
       },
       "resultCount": "{{count}} Ergebnisse",
       "searchSession": "Aufgaben suchen...",
       "searchTopic": "Unterhaltungen durchsuchen...",
       "shortTitle": "Geschichte",
       "sidebar": {
-        "searchAssistant": "[to be translated]:Search assistants...",
-        "status": "[to be translated]:Status",
-        "unknownAssistant": "[to be translated]:Unlinked assistant"
+        "searchAssistant": "Suchassistenten...",
+        "status": "Status",
+        "unknownAssistant": "Unverknüpfter Assistent"
       },
       "status": {
         "completed": "Abgeschlossen",
@@ -2767,6 +2801,8 @@
       "chunk_overlap_invalid": "Der Chunk-Überlapp muss größer oder gleich 0 sein",
       "chunk_overlap_must_be_smaller": "Der Chunk-Overlap muss kleiner als die Chunk-Größe sein.",
       "chunk_overlap_requires_chunk_size": "Chunk-Größe ist erforderlich, wenn Chunk-Überlappung festgelegt ist",
+      "chunk_separator": "Trennzeichen",
+      "chunk_separator_required": "Trennzeichen ist erforderlich, wenn Smart-Chunking deaktiviert ist.",
       "chunk_size": "Chunk-Größe",
       "chunk_size_change_warning": "Änderungen an Chunk-Größe und Überlappung gelten nur für neu hinzugefügte Inhalte.",
       "chunk_size_invalid": "Die Chunk-Größe muss größer als 0 sein",
@@ -2779,6 +2815,7 @@
       "file_processing_hint": "Die Dateiverarbeitung läuft automatisch während des Dokumentenimports. Die Wahl des richtigen Anbieters kann die Qualität der Dokumentenanalyse verbessern.",
       "hints": {
         "chunk_overlap": "Anzahl der überlappenden Tokens, die zwischen benachbarten Chunks beibehalten werden, um semantische Brüche zu reduzieren.",
+        "chunk_separator": "Trennzeichen, an dem der Text aufgeteilt wird, in maskierter Form. Bei aktivierter intelligenter Segmentierung fügt es einen Trennpunkt hinzu; bei deaktivierter Segmentierung wird der Text nur an diesem Trennzeichen aufgeteilt.",
         "chunk_size": "Ziel-Token-Anzahl für jedes Dokument-Chunk. Dies beeinflusst die Granularität der Abrufe und die Kontextlänge.",
         "document_count": "Maximale Anzahl der Dokumentblöcke, die für jede Abfrage zurückgegeben werden. Höhere Werte decken mehr Inhalt ab, verbrauchen jedoch mehr Kontext.",
         "embedding_model": "Wird verwendet, um Inhalte der Wissensdatenbank in Vektoren zu konvertieren. Eine Änderung des Modells erfordert in der Regel eine erneute Indizierung der vorhandenen Inhalte.",
@@ -2786,6 +2823,7 @@
         "processor": "Parser, der beim Import von Dateien verwendet wird, um Fließtext, Tabellen und verwandte Inhalte zu extrahieren.",
         "rerank_model": "Modell zur Neusortierung der anfänglichen Abrufergebnisse und zur Verbesserung der Relevanz der endgültigen Blöcke.",
         "search_mode": "Wählen Sie einen Abrufmodus: Vektorsuche für semantisches Matching, Volltextsuche für Schlüsselwörter oder hybride Suche für beides.",
+        "smart_chunking": "Automatisch entlang der Markdown-Struktur (Überschriften, Codeblöcke, Absätze) aufteilen und niemals innerhalb eines Codeblocks aufteilen. Ausschalten, um rein nach dem Trennzeichen zu unterteilen.",
         "threshold": "Ähnlichkeitsschwelle zum Filtern von wenig relevanten Chunks. Höhere Werte machen die Abfrage strenger.",
         "threshold_disabled": "Dieser Abrufmodus liefert geordnete Ergebnisse und verwendet keinen Ähnlichkeitsschwellenwert."
       },
@@ -2805,6 +2843,7 @@
         "vector": "Vektorsuche"
       },
       "separator_rule": "Trennregel",
+      "smart_chunking": "Intelligentes Chunking",
       "threshold": "Ähnlichkeitsschwelle",
       "tokens_unit": "Token"
     },
@@ -3837,64 +3876,6 @@
       "partial_failure": "{{count}} Suchergebnisse, einige Suchvorgänge sind fehlgeschlagen"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "Zum Launchpad hinzufügen",
-    "add_to_sidebar": "Zur Seitenleiste hinzufügen",
-    "popup": {
-      "close": "MinApp schließen",
-      "devtools": "Entwicklertools",
-      "goBack": "Zurück",
-      "goForward": "Weiter gehen",
-      "minimize": "Minimieren MinApp",
-      "openExternal": "Im Browser öffnen",
-      "open_link_external_off": "Aktuell: Links im Standardfenster öffnen",
-      "open_link_external_on": "Aktuell: Links im Browser öffnen",
-      "refresh": "Aktualisieren",
-      "rightclick_copyurl": "Rechtsklick, um die URL zu kopieren"
-    },
-    "remove_from_launchpad": "Von Launchpad entfernen",
-    "remove_from_sidebar": "Aus der Seitenleiste entfernen",
-    "sidebar": {
-      "close": {
-        "title": "Schließen"
-      },
-      "closeall": {
-        "title": "Alle schließen"
-      },
-      "hide": {
-        "title": "Verstecken"
-      },
-      "remove_custom": {
-        "title": "Benutzerdefinierte App löschen"
-      }
-    },
-    "title": "MinApp"
-  },
-  "minapps": {
-    "ant-ling": "Ameisenling",
-    "baichuan": "Baichuan",
-    "baidu-ai-search": "Baidu AI-Suche",
-    "chatglm": "ChatGLM",
-    "dangbei": "Dangbei",
-    "doubao": "Doubao",
-    "hailuo": "Hailuo",
-    "ima": "ima",
-    "metaso": "Metaso",
-    "minimax-agent": "Minimax-Agent CN",
-    "minimax-global": "Minimax-Agent",
-    "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami KI-Suche",
-    "qwen": "Qwen",
-    "sensechat": "SenseChat",
-    "stepfun": "Stepfun",
-    "tencent-yuanbao": "Yuanbao",
-    "tiangong-ai": "Skywork",
-    "wanzhi": "Wanzhi",
-    "wenxin": "ERNIE",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "Xiaoyi",
-    "zhihu": "Zhihu"
-  },
   "miniApp": {
     "add_to_launchpad": "Zu Launchpad hinzufügen",
     "add_to_sidebar": "Zur Seitenleiste hinzufügen",
@@ -3905,15 +3886,13 @@
     "hide_failed": "Failed to hide mini-app",
     "pin_failed": "Fehler beim Anheften der Mini-App",
     "popup": {
-      "close": "Mini-App schließen",
       "devtools": "Entwicklertools",
       "goBack": "Zurück",
       "goForward": "Vorwärts",
       "openExternal": "In Browser öffnen",
       "open_link_external_off": "Aktuell: Links im Standardfenster öffnen",
       "open_link_external_on": "Aktuell: Links im Browser öffnen",
-      "refresh": "Aktualisieren",
-      "rightclick_copyurl": "Rechtsklick zum Kopieren der URL"
+      "refresh": "Aktualisieren"
     },
     "remove_from_launchpad": "Aus Launchpad entfernen",
     "remove_from_sidebar": "Aus Seitenleiste entfernen",
@@ -3925,17 +3904,8 @@
     },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
-      "close": {
-        "title": "Schließen"
-      },
-      "closeall": {
-        "title": "Alle schließen"
-      },
       "hide": {
         "title": "Ausblenden"
-      },
-      "remove_custom": {
-        "title": "Benutzerdefinierte App entfernen"
       }
     },
     "title": "Mini-Apps",
@@ -3955,7 +3925,6 @@
     "minimax-agent": "MiniMax Agent CN",
     "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI-Suche",
     "qwen": "Qwen",
     "sensechat": "SenseChat",
     "stepfun": "StepFun AI",
@@ -6487,37 +6456,22 @@
     "miniApps": {
       "cache_change_notice": "Änderung wird wirksam wenn Anzahl geöffneter Mini-Apps auf festgelegten Wert angepasst wird",
       "cache_description": "Maximale Anzahl gleichzeitig aktiver Mini-Apps festlegen",
-      "cache_settings": "Cache-Einstellungen",
       "cache_title": "Anzahl gecachter Mini-Apps",
       "custom": {
-        "conflicting_ids": "Konflikt mit Standard-App-ID: {{ids}}",
-        "duplicate_ids": "Duplizierte ID gefunden: {{ids}}",
-        "edit_description": "Hier die Konfiguration der benutzerdefinierten Mini-App bearbeiten. Jede App muss id, name, url und logo-Felder enthalten",
+        "create_title": "Benutzerdefinierte Mini-App erstellen",
         "edit_title": "Benutzerdefinierte Mini-App bearbeiten",
-        "id": "ID",
-        "id_error": "ID ist Pflichtfeld",
-        "id_placeholder": "Bitte ID eingeben",
-        "logo": "Logo",
         "logo_file": "Logo-Datei hochladen",
-        "logo_upload_button": "Hochladen",
         "logo_upload_error": "Logo-Upload fehlgeschlagen",
         "logo_upload_label": "Logo hochladen",
-        "logo_upload_success": "Logo erfolgreich hochgeladen",
-        "logo_url": "Logo-URL",
-        "logo_url_label": "Logo-URL",
-        "logo_url_placeholder": "Bitte Logo-URL eingeben",
         "name": "Name",
-        "name_error": "Name ist Pflichtfeld",
         "name_placeholder": "Bitte Namen eingeben",
-        "placeholder": "Bitte benutzerdefinierte Mini-App-Konfiguration eingeben (JSON-Format)",
         "remove_error": "Löschen der benutzerdefinierten Mini-App fehlgeschlagen",
         "remove_success": "Benutzerdefinierte Mini-App erfolgreich gelöscht",
-        "save": "Speichern",
         "save_error": "Benutzerdefinierte Mini-App-Speicherung fehlgeschlagen",
         "save_success": "Benutzerdefinierte Mini-App erfolgreich gespeichert",
         "title": "Benutzerdefiniert",
         "url": "URL",
-        "url_error": "URL ist Pflichtfeld",
+        "url_invalid": "Geben Sie eine gültige http-, https- oder file-URL ein.",
         "url_placeholder": "Bitte URL eingeben"
       },
       "disabled": "Ausgeblendete Mini-Apps",
@@ -6539,65 +6493,7 @@
         "title": "Bereichsfilterung für Mini-Programme"
       },
       "reset_tooltip": "Zurücksetzen auf Standardwert",
-      "title": "Mini-App-Einstellungen",
       "visible": "Angezeigte Mini-Apps"
-    },
-    "miniapps": {
-      "cache_change_notice": "Die Änderungen treten in Kraft, wenn die Anzahl der geöffneten Mini-Apps den festgelegten Wert erreicht.",
-      "cache_description": "Legen Sie die maximale Anzahl aktiver Mini-Apps fest, die im Speicher gehalten werden sollen.",
-      "cache_settings": "Cache-Einstellungen",
-      "cache_title": "Mini-App-Cache-Limit",
-      "custom": {
-        "conflicting_ids": "Konfliktierende IDs mit Standard-Apps: {{ids}}",
-        "duplicate_ids": "Doppelte IDs gefunden: {{ids}}",
-        "edit_description": "Bearbeiten Sie hier die benutzerdefinierte Mini-App-Konfiguration. Jede App sollte die Felder id, name, url und logo enthalten.",
-        "edit_title": "Benutzerdefinierte Mini-App bearbeiten",
-        "id": "ID",
-        "id_error": "ID ist erforderlich.",
-        "id_placeholder": "ID eingeben",
-        "logo": "Logo",
-        "logo_file": "Logo-Datei hochladen",
-        "logo_upload_button": "Hochladen",
-        "logo_upload_error": "Logo-Upload fehlgeschlagen.",
-        "logo_upload_label": "Logo hochladen",
-        "logo_upload_success": "Logo erfolgreich hochgeladen.",
-        "logo_url": "Logo-URL",
-        "logo_url_label": "Logo-URL",
-        "logo_url_placeholder": "Logo-URL eingeben",
-        "name": "Name",
-        "name_error": "Name ist erforderlich.",
-        "name_placeholder": "Name eingeben",
-        "placeholder": "Benutzerdefinierte Mini-App-Konfiguration eingeben (JSON-Format)",
-        "remove_error": "Fehler beim Entfernen der benutzerdefinierten Mini-App.",
-        "remove_success": "Benutzerdefinierte Mini-App erfolgreich entfernt.",
-        "save": "Speichern",
-        "save_error": "Fehler beim Speichern der benutzerdefinierten Mini-App.",
-        "save_success": "Benutzerdefinierte Mini-App erfolgreich gespeichert.",
-        "title": "Benutzerdefiniert",
-        "url": "URL",
-        "url_error": "URL ist erforderlich.",
-        "url_placeholder": "URL eingeben"
-      },
-      "disabled": "Versteckte Mini-Apps",
-      "display_title": "Mini-App-Anzeigeeinstellungen",
-      "empty": "Klicke auf das Ausblenden-Symbol bei einer App links, und sie wird hierher verschoben",
-      "hide_app": "{{name}} ausblenden",
-      "open_link_external": {
-        "title": "Neue-Fenster-Links im Browser öffnen"
-      },
-      "region": {
-        "auto": "Automatisch erkennen",
-        "cn": "China",
-        "description": "Filtern nicht unterstützter Mini-Programme basierend auf der Region",
-        "global": "Global",
-        "title": "Mini-Programm-Filter"
-      },
-      "reset_tooltip": "Auf Standard zurücksetzen",
-      "show_app": "Zeige {{name}}",
-      "sidebar_description": "Aktive Mini-Apps in der Seitenleiste anzeigen",
-      "sidebar_title": "Seitenleiste Aktive Mini-Apps-Anzeige",
-      "title": "Mini-Apps-Einstellungen",
-      "visible": "Sichtbare Mini-Apps"
     },
     "model": "Standardmodell",
     "models": {
@@ -6732,6 +6628,7 @@
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
         "large_group_hidden": "Zeige {{count}} weitere Modelle",
+        "model_in_use_by_knowledge_base": "Dieses Modell wird von einer Wissensbasis verwendet und kann nicht gelöscht werden.",
         "operation_failed": "Model operation failed.",
         "refetch_list": "Modellliste erneut abrufen",
         "reload_catalog": "Refresh list",
@@ -6866,14 +6763,14 @@
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
-      "customToolsEmpty": "[to be translated]:No custom tools yet. Add one to get started.",
+      "customToolsEmpty": "Noch keine benutzerdefinierten Tools. Fügen Sie eines hinzu, um loszulegen.",
       "description": "Verwalten Sie binäre Tools und Laufzeitabhängigkeiten, die von der App benötigt werden.",
       "duplicateName": "A tool with the same name already exists",
       "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "[to be translated]:Install",
+      "install": "Installieren",
       "installError": "Failed to install tool",
       "installing": "Installiere...",
-      "invalidTool": "[to be translated]:Invalid tool name or key",
+      "invalidTool": "Ungültiger Tool-Name oder Schlüssel",
       "notInstalled": "Nicht installiert",
       "openBinariesDir": "Open binaries directory",
       "remove": "Remove tool",

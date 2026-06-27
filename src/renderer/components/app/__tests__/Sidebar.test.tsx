@@ -82,17 +82,14 @@ vi.mock('@renderer/components/chat/resources/resourceListRevealEvents', () => ({
   emitResourceListReveal: mocks.emitResourceListReveal
 }))
 
-vi.mock('../../../hooks/useTabs', () => ({
+vi.mock('@renderer/hooks/tab', () => ({
   useTabs: () => ({
     activeTab: mocks.activeTab,
     tabs: mocks.tabs,
     openTab: mocks.openTab,
     updateTab: mocks.updateTab,
     setActiveTab: mocks.setActiveTab
-  })
-}))
-
-vi.mock('@renderer/context/TabsContext', () => ({
+  }),
   useOptionalTabsContext: () => ({
     tabs: mocks.tabs,
     openTab: mocks.openTab,

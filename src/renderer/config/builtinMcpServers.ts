@@ -1,6 +1,6 @@
 /**
- * @deprecated Temporary placement. Migrated verbatim from the v1 Redux store
- * (`src/renderer/store/mcp.ts`) when that module was turned into an isolated island.
+ * @deprecated Temporary placement. Extracted verbatim from the v1 Redux store
+ * (the former `src/renderer/store/mcp.ts`, since deleted) during the Redux store removal.
  *
  * This default built-in MCP server catalog should NOT live in the renderer. In v2 it needs to be
  * migrated to the data layer / main process (e.g. seeded alongside the MCP runtime factory under

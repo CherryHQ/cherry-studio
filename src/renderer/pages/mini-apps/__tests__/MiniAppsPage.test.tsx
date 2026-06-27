@@ -1,6 +1,6 @@
 import type * as CherryStudioUI from '@cherrystudio/ui'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -54,10 +54,30 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useTabs', () => ({
+vi.mock('@renderer/hooks/tab', () => ({
   useTabs: () => ({
     openTab: mocks.openTab
   })
+}))
+
+vi.mock('@renderer/components/command', () => ({
+  CommandContextMenu: ({
+    children,
+    extraItems
+  }: React.PropsWithChildren<{
+    extraItems?: Array<{ type: string; id: string; label: string; onSelect?: () => void }>
+  }>) => (
+    <div>
+      {children}
+      {extraItems?.map((item) =>
+        item.type === 'item' ? (
+          <button key={item.id} type="button" onClick={item.onSelect}>
+            {item.label}
+          </button>
+        ) : null
+      )}
+    </div>
+  )
 }))
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -77,7 +97,36 @@ vi.mock('@cherrystudio/ui', async () => {
       <button data-testid="context-menu-item" type="button" onClick={onSelect}>
         {children}
       </button>
-    )
+    ),
+    ConfirmDialog: ({
+      open,
+      title,
+      description,
+      confirmText,
+      cancelText,
+      onOpenChange,
+      onConfirm
+    }: {
+      open?: boolean
+      title: React.ReactNode
+      description?: React.ReactNode
+      confirmText?: string
+      cancelText?: string
+      onOpenChange?: (open: boolean) => void
+      onConfirm?: () => void | Promise<void>
+    }) =>
+      open ? (
+        <div role="dialog">
+          <div>{title}</div>
+          <div>{description}</div>
+          <button type="button" onClick={() => onOpenChange?.(false)}>
+            {cancelText}
+          </button>
+          <button type="button" onClick={onConfirm}>
+            {confirmText}
+          </button>
+        </div>
+      ) : null
   }
 })
 
@@ -117,7 +166,8 @@ vi.mock('../MiniAppSettings/MiniAppDisplaySettings', () => ({
 }))
 
 vi.mock('../NewMiniAppPanel', () => ({
-  default: ({ open }: { open: boolean }) => (open ? <div data-testid="new-mini-app-panel" /> : null)
+  default: ({ open, app }: { open: boolean; app?: MiniApp | null }) =>
+    open ? <div data-testid="new-mini-app-panel" data-app-id={app?.appId ?? ''} /> : null
 }))
 
 vi.mock('react-i18next', () => ({
@@ -187,7 +237,18 @@ describe('MiniAppsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'miniApp.sidebar.hide.title' }))
     await waitFor(() => expect(mocks.updateAppStatus).toHaveBeenCalledWith('custom', 'disabled'))
 
-    fireEvent.click(screen.getByRole('button', { name: 'miniApp.sidebar.remove_custom.title' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.edit' }))
+    expect(screen.getByTestId('new-mini-app-panel')).toHaveAttribute('data-app-id', 'custom')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.delete' }))
+    expect(mocks.removeCustomMiniApp).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toHaveTextContent('settings.miniApps.custom.remove_confirm_title')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+    expect(mocks.removeCustomMiniApp).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.delete' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'common.delete' }))
     await waitFor(() => expect(mocks.removeCustomMiniApp).toHaveBeenCalledWith('custom'))
   })
 })

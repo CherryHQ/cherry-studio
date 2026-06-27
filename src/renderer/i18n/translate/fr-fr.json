@@ -224,7 +224,12 @@
           "runFailed": "Échec de l'exécution de la tâche",
           "updateFailed": "Échec de la mise à jour de la tâche"
         },
-        "intervalPlaceholder": "Intervalle en minutes",
+        "frequency": {
+          "everyPrefix": "Toutes les",
+          "everySuffix": "minutes",
+          "label": "Fréquence d’exécution"
+        },
+        "intervalPlaceholder": "Au moins 1",
         "intervalUnit": "minutes",
         "lastRun": "Dernière exécution",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Intervalle",
-          "label": "Type de planification",
           "once": "Une fois"
         },
-        "scheduleValue": "Valeur de planification",
         "status": {
           "active": "Actif",
           "completed": "Terminé",
@@ -277,7 +280,7 @@
           "minutesAgo": "{{count}}m il y a"
         },
         "timeout": {
-          "label": "Délai d'attente dépassé",
+          "label": "Temps d’exécution maximal",
           "placeholder": "Aucune limite"
         },
         "title": "Tâches planifiées"
@@ -2345,6 +2348,7 @@
   "files": {
     "actions": "Actions",
     "all": "Tous les fichiers",
+    "audio": "Audio",
     "batch_delete": "supprimer en masse",
     "batch_operation": "Tout sélectionner",
     "count": "Nombre de fichiers",
@@ -2358,22 +2362,52 @@
       },
       "title": "Supprimer le fichier"
     },
+    "delete_or_remove": "Supprimer / retirer",
     "document": "Document",
+    "drag_upload": "Faites glisser les fichiers ici pour les téléverser",
     "edit": "Éditer",
+    "empty": {
+      "no_match_description": "Aucun fichier ne correspond aux filtres actuels",
+      "no_match_title": "Aucun fichier correspondant trouvé"
+    },
     "error": {
-      "open_path": "Impossible d'ouvrir le chemin : {{path}}"
+      "delete_failed": "Échec de la suppression des fichiers",
+      "delete_partial_failed": "Certains fichiers n'ont pas pu être supprimés",
+      "import_failed": "Échec de l'importation des fichiers",
+      "import_partial_failed": "Certains fichiers n'ont pas pu être importés",
+      "open_path": "Impossible d'ouvrir le chemin : {{path}}",
+      "rename_failed": "Échec du renommage du fichier",
+      "restore_failed": "Échec de la restauration des fichiers",
+      "restore_partial_failed": "Certains fichiers n'ont pas pu être restaurés"
     },
     "file": "Fichier",
+    "footer_count": "{{count}} fichiers",
+    "footer_selected_count": "{{count}} sélectionné",
     "image": "Image",
+    "missing": "Manquant",
+    "modified_at": "Modifié le",
     "name": "Nom du fichier",
     "open": "Ouvrir",
+    "other": "Autre",
+    "permanent_delete": "Supprimer définitivement",
+    "permanent_delete_confirm": {
+      "description": "Cela supprimera définitivement {{count}} fichier(s). Cette action ne peut pas être annulée.",
+      "title": "Supprimer définitivement les fichiers ?"
+    },
     "preview": {
       "error": "Échec de l’ouverture du fichier"
     },
+    "remove_from_library": "Supprimer de la bibliothèque",
+    "rename": "Renommer",
+    "restore": "Restaurer",
+    "selected_count": "{{count}} fichiers sélectionnés",
+    "show_in_folder": "Afficher dans le dossier",
     "size": "Taille",
     "text": "Texte",
     "title": "Fichier",
-    "type": "Type"
+    "trash": "Poubelle",
+    "type": "Type",
+    "video": "Vidéo"
   },
   "globalSearch": {
     "clear": "Effacer la recherche",
@@ -2767,6 +2801,8 @@
       "chunk_overlap_invalid": "Le chevauchement des blocs doit être supérieur ou égal à 0",
       "chunk_overlap_must_be_smaller": "Le chevauchement des morceaux doit être inférieur à la taille des morceaux",
       "chunk_overlap_requires_chunk_size": "La taille du chunk est requise lorsque le chevauchement des chunks est défini",
+      "chunk_separator": "Séparateur",
+      "chunk_separator_required": "Un séparateur est requis lorsque le découpage intelligent est désactivé",
       "chunk_size": "Taille de bloc",
       "chunk_size_change_warning": "Les modifications de la taille des blocs et du chevauchement ne s'appliquent qu'au contenu nouvellement ajouté",
       "chunk_size_invalid": "La taille du chunk doit être supérieure à 0",
@@ -2779,6 +2815,7 @@
       "file_processing_hint": "Le traitement des fichiers s'exécute automatiquement lors de l'importation des documents. Choisir le bon fournisseur peut améliorer la qualité de l'analyse des documents.",
       "hints": {
         "chunk_overlap": "Nombre de jetons chevauchants conservés entre les segments adjacents afin de réduire les ruptures sémantiques.",
+        "chunk_separator": "Délimiteur sur lequel le texte est découpé, sous forme échappée. Avec le découpage intelligent activé, il ajoute un point de rupture ; avec celui-ci désactivé, le texte est divisé uniquement par ce délimiteur.",
         "chunk_size": "Nombre cible de jetons pour chaque fragment de document. Cela influence la granularité de la récupération et la longueur du contexte.",
         "document_count": "Nombre maximal de fragments de document retournés pour chaque récupération. Des valeurs plus élevées couvrent davantage de contenu mais utilisent plus de contexte.",
         "embedding_model": "Utilisé pour convertir le contenu de la base de connaissances en vecteurs. Changer le modèle nécessite généralement de réindexer le contenu existant.",
@@ -2786,6 +2823,7 @@
         "processor": "Analyseur utilisé lors de l'importation des fichiers pour extraire le corps du texte, les tableaux et le contenu associé.",
         "rerank_model": "Modèle utilisé pour réordonner les résultats initiaux de récupération et améliorer la pertinence finale des segments.",
         "search_mode": "Choisissez un mode de récupération : recherche vectorielle pour la correspondance sémantique, recherche plein texte pour les mots-clés ou recherche hybride pour les deux.",
+        "smart_chunking": "Fractionner automatiquement selon la structure Markdown (titres, blocs de code, paragraphes) et ne jamais fractionner à l’intérieur d’un bloc de code. Désactivez pour fractionner uniquement selon le séparateur.",
         "threshold": "Seuil de similarité pour filtrer les fragments peu pertinents. Des valeurs plus élevées rendent la récupération plus stricte.",
         "threshold_disabled": "Ce mode de récupération retourne des résultats ordonnés et n'utilise pas de seuil de similarité."
       },
@@ -2805,6 +2843,7 @@
         "vector": "Recherche vectorielle"
       },
       "separator_rule": "Règle de séparateur",
+      "smart_chunking": "Découpage intelligent",
       "threshold": "Seuil de similarité",
       "tokens_unit": "jetons"
     },
@@ -3837,64 +3876,6 @@
       "partial_failure": "{{count}} résultats de recherche, certaines recherches ont échoué"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "Ajouter à Launchpad",
-    "add_to_sidebar": "Ajouter à la barre latérale",
-    "popup": {
-      "close": "Fermer MinApp",
-      "devtools": "Outils de développement",
-      "goBack": "Retour",
-      "goForward": "Avancer",
-      "minimize": "Réduire MinApp",
-      "openExternal": "Ouvrir dans le navigateur",
-      "open_link_external_off": "Actuel : Ouvrir les liens dans la fenêtre par défaut",
-      "open_link_external_on": "Actuel : Ouvrir les liens dans le navigateur",
-      "refresh": "Actualiser",
-      "rightclick_copyurl": "Clic droit pour copier l'URL"
-    },
-    "remove_from_launchpad": "Supprimer de Launchpad",
-    "remove_from_sidebar": "Supprimer de la barre latérale",
-    "sidebar": {
-      "close": {
-        "title": "Fermer"
-      },
-      "closeall": {
-        "title": "Tout fermer"
-      },
-      "hide": {
-        "title": "Cacher"
-      },
-      "remove_custom": {
-        "title": "Supprimer l'application personnalisée"
-      }
-    },
-    "title": "MinApp"
-  },
-  "minapps": {
-    "ant-ling": "Fourmi Ling",
-    "baichuan": "Baichuan",
-    "baidu-ai-search": "Recherche IA Baidu",
-    "chatglm": "ChatGLM",
-    "dangbei": "Dangbei",
-    "doubao": "Doubao",
-    "hailuo": "Hailuo",
-    "ima": "ima",
-    "metaso": "Metaso",
-    "minimax-agent": "Agent Minimax CN",
-    "minimax-global": "Agent Minimax",
-    "nami-ai": "Nami IA",
-    "nami-ai-search": "Recherche Nami AI",
-    "qwen": "Qwen",
-    "sensechat": "SenseChat",
-    "stepfun": "Stepfun",
-    "tencent-yuanbao": "Yuanbao",
-    "tiangong-ai": "Skywork",
-    "wanzhi": "Wanzhi",
-    "wenxin": "ERNIE",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "Xiaoyi",
-    "zhihu": "Zhihu"
-  },
   "miniApp": {
     "add_to_launchpad": "Ajouter au tableau de bord",
     "add_to_sidebar": "Ajouter à la barre latérale",
@@ -3905,15 +3886,13 @@
     "hide_failed": "Failed to hide mini-app",
     "pin_failed": "Échec de l'épinglage de la mini-application",
     "popup": {
-      "close": "Закрыть мини-программу",
       "devtools": "Инструменты разработчика",
       "goBack": "Reculer",
       "goForward": "Avancer",
       "openExternal": "Открыть в браузере",
       "open_link_external_off": "Текущий: открывать ссылки в окне по умолчанию",
       "open_link_external_on": "Текущий: открывать ссылки в браузере",
-      "refresh": "Обновить",
-      "rightclick_copyurl": "Скопировать URL через правую кнопку мыши"
+      "refresh": "Обновить"
     },
     "remove_from_launchpad": "Supprimer du tableau de bord",
     "remove_from_sidebar": "Supprimer de la barre latérale",
@@ -3925,17 +3904,8 @@
     },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
-      "close": {
-        "title": "Fermer"
-      },
-      "closeall": {
-        "title": "Закрыть все"
-      },
       "hide": {
         "title": "Cacher"
-      },
-      "remove_custom": {
-        "title": "Supprimer l'application personnalisée"
       }
     },
     "title": "Mini-programme",
@@ -3955,7 +3925,6 @@
     "minimax-agent": "MiniMax Agent CN",
     "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
     "sensechat": "SenseChat",
     "stepfun": "Stepfun",
@@ -6355,9 +6324,9 @@
       "runtimeStatus": {
         "connected": "Connecté",
         "connecting": "Connexion",
-        "disabled": "[to be translated]:Disabled",
-        "error": "[to be translated]:Error",
-        "unavailable": "[to be translated]:Unavailable"
+        "disabled": "Désactivé",
+        "error": "Erreur",
+        "unavailable": "Indisponible"
       },
       "search": {
         "placeholder": "Rechercher des serveurs MCP...",
@@ -6482,42 +6451,27 @@
       "show_message_outline": "Afficher le plan du message",
       "title": "Paramètres des messages",
       "use_serif_font": "Utiliser une police serif",
-      "wide_mode": "[to be translated]:Wide layout mode"
+      "wide_mode": "Mode d'agencement large"
     },
     "miniApps": {
       "cache_change_notice": "Les modifications prendront effet après l'ajout ou la suppression d'applications ouvertes jusqu'à atteindre la valeur définie",
       "cache_description": "Définir le nombre maximum d'applications pouvant rester actives simultanément",
-      "cache_settings": "Paramètres du cache",
       "cache_title": "Nombre de caches d'applications",
       "custom": {
-        "conflicting_ids": "Конфликтующие ID с ID по умолчанию: {{ids}}",
-        "duplicate_ids": "Обнаружены повторяющиеся ID: {{ids}}",
-        "edit_description": "Здесь вы можете отредактировать конфигурацию пользовательского приложения. Каждое приложение должно содержать поля id, name, url и logo.",
+        "create_title": "Créer une mini-application personnalisée",
         "edit_title": "Редактировать пользовательское приложение",
-        "id": "ID",
-        "id_error": "Поле ID обязательно для заполнения.",
-        "id_placeholder": "Введите ID",
-        "logo": "Логотип",
         "logo_file": "Загрузить файл логотипа",
-        "logo_upload_button": "Загрузить",
         "logo_upload_error": "Не удалось загрузить логотип.",
         "logo_upload_label": "Загрузить логотип",
-        "logo_upload_success": "Логотип успешно загружен.",
-        "logo_url": "URL логотипа",
-        "logo_url_label": "URL логотипа",
-        "logo_url_placeholder": "Введите URL логотипа",
         "name": "Имя",
-        "name_error": "Поле Имя обязательно для заполнения.",
         "name_placeholder": "Введите имя",
-        "placeholder": "Введите конфигурацию пользовательского приложения (в формате JSON)",
         "remove_error": "Не удалось удалить пользовательское приложение.",
         "remove_success": "Пользовательское приложение успешно удалено.",
-        "save": "Сохранить",
         "save_error": "Не удалось сохранить пользовательское приложение.",
         "save_success": "Пользовательское приложение успешно сохранено.",
         "title": "Пользовательское приложение",
         "url": "URL",
-        "url_error": "Поле URL обязательно для заполнения.",
+        "url_invalid": "Saisissez une URL http, https ou file valide.",
         "url_placeholder": "Введите URL"
       },
       "disabled": "Applications masquées",
@@ -6539,65 +6493,7 @@
         "title": "Filtrage par zone de la mini-application"
       },
       "reset_tooltip": "Réinitialiser aux valeurs par défaut",
-      "title": "Paramètres de l'application",
       "visible": "Applications visibles"
-    },
-    "miniapps": {
-      "cache_change_notice": "Les changements prendront effet lorsque le nombre d’applications mini ouvertes atteindra la valeur définie",
-      "cache_description": "Définir le nombre maximal de mini-applications actives à conserver en mémoire",
-      "cache_settings": "Paramètres du cache",
-      "cache_title": "Limite du cache de la mini-application",
-      "custom": {
-        "conflicting_ids": "IDs en conflit avec les applications par défaut : {{ids}}",
-        "duplicate_ids": "IDs en double trouvés : {{ids}}",
-        "edit_description": "Modifiez ici la configuration de la mini-application personnalisée. Chaque application doit inclure les champs id, name, url et logo.",
-        "edit_title": "Modifier la mini-application personnalisée",
-        "id": "ID",
-        "id_error": "L'ID est requis.",
-        "id_placeholder": "Entrez l'ID",
-        "logo": "Logo",
-        "logo_file": "Télécharger le fichier du logo",
-        "logo_upload_button": "Télécharger",
-        "logo_upload_error": "Échec du téléchargement du logo.",
-        "logo_upload_label": "Télécharger le logo",
-        "logo_upload_success": "Logo téléchargé avec succès.",
-        "logo_url": "URL du logo",
-        "logo_url_label": "URL du logo",
-        "logo_url_placeholder": "Entrer l'URL du logo",
-        "name": "Nom",
-        "name_error": "Le nom est requis.",
-        "name_placeholder": "Entrez le nom",
-        "placeholder": "Entrez la configuration personnalisée de la mini-application (format JSON)",
-        "remove_error": "Échec de la suppression de la mini-application personnalisée.",
-        "remove_success": "Mini application personnalisée supprimée avec succès.",
-        "save": "Enregistrer",
-        "save_error": "Échec de l'enregistrement de la mini-application personnalisée.",
-        "save_success": "Mini-app personnalisée enregistrée avec succès.",
-        "title": "Personnalisé",
-        "url": "URL",
-        "url_error": "L'URL est requise.",
-        "url_placeholder": "Entrez l'URL"
-      },
-      "disabled": "Mini-applications cachées",
-      "display_title": "Paramètres d'affichage de la mini-application",
-      "empty": "Cliquez sur l’icône de masquage d’une application à gauche et elle se déplacera ici.",
-      "hide_app": "Masquer {{name}}",
-      "open_link_external": {
-        "title": "Ouvrir les liens dans une nouvelle fenêtre du navigateur"
-      },
-      "region": {
-        "auto": "Détection automatique",
-        "cn": "Chine",
-        "description": "Filtrage des mini-programmes non pris en charge en fonction de la région",
-        "global": "Mondial",
-        "title": "Filtre Mini Programme"
-      },
-      "reset_tooltip": "Rétablir les paramètres par défaut",
-      "show_app": "Afficher {{name}}",
-      "sidebar_description": "Afficher les mini-applications actives dans la barre latérale",
-      "sidebar_title": "Affichage des Mini Apps actives dans la barre latérale",
-      "title": "Paramètres des Mini Apps",
-      "visible": "Mini Applications Visibles"
     },
     "model": "Modèle par défaut",
     "models": {
@@ -6732,6 +6628,7 @@
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
         "large_group_hidden": "Afficher {{count}} modèles supplémentaires",
+        "model_in_use_by_knowledge_base": "Ce modèle est utilisé par une base de connaissances et ne peut pas être supprimé.",
         "operation_failed": "Model operation failed.",
         "refetch_list": "Récupérer à nouveau la liste des modèles",
         "reload_catalog": "Refresh list",
@@ -6866,14 +6763,14 @@
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
-      "customToolsEmpty": "[to be translated]:No custom tools yet. Add one to get started.",
+      "customToolsEmpty": "Aucun outil personnalisé pour l'instant. Ajoutez-en un pour commencer.",
       "description": "Gérez les outils binaires et les dépendances d'exécution requises par l'application.",
       "duplicateName": "A tool with the same name already exists",
       "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "[to be translated]:Install",
+      "install": "Installer",
       "installError": "Failed to install tool",
       "installing": "Installation en cours...",
-      "invalidTool": "[to be translated]:Invalid tool name or key",
+      "invalidTool": "Nom d'outil ou clé invalide",
       "notInstalled": "Non installé",
       "openBinariesDir": "Open binaries directory",
       "remove": "Remove tool",
@@ -6904,7 +6801,7 @@
       "update": "Update to latest version"
     },
     "power": {
-      "prevent_sleep_when_busy": "[to be translated]:Keep the system awake while tasks are running"
+      "prevent_sleep_when_busy": "Garder le système éveillé pendant l'exécution des tâches"
     },
     "privacy": {
       "enable_privacy_mode": "Отправлять анонимные сообщения об ошибках и статистику",

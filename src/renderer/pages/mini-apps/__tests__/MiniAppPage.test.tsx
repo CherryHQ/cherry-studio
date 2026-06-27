@@ -52,12 +52,9 @@ vi.mock('@renderer/pages/mini-apps/components/WebviewSearch', () => ({
   default: () => <div data-testid="webview-search" />
 }))
 
-vi.mock('@renderer/context/TabIdContext', () => ({
+vi.mock('@renderer/hooks/tab', () => ({
   useCurrentTab: () => mocks.currentTab,
-  useCurrentTabId: () => mocks.currentTab.id
-}))
-
-vi.mock('@renderer/context/TabsContext', () => ({
+  useCurrentTabId: () => mocks.currentTab.id,
   useOptionalTabsContext: () => ({
     tabs: [mocks.currentTab],
     updateTab: mocks.updateTab

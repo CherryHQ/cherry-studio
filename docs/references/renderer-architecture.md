@@ -22,20 +22,22 @@ Four layers. Dependencies may only flow **downward** (1 → 2 → 3 → 4).
 | # | Layer | Directories | Role |
 |---|---|---|---|
 | 1 | **App / composition** | `windows/`, `routes/`, top-level `pages/` (cross-domain shells only) | Entry points, provider mounting, router, app shell; composes features |
-| 2 | **Domain** | `features/<domain>/` | One business domain's vertical slice; mutually isolated |
+| 2 | **Domain** | `features/<domain>/` | One business domain's vertical slice; mutually isolated from sibling features (consumed from above by the app layer) |
 | 3 | **Shared** (no single owner) | `components/` → `hooks/` / `services/` → `utils/` / `data/` / `ipc/` / `workers/`; plus `config/` / `i18n/` / `assets/` / `types/` | Cross-domain reusable artifacts |
 | 4 | **Primitives** | `packages/ui` (`@cherrystudio/ui`), `@shared`, `@logger` | App-agnostic foundation |
 
 Rules:
 
 - **Within the type axis**: `window → page → component → primitive` (UI composition; detailed in §2.1).
-- **Along the domain axis**: a domain row may depend on the shared layer, primitives, and its own internals; it must **never** import a sibling domain row; the shared layer must **never** depend up on a domain row.
-- **Inside the shared layer**: `components` (UI) → `hooks` / `services` (behavior / runtime) → `utils` / `data` / `ipc` (pure / infra) → primitives. No shared module renders into or imports from a higher layer.
+- **Along the domain axis**: a domain row depends only **downward** — on the shared layer, primitives, and its own internals; it **never** imports a sibling domain row, and the shared layer **never** imports it (an upward edge). Its only legal *consumers* are therefore the app layer (`windows/` / `routes/` / top-level `pages/`): `window → feature` and `page → feature` are the legal inbound edges — a feature is built to be imported from above. Cross-domain needs route **down** (extract the shared piece into the shared layer) or **up** (the app layer composes both features), never sideways.
+- **Inside the shared layer**: `components` (UI) → `hooks` / `services` (behavior / runtime) → `utils` / `data` / `ipc` / `workers` (pure / infra) → primitives. No shared module renders into or imports from a higher layer.
+
+**Why the two banned edges matter** — both keep the dependency graph a strict downward DAG. `shared → feature` (an upward edge) would make a *shared* module secretly domain-coupled, open `feature → shared → feature` cycles, and pin the feature into the eager shared chunk (defeating per-feature code-split). `feature → feature` (a sideways edge) would leak one domain's blast radius into another, bind callers to internals the barrel (§5) declares unstable, and block clean deletion (features get reshaped/removed in v2). Both are banned as **categories**, not case-by-case, so one `import/no-restricted-paths` rule enforces them (§5; sources in §9).
 
 ### 2.1 Type-Axis Composition Chain
 
 The type axis is a strict UI composition order: each kind composes the one below it and never imports the one above.
-It is orthogonal to the domain axis (§1) — a `page` may be domain-owned (`features/<domain>/pages/`) or a top-level shell, but its composition rules are the same either way.
+It is orthogonal to the domain axis (§1) — a `page` may be domain-owned (`features/<domain>/pages/`) or a top-level shell, but its composition rules are the same either way. A feature-internal piece obeys the **identical** type-axis direction rules as its top-level counterpart; its one extra freedom is that it may import its **own** feature's siblings directly (internal cohesion needs no barrel — the §5 barrel is only the *external* door).
 
 | Kind | Composes / may import | Must not import |
 |---|---|---|
@@ -43,6 +45,8 @@ It is orthogonal to the domain axis (§1) — a `page` may be domain-owned (`fea
 | `page` | components, feature content, shared, primitives | another `page`, a `window` |
 | `component` | other components, primitives, shared behavior (`hooks` / `services` / `utils`) | `page`, `window`, `features` |
 | `primitive` | third-party only | any `@renderer/*` / app layer |
+
+**Same-kind peering vs same-slice isolation — two senses of "same layer".** Within one kind, peers compose freely: `component → component`, `hook → hook`, `util → util` are normal edges (a component is built from other components); the type axis only forbids importing **up** a kind (`component → page`/`window`/`feature`). Do not conflate this with the **domain-axis** rule that sibling *features* (the same slice layer, §2) may never import each other — `component → component` is allowed while `feature → feature` is not, because they sit on different axes. Two riders: (a) `page` is the one kind where same-kind peering is **also** banned (`page → page`, §7); (b) same-kind peering still obeys the domain axis — a shared component still can't reach up into a feature, nor a feature-A component sideways into feature-B (§2). `service` / `util` peering is allowed on the same terms but must stay **acyclic**.
 
 **Primitive requirements** (`packages/ui` and `@shared`):
 
@@ -77,11 +81,11 @@ src/shared                       # Primitive — cross-process types / contracts
 |---|---|---|---|
 | `windows/` | Multi-window entry points; mount providers, router, shell | every lower layer | be imported by anyone |
 | `routes/` | Route definitions pointing at pages | features, shared, primitives | be imported by lower layers |
-| `pages/` (top-level) | **Only** cross-domain shell / composition pages; domain pages move into `features/<domain>/pages/` | features, components, shared | import another `pages/<page>` (cross-page coupling) |
-| `features/<domain>/` | One **business domain**'s vertical slice (its pages/components/hooks/services/utils); curated `index.ts` is the sole public entry | shared layer, primitives, its own internals | (1) import a sibling feature (2) be imported by the shared layer (3) hold non-domain / cross-cutting / domain-agnostic infra |
+| `pages/` (top-level) | **Only** cross-domain shell / composition pages; domain pages move into `features/<domain>/pages/` | features, components, shared, primitives | import another `pages/<page>` (cross-page coupling) |
+| `features/<domain>/` | One **business domain**'s vertical slice (its pages/components/hooks/services/utils); curated `index.ts` is the sole public entry. Its **only** legal importers are the app layer (`windows`/`routes`/`pages`), via the barrel | shared layer, primitives, its own internals | (1) import a sibling feature (2) be imported by the shared layer or a sibling feature (3) hold non-domain / cross-cutting / domain-agnostic infra |
 | `components/` | App-level **shared UI**: cross-page, no domain knowledge, app-aware, presentational | packages/ui, other components, hooks, services, utils, @shared | import features; import pages; own a domain's data flow |
 | `services/` | App-level **singletons / runtime logic** — plain modules, **no components or JSX** | utils, data, ipc, @shared | import features; import pages; import components; render UI; call React hooks |
-| `hooks/` | **Cross-domain** reusable hooks | services, utils, data, @shared | import features/pages/components; retain a domain's hooks once that domain has its own feature (§4.4) |
+| `hooks/` | **Cross-domain** reusable hooks | services, utils, data, @shared | import features/pages/components; retain a domain's hooks once that domain has its own feature (§4.1) |
 | `utils/` | **Cross-domain** pure functions | @shared, third-party only | import any higher layer |
 | `data/`, `ipc/`, `workers/` | Foundational subsystems (data layer, IPC bridge, web workers) | utils, @shared | import features/pages/components |
 | `config/`, `i18n/`, `assets/`, `types/` | **App-global** config / locale / static assets / shared types only; domain-specific entries move into the owning feature | — | hold domain-specific content |
@@ -89,7 +93,7 @@ src/shared                       # Primitive — cross-process types / contracts
 
 **Routing `services/` vs `hooks/` vs `utils/`.** The decisive test is the module's *shape*: pure / stateless → `utils/`; uses React lifecycle / state / context → `hooks/`; a stateful class owning state / resources → a `Service` / `Manager` (top-level `services/` when cross-domain); renders JSX → `components/` / `pages/`.
 The authoritative table is [Naming Conventions §5.2](./naming-conventions.md).
-These top-level buckets hold cross-domain pieces; a small **domain-specific** piece may stay here until its domain earns a `features/<domain>/`, then it moves in (the §4.4 promotion rule).
+These top-level buckets hold cross-domain pieces; a small **domain-specific** piece may stay here until its domain earns a `features/<domain>/`, then it moves in (the §4.1 promotion rule).
 
 **Providers.** A React context provider is a **component**, not a service — `services/` holds non-component logic only.
 App-wide providers (theme, command, context-key, notification) live in the shared tier (they are components) and are mounted by `windows/` (a downward `window → component` edge); domain-owned providers live in their feature.
@@ -98,10 +102,36 @@ A provider's reusable, non-React logic belongs in `@shared` or `services/`, not 
 ## 4. `features/` Definition
 
 > A `features/<domain>/` is a **self-contained business-domain module** — a full row on the domain axis that co-locates the pages, components, hooks, services, and utils for **one** business domain in a single tree, exposing its public API through a curated `index.ts`.
+>
+> *Self-contained* describes **internal cohesion** (all of one domain's parts live in one tree), **not** external unreachability: a feature is openly imported from above by the app layer (§2). It is isolated only **horizontally** — from sibling features.
 
-- **Promotion, not default.** A domain earns a `features/<domain>/` home only once it is large and multi-file; a small domain stays as single files in the shared buckets. Do not pre-create a feature for an anticipated module. (This is the §4.4 promotion rule, applied per domain.)
+- **Promotion, not default.** A domain earns a `features/<domain>/` home only once it is large and multi-file; a small domain stays as single files in the shared buckets. Do not pre-create a feature for an anticipated module. See **§4.1** for the operational trigger and a worked example.
 - **Business domains only.** Cross-cutting capabilities (e.g. a command/keybinding system), domain-agnostic infrastructure (`data`, `ipc`), and the app shell do **not** live in `features/`.
 - **Closest industry match** is bulletproof-react's `features/` (a self-contained domain folder). It is **not** FSD's fine-grained "feature" (a single business action) and **not** Nx's `type:feature` (a role that splits a domain across typed libs).
+
+### 4.1 Promotion Rule — when a domain earns a feature
+
+Promotion is **lazy and per-case** (§4), not a default — but it is a real path, not a directory doomed to stay empty: the rules above describe what the destination *looks like*. Until a domain qualifies, its pieces legitimately sit in the shared type-buckets (`pages/<domain>/`, `components/<domain>/`, `hooks/<domain>/`, …). (No `features/` directory exists yet — see §8.)
+
+Operational trigger (guidance, not a hard gate) — promote when **all** hold:
+
+- the domain already owns its **own page(s)** plus a **multi-file** spread of components/hooks/services across several shared buckets;
+- those pieces are imported **mainly within the domain** — broad cross-domain reuse is instead the signal to push a piece **down** into the shared layer, not into a feature;
+- folding them behind one barrel would **shrink** cross-bucket coupling, not merely relocate it.
+
+Worked example — `chat` → `features/chat/`:
+
+```text
+# scattered today (shared type-buckets)        # promoted
+pages/home/           chat page shell           features/chat/
+components/chat/      ~288 files          →       ├── index.ts      # curated public API (named exports, no export *)
+components/composer/  ~119 files                  ├── pages/        # ← pages/home
+hooks/chat/                                       ├── components/   # ← components/chat + components/composer
+services/…            chat-only services          ├── hooks/        # ← hooks/chat
+                                                  └── services/     # ← chat-only services
+```
+
+After promotion: the app layer (`windows`/`routes`/`pages`) imports `@renderer/features/chat`'s barrel; nothing reaches into its internals (§5); and cross-surface runtime that *other* domains also use (e.g. the AI-stream transport, target `services/aiTransport`, §8) stays in the **shared** layer, **not** inside the feature.
 
 ## 5. Public API & Boundary Enforcement
 
@@ -128,7 +158,7 @@ This is why a command/keybinding/menu system is not a feature and not a top-leve
 | `CommandProvider`/`CommandContextKeyProvider`, `CommandMenus`, `CommandControls` | React components | `components/command` |
 
 A `Provider` returns JSX so it is a **component**; the contexts it fills and the hooks that read them are non-JSX and sink one tier below to `hooks/command`; pure logic sinks to `utils/command` (renderer-only) or `@shared/utils/command` (cross-process), and types to `@shared/types/command`. Nothing goes to `services/`, and `@shared` keeps only what **both** processes use — a resolver consumed only by the renderer (e.g. `getCommandShortcutLabel`) belongs in `utils/command`.
-After decomposition every edge is downward (`component → component`/`hook`, `hook → hook`); the former `component → feature` and `hook → feature` inversions are gone, and nothing is a "feature".
+After decomposition every edge is downward (`component → component`/`hook`, `hook → hook`); the former `component → feature` and `hook → feature` inversions are gone (the importing `component`/`hook` are the **shared** buckets — a feature-internal `component` importing its own siblings is not such an inversion), and nothing is a "feature".
 
 ## 7. Anti-Patterns
 
@@ -149,11 +179,12 @@ This document describes the **target** architecture. The renderer has not yet be
 
 - `packages/ui` has no back-imports from `@renderer/*` (the primitive layer is clean).
 - The command capability is decomposed by shape with no `component`/`hook → feature` edges: the renderer cells (`utils/command`, `hooks/command`, `components/command`) are in place, and its cross-process cell is split into `@shared/utils/command` (logic + `ContextKeyService`/`MenuRegistry` blueprints) and `@shared/types/command` (types) per [Shared Layer Architecture](./shared-layer-architecture.md).
+- The `context/` by-kind bucket has been dissolved by shape: app-wide providers (`ThemeProvider`, `CodeStyleProvider`) sit in `components/` with their context objects and accessor hooks in `hooks/` (`useTheme`, `useCodeStyle`); the tab subsystem's behavior layer is decomposed into `hooks/tab/` (context + hooks, mirroring the `command` pattern), with the `TabsProvider`/`TabIdProvider` components co-located in the shell UI (`components/layout/`) pending the App-shell migration.
 
 **Pending (current deviations from the target):**
 
 This table lists definite mis-classifications and structural violations only.
-A small domain's pieces (components, pages, hooks, services, utils) may legitimately sit in the shared type-buckets until that domain earns a `features/<domain>/`; that promotion is a separate per-case judgment (§4.4) and is not prescribed here.
+A small domain's pieces (components, pages, hooks, services, utils) may legitimately sit in the shared type-buckets until that domain earns a `features/<domain>/`; that promotion is a separate per-case judgment (§4.1) and is not prescribed here.
 
 | Area | Current state | Target |
 |---|---|---|
@@ -161,12 +192,12 @@ A small domain's pieces (components, pages, hooks, services, utils) may legitima
 | `components/app/Navbar` | a shared page-header component (`Navbar`/`NavbarCenter`/…) consumed by ~10 pages, mislabeled under an `app/` (shell) subdirectory | it is shared UI, **not** shell: keep in `components/` (regroup as `components/Navbar/`) |
 | `components/app/Sidebar` | no importers found — likely dead code | verify; remove if unused, otherwise place by its actual consumer (window shell → `windows/`, reusable UI → `components/`) |
 | Cross-page imports | `pages/<domain>/` import each other (`pages → pages` coupling) | a page must not import another page; route shared needs through the shared layer |
-| `transport/` | a chat-domain capability (`IpcChatTransport`, `TopicStreamSubscription`) occupies its own top-level directory | belongs to its owning domain (chat); not its own top-level directory (§4.8) |
-| `queue/` | a single-file capability (`NotificationQueue`) occupies its own top-level directory | belongs with its owning logic; not its own top-level directory (§4.8) |
-| `context/` | redundant by-kind bucket (providers are components); mixes global and domain providers | dissolve: app-wide providers → shared tier (components), mounted by windows; domain providers → their owning domain; none → `services/` |
+| `transport/` | a renderer-side AI-streaming runtime (`IpcChatTransport`, `TopicStreamSubscription`, `streamDispatchCoordinator`) occupies its own top-level directory; consumed across chat, quick-assistant and selection surfaces, pairing with the cross-process `@shared/ai/transport` contract | a **cross-surface `ai` runtime**, not chat-exclusive: by shape (stateful singletons / classes) it sinks into the shared `services/` bucket (e.g. `services/aiTransport/`); not its own top-level directory (Naming Conventions §4.8) |
+| `queue/` | a single-file capability (`NotificationQueue`) occupies its own top-level directory | belongs with its owning logic; not its own top-level directory (Naming Conventions §4.8) |
 | `config/` | by-kind bucket mixing app-global constants (`constant.ts` ~80 consumers, `env.ts`) with domain static data (`providers.ts` ~1.4k lines, `models/`, `agent.ts`, …) | dissolve: app-global residue (`constant.ts`, `env.ts`) stays; domain config/data → its owning domain |
 | `utils/` root barrel | `src/renderer/utils/index.ts` (11 `export *`) imported bucket-root by ~127 `@renderer/utils` consumers; `utils/messageUtils/` is a multi-file topic subdir with **no `index.ts`** | drop the root barrel (import `@renderer/utils/<topic>`); give `messageUtils/` one curated `index.ts` (named exports, no `export *`) |
-| `store/`, `databases/` | v1 Redux / Dexie | removed during the v2 refactor (do not model) |
+| `databases/` | v1 Dexie | removed during the v2 refactor (do not model) |
+| Domain promotion | large multi-file domains (`chat` ≈ `pages/home` + `components/chat` + `components/composer`; `knowledge` ≈ `pages/knowledge` + …) are scattered across the shared type-buckets, and **no `features/` directory exists yet** | promote the largest domains into `features/<domain>/` per the §4.1 trigger (`chat` and `knowledge` first) |
 | Boundary enforcement | none | `import/no-restricted-paths` zones (§5) |
 
 Known reverse/coupling edges at time of writing: ~35 `pages → pages` cross-imports (the command-driven `component`/`hook → feature` edges have been resolved). These are the violations the §5 lint rules are designed to catch and prevent.

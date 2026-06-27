@@ -2,13 +2,14 @@ import {
   emitResourceListReveal,
   type ResourceListRevealSource
 } from '@renderer/components/chat/resources/resourceListRevealEvents'
+import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
 import {
   buildSidebarAppOpenMetadata,
   getSidebarApp,
   getSidebarAppTabInstanceKey,
   tabBelongsToApp
 } from '@renderer/config/sidebar'
-import { type TabsContextValue, useOptionalTabsContext } from '@renderer/context/TabsContext'
+import { type TabsContextValue, useOptionalTabsContext } from '@renderer/hooks/tab'
 import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useMemo } from 'react'
@@ -26,6 +27,11 @@ export interface ConversationNavigation {
    * `forceNew` skips the focus step and always opens a fresh duplicate tab.
    */
   openConversationTab: (key: string, title?: string, options?: { forceNew?: boolean }) => string | undefined
+  /**
+   * Open conversation `key` in the current tabs context when available; otherwise
+   * open it in a detached window. Detached host windows always open elsewhere.
+   */
+  openConversation: (key: string, title?: string) => string | undefined
   /**
    * Open conversation `key` in a fresh detached window, leaving the current window's
    * tabs untouched. Unlike a tab detach this does not require `key` to be an open tab.
@@ -112,13 +118,19 @@ function openConversationWindowImpl(appId: SidebarIcon, key: string, title?: str
  */
 export function useConversationNavigation(appId: SidebarIcon): ConversationNavigation {
   const tabs = useOptionalTabsContext()
+  const isDetachedWindowFrame = useWindowFrame().mode === 'window'
 
   return useMemo<ConversationNavigation>(
     () => ({
       focusExistingTab: (key, options) => focusConversationTabImpl(tabs, appId, key, options?.excludeTabId),
       openConversationTab: (key, title, options) => openConversationTabImpl(tabs, appId, key, title, options?.forceNew),
+      openConversation: (key, title) => {
+        if (tabs && !isDetachedWindowFrame) return openConversationTabImpl(tabs, appId, key, title)
+        openConversationWindowImpl(appId, key, title)
+        return undefined
+      },
       openConversationWindow: (key, title) => openConversationWindowImpl(appId, key, title)
     }),
-    [appId, tabs]
+    [appId, isDetachedWindowFrame, tabs]
   )
 }
