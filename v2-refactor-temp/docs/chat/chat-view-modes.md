@@ -140,6 +140,24 @@ repurposed for **edit-in-place** instead of opening a switcher:
   small model now live in the agent edit dialog. The agent switcher is also hidden
   inside active sessions (an active session is bound to its agent).
 
+## Agent workspace control (old view)
+
+Old-view agent chats keep the workspace control visible in the composer because
+the classic left sidebar is no longer present:
+
+- Draft sessions keep the existing editable workspace selector.
+- Persistent sessions can switch workspace only while the visible session is still
+  empty: messages are loaded, there are no older pages, and the UI message list is
+  empty. After any message exists, the same control remains visible as a read-only
+  workspace display.
+- Switching patches the current session's workspace source (`user` workspace id or
+  `system` / no-project) instead of replacing the draft state. The data service
+  rejects workspace updates once the session has messages.
+- The no-project / system workspace is not a user filesystem workspace. It is shown
+  as the no-project option, but it does not run directory accessibility preflight
+  and is not passed to skills or tool accessible paths. Only `user` workspaces expose
+  their path to those checks.
+
 ## Data flow
 
 No DataApi endpoint filters topics/sessions by entity — both panes derive from one
@@ -159,6 +177,10 @@ shared full list and filter in the frontend.
   re-derive. No local shadow copies.
 - Assistant/agent metadata supplies display data + operations (name, emoji/avatar,
   `orderKey`, context-menu actions); topic/session data determines visibility.
+- `PATCH /agent-sessions/:sessionId` accepts a normalized `workspace` source for
+  empty-session workspace switches. The main service maps it to the backing
+  `workspaceId`, creates or removes system workspaces as needed, and refuses the
+  update after messages exist.
 
 ## Agent pane persistence across the draft→persistent handoff
 
@@ -189,4 +211,8 @@ site, so the open state survives the remount. This is scoped to old view
 - `hooks/useAssistantCatalogPresets.ts` — preset catalog feeding the assistant picker.
 - `hooks/resourceViewSources.ts` — shared full-list sources.
 - `pages/home/HomePage.tsx`, `pages/agents/AgentPage.tsx`,
-  `pages/agents/AgentChat.tsx` — page wiring + agent pane persistence.
+  `pages/agents/AgentChat.tsx`, `pages/agents/AgentComposerSlot.tsx` — page wiring,
+  agent pane persistence, and old-view workspace switching.
+- `main/data/services/AgentSessionService.ts`,
+  `shared/data/api/schemas/agentSessions.ts` — empty-session workspace update
+  validation and persistence.
