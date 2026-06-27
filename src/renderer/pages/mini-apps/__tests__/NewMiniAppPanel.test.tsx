@@ -6,13 +6,15 @@ import NewMiniAppPanel from '../NewMiniAppPanel'
 
 const STORED_ID = '0190f3c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f'
 
+const UPLOAD_ID = '019606a0-0000-7000-8000-0000000000aa'
+
 const mocks = vi.hoisted(() => ({
   miniApps: [],
   disabled: [],
   pinned: [],
   createCustomMiniApp: vi.fn().mockResolvedValue(undefined),
   updateCustomMiniApp: vi.fn().mockResolvedValue(undefined),
-  normalizeImageToWebp: vi.fn(),
+  storeImageUpload: vi.fn(),
   dialogOnOpenChange: undefined as ((open: boolean) => void) | undefined
 }))
 
@@ -42,9 +44,22 @@ vi.mock('@renderer/utils/uuid', () => ({
   uuid: () => 'generated-id'
 }))
 
-vi.mock('@renderer/utils/image', () => ({
-  normalizeImageToWebp: mocks.normalizeImageToWebp
-}))
+vi.mock('@renderer/utils/storedImage', () => {
+  // Re-implement the pure resolve/is helpers (the real module pulls in i18n,
+  // which isn't initialized in this suite); only storeImageUpload is a spy.
+  const FILE_ENTRY_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  const isStoredImageId = (value?: string | null): value is string => !!value && FILE_ENTRY_ID_RE.test(value)
+  return {
+    storeImageUpload: mocks.storeImageUpload,
+    isStoredImageId,
+    resolveStoredImageSrc: (value?: string | null, filesPath?: string) => {
+      if (!value) return undefined
+      if (!isStoredImageId(value)) return value
+      if (!filesPath) return undefined
+      return `file://${filesPath}/${value}.webp`
+    }
+  }
+})
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, onClick, disabled }: React.PropsWithChildren<{ onClick?: () => void; disabled?: boolean }>) => (
@@ -95,8 +110,8 @@ beforeEach(() => {
   mocks.dialogOnOpenChange = undefined
   mocks.createCustomMiniApp.mockClear()
   mocks.updateCustomMiniApp.mockClear()
-  mocks.normalizeImageToWebp.mockReset()
-  mocks.normalizeImageToWebp.mockResolvedValue(new Uint8Array([1, 2, 3]))
+  mocks.storeImageUpload.mockReset()
+  mocks.storeImageUpload.mockResolvedValue(UPLOAD_ID)
   // jsdom has no object-URL impl; stub so the upload preview path runs.
   URL.createObjectURL = vi.fn(() => 'blob:miniapp-logo')
   URL.revokeObjectURL = vi.fn()
@@ -283,12 +298,12 @@ describe('NewMiniAppPanel', () => {
       expect(mocks.updateCustomMiniApp).toHaveBeenCalledWith('custom-app', {
         name: 'New App',
         url: 'https://new.app',
-        logo: new Uint8Array([1, 2, 3])
+        logoFileId: UPLOAD_ID
       })
     })
   })
 
-  it('normalizes and previews the selected logo file immediately', async () => {
+  it('stores and previews the selected logo file immediately', async () => {
     const { container } = render(<NewMiniAppPanel open={true} onClose={vi.fn()} />)
 
     const file = new File(['avatar'], 'avatar.png', { type: 'image/png' })
@@ -299,13 +314,13 @@ describe('NewMiniAppPanel', () => {
     })
 
     await waitFor(() => {
-      expect(mocks.normalizeImageToWebp).toHaveBeenCalledWith(file)
+      expect(mocks.storeImageUpload).toHaveBeenCalledWith(file)
       expect(screen.getByAltText('miniapp-logo-preview')).toHaveAttribute('data-logo', 'blob:miniapp-logo')
       expect(window.toast.success).not.toHaveBeenCalled()
     })
   })
 
-  it('submits the uploaded logo as WebP bytes when creating', async () => {
+  it('submits the uploaded logo as a pre-stored file id when creating', async () => {
     const { container } = render(<NewMiniAppPanel open={true} onClose={vi.fn()} />)
     fireEvent.change(screen.getByPlaceholderText('settings.miniApps.custom.name_placeholder'), {
       target: { value: 'My App' }
@@ -318,7 +333,7 @@ describe('NewMiniAppPanel', () => {
     fireEvent.change(container.querySelector('input[type="file"]') as HTMLInputElement, {
       target: { files: [file] }
     })
-    await waitFor(() => expect(mocks.normalizeImageToWebp).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(mocks.storeImageUpload).toHaveBeenCalledTimes(1))
 
     fireEvent.click(screen.getByRole('button', { name: /common\.save/ }))
 
@@ -327,16 +342,16 @@ describe('NewMiniAppPanel', () => {
         appId: 'generated-id',
         name: 'My App',
         url: 'https://my.app',
-        logo: new Uint8Array([1, 2, 3])
+        logoFileId: UPLOAD_ID
       })
     })
   })
 
   it('disables saving while the selected logo file is still processing', async () => {
-    let resolveLogo: (value: Uint8Array) => void = () => {}
-    mocks.normalizeImageToWebp.mockImplementationOnce(
+    let resolveLogo: (value: string) => void = () => {}
+    mocks.storeImageUpload.mockImplementationOnce(
       () =>
-        new Promise<Uint8Array>((resolve) => {
+        new Promise<string>((resolve) => {
           resolveLogo = resolve
         })
     )
@@ -355,14 +370,14 @@ describe('NewMiniAppPanel', () => {
     fireEvent.change(fileInput as HTMLInputElement, {
       target: { files: [file] }
     })
-    await waitFor(() => expect(mocks.normalizeImageToWebp).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(mocks.storeImageUpload).toHaveBeenCalledTimes(1))
 
     const saveBtn = screen.getByRole('button', { name: /common\.save/ })
     expect(saveBtn).toBeDisabled()
     expect(mocks.createCustomMiniApp).not.toHaveBeenCalled()
 
     await act(async () => {
-      resolveLogo(new Uint8Array([9, 9, 9]))
+      resolveLogo(UPLOAD_ID)
     })
 
     await waitFor(() => expect(saveBtn).not.toBeDisabled())
@@ -373,7 +388,7 @@ describe('NewMiniAppPanel', () => {
         appId: 'generated-id',
         name: 'My App',
         url: 'https://my.app',
-        logo: new Uint8Array([9, 9, 9])
+        logoFileId: UPLOAD_ID
       })
     })
   })
@@ -381,7 +396,7 @@ describe('NewMiniAppPanel', () => {
   it('surfaces a toast and keeps the default preview when processing the logo fails', async () => {
     const { container } = render(<NewMiniAppPanel open={true} onClose={vi.fn()} />)
 
-    mocks.normalizeImageToWebp.mockRejectedValueOnce(new Error('decode failed'))
+    mocks.storeImageUpload.mockRejectedValueOnce(new Error('decode failed'))
 
     const file = new File(['avatar'], 'avatar.png', { type: 'image/png' })
     const fileInput = container.querySelector('input[type="file"]')
@@ -397,10 +412,10 @@ describe('NewMiniAppPanel', () => {
   })
 
   it('ignores stale logo upload results after switching edited apps', async () => {
-    let resolveLogo: (value: Uint8Array) => void = () => {}
-    mocks.normalizeImageToWebp.mockImplementationOnce(
+    let resolveLogo: (value: string) => void = () => {}
+    mocks.storeImageUpload.mockImplementationOnce(
       () =>
-        new Promise<Uint8Array>((resolve) => {
+        new Promise<string>((resolve) => {
           resolveLogo = resolve
         })
     )
@@ -427,7 +442,7 @@ describe('NewMiniAppPanel', () => {
     fireEvent.change(fileInput as HTMLInputElement, {
       target: { files: [file] }
     })
-    await waitFor(() => expect(mocks.normalizeImageToWebp).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(mocks.storeImageUpload).toHaveBeenCalledTimes(1))
 
     rerender(
       <NewMiniAppPanel
@@ -446,7 +461,7 @@ describe('NewMiniAppPanel', () => {
     )
 
     await act(async () => {
-      resolveLogo(new Uint8Array([9, 9, 9]))
+      resolveLogo(UPLOAD_ID)
     })
 
     expect(screen.getByAltText('miniapp-logo-preview')).toHaveAttribute('data-logo', 'https://b.app/logo.png')
@@ -454,9 +469,9 @@ describe('NewMiniAppPanel', () => {
 
   it('does not show upload errors after the panel closes', async () => {
     let rejectLogo: (error: Error) => void = () => {}
-    mocks.normalizeImageToWebp.mockImplementationOnce(
+    mocks.storeImageUpload.mockImplementationOnce(
       () =>
-        new Promise<Uint8Array>((_, reject) => {
+        new Promise<string>((_, reject) => {
           rejectLogo = reject
         })
     )
@@ -469,7 +484,7 @@ describe('NewMiniAppPanel', () => {
     fireEvent.change(fileInput as HTMLInputElement, {
       target: { files: [file] }
     })
-    await waitFor(() => expect(mocks.normalizeImageToWebp).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(mocks.storeImageUpload).toHaveBeenCalledTimes(1))
 
     rerender(<NewMiniAppPanel open={false} onClose={vi.fn()} />)
     await act(async () => {

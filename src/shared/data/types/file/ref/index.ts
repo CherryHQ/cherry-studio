@@ -52,6 +52,7 @@ import {
   paintingRoleSchema,
   paintingSourceType
 } from './painting'
+import { miniAppLogoRef, providerLogoRef, USER_AVATAR_SOURCE_ID, userAvatarRef } from './singleFile'
 import { tempSessionFileRefSchema, tempSessionRefFields, tempSessionRoles, tempSessionSourceType } from './tempSession'
 
 // ─── SourceType type (load-bearing — keys the OrphanRefScanner registry) ───
@@ -87,7 +88,10 @@ export const allSourceTypes = [
   tempSessionSourceType,
   knowledgeItemSourceType,
   chatMessageSourceType,
-  paintingSourceType
+  paintingSourceType,
+  providerLogoRef.sourceType,
+  miniAppLogoRef.sourceType,
+  userAvatarRef.sourceType
 ] as const satisfies readonly string[]
 export type FileRefSourceType = (typeof allSourceTypes)[number]
 
@@ -111,7 +115,10 @@ export const FileRefSchema = z.discriminatedUnion('sourceType', [
   tempSessionFileRefSchema,
   knowledgeItemFileRefSchema,
   chatMessageFileRefSchema,
-  paintingFileRefSchema
+  paintingFileRefSchema,
+  providerLogoRef.schema,
+  miniAppLogoRef.schema,
+  userAvatarRef.schema
 ])
 export type FileRef = z.infer<typeof FileRefSchema>
 
@@ -129,13 +136,17 @@ export {
   knowledgeItemRoles,
   knowledgeItemRoleSchema,
   knowledgeItemSourceType,
+  miniAppLogoRef,
   paintingFileRefSchema,
   paintingRefFields,
   paintingRoles,
   paintingRoleSchema,
   paintingSourceType,
+  providerLogoRef,
   tempSessionFileRefSchema,
   tempSessionRefFields,
   tempSessionRoles,
-  tempSessionSourceType
+  tempSessionSourceType,
+  USER_AVATAR_SOURCE_ID,
+  userAvatarRef
 }

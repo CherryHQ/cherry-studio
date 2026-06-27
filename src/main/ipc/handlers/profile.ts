@@ -1,43 +1,33 @@
 import { application } from '@application'
-import { deleteEntityImage, storeEntityImage } from '@main/services/file/entityImageFile'
-import type { FileEntryId } from '@shared/data/types/file'
+import { fileRefService } from '@data/services/FileRefService'
+import { USER_AVATAR_SOURCE_ID, userAvatarRef } from '@shared/data/types/file'
 import type { profileRequestSchemas } from '@shared/ipc/schemas/profile'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
-/** file_entry ids are UUIDs; anything else is an emoji / icon ref / url / preset id. */
-const FILE_ENTRY_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-/** True when `value` is a stored avatar reference (a file-entry id). */
-function isStoredImageId(value: string | null | undefined): value is FileEntryId {
-  return !!value && FILE_ENTRY_ID_RE.test(value)
-}
+/** The singleton avatar's single-file slot. */
+const AVATAR_SLOT = { sourceType: userAvatarRef.sourceType, sourceId: USER_AVATAR_SOURCE_ID }
 
 /**
- * Profile request handler. `set_avatar` owns the `app.user.avatar` Preference and
- * the on-disk avatar file: it stores/clears the file and updates the preference
- * atomically, then reclaims any superseded stored image.
+ * Profile request handler. `set_avatar` is the avatar owner — DB-only: it
+ * reconciles the `user_avatar` single-file `file_ref` slot and the
+ * `app.user.avatar` Preference. The renderer pre-stores any uploaded image and
+ * passes its opaque id; superseded files are preserved per the file layer's
+ * policy (no filesystem access here).
  */
 export const profileHandlers: IpcHandlersFor<typeof profileRequestSchemas> = {
   'profile.set_avatar': async (input) => {
     const preferences = application.get('PreferenceService')
-    const previous = preferences.get('app.user.avatar')
-    const previousFileId = isStoredImageId(previous) ? previous : null
 
-    if (input.kind === 'image') {
-      const newId = await storeEntityImage(input.data, 'user_avatar')
-      try {
-        await preferences.set('app.user.avatar', newId)
-      } catch (error) {
-        // The preference write is the commit point; if it fails, reclaim the
-        // just-stored file so a failed upload can't leak an orphan entry.
-        await deleteEntityImage(newId)
-        throw error
-      }
-      await deleteEntityImage(previousFileId)
+    // Single-file slot: clear any existing ref, then re-point if a file is set.
+    await fileRefService.cleanupBySource(AVATAR_SLOT)
+
+    if (input.kind === 'file') {
+      await fileRefService.create({ fileEntryId: input.fileId, ...AVATAR_SLOT, role: 'avatar' })
+      await preferences.set('app.user.avatar', input.fileId)
       return
     }
 
+    // Emoji / preset / '' (reset) — stored verbatim.
     await preferences.set('app.user.avatar', input.value)
-    await deleteEntityImage(previousFileId)
   }
 }

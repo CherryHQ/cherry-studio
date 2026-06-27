@@ -18,8 +18,8 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { ipcApi } from '@renderer/ipc'
-import { normalizeImageToWebp } from '@renderer/utils/image'
 import { isEmoji } from '@renderer/utils/naming'
+import { storeImageUpload } from '@renderer/utils/storedImage'
 import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -83,9 +83,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   const handleUploadAvatar = async (file: File) => {
     try {
-      // Normalize the upload to a 128×128 WebP here; the handler stores the file
-      // and writes its id to the avatar Preference.
-      await ipcApi.request('profile.set_avatar', { kind: 'image', data: await normalizeImageToWebp(file) })
+      // Pre-store the normalized WebP to get an opaque file id; the handler points
+      // the avatar slot's file_ref at it and writes the id to the Preference.
+      const fileId = await storeImageUpload(file)
+      await ipcApi.request('profile.set_avatar', { kind: 'file', fileId })
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: any) {

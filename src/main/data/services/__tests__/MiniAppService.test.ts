@@ -1,12 +1,12 @@
 import { application } from '@application'
-import { fileEntryTable } from '@data/db/schemas/file'
+import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { miniAppTable } from '@data/db/schemas/miniApp'
 import { miniAppService } from '@data/services/MiniAppService'
 import { ErrorCode } from '@shared/data/api'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
 import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, type Mock } from 'vitest'
 
 describe('MiniAppService', () => {
@@ -389,61 +389,45 @@ describe('MiniAppService', () => {
     })
   })
 
-  describe('logo file lifecycle', () => {
-    let nextFileId = 0
-    const permanentDelete = vi.fn(async () => undefined)
+  describe('logo file lifecycle (DB-only file_ref slot)', () => {
+    const FILE_ID = '019606a0-0000-7000-8000-0000000000aa'
+    const FILE_ID_2 = '019606a0-0000-7000-8000-0000000000bb'
 
-    /**
-     * Wrap the mocked `application.get` so `FileManager` is available. The mock
-     * mirrors production: `storeEntityImage` → `createInternalEntry` inserts a
-     * real `file_entry` row (so the `logoFileId` FK passes), `deleteEntityImage`
-     * → `permanentDelete` is tracked. Other services pass through.
-     */
-    beforeEach(() => {
-      nextFileId = 0
-      permanentDelete.mockClear()
-      const original = (application.get as Mock).getMockImplementation()!
-      ;(application.get as Mock).mockImplementation((name: string) => {
-        if (name === 'FileManager') {
-          return {
-            createInternalEntry: vi.fn(async ({ data, name: fileName, ext }) => {
-              const id = `019606a0-0000-7000-8000-00000000f0${String(nextFileId++).padStart(2, '0')}`
-              await dbh.db
-                .insert(fileEntryTable)
-                .values({ id, origin: 'internal', name: fileName, ext, size: (data as Uint8Array).length })
-              return { id }
-            }),
-            permanentDelete
-          }
-        }
-        return original(name)
-      })
-    })
+    /** Pre-store a file_entry the way the renderer would, so the FK + ref pass. */
+    async function seedFileEntry(id: string) {
+      await dbh.db.insert(fileEntryTable).values({ id, origin: 'internal', name: 'logo', ext: 'webp', size: 3 })
+    }
 
-    it('create with Uint8Array stores a file and sets logoFileId (logo column null)', async () => {
+    async function logoRefs(appId: string) {
+      return dbh.db
+        .select()
+        .from(fileRefTable)
+        .where(and(eq(fileRefTable.sourceType, 'mini_app_logo'), eq(fileRefTable.sourceId, appId)))
+    }
+
+    it('create with logoFileId points the slot ref at it and nulls the logo column', async () => {
+      await seedFileEntry(FILE_ID)
       const created = await miniAppService.create({
         appId: 'logo-app',
         name: 'Logo App',
         url: 'https://logo.app',
-        logo: new Uint8Array([1, 2, 3])
+        logoFileId: FILE_ID
       })
 
       const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'logo-app'))
       expect(row.logo).toBeNull()
-      expect(row.logoFileId).toBeTruthy()
+      expect(row.logoFileId).toBe(FILE_ID)
       // Public DTO collapses to the file id.
-      expect(created.logo).toBe(row.logoFileId)
+      expect(created.logo).toBe(FILE_ID)
+      const refs = await logoRefs('logo-app')
+      expect(refs).toHaveLength(1)
+      expect(refs[0].fileEntryId).toBe(FILE_ID)
+      expect(refs[0].role).toBe('logo')
     })
 
-    it('update from upload to preset string clears logoFileId and prunes the old file', async () => {
-      await miniAppService.create({
-        appId: 'logo-app',
-        name: 'Logo App',
-        url: 'https://logo.app',
-        logo: new Uint8Array([1, 2, 3])
-      })
-      const [before] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'logo-app'))
-      const oldFileId = before.logoFileId
+    it('update from upload to preset clears the slot ref and preserves the file_entry', async () => {
+      await seedFileEntry(FILE_ID)
+      await miniAppService.create({ appId: 'logo-app', name: 'Logo App', url: 'https://logo.app', logoFileId: FILE_ID })
 
       const updated = await miniAppService.update('logo-app', { logo: 'application' })
 
@@ -451,22 +435,35 @@ describe('MiniAppService', () => {
       expect(row.logo).toBe('application')
       expect(row.logoFileId).toBeNull()
       expect(updated.logo).toBe('application')
-      expect(permanentDelete).toHaveBeenCalledWith(oldFileId)
+      expect(await logoRefs('logo-app')).toHaveLength(0)
+      // DB-only: the file_entry is preserved (no permanentDelete), per file policy.
+      const [entry] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, FILE_ID))
+      expect(entry).toBeTruthy()
     })
 
-    it('delete reclaims the uploaded logo file', async () => {
-      await miniAppService.create({
-        appId: 'logo-app',
-        name: 'Logo App',
-        url: 'https://logo.app',
-        logo: new Uint8Array([1, 2, 3])
-      })
+    it('update replacing one upload with another repoints the slot ref', async () => {
+      await seedFileEntry(FILE_ID)
+      await seedFileEntry(FILE_ID_2)
+      await miniAppService.create({ appId: 'logo-app', name: 'Logo App', url: 'https://logo.app', logoFileId: FILE_ID })
+
+      await miniAppService.update('logo-app', { logoFileId: FILE_ID_2 })
+
       const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'logo-app'))
-      const fileId = row.logoFileId
+      expect(row.logoFileId).toBe(FILE_ID_2)
+      const refs = await logoRefs('logo-app')
+      expect(refs).toHaveLength(1)
+      expect(refs[0].fileEntryId).toBe(FILE_ID_2)
+    })
+
+    it('delete clears the slot ref and preserves the file_entry', async () => {
+      await seedFileEntry(FILE_ID)
+      await miniAppService.create({ appId: 'logo-app', name: 'Logo App', url: 'https://logo.app', logoFileId: FILE_ID })
 
       await miniAppService.delete('logo-app')
 
-      expect(permanentDelete).toHaveBeenCalledWith(fileId)
+      expect(await logoRefs('logo-app')).toHaveLength(0)
+      const [entry] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, FILE_ID))
+      expect(entry).toBeTruthy()
     })
   })
 })

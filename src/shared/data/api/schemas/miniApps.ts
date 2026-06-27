@@ -5,6 +5,7 @@
  * API only manages user preferences for default apps and full CRUD for custom apps.
  */
 
+import { FileEntryIdSchema } from '@shared/data/types/file'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { MiniAppStatusSchema } from '@shared/data/types/miniApp'
 import * as z from 'zod'
@@ -22,13 +23,12 @@ export const MINI_APP_LOGO_MAX_LENGTH = 1024 * 1024
 export const MINI_APP_ALLOWED_URL_PROTOCOLS = ['http:', 'https:', 'file:'] as const
 
 /**
- * MiniApp logo input. Two forms:
- * - `string` — a preset icon id / url, stored inline on the row's `logo` column
- *   (capped at {@link MINI_APP_LOGO_MAX_LENGTH}).
- * - `Uint8Array` — a pre-encoded WebP upload, stored on disk as a `file_entry`
- *   and referenced by the row's `logoFileId`.
+ * MiniApp `logo` input: a preset icon id / url, stored inline on the row's
+ * `logo` column (capped at {@link MINI_APP_LOGO_MAX_LENGTH}). An uploaded image
+ * is NOT sent here — the renderer pre-stores it and passes its opaque
+ * `logoFileId` instead (see {@link CreateMiniAppSchema}).
  */
-const MiniAppLogoSchema = z.union([z.string().min(1).max(MINI_APP_LOGO_MAX_LENGTH), z.instanceof(Uint8Array)])
+const MiniAppLogoSchema = z.string().min(1).max(MINI_APP_LOGO_MAX_LENGTH)
 export const MiniAppUrlSchema = z.string().min(1).refine(isAllowedMiniAppUrl, {
   message: 'url must be a valid http, https, or file URL'
 })
@@ -49,11 +49,10 @@ export const CreateMiniAppSchema = z.strictObject({
   appId: z.string().regex(MINI_APP_ID_REGEX, 'appId can only contain letters, numbers, underscore, and hyphen'),
   name: z.string().min(1),
   url: MiniAppUrlSchema,
-  // string = preset icon id / url (stored inline in the SQLite row, capped at
-  // 1 MiB to keep a runaway data URL from blowing up the row and SwR cache);
-  // Uint8Array = pre-encoded WebP upload (stored on disk as a file_entry,
-  // referenced by logoFileId).
-  logo: MiniAppLogoSchema
+  /** Preset icon id / url (e.g. `'application'`); inline on the row's `logo`. */
+  logo: MiniAppLogoSchema.optional(),
+  /** Opaque file-entry id of a pre-stored uploaded logo; sets the row's `logoFileId`. */
+  logoFileId: FileEntryIdSchema.optional()
 })
 export type CreateMiniAppDto = z.infer<typeof CreateMiniAppSchema>
 
@@ -68,7 +67,10 @@ export const UpdateMiniAppSchema = z.strictObject({
   status: MiniAppStatusSchema.optional(),
   name: z.string().min(1).optional(),
   url: MiniAppUrlSchema.optional(),
-  logo: MiniAppLogoSchema.optional()
+  /** Preset icon id / url; inline on `logo`. */
+  logo: MiniAppLogoSchema.optional(),
+  /** Opaque file-entry id of a pre-stored uploaded logo; `null` clears it. */
+  logoFileId: FileEntryIdSchema.nullable().optional()
 })
 export type UpdateMiniAppDto = z.infer<typeof UpdateMiniAppSchema>
 

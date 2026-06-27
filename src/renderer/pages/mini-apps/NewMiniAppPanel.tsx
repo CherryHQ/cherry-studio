@@ -15,8 +15,7 @@ import { loggerService } from '@logger'
 import { LogoAvatar } from '@renderer/components/Icons'
 import { getMiniAppsLogo } from '@renderer/config/miniApps'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { normalizeImageToWebp } from '@renderer/utils/image'
-import { resolveStoredImageSrc } from '@renderer/utils/storedImage'
+import { resolveStoredImageSrc, storeImageUpload } from '@renderer/utils/storedImage'
 import { uuid } from '@renderer/utils/uuid'
 import { MiniAppUrlSchema } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp } from '@shared/data/types/miniApp'
@@ -44,10 +43,10 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
   const [name, setName] = useState('')
   const [url, setUrl] = useState('')
   // `logo` is the preview value only (a preset id / url / object URL for a
-  // staged upload). `logoUploadBytes` holds the encoded WebP submitted on save;
-  // a non-upload submits the `'application'` default string instead.
+  // staged upload). `logoUploadId` holds the pre-stored file-entry id submitted
+  // as `logoFileId` on save; a non-upload submits the `'application'` default.
   const [logo, setLogo] = useState('')
-  const [logoUploadBytes, setLogoUploadBytes] = useState<Uint8Array<ArrayBuffer> | null>(null)
+  const [logoUploadId, setLogoUploadId] = useState<string | null>(null)
   const [logoChanged, setLogoChanged] = useState(false)
   const [logoProcessing, setLogoProcessing] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -69,7 +68,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
     setUrl('')
     setLogo('')
     revokePreviewObjectUrl()
-    setLogoUploadBytes(null)
+    setLogoUploadId(null)
     setLogoChanged(false)
     setLogoProcessing(false)
   }
@@ -79,7 +78,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
     setLogoChanged(false)
     setLogoProcessing(false)
     revokePreviewObjectUrl()
-    setLogoUploadBytes(null)
+    setLogoUploadId(null)
     if (!open) {
       setName('')
       setUrl('')
@@ -123,13 +122,14 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
     const uploadGeneration = ++uploadGenerationRef.current
     setLogoProcessing(true)
     try {
-      // Submit pre-encoded WebP bytes; preview the original file via an object URL.
-      const bytes = await normalizeImageToWebp(file)
+      // Pre-store the normalized WebP to get an opaque file id (submitted as
+      // logoFileId); preview the original file via an object URL.
+      const fileId = await storeImageUpload(file)
       if (uploadGenerationRef.current !== uploadGeneration) return
       revokePreviewObjectUrl()
       previewObjectUrlRef.current = URL.createObjectURL(file)
       setLogo(previewObjectUrlRef.current)
-      setLogoUploadBytes(bytes)
+      setLogoUploadId(fileId)
       setLogoChanged(true)
     } catch (error) {
       if (uploadGenerationRef.current !== uploadGeneration) return
@@ -155,16 +155,16 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
         name: name.trim(),
         url: trimmedUrl
       }
-      // A staged upload submits its WebP bytes; otherwise the `'application'`
-      // preset string is the value.
-      const logoPayload = logoUploadBytes ?? 'application'
+      // A staged upload submits its pre-stored file id (`logoFileId`); otherwise
+      // the `'application'` preset string is the value.
+      const logoFields = logoUploadId ? { logoFileId: logoUploadId } : { logo: 'application' }
       if (isEditing) {
-        await updateCustomMiniApp(app.appId, logoChanged ? { ...basePayload, logo: logoPayload } : basePayload)
+        await updateCustomMiniApp(app.appId, logoChanged ? { ...basePayload, ...logoFields } : basePayload)
       } else {
         await createCustomMiniApp({
           appId: uuid(),
           ...basePayload,
-          logo: logoPayload
+          ...logoFields
         })
       }
       window.toast.success(t('settings.miniApps.custom.save_success'))
@@ -177,7 +177,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
     }
   }
 
-  const hasUploadedLogo = logoUploadBytes != null
+  const hasUploadedLogo = logoUploadId != null
   const logoValue = logo.trim() || 'application'
   // Resolve a stored file id (an existing app's uploaded logo) to a file:// URL;
   // preset ids resolve to their CompoundIcon, object URLs / urls pass through.

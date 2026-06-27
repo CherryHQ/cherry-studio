@@ -20,7 +20,15 @@ interface UseProviderEditorParams {
  * branch decision lives in the params, not a closure.
  */
 export type SubmitProviderEditorParams =
-  | { mode: 'edit'; name: string; defaultChatEndpoint: EndpointType; logo?: string | Uint8Array<ArrayBuffer> | null }
+  | {
+      mode: 'edit'
+      name: string
+      defaultChatEndpoint: EndpointType
+      /** Preset id / url (`null` clears, omitted leaves unchanged). */
+      logo?: string | null
+      /** Pre-stored uploaded-logo file id (`null` clears, omitted leaves unchanged). */
+      logoFileId?: string | null
+    }
   | {
       mode: 'create'
       name: string
@@ -29,7 +37,10 @@ export type SubmitProviderEditorParams =
       presetProviderId?: string
       authConfig?: AuthConfig
       apiKeys?: ApiKeyEntry[]
-      logo?: string | Uint8Array<ArrayBuffer> | null
+      /** Preset id / url. */
+      logo?: string | null
+      /** Pre-stored uploaded-logo file id. */
+      logoFileId?: string | null
     }
 
 export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams) {
@@ -64,12 +75,14 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
           return
         }
         const originalEditingId = editingProvider.id
-        // Logo persists atomically with the row: `null` clears it, a string
-        // sets it, `undefined` leaves it unchanged.
+        // Logo persists atomically with the row: a preset `logo` string or an
+        // uploaded `logoFileId` sets it, `null` clears, `undefined` leaves it
+        // unchanged.
         await updateProviderById(originalEditingId, {
           name: trimmedName,
           defaultChatEndpoint: params.defaultChatEndpoint,
-          ...(params.logo !== undefined ? { logo: params.logo } : {})
+          ...(params.logo !== undefined ? { logo: params.logo } : {}),
+          ...(params.logoFileId !== undefined ? { logoFileId: params.logoFileId } : {})
         })
 
         if (modeRef.current?.kind === 'edit' && modeRef.current.provider.id === originalEditingId) {
@@ -88,7 +101,8 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
         ...(params.endpointConfigs ? { endpointConfigs: params.endpointConfigs } : {}),
         ...(params.authConfig ? { authConfig: params.authConfig } : {}),
         ...(params.apiKeys && params.apiKeys.length > 0 ? { apiKeys: params.apiKeys } : {}),
-        ...(params.logo ? { logo: params.logo } : {})
+        ...(params.logo ? { logo: params.logo } : {}),
+        ...(params.logoFileId ? { logoFileId: params.logoFileId } : {})
       })
 
       if (submitTokenRef.current === submitToken && modeRef.current?.kind !== 'edit') {

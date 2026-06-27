@@ -3,8 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ProviderEditorDrawer from '../ProviderEditorDrawer'
 
+const UPLOAD_ID = '019606a0-0000-7000-8000-0000000000aa'
+
 const mocks = vi.hoisted(() => ({
-  normalizeImageToWebp: vi.fn(),
+  storeImageUpload: vi.fn(),
   providerAvatarPrimitive: vi.fn()
 }))
 
@@ -71,8 +73,8 @@ vi.mock('@renderer/components/ProviderLogoPicker', () => ({
   )
 }))
 
-vi.mock('@renderer/utils/image', () => ({
-  normalizeImageToWebp: (...args: any[]) => mocks.normalizeImageToWebp(...args)
+vi.mock('@renderer/utils/storedImage', () => ({
+  storeImageUpload: (...args: any[]) => mocks.storeImageUpload(...args)
 }))
 
 vi.mock('@renderer/utils/style', () => ({
@@ -99,7 +101,7 @@ vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
 describe('ProviderEditorDrawer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.normalizeImageToWebp.mockResolvedValue(new Uint8Array([1, 2, 3]))
+    mocks.storeImageUpload.mockResolvedValue(UPLOAD_ID)
     // jsdom has no object-URL impl; stub so the upload preview path runs.
     URL.createObjectURL = vi.fn(() => 'blob:provider-logo')
     URL.revokeObjectURL = vi.fn()
@@ -108,7 +110,7 @@ describe('ProviderEditorDrawer', () => {
     } as unknown as typeof window.toast
   })
 
-  it('encodes an uploaded logo to WebP bytes and previews it via an object URL', async () => {
+  it('pre-stores an uploaded logo and previews it via an object URL', async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined)
     const file = new File(['png'], 'avatar.png', { type: 'image/png' })
 
@@ -127,12 +129,12 @@ describe('ProviderEditorDrawer', () => {
     })
 
     await waitFor(() => {
-      expect(mocks.normalizeImageToWebp).toHaveBeenCalledWith(file)
+      expect(mocks.storeImageUpload).toHaveBeenCalledWith(file)
       expect(screen.getByTestId('provider-avatar-preview')).toHaveAttribute('data-logo', 'blob:provider-logo')
     })
   })
 
-  it('submits the uploaded logo as WebP bytes', async () => {
+  it('submits the uploaded logo as a pre-stored file id', async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined)
     const file = new File(['png'], 'avatar.png', { type: 'image/png' })
 
@@ -163,7 +165,7 @@ describe('ProviderEditorDrawer', () => {
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith(
         expect.objectContaining({
-          logo: new Uint8Array([1, 2, 3]),
+          logoFileId: UPLOAD_ID,
           mode: 'edit',
           name: 'Custom Provider'
         })
@@ -171,10 +173,10 @@ describe('ProviderEditorDrawer', () => {
     })
   })
 
-  it("surfaces the error's message when encoding the uploaded logo fails", async () => {
+  it("surfaces the error's message when storing the uploaded logo fails", async () => {
     const file = new File(['png'], 'avatar.png', { type: 'image/png' })
     // A corrupt/unsupported file rejection carries a clear message — surface it.
-    mocks.normalizeImageToWebp.mockRejectedValue(new Error('Image is too large (max 256 KB)'))
+    mocks.storeImageUpload.mockRejectedValue(new Error('Image is too large (max 256 KB)'))
 
     render(
       <ProviderEditorDrawer
@@ -197,7 +199,7 @@ describe('ProviderEditorDrawer', () => {
 
   it('falls back to a generic toast when the failure has no message', async () => {
     const file = new File(['png'], 'avatar.png', { type: 'image/png' })
-    mocks.normalizeImageToWebp.mockRejectedValue(new Error(''))
+    mocks.storeImageUpload.mockRejectedValue(new Error(''))
 
     render(
       <ProviderEditorDrawer

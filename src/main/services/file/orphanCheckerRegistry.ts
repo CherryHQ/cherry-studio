@@ -8,22 +8,27 @@
  * adding a checker here = TypeScript build error.
  *
  * Phase status: typed surface + temp_session, knowledge_item, chat_message,
- * and painting checkers. Other business domains (note) will be added when
- * their owning DB tables migrate to v2 — each new variant lands as a single
- * PR introducing (a) the ref schema variant, (b) the source-type tuple entry,
- * AND (c) the checker below, so the three surfaces stay in lockstep.
+ * painting, and the single-file variants (provider_logo, mini_app_logo,
+ * user_avatar). Other business domains (note) will be added when their owning
+ * DB tables migrate to v2 — each new variant lands as a single PR introducing
+ * (a) the ref schema variant, (b) the source-type tuple entry, AND (c) the
+ * checker below, so the three surfaces stay in lockstep.
  *
  * Currently registered checkers: temp_session, knowledge_item, chat_message,
- * painting.
+ * painting, provider_logo, mini_app_logo, user_avatar.
  */
 
 import { application } from '@application'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { messageTable } from '@data/db/schemas/message'
+import { miniAppTable } from '@data/db/schemas/miniApp'
 import { paintingTable } from '@data/db/schemas/painting'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import type { FileRefSourceType } from '@shared/data/types/file'
+import { miniAppLogoRef, providerLogoRef, userAvatarRef } from '@shared/data/types/file'
 import { inArray } from 'drizzle-orm'
+import type { AnySQLiteColumn, SQLiteTable } from 'drizzle-orm/sqlite-core'
 
 const logger = loggerService.withContext('file/orphan/checker-registry')
 
@@ -111,6 +116,57 @@ export const paintingChecker: SourceTypeChecker<'painting'> = {
   }
 }
 
+/**
+ * Build a checker that treats a sourceId as alive iff a row with that id exists
+ * in `table` (matched on `idColumn`). Shared by the single-file logo variants
+ * (and structurally identical to the knowledge_item/chat_message/painting
+ * checkers above, which predate it).
+ */
+function createTableExistenceChecker<T extends FileRefSourceType>(
+  sourceType: T,
+  table: SQLiteTable,
+  idColumn: AnySQLiteColumn
+): SourceTypeChecker<T> {
+  return {
+    sourceType,
+    checkExists: async (sourceIds) => {
+      if (sourceIds.length === 0) return new Set()
+      const db = application.get('DbService').getDb()
+      const alive = new Set<string>()
+      for (let i = 0; i < sourceIds.length; i += SQLITE_INARRAY_CHUNK) {
+        const chunk = sourceIds.slice(i, i + SQLITE_INARRAY_CHUNK)
+        const rows = await runWithBusyRetry(() =>
+          db.select({ id: idColumn }).from(table).where(inArray(idColumn, chunk))
+        )
+        for (const r of rows) alive.add(r.id as string)
+      }
+      return alive
+    }
+  }
+}
+
+export const providerLogoChecker = createTableExistenceChecker(
+  providerLogoRef.sourceType,
+  userProviderTable,
+  userProviderTable.providerId
+)
+
+export const miniAppLogoChecker = createTableExistenceChecker(
+  miniAppLogoRef.sourceType,
+  miniAppTable,
+  miniAppTable.appId
+)
+
+/**
+ * The avatar is a singleton (`sourceId = 'default'`) managed by the profile IPC
+ * handler; its ref is never orphaned by source existence. Treat every sourceId
+ * as alive so the sweeper leaves it alone.
+ */
+export const userAvatarChecker: SourceTypeChecker<'user_avatar'> = {
+  sourceType: userAvatarRef.sourceType,
+  checkExists: async (sourceIds) => new Set(sourceIds)
+}
+
 async function runWithBusyRetry<T>(op: () => Promise<T>): Promise<T> {
   try {
     return await op()
@@ -148,7 +204,10 @@ export function createDefaultOrphanCheckerRegistry(): OrphanCheckerRegistry {
     temp_session: tempSessionChecker,
     knowledge_item: knowledgeItemChecker,
     chat_message: chatMessageChecker,
-    painting: paintingChecker
+    painting: paintingChecker,
+    provider_logo: providerLogoChecker,
+    mini_app_logo: miniAppLogoChecker,
+    user_avatar: userAvatarChecker
   }
 }
 

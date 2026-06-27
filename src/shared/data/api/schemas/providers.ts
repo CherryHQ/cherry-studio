@@ -6,6 +6,7 @@
 
 import * as z from 'zod'
 
+import { FileEntryIdSchema } from '../../types/file'
 import { ENDPOINT_TYPE, type EndpointType, objectValues } from '../../types/model'
 import {
   ApiFeaturesSchema,
@@ -69,16 +70,15 @@ export const CreateProviderSchema = z.strictObject({
   /** Display name (required on create) */
   name: z.string().min(1),
   /**
-   * Custom logo for a user-defined provider. Two forms:
-   * - `string` — a preset icon id / url (data URL, raw SVG, remote URL, or an
-   *   `icon:<providerId>` ref to a bundled brand icon resolved by
-   *   `ProviderAvatarPrimitive`). Stored inline on the row's `logo` column.
-   *   Size-capped so a runaway data URL can't bloat the row and the cached
-   *   entity — see {@link LOGO_MAX_BASE64_BYTES}.
-   * - `Uint8Array` — a pre-encoded WebP upload, stored on disk as a `file_entry`
-   *   and referenced by the row's `logoFileId`.
+   * Custom logo preset/ref for a user-defined provider — a data URL, raw SVG,
+   * remote URL, or an `icon:<providerId>` ref to a bundled brand icon (resolved
+   * by `ProviderAvatarPrimitive`). Stored inline on the row's `logo` column,
+   * size-capped (see {@link LOGO_MAX_BASE64_BYTES}). An uploaded image is NOT
+   * sent here — the renderer pre-stores it and passes `logoFileId`.
    */
-  logo: z.union([z.string().min(1).max(LOGO_MAX_BASE64_BYTES), z.instanceof(Uint8Array)]).optional(),
+  logo: z.string().min(1).max(LOGO_MAX_BASE64_BYTES).optional(),
+  /** Opaque file-entry id of a pre-stored uploaded logo; sets the row's `logoFileId`. */
+  logoFileId: FileEntryIdSchema.optional(),
   /** Per-endpoint-type configuration */
   endpointConfigs: ProviderEndpointConfigsSchema.optional(),
   /** Default text generation endpoint (kebab-case `EndpointType` value) */
@@ -113,17 +113,13 @@ export const UpdateProviderSchema = ProviderMutableFieldsSchema.partial().extend
   /** Whether this provider is enabled */
   isEnabled: z.boolean().optional(),
   /**
-   * Custom logo. `null` clears it (falls back to the bundled icon); a non-empty
-   * `string` sets a preset icon id / url; a `Uint8Array` is a pre-encoded WebP
-   * upload stored on disk as a `file_entry` (referenced by `logoFileId`);
-   * omitted leaves it unchanged. `.min(1)` rejects `""` so `null` is the sole
-   * clear signal (no silent `"" ?? null` asymmetry). Nullable, so it lives here
-   * rather than in the picked create fields (which can't express clear).
+   * Custom logo preset/ref. `null` clears it (falls back to the bundled icon);
+   * a non-empty `string` sets a preset icon id / url; omitted leaves it
+   * unchanged. `.min(1)` rejects `""` so `null` is the sole clear signal.
    */
-  logo: z
-    .union([z.string().min(1).max(LOGO_MAX_BASE64_BYTES), z.instanceof(Uint8Array)])
-    .nullable()
-    .optional()
+  logo: z.string().min(1).max(LOGO_MAX_BASE64_BYTES).nullable().optional(),
+  /** Opaque file-entry id of a pre-stored uploaded logo; `null` clears it. */
+  logoFileId: FileEntryIdSchema.nullable().optional()
 })
 export type UpdateProviderDto = z.infer<typeof UpdateProviderSchema>
 

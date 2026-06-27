@@ -5,13 +5,15 @@ import type ReactType from 'react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const STORED_ID = '019606a0-0000-7000-8000-0000000000aa'
+
 const mocks = vi.hoisted(() => ({
   TopView: {
     show: vi.fn(),
     hide: vi.fn()
   },
   ipcRequest: vi.fn(async () => undefined),
-  normalizeImageToWebp: vi.fn(async () => new Uint8Array([1, 2, 3]))
+  storeImageUpload: vi.fn(async () => '019606a0-0000-7000-8000-0000000000aa')
 }))
 
 type PopoverContextValue = {
@@ -114,8 +116,12 @@ vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: mocks.ipcRequest }
 }))
 
-vi.mock('@renderer/utils/image', () => ({
-  normalizeImageToWebp: mocks.normalizeImageToWebp
+vi.mock('@renderer/utils/storedImage', () => ({
+  storeImageUpload: mocks.storeImageUpload,
+  // useAvatar resolves the avatar Preference through this; the avatar test uses a
+  // plain file:// value (not a stored id), so pass it through unchanged.
+  resolveStoredImageSrc: (value?: string | null) => value ?? undefined,
+  isStoredImageId: () => false
 }))
 
 vi.mock('@renderer/utils/naming', () => ({
@@ -162,7 +168,7 @@ describe('UserPopup', () => {
     expect(screen.getByTestId('avatar-image')).toHaveAttribute('src', avatar)
   })
 
-  it('uploads an avatar as normalized WebP bytes via profile.set_avatar', async () => {
+  it('uploads an avatar as a pre-stored file id via profile.set_avatar', async () => {
     await renderUserPopup()
 
     // Open the avatar popover to reveal the upload control + hidden file input.
@@ -173,10 +179,10 @@ describe('UserPopup', () => {
     fireEvent.change(input, { target: { files: [file] } })
 
     await waitFor(() => {
-      expect(mocks.normalizeImageToWebp).toHaveBeenCalledWith(file)
+      expect(mocks.storeImageUpload).toHaveBeenCalledWith(file)
       expect(mocks.ipcRequest).toHaveBeenCalledWith('profile.set_avatar', {
-        kind: 'image',
-        data: new Uint8Array([1, 2, 3])
+        kind: 'file',
+        fileId: STORED_ID
       })
     })
   })
