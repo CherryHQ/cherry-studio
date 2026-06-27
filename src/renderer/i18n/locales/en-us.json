@@ -3162,12 +3162,30 @@
           "agent_title": "New Agent",
           "assistant_title": "New Assistant",
           "avatar_aria": "Choose avatar",
+          "back": "Back",
+          "capability": {
+            "no_skills": "No skills installed",
+            "tab": {
+              "all": "All",
+              "mcp": "MCP",
+              "skill": "Skill",
+              "tools": "Tools"
+            }
+          },
           "description_placeholder": "Describe what it is for...",
           "dialog_description": "Create a lightweight assistant or agent.",
+          "guided_progress": "Guided setup · Step {{current}} of {{total}}",
           "model_placeholder": "Select a model",
           "model_required": "Please select a model",
           "name_placeholder": "Enter a name",
           "name_required": "Please enter a name",
+          "next": "Next",
+          "step": {
+            "basic": "Basic info",
+            "capability": "Capabilities",
+            "knowledge": "Knowledge",
+            "persona": "Persona"
+          },
           "submit": "Create",
           "submit_failed": "Create failed"
         },

@@ -1,8 +1,8 @@
 import { loggerService } from '@logger'
 import {
-  ResourceCreateDialog,
-  type ResourceCreateDialogValues
-} from '@renderer/components/resource/dialogs/ResourceCreateDialog'
+  ResourceCreateWizard,
+  type ResourceCreateWizardValues
+} from '@renderer/components/resource/dialogs/create/ResourceCreateWizard'
 import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/components/Selector/shell/SelectorShell'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
@@ -124,7 +124,7 @@ export function AgentSelector(props: AgentSelectorProps) {
   }, [])
 
   const handleSubmitCreate = useCallback(
-    async (values: ResourceCreateDialogValues) => {
+    async (values: ResourceCreateWizardValues) => {
       let created: AgentDetail
       try {
         created = await createAgent({
@@ -135,6 +135,10 @@ export function AgentSelector(props: AgentSelectorProps) {
             planModel: values.modelId,
             smallModel: values.modelId,
             description: values.description,
+            instructions: values.prompt,
+            mcps: values.mcps,
+            disabledTools: values.disabledTools,
+            skillIds: values.skillIds,
             configuration: {
               avatar: values.avatar,
               permission_mode: 'bypassPermissions',
@@ -185,7 +189,7 @@ export function AgentSelector(props: AgentSelectorProps) {
   }, [refetch, t])
 
   const createDialog = (
-    <ResourceCreateDialog
+    <ResourceCreateWizard
       kind="agent"
       open={createDialogOpen}
       isSubmitting={isCreatingAgent}

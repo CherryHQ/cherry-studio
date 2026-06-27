@@ -2,9 +2,9 @@ import { Alert, Button } from '@cherrystudio/ui'
 import {
   AgentEditDialog,
   AssistantEditDialog,
-  ResourceCreateDialog,
-  type ResourceCreateDialogKind,
-  type ResourceCreateDialogValues
+  ResourceCreateWizard,
+  type ResourceCreateWizardKind,
+  type ResourceCreateWizardValues
 } from '@renderer/components/resource/dialogs'
 import { isSelectableAssistantModel } from '@renderer/components/resource/dialogs/form/assistantModelFilter'
 import PromptEditDialog from '@renderer/components/resource/dialogs/PromptEditDialog'
@@ -87,7 +87,7 @@ export default function LibraryPage() {
   const [search, setSearch] = useState('')
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceItem | null>(null)
-  const [createDialogKind, setCreateDialogKind] = useState<ResourceCreateDialogKind | null>(null)
+  const [createDialogKind, setCreateDialogKind] = useState<ResourceCreateWizardKind | null>(null)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialog, setEditDialog] = useState<EditDialogState | null>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -339,7 +339,7 @@ export default function LibraryPage() {
   )
 
   const handleSubmitCreateResource = useCallback(
-    async (values: ResourceCreateDialogValues) => {
+    async (values: ResourceCreateWizardValues) => {
       const kind = createDialogKind
       if (!kind || creatingResource) return
 
@@ -350,7 +350,9 @@ export default function LibraryPage() {
             name: values.name,
             emoji: values.avatar,
             modelId: values.modelId,
-            description: values.description
+            description: values.description,
+            prompt: values.prompt,
+            knowledgeBaseIds: values.knowledgeBaseIds
           })
         } else {
           await createAgent({
@@ -360,6 +362,10 @@ export default function LibraryPage() {
             planModel: values.modelId,
             smallModel: values.modelId,
             description: values.description,
+            instructions: values.prompt,
+            mcps: values.mcps,
+            disabledTools: values.disabledTools,
+            skillIds: values.skillIds,
             configuration: {
               avatar: values.avatar,
               permission_mode: 'bypassPermissions',
@@ -501,7 +507,7 @@ export default function LibraryPage() {
       />
       <ImportAssistantDialog open={assistantImportOpen} onOpenChange={setAssistantImportOpen} onImported={refetch} />
       <ImportSkillDialog open={skillImportOpen} onOpenChange={setSkillImportOpen} onInstalled={refetch} />
-      <ResourceCreateDialog
+      <ResourceCreateWizard
         kind={createDialogKind ?? 'assistant'}
         open={createDialogOpen}
         isSubmitting={creatingResource}

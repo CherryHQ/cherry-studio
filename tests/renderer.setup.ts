@@ -423,8 +423,11 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('div', { ...props, 'data-testid': 'dialog-header' }, children),
     DialogTitle: ({ children, ...props }) =>
       React.createElement('h2', { ...props, 'data-testid': 'dialog-title' }, children),
+    DialogDescription: ({ children, ...props }) =>
+      React.createElement('p', { ...props, 'data-testid': 'dialog-description' }, children),
     DialogFooter: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-footer' }, children),
+    Form: ({ children }) => React.createElement(React.Fragment, null, children),
     Label: ({ children, ...props }) => React.createElement('label', props, children),
     FieldError: ({ children, errors, ...props }) => {
       const errorMessage = children ?? errors?.find((error) => error?.message)?.message

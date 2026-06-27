@@ -114,6 +114,12 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.dialogs.create.name_required': 'Please enter a name',
           'library.config.dialogs.create.submit': 'Create',
           'library.config.dialogs.create.submit_failed': 'Create failed',
+          'library.config.dialogs.create.back': 'Back',
+          'library.config.dialogs.create.next': 'Next',
+          'library.config.dialogs.create.step.basic': 'Basic info',
+          'library.config.dialogs.create.step.capability': 'Capabilities',
+          'library.config.dialogs.create.step.knowledge': 'Knowledge',
+          'library.config.dialogs.create.step.persona': 'Persona',
           'library.config.dialogs.edit.assistant_description': 'Edit the essentials for this assistant.',
           'library.config.dialogs.edit.assistant_title': 'Edit Assistant',
           'library.config.dialogs.edit.basic_tab': 'Basic',
@@ -359,7 +365,7 @@ describe('AssistantSelector', () => {
 
     expect(screen.getByRole('heading', { name: 'New Assistant' })).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Name this resource')).toBeInTheDocument()
-    expect(screen.getByText('Select a model')).toBeInTheDocument()
+    expect(screen.getByText('Model')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Describe this resource')).toBeInTheDocument()
   })
 
@@ -375,6 +381,8 @@ describe('AssistantSelector', () => {
     fireEvent.change(screen.getByPlaceholderText('Describe this resource'), {
       target: { value: 'Created from selector' }
     })
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() =>
@@ -383,7 +391,9 @@ describe('AssistantSelector', () => {
           name: 'Created Assistant',
           emoji: '💬',
           modelId: MODEL.id,
-          description: 'Created from selector'
+          description: 'Created from selector',
+          prompt: '',
+          knowledgeBaseIds: []
         }
       })
     )
@@ -407,6 +417,8 @@ describe('AssistantSelector', () => {
 
     fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Assistant' } })
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
@@ -436,6 +448,8 @@ describe('AssistantSelector', () => {
 
     fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Assistant' } })
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
