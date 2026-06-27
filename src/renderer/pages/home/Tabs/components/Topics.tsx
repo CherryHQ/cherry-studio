@@ -472,14 +472,19 @@ export function Topics({
       const selectionList = isRightPanel
         ? topics.filter((candidate) => candidate.assistantId === assistantIdFilter)
         : topics
-      if (selectionList.length <= 1) return
+      if (selectionList.length <= 1) {
+        if (isRightPanel) {
+          await onNewTopic?.({ assistantId: assistantIdFilter ?? topic.assistantId ?? null })
+        }
+        return
+      }
 
       const index = findIndex(selectionList, (candidate) => candidate.id === topic.id)
       if (index === -1) return
 
       setActiveTopic(selectionList[index + 1 === selectionList.length ? index - 1 : index + 1])
     },
-    [activeTopic?.id, assistantIdFilter, isRightPanel, removeTopic, setActiveTopic, t, topics]
+    [activeTopic?.id, assistantIdFilter, isRightPanel, onNewTopic, removeTopic, setActiveTopic, t, topics]
   )
 
   const handleDeleteTopicClick = useCallback((topicId: string, event: MouseEvent) => {
