@@ -134,9 +134,6 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       // Keep imperative key dispatch in sync with close before React commits.
       isVisibleRef.current = false
       setIsVisible(false)
-      setManageListExternally(false)
-      setTrackInputQuery(false)
-      setReadOnly(false)
       setLastCloseAction(action)
       onClose?.({ action, searchText, item: {} as QuickPanelListItem, context: this })
 
