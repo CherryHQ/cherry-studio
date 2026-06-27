@@ -1,6 +1,6 @@
 import type { JSONValue } from 'ai'
 
-import type { WireProfile } from './wireProfile'
+import type { WireProfile, WireRegistration } from './wireProfile'
 
 /**
  * Map a canonical `paramValues` bag to a vendor request body via the profile's
@@ -22,4 +22,22 @@ export function buildImageRequest(
     body[rule.to] = rule.map ? rule.map(value, paramValues) : (value as JSONValue)
   }
   return body
+}
+
+/**
+ * Build the AI SDK `providerOptions` map for a registered provider: its engine
+ * body keyed by the provider id (and `openai` too when `dualOpenAI`). Returns
+ * `{}` when the body is empty — matching `buildImageProviderOptions`' `under()`/
+ * `dualOpenAI()` empty-map behavior so the wire stays byte-identical. This is the
+ * Layer-3 delivery adapter: it owns *which key(s)* the body rides under, a
+ * concern the profile deliberately doesn't carry.
+ */
+export function buildVendorProviderOptions(
+  providerId: string,
+  paramValues: Record<string, unknown>,
+  registration: WireRegistration
+): Record<string, Record<string, JSONValue>> {
+  const body = buildImageRequest(paramValues, registration.profile)
+  if (Object.keys(body).length === 0) return {}
+  return registration.dualOpenAI ? { openai: body, [providerId]: body } : { [providerId]: body }
 }
