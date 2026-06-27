@@ -5,7 +5,6 @@ import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
-import { storeImageUpload } from '@renderer/utils/storedImage'
 import { cn, generateColorFromChar, getForegroundColor } from '@renderer/utils/style'
 import { uuid } from '@renderer/utils/uuid'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
@@ -99,11 +98,10 @@ export default function ProviderEditorDrawer({
   const [secondaryUrls, setSecondaryUrls] = useState<Record<string, string>>({})
   const [moreEndpointsOpen, setMoreEndpointsOpen] = useState(false)
   // `logo` is the preview value only (a preset id / url / object URL for a
-  // staged upload). When the user uploads, `logoUploadId` holds the pre-stored
-  // file-entry id that gets submitted as `logoFileId`; a preset/clear leaves it
-  // null and submits the string/null `logo` instead.
+  // staged upload). When the user uploads, `stagedFile` holds the raw file whose
+  // bytes are sent to `provider.set_logo` on save; a preset/clear leaves it null.
   const [logo, setLogo] = useState<string | null>(null)
-  const [logoUploadId, setLogoUploadId] = useState<string | null>(null)
+  const [stagedFile, setStagedFile] = useState<File | null>(null)
   const [logoDirty, setLogoDirty] = useState(false)
   const [logoPickerOpen, setLogoPickerOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -158,7 +156,7 @@ export default function ProviderEditorDrawer({
     setLogoDirty(false)
     setLogoPickerOpen(false)
     revokePreviewObjectUrl()
-    setLogoUploadId(null)
+    setStagedFile(null)
   }, [open, editingProvider, duplicateSource])
 
   useEffect(() => {
@@ -179,7 +177,7 @@ export default function ProviderEditorDrawer({
     [avatarBackgroundColor]
   )
 
-  const handleUploadChange = async (event: ChangeEvent<HTMLInputElement>) => {
+  const handleUploadChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     event.target.value = ''
 
@@ -187,51 +185,37 @@ export default function ProviderEditorDrawer({
       return
     }
 
-    try {
-      // Pre-store the normalized WebP to get an opaque file id (submitted as
-      // logoFileId); show the original file as a preview via an object URL
-      // (revoking any previous one).
-      const fileId = await storeImageUpload(file)
-      revokePreviewObjectUrl()
-      previewObjectUrlRef.current = URL.createObjectURL(file)
-      setLogo(previewObjectUrlRef.current)
-      setLogoUploadId(fileId)
-      setLogoDirty(true)
-    } catch (error) {
-      // storeImageUpload can reject on a corrupt/unsupported file — surface its
-      // message, falling back to a generic one, instead of silently doing
-      // nothing.
-      logger.error('Failed to process uploaded provider logo', error as Error)
-      const message =
-        error instanceof Error && error.message ? error.message : t('settings.provider.logo_upload_failed')
-      window.toast.error(message)
-    }
+    // Stage the raw file + preview it via an object URL (revoking any previous
+    // one); the bytes are sent to `provider.set_logo` on save. The renderer no
+    // longer pre-creates a file_entry, so a bad upload only surfaces on save.
+    revokePreviewObjectUrl()
+    previewObjectUrlRef.current = URL.createObjectURL(file)
+    setLogo(previewObjectUrlRef.current)
+    setStagedFile(file)
+    setLogoDirty(true)
   }
 
   const buildSubmit = (): ProviderEditorSubmit | null => {
     const trimmedName = name.trim()
     if (!trimmedName || !mode) return null
 
-    // A staged upload submits its pre-stored file id (`logoFileId`); otherwise a
-    // preset id / url string (or `null`/omitted to clear) goes in `logo`.
-    // On create, `null` isn't expressible, so a cleared logo is simply omitted.
-    const createLogo: { logo?: string; logoFileId?: string } = logoUploadId
-      ? { logoFileId: logoUploadId }
-      : logo
-        ? { logo }
-        : {}
-    const editLogo: { logo?: string | null; logoFileId?: string | null } = !logoDirty
-      ? {}
-      : logoUploadId
-        ? { logoFileId: logoUploadId }
-        : { logo }
+    // A staged upload sends its bytes via `provider.set_logo`; a picked icon is a
+    // preset key; a reset clears. Not dirty → unchanged (the field is omitted).
+    const logoEdit: SubmitProviderEditorParams['logo'] = stagedFile
+      ? { kind: 'image', file: stagedFile }
+      : logoDirty
+        ? logo
+          ? { kind: 'key', key: logo }
+          : { kind: 'clear' }
+        : undefined
+    const logoField = logoEdit ? { logo: logoEdit } : {}
 
     if (mode.kind === 'edit') {
       return {
         mode: 'edit',
         name: trimmedName,
         defaultChatEndpoint: mode.provider.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-        ...editLogo
+        ...logoField
       }
     }
 
@@ -256,7 +240,7 @@ export default function ProviderEditorDrawer({
         endpointConfigs,
         authConfig: { type: 'api-key' },
         apiKeys: apiKeysPayload,
-        ...createLogo
+        ...logoField
       }
     }
 
@@ -269,7 +253,7 @@ export default function ProviderEditorDrawer({
         defaultChatEndpoint,
         presetProviderId: source.presetProviderId,
         authConfig: emptyAuthConfigFor(source.authType),
-        ...createLogo
+        ...logoField
       }
       if (duplicateNeedsBaseUrl(source.authType)) {
         const endpointConfigs: Partial<Record<EndpointType, EndpointConfig>> = {}
@@ -362,17 +346,17 @@ export default function ProviderEditorDrawer({
           editingProviderId={editingProvider?.id}
           avatarBackgroundColor={avatarBackgroundColor}
           avatarForegroundColor={avatarForegroundColor}
-          onUpload={(event) => void handleUploadChange(event)}
+          onUpload={(event) => handleUploadChange(event)}
           onPick={(providerId) => {
             revokePreviewObjectUrl()
-            setLogoUploadId(null)
+            setStagedFile(null)
             setLogo(`icon:${providerId}`)
             setLogoDirty(true)
             setLogoPickerOpen(false)
           }}
           onReset={() => {
             revokePreviewObjectUrl()
-            setLogoUploadId(null)
+            setStagedFile(null)
             setLogo(null)
             setLogoDirty(true)
           }}

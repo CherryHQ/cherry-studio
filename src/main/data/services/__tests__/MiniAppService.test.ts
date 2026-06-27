@@ -405,20 +405,17 @@ describe('MiniAppService', () => {
         .where(and(eq(fileRefTable.sourceType, 'mini_app_logo'), eq(fileRefTable.sourceId, appId)))
     }
 
-    it('create with a file logo points the slot ref at it and nulls the logoKey column', async () => {
+    it('binding a file logo points the slot ref at it and nulls the logoKey column', async () => {
       await seedFileEntry(FILE_ID)
-      const created = await miniAppService.create({
-        appId: 'logo-app',
-        name: 'Logo App',
-        url: 'https://logo.app',
-        logo: { kind: 'file', fileId: FILE_ID }
-      })
+      await miniAppService.create({ appId: 'logo-app', name: 'Logo App', url: 'https://logo.app' })
+      // The set-logo command orchestrator binds an uploaded file via update().
+      const updated = await miniAppService.update('logo-app', { logo: { kind: 'file', fileId: FILE_ID } })
 
       const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'logo-app'))
       expect(row.logoKey).toBeNull()
       expect(row.logoFileId).toBe(FILE_ID)
       // Public DTO emits a `file:<id>` ref for the renderer to resolve.
-      expect(created.logo).toBe(`file:${FILE_ID}`)
+      expect(updated.logo).toBe(`file:${FILE_ID}`)
       const refs = await logoRefs('logo-app')
       expect(refs).toHaveLength(1)
       expect(refs[0].fileEntryId).toBe(FILE_ID)
@@ -427,12 +424,8 @@ describe('MiniAppService', () => {
 
     it('update from upload to preset clears the slot ref and preserves the file_entry', async () => {
       await seedFileEntry(FILE_ID)
-      await miniAppService.create({
-        appId: 'logo-app',
-        name: 'Logo App',
-        url: 'https://logo.app',
-        logo: { kind: 'file', fileId: FILE_ID }
-      })
+      await miniAppService.create({ appId: 'logo-app', name: 'Logo App', url: 'https://logo.app' })
+      await miniAppService.update('logo-app', { logo: { kind: 'file', fileId: FILE_ID } })
 
       const updated = await miniAppService.update('logo-app', { logo: { kind: 'key', key: 'application' } })
 
@@ -449,12 +442,8 @@ describe('MiniAppService', () => {
     it('update replacing one upload with another repoints the slot ref', async () => {
       await seedFileEntry(FILE_ID)
       await seedFileEntry(FILE_ID_2)
-      await miniAppService.create({
-        appId: 'logo-app',
-        name: 'Logo App',
-        url: 'https://logo.app',
-        logo: { kind: 'file', fileId: FILE_ID }
-      })
+      await miniAppService.create({ appId: 'logo-app', name: 'Logo App', url: 'https://logo.app' })
+      await miniAppService.update('logo-app', { logo: { kind: 'file', fileId: FILE_ID } })
 
       await miniAppService.update('logo-app', { logo: { kind: 'file', fileId: FILE_ID_2 } })
 
@@ -467,12 +456,8 @@ describe('MiniAppService', () => {
 
     it('delete clears the slot ref and preserves the file_entry', async () => {
       await seedFileEntry(FILE_ID)
-      await miniAppService.create({
-        appId: 'logo-app',
-        name: 'Logo App',
-        url: 'https://logo.app',
-        logo: { kind: 'file', fileId: FILE_ID }
-      })
+      await miniAppService.create({ appId: 'logo-app', name: 'Logo App', url: 'https://logo.app' })
+      await miniAppService.update('logo-app', { logo: { kind: 'file', fileId: FILE_ID } })
 
       await miniAppService.delete('logo-app')
 

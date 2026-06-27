@@ -10,7 +10,7 @@ import { MiniAppStatusSchema } from '@shared/data/types/miniApp'
 import * as z from 'zod'
 
 import type { OrderEndpoints } from './_endpointHelpers'
-import { CreateLogoSchema, UpdateLogoSchema } from './logo'
+import { CreateLogoSchema } from './logo'
 
 /**
  * Permitted characters for a custom miniapp id. Exported so the v1→v2 migrator
@@ -41,6 +41,10 @@ export const CreateMiniAppSchema = z.strictObject({
   appId: z.string().regex(MINI_APP_ID_REGEX, 'appId can only contain letters, numbers, underscore, and hyphen'),
   name: z.string().min(1),
   url: MiniAppUrlSchema,
+  /**
+   * Custom logo — a preset key only (`{ kind: 'key', key }`). Uploaded images
+   * go through the `mini_app.set_logo` IpcApi command, not this DTO.
+   */
   logo: CreateLogoSchema.optional()
 })
 export type CreateMiniAppDto = z.infer<typeof CreateMiniAppSchema>
@@ -55,8 +59,9 @@ export type CreateMiniAppDto = z.infer<typeof CreateMiniAppSchema>
 export const UpdateMiniAppSchema = z.strictObject({
   status: MiniAppStatusSchema.optional(),
   name: z.string().min(1).optional(),
-  url: MiniAppUrlSchema.optional(),
-  logo: UpdateLogoSchema.optional()
+  url: MiniAppUrlSchema.optional()
+  // Logo edits (preset key / image upload / clear) go through the
+  // `mini_app.set_logo` IpcApi command, not this PATCH body.
 })
 export type UpdateMiniAppDto = z.infer<typeof UpdateMiniAppSchema>
 

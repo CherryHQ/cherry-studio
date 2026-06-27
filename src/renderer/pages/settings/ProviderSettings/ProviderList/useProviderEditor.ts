@@ -1,24 +1,19 @@
+import { loggerService } from '@logger'
 import { useProviderActions, useProviders } from '@renderer/hooks/useProvider'
+import { ipcApi } from '@renderer/ipc'
 import { uuid } from '@renderer/utils/uuid'
-import type { CreateLogoInput, UpdateLogoInput } from '@shared/data/api/schemas/logo'
 import type { EndpointType } from '@shared/data/types/model'
 import type { ApiKeyEntry, AuthConfig, EndpointConfig, Provider } from '@shared/data/types/provider'
 import { useCallback, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
-/** Map the editor's flat `(logo, logoFileId)` intent to the create DTO union. */
-function toCreateLogo(p: { logo?: string | null; logoFileId?: string | null }): CreateLogoInput | undefined {
-  if (p.logoFileId) return { kind: 'file', fileId: p.logoFileId }
-  if (p.logo) return { kind: 'key', key: p.logo }
-  return undefined
-}
+const logger = loggerService.withContext('useProviderEditor')
 
-/** Map the flat intent to the update DTO union (`null` → clear, omitted → unchanged). */
-function toUpdateLogo(p: { logo?: string | null; logoFileId?: string | null }): UpdateLogoInput | undefined {
-  if (p.logoFileId !== undefined)
-    return p.logoFileId === null ? { kind: 'clear' } : { kind: 'file', fileId: p.logoFileId }
-  if (p.logo !== undefined) return p.logo === null ? { kind: 'clear' } : { kind: 'key', key: p.logo }
-  return undefined
-}
+/**
+ * A provider logo edit: upload bytes (sent raw to `provider.set_logo`), a preset
+ * key, or clear. `undefined` means "leave unchanged".
+ */
+export type ProviderLogoEdit = { kind: 'image'; file: File } | { kind: 'key'; key: string } | { kind: 'clear' }
 
 export type ProviderEditorMode =
   | { kind: 'create-custom' }
@@ -40,10 +35,8 @@ export type SubmitProviderEditorParams =
       mode: 'edit'
       name: string
       defaultChatEndpoint: EndpointType
-      /** Preset id / url (`null` clears, omitted leaves unchanged). */
-      logo?: string | null
-      /** Pre-stored uploaded-logo file id (`null` clears, omitted leaves unchanged). */
-      logoFileId?: string | null
+      /** Logo edit; omitted leaves it unchanged. */
+      logo?: ProviderLogoEdit
     }
   | {
       mode: 'create'
@@ -53,13 +46,12 @@ export type SubmitProviderEditorParams =
       presetProviderId?: string
       authConfig?: AuthConfig
       apiKeys?: ApiKeyEntry[]
-      /** Preset id / url. */
-      logo?: string | null
-      /** Pre-stored uploaded-logo file id. */
-      logoFileId?: string | null
+      /** Logo for the new provider (preset key inline; an upload via the command). */
+      logo?: ProviderLogoEdit
     }
 
 export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams) {
+  const { t } = useTranslation()
   const { createProvider } = useProviders()
   const { updateProviderById } = useProviderActions()
   const [mode, setMode] = useState<ProviderEditorMode | null>(null)
@@ -79,6 +71,28 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
   const startAddFrom = useCallback((source: Provider) => updateMode({ kind: 'duplicate', source }), [updateMode])
   const startEdit = useCallback((provider: Provider) => updateMode({ kind: 'edit', provider }), [updateMode])
 
+  // Apply a logo edit through the dedicated command: the renderer sends raw
+  // bytes / intent, main creates the file_entry, binds it, and compensates on
+  // failure. A logo failure is surfaced with a logo-specific toast and does NOT
+  // fail the row save (the provider is already persisted).
+  const applyLogo = useCallback(
+    async (providerId: string, edit: ProviderLogoEdit) => {
+      const image =
+        edit.kind === 'image'
+          ? ({ kind: 'image', data: new Uint8Array(await edit.file.arrayBuffer()) } as const)
+          : edit.kind === 'key'
+            ? ({ kind: 'key', key: edit.key } as const)
+            : ({ kind: 'clear' } as const)
+      try {
+        await ipcApi.request('provider.set_logo', { providerId, image })
+      } catch (error) {
+        logger.error('Failed to set provider logo', error as Error)
+        window.toast.error(t('settings.provider.logo_upload_failed'))
+      }
+    },
+    [t]
+  )
+
   const submit = useCallback(
     async (params: SubmitProviderEditorParams): Promise<void> => {
       const trimmedName = params.name.trim()
@@ -91,14 +105,13 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
           return
         }
         const originalEditingId = editingProvider.id
-        // Logo persists atomically with the row: a preset key or an uploaded
-        // file sets it, `clear` resets, omitted leaves it unchanged.
-        const logo = toUpdateLogo(params)
         await updateProviderById(originalEditingId, {
           name: trimmedName,
-          defaultChatEndpoint: params.defaultChatEndpoint,
-          ...(logo !== undefined ? { logo } : {})
+          defaultChatEndpoint: params.defaultChatEndpoint
         })
+        if (params.logo) {
+          await applyLogo(originalEditingId, params.logo)
+        }
 
         if (modeRef.current?.kind === 'edit' && modeRef.current.provider.id === originalEditingId) {
           cancel()
@@ -108,7 +121,6 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
 
       const providerId = uuid()
       const submitToken = ++submitTokenRef.current
-      const logo = toCreateLogo(params)
       const provider = await createProvider({
         providerId,
         name: trimmedName,
@@ -117,15 +129,21 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
         ...(params.endpointConfigs ? { endpointConfigs: params.endpointConfigs } : {}),
         ...(params.authConfig ? { authConfig: params.authConfig } : {}),
         ...(params.apiKeys && params.apiKeys.length > 0 ? { apiKeys: params.apiKeys } : {}),
-        ...(logo ? { logo } : {})
+        // Preset-key logo persists atomically with the row; an upload is applied
+        // via the command below. A `clear` on create is a no-op (default icon).
+        ...(params.logo?.kind === 'key' ? { logo: { kind: 'key', key: params.logo.key } } : {})
       })
+
+      if (params.logo?.kind === 'image') {
+        await applyLogo(provider.id, params.logo)
+      }
 
       if (submitTokenRef.current === submitToken && modeRef.current?.kind !== 'edit') {
         onProviderCreated(provider.id)
         cancel()
       }
     },
-    [cancel, createProvider, editingProvider, onProviderCreated, updateProviderById]
+    [applyLogo, cancel, createProvider, editingProvider, onProviderCreated, updateProviderById]
   )
 
   return {

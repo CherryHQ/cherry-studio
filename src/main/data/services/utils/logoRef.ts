@@ -14,7 +14,7 @@
 import { fileRefTable } from '@data/db/schemas/file'
 import type { DbType } from '@data/db/types'
 import { fileRefService } from '@data/services/FileRefService'
-import type { CreateLogoInput, UpdateLogoInput } from '@shared/data/api/schemas/logo'
+import type { LogoBindInput } from '@shared/data/api/schemas/logo'
 import type { FileEntryId, FileRefSourceType } from '@shared/data/types/file'
 
 /** Resolved `(logoKey, logoFileId)` column values for a logo slot. */
@@ -37,7 +37,7 @@ export interface LogoColumns {
 export async function reconcileLogoSlotTx(
   tx: Pick<DbType, 'delete' | 'insert'>,
   slot: { sourceType: FileRefSourceType; sourceId: string },
-  input: CreateLogoInput | UpdateLogoInput | undefined
+  input: LogoBindInput | undefined
 ): Promise<LogoColumns | null> {
   if (input === undefined) return null
 

@@ -23,15 +23,14 @@ import path from 'node:path'
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
+import { transcodeToEntityWebp } from '@main/services/file/utils/entityImageWebp'
 import type { FileEntryId, FileRefSourceType } from '@shared/data/types/file'
 import type { FilePath } from '@shared/types/file/common'
-import sharp from 'sharp'
 import { v7 as uuidv7 } from 'uuid'
 
 const logger = loggerService.withContext('ImageMigration')
 
 const BASE64_DATA_URL_RE = /^data:([^;,]+);base64,(.+)$/
-const ENTITY_IMAGE_DIMENSION = 128
 
 /** The single-file `file_ref` slot an image belongs to (provider/mini-app logo, or avatar). */
 export interface EntityImageRef {
@@ -52,11 +51,7 @@ export async function migrateBase64ImageToFileEntry(
 
   let webp: Buffer
   try {
-    // ponytail: first frame for animated gifs — fine for a 128² entity image.
-    webp = await sharp(Buffer.from(match[2], 'base64'))
-      .resize(ENTITY_IMAGE_DIMENSION, ENTITY_IMAGE_DIMENSION, { fit: 'cover' })
-      .webp()
-      .toBuffer()
+    webp = await transcodeToEntityWebp(Buffer.from(match[2], 'base64'))
   } catch (error) {
     logger.warn('Failed to transcode v1 image to WebP; dropping it', {
       sourceType: ref.sourceType,

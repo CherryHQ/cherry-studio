@@ -19,7 +19,6 @@ import { usePreference } from '@data/hooks/usePreference'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { ipcApi } from '@renderer/ipc'
 import { isEmoji } from '@renderer/utils/naming'
-import { storeImageUpload } from '@renderer/utils/storedImage'
 import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -62,7 +61,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   // `useAvatar`, so these flows don't write the value themselves.
   const handleEmojiClick = async (emoji: string) => {
     try {
-      await ipcApi.request('profile.set_avatar', { kind: 'value', value: emoji })
+      await ipcApi.request('profile.set_avatar', { kind: 'emoji', emoji })
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: any) {
@@ -72,8 +71,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   const handleReset = async () => {
     try {
-      // Empty value falls back to the bundled default avatar (see useAvatar).
-      await ipcApi.request('profile.set_avatar', { kind: 'value', value: '' })
+      // Clear falls back to the bundled default avatar (see useAvatar).
+      await ipcApi.request('profile.set_avatar', { kind: 'clear' })
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: any) {
@@ -83,10 +82,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   const handleUploadAvatar = async (file: File) => {
     try {
-      // Pre-store the normalized WebP to get an opaque file id; the handler points
-      // the avatar slot's file_ref at it and writes the id to the Preference.
-      const fileId = await storeImageUpload(file)
-      await ipcApi.request('profile.set_avatar', { kind: 'file', fileId })
+      // Send raw bytes; the handler normalizes to WebP, creates the file_entry,
+      // points the avatar slot's file_ref at it, and writes the Preference.
+      const data = new Uint8Array(await file.arrayBuffer())
+      await ipcApi.request('profile.set_avatar', { kind: 'image', data })
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: any) {

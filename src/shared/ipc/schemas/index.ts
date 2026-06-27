@@ -2,6 +2,7 @@ import type { RouteDef } from '../define'
 import { type AiEventSchemas, aiRequestSchemas } from './ai'
 import { appRequestSchemas } from './app'
 import { type BinaryEventSchemas, binaryRequestSchemas } from './binary'
+import { entityImageRequestSchemas } from './entityImage'
 import { fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
 import { knowledgeRequestSchemas } from './knowledge'
@@ -21,6 +22,7 @@ export const ipcRequestSchemas = {
   ...aiRequestSchemas,
   ...appRequestSchemas,
   ...binaryRequestSchemas,
+  ...entityImageRequestSchemas,
   ...fileRequestSchemas,
   ...fileProcessingRequestSchemas,
   ...knowledgeRequestSchemas,

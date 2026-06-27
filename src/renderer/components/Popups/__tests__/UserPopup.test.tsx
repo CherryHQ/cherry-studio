@@ -5,15 +5,12 @@ import type ReactType from 'react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const STORED_ID = '019606a0-0000-7000-8000-0000000000aa'
-
 const mocks = vi.hoisted(() => ({
   TopView: {
     show: vi.fn(),
     hide: vi.fn()
   },
-  ipcRequest: vi.fn(async () => undefined),
-  storeImageUpload: vi.fn(async () => '019606a0-0000-7000-8000-0000000000aa')
+  ipcRequest: vi.fn(async () => undefined)
 }))
 
 type PopoverContextValue = {
@@ -117,7 +114,6 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 vi.mock('@renderer/utils/storedImage', () => ({
-  storeImageUpload: mocks.storeImageUpload,
   // useAvatar resolves the avatar Preference through this; the avatar test uses a
   // plain file:// value (not a `file:<id>` ref), so pass it through unchanged.
   resolveStoredImageSrc: (value?: string | null) => value ?? undefined
@@ -167,21 +163,23 @@ describe('UserPopup', () => {
     expect(screen.getByTestId('avatar-image')).toHaveAttribute('src', avatar)
   })
 
-  it('uploads an avatar as a pre-stored file id via profile.set_avatar', async () => {
+  it('uploads an avatar as raw bytes via profile.set_avatar', async () => {
     await renderUserPopup()
 
     // Open the avatar popover to reveal the upload control + hidden file input.
     fireEvent.click(screen.getByTestId('popover-trigger'))
 
-    const file = new File(['png'], 'a.png', { type: 'image/png' })
+    // jsdom's File lacks arrayBuffer(); add it so the handler can read the bytes.
+    const file = Object.assign(new File(['png'], 'a.png', { type: 'image/png' }), {
+      arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer
+    })
     const input = screen.getByTestId('dialog-content').querySelector('input[type="file"]') as HTMLInputElement
     fireEvent.change(input, { target: { files: [file] } })
 
     await waitFor(() => {
-      expect(mocks.storeImageUpload).toHaveBeenCalledWith(file)
       expect(mocks.ipcRequest).toHaveBeenCalledWith('profile.set_avatar', {
-        kind: 'file',
-        fileId: STORED_ID
+        kind: 'image',
+        data: expect.any(Uint8Array)
       })
     })
   })

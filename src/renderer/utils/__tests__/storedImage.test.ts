@@ -1,11 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { resolveStoredImageSrc } from '../storedImage'
-
-// storedImage pulls these in for `storeImageUpload`; `resolveStoredImageSrc` is
-// pure and uses neither, so trivial mocks keep the suite free of i18n / ipc.
-vi.mock('@renderer/ipc', () => ({ ipcApi: { request: vi.fn() } }))
-vi.mock('@renderer/utils/image', () => ({ normalizeImageToWebp: vi.fn() }))
 
 describe('resolveStoredImageSrc', () => {
   const filesPath = '/files'

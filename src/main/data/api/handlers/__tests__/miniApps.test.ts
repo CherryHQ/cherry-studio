@@ -263,13 +263,14 @@ describe('miniAppHandlers', () => {
 
       const result = await miniAppHandlers['/mini-apps/:appId'].PATCH({
         params: { appId: 'custom-app' },
-        body: { name: 'Renamed App', url: 'https://renamed.app', logo: { kind: 'key', key: 'icon:avatar' } }
+        body: { name: 'Renamed App', url: 'https://renamed.app' }
       })
 
+      // Logo edits no longer ride in the PATCH body (they go through the
+      // `mini_app.set_logo` command); only name/url/status are delegated here.
       expect(updateMock).toHaveBeenCalledWith('custom-app', {
         name: 'Renamed App',
-        url: 'https://renamed.app',
-        logo: { kind: 'key', key: 'icon:avatar' }
+        url: 'https://renamed.app'
       })
       expect(result).toMatchObject({ name: 'Renamed App' })
     })

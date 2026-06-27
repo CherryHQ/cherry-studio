@@ -22,6 +22,11 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
+const ipcRequestMock = vi.fn()
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: (...args: any[]) => ipcRequestMock(...args) }
+}))
+
 const createProviderMock = vi.fn()
 const updateProviderByIdMock = vi.fn()
 const onProviderCreatedMock = vi.fn()
@@ -40,6 +45,7 @@ describe('useProviderEditor', () => {
     vi.clearAllMocks()
     createProviderMock.mockResolvedValue({ id: 'new-provider-id', name: 'My Provider' })
     updateProviderByIdMock.mockResolvedValue(undefined)
+    ipcRequestMock.mockResolvedValue(undefined)
     useProvidersMock.mockReturnValue({
       createProvider: createProviderMock
     })
@@ -134,7 +140,7 @@ describe('useProviderEditor', () => {
       expect(result.current.isOpen).toBe(false)
     })
 
-    it('includes logo in the createProvider DTO when provided', async () => {
+    it('includes a preset-key logo in the createProvider DTO', async () => {
       const { result } = renderHook(() => useProviderEditor(makeParams()))
 
       act(() => result.current.startAdd())
@@ -143,7 +149,7 @@ describe('useProviderEditor', () => {
           mode: 'create',
           name: 'My Provider',
           defaultChatEndpoint: endpoint,
-          logo: 'data:image/png;base64,abc'
+          logo: { kind: 'key', key: 'icon:openai' }
         })
       })
 
@@ -151,8 +157,31 @@ describe('useProviderEditor', () => {
         providerId: 'new-provider-id',
         name: 'My Provider',
         defaultChatEndpoint: endpoint,
-        logo: { kind: 'key', key: 'data:image/png;base64,abc' }
+        logo: { kind: 'key', key: 'icon:openai' }
       })
+      expect(ipcRequestMock).not.toHaveBeenCalled()
+    })
+
+    it('creates the row without logo then uploads an image via provider.set_logo', async () => {
+      const { result } = renderHook(() => useProviderEditor(makeParams()))
+      // jsdom's File lacks arrayBuffer(); provide a file-like with it.
+      const file = { arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer } as unknown as File
+
+      act(() => result.current.startAdd())
+      await act(async () => {
+        await result.current.submit({
+          mode: 'create',
+          name: 'My Provider',
+          defaultChatEndpoint: endpoint,
+          logo: { kind: 'image', file }
+        })
+      })
+
+      expect(createProviderMock.mock.calls[0][0]).not.toHaveProperty('logo')
+      expect(ipcRequestMock).toHaveBeenCalledWith(
+        'provider.set_logo',
+        expect.objectContaining({ providerId: 'new-provider-id', image: expect.objectContaining({ kind: 'image' }) })
+      )
     })
 
     it('omits logo from the createProvider DTO when not provided', async () => {
@@ -243,7 +272,7 @@ describe('useProviderEditor', () => {
       expect(result.current.isOpen).toBe(false)
     })
 
-    it('includes logo in the updateProviderById DTO when provided', async () => {
+    it('sets a logo edit via provider.set_logo, not the update DTO', async () => {
       const { result } = renderHook(() => useProviderEditor(makeParams()))
 
       act(() => result.current.startEdit(provider))
@@ -252,33 +281,42 @@ describe('useProviderEditor', () => {
           mode: 'edit',
           name: 'Renamed',
           defaultChatEndpoint: endpoint,
-          logo: 'data:image/png;base64,new'
+          logo: { kind: 'key', key: 'icon:openai' }
         })
       })
 
+      // The PATCH carries only name/endpoint; the logo goes through the command.
       expect(updateProviderByIdMock).toHaveBeenCalledWith('openai', {
         name: 'Renamed',
-        defaultChatEndpoint: endpoint,
-        logo: { kind: 'key', key: 'data:image/png;base64,new' }
+        defaultChatEndpoint: endpoint
+      })
+      expect(ipcRequestMock).toHaveBeenCalledWith('provider.set_logo', {
+        providerId: 'openai',
+        image: { kind: 'key', key: 'icon:openai' }
       })
     })
 
-    it('sends logo: null in the DTO to clear it on update', async () => {
+    it('clears the logo via provider.set_logo on update', async () => {
       const { result } = renderHook(() => useProviderEditor(makeParams()))
 
       act(() => result.current.startEdit(provider))
       await act(async () => {
-        await result.current.submit({ mode: 'edit', name: 'Renamed', defaultChatEndpoint: endpoint, logo: null })
+        await result.current.submit({
+          mode: 'edit',
+          name: 'Renamed',
+          defaultChatEndpoint: endpoint,
+          logo: { kind: 'clear' }
+        })
       })
 
-      expect(updateProviderByIdMock).toHaveBeenCalledWith('openai', {
-        name: 'Renamed',
-        defaultChatEndpoint: endpoint,
-        logo: { kind: 'clear' }
+      expect(updateProviderByIdMock.mock.calls[0][1]).not.toHaveProperty('logo')
+      expect(ipcRequestMock).toHaveBeenCalledWith('provider.set_logo', {
+        providerId: 'openai',
+        image: { kind: 'clear' }
       })
     })
 
-    it('omits logo from the DTO when logo is undefined on update', async () => {
+    it('does not call provider.set_logo when logo is undefined on update', async () => {
       const { result } = renderHook(() => useProviderEditor(makeParams()))
 
       act(() => result.current.startEdit(provider))
@@ -287,6 +325,7 @@ describe('useProviderEditor', () => {
       })
 
       expect(updateProviderByIdMock.mock.calls[0][1]).not.toHaveProperty('logo')
+      expect(ipcRequestMock).not.toHaveBeenCalled()
     })
 
     it('does not call onProviderCreated on update', async () => {

@@ -1,27 +1,27 @@
-import { FileEntryIdSchema } from '@shared/data/types/file'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
+import { ImageBytesSchema } from './entityImage'
 
 /**
  * Profile IPC schemas — the user-profile fields owned by the main process.
  *
- * `set_avatar` is the avatar owner: DB-only. It reconciles the `user_avatar`
- * single-file `file_ref` slot and the `app.user.avatar` Preference, so the
- * renderer expresses intent (a pre-stored file id, or an emoji/reset value)
- * without touching `file_ref` slot details or the filesystem.
+ * `set_avatar` is the avatar owner. Like provider / mini-app logos, an uploaded
+ * avatar is sent as **raw bytes**; the handler normalizes to a 128×128 WebP,
+ * creates the `file_entry`, points the `user_avatar` `file_ref` slot at it, and
+ * stores a `file:<id>` ref in `app.user.avatar` (compensating on failure). The
+ * non-image cases are a typed union — no arbitrary `value: string`.
  *
- * - `{ kind: 'file', fileId }` — an opaque file-entry id the renderer pre-stored
- *   (via `file.batch_create_internal_entries`); the slot ref points at it and
- *   the preference is set to it.
- * - `{ kind: 'value', value }` — an emoji / preset / `''` (reset); the slot ref
- *   is cleared and the value stored verbatim in the preference.
+ * - `{ kind: 'image', data }` — raw upload bytes; main creates + binds the file.
+ * - `{ kind: 'emoji', emoji }` — an emoji glyph, stored verbatim; slot cleared.
+ * - `{ kind: 'clear' }` — reset to the bundled default (`''`); slot cleared.
  */
 export const profileRequestSchemas = {
   'profile.set_avatar': defineRoute({
     input: z.discriminatedUnion('kind', [
-      z.strictObject({ kind: z.literal('file'), fileId: FileEntryIdSchema }),
-      z.strictObject({ kind: z.literal('value'), value: z.string() })
+      z.strictObject({ kind: z.literal('image'), data: ImageBytesSchema }),
+      z.strictObject({ kind: z.literal('emoji'), emoji: z.string().min(1) }),
+      z.strictObject({ kind: z.literal('clear') })
     ]),
     output: z.void()
   })

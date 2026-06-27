@@ -20,7 +20,15 @@ import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/se
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
+import type { LogoBindInput } from '@shared/data/api/schemas/logo'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
+
+/**
+ * Internal update input. `logo` is NOT part of the PATCH DTO (logo edits go
+ * through the `provider.set_logo` IpcApi command); the command orchestrator
+ * passes a `LogoBindInput` here after creating the `file_entry`.
+ */
+export type UpdateProviderInput = UpdateProviderDto & { logo?: LogoBindInput }
 import { isManagedCherryAiProviderId } from '@shared/data/presets/cherryai'
 import { providerLogoRef, tagStoredFileRef } from '@shared/data/types/file'
 import type {
@@ -273,7 +281,7 @@ class ProviderService {
   /**
    * Update an existing provider
    */
-  async update(providerId: string, dto: UpdateProviderDto): Promise<Provider> {
+  async update(providerId: string, dto: UpdateProviderInput): Promise<Provider> {
     assertManagedCherryAiProviderPatchAllowed(providerId, dto)
 
     // Read + merge + write the providerSettings JSON in ONE serialized write

@@ -17,6 +17,7 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
+import type { LogoBindInput } from '@shared/data/api/schemas/logo'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
 import { miniAppLogoRef, tagStoredFileRef } from '@shared/data/types/file'
@@ -29,6 +30,13 @@ import { applyMoves, generateOrderKeyBetween, insertWithOrderKey } from './utils
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MiniAppService')
+
+/**
+ * Internal update input. `logo` is NOT part of the PATCH DTO (logo edits go
+ * through the `mini_app.set_logo` IpcApi command); the command orchestrator
+ * passes a `LogoBindInput` here after creating the `file_entry`.
+ */
+export type UpdateMiniAppInput = UpdateMiniAppDto & { logo?: LogoBindInput }
 
 /** Preset id set, used for write-time collision rejection. */
 const presetMiniAppIdSet: ReadonlySet<string> = new Set(PRESETS_MINI_APPS.map((p) => p.id))
@@ -174,7 +182,7 @@ export class MiniAppService {
    * status lands at the visible tail; moving into `disabled` lands at the
    * disabled tail.
    */
-  async update(appId: string, dto: UpdateMiniAppDto): Promise<MiniApp> {
+  async update(appId: string, dto: UpdateMiniAppInput): Promise<MiniApp> {
     const hasStatusUpdate = dto.status !== undefined
     const hasCustomUpdate = customMutableFields.some((field) => hasOwnDefined(dto, field))
 

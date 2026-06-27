@@ -34,49 +34,6 @@ export const compressImage = async (file: File, options: ImageCompressionOptions
   })
 }
 
-// Entity images (avatar / provider logo / mini-app logo) are stored as a
-// uniform 128×128 WebP. Render at ≤80px; 128px stays crisp on HiDPI.
-const ENTITY_IMAGE_DIMENSION = 128
-const ENTITY_IMAGE_WEBP_QUALITY = 0.8
-
-/**
- * 将上传图片归一化为 128×128 的 WebP 字节（cover 居中裁剪）。
- *
- * 用 `<img>.decode()` 解码 —— 兼容 PNG / JPEG / WebP / SVG（按内在尺寸栅格化）/
- * 动图首帧 —— 再经 canvas 高质量重采样后编码为 WebP
- * @param {Blob} file 用户上传的图片
- * @returns {Promise<Uint8Array>} 归一化后的 WebP 字节
- */
-export const normalizeImageToWebp = async (file: Blob): Promise<Uint8Array<ArrayBuffer>> => {
-  const url = URL.createObjectURL(file)
-  try {
-    const img = new Image()
-    img.src = url
-    await img.decode()
-    const sw = img.naturalWidth || ENTITY_IMAGE_DIMENSION
-    const sh = img.naturalHeight || ENTITY_IMAGE_DIMENSION
-    // cover-fit: scale so the shorter side fills 128, then center-crop.
-    const scale = Math.max(ENTITY_IMAGE_DIMENSION / sw, ENTITY_IMAGE_DIMENSION / sh)
-    const dw = sw * scale
-    const dh = sh * scale
-    const canvas = document.createElement('canvas')
-    canvas.width = ENTITY_IMAGE_DIMENSION
-    canvas.height = ENTITY_IMAGE_DIMENSION
-    const ctx = canvas.getContext('2d')
-    if (!ctx) throw new Error('canvas 2d context unavailable')
-    ctx.imageSmoothingEnabled = true
-    ctx.imageSmoothingQuality = 'high'
-    ctx.drawImage(img, (ENTITY_IMAGE_DIMENSION - dw) / 2, (ENTITY_IMAGE_DIMENSION - dh) / 2, dw, dh)
-    const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, 'image/webp', ENTITY_IMAGE_WEBP_QUALITY)
-    )
-    if (!blob) throw new Error('WebP encode failed')
-    return new Uint8Array(await blob.arrayBuffer())
-  } finally {
-    URL.revokeObjectURL(url)
-  }
-}
-
 /**
  * 捕获指定元素的图像数据。
  * @param elRef 元素的引用

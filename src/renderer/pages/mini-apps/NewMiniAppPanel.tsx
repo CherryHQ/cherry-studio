@@ -15,7 +15,8 @@ import { loggerService } from '@logger'
 import { LogoAvatar } from '@renderer/components/Icons'
 import { getMiniAppsLogo } from '@renderer/config/miniApps'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { resolveStoredImageSrc, storeImageUpload } from '@renderer/utils/storedImage'
+import { ipcApi } from '@renderer/ipc'
+import { resolveStoredImageSrc } from '@renderer/utils/storedImage'
 import { uuid } from '@renderer/utils/uuid'
 import { MiniAppUrlSchema } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp } from '@shared/data/types/miniApp'
@@ -37,18 +38,15 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
   const { createCustomMiniApp, updateCustomMiniApp } = useMiniApps()
   const [filesPath] = useCache('app.path.files')
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const uploadGenerationRef = useRef(0)
   const isEditing = app != null
 
   const [name, setName] = useState('')
   const [url, setUrl] = useState('')
   // `logo` is the preview value only (a preset id / url / object URL for a
-  // staged upload). `logoUploadId` holds the pre-stored file-entry id submitted
-  // as `logoFileId` on save; a non-upload submits the `'application'` default.
+  // staged upload). `stagedFile` holds a newly picked image; on save its bytes
+  // are uploaded via the `mini_app.set_logo` command. A non-upload keeps the default.
   const [logo, setLogo] = useState('')
-  const [logoUploadId, setLogoUploadId] = useState<string | null>(null)
-  const [logoChanged, setLogoChanged] = useState(false)
-  const [logoProcessing, setLogoProcessing] = useState(false)
+  const [stagedFile, setStagedFile] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
   // Object URL backing the upload preview; revoked when replaced/unmounted.
   const previewObjectUrlRef = useRef<string | null>(null)
@@ -63,39 +61,25 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
   useEffect(() => () => revokePreviewObjectUrl(), [])
 
   const reset = () => {
-    uploadGenerationRef.current += 1
     setName('')
     setUrl('')
     setLogo('')
     revokePreviewObjectUrl()
-    setLogoUploadId(null)
-    setLogoChanged(false)
-    setLogoProcessing(false)
+    setStagedFile(null)
   }
 
   useEffect(() => {
-    uploadGenerationRef.current += 1
-    setLogoChanged(false)
-    setLogoProcessing(false)
     revokePreviewObjectUrl()
-    setLogoUploadId(null)
-    if (!open) {
+    setStagedFile(null)
+    if (!open || !app) {
       setName('')
       setUrl('')
       setLogo('')
       return
     }
-    if (!app) {
-      setName('')
-      setUrl('')
-      setLogo('')
-      return
-    }
-
-    const currentLogo = app.logo ?? ''
     setName(app.name)
     setUrl(app.url)
-    setLogo(currentLogo)
+    setLogo(app.logo ?? '')
   }, [app, open])
 
   const handleClose = () => {
@@ -109,37 +93,18 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
     }
   }
 
-  const canSubmit = useMemo(
-    () => Boolean(name.trim() && url.trim()) && !submitting && !logoProcessing,
-    [logoProcessing, name, submitting, url]
-  )
+  const canSubmit = useMemo(() => Boolean(name.trim() && url.trim()) && !submitting, [name, submitting, url])
 
-  const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
-
-    const uploadGeneration = ++uploadGenerationRef.current
-    setLogoProcessing(true)
-    try {
-      // Pre-store the normalized WebP to get an opaque file id (submitted as
-      // logoFileId); preview the original file via an object URL.
-      const fileId = await storeImageUpload(file)
-      if (uploadGenerationRef.current !== uploadGeneration) return
-      revokePreviewObjectUrl()
-      previewObjectUrlRef.current = URL.createObjectURL(file)
-      setLogo(previewObjectUrlRef.current)
-      setLogoUploadId(fileId)
-      setLogoChanged(true)
-    } catch (error) {
-      if (uploadGenerationRef.current !== uploadGeneration) return
-      logger.error('Failed to process uploaded custom mini app logo', error as Error)
-      window.toast.error(t('settings.miniApps.custom.logo_upload_error'))
-    } finally {
-      if (uploadGenerationRef.current === uploadGeneration) {
-        setLogoProcessing(false)
-      }
-    }
+    // Stage the raw file + preview it; the bytes are uploaded on save via the
+    // `mini_app.set_logo` command (the renderer no longer creates file_entries).
+    revokePreviewObjectUrl()
+    previewObjectUrlRef.current = URL.createObjectURL(file)
+    setLogo(previewObjectUrlRef.current)
+    setStagedFile(file)
   }
 
   const handleSubmit = async () => {
@@ -150,36 +115,42 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
     }
 
     setSubmitting(true)
+    const basePayload = { name: name.trim(), url: trimmedUrl }
+    const appId = app ? app.appId : uuid()
     try {
-      const basePayload = {
-        name: name.trim(),
-        url: trimmedUrl
-      }
-      // A staged upload submits its pre-stored file id (`kind: 'file'`);
-      // otherwise the `'application'` preset key.
-      const logo = logoUploadId
-        ? ({ kind: 'file', fileId: logoUploadId } as const)
-        : ({ kind: 'key', key: 'application' } as const)
       if (isEditing) {
-        await updateCustomMiniApp(app.appId, logoChanged ? { ...basePayload, logo } : basePayload)
+        await updateCustomMiniApp(appId, basePayload)
       } else {
-        await createCustomMiniApp({
-          appId: uuid(),
-          ...basePayload,
-          logo
-        })
+        // Create with the default preset logo; a staged upload replaces it below.
+        await createCustomMiniApp({ appId, ...basePayload, logo: { kind: 'key', key: 'application' } })
       }
-      window.toast.success(t('settings.miniApps.custom.save_success'))
-      handleClose()
     } catch (error) {
       window.toast.error(t('settings.miniApps.custom.save_error'))
       logger.error('Failed to save custom mini app:', error as Error)
-    } finally {
       setSubmitting(false)
+      return
     }
+
+    // Logo upload is a separate command (bytes → file_entry main-side), so a
+    // logo failure surfaces a logo-specific message — the app is already saved.
+    if (stagedFile) {
+      try {
+        const data = new Uint8Array(await stagedFile.arrayBuffer())
+        await ipcApi.request('mini_app.set_logo', { appId, image: { kind: 'image', data } })
+      } catch (error) {
+        window.toast.error(t('settings.miniApps.custom.logo_upload_error'))
+        logger.error('Failed to set custom mini app logo:', error as Error)
+        setSubmitting(false)
+        return
+      }
+    }
+
+    window.toast.success(t('settings.miniApps.custom.save_success'))
+    handleClose()
+    setSubmitting(false)
   }
 
-  const hasUploadedLogo = logoUploadId != null
+  const hasUploadedLogo = stagedFile != null
   const logoValue = logo.trim() || 'application'
   // Resolve a stored file id (an existing app's uploaded logo) to a file:// URL;
   // preset ids resolve to their CompoundIcon, object URLs / urls pass through.

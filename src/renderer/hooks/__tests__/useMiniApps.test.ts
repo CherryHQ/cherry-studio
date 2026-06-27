@@ -290,17 +290,17 @@ describe('useMiniApps', () => {
       await act(async () => {
         await result.current.updateCustomMiniApp('custom-app', {
           name: 'New App',
-          url: 'https://new.example.com',
-          logo: { kind: 'key', key: 'new-logo' }
+          url: 'https://new.example.com'
         })
       })
 
+      // Logo edits go through the `mini_app.set_logo` command, not this PATCH;
+      // the tab icon still resolves from the service's returned `logo`.
       expect(trigger).toHaveBeenCalledWith({
         params: { appId: 'custom-app' },
         body: {
           name: 'New App',
-          url: 'https://new.example.com',
-          logo: { kind: 'key', key: 'new-logo' }
+          url: 'https://new.example.com'
         }
       })
       expect(MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive')).toEqual([other, updated])
@@ -324,14 +324,13 @@ describe('useMiniApps', () => {
 
       await act(async () => {
         await result.current.updateCustomMiniApp('custom-app', {
-          name: 'New App',
-          logo: { kind: 'file', fileId: '019606a0-0000-7000-8000-0000000000aa' }
+          name: 'New App'
         })
       })
 
       expect(trigger).toHaveBeenCalledWith({
         params: { appId: 'custom-app' },
-        body: { name: 'New App', logo: { kind: 'file', fileId: '019606a0-0000-7000-8000-0000000000aa' } }
+        body: { name: 'New App' }
       })
       expect(mockTabs.updateTab).toHaveBeenCalledWith('tab-1', {
         title: 'New App',

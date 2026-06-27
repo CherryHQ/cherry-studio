@@ -1,6 +1,6 @@
 import imageCompression from 'browser-image-compression'
 import * as htmlToImage from 'html-to-image'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   captureElement,
@@ -9,8 +9,7 @@ import {
   captureScrollableAsDataURL,
   compressImage,
   convertToBase64,
-  makeSvgSizeAdaptive,
-  normalizeImageToWebp
+  makeSvgSizeAdaptive
 } from '../image'
 
 // mock 依赖
@@ -263,66 +262,6 @@ describe('utils/image', () => {
       const result = makeSvgSizeAdaptive(divElement)
 
       expect(result.outerHTML).toBe(originalOuterHTML)
-    })
-  })
-
-  describe('normalizeImageToWebp', () => {
-    // jsdom implements neither <img>.decode, canvas 2d, toBlob, nor object URLs —
-    // stub them so the function's wiring (decode → draw → encode → bytes) runs.
-    const orig: Record<string, unknown> = {}
-
-    beforeEach(() => {
-      orig.createObjectURL = URL.createObjectURL
-      orig.revokeObjectURL = URL.revokeObjectURL
-      orig.decode = HTMLImageElement.prototype.decode
-      orig.getContext = HTMLCanvasElement.prototype.getContext
-      orig.toBlob = HTMLCanvasElement.prototype.toBlob
-      URL.createObjectURL = vi.fn(() => 'blob:mock')
-      URL.revokeObjectURL = vi.fn()
-      HTMLImageElement.prototype.decode = vi.fn().mockResolvedValue(undefined)
-      HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
-        drawImage: vi.fn(),
-        imageSmoothingEnabled: false,
-        imageSmoothingQuality: 'low'
-      })) as unknown as HTMLCanvasElement['getContext']
-      // jsdom Blob has no arrayBuffer(); hand back a blob-like that does so the
-      // function's `await blob.arrayBuffer()` step runs (real Chromium Blob has it).
-      HTMLCanvasElement.prototype.toBlob = vi.fn((cb: BlobCallback) =>
-        cb({
-          type: 'image/webp',
-          size: 3,
-          arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer
-        } as unknown as Blob)
-      )
-    })
-
-    afterEach(() => {
-      URL.createObjectURL = orig.createObjectURL as typeof URL.createObjectURL
-      URL.revokeObjectURL = orig.revokeObjectURL as typeof URL.revokeObjectURL
-      HTMLImageElement.prototype.decode = orig.decode as HTMLImageElement['decode']
-      HTMLCanvasElement.prototype.getContext = orig.getContext as HTMLCanvasElement['getContext']
-      HTMLCanvasElement.prototype.toBlob = orig.toBlob as HTMLCanvasElement['toBlob']
-    })
-
-    it('decodes, draws to a 128×128 canvas, and returns WebP bytes', async () => {
-      const out = await normalizeImageToWebp(new File(['png'], 'a.png', { type: 'image/png' }))
-
-      expect(out).toBeInstanceOf(Uint8Array)
-      expect(Array.from(out)).toEqual([1, 2, 3])
-      expect(HTMLCanvasElement.prototype.toBlob).toHaveBeenCalledWith(
-        expect.any(Function),
-        'image/webp',
-        expect.any(Number)
-      )
-      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock')
-    })
-
-    it('throws when WebP encoding yields no blob', async () => {
-      HTMLCanvasElement.prototype.toBlob = vi.fn((cb: BlobCallback) => cb(null))
-
-      await expect(normalizeImageToWebp(new File(['x'], 'x.png', { type: 'image/png' }))).rejects.toThrow(
-        /WebP encode failed/
-      )
     })
   })
 })
