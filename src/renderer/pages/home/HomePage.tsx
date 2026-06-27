@@ -62,6 +62,7 @@ import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('HomePage')
 const LAST_USED_ASSISTANT_CACHE_KEY = 'ui.chat.last_used_assistant_id'
+const OLD_VIEW_RIGHT_PANE_OPEN_CACHE_KEY = 'ui.old_view.right_pane_open'
 
 type DraftAssistantSelectionSource = 'explicit' | 'last-used' | 'first-assistant' | 'runtime-fallback'
 type ResolvedDraftAssistantSelection = { assistantId?: string; source: DraftAssistantSelectionSource }
@@ -106,6 +107,9 @@ const HomePage: FC = () => {
   const [draftAssistantSelection, setDraftAssistantSelection] = useState<DraftAssistantSelection | undefined>()
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
   const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
+  const [oldViewTopicRightPaneOpen, setOldViewTopicRightPaneOpenCache] = usePersistCache(
+    OLD_VIEW_RIGHT_PANE_OPEN_CACHE_KEY
+  )
   const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
@@ -693,7 +697,11 @@ const HomePage: FC = () => {
       }
     : null
   const renderWithRightPane = (content: ReactNode) => (
-    <TopicRightPane resourcePane={resourcePane} revealRequest={topicRevealRequest}>
+    <TopicRightPane
+      resourcePane={resourcePane}
+      defaultOpen={isOldView ? oldViewTopicRightPaneOpen : false}
+      onOpenChange={isOldView ? setOldViewTopicRightPaneOpenCache : undefined}
+      revealRequest={topicRevealRequest}>
       {content}
     </TopicRightPane>
   )

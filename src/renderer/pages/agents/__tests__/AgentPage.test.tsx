@@ -49,6 +49,7 @@ const agentPageMocks = vi.hoisted(() => ({
   lastUsedAgentId: null as string | null,
   lastUsedSessionId: null as string | null,
   lastUsedWorkspaceId: null as string | null,
+  oldViewRightPaneOpen: true,
   focusExistingTab: vi.fn(() => false),
   activeSessionOptions: null as {
     activeSessionId: string | null
@@ -57,6 +58,7 @@ const agentPageMocks = vi.hoisted(() => ({
   setLastUsedAgentId: vi.fn(),
   setLastUsedSessionId: vi.fn(),
   setLastUsedWorkspaceId: vi.fn(),
+  setOldViewRightPaneOpen: vi.fn(),
   setShowSidebar: vi.fn(),
   workView: 'new' as 'new' | 'old',
   isActiveTab: false,
@@ -127,32 +129,42 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
   return {
     useSharedCache: () => [null, vi.fn()],
     usePersistCache: (key: string) => {
-      const initialValue =
-        key === 'ui.agent.last_used_agent_id'
-          ? agentPageMocks.lastUsedAgentId
-          : key === 'ui.agent.last_used_session_id'
-            ? agentPageMocks.lastUsedSessionId
-            : key === 'ui.agent.last_used_workspace_id'
-              ? agentPageMocks.lastUsedWorkspaceId
-              : undefined
+      const initialValue = (() => {
+        switch (key) {
+          case 'ui.agent.last_used_agent_id':
+            return agentPageMocks.lastUsedAgentId
+          case 'ui.agent.last_used_session_id':
+            return agentPageMocks.lastUsedSessionId
+          case 'ui.agent.last_used_workspace_id':
+            return agentPageMocks.lastUsedWorkspaceId
+          case 'ui.old_view.right_pane_open':
+            return agentPageMocks.oldViewRightPaneOpen
+          default:
+            return undefined
+        }
+      })()
       const [value, setValue] = React.useState(initialValue)
       if (
         key !== 'ui.agent.last_used_agent_id' &&
         key !== 'ui.agent.last_used_session_id' &&
-        key !== 'ui.agent.last_used_workspace_id'
+        key !== 'ui.agent.last_used_workspace_id' &&
+        key !== 'ui.old_view.right_pane_open'
       ) {
         return [undefined, vi.fn()]
       }
 
-      const setCache = vi.fn((nextValue: string | null) => {
+      const setCache = vi.fn((nextValue: string | boolean | null) => {
         if (key === 'ui.agent.last_used_agent_id') {
-          agentPageMocks.lastUsedAgentId = nextValue
+          agentPageMocks.lastUsedAgentId = nextValue as string | null
           agentPageMocks.setLastUsedAgentId(nextValue)
         } else if (key === 'ui.agent.last_used_session_id') {
-          agentPageMocks.lastUsedSessionId = nextValue
+          agentPageMocks.lastUsedSessionId = nextValue as string | null
           agentPageMocks.setLastUsedSessionId(nextValue)
+        } else if (key === 'ui.old_view.right_pane_open') {
+          agentPageMocks.oldViewRightPaneOpen = nextValue as boolean
+          agentPageMocks.setOldViewRightPaneOpen(nextValue)
         } else {
-          agentPageMocks.lastUsedWorkspaceId = nextValue
+          agentPageMocks.lastUsedWorkspaceId = nextValue as string | null
           agentPageMocks.setLastUsedWorkspaceId(nextValue)
         }
         setValue(nextValue)
@@ -272,6 +284,7 @@ vi.mock('../AgentChat', () => ({
     resourcePane,
     showResourceListControls,
     workPaneOpen,
+    onWorkPaneOpenChange,
     onPaneCollapse
   }: {
     activeSession?: { id: string } | null
@@ -301,6 +314,7 @@ vi.mock('../AgentChat', () => ({
     resourcePane?: { node?: ReactNode; label?: string } | null
     showResourceListControls?: boolean
     workPaneOpen?: boolean
+    onWorkPaneOpenChange?: (open: boolean) => void
     onPaneCollapse?: () => void
   }) => (
     <section>
@@ -349,6 +363,11 @@ vi.mock('../AgentChat', () => ({
       <button type="button" onClick={() => void onEnsurePersistentSession?.('hello')}>
         Persist draft session
       </button>
+      {onWorkPaneOpenChange && (
+        <button type="button" onClick={() => onWorkPaneOpenChange(false)}>
+          Close work pane
+        </button>
+      )}
       {onPaneCollapse && (
         <button type="button" onClick={onPaneCollapse}>
           Collapse pane
@@ -469,6 +488,7 @@ describe('AgentPage', () => {
     agentPageMocks.currentTab = undefined
     agentPageMocks.lastUsedAgentId = null
     agentPageMocks.lastUsedWorkspaceId = null
+    agentPageMocks.oldViewRightPaneOpen = true
     agentPageMocks.activeSessionOptions = null
     agentPageMocks.focusExistingTab.mockReturnValue(false)
     agentPageMocks.workView = 'new'
@@ -508,7 +528,23 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('agent-resource-list')).toHaveAttribute('data-active-agent-id', 'agent-a')
     expect(screen.getByTestId('session-resource-panel')).toHaveAttribute('data-agent-id', 'agent-a')
     expect(screen.getByTestId('session-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
+    expect(screen.getByTestId('work-pane-open')).toHaveTextContent('true')
     expect(screen.queryByTestId('agent-side-panel')).not.toBeInTheDocument()
+  })
+
+  it('restores and records the old-view agent right pane open state from cache', () => {
+    agentPageMocks.workView = 'old'
+    agentPageMocks.oldViewRightPaneOpen = false
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+
+    expect(screen.getByTestId('work-pane-open')).toHaveTextContent('false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close work pane' }))
+
+    expect(agentPageMocks.setOldViewRightPaneOpen).toHaveBeenCalledWith(false)
   })
 
   it('passes the current agent task count to the old-view top button', () => {
@@ -862,6 +898,7 @@ describe('AgentPage', () => {
 
   it('opens the work pane when a global-search locate targets a session in the current tab', () => {
     agentPageMocks.workView = 'old'
+    agentPageMocks.oldViewRightPaneOpen = false
     agentPageMocks.focusExistingTab.mockReturnValue(false)
 
     render(<AgentPage />)

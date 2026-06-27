@@ -41,6 +41,7 @@ import { parseAgentRouteSearch } from './routeSearch'
 import type { DraftAgentSession, DraftAgentSessionDefaults, PersistentAgentSessionConversation } from './types'
 
 const logger = loggerService.withContext('AgentPage')
+const OLD_VIEW_RIGHT_PANE_OPEN_CACHE_KEY = 'ui.old_view.right_pane_open'
 
 function isUserWorkspaceSession(session: AgentSessionEntity | null | undefined): boolean {
   return !!session?.workspaceId && session.workspace?.type !== 'system'
@@ -92,10 +93,18 @@ const AgentPage = () => {
   const draftSessionRef = useRef<DraftAgentSession | null>(null)
   const [draftSession, setDraftSession] = useState<DraftAgentSession | null>(null)
   const [historyRecordsOpen, setHistoryRecordsOpen] = useState(false)
-  // Old-view (rail) work-pane open state, owned here so it survives the AgentChat draft→persistent
-  // remount (each branch mounts its own Shell). Mirrors Home, which keeps one page-level pane open
-  // across the handoff. Scoped to old view below so new (sidebar) view behavior is unchanged.
-  const [workPaneOpen, setWorkPaneOpen] = useState(false)
+  const [oldViewAgentRightPaneOpen, setOldViewAgentRightPaneOpenCache] = usePersistCache(
+    OLD_VIEW_RIGHT_PANE_OPEN_CACHE_KEY
+  )
+  // Old-view (rail) work-pane open state is cached here so it survives AgentChat draft→persistent
+  // remounts (each branch mounts its own Shell) and app/page re-entry.
+  const workPaneOpen = isOldView && oldViewAgentRightPaneOpen
+  const setWorkPaneOpen = useCallback(
+    (open: boolean) => {
+      if (isOldView) setOldViewAgentRightPaneOpenCache(open)
+    },
+    [isOldView, setOldViewAgentRightPaneOpenCache]
+  )
 
   useEffect(() => {
     pendingSelectedSessionRef.current = null
@@ -503,9 +512,8 @@ const AgentPage = () => {
       if (sessionId && conversationNav.focusExistingTab(sessionId, { excludeTabId: currentTabId ?? undefined })) return
       pendingSelectedSessionRef.current = null
       setResourceListOpen(true)
-      // Locate (history / global search) should reveal the target in the right work pane. The per-branch
-      // Shell re-seeds its open state from `workPaneOpen` on the next session remount; in new view this
-      // flag is ignored and reset by the isOldView effect, so setting it unconditionally is safe.
+      // Locate (history / global search) should reveal the target in the right work pane. In new view
+      // this setter is a no-op; old view persists it for the next AgentChat remount.
       setWorkPaneOpen(true)
       setDraftSessionState(null)
       setMissingAgentDraft(false)
@@ -525,7 +533,14 @@ const AgentPage = () => {
         requestId: sessionRevealRequestIdRef.current
       })
     },
-    [conversationNav, currentTabId, setDraftSessionState, setResourceListOpen, startDefaultDraftSession]
+    [
+      conversationNav,
+      currentTabId,
+      setDraftSessionState,
+      setResourceListOpen,
+      setWorkPaneOpen,
+      startDefaultDraftSession
+    ]
   )
   const closeHistoryRecords = useCallback(() => {
     setHistoryRecordsOpen(false)
@@ -749,12 +764,6 @@ const AgentPage = () => {
 
   const panePosition = 'left'
   // Old view = entity rail + right session panel; new view = the classic sidebar (AgentSidePanel).
-  useEffect(() => {
-    if (!isOldView && workPaneOpen) {
-      setWorkPaneOpen(false)
-    }
-  }, [isOldView, workPaneOpen])
-
   const activeResourceAgentId = visibleSession?.agentId ?? visibleDraftSession?.agentId ?? null
   const sessionResourcePaneCount: ResourcePaneCountButtonProps | undefined =
     isOldView && activeResourceAgentId

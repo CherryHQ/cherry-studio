@@ -121,10 +121,12 @@ function TopicRightPaneProvider({
   children,
   resourcePane,
   defaultOpen = false,
+  onOpenChange,
   revealRequest
 }: PropsWithChildren<{
   resourcePane?: ResourcePaneConfig | null
   defaultOpen?: boolean
+  onOpenChange?: (open: boolean) => void
   revealRequest?: ResourceListRevealRequest
 }>) {
   const storeRef = useRef<TopicBranchLiveStateStore>(undefined as never)
@@ -132,7 +134,11 @@ function TopicRightPaneProvider({
   const shellModeKey = resourcePane ? 'resource-pane' : 'branch-pane'
 
   return (
-    <Shell key={shellModeKey} defaultTab={resourcePane ? RESOURCE_PANE_TAB : 'branch'} defaultOpen={defaultOpen}>
+    <Shell
+      key={shellModeKey}
+      defaultTab={resourcePane ? RESOURCE_PANE_TAB : 'branch'}
+      defaultOpen={defaultOpen}
+      onOpenChange={onOpenChange}>
       <ResourcePaneProvider value={resourcePane ?? null}>
         <ResourcePaneLocateOpener revealRequest={revealRequest} />
         <TopicBranchLiveStateStoreContext value={storeRef.current}>{children}</TopicBranchLiveStateStoreContext>

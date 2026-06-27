@@ -113,7 +113,13 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
 
   return {
     usePersistCache: (key: string) => {
-      const [value, setValue] = React.useState<unknown>(() => homeMocks.persistCacheValues.get(key) ?? null)
+      const [value, setValue] = React.useState<unknown>(() => {
+        if (homeMocks.persistCacheValues.has(key)) {
+          return homeMocks.persistCacheValues.get(key)
+        }
+
+        return key === 'ui.old_view.right_pane_open' ? true : null
+      })
       const setPersistCache = vi.fn((nextValue: unknown) => {
         homeMocks.persistCacheValues.set(key, nextValue)
         homeMocks.cacheSetPersist(key, nextValue)
@@ -431,16 +437,23 @@ vi.mock('../components/TopicRightPane', () => {
     ({
       children,
       defaultOpen,
+      onOpenChange,
       resourcePane
     }: {
       children: ReactNode
       defaultOpen?: boolean
+      onOpenChange?: (open: boolean) => void
       resourcePane?: { node?: ReactNode; label?: string } | null
     }) => (
       <div
         data-default-open={String(Boolean(defaultOpen))}
         data-default-tab={resourcePane ? 'resources' : 'branch'}
         data-testid="topic-right-pane-provider">
+        {onOpenChange && (
+          <button type="button" onClick={() => onOpenChange(false)}>
+            Close topic right pane
+          </button>
+        )}
         {resourcePane?.node}
         {children}
       </div>
@@ -570,17 +583,30 @@ describe('HomePage', () => {
     })
   })
 
-  it('renders the assistant resource list with the resource pane closed by default', () => {
+  it('renders the assistant resource list with the resource pane open by default', () => {
     homeMocks.preferenceValues.set('chat.conversation_view', 'old')
 
     render(<HomePage />)
 
     expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-tab', 'resources')
-    expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-open', 'false')
+    expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-open', 'true')
     expect(screen.getByTestId('assistant-resource-list')).toHaveAttribute('data-active-assistant-id', 'assistant-1')
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-assistant-id', 'assistant-1')
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
     expect(screen.queryByTestId('home-tabs')).not.toBeInTheDocument()
+  })
+
+  it('restores and records the old-view topic right pane open state from cache', () => {
+    homeMocks.preferenceValues.set('chat.conversation_view', 'old')
+    homeMocks.persistCacheValues.set('ui.old_view.right_pane_open', false)
+
+    render(<HomePage />)
+
+    expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-open', 'false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close topic right pane' }))
+
+    expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.old_view.right_pane_open', false)
   })
 
   it('passes the current assistant conversation count to the old-view top button', () => {
