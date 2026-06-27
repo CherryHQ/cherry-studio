@@ -28,7 +28,7 @@ function mergeContribution(body: Record<string, JSONValue>, contribution: Record
 /**
  * Map a canonical `paramValues` bag to a vendor request body via the profile's
  * field rules. Drops `undefined` / `''` / `null` / `'auto'` — mirroring the old
- * `compact()` so the body is byte-identical to `buildImageProviderOptions`. A
+ * `compact()` so the body is byte-identical to the legacy per-provider emitter. A
  * `to`/`map` rule sets one field; a `contribute` rule merges a partial body (the
  * one-to-many / nested escape hatch). Native params (`n`/`size`/`seed`/
  * `aspectRatio`) are NOT this function's concern except where a profile
@@ -72,7 +72,7 @@ function jsonBag(bag: Record<string, unknown>): Record<string, JSONValue> {
 /**
  * Build the AI SDK `providerOptions` map for a registered provider: its engine
  * body keyed by the provider id (and `openai` too when `dualOpenAI`). Returns
- * `{}` when the body is empty — matching `buildImageProviderOptions`' `under()`/
+ * `{}` when the body is empty — matching the legacy emitter's `under()`/
  * `dualOpenAI()` empty-map behavior so the wire stays byte-identical. This is the
  * Layer-3 delivery adapter: it owns *which key(s)* the body rides under + whether
  * unmapped vendor-bag fields pass through — concerns the profile deliberately

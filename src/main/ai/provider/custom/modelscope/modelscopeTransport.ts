@@ -17,7 +17,7 @@ import { createAbortError, isTerminalHttpStatus, uint8ToBase64, waitWithSignal }
  *   - `size` is the WxH string itself (e.g. `'1024x1024'`), NOT a width /
  *     height split.
  *   - Sampling fields are `steps` and `guidance` (NOT `num_inference_steps`
- *     / `guidance_scale`). `buildImageProviderOptions`'s default branch
+ *     / `guidance_scale`). The WireProfile engine (diffusion profile)
  *     snake-cases the painting form's `numInferenceSteps` / `guidanceScale`
  *     into `num_inference_steps` / `guidance_scale`, which this transport
  *     accepts and renames to ModelScope's spelling.
@@ -127,8 +127,8 @@ class ModelscopeTransport implements ImageGenerationTransport {
     }
 
     // ModelScope uses `steps` / `guidance`, not `num_inference_steps` /
-    // `guidance_scale`. The bag arrives snake-cased from
-    // `buildImageProviderOptions`'s default branch; accept both forms.
+    // `guidance_scale`. The bag arrives snake-cased from the WireProfile engine
+    // (diffusion profile); accept both forms.
     const steps = readNumber(bag, 'numInferenceSteps', 'num_inference_steps', 'steps')
     if (steps !== undefined) body.steps = steps
 

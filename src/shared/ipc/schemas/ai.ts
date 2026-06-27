@@ -51,7 +51,7 @@ const aiImagePayloadSchema = z.strictObject({
   /**
    * The canonical param bag (registry param keys → coerced values). The renderer
    * already validated/coerced it via `buildParamsSchema`; main re-derives the wire
-   * shape from it (`splitParamValues` + `buildImageProviderOptions`). Loose by
+   * shape from it (`splitParamValues` + the WireProfile engine). Loose by
    * design — vendor-bag keys (cfg, addWatermark, modelDescriptor) are open-ended,
    * and re-validating what `buildParamsSchema` already owns buys nothing.
    */

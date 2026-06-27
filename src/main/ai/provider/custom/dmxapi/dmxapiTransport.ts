@@ -44,7 +44,7 @@ export interface DmxapiProviderParams {
   addWatermark?: boolean
   /** wan family extras (DashScope-passthrough). */
   promptExtend?: boolean
-  /** Snake-cased by `buildImageProviderOptions` default branch. */
+  /** Snake-cased by the WireProfile engine (DMXAPI_WIRE_PROFILE). */
   negative_prompt?: string
 }
 

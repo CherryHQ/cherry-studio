@@ -10,7 +10,7 @@ import type { PaintingProviderRuntime } from './types/paintingProviderRuntime'
  * via the `ai.generate_image` IpcApi route (`ipcApi.request`): the renderer
  * sends one canonical `paramValues` bag (+ encoded input images); main derives
  * the AI SDK request + per-vendor `providerOptions` from it (`splitParamValues`
- * + `buildImageProviderOptions`), runs any async submit/poll loop, and returns
+ * + the WireProfile engine), runs any async submit/poll loop, and returns
  * base64 data URLs. Validation (model / prompt required, custom-size rules,
  * param coercion) stays in the caller (`canonicalGenerate`).
  */

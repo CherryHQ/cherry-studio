@@ -75,11 +75,11 @@ export interface DashScopeModelDescriptor {
 export interface DashScopeProviderParams {
   model?: string
   modelDescriptor?: DashScopeModelDescriptor
-  /** Coerced to number by `buildImageProviderOptions` dashscope branch. */
+  /** Coerced to number by the WireProfile engine (DASHSCOPE_WIRE_PROFILE). */
   seed?: number
-  /** Snake-cased by `buildImageProviderOptions` dashscope branch. */
+  /** Snake-cased by the WireProfile engine (DASHSCOPE_WIRE_PROFILE). */
   negative_prompt?: string
-  /** Routed through `buildImageProviderOptions` dashscope branch (wanx-v1). */
+  /** Routed through the WireProfile engine (DASHSCOPE_WIRE_PROFILE, wanx-v1). */
   style?: string
   promptExtend?: boolean
   addWatermark?: boolean

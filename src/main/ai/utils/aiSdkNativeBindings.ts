@@ -2,9 +2,9 @@
  * Canonical param key → its structured request field (+ optional wire
  * normalization). After the `ai.generate_image` payload collapse, the renderer
  * sends one canonical `paramValues` bag; `splitParamValues` (in `imageOptions.ts`)
- * uses this table to partition it into the structured fields
- * `buildImageProviderOptions` / `imageParams` consume vs the leftover vendor bag,
- * applying each binding's `map` once.
+ * uses this table to partition it into the structured fields the AI SDK
+ * `imageParams` consume vs the leftover vendor bag the WireProfile engine
+ * forwards, applying each binding's `map` once.
  *
  * `numImages → n` is the only rename; `aspectRatio` carries a `map`
  * (`ASPECT_X_Y → X:Y`, the AI SDK `ImageModelV3CallOptions` shape) so the

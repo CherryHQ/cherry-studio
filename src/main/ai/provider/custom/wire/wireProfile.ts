@@ -173,11 +173,10 @@ export interface WireRegistration {
 }
 
 /**
- * AI SDK provider id → its engine registration. A provider here routes its
- * vendor body through `buildImageRequest` instead of `buildImageProviderOptions`.
- * Providers absent from BOTH this map and the legacy-emitter allowlist fall back
- * to {@link DEFAULT_DIFFUSION_REGISTRATION}. Grows one row per migrated provider
- * with bespoke delivery; the plain diffusion family needs no row.
+ * AI SDK provider id → its engine registration, declaring the provider's bespoke
+ * delivery (dual-keying / passthrough / sibling keys). Providers absent from this
+ * map fall back to {@link DEFAULT_DIFFUSION_REGISTRATION}. Grows one row per
+ * migrated provider with bespoke delivery; the plain diffusion family needs no row.
  */
 export const WIRE_REGISTRY: Record<string, WireRegistration> = {
   openai: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },

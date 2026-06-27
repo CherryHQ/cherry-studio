@@ -1,30 +1,22 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildImageProviderOptions, splitParamValues } from '../../../../utils/imageOptions'
+import { splitParamValues } from '../../../../utils/imageOptions'
 import { buildImageRequest, buildVendorProviderOptions } from '../buildImageRequest'
 import { DEFAULT_DIFFUSION_REGISTRATION, DIFFUSION_WIRE_PROFILE, WIRE_REGISTRY } from '../wireProfile'
 
-// The engine's diffusion delivery must equal what buildImageProviderOptions
-// produces today (the diffusion emitter), so the wire stays byte-identical. The
-// oracle is computed from the REAL mapper — not a hand-written bag — to lock
-// equivalence. `cfg` rides via passthrough (vendor bag), not the profile.
-function oracleDiffusion(providerId: string, paramValues: Record<string, unknown>): Record<string, unknown> {
-  const { structured, vendorBag } = splitParamValues(paramValues)
-  const opts = buildImageProviderOptions(providerId, {
-    ...structured,
-    providerOptions: { [providerId]: vendorBag as Record<string, unknown> }
-  })
-  return (opts[providerId] ?? {}) as Record<string, unknown>
-}
+// The engine is the single source of truth for the vendor wire; each case asserts
+// the literal expected `providerOptions` bag. (These literals were locked against
+// the legacy buildImageProviderOptions emitter while it still existed.)
 
-function engineDiffusion(providerId: string, paramValues: Record<string, unknown>): Record<string, unknown> {
+/** Run a provider's registration (WIRE_REGISTRY, else the diffusion default). */
+function engine(providerId: string, paramValues: Record<string, unknown>): Record<string, Record<string, unknown>> {
   const { vendorBag } = splitParamValues(paramValues)
-  const opts = buildVendorProviderOptions(providerId, paramValues, DEFAULT_DIFFUSION_REGISTRATION, vendorBag)
-  return (opts[providerId] ?? {}) as Record<string, unknown>
+  const registration = WIRE_REGISTRY[providerId] ?? DEFAULT_DIFFUSION_REGISTRATION
+  return buildVendorProviderOptions(providerId, paramValues, registration, vendorBag)
 }
 
 describe('buildVendorProviderOptions — diffusion family (passthrough)', () => {
-  it('reproduces the buildImageProviderOptions silicon bag byte-identically', () => {
+  it('maps the snake_case sampling fields and forwards cfg via passthrough', () => {
     const paramValues = {
       numImages: 2,
       size: '1024x1024',
@@ -34,28 +26,29 @@ describe('buildVendorProviderOptions — diffusion family (passthrough)', () => 
       guidanceScale: 4.5,
       cfg: 7.5 // vendor-bag field → forwarded by passthrough, not the profile
     }
-    const body = engineDiffusion('silicon', paramValues)
-    expect(body).toEqual(oracleDiffusion('silicon', paramValues))
-    expect(body).toHaveProperty('cfg', 7.5)
+    const result = engine('silicon', paramValues)
+    expect(result).toEqual({
+      silicon: { negative_prompt: 'low quality', seed: 42, num_inference_steps: 25, guidance_scale: 4.5, cfg: 7.5 }
+    })
     // native params (n/size) are not in the vendor body
-    expect(body).not.toHaveProperty('n')
-    expect(body).not.toHaveProperty('size')
+    expect(result.silicon).not.toHaveProperty('n')
+    expect(result.silicon).not.toHaveProperty('size')
   })
 
-  it("drops 'auto'/blank and passes cfg through (matches the legacy compact()/jsonBag merge)", () => {
+  it("drops 'auto'/blank mapped fields, forwards the bag", () => {
     const paramValues = { quality: 'auto', negativePrompt: '', cfg: 7.5, promptEnhancement: true }
-    expect(engineDiffusion('silicon', paramValues)).toEqual(oracleDiffusion('silicon', paramValues))
+    expect(engine('silicon', paramValues)).toEqual({ silicon: { cfg: 7.5, prompt_enhancement: true } })
   })
 
   it('serves an unlisted provider as the catch-all (== legacy diffusion fallback)', () => {
     const paramValues = { seed: 9, numInferenceSteps: 30, addWatermark: true, cfg: 3 }
-    expect(engineDiffusion('some-unlisted-provider', paramValues)).toEqual(
-      oracleDiffusion('some-unlisted-provider', paramValues)
-    )
+    expect(engine('some-unlisted-provider', paramValues)).toEqual({
+      'some-unlisted-provider': { seed: 9, num_inference_steps: 30, addWatermark: true, cfg: 3 }
+    })
   })
 
-  it('matches the empty case', () => {
-    expect(buildVendorProviderOptions('silicon', {}, DEFAULT_DIFFUSION_REGISTRATION, {})).toEqual({})
+  it('returns {} for the empty case', () => {
+    expect(engine('silicon', {})).toEqual({})
   })
 
   it('maps only the profile fields when passthrough is off', () => {
@@ -65,27 +58,10 @@ describe('buildVendorProviderOptions — diffusion family (passthrough)', () => 
   })
 })
 
-// The OpenAI image family (openai/openai-chat/azure/azure-responses/huggingface/
-// cherryin/newapi) goes through the dual-keyed delivery adapter. The oracle is the
-// EXACT legacy AiService branch: buildImageProviderOptions over the split params,
-// vendor bag under providerOptions[id] (which the openaiFamily emitter ignores —
-// reproduced here so the equivalence is provably the whole legacy behavior).
-function oracleOpenAIFamily(
-  providerId: string,
-  paramValues: Record<string, unknown>
-): Record<string, Record<string, unknown>> {
-  const { structured, vendorBag } = splitParamValues(paramValues)
-  const providerOptions = Object.keys(vendorBag).length ? { [providerId]: vendorBag } : undefined
-  return buildImageProviderOptions(providerId, { ...structured, providerOptions }) as Record<
-    string,
-    Record<string, unknown>
-  >
-}
-
 describe('buildVendorProviderOptions — OpenAI image family (dual-keyed)', () => {
   const OPENAI_FAMILY = ['openai', 'openai-chat', 'azure', 'azure-responses', 'huggingface', 'cherryin', 'newapi']
 
-  it.each(OPENAI_FAMILY)('reproduces the buildImageProviderOptions dual-key bag for %s', (providerId) => {
+  it.each(OPENAI_FAMILY)('dual-keys the openai body under openai + %s, dropping seed', (providerId) => {
     const paramValues = {
       numImages: 2,
       size: '1024x1024',
@@ -95,11 +71,7 @@ describe('buildVendorProviderOptions — OpenAI image family (dual-keyed)', () =
       moderation: 'low',
       style: 'vivid'
     }
-    const { vendorBag } = splitParamValues(paramValues)
-    const result = buildVendorProviderOptions(providerId, paramValues, WIRE_REGISTRY[providerId], vendorBag)
-    expect(result).toEqual(oracleOpenAIFamily(providerId, paramValues))
-    // dual-keyed under `openai` and the provider id, with seed/native params absent
-    expect(result).toEqual({
+    expect(engine(providerId, paramValues)).toEqual({
       openai: { quality: 'high', background: 'transparent', moderation: 'low', style: 'vivid' },
       [providerId]: { quality: 'high', background: 'transparent', moderation: 'low', style: 'vivid' }
     })
@@ -107,27 +79,9 @@ describe('buildVendorProviderOptions — OpenAI image family (dual-keyed)', () =
 
   it("drops 'auto'/blank and returns {} when nothing maps", () => {
     const paramValues = { quality: 'auto', background: '', numInferenceSteps: 20, cfg: 7.5 }
-    const { vendorBag } = splitParamValues(paramValues)
-    expect(buildVendorProviderOptions('openai', paramValues, WIRE_REGISTRY.openai, vendorBag)).toEqual(
-      oracleOpenAIFamily('openai', paramValues)
-    )
-    expect(buildVendorProviderOptions('openai', paramValues, WIRE_REGISTRY.openai, vendorBag)).toEqual({})
+    expect(engine('openai', paramValues)).toEqual({})
   })
 })
-
-// The Google native image family (google / google-vertex) builds a nested
-// `imageConfig` block from aspectRatio + size via the `contribute` escape hatch,
-// plus a lowercased flat `personGeneration`. Oracle = the legacy `google` emitter
-// through buildImageProviderOptions over the split params.
-function oracleGoogle(paramValues: Record<string, unknown>): Record<string, Record<string, unknown>> {
-  const { structured } = splitParamValues(paramValues)
-  return buildImageProviderOptions('google', { ...structured }) as Record<string, Record<string, unknown>>
-}
-
-function engineGoogle(providerId: string, paramValues: Record<string, unknown>) {
-  const { vendorBag } = splitParamValues(paramValues)
-  return buildVendorProviderOptions(providerId, paramValues, WIRE_REGISTRY[providerId], vendorBag)
-}
 
 describe('buildVendorProviderOptions — Google native image family (contribute / nested imageConfig)', () => {
   const cases: Array<[string, Record<string, unknown>, Record<string, Record<string, unknown>>]> = [
@@ -149,36 +103,19 @@ describe('buildVendorProviderOptions — Google native image family (contribute 
   ]
 
   it.each(cases)('reproduces the google emitter: %s', (_label, paramValues, expected) => {
-    const result = engineGoogle('google', paramValues)
-    expect(result).toEqual(oracleGoogle(paramValues))
-    expect(result).toEqual(expected)
+    expect(engine('google', paramValues)).toEqual(expected)
   })
 
-  it('drops an invalid aspectRatio so no empty imageConfig survives (== legacy compact)', () => {
-    const paramValues = { aspectRatio: 'weird', numImages: 1 }
-    expect(engineGoogle('google', paramValues)).toEqual(oracleGoogle(paramValues))
-    expect(engineGoogle('google', paramValues)).toEqual({})
+  it('drops an invalid aspectRatio so no empty imageConfig survives', () => {
+    expect(engine('google', { aspectRatio: 'weird', numImages: 1 })).toEqual({})
   })
 
   it('google-vertex shares the same profile', () => {
-    const paramValues = { aspectRatio: 'ASPECT_1_1', size: '1024x1024', numImages: 1 }
-    expect(engineGoogle('google-vertex', paramValues)).toEqual({
+    expect(engine('google-vertex', { aspectRatio: 'ASPECT_1_1', size: '1024x1024', numImages: 1 })).toEqual({
       'google-vertex': { imageConfig: { aspectRatio: '1:1', imageSize: '1024x1024' } }
     })
   })
 })
-
-// DashScope: mapped {negative_prompt, seed, style} under the `dashscope` key over
-// a passthrough of the vendor bag the async transport reads (modelDescriptor /
-// langs). Mapped fields win over bag entries of the same name. Oracle = the
-// dashscope emitter through buildImageProviderOptions over the split params.
-function oracleDashscope(paramValues: Record<string, unknown>): Record<string, Record<string, unknown>> {
-  const { structured, vendorBag } = splitParamValues(paramValues)
-  return buildImageProviderOptions('dashscope', {
-    ...structured,
-    providerOptions: { dashscope: vendorBag as Record<string, unknown> }
-  }) as Record<string, Record<string, unknown>>
-}
 
 describe('buildVendorProviderOptions — DashScope (passthrough, mapped wins)', () => {
   it('forwards the vendor bag (modelDescriptor / langs), mapped fields winning, auto preserved', () => {
@@ -190,10 +127,7 @@ describe('buildVendorProviderOptions — DashScope (passthrough, mapped wins)', 
       sourceLang: 'auto', // a bag value of 'auto' must survive (jsonBag doesn't compact)
       negative_prompt: 'bag-loses' // colliding bag entry — mapped negativePrompt overrides it
     }
-    const { vendorBag } = splitParamValues(paramValues)
-    const result = buildVendorProviderOptions('dashscope', paramValues, WIRE_REGISTRY.dashscope, vendorBag)
-    expect(result).toEqual(oracleDashscope(paramValues))
-    expect(result).toEqual({
+    expect(engine('dashscope', paramValues)).toEqual({
       dashscope: {
         modelDescriptor: { id: 'qwen-mt-image', endpoint: '/api/v1/services/aigc/image', isSync: false },
         sourceLang: 'auto',
@@ -204,38 +138,15 @@ describe('buildVendorProviderOptions — DashScope (passthrough, mapped wins)', 
   })
 
   it('maps style and returns {} when nothing maps and the bag is empty', () => {
-    const withStyle = { style: 'watercolor', numImages: 1 }
-    expect(buildVendorProviderOptions('dashscope', withStyle, WIRE_REGISTRY.dashscope, {})).toEqual(
-      oracleDashscope(withStyle)
-    )
-    expect(buildVendorProviderOptions('dashscope', {}, WIRE_REGISTRY.dashscope, {})).toEqual({})
+    expect(engine('dashscope', { style: 'watercolor', numImages: 1 })).toEqual({ dashscope: { style: 'watercolor' } })
+    expect(engine('dashscope', {})).toEqual({})
   })
 })
 
-// aihubmix: the OpenAI image body + seed, dual-keyed under openai + aihubmix.
-function oracleVendor(
-  providerId: string,
-  paramValues: Record<string, unknown>
-): Record<string, Record<string, unknown>> {
-  const { structured, vendorBag } = splitParamValues(paramValues)
-  const providerOptions = Object.keys(vendorBag).length ? { [providerId]: vendorBag } : undefined
-  return buildImageProviderOptions(providerId, { ...structured, providerOptions }) as Record<
-    string,
-    Record<string, unknown>
-  >
-}
-
-function engineVendor(providerId: string, paramValues: Record<string, unknown>) {
-  const { vendorBag } = splitParamValues(paramValues)
-  return buildVendorProviderOptions(providerId, paramValues, WIRE_REGISTRY[providerId], vendorBag)
-}
-
 describe('buildVendorProviderOptions — aihubmix (openai body + seed, dual-keyed)', () => {
-  it('reproduces the aihubmix emitter: openai fields + seed under openai + aihubmix', () => {
+  it('emits the openai fields + seed under openai + aihubmix', () => {
     const paramValues = { quality: 'high', background: 'transparent', seed: 9, numImages: 1 }
-    const result = engineVendor('aihubmix', paramValues)
-    expect(result).toEqual(oracleVendor('aihubmix', paramValues))
-    expect(result).toEqual({
+    expect(engine('aihubmix', paramValues)).toEqual({
       openai: { quality: 'high', background: 'transparent', seed: 9 },
       aihubmix: { quality: 'high', background: 'transparent', seed: 9 }
     })
@@ -251,18 +162,13 @@ describe('buildVendorProviderOptions — dmxapi (cross-key: dmxapi body + google
       imageResolution: '4K',
       numImages: 1
     }
-    const result = engineVendor('dmxapi', paramValues)
-    expect(result).toEqual(oracleVendor('dmxapi', paramValues))
-    expect(result).toEqual({
+    expect(engine('dmxapi', paramValues)).toEqual({
       dmxapi: { negative_prompt: 'no blur', seed: 7 },
       google: { imageConfig: { aspectRatio: '1:1', imageSize: '4K' } }
     })
   })
 
   it('omits the google sibling key when no aspectRatio / imageResolution is set', () => {
-    const paramValues = { negativePrompt: 'x', numImages: 1 }
-    const result = engineVendor('dmxapi', paramValues)
-    expect(result).toEqual(oracleVendor('dmxapi', paramValues))
-    expect(result).toEqual({ dmxapi: { negative_prompt: 'x' } })
+    expect(engine('dmxapi', { negativePrompt: 'x', numImages: 1 })).toEqual({ dmxapi: { negative_prompt: 'x' } })
   })
 })

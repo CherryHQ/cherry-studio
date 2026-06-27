@@ -14,11 +14,11 @@ import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../im
  *     options.size → input.size`).
  *   - `num_inference_steps` comes from the providerOptions bag — either
  *     camelCase `numInferenceSteps` (canonical) or `num_inference_steps`
- *     (snake_case via `buildImageProviderOptions`'s default branch). Read
+ *     (snake_case via the WireProfile engine's diffusion profile). Read
  *     both for forward/backward compatibility.
  *   - `rng_seed` is OVMS's bespoke wire name for seed. Source from the bag
  *     under any of `rngSeed` / `seed` (camelCase) or `rng_seed`
- *     (snake_case from `buildImageProviderOptions`).
+ *     (snake_case from the WireProfile engine).
  */
 
 export const DEFAULT_OVMS_BASE_URL = 'http://localhost:8000'
