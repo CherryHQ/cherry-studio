@@ -12,7 +12,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import type { Model } from '@shared/data/types/model'
 import { Check } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { type Control, useForm, type UseFormReturn, useWatch } from 'react-hook-form'
+import { type Control, useForm, type UseFormReturn, useFormState, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { BasicInfoStep } from './steps/BasicInfoStep'
@@ -144,6 +144,14 @@ export function ResourceCreateWizard({
   const [stepIndex, setStepIndex] = useState(0)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
 
+  // Combine the parent's async-submit flag with RHF's own isSubmitting so close
+  // protection (overlay / Esc / X) stays locked for the entire submit, not just the
+  // window after the parent renders its loading state — otherwise a failure would write
+  // its error into an already-closed form. Subscribing to isSubmitting (not form values)
+  // keeps the shell off the field-edit re-render path the comment below relies on.
+  const { isSubmitting: isFormSubmitting } = useFormState({ control: form.control })
+  const submitting = isSubmitting || isFormSubmitting
+
   const steps = useMemo<{ id: StepId; label: string }[]>(() => {
     const basic = { id: 'basic' as const, label: t('library.config.dialogs.create.step.basic') }
     const persona = { id: 'persona' as const, label: t('library.config.dialogs.create.step.persona') }
@@ -198,12 +206,12 @@ export function ResourceCreateWizard({
   const currentStep = steps[stepIndex]
 
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => !isSubmitting && onOpenChange(nextOpen)}>
+    <Dialog open={open} onOpenChange={(nextOpen) => !submitting && onOpenChange(nextOpen)}>
       <DialogContent
         ref={setDialogContentElement}
-        closeOnOverlayClick={!isSubmitting}
+        closeOnOverlayClick={!submitting}
         className="flex h-[min(600px,76vh)] flex-col gap-0 p-0 sm:max-w-[720px]"
-        onPointerDownOutside={(event) => isSubmitting && event.preventDefault()}>
+        onPointerDownOutside={(event) => submitting && event.preventDefault()}>
         {/* Header — avatar + title + step progress */}
         <div className="flex shrink-0 items-center gap-3 border-border-muted border-b px-6 py-4 pr-12">
           <HeaderAvatar control={form.control} fallback={getDefaultAvatar(kind)} />
