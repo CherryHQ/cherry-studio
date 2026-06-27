@@ -86,10 +86,12 @@ interface AgentChatProps {
   onEnsurePersistentSession?: EnsurePersistentSession
   onDraftAgentChange?: (agentId: string | null) => void | Promise<void>
   onDraftWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
+  onSessionWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   onVisibleAgentChange?: (agentId: string) => void
   onVisibleWorkspaceChange?: (workspaceId: string) => void
   replacingDraftAgent?: boolean
   replacingDraftWorkspace?: boolean
+  replacingSessionWorkspace?: boolean
   resourcePane?: ResourcePaneConfig | null
   resourcePaneCount?: ResourcePaneCountButtonProps
   resourcePaneRevealRequest?: ResourceListRevealRequest
@@ -120,10 +122,12 @@ const AgentChat = ({
   onEnsurePersistentSession,
   onDraftAgentChange,
   onDraftWorkspaceChange,
+  onSessionWorkspaceChange,
   onVisibleAgentChange,
   onVisibleWorkspaceChange,
   replacingDraftAgent,
   replacingDraftWorkspace,
+  replacingSessionWorkspace,
   resourcePane,
   resourcePaneCount,
   resourcePaneRevealRequest,
@@ -485,6 +489,9 @@ const AgentChat = ({
       resourcePaneRevealRequest={resourcePaneRevealRequest}
       workPaneOpen={workPaneOpen}
       onWorkPaneOpenChange={onWorkPaneOpenChange}
+      showWorkspaceSelector={Boolean(onSessionWorkspaceChange)}
+      onWorkspaceChange={onSessionWorkspaceChange}
+      workspaceChanging={replacingSessionWorkspace}
       onNewSessionDraft={
         sessionAgentId && onStartDraftSession
           ? () =>
@@ -533,6 +540,9 @@ interface AgentChatSessionFrameProps {
   onPaneCollapse?: () => void
   onNewSessionDraft?: () => void | Promise<void>
   onCreateEmptySession?: () => void | Promise<void>
+  showWorkspaceSelector?: boolean
+  onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
+  workspaceChanging?: boolean
   resourcePane?: ResourcePaneConfig | null
   resourcePaneCount?: ResourcePaneCountButtonProps
   resourcePaneRevealRequest?: ResourceListRevealRequest
@@ -565,6 +575,9 @@ const AgentChatSessionFrame = ({
   onPaneCollapse,
   onNewSessionDraft,
   onCreateEmptySession,
+  showWorkspaceSelector = false,
+  onWorkspaceChange,
+  workspaceChanging,
   resourcePane,
   resourcePaneCount,
   resourcePaneRevealRequest,
@@ -580,6 +593,9 @@ const AgentChatSessionFrame = ({
   })
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(runtime.sessionId), [runtime.sessionId])
   const locateLoadRequestRef = useRef<string | undefined>(undefined)
+  const canChangeWorkspace = Boolean(
+    onWorkspaceChange && !runtime.isLoading && !runtime.hasOlder && runtime.uiMessages.length === 0
+  )
 
   useEffect(() => {
     if (!locateMessageId) {
@@ -631,6 +647,10 @@ const AgentChatSessionFrame = ({
       sendDisabled={dockedSendDisabled}
       onNewSessionDraft={onNewSessionDraft}
       onCreateEmptySession={onCreateEmptySession}
+      workspaceId={session.workspace?.type === 'system' ? null : session.workspaceId}
+      onWorkspaceChange={canChangeWorkspace ? onWorkspaceChange : undefined}
+      workspaceChanging={workspaceChanging}
+      showWorkspaceSelector={showWorkspaceSelector}
       composerContext={runtime.composerContext}
     />
   )

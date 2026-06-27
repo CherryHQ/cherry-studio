@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto'
 import { application } from '@application'
 import { agentTable as agentsTable } from '@data/db/schemas/agent'
 import { type AgentSessionRow as SessionRow, agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
@@ -20,7 +21,7 @@ import type {
   ListAgentSessionsQuery,
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
-import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
+import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import { and, asc, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
@@ -37,6 +38,11 @@ type SessionEntitySearchItem = Extract<EntitySearchItem, { type: 'session' }>
 type JoinedSessionRow = {
   session: SessionRow
   workspace: AgentWorkspaceRow
+}
+
+type WorkspaceUpdate = {
+  workspaceId: string
+  oldSystemWorkspaceId?: string
 }
 
 function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
@@ -215,6 +221,7 @@ export class AgentSessionService {
     if (dto.name !== undefined) patch.name = dto.name
     if (dto.description !== undefined) patch.description = dto.description
     if (dto.agentId !== undefined) patch.agentId = dto.agentId
+    if (dto.workspace !== undefined) patch.workspace = dto.workspace
     if (Object.keys(patch).length === 0) return this.getById(id)
 
     const row = await withSqliteErrors(
@@ -226,8 +233,85 @@ export class AgentSessionService {
   }
 
   async updateTx(tx: DbOrTx, id: string, patch: UpdateAgentSessionDto): Promise<SessionRow | undefined> {
-    const [row] = await tx.update(sessionsTable).set(patch).where(eq(sessionsTable.id, id)).returning()
+    const sessionPatch: Partial<SessionRow> = {}
+    if (patch.name !== undefined) sessionPatch.name = patch.name
+    if (patch.description !== undefined) sessionPatch.description = patch.description
+    if (patch.agentId !== undefined) sessionPatch.agentId = patch.agentId
+
+    let oldSystemWorkspaceId: string | undefined
+    if (patch.workspace !== undefined) {
+      const workspaceUpdate = await this.prepareWorkspaceUpdateTx(tx, id, patch.workspace)
+      if (workspaceUpdate) {
+        sessionPatch.workspaceId = workspaceUpdate.workspaceId
+        oldSystemWorkspaceId = workspaceUpdate.oldSystemWorkspaceId
+      }
+    }
+
+    if (Object.keys(sessionPatch).length === 0) {
+      const [row] = await tx.select().from(sessionsTable).where(eq(sessionsTable.id, id)).limit(1)
+      return row
+    }
+
+    const [row] = await tx.update(sessionsTable).set(sessionPatch).where(eq(sessionsTable.id, id)).returning()
+    if (row && oldSystemWorkspaceId) {
+      await agentWorkspaceService.deleteByIdTx(tx, oldSystemWorkspaceId)
+    }
     return row
+  }
+
+  private async prepareWorkspaceUpdateTx(
+    tx: DbOrTx,
+    id: string,
+    workspaceSource: AgentSessionWorkspaceSource
+  ): Promise<WorkspaceUpdate | undefined> {
+    const current = await this.getJoinedSessionRowTx(tx, id)
+
+    if (
+      workspaceSource.type === AGENT_WORKSPACE_TYPE.SYSTEM &&
+      current.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM
+    ) {
+      return undefined
+    }
+
+    if (workspaceSource.type === AGENT_WORKSPACE_TYPE.USER) {
+      const workspace = await agentWorkspaceService.getRowByIdTx(tx, workspaceSource.workspaceId)
+      if (workspace.id === current.session.workspaceId) return undefined
+      await this.assertSessionHasNoMessagesTx(tx, id)
+      return {
+        workspaceId: workspace.id,
+        oldSystemWorkspaceId:
+          current.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM ? current.session.workspaceId : undefined
+      }
+    }
+
+    await this.assertSessionHasNoMessagesTx(tx, id)
+    const workspace = await agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: id })
+    return { workspaceId: workspace.id }
+  }
+
+  private async getJoinedSessionRowTx(tx: DbOrTx, id: string): Promise<JoinedSessionRow> {
+    const [row] = await tx
+      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .from(sessionsTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .where(eq(sessionsTable.id, id))
+      .limit(1)
+    if (!row) throw DataApiErrorFactory.notFound('Session', id)
+    return row
+  }
+
+  private async assertSessionHasNoMessagesTx(tx: DbOrTx, sessionId: string): Promise<void> {
+    const [message] = await tx
+      .select({ id: agentSessionMessageTable.id })
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.sessionId, sessionId))
+      .limit(1)
+    if (message) {
+      throw DataApiErrorFactory.invalidOperation(
+        'update session workspace',
+        'workspace cannot be changed after messages are sent'
+      )
+    }
   }
 
   private async insertTx(

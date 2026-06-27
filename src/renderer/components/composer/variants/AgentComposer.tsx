@@ -175,11 +175,12 @@ const AgentComposerRoot = ({
 
   const sessionData = useMemo(() => {
     if (!session || !agent) return undefined
+    const accessiblePaths = session.workspace?.type === 'user' && session.workspace.path ? [session.workspace.path] : []
     return {
       agentId,
       sessionId,
       agentType: agent.type,
-      accessiblePaths: session.workspace?.path ? [session.workspace.path] : []
+      accessiblePaths
     }
   }, [session, agent, agentId, sessionId])
 
@@ -374,37 +375,42 @@ const AgentComposerWorkspaceControl = ({
   const workspaceLabel = isSystemWorkspace
     ? t('agent.session.workspace_selector.no_project')
     : (workspace?.name ?? selectWorkspaceLabel)
-  const selector = (
+  const trigger = (
+    <Button
+      variant="ghost"
+      size="sm"
+      className={cn(
+        baseTriggerClassName,
+        iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
+        hasWarning && 'text-warning hover:text-warning'
+      )}
+      disabled={!onWorkspaceChange || workspaceChanging}
+      aria-label={workspaceWarning}>
+      {hasWarning ? (
+        <TriangleAlert size={14} aria-hidden />
+      ) : isSystemWorkspace ? (
+        <CircleSlash size={14} aria-hidden className="text-muted-foreground" />
+      ) : (
+        <Folder size={14} aria-hidden className="text-muted-foreground" />
+      )}
+      <span className={cn('max-w-40 truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)}>{workspaceLabel}</span>
+      {onWorkspaceChange ? (
+        <ChevronDown size={14} aria-hidden className={cn('text-muted-foreground', iconOnly && 'hidden')} />
+      ) : null}
+    </Button>
+  )
+  const selector = onWorkspaceChange ? (
     <WorkspaceSelector
       value={selectorValue}
-      onChange={onWorkspaceChange ?? (() => undefined)}
+      onChange={onWorkspaceChange}
       side={side}
       align="start"
       mountStrategy="lazy-keep"
-      disabled={!onWorkspaceChange || workspaceChanging}
-      trigger={
-        <Button
-          variant="ghost"
-          size="sm"
-          className={cn(
-            baseTriggerClassName,
-            iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
-            hasWarning && 'text-warning hover:text-warning'
-          )}
-          disabled={!onWorkspaceChange || workspaceChanging}
-          aria-label={workspaceWarning}>
-          {hasWarning ? (
-            <TriangleAlert size={14} aria-hidden />
-          ) : isSystemWorkspace ? (
-            <CircleSlash size={14} aria-hidden className="text-muted-foreground" />
-          ) : (
-            <Folder size={14} aria-hidden className="text-muted-foreground" />
-          )}
-          <span className={cn('max-w-40 truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)}>{workspaceLabel}</span>
-          <ChevronDown size={14} aria-hidden className={cn('text-muted-foreground', iconOnly && 'hidden')} />
-        </Button>
-      }
+      disabled={workspaceChanging}
+      trigger={trigger}
     />
+  ) : (
+    trigger
   )
 
   if (!hasWarning) return selector
@@ -472,17 +478,26 @@ type AgentComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls'
 type AgentComposerControlsRenderer = (props: AgentComposerControlProps) => AgentComposerControlSlots
 
 // Active agent sessions are bound to their agent, so the agent trigger opens edit instead of switching.
-const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => ({
-  renderLeftControls: (inputAdapter) => (
-    <ComposerToolbarControls
-      inputAdapter={inputAdapter}
-      newConversationAction={props.newConversationAction}
-      renderContextControls={({ side, iconOnly }) => (
-        <AgentComposerContextControls {...props} side={side} iconOnly={iconOnly} agentTriggerMode="edit" />
-      )}
-    />
-  )
-})
+const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => {
+  const { showWorkspaceSelector = false } = props
+
+  return {
+    renderLeftControls: (inputAdapter) => (
+      <ComposerToolbarControls
+        inputAdapter={inputAdapter}
+        newConversationAction={props.newConversationAction}
+        renderContextControls={({ side, iconOnly }) => (
+          <>
+            <AgentComposerContextControls {...props} side={side} iconOnly={iconOnly} agentTriggerMode="edit" />
+            {showWorkspaceSelector ? (
+              <AgentComposerWorkspaceControl {...props} side={side} iconOnly={iconOnly} />
+            ) : null}
+          </>
+        )}
+      />
+    )
+  }
+}
 
 const renderAgentHomeControls: AgentComposerControlsRenderer = (props) => {
   const { showWorkspaceSelector = true } = props
@@ -561,12 +576,13 @@ const AgentComposerInner = ({
   const sessionTopicId = buildAgentSessionTopicId(sessionId)
   const accessiblePaths = sessionData?.accessiblePaths ?? []
   const enableMentionModelTrigger = accessiblePaths.length > 0
-  const { skills: availableSkills, refresh: refreshAvailableSkills } = useAvailableSkills(agentId, workspace?.path)
+  const userWorkspacePath = workspace?.type === 'user' ? workspace.path : undefined
+  const { skills: availableSkills, refresh: refreshAvailableSkills } = useAvailableSkills(agentId, userWorkspacePath)
 
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities(model)
 
   useEffect(() => {
-    const workspacePath = workspace?.path
+    const workspacePath = userWorkspacePath
     if (!workspacePath) {
       setWorkspaceWarning(undefined)
       return
@@ -591,7 +607,7 @@ const AgentComposerInner = ({
     return () => {
       cancelled = true
     }
-  }, [t, workspace?.path])
+  }, [t, userWorkspacePath])
 
   const setText = useCallback(
     (nextText: string) => {

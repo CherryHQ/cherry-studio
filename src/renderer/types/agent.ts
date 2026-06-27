@@ -8,6 +8,7 @@
 import type { Tool } from '@shared/ai/tool'
 import { AgentBaseSchema, type AgentConfiguration, AgentEntitySchema } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentBase, AgentEntity, AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 import * as z from 'zod'
@@ -72,8 +73,7 @@ export type UpdateAgentForm = Partial<Omit<BaseAgentForm, 'type'>> & {
 }
 
 /**
- * Session forms carry instance-level fields plus the workspace binding
- * (`workspaceId`).
+ * Session forms carry instance-level fields plus the workspace binding.
  */
 export type CreateSessionForm = {
   agentId: string
@@ -89,7 +89,7 @@ export type UpdateSessionForm = {
   description?: string
   /** Re-point the session to a different parent agent. */
   agentId?: string
-  workspaceId?: string
+  workspace?: AgentSessionWorkspaceSource
 }
 
 export type UpdateAgentBaseForm = Partial<AgentBase> & { id: string }

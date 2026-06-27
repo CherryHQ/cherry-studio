@@ -276,7 +276,7 @@ export const useSessions = (
 }
 
 /**
- * Patch session-level fields (`name`, `description`, `agentId`). Config fields
+ * Patch session-level fields (`name`, `description`, `agentId`, `workspace`). Config fields
  * (model, instructions, configuration, ...) live on the parent agent — use
  * {@link import('./useAgent').useUpdateAgent} for those.
  */
@@ -287,7 +287,7 @@ export const useUpdateSession = () => {
     // The non-null assertion mirrors useTopic.ts and crashes loud
     // if the contract is ever broken instead of silently producing
     // '/agent-sessions/undefined' (which would miss every cache entry).
-    refresh: ({ args }) => ['/agent-sessions', `/agent-sessions/${args!.params.sessionId}`]
+    refresh: ({ args }) => ['/agent-sessions', '/agent-workspaces', `/agent-sessions/${args!.params.sessionId}`]
   })
 
   const updateSession = useCallback(

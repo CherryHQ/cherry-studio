@@ -66,6 +66,7 @@ const agentPageMocks = vi.hoisted(() => ({
   routeSearch: { sessionId: 'session-initial' } as Record<string, unknown>,
   dataApiGet: vi.fn(),
   dataApiPost: vi.fn(),
+  updateSession: vi.fn(),
   invalidateCache: vi.fn(),
   oldViewSessions: [] as Array<{
     id: string
@@ -190,6 +191,9 @@ vi.mock('@renderer/hooks/agents/useSession', () => ({
     session: undefined,
     isLoading: false
   }),
+  useUpdateSession: () => ({
+    updateSession: agentPageMocks.updateSession
+  }),
   useActiveSession: (options: {
     activeSessionId: string | null
     setActiveSessionId: (id: string | null) => void
@@ -277,6 +281,7 @@ vi.mock('../AgentChat', () => ({
     onVisibleWorkspaceChange,
     onDraftAgentChange,
     onDraftWorkspaceChange,
+    onSessionWorkspaceChange,
     locateMessageId,
     pane,
     paneOpen,
@@ -307,6 +312,7 @@ vi.mock('../AgentChat', () => ({
     onVisibleWorkspaceChange?: (workspaceId: string) => void
     onDraftAgentChange?: (agentId: string | null) => void | Promise<void>
     onDraftWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
+    onSessionWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
     locateMessageId?: string
     pane?: ReactNode
     paneOpen?: boolean
@@ -339,6 +345,9 @@ vi.mock('../AgentChat', () => ({
       </button>
       <button type="button" onClick={() => void onDraftWorkspaceChange?.(null)}>
         Select no project
+      </button>
+      <button type="button" onClick={() => void onSessionWorkspaceChange?.('workspace-next')}>
+        Select session workspace
       </button>
       <button type="button" onClick={() => void onStartDraftSession?.({ agentId: 'agent-a' })}>
         Start draft session
@@ -502,6 +511,7 @@ describe('AgentPage', () => {
       return agentPageMocks.workspace
     })
     agentPageMocks.dataApiPost.mockResolvedValue(agentPageMocks.persistedSession)
+    agentPageMocks.updateSession.mockResolvedValue(agentPageMocks.persistedSession)
     agentPageMocks.invalidateCache.mockResolvedValue(undefined)
     activeSessionMocks.session = null
     activeSessionMocks.isLoading = false
@@ -770,6 +780,39 @@ describe('AgentPage', () => {
       '/agent-workspaces',
       '/agent-sessions/session-composer-empty'
     ])
+  })
+
+  it('updates the active old-view session workspace through the composer control', async () => {
+    agentPageMocks.workView = 'old'
+    activeSessionMocks.session = {
+      ...agentPageMocks.persistedSession,
+      id: 'session-active',
+      agentId: 'agent-a',
+      workspaceId: 'workspace-a',
+      workspace: agentPageMocks.workspace
+    }
+    activeSessionMocks.sessionSource = 'query'
+    agentPageMocks.updateSession.mockResolvedValue({
+      ...agentPageMocks.persistedSession,
+      id: 'session-active',
+      workspaceId: 'workspace-next',
+      workspace: agentPageMocks.workspaceNext
+    })
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select session workspace' }))
+
+    await waitFor(() =>
+      expect(agentPageMocks.updateSession).toHaveBeenCalledWith(
+        {
+          id: 'session-active',
+          workspace: { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: 'workspace-next' }
+        },
+        { showSuccessToast: false }
+      )
+    )
+    expect(agentPageMocks.setLastUsedWorkspaceId).toHaveBeenCalledWith('workspace-next')
   })
 
   it('creates a new session when the agent latest session is not empty from the old-view picker', async () => {

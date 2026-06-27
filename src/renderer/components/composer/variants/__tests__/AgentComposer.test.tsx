@@ -42,7 +42,7 @@ const mocks = vi.hoisted(() => ({
   shortcutOptions: new Map<string, Record<string, unknown> | undefined>(),
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
   ipcOn: vi.fn(),
-  conversationView: undefined as string | undefined,
+  workView: undefined as string | undefined,
   runtimeHostProps: undefined as
     | { assistant?: { modelId?: string | null }; model?: Model; session?: { agentId?: string } }
     | undefined
@@ -270,6 +270,7 @@ vi.mock('@renderer/hooks/agents/useSession', () => ({
       workspaceId: 'workspace-1',
       workspace: {
         id: 'workspace-1',
+        type: 'user',
         name: 'Workspace 1',
         path: '/workspace',
         orderKey: 'a0',
@@ -378,7 +379,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'chat.message.font_size': 14,
       'chat.narrow_mode': false,
       'chat.input.send_message_shortcut': 'Enter',
-      'chat.conversation_view': mocks.conversationView
+      'chat.work_view': mocks.workView
     }
     return [values[key]]
   }
@@ -475,7 +476,7 @@ describe('AgentComposer', () => {
     mocks.surfaceProps = undefined
     mocks.derivedToolState = undefined
     mocks.runtimeHostProps = undefined
-    mocks.conversationView = undefined
+    mocks.workView = undefined
     mocks.shortcutHandlers.clear()
     mocks.shortcutOptions.clear()
     mocks.ipcListeners.clear()
@@ -535,7 +536,7 @@ describe('AgentComposer', () => {
   })
 
   it('renders the empty session action before the tool menu and calls the explicit handler', () => {
-    mocks.conversationView = 'old'
+    mocks.workView = 'old'
     const onCreateEmptySession = vi.fn()
 
     render(
@@ -1377,7 +1378,7 @@ describe('AgentComposer', () => {
   })
 
   it('hides the active session agent trigger from the toolbar in old/传统 view', () => {
-    mocks.conversationView = 'old'
+    mocks.workView = 'old'
 
     render(
       <AgentComposer
@@ -1485,7 +1486,7 @@ describe('AgentComposer', () => {
   })
 
   it('hides the missing-agent trigger in old/传统 view', () => {
-    mocks.conversationView = 'old'
+    mocks.workView = 'old'
 
     render(<MissingAgentHomeComposer onAgentChange={vi.fn()} />)
 
@@ -1531,6 +1532,42 @@ describe('AgentComposer', () => {
     expect(screen.getByTestId('composer-below-controls')).not.toHaveTextContent('Workspace 1')
   })
 
+  it('renders a read-only workspace control in docked composer mode when requested without a change handler', () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        showWorkspaceSelector
+        isStreaming={false}
+      />
+    )
+
+    expect(screen.getByTestId('composer-left-controls')).toHaveTextContent('Workspace 1')
+    expect(screen.queryByText('select workspace 2')).not.toBeInTheDocument()
+  })
+
+  it('releases docked workspace changes to the provided handler', () => {
+    const onWorkspaceChange = vi.fn()
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        showWorkspaceSelector
+        onWorkspaceChange={onWorkspaceChange}
+        isStreaming={false}
+      />
+    )
+
+    fireEvent.click(screen.getByText('select workspace 2'))
+
+    expect(onWorkspaceChange).toHaveBeenCalledWith('workspace-2')
+  })
+
   it('releases draft workspace changes to the provided handler', () => {
     const onWorkspaceChange = vi.fn()
 
@@ -1573,6 +1610,33 @@ describe('AgentComposer', () => {
     fireEvent.click(screen.getByText('send'))
 
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1))
+  })
+
+  it('does not preflight the system no-project workspace path', () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sessionOverride={{
+          workspaceId: 'system-workspace-1',
+          workspace: {
+            id: 'system-workspace-1',
+            type: 'system',
+            name: 'agent.session.workspace_selector.no_project',
+            path: '/Users/jd/Library/Application Support/CherryStudioDev/Data/Agents/system-workspace-1'
+          }
+        }}
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        showWorkspaceSelector
+        isStreaming={false}
+      />
+    )
+
+    expect(screen.getByTestId('composer-left-controls')).toHaveTextContent(
+      'agent.session.workspace_selector.no_project'
+    )
+    expect(mocks.isDirectory).not.toHaveBeenCalled()
   })
 })
 

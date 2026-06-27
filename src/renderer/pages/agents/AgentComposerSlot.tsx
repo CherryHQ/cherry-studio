@@ -16,6 +16,10 @@ interface AgentComposerSlotProps {
   sendDisabled: boolean
   onNewSessionDraft?: () => void | Promise<void>
   onCreateEmptySession?: () => void | Promise<void>
+  workspaceId?: string | null
+  onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
+  workspaceChanging?: boolean
+  showWorkspaceSelector?: boolean
   composerContext: ComposerContextValue
 }
 
@@ -30,6 +34,10 @@ export default function AgentComposerSlot({
   sendDisabled,
   onNewSessionDraft,
   onCreateEmptySession,
+  workspaceId,
+  onWorkspaceChange,
+  workspaceChanging,
+  showWorkspaceSelector,
   composerContext
 }: AgentComposerSlotProps) {
   const fallback =
@@ -44,6 +52,10 @@ export default function AgentComposerSlot({
         sendDisabled={sendDisabled}
         onNewSessionDraft={onNewSessionDraft}
         onCreateEmptySession={onCreateEmptySession}
+        workspaceId={workspaceId}
+        onWorkspaceChange={onWorkspaceChange}
+        workspaceChanging={workspaceChanging}
+        showWorkspaceSelector={showWorkspaceSelector}
       />
     ) : undefined
 

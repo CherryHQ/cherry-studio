@@ -14,7 +14,7 @@ import { getTabInstanceKey } from '@renderer/config/tabInstanceMetadata'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgent, useAgents } from '@renderer/hooks/agents/useAgent'
-import { useActiveSession, useSession } from '@renderer/hooks/agents/useSession'
+import { useActiveSession, useSession, useUpdateSession } from '@renderer/hooks/agents/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/hooks/tab'
@@ -128,10 +128,12 @@ const AgentPage = () => {
   const initialDraftSessionEvaluatedRef = useRef(false)
   const [replacingDraftAgent, setReplacingDraftAgent] = useState(false)
   const [replacingDraftWorkspace, setReplacingDraftWorkspace] = useState(false)
+  const [replacingSessionWorkspace, setReplacingSessionWorkspace] = useState(false)
   const [missingAgentDraft, setMissingAgentDraft] = useState(false)
   const [agentPickerOpen, setAgentPickerOpen] = useState(false)
   const { t } = useTranslation()
   const invalidateCache = useInvalidateCache()
+  const { updateSession } = useUpdateSession()
   const pendingSelectedSession =
     pendingSelectedSessionRef.current?.id === activeSessionId ? pendingSelectedSessionRef.current : null
   const {
@@ -758,6 +760,44 @@ const AgentPage = () => {
     },
     [buildDraftSession, replacingDraftWorkspace, setActiveSessionId, setDraftSessionState, setLastUsedWorkspaceId, t]
   )
+  const replaceSessionWorkspace = useCallback(
+    async (workspaceId: string | null) => {
+      const current = visibleSession
+      if (!isOldView || !current) return
+
+      const currentIsSystemWorkspace = current.workspace?.type === AGENT_WORKSPACE_TYPE.SYSTEM
+      if (workspaceId === null && currentIsSystemWorkspace) return
+      if (workspaceId && isUserWorkspaceSession(current) && workspaceId === current.workspaceId) {
+        setLastUsedWorkspaceId(workspaceId)
+        return
+      }
+      if (replacingSessionWorkspace) return
+
+      setReplacingSessionWorkspace(true)
+      try {
+        const workspaceSource: AgentSessionWorkspaceSource = workspaceId
+          ? { type: AGENT_WORKSPACE_TYPE.USER, workspaceId }
+          : { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+        const updated = await updateSession(
+          {
+            id: current.id,
+            workspace: workspaceSource
+          },
+          { showSuccessToast: false }
+        )
+        if (!updated) return
+
+        pendingSelectedSessionRef.current = updated
+        if (workspaceId) {
+          setLastUsedWorkspaceId(workspaceId)
+        }
+        setActiveSessionId(updated.id)
+      } finally {
+        setReplacingSessionWorkspace(false)
+      }
+    },
+    [isOldView, replacingSessionWorkspace, setActiveSessionId, setLastUsedWorkspaceId, updateSession, visibleSession]
+  )
   const handleLocateMessageHandled = useCallback(() => {
     setPendingLocateMessageId(undefined)
   }, [])
@@ -891,12 +931,14 @@ const AgentPage = () => {
           onEnsurePersistentSession={isMessageOnlyView ? undefined : ensurePersistentSession}
           onDraftAgentChange={isMessageOnlyView ? undefined : replaceDraftAgent}
           onDraftWorkspaceChange={isMessageOnlyView ? undefined : replaceDraftWorkspace}
+          onSessionWorkspaceChange={isOldView && !isMessageOnlyView ? replaceSessionWorkspace : undefined}
           onVisibleAgentChange={isMessageOnlyView ? undefined : setLastUsedAgentId}
           onVisibleWorkspaceChange={isMessageOnlyView ? undefined : setLastUsedWorkspaceId}
           locateMessageId={pendingLocateMessageId}
           onLocateMessageHandled={handleLocateMessageHandled}
           replacingDraftAgent={replacingDraftAgent}
           replacingDraftWorkspace={replacingDraftWorkspace}
+          replacingSessionWorkspace={replacingSessionWorkspace}
           resourcePane={resourcePane}
           resourcePaneCount={sessionResourcePaneCount}
           resourcePaneRevealRequest={sessionRevealRequest}

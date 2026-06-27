@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { pinTable } from '@data/db/schemas/pin'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -211,17 +212,41 @@ describe('AgentSessionService', () => {
     })
   })
 
-  it('ignores workspace updates even if callers bypass the schema', async () => {
+  it('updates an empty session workspace', async () => {
     const firstWorkspace = await createWorkspace('before-switch')
     const secondWorkspace = await createWorkspace('after-switch')
     const session = await createSession('Workspace switch', firstWorkspace.id)
 
     const updated = await agentSessionService.update(session.id, {
-      workspaceId: secondWorkspace.id
-    } as never)
+      workspace: { type: 'user', workspaceId: secondWorkspace.id }
+    })
 
-    expect(updated.workspaceId).toBe(firstWorkspace.id)
-    expect(updated.workspace.path).toBe(firstWorkspace.path)
+    expect(updated.workspaceId).toBe(secondWorkspace.id)
+    expect(updated.workspace.path).toBe(secondWorkspace.path)
+  })
+
+  it('rejects workspace updates after messages are sent', async () => {
+    const firstWorkspace = await createWorkspace('before-locked-switch')
+    const secondWorkspace = await createWorkspace('after-locked-switch')
+    const session = await createSession('Locked workspace switch', firstWorkspace.id)
+    await dbh.db.insert(agentSessionMessageTable).values({
+      id: 'message-locks-workspace',
+      sessionId: session.id,
+      role: 'user',
+      data: { parts: [{ type: 'text', text: 'hello' }] },
+      searchableText: 'hello',
+      status: 'success'
+    })
+
+    await expect(
+      agentSessionService.update(session.id, {
+        workspace: { type: 'user', workspaceId: secondWorkspace.id }
+      })
+    ).rejects.toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+
+    await expect(agentSessionService.getById(session.id)).resolves.toMatchObject({
+      workspaceId: firstWorkspace.id
+    })
   })
 
   it('deletes a session', async () => {

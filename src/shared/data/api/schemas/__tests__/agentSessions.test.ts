@@ -60,7 +60,17 @@ describe('AgentSessionMessage schemas', () => {
 })
 
 describe('AgentSession schemas', () => {
-  it('rejects workspace updates because workspace binding is insert-only', () => {
+  it('accepts workspace updates through the normalized workspace source', () => {
+    expect(
+      UpdateAgentSessionSchema.safeParse({
+        workspace: { type: 'user', workspaceId: 'workspace-1' }
+      }).success
+    ).toBe(true)
+    expect(
+      UpdateAgentSessionSchema.safeParse({
+        workspace: { type: 'system' }
+      }).success
+    ).toBe(true)
     expect(
       UpdateAgentSessionSchema.safeParse({
         workspaceId: 'workspace-1'
