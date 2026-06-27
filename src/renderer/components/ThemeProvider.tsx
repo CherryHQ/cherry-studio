@@ -1,23 +1,11 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { isMac, isWin } from '@renderer/config/constant'
+import { ThemeContext } from '@renderer/hooks/useTheme'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { PropsWithChildren } from 'react'
-import React, { createContext, use, useEffect, useState } from 'react'
-interface ThemeContextType {
-  theme: ThemeMode
-  settedTheme: ThemeMode
-  toggleTheme: () => void
-  setTheme: (theme: ThemeMode) => void
-}
-
-const ThemeContext = createContext<ThemeContextType>({
-  theme: ThemeMode.system,
-  settedTheme: ThemeMode.dark,
-  toggleTheme: () => {},
-  setTheme: () => {}
-})
+import React, { useEffect, useState } from 'react'
 
 interface ThemeProviderProps extends PropsWithChildren {
   defaultTheme?: ThemeMode
@@ -33,9 +21,6 @@ const getSystemTheme = () =>
   window.matchMedia('(prefers-color-scheme: dark)').matches ? ThemeMode.dark : ThemeMode.light
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
-  // 用户设置的主题
-  // const { theme: settedTheme, setTheme: setSettedTheme, language } = useSettings()
-
   const [settedTheme, setSettedTheme] = usePreference('ui.theme_mode')
   const [language] = usePreference('app.language')
 
@@ -107,5 +92,3 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     </ThemeContext>
   )
 }
-
-export const useTheme = () => use(ThemeContext)
