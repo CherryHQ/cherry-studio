@@ -258,8 +258,7 @@ export interface CliNamedConfig {
   name: string
   providerId: string
   modelId: string
-  /** Advanced CLI params (non-model), persisted. */
-  advanced?: Record<string, unknown>
+  config?: Record<string, unknown>
   directory?: string
   createdAt?: number
   sortIndex?: number

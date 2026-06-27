@@ -111,7 +111,9 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
       (p) => isAnthropicProvider(p) || CLAUDE_SUPPORTED_PROVIDERS.includes(p.id) || hasAnthropicEndpoint(p)
     ),
   [codeCLI.openaiCodex]: (providers) =>
-    providers.filter((p) => isOpenAIProvider(p) || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(p.id)),
+    providers.filter(
+      (p) => isOpenAICompatibleProvider(p) || isOpenAIProvider(p) || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(p.id)
+    ),
 
   [codeCLI.openCode]: (providers) => providers.filter(isOpenCodeProvider),
   [codeCLI.openclaw]: (providers) => providers.filter(isOpenCodeProvider),

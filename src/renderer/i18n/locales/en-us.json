@@ -1937,34 +1937,22 @@
     "add_provider_hint": "Add provider in Settings → Model Service",
     "adv": {
       "claude": {
-        "auto_compact_window": "Auto Compact Window",
-        "disable_experimental_betas": "Disable Experimental Betas",
-        "disable_nonessential_traffic": "Disable Nonessential Traffic",
-        "effort_level": "Reasoning Effort",
+        "disable_auto_upgrade": "Disable Auto Upgrade",
+        "effort_max": "Effort: Max",
+        "enable_teammates": "Enable Teammates",
         "enable_tool_search": "Enable Tool Search",
+        "fable_model": "Fable Model",
         "haiku_model": "Haiku Model",
         "hide_attribution": "Hide AI Attribution",
-        "max_output_tokens": "Max Output Tokens",
         "model_roles": "Model Role Mapping",
         "model_roles_hint": "Override models used for background subtasks (e.g. compaction, titles). Leave empty to follow the main model.",
+        "options": "Quick Options",
         "opus_model": "Opus Model",
-        "skip_web_fetch_preflight": "Skip Web Fetch Preflight",
-        "sonnet_model": "Sonnet Model",
-        "timeout_ms": "API Timeout (ms)"
+        "sonnet_model": "Sonnet Model"
       },
       "codex": {
-        "auto_compact_token_limit": "Auto Compact Token Limit",
-        "context_window": "Context Window",
-        "disable_response_storage": "Disable Response Storage",
-        "personality": "Personality",
-        "reasoning_effort": "Reasoning Effort",
-        "review_model": "Review Model",
-        "verbosity": "Verbosity"
-      },
-      "effort": {
-        "high": "High",
-        "low": "Low",
-        "medium": "Medium"
+        "auth_json": "auth.json",
+        "config_toml": "config.toml"
       },
       "hermes": {
         "context_length": "Context Length",

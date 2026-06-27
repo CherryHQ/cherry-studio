@@ -13,7 +13,7 @@ import type { SettingsPath } from '@shared/data/types/settingsPath'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ApiGatewayStatusResult } from '@shared/types/apiGateway'
 import type { S3Config, WebDavConfig } from '@shared/types/backup'
-import type { CliProviderConfig, GitBashPathInfo, TerminalConfig } from '@shared/types/codeCli'
+import type { GitBashPathInfo, TerminalConfig } from '@shared/types/codeCli'
 import type { CodeToolsRunResult } from '@shared/types/codeTools'
 import type { MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/types/command'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
@@ -591,12 +591,13 @@ const api = {
     run: (
       cliTool: string,
       model: string,
+      providerId: string,
       directory: string,
       env: Record<string, string>,
       options?: { autoUpdateToLatest?: boolean; terminal?: string },
-      providerConfig?: CliProviderConfig
+      config?: Record<string, unknown>
     ): Promise<CodeToolsRunResult> =>
-      ipcRenderer.invoke(IpcChannel.CodeCli_Run, cliTool, model, directory, env, options, providerConfig),
+      ipcRenderer.invoke(IpcChannel.CodeCli_Run, cliTool, model, providerId, directory, env, options, config),
     getAvailableTerminals: (): Promise<TerminalConfig[]> =>
       ipcRenderer.invoke(IpcChannel.CodeCli_GetAvailableTerminals),
     setCustomTerminalPath: (terminalId: string, path: string): Promise<void> =>
