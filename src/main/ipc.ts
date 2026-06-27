@@ -28,10 +28,10 @@ import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/nutstore/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { vertexAiService } from './services/VertexAiService'
-import { calculateDirectorySize } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import { isSafeExternalUrl } from './utils/externalUrlSafety'
 import { hasWritePermission, isPathInside, untildify } from './utils/file'
+import { getDirectorySize } from './utils/fileOperations'
 import { getCpuName, getDeviceType, getHostname } from './utils/system'
 import { compress, decompress } from './utils/zip'
 
@@ -179,7 +179,7 @@ export async function registerIpc() {
     logger.info(`Calculating cache size for path: ${cachePath}`)
 
     try {
-      const sizeInBytes = await calculateDirectorySize(cachePath)
+      const sizeInBytes = await getDirectorySize(cachePath)
       const sizeInMB = (sizeInBytes / (1024 * 1024)).toFixed(2)
       return `${sizeInMB}`
     } catch (error: any) {
