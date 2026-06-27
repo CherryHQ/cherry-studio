@@ -1,5 +1,13 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+
+// Use the real Popover/MenuList/MenuItem (renderer.setup stubs them globally) so the filter
+// popover actually opens/closes.
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryStudioUi>()
+  return actual
+})
 
 const mocks = vi.hoisted(() => ({
   createAssistant: vi.fn(),
@@ -58,6 +66,19 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => k
 
 import { AssistantConversationPickerDialog } from '../AssistantConversationPickerDialog'
 
+beforeAll(() => {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as any
+  // Radix Popover needs these in jsdom to open.
+  if (!HTMLElement.prototype.hasPointerCapture) HTMLElement.prototype.hasPointerCapture = () => false
+  if (!HTMLElement.prototype.releasePointerCapture) HTMLElement.prototype.releasePointerCapture = () => {}
+  if (!HTMLElement.prototype.setPointerCapture) HTMLElement.prototype.setPointerCapture = () => {}
+  HTMLElement.prototype.scrollIntoView = () => {}
+})
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
@@ -98,29 +119,34 @@ describe('AssistantConversationPickerDialog', () => {
     await waitFor(() => expect(onSelect).toHaveBeenCalledWith({ type: 'assistant', assistantId: 'assistant-new' }))
   })
 
-  it('defaults to the combined view and toggles the 助手库-only filter', () => {
+  it('defaults to the combined view and filters via the popover', async () => {
     const assistants = [{ id: 'a1', name: 'My Assistant' }] as any
 
     render(<AssistantConversationPickerDialog open onOpenChange={vi.fn()} assistants={assistants} onSelect={vi.fn()} />)
 
-    // Default: neither filter selected → combined 资源库 + 助手库 list, create row present, paging on.
+    // Default: no filter → combined 资源库 + 助手库 list, create row present, paging on.
     expect(mocks.pickerProps.items).toHaveLength(2)
     expect(mocks.pickerProps.createAction).toBeTruthy()
     expect(mocks.pickerProps.pageSize).toBe(50)
 
+    const selectFilter = async (label: string) => {
+      fireEvent.click(screen.getByRole('button', { name: 'selector.assistant.filter' }))
+      fireEvent.click(await screen.findByText(label))
+    }
+
     // Filter to 助手库 (catalog only) → presets only, create row dropped.
-    fireEvent.click(screen.getByText('assistants.presets.title'))
+    await selectFilter('assistants.presets.title')
     expect(mocks.pickerProps.items).toHaveLength(1)
     expect(mocks.pickerProps.items[0].id).toBe('catalog:preset-1')
     expect(mocks.pickerProps.createAction).toBeUndefined()
 
-    // Re-click clears the filter → back to the combined list with the create row.
-    fireEvent.click(screen.getByText('assistants.presets.title'))
+    // Back to 全部 → combined list with the create row.
+    await selectFilter('common.all')
     expect(mocks.pickerProps.items).toHaveLength(2)
     expect(mocks.pickerProps.createAction).toBeTruthy()
 
     // Filter to 资源库 (mine only) → assistants only.
-    fireEvent.click(screen.getByText('library.title'))
+    await selectFilter('library.title')
     expect(mocks.pickerProps.items).toHaveLength(1)
     expect(mocks.pickerProps.items[0].id).toBe('assistant:a1')
   })

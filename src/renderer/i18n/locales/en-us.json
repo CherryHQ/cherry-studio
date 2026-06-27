@@ -5326,6 +5326,7 @@
     "assistant": {
       "create_new": "New Assistant",
       "empty_text": "No assistants yet",
+      "filter": "Filter assistants",
       "multi_hint": "(mutually exclusive with multi-model)",
       "multi_label": "Multi-assistant simultaneous responses",
       "search_placeholder": "Search assistants…"

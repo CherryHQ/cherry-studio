@@ -5326,6 +5326,7 @@
     "assistant": {
       "create_new": "新建助手",
       "empty_text": "暂无助手",
+      "filter": "筛选助手",
       "multi_hint": "（与多模型互斥）",
       "multi_label": "多助手同时回答",
       "search_placeholder": "搜索助手…"

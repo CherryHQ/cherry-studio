@@ -1,3 +1,4 @@
+import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ConversationPickerDialog, type ConversationPickerItem } from '@renderer/components/resource'
@@ -10,7 +11,7 @@ import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { type AssistantCatalogPreset, useAssistantCatalogPresets } from '@renderer/hooks/useAssistantCatalogPresets'
 import type { Assistant } from '@renderer/types/assistant'
 import { cn } from '@renderer/utils/style'
-import { Bot, Plus } from 'lucide-react'
+import { Bot, Check, Filter, Plus } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -50,6 +51,7 @@ export function AssistantConversationPickerDialog({
   const { presets, isLoading: catalogLoading } = useAssistantCatalogPresets({ enabled: open })
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<AssistantPickerTab | null>(null)
+  const [filterOpen, setFilterOpen] = useState(false)
   const { trigger: createAssistant, isLoading: isCreatingAssistant } = useMutation('POST', '/assistants', {
     refresh: ['/assistants']
   })
@@ -124,31 +126,45 @@ export function AssistantConversationPickerDialog({
     [createAssistant, onSelect]
   )
 
-  const tabs: { value: AssistantPickerTab; label: string }[] = [
+  // null = combined 资源库 + 助手库 (the default "全部" view).
+  const filterOptions: { value: AssistantPickerTab | null; label: string }[] = [
+    { value: null, label: t('common.all') },
     { value: 'mine', label: t('library.title') },
     { value: 'catalog', label: t('assistants.presets.title') }
   ]
   const toolbar = (
-    <div className="inline-flex items-center gap-0.5 rounded-full border border-border/60 bg-muted/60 p-0.5">
-      {tabs.map((tab) => {
-        const active = activeTab === tab.value
-        return (
-          <button
-            key={tab.value}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            // Re-clicking the active filter clears it → back to the combined 资源库 + 助手库 list.
-            onClick={() => setActiveTab(active ? null : tab.value)}
+    <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={t('selector.assistant.filter')}
+          className="group flex size-7 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-accent">
+          <Filter
+            size={15}
             className={cn(
-              'h-7 shrink-0 rounded-full px-2.5 font-medium text-xs transition-colors',
-              active ? 'bg-background text-foreground shadow-xs' : 'text-foreground-muted hover:text-foreground'
-            )}>
-            {tab.label}
-          </button>
-        )
-      })}
-    </div>
+              'shrink-0',
+              activeTab ? 'text-primary!' : 'text-muted-foreground/60 group-hover:text-muted-foreground/80'
+            )}
+          />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-fit min-w-32 rounded-xl p-1.5">
+        <MenuList className="gap-1">
+          {filterOptions.map((option) => (
+            <MenuItem
+              key={option.value ?? 'all'}
+              label={option.label}
+              className="h-8 rounded-lg px-2.5 text-sm"
+              icon={<Check className={cn('size-3.5', activeTab === option.value ? 'opacity-100' : 'opacity-0')} />}
+              onClick={() => {
+                setActiveTab(option.value)
+                setFilterOpen(false)
+              }}
+            />
+          ))}
+        </MenuList>
+      </PopoverContent>
+    </Popover>
   )
 
   return (
