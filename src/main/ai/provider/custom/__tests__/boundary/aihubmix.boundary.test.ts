@@ -9,11 +9,13 @@ vi.mock('@renderer/i18n', () => ({ default: { t: (k: string) => k } }))
 vi.mock('i18next', () => ({ default: { t: (k: string) => k } }))
 
 /**
- * AiHubMix image-model boundary — the bespoke Ideogram branches (NOT the
- * OpenAI-compat / Google delegates, which forward to AI SDK adapters covered
- * elsewhere). V_3 posts FormData to `/ideogram/v1/ideogram-v3/*`; V_1/V_2 post
- * an `{ image_request }` JSON to `/ideogram/aihubmix_image_*`. numImages comes
- * from `options.n`, aspectRatio from `options.aspectRatio`.
+ * AiHubMix image-model boundary — the bespoke branches (NOT the gpt-image /
+ * dall-e OpenAI-compat delegate or the Google delegate, which forward to AI SDK
+ * adapters covered elsewhere). V_3 posts FormData to `/ideogram/v1/ideogram-v3/*`;
+ * V_1/V_2 post an `{ image_request }` JSON to `/ideogram/aihubmix_image_*`; Doubao
+ * Seedream posts its own JSON to `/v1/images/generations` with an explicit
+ * `response_format`. numImages comes from `options.n`, aspectRatio from
+ * `options.aspectRatio`.
  */
 function opts(partial: Partial<ImageModelV3CallOptions>): ImageModelV3CallOptions {
   return {
@@ -104,5 +106,38 @@ describe('AiHubMix image-model boundary (Ideogram branches)', () => {
       })
     }).parse(req.body)
     expect(req.body).toMatchSnapshot()
+  })
+
+  it('doubao-seedream → JSON to /v1/images/generations with response_format + sequential', async () => {
+    const req = await captureWithFetch((fetch) =>
+      createAihubmixImageModel('doubao-seedream-5.0-lite', { ...config, fetch }).doGenerate(
+        opts({
+          n: 3,
+          seed: 42,
+          providerOptions: {
+            aihubmix: {
+              imageResolution: '2K',
+              addWatermark: false,
+              sequentialImageGeneration: 'auto',
+              maxImages: 4
+            }
+          }
+        })
+      )
+    )
+    expect(req.url).toBe('https://aihubmix.com/v1/images/generations')
+    // Explicit response_format (the inner model would force b64_json) + the
+    // snake_case sequential block; size from the forwarded `imageResolution` bag.
+    expect(req.body).toEqual({
+      model: 'doubao-seedream-5.0-lite',
+      prompt: 'a fox',
+      response_format: 'url',
+      size: '2K',
+      n: 3,
+      seed: 42,
+      watermark: false,
+      sequential_image_generation: 'auto',
+      sequential_image_generation_options: { max_images: 4 }
+    })
   })
 })

@@ -25,7 +25,9 @@ import { withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import { readErrorMessage } from '@shared/ai/readErrorMessage'
+import * as z from 'zod'
 
+import { fileToDataUrl } from '../transportUtils'
 import { createAihubmixFluxTransport } from './aihubmixFlux'
 
 const logger = loggerService.withContext('AihubmixImageModel')
@@ -233,6 +235,81 @@ function withAihubmixGoogleImageOptions(model: ImageModelV3, isGeminiImage: bool
  */
 const ASYNC_FLUX_MODELS = new Set(['flux-2-flex', 'flux-2-pro', 'flux-kontext-max'])
 
+// ── Doubao Seedream (OpenAI-compat custom family) ─────────────────────────────
+// Doubao lives on `/images/generations` like the default branch, but the inner
+// `OpenAICompatibleImageModel` hard-codes `response_format: 'b64_json'` (which
+// Doubao 400s on, surfacing as an empty error) and only parses `data[].b64_json`.
+// So Doubao builds its own body with an explicit `response_format` and parses
+// `url` / `b64_json` / `base64_json`. Table-driven by an id prefix so Wan /
+// Qwen-Image slot in as sibling families later.
+
+/** Per-field `.catch()` drops invalid values (e.g. AiService size defaults Doubao
+ *  rejects — only `1K`/`2K`/`4K`/`auto`) so the server applies its own default
+ *  rather than 400-ing. See https://docs.aihubmix.com/cn/api/Image-Gen. */
+const DoubaoParamsSchema = z.object({
+  size: z.enum(['1K', '2K', '4K', 'auto']).optional().catch(undefined),
+  n: z.coerce.number().int().min(1).max(15).optional().catch(undefined),
+  seed: z.coerce.number().int().min(-1).max(2147483647).optional().catch(undefined),
+  watermark: z.coerce.boolean().optional().catch(undefined),
+  sequentialImageGeneration: z.enum(['auto', 'disabled']).optional().catch(undefined),
+  maxImages: z.coerce.number().int().min(1).max(15).optional().catch(undefined),
+  responseFormat: z.enum(['url', 'base64_json']).catch('url')
+})
+
+function isDoubaoSeedreamModel(modelId: string): boolean {
+  return modelId.startsWith('doubao-seedream')
+}
+
+/** Build the Doubao `/images/generations` body from native options + the
+ *  forwarded `providerOptions.aihubmix` bag (canonical camelCase). */
+function buildDoubaoBody(modelId: string, options: ImageModelV3CallOptions): Record<string, unknown> {
+  const bag = (options.providerOptions?.aihubmix ?? {}) as Record<string, unknown>
+  const parsed = DoubaoParamsSchema.parse({
+    size: typeof options.size === 'string' ? options.size : (bag.imageResolution ?? bag.size),
+    n: options.n,
+    seed: typeof options.seed === 'number' ? options.seed : bag.seed,
+    watermark: bag.addWatermark ?? bag.watermark,
+    sequentialImageGeneration: bag.sequentialImageGeneration,
+    maxImages: bag.maxImages,
+    responseFormat: bag.responseFormat
+  })
+
+  const body: Record<string, unknown> = {
+    model: modelId,
+    prompt: options.prompt ?? '',
+    response_format: parsed.responseFormat
+  }
+  if (parsed.size && parsed.size !== 'auto') body.size = parsed.size
+  if (parsed.n !== undefined && parsed.n > 1) body.n = parsed.n
+  if (parsed.seed !== undefined) body.seed = parsed.seed
+  if (parsed.watermark !== undefined) body.watermark = parsed.watermark
+  if (parsed.sequentialImageGeneration) {
+    body.sequential_image_generation = parsed.sequentialImageGeneration
+    if (parsed.maxImages !== undefined) {
+      body.sequential_image_generation_options = { max_images: parsed.maxImages }
+    }
+  }
+
+  // Image edit: Doubao takes `image` as a single data URL or an array of them.
+  const images = (options.files ?? []).map(fileToDataUrl)
+  if (images.length === 1) body.image = images[0]
+  else if (images.length > 1) body.image = images
+
+  return body
+}
+
+/** Parse a `/images/generations` response into URLs / base64 data URLs. */
+function parseOpenAIImageResults(data: any): string[] {
+  const items = Array.isArray(data?.data) ? data.data : []
+  const urls: string[] = []
+  for (const item of items) {
+    if (typeof item?.url === 'string') urls.push(item.url)
+    else if (typeof item?.b64_json === 'string') urls.push(`data:image/png;base64,${item.b64_json}`)
+    else if (typeof item?.base64_json === 'string') urls.push(`data:image/png;base64,${item.base64_json}`)
+  }
+  return urls
+}
+
 export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixImageModelOptions): ImageModelV3 {
   const { baseURL, resolveApiKey, headers, fetch: customFetch } = opts
 
@@ -411,6 +488,31 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
       }
 
       // V_3 upscale falls through to the bespoke Ideogram upscale FormData path below.
+    }
+
+    // ---- Doubao Seedream (OpenAI-compat custom family) ----
+    // Same `/images/generations` endpoint as the default branch, but with an
+    // explicit `response_format` + url/b64 parsing the inner model can't produce
+    // (it forces `b64_json`, which Doubao rejects).
+    if (mode === 'generate' && isDoubaoSeedreamModel(modelId)) {
+      const doubaoBody = buildDoubaoBody(modelId, options)
+      const reqHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+      for (const [key, value] of Object.entries(headers())) {
+        if (value != null) reqHeaders[key] = value
+      }
+      const response = await fetchImpl(`${withoutTrailingSlash(baseURL)}/images/generations`, {
+        method: 'POST',
+        headers: reqHeaders,
+        body: JSON.stringify(doubaoBody),
+        signal: abortSignal
+      })
+      if (!response.ok) {
+        const message = await readErrorMessage(response, 'paintings.generate_failed')
+        logger.error('Doubao Seedream API error', { modelId, message })
+        throw createPaintingGenerateError('REMOTE_ERROR', { message })
+      }
+      const data = await response.json()
+      return wrap(parseOpenAIImageResults(data))
     }
 
     // ---- DEFAULT: reconstruct the inner OpenAICompatibleImageModel byte-identically ----
