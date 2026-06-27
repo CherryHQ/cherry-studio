@@ -210,7 +210,8 @@ export function ResourceCreateWizard({
       <DialogContent
         ref={setDialogContentElement}
         closeOnOverlayClick={!submitting}
-        className="flex h-[min(600px,76vh)] flex-col gap-0 p-0 sm:max-w-[720px]"
+        size="xl"
+        className="flex h-[min(600px,76vh)] flex-col gap-0 p-0"
         onPointerDownOutside={(event) => submitting && event.preventDefault()}>
         {/* Header — avatar + title + step progress */}
         <div className="flex shrink-0 items-center gap-3 border-border-muted border-b px-6 py-4 pr-12">
