@@ -247,36 +247,26 @@ function ShellToggle({
   tab,
   disabled = false,
   command,
-  commandEnabled = true,
-  closeLabel,
-  openLabel,
-  switchWhenOpen = false
+  commandEnabled = true
 }: {
   tab: string
   disabled?: boolean
   command?: CommandId
   /** Gates the keyboard command (e.g. only the active tab handles it); the button stays clickable. */
   commandEnabled?: boolean
-  closeLabel?: string
-  openLabel?: string
-  /**
-   * Default toggle semantics are kept for existing single-pane buttons: any open pane closes.
-   * Multi-tab owners can opt into tab switching while the shell is already open.
-   */
-  switchWhenOpen?: boolean
 }) {
   const { state, actions } = useShell()
   const { t } = useTranslation()
-  const pressed = switchWhenOpen ? state.open && state.activeTab === tab : state.open
+  const pressed = state.open
   const ToggleIcon = pressed ? RightSidebarCollapseIcon : RightSidebarExpandIcon
-  const toggleLabel = pressed ? (closeLabel ?? t('common.close_sidebar')) : (openLabel ?? t('common.open_sidebar'))
+  const toggleLabel = pressed ? t('common.close_sidebar') : t('common.open_sidebar')
   const handleClick = useCallback(() => {
-    if (state.open && (!switchWhenOpen || state.activeTab === tab)) {
+    if (state.open) {
       actions.close()
       return
     }
     actions.openTab(tab)
-  }, [actions, state.activeTab, state.open, switchWhenOpen, tab])
+  }, [actions, state.open, tab])
 
   const button = (
     <NavbarIcon
