@@ -5,6 +5,7 @@ import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
+import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { pinService } from '@data/services/PinService'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
@@ -113,6 +114,7 @@ export class AgentService {
   async createAgent(req: CreateAgentDto): Promise<AgentEntity> {
     const id = uuidv4()
     const mcps = req.mcps ?? []
+    const skillIds = req.skillIds ? [...new Set(req.skillIds)] : []
 
     // Omit fields that are undefined so DB DEFAULTs (e.g. '', '[]', '{}') apply.
     // instructions has no DB DEFAULT — service supplies the product-strategic default.
@@ -130,6 +132,15 @@ export class AgentService {
       configuration: req.configuration
     }
 
+    // Validate referenced skills before opening the write tx: a late FK violation
+    // inside the tx throws but does not reliably roll back the already-inserted
+    // agent row, so guard up front to keep create atomic and yield a clean error.
+    for (const skillId of skillIds) {
+      if (!(await agentGlobalSkillService.getById(skillId))) {
+        throw DataApiErrorFactory.notFound('Skill', skillId)
+      }
+    }
+
     const row = await withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx(async (tx) => {
@@ -137,6 +148,12 @@ export class AgentService {
           // Insert junction rows for MCP associations
           if (mcps.length > 0) {
             await tx.insert(agentMcpServerTable).values(mcps.map((mcpId) => ({ agentId: id, mcpServerId: mcpId })))
+          }
+          // Enable the selected global skills for the new agent. DB-only: workspace
+          // symlinks don't exist yet (no session/workspace at create time) and get
+          // reconciled later by SkillService when a workspace appears.
+          for (const skillId of skillIds) {
+            await agentGlobalSkillService.upsertJoinTx(tx, id, skillId, true)
           }
           return result
         }),

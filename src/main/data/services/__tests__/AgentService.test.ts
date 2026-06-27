@@ -1,4 +1,6 @@
 import { agentTable } from '@data/db/schemas/agent'
+import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
+import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -115,6 +117,13 @@ describe('AgentService', () => {
     await dbh.db
       .insert(mcpServerTable)
       .values({ id, name: name ?? id, sortOrder: 0, isActive: false })
+      .onConflictDoNothing()
+  }
+
+  async function insertGlobalSkill(id: string, folderName?: string): Promise<void> {
+    await dbh.db
+      .insert(agentGlobalSkillTable)
+      .values({ id, name: id, folderName: folderName ?? id, source: 'local', contentHash: `hash-${id}` })
       .onConflictDoNothing()
   }
 
@@ -258,6 +267,53 @@ describe('AgentService', () => {
 
       const reloaded = await agentService.getAgent(created.id)
       expect(reloaded?.mcps).toEqual([])
+    })
+  })
+
+  describe('skillIds round-trip', () => {
+    it('enables the provided global skills for the new agent on create', async () => {
+      await insertGlobalSkill('skill_a')
+      await insertGlobalSkill('skill_b')
+
+      const created = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'Skill Create',
+        model: TEST_MODEL_ID,
+        skillIds: ['skill_a', 'skill_b', 'skill_a'] // duplicate is deduped
+      })
+
+      const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, created.id))
+      expect(rows.map((r) => r.skillId).sort()).toEqual(['skill_a', 'skill_b'])
+      expect(rows.every((r) => r.isEnabled)).toBe(true)
+    })
+
+    it('writes no skill rows when skillIds is omitted or empty', async () => {
+      const omitted = await agentService.createAgent({ type: 'claude-code', name: 'No Skills', model: TEST_MODEL_ID })
+      const empty = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'Empty Skills',
+        model: TEST_MODEL_ID,
+        skillIds: []
+      })
+
+      for (const id of [omitted.id, empty.id]) {
+        const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, id))
+        expect(rows).toHaveLength(0)
+      }
+    })
+
+    it('rejects with NOT_FOUND and persists no agent when a skillId does not exist', async () => {
+      await expect(
+        agentService.createAgent({
+          type: 'claude-code',
+          name: 'Bad Skill',
+          model: TEST_MODEL_ID,
+          skillIds: ['does_not_exist']
+        })
+      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+      const agents = await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Bad Skill'))
+      expect(agents).toHaveLength(0)
     })
   })
 
