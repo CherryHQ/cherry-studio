@@ -24,7 +24,7 @@
 
 import type { Modality } from '@cherrystudio/provider-registry'
 import { MODALITY } from '@cherrystudio/provider-registry'
-import type { Model } from '@renderer/types'
+import type { Model } from '@renderer/types/model'
 import type { Model as SharedModel, ModelCapability, RuntimeReasoning, UniqueModelId } from '@shared/data/types/model'
 import { MODEL_CAPABILITY, UNIQUE_MODEL_ID_SEPARATOR } from '@shared/data/types/model'
 import {

@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, FieldError, Input, Label } from '@cherrystudio/ui'
+import { Dialog, DialogContent, DialogDescription, FieldError, Input, Label } from '@cherrystudio/ui'
 import type { RestoreKnowledgeBaseInput } from '@renderer/hooks/useKnowledgeBase'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeBase, RestoreKnowledgeBaseResult } from '@shared/data/types/knowledge'
@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useEmbeddingDimensions } from '../hooks/useEmbeddingDimensions'
+import { getKnowledgeBaseFailureReason } from '../utils/error'
 import CreateKnowledgeBaseDialog from './CreateKnowledgeBaseDialog'
 import { KnowledgeDialogBody, KnowledgeDialogField } from './KnowledgeDialogLayout'
 import { isEmbeddingModel, KnowledgeModelSelect } from './KnowledgeModelSelect'
@@ -45,6 +46,7 @@ const RestoreKnowledgeBaseDialog = ({
 }: RestoreKnowledgeBaseDialogProps) => {
   const { t } = useTranslation()
   const defaultName = t('knowledge.restore.default_name', { name: base.name })
+  const failureReason = base.status === 'failed' ? getKnowledgeBaseFailureReason(base, t) : null
   const [values, setValues] = useState<RestoreKnowledgeBaseFormValues>(() =>
     createInitialValues(defaultName, initialEmbeddingModelId)
   )
@@ -112,6 +114,7 @@ const RestoreKnowledgeBaseDialog = ({
 
         <CreateKnowledgeBaseDialog.Form onSubmit={handleSubmit}>
           <KnowledgeDialogBody>
+            {failureReason ? <DialogDescription>{failureReason}</DialogDescription> : null}
             <KnowledgeDialogField>
               <Label htmlFor="knowledge-restore-name">{t('common.name')}</Label>
               <Input

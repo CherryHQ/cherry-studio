@@ -1,36 +1,19 @@
 import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { electronAPI } from '@electron-toolkit/preload'
 import type { SpanContext } from '@opentelemetry/api'
-import type {
-  AiAgentSessionWarmCloseRequest,
-  AiAgentSessionWarmRequest,
-  AiStreamAbortRequest,
-  AiStreamAttachRequest,
-  AiStreamAttachResponse,
-  AiStreamDetachRequest,
-  AiStreamOpenRequest,
-  AiStreamOpenResponse,
-  AiToolApprovalRespondRequest,
-  AiToolApprovalRespondResponse,
-  StreamChunkPayload,
-  StreamDonePayload,
-  StreamErrorPayload
-} from '@shared/ai/transport'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
   UnifiedPreferenceKeyType,
   UnifiedPreferenceMultipleResultType,
-  UnifiedPreferenceType,
-  UpgradeChannel
+  UnifiedPreferenceType
 } from '@shared/data/preference/preferenceTypes'
 import type { FileEntry } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
-import type { Model } from '@shared/data/types/model'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ApiGatewayStatusResult } from '@shared/types/apiGateway'
 import type { S3Config, WebDavConfig } from '@shared/types/backup'
-import type { GitBashPathInfo, TerminalConfig } from '@shared/types/codeCli'
+import type { TerminalConfig } from '@shared/types/codeCli'
 import type { CodeToolsRunResult, OperationResult } from '@shared/types/codeTools'
 import type { MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/types/command'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
@@ -115,17 +98,13 @@ export function tracedInvoke(channel: string, spanContext: SpanContext | undefin
 const api = {
   getAppInfo: () => ipcRenderer.invoke(IpcChannel.App_Info),
   reload: () => ipcRenderer.invoke(IpcChannel.MainWindow_Reload),
-  checkForUpdate: () => ipcRenderer.invoke(IpcChannel.App_CheckForUpdate),
   // setLanguage: (lang: string) => ipcRenderer.invoke(IpcChannel.App_SetLanguage, lang),
   setEnableSpellCheck: (isEnable: boolean) => ipcRenderer.invoke(IpcChannel.App_SetEnableSpellCheck, isEnable),
   setSpellCheckLanguages: (languages: string[]) => ipcRenderer.invoke(IpcChannel.App_SetSpellCheckLanguages, languages),
   setLaunchOnBoot: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetLaunchOnBoot, isActive),
-  setTestPlan: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetTestPlan, isActive),
-  setTestChannel: (channel: UpgradeChannel) => ipcRenderer.invoke(IpcChannel.App_SetTestChannel, channel),
   // setTheme: (theme: ThemeMode) => ipcRenderer.invoke(IpcChannel.App_SetTheme, theme),
   handleZoomFactor: (delta: number, reset: boolean = false) =>
     ipcRenderer.invoke(IpcChannel.App_HandleZoomFactor, delta, reset),
-  setAutoUpdate: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetAutoUpdate, isActive),
   select: (options: Electron.OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.App_Select, options),
   hasWritePermission: (path: string) => ipcRenderer.invoke(IpcChannel.App_HasWritePermission, path),
   resolvePath: (path: string) => ipcRenderer.invoke(IpcChannel.App_ResolvePath, path),
@@ -135,7 +114,6 @@ const api = {
   getDataPathFromArgs: () => ipcRenderer.invoke(IpcChannel.App_GetDataPathFromArgs),
   copy: (oldPath: string, newPath: string, occupiedDirs: string[] = []) =>
     ipcRenderer.invoke(IpcChannel.App_Copy, oldPath, newPath, occupiedDirs),
-  quitAndInstall: () => ipcRenderer.invoke(IpcChannel.App_QuitAndInstall),
   application: {
     quit: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Application_Quit),
     preventQuit: (reason: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Application_PreventQuit, reason),
@@ -164,12 +142,8 @@ const api = {
   system: {
     getDeviceType: () => ipcRenderer.invoke(IpcChannel.System_GetDeviceType),
     getHostname: () => ipcRenderer.invoke(IpcChannel.System_GetHostname),
-    getCpuName: () => ipcRenderer.invoke(IpcChannel.System_GetCpuName),
-    checkGitBash: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.System_CheckGitBash),
-    getGitBashPath: (): Promise<string | null> => ipcRenderer.invoke(IpcChannel.System_GetGitBashPath),
-    getGitBashPathInfo: (): Promise<GitBashPathInfo> => ipcRenderer.invoke(IpcChannel.System_GetGitBashPathInfo),
-    setGitBashPath: (newPath: string | null): Promise<boolean> =>
-      ipcRenderer.invoke(IpcChannel.System_SetGitBashPath, newPath)
+    getCpuName: () => ipcRenderer.invoke(IpcChannel.System_GetCpuName)
+    // Git Bash is resolved in the main process (settingsBuilder); no renderer API.
   },
   devTools: {
     toggle: () => ipcRenderer.invoke(IpcChannel.System_ToggleDevTools)
@@ -469,9 +443,8 @@ const api = {
   // Binary related APIs
   isBinaryExist: (name: string) => ipcRenderer.invoke(IpcChannel.App_IsBinaryExist, name),
   getBinaryPath: (name: string) => ipcRenderer.invoke(IpcChannel.App_GetBinaryPath, name),
-  installUVBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallUvBinary),
-  installBunBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallBunBinary),
   installOvmsBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallOvmsBinary),
+  // BinaryManager tool manager was migrated to IpcApi — see `window.api.ipcApi` / `ipcApi.request('binary.*')`.
   protocol: {
     onReceiveData: (callback: (data: { url: string; params: any }) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, data: { url: string; params: any }) => {
@@ -731,93 +704,8 @@ const api = {
       return () => ipcRenderer.off(IpcChannel.AgentSession_AutoRenamed, listener)
     }
   },
-  ai: {
-    // ── Stream push listeners ──
-    onStreamChunk: (callback: (data: StreamChunkPayload) => void) => {
-      const listener = (_: Electron.IpcRendererEvent, data: StreamChunkPayload) => callback(data)
-      ipcRenderer.on(IpcChannel.Ai_StreamChunk, listener)
-      return () => ipcRenderer.removeListener(IpcChannel.Ai_StreamChunk, listener)
-    },
-    onStreamDone: (callback: (data: StreamDonePayload) => void) => {
-      const listener = (_: Electron.IpcRendererEvent, data: StreamDonePayload) => callback(data)
-      ipcRenderer.on(IpcChannel.Ai_StreamDone, listener)
-      return () => ipcRenderer.removeListener(IpcChannel.Ai_StreamDone, listener)
-    },
-    onStreamError: (callback: (data: StreamErrorPayload) => void) => {
-      const listener = (_: Electron.IpcRendererEvent, data: StreamErrorPayload) => callback(data)
-      ipcRenderer.on(IpcChannel.Ai_StreamError, listener)
-      return () => ipcRenderer.removeListener(IpcChannel.Ai_StreamError, listener)
-    },
-
-    // ── Stream control ──
-    streamOpen: (req: AiStreamOpenRequest): Promise<AiStreamOpenResponse> =>
-      ipcRenderer.invoke(IpcChannel.Ai_Stream_Open, req),
-    streamAttach: (req: AiStreamAttachRequest): Promise<AiStreamAttachResponse> =>
-      ipcRenderer.invoke(IpcChannel.Ai_Stream_Attach, req),
-    streamDetach: (req: AiStreamDetachRequest): Promise<void> => ipcRenderer.invoke(IpcChannel.Ai_Stream_Detach, req),
-    streamAbort: (req: AiStreamAbortRequest): Promise<void> => ipcRenderer.invoke(IpcChannel.Ai_Stream_Abort, req),
-    prewarmAgentSession: (req: AiAgentSessionWarmRequest): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.Ai_AgentSession_Prewarm, req),
-    closeAgentSessionWarm: (req: AiAgentSessionWarmCloseRequest): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.Ai_AgentSession_CloseWarm, req),
-
-    // ── Non-streaming operations ──
-    // All use uniqueModelId ("providerId::modelId") instead of separate providerId/modelId.
-    generateText: (request: {
-      assistantId?: string
-      uniqueModelId?: string
-      system?: string
-      prompt?: string
-      messages?: unknown[]
-      mcpToolIds?: string[]
-    }): Promise<{ text: string; usage?: unknown }> => ipcRenderer.invoke(IpcChannel.Ai_GenerateText, request),
-    checkModel: (request: { uniqueModelId?: string; timeout?: number }): Promise<{ latency: number }> =>
-      ipcRenderer.invoke(IpcChannel.Ai_CheckModel, request),
-    embedMany: (request: {
-      uniqueModelId?: string
-      values: string[]
-    }): Promise<{ embeddings: number[][]; usage?: unknown }> => ipcRenderer.invoke(IpcChannel.Ai_EmbedMany, request),
-    generateImage: async (
-      payload: {
-        uniqueModelId?: string
-        prompt: string
-        inputImages?: string[]
-        mask?: string
-        n?: number
-        size?: string
-        negativePrompt?: string
-        seed?: number
-        quality?: string
-        numInferenceSteps?: number
-        guidanceScale?: number
-        promptEnhancement?: boolean
-        personGeneration?: string
-        aspectRatio?: string
-        background?: string
-        moderation?: string
-        style?: string
-        providerOptions?: Record<string, Record<string, unknown>>
-      },
-      requestId: string
-    ): Promise<{ files: FileEntry[] }> => ipcRenderer.invoke(IpcChannel.Ai_GenerateImage, { requestId, payload }),
-    abortImage: (requestId: string): void => {
-      ipcRenderer.send(IpcChannel.Ai_AbortImage, { requestId })
-    },
-    listModels: (request: {
-      providerId?: string
-      assistantId?: string
-      throwOnError?: boolean
-    }): Promise<Partial<Model>[]> => ipcRenderer.invoke(IpcChannel.Ai_ListModels, request),
-
-    // ── Tool approval (v6 ToolUIPart native flow) ──
-    toolApproval: {
-      respond: (payload: AiToolApprovalRespondRequest): Promise<AiToolApprovalRespondResponse> =>
-        ipcRenderer.invoke(IpcChannel.Ai_ToolApproval_Respond, payload)
-    },
-    agent: {
-      runTask: (taskId: string) => ipcRenderer.invoke(IpcChannel.Ai_Agent_RunTask, taskId)
-    }
-  },
+  // All `ai.*` capability IPC moved to IpcApi (`ipcApi.request('ai.*')` / `ipcApi.on('ai.stream_*')`):
+  // model ops, streaming chat, agent-session warm-up, tool approval and agent run-task.
   translate: {
     open: (req: {
       streamId: string

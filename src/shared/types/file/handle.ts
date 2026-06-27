@@ -56,3 +56,5 @@ export const FilePathHandleSchema = z.strictObject({
 })
 
 export const FileHandleSchema = z.discriminatedUnion('kind', [FileEntryHandleSchema, FilePathHandleSchema])
+// TODO: 1. Wire schema and types, so no as cast needed
+// TODO: 2. Add brand for FileHandle since factory function has been used

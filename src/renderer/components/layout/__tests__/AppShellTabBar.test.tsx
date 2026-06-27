@@ -42,7 +42,7 @@ vi.mock('@renderer/config/miniApps', () => ({
   getMiniAppsLogo: () => undefined
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/style', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 
@@ -50,7 +50,7 @@ vi.mock('@data/hooks/usePreference', () => ({
   usePreference: () => [false]
 }))
 
-vi.mock('@renderer/context/ThemeProvider', () => ({
+vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ settedTheme: 'light', toggleTheme: vi.fn() })
 }))
 

@@ -282,6 +282,8 @@ describe('Knowledge base schemas', () => {
       error: null,
       chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
       chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+      chunkStrategy: 'structured',
+      chunkSeparator: '\\n\\n',
       searchMode: 'hybrid',
       createdAt: '2026-04-10T00:00:00.000Z',
       updatedAt: '2026-04-10T00:00:00.000Z'
@@ -303,6 +305,8 @@ describe('Knowledge base schemas', () => {
       error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
       chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
       chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+      chunkStrategy: 'structured',
+      chunkSeparator: '\\n\\n',
       searchMode: 'hybrid',
       createdAt: '2026-04-10T00:00:00.000Z',
       updatedAt: '2026-04-10T00:00:00.000Z'
@@ -489,6 +493,8 @@ it('accepts failed knowledge bases with a null embedding model id', () => {
     error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
     chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
     chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+    chunkStrategy: 'structured',
+    chunkSeparator: '\\n\\n',
     searchMode: 'hybrid',
     createdAt: '2026-04-10T00:00:00.000Z',
     updatedAt: '2026-04-10T00:00:00.000Z'
@@ -505,6 +511,8 @@ it('rejects invalid knowledge base status error combinations', () => {
     groupId: null,
     chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
     chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+    chunkStrategy: 'structured',
+    chunkSeparator: '\\n\\n',
     searchMode: 'hybrid' as const,
     createdAt: '2026-04-10T00:00:00.000Z',
     updatedAt: '2026-04-10T00:00:00.000Z'
@@ -619,6 +627,8 @@ describe('isCompletedKnowledgeBase', () => {
     error: null,
     chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
     chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+    chunkStrategy: 'structured',
+    chunkSeparator: '\\n\\n',
     searchMode: 'hybrid',
     createdAt: '2026-04-10T00:00:00.000Z',
     updatedAt: '2026-04-10T00:00:00.000Z'

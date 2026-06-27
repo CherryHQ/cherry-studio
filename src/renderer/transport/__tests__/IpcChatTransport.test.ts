@@ -6,7 +6,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { IpcChatTransport } from '../IpcChatTransport'
 
-// ── Mock window.api.ai ──────────────────────────────────────────────
+// Production calls ipcApi.request('ai.stream_*') / ipcApi.on('ai.stream_*'). `ipcMock` is
+// re-pointed at a fresh createMockAiApi()'s dispatchers in beforeEach (hoisted so the
+// vi.mock factory can capture it).
+const { ipcMock } = vi.hoisted(() => ({
+  ipcMock: {
+    request: (() => undefined) as (route: string, input: unknown) => unknown,
+    on: (() => () => {}) as (event: string, cb: (p: unknown) => void) => () => void
+  }
+}))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (route: string, input: unknown) => ipcMock.request(route, input),
+    on: (event: string, cb: (p: unknown) => void) => ipcMock.on(event, cb)
+  }
+}))
+
+// ── Mock the AI stream IPC ──────────────────────────────────────────
 
 interface MockAiApi {
   streamOpen: ReturnType<typeof vi.fn>
@@ -55,9 +71,37 @@ function createMockAiApi() {
     })
   }
 
+  // ipcApi-shaped dispatchers wired to the spies above (so per-method assertions still work).
+  const request = (route: string, input: unknown): unknown => {
+    switch (route) {
+      case 'ai.stream_open':
+        return mockApi.streamOpen(input)
+      case 'ai.stream_attach':
+        return mockApi.streamAttach(input)
+      case 'ai.stream_abort':
+        return mockApi.streamAbort(input)
+      default:
+        return Promise.resolve(undefined) // ai.stream_detach — not asserted here
+    }
+  }
+  const on = (event: string, cb: (p: unknown) => void): (() => void) => {
+    switch (event) {
+      case 'ai.stream_chunk':
+        return mockApi.onStreamChunk(cb)
+      case 'ai.stream_done':
+        return mockApi.onStreamDone(cb)
+      case 'ai.stream_error':
+        return mockApi.onStreamError(cb)
+      default:
+        return () => {}
+    }
+  }
+
   return {
     mockApi,
     listeners,
+    request,
+    on,
     emitChunk: (topicId: string, chunk: UIMessageChunk, executionId?: UniqueModelId) => {
       for (const cb of [...listeners.chunk]) cb({ topicId, executionId, chunk })
     },
@@ -77,23 +121,18 @@ function createMockAiApi() {
 describe('IpcChatTransport', () => {
   let transport: IpcChatTransport
   let mock: ReturnType<typeof createMockAiApi>
-  let originalApi: unknown
   let originalToast: unknown
 
   beforeEach(() => {
     mock = createMockAiApi()
-    originalApi = (window as unknown as { api: unknown }).api
+    ipcMock.request = mock.request
+    ipcMock.on = mock.on
     originalToast = (window as unknown as { toast: unknown }).toast
-    ;(window as unknown as { api: { ai: MockAiApi } }).api = {
-      ...(originalApi as object),
-      ai: mock.mockApi
-    } as { ai: MockAiApi }
     ;(window as unknown as { toast: unknown }).toast = { error: vi.fn() }
     transport = new IpcChatTransport()
   })
 
   afterEach(() => {
-    ;(window as unknown as { api: unknown }).api = originalApi
     ;(window as unknown as { toast: unknown }).toast = originalToast
   })
 

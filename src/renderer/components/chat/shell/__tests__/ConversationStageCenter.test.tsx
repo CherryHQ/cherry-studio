@@ -16,7 +16,7 @@ interface MockStageProps {
   composerElevated?: boolean
 }
 
-vi.mock('../../composer/ConversationComposerStage', () => ({
+vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
   default: ({ placement, main, composer, homeWelcomeText, composerElevated }: MockStageProps) => (
     <div
       data-testid="conversation-stage"

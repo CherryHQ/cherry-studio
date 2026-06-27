@@ -457,6 +457,8 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBaseListItem> = {}): Kn
   fileProcessorId: undefined,
   chunkSize: 1024,
   chunkOverlap: 200,
+  chunkStrategy: 'structured',
+  chunkSeparator: '\\n\\n',
   threshold: undefined,
   documentCount: undefined,
   status: 'completed',
@@ -528,7 +530,14 @@ describe('BaseNavigator', () => {
       />
     )
 
-    expect(container.querySelector('.min-h-0.flex-1')).toHaveClass('overflow-x-hidden', 'px-3', 'pb-3')
+    expect(container.querySelector('.min-h-0.flex-1')).toHaveClass(
+      'overflow-x-hidden',
+      'px-3',
+      'pb-3',
+      // Reserve the scrollbar gutter on both edges so the list keeps symmetric left/right padding
+      // whether or not the scrollbar is showing.
+      '[scrollbar-gutter:stable_both-edges]'
+    )
     expect(container.querySelector('.min-h-0.flex-1')?.className).not.toContain('[scrollbar-gutter:auto]')
   })
 

@@ -103,6 +103,12 @@ vi.mock('@renderer/config/constant', () => ({
   isWin: false
 }))
 
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: vi.fn().mockResolvedValue({ version: '1.0.0' })
+  }
+}))
+
 vi.mock('@renderer/data/hooks/useCache', () => ({
   usePersistCache: () => [testState.isBunInstalled, vi.fn()]
 }))
@@ -209,6 +215,7 @@ beforeEach(() => {
 
 async function openCodeToolDialog() {
   render(<CodeCliPage />)
+  await waitFor(() => expect(window.api.isBinaryExist).toHaveBeenCalledWith('bun'))
   fireEvent.click(screen.getByRole('button', { name: 'open tool' }))
   await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
 }

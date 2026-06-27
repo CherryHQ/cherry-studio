@@ -9,9 +9,9 @@ import { Navbar } from '@renderer/components/app/Navbar'
 // resolves fine on feat's full program and via this path). Revert to the barrel
 // once main converges with feat. The `Selector` dir is byte-identical to feat.
 import { ModelSelector } from '@renderer/components/Selector/model'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTranslate, useTranslateHistory } from '@renderer/hooks/translate'
 import { useDetectLang } from '@renderer/hooks/translate/useDetectLang'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
 import { useJob } from '@renderer/hooks/useJob'
@@ -20,11 +20,11 @@ import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi } from '@renderer/ipc'
-import type { FileMetadata } from '@renderer/types'
-import { isImageFileMetadata } from '@renderer/types'
-import { cn, getFileExtension, isTextFile } from '@renderer/utils'
+import { type FileMetadata, isImageFileMetadata } from '@renderer/types/file'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { getFileExtension, isTextFile } from '@renderer/utils/file'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
+import { cn } from '@renderer/utils/style'
 import {
   createInputScrollHandler,
   createOutputScrollHandler,

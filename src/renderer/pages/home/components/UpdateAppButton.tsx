@@ -1,14 +1,14 @@
-import { SyncOutlined } from '@ant-design/icons'
+import { Button } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
-import { useSettings } from '@renderer/hooks/useSettings'
-import { Button } from 'antd'
+import { RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const UpdateAppButton: FC = () => {
   const { appUpdateState } = useAppUpdateState()
-  const { autoCheckUpdate } = useSettings()
+  const [autoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
   const { t } = useTranslation()
 
   if (!appUpdateState) {
@@ -29,13 +29,8 @@ const UpdateAppButton: FC = () => {
 
   return (
     <div>
-      <Button
-        className="nodrag rounded-3xl text-xs"
-        onClick={handleOpenUpdateDialog}
-        icon={<SyncOutlined />}
-        color="primary"
-        variant="outlined"
-        size="small">
+      <Button className="nodrag rounded-3xl text-xs" onClick={handleOpenUpdateDialog} variant="outline" size="sm">
+        <RefreshCw size={14} />
         {t('button.update_available')}
       </Button>
     </div>

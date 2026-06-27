@@ -22,54 +22,6 @@ const mocks = vi.hoisted(() => ({
   }
 }))
 
-vi.mock('@renderer/store', () => ({
-  default: {
-    getState: () => ({
-      llm: {
-        settings: {}
-      }
-    })
-  }
-}))
-
-// Mock antd components to prevent flaky snapshot tests
-vi.mock('antd', () => {
-  const MockSpaceCompact: React.FC<React.PropsWithChildren<{ style?: React.CSSProperties }>> = ({
-    children,
-    style
-  }) => (
-    <div data-testid="space-compact" style={style}>
-      {children}
-    </div>
-  )
-
-  const MockInputNumber = ({ ref, value, onChange, placeholder, disabled, style }: any) => (
-    <input
-      ref={ref}
-      type="number"
-      data-testid="input-number"
-      placeholder={placeholder}
-      value={value ?? ''}
-      onChange={(e) => onChange(e.target.valueAsNumber)}
-      disabled={disabled}
-      style={style}
-    />
-  )
-
-  const MockButton: React.FC<any> = ({ children, onClick, disabled, icon, className, ...rest }) => (
-    <button type="button" onClick={onClick} disabled={disabled} {...rest} className={className}>
-      {icon}
-      {children}
-    </button>
-  )
-
-  return {
-    Button: MockButton,
-    InputNumber: MockInputNumber,
-    Space: { Compact: MockSpaceCompact }
-  }
-})
-
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, onPress, disabled, isDisabled, startContent, ...props }: any) => (
     <button type="button" data-testid="button" onClick={onPress} disabled={disabled || isDisabled} {...props}>
@@ -126,18 +78,15 @@ vi.mock('@renderer/components/Icons', () => ({
   )
 }))
 
-// Mock window.toast and window.api.ai.embedMany
+// embedMany goes through ipcApi.request('ai.embed_many', …) now (Main IPC).
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: (_route: string, input: unknown) => mocks.embedMany(input) }
+}))
+
 Object.assign(window, {
   toast: {
     error: vi.fn(),
     success: vi.fn()
-  },
-  api: {
-    ...(window as any).api,
-    ai: {
-      ...(window as any).api?.ai,
-      embedMany: mocks.embedMany
-    }
   }
 })
 

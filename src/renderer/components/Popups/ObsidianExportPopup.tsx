@@ -1,8 +1,8 @@
 import type { ObsidianProcessingMethod } from '@renderer/components/ObsidianExportDialog'
 import { PopupContainer } from '@renderer/components/ObsidianExportDialog'
 import { TopView } from '@renderer/components/TopView'
-import type { Topic } from '@renderer/types'
 import type { ExportableMessage } from '@renderer/types/messageExport'
+import type { Topic } from '@renderer/types/topic'
 
 interface ObsidianExportOptions {
   title: string

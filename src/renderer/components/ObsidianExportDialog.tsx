@@ -23,8 +23,8 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useTopViewClose } from '@renderer/components/Popups/useTopViewClose'
 import i18n from '@renderer/i18n'
-import type { Topic } from '@renderer/types'
 import type { ExportableMessage } from '@renderer/types/messageExport'
+import type { Topic } from '@renderer/types/topic'
 import {
   exportMarkdownToObsidian,
   messagesToMarkdown,
@@ -34,6 +34,7 @@ import {
 } from '@renderer/utils/export'
 import { XIcon } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
+
 const logger = loggerService.withContext('ObsidianExportDialog')
 
 interface FileInfo {
@@ -226,8 +227,6 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
         const vaultToUse = defaultObsidianVault || vaultsData[0]?.name
         if (vaultToUse) {
           setSelectedVault(vaultToUse)
-          const filesData = await window.api.obsidian.getFiles(vaultToUse)
-          setFiles(filesData)
         }
       } catch (error) {
         logger.error('获取Obsidian Vault失败:', error as Error)

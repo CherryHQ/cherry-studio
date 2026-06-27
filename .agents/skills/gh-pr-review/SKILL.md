@@ -1,6 +1,6 @@
 ---
 name: gh-pr-review
-description: Automated Cherry Studio code review for local branches, PRs, commits, and files. Use for reviewing code, docs, or pull requests with project-specific checks for DataApi boundaries, service ownership, renderer data hooks, React Hooks, lifecycle services, i18n, UI conventions, and tests. Supports single-agent review with interactive fix selection, or multi-agent deep review with reviewer-verifier adversarial mechanism and risk-based auto-fix.
+description: Automated Cherry Studio code review for local branches, PRs, commits, and files. Use for reviewing code, docs, or pull requests with project-specific checks for DataApi boundaries, service ownership, renderer data hooks, React Hooks, lifecycle services, i18n, UI conventions, and tests. Supports single-agent review with interactive fix selection, or multi-agent deep review with reviewer-verifier adversarial mechanism and risk-based auto-fix. To find gaps in this skill's own instructions after a session, run `/gh-pr-review diag`.
 ---
 
 <!-- Based on https://github.com/Tencent/tgfx/tree/main/.codebuddy/skills/cr -->
@@ -50,6 +50,12 @@ Each `→` means: `Read` the target file and follow it as the sole remaining
 instruction. Ignore all sections below. Do NOT review from memory or habit —
 each target file defines specific constraints on how to obtain diffs, apply
 fixes, and submit results.
+
+> **Priority rule**: user intent (Rule 1, 2, 6) takes priority over working-tree
+> state (Rule 3, 4, 5). A PR URL or PR number always goes to
+> `references/pr-review.md` even when the working tree is dirty or the
+> current branch is `main`/`master` — those state conditions only apply when
+> the user did not specify a review target.
 
 ---
 

@@ -18,8 +18,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 import { loggerService } from '@logger'
-import { isMac, isWin } from '@main/core/platform'
-import { toAsarUnpackedPath } from '@main/utils'
+import { getBinaryExecutionEnv, getBinaryPath } from '@main/utils/process'
 import type { DirectoryListOptions, FilePath } from '@shared/types/file'
 
 import { defaultRipgrepGlobArgs } from './gitignore'
@@ -79,66 +78,24 @@ const EXCLUDED_DIRS = new Set([
 
 // ─── Ripgrep binary + execution ────────────────────────────────────────────
 
-function resolveRipgrepBinaryPath(startDir: string = __dirname): string | null {
-  const executable = isWin ? 'rg.exe' : 'rg'
-  const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
-  const platform = isMac ? 'darwin' : isWin ? 'win32' : 'linux'
-  const tail = path.join(
-    'node_modules',
-    '@cherrystudio',
-    'ripgrep',
-    'vendor',
-    'ripgrep',
-    `${arch}-${platform}`,
-    executable
-  )
-
-  // Walk up parents until we find the vendored `@cherrystudio/ripgrep`
-  // checkout. This is robust to: production bundle (`out/main/…`), source
-  // layout (`src/main/services/file/tree/…` under vitest), and any future
-  // re-layering. Check the asar-unpacked sibling first: Electron can report
-  // files inside app.asar as existing, but native child processes must be
-  // spawned from the real filesystem path.
-  let dir = startDir
-  while (true) {
-    const candidate = path.join(dir, tail)
-    const unpacked = toAsarUnpackedPath(candidate)
-    if (unpacked !== candidate && fs.existsSync(unpacked)) return unpacked
-    if (fs.existsSync(candidate)) return candidate
-
-    const parent = path.dirname(dir)
-    if (parent === dir) break
-    dir = parent
-  }
-
-  const pathEntries = (process.env.PATH ?? '').split(path.delimiter).filter(Boolean)
-  for (const entry of pathEntries) {
-    const candidate = path.join(entry, executable)
-    if (fs.existsSync(candidate)) return candidate
-  }
-
-  return null
+// Ripgrep is a BinaryManager-managed tool: bundled into `cherry.bin` at boot
+// and overridable by a mise-installed copy. `getBinaryPath('rg')` resolves
+// that single source of truth (mise shim → cherry.bin); a bare `rg` fallback
+// fails the existsSync check below, surfacing as "binary not available".
+async function resolveRipgrepBinary(): Promise<string | null> {
+  const binaryPath = await getBinaryPath('rg')
+  return fs.existsSync(binaryPath) ? binaryPath : null
 }
 
-function getRipgrepBinaryPath(): string | null {
-  try {
-    return resolveRipgrepBinaryPath()
-  } catch (error) {
-    logger.error('Failed to locate ripgrep binary:', error as Error)
-    return null
+async function executeRipgrep(args: string[]): Promise<{ exitCode: number; output: string }> {
+  const ripgrepBinaryPath = await resolveRipgrepBinary()
+  if (!ripgrepBinaryPath) {
+    throw new Error('Ripgrep binary not available')
   }
-}
 
-function executeRipgrep(args: string[]): Promise<{ exitCode: number; output: string }> {
   return new Promise((resolve, reject) => {
-    const ripgrepBinaryPath = getRipgrepBinaryPath()
-
-    if (!ripgrepBinaryPath) {
-      reject(new Error('Ripgrep binary not available'))
-      return
-    }
-
     const child = spawn(ripgrepBinaryPath, ['--no-config', '--ignore-case', ...args], {
+      env: { ...process.env, ...getBinaryExecutionEnv() },
       stdio: ['pipe', 'pipe', 'pipe']
     })
 
@@ -550,7 +507,7 @@ export async function listDirectory(dirPath: FilePath | string, options?: Direct
     throw new Error(`Path is not a directory: ${resolvedPath}`)
   }
 
-  if (!getRipgrepBinaryPath()) {
+  if (!(await resolveRipgrepBinary())) {
     throw new Error('Ripgrep binary not available')
   }
 

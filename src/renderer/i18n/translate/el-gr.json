@@ -224,7 +224,12 @@
           "runFailed": "Αποτυχία εκτέλεσης εργασίας",
           "updateFailed": "Αποτυχία ενημέρωσης εργασίας"
         },
-        "intervalPlaceholder": "Διάστημα σε λεπτά",
+        "frequency": {
+          "everyPrefix": "Κάθε",
+          "everySuffix": "λεπτά",
+          "label": "Συχνότητα εκτέλεσης"
+        },
+        "intervalPlaceholder": "Τουλάχιστον 1",
         "intervalUnit": "λεπτά",
         "lastRun": "Τελευταία εκτέλεση",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Διάστημα",
-          "label": "Τύπος χρονοδιαγράμματος",
           "once": "Μία φορά"
         },
-        "scheduleValue": "Τιμή χρονοδιαγράμματος",
         "status": {
           "active": "Ενεργή",
           "completed": "Ολοκληρώθηκε",
@@ -277,7 +280,7 @@
           "minutesAgo": "{{count}}μ πριν"
         },
         "timeout": {
-          "label": "Λήξη χρόνου",
+          "label": "Μέγιστος χρόνος εκτέλεσης",
           "placeholder": "Χωρίς όριο"
         },
         "title": "Προγραμματισμένες εργασίες"
@@ -2345,6 +2348,7 @@
   "files": {
     "actions": "Ενέργειες",
     "all": "Όλα τα αρχεία",
+    "audio": "Ήχος",
     "batch_delete": "μαζική διαγραφή",
     "batch_operation": "Επιλογή όλων",
     "count": "Αριθμός αρχείων",
@@ -2358,22 +2362,52 @@
       },
       "title": "Διαγραφή αρχείου"
     },
+    "delete_or_remove": "Διαγραφή / αφαίρεση",
     "document": "Έγγραφο",
+    "drag_upload": "Σύρετε αρχεία εδώ για μεταφόρτωση",
     "edit": "Επεξεργασία",
+    "empty": {
+      "no_match_description": "Κανένα αρχείο δεν ταιριάζει με τα τρέχοντα φίλτρα",
+      "no_match_title": "Δεν βρέθηκαν αρχεία που να ταιριάζουν"
+    },
     "error": {
-      "open_path": "Δεν είναι δυνατό το άνοιγμα της διαδρομής: {{path}}"
+      "delete_failed": "Αποτυχία διαγραφής αρχείων",
+      "delete_partial_failed": "Μερικά αρχεία δεν μπόρεσαν να διαγραφούν",
+      "import_failed": "Αποτυχία εισαγωγής αρχείων",
+      "import_partial_failed": "Κάποια αρχεία δεν μπόρεσαν να εισαχθούν",
+      "open_path": "Δεν είναι δυνατό το άνοιγμα της διαδρομής: {{path}}",
+      "rename_failed": "Αποτυχία μετονομασίας αρχείου",
+      "restore_failed": "Αποτυχία επαναφοράς αρχείων",
+      "restore_partial_failed": "Μερικά αρχεία δεν μπόρεσαν να αποκατασταθούν"
     },
     "file": "Αρχείο",
+    "footer_count": "{{count}} αρχεία",
+    "footer_selected_count": "{{count}} επιλεγμένα",
     "image": "Εικόνα",
+    "missing": "Αγνοούμενος",
+    "modified_at": "Τροποποιήθηκε στις",
     "name": "Όνομα αρχείου",
     "open": "Άνοιγμα",
+    "other": "Άλλο",
+    "permanent_delete": "Διαγραφή οριστικά",
+    "permanent_delete_confirm": {
+      "description": "Αυτό θα διαγράψει μόνιμα {{count}} αρχείο(α). Η ενέργεια αυτή δεν μπορεί να αναιρεθεί.",
+      "title": "Μόνιμη διαγραφή αρχείων;"
+    },
     "preview": {
       "error": "Αποτυχία ανοίγματος του αρχείου"
     },
+    "remove_from_library": "Αφαίρεση από τη βιβλιοθήκη",
+    "rename": "Μετονομασία",
+    "restore": "Επαναφορά",
+    "selected_count": "{{count}} αρχεία επιλέχθηκαν",
+    "show_in_folder": "Εμφάνιση στο φάκελο",
     "size": "Μέγεθος",
     "text": "Κείμενο",
     "title": "Αρχεία",
-    "type": "Τύπος"
+    "trash": "Σκουπίδια",
+    "type": "Τύπος",
+    "video": "Βίντεο"
   },
   "globalSearch": {
     "clear": "Καθαρισμός αναζήτησης",
@@ -2767,6 +2801,8 @@
       "chunk_overlap_invalid": "Η επικάλυψη τμημάτων πρέπει να είναι μεγαλύτερη ή ίση με 0",
       "chunk_overlap_must_be_smaller": "Η επικάλυψη κομματιών πρέπει να είναι μικρότερη από το μέγεθος του κομματιού",
       "chunk_overlap_requires_chunk_size": "Το μέγεθος κομματιού είναι απαραίτητο όταν ορίζεται η επικάλυψη κομματιού",
+      "chunk_separator": "Διαχωριστικό",
+      "chunk_separator_required": "Απαιτείται διαχωριστικό όταν η έξυπνη κατάτμηση είναι απενεργοποιημένη",
       "chunk_size": "Μέγεθος Κομματιού",
       "chunk_size_change_warning": "Οι αλλαγές στο μέγεθος τμήματος και στην επικάλυψη εφαρμόζονται μόνο σε νεότερα προστεθέντα περιεχόμενα",
       "chunk_size_invalid": "Το μέγεθος του τμήματος πρέπει να είναι μεγαλύτερο από 0",
@@ -2779,6 +2815,7 @@
       "file_processing_hint": "Η επεξεργασία αρχείων εκτελείται αυτόματα κατά την εισαγωγή εγγράφων. Η επιλογή του κατάλληλου παρόχου μπορεί να βελτιώσει την ποιότητα ανάλυσης των εγγράφων.",
       "hints": {
         "chunk_overlap": "Αριθμός επικαλυπτόμενων διακριτικών που διατηρούνται μεταξύ γειτονικών τμημάτων για τη μείωση των σημασιολογικών διακοπών.",
+        "chunk_separator": "Διαχωριστικό στο οποίο σπάει το κείμενο, σε διαφυγμένη μορφή. Με την έξυπνη κατάτμηση ενεργοποιημένη προσθέτει σημείο διακοπής· με απενεργοποιημένη, το κείμενο χωρίζεται μόνο από αυτό το διαχωριστικό.",
         "chunk_size": "Στόχος αριθμού token για κάθε τμήμα εγγράφου. Αυτό επηρεάζει την κοκκοποίηση ανάκτησης και το μήκος του πλαισίου.",
         "document_count": "Μέγιστος αριθμός τμημάτων εγγράφων που επιστρέφονται για κάθε ανάκτηση. Υψηλότερες τιμές καλύπτουν περισσότερο περιεχόμενο αλλά χρησιμοποιούν περισσότερο πλαίσιο.",
         "embedding_model": "Χρησιμοποιείται για τη μετατροπή του περιεχομένου της βάσης γνώσης σε διανύσματα. Η αλλαγή του μοντέλου συνήθως απαιτεί επανευρετηρίαση του υπάρχοντος περιεχομένου.",
@@ -2786,6 +2823,7 @@
         "processor": "Αναλυτής που χρησιμοποιείται κατά την εισαγωγή αρχείων για την εξαγωγή του κυρίως κειμένου, πινάκων και σχετικού περιεχομένου.",
         "rerank_model": "Μοντέλο που χρησιμοποιείται για την ανακατάταξη των αρχικών αποτελεσμάτων ανάκτησης και τη βελτίωση της σχετικότητας των τελικών τμημάτων.",
         "search_mode": "Επιλέξτε λειτουργία ανάκτησης: αναζήτηση διανυσμάτων για σημασιολογική αντιστοίχιση, πλήρη αναζήτηση κειμένου για λέξεις-κλειδιά ή υβριδική αναζήτηση και για τα δύο.",
+        "smart_chunking": "Αυτόματη διαίρεση κατά τη δομή Markdown (επικεφαλίδες, μπλοκ κώδικα, παραγράφους) και ποτέ διαίρεση μέσα σε ένα μπλοκ κώδικα. Απενεργοποιήστε το για διαίρεση αποκλειστικά με βάση το διαχωριστικό.",
         "threshold": "Κατώφλι ομοιότητας για φιλτράρισμα κομματιών χαμηλής συνάφειας. Υψηλότερες τιμές κάνουν την ανάκτηση αυστηρότερη.",
         "threshold_disabled": "Αυτή η λειτουργία ανάκτησης επιστρέφει ταξινομημένα αποτελέσματα και δεν χρησιμοποιεί κατώφλι ομοιότητας."
       },
@@ -2805,6 +2843,7 @@
         "vector": "Αναζήτηση Διανυσμάτων"
       },
       "separator_rule": "Κανόνας Διαχωριστικού",
+      "smart_chunking": "Έξυπνη Τμηματοποίηση",
       "threshold": "Κατώφλι Ομοιότητας",
       "tokens_unit": "διακριτικά"
     },
@@ -3837,64 +3876,6 @@
       "partial_failure": "{{count}} αποτελέσματα αναζήτησης, ορισμένες αναζητήσεις απέτυχαν"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "Προσθήκη στο Launchpad",
-    "add_to_sidebar": "Προσθήκη στην πλαϊνή μπάρα",
-    "popup": {
-      "close": "Κλείσιμο MinApp",
-      "devtools": "Εργαλεία Προγραμματιστών",
-      "goBack": "Πίσω",
-      "goForward": "Προχώρα",
-      "minimize": "Ελαχιστοποίηση MinApp",
-      "openExternal": "Άνοιγμα στον περιηγητή",
-      "open_link_external_off": "Τρέχον: Άνοιγμα συνδέσμων στο προεπιλεγμένο παράθυρο",
-      "open_link_external_on": "Τρέχον: Άνοιγμα συνδέσμων στον περιηγητή",
-      "refresh": "Ανανέωση",
-      "rightclick_copyurl": "Κάντε δεξί κλικ για να αντιγράψετε τη διεύθυνση URL"
-    },
-    "remove_from_launchpad": "Αφαίρεση από το Launchpad",
-    "remove_from_sidebar": "Αφαίρεση από την πλαϊνή μπάρα",
-    "sidebar": {
-      "close": {
-        "title": "Κλείσιμο"
-      },
-      "closeall": {
-        "title": "Κλείσιμο Όλων"
-      },
-      "hide": {
-        "title": "Κρύψε"
-      },
-      "remove_custom": {
-        "title": "Διαγραφή Προσαρμοσμένης Εφαρμογής"
-      }
-    },
-    "title": "MinApp"
-  },
-  "minapps": {
-    "ant-ling": "Μυρμηγκίδα",
-    "baichuan": "Μπάιτσουαν",
-    "baidu-ai-search": "Baidu AI Αναζήτηση",
-    "chatglm": "ChatGLM",
-    "dangbei": "Ντάγκμπεϊ",
-    "doubao": "Ντάουμπαο",
-    "hailuo": "Χαίλουο",
-    "ima": "εικόνα",
-    "metaso": "Μέτασο",
-    "minimax-agent": "Υπολογιστής Minimax CN",
-    "minimax-global": "Πράκτορας Minimax",
-    "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI Αναζήτηση",
-    "qwen": "Qwen",
-    "sensechat": "SenseChat",
-    "stepfun": "Stepfun",
-    "tencent-yuanbao": "Γιουάνμπαο",
-    "tiangong-ai": "Skywork",
-    "wanzhi": "Γουάνζι",
-    "wenxin": "ERNIE",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "Ξιαογι",
-    "zhihu": "Ζίχου"
-  },
   "miniApp": {
     "add_to_launchpad": "Προσθήκη στο Launchpad",
     "add_to_sidebar": "Προσθήκη στην πλευρική μπάρα",
@@ -3905,15 +3886,13 @@
     "hide_failed": "Failed to hide mini-app",
     "pin_failed": "Αποτυχία καρφιτσώματος μίνι εφαρμογής",
     "popup": {
-      "close": "Κλείσιμο της εφαρμογής",
       "devtools": "Εργαλεία προγραμματιστή",
       "goBack": "Πίσω",
       "goForward": "Μπροστά",
       "openExternal": "Άνοιγμα στον περιηγητή",
       "open_link_external_off": "Τρέχον: Άνοιγμα συνδέσμου χρησιμοποιώντας το προεπιλεγμένο παράθυρο",
       "open_link_external_on": "Τρέχον: Άνοιγμα συνδέσμου στον περιηγητή",
-      "refresh": "Ανανέωση",
-      "rightclick_copyurl": "Αντιγραφή URL με δεξί κλικ"
+      "refresh": "Ανανέωση"
     },
     "remove_from_launchpad": "Κατάργηση από το Launchpad",
     "remove_from_sidebar": "Κατάργηση από την πλευρική μπάρα",
@@ -3925,17 +3904,8 @@
     },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
-      "close": {
-        "title": "Κλείσιμο"
-      },
-      "closeall": {
-        "title": "Κλείσιμο όλων"
-      },
       "hide": {
         "title": "Απόκρυψη"
-      },
-      "remove_custom": {
-        "title": "Διαγραφή προσαρμοσμένης εφαρμογής"
       }
     },
     "title": "Μικρόπρογραμμα",
@@ -3955,7 +3925,6 @@
     "minimax-agent": "MiniMax Agent CN",
     "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
     "sensechat": "SenseChat",
     "stepfun": "Stepfun",
@@ -6464,8 +6433,6 @@
         "confirm_delete_message": "Επιβεβαίωση πριν τη διαγραφή μηνύματος",
         "confirm_regenerate_message": "Επιβεβαίωση πριν από την επαναδημιουργία του μηνύματος",
         "enable_quick_triggers": "Ενεργοποίηση των '/' και '@' για γρήγορη πρόσβαση σε μενού",
-        "paste_long_text_as_file": "Επικόλληση μεγάλου κειμένου ως αρχείο",
-        "paste_long_text_threshold": "Όριο μεγάλου κειμένου",
         "send_shortcuts": "Συντάγματα αποστολής",
         "show_estimated_tokens": "Εμφάνιση εκτιμώμενου αριθμού token",
         "title": "Ρυθμίσεις εισαγωγής"
@@ -6489,37 +6456,22 @@
     "miniApps": {
       "cache_change_notice": "Η αλλαγή θα τεθεί σε ισχύ αφού το πλήθος των ανοιχτών μικροπρογραμμάτων φτάσει τη ρυθμισμένη τιμή",
       "cache_description": "Ορίστε τον μέγιστο αριθμό των μικροπρογραμμάτων που μπορούν να είναι ενεργά ταυτόχρονα",
-      "cache_settings": "Ρυθμίσεις Προσωρινής Μνήμης",
       "cache_title": "Ποσότητα Προσωρινής Μνήμης Μικροπρογράμματος",
       "custom": {
-        "conflicting_ids": "Υπάρχει σύγκρουση με τα προεπιλεγμένα ID της εφαρμογής: {{ids}}",
-        "duplicate_ids": "Εντοπίστηκαν διπλότυπα ID: {{ids}}",
-        "edit_description": "Επεξεργαστείτε τη διαμόρφωση της προσαρμοσμένης σας εφαρμογής εδώ. Κάθε εφαρμογή πρέπει να περιλαμβάνει τα πεδία id, name, url και logo.",
+        "create_title": "Δημιουργία προσαρμοσμένης μικροεφαρμογής",
         "edit_title": "Επεξεργασία Προσαρμοσμένης Εφαρμογής",
-        "id": "ID",
-        "id_error": "Το ID είναι υποχρεωτικό πεδίο.",
-        "id_placeholder": "Παρακαλώ εισάγετε το ID",
-        "logo": "Logo",
         "logo_file": "Μεταφόρτωση Logo Αρχείου",
-        "logo_upload_button": "Μεταφόρτωση",
         "logo_upload_error": "Αποτυχία μεταφόρτωσης του Logo.",
         "logo_upload_label": "Μεταφόρτωση Logo",
-        "logo_upload_success": "Το Logo μεταφορτώθηκε επιτυχώς.",
-        "logo_url": "Logo URL",
-        "logo_url_label": "Logo URL",
-        "logo_url_placeholder": "Παρακαλώ εισάγετε το Logo URL",
         "name": "Όνομα",
-        "name_error": "Το Όνομα είναι υποχρεωτικό πεδίο.",
         "name_placeholder": "Παρακαλώ εισάγετε το όνομα",
-        "placeholder": "Παρακαλώ εισάγετε τη διαμόρφωση της προσαρμοσμένης εφαρμογής (Μορφή JSON)",
         "remove_error": "Αποτυχία διαγραφής της προσαρμοσμένης εφαρμογής.",
         "remove_success": "Η προσαρμοσμένη εφαρμογή διαγράφηκε επιτυχώς.",
-        "save": "Αποθήκευση",
         "save_error": "Αποτυχία αποθήκευσης της προσαρμοσμένης εφαρμογής.",
         "save_success": "Η προσαρμοσμένη εφαρμογή αποθηκεύτηκε επιτυχώς.",
         "title": "Προσαρμοσμένη Εφαρμογή",
         "url": "URL",
-        "url_error": "Το URL είναι υποχρεωτικό πεδίο.",
+        "url_invalid": "Εισαγάγετε μια έγκυρη διεύθυνση URL http, https ή file.",
         "url_placeholder": "Παρακαλώ εισάγετε το URL"
       },
       "disabled": "Απόκρυψη μικροπρογράμματος",
@@ -6541,65 +6493,7 @@
         "title": "Φίλτραρισμα περιοχής για μικρές εφαρμογές"
       },
       "reset_tooltip": "Επαναφορά στις προεπιλεγμένες τιμές",
-      "title": "Ρυθμίσεις Μικροπρογράμματος",
       "visible": "Εμφανιζόμενα μικροπρογράμματα"
-    },
-    "miniapps": {
-      "cache_change_notice": "Οι αλλαγές θα τεθούν σε ισχύ όταν ο αριθμός των ανοιχτών μίνι εφαρμογών φτάσει την ορισμένη τιμή",
-      "cache_description": "Ορίστε τον μέγιστο αριθμό ενεργών μίνι εφαρμογών που θα διατηρούνται στη μνήμη",
-      "cache_settings": "Ρυθμίσεις Cache",
-      "cache_title": "Όριο Κρυφής Μνήμης Mini App",
-      "custom": {
-        "conflicting_ids": "Αντιφατικά αναγνωριστικά με τις προεπιλεγμένες εφαρμογές: {{ids}}",
-        "duplicate_ids": "Βρέθηκαν διπλότυπα αναγνωριστικά: {{ids}}",
-        "edit_description": "Επεξεργαστείτε εδώ τη ρύθμιση προσαρμοσμένου mini app. Κάθε εφαρμογή πρέπει να περιλαμβάνει τα πεδία id, name, url και logo.",
-        "edit_title": "Επεξεργασία Προσαρμοσμένης Mini Εφαρμογής",
-        "id": "Ταυτότητα",
-        "id_error": "Απαιτείται ταυτότητα.",
-        "id_placeholder": "Εισαγωγή ID",
-        "logo": "Λογότυπο",
-        "logo_file": "Ανέβασμα Αρχείου Λογότυπου",
-        "logo_upload_button": "Μεταφόρτωση",
-        "logo_upload_error": "Αποτυχία μεταφόρτωσης λογότυπου.",
-        "logo_upload_label": "Ανέβασμα Λογότυπου",
-        "logo_upload_success": "Το λογότυπο μεταφορτώθηκε με επιτυχία.",
-        "logo_url": "Διεύθυνση URL λογότυπου",
-        "logo_url_label": "Διεύθυνση URL λογότυπου",
-        "logo_url_placeholder": "Εισάγετε τη διεύθυνση URL του λογότυπου",
-        "name": "Όνομα",
-        "name_error": "Το όνομα είναι υποχρεωτικό.",
-        "name_placeholder": "Εισαγωγή ονόματος",
-        "placeholder": "Εισαγωγή προσαρμοσμένης διαμόρφωσης mini εφαρμογής (μορφή JSON)",
-        "remove_error": "Αποτυχία αφαίρεσης προσαρμοσμένης μικρής εφαρμογής.",
-        "remove_success": "Η προσαρμοσμένη μίνι εφαρμογή αφαιρέθηκε με επιτυχία.",
-        "save": "Αποθήκευση",
-        "save_error": "Αποτυχία αποθήκευσης προσαρμοσμένης μίνι εφαρμογής.",
-        "save_success": "Η προσαρμοσμένη μίνι εφαρμογή αποθηκεύτηκε με επιτυχία.",
-        "title": "Προσαρμοσμένο",
-        "url": "URL",
-        "url_error": "Απαιτείται URL.",
-        "url_placeholder": "Εισαγάγετε URL"
-      },
-      "disabled": "Κρυμμένα Μίνι Εφαρμογές",
-      "display_title": "Ρυθμίσεις Εμφάνισης Mini App",
-      "empty": "Κάντε κλικ στο εικονίδιο απόκρυψης σε μια εφαρμογή στα αριστερά και θα μετακινηθεί εδώ",
-      "hide_app": "Απόκρυψη {{name}}",
-      "open_link_external": {
-        "title": "Άνοιγμα συνδέσμων νέου παραθύρου στον περιηγητή"
-      },
-      "region": {
-        "auto": "Αυτόματη ανίχνευση",
-        "cn": "Κίνα",
-        "description": "Φιλτράρισμα μη υποστηριζόμενων μίνι προγραμμάτων με βάση την περιοχή",
-        "global": "Παγκόσμιος",
-        "title": "Φίλτρο Mini Program"
-      },
-      "reset_tooltip": "Επαναφορά στις προεπιλογές",
-      "show_app": "Εμφάνιση {{name}}",
-      "sidebar_description": "Εμφάνιση ενεργών μίνι εφαρμογών στην πλαϊνή στήλη",
-      "sidebar_title": "Εμφάνιση Ενεργών Mini Εφαρμογών στην Πλαϊνή Στήλη",
-      "title": "Ρυθμίσεις Mini Apps",
-      "visible": "Ορατές Μικρές Εφαρμογές"
     },
     "model": "Πρόεδρος Υπηρεσίας",
     "models": {
@@ -6734,6 +6628,7 @@
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
         "large_group_hidden": "Εμφάνιση {{count}} επιπλέον μοντέλων",
+        "model_in_use_by_knowledge_base": "Αυτό το μοντέλο χρησιμοποιείται από μια βάση γνώσης και δεν μπορεί να διαγραφεί.",
         "operation_failed": "Model operation failed.",
         "refetch_list": "Επαναλήψτε τη λήψη της λίστας μοντέλων",
         "reload_catalog": "Refresh list",
@@ -6864,12 +6759,46 @@
     },
     "parameter_settings": "Ρυθμίσεις Παραμέτρων",
     "plugins": {
-      "bunDescription": "JavaScript runtime που χρησιμοποιείται από υπηρεσίες MCP και σχετικά εργαλειοθέματα.",
+      "addTool": "Add Tool",
+      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "coreDepsMissing": "Core dependencies not installed",
+      "customTools": "Custom Tools",
+      "customToolsEmpty": "Δεν υπάρχουν ακόμα προσαρμοσμένα εργαλεία. Προσθέστε ένα για να ξεκινήσετε.",
       "description": "Διαχειριστείτε τα δυαδικά εργαλεία και τις εξαρτήσεις χρόνου εκτέλεσης που απαιτούνται από την εφαρμογή.",
+      "duplicateName": "A tool with the same name already exists",
+      "fieldVersion": "Version (optional, defaults to latest)",
+      "install": "Εγκατάσταση",
+      "installError": "Failed to install tool",
       "installing": "Εγκατάσταση...",
+      "invalidTool": "Μη έγκυρο όνομα ή κλειδί εργαλείου",
       "notInstalled": "Δεν έχει εγκατασταθεί",
+      "openBinariesDir": "Open binaries directory",
+      "remove": "Remove tool",
+      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmTitle": "Remove Tool",
+      "searchFailed": "Search failed, check logs",
+      "searchRegistry": "Search mise registry...",
+      "source": {
+        "bundled": "bundled"
+      },
       "title": "Εξαρτήσεις Περιβάλλοντος",
-      "uvDescription": "Διαχειριστής πακέτων Python για υπηρεσίες MCP και εγκατάσταση εξαρτήσεων."
+      "tools": {
+        "bun": "JavaScript runtime used by MCP services and related toolchains.",
+        "claude": "Anthropic's agentic coding tool for the terminal.",
+        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
+        "fd": "Fast file finder, alternative to find.",
+        "gh": "GitHub CLI for repository and workflow management.",
+        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
+        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
+        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
+        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
+        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
+        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
+        "rg": "Fast text search tool (ripgrep), alternative to grep.",
+        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
+        "uv": "Python package manager for MCP services and dependency installation."
+      },
+      "update": "Update to latest version"
     },
     "power": {
       "prevent_sleep_when_busy": "Διατήρησε το σύστημα σε εγρήγορση ενώ εκτελούνται εργασίες"

@@ -1,7 +1,7 @@
 import { useCache } from '@data/hooks/useCache'
 import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
-import { notificationService } from '@renderer/services/NotificationService'
-import { uuid } from '@renderer/utils'
+import { notificationService } from '@renderer/services/notification'
+import { uuid } from '@renderer/utils/uuid'
 import type { CacheAppUpdateState } from '@shared/data/cache/cacheValueTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
@@ -53,8 +53,7 @@ export function useAppUpdateHandler() {
           title: t('button.update_available'),
           message: t('button.update_available', { version: releaseInfo.version }),
           timestamp: Date.now(),
-          source: 'update',
-          channel: 'system'
+          source: 'update'
         })
         updateAppUpdateState({
           checking: false,

@@ -1,6 +1,7 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useDefaultModel } from '@renderer/hooks/useModel'
+import { ipcApi } from '@renderer/ipc'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import { LANG_DETECT_PROMPT } from '@shared/ai/prompts'
 import {
@@ -57,7 +58,7 @@ export const detectLanguageByLLM = async (
 
   const systemPrompt = LANG_DETECT_PROMPT.replace('{{list_lang}}', listLangText).replace('{{input}}', text)
 
-  const { text: result } = await window.api.ai.generateText({
+  const { text: result } = await ipcApi.request('ai.generate_text', {
     uniqueModelId: model.id,
     system: systemPrompt,
     prompt: 'follow system prompt'

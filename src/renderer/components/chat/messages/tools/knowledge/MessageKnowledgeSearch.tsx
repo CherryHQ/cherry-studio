@@ -1,6 +1,6 @@
 import Spinner from '@renderer/components/Spinner'
 import i18n from '@renderer/i18n'
-import type { NormalToolResponse } from '@renderer/types'
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { kbSearchInputSchema, type KbSearchOutputItem, kbSearchOutputSchema } from '@shared/ai/builtinTools'
 import { FileSearch } from 'lucide-react'
 

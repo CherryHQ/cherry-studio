@@ -7,7 +7,11 @@ import RestoreKnowledgeBaseDialog from '../RestoreKnowledgeBaseDialog'
 
 const mockUseModels = vi.fn()
 const mockUseProviders = vi.fn()
-const mockEmbedMany = vi.fn()
+// embedMany (via useEmbeddingDimensions) goes through ipcApi.request('ai.embed_many', …) now.
+const { mockEmbedMany } = vi.hoisted(() => ({ mockEmbedMany: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: (_route: string, input: unknown) => mockEmbedMany(input) }
+}))
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: unknown[]) => mockUseModels(...args)
@@ -51,6 +55,9 @@ vi.mock('@cherrystudio/ui', async () => {
       <div role="dialog" data-size={size} {...props}>
         {children}
       </div>
+    ),
+    DialogDescription: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+      <p {...props}>{children}</p>
     ),
     DialogFooter: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
       <div {...props}>{children}</div>
@@ -104,6 +111,8 @@ vi.mock('react-i18next', () => ({
           'common.name': '名称',
           'common.cancel': '取消',
           'knowledge.embedding_model': '嵌入模型',
+          'knowledge.error.missing_embedding_model':
+            '迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。',
           'knowledge.embedding_model_required': '知识库嵌入模型是必需的',
           'knowledge.dimensions': '嵌入维度',
           'knowledge.dimensions_error_invalid': '无效的嵌入维度',
@@ -120,16 +129,6 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-Object.assign(window, {
-  api: {
-    ...(window as typeof window & { api?: { ai?: Record<string, unknown> } }).api,
-    ai: {
-      ...(window as typeof window & { api?: { ai?: Record<string, unknown> } }).api?.ai,
-      embedMany: mockEmbedMany
-    }
-  }
-})
-
 const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeBase => ({
   id: 'source-base',
   name: 'Legacy KB',
@@ -140,6 +139,8 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   fileProcessorId: undefined,
   chunkSize: 1024,
   chunkOverlap: 200,
+  chunkStrategy: 'structured',
+  chunkSeparator: '\\n\\n',
   threshold: undefined,
   documentCount: undefined,
   status: 'failed',
@@ -395,5 +396,37 @@ describe('RestoreKnowledgeBaseDialog', () => {
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(restoreBase).not.toHaveBeenCalled()
+  })
+
+  it('explains why the base failed so the user knows what they are rebuilding', () => {
+    render(
+      <RestoreKnowledgeBaseDialog
+        open
+        base={createKnowledgeBase({ status: 'failed', error: 'missing_embedding_model' })}
+        isRestoring={false}
+        restoreBase={vi.fn()}
+        onOpenChange={vi.fn()}
+        onRestored={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。')).toBeInTheDocument()
+  })
+
+  it('omits the failure reason for a healthy base', () => {
+    render(
+      <RestoreKnowledgeBaseDialog
+        open
+        base={createKnowledgeBase({ status: 'completed', error: null })}
+        isRestoring={false}
+        restoreBase={vi.fn()}
+        onOpenChange={vi.fn()}
+        onRestored={vi.fn()}
+      />
+    )
+
+    expect(
+      screen.queryByText('迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。')
+    ).not.toBeInTheDocument()
   })
 })

@@ -1,5 +1,5 @@
-import { TopicType } from '@renderer/types'
-import { captureScrollable, captureScrollableAsDataURL } from '@renderer/utils'
+import { TopicType } from '@renderer/types/topic'
+import { captureScrollable, captureScrollableAsDataURL } from '@renderer/utils/image'
 import { act, render, screen } from '@testing-library/react'
 import type { HTMLAttributes, ReactNode, Ref } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -50,9 +50,12 @@ vi.mock('@renderer/hooks/useTimer', () => ({
   })
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/image', () => ({
   captureScrollable: vi.fn(),
-  captureScrollableAsDataURL: vi.fn(),
+  captureScrollableAsDataURL: vi.fn()
+}))
+
+vi.mock('@renderer/utils/style', () => ({
   classNames: (value: unknown) => {
     if (Array.isArray(value)) {
       return value
@@ -68,7 +71,10 @@ vi.mock('@renderer/utils', () => ({
         .join(' ')
     }
     return ''
-  },
+  }
+}))
+
+vi.mock('@renderer/utils/file', () => ({
   removeSpecialCharactersForFileName: (value: string) => value
 }))
 

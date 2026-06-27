@@ -25,8 +25,9 @@ import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
-import { EFFORT_RATIO } from '@renderer/types'
+import { EFFORT_RATIO } from '@renderer/types/reasoning'
 import { getThinkingBudget } from '@shared/ai/reasoningBudget'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
@@ -301,7 +302,7 @@ const CodeCliPage: FC = () => {
   const handleInstallBun = async () => {
     try {
       setIsInstallingBun(true)
-      await window.api.installBunBinary()
+      await ipcApi.request('binary.install_tool', { name: 'bun', tool: 'bun' })
       setIsBunInstalled(true)
       window.toast.success(t('settings.mcp.installSuccess'))
     } catch (error) {

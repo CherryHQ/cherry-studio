@@ -1,4 +1,3 @@
-import type { Model as V1Model } from '@renderer/types'
 import type { Model } from '@shared/data/types/model'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -90,17 +89,9 @@ const isZhipuReasoningModel = A(_isZhipuReasoningModel)
 const isOpenAIReasoningModel = A(_isOpenAIReasoningModel)
 const isSupportedReasoningEffortOpenAIModel = A(_isSupportedReasoningEffortOpenAIModel)
 const isGemini3ThinkingTokenModel = A(_isGemini3ThinkingTokenModel)
-import { isTextToImageModel } from '../vision'
+import type { Model as V1Model } from '@renderer/types/model'
 
-vi.mock('@renderer/store', () => ({
-  default: {
-    getState: () => ({
-      llm: {
-        settings: {}
-      }
-    })
-  }
-}))
+import { isTextToImageModel } from '../vision'
 
 // FIXME: Idk why it's imported. Maybe circular dependency somewhere
 vi.mock('@renderer/services/AssistantService.ts', () => ({
