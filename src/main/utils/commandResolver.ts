@@ -77,7 +77,7 @@ export async function findCommandInShellEnv(
 
         if (code === 0 && output.trim()) {
           const paths = output.trim().split(/\r?\n/)
-          // Prefer native executables, but accept .cmd launchers such as the npx shim
+// Prefer native executables, but accept .cmd launchers such as the npx shim
           // installed by Node.js. StdioClientTransport uses cross-spawn, which resolves
           // Windows command shims while keeping shell execution disabled.
           const exePath = paths.find((p) => p.toLowerCase().endsWith('.exe'))
