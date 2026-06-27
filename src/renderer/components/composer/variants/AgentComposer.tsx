@@ -540,7 +540,7 @@ const AgentComposerInner = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const [conversationView] = usePreference('chat.conversation_view')
+  const [workView] = usePreference('chat.work_view')
   const { t } = useTranslation()
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
   const [workspaceWarning, setWorkspaceWarning] = useState<string | undefined>(undefined)
@@ -878,7 +878,7 @@ const AgentComposerInner = ({
     selectWorkspaceLabel: t('agent.session.workspace_selector.placeholder'),
     agentChanging,
     shouldAutoSelectCreatedAgent: Boolean(onAgentChange),
-    showAgentTrigger: conversationView !== 'old',
+    showAgentTrigger: workView !== 'old',
     workspaceChanging,
     showWorkspaceSelector,
     newConversationAction:
@@ -979,7 +979,7 @@ const MissingAgentHomeComposerInner = ({
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const [conversationView] = usePreference('chat.conversation_view')
+  const [workView] = usePreference('chat.work_view')
   const { t } = useTranslation()
   const [text, setText] = useState('')
   const selectAgentMessage = t('chat.alerts.select_agent')
@@ -1014,7 +1014,7 @@ const MissingAgentHomeComposerInner = ({
     selectWorkspaceLabel: t('agent.session.workspace_selector.placeholder'),
     agentChanging,
     shouldAutoSelectCreatedAgent: true,
-    showAgentTrigger: conversationView !== 'old',
+    showAgentTrigger: workView !== 'old',
     workspaceChanging: false,
     showWorkspaceSelector: false,
     onAgentChange: handleAgentChange,
