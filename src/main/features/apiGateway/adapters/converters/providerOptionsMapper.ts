@@ -44,15 +44,13 @@ export function mapAnthropicThinkingToProviderOptions(
   if (isAnthropicProvider(provider)) {
     return {
       anthropic: {
-        thinking: {
-          type: config.type,
-          budgetTokens: config.type === 'enabled' ? config.budget_tokens : undefined
-        }
-        // 3.0.87 added `fallbacks` (carrying non-JSON `Record<string, unknown>`), which makes the
-        // full options type no longer assignable to ProviderOptions' JSONObject value. This mapper
-        // only sets `thinking`, so drop `fallbacks` from the cast.
-      } as Omit<AnthropicProviderOptions, 'fallbacks'>
-    }
+        // Type only the `thinking` field this mapper owns: `satisfies Pick<…, 'thinking'>` keeps
+        // full type checking without coupling to AnthropicProviderOptions' unrelated `fallbacks`
+        // field, whose non-JSON type would otherwise break the ProviderOptions (JSONObject) value.
+        thinking:
+          config.type === 'enabled' ? { type: 'enabled', budgetTokens: config.budget_tokens } : { type: config.type }
+      } satisfies Pick<AnthropicProviderOptions, 'thinking'>
+    } satisfies ProviderOptions
   }
 
   // Google/Gemini provider
@@ -134,15 +132,9 @@ export function mapReasoningEffortToProviderOptions(
   if (isAnthropicProvider(provider)) {
     return {
       anthropic: {
-        thinking: {
-          type: 'enabled',
-          budgetTokens: budgetMap[reasoningEffort]
-        }
-        // 3.0.87 added `fallbacks` (carrying non-JSON `Record<string, unknown>`), which makes the
-        // full options type no longer assignable to ProviderOptions' JSONObject value. This mapper
-        // only sets `thinking`, so drop `fallbacks` from the cast.
-      } as Omit<AnthropicProviderOptions, 'fallbacks'>
-    }
+        thinking: { type: 'enabled', budgetTokens: budgetMap[reasoningEffort] }
+      } satisfies Pick<AnthropicProviderOptions, 'thinking'>
+    } satisfies ProviderOptions
   }
 
   // Google/Gemini: Map to thinkingConfig.thinkingBudget
