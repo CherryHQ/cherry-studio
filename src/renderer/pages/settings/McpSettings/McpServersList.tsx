@@ -226,6 +226,7 @@ const McpServersList: FC = () => {
                     onSortEnd={onSortEnd}
                     layout="list"
                     horizontal={false}
+                    animateLayoutChanges={false}
                     listStyle={{ gap: 0 }}
                     itemStyle={{ transition: 'none' }}
                     gap={0}
