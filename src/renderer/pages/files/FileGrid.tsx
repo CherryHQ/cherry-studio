@@ -33,7 +33,6 @@ export const FileGrid = memo(function FileGrid({
   files,
   selectedIds,
   onSelect,
-  onContextMenuOpen,
   onOpen,
   onDelete,
   isTrash,
@@ -44,8 +43,7 @@ export const FileGrid = memo(function FileGrid({
 }: {
   files: FileItem[]
   selectedIds: Set<string>
-  onSelect: (id: string, multi: boolean) => void
-  onContextMenuOpen: (id: string) => void
+  onSelect: (id: string) => void
   onOpen: (file: FileItem) => void
   onDelete: (id: string) => void
   isTrash: boolean
@@ -92,12 +90,12 @@ export const FileGrid = memo(function FileGrid({
         const shapeClass = isImage ? 'aspect-square rounded-lg' : 'h-[72px] rounded-t-lg'
         const bgClass = isImage ? '' : typeBgColors[file.type]
         return (
-          <FileContextMenu key={file.id} file={file} isTrash={isTrash} onOpen={onContextMenuOpen} actions={menuActions}>
+          <FileContextMenu key={file.id} file={file} isTrash={isTrash} actions={menuActions} showRename={!isImage}>
             <div
-              onClick={(e) => {
+              onClick={() => {
                 if (isRenaming) return
                 if (previewUrl) return
-                onSelect(file.id, e.metaKey || e.ctrlKey)
+                onSelect(file.id)
               }}
               onDoubleClick={() => {
                 if (!isRenaming && !previewUrl && !file.isMissing) onOpen(file)
@@ -141,7 +139,7 @@ export const FileGrid = memo(function FileGrid({
                       onDelete(file.id)
                     }}
                     title={file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')}
-                    className="flex h-5 w-5 items-center justify-center rounded p-0 text-muted-foreground/35 transition-colors hover:text-destructive/80">
+                    className="flex h-5 w-5 items-center justify-center rounded bg-transparent p-0 text-muted-foreground/35 transition-colors hover:bg-transparent hover:text-destructive/80">
                     <Trash2 size={10} />
                   </Button>
                 </div>

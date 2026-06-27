@@ -145,6 +145,10 @@ function renderFilesPage(entries: FileEntry[] = [entry]) {
   return render(<FilesPage />)
 }
 
+function selectFileAt(index: number) {
+  fireEvent.click(screen.getAllByRole('checkbox', { name: 'files.select_file' })[index])
+}
+
 beforeEach(() => {
   platformState.isMac = true
   ipcMocks.request.mockReturnValue(new Promise(() => {}))
@@ -163,7 +167,7 @@ describe('FilesPage keyboard rename', () => {
     vi.useFakeTimers()
     renderFilesPage()
 
-    fireEvent.click(screen.getByText('report.md'))
+    selectFileAt(0)
     fireEvent.keyDown(document, { key: 'Enter' })
 
     const input = screen.getByDisplayValue('report.md') as HTMLInputElement
@@ -179,7 +183,7 @@ describe('FilesPage keyboard rename', () => {
     platformState.isMac = false
     renderFilesPage()
 
-    fireEvent.click(screen.getByText('report.md'))
+    selectFileAt(0)
     fireEvent.keyDown(document, { key: 'Enter' })
 
     expect(screen.queryByDisplayValue('report.md')).not.toBeInTheDocument()
@@ -188,7 +192,7 @@ describe('FilesPage keyboard rename', () => {
   it('does not call rename when inline rename value is unchanged', () => {
     renderFilesPage()
 
-    fireEvent.click(screen.getByText('report.md'))
+    selectFileAt(0)
     fireEvent.keyDown(document, { key: 'Enter' })
     fireEvent.blur(screen.getByDisplayValue('report.md'))
 
@@ -198,7 +202,7 @@ describe('FilesPage keyboard rename', () => {
   it('ignores Enter shortcuts from interactive controls', () => {
     renderFilesPage()
 
-    fireEvent.click(screen.getByText('report.md'))
+    selectFileAt(0)
     const typeHeader = screen.getAllByRole('button').find((button) => button.textContent?.includes('files.type'))
     expect(typeHeader).toBeDefined()
 
@@ -244,6 +248,16 @@ describe('FilesPage keyboard rename', () => {
     expect(screen.getAllByText('123').length).toBeGreaterThan(0)
     fireEvent.click(screen.getByText('files.trash'))
     expect(screen.getAllByText('4').length).toBeGreaterThan(0)
+  })
+
+  it('disables selection controls when the current view has no files', () => {
+    mockFileStats({ activeTotal: 0, trashTotal: 0, extCounts: [] })
+    mockFiles([])
+    render(<FilesPage />)
+
+    expect(screen.getByRole('checkbox', { name: 'files.select_all_short' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'files.select_all_short' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'files.actions' })).toBeDisabled()
   })
 
   it('uses stats for type counts before all active pages are loaded', () => {
@@ -345,8 +359,8 @@ describe('FilesPage keyboard rename', () => {
         mutate: vi.fn().mockResolvedValue(undefined)
       }
     })
-    const { container } = render(<FilesPage />)
-    const scrollContainer = container.querySelector('.relative.flex-1.overflow-y-auto') as HTMLElement
+    render(<FilesPage />)
+    const scrollContainer = screen.getByTestId('scrollbar')
     Object.defineProperty(scrollContainer, 'scrollHeight', { configurable: true, value: 1000 })
     Object.defineProperty(scrollContainer, 'clientHeight', { configurable: true, value: 500 })
 
@@ -380,8 +394,8 @@ describe('FilesPage file operations', () => {
     mockFileStats(statsForEntries([entry, externalEntry]), refetchStats)
     render(<FilesPage />)
 
-    fireEvent.click(screen.getByText('report.md'))
-    fireEvent.click(screen.getByText('external.txt'), { ctrlKey: true })
+    selectFileAt(0)
+    selectFileAt(1)
     fireEvent.keyDown(document, { key: 'Delete' })
 
     expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_trash', { ids: [entry.id] })
@@ -391,6 +405,103 @@ describe('FilesPage file operations', () => {
     })
   })
 
+  it('imports selected files from the visible upload button', async () => {
+    const refetchStats = vi.fn().mockResolvedValue(undefined)
+    const fileApi = window.api.file as typeof window.api.file & { select: ReturnType<typeof vi.fn> }
+    fileApi.select = vi.fn().mockResolvedValue([{ path: '/tmp/import-from-button.md' }])
+    mockFiles([entry])
+    mockFileStats(statsForEntries([entry]), refetchStats)
+    render(<FilesPage />)
+
+    fireEvent.click(screen.getByText('files.upload'))
+
+    await waitFor(() => {
+      expect(fileApi.select).toHaveBeenCalledWith({
+        properties: ['openFile', 'multiSelections'],
+        filters: [{ name: 'files.all', extensions: ['*'] }]
+      })
+      expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_create_internal_entries', {
+        items: [{ source: 'path', path: '/tmp/import-from-button.md' }]
+      })
+      expect(refetchStats).toHaveBeenCalled()
+    })
+  })
+
+  it('hides upload and shows empty trash in the trash view', async () => {
+    mockUseInfiniteQuery.mockImplementation((_path, options) => ({
+      pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? [{ items: [trashedEntry] }] : [],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }))
+    render(<FilesPage />)
+
+    fireEvent.click(screen.getByText('files.trash'))
+
+    expect(screen.queryByText('files.upload')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText('files.empty_trash'))
+
+    expect(screen.getByText('files.permanent_delete_confirm.title')).toBeInTheDocument()
+    fireEvent.click(screen.getAllByText('files.empty_trash')[0])
+
+    await waitFor(() => {
+      expect(ipcMocks.request).toHaveBeenCalledWith('file.empty_trash')
+    })
+  })
+
+  it('selects all visible files from the header checkbox and exposes batch delete', async () => {
+    const secondEntry = { ...entry, id: 'file-2', name: 'notes' } as unknown as FileEntry
+    renderFilesPage([entry, secondEntry])
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'files.select_all' }))
+    fireEvent.click(screen.getByText(/files.delete.label/))
+
+    await waitFor(() => {
+      expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_trash', { ids: [entry.id, secondEntry.id] })
+    })
+  })
+
+  it('does not change selection when opening a row context menu', () => {
+    const secondEntry = { ...entry, id: 'file-2', name: 'notes' } as unknown as FileEntry
+    renderFilesPage([entry, secondEntry])
+
+    const checkboxes = screen.getAllByRole('checkbox', { name: 'files.select_file' })
+    fireEvent.click(checkboxes[0])
+    fireEvent.contextMenu(screen.getByText('notes.md'))
+
+    expect(checkboxes[0]).toBeChecked()
+    expect(checkboxes[1]).not.toBeChecked()
+  })
+
+  it('shows batch actions in the toolbar during multi-select', () => {
+    const secondEntry = { ...entry, id: 'file-2', name: 'notes' } as unknown as FileEntry
+    renderFilesPage([entry, secondEntry])
+
+    selectFileAt(0)
+    selectFileAt(1)
+
+    expect(screen.getByText(/files.delete.label/)).toBeInTheDocument()
+  })
+
+  it('starts rename from the visible row action button', () => {
+    vi.useFakeTimers()
+    renderFilesPage()
+
+    fireEvent.click(screen.getByLabelText('files.rename'))
+
+    const input = screen.getByDisplayValue('report.md') as HTMLInputElement
+    act(() => {
+      vi.runOnlyPendingTimers()
+    })
+
+    expect(input).toHaveFocus()
+  })
+
   it('chunks mixed-origin delete mutations independently by origin', async () => {
     const entries = [
       ...Array.from({ length: 501 }, (_, index) => bulkEntry('internal', index)),
@@ -398,12 +509,7 @@ describe('FilesPage file operations', () => {
     ]
     renderFilesPage(entries)
 
-    const names = screen.getAllByText(/^bulk-(internal|external)-\d+\.txt$/)
-    act(() => {
-      for (const name of names) {
-        fireEvent.click(name, { ctrlKey: true })
-      }
-    })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'files.select_all' }))
     fireEvent.keyDown(document, { key: 'Delete' })
 
     await waitFor(() => {
@@ -424,7 +530,6 @@ describe('FilesPage file operations', () => {
   it('shows a toast when delete partially fails', async () => {
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
-      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
       if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
       if (route === 'file.batch_trash') {
         return Promise.resolve({ succeeded: [], failed: [{ id: entry.id, error: 'denied' }] })
@@ -433,7 +538,7 @@ describe('FilesPage file operations', () => {
     })
     renderFilesPage()
 
-    fireEvent.click(screen.getByText('report.md'))
+    selectFileAt(0)
     fireEvent.keyDown(document, { key: 'Delete' })
 
     await waitFor(() => {
@@ -444,7 +549,6 @@ describe('FilesPage file operations', () => {
   it('shows one partial-failure toast for mixed-origin delete failures', async () => {
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
-      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
       if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
       if (route === 'file.batch_trash') {
         return Promise.resolve({ succeeded: [], failed: [{ id: entry.id, error: 'trash denied' }] })
@@ -456,8 +560,8 @@ describe('FilesPage file operations', () => {
     })
     renderFilesPage([entry, externalEntry])
 
-    fireEvent.click(screen.getByText('report.md'))
-    fireEvent.click(screen.getByText('external.txt'), { ctrlKey: true })
+    selectFileAt(0)
+    selectFileAt(1)
     fireEvent.keyDown(document, { key: 'Delete' })
 
     await waitFor(() => {
@@ -469,14 +573,13 @@ describe('FilesPage file operations', () => {
   it('shows a toast when delete rejects', async () => {
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
-      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
       if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
       if (route === 'file.batch_trash') return Promise.reject(new Error('delete failed'))
       return Promise.resolve(input)
     })
     renderFilesPage()
 
-    fireEvent.click(screen.getByText('report.md'))
+    selectFileAt(0)
     fireEvent.keyDown(document, { key: 'Delete' })
 
     await waitFor(() => {
@@ -499,7 +602,7 @@ describe('FilesPage file operations', () => {
     render(<FilesPage />)
 
     fireEvent.click(screen.getByText('files.trash'))
-    fireEvent.click(screen.getByText('trashed.txt'))
+    selectFileAt(0)
     fireEvent.keyDown(document, { key: 'Delete' })
 
     expect(ipcMocks.request).not.toHaveBeenCalledWith('file.batch_permanent_delete', { ids: [trashedEntry.id] })
@@ -536,7 +639,6 @@ describe('FilesPage file operations', () => {
   it('shows a toast when restore partially fails', async () => {
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
-      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
       if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
       if (route === 'file.batch_restore') {
         return Promise.resolve({ succeeded: [], failed: [{ id: trashedEntry.id, error: 'denied' }] })
@@ -568,7 +670,6 @@ describe('FilesPage file operations', () => {
   it('shows a toast when restore rejects', async () => {
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
-      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
       if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
       if (route === 'file.batch_restore') return Promise.reject(new Error('restore failed'))
       return Promise.resolve(input)
@@ -598,7 +699,7 @@ describe('FilesPage file operations', () => {
   it('strips the current extension when renaming inline', async () => {
     renderFilesPage()
 
-    fireEvent.click(screen.getByText('report.md'))
+    selectFileAt(0)
     fireEvent.keyDown(document, { key: 'Enter' })
     const input = screen.getByDisplayValue('report.md')
     fireEvent.change(input, { target: { value: 'summary.md' } })
@@ -612,7 +713,7 @@ describe('FilesPage file operations', () => {
   it('does not rename when stripping the current extension leaves an empty name', () => {
     renderFilesPage()
 
-    fireEvent.click(screen.getByText('report.md'))
+    selectFileAt(0)
     fireEvent.keyDown(document, { key: 'Enter' })
     const input = screen.getByDisplayValue('report.md')
     fireEvent.change(input, { target: { value: '   .md' } })
@@ -624,14 +725,13 @@ describe('FilesPage file operations', () => {
   it('shows a toast when rename rejects', async () => {
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
-      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
       if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
       if (route === 'file.rename') return Promise.reject(new Error('rename failed'))
       return Promise.resolve(input)
     })
     renderFilesPage()
 
-    fireEvent.click(screen.getByText('report.md'))
+    selectFileAt(0)
     fireEvent.keyDown(document, { key: 'Enter' })
     const input = screen.getByDisplayValue('report.md')
     fireEvent.change(input, { target: { value: 'summary.md' } })
@@ -645,7 +745,6 @@ describe('FilesPage file operations', () => {
   it('falls back to show in folder when default-open is blocked as unsafe', async () => {
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
-      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
       if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
       if (route === 'file.open') return Promise.reject(new IpcError(fileErrorCodes.OPEN_BLOCKED_UNSAFE_TYPE))
       if (route === 'file.show_in_folder') return Promise.resolve(undefined)
@@ -706,7 +805,6 @@ describe('FilesPage file operations', () => {
     fileApi.getPathForFile = vi.fn(() => '/tmp/import.md')
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
-      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
       if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
       if (route === 'file.batch_create_internal_entries') {
         return Promise.resolve({ succeeded: [], failed: [{ sourceRef: '/tmp/import.md', error: 'denied' }] })
@@ -729,7 +827,6 @@ describe('FilesPage file operations', () => {
     fileApi.getPathForFile = vi.fn(() => '/tmp/import.md')
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
-      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
       if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
       if (route === 'file.batch_create_internal_entries') return Promise.reject(new Error('import failed'))
       return Promise.resolve(input)
@@ -748,7 +845,6 @@ describe('FilesPage file operations', () => {
   it('keeps missing external files visible so they can be removed from the library', async () => {
     ipcMocks.request.mockImplementation((route: string) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
-      if (route === 'file.batch_get_physical_paths') return Promise.resolve({})
       if (route === 'file.batch_get_dangling_states') return Promise.resolve({ [externalEntry.id]: 'missing' })
       if (route === 'file.batch_permanent_delete') return Promise.resolve({ succeeded: [externalEntry.id], failed: [] })
       return Promise.resolve({})
@@ -767,51 +863,24 @@ describe('FilesPage file operations', () => {
     })
   })
 
-  it('requires physical paths before showing image grid previews', () => {
-    renderFilesPage([imageEntry])
-
-    fireEvent.click(screen.getByText('files.image'))
-
-    expect(screen.queryByAltText('photo.png')).not.toBeInTheDocument()
-  })
-
-  it('keeps image rename inline in the file list', async () => {
+  it('shows image files in the image grid without view switch or selection controls', async () => {
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
       if (route === 'file.batch_get_physical_paths') return Promise.resolve({ [imageEntry.id]: '/tmp/photo.png' })
       if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
       return Promise.resolve(input)
     })
-
     renderFilesPage([imageEntry])
 
-    fireEvent.contextMenu(await screen.findByText('photo.png'))
-    fireEvent.click(screen.getByText('files.rename'))
-
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(screen.getByDisplayValue('photo.png')).toBeInTheDocument()
-  })
-
-  it('opens a simple rename dialog for image grid items', async () => {
-    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
-      if (route === 'file.batch_get_metadata') return Promise.resolve({})
-      if (route === 'file.batch_get_physical_paths') return Promise.resolve({ [imageEntry.id]: '/tmp/photo.png' })
-      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
-      if (route === 'file.rename') return Promise.resolve({})
-      return Promise.resolve(input)
-    })
-
-    renderFilesPage([imageEntry])
     fireEvent.click(screen.getByText('files.image'))
 
-    const image = await screen.findByAltText('photo.png')
-    fireEvent.contextMenu(image)
-    fireEvent.click(screen.getByText('files.rename'))
+    expect(screen.queryByLabelText('files.view_list')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('files.view_grid')).not.toBeInTheDocument()
+    expect(await screen.findByAltText('photo.png')).toBeInTheDocument()
+    expect(screen.queryByLabelText('files.select_all_short')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('files.select_file')).not.toBeInTheDocument()
 
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('common.rename'), { target: { value: 'renamed.png' } })
-    fireEvent.click(screen.getByText('common.save'))
-
-    expect(ipcMocks.request).toHaveBeenCalledWith('file.rename', { id: imageEntry.id, newName: 'renamed' })
+    fireEvent.contextMenu(screen.getByAltText('photo.png'))
+    expect(screen.queryByText('files.rename')).not.toBeInTheDocument()
   })
 })

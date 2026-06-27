@@ -2370,6 +2370,7 @@
       "no_match_description": "当前筛选条件下没有文件",
       "no_match_title": "没有找到匹配的文件"
     },
+    "empty_trash": "清空回收站",
     "error": {
       "delete_failed": "删除文件失败",
       "delete_partial_failed": "部分文件删除失败",
@@ -2387,6 +2388,7 @@
     "missing": "缺失",
     "modified_at": "修改时间",
     "name": "文件名",
+    "no_actions": "暂无可用操作",
     "open": "打开",
     "other": "其他",
     "permanent_delete": "永久删除",
@@ -2400,13 +2402,18 @@
     "remove_from_library": "从库中移除",
     "rename": "重命名",
     "restore": "恢复",
+    "select_all": "全选当前列表",
+    "select_all_short": "全选",
+    "select_file": "选择 {{name}}",
     "selected_count": "已选择 {{count}} 个文件",
+    "selected_missing_hint": "所选文件中有缺失文件，只能定位或移除记录",
     "show_in_folder": "打开所在文件夹",
     "size": "大小",
     "text": "文本",
     "title": "文件",
     "trash": "回收站",
     "type": "类型",
+    "upload": "上传文件",
     "video": "视频"
   },
   "globalSearch": {

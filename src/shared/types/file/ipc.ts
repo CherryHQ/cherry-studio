@@ -490,6 +490,11 @@ export interface FileIpcApi {
    * @phase 2 — wired for Files page as IpcApi route `file.batch_permanent_delete`.
    */
   batchPermanentDelete(params: { ids: FileEntryId[] }): Promise<BatchMutationResult>
+  /**
+   * Permanently delete every internal entry currently in Trash.
+   * @phase 2 — wired for Files page as IpcApi route `file.empty_trash`.
+   */
+  emptyTrash(): Promise<BatchMutationResult>
 
   // ─── F. Rename ───
   //

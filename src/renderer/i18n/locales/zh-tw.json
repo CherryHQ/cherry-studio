@@ -2370,6 +2370,7 @@
       "no_match_description": "目前篩選條件下沒有檔案",
       "no_match_title": "找不到符合的檔案"
     },
+    "empty_trash": "清空回收站",
     "error": {
       "delete_failed": "刪除檔案失敗",
       "delete_partial_failed": "部分檔案刪除失敗",
@@ -2387,6 +2388,7 @@
     "missing": "缺失",
     "modified_at": "修改時間",
     "name": "名稱",
+    "no_actions": "暫無可用操作",
     "open": "開啟",
     "other": "其他",
     "permanent_delete": "永久刪除",
@@ -2400,13 +2402,18 @@
     "remove_from_library": "從庫中移除",
     "rename": "重新命名",
     "restore": "還原",
+    "select_all": "全選目前列表",
+    "select_all_short": "全選",
+    "select_file": "選取 {{name}}",
     "selected_count": "已選取 {{count}} 個檔案",
+    "selected_missing_hint": "所選檔案中有缺失檔案，只能定位或移除記錄",
     "show_in_folder": "在檔案夾中顯示",
     "size": "大小",
     "text": "文字",
     "title": "檔案",
     "trash": "回收站",
     "type": "類型",
+    "upload": "上傳檔案",
     "video": "影片"
   },
   "globalSearch": {

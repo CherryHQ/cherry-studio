@@ -48,6 +48,7 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   'file.batch_trash': async ({ ids }) => application.get('FileManager').batchTrash(ids),
   'file.batch_restore': async ({ ids }) => application.get('FileManager').batchRestore(ids),
   'file.batch_permanent_delete': async ({ ids }) => application.get('FileManager').batchPermanentDelete(ids),
+  'file.empty_trash': async () => application.get('FileManager').emptyTrash(),
   'file.rename': async ({ id, newName }) => application.get('FileManager').rename(id, newName),
   'file.open': async ({ id }) => application.get('FileManager').open(id),
   'file.show_in_folder': async ({ id }) => application.get('FileManager').showInFolder(id)

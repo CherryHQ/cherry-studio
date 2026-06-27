@@ -1,12 +1,17 @@
 import {
   Button,
+  Checkbox,
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   EmptyState,
-  Input
+  Scrollbar
 } from '@cherrystudio/ui'
 import { useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
@@ -19,7 +24,7 @@ import type { OutputFor } from '@shared/ipc/types'
 import type { FilePath, FileType } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 import { toSafeFileUrl } from '@shared/utils/file/urlUtil'
-import { Trash2, Upload, X } from 'lucide-react'
+import { MoreHorizontal, Upload } from 'lucide-react'
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -230,37 +235,111 @@ function shouldIgnoreFileShortcut(event: KeyboardEvent): boolean {
   return Boolean(target.closest('a[href], button, input, select, textarea, [role="button"], [role="menuitem"]'))
 }
 
-// ─── Batch Action Bar ───
+// ─── Toolbar + Action Bar ───
 
-const BatchBar = memo(function BatchBar({
-  selectedLabel,
-  deleteLabel,
-  onDelete,
-  onClear
+const FileToolbar = memo(function FileToolbar({
+  showSelectionControls,
+  selectionControlsDisabled,
+  isTrash,
+  canEmptyTrash,
+  selectedCount,
+  visibleSelectionState,
+  batchDeleteLabel,
+  onUpload,
+  onEmptyTrash,
+  onBatchDelete,
+  onBatchRestore,
+  onSelectAll
 }: {
-  selectedLabel: string
-  deleteLabel: string
-  onDelete: () => void
-  onClear: () => void
+  showSelectionControls: boolean
+  selectionControlsDisabled: boolean
+  isTrash: boolean
+  canEmptyTrash: boolean
+  selectedCount: number
+  visibleSelectionState: boolean | 'indeterminate'
+  batchDeleteLabel: string
+  onUpload: () => void
+  onEmptyTrash: () => void
+  onBatchDelete: () => void
+  onBatchRestore: () => void
+  onSelectAll: (checked: boolean) => void
 }) {
+  const { t } = useTranslation()
+  const allSelected = visibleSelectionState === true
+  const hasBatchAction = selectedCount > 1
+
   return (
-    <div className="flex items-center gap-2 border-border/30 border-b bg-accent/50 px-4 py-1.5">
-      <span className="font-medium text-muted-foreground text-xs">{selectedLabel}</span>
+    <div className="flex min-h-12 items-center gap-2 border-border-muted border-b bg-background px-4">
+      {showSelectionControls && (
+        <div className="-ml-2 flex h-8 items-center overflow-hidden rounded-md border border-border-muted bg-background">
+          <div
+            className={`flex h-full items-center gap-2 px-2 ${
+              selectionControlsDisabled ? 'text-muted-foreground/35' : 'text-foreground hover:bg-accent/50'
+            }`}>
+            <div className="flex w-5 shrink-0 items-center justify-center">
+              <Checkbox
+                size="sm"
+                checked={visibleSelectionState}
+                disabled={selectionControlsDisabled}
+                onCheckedChange={(checked) => onSelectAll(Boolean(checked))}
+                aria-label={t('files.select_all_short')}
+              />
+            </div>
+            <button
+              type="button"
+              disabled={selectionControlsDisabled}
+              className="h-full whitespace-nowrap text-sm leading-none disabled:cursor-default"
+              onClick={() => onSelectAll(!allSelected)}>
+              {t('files.select_all_short')}
+            </button>
+          </div>
+          <div className="h-full w-px bg-border-muted" />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                disabled={selectionControlsDisabled}
+                className="h-full w-8 rounded-none p-0 text-muted-foreground hover:text-foreground"
+                aria-label={t('files.actions')}>
+                <MoreHorizontal size={15} strokeWidth={1.8} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-36">
+              {isTrash && selectedCount > 1 && (
+                <DropdownMenuItem onSelect={onBatchRestore}>
+                  {t('files.restore')} ({selectedCount})
+                </DropdownMenuItem>
+              )}
+              {selectedCount > 1 && (
+                <DropdownMenuItem variant="destructive" onSelect={onBatchDelete}>
+                  {batchDeleteLabel} ({selectedCount})
+                </DropdownMenuItem>
+              )}
+              {!hasBatchAction && <DropdownMenuItem disabled>{t('files.no_actions')}</DropdownMenuItem>}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
       <div className="flex-1" />
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onDelete}
-        className="flex items-center gap-1 rounded-md px-2 py-[3px] text-destructive/60 text-xs transition-colors hover:bg-destructive/[0.08]">
-        <Trash2 size={10} />
-        <span>{deleteLabel}</span>
-      </Button>
-      <Button
-        variant="ghost"
-        onClick={onClear}
-        className="flex h-5 w-5 items-center justify-center rounded-md p-0 text-muted-foreground/40 transition-colors hover:bg-accent hover:text-foreground">
-        <X size={10} />
-      </Button>
+      {isTrash ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={!canEmptyTrash}
+          onClick={onEmptyTrash}
+          className="h-8 px-2.5 text-destructive/65 text-xs hover:bg-destructive/[0.08] hover:text-destructive disabled:text-muted-foreground/35">
+          {t('files.empty_trash')}
+        </Button>
+      ) : (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onUpload}
+          className="h-8 gap-1.5 px-2.5 text-muted-foreground text-xs">
+          <Upload size={13} />
+          <span>{t('files.upload')}</span>
+        </Button>
+      )}
     </div>
   )
 })
@@ -279,8 +358,6 @@ function FilesPage() {
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [dragOver, setDragOver] = useState(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
-  const [renameDialogFile, setRenameDialogFile] = useState<FileItem | null>(null)
-  const [renameDialogText, setRenameDialogText] = useState('')
   const [pendingPermanentDeleteIds, setPendingPermanentDeleteIds] = useState<Set<string> | null>(null)
   const contentScrollRef = useRef<HTMLDivElement | null>(null)
   const pendingLoadMoreRef = useRef(false)
@@ -401,14 +478,10 @@ function FilesPage() {
     }
   }, [displayEntries, isFilesLoading, isFilesRefreshing])
 
-  const files = useMemo(
-    () =>
-      displayEntries.flatMap((entry) => {
-        const file = toFileItem(entry, metadataById, physicalPathById, danglingStateById)
-        return file ? [file] : []
-      }),
-    [displayEntries, metadataById, physicalPathById, danglingStateById]
-  )
+  const files = useMemo(() => {
+    const items = displayEntries.map((entry) => toFileItem(entry, metadataById, physicalPathById, danglingStateById))
+    return items.filter((item): item is FileItem => item !== null)
+  }, [displayEntries, danglingStateById, metadataById, physicalPathById])
 
   const refetchFiles = useCallback(async () => {
     resetActiveFiles()
@@ -417,6 +490,7 @@ function FilesPage() {
   }, [refetchFileStats, refreshActiveFiles, refreshTrashedFiles, resetActiveFiles, resetTrashedFiles])
 
   const isTrash = filter.kind === 'library' && filter.value === 'trash'
+  const isImageGrid = filter.kind === 'type' && filter.value === 'image'
   const hasMoreCurrentFiles = isTrash ? hasMoreTrashedFiles : hasMoreActiveFiles
   const isLoadingMoreActiveFiles = isActiveFilesRefreshing && activeFilePages.length > 0
   const isLoadingMoreTrashedFiles = isTrashedFilesRefreshing && trashedFilePages.length > 0
@@ -438,28 +512,26 @@ function FilesPage() {
     })
   }, [])
 
-  const handleContentScroll = useCallback(
-    (e: React.UIEvent<HTMLDivElement>) => {
-      const el = e.currentTarget
-      if (
-        hasMoreCurrentFiles &&
-        !isLoadingMoreCurrentFiles &&
-        !pendingLoadMoreRef.current &&
-        el.scrollHeight - el.scrollTop - el.clientHeight < 160
-      ) {
-        const loadMoreFiles = isTrash ? loadMoreTrashedFiles : loadMoreActiveFiles
-        requestLoadMore(loadMoreFiles)
-      }
-    },
-    [
-      hasMoreCurrentFiles,
-      isLoadingMoreCurrentFiles,
-      isTrash,
-      loadMoreActiveFiles,
-      loadMoreTrashedFiles,
-      requestLoadMore
-    ]
-  )
+  const handleContentScroll = useCallback(() => {
+    const el = contentScrollRef.current
+    if (!el) return
+    if (
+      hasMoreCurrentFiles &&
+      !isLoadingMoreCurrentFiles &&
+      !pendingLoadMoreRef.current &&
+      el.scrollHeight - el.scrollTop - el.clientHeight < 160
+    ) {
+      const loadMoreFiles = isTrash ? loadMoreTrashedFiles : loadMoreActiveFiles
+      requestLoadMore(loadMoreFiles)
+    }
+  }, [
+    hasMoreCurrentFiles,
+    isLoadingMoreCurrentFiles,
+    isTrash,
+    loadMoreActiveFiles,
+    loadMoreTrashedFiles,
+    requestLoadMore
+  ])
 
   const maybeFillClientFilteredViewport = useCallback(() => {
     // Type filters are applied client-side over the loaded active pages.
@@ -525,6 +597,22 @@ function FilesPage() {
     [refetchFiles, t]
   )
 
+  const handleUploadClick = useCallback(async () => {
+    try {
+      const selected = await window.api.file.select({
+        properties: ['openFile', 'multiSelections'],
+        filters: [{ name: t('files.all'), extensions: ['*'] }]
+      })
+      if (!selected || selected.length === 0) return
+
+      const paths = selected.map((file) => file.path).filter((path): path is string => Boolean(path))
+      await handleImportPaths(paths)
+    } catch (error) {
+      logger.error('Failed to select files for import', error as Error)
+      window.toast?.error(t('files.error.import_failed'))
+    }
+  }, [handleImportPaths, t])
+
   const filteredFiles = useMemo(() => {
     let result = files
 
@@ -575,25 +663,32 @@ function FilesPage() {
     return t('files.delete.label')
   }, [isTrash, selectedFiles, t])
 
-  const handleSelect = useCallback((id: string, multi: boolean) => {
+  const handleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
-      if (multi) {
-        const next = new Set(prev)
-        next.has(id) ? next.delete(id) : next.add(id)
-        return next
-      }
-      return prev.has(id) && prev.size === 1 ? new Set() : new Set([id])
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
     })
   }, [])
 
-  const handleContextMenuOpen = useCallback(
-    (id: string) => {
-      // Right-click selects the item if it isn't already selected; an already-
-      // selected item (including one in a multi-selection) is left untouched.
-      if (!selectedIds.has(id)) setSelectedIds(new Set([id]))
+  const handleSelectAllVisible = useCallback(
+    (checked: boolean) => {
+      setSelectedIds((prev) => {
+        if (checked) return new Set([...prev, ...filteredFiles.map((file) => file.id)])
+
+        const visibleIds = new Set(filteredFiles.map((file) => file.id))
+        return new Set([...prev].filter((id) => !visibleIds.has(id)))
+      })
     },
-    [selectedIds]
+    [filteredFiles]
   )
+
+  const visibleSelectionState = useMemo(() => {
+    if (filteredFiles.length === 0) return false
+    const selectedVisibleCount = filteredFiles.filter((file) => selectedIds.has(file.id)).length
+    if (selectedVisibleCount === 0) return false
+    return selectedVisibleCount === filteredFiles.length ? true : 'indeterminate'
+  }, [filteredFiles, selectedIds])
 
   const performDelete = useCallback(
     async (targetIds: Set<string>) => {
@@ -649,13 +744,34 @@ function FilesPage() {
     [files, isTrash, performDelete, selectedIds]
   )
 
+  const emptyTrash = useCallback(async () => {
+    try {
+      const result = await ipcApi.request('file.empty_trash')
+      reportMutationFailures('file empty trash', result, t('files.error.delete_partial_failed'))
+      setSelectedIds(new Set())
+      await refetchFiles()
+    } catch (error) {
+      logger.error('Failed to empty trash', error as Error)
+      window.toast?.error(t('files.error.delete_failed'))
+    }
+  }, [refetchFiles, t])
+
   const handlePermanentDeleteConfirm = useCallback(() => {
     const ids = pendingPermanentDeleteIds
     if (!ids) return
 
     setPendingPermanentDeleteIds(null)
+    if (ids.size === 0) {
+      void emptyTrash()
+      return
+    }
     void performDelete(ids)
-  }, [pendingPermanentDeleteIds, performDelete])
+  }, [emptyTrash, pendingPermanentDeleteIds, performDelete])
+
+  const handleEmptyTrash = useCallback(() => {
+    if (!isTrash || filteredFiles.length === 0) return
+    setPendingPermanentDeleteIds(new Set())
+  }, [filteredFiles, isTrash])
 
   const handleRestore = useCallback(
     async (ids: Set<string>) => {
@@ -704,34 +820,8 @@ function FilesPage() {
   )
 
   const startInlineRename = useCallback((id: string) => {
-    setRenameDialogFile(null)
     setRenamingId(id)
   }, [])
-
-  const startGridRename = useCallback(
-    (id: string) => {
-      const file = files.find((item) => item.id === id)
-      if (!file) return
-
-      setRenamingId(null)
-      setRenameDialogFile(file)
-      setRenameDialogText(file.name)
-    },
-    [files]
-  )
-
-  const renameDialogBaseName = renameDialogFile
-    ? stripCurrentExtension(renameDialogText, renameDialogFile.format).trim()
-    : ''
-
-  const handleRenameDialogConfirm = useCallback(() => {
-    const file = renameDialogFile
-    const name = renameDialogText.trim()
-    if (!file || !renameDialogBaseName) return
-
-    setRenameDialogFile(null)
-    void handleRename(file.id, name)
-  }, [handleRename, renameDialogBaseName, renameDialogFile, renameDialogText])
 
   const listMenuActions = useMemo<FileContextMenuActions>(
     () => ({
@@ -741,16 +831,6 @@ function FilesPage() {
       onShowInFolder: handleShowInFolder
     }),
     [handleDelete, handleRestore, handleShowInFolder, startInlineRename]
-  )
-
-  const gridMenuActions = useMemo<FileContextMenuActions>(
-    () => ({
-      onRename: startGridRename,
-      onDelete: (id) => handleDelete(new Set([id])),
-      onRestore: (id) => void handleRestore(new Set([id])),
-      onShowInFolder: handleShowInFolder
-    }),
-    [handleDelete, handleRestore, handleShowInFolder, startGridRename]
   )
 
   const handleSort = useCallback(
@@ -763,6 +843,8 @@ function FilesPage() {
     },
     [sortKey]
   )
+  const isEmptyTrashConfirm = pendingPermanentDeleteIds?.size === 0
+  const permanentDeleteConfirmCount = isEmptyTrashConfirm ? fileCounts.trash : (pendingPermanentDeleteIds?.size ?? 0)
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -773,13 +855,12 @@ function FilesPage() {
       }
       if ((e.key === 'F2' || (isMac && e.key === 'Enter')) && selectedIds.size === 1) {
         e.preventDefault()
-        if (filter.kind === 'type' && filter.value === 'image') startGridRename([...selectedIds][0])
-        else startInlineRename([...selectedIds][0])
+        startInlineRename([...selectedIds][0])
       }
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [selectedIds, filter, handleDelete, renamingId, startGridRename, startInlineRename])
+  }, [selectedIds, handleDelete, renamingId, startInlineRename])
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -789,42 +870,10 @@ function FilesPage() {
           setFilter(f)
           setSelectedIds(new Set())
           setRenamingId(null)
-          setRenameDialogFile(null)
           setPendingPermanentDeleteIds(null)
         }}
         fileCounts={fileCounts}
       />
-
-      <Dialog
-        open={renameDialogFile !== null}
-        onOpenChange={(open) => {
-          if (!open) setRenameDialogFile(null)
-        }}>
-        <DialogContent aria-describedby={undefined} className="max-w-sm rounded-xl">
-          <DialogHeader>
-            <DialogTitle>{t('common.rename')}</DialogTitle>
-          </DialogHeader>
-          <Input
-            autoFocus
-            aria-label={t('common.rename')}
-            value={renameDialogText}
-            onChange={(event) => setRenameDialogText(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') handleRenameDialogConfirm()
-              if (event.key === 'Escape') setRenameDialogFile(null)
-            }}
-            className="h-9 rounded-md border-input bg-background"
-          />
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setRenameDialogFile(null)}>
-              {t('common.cancel')}
-            </Button>
-            <Button size="sm" disabled={!renameDialogBaseName} onClick={handleRenameDialogConfirm}>
-              {t('common.save')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog
         open={pendingPermanentDeleteIds !== null}
@@ -836,14 +885,14 @@ function FilesPage() {
             <DialogTitle>{t('files.permanent_delete_confirm.title')}</DialogTitle>
           </DialogHeader>
           <p className="text-muted-foreground text-sm">
-            {t('files.permanent_delete_confirm.description', { count: pendingPermanentDeleteIds?.size ?? 0 })}
+            {t('files.permanent_delete_confirm.description', { count: permanentDeleteConfirmCount })}
           </p>
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setPendingPermanentDeleteIds(null)}>
               {t('common.cancel')}
             </Button>
             <Button variant="destructive" size="sm" onClick={handlePermanentDeleteConfirm}>
-              {t('files.permanent_delete')}
+              {isEmptyTrashConfirm ? t('files.empty_trash') : t('files.permanent_delete')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -852,11 +901,13 @@ function FilesPage() {
       <div
         className={`relative flex min-w-0 flex-1 flex-col transition-colors ${dragOver ? 'bg-accent/25' : ''}`}
         onDragOver={(e) => {
+          if (isTrash) return
           e.preventDefault()
           setDragOver(true)
         }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => {
+          if (isTrash) return
           e.preventDefault()
           setDragOver(false)
           const paths = Array.from(e.dataTransfer.files)
@@ -864,14 +915,20 @@ function FilesPage() {
             .filter((path): path is string => Boolean(path))
           void handleImportPaths(paths)
         }}>
-        {selectedIds.size > 1 && (
-          <BatchBar
-            selectedLabel={t('files.selected_count', { count: selectedIds.size })}
-            deleteLabel={batchDeleteLabel}
-            onDelete={() => handleDelete()}
-            onClear={() => setSelectedIds(new Set())}
-          />
-        )}
+        <FileToolbar
+          showSelectionControls={!isImageGrid}
+          selectionControlsDisabled={filteredFiles.length === 0}
+          isTrash={isTrash}
+          canEmptyTrash={filteredFiles.length > 0}
+          selectedCount={selectedIds.size}
+          visibleSelectionState={visibleSelectionState}
+          batchDeleteLabel={batchDeleteLabel}
+          onUpload={() => void handleUploadClick()}
+          onEmptyTrash={handleEmptyTrash}
+          onBatchDelete={() => handleDelete()}
+          onBatchRestore={() => void handleRestore(new Set(selectedIds))}
+          onSelectAll={handleSelectAllVisible}
+        />
 
         {dragOver && (
           <div className="pointer-events-none absolute inset-0 z-50 m-2 flex items-center justify-center rounded-lg border-2 border-border/50 border-dashed bg-accent/25">
@@ -882,9 +939,10 @@ function FilesPage() {
           </div>
         )}
 
-        <div
+        <Scrollbar
+          data-testid="files-scrollbar"
           ref={contentScrollRef}
-          className="relative flex-1 overflow-y-auto"
+          className="relative flex-1"
           onScroll={handleContentScroll}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -904,44 +962,52 @@ function FilesPage() {
                 />
               )}
             </div>
-          ) : filter.kind === 'type' && filter.value === 'image' ? (
-            <FileGrid
-              files={filteredFiles}
-              selectedIds={selectedIds}
-              onSelect={handleSelect}
-              onContextMenuOpen={handleContextMenuOpen}
-              onOpen={handleOpen}
-              onDelete={(id) => handleDelete(new Set([id]))}
-              isTrash={isTrash}
-              menuActions={gridMenuActions}
-              renamingId={renamingId}
-              onRenameConfirm={(id, name) => void handleRename(id, name)}
-              onRenameCancel={() => setRenamingId(null)}
-            />
           ) : (
-            <FileList
-              files={filteredFiles}
-              selectedIds={selectedIds}
-              onSelect={handleSelect}
-              onContextMenuOpen={handleContextMenuOpen}
-              onOpen={handleOpen}
-              isTrash={isTrash}
-              menuActions={listMenuActions}
-              sortKey={sortKey}
-              sortDir={sortDir}
-              onSort={handleSort}
-              renamingId={renamingId}
-              onRenameConfirm={(id, name) => void handleRename(id, name)}
-              onRenameCancel={() => setRenamingId(null)}
-            />
+            <>
+              {isImageGrid ? (
+                <FileGrid
+                  files={filteredFiles}
+                  selectedIds={new Set()}
+                  onSelect={() => {}}
+                  onOpen={handleOpen}
+                  onDelete={(id) => handleDelete(new Set([id]))}
+                  isTrash={isTrash}
+                  menuActions={listMenuActions}
+                  renamingId={renamingId}
+                  onRenameConfirm={(id, name) => void handleRename(id, name)}
+                  onRenameCancel={() => setRenamingId(null)}
+                />
+              ) : (
+                <FileList
+                  files={filteredFiles}
+                  selectedIds={selectedIds}
+                  onSelect={handleSelect}
+                  onOpen={handleOpen}
+                  onSelectAll={handleSelectAllVisible}
+                  visibleSelectionState={visibleSelectionState}
+                  isTrash={isTrash}
+                  menuActions={listMenuActions}
+                  onDelete={(id) => handleDelete(new Set([id]))}
+                  onRestore={(id) => void handleRestore(new Set([id]))}
+                  onRename={startInlineRename}
+                  onShowInFolder={handleShowInFolder}
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                  renamingId={renamingId}
+                  onRenameConfirm={(id, name) => void handleRename(id, name)}
+                  onRenameCancel={() => setRenamingId(null)}
+                />
+              )}
+            </>
           )}
-        </div>
+        </Scrollbar>
 
         <div className="flex items-center gap-3 border-border/15 border-t px-4 py-1">
           <span className="text-muted-foreground/40 text-xs">
             {t('files.footer_count', { count: footerFileCount })}
           </span>
-          {selectedIds.size > 0 && (
+          {!isImageGrid && selectedIds.size > 0 && (
             <span className="text-muted-foreground/40 text-xs">
               {t('files.footer_selected_count', { count: selectedIds.size })}
             </span>
