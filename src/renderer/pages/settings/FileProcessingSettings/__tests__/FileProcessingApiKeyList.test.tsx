@@ -164,14 +164,15 @@ describe('FileProcessingApiKeyList', () => {
     expect(screen.getByText('key-1')).toBeInTheDocument()
   })
 
-  it('updates saved key rows from apiKeys props', () => {
-    const { rerender } = render(
+  it('uses the latest apiKeys snapshot when remounted', () => {
+    const { unmount } = render(
       <FileProcessingApiKeyList processorId="mistral" apiKeys={['key-1']} onSetApiKeys={setApiKeysMock} />
     )
 
     expect(screen.getByText('key-1')).toBeInTheDocument()
 
-    rerender(<FileProcessingApiKeyList processorId="mistral" apiKeys={['key-2']} onSetApiKeys={setApiKeysMock} />)
+    unmount()
+    render(<FileProcessingApiKeyList processorId="mistral" apiKeys={['key-2']} onSetApiKeys={setApiKeysMock} />)
 
     expect(screen.queryByText('key-1')).not.toBeInTheDocument()
     expect(screen.getByText('key-2')).toBeInTheDocument()
