@@ -1,23 +1,21 @@
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
+import { SIDEBAR_ICON_COMPONENTS } from '@renderer/components/app/sidebarIcons'
 import {
   emitResourceListReveal,
   type ResourceListRevealSource
 } from '@renderer/components/chat/resources/resourceListRevealEvents'
-import {
-  findAppTabToFocus,
-  getOrderedVisibleSidebarIcons,
-  getSidebarApp,
-  getSidebarMenuPath,
-  resolveSidebarActiveItem,
-  SIDEBAR_ICON_COMPONENTS
-} from '@renderer/config/sidebar'
-import { clearTabInstanceMetadata } from '@renderer/config/tabInstanceMetadata'
+import { useTabs } from '@renderer/hooks/tab'
 import useAvatar from '@renderer/hooks/useAvatar'
-import { useTabs } from '@renderer/hooks/useTabs'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
-import type { SidebarIcon as SidebarIconType } from '@shared/data/preference/preferenceTypes'
+import {
+  getOrderedVisibleSidebarFavorites,
+  getSidebarMenuPath,
+  resolveSidebarActiveItem
+} from '@renderer/utils/sidebar'
+import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
+import type { SidebarFavorite } from '@shared/data/preference/preferenceTypes'
 import type { Ref } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -31,7 +29,7 @@ import type { SidebarMenuItem, SidebarUser, SidebarVisibleLayout } from '../Side
 
 const noop = () => {}
 
-function getResourceListRevealSource(menuItemId: SidebarIconType): ResourceListRevealSource | null {
+function getResourceListRevealSource(menuItemId: SidebarFavorite): ResourceListRevealSource | null {
   if (menuItemId === 'assistants' || menuItemId === 'agents') return menuItemId
   return null
 }
@@ -40,7 +38,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const [sidebarFavorites] = usePreference('ui.sidebar.favorites')
-  const { activeTab, tabs, updateTab, openTab, setActiveTab } = useTabs()
+  const { activeTab, updateTab, openTab } = useTabs()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
 
   // Sidebar width — persisted across restarts. Dragging through the
@@ -101,7 +99,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const items = useMemo<SidebarMenuItem[]>(
     () =>
-      getOrderedVisibleSidebarIcons(sidebarFavorites).flatMap((icon) => {
+      getOrderedVisibleSidebarFavorites(sidebarFavorites).flatMap((icon) => {
         const path = getSidebarMenuPath(icon, defaultPaintingProvider)
         const Icon = SIDEBAR_ICON_COMPONENTS[icon]
         if (!path || !Icon) {
@@ -122,27 +120,12 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const handleNavigate = useCallback(
     (menuItemId: string) => {
-      const menuId = menuItemId as SidebarIconType
+      const menuId = menuItemId as SidebarFavorite
       const path = getSidebarMenuPath(menuId, defaultPaintingProvider)
       if (!path || activeTab?.url === path) return
 
       const title = getDefaultRouteTitle(path)
       const revealSource = getResourceListRevealSource(menuId)
-
-      // Uniqueness: if a tab for this app already exists, focus it instead of
-      // duplicating it (or clobbering the active tab into a second copy). Only
-      // fall through to reuse-active / open when no tab for the app exists yet.
-      const app = getSidebarApp(menuId)
-      const existingId = app ? findAppTabToFocus(app, tabs, { defaultPaintingProvider }) : undefined
-      if (existingId) {
-        if (existingId !== activeTab?.id) {
-          setActiveTab(existingId)
-        }
-        if (revealSource) {
-          emitResourceListReveal({ source: revealSource, tabId: existingId })
-        }
-        return
-      }
 
       if (activeTab?.isPinned) {
         const openedId = openTab(path, { forceNew: true, title })
@@ -170,7 +153,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         emitResourceListReveal({ source: revealSource, tabId: openedId })
       }
     },
-    [activeTab, tabs, updateTab, openTab, setActiveTab, defaultPaintingProvider]
+    [activeTab, updateTab, openTab, defaultPaintingProvider]
   )
   const handleOpenSettingsTab = useCallback(() => {
     openTab('/settings/provider', { title: t('settings.title') })

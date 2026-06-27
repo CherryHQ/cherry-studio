@@ -65,7 +65,7 @@ vi.mock('../adapters/agentAdapter', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/agents/useAgentModelFilter', () => ({
+vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelFilter: () => vi.fn(() => true)
 }))
 
@@ -87,7 +87,7 @@ vi.mock('@renderer/hooks/useTags', () => ({
   })
 }))
 
-vi.mock('@renderer/context/TabsContext', () => ({
+vi.mock('@renderer/hooks/tab', () => ({
   useOptionalTabsContext: () => ({
     openTab: openTabMock
   })

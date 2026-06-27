@@ -1,5 +1,5 @@
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
-import { isMac } from '@renderer/config/constant'
+import { isMac } from '@renderer/utils/platform'
 import { classNames } from '@renderer/utils/style'
 import { t } from 'i18next'
 import React, { use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'

@@ -210,7 +210,7 @@ each event by calling these methods uniformly:
 ```typescript
 interface StreamListener {
   readonly id: string
-  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId): void
+  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string): void
   onDone(result: StreamDoneResult): void | Promise<void>      // { finalMessage?, status: 'success', ... }
   onPaused(result: StreamPausedResult): void | Promise<void>  // { finalMessage?, status: 'paused',  ... }
   onError(result: StreamErrorResult): void | Promise<void>    // { finalMessage?, error, status: 'error', ... }
@@ -226,6 +226,12 @@ error-path partial a `partialMessage`; this turned out to be just a
 `finalMessage` that ended early. Unifying the shape means
 `PersistenceBackend` needs one `persistAssistant` method, not separate
 write paths per status.
+
+Renderer-facing listeners also receive `anchorMessageId`, the assistant
+row the execution writes to. This is part of the stream branch identity:
+`sourceModelId` distinguishes parallel model executions, while
+`anchorMessageId` distinguishes same-model chained turns such as steer
+continuations.
 
 ### Built-in implementations
 

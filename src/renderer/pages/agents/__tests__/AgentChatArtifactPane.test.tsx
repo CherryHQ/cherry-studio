@@ -357,7 +357,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/agents/useAgent', () => ({
+vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgent: () => ({
     agent: { id: 'agent-1', model: 'provider:model-1' },
     isLoading: false

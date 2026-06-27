@@ -62,12 +62,8 @@ vi.mock('@renderer/components/Selector', () => ({
   ModelSelector: ({ trigger }: { trigger: ReactNode }) => <>{trigger}</>
 }))
 
-vi.mock('@renderer/config/models', () => ({
+vi.mock('@renderer/utils/model', () => ({
   isVisionModel: vi.fn(() => false)
-}))
-
-vi.mock('@renderer/config/models/_bridge', () => ({
-  toSharedCompatModel: vi.fn(() => undefined)
 }))
 
 vi.mock('@renderer/components/chat/messages/editing/MessageEditingContext', () => ({

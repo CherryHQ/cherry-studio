@@ -4,25 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import MiniAppIcon from '../MiniAppIcon'
 
-vi.mock('@renderer/config/miniApps', () => ({
-  allMiniApps: [
-    {
-      id: 'test-app-1',
-      name: 'Test App 1',
-      logo: '/test-logo-1.png',
-      url: 'https://test1.com',
-      bordered: true,
-      background: '#f0f0f0'
-    },
-    {
-      id: 'test-app-2',
-      name: 'Test App 2',
-      logo: '/test-logo-2.png',
-      url: 'https://test2.com',
-      bordered: false,
-      background: undefined
-    }
-  ],
+vi.mock('@renderer/components/Icons/miniAppsLogo', () => ({
   getMiniAppsLogo: (logo: unknown) => {
     if (logo !== 'compound-logo') return logo
     const CompoundLogo = ({

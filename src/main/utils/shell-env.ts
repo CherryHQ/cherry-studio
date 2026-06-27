@@ -351,3 +351,16 @@ export async function refreshShellEnv(): Promise<Record<string, string>> {
   cachedEnv = await fetchShellEnv()
   return cachedEnv
 }
+
+/**
+ * Strip proxy-related variables from an environment map in place.
+ * Used before spawning child processes that must not inherit Cherry's proxy
+ * settings (e.g. Bun, which does not support HTTPS proxies).
+ */
+export const removeEnvProxy = (env: Record<string, string>) => {
+  delete env.HTTPS_PROXY
+  delete env.HTTP_PROXY
+  delete env.grpc_proxy
+  delete env.http_proxy
+  delete env.https_proxy
+}

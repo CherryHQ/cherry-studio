@@ -37,20 +37,20 @@ export type FileType = z.infer<typeof FileTypeSchema>
  */
 export type FilePath = `/${string}` | `${string}:\\${string}`
 export type Base64String = `data:${string};base64,${string}`
-export type URLString = `http://${string}` | `https://${string}`
+export type UrlString = `http://${string}` | `https://${string}`
 
 /**
  * `file://` URL pointing at a local resource.
  *
  * Runtime validation required — the template-literal pattern only provides a
  * type-level hint. Produced by the shared pure helper
- * `toSafeFileUrl(path, ext)` (in `@shared/utils/file/urlUtil`), which composes an
+ * `toSafeFileUrl(path, ext)` (in `@shared/utils/file/url`), which composes an
  * absolute `FilePath` (obtained from File IPC `getPhysicalPath` /
  * `batchGetPhysicalPaths`) with a danger-file safety wrap (for
  * `.sh` / `.bat` / `.ps1` / `.exe` / `.app` etc., the URL points at the
  * containing directory instead of the file).
  *
- * Keep this distinct from `URLString` (http/https) so signatures can refuse
+ * Keep this distinct from `UrlString` (http/https) so signatures can refuse
  * the wrong family.
  *
  * The safety wrap is scoped to HTML rendering contexts (`<img src>` /
@@ -58,9 +58,9 @@ export type URLString = `http://${string}` | `https://${string}`
  * primitive — don't compose this value into shell commands or subprocess args.
  * Use the raw `FilePath` from `getPhysicalPath` for those cases.
  */
-export type FileURLString = `file://${string}`
+export type FileUrlString = `file://${string}`
 
-export type FileContent = FilePath | Base64String | URLString | Uint8Array
+export type FileContent = FilePath | Base64String | UrlString | Uint8Array
 
 // ─── Physical File Metadata ───
 

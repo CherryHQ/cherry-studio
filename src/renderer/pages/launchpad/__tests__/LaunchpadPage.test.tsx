@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
+import type { SidebarFavorite } from '@shared/data/preference/preferenceTypes'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   pinnedMiniApps: [] as any[],
   openedMiniApps: [] as any[],
   setSidebarFavorites: vi.fn(() => Promise.resolve()),
-  sidebarFavorites: ['assistants'] as SidebarIcon[]
+  sidebarFavorites: ['assistants'] as SidebarFavorite[]
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
@@ -74,7 +74,7 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
-  getSidebarIconLabelKey: (key: SidebarIcon) =>
+  getSidebarIconLabelKey: (key: SidebarFavorite) =>
     ({
       assistants: 'Chat',
       agents: 'Agent',
