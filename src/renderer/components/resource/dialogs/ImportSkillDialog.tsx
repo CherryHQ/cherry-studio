@@ -69,8 +69,9 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
   const failInstall = (e: unknown, fallbackName?: string) => {
     const fallback = t('settings.skills.installFailed', { name: fallbackName ?? t('library.type.skill') })
     const message = e instanceof Error && e.message ? e.message : fallback
+    // `useSkillInstall` already surfaces the toast via `reportAndRethrowSkillMutationError`;
+    // the dialog only owns the inline banner so a bad ZIP/directory doesn't double-toast.
     setStatus({ kind: 'error', message })
-    window.toast.error(message)
   }
 
   const handleZipPick = async () => {
