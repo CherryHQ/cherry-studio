@@ -9,7 +9,6 @@ import type {
 } from '@shared/data/preference/preferenceTypes'
 import type { FileEntry } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
-import type { SettingsPath } from '@shared/data/types/settingsPath'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ApiGatewayStatusResult } from '@shared/types/apiGateway'
 import type { S3Config, WebDavConfig } from '@shared/types/backup'
@@ -486,16 +485,6 @@ const api = {
         ipcRenderer.off(IpcChannel.Webview_SearchHotkey, listener)
       }
     }
-  },
-  settings: {
-    // NOTE: misplaced API, kept here as an interim home. `openSettings` opens the
-    // Settings *window* — a navigation/feature concern, NOT a window-control primitive —
-    // yet it was historically grouped under `windowManager`. It is parked under `settings`
-    // so it stops leaking into the window domain, but the underlying `SettingsWindow_Open`
-    // IPC is still legacy (not on IpcApi). FOLLOW-UP: migrate it onto a proper settings /
-    // navigation IpcApi domain and remove this stopgap.
-    openSettings: (path: SettingsPath = '/settings/provider'): Promise<string> =>
-      ipcRenderer.invoke(IpcChannel.SettingsWindow_Open, path)
   },
   wechat: {
     onQrLogin: (

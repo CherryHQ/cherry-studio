@@ -20,7 +20,6 @@ const {
   windowServiceMock,
   windowManagerMock,
   selectionServiceMock,
-  settingsWindowServiceMock,
   quickAssistantServiceMock,
   commandServiceMock,
   globalShortcutMock
@@ -37,9 +36,6 @@ const {
   selectionServiceMock: {
     toggleEnabled: vi.fn(),
     processSelectTextByShortcut: vi.fn()
-  },
-  settingsWindowServiceMock: {
-    open: vi.fn()
   },
   quickAssistantServiceMock: {
     toggleQuickAssistant: vi.fn()
@@ -59,7 +55,6 @@ vi.mock('@application', async () => {
     MainWindowService: windowServiceMock,
     WindowManager: windowManagerMock,
     SelectionService: selectionServiceMock,
-    SettingsWindowService: settingsWindowServiceMock,
     QuickAssistantService: quickAssistantServiceMock,
     CommandService: commandServiceMock
   } as any)
@@ -206,14 +201,13 @@ describe('ShortcutService', () => {
     expect(commandServiceMock.execute).toHaveBeenCalledWith('app.window.show', mainWindow)
   })
 
-  it('opens the settings window through SettingsWindowService', async () => {
+  it('executes the settings command through CommandService', async () => {
     await (service as any).onInit()
 
     const handler = (service as any).handlers.get('app.settings.open') as (() => void) | undefined
     handler?.()
 
     expect(commandServiceMock.execute).toHaveBeenCalledWith('app.settings.open', undefined)
-    expect(settingsWindowServiceMock.open).not.toHaveBeenCalled()
     expect(windowServiceMock.showMainWindow).not.toHaveBeenCalled()
   })
 

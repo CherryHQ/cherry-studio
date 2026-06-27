@@ -397,11 +397,7 @@ export enum IpcChannel {
 
   // AI capability IPC (model ops, streaming chat, agent-session warm-up, tool approval,
   // agent run-task) migrated to IpcApi (`ai.*`). Only `translate.open` remains on legacy IPC.
-  Ai_Translate_Open = 'ai:translate:open',
-
-  // Settings window — legacy "open a named window" channel (preload `settings.openSettings`).
-  // The former WindowManager_* control + event channels were migrated to IpcApi (`window.*`).
-  SettingsWindow_Open = 'settings-window:open'
+  Ai_Translate_Open = 'ai:translate:open'
 
   // BinaryManager (tool manager) was migrated to IpcApi (`binary.*`).
 

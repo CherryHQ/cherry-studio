@@ -103,7 +103,7 @@ keeps only `ShortcutPreferenceKey` + `ResolvedShortcut`.
 
 Mount `<ContextKeyProvider><CommandProvider>` once per renderer window — every
 window root mounts it: `windows/main/MainApp.tsx`,
-`windows/settings/SettingsApp.tsx`, and `windows/subWindow/SubWindowApp.tsx`.
+`windows/quickAssistant/QuickAssistantApp.tsx`, and `windows/subWindow/SubWindowApp.tsx`.
 
 ### Preferences
 

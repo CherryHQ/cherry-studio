@@ -58,10 +58,6 @@ vi.mock('@renderer/i18n/label', () => ({
   getThemeModeLabel: () => 'Light'
 }))
 
-vi.mock('@renderer/services/SettingsWindowService', () => ({
-  openSettingsWindow: vi.fn()
-}))
-
 vi.mock('@renderer/utils/error', () => ({
   formatErrorMessage: (error: unknown) => (error instanceof Error ? error.message : String(error))
 }))

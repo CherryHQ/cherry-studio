@@ -31,7 +31,6 @@ Each window declares its logger source **declaratively** in its `index.html`, no
 | Window | L2 root | L3 content |
 |---|---|---|
 | `main` | `MainApp` | `components/layout/AppShell` (shared) |
-| `settings` | `SettingsApp` | route tree (`@renderer/routeTree.gen`) |
 | `subWindow` | `SubWindowApp` | `SubWindowAppShell` |
 | `quickAssistant` | `QuickAssistantApp` | `HomeWindow` |
 | `migrationV2` | `MigrationApp` | in-component (`components/`) |

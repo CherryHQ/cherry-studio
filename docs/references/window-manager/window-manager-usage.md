@@ -12,7 +12,7 @@ In `types.ts`:
 export enum WindowType {
   Main = 'main',
   // ... existing types
-  Settings = 'settings',  // <-- add your new type
+  MyWindow = 'myWindow',  // <-- add your new type
 }
 ```
 
@@ -21,10 +21,10 @@ export enum WindowType {
 In `windowRegistry.ts`:
 
 ```typescript
-WINDOW_TYPE_REGISTRY[WindowType.Settings] = {
-  type: WindowType.Settings,
+WINDOW_TYPE_REGISTRY[WindowType.MyWindow] = {
+  type: WindowType.MyWindow,
   lifecycle: 'singleton',
-  htmlPath: 'settings.html',
+  htmlPath: 'windows/myWindow/index.html',
   // preload omitted → defaults to 'index.js'
   // showMode omitted → defaults to 'auto'
   windowOptions: {
@@ -46,7 +46,7 @@ import { WindowType } from '@main/core/window/types'
 const wm = application.get('WindowManager')
 
 // open() is lifecycle-aware — handles singleton reuse, pool recycle, etc.
-const windowId = wm.open(WindowType.Settings)
+const windowId = wm.open(WindowType.MyWindow)
 ```
 
 ### 4. Inject domain behavior via `onWindowCreatedByType`
@@ -54,13 +54,13 @@ const windowId = wm.open(WindowType.Settings)
 ```typescript
 // In your domain service's onInit():
 const wm = application.get('WindowManager')
-wm.onWindowCreatedByType(WindowType.Settings, ({ window, id }) => {
+wm.onWindowCreatedByType(WindowType.MyWindow, ({ window, id }) => {
   // Store the windowId for later use
-  this.settingsWindowId = id
+  this.myWindowId = id
 
   // Attach event listeners BEFORE content loads
   window.on('closed', () => {
-    this.settingsWindowId = undefined
+    this.myWindowId = undefined
   })
 })
 ```
@@ -68,9 +68,9 @@ wm.onWindowCreatedByType(WindowType.Settings, ({ window, id }) => {
 The example above uses **destructuring**. An equivalent using the `mw` shorthand (useful when the callback body is long or accesses many fields):
 
 ```typescript
-wm.onWindowCreatedByType(WindowType.Settings, (mw) => {
-  this.settingsWindowId = mw.id
-  mw.window.on('closed', () => { this.settingsWindowId = undefined })
+wm.onWindowCreatedByType(WindowType.MyWindow, (mw) => {
+  this.myWindowId = mw.id
+  mw.window.on('closed', () => { this.myWindowId = undefined })
 })
 ```
 
@@ -83,30 +83,30 @@ The `onWindowCreated` event is the canonical hook for domain services to inject 
 ### The Pattern
 
 ```typescript
-@Injectable('SettingsService')
+@Injectable('MyWindowService')
 @ServicePhase(Phase.WhenReady)
-export class SettingsService extends BaseService {
-  private settingsWindowId: string | undefined
+export class MyWindowService extends BaseService {
+  private myWindowId: string | undefined
 
   protected override onInit(): void {
     const wm = application.get('WindowManager')
 
-    wm.onWindowCreatedByType(WindowType.Settings, ({ window, id }) => {
+    wm.onWindowCreatedByType(WindowType.MyWindow, ({ window, id }) => {
       // 1. Store the windowId
-      this.settingsWindowId = id
+      this.myWindowId = id
 
       // 2. Attach listeners BEFORE content loads
       window.once('ready-to-show', () => {
-        this.sendInitialConfig(window)
+        this.sendInitialData(window)
       })
 
       window.on('closed', () => {
-        this.settingsWindowId = undefined
+        this.myWindowId = undefined
       })
     })
 
-    wm.onWindowDestroyedByType(WindowType.Settings, () => {
-      this.settingsWindowId = undefined
+    wm.onWindowDestroyedByType(WindowType.MyWindow, () => {
+      this.myWindowId = undefined
     })
   }
 }
@@ -130,7 +130,7 @@ For subscriptions that only care about a single window type (the typical consume
 It's tempting to attach listeners inline after `wm.open()` returns, since the ID is right there:
 
 ```typescript
-const id = wm.open(WindowType.Settings)
+const id = wm.open(WindowType.MyWindow)
 const window = wm.getWindow(id)!
 window.on('blur', this.hideIfUnpinned)
 window.once('closed', () => { this.windowId = null })
@@ -151,9 +151,9 @@ The `onWindowCreatedByType` / `onWindowDestroyedByType` listeners receive a `Man
 **Destructuring (recommended default, short callback):**
 
 ```typescript
-wm.onWindowCreatedByType(WindowType.Settings, ({ window, id }) => {
-  this.settingsWindowId = id
-  window.on('closed', () => { this.settingsWindowId = undefined })
+wm.onWindowCreatedByType(WindowType.MyWindow, ({ window, id }) => {
+  this.myWindowId = id
+  window.on('closed', () => { this.myWindowId = undefined })
 })
 ```
 

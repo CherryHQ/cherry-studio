@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { WindowType } from '@main/core/window/types'
+import { openSettingsInMainWindow } from '@main/services/settingsNavigation'
 import { normalizeSettingsPath } from '@shared/data/types/settingsPath'
 
 const logger = loggerService.withContext('ProtocolService:navigate')
@@ -49,7 +50,7 @@ export function handleNavigateProtocolUrl(url: URL, retryAttempt = 0) {
   logger.debug('handleNavigateProtocolUrl', { path: fullPath })
 
   if (fullPath.startsWith('/settings/')) {
-    application.get('SettingsWindowService').open(normalizeSettingsPath(fullPath))
+    openSettingsInMainWindow(normalizeSettingsPath(fullPath))
     return
   }
 

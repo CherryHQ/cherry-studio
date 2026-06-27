@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase, toDisposable } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { showNativePopupMenu } from '@main/services/nativePopupMenu'
+import { openSettingsInMainWindow } from '@main/services/settingsNavigation'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ContextReader } from '@shared/types/command'
@@ -80,7 +81,7 @@ export class CommandService extends BaseService {
     })
 
     this.registerHandler('app.settings.open', () => {
-      application.get('SettingsWindowService').open('/settings/provider')
+      openSettingsInMainWindow('/settings/provider')
     })
 
     this.registerHandler('quick_assistant.toggle', () => {

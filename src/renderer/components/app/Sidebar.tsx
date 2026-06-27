@@ -16,6 +16,7 @@ import { clearTabInstanceMetadata } from '@renderer/config/tabInstanceMetadata'
 import { useTabs } from '@renderer/hooks/tab'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
+import { openSettingsTab } from '@renderer/services/settingsNavigation'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarIcon as SidebarIconType } from '@shared/data/preference/preferenceTypes'
 import type { Ref } from 'react'
@@ -173,8 +174,8 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     [activeTab, tabs, updateTab, openTab, setActiveTab, defaultPaintingProvider]
   )
   const handleOpenSettingsTab = useCallback(() => {
-    openTab('/settings/provider', { title: t('settings.title') })
-  }, [openTab, t])
+    openSettingsTab('/settings/provider')
+  }, [])
 
   // Common props shared between normal and floating sidebar
   const sidebarProps = {

@@ -144,7 +144,6 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'src/renderer/windows/main/index.html'),
-          settings: resolve(__dirname, 'src/renderer/windows/settings/index.html'),
           quickAssistant: resolve(__dirname, 'src/renderer/windows/quickAssistant/index.html'),
           selectionToolbar: resolve(__dirname, 'src/renderer/windows/selection/toolbar/index.html'),
           selectionAction: resolve(__dirname, 'src/renderer/windows/selection/action/index.html'),

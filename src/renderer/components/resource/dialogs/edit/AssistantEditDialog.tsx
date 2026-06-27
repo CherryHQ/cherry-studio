@@ -294,7 +294,11 @@ function AssistantEditDialogContent({
       {isAssistantToolTab(activeTab) ? (
         <TabsContent value={activeTab} forceMount className="m-0">
           {activeTab === 'tools.mcp' ? (
-            <AssistantToolsFields form={form} portalContainer={dialogContentElement} />
+            <AssistantToolsFields
+              form={form}
+              onOpenSettings={() => onOpenChange(false)}
+              portalContainer={dialogContentElement}
+            />
           ) : (
             <AssistantKnowledgeFields form={form} portalContainer={dialogContentElement} />
           )}
@@ -640,9 +644,11 @@ function AssistantKnowledgeFields({
 
 function AssistantToolsFields({
   form,
+  onOpenSettings,
   portalContainer
 }: {
   form: UseFormReturn<AssistantEditFormValues>
+  onOpenSettings: () => void
   portalContainer: HTMLElement | null
 }) {
   const { t } = useTranslation()
@@ -721,6 +727,7 @@ function AssistantToolsFields({
                 enabledIds={enabledIds}
                 onToggle={toggleMcpServer}
                 emptyLabel={t('library.config.tools.empty_title')}
+                onOpenSettings={onOpenSettings}
                 portalContainer={portalContainer}
               />
               <FormMessage />

@@ -13,7 +13,7 @@ const {
   ensureTagsMock,
   fetchGenerateMock,
   mcpStatusState,
-  openSettingsWindowMock,
+  openSettingsTabMock,
   toastErrorMock,
   toggleSkillMock,
   updateAgentMock,
@@ -51,7 +51,7 @@ const {
   ensureTagsMock: vi.fn(),
   fetchGenerateMock: vi.fn(),
   mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
-  openSettingsWindowMock: vi.fn(),
+  openSettingsTabMock: vi.fn(),
   toastErrorMock: vi.fn(),
   toggleSkillMock: vi.fn(),
   updateAgentMock: vi.fn(),
@@ -200,8 +200,8 @@ vi.mock('@renderer/services/ApiService', () => ({
   fetchGenerate: fetchGenerateMock
 }))
 
-vi.mock('@renderer/services/SettingsWindowService', () => ({
-  openSettingsWindow: openSettingsWindowMock
+vi.mock('@renderer/services/settingsNavigation', () => ({
+  openSettingsTab: openSettingsTabMock
 }))
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -514,7 +514,6 @@ beforeEach(() => {
   updateAgentMock.mockResolvedValue({ ...AGENT, instructions: 'Updated instructions' })
   ensureTagsMock.mockResolvedValue([{ id: 'tag-work', name: 'work', color: '#8b5cf6' }])
   fetchGenerateMock.mockResolvedValue('Generated prompt')
-  openSettingsWindowMock.mockResolvedValue('settings-window')
   toggleSkillMock.mockResolvedValue(undefined)
 })
 
@@ -920,7 +919,8 @@ describe('edit dialogs', () => {
   })
 
   it('uses the same MCP server list presentation in assistant and agent editing', async () => {
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+    const onAssistantOpenChange = vi.fn()
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onAssistantOpenChange} onSaved={vi.fn()} />)
 
     expandToolsMenu()
     selectTab('MCP')
@@ -931,12 +931,14 @@ describe('edit dialogs', () => {
     expect(screen.getByText('MCP One')).toBeInTheDocument()
     expect(screen.getByText('Connected')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'MCP services Settings' }))
-    expect(openSettingsWindowMock).toHaveBeenCalledWith('/settings/mcp/servers')
+    expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/mcp/servers')
+    expect(onAssistantOpenChange).toHaveBeenCalledWith(false)
 
     cleanup()
-    openSettingsWindowMock.mockClear()
+    openSettingsTabMock.mockClear()
+    const onAgentOpenChange = vi.fn()
 
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={onAgentOpenChange} onSaved={vi.fn()} />)
 
     expandToolsMenu()
     selectTab('MCP')
@@ -945,7 +947,8 @@ describe('edit dialogs', () => {
     expect(screen.getByText('MCP One')).toBeInTheDocument()
     expect(screen.getByText('Connected')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'MCP services Settings' }))
-    expect(openSettingsWindowMock).toHaveBeenCalledWith('/settings/mcp/servers')
+    expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/mcp/servers')
+    expect(onAgentOpenChange).toHaveBeenCalledWith(false)
   })
 
   it('keeps popover content inside the dialog container', async () => {

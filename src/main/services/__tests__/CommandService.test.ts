@@ -16,7 +16,7 @@ vi.mock('@data/PreferenceService', async () => {
 
 const {
   windowServiceMock,
-  settingsWindowServiceMock,
+  openSettingsInMainWindowMock,
   quickAssistantServiceMock,
   selectionServiceMock,
   windowManagerMock,
@@ -26,9 +26,7 @@ const {
   windowServiceMock: {
     toggleMainWindow: vi.fn()
   },
-  settingsWindowServiceMock: {
-    open: vi.fn()
-  },
+  openSettingsInMainWindowMock: vi.fn(),
   quickAssistantServiceMock: {
     toggleQuickAssistant: vi.fn()
   },
@@ -47,7 +45,6 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     MainWindowService: windowServiceMock,
-    SettingsWindowService: settingsWindowServiceMock,
     QuickAssistantService: quickAssistantServiceMock,
     SelectionService: selectionServiceMock,
     WindowManager: windowManagerMock
@@ -79,6 +76,10 @@ vi.mock('@main/utils/zoom', () => ({
 
 vi.mock('@main/services/nativePopupMenu', () => ({
   showNativePopupMenu: showNativePopupMenuMock
+}))
+
+vi.mock('@main/services/settingsNavigation', () => ({
+  openSettingsInMainWindow: openSettingsInMainWindowMock
 }))
 
 import { IpcChannel } from '@shared/IpcChannel'
@@ -118,6 +119,12 @@ describe('CommandService', () => {
     service.execute('selection.capture_text')
 
     expect(selectionServiceMock.processSelectTextByShortcut).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens settings through the main-window settings helper', () => {
+    service.execute('app.settings.open')
+
+    expect(openSettingsInMainWindowMock).toHaveBeenCalledWith('/settings/provider')
   })
 
   it('passes the target window to zoom commands', () => {

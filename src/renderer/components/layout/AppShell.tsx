@@ -1,7 +1,7 @@
 import { clearTabInstanceMetadata } from '@renderer/config/tabInstanceMetadata'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
-import { useTabs } from '@renderer/hooks/tab'
+import { useMainSettingsTab, useTabs } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
@@ -26,6 +26,7 @@ export const AppShell = () => {
   }, [])
 
   useCommandHandler('app.search', handleOpenGlobalSearch)
+  useMainSettingsTab()
 
   const recordRouteVisit = useCallback(
     (tab: typeof activeTab, lastAccessTime = tab?.lastAccessTime) => {

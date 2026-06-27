@@ -1,8 +1,7 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useMcpRuntimeStatusMap } from '@renderer/hooks/useMcpRuntimeStatus'
-import { openSettingsWindow } from '@renderer/services/SettingsWindowService'
+import { openSettingsTab } from '@renderer/services/settingsNavigation'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { TFunction } from 'i18next'
@@ -12,7 +11,6 @@ import { useTranslation } from 'react-i18next'
 
 import { type CatalogItem, CatalogToggleGrid } from './CatalogPicker'
 
-const logger = loggerService.withContext('McpServerCatalogGrid')
 const MCP_SERVERS_SETTINGS_PATH = '/settings/mcp/servers'
 
 function getStatusBadge(t: TFunction, state: McpRuntimeStatus['state']) {
@@ -48,12 +46,14 @@ function getServerState(server: McpServer, status: McpRuntimeStatus | undefined)
 export function McpServerCatalogGrid({
   enabledIds,
   emptyLabel,
+  onOpenSettings,
   onToggle,
   portalContainer,
   title
 }: {
   enabledIds: ReadonlySet<string>
   emptyLabel: string
+  onOpenSettings?: () => void
   onToggle: (id: string, enabled: boolean) => void
   portalContainer: HTMLElement | null
   title?: string
@@ -81,9 +81,8 @@ export function McpServerCatalogGrid({
   )
 
   const handleOpenMcpSettings = () => {
-    void openSettingsWindow(MCP_SERVERS_SETTINGS_PATH).catch((error) => {
-      logger.error('Failed to open MCP server settings', error as Error)
-    })
+    openSettingsTab(MCP_SERVERS_SETTINGS_PATH)
+    onOpenSettings?.()
   }
 
   return (
