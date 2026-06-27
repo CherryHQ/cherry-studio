@@ -343,4 +343,54 @@ describe('CacheService persist tier', () => {
       expect(BrowserWindow.getAllWindows).not.toHaveBeenCalled()
     })
   })
+
+  // ---------- window.bounds: the first real record-typed consumer key ----------
+  //
+  // Unlike the scalar PROBE, window.bounds is a Record<WindowType, WindowBoundsState>.
+  // The windowBoundsTracker "deletes" a single window's slot by rewriting the whole
+  // record (the tier has no per-slot delete), so these cases exercise that
+  // read / write / rewrite path on a real object-valued key.
+  describe('window.bounds (record-typed key)', () => {
+    const BOUNDS = 'window.bounds' as const
+    const rect = (x: number) => ({
+      x,
+      y: 0,
+      width: 800,
+      height: 600,
+      isMaximized: false,
+      displayBounds: { x: 0, y: 0, width: 1920, height: 1080 }
+    })
+
+    it('defaults to an empty record before anything is set', async () => {
+      await initService()
+      expect(service.getPersist(BOUNDS)).toEqual({})
+    })
+
+    it('round-trips a per-type record and reloads it on a fresh instance', async () => {
+      await initService()
+      service.setPersist(BOUNDS, { main: rect(100), quickAssistant: rect(200) })
+      vi.advanceTimersByTime(350)
+      await service.onStop()
+
+      await initService() // new instance reads the same file
+      expect(service.getPersist(BOUNDS)).toEqual({ main: rect(100), quickAssistant: rect(200) })
+    })
+
+    it('persists a slot removal by rewriting the record (leaving other types intact)', async () => {
+      await initService()
+      service.setPersist(BOUNDS, { main: rect(100), quickAssistant: rect(200) })
+      service.setPersist(BOUNDS, { quickAssistant: rect(200) }) // main slot dropped
+      vi.advanceTimersByTime(350)
+
+      const onDisk = JSON.parse(fs.readFileSync(cacheFile, 'utf-8'))[BOUNDS]
+      expect(onDisk).toEqual({ quickAssistant: rect(200) })
+    })
+
+    it('reports hasPersist false for the empty default and true once a record is stored', async () => {
+      await initService()
+      expect(service.hasPersist(BOUNDS)).toBe(false) // equals the default {}
+      service.setPersist(BOUNDS, { main: rect(100) })
+      expect(service.hasPersist(BOUNDS)).toBe(true)
+    })
+  })
 })

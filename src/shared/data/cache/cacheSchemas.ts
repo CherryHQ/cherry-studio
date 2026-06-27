@@ -364,14 +364,19 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
  * with, or readable by the renderer.
  */
 export type MainPersistCacheSchema = {
-  // Scaffold / self-test key: exercises the typed persist API and round-trip
-  // tests while no real consumer exists yet. Remove or replace it once the
-  // first real consumer key (e.g. window bounds) lands.
+  // Persist-layer self-test key: exercises the typed persist API and round-trip
+  // tests for the generic mechanism, independent of any real consumer.
   'internal.persist_probe': number
+  // Window geometry for WindowManager's "remember bounds" capability, keyed by
+  // WindowType value (a string). The schema lives in @shared while WindowType is
+  // a @main enum (no reverse import), so the key type is `string`; the
+  // windowBoundsTracker is the sole writer and controls which keys appear.
+  'window.bounds': Record<string, CacheValueTypes.WindowBoundsState>
 }
 
 export const DefaultMainPersistCache: MainPersistCacheSchema = {
-  'internal.persist_probe': 0
+  'internal.persist_probe': 0,
+  'window.bounds': {}
 }
 
 // ============================================================================
