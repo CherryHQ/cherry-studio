@@ -15,6 +15,7 @@ interface AgentComposerSlotProps {
   isStreaming: boolean
   sendDisabled: boolean
   onNewSessionDraft?: () => void | Promise<void>
+  onCreateEmptySession?: () => void | Promise<void>
   composerContext: ComposerContextValue
 }
 
@@ -28,6 +29,7 @@ export default function AgentComposerSlot({
   isStreaming,
   sendDisabled,
   onNewSessionDraft,
+  onCreateEmptySession,
   composerContext
 }: AgentComposerSlotProps) {
   const fallback =
@@ -41,6 +43,7 @@ export default function AgentComposerSlot({
         isStreaming={isStreaming}
         sendDisabled={sendDisabled}
         onNewSessionDraft={onNewSessionDraft}
+        onCreateEmptySession={onCreateEmptySession}
       />
     ) : undefined
 

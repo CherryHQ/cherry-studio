@@ -170,6 +170,7 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
     assistantId,
     isHome,
     onDraftAssistantChange,
+    onCreateEmptyTopic,
     onNewTopic,
     onSend,
     scopeKey
@@ -177,6 +178,7 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
     assistantId?: string
     isHome: boolean
     onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
+    onCreateEmptyTopic?: (payload?: { assistantId?: string | null }) => void | Promise<void>
     onNewTopic?: (payload?: { assistantId?: string | null }) => void | Promise<void>
     onSend: (
       text: string,
@@ -202,6 +204,11 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
       <button type="button" onClick={() => onNewTopic?.({ assistantId: 'assistant-2' })}>
         New draft with assistant 2
       </button>
+      {onCreateEmptyTopic && (
+        <button type="button" onClick={() => onCreateEmptyTopic({ assistantId })}>
+          Create empty topic from composer
+        </button>
+      )}
     </div>
   )
 }))
@@ -323,6 +330,7 @@ vi.mock('../Chat', () => ({
     paneOpen,
     showResourceListControls,
     locateMessageId,
+    onCreateEmptyTopic,
     onNewTopic,
     onLocateMessageHandled,
     onPaneCollapse
@@ -332,6 +340,7 @@ vi.mock('../Chat', () => ({
     paneOpen?: boolean
     showResourceListControls?: boolean
     locateMessageId?: string
+    onCreateEmptyTopic?: (payload?: { assistantId?: string | null }) => void | Promise<void>
     onNewTopic?: (payload?: { assistantId?: string | null }) => void | Promise<void>
     onLocateMessageHandled?: () => void
     onPaneCollapse?: () => void
@@ -355,6 +364,11 @@ vi.mock('../Chat', () => ({
       {onNewTopic && (
         <button type="button" onClick={() => onNewTopic({ assistantId: 'missing-assistant' })}>
           New topic with missing assistant
+        </button>
+      )}
+      {onCreateEmptyTopic && (
+        <button type="button" onClick={() => onCreateEmptyTopic({ assistantId: activeTopic.assistantId })}>
+          Create empty topic from composer
         </button>
       )}
       {onLocateMessageHandled && (
@@ -626,6 +640,27 @@ describe('HomePage', () => {
 
     await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-empty-latest'))
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
+  it('creates and activates a fresh empty topic from the old-view composer button without reusing a draft row', async () => {
+    homeMocks.preferenceValues.set('chat.conversation_view', 'old')
+    homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]
+    homeMocks.oldViewTopics = [
+      { id: 'topic-empty-latest', assistantId: 'assistant-1', name: '   ', updatedAt: '2026-01-03T00:00:00.000Z' }
+    ]
+    homeMocks.createTopic.mockResolvedValue({
+      ...createdTopic,
+      id: 'topic-composer-empty',
+      assistantId: 'assistant-1'
+    })
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create empty topic from composer' }))
+
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' }))
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-composer-empty')
+    expect(homeMocks.refreshTopics).toHaveBeenCalled()
   })
 
   it('creates a new topic when the assistant latest topic is not empty in the old-view picker', async () => {

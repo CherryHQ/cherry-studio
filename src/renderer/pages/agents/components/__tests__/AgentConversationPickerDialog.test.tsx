@@ -17,6 +17,7 @@ vi.mock('@renderer/components/resource', () => ({
     mocks.pickerProps = props
     return (
       <div data-testid="picker" data-open={String(props.open)}>
+        <span data-testid="create-action-icon">{props.createAction?.icon}</span>
         <button type="button" onClick={() => props.createAction?.onSelect()}>
           create-new
         </button>
@@ -62,6 +63,7 @@ describe('AgentConversationPickerDialog', () => {
     render(<AgentConversationPickerDialog open onOpenChange={onOpenChange} agents={[]} onSelect={vi.fn()} />)
 
     expect(mocks.pickerProps.createAction.label).toBe('selector.agent.create_new')
+    expect(screen.getByTestId('create-action-icon').querySelector('svg')).toHaveClass('lucide-message-square-plus')
     expect(screen.getByTestId('create-dialog')).toHaveAttribute('data-open', 'false')
 
     fireEvent.click(screen.getByText('create-new'))

@@ -3,7 +3,7 @@ import type { FileMetadata } from '@renderer/types/file'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { LocalSkill } from '@shared/types/skill'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -42,6 +42,7 @@ const mocks = vi.hoisted(() => ({
   shortcutOptions: new Map<string, Record<string, unknown> | undefined>(),
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
   ipcOn: vi.fn(),
+  conversationView: undefined as string | undefined,
   runtimeHostProps: undefined as
     | { assistant?: { modelId?: string | null }; model?: Model; session?: { agentId?: string } }
     | undefined
@@ -179,7 +180,7 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
     mocks.runtimeHostProps = props
     return null
   },
-  ComposerToolMenu: () => null,
+  ComposerToolMenu: () => <button type="button">tool menu</button>,
   ComposerActiveToolControls: () => null,
   useComposerToolState: () => ({
     files: mocks.files,
@@ -376,7 +377,8 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'app.spell_check.enabled': true,
       'chat.message.font_size': 14,
       'chat.narrow_mode': false,
-      'chat.input.send_message_shortcut': 'Enter'
+      'chat.input.send_message_shortcut': 'Enter',
+      'chat.conversation_view': mocks.conversationView
     }
     return [values[key]]
   }
@@ -473,6 +475,7 @@ describe('AgentComposer', () => {
     mocks.surfaceProps = undefined
     mocks.derivedToolState = undefined
     mocks.runtimeHostProps = undefined
+    mocks.conversationView = undefined
     mocks.shortcutHandlers.clear()
     mocks.shortcutOptions.clear()
     mocks.ipcListeners.clear()
@@ -529,6 +532,48 @@ describe('AgentComposer', () => {
     mocks.shortcutHandlers.get('topic.create')?.()
 
     expect(onNewSessionDraft).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders the empty session action before the tool menu and calls the explicit handler', () => {
+    mocks.conversationView = 'old'
+    const onCreateEmptySession = vi.fn()
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        onCreateEmptySession={onCreateEmptySession}
+        isStreaming={false}
+      />
+    )
+
+    const leftControls = screen.getByTestId('composer-left-controls')
+    const buttons = within(leftControls).getAllByRole('button')
+    expect(buttons.slice(0, 2).map((button) => button.textContent || button.getAttribute('aria-label'))).toEqual([
+      'chat.conversation.new',
+      'tool menu'
+    ])
+    expect(buttons[0].querySelector('svg')).toHaveClass('lucide-message-square-plus')
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.conversation.new' }))
+
+    expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
+  })
+
+  it('hides the empty session action without a handler', () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
   })
 
   it('passes attachment capabilities through the provider without effect mirroring', () => {
@@ -1313,6 +1358,25 @@ describe('AgentComposer', () => {
     expect(mocks.updateSession).not.toHaveBeenCalled()
   })
 
+  it('hides the active session agent trigger from the toolbar in old/传统 view', () => {
+    mocks.conversationView = 'old'
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(screen.queryByTestId('agent-selector')).not.toBeInTheDocument()
+    expect(screen.queryByText('Agent')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('resource-edit-dialog-host')).not.toBeInTheDocument()
+    expect(mocks.updateSession).not.toHaveBeenCalled()
+  })
+
   it('shows only icons in the input bottom toolbar when it is narrow', async () => {
     render(
       <AgentComposer
@@ -1400,6 +1464,16 @@ describe('AgentComposer', () => {
       24 * 60 * 60 * 1000
     )
     expect(onAgentChange).toHaveBeenCalledWith('agent-2')
+  })
+
+  it('hides the missing-agent trigger in old/传统 view', () => {
+    mocks.conversationView = 'old'
+
+    render(<MissingAgentHomeComposer onAgentChange={vi.fn()} />)
+
+    expect(screen.queryByTestId('agent-selector')).not.toBeInTheDocument()
+    expect(screen.getByTestId('composer-below-controls')).not.toHaveTextContent('chat.alerts.select_agent')
+    expect(mocks.surfaceProps?.sendBlockedReason).toBe('chat.alerts.select_agent')
   })
 
   it('shows only icons in the draft home bottom toolbar when it is narrow', async () => {

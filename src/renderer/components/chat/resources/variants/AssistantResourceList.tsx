@@ -265,10 +265,8 @@ export function AssistantResourceList({
         defaultGroupLabel={t('assistants.abbr')}
         addIcon={<Plus />}
         addLabel={t('chat.add.assistant.title')}
-        createItemLabel={t('chat.conversation.new')}
         onAdd={onAddAssistant ?? (() => onStartDraftAssistant(null))}
         onOpenHistoryRecords={onOpenHistoryRecords}
-        onCreateItem={(item) => onStartDraftAssistant(item.id)}
         onSelect={handleSelect}
         onReorder={handleReorder}
         getContextMenuActions={getContextMenuActions}

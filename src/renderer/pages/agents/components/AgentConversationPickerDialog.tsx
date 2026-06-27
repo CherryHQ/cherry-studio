@@ -9,7 +9,7 @@ import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
-import { Plus } from 'lucide-react'
+import { MessageSquarePlus } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -113,7 +113,7 @@ export function AgentConversationPickerDialog({
           emptyText: t('selector.agent.empty_text'),
           loadingText: t('common.loading')
         }}
-        createAction={{ label: t('selector.agent.create_new'), icon: <Plus />, onSelect: handleCreateNew }}
+        createAction={{ label: t('selector.agent.create_new'), icon: <MessageSquarePlus />, onSelect: handleCreateNew }}
         isLoading={agentsLoading}
         showCloseButton={false}
         onSelect={handleSelect}

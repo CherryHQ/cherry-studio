@@ -11,7 +11,7 @@ import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { type AssistantCatalogPreset, useAssistantCatalogPresets } from '@renderer/hooks/useAssistantCatalogPresets'
 import type { Assistant } from '@renderer/types/assistant'
 import { cn } from '@renderer/utils/style'
-import { Bot, Check, Filter, Plus } from 'lucide-react'
+import { Bot, Check, Filter, MessageSquarePlus } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -185,7 +185,7 @@ export function AssistantConversationPickerDialog({
         createAction={
           activeTab === 'catalog'
             ? undefined
-            : { label: t('selector.assistant.create_new'), icon: <Plus />, onSelect: handleCreateNew }
+            : { label: t('selector.assistant.create_new'), icon: <MessageSquarePlus />, onSelect: handleCreateNew }
         }
         pageSize={ASSISTANT_CATALOG_PAGE_SIZE}
         isLoading={

@@ -27,6 +27,7 @@ interface Props {
   topic: Topic
   onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
+  onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   locateMessageId?: string
   onLocateMessageHandled?: () => void
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
@@ -48,6 +49,7 @@ const ChatContent: FC<Props> = ({
   topic,
   onOpenCitationsPanel,
   onNewTopic,
+  onCreateEmptyTopic,
   locateMessageId,
   onLocateMessageHandled,
   onBranchLiveStateChange,
@@ -71,6 +73,7 @@ const ChatContent: FC<Props> = ({
       topic={topic}
       onOpenCitationsPanel={onOpenCitationsPanel}
       onNewTopic={onNewTopic}
+      onCreateEmptyTopic={onCreateEmptyTopic}
       locateMessageId={locateMessageId}
       onLocateMessageHandled={onLocateMessageHandled}
       onBranchLiveStateChange={onBranchLiveStateChange}
@@ -114,6 +117,7 @@ const ChatContentInner: FC<InnerProps> = ({
   topic,
   onOpenCitationsPanel,
   onNewTopic,
+  onCreateEmptyTopic,
   locateMessageId,
   onLocateMessageHandled,
   onBranchLiveStateChange,
@@ -195,6 +199,7 @@ const ChatContentInner: FC<InnerProps> = ({
       topic={topic}
       onSend={runtime.sendMessage}
       onNewTopic={onNewTopic}
+      onCreateEmptyTopic={onCreateEmptyTopic}
       sendDisabled={isHistoryLoading}
       composerContext={runtime.composerContext}
     />

@@ -716,6 +716,51 @@ const AgentPage = () => {
   }, [isOldView, workPaneOpen])
 
   const activeResourceAgentId = visibleSession?.agentId ?? visibleDraftSession?.agentId ?? null
+  const createAndActivateEmptySession = useCallback(async () => {
+    const agentId = activeResourceAgentId
+    if (!agentId) return
+
+    const workspaceSource: AgentSessionWorkspaceSource = visibleDraftSession
+      ? visibleDraftSession.workspaceSource
+      : visibleSession?.workspace?.type === AGENT_WORKSPACE_TYPE.SYSTEM
+        ? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+        : visibleSession?.workspaceId
+          ? { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: visibleSession.workspaceId }
+          : { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+
+    try {
+      const session = await dataApiService.post('/agent-sessions', {
+        body: {
+          agentId,
+          name: t('common.unnamed'),
+          workspace: workspaceSource
+        }
+      })
+
+      setPendingLocateMessageId(undefined)
+      pendingSelectedSessionRef.current = session
+      setDraftSessionState(null)
+      setMissingAgentDraft(false)
+      rememberLastUsedSession(agentId, isUserWorkspaceSession(session) ? session.workspaceId : undefined)
+      setActiveSessionId(session.id)
+      void invalidateCache(['/agent-sessions', '/agent-workspaces', `/agent-sessions/${session.id}`]).catch((err) => {
+        logger.warn('Failed to refresh session metadata after composer session create', err as Error)
+      })
+    } catch (err) {
+      logger.error('Failed to create empty agent session from old-view composer', err as Error, { agentId })
+      window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+    }
+  }, [
+    activeResourceAgentId,
+    invalidateCache,
+    rememberLastUsedSession,
+    setActiveSessionId,
+    setDraftSessionState,
+    t,
+    visibleDraftSession,
+    visibleSession?.workspace?.type,
+    visibleSession?.workspaceId
+  ])
   const pane = isOldView ? (
     <AgentResourceList
       activeAgentId={activeResourceAgentId}
@@ -775,6 +820,7 @@ const AgentPage = () => {
           draftConversation={isMessageOnlyView ? null : visibleDraftSession}
           missingAgentDraft={!isMessageOnlyView && missingAgentDraft && !visibleSession && !visibleDraftSession}
           onStartDraftSession={isMessageOnlyView ? undefined : startDraftSession}
+          onCreateEmptySession={isOldView && !isMessageOnlyView ? createAndActivateEmptySession : undefined}
           onMissingAgentDraftAgentChange={isMessageOnlyView ? undefined : startMissingAgentDraftSession}
           onEnsurePersistentSession={isMessageOnlyView ? undefined : ensurePersistentSession}
           onDraftAgentChange={isMessageOnlyView ? undefined : replaceDraftAgent}

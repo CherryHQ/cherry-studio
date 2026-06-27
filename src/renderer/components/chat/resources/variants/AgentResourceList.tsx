@@ -277,10 +277,8 @@ export function AgentResourceList({
         defaultGroupLabel={t('agent.sidebar_title')}
         addIcon={<Plus />}
         addLabel={t('agent.add.title')}
-        createItemLabel={t('chat.conversation.new')}
         onAdd={onAddAgent ?? (() => onStartMissingAgentDraft?.())}
         onOpenHistoryRecords={onOpenHistoryRecords}
-        onCreateItem={(item) => onStartDraftAgent(item.id)}
         onSelect={handleSelect}
         onReorder={handleReorder}
         getContextMenuActions={getContextMenuActions}

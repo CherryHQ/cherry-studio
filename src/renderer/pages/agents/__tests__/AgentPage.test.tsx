@@ -187,13 +187,15 @@ vi.mock('@renderer/hooks/agents/useSession', () => ({
       activeSessionId: options.activeSessionId,
       setActiveSessionId: options.setActiveSessionId
     }
+    const pendingSession =
+      options.pendingSession && options.pendingSession.id === options.activeSessionId ? options.pendingSession : null
     return {
-      session: activeSessionMocks.session ?? options.pendingSession ?? undefined,
+      session: pendingSession ?? activeSessionMocks.session ?? undefined,
       isLoading: activeSessionMocks.isLoading,
-      sessionSource: activeSessionMocks.session
-        ? activeSessionMocks.sessionSource
-        : options.pendingSession
-          ? 'pending'
+      sessionSource: pendingSession
+        ? 'pending'
+        : activeSessionMocks.session
+          ? activeSessionMocks.sessionSource
           : 'none',
       activeSessionId: options.activeSessionId,
       setActiveSessionId: options.setActiveSessionId
@@ -252,6 +254,7 @@ vi.mock('../AgentChat', () => ({
     activeSessionLoading,
     draftConversation,
     missingAgentDraft,
+    onCreateEmptySession,
     onEnsurePersistentSession,
     onMissingAgentDraftAgentChange,
     onStartDraftSession,
@@ -275,6 +278,7 @@ vi.mock('../AgentChat', () => ({
       workspace?: { id?: string; type: string }
     } | null
     missingAgentDraft?: boolean
+    onCreateEmptySession?: () => void | Promise<void>
     onEnsurePersistentSession?: (initialName?: string) => Promise<unknown>
     onMissingAgentDraftAgentChange?: (agentId: string | null) => void | Promise<void>
     onStartDraftSession?: (defaults: {
@@ -315,6 +319,11 @@ vi.mock('../AgentChat', () => ({
       <button type="button" onClick={() => void onStartDraftSession?.({ agentId: 'agent-a' })}>
         Start draft session
       </button>
+      {onCreateEmptySession && (
+        <button type="button" onClick={() => void onCreateEmptySession()}>
+          Create empty session from composer
+        </button>
+      )}
       <button type="button" onClick={() => void onMissingAgentDraftAgentChange?.('agent-b')}>
         Select missing draft agent
       </button>
@@ -595,6 +604,57 @@ describe('AgentPage', () => {
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-empty-latest'))
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+  })
+
+  it('creates and activates a fresh empty session from the old-view composer button with the current workspace', async () => {
+    agentPageMocks.workView = 'old'
+    activeSessionMocks.session = {
+      ...agentPageMocks.persistedSession,
+      id: 'session-active',
+      agentId: 'agent-a',
+      workspaceId: 'workspace-a',
+      workspace: agentPageMocks.workspace
+    }
+    activeSessionMocks.sessionSource = 'query'
+    agentPageMocks.oldViewSessions = [
+      {
+        id: 'session-empty-latest',
+        agentId: 'agent-a',
+        name: 'common.unnamed',
+        updatedAt: '2026-01-03T00:00:00.000Z',
+        workspaceId: 'workspace-a',
+        workspace: { type: 'user' }
+      }
+    ]
+    agentPageMocks.dataApiPost.mockResolvedValue({
+      ...agentPageMocks.persistedSession,
+      id: 'session-composer-empty',
+      agentId: 'agent-a',
+      name: 'common.unnamed',
+      workspaceId: 'workspace-a',
+      workspace: agentPageMocks.workspace
+    })
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create empty session from composer' }))
+
+    await waitFor(() =>
+      expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
+        body: {
+          agentId: 'agent-a',
+          name: 'common.unnamed',
+          workspace: { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: 'workspace-a' }
+        }
+      })
+    )
+    expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-composer-empty')
+    expect(screen.getByTestId('active-session')).toHaveTextContent('session-composer-empty')
+    expect(agentPageMocks.invalidateCache).toHaveBeenCalledWith([
+      '/agent-sessions',
+      '/agent-workspaces',
+      '/agent-sessions/session-composer-empty'
+    ])
   })
 
   it('creates a new session when the agent latest session is not empty from the old-view picker', async () => {

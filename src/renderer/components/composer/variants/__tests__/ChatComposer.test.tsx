@@ -6,7 +6,7 @@ import {
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -925,19 +925,16 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
   })
 
-  it('edits the active assistant from the toolbar trigger in old/传统 view instead of switching', async () => {
+  it('hides the active assistant trigger from the toolbar in old/传统 view', () => {
     mocks.conversationView = 'old'
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
-    // Old/传统 view has a left assistant rail, so the toolbar trigger edits rather than switches.
+    // Old/传统 view has a left assistant rail, so the input toolbar should not duplicate the assistant trigger.
     expect(screen.queryByTestId('assistant-selector')).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByText('Assistant 1').closest('button')!)
-
-    const dialog = await screen.findByTestId('resource-edit-dialog-host')
-    expect(dialog).toHaveAttribute('data-kind', 'assistant')
-    expect(dialog).toHaveAttribute('data-id', 'assistant-1')
+    expect(screen.queryByText('Assistant 1')).not.toBeInTheDocument()
+    expect(screen.getByText('Model A | Provider')).toBeInTheDocument()
+    expect(screen.queryByTestId('resource-edit-dialog-host')).not.toBeInTheDocument()
     expect(mocks.updateTopic).not.toHaveBeenCalled()
   })
 
@@ -948,6 +945,39 @@ describe('ChatComposer', () => {
 
     expect(screen.getByTestId('assistant-selector')).toBeInTheDocument()
     expect(screen.queryByTestId('resource-edit-dialog-host')).not.toBeInTheDocument()
+  })
+
+  it('renders the old-view empty topic action before the tool menu and passes the selected assistant', () => {
+    mocks.conversationView = 'old'
+    const onCreateEmptyTopic = vi.fn()
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} onCreateEmptyTopic={onCreateEmptyTopic} />)
+
+    const leftControls = screen.getByTestId('composer-left-controls')
+    const newTopicButton = within(leftControls).getByRole('button', { name: 'chat.conversation.new' })
+    const modelButton = within(leftControls).getByRole('button', { name: /Model A/ })
+    const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
+    expect(newTopicButton.querySelector('svg')).toHaveClass('lucide-message-square-plus')
+    expect(newTopicButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(modelButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+
+    fireEvent.click(newTopicButton)
+
+    expect(onCreateEmptyTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
+  })
+
+  it('hides the empty topic action outside old view or without a handler', () => {
+    mocks.conversationView = 'new'
+    const onCreateEmptyTopic = vi.fn()
+
+    const { rerender } = render(<ChatComposer topic={topic} onSend={vi.fn()} onCreateEmptyTopic={onCreateEmptyTopic} />)
+
+    expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
+
+    mocks.conversationView = 'old'
+    rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
   })
 
   it('sends unlinked home topics through the default model fallback', async () => {

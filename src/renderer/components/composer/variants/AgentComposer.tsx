@@ -71,6 +71,7 @@ import {
   COMPOSER_SELECTOR_BUTTON_CLASS,
   COMPOSER_TOOLBAR_CLASS,
   ComposerBelowControls,
+  type ComposerNewConversationAction,
   ComposerToolbarControls,
   ComposerToolMenuControls
 } from './shared/ComposerControlScaffolding'
@@ -123,6 +124,7 @@ type Props = {
   sendMessage: (message?: { text: string }, options?: { body?: Record<string, unknown> }) => Promise<void>
   stop: () => Promise<void>
   onNewSessionDraft?: () => void | Promise<void>
+  onCreateEmptySession?: () => void | Promise<void>
   onAgentChange?: (agentId: string | null) => void | Promise<void>
   agentChanging?: boolean
   workspaceId?: string | null
@@ -145,6 +147,7 @@ const AgentComposerRoot = ({
   sendMessage,
   stop,
   onNewSessionDraft,
+  onCreateEmptySession,
   onAgentChange,
   agentChanging,
   workspaceId,
@@ -213,6 +216,7 @@ const AgentComposerRoot = ({
         actionsRef={actionsRef}
         chatSendMessage={sendMessage}
         chatStop={stop}
+        onCreateEmptySession={onCreateEmptySession}
         onAgentChange={onAgentChange}
         agentChanging={agentChanging}
         onWorkspaceChange={onWorkspaceChange}
@@ -237,6 +241,7 @@ interface InnerProps {
   actionsRef: React.MutableRefObject<ProviderActionHandlers>
   chatSendMessage: Props['sendMessage']
   chatStop: Props['stop']
+  onCreateEmptySession?: Props['onCreateEmptySession']
   onAgentChange?: Props['onAgentChange']
   agentChanging?: boolean
   onWorkspaceChange?: Props['onWorkspaceChange']
@@ -255,6 +260,7 @@ interface AgentComposerContextControlsProps {
   shouldAutoSelectCreatedAgent: boolean
   side: 'top' | 'bottom'
   iconOnly?: boolean
+  showAgentTrigger?: boolean
   agentTriggerMode?: 'selector' | 'edit'
   onAgentChange: (agentId: string | null) => void | Promise<void>
 }
@@ -277,6 +283,7 @@ const AgentComposerContextControls = ({
   shouldAutoSelectCreatedAgent,
   side,
   iconOnly = false,
+  showAgentTrigger = true,
   agentTriggerMode = 'selector',
   onAgentChange
 }: AgentComposerContextControlsProps) => {
@@ -285,6 +292,8 @@ const AgentComposerContextControls = ({
   const labelClassName = cn('truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)
   const chevronClassName = cn('text-muted-foreground', iconOnly && 'hidden')
   const [agentEditDialogTarget, setAgentEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
+
+  if (!showAgentTrigger) return null
 
   const agentTrigger = (
     <Button
@@ -449,6 +458,7 @@ function getContextUsageModelCandidates(model: Model | undefined): string[] | un
 }
 
 type AgentComposerControlProps = Omit<AgentComposerContextControlsProps, 'side'> & {
+  newConversationAction?: ComposerNewConversationAction
   workspace?: AgentComposerWorkspacePreview | null
   workspaceId?: string | null
   workspaceChanging?: boolean
@@ -466,6 +476,7 @@ const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => ({
   renderLeftControls: (inputAdapter) => (
     <ComposerToolbarControls
       inputAdapter={inputAdapter}
+      newConversationAction={props.newConversationAction}
       renderContextControls={({ side, iconOnly }) => (
         <AgentComposerContextControls {...props} side={side} iconOnly={iconOnly} agentTriggerMode="edit" />
       )}
@@ -479,7 +490,7 @@ const renderAgentHomeControls: AgentComposerControlsRenderer = (props) => {
   return {
     renderLeftControls: (inputAdapter) => (
       <div className={COMPOSER_TOOLBAR_CLASS}>
-        <ComposerToolMenuControls inputAdapter={inputAdapter} />
+        <ComposerToolMenuControls inputAdapter={inputAdapter} newConversationAction={props.newConversationAction} />
       </div>
     ),
     renderBelowControls: () => (
@@ -507,6 +518,7 @@ const AgentComposerInner = ({
   actionsRef,
   chatSendMessage,
   chatStop,
+  onCreateEmptySession,
   onAgentChange,
   agentChanging,
   onWorkspaceChange,
@@ -528,6 +540,7 @@ const AgentComposerInner = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
+  const [conversationView] = usePreference('chat.conversation_view')
   const { t } = useTranslation()
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
   const [workspaceWarning, setWorkspaceWarning] = useState<string | undefined>(undefined)
@@ -670,6 +683,10 @@ const AgentComposerInner = ({
     },
     [agentId, onAgentChange, sessionId, updateSession]
   )
+
+  const handleCreateEmptySession = useCallback(() => {
+    void onCreateEmptySession?.()
+  }, [onCreateEmptySession])
 
   const toolsSession = useMemo(() => {
     if (!sessionData) return undefined
@@ -861,8 +878,16 @@ const AgentComposerInner = ({
     selectWorkspaceLabel: t('agent.session.workspace_selector.placeholder'),
     agentChanging,
     shouldAutoSelectCreatedAgent: Boolean(onAgentChange),
+    showAgentTrigger: conversationView !== 'old',
     workspaceChanging,
     showWorkspaceSelector,
+    newConversationAction:
+      onCreateEmptySession && agentBase
+        ? {
+            label: t('chat.conversation.new'),
+            onClick: handleCreateEmptySession
+          }
+        : undefined,
     onAgentChange: handleAgentChange,
     onWorkspaceChange
   })
@@ -954,6 +979,7 @@ const MissingAgentHomeComposerInner = ({
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
+  const [conversationView] = usePreference('chat.conversation_view')
   const { t } = useTranslation()
   const [text, setText] = useState('')
   const selectAgentMessage = t('chat.alerts.select_agent')
@@ -988,6 +1014,7 @@ const MissingAgentHomeComposerInner = ({
     selectWorkspaceLabel: t('agent.session.workspace_selector.placeholder'),
     agentChanging,
     shouldAutoSelectCreatedAgent: true,
+    showAgentTrigger: conversationView !== 'old',
     workspaceChanging: false,
     showWorkspaceSelector: false,
     onAgentChange: handleAgentChange,

@@ -18,7 +18,6 @@ import {
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { AssistantSelector } from '@renderer/components/resource'
-import type { ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
 import { ModelSelector } from '@renderer/components/Selector'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
@@ -71,6 +70,7 @@ import {
   COMPOSER_SELECTOR_BUTTON_CLASS,
   COMPOSER_TOOLBAR_CLASS,
   ComposerBelowControls,
+  type ComposerNewConversationAction,
   ComposerToolbarControls,
   ComposerToolMenuControls
 } from './shared/ComposerControlScaffolding'
@@ -81,11 +81,6 @@ import { useComposerFileCapabilities } from './shared/useComposerFileCapabilitie
 import { useLatest } from './shared/useLatest'
 
 const logger = loggerService.withContext('ChatComposer')
-const ResourceEditDialogHost = React.lazy(() =>
-  import('@renderer/components/resource/dialogs/ResourceEditDialogHost').then((module) => ({
-    default: module.ResourceEditDialogHost
-  }))
-)
 const CHAT_MANAGED_TOKEN_KINDS = ['file', 'knowledge'] as const satisfies readonly ComposerDraftToken['kind'][]
 const CHAT_MODEL_FILTER = (model: Model) => !isNonChatModel(model)
 
@@ -106,6 +101,7 @@ interface ChatComposerProps {
   useMentionedModelSelector?: boolean
   onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
+  onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
 }
 
 interface SavedComposerDraft {
@@ -134,9 +130,7 @@ interface ChatComposerContextControlsProps {
   shouldAutoSelectCreatedAssistant: boolean
   side: 'top' | 'bottom'
   iconOnly?: boolean
-  // 'edit' repurposes the assistant trigger to open the edit dialog instead of the switcher
-  // (old/传统 view, where the left rail already handles switching).
-  assistantTriggerMode?: 'selector' | 'edit'
+  showAssistantTrigger?: boolean
   onAssistantChange: (assistantId: string | null) => void | Promise<void>
   onModelSelect: (model: Model | undefined) => void
   onMentionedModelsSelect: (models: Model[]) => void
@@ -161,7 +155,7 @@ const ChatComposerContextControls = ({
   shouldAutoSelectCreatedAssistant,
   side,
   iconOnly = false,
-  assistantTriggerMode = 'selector',
+  showAssistantTrigger = true,
   onAssistantChange,
   onModelSelect,
   onMentionedModelsSelect,
@@ -189,7 +183,6 @@ const ChatComposerContextControls = ({
     : selectModelLabel
   const modelLabel = assistantModelLabel
   const [mentionedModelSelectorOpen, setMentionedModelSelectorOpen] = useState(false)
-  const [assistantEditDialogTarget, setAssistantEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const handleMentionedModelSelect = useCallback(
     (nextModels: Model[]) => {
       onMentionedModelsSelect(nextModels)
@@ -205,16 +198,7 @@ const ChatComposerContextControls = ({
   )
 
   const assistantTrigger = (
-    <Button
-      variant="ghost"
-      size="sm"
-      className={compactTriggerClassName}
-      disabled={assistantTriggerMode === 'edit' && !assistantId}
-      onClick={
-        assistantTriggerMode === 'edit' && assistantId
-          ? () => setAssistantEditDialogTarget({ kind: 'assistant', id: assistantId })
-          : undefined
-      }>
+    <Button variant="ghost" size="sm" className={compactTriggerClassName}>
       {assistantIcon ? <EmojiIcon emoji={assistantIcon} size={20} /> : iconOnly ? <Bot size={16} aria-hidden /> : null}
       <span className={cn('max-w-40', labelClassName)}>{assistantName}</span>
     </Button>
@@ -222,21 +206,7 @@ const ChatComposerContextControls = ({
 
   return (
     <>
-      {assistantTriggerMode === 'edit' ? (
-        <>
-          {assistantTrigger}
-          {assistantEditDialogTarget ? (
-            <React.Suspense fallback={null}>
-              <ResourceEditDialogHost
-                target={assistantEditDialogTarget}
-                onOpenChange={(open) => {
-                  if (!open) setAssistantEditDialogTarget(null)
-                }}
-              />
-            </React.Suspense>
-          ) : null}
-        </>
-      ) : (
+      {showAssistantTrigger ? (
         <AssistantSelector
           multi={false}
           value={assistantId}
@@ -247,7 +217,7 @@ const ChatComposerContextControls = ({
           mountStrategy="lazy-keep"
           trigger={assistantTrigger}
         />
-      )}
+      ) : null}
       {useMentionedModelSelector && isMentionedModelSelectorLocked ? (
         <SelectedModelsTrigger
           className={mentionedModelTriggerClassName}
@@ -312,7 +282,9 @@ const ChatComposerContextControls = ({
   )
 }
 
-type ChatComposerControlProps = Omit<ChatComposerContextControlsProps, 'side'>
+type ChatComposerControlProps = Omit<ChatComposerContextControlsProps, 'side'> & {
+  newConversationAction?: ComposerNewConversationAction
+}
 
 type ComposerSurfaceProps = React.ComponentProps<typeof ComposerSurface>
 type ChatComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls' | 'renderBelowControls'>
@@ -322,6 +294,7 @@ const renderChatToolbarControls: ChatComposerControlsRenderer = (props) => ({
   renderLeftControls: (inputAdapter) => (
     <ComposerToolbarControls
       inputAdapter={inputAdapter}
+      newConversationAction={props.newConversationAction}
       renderContextControls={({ side, iconOnly }) => (
         <ChatComposerContextControls {...props} side={side} iconOnly={iconOnly} />
       )}
@@ -332,20 +305,14 @@ const renderChatToolbarControls: ChatComposerControlsRenderer = (props) => ({
 const renderChatHomeControls: ChatComposerControlsRenderer = (props) => ({
   renderLeftControls: (inputAdapter) => (
     <div className={COMPOSER_TOOLBAR_CLASS}>
-      <ComposerToolMenuControls inputAdapter={inputAdapter} />
+      <ComposerToolMenuControls inputAdapter={inputAdapter} newConversationAction={props.newConversationAction} />
     </div>
   ),
   renderBelowControls: () => (
     <ComposerBelowControls
       renderContextControls={({ side, iconOnly }) => (
         // Draft/home always picks the assistant via the switcher, regardless of view mode.
-        <ChatComposerContextControls
-          {...props}
-          side={side}
-          useMentionedModelSelector
-          iconOnly={iconOnly}
-          assistantTriggerMode="selector"
-        />
+        <ChatComposerContextControls {...props} side={side} useMentionedModelSelector iconOnly={iconOnly} />
       )}
     />
   )
@@ -366,6 +333,7 @@ const ChatComposerRoot = ({
   useMentionedModelSelector,
   onDraftAssistantChange,
   onNewTopic,
+  onCreateEmptyTopic,
   renderControls,
   forceNarrowLayout = false
 }: ChatComposerRootProps) => {
@@ -413,6 +381,7 @@ const ChatComposerRoot = ({
             useMentionedModelSelector={useMentionedModelSelector}
             onDraftAssistantChange={onDraftAssistantChange}
             onNewTopic={onNewTopic}
+            onCreateEmptyTopic={onCreateEmptyTopic}
             renderControls={renderControls}
             forceNarrowLayout={forceNarrowLayout}
           />
@@ -441,6 +410,7 @@ const ChatComposerInner = ({
   useMentionedModelSelector,
   onDraftAssistantChange,
   onNewTopic,
+  onCreateEmptyTopic,
   renderControls,
   forceNarrowLayout = false
 }: ChatComposerInnerProps) => {
@@ -688,6 +658,10 @@ const ChatComposerInner = ({
     },
     [onNewTopic]
   )
+
+  const handleCreateEmptyTopic = useCallback(() => {
+    void onCreateEmptyTopic?.(selectedAssistantId ? { assistantId: selectedAssistantId } : undefined)
+  }, [onCreateEmptyTopic, selectedAssistantId])
 
   const handleSurfaceActionsChange = useCallback(
     (actions: ComposerSurfaceActions) => {
@@ -957,7 +931,15 @@ const ChatComposerInner = ({
     useMentionedModelSelector,
     shouldAutoSelectCreatedAssistant: Boolean(onDraftAssistantChange),
     selectModelLabel: runtimeModelPending ? t('common.loading') : t('button.select_model'),
-    assistantTriggerMode: conversationView === 'old' ? 'edit' : 'selector',
+    showAssistantTrigger: conversationView !== 'old',
+    newConversationAction:
+      conversationView === 'old' && onCreateEmptyTopic
+        ? {
+            label: t('chat.conversation.new'),
+            disabled: isAssistantLoading || hasMissingPersistedAssistant,
+            onClick: handleCreateEmptyTopic
+          }
+        : undefined,
     onAssistantChange: handleAssistantChange,
     onModelSelect: handleModelSelect,
     onMentionedModelsSelect: handleMentionedModelsSelect,

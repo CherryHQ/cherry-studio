@@ -77,6 +77,7 @@ interface AgentChatProps {
   draftConversation?: DraftAgentSession | null
   missingAgentDraft?: boolean
   onStartDraftSession?: (defaults: DraftAgentSessionDefaults) => void | Promise<void>
+  onCreateEmptySession?: () => void | Promise<void>
   onMissingAgentDraftAgentChange?: (agentId: string | null) => void | Promise<void>
   onEnsurePersistentSession?: EnsurePersistentSession
   onDraftAgentChange?: (agentId: string | null) => void | Promise<void>
@@ -109,6 +110,7 @@ const AgentChat = ({
   draftConversation,
   missingAgentDraft = false,
   onStartDraftSession,
+  onCreateEmptySession,
   onMissingAgentDraftAgentChange,
   onEnsurePersistentSession,
   onDraftAgentChange,
@@ -301,6 +303,7 @@ const AgentChat = ({
           onWorkspaceChange={onDraftWorkspaceChange}
           workspaceChanging={replacingDraftWorkspace}
           showWorkspaceSelector
+          onCreateEmptySession={onCreateEmptySession}
           onNewSessionDraft={() =>
             onStartDraftSession?.({
               agentId: draftAgentConversation.agentId,
@@ -474,6 +477,7 @@ const AgentChat = ({
               })
           : undefined
       }
+      onCreateEmptySession={onCreateEmptySession}
       sidePanel={
         <CitationsPanel
           open={citationsPanelOpen}
@@ -511,6 +515,7 @@ interface AgentChatSessionFrameProps {
   onLocateMessageHandled?: () => void
   onPaneCollapse?: () => void
   onNewSessionDraft?: () => void | Promise<void>
+  onCreateEmptySession?: () => void | Promise<void>
   resourcePane?: ResourcePaneConfig | null
   resourcePaneRevealRequest?: ResourceListRevealRequest
   workPaneOpen?: boolean
@@ -541,6 +546,7 @@ const AgentChatSessionFrame = ({
   onLocateMessageHandled,
   onPaneCollapse,
   onNewSessionDraft,
+  onCreateEmptySession,
   resourcePane,
   resourcePaneRevealRequest,
   workPaneOpen,
@@ -605,6 +611,7 @@ const AgentChatSessionFrame = ({
       isStreaming={dockedStreaming || runtime.isPending}
       sendDisabled={dockedSendDisabled}
       onNewSessionDraft={onNewSessionDraft}
+      onCreateEmptySession={onCreateEmptySession}
       composerContext={runtime.composerContext}
     />
   )

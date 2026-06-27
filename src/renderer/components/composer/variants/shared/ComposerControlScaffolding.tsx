@@ -1,6 +1,8 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { ComposerActiveToolControls, ComposerToolMenu } from '@renderer/components/composer/ComposerToolRuntime'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { cn } from '@renderer/utils/style'
+import { MessageSquarePlus } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { useComposerBottomToolbarIconOnly } from '../useComposerBottomToolbarIconOnly'
@@ -13,11 +15,41 @@ export const COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS = 'w-8 justify-center px-0
 export const COMPOSER_ICON_ONLY_LABEL_CLASS = 'sr-only'
 
 type RenderContextControls = (args: { side: 'top' | 'bottom'; iconOnly: boolean }) => ReactNode
+export type ComposerNewConversationAction = {
+  label: string
+  disabled?: boolean
+  onClick: () => void | Promise<void>
+}
+
+const COMPOSER_CIRCLE_TOOL_BUTTON_CLASS =
+  'flex size-[30px] shrink-0 items-center justify-center rounded-full text-foreground-secondary transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-foreground-secondary'
+
+const ComposerNewConversationButton = ({ action }: { action: ComposerNewConversationAction }) => (
+  <Tooltip content={action.label}>
+    <button
+      type="button"
+      className={COMPOSER_CIRCLE_TOOL_BUTTON_CLASS}
+      aria-label={action.label}
+      disabled={action.disabled}
+      onClick={() => {
+        void action.onClick()
+      }}>
+      <MessageSquarePlus size={18} />
+    </button>
+  </Tooltip>
+)
 
 /** The shared "+" tool menu plus the active-tool controls rendered on the composer's left. */
-export const ComposerToolMenuControls = ({ inputAdapter }: { inputAdapter?: QuickPanelInputAdapter }) => {
+export const ComposerToolMenuControls = ({
+  inputAdapter,
+  newConversationAction
+}: {
+  inputAdapter?: QuickPanelInputAdapter
+  newConversationAction?: ComposerNewConversationAction
+}) => {
   return (
     <>
+      {newConversationAction ? <ComposerNewConversationButton action={newConversationAction} /> : null}
       <ComposerToolMenu inputAdapter={inputAdapter} />
       <ComposerActiveToolControls inputAdapter={inputAdapter} />
     </>
@@ -27,17 +59,30 @@ export const ComposerToolMenuControls = ({ inputAdapter }: { inputAdapter?: Quic
 /** Toolbar (top) layout: tool menu + the variant-specific context controls. */
 export const ComposerToolbarControls = ({
   inputAdapter,
+  newConversationAction,
   renderContextControls
 }: {
   inputAdapter?: QuickPanelInputAdapter
+  newConversationAction?: ComposerNewConversationAction
   renderContextControls: RenderContextControls
 }) => {
   const { iconOnly, toolbarRef } = useComposerBottomToolbarIconOnly()
+  const contextControls = renderContextControls({ side: 'top', iconOnly })
+
+  if (newConversationAction) {
+    return (
+      <div ref={toolbarRef} className={cn(COMPOSER_TOOLBAR_CLASS, 'w-full')}>
+        <ComposerNewConversationButton action={newConversationAction} />
+        {contextControls}
+        <ComposerToolMenuControls inputAdapter={inputAdapter} />
+      </div>
+    )
+  }
 
   return (
     <div ref={toolbarRef} className={cn(COMPOSER_TOOLBAR_CLASS, 'w-full')}>
       <ComposerToolMenuControls inputAdapter={inputAdapter} />
-      {renderContextControls({ side: 'top', iconOnly })}
+      {contextControls}
     </div>
   )
 }

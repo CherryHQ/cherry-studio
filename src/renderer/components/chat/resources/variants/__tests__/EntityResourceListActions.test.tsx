@@ -67,13 +67,17 @@ vi.mock('@renderer/components/chat/resources/variants/useResourceEntityRail', ()
 
 vi.mock('@renderer/components/chat/resources/variants/ResourceEntityRail', () => ({
   ResourceEntityRail: ({
+    createItemLabel,
     getContextMenuActions,
     items,
-    onContextMenuAction
+    onContextMenuAction,
+    onCreateItem
   }: {
+    createItemLabel?: string
     getContextMenuActions?: (item: ResourceEntityRailItem) => readonly ResolvedAction[]
     items: readonly ResourceEntityRailItem[]
     onContextMenuAction?: (item: ResourceEntityRailItem, action: ResolvedAction) => void | Promise<void>
+    onCreateItem?: (item: ResourceEntityRailItem) => void | Promise<void>
   }) => (
     <div>
       {items.map((item) => {
@@ -103,6 +107,11 @@ vi.mock('@renderer/components/chat/resources/variants/ResourceEntityRail', () =>
                 </button>
               ))}
             </div>
+            {createItemLabel && onCreateItem ? (
+              <button type="button" onClick={() => onCreateItem(item)}>
+                {createItemLabel}
+              </button>
+            ) : null}
           </section>
         )
       })}
@@ -238,6 +247,7 @@ describe('old layout entity resource list actions', () => {
     expect(screen.getByTestId('assistant-1-more-menu')).toHaveTextContent('assistants.delete.title')
     expect(screen.getByTestId('assistant-1-context-menu')).not.toHaveTextContent('assistants.clear.menu_title')
     expect(screen.getByTestId('assistant-1-more-menu')).not.toHaveTextContent('assistants.clear.menu_title')
+    expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getAllByRole('button', { name: 'assistants.delete.title' })[0])
 
@@ -258,6 +268,7 @@ describe('old layout entity resource list actions', () => {
     expect(screen.getByTestId('agent-1-more-menu')).toHaveTextContent('agent.delete.title')
     expect(screen.getByTestId('agent-1-context-menu')).not.toHaveTextContent('agent.session.agent.delete.trigger')
     expect(screen.getByTestId('agent-1-more-menu')).not.toHaveTextContent('agent.session.agent.delete.trigger')
+    expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getAllByRole('button', { name: 'agent.delete.title' })[0])
 

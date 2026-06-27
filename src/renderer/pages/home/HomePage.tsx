@@ -479,6 +479,28 @@ const HomePage: FC = () => {
     ]
   )
 
+  const createAndActivateEmptyTopic = useCallback(
+    async (payload?: AddNewTopicPayload) => {
+      try {
+        const selection = resolveDraftAssistantTarget(payload?.assistantId)
+        const topic = await createTopic({
+          ...(selection.assistantId ? { assistantId: selection.assistantId } : {})
+        })
+        const rendererTopic = mapApiTopicToRendererTopic(topic)
+
+        setDraftAssistantSelectionState(undefined)
+        setActiveTopic(rendererTopic)
+        void refreshTopics().catch((err) => {
+          logger.warn('Failed to refresh topics after composer topic create', err as Error)
+        })
+      } catch (err) {
+        logger.error('Failed to create empty topic from old-view composer', err as Error)
+        window.toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+      }
+    },
+    [createTopic, refreshTopics, resolveDraftAssistantTarget, setActiveTopic, setDraftAssistantSelectionState, t]
+  )
+
   useEffect(() => {
     void window.api.window.setMinimumSize(SECOND_MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
 
@@ -637,6 +659,7 @@ const HomePage: FC = () => {
             panePosition={panePosition}
             onPaneCollapse={() => setResourceListOpen(false)}
             onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
+            onCreateEmptyTopic={isOldView && !isMessageOnlyView ? createAndActivateEmptyTopic : undefined}
             onDraftAssistantChange={updateDraftAssistantSelection}
             onSend={sendDraftMessage}
             showResourceListControls={!isMessageOnlyView && !isWindowFrame}
@@ -664,6 +687,7 @@ const HomePage: FC = () => {
           panePosition={panePosition}
           onPaneCollapse={() => setResourceListOpen(false)}
           onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
+          onCreateEmptyTopic={isOldView && !isMessageOnlyView ? createAndActivateEmptyTopic : undefined}
           showResourceListControls={!isMessageOnlyView && !isWindowFrame}
           sidebarOpen={effectiveShowSidebar}
           onSidebarToggle={toggleResourceListOpen}
@@ -685,6 +709,7 @@ type DraftWelcomeChatProps = {
   panePosition?: ChatPanePosition
   onPaneCollapse?: () => void
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
+  onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
   onSend: (text: string, options?: DraftChatSendOptions) => Promise<void>
   showResourceListControls?: boolean
@@ -701,6 +726,7 @@ function DraftWelcomeChat({
   panePosition,
   onPaneCollapse,
   onNewTopic,
+  onCreateEmptyTopic,
   onDraftAssistantChange,
   onSend,
   showResourceListControls,
@@ -719,6 +745,7 @@ function DraftWelcomeChat({
       onSend={onSend}
       onDraftAssistantChange={onDraftAssistantChange}
       onNewTopic={onNewTopic}
+      onCreateEmptyTopic={onCreateEmptyTopic}
     />
   )
 

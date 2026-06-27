@@ -19,6 +19,7 @@ interface ChatComposerSlotProps {
     }
   ) => Promise<void>
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
+  onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   sendDisabled?: boolean
   composerContext?: ComposerContextValue
 }
@@ -28,6 +29,7 @@ export default function ChatComposerSlot({
   topic,
   onSend,
   onNewTopic,
+  onCreateEmptyTopic,
   sendDisabled,
   composerContext
 }: ChatComposerSlotProps) {
@@ -39,6 +41,7 @@ export default function ChatComposerSlot({
       assistantId={topic.assistantId}
       onSend={onSend}
       onNewTopic={onNewTopic}
+      onCreateEmptyTopic={onCreateEmptyTopic}
       sendDisabled={isHome ? undefined : sendDisabled}
     />
   )

@@ -32,6 +32,7 @@ interface Props {
   paneOpen?: boolean
   panePosition?: ChatPanePosition
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
+  onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   showResourceListControls?: boolean
   sidebarOpen?: boolean
   onSidebarToggle?: () => void
@@ -232,6 +233,7 @@ const Chat: FC<Props> = (props) => {
           topic={props.activeTopic}
           onOpenCitationsPanel={handleOpenCitationsPanel}
           onNewTopic={props.onNewTopic}
+          onCreateEmptyTopic={props.onCreateEmptyTopic}
           locateMessageId={locateMessageId}
           onLocateMessageHandled={handleLocateMessageHandled}
           onBranchLiveStateChange={handleBranchLiveStateChange}
