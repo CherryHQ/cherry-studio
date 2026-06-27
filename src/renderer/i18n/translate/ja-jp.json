@@ -5333,6 +5333,9 @@
       "auto_switch_to_topics": "トピックに自動的に切り替える",
       "title": "詳細設定"
     },
+    "appearance": {
+      "title": "[to be translated]:Appearance"
+    },
     "assistant": {
       "icon": {
         "type": {
@@ -5401,6 +5404,7 @@
         "cloud_storage": "クラウドバックアップ設定",
         "export_settings": "エクスポート設定",
         "import_settings": "設定のインポート",
+        "note_export": "[to be translated]:Note Export",
         "third_party": "サードパーティー連携"
       },
       "export_menu": {
@@ -5962,6 +5966,48 @@
         "token_placeholder": "Yuqueトークンを入力してください"
       }
     },
+    "dependencies": {
+      "addTool": "Add Tool",
+      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "coreDepsMissing": "Core dependencies not installed",
+      "customTools": "Custom Tools",
+      "customToolsEmpty": "カスタムツールはまだありません。始めるには、1つ追加してください。",
+      "description": "アプリに必要なバイナリツールとランタイム依存関係を管理します。",
+      "duplicateName": "A tool with the same name already exists",
+      "fieldVersion": "Version (optional, defaults to latest)",
+      "install": "インストール",
+      "installError": "Failed to install tool",
+      "installing": "インストール中...",
+      "invalidTool": "無効なツール名またはキー",
+      "notInstalled": "インストールされていません",
+      "openBinariesDir": "Open binaries directory",
+      "remove": "Remove tool",
+      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmTitle": "Remove Tool",
+      "searchFailed": "Search failed, check logs",
+      "searchRegistry": "Search mise registry...",
+      "source": {
+        "bundled": "bundled"
+      },
+      "title": "環境依存",
+      "tools": {
+        "bun": "JavaScript runtime used by MCP services and related toolchains.",
+        "claude": "Anthropic's agentic coding tool for the terminal.",
+        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
+        "fd": "Fast file finder, alternative to find.",
+        "gh": "GitHub CLI for repository and workflow management.",
+        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
+        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
+        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
+        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
+        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
+        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
+        "rg": "Fast text search tool (ripgrep), alternative to grep.",
+        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
+        "uv": "Python package manager for MCP services and dependency installation."
+      },
+      "update": "Update to latest version"
+    },
     "developer": {
       "enable_developer_mode": "開発者モードを有効にする",
       "help": "開発者モードを有効にすると、トレース機能を使用してモデルの呼び出しプロセスにおけるデータフローを確認できるようになります。",
@@ -6412,10 +6458,11 @@
       "user": "ユーザー"
     },
     "menuGroups": {
-      "appSettings": "アプリ設定",
-      "integrations": "モデル",
-      "productivity": "生産性",
-      "services": "プラグイン",
+      "automation": "[to be translated]:Automation",
+      "capabilities": "[to be translated]:Capabilities & Tools",
+      "models": "[to be translated]:Models",
+      "personal": "[to be translated]:Personal",
+      "quickAccess": "[to be translated]:Quick Access",
       "system": "システム"
     },
     "messages": {
@@ -6465,6 +6512,8 @@
         "logo_upload_label": "ロゴをアップロード",
         "name": "名前",
         "name_placeholder": "名前を入力してください",
+        "remove_confirm_description": "[to be translated]:Delete custom mini app \"{{name}}\"? This action cannot be undone.",
+        "remove_confirm_title": "[to be translated]:Delete custom mini app?",
         "remove_error": "カスタムミニアプリの削除に失敗しました。",
         "remove_success": "カスタムミニアプリの削除に成功しました。",
         "save_error": "カスタムミニアプリの保存に失敗しました。",
@@ -6493,6 +6542,7 @@
         "title": "ミニアプリ地域絞り込み"
       },
       "reset_tooltip": "デフォルト値にリセット",
+      "title": "[to be translated]:Mini Apps Settings",
       "visible": "表示するミニアプリ"
     },
     "model": "デフォルトモデル",
@@ -6644,6 +6694,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
+        "sync_apply_default_in_use": "[to be translated]:Some models are in use as the default model and cannot be removed.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",
@@ -6758,48 +6809,6 @@
       }
     },
     "parameter_settings": "パラメータ設定",
-    "plugins": {
-      "addTool": "Add Tool",
-      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
-      "coreDepsMissing": "Core dependencies not installed",
-      "customTools": "Custom Tools",
-      "customToolsEmpty": "カスタムツールはまだありません。始めるには、1つ追加してください。",
-      "description": "アプリに必要なバイナリツールとランタイム依存関係を管理します。",
-      "duplicateName": "A tool with the same name already exists",
-      "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "インストール",
-      "installError": "Failed to install tool",
-      "installing": "インストール中...",
-      "invalidTool": "無効なツール名またはキー",
-      "notInstalled": "インストールされていません",
-      "openBinariesDir": "Open binaries directory",
-      "remove": "Remove tool",
-      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
-      "removeConfirmTitle": "Remove Tool",
-      "searchFailed": "Search failed, check logs",
-      "searchRegistry": "Search mise registry...",
-      "source": {
-        "bundled": "bundled"
-      },
-      "title": "環境依存",
-      "tools": {
-        "bun": "JavaScript runtime used by MCP services and related toolchains.",
-        "claude": "Anthropic's agentic coding tool for the terminal.",
-        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
-        "fd": "Fast file finder, alternative to find.",
-        "gh": "GitHub CLI for repository and workflow management.",
-        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
-        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
-        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
-        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
-        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
-        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
-        "rg": "Fast text search tool (ripgrep), alternative to grep.",
-        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
-        "uv": "Python package manager for MCP services and dependency installation."
-      },
-      "update": "Update to latest version"
-    },
     "power": {
       "prevent_sleep_when_busy": "タスクが実行されている間はシステムをスリープさせない"
     },
@@ -7290,6 +7299,9 @@
       "uninstallSuccess": "スキルがアンインストールされました: {{name}}",
       "viewSource": "ソースを表示",
       "zip": "ZIP"
+    },
+    "system": {
+      "title": "[to be translated]:System"
     },
     "theme": {
       "color_primary": "テーマ色",

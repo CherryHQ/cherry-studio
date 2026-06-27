@@ -39,7 +39,7 @@ export const SettingsContentColumn = ({
   </div>
 )
 
-// Body variant for pages that handle their own Scrollbar (e.g. CommonSettings, ShortcutSettings).
+// Body variant for pages that handle their own Scrollbar (e.g. ShortcutSettings).
 // Renders the same two-layer structure (outer px-6 py-4, inner mx-auto max-w-3xl) without owning the scroll.
 export const SettingsContentBody = ({
   className,
