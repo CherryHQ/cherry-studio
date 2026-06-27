@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url'
+
 import {
   type Options,
   type Query,
@@ -452,13 +454,28 @@ function toSdkUserMessage(
   resumeToken?: string,
   systemReminder = false
 ): SDKUserMessage {
-  const text = extractMessageText(message)
+  const content = buildAgentUserContent(message)
   return {
     type: 'user',
-    message: { role: 'user', content: systemReminder && text.trim() ? wrapSteerReminder(text) : text },
+    message: { role: 'user', content: systemReminder && content.trim() ? wrapSteerReminder(content) : content },
     parent_tool_use_id: null,
     session_id: resumeToken ?? ''
   }
+}
+
+/**
+ * Build the user-turn content sent to the agent SDK. The agent is a filesystem agent
+ * (it has no native multimodal channel here), so attached files are forwarded as their
+ * absolute paths appended to the text — the agent reads them with its own tools.
+ */
+export function buildAgentUserContent(message: AgentSessionMessageEntity): string {
+  const text = extractMessageText(message)
+  const paths = extractAttachmentPaths(message)
+  if (paths.length === 0) return text
+
+  const list = paths.map((path) => `- ${path}`).join('\n')
+  const section = `Attached files (read them with your tools using these absolute paths):\n${list}`
+  return text.trim() ? `${text}\n\n${section}` : section
 }
 
 function extractMessageText(message: AgentSessionMessageEntity): string {
@@ -468,6 +485,22 @@ function extractMessageText(message: AgentSessionMessageEntity): string {
       .map((part) => part.text)
       .join('\n') ?? ''
   )
+}
+
+/** Absolute local paths of `file://`-backed attachment parts (composer attachments). */
+function extractAttachmentPaths(message: AgentSessionMessageEntity): string[] {
+  const paths: string[] = []
+  for (const part of message.data?.parts ?? []) {
+    if (part.type !== 'file') continue
+    const url = (part as { url?: unknown }).url
+    if (typeof url !== 'string' || !url.startsWith('file://')) continue
+    try {
+      paths.push(fileURLToPath(url))
+    } catch {
+      // Skip an unparseable url rather than failing the whole turn.
+    }
+  }
+  return paths
 }
 
 export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
