@@ -1,1 +1,1 @@
-export type { ApiGatewayConfig, ApiGatewayStatusResult } from '@shared/types/apiGateway'
+export type { ApiGatewayConfig } from '@shared/types/apiGateway'

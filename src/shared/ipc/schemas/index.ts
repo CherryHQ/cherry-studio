@@ -1,5 +1,6 @@
 import type { RouteDef } from '../define'
 import { type AiEventSchemas, aiRequestSchemas } from './ai'
+import { apiGatewayRequestSchemas } from './apiGateway'
 import { appRequestSchemas } from './app'
 import { type BinaryEventSchemas, binaryRequestSchemas } from './binary'
 import { fileRequestSchemas } from './file'
@@ -18,6 +19,7 @@ import { type WindowEventSchemas, windowRequestSchemas } from './window'
  */
 export const ipcRequestSchemas = {
   ...aiRequestSchemas,
+  ...apiGatewayRequestSchemas,
   ...appRequestSchemas,
   ...binaryRequestSchemas,
   ...fileRequestSchemas,

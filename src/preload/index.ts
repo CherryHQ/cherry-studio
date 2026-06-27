@@ -11,7 +11,6 @@ import type { FileEntry } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { ApiGatewayStatusResult } from '@shared/types/apiGateway'
 import type { S3Config, WebDavConfig } from '@shared/types/backup'
 import type { TerminalConfig } from '@shared/types/codeCli'
 import type { CodeToolsRunResult, OperationResult } from '@shared/types/codeTools'
@@ -715,11 +714,6 @@ const api = {
       messageId?: string
       sourceLangCode?: string
     }): Promise<{ streamId: string }> => ipcRenderer.invoke(IpcChannel.Ai_Translate_Open, req)
-  },
-  apiGateway: {
-    start: (): Promise<ApiGatewayStatusResult> => ipcRenderer.invoke(IpcChannel.ApiGateway_Start),
-    restart: (): Promise<ApiGatewayStatusResult> => ipcRenderer.invoke(IpcChannel.ApiGateway_Restart),
-    stop: (): Promise<ApiGatewayStatusResult> => ipcRenderer.invoke(IpcChannel.ApiGateway_Stop)
   },
   skill: {
     list: (agentId?: string): Promise<SkillResult<InstalledSkill[]>> =>

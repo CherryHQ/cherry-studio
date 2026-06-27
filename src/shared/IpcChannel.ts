@@ -327,11 +327,6 @@ export enum IpcChannel {
   TRACE_GET_DATA = 'trace:getData',
   TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
 
-  // API Gateway
-  ApiGateway_Start = 'api-gateway:start',
-  ApiGateway_Stop = 'api-gateway:stop',
-  ApiGateway_Restart = 'api-gateway:restart',
-
   // ExternalApps
   ExternalApps_DetectInstalled = 'external-apps:detect-installed',
 
