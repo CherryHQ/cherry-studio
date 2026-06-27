@@ -1,6 +1,5 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel/symbols'
 import type { QuickPanelInputAdapter, QuickPanelInputEvent, QuickPanelListItem } from '@renderer/components/QuickPanel'
@@ -473,7 +472,6 @@ export default function ComposerSurface({
   const quickPanel = useQuickPanel()
   const quickPanelRef = useRef(quickPanel)
   quickPanelRef.current = quickPanel
-  const { forceWideLayout } = useChatLayoutMode()
   const { setTimeoutTimer } = useTimer()
   const editorMinHeight = getComposerEditorMinHeight(fontSize)
   const editorFrameRef = useRef<HTMLDivElement | null>(null)
@@ -1497,7 +1495,7 @@ export default function ComposerSurface({
   )
 
   return (
-    <NarrowLayout narrowMode={narrowMode && !forceWideLayout} withSidePadding style={{ width: '100%' }}>
+    <NarrowLayout narrowMode={narrowMode} withSidePadding style={{ width: '100%' }}>
       <div className="w-full">
         <div
           className="inputbar relative z-2 flex flex-col pt-0"
