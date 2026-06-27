@@ -17,7 +17,7 @@ const ipcMocks = vi.hoisted(() => ({
   request: vi.fn()
 }))
 
-vi.mock('@renderer/config/constant', () => ({
+vi.mock('@renderer/utils/platform', () => ({
   get isMac() {
     return platformState.isMac
   }

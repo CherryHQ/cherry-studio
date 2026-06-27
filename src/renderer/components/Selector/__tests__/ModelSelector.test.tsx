@@ -1,3 +1,4 @@
+import type * as ModelModule from '@renderer/utils/model'
 import { type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -59,7 +60,8 @@ vi.mock('@cherrystudio/ui/icons', () => ({
   resolveIcon: () => null
 }))
 
-vi.mock('@renderer/config/models/reasoning', () => ({
+vi.mock('@renderer/utils/model', async (importOriginal) => ({
+  ...(await importOriginal<typeof ModelModule>()),
   getModelSupportedReasoningEffortOptions: () => undefined
 }))
 

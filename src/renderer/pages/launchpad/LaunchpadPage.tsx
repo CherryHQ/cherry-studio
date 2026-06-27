@@ -1,17 +1,17 @@
 import { usePreference } from '@data/hooks/usePreference'
+import { SIDEBAR_ICON_COMPONENTS } from '@renderer/components/app/sidebarIcons'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import App from '@renderer/components/MiniApp/MiniApp'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import {
   getRequiredSidebarIconsVisible,
   getSidebarMenuPath,
   REQUIRED_SIDEBAR_ICONS,
   sanitizeSidebarIcons,
-  SIDEBAR_ICON_COMPONENTS,
   SIDEBAR_ICON_ORDER
-} from '@renderer/config/sidebar'
-import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { getSidebarIconLabelKey } from '@renderer/i18n/label'
+} from '@renderer/utils/sidebar'
 import type { SidebarFavorite, SidebarIcon } from '@shared/data/preference/preferenceTypes'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { useNavigate } from '@tanstack/react-router'

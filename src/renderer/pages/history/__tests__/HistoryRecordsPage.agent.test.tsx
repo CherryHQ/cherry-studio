@@ -67,11 +67,11 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useQuery: hookMocks.useDataApiQuery
 }))
 
-vi.mock('@renderer/hooks/agents/useAgent', () => ({
+vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgents: hookMocks.useAgents
 }))
 
-vi.mock('@renderer/hooks/agents/useSession', () => ({
+vi.mock('@renderer/hooks/agent/useSession', () => ({
   useSessions: hookMocks.useSessions,
   useUpdateSession: hookMocks.useUpdateSession
 }))
