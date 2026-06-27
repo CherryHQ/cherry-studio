@@ -291,6 +291,8 @@ export interface MessageListActions {
   exportToSiyuan?: (message: MessageExportView) => void | Promise<void>
   openArtifactFile?: (path: string) => void | Promise<void>
   openPath?: (path: string) => void | Promise<void>
+  /** Probe whether a path points at a directory (fs.stat-backed; resolves false on missing). */
+  isDirectory?: (path: string) => Promise<boolean>
   openCitationsPanel?: (data: { citations: Citation[] }) => void
   openAgentToolFlow?: (input: OpenAgentToolFlowInput) => void
   showInFolder?: (path: string) => void | Promise<void>
