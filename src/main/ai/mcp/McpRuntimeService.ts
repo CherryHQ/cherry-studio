@@ -592,6 +592,20 @@ export class McpRuntimeService extends BaseService {
                 connectEnv.UV_DEFAULT_INDEX = server.registryUrl
                 connectEnv.PIP_INDEX_URL = server.registryUrl
               }
+            } else {
+              // For any other command (e.g., globally installed npm packages, standalone binaries),
+              // try to resolve to a full path so cross-spawn doesn't depend on a potentially
+              // incomplete PATH in the environment.
+              const resolved = await findCommandInShellEnv(effectiveCommand, loginShellEnv)
+              if (resolved) {
+                cmd = resolved
+                getServerLogger(server).debug(`Resolved command to full path`, { command: cmd })
+              } else {
+                getServerLogger(server).warn(
+                  `Could not resolve command '${effectiveCommand}' to a full path. ` +
+                    `If the server fails to start, try providing the full path in the command field.`
+                )
+              }
             }
 
             getServerLogger(server).debug(`Starting server`, { command: cmd, args })
