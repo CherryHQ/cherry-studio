@@ -1,10 +1,9 @@
 import { preferenceService } from '@data/PreferenceService'
+import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
+import { TabsProvider } from '@renderer/components/layout/TabsProvider'
+import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import TopViewContainer from '@renderer/components/TopView'
-import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
-import StyleSheetManager from '@renderer/context/StyleSheetManager'
-import { TabsProvider } from '@renderer/context/TabsContext'
-import { ThemeProvider } from '@renderer/context/ThemeProvider'
 import { SubWindowAppShell } from '@renderer/windows/subWindow/SubWindowAppShell'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
@@ -23,21 +22,19 @@ const queryClient = new QueryClient({
 function SubWindowApp(): React.ReactElement {
   return (
     <QueryClientProvider client={queryClient}>
-      <StyleSheetManager>
-        <ThemeProvider>
-          <CodeStyleProvider>
-            <CommandContextKeyProvider>
-              <CommandProvider>
-                <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
-                  <TopViewContainer>
-                    <SubWindowAppShell />
-                  </TopViewContainer>
-                </TabsProvider>
-              </CommandProvider>
-            </CommandContextKeyProvider>
-          </CodeStyleProvider>
-        </ThemeProvider>
-      </StyleSheetManager>
+      <ThemeProvider>
+        <CodeStyleProvider>
+          <CommandContextKeyProvider>
+            <CommandProvider>
+              <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
+                <TopViewContainer>
+                  <SubWindowAppShell />
+                </TopViewContainer>
+              </TabsProvider>
+            </CommandProvider>
+          </CommandContextKeyProvider>
+        </CodeStyleProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   )
 }

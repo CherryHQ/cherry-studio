@@ -224,7 +224,12 @@
           "runFailed": "Không thể chạy tác vụ",
           "updateFailed": "Không thể cập nhật tác vụ"
         },
-        "intervalPlaceholder": "Khoảng thời gian tính bằng phút",
+        "frequency": {
+          "everyPrefix": "Mỗi",
+          "everySuffix": "phút",
+          "label": "Tần suất thực thi"
+        },
+        "intervalPlaceholder": "Tối thiểu 1",
         "intervalUnit": "phút",
         "lastRun": "Lần chạy cuối",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Interval",
-          "label": "Tipo de Horario",
           "once": "Một khi"
         },
-        "scheduleValue": "Giá trị theo lịch trình",
         "status": {
           "active": "Hoạt động",
           "completed": "Hoàn thành",
@@ -277,7 +280,7 @@
           "minutesAgo": "{{count}} m pli frue"
         },
         "timeout": {
-          "label": "Timeout",
+          "label": "Thời gian thực thi tối đa",
           "placeholder": "Keine Grenzen"
         },
         "title": "Các Tác Vụ Đã Lên Lịch"
@@ -3873,64 +3876,6 @@
       "partial_failure": "{{count}} kết quả tìm kiếm, một số tìm kiếm thất bại"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "Thêm vào Launchpad",
-    "add_to_sidebar": "Thêm vào Thanh bên",
-    "popup": {
-      "close": "Đóng MinApp",
-      "devtools": "Công cụ dành cho nhà phát triển",
-      "goBack": "Quay lại",
-      "goForward": "Tiến về phía trước",
-      "minimize": "Thu nhỏ MinApp",
-      "openExternal": "Mở trong trình duyệt",
-      "open_link_external_off": "Hiện tại: Mở liên kết trong cửa sổ mặc định",
-      "open_link_external_on": "Hiện tại: Mở liên kết trong trình duyệt",
-      "refresh": "Làm mới",
-      "rightclick_copyurl": "Nhấp chuột phải để sao chép URL"
-    },
-    "remove_from_launchpad": "Gỡ khỏi Launchpad",
-    "remove_from_sidebar": "Xóa khỏi thanh bên",
-    "sidebar": {
-      "close": {
-        "title": "Đóng"
-      },
-      "closeall": {
-        "title": "Đóng Tất Cả"
-      },
-      "hide": {
-        "title": "Ẩn"
-      },
-      "remove_custom": {
-        "title": "Xóa Ứng dụng Tùy chỉnh"
-      }
-    },
-    "title": "MinApp"
-  },
-  "minapps": {
-    "ant-ling": "Ant Ling",
-    "baichuan": "Baichuan",
-    "baidu-ai-search": "Tìm kiếm AI Baidu",
-    "chatglm": "ChatGLM",
-    "dangbei": "Dangbei",
-    "doubao": "Doubao",
-    "hailuo": "Hailuo",
-    "ima": "ima",
-    "metaso": "Metaso",
-    "minimax-agent": "Đại lý Minimax CN",
-    "minimax-global": "Đại lý Minimax",
-    "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI Search",
-    "qwen": "Qwen",
-    "sensechat": "SenseChat",
-    "stepfun": "Stepfun",
-    "tencent-yuanbao": "Nguyên bảo",
-    "tiangong-ai": "Skywork",
-    "wanzhi": "Wanzhi",
-    "wenxin": "ERNIE",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "Tiểu Nghi",
-    "zhihu": "Zhihu"
-  },
   "miniApp": {
     "add_to_launchpad": "Thêm vào Launchpad",
     "add_to_sidebar": "Thêm vào Thanh bên",
@@ -3941,15 +3886,13 @@
     "hide_failed": "Failed to hide mini-app",
     "pin_failed": "Không thể ghim ứng dụng nhỏ",
     "popup": {
-      "close": "Đóng MiniApp",
       "devtools": "Công cụ dành cho nhà phát triển",
       "goBack": "Quay lại",
       "goForward": "Tiến về phía trước",
       "openExternal": "Mở trong trình duyệt",
       "open_link_external_off": "Hiện tại: Mở liên kết trong cửa sổ mặc định",
       "open_link_external_on": "Hiện tại: Mở liên kết trong trình duyệt",
-      "refresh": "Làm mới",
-      "rightclick_copyurl": "Nhấp chuột phải để sao chép URL"
+      "refresh": "Làm mới"
     },
     "remove_from_launchpad": "Xóa khỏi Launchpad",
     "remove_from_sidebar": "Gỡ khỏi Thanh bên",
@@ -3961,17 +3904,8 @@
     },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
-      "close": {
-        "title": "Đóng"
-      },
-      "closeall": {
-        "title": "Đóng tất cả"
-      },
       "hide": {
         "title": "Ẩn"
-      },
-      "remove_custom": {
-        "title": "Xóa ứng dụng tùy chỉnh"
       }
     },
     "title": "MiniApp",
@@ -3991,7 +3925,6 @@
     "minimax-agent": "Đại lý Minimax CN",
     "minimax-global": "Đại lý Minimax",
     "nami-ai": "Nami AI",
-    "nami-ai-search": "Tìm kiếm AI Nami",
     "qwen": "Qwen",
     "sensechat": "SenseChat",
     "stepfun": "Stepfun",
@@ -6523,37 +6456,22 @@
     "miniApps": {
       "cache_change_notice": "Các thay đổi sẽ có hiệu lực khi số lượng ứng dụng mini đang mở đạt đến giá trị đã đặt",
       "cache_description": "Đặt số lượng tối đa các ứng dụng mini đang hoạt động cần giữ trong bộ nhớ",
-      "cache_settings": "Cài đặt bộ nhớ đệm",
       "cache_title": "Giới hạn bộ nhớ cache của Mini App",
       "custom": {
-        "conflicting_ids": "IDs conflictivos con aplicaciones predeterminadas: {{ids}}",
-        "duplicate_ids": "ID duplicados encontrados: {{ids}}",
-        "edit_description": "Chỉnh sửa cấu hình mini app tùy chỉnh tại đây. Mỗi app cần bao gồm các trường id, name, url và logo.",
+        "create_title": "Tạo mini app tùy chỉnh",
         "edit_title": "Chỉnh sửa Ứng dụng Nhỏ Tùy chỉnh",
-        "id": "ID",
-        "id_error": "ID diperlukan.",
-        "id_placeholder": "Nhập ID",
-        "logo": "Biểu tượng",
         "logo_file": "Subir archivo de logotipo",
-        "logo_upload_button": "Subir",
         "logo_upload_error": "Không thể tải lên logo.",
         "logo_upload_label": "Tải lên Logo",
-        "logo_upload_success": "Logo cargado correctamente.",
-        "logo_url": "URL biểu tượng",
-        "logo_url_label": "URL biểu tượng",
-        "logo_url_placeholder": "Nhập URL logo",
         "name": "Tên",
-        "name_error": "Name ist erforderlich.",
         "name_placeholder": "Nhập tên",
-        "placeholder": "Nhập cấu hình mini app tùy chỉnh (định dạng JSON)",
         "remove_error": "Không thể xóa ứng dụng nhỏ tùy chỉnh.",
         "remove_success": "Ứng dụng mini tùy chỉnh đã được gỡ bỏ thành công.",
-        "save": "Lưu",
         "save_error": "Không lưu được ứng dụng nhỏ tùy chỉnh.",
         "save_success": "Ứng dụng tùy chỉnh đã được lưu thành công.",
         "title": "Tùy chỉnh",
         "url": "URL",
-        "url_error": "URL là bắt buộc.",
+        "url_invalid": "Nhập URL http, https hoặc file hợp lệ.",
         "url_placeholder": "Nhập URL"
       },
       "disabled": "Ứng dụng nhỏ ẩn",
@@ -6575,65 +6493,7 @@
         "title": "Bộ lọc Mini Program"
       },
       "reset_tooltip": "Redefinir para o padrão",
-      "title": "Cài đặt Ứng dụng Mini",
       "visible": "Mini aplicaciones visibles"
-    },
-    "miniapps": {
-      "cache_change_notice": "Những thay đổi sẽ có hiệu lực khi số lượng ứng dụng mini đang mở đạt đến giá trị đã đặt",
-      "cache_description": "Đặt số lượng tối đa các mini app đang hoạt động để giữ trong bộ nhớ",
-      "cache_settings": "Cài đặt bộ nhớ đệm",
-      "cache_title": "Giới hạn bộ nhớ đệm Mini App",
-      "custom": {
-        "conflicting_ids": "ID xung đột với ứng dụng mặc định: {{ids}}",
-        "duplicate_ids": "Phát hiện ID trùng lặp: {{ids}}",
-        "edit_description": "Chỉnh sửa cấu hình mini app tùy chỉnh tại đây. Mỗi app nên bao gồm các trường id, name, url và logo.",
-        "edit_title": "Chỉnh sửa Mini App Tùy chỉnh",
-        "id": "ID",
-        "id_error": "ID là bắt buộc.",
-        "id_placeholder": "Nhập ID",
-        "logo": "Logo",
-        "logo_file": "Tải lên Tệp Logo",
-        "logo_upload_button": "Tải lên",
-        "logo_upload_error": "Không thể tải lên logo.",
-        "logo_upload_label": "Tải lên Logo",
-        "logo_upload_success": "Logo đã được tải lên thành công.",
-        "logo_url": "URL Logo",
-        "logo_url_label": "URL Logo",
-        "logo_url_placeholder": "Nhập URL logo",
-        "name": "Tên",
-        "name_error": "Tên là bắt buộc.",
-        "name_placeholder": "Nhập tên",
-        "placeholder": "Nhập cấu hình ứng dụng nhỏ tùy chỉnh (định dạng JSON)",
-        "remove_error": "Không thể gỡ ứng dụng nhỏ tùy chỉnh.",
-        "remove_success": "Ứng dụng tùy chỉnh đã được gỡ bỏ thành công.",
-        "save": "Lưu",
-        "save_error": "Không thể lưu mini app tùy chỉnh.",
-        "save_success": "Ứng dụng mini tùy chỉnh đã được lưu thành công.",
-        "title": "Tùy chỉnh",
-        "url": "URL",
-        "url_error": "URL là bắt buộc.",
-        "url_placeholder": "Nhập URL"
-      },
-      "disabled": "Ứng dụng mini ẩn",
-      "display_title": "Cài đặt hiển thị Mini App",
-      "empty": "Nhấp vào biểu tượng ẩn của một ứng dụng bên trái và nó sẽ chuyển đến đây",
-      "hide_app": "Ẩn {{name}}",
-      "open_link_external": {
-        "title": "Mở liên kết cửa sổ mới trong trình duyệt"
-      },
-      "region": {
-        "auto": "Tự động phát hiện",
-        "cn": "Trung Quốc",
-        "description": "Lọc các chương trình mini không được hỗ trợ dựa trên khu vực",
-        "global": "Toàn cầu",
-        "title": "Bộ lọc Mini Program"
-      },
-      "reset_tooltip": "Đặt lại về mặc định",
-      "show_app": "Hiển thị {{name}}",
-      "sidebar_description": "Hiển thị các mini app đang hoạt động trong thanh bên",
-      "sidebar_title": "Hiển thị Ứng dụng Nhỏ Hoạt động trong Thanh bên",
-      "title": "Cài đặt Mini Apps",
-      "visible": "Mini Ứng dụng Hiển thị"
     },
     "model": "Mô hình Mặc định",
     "models": {
@@ -7105,7 +6965,6 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Miền gia tốc",
-          "backup": "Miền dự phòng",
           "international": "Tên miền quốc tế"
         }
       },

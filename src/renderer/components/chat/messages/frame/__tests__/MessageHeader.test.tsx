@@ -19,11 +19,11 @@ vi.mock('@cherrystudio/ui', () => ({
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 
-vi.mock('@renderer/config/models', () => ({
+vi.mock('@renderer/utils/model', () => ({
   getModelLogo: () => null
 }))
 
-vi.mock('@renderer/context/ThemeProvider', () => ({
+vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'light' })
 }))
 

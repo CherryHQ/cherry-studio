@@ -3,7 +3,7 @@
 ## What it is
 
 `IpcChatTransport`
-(`src/renderer/transport/IpcChatTransport.ts`) implements AI SDK's
+(`src/renderer/services/aiTransport/IpcChatTransport.ts`) implements AI SDK's
 `ChatTransport<CherryUIMessage>` over Electron IPC. The renderer feeds
 it into `useChat({ id: topicId, transport: ... })`. The `ChatTransport`
 interface has only two methods — `sendMessages` / `reconnectToStream`;
@@ -48,7 +48,7 @@ explicit `Ai_ToolApproval_Respond` IPC handled by
 
 ## Dispatch coordinator
 
-`streamDispatchCoordinator` (`src/renderer/transport/streamDispatchCoordinator.ts`)
+`streamDispatchCoordinator` (`src/renderer/services/aiTransport/streamDispatchCoordinator.ts`)
 sits between the transport and the IPC call so the `Ai_Stream_Open` ack
 (`userMessageId`, placeholder ids, executionIds) is observable to callers
 that need to join optimistic UI bubbles, rather than being thrown away by
@@ -65,7 +65,7 @@ running stream.
 
 The chunk stream from Main is keyed by `(topicId, executionId)`.
 `TopicStreamSubscription`
-(`src/renderer/transport/TopicStreamSubscription.ts`) owns the
+(`src/renderer/services/aiTransport/TopicStreamSubscription.ts`) owns the
 topic-level `streamAttach` / `streamDetach` with ref-counted lifecycle
 and demuxes chunks into per-execution branch `ReadableStream`s, so
 multi-model parallel responses render as separate AI SDK messages on
@@ -92,7 +92,7 @@ predicates the UI consumes (`isStreamLive`, `isTurnActive`,
 
 ## Where to read more
 
-- Code: `src/renderer/transport/`
+- Code: `src/renderer/services/aiTransport/`
 - Hook glue: `src/renderer/hooks/useChatWithHistory.ts`
 - Per-execution overlay (renderer assembler): [Execution Overlay](./execution-overlay.md)
 - Approval bridge: [Tool Approval](./tool-approval.md)

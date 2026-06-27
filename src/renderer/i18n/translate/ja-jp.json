@@ -224,7 +224,12 @@
           "runFailed": "タスクの実行に失敗しました",
           "updateFailed": "タスクの更新に失敗しました"
         },
-        "intervalPlaceholder": "間隔（分）",
+        "frequency": {
+          "everyPrefix": "間隔",
+          "everySuffix": "分ごとに実行",
+          "label": "実行頻度"
+        },
+        "intervalPlaceholder": "1以上",
         "intervalUnit": "議事録",
         "lastRun": "前回の実行",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "間隔",
-          "label": "スケジュールタイプ",
           "once": "一回限り"
         },
-        "scheduleValue": "スケジュール値",
         "status": {
           "active": "アクティブ",
           "completed": "完了",
@@ -277,7 +280,7 @@
           "minutesAgo": "{{count}}分前"
         },
         "timeout": {
-          "label": "タイムアウト",
+          "label": "最長実行時間",
           "placeholder": "制限なし"
         },
         "title": "スケジュールタスク"
@@ -3873,64 +3876,6 @@
       "partial_failure": "{{count}}件の検索結果、一部の検索に失敗しました"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "Launchpadに追加",
-    "add_to_sidebar": "サイドバーに追加",
-    "popup": {
-      "close": "ミニアプリを閉じる",
-      "devtools": "開発者ツール",
-      "goBack": "戻る",
-      "goForward": "前進",
-      "minimize": "最小化 MinApp",
-      "openExternal": "ブラウザで開く",
-      "open_link_external_off": "現在: デフォルトウィンドウでリンクを開く",
-      "open_link_external_on": "現在: ブラウザでリンクを開く",
-      "refresh": "更新",
-      "rightclick_copyurl": "右クリックしてURLをコピー"
-    },
-    "remove_from_launchpad": "Launchpadから削除",
-    "remove_from_sidebar": "サイドバーから削除",
-    "sidebar": {
-      "close": {
-        "title": "閉じる"
-      },
-      "closeall": {
-        "title": "すべて閉じる"
-      },
-      "hide": {
-        "title": "隠す"
-      },
-      "remove_custom": {
-        "title": "カスタムアプリを削除"
-      }
-    },
-    "title": "MinApp"
-  },
-  "minapps": {
-    "ant-ling": "アント・リン",
-    "baichuan": "バイチュアン",
-    "baidu-ai-search": "百度 AI 検索",
-    "chatglm": "チャットGLM",
-    "dangbei": "ダンベイ",
-    "doubao": "豆包",
-    "hailuo": "ハイルオ",
-    "ima": "今",
-    "metaso": "メタソ",
-    "minimax-agent": "ミニマックスエージェント CN",
-    "minimax-global": "ミニマックスエージェント",
-    "nami-ai": "ナミ AI",
-    "nami-ai-search": "ナミ AI サーチ",
-    "qwen": "クウェン",
-    "sensechat": "センスチャット",
-    "stepfun": "ステップファン",
-    "tencent-yuanbao": "元宝",
-    "tiangong-ai": "スカイワーク",
-    "wanzhi": "ワンジ",
-    "wenxin": "ERNIE",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "シャオイ",
-    "zhihu": "知乎"
-  },
   "miniApp": {
     "add_to_launchpad": "スタート画面に追加",
     "add_to_sidebar": "サイドバーに追加",
@@ -3941,15 +3886,13 @@
     "hide_failed": "Failed to hide mini-app",
     "pin_failed": "ミニアプリをピン留めできませんでした",
     "popup": {
-      "close": "ミニアプリを閉じる",
       "devtools": "開発者ツール",
       "goBack": "戻る",
       "goForward": "進む",
       "openExternal": "ブラウザで開く",
       "open_link_external_off": "現在：デフォルトのウィンドウで開く",
       "open_link_external_on": "現在：ブラウザで開く",
-      "refresh": "更新",
-      "rightclick_copyurl": "右クリックでURLをコピー"
+      "refresh": "更新"
     },
     "remove_from_launchpad": "スタート画面から削除",
     "remove_from_sidebar": "サイドバーから削除",
@@ -3961,17 +3904,8 @@
     },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
-      "close": {
-        "title": "閉じる"
-      },
-      "closeall": {
-        "title": "すべて閉じる"
-      },
       "hide": {
         "title": "非表示"
-      },
-      "remove_custom": {
-        "title": "カスタムアプリを削除"
       }
     },
     "title": "ミニアプリ",
@@ -3991,7 +3925,6 @@
     "minimax-agent": "MiniMax Agent CN",
     "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI Search",
     "qwen": "通義千問",
     "sensechat": "SenseChat",
     "stepfun": "Stepfun",
@@ -6523,37 +6456,22 @@
     "miniApps": {
       "cache_change_notice": "設定値に達するまでミニアプリの開閉が行われた後に変更が適用されます",
       "cache_description": "メモリに保持するアクティブなミニアプリの最大数を設定します",
-      "cache_settings": "キャッシュ設定",
       "cache_title": "ミニアプリのキャッシュ数",
       "custom": {
-        "conflicting_ids": "デフォルトアプリとIDが競合しています: {{ids}}",
-        "duplicate_ids": "重複するIDが見つかりました: {{ids}}",
-        "edit_description": "ここでカスタムミニアプリの設定を編集します。各アプリにはid、name、url、logoフィールドが必要です。",
+        "create_title": "カスタムミニアプリを作成",
         "edit_title": "カスタムミニアプリの編集",
-        "id": "ID",
-        "id_error": "IDは必須項目です。",
-        "id_placeholder": "IDを入力してください",
-        "logo": "ロゴ",
         "logo_file": "ロゴファイルをアップロード",
-        "logo_upload_button": "アップロード",
         "logo_upload_error": "ロゴのアップロードに失敗しました。",
         "logo_upload_label": "ロゴをアップロード",
-        "logo_upload_success": "ロゴのアップロードに成功しました。",
-        "logo_url": "ロゴURL",
-        "logo_url_label": "ロゴURL",
-        "logo_url_placeholder": "ロゴURLを入力してください",
         "name": "名前",
-        "name_error": "名前は必須項目です。",
         "name_placeholder": "名前を入力してください",
-        "placeholder": "カスタムミニアプリの設定を入力してください（JSON形式）",
         "remove_error": "カスタムミニアプリの削除に失敗しました。",
         "remove_success": "カスタムミニアプリの削除に成功しました。",
-        "save": "保存",
         "save_error": "カスタムミニアプリの保存に失敗しました。",
         "save_success": "カスタムミニアプリの保存に成功しました。",
         "title": "カスタムミニアプリ",
         "url": "URL",
-        "url_error": "URLは必須項目です。",
+        "url_invalid": "有効な http、https、または file URL を入力してください。",
         "url_placeholder": "URLを入力してください"
       },
       "disabled": "非表示のミニアプリ",
@@ -6575,65 +6493,7 @@
         "title": "ミニアプリ地域絞り込み"
       },
       "reset_tooltip": "デフォルト値にリセット",
-      "title": "ミニアプリ設定",
       "visible": "表示するミニアプリ"
-    },
-    "miniapps": {
-      "cache_change_notice": "変更は、開いているミニアプリの数が設定値に達した時点で有効になります",
-      "cache_description": "メモリに保持するアクティブなミニアプリの最大数を設定します",
-      "cache_settings": "キャッシュ設定",
-      "cache_title": "ミニアプリキャッシュ制限",
-      "custom": {
-        "conflicting_ids": "デフォルトアプリとのID競合: {{ids}}",
-        "duplicate_ids": "重複したIDが見つかりました: {{ids}}",
-        "edit_description": "ここでカスタムミニアプリの設定を編集します。各アプリには id、name、url、および logo フィールドを含める必要があります。",
-        "edit_title": "カスタムミニアプリを編集",
-        "id": "ID",
-        "id_error": "IDが必要です。",
-        "id_placeholder": "IDを入力してください",
-        "logo": "ロゴ",
-        "logo_file": "ロゴファイルをアップロード",
-        "logo_upload_button": "アップロード",
-        "logo_upload_error": "ロゴのアップロードに失敗しました。",
-        "logo_upload_label": "ロゴをアップロード",
-        "logo_upload_success": "ロゴが正常にアップロードされました。",
-        "logo_url": "ロゴURL",
-        "logo_url_label": "ロゴURL",
-        "logo_url_placeholder": "ロゴのURLを入力してください",
-        "name": "名前",
-        "name_error": "名前は必須です。",
-        "name_placeholder": "名前を入力してください",
-        "placeholder": "カスタムミニアプリ設定を入力（JSON形式）",
-        "remove_error": "カスタムミニアプリの削除に失敗しました。",
-        "remove_success": "カスタムミニアプリが正常に削除されました。",
-        "save": "保存",
-        "save_error": "カスタムミニアプリの保存に失敗しました。",
-        "save_success": "カスタムミニアプリが正常に保存されました。",
-        "title": "カスタム",
-        "url": "URL",
-        "url_error": "URLが必要です。",
-        "url_placeholder": "URLを入力してください"
-      },
-      "disabled": "隠しミニアプリ",
-      "display_title": "ミニアプリ表示設定",
-      "empty": "左側のアプリの非表示アイコンをクリックすると、ここに移動します",
-      "hide_app": "{{name}}を隠す",
-      "open_link_external": {
-        "title": "ブラウザで新しいウィンドウのリンクを開く"
-      },
-      "region": {
-        "auto": "自動検出",
-        "cn": "中国",
-        "description": "地域に基づいてサポートされていないミニプログラムをフィルタリング",
-        "global": "グローバル",
-        "title": "ミニプログラムフィルター"
-      },
-      "reset_tooltip": "デフォルトにリセット",
-      "show_app": "{{name}}を表示",
-      "sidebar_description": "サイドバーにアクティブなミニアプリを表示",
-      "sidebar_title": "サイドバー アクティブ ミニアプリ表示",
-      "title": "ミニアプリの設定",
-      "visible": "見えるミニアプリ"
     },
     "model": "デフォルトモデル",
     "models": {
@@ -7105,7 +6965,6 @@
       "cherryin": {
         "api_host": {
           "acceleration": "加速度領域",
-          "backup": "バックアップドメイン",
           "international": "国際ドメイン"
         }
       },

@@ -164,6 +164,38 @@ describe('KnowledgeBaseToolRuntime', () => {
     expect(onSelect).toHaveBeenLastCalledWith([mocks.knowledgeBases[0]])
   })
 
+  it('shows available knowledge bases when the assistant has no configured knowledge-base ids', async () => {
+    const launcher = createLauncherApi()
+    const onSelect = vi.fn()
+    const quickPanel = { open: vi.fn() }
+
+    render(<KnowledgeBaseToolRuntime launcher={launcher} configuredKnowledgeBaseIds={[]} onSelect={onSelect} />)
+
+    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+
+    const [knowledgeLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
+    expect(knowledgeLauncher).toMatchObject({
+      id: 'knowledge-base',
+      disabled: false,
+      disabledReason: undefined
+    })
+
+    knowledgeLauncher.action?.({
+      quickPanel,
+      source: 'root-panel',
+      triggerInfo: { type: 'button' }
+    } as never)
+
+    expect(quickPanel.open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        list: [
+          expect.objectContaining({ id: 'knowledge-base:kb-1', label: 'Knowledge One' }),
+          expect.objectContaining({ id: 'knowledge-base:kb-2', label: 'Knowledge Two' })
+        ]
+      })
+    )
+  })
+
   it('refreshes the open knowledge panel when selected bases change', async () => {
     mocks.quickPanel.isVisible = true
     mocks.quickPanel.symbol = ComposerPanelSymbol.KnowledgeBase

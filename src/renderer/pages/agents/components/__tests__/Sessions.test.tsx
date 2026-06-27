@@ -286,17 +286,18 @@ const createTopicStreamStatusMock = (overrides: { isFulfilled?: boolean; isPendi
   status: undefined
 })
 
-vi.mock('@renderer/hooks/agents/useSession', () => ({
+vi.mock('@renderer/hooks/agent/useSession', () => ({
   useSessions: sessionDataMocks.useSessions,
   useUpdateSession: sessionDataMocks.useUpdateSession
 }))
 
-vi.mock('@renderer/hooks/agents/useAgent', () => ({
+vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgents: agentDataMocks.useAgents
 }))
 
-vi.mock('@renderer/context/TabsContext', () => ({
-  useOptionalTabsContext: () => tabsContextMocks
+vi.mock('@renderer/hooks/tab', () => ({
+  useOptionalTabsContext: () => tabsContextMocks,
+  useCurrentTabId: () => null
 }))
 
 vi.mock('@renderer/components/resource/dialogs', () => ({

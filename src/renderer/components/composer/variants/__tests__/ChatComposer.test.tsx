@@ -327,7 +327,12 @@ vi.mock('@renderer/components/resource', () => ({
   )
 }))
 
-vi.mock('@renderer/config/models', () => ({
+vi.mock('@renderer/utils/model', () => ({
+  // Mirrors the real reconcile logic using the mocked predicates below:
+  // canModelUseAssistantWebSearch = isWebSearchModel || isOpenRouterBuiltInWebSearchModel || isFunctionCallingModel.
+  // The first two predicates are stubbed to false here, so it reduces to the function-call check.
+  canModelUseAssistantWebSearch: (currentModel?: Model) =>
+    currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
   getThinkModelType: () => 'default',
   isEmbeddingModel: () => false,
   isFunctionCallingModel: (currentModel?: Model) =>
@@ -545,7 +550,10 @@ describe('ChatComposer', () => {
         draftTokens.filter((token) => token.kind === 'knowledge').map((token) => token.id)
       )
       const configuredKnowledgeBaseIds = new Set(mocks.assistant?.knowledgeBaseIds ?? [])
-      const selectableKnowledgeBases = mocks.knowledgeBases.filter((base) => configuredKnowledgeBaseIds.has(base.id))
+      const selectableKnowledgeBases =
+        configuredKnowledgeBaseIds.size === 0
+          ? mocks.knowledgeBases
+          : mocks.knowledgeBases.filter((base) => configuredKnowledgeBaseIds.has(base.id))
       mocks.setSelectedKnowledgeBases((previousBases: KnowledgeBase[]) => {
         const nextBases = previousBases.filter((base) => knowledgeTokenIds.has(`knowledge:${base.id}`))
         const nextBaseIds = new Set(nextBases.map((base) => `knowledge:${base.id}`))
@@ -631,6 +639,13 @@ describe('ChatComposer', () => {
     expect(screen.getByText('tool menu')).toBeInTheDocument()
     expect(screen.getByText('Assistant 1')).toBeInTheDocument()
     expect(screen.getByText('Model A | Provider')).toBeInTheDocument()
+    expect(mocks.surfaceProps?.narrowMode).toBe(false)
+  })
+
+  it('keeps the home composer narrow even when chat wide layout is enabled', () => {
+    render(<ChatPlacementComposer isHome topic={topic} onSend={vi.fn()} />)
+
+    expect(mocks.surfaceProps?.narrowMode).toBe(true)
   })
 
   it('does not enable skill marker paste handling', () => {
@@ -2343,7 +2358,7 @@ describe('ChatComposer', () => {
 
     mocks.assistant = {
       ...mocks.assistant,
-      knowledgeBaseIds: []
+      knowledgeBaseIds: ['kb-2']
     }
     view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
 
