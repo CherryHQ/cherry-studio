@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
+import { PortalContainerProvider } from '@cherrystudio/ui/components/primitives/portal-container'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import * as React from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -217,33 +218,62 @@ describe('PageSidePanel', () => {
       expect(screen.getByRole('dialog')).toHaveClass('fixed')
     })
 
-    it('portals into a scoped page side panel root when present', () => {
-      const { container } = render(
-        <div data-testid="page-shell">
-          <div data-page-side-panel-root="true" data-testid="panel-root" />
+    it('portals into the marked scoped container provided via context', () => {
+      const scopedRoot = document.createElement('div')
+      scopedRoot.setAttribute('data-page-side-panel-root', 'true')
+      document.body.appendChild(scopedRoot)
+
+      render(
+        <PortalContainerProvider container={scopedRoot}>
           <PageSidePanel open={true} onClose={vi.fn()} />
-        </div>
+        </PortalContainerProvider>
       )
 
-      const root = screen.getByTestId('panel-root')
-      const panel = root.querySelector('[data-slot="page-side-panel"]')
-      const backdrop = root.querySelector('[data-slot="page-side-panel-backdrop"]')
-      expect(container).toContainElement(root)
+      const panel = scopedRoot.querySelector('[data-slot="page-side-panel"]')
+      const backdrop = scopedRoot.querySelector('[data-slot="page-side-panel-backdrop"]')
       expect(panel).toBeInTheDocument()
       expect(backdrop).toBeInTheDocument()
-      expect(panel?.parentElement).toBe(root)
-      expect(backdrop?.parentElement).toBe(root)
+      expect(panel?.parentElement).toBe(scopedRoot)
+      expect(backdrop?.parentElement).toBe(scopedRoot)
+
+      scopedRoot.remove()
     })
 
-    it('uses absolute positioning when portaled into a scoped root', () => {
+    it('uses absolute positioning when portaled into a marked scoped container', () => {
+      const scopedRoot = document.createElement('div')
+      scopedRoot.setAttribute('data-page-side-panel-root', 'true')
+      document.body.appendChild(scopedRoot)
+
       render(
-        <div data-page-side-panel-root="true">
+        <PortalContainerProvider container={scopedRoot}>
           <PageSidePanel open={true} onClose={vi.fn()} />
-        </div>
+        </PortalContainerProvider>
       )
 
-      expect(document.querySelector('[data-slot="page-side-panel-backdrop"]')).toHaveClass('absolute')
+      expect(scopedRoot.querySelector('[data-slot="page-side-panel-backdrop"]')).toHaveClass('absolute')
       expect(screen.getByRole('dialog')).toHaveClass('absolute')
+
+      scopedRoot.remove()
+    })
+
+    it('ignores an unmarked context container and portals to document.body (full-window)', () => {
+      // A context container that is not marked as a page-side-panel root (e.g. macOS
+      // tab roots, or a Dialog content) must not capture the panel; it floats over the
+      // whole window via document.body instead.
+      const unmarkedRoot = document.createElement('div')
+      document.body.appendChild(unmarkedRoot)
+
+      render(
+        <PortalContainerProvider container={unmarkedRoot}>
+          <PageSidePanel open={true} onClose={vi.fn()} />
+        </PortalContainerProvider>
+      )
+
+      expect(unmarkedRoot.querySelector('[data-slot="page-side-panel"]')).not.toBeInTheDocument()
+      expect(document.body.querySelector('[data-slot="page-side-panel"]')).toBeInTheDocument()
+      expect(screen.getByRole('dialog')).toHaveClass('fixed')
+
+      unmarkedRoot.remove()
     })
 
     it('applies design inset classes by default', () => {

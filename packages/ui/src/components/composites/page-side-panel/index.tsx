@@ -1,27 +1,25 @@
 import { Button } from '@cherrystudio/ui/components/primitives/button'
+import { usePortalContainer } from '@cherrystudio/ui/components/primitives/portal-container'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { AnimatePresence, motion } from 'framer-motion'
 import { XIcon } from 'lucide-react'
 import * as React from 'react'
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
 
 import Scrollbar from '../scrollbar'
 
 /**
- * A page-owned floating side panel. It portals to `document.body` so the fixed
- * panel and viewport backdrop are not clipped or re-based by page layout,
- * transformed ancestors, virtualized lists, or scroll containers.
+ * A page-owned floating side panel. It portals into its tab-scoped container — the
+ * `usePortalContainer()` element marked as a page-side-panel root — when one is
+ * present, otherwise to `document.body`, so the panel and backdrop are not clipped or
+ * re-based by page layout, transformed ancestors, virtualized lists, or scroll
+ * containers.
  *
  * For edge-attached modal sheets, use the shadcn `Drawer` primitive instead.
  */
 type PageSidePanelPlacement = 'left' | 'right'
 const PAGE_SIDE_PANEL_ROOT_SELECTOR = '[data-page-side-panel-root="true"]'
-
-function resolvePortalContainer() {
-  if (typeof document === 'undefined') return null
-  return document.querySelector<HTMLElement>(PAGE_SIDE_PANEL_ROOT_SELECTOR) ?? document.body
-}
 
 interface PageSidePanelProps {
   open: boolean
@@ -65,16 +63,15 @@ function PageSidePanel({
   const panelRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLElement | null>(null)
   const closedByPointerDownRef = useRef(false)
-  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(resolvePortalContainer)
+  // Adopt the page's portal container from context, but only when it opts in as a
+  // *marked* page-side-panel root: this keeps a page-level panel out of dialog/popover
+  // content and lets macOS (whose tab roots stay unmarked) fall through to a full-window
+  // document.body portal.
+  const defaultPortalContainer = usePortalContainer()
+  const scopedDefault = defaultPortalContainer?.matches(PAGE_SIDE_PANEL_ROOT_SELECTOR) ? defaultPortalContainer : null
+  const resolvedPortalContainer = scopedDefault ?? (typeof document === 'undefined' ? null : document.body)
   const isScopedPortal =
-    typeof document !== 'undefined' && portalContainer !== null && portalContainer !== document.body
-
-  useLayoutEffect(() => {
-    const nextPortalContainer = resolvePortalContainer()
-    setPortalContainer((currentPortalContainer) =>
-      currentPortalContainer === nextPortalContainer ? currentPortalContainer : nextPortalContainer
-    )
-  }, [])
+    typeof document !== 'undefined' && resolvedPortalContainer !== null && resolvedPortalContainer !== document.body
 
   const handleClose = useCallback(
     (event?: React.MouseEvent | React.PointerEvent | React.KeyboardEvent) => {
@@ -189,7 +186,7 @@ function PageSidePanel({
     </AnimatePresence>
   )
 
-  return portalContainer ? createPortal(panel, portalContainer) : panel
+  return resolvedPortalContainer ? createPortal(panel, resolvedPortalContainer) : panel
 }
 
 interface PageSidePanelSectionProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'title'> {

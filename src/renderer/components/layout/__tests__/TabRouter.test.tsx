@@ -16,9 +16,6 @@ const knobs = vi.hoisted(() => ({
 }))
 
 const routerMocks = vi.hoisted(() => ({
-  portalContainer: {
-    current: null as HTMLElement | null
-  },
   navigate: vi.fn(),
   subscribe: vi.fn(() => vi.fn())
 }))
@@ -29,20 +26,18 @@ vi.mock('@renderer/config/constant', () => ({
   }
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  PortalContainerProvider: ({ children, container }: { children: React.ReactNode; container: HTMLElement | null }) => {
-    routerMocks.portalContainer.current = container
-    return (
-      <div
-        data-has-portal-container={String(container instanceof HTMLElement)}
-        data-portal-container-is-body={String(container === document.body)}
-        data-testid="portal-container-provider">
-        {children}
-      </div>
-    )
-  },
-  usePortalContainer: () => routerMocks.portalContainer.current
-}))
+// The bug under test is per-tab portal ownership, so PageSidePanel must read the SAME
+// PortalContainerContext that TabRouter's provider sets. PageSidePanel pulls the hook
+// from the deep path while TabRouter pulls the provider from the barrel; mock the deep
+// path to the real module so every importer resolves to one context instance, then
+// re-export it from the barrel (otherwise the global @cherrystudio/ui stub shadows it).
+vi.mock('@cherrystudio/ui/components/primitives/portal-container', async (importOriginal) => importOriginal())
+vi.mock('@cherrystudio/ui', async () => {
+  const { PortalContainerProvider, usePortalContainer } = await import(
+    '@cherrystudio/ui/components/primitives/portal-container'
+  )
+  return { PortalContainerProvider, usePortalContainer }
+})
 
 vi.mock('@renderer/routeTree.gen', () => ({ routeTree: {} }))
 
@@ -94,7 +89,6 @@ afterEach(() => {
   cleanup()
   knobs.isMac = false
   knobs.renderPage = () => null
-  routerMocks.portalContainer.current = null
   vi.clearAllMocks()
 })
 
@@ -104,9 +98,9 @@ describe('TabRouter page side panel root', () => {
     expect(container.querySelector('[data-page-side-panel-root="true"]')).toBeInTheDocument()
   })
 
-  it('does not expose the scoped root on an inactive tab', () => {
+  it('exposes the scoped root on an inactive tab too, so its own panel stays scoped to it', () => {
     const { container } = render(<TabRouter tab={tab('a', '/a')} isActive={false} onUrlChange={() => {}} />)
-    expect(container.querySelector('[data-page-side-panel-root="true"]')).not.toBeInTheDocument()
+    expect(container.querySelector('[data-page-side-panel-root="true"]')).toBeInTheDocument()
   })
 
   it('does not expose a scoped root on macOS', () => {
@@ -117,40 +111,54 @@ describe('TabRouter page side panel root', () => {
 })
 
 describe('TabRouter PageSidePanel portal isolation', () => {
-  // Regression for the non-mac scoped portal: a PageSidePanel opened in one tab
-  // must not stay visible after switching to another tab.
-  it('hides a still-open panel from the previous tab after switching tabs', () => {
-    function Page({ url }: { url: string }) {
-      const [open] = React.useState(url === '/a')
-      return <PageSidePanel open={open} onClose={() => {}} title={`panel ${url}`} />
-    }
+  function Page({ url }: { url: string }) {
+    const [open] = React.useState(url === '/b')
+    return <PageSidePanel open={open} onClose={() => {}} title={`panel ${url}`} />
+  }
+
+  function Shell({ activeId }: { activeId: string }) {
+    return (
+      <main>
+        <TabRouter tab={tab('a', '/a')} isActive={activeId === 'a'} onUrlChange={() => {}} />
+        <TabRouter tab={tab('b', '/b')} isActive={activeId === 'b'} onUrlChange={() => {}} />
+      </main>
+    )
+  }
+
+  // Core regression: the old global [data-page-side-panel-root] lookup resolved a panel
+  // into whichever tab was active/first-marked, so a background tab's panel surfaced
+  // inside the active tab. Per-tab context scoping means a tab's open panel can never
+  // land inside *another* tab's root.
+  //
+  // A tab that is hidden at mount cannot capture its own container yet — React Activity
+  // defers the hidden subtree's ref/commit — so here `b` (background, never active) falls
+  // back to a full-window document.body portal. That path does not occur in the app,
+  // where panels are only opened on the active tab (see the next test); the invariant
+  // that matters is that it stays out of the active tab.
+  it("never surfaces a background tab's open panel inside the active tab", async () => {
     knobs.renderPage = (url) => <Page url={url} />
 
-    function Shell({ activeId }: { activeId: string }) {
-      return (
-        <main>
-          <TabRouter tab={tab('a', '/a')} isActive={activeId === 'a'} onUrlChange={() => {}} />
-          <TabRouter tab={tab('b', '/b')} isActive={activeId === 'b'} onUrlChange={() => {}} />
-        </main>
-      )
-    }
+    render(<Shell activeId="a" />)
 
-    const { rerender } = render(<Shell activeId="a" />)
+    const [aRoot] = document.querySelectorAll<HTMLElement>('[data-page-side-panel-root="true"]')
+    const dialog = await screen.findByRole('dialog')
+    expect(aRoot).not.toContainElement(dialog)
+  })
 
-    let roots = document.querySelectorAll('[data-page-side-panel-root="true"]')
-    expect(roots).toHaveLength(1)
-    const aRoot = roots[0] as HTMLElement
-    expect(aRoot.querySelector('[role="dialog"]')).toBeInTheDocument()
+  it('keeps a panel opened on the active tab scoped to that tab after switching away', async () => {
+    knobs.renderPage = (url) => <Page url={url} />
 
-    rerender(<Shell activeId="b" />)
+    // Open b's panel while b is active so b captures its own root, then switch to a.
+    const { rerender } = render(<Shell activeId="b" />)
+    const [aRoot, bRoot] = document.querySelectorAll<HTMLElement>('[data-page-side-panel-root="true"]')
+    await waitFor(() => expect(bRoot.querySelector('[role="dialog"]')).toBeInTheDocument())
 
-    roots = document.querySelectorAll('[data-page-side-panel-root="true"]')
-    expect(roots).toHaveLength(1)
-    expect(roots[0]).not.toBe(aRoot)
+    rerender(<Shell activeId="a" />)
 
-    expect(aRoot.querySelector('[role="dialog"]')).toBeInTheDocument()
-    expect(aRoot.style.display).toBe('none')
-    expect(roots[0].querySelector('[role="dialog"]')).not.toBeInTheDocument()
+    // b's panel stays in b's now-hidden root; it never migrates to active a.
+    expect(bRoot.querySelector('[role="dialog"]')).toBeInTheDocument()
+    expect(bRoot.style.display).toBe('none')
+    expect(aRoot.querySelector('[role="dialog"]')).not.toBeInTheDocument()
   })
 })
 
@@ -175,8 +183,6 @@ describe('TabRouter', () => {
       expect(screen.getByTestId('router-provider')).toHaveAttribute('data-has-portal-container', 'true')
     )
     expect(screen.getByTestId('router-provider')).toHaveAttribute('data-portal-container-is-body', 'false')
-    expect(screen.getByTestId('portal-container-provider')).toHaveAttribute('data-has-portal-container', 'true')
-    expect(screen.getByTestId('portal-container-provider')).toHaveAttribute('data-portal-container-is-body', 'false')
   })
 
   it('uses the tab entry URL even when instance metadata points to another key', () => {

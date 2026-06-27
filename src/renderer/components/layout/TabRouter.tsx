@@ -5,7 +5,7 @@ import { routeTree } from '@renderer/routeTree.gen'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
 import { Activity } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 interface TabRouterProps {
   tab: Tab
@@ -46,13 +46,21 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
   }, [router, tab.url])
 
   const [tabPortalContainer, setTabPortalContainer] = useState<HTMLElement | null>(null)
+  // Latch the captured node across Activity hide/show: a hidden tab detaches the ref
+  // (node === null) while its DOM node lives on, and clearing the container would
+  // un-scope its still-open PageSidePanel to a full-window document.body portal.
+  const captureTabPortalContainer = useCallback((node: HTMLElement | null) => {
+    if (node) setTabPortalContainer(node)
+  }, [])
 
   return (
     <Activity mode={isActive ? 'visible' : 'hidden'}>
       <TabIdProvider tabId={tab.id}>
+        {/* Mark every non-mac tab root so each tab's PageSidePanel scopes into its own
+            container (active or background); macOS stays unmarked so panels use document.body. */}
         <div
-          ref={setTabPortalContainer}
-          data-page-side-panel-root={!isMac && isActive ? 'true' : undefined}
+          ref={captureTabPortalContainer}
+          data-page-side-panel-root={!isMac ? 'true' : undefined}
           className="relative flex h-full min-h-0 w-full flex-1 flex-col">
           <PortalContainerProvider container={tabPortalContainer}>
             <RouterProvider router={router} />
