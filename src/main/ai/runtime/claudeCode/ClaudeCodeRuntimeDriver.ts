@@ -491,14 +491,9 @@ function extractMessageText(message: AgentSessionMessageEntity): string {
 function extractAttachmentPaths(message: AgentSessionMessageEntity): string[] {
   const paths: string[] = []
   for (const part of message.data?.parts ?? []) {
-    if (part.type !== 'file') continue
-    const url = (part as { url?: unknown }).url
-    if (typeof url !== 'string' || !url.startsWith('file://')) continue
-    try {
-      paths.push(fileURLToPath(url))
-    } catch {
-      // Skip an unparseable url rather than failing the whole turn.
-    }
+    // `parts` is a typed `CherryMessagePart[]`, so `type === 'file'` narrows to `FileUIPart`.
+    if (part.type !== 'file' || !part.url.startsWith('file://')) continue
+    paths.push(fileURLToPath(part.url))
   }
   return paths
 }
