@@ -7,12 +7,15 @@ import { ipcApi } from '@renderer/ipc'
 import { cn } from '@renderer/utils/style'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { defaultLanguage } from '@shared/utils/languages'
-import { Droplet, Minus, Pin, X } from 'lucide-react'
-import { DynamicIcon } from 'lucide-react/dynamic'
+import Droplet from 'lucide-react/dist/esm/icons/droplet'
+import Minus from 'lucide-react/dist/esm/icons/minus'
+import Pin from 'lucide-react/dist/esm/icons/pin'
+import X from 'lucide-react/dist/esm/icons/x'
 import type { ComponentProps, FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import SelectionActionIcon from '../SelectionActionIcon'
 import ActionGeneral from './components/ActionGeneral'
 import ActionTranslate from './components/ActionTranslate'
 
@@ -229,7 +232,7 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
         style={isMac ? { paddingLeft: '70px' } : {}}>
         {action.icon && (
           <div className="ml-1 flex items-center justify-center">
-            <DynamicIcon name={action.icon as any} size={16} className="text-foreground" fallback={() => {}} />
+            <SelectionActionIcon name={action.icon} size={16} className="text-foreground" fallback={() => null} />
           </div>
         )}
         <div className="ml-2 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-normal text-foreground text-sm">
