@@ -21,7 +21,7 @@ export const knowledgeSupportedFileExts = [
   '.epub',
   '.draftsexport'
 ] as const
-export const knowledgeFileProcessingExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.xls', '.xlsm'] as const
+export const knowledgeFileProcessingExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.xls'] as const
 
 /**
  * A flat array of all file extensions known by the linguist database.
