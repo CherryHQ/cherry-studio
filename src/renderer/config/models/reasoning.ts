@@ -34,6 +34,7 @@ import {
   isQwenAlwaysThinkModel as sharedIsQwenAlwaysThinkModel,
   isQwenReasoningModel as sharedIsQwenReasoningModel,
   isReasoningModel as sharedIsReasoningModel,
+  isSelfHostedGemma4ThinkingModel as sharedIsSelfHostedGemma4ThinkingModel,
   isStepReasoningModel as sharedIsStepReasoningModel,
   isSupportedReasoningEffortGrokModel as sharedIsSupportedReasoningEffortGrokModel,
   isSupportedReasoningEffortPerplexityModel as sharedIsSupportedReasoningEffortPerplexityModel,
@@ -43,6 +44,7 @@ import {
   isSupportedThinkingTokenHunyuanModel as sharedIsSupportedThinkingTokenHunyuanModel,
   isSupportedThinkingTokenKimiModel as sharedIsSupportedThinkingTokenKimiModel,
   isSupportedThinkingTokenMiMoModel as sharedIsSupportedThinkingTokenMiMoModel,
+  isSupportedThinkingTokenModel as sharedIsSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel as sharedIsSupportedThinkingTokenQwenModel,
   isSupportedThinkingTokenZhipuModel as sharedIsSupportedThinkingTokenZhipuModel,
   isZhipuReasoningModel as sharedIsZhipuReasoningModel,
@@ -211,6 +213,9 @@ export function isGrok43Model(model?: Model): boolean {
 export const isHostedGemma4ThinkingModel = (model?: Model): boolean =>
   model ? sharedIsHostedGemma4ThinkingModel(model) : false
 
+export const isSelfHostedGemma4ThinkingModel = (model?: Model): boolean =>
+  model ? sharedIsSelfHostedGemma4ThinkingModel(model) : false
+
 export const isHunyuanReasoningModel = (model?: Model): boolean =>
   model ? sharedIsHunyuanReasoningModel(model) : false
 
@@ -276,9 +281,15 @@ export const findTokenLimit = sharedFindTokenLimit
 
 // ── Aggregate checks (renderer keeps these because they compose multiple above) ─
 
+/** Self-hosted Gemma 4 thinking-token support = non-Gemini provider + Gemma4 ID + `thinkingTokenLimits`. */
+function isSupportedThinkingTokenSelfHostedGemma4Model(model: Model): boolean {
+  return isSelfHostedGemma4ThinkingModel(model) && sharedIsSupportedThinkingTokenModel(model)
+}
+
 function _isSupportedThinkingTokenModel(model: Model): boolean {
   return (
     isSupportedThinkingTokenGeminiModel(model) ||
+    isSupportedThinkingTokenSelfHostedGemma4Model(model) ||
     isSupportedThinkingTokenQwenModel(model) ||
     isSupportedThinkingTokenClaudeModel(model) ||
     isSupportedThinkingTokenDoubaoModel(model) ||
@@ -349,10 +360,10 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
     thinkingModelType = 'grok4_fast'
   } else if (isGrok43Model(model)) {
     thinkingModelType = 'grok_4_3'
+  } else if (isHostedGemma4ThinkingModel(model) || isSelfHostedGemma4ThinkingModel(model)) {
+    thinkingModelType = 'gemma4_hosted'
   } else if (isSupportedThinkingTokenGeminiModel(model)) {
-    if (isHostedGemma4ThinkingModel(model)) {
-      thinkingModelType = 'gemma4_hosted'
-    } else if (isGemini3FlashModel(model) || isGemini31FlashLiteModel(model)) {
+    if (isGemini3FlashModel(model) || isGemini31FlashLiteModel(model)) {
       thinkingModelType = 'gemini3_flash'
     } else if (isGemini3ProModel(model)) {
       thinkingModelType = 'gemini3_pro'

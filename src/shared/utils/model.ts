@@ -357,6 +357,13 @@ export const isHostedGemma4ThinkingModel = (model: Model): boolean => {
   return id.startsWith('gemma-4-')
 }
 
+/** Check if model is a Gemma 4 model on a self-hosted provider (non-Gemini, e.g. LM Studio, Ollama). */
+export const isSelfHostedGemma4ThinkingModel = (model: Model): boolean => {
+  if (model.providerId === 'gemini') return false
+  const id = getLowerBaseModelName(getRawModelId(model), '/')
+  return id.startsWith('gemma-4-') || /^gemma4/.test(id)
+}
+
 /** Check if model is Claude 4.5 reasoning */
 export const isClaude45ReasoningModel = (model: Model): boolean => {
   const id = getLowerBaseModelName(getRawModelId(model), '/')
