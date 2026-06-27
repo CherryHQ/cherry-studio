@@ -1,13 +1,28 @@
 {
-  "generated_at": "2026-06-26",
+  "generated_at": "2026-06-27",
   "branch_status": {
-    "note": "v2 branch was merged into main on 2026-05-28; main is now the active development branch",
+    "note": "v2 branch was merged into main; main is now the active v2 development branch",
     "v2_open_prs": 0,
-    "main_open_prs": 78,
-    "v1_open_prs": 21,
-    "v1_note": "v1 branch maintained for hotfixes only; 21 open PRs targeting v1"
+    "main_open_prs": 81,
+    "v1_open_prs": 6,
+    "v1_note": "v1 branch maintained for hotfixes only; 6 open PRs targeting v1"
   },
   "active_refactor_signals_today": {
+    "lodash_replacement": {
+      "pr": 16528,
+      "title": "refactor(deps): replace lodash with es-toolkit/compat and drop it",
+      "author": "DeJeune",
+      "status": "open",
+      "priority": "high",
+      "note": "Bundle size reduction ~350-450KB"
+    },
+    "performance_sprint": {
+      "prs": [16525, 16526, 16499, 16500, 16498],
+      "description": "Lazy-load special previews, defer capture deps, static icons, functional cache updates",
+      "author": "DeJeune",
+      "status": "open — 5 PRs",
+      "priority": "high"
+    },
     "dexie_retirement": {
       "pr": 16440,
       "title": "refactor(dexie): retire the settings table from v2 storage paths",
@@ -19,7 +34,7 @@
       "pr": 16462,
       "title": "docs(unified-runtime): AI SDK v7 migration plan and design docs",
       "author": "DeJeune",
-      "status": "open",
+      "status": "open (draft)",
       "priority": "high",
       "note": "Architectural decision document — signals upcoming major runtime changes"
     },
@@ -29,71 +44,94 @@
       "author": "DeJeune",
       "status": "open"
     },
-    "paintings_infinite_canvas": {
-      "pr": 16444,
-      "title": "feat(paintings): infinite canvas paint mode with React Flow",
-      "author": "DeJeune",
+    "settings_reorganization": {
+      "prs": [16489, 16488],
+      "description": "Remove standalone settings window, reorganize into 6 groups",
+      "author": "kangfenmao / DeJeune",
       "status": "open"
+    },
+    "ui_design_system_chain": {
+      "description": "13-part stacked PR chain for v2 design tokens and components",
+      "lead": "SiinXu",
+      "prs": [16104, 16094, 16095, 16096, 16097, 16098, 16099, 16100, 16101, 16102, 16103, 16107, 16108],
+      "status": "Draft — all 13 stacked, working through token → primitive → composite → window → chat"
+    },
+    "cli_integration": {
+      "prs": [16491, 16283],
+      "description": "Claude Code / OpenClaw CLI provider configs; login-based providers (Claude Code, Codex, Grok CLI)",
+      "status": "open / draft"
     },
     "doubao_seed_models": {
       "pr_main": 16464,
-      "pr_v1": 16458,
       "title": "feat: add doubao-seed-2-1 and doubao-seed-evolving models",
       "author": "GeorgeDong32",
-      "status": "open (both branches)",
-      "note": "Volcano Engine new models released 2026-06-23"
+      "status": "open"
     }
   },
   "milestone_v2_4_0": {
     "title": "v2.4.0",
     "state": "open",
-    "open_issues": 21,
-    "closed_issues": 3,
-    "updated_at": "2026-06-25",
+    "open_issues_estimated": 21,
     "notable_planned": [
-      { "number": 14899, "title": "Unified Notification Center", "priority": "P1", "status": "not started" }
+      {"number": 14899, "title": "Unified Notification Center", "priority": "P1", "status": "not started"}
     ]
   },
-  "v2_merged_pr_history": {
+  "v2_merged_pr_history_on_former_v2_branch": {
     "sample_size": 100,
     "merged_in_sample": 34,
-    "by_month": {
+    "by_month_approx": {
       "2026-01": 2,
       "2026-03": 8,
       "2026-04": 5,
       "2026-05": 19
     },
     "top_contributors": {
-      "eeee0717": 31,
-      "LWWZH": 12,
-      "DeJeune": 8,
-      "kovsu": 8,
-      "404-Page-Found": 6,
-      "Cherry-Yiran": 4
+      "eeee0717": 24,
+      "Cherry-Yiran": 3,
+      "EurFelux": 3,
+      "DeJeune": 1,
+      "kangfenmao": 1,
+      "kovsu": 1,
+      "0xfullex": 1
     },
     "key_landed_features": [
       "knowledge workflow jobs round2 (eeee0717, 2026-05-28)",
       "unified DirectoryTreeBuilder for Notes (DeJeune, 2026-05-28)",
-      "settings navigation redesign (2026-05-27)",
-      "file manager: chat_message FileRefSourceType (2026-05-27)",
-      "mini apps page refresh (2026-05-21)",
-      "knowledge UI migration (2026-05-11)"
+      "settings navigation redesign (Cherry-Yiran, 2026-05-27)",
+      "file manager: chat_message FileRefSourceType (EurFelux, 2026-05-27)",
+      "mini apps page refresh (Cherry-Yiran, 2026-05-21)",
+      "knowledge UI migration to v2 (kangfenmao, 2026-05-25)"
+    ]
+  },
+  "merged_to_main_30d": {
+    "total": 41,
+    "top_contributors": [
+      {"login": "kangfenmao", "merged_prs": 12},
+      {"login": "DeJeune", "merged_prs": 11},
+      {"login": "zhangjiadi225", "merged_prs": 4},
+      {"login": "eeee0717", "merged_prs": 3},
+      {"login": "ousugo", "merged_prs": 2},
+      {"login": "AtomsH4", "merged_prs": 2},
+      {"login": "Pleasurecruise", "merged_prs": 2},
+      {"login": "EurFelux", "merged_prs": 2}
     ]
   },
   "data_layer_cleanup_status": {
-    "dexie": "in active retirement — PR #16440 open",
+    "dexie": "in active retirement — PR #16440 open (settings table)",
     "electron_store": "being replaced by Preference/BootConfig/DataApi",
     "redux": "fully removed",
     "drizzle_sqlite": "primary data layer, stable",
     "libsql_vector_idx": "removed (PR #14280, #14180)"
   },
   "action_items": [
-    { "priority": "critical", "action": "Review agent history bug (#16446) — potential data loss in agent mode" },
-    { "priority": "high", "action": "Review and merge #16440 (Dexie retirement) to reduce v1 residue" },
-    { "priority": "high", "action": "Review AI SDK v7 migration plan (#16462) — architectural decision needed" },
-    { "priority": "high", "action": "Triage 47 'Blocked: v2' issues — v2 is merged, these can be unblocked" },
-    { "priority": "medium", "action": "Track v2.4.0 milestone: 21 open issues, P1 notification center not started" },
-    { "priority": "medium", "action": "Merge doubao-seed-2-1 model PRs (#16464 main, #16458 v1)" },
-    { "priority": "low", "action": "Validate paintings infinite canvas PR (#16444) against design spec" }
+    {"priority": "critical", "action": "Triage #16446 (agent history wipe) — potential data loss in agent mode, filed yesterday, unassigned"},
+    {"priority": "high", "action": "Review and merge #16440 (Dexie retirement) to reduce v1 residue"},
+    {"priority": "high", "action": "Review AI SDK v7 migration plan (#16462) — architectural decision needed before implementation"},
+    {"priority": "high", "action": "Review performance sprint PRs (#16525, #16526, #16528, #16499, #16500) — 5 PRs ready"},
+    {"priority": "high", "action": "Fix P1 #13193 (Azure OpenAI 404) — 115 days old, assigned to DeJeune"},
+    {"priority": "medium", "action": "Track v2.4.0 milestone: P1 Notification Center (#14899) not started"},
+    {"priority": "medium", "action": "Fix painting migrator dangling model_id (#16450) before next release"},
+    {"priority": "medium", "action": "Address {{time}} prompt cache invalidation (#16398) — user cost impact"},
+    {"priority": "low", "action": "Merge doubao-seed-2-1 model PR (#16464)"}
   ]
 }

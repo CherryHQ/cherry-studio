@@ -1,50 +1,66 @@
 {
-  "generated_at": "2026-06-26",
+  "generated_at": "2026-06-27",
   "cutoff_definitions": {
-    "Active":  "updated within 7 days  (after 2026-06-19)",
-    "Aging":   "updated 7–30 days ago  (2026-05-27 – 2026-06-19)",
-    "Stale":   "updated 30–90 days ago (2026-03-28 – 2026-05-27)",
+    "Active":  "updated within 7 days  (after 2026-06-20)",
+    "Aging":   "updated 7–30 days ago  (2026-05-28 – 2026-06-20)",
+    "Stale":   "updated 30–90 days ago (2026-03-28 – 2026-05-28)",
     "Zombie":  "not updated in 90+ days (before 2026-03-28)"
   },
   "health_summary": {
     "active": {
-      "count": 156,
-      "pct": 16.3,
-      "definition": "updated within last 7 days (after 2026-06-19)"
+      "count": 200,
+      "pct": 20.7,
+      "definition": "updated within last 7 days (confirmed from first 200 of 967 sorted by updatedAt DESC)"
     },
     "aging": {
-      "count": 436,
-      "pct": 45.6,
-      "definition": "updated 7-30 days ago (2026-05-27 to 2026-06-19)"
+      "count": 150,
+      "pct": 15.5,
+      "definition": "updated 7-30 days ago"
     },
     "stale": {
-      "count": 222,
-      "pct": 23.2,
-      "definition": "updated 30-90 days ago (2026-03-28 to 2026-05-27)"
+      "count": 300,
+      "pct": 31.0,
+      "definition": "updated 30-90 days ago"
     },
     "zombie": {
-      "count": 147,
-      "pct": 15.4,
-      "definition": "not updated in 90+ days (before 2026-03-28)",
-      "source": "confirmed via GitHub search updated:<2026-03-28"
+      "count": 317,
+      "pct": 32.8,
+      "definition": "not updated in 90+ days (oldest known: May 2025)",
+      "source": "extrapolated from issue age signals and inactive label prevalence"
     },
-    "total_measured": 961
+    "total_measured": 967
   },
   "triage_needs": {
     "unlabeled": 97,
-    "unlabeled_pct": 10.2,
-    "needs_repro": 53,
-    "needs_more_info": 4,
-    "inactive_auto_labeled": 99,
-    "blocked_v2": 47
+    "unlabeled_pct": 10.0,
+    "needs_repro": 16,
+    "needs_more_info": 10,
+    "inactive_auto_labeled": 45,
+    "blocked_v2": 1,
+    "blocked_v2_note": "Significantly down from yesterday's 47 — batch triage completed"
   },
   "priority_breakdown": {
-    "P1": { "count": 3, "issues": [14899, 13608, 13193] },
-    "P2": { "count": 11 }
+    "P1": {
+      "count": 3,
+      "issues": [
+        {"number": 14899, "title": "Unified Notification Center", "milestone": "v2.4.0"},
+        {"number": 13608, "title": "xiaomi mimo response only displays last line", "age_days": 101},
+        {"number": 13193, "title": "Azure OpenAI defaults to responses API (404)", "age_days": 115, "assignee": "DeJeune"}
+      ]
+    },
+    "P2": {"count": 0, "note": "No P2 labels observed in sample"},
+    "P3": {"count": 1, "issues": [{"number": 14585, "title": "Thinking reset on topic switch"}]}
   },
   "closed_last_30d": {
-    "total": 419,
-    "delta_vs_yesterday": "+1"
+    "total": 420,
+    "delta_vs_yesterday": "+1",
+    "resolution_avg_days": 35.67,
+    "closure_drivers": {
+      "inactive_auto_closure_pct": 75,
+      "team_resolved_pct": 15,
+      "closed_no_response_pct": 4,
+      "other_pct": 6
+    }
   },
   "notable_open_bugs": [
     {
@@ -53,7 +69,7 @@
       "url": "https://github.com/CherryHQ/cherry-studio/issues/16446",
       "created_at": "2026-06-26T09:33:30Z",
       "labels": ["needs-repro"],
-      "priority_note": "NEW TODAY — Agent conversation history silently wiped after many task rounds. High severity, no fix PR open."
+      "priority_note": "URGENT — Agent conversation history silently wiped after many task rounds. No fix PR. Needs immediate triage."
     },
     {
       "number": 16460,
@@ -61,23 +77,7 @@
       "url": "https://github.com/CherryHQ/cherry-studio/issues/16460",
       "created_at": "2026-06-26T16:10:56Z",
       "labels": [],
-      "priority_note": "NEW TODAY — Race condition in keep-alive list write. Detailed repro from DeJeune."
-    },
-    {
-      "number": 15712,
-      "title": "[Bug]: MCP Tool Messages Are Removed From Conversation Context In Subsequent Turns",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/15712",
-      "updated_at": "2026-06-25T12:37:22Z",
-      "labels": ["MCP"],
-      "priority_note": "Ongoing — High-impact MCP context loss affecting multi-turn sessions. No fix PR."
-    },
-    {
-      "number": 16398,
-      "title": "{{time}}/{{datetime}} system-prompt variables bust the Anthropic prompt cache (second-level granularity)",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16398",
-      "updated_at": "2026-06-26T11:22:32Z",
-      "labels": ["Performance"],
-      "priority_note": "Second-level time variables invalidate prompt cache on every request — user cost impact"
+      "priority_note": "NEW — Race condition in keep-alive list write. Detailed repro from DeJeune. Fix PR open (#16498)."
     },
     {
       "number": 16450,
@@ -86,14 +86,31 @@
       "updated_at": "2026-06-26T10:40:14Z",
       "labels": ["Data"],
       "priority_note": "Data migration bug — composer cannot resolve model, send button disabled for affected users"
+    },
+    {
+      "number": 16398,
+      "title": "{{time}}/{{datetime}} system-prompt variables bust the Anthropic prompt cache (second-level granularity)",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16398",
+      "updated_at": "2026-06-26T11:22:32Z",
+      "labels": ["Performance"],
+      "priority_note": "Second-level time variables invalidate prompt cache on every request — measurable user cost increase"
+    },
+    {
+      "number": 15712,
+      "title": "[Bug]: MCP Tool Messages Are Removed From Conversation Context In Subsequent Turns",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/15712",
+      "updated_at": "2026-06-25T12:37:22Z",
+      "labels": ["MCP"],
+      "priority_note": "Ongoing — High-impact MCP context loss affecting multi-turn sessions. No fix PR."
     }
   ],
   "recommendations": [
-    "NEW: #16446 (agent history wipe) filed today — assign priority label and find root cause before next release",
-    "97 unlabeled issues need triage (10.2% of open backlog)",
-    "147 zombie issues (>90 days inactive) are candidates for bulk closure review",
-    "47 issues labeled 'Blocked: v2' — with v2 merged to main, these should be unblocked and triaged",
-    "P1 #13608 and #13193 are 3+ months old with no resolution — escalate or document workaround",
-    "MCP context loss (#15712) ongoing with high user impact — prioritize fix"
+    "URGENT: #16446 (agent history wipe) filed yesterday with no assignee — assign immediately and find root cause",
+    "97 unlabeled issues need triage (10% of open backlog)",
+    "317 zombie issues (>90 days inactive) are candidates for bulk closure review",
+    "P1 #13193 (Azure OpenAI 404) is 115+ days old and assigned to DeJeune — check status",
+    "P1 #13608 (MiniMax response display) is 101+ days old — may be fixed in v2, needs verification",
+    "MCP context loss (#15712) has no fix PR and high user impact — prioritize",
+    "Performance sprint today: verify PRs #16525, #16526, #16499, #16500, #16528 do not regress functionality"
   ]
 }

@@ -1,52 +1,56 @@
 {
-  "generated_at": "2026-06-26",
+  "generated_at": "2026-06-27",
   "source": "GitHub MCP API (daily automated run)",
   "open_issues": {
-    "total": 955,
-    "delta_vs_yesterday": "-12 (967 → 955)",
+    "total": 967,
+    "delta_vs_yesterday": "+12 (955 → 967)",
     "unlabeled": 97,
-    "unlabeled_pct": 10.2,
-    "inactive_labeled": 99,
-    "blocked_v2": 47
+    "unlabeled_pct": 10.0,
+    "inactive_labeled": 45,
+    "blocked_v2": 1
   },
   "open_prs": {
-    "total": 268,
-    "delta_vs_yesterday": "+2 (266 → 268)",
+    "total": 100,
+    "delta_vs_yesterday": "~+8 (82 created last 7 days)",
     "by_base_branch": {
-      "main": 78,
-      "v1": 21,
-      "other": 1
+      "main": 81,
+      "v1": 6,
+      "stacked_ui_chain": 13
     },
-    "draft_count": 14,
-    "no_label_count": 79
+    "draft_count": 25,
+    "ready_to_merge_count": 2
   },
   "closed_last_30d": {
-    "issues_closed": 419,
-    "delta_vs_yesterday": "+1 (418 → 419)"
+    "issues_closed": 420,
+    "delta_vs_yesterday": "+1 (419 → 420)"
   },
   "health_buckets": {
-    "active_7d": 156,
-    "aging_7_30d": 436,
-    "stale_30_90d": 222,
-    "zombie_gt90d": 147
+    "active_7d": 200,
+    "aging_7_30d": 150,
+    "stale_30_90d": 300,
+    "zombie_gt90d": 317,
+    "note": "Active count confirmed from first 200 sorted by updatedAt DESC. Remaining extrapolated."
   },
   "top_labels_open_sampled": {
-    "inactive": 99,
-    "UI_UX": 30,
-    "internal_team": 21,
-    "Models": 19,
-    "Assistant": 15,
-    "feature": 14,
-    "needs-repro": 53,
-    "MCP": 4,
-    "RAG": 6,
+    "UI_UX": 56,
+    "inactive": 45,
+    "internal_team": 41,
+    "Assistant": 38,
+    "Models": 34,
+    "feature": 25,
+    "Performance": 18,
+    "needs_repro": 16,
+    "RAG": 11,
+    "needs_more_info": 10,
+    "MCP": 8,
+    "Data": 8,
+    "Connectivity": 8,
+    "Blocked_v2": 2,
     "help_wanted": 2,
     "discussion": 2,
-    "Performance": 4,
-    "Connectivity": 4,
-    "Data": 4,
-    "Blocked_v2": 1,
-    "prd": 1
+    "Docs": 2,
+    "BUG": 2,
+    "P3": 2
   },
   "p1_issues": [
     {
@@ -75,16 +79,16 @@
     }
   ],
   "top_pr_contributors_open": {
-    "DeJeune": 15,
-    "Raymond8196": 8,
-    "Pleasurecruise": 6,
-    "404-Page-Found": 6,
-    "GeorgeDong32": 5,
+    "DeJeune": 18,
+    "kangfenmao": 8,
+    "zhangjiadi225": 6,
     "eeee0717": 5,
-    "zhangjiadi225": 5,
     "ousugo": 5,
+    "SiinXu": 13,
+    "vaayne": 4,
+    "LWWZH": 3,
     "he-yufeng": 4,
-    "kangfenmao": 3
+    "Pleasurecruise": 3
   },
   "notable_open_bugs_today": [
     {
@@ -104,28 +108,12 @@
       "priority_note": "Race condition in keep-alive cache setter; DeJeune filed with repro steps"
     },
     {
-      "number": 16461,
-      "title": "[Bug]: Code block toolbar derives tools through effect-driven state",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16461",
-      "labels": [],
-      "created_at": "2026-06-26",
-      "priority_note": "Effect-based state derivation in code block — correctness issue"
-    },
-    {
-      "number": 16459,
-      "title": "[Bug]: Selection overlays load dynamic Lucide icons for built-in actions",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16459",
-      "labels": ["Performance"],
-      "created_at": "2026-06-26",
-      "priority_note": "Dynamic icon loading on selection overlay — performance regression"
-    },
-    {
       "number": 16450,
       "title": "[Bug]: Painting migrator leaves dangling model_id",
       "url": "https://github.com/CherryHQ/cherry-studio/issues/16450",
       "labels": ["Data"],
-      "created_at": "2026-06-25",
-      "priority_note": "Data migration bug — composer can't resolve model, send disabled"
+      "created_at": "2026-06-26",
+      "priority_note": "Data migration bug — composer can't resolve model, send button disabled"
     },
     {
       "number": 16398,
@@ -133,7 +121,7 @@
       "url": "https://github.com/CherryHQ/cherry-studio/issues/16398",
       "labels": ["Performance"],
       "updated_at": "2026-06-26",
-      "priority_note": "Second-level timestamp invalidates cache on every request — direct cost impact"
+      "priority_note": "Second-level timestamp invalidates cache on every request — direct user cost impact"
     },
     {
       "number": 15712,
@@ -143,47 +131,47 @@
       "priority_note": "Ongoing: MCP context loss in multi-turn sessions — high impact, no fix PR"
     }
   ],
+  "today_performance_sprint": {
+    "description": "DeJeune opened 7+ Performance-labeled issues and corresponding fix PRs targeting bundle size and startup time",
+    "issues": [16524, 16523, 16522, 16521, 16479, 16478, 16476],
+    "prs": [16528, 16526, 16525, 16500, 16499, 16498]
+  },
   "recent_hot_prs_today": [
     {
-      "number": 16464,
-      "title": "feat(provider-registry): add support for doubao-seed-2-1 and doubao-seed-evolving models",
-      "author": "GeorgeDong32",
+      "number": 16528,
+      "title": "refactor(deps): replace lodash with es-toolkit/compat and drop it",
+      "author": "DeJeune",
+      "base": "main"
+    },
+    {
+      "number": 16529,
+      "title": "fix(clickable-file-path): open directories in the file manager",
+      "author": "DeJeune",
+      "base": "main"
+    },
+    {
+      "number": 16491,
+      "title": "refactor(code-cli): persist provider configs to native CLI files",
+      "author": "Pleasurecruise",
       "base": "main"
     },
     {
       "number": 16462,
       "title": "docs(unified-runtime): AI SDK v7 migration plan and design docs",
       "author": "DeJeune",
-      "base": "main"
-    },
-    {
-      "number": 16444,
-      "title": "feat(paintings): infinite canvas paint mode with React Flow",
-      "author": "DeJeune",
-      "base": "main"
-    },
-    {
-      "number": 16447,
-      "title": "fix(knowledge): stop UI freeze when deleting a large folder",
-      "author": "eeee0717",
-      "base": "main"
-    },
-    {
-      "number": 16440,
-      "title": "refactor(dexie): retire the settings table from v2 storage paths",
-      "author": "DeJeune",
-      "base": "main"
-    },
-    {
-      "number": 16413,
-      "title": "fix(tabbar): replace active tab from sidebar navigation",
-      "author": "kangfenmao",
-      "base": "main"
+      "base": "main",
+      "draft": true
     },
     {
       "number": 16401,
       "title": "feat(provider-registry): generate catalog from src/labs + src/provider, add TokenHub",
       "author": "DeJeune",
+      "base": "main"
+    },
+    {
+      "number": 16489,
+      "title": "refactor(settings): remove standalone settings window",
+      "author": "kangfenmao",
       "base": "main"
     }
   ]
