@@ -48,7 +48,10 @@ export function mapAnthropicThinkingToProviderOptions(
           type: config.type,
           budgetTokens: config.type === 'enabled' ? config.budget_tokens : undefined
         }
-      } as AnthropicProviderOptions
+        // 3.0.87 added `fallbacks` (carrying non-JSON `Record<string, unknown>`), which makes the
+        // full options type no longer assignable to ProviderOptions' JSONObject value. This mapper
+        // only sets `thinking`, so drop `fallbacks` from the cast.
+      } as Omit<AnthropicProviderOptions, 'fallbacks'>
     }
   }
 
@@ -135,7 +138,10 @@ export function mapReasoningEffortToProviderOptions(
           type: 'enabled',
           budgetTokens: budgetMap[reasoningEffort]
         }
-      } as AnthropicProviderOptions
+        // 3.0.87 added `fallbacks` (carrying non-JSON `Record<string, unknown>`), which makes the
+        // full options type no longer assignable to ProviderOptions' JSONObject value. This mapper
+        // only sets `thinking`, so drop `fallbacks` from the cast.
+      } as Omit<AnthropicProviderOptions, 'fallbacks'>
     }
   }
 
