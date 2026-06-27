@@ -308,41 +308,6 @@ describe('SkillService', () => {
     })
   })
 
-  describe('initSkillsForAgent', () => {
-    it('creates enabled agent_skill rows for all builtin skills', async () => {
-      const skillService = new SkillService()
-      await seedAgent()
-      await seedSkills()
-
-      await skillService.initSkillsForAgent(AGENT_ID)
-
-      const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, AGENT_ID))
-
-      // Only the builtin skill should be seeded
-      expect(rows).toHaveLength(1)
-      expect(rows[0]).toMatchObject({ skillId: SKILL_ID_BUILTIN, isEnabled: true })
-    })
-
-    it('is a no-op when no builtin skills exist', async () => {
-      const skillService = new SkillService()
-      await seedAgent()
-      // Only insert marketplace skills
-      await dbh.db.insert(agentGlobalSkillTable).values({
-        id: SKILL_ID_1,
-        name: 'skill-one',
-        folderName: 'skill-one',
-        source: 'marketplace',
-        contentHash: 'abc123',
-        isEnabled: true
-      })
-
-      await skillService.initSkillsForAgent(AGENT_ID)
-
-      const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, AGENT_ID))
-      expect(rows).toHaveLength(0)
-    })
-  })
-
   describe('uninstall', () => {
     it('throws when skill does not exist', async () => {
       const skillService = new SkillService()

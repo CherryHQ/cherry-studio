@@ -80,22 +80,6 @@ export class SkillService {
     return { ...skill, isEnabled: options.isEnabled }
   }
 
-  /**
-   * Seed skill enablement for a freshly created agent.
-   *
-   * Every skill marked `source = 'builtin'` is auto-enabled for the new agent.
-   */
-  async initSkillsForAgent(agentId: string): Promise<void> {
-    const allSkills = await agentGlobalSkillService.listAll()
-    const builtinSkills = allSkills.filter((s) => s.source === 'builtin')
-    if (builtinSkills.length === 0) return
-
-    for (const skill of builtinSkills) {
-      await agentGlobalSkillService.upsertJoin(agentId, skill.id, true)
-    }
-    logger.info('Seeded builtin skills for agent', { agentId, count: builtinSkills.length })
-  }
-
   /** Enable a skill across every existing agent. Used when a new builtin skill is installed. */
   async enableForAllAgents(skillId: string): Promise<void> {
     const agentIds = await agentGlobalSkillService.upsertJoinForAllAgents(skillId, true)
