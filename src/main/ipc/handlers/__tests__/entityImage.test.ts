@@ -20,6 +20,8 @@ vi.mock('@data/services/ProviderService', () => ({ providerService: { update: pr
 vi.mock('@data/services/MiniAppService', () => ({ miniAppService: { update: miniAppUpdateMock } }))
 vi.mock('@main/services/file/utils/entityImageWebp', () => ({ transcodeToEntityWebp: transcodeMock }))
 
+import { LogoImageIntentSchema } from '@shared/ipc/schemas/entityImage'
+
 import { entityImageHandlers } from '../entityImage'
 
 const FILE_ID = '019606a0-0000-7000-8000-000000000003'
@@ -79,6 +81,18 @@ describe('provider.set_logo', () => {
     ).rejects.toThrow('bind failed')
 
     expect(permanentDeleteMock).toHaveBeenCalledWith(FILE_ID)
+  })
+})
+
+describe('LogoImageIntentSchema key variant', () => {
+  it('accepts a preset key', () => {
+    expect(LogoImageIntentSchema.safeParse({ kind: 'key', key: 'icon:openai' }).success).toBe(true)
+  })
+
+  it('rejects a data:/file: key — bytes / stored-file refs are not preset keys', () => {
+    for (const key of ['data:image/png;base64,abc', `file:${FILE_ID}`, 'file:///tmp/x.png']) {
+      expect(LogoImageIntentSchema.safeParse({ kind: 'key', key }).success).toBe(false)
+    }
   })
 })
 

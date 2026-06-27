@@ -36,6 +36,14 @@ describe('Provider DTO logo validation', () => {
     )
   })
 
+  it('rejects a data:/file: key — bytes and stored-file refs are not preset keys', () => {
+    for (const key of ['data:image/png;base64,abc', `file:${FILE_ID}`, 'file:///tmp/x.png']) {
+      expect(CreateProviderSchema.safeParse({ providerId: 'p', name: 'n', logo: { kind: 'key', key } }).success).toBe(
+        false
+      )
+    }
+  })
+
   it('rejects a clear intent on create (no such variant)', () => {
     expect(CreateProviderSchema.safeParse({ providerId: 'p', name: 'n', logo: { kind: 'clear' } }).success).toBe(false)
   })
