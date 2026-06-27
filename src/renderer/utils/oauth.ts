@@ -1,8 +1,12 @@
 import { loggerService } from '@logger'
-import { PPIO_APP_SECRET, PPIO_CLIENT_ID, SILICON_CLIENT_ID, TOKENFLUX_HOST } from '@renderer/config/constant'
 import i18n, { getLanguageCode } from '@renderer/i18n'
 
 const logger = loggerService.withContext('Utils:oauth')
+
+const SILICON_CLIENT_ID = 'SFaJLLq0y6CAMoyDm81aMu'
+const PPIO_CLIENT_ID = '37d0828c96b34936a600b62c'
+const PPIO_APP_SECRET = import.meta.env.RENDERER_VITE_PPIO_APP_SECRET || ''
+export const TOKENFLUX_HOST = 'https://tokenflux.ai'
 
 export const oauthWithSiliconFlow = async (setKey) => {
   const authUrl = `https://account.siliconflow.cn/oauth?client_id=${SILICON_CLIENT_ID}`

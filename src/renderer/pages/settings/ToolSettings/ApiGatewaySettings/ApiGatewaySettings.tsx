@@ -1,5 +1,4 @@
 import { Button, ButtonGroup, IndicatorLight, Input, Tooltip } from '@cherrystudio/ui'
-import { API_SERVER_DEFAULTS } from '@renderer/config/constant'
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { cn } from '@renderer/utils/style'
@@ -10,6 +9,11 @@ import { useTranslation } from 'react-i18next'
 import { v4 as uuidv4 } from 'uuid'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingsContentColumn, SettingTitle } from '../..'
+
+const API_SERVER_DEFAULTS = {
+  HOST: '127.0.0.1',
+  PORT: 23333
+}
 
 const ApiGatewaySettings: FC = () => {
   const { theme } = useTheme()

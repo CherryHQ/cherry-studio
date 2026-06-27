@@ -1,11 +1,11 @@
-import type * as RendererConstantModule from '@renderer/config/constant'
+import type * as RendererConstantModule from '@renderer/utils/platform'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const platformMock = vi.hoisted(() => ({
   isWin: false
 }))
 
-vi.mock('@renderer/config/constant', async (importOriginal) => {
+vi.mock('@renderer/utils/platform', async (importOriginal) => {
   const actual = await importOriginal<typeof RendererConstantModule>()
 
   return {

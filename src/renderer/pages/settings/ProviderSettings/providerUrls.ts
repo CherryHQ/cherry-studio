@@ -1,5 +1,5 @@
-import { TOKENFLUX_HOST } from '@renderer/config/constant'
 import type { SystemProviderId } from '@renderer/types/provider'
+import { TOKENFLUX_HOST } from '@renderer/utils/oauth'
 
 type ProviderUrls = {
   api: {

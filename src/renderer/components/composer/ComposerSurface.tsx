@@ -6,7 +6,6 @@ import type { QuickPanelInputAdapter, QuickPanelInputEvent, QuickPanelListItem }
 import { QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useRichTextEditorKernel } from '@renderer/components/RichEditor/useRichTextEditorKernel'
 import SendMessageButton from '@renderer/components/SendMessageButton'
-import { LONG_TEXT_PASTE_THRESHOLD } from '@renderer/config/constant'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { isPastedTextFileMetadata } from '@renderer/types/file'
@@ -27,7 +26,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { createComposerDocumentContent, serializeComposerDocument } from './composerDraft'
-import { getComposerClipboardPasteOverride, getComposerPlainTextPasteOverride } from './composerPaste'
+import {
+  getComposerClipboardPasteOverride,
+  getComposerPlainTextPasteOverride,
+  LONG_TEXT_PASTE_THRESHOLD
+} from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
 import pasteHandling from './paste/pasteHandling'

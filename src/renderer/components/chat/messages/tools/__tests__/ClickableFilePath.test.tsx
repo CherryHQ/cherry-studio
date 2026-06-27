@@ -40,7 +40,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@renderer/config/constant', () => ({
+vi.mock('@renderer/utils/platform', () => ({
   isMac: true,
   isWin: false
 }))

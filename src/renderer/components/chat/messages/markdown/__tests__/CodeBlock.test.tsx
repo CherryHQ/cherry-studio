@@ -41,7 +41,7 @@ vi.mock('../../MessageListProvider', () => ({
   useOptionalMessageListUi: () => mocks.messageListUi
 }))
 
-vi.mock('@renderer/config/constant', () => ({
+vi.mock('@renderer/utils/platform', () => ({
   get isWin() {
     return mocks.isWin
   }
