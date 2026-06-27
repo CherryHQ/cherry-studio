@@ -35,7 +35,7 @@ export class MiniAppSeeder implements ISeeder {
         presetMiniAppId: preset.id,
         name: preset.name,
         url: preset.url,
-        logo: preset.logo ?? null,
+        logoKey: preset.logo ?? null,
         bordered: preset.bordered ?? true,
         background: preset.background ?? null,
         supportedRegions: preset.supportedRegions ?? null,
@@ -57,7 +57,7 @@ export class MiniAppSeeder implements ISeeder {
           set: {
             name: insertRow.name,
             url: insertRow.url,
-            logo: insertRow.logo,
+            logoKey: insertRow.logoKey,
             bordered: insertRow.bordered,
             background: insertRow.background,
             supportedRegions: insertRow.supportedRegions,

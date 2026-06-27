@@ -33,7 +33,7 @@ describe('MiniAppMappings', () => {
         expect(result.appId).toBe('my-custom-app')
         expect(result.name).toBe('My Custom App')
         expect(result.url).toBe('https://custom.example.com')
-        expect(result.logo).toBe('https://logo.png')
+        expect(result.logoKey).toBe('https://logo.png')
         expect(result.status).toBe('enabled')
         expect(result.bordered).toBe(true)
       })
@@ -49,21 +49,21 @@ describe('MiniAppMappings', () => {
           createCustomSource({ logo: 'https://example.com/logo.png' }),
           'enabled' as MiniAppStatus
         )
-        expect(httpLogo.logo).toBe('https://example.com/logo.png')
+        expect(httpLogo.logoKey).toBe('https://example.com/logo.png')
       })
 
-      it('should preserve data URI logos', () => {
+      it('should preserve data URI logos on logoKey (migrator promotes them to a file later)', () => {
         const dataUri = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjwvc3ZnPg=='
         const result = transformMiniApp(createCustomSource({ logo: dataUri }), 'enabled' as MiniAppStatus)
-        expect(result.logo).toBe(dataUri)
+        expect(result.logoKey).toBe(dataUri)
       })
 
-      it('should set logo to null for non-string or empty logo', () => {
+      it('should set logoKey to null for non-string or empty logo', () => {
         const objLogo = transformMiniApp(createCustomSource({ logo: { component: 'X' } }), 'enabled' as MiniAppStatus)
-        expect(objLogo.logo).toBeNull()
+        expect(objLogo.logoKey).toBeNull()
 
         const emptyLogo = transformMiniApp(createCustomSource({ logo: '' }), 'enabled' as MiniAppStatus)
-        expect(emptyLogo.logo).toBeNull()
+        expect(emptyLogo.logoKey).toBeNull()
       })
 
       it('should filter supportedRegions', () => {

@@ -36,16 +36,16 @@ export const miniAppTable = sqliteTable(
 
     /**
      * Preset/bundled logo reference — a `getMiniAppsLogo` icon id (e.g.
-     * `'application'`) or remote URL. User-uploaded custom logos are stored on
-     * disk and referenced via {@link logoFileId} instead; `logo` is not used for
-     * uploads.
+     * `'application'`) or remote URL. Holds a key / ref only — never a
+     * data URL. User-uploaded custom logos are stored on disk and referenced
+     * via {@link logoFileId} instead.
      */
-    logo: text(),
+    logoKey: text('logo_key'),
 
     /**
      * Custom user-uploaded logo: FK to the on-disk `file_entry` holding a
      * normalized 128×128 WebP. NULL when the app has no uploaded logo (falls
-     * back to {@link logo} / the bundled icon). `set null` on delete so pruning
+     * back to {@link logoKey} / the bundled icon). `set null` on delete so pruning
      * the file entry clears the reference automatically.
      */
     logoFileId: text('logo_file_id').references(() => fileEntryTable.id, { onDelete: 'set null' }),

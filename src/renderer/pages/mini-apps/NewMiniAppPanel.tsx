@@ -155,16 +155,18 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
         name: name.trim(),
         url: trimmedUrl
       }
-      // A staged upload submits its pre-stored file id (`logoFileId`); otherwise
-      // the `'application'` preset string is the value.
-      const logoFields = logoUploadId ? { logoFileId: logoUploadId } : { logo: 'application' }
+      // A staged upload submits its pre-stored file id (`kind: 'file'`);
+      // otherwise the `'application'` preset key.
+      const logo = logoUploadId
+        ? ({ kind: 'file', fileId: logoUploadId } as const)
+        : ({ kind: 'key', key: 'application' } as const)
       if (isEditing) {
-        await updateCustomMiniApp(app.appId, logoChanged ? { ...basePayload, ...logoFields } : basePayload)
+        await updateCustomMiniApp(app.appId, logoChanged ? { ...basePayload, logo } : basePayload)
       } else {
         await createCustomMiniApp({
           appId: uuid(),
           ...basePayload,
-          ...logoFields
+          logo
         })
       }
       window.toast.success(t('settings.miniApps.custom.save_success'))

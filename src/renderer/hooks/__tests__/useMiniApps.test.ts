@@ -291,7 +291,7 @@ describe('useMiniApps', () => {
         await result.current.updateCustomMiniApp('custom-app', {
           name: 'New App',
           url: 'https://new.example.com',
-          logo: 'new-logo'
+          logo: { kind: 'key', key: 'new-logo' }
         })
       })
 
@@ -300,7 +300,7 @@ describe('useMiniApps', () => {
         body: {
           name: 'New App',
           url: 'https://new.example.com',
-          logo: 'new-logo'
+          logo: { kind: 'key', key: 'new-logo' }
         }
       })
       expect(MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive')).toEqual([other, updated])
@@ -324,13 +324,13 @@ describe('useMiniApps', () => {
       await act(async () => {
         await result.current.updateCustomMiniApp('custom-app', {
           name: 'New App',
-          logoFileId: '019606a0-0000-7000-8000-0000000000aa'
+          logo: { kind: 'file', fileId: '019606a0-0000-7000-8000-0000000000aa' }
         })
       })
 
       expect(trigger).toHaveBeenCalledWith({
         params: { appId: 'custom-app' },
-        body: { name: 'New App', logoFileId: '019606a0-0000-7000-8000-0000000000aa' }
+        body: { name: 'New App', logo: { kind: 'file', fileId: '019606a0-0000-7000-8000-0000000000aa' } }
       })
       expect(mockTabs.updateTab).toHaveBeenCalledWith('tab-1', {
         title: 'New App',

@@ -2,33 +2,45 @@ import { describe, expect, it } from 'vitest'
 
 import { CreateProviderSchema, UpdateProviderSchema } from '../providers'
 
-const LOGO_CAP = 512 * 1024
+const FILE_ID = '019606a0-0000-7000-8000-0000000000aa'
 
 describe('Provider DTO logo validation', () => {
-  it('accepts a logo within the size cap on create', () => {
+  it('accepts a preset-key logo on create', () => {
     expect(
-      CreateProviderSchema.safeParse({ providerId: 'p', name: 'n', logo: 'data:image/png;base64,abc' }).success
+      CreateProviderSchema.safeParse({ providerId: 'p', name: 'n', logo: { kind: 'key', key: 'icon:openai' } }).success
     ).toBe(true)
   })
 
-  it('rejects a logo over the size cap on create', () => {
-    const tooBig = 'a'.repeat(LOGO_CAP + 1)
-    expect(CreateProviderSchema.safeParse({ providerId: 'p', name: 'n', logo: tooBig }).success).toBe(false)
+  it('accepts an uploaded-file logo on create', () => {
+    expect(
+      CreateProviderSchema.safeParse({ providerId: 'p', name: 'n', logo: { kind: 'file', fileId: FILE_ID } }).success
+    ).toBe(true)
   })
 
-  it('rejects an empty-string logo on create (min length 1)', () => {
-    expect(CreateProviderSchema.safeParse({ providerId: 'p', name: 'n', logo: '' }).success).toBe(false)
+  it('rejects a bare string logo — a union variant must be chosen', () => {
+    expect(
+      CreateProviderSchema.safeParse({ providerId: 'p', name: 'n', logo: 'data:image/png;base64,abc' }).success
+    ).toBe(false)
   })
 
-  it('accepts null logo on update (clear signal)', () => {
-    expect(UpdateProviderSchema.safeParse({ logo: null }).success).toBe(true)
+  it('rejects setting both key and fileId at once', () => {
+    expect(
+      CreateProviderSchema.safeParse({ providerId: 'p', name: 'n', logo: { kind: 'key', key: 'x', fileId: FILE_ID } })
+        .success
+    ).toBe(false)
   })
 
-  it('rejects an empty-string logo on update so null is the sole clear signal', () => {
-    expect(UpdateProviderSchema.safeParse({ logo: '' }).success).toBe(false)
+  it('rejects an empty key', () => {
+    expect(CreateProviderSchema.safeParse({ providerId: 'p', name: 'n', logo: { kind: 'key', key: '' } }).success).toBe(
+      false
+    )
   })
 
-  it('rejects a logo over the size cap on update', () => {
-    expect(UpdateProviderSchema.safeParse({ logo: 'a'.repeat(LOGO_CAP + 1) }).success).toBe(false)
+  it('accepts a clear intent on update', () => {
+    expect(UpdateProviderSchema.safeParse({ logo: { kind: 'clear' } }).success).toBe(true)
+  })
+
+  it('rejects a clear intent on create (no such variant)', () => {
+    expect(CreateProviderSchema.safeParse({ providerId: 'p', name: 'n', logo: { kind: 'clear' } }).success).toBe(false)
   })
 })

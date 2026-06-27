@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "948e5bed-8cee-46af-9fce-0b52617a2b98",
+  "id": "860865e1-9263-4c51-98e7-843d70ee1fd1",
   "prevId": "5d72d904-e1ca-4832-a085-bbf3ee2a3a08",
   "tables": {
     "agent": {
@@ -2592,8 +2592,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "logo": {
-          "name": "logo",
+        "logo_key": {
+          "name": "logo_key",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -3659,8 +3659,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "logo": {
-          "name": "logo",
+        "logo_key": {
+          "name": "logo_key",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -3784,7 +3784,9 @@
   "_meta": {
     "schemas": {},
     "tables": {},
-    "columns": {}
+    "columns": {
+      "\"mini_app\".\"logo\"": "\"mini_app\".\"logo_key\""
+    }
   },
   "internal": {
     "indexes": {

@@ -23,7 +23,7 @@ describe('MiniAppService', () => {
       presetMiniAppId: null,
       name: 'Custom App',
       url: 'https://custom.app',
-      logo: 'application',
+      logoKey: 'application',
       status: 'enabled',
       orderKey: 'a0',
       bordered: false,
@@ -42,7 +42,7 @@ describe('MiniAppService', () => {
       presetMiniAppId: appId,
       name: preset.name,
       url: preset.url,
-      logo: preset.logo ?? null,
+      logoKey: preset.logo ?? null,
       bordered: preset.bordered ?? true,
       background: preset.background ?? null,
       supportedRegions: preset.supportedRegions ?? null,
@@ -110,7 +110,7 @@ describe('MiniAppService', () => {
         appId: 'new-app',
         name: 'New App',
         url: 'https://new.app',
-        logo: 'custom-logo'
+        logo: { kind: 'key', key: 'custom-logo' }
       }
 
       const result = await miniAppService.create(dto)
@@ -135,7 +135,7 @@ describe('MiniAppService', () => {
         appId: 'new-app',
         name: 'New App',
         url: 'https://new.app',
-        logo: 'custom-logo'
+        logo: { kind: 'key', key: 'custom-logo' }
       })
 
       expect(result.status).toBe('enabled')
@@ -148,7 +148,7 @@ describe('MiniAppService', () => {
           appId: 'openai',
           name: 'fake',
           url: 'https://fake.app',
-          logo: 'fake'
+          logo: { kind: 'key', key: 'fake' }
         })
       ).rejects.toMatchObject({ code: ErrorCode.CONFLICT, status: 409 })
     })
@@ -160,7 +160,7 @@ describe('MiniAppService', () => {
           appId: 'custom-app',
           name: 'dup',
           url: 'https://dup.app',
-          logo: 'dup'
+          logo: { kind: 'key', key: 'dup' }
         })
       ).rejects.toMatchObject({ code: ErrorCode.CONFLICT })
     })
@@ -182,13 +182,13 @@ describe('MiniAppService', () => {
       const result = await miniAppService.update('custom-app', {
         name: 'Renamed App',
         url: 'https://renamed.app',
-        logo: 'data:image/png;base64,avatar'
+        logo: { kind: 'key', key: 'icon:renamed' }
       })
 
       expect(result).toMatchObject({
         name: 'Renamed App',
         url: 'https://renamed.app',
-        logo: 'data:image/png;base64,avatar'
+        logo: 'icon:renamed'
       })
       expect(result.background).toBeUndefined()
       expect(result.supportedRegions).toBeUndefined()
@@ -405,17 +405,17 @@ describe('MiniAppService', () => {
         .where(and(eq(fileRefTable.sourceType, 'mini_app_logo'), eq(fileRefTable.sourceId, appId)))
     }
 
-    it('create with logoFileId points the slot ref at it and nulls the logo column', async () => {
+    it('create with a file logo points the slot ref at it and nulls the logoKey column', async () => {
       await seedFileEntry(FILE_ID)
       const created = await miniAppService.create({
         appId: 'logo-app',
         name: 'Logo App',
         url: 'https://logo.app',
-        logoFileId: FILE_ID
+        logo: { kind: 'file', fileId: FILE_ID }
       })
 
       const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'logo-app'))
-      expect(row.logo).toBeNull()
+      expect(row.logoKey).toBeNull()
       expect(row.logoFileId).toBe(FILE_ID)
       // Public DTO collapses to the file id.
       expect(created.logo).toBe(FILE_ID)
@@ -427,12 +427,17 @@ describe('MiniAppService', () => {
 
     it('update from upload to preset clears the slot ref and preserves the file_entry', async () => {
       await seedFileEntry(FILE_ID)
-      await miniAppService.create({ appId: 'logo-app', name: 'Logo App', url: 'https://logo.app', logoFileId: FILE_ID })
+      await miniAppService.create({
+        appId: 'logo-app',
+        name: 'Logo App',
+        url: 'https://logo.app',
+        logo: { kind: 'file', fileId: FILE_ID }
+      })
 
-      const updated = await miniAppService.update('logo-app', { logo: 'application' })
+      const updated = await miniAppService.update('logo-app', { logo: { kind: 'key', key: 'application' } })
 
       const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'logo-app'))
-      expect(row.logo).toBe('application')
+      expect(row.logoKey).toBe('application')
       expect(row.logoFileId).toBeNull()
       expect(updated.logo).toBe('application')
       expect(await logoRefs('logo-app')).toHaveLength(0)
@@ -444,9 +449,14 @@ describe('MiniAppService', () => {
     it('update replacing one upload with another repoints the slot ref', async () => {
       await seedFileEntry(FILE_ID)
       await seedFileEntry(FILE_ID_2)
-      await miniAppService.create({ appId: 'logo-app', name: 'Logo App', url: 'https://logo.app', logoFileId: FILE_ID })
+      await miniAppService.create({
+        appId: 'logo-app',
+        name: 'Logo App',
+        url: 'https://logo.app',
+        logo: { kind: 'file', fileId: FILE_ID }
+      })
 
-      await miniAppService.update('logo-app', { logoFileId: FILE_ID_2 })
+      await miniAppService.update('logo-app', { logo: { kind: 'file', fileId: FILE_ID_2 } })
 
       const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'logo-app'))
       expect(row.logoFileId).toBe(FILE_ID_2)
@@ -457,7 +467,12 @@ describe('MiniAppService', () => {
 
     it('delete clears the slot ref and preserves the file_entry', async () => {
       await seedFileEntry(FILE_ID)
-      await miniAppService.create({ appId: 'logo-app', name: 'Logo App', url: 'https://logo.app', logoFileId: FILE_ID })
+      await miniAppService.create({
+        appId: 'logo-app',
+        name: 'Logo App',
+        url: 'https://logo.app',
+        logo: { kind: 'file', fileId: FILE_ID }
+      })
 
       await miniAppService.delete('logo-app')
 

@@ -63,7 +63,7 @@ export function transformMiniApp(
       presetMiniAppId: appId,
       name: preset.name,
       url: preset.url,
-      logo: preset.logo ?? null,
+      logoKey: preset.logo ?? null,
       bordered: preset.bordered ?? true,
       background: preset.background ?? null,
       supportedRegions: preset.supportedRegions ?? null,
@@ -72,16 +72,18 @@ export function transformMiniApp(
     }
   }
 
-  // Custom app — full data from source.
+  // Custom app — full data from source. A base64 data-URL logo lands on
+  // `logoKey` here and is promoted to an on-disk `logoFileId` by the migrator's
+  // execute() (where the write tx lives); url / icon refs stay on `logoKey`.
   const rawLogo = source.logo
-  const logo = typeof rawLogo === 'string' && rawLogo.length > 0 ? rawLogo : null
+  const logoKey = typeof rawLogo === 'string' && rawLogo.length > 0 ? rawLogo : null
 
   return {
     appId,
     presetMiniAppId: null,
     name: toRequired<string>(source.name, ''),
     url: toRequired<string>(source.url, ''),
-    logo,
+    logoKey,
     status,
     // v2 fix: Handle typo 'bodered' → 'bordered' during migration
     // Prefer the correctly spelled 'bordered' field; fall back to the typo field

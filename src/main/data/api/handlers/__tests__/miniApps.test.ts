@@ -73,7 +73,7 @@ describe('miniAppHandlers', () => {
       appId: 'my-app',
       name: 'My App',
       url: 'https://my.app',
-      logo: 'application'
+      logo: { kind: 'key', key: 'application' } as const
     }
 
     it('should parse body and delegate to service', async () => {
@@ -263,13 +263,13 @@ describe('miniAppHandlers', () => {
 
       const result = await miniAppHandlers['/mini-apps/:appId'].PATCH({
         params: { appId: 'custom-app' },
-        body: { name: 'Renamed App', url: 'https://renamed.app', logo: 'data:image/png;base64,avatar' }
+        body: { name: 'Renamed App', url: 'https://renamed.app', logo: { kind: 'key', key: 'icon:avatar' } }
       })
 
       expect(updateMock).toHaveBeenCalledWith('custom-app', {
         name: 'Renamed App',
         url: 'https://renamed.app',
-        logo: 'data:image/png;base64,avatar'
+        logo: { kind: 'key', key: 'icon:avatar' }
       })
       expect(result).toMatchObject({ name: 'Renamed App' })
     })

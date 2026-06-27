@@ -123,8 +123,8 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     presetProviderId: row.presetProviderId ?? undefined,
     name: row.name,
     // Uploaded logos live on disk (logoFileId); fall back to the preset/url
-    // string in `logo`. Public type is a single optional string.
-    logo: row.logoFileId ?? row.logo ?? undefined,
+    // string in `logoKey`. Public type is a single optional string.
+    logo: row.logoFileId ?? row.logoKey ?? undefined,
     description: presetMetadata.description,
     websites: presetMetadata.websites,
     endpointConfigs: row.endpointConfigs ?? undefined,
@@ -237,16 +237,16 @@ class ProviderService {
       async () =>
         await db.transaction(async (tx) => {
           // DB-only: point the logo slot's file_ref at the pre-stored upload (or
-          // keep the preset string). No fs here — the renderer stored the bytes.
-          const logoCols = (await reconcileLogoSlotTx(tx, logoSlot(dto.providerId), dto)) ?? {
-            logo: null,
+          // keep the preset key). No fs here — the renderer stored the bytes.
+          const logoCols = (await reconcileLogoSlotTx(tx, logoSlot(dto.providerId), dto.logo)) ?? {
+            logoKey: null,
             logoFileId: null
           }
           const values: NewUserProviderInput = {
             providerId: dto.providerId,
             presetProviderId: dto.presetProviderId ?? null,
             name: dto.name,
-            logo: logoCols.logo,
+            logoKey: logoCols.logoKey,
             logoFileId: logoCols.logoFileId,
             endpointConfigs: dto.endpointConfigs ?? null,
             defaultChatEndpoint: dto.defaultChatEndpoint ?? null,
@@ -300,9 +300,9 @@ class ProviderService {
 
       if (dto.name !== undefined) updates.name = dto.name
       // DB-only logo reconcile: replace the slot's file_ref + set columns.
-      const logoCols = await reconcileLogoSlotTx(tx, logoSlot(providerId), dto)
+      const logoCols = await reconcileLogoSlotTx(tx, logoSlot(providerId), dto.logo)
       if (logoCols) {
-        updates.logo = logoCols.logo
+        updates.logoKey = logoCols.logoKey
         updates.logoFileId = logoCols.logoFileId
       }
       if (dto.endpointConfigs !== undefined) updates.endpointConfigs = dto.endpointConfigs

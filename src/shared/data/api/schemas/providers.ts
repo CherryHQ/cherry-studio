@@ -6,7 +6,6 @@
 
 import * as z from 'zod'
 
-import { FileEntryIdSchema } from '../../types/file'
 import { ENDPOINT_TYPE, type EndpointType, objectValues } from '../../types/model'
 import {
   ApiFeaturesSchema,
@@ -21,6 +20,7 @@ import {
   ProviderSettingsSchema
 } from '../../types/provider'
 import type { OrderEndpoints } from './_endpointHelpers'
+import { CreateLogoSchema, UpdateLogoSchema } from './logo'
 
 // ============================================================================
 // Field atoms
@@ -48,15 +48,6 @@ const ProviderEndpointConfigsSchema = z.partialRecord(EndpointTypeSchema, Endpoi
  */
 const ProviderSettingsPartialSchema = ProviderSettingsSchema.partial()
 
-/**
- * Backstop cap on the stored logo base64 string. The renderer already
- * normalizes uploads (`fileToAvatarDataUrl`): non-GIF → ≤128px, GIF kept but
- * capped at 256 KB raw (~341 KB base64). This is the server-side guard against
- * a hand-crafted oversized value; tighter than the mini-app 1 MiB cap because
- * the raw upload is now bounded.
- */
-const LOGO_MAX_BASE64_BYTES = 512 * 1024
-
 // ============================================================================
 // DTOs
 // ============================================================================
@@ -69,16 +60,8 @@ export const CreateProviderSchema = z.strictObject({
   presetProviderId: z.string().optional(),
   /** Display name (required on create) */
   name: z.string().min(1),
-  /**
-   * Custom logo preset/ref for a user-defined provider — a data URL, raw SVG,
-   * remote URL, or an `icon:<providerId>` ref to a bundled brand icon (resolved
-   * by `ProviderAvatarPrimitive`). Stored inline on the row's `logo` column,
-   * size-capped (see {@link LOGO_MAX_BASE64_BYTES}). An uploaded image is NOT
-   * sent here — the renderer pre-stores it and passes `logoFileId`.
-   */
-  logo: z.string().min(1).max(LOGO_MAX_BASE64_BYTES).optional(),
-  /** Opaque file-entry id of a pre-stored uploaded logo; sets the row's `logoFileId`. */
-  logoFileId: FileEntryIdSchema.optional(),
+  /** Custom logo for a user-defined provider */
+  logo: CreateLogoSchema.optional(),
   /** Per-endpoint-type configuration */
   endpointConfigs: ProviderEndpointConfigsSchema.optional(),
   /** Default text generation endpoint (kebab-case `EndpointType` value) */
@@ -112,14 +95,8 @@ const ProviderMutableFieldsSchema = CreateProviderSchema.pick({
 export const UpdateProviderSchema = ProviderMutableFieldsSchema.partial().extend({
   /** Whether this provider is enabled */
   isEnabled: z.boolean().optional(),
-  /**
-   * Custom logo preset/ref. `null` clears it (falls back to the bundled icon);
-   * a non-empty `string` sets a preset icon id / url; omitted leaves it
-   * unchanged. `.min(1)` rejects `""` so `null` is the sole clear signal.
-   */
-  logo: z.string().min(1).max(LOGO_MAX_BASE64_BYTES).nullable().optional(),
-  /** Opaque file-entry id of a pre-stored uploaded logo; `null` clears it. */
-  logoFileId: FileEntryIdSchema.nullable().optional()
+  /** Custom logo */
+  logo: UpdateLogoSchema.optional()
 })
 export type UpdateProviderDto = z.infer<typeof UpdateProviderSchema>
 

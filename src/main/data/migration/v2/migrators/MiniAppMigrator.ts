@@ -9,12 +9,14 @@ import { miniAppTable } from '@data/db/schemas/miniApp'
 import { loggerService } from '@logger'
 import { MINI_APP_ID_REGEX } from '@shared/data/api/schemas/miniApps'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
+import { miniAppLogoRef } from '@shared/data/types/file'
 import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { assignOrderKeysByScope } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import { transformMiniApp } from './mappings/MiniAppMappings'
+import { migrateBase64LogoToFileEntry } from './utils/logoMigration'
 
 type MiniAppRowWithoutOrderKey = Omit<InsertMiniAppRow, 'orderKey'>
 
@@ -22,6 +24,11 @@ const logger = loggerService.withContext('MiniAppMigrator')
 
 function orderKeyScopeForStatus(status: MiniAppStatus | undefined): 'visible' | 'disabled' {
   return status === 'disabled' ? 'disabled' : 'visible'
+}
+
+/** The mini-app logo slot for a given appId (mirrors MiniAppService). */
+function miniAppLogoSlot(appId: string) {
+  return { sourceType: miniAppLogoRef.sourceType, sourceId: appId }
 }
 
 export class MiniAppMigrator extends BaseMigrator {
@@ -183,6 +190,20 @@ export class MiniAppMigrator extends BaseMigrator {
 
       const BATCH_SIZE = 100
       await ctx.db.transaction(async (tx) => {
+        // Promote any base64 data-URL logo to an on-disk WebP file_entry +
+        // file_ref (logoFileId); base64 never stays on logoKey. A non-data-URL
+        // logoKey (url / icon ref) is left as-is.
+        for (const row of this.preparedRows) {
+          if (row.logoKey?.startsWith('data:')) {
+            row.logoFileId = await migrateBase64LogoToFileEntry(
+              tx,
+              ctx.paths.filesDataDir,
+              miniAppLogoSlot(row.appId),
+              row.logoKey
+            )
+            row.logoKey = null
+          }
+        }
         for (let i = 0; i < this.preparedRows.length; i += BATCH_SIZE) {
           const batch = this.preparedRows.slice(i, i + BATCH_SIZE)
           await tx.insert(miniAppTable).values(batch)

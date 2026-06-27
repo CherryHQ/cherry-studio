@@ -26,6 +26,7 @@ import { loggerService } from '@logger'
 import type { Provider as LegacyProvider } from '@main/data/migration/v2/legacyTypes'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { providerLogoRef } from '@shared/data/types/file'
 import { createUniqueModelId, isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiFeatures, EndpointConfig } from '@shared/data/types/provider'
 import { desc, eq, ne, sql } from 'drizzle-orm'
@@ -34,6 +35,7 @@ import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
 import { type OldLlmSettings, transformModel, transformProvider } from './mappings/ProviderModelMappings'
 import { legacyChatModelToUniqueId } from './transformers/ModelTransformers'
+import { migrateBase64LogoToFileEntry } from './utils/logoMigration'
 
 const logger = loggerService.withContext('ProviderModelMigrator')
 
@@ -63,6 +65,11 @@ function formatPhaseError(errorId: string, error: Error): string {
 interface LlmState {
   providers?: LegacyProvider[]
   settings?: OldLlmSettings
+}
+
+/** The provider logo slot for a given providerId (mirrors ProviderService). */
+function providerLogoSlot(providerId: string) {
+  return { sourceType: providerLogoRef.sourceType, sourceId: providerId }
 }
 
 function createModelId(providerId: string, modelId: string): UniqueModelId | null {
@@ -391,13 +398,19 @@ export class ProviderModelMigrator extends BaseMigrator {
       await ctx.db.transaction(async (tx) => {
         await ensureCherryAiDefaultProviderAndModelTx(tx)
 
-        const providerRowsWithoutOrderKey = this.providers.map((provider) => {
+        const providerRowsWithoutOrderKey: NewUserProviderInput[] = []
+        for (const provider of this.providers) {
           const row = this.enrichProviderRow(transformProvider(provider, this.settings), provider)
           // v1 stored custom provider logos in Dexie settings under
-          // `image://provider-{id}` (via ImageStorage); carry them onto the row.
+          // `image://provider-{id}` (via ImageStorage) as a base64 data URL.
+          // Promote it to an on-disk WebP file_entry referenced via logoFileId;
+          // `logoKey` stays for preset/url refs only.
           const logo = ctx.sources.dexieSettings.get<string>(`image://provider-${provider.id}`)
-          return logo ? { ...row, logo } : row
-        })
+          const logoFileId = logo
+            ? await migrateBase64LogoToFileEntry(tx, ctx.paths.filesDataDir, providerLogoSlot(provider.id), logo)
+            : null
+          providerRowsWithoutOrderKey.push(logoFileId ? { ...row, logoFileId, logoKey: null } : row)
+        }
         const [lastProvider] = await tx
           .select({ orderKey: userProviderTable.orderKey })
           .from(userProviderTable)

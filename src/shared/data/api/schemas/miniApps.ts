@@ -5,12 +5,12 @@
  * API only manages user preferences for default apps and full CRUD for custom apps.
  */
 
-import { FileEntryIdSchema } from '@shared/data/types/file'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { MiniAppStatusSchema } from '@shared/data/types/miniApp'
 import * as z from 'zod'
 
 import type { OrderEndpoints } from './_endpointHelpers'
+import { CreateLogoSchema, UpdateLogoSchema } from './logo'
 
 /**
  * Permitted characters for a custom miniapp id. Exported so the v1→v2 migrator
@@ -19,16 +19,8 @@ import type { OrderEndpoints } from './_endpointHelpers'
  * v2 API would refuse to recreate.
  */
 export const MINI_APP_ID_REGEX = /^[A-Za-z0-9_-]+$/
-export const MINI_APP_LOGO_MAX_LENGTH = 1024 * 1024
 export const MINI_APP_ALLOWED_URL_PROTOCOLS = ['http:', 'https:', 'file:'] as const
 
-/**
- * MiniApp `logo` input: a preset icon id / url, stored inline on the row's
- * `logo` column (capped at {@link MINI_APP_LOGO_MAX_LENGTH}). An uploaded image
- * is NOT sent here — the renderer pre-stores it and passes its opaque
- * `logoFileId` instead (see {@link CreateMiniAppSchema}).
- */
-const MiniAppLogoSchema = z.string().min(1).max(MINI_APP_LOGO_MAX_LENGTH)
 export const MiniAppUrlSchema = z.string().min(1).refine(isAllowedMiniAppUrl, {
   message: 'url must be a valid http, https, or file URL'
 })
@@ -49,10 +41,7 @@ export const CreateMiniAppSchema = z.strictObject({
   appId: z.string().regex(MINI_APP_ID_REGEX, 'appId can only contain letters, numbers, underscore, and hyphen'),
   name: z.string().min(1),
   url: MiniAppUrlSchema,
-  /** Preset icon id / url (e.g. `'application'`); inline on the row's `logo`. */
-  logo: MiniAppLogoSchema.optional(),
-  /** Opaque file-entry id of a pre-stored uploaded logo; sets the row's `logoFileId`. */
-  logoFileId: FileEntryIdSchema.optional()
+  logo: CreateLogoSchema.optional()
 })
 export type CreateMiniAppDto = z.infer<typeof CreateMiniAppSchema>
 
@@ -67,10 +56,7 @@ export const UpdateMiniAppSchema = z.strictObject({
   status: MiniAppStatusSchema.optional(),
   name: z.string().min(1).optional(),
   url: MiniAppUrlSchema.optional(),
-  /** Preset icon id / url; inline on `logo`. */
-  logo: MiniAppLogoSchema.optional(),
-  /** Opaque file-entry id of a pre-stored uploaded logo; `null` clears it. */
-  logoFileId: FileEntryIdSchema.nullable().optional()
+  logo: UpdateLogoSchema.optional()
 })
 export type UpdateMiniAppDto = z.infer<typeof UpdateMiniAppSchema>
 

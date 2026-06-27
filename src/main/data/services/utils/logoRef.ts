@@ -2,7 +2,7 @@
  * Single-file logo slot reconciliation — DB-only.
  *
  * Shared by ProviderService / MiniAppService. Keeps the owner row's
- * `(logo, logoFileId)` columns and the `provider_logo`/`mini_app_logo`
+ * `(logoKey, logoFileId)` columns and the `provider_logo`/`mini_app_logo`
  * single-file `file_ref` slot in sync, entirely within the caller's write tx.
  *
  * The file bytes are stored by the renderer beforehand (it passes an opaque
@@ -14,51 +14,45 @@
 import { fileRefTable } from '@data/db/schemas/file'
 import type { DbType } from '@data/db/types'
 import { fileRefService } from '@data/services/FileRefService'
+import type { CreateLogoInput, UpdateLogoInput } from '@shared/data/api/schemas/logo'
 import type { FileEntryId, FileRefSourceType } from '@shared/data/types/file'
 
-/** Resolved `(logo, logoFileId)` column values for a logo slot. */
+/** Resolved `(logoKey, logoFileId)` column values for a logo slot. */
 export interface LogoColumns {
-  logo: string | null
+  logoKey: string | null
   logoFileId: FileEntryId | null
-}
-
-/** Logo intent from a create/update DTO. */
-export interface LogoInput {
-  /** Preset icon id / url — stored inline on `logo`. */
-  logo?: string | null
-  /** Opaque uploaded file-entry id (`null` clears) — stored on `logoFileId`. */
-  logoFileId?: string | null
 }
 
 /**
  * Reconcile the logo slot inside `tx`: replace the slot's `file_ref` and return
- * the `(logo, logoFileId)` column values to persist on the owner row. Returns
- * `null` when neither field is provided (update no-op — leave columns untouched).
+ * the `(logoKey, logoFileId)` column values to persist on the owner row. Returns
+ * `null` when `input` is `undefined` (update no-op — leave columns untouched).
  *
- * - `logoFileId` is a string → uploaded file: point the slot's ref at it,
- *   `logoFileId = id`, `logo = null`.
- * - otherwise (preset/url string, or explicit clear) → drop the slot's ref,
- *   `logo = input.logo ?? null`, `logoFileId = null`.
+ * - `{ kind: 'file', fileId }` → uploaded file: point the slot's ref at it,
+ *   `logoFileId = fileId`, `logoKey = null`.
+ * - `{ kind: 'key', key }` → preset/url ref: drop the slot's ref,
+ *   `logoKey = key`, `logoFileId = null`.
+ * - `{ kind: 'clear' }` → drop the slot's ref, both columns null.
  */
 export async function reconcileLogoSlotTx(
   tx: Pick<DbType, 'delete' | 'insert'>,
   slot: { sourceType: FileRefSourceType; sourceId: string },
-  input: LogoInput
+  input: CreateLogoInput | UpdateLogoInput | undefined
 ): Promise<LogoColumns | null> {
-  if (input.logo === undefined && input.logoFileId === undefined) return null
+  if (input === undefined) return null
 
   // Single-file slot: clear any existing ref, then re-point if a file is set.
   await fileRefService.cleanupBySourceTx(tx, slot)
 
-  if (typeof input.logoFileId === 'string') {
+  if (input.kind === 'file') {
     await tx.insert(fileRefTable).values({
-      fileEntryId: input.logoFileId,
+      fileEntryId: input.fileId,
       sourceType: slot.sourceType,
       sourceId: slot.sourceId,
       role: 'logo'
     })
-    return { logo: null, logoFileId: input.logoFileId }
+    return { logoKey: null, logoFileId: input.fileId }
   }
 
-  return { logo: input.logo ?? null, logoFileId: null }
+  return { logoKey: input.kind === 'key' ? input.key : null, logoFileId: null }
 }

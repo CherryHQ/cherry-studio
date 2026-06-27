@@ -32,7 +32,7 @@ const logger = loggerService.withContext('DataApi:MiniAppService')
 
 /** Preset id set, used for write-time collision rejection. */
 const presetMiniAppIdSet: ReadonlySet<string> = new Set(PRESETS_MINI_APPS.map((p) => p.id))
-const customMutableFields = ['name', 'url', 'logo', 'logoFileId'] as const
+const customMutableFields = ['name', 'url', 'logo'] as const
 const visibleStatusValues = ['enabled', 'pinned'] satisfies MiniAppStatus[]
 const visibleStatuses: ReadonlySet<MiniAppStatus> = new Set(visibleStatusValues)
 
@@ -62,8 +62,8 @@ function rowToMiniApp(row: MiniAppRow): MiniApp {
     name: clean.name,
     url: clean.url,
     // Uploaded logos live on disk (logoFileId); fall back to the preset/url
-    // string in `logo`. Public type is a single optional string.
-    logo: clean.logoFileId ?? clean.logo,
+    // string in `logoKey`. Public type is a single optional string.
+    logo: clean.logoFileId ?? clean.logoKey,
     status: clean.status,
     orderKey: clean.orderKey,
     createdAt: timestampToISO(clean.createdAt),
@@ -129,10 +129,8 @@ export class MiniAppService {
     const row = await withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx(async (tx) => {
-          // DB-only: point the logo slot's file_ref at the pre-stored upload (or
-          // keep the preset string). No fs here — the renderer stored the bytes.
-          const logoCols = (await reconcileLogoSlotTx(tx, logoSlot(dto.appId), dto)) ?? {
-            logo: null,
+          const logoCols = (await reconcileLogoSlotTx(tx, logoSlot(dto.appId), dto.logo)) ?? {
+            logoKey: null,
             logoFileId: null
           }
           const inserted = await insertWithOrderKey(
@@ -143,7 +141,7 @@ export class MiniAppService {
               presetMiniAppId: null,
               name: dto.name,
               url: dto.url,
-              logo: logoCols.logo,
+              logoKey: logoCols.logoKey,
               logoFileId: logoCols.logoFileId,
               status
             },
@@ -213,9 +211,9 @@ export class MiniAppService {
           if (dto.name !== undefined) updates.name = dto.name
           if (dto.url !== undefined) updates.url = dto.url
           // DB-only logo reconcile: replace the slot's file_ref + set columns.
-          const logoCols = await reconcileLogoSlotTx(tx, logoSlot(appId), dto)
+          const logoCols = await reconcileLogoSlotTx(tx, logoSlot(appId), dto.logo)
           if (logoCols) {
-            updates.logo = logoCols.logo
+            updates.logoKey = logoCols.logoKey
             updates.logoFileId = logoCols.logoFileId
           }
 

@@ -1,8 +1,24 @@
 import { useProviderActions, useProviders } from '@renderer/hooks/useProvider'
 import { uuid } from '@renderer/utils/uuid'
+import type { CreateLogoInput, UpdateLogoInput } from '@shared/data/api/schemas/logo'
 import type { EndpointType } from '@shared/data/types/model'
 import type { ApiKeyEntry, AuthConfig, EndpointConfig, Provider } from '@shared/data/types/provider'
 import { useCallback, useRef, useState } from 'react'
+
+/** Map the editor's flat `(logo, logoFileId)` intent to the create DTO union. */
+function toCreateLogo(p: { logo?: string | null; logoFileId?: string | null }): CreateLogoInput | undefined {
+  if (p.logoFileId) return { kind: 'file', fileId: p.logoFileId }
+  if (p.logo) return { kind: 'key', key: p.logo }
+  return undefined
+}
+
+/** Map the flat intent to the update DTO union (`null` → clear, omitted → unchanged). */
+function toUpdateLogo(p: { logo?: string | null; logoFileId?: string | null }): UpdateLogoInput | undefined {
+  if (p.logoFileId !== undefined)
+    return p.logoFileId === null ? { kind: 'clear' } : { kind: 'file', fileId: p.logoFileId }
+  if (p.logo !== undefined) return p.logo === null ? { kind: 'clear' } : { kind: 'key', key: p.logo }
+  return undefined
+}
 
 export type ProviderEditorMode =
   | { kind: 'create-custom' }
@@ -75,14 +91,13 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
           return
         }
         const originalEditingId = editingProvider.id
-        // Logo persists atomically with the row: a preset `logo` string or an
-        // uploaded `logoFileId` sets it, `null` clears, `undefined` leaves it
-        // unchanged.
+        // Logo persists atomically with the row: a preset key or an uploaded
+        // file sets it, `clear` resets, omitted leaves it unchanged.
+        const logo = toUpdateLogo(params)
         await updateProviderById(originalEditingId, {
           name: trimmedName,
           defaultChatEndpoint: params.defaultChatEndpoint,
-          ...(params.logo !== undefined ? { logo: params.logo } : {}),
-          ...(params.logoFileId !== undefined ? { logoFileId: params.logoFileId } : {})
+          ...(logo !== undefined ? { logo } : {})
         })
 
         if (modeRef.current?.kind === 'edit' && modeRef.current.provider.id === originalEditingId) {
@@ -93,6 +108,7 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
 
       const providerId = uuid()
       const submitToken = ++submitTokenRef.current
+      const logo = toCreateLogo(params)
       const provider = await createProvider({
         providerId,
         name: trimmedName,
@@ -101,8 +117,7 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
         ...(params.endpointConfigs ? { endpointConfigs: params.endpointConfigs } : {}),
         ...(params.authConfig ? { authConfig: params.authConfig } : {}),
         ...(params.apiKeys && params.apiKeys.length > 0 ? { apiKeys: params.apiKeys } : {}),
-        ...(params.logo ? { logo: params.logo } : {}),
-        ...(params.logoFileId ? { logoFileId: params.logoFileId } : {})
+        ...(logo ? { logo } : {})
       })
 
       if (submitTokenRef.current === submitToken && modeRef.current?.kind !== 'edit') {
