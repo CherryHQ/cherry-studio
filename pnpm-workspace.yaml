@@ -34,6 +34,11 @@ overrides:
   '@langchain/core': '1.0.2'
   '@napi-rs/canvas': '0.1.97'
   '@ai-sdk/provider-utils': '4.0.23'
+  # Pin to the version our patch (patches/@ai-sdk__anthropic.patch) targets so every
+  # instance — including the copies pulled transitively by @ai-sdk/amazon-bedrock and
+  # @ai-sdk/google-vertex — resolves to the single patched build. 3.0.87 backports
+  # sanitizeJsonSchema; the patch wires it into tool input_schema (see the patch).
+  '@ai-sdk/anthropic': '3.0.87'
 
 patchedDependencies:
   '@napi-rs/system-ocr@1.0.2': patches/@napi-rs-system-ocr-npm-1.0.2-59e7a78e8b.patch

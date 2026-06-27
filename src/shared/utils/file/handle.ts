@@ -27,7 +27,7 @@ export function createFileEntryHandle(entryId: FileEntryId): FileEntryHandle {
  *
  * Rejected inputs:
  * - Relative paths (`./foo`, `foo/bar`)
- * - `file://` URLs — use `FileURLString` and a dedicated conversion path
+ * - `file://` URLs — use `FileUrlString` and a dedicated conversion path
  * - Empty string
  *
  * Accepted: POSIX absolute (`/...`) and Windows absolute (`C:\...`).

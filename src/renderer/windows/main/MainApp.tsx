@@ -1,11 +1,11 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
+import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { AppShell } from '@renderer/components/layout/AppShell'
+import { TabsProvider } from '@renderer/components/layout/TabsProvider'
+import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import TopViewContainer from '@renderer/components/TopView'
-import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
-import { TabsProvider } from '@renderer/context/TabsContext'
-import { ThemeProvider } from '@renderer/context/ThemeProvider'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 const logger = loggerService.withContext('MainApp')

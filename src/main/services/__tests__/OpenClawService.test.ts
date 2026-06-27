@@ -81,7 +81,7 @@ vi.mock('@shared/IpcChannel', () => ({
 }))
 
 vi.mock('@shared/utils', () => ({
-  hasAPIVersion: vi.fn(() => false),
+  hasApiVersion: vi.fn(() => false),
   withoutTrailingSlash: vi.fn((url: string) => url.replace(/\/+$/, ''))
 }))
 

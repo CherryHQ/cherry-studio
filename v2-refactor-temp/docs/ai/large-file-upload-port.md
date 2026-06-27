@@ -2,7 +2,7 @@
 
 ## What's missing on Main
 
-`src/main/ai/messages/fileProcessor.ts::resolveFileUIPart` currently inlines
+`src/main/ai/messages/fileProcessor.ts::materializeNativeFilePart` currently inlines
 file contents as base64 data URLs. For provider-native File APIs (Gemini File,
 OpenAI Files) this is wrong above ~20 MB / a few MB respectively — it either
 blows past payload limits or burns large amounts of tokens on base64
@@ -19,7 +19,7 @@ three exports:
 |---|---|---|
 | `handleGeminiFileUpload(file, model)` | `fileService.uploadToGemini(provider, file)` | Talks to `@google/genai` `files.upload` directly |
 | `handleOpenAILargeFileUpload(file, model)` | `fileService.uploadToOpenAI(provider, file)` | Talks to `openai.files.create`; respect `purpose='file-extract'` for qwen-long / qwen-doc |
-| `handleLargeFileUpload(file, model)` | dispatch wrapper used by `resolveFileUIPart` | Routes by `getAiSdkProviderId(provider)` |
+| `handleLargeFileUpload(file, model)` | dispatch wrapper used by `materializeNativeFilePart` | Routes by `getAiSdkProviderId(provider)` |
 
 And the capability helpers (was `prepareParams/modelCapabilities.ts`):
 
@@ -41,12 +41,12 @@ And the capability helpers (was `prepareParams/modelCapabilities.ts`):
 3. **User-facing errors** — replace `window.toast.*` / `i18next` with logger
    warnings; the caller decides how to surface failure (chat-side overlay,
    silent skip, …).
-4. **Dispatch** — in `resolveFileUIPart`, before falling back to base64
+4. **Dispatch** — in `materializeNativeFilePart`, before falling back to base64
    inlining, call `handleLargeFileUpload(file, model)` when `file.size >
    getFileSizeLimit(model, fileType)` and `supportsLargeFileUpload(model)`.
 5. **FileMetadata** — v2 `FileBlock` / `ImageBlock` carry only `fileId`. The
    helpers above expect a `FileMetadata` (with `size`, `ext`, `type`,
-   `origin_name`). Either synthesise one in `resolveFileUIPart` or extend
+   `origin_name`). Either synthesise one in `materializeNativeFilePart` or extend
    `FileStorage` with `getMetadataById(fileId)`.
 
 ## Reference source
@@ -62,5 +62,5 @@ remains the canonical reference until this port lands.
 - v1 block→part conversion (`convertFileBlockToTextPart` /
   `convertFileBlockToFilePart`). v2 Main operates on `data.parts` directly,
   so block conversion isn't on the critical path.
-- OCR. PDF text extraction currently uses `extractPdfText` (`@shared/utils/pdf`).
+- OCR. PDF text extraction currently uses `extractPdfText` (`@main/utils/pdf`).
   Swapping to a real OCR service is a separate epic.

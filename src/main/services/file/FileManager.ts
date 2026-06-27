@@ -144,7 +144,7 @@ import type {
   CreateInternalEntryIpcParams,
   EnsureExternalEntryIpcParams,
   FilePath,
-  FileURLString,
+  FileUrlString,
   PhysicalFileMetadata
 } from '@shared/types/file'
 import type { FileHandle } from '@shared/types/file/handle'
@@ -569,7 +569,7 @@ export interface IFileManager {
   // ─── Path / URL resolution ───
 
   /** Resolve an entry to its `file://` URL with the danger-file safety wrap. */
-  getUrl(id: FileEntryId): Promise<FileURLString>
+  getUrl(id: FileEntryId): Promise<FileUrlString>
 
   /** Resolve an entry to its absolute filesystem path. */
   getPhysicalPath(id: FileEntryId): Promise<FilePath>
@@ -883,10 +883,10 @@ export class FileManager extends BaseService implements IFileManager {
     return internalHash(this.deps, id)
   }
 
-  async getUrl(id: FileEntryId): Promise<FileURLString> {
+  async getUrl(id: FileEntryId): Promise<FileUrlString> {
     const entry = await this.deps.fileEntryService.getById(id)
     const physicalPath = resolvePhysicalPath(entry)
-    return pathToFileURL(physicalPath).toString() as FileURLString
+    return pathToFileURL(physicalPath).toString() as FileUrlString
   }
 
   async getPhysicalPath(id: FileEntryId): Promise<FilePath> {

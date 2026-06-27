@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
 import { download as downloadFile } from '@renderer/utils/download'
 import { svgToPngBlob, svgToSvgBlob } from '@renderer/utils/image'
