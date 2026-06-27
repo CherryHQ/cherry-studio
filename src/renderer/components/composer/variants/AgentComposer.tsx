@@ -1,5 +1,6 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
 import {
@@ -16,15 +17,18 @@ import type { ToolContext } from '@renderer/components/composer/tools/types'
 import type { QuickPanelInputAdapter, QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { AgentSelector, WorkspaceSelector } from '@renderer/components/resource'
 import type { ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
+import { ModelSelector } from '@renderer/components/Selector'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { isSoulModeEnabled } from '@renderer/hooks/agents/agentConfiguration'
-import { useAgent } from '@renderer/hooks/agents/useAgent'
+import { useAgent, useUpdateAgent } from '@renderer/hooks/agents/useAgent'
+import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
 import { useAgentSessionCompaction } from '@renderer/hooks/agents/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agents/useAgentSessionContextUsage'
 import { useSession, useUpdateSession } from '@renderer/hooks/agents/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useModelById } from '@renderer/hooks/useModel'
+import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -131,6 +135,7 @@ type Props = {
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   showWorkspaceSelector?: boolean
   workspaceChanging?: boolean
+  canChangeModel?: boolean
   isStreaming: boolean
   sendDisabled?: boolean
 }
@@ -154,6 +159,7 @@ const AgentComposerRoot = ({
   onWorkspaceChange,
   showWorkspaceSelector,
   workspaceChanging,
+  canChangeModel = true,
   isStreaming,
   sendDisabled = false,
   renderControls,
@@ -223,6 +229,7 @@ const AgentComposerRoot = ({
         onWorkspaceChange={onWorkspaceChange}
         showWorkspaceSelector={showWorkspaceSelector}
         workspaceChanging={workspaceChanging}
+        canChangeModel={canChangeModel}
         isStreaming={isStreaming}
         sendDisabled={sendDisabled}
         renderControls={renderControls}
@@ -248,6 +255,7 @@ interface InnerProps {
   onWorkspaceChange?: Props['onWorkspaceChange']
   showWorkspaceSelector?: boolean
   workspaceChanging?: boolean
+  canChangeModel: boolean
   isStreaming: boolean
   sendDisabled: boolean
   renderControls: AgentComposerControlsRenderer
@@ -275,6 +283,17 @@ interface AgentComposerWorkspaceControlProps {
   side: 'top' | 'bottom'
   iconOnly?: boolean
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
+}
+
+interface AgentComposerModelControlProps {
+  model?: Model
+  modelProviderName?: string
+  selectModelLabel: string
+  canChangeModel: boolean
+  side: 'top' | 'bottom'
+  iconOnly?: boolean
+  onModelSelect: (model: Model | undefined) => void
+  modelFilter?: (model: Model) => boolean
 }
 
 const AgentComposerContextControls = ({
@@ -354,6 +373,48 @@ const AgentComposerContextControls = ({
         />
       )}
     </>
+  )
+}
+
+const AgentComposerModelControl = ({
+  model,
+  modelProviderName,
+  selectModelLabel,
+  canChangeModel,
+  side,
+  iconOnly = false,
+  onModelSelect,
+  modelFilter
+}: AgentComposerModelControlProps) => {
+  const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
+  const triggerClassName = cn(baseTriggerClassName, iconOnly && model && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
+  const labelClassName = cn('truncate', iconOnly && model && COMPOSER_ICON_ONLY_LABEL_CLASS)
+  const chevronClassName = cn('text-muted-foreground', iconOnly && 'hidden')
+  const modelLabel = model ? `${model.name}${modelProviderName ? ` | ${modelProviderName}` : ''}` : selectModelLabel
+  const trigger = (
+    <Button variant="ghost" size="sm" className={triggerClassName} disabled={!canChangeModel}>
+      {model ? (
+        <ModelAvatar model={model} size={16} className="shrink-0" />
+      ) : (
+        <Sparkles size={16} aria-hidden className="text-muted-foreground" />
+      )}
+      <span className={cn('max-w-40 text-xs text-muted-foreground', labelClassName)}>{modelLabel}</span>
+      {canChangeModel ? <ChevronDown size={14} aria-hidden className={chevronClassName} /> : null}
+    </Button>
+  )
+
+  return (
+    <ModelSelector
+      multiple={false}
+      value={model}
+      onSelect={onModelSelect}
+      filter={modelFilter}
+      shortcut={canChangeModel ? 'chat.model.select' : undefined}
+      side={side}
+      align="start"
+      mountStrategy="lazy-keep"
+      trigger={trigger}
+    />
   )
 }
 
@@ -465,13 +526,12 @@ function getContextUsageModelCandidates(model: Model | undefined): string[] | un
 
 type AgentComposerControlProps = Omit<AgentComposerContextControlsProps, 'side'> & {
   newConversationAction?: ComposerNewConversationAction
-  workspace?: AgentComposerWorkspacePreview | null
-  workspaceId?: string | null
-  workspaceChanging?: boolean
-  workspaceWarning?: string
-  showWorkspaceSelector?: boolean
-  selectWorkspaceLabel: string
-  onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
+  model?: Model
+  modelProviderName?: string
+  selectModelLabel: string
+  canChangeModel: boolean
+  onModelSelect: (model: Model | undefined) => void
+  modelFilter?: (model: Model) => boolean
 }
 type ComposerSurfaceProps = React.ComponentProps<typeof ComposerSurface>
 type AgentComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls' | 'renderBelowControls'>
@@ -479,19 +539,16 @@ type AgentComposerControlsRenderer = (props: AgentComposerControlProps) => Agent
 
 // Active agent sessions are bound to their agent, so the agent trigger opens edit instead of switching.
 const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => {
-  const { showWorkspaceSelector = false } = props
-
   return {
     renderLeftControls: (inputAdapter) => (
       <ComposerToolbarControls
         inputAdapter={inputAdapter}
         newConversationAction={props.newConversationAction}
+        toolMenuPlacement={props.showAgentTrigger === false ? 'afterContext' : 'beforeContext'}
         renderContextControls={({ side, iconOnly }) => (
           <>
             <AgentComposerContextControls {...props} side={side} iconOnly={iconOnly} agentTriggerMode="edit" />
-            {showWorkspaceSelector ? (
-              <AgentComposerWorkspaceControl {...props} side={side} iconOnly={iconOnly} />
-            ) : null}
+            <AgentComposerModelControl {...props} side={side} iconOnly={iconOnly} />
           </>
         )}
       />
@@ -500,8 +557,6 @@ const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => {
 }
 
 const renderAgentHomeControls: AgentComposerControlsRenderer = (props) => {
-  const { showWorkspaceSelector = true } = props
-
   return {
     renderLeftControls: (inputAdapter) => (
       <div className={COMPOSER_TOOLBAR_CLASS}>
@@ -511,13 +566,11 @@ const renderAgentHomeControls: AgentComposerControlsRenderer = (props) => {
     renderBelowControls: () => (
       <ComposerBelowControls
         renderContextControls={({ side, iconOnly }) => (
-          <AgentComposerContextControls {...props} side={side} iconOnly={iconOnly} />
+          <>
+            <AgentComposerContextControls {...props} side={side} iconOnly={iconOnly} />
+            <AgentComposerModelControl {...props} side={side} iconOnly={iconOnly} />
+          </>
         )}
-        trailing={
-          showWorkspaceSelector
-            ? ({ iconOnly }) => <AgentComposerWorkspaceControl {...props} side="bottom" iconOnly={iconOnly} />
-            : undefined
-        }
       />
     )
   }
@@ -539,12 +592,14 @@ const AgentComposerInner = ({
   onWorkspaceChange,
   showWorkspaceSelector,
   workspaceChanging,
+  canChangeModel,
   isStreaming,
   sendDisabled,
   renderControls,
   forceNarrowLayout = false
 }: InnerProps) => {
   const { agent: agentBase } = useAgent(agentId)
+  const { updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
   const scope = TopicType.Session
   const config = getComposerToolConfig(scope)
@@ -557,6 +612,8 @@ const AgentComposerInner = ({
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [workView] = usePreference('chat.work_view')
   const { t } = useTranslation()
+  const modelProviderName = useProviderDisplayName(model?.providerId)
+  const agentModelFilter = useAgentModelFilter(agentBase?.type)
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
   const [workspaceWarning, setWorkspaceWarning] = useState<string | undefined>(undefined)
   const initialDraftRef = useRef<AgentComposerDraftCache | null>(null)
@@ -698,6 +755,14 @@ const AgentComposerInner = ({
       await updateSession({ id: sessionId, agentId: nextAgentId }, { showSuccessToast: false })
     },
     [agentId, onAgentChange, sessionId, updateSession]
+  )
+
+  const handleModelSelect = useCallback(
+    (nextModel?: Model) => {
+      if (!canChangeModel || !nextModel || nextModel.id === model?.id) return
+      void updateModel(agentId, nextModel.id, { showSuccessToast: false })
+    },
+    [agentId, canChangeModel, model?.id, updateModel]
   )
 
   const handleCreateEmptySession = useCallback(() => {
@@ -887,16 +952,16 @@ const AgentComposerInner = ({
 
   const controlSlots = renderControls({
     agent: agentBase,
-    workspace,
-    workspaceId,
-    workspaceWarning,
+    model,
+    modelProviderName,
     selectAgentLabel: t('chat.alerts.select_agent'),
-    selectWorkspaceLabel: t('agent.session.workspace_selector.placeholder'),
+    selectModelLabel: t('button.select_model'),
     agentChanging,
     shouldAutoSelectCreatedAgent: Boolean(onAgentChange),
     showAgentTrigger: workView !== 'old',
-    workspaceChanging,
-    showWorkspaceSelector,
+    canChangeModel,
+    onModelSelect: handleModelSelect,
+    modelFilter: agentModelFilter,
     newConversationAction:
       onCreateEmptySession && agentBase
         ? {
@@ -904,9 +969,25 @@ const AgentComposerInner = ({
             onClick: handleCreateEmptySession
           }
         : undefined,
-    onAgentChange: handleAgentChange,
-    onWorkspaceChange
+    onAgentChange: handleAgentChange
   })
+
+  const sendAccessory = (
+    <div className="flex items-center gap-1.5">
+      {showWorkspaceSelector ? (
+        <AgentComposerWorkspaceControl
+          workspace={workspace}
+          workspaceId={workspaceId}
+          workspaceWarning={workspaceWarning}
+          selectWorkspaceLabel={t('agent.session.workspace_selector.placeholder')}
+          workspaceChanging={workspaceChanging}
+          side="top"
+          onWorkspaceChange={onWorkspaceChange}
+        />
+      ) : null}
+      <AgentComposerContextUsage model={model} sessionId={sessionId} />
+    </div>
+  )
 
   return (
     <ComposerToolDerivedStateProvider couldAddImageFile={canAddImageFile} extensions={supportedExts}>
@@ -967,7 +1048,7 @@ const AgentComposerInner = ({
         rootPanelAdditionalItems={rootPanelSkillItems}
         onRootPanelOpen={handleRootPanelOpen}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
-        sendAccessory={<AgentComposerContextUsage model={model} sessionId={sessionId} />}
+        sendAccessory={sendAccessory}
         {...controlSlots}
       />
     </ComposerToolDerivedStateProvider>
@@ -1102,7 +1183,14 @@ const AgentComposer = (props: Props) => {
 }
 
 export const AgentHomeComposer = (props: Props) => {
-  return <AgentComposerRoot {...props} forceNarrowLayout renderControls={renderAgentHomeControls} />
+  return (
+    <AgentComposerRoot
+      {...props}
+      showWorkspaceSelector={props.showWorkspaceSelector ?? true}
+      forceNarrowLayout
+      renderControls={renderAgentHomeControls}
+    />
+  )
 }
 
 export default AgentComposer

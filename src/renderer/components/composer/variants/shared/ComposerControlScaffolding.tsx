@@ -60,14 +60,26 @@ export const ComposerToolMenuControls = ({
 export const ComposerToolbarControls = ({
   inputAdapter,
   newConversationAction,
-  renderContextControls
+  renderContextControls,
+  toolMenuPlacement = 'afterContext'
 }: {
   inputAdapter?: QuickPanelInputAdapter
   newConversationAction?: ComposerNewConversationAction
   renderContextControls: RenderContextControls
+  toolMenuPlacement?: 'beforeContext' | 'afterContext'
 }) => {
   const { iconOnly, toolbarRef } = useComposerBottomToolbarIconOnly()
   const contextControls = renderContextControls({ side: 'top', iconOnly })
+
+  if (toolMenuPlacement === 'beforeContext') {
+    return (
+      <div ref={toolbarRef} className={cn(COMPOSER_TOOLBAR_CLASS, 'w-full')}>
+        <ComposerToolMenuControls inputAdapter={inputAdapter} />
+        {newConversationAction ? <ComposerNewConversationButton action={newConversationAction} /> : null}
+        {contextControls}
+      </div>
+    )
+  }
 
   if (newConversationAction) {
     return (

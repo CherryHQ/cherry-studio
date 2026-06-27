@@ -593,9 +593,10 @@ const AgentChatSessionFrame = ({
   })
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(runtime.sessionId), [runtime.sessionId])
   const locateLoadRequestRef = useRef<string | undefined>(undefined)
-  const canChangeWorkspace = Boolean(
-    onWorkspaceChange && !runtime.isLoading && !runtime.hasOlder && runtime.uiMessages.length === 0
-  )
+  const isEmptyConversation =
+    !runtime.isLoading && !runtime.isPending && !dockedStreaming && !runtime.hasOlder && runtime.uiMessages.length === 0
+  const canChangeWorkspace = Boolean(onWorkspaceChange && isEmptyConversation)
+  const canChangeModel = isEmptyConversation
 
   useEffect(() => {
     if (!locateMessageId) {
@@ -651,6 +652,7 @@ const AgentChatSessionFrame = ({
       onWorkspaceChange={canChangeWorkspace ? onWorkspaceChange : undefined}
       workspaceChanging={workspaceChanging}
       showWorkspaceSelector={showWorkspaceSelector}
+      canChangeModel={canChangeModel}
       composerContext={runtime.composerContext}
     />
   )

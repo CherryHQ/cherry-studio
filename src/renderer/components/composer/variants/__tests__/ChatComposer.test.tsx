@@ -641,7 +641,7 @@ describe('ChatComposer', () => {
     globalThis.ResizeObserver = originalResizeObserver
   })
 
-  it('renders the tool menu after assistant and model selectors in the efficiency view', () => {
+  it('keeps the tool menu at the far left in the efficiency view', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     const leftControls = screen.getByTestId('composer-left-controls')
@@ -649,8 +649,8 @@ describe('ChatComposer', () => {
     const modelButton = within(leftControls).getByRole('button', { name: /Model A/ })
     const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
 
+    expect(toolMenuButton.compareDocumentPosition(assistantButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(assistantButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(modelButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
   })
 

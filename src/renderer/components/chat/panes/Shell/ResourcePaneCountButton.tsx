@@ -31,7 +31,7 @@ export function ResourcePaneCountButton({ label, count, className }: ResourcePan
         className={cn(
           'group h-7 shrink-0 gap-1.5 rounded-full bg-card px-2.5 font-medium text-foreground-muted text-xs shadow-none',
           'hover:bg-accent hover:text-foreground',
-          '[-webkit-app-region:none] [&_svg]:!size-3.5',
+          '[&_svg]:!size-3.5 [-webkit-app-region:none]',
           className
         )}
         onClick={handleClick}>

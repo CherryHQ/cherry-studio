@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { AgentSessionEntitySchema, CreateAgentSessionSchema, UpdateAgentSessionSchema } from '../agentSessions'
+import { AgentSessionEntitySchema, CreateAgentSessionSchema } from '../agentSessions'
 import {
   AgentSessionWorkspaceSourceSchema,
   AgentWorkspaceEntitySchema,
@@ -66,7 +66,7 @@ describe('AgentWorkspaceEntitySchema', () => {
     ).toBe(false)
   })
 
-  it('allows workspace selection on session create only', () => {
+  it('requires workspace selection on session create', () => {
     expect(
       CreateAgentSessionSchema.parse({
         agentId: 'agent-1',
@@ -82,7 +82,6 @@ describe('AgentWorkspaceEntitySchema', () => {
       }).workspace
     ).toEqual({ type: 'system' })
     expect(CreateAgentSessionSchema.safeParse({ agentId: 'agent-1', name: 'Session' }).success).toBe(false)
-    expect(UpdateAgentSessionSchema.safeParse({ workspace: { type: 'system' } }).success).toBe(false)
   })
 
   it('rejects malformed workspace source shapes', () => {

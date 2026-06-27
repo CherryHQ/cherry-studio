@@ -295,6 +295,7 @@ const renderChatToolbarControls: ChatComposerControlsRenderer = (props) => ({
     <ComposerToolbarControls
       inputAdapter={inputAdapter}
       newConversationAction={props.newConversationAction}
+      toolMenuPlacement={props.showAssistantTrigger === false ? 'afterContext' : 'beforeContext'}
       renderContextControls={({ side, iconOnly }) => (
         <ChatComposerContextControls {...props} side={side} iconOnly={iconOnly} />
       )}
