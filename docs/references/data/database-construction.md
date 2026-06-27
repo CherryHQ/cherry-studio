@@ -98,9 +98,9 @@ A table rebuild (drizzle's `INSERT…SELECT` drops the implicit rowid) **and `VA
 | Local-only physical identity | Like `rowid`: never set by app code, **never exported/imported in backups**. Restore MUST insert row-by-row through the trigger; a content row left with NULL `fts_rowid` makes `integrity-check, 1` fail and the row unsearchable. |
 | `searchable_text` | Trigger-populated (NOT a SQLite `GENERATED` column). `group_concat` over text parts wrapped in `COALESCE(…,'')` (it returns NULL for tool-only/empty messages; the column is `NOT NULL DEFAULT ''`). `message` extracts `text` parts + `data-code`/`data-translation`/`data-compact` content + `data-error` message; `agent_session_message` extracts `text`+`reasoning`. Adding a searchable part type means updating `searchableTextExpression` — and because triggers are DROP+CREATE, the fix lands on existing DBs at the next boot replay. |
 
-### Deferred hazard: knowledge `search_text_fts`
+### Knowledge `search_text_fts` follows the same rule
 
-`src/main/features/knowledge/vectorstore/indexStore/schema.ts` still uses `content_rowid='rowid'` — the same bug class. It is a **separate per-base `index.sqlite`** (not the main DB, not drizzle-managed, not in `CUSTOM_SQL_STATEMENTS`), safe today only because it is never VACUUMed and has no table-rebuild/RENAME path (DDL replays via `IF NOT EXISTS`; `rebuildMaterial` is row-level). If that ever changes, migrate it to a stable integer key. Documented inline in that file.
+`src/main/features/knowledge/vectorstore/indexStore/schema.ts` keys `search_text_fts` on a stable `fts_rowid` column too (assigned by the `search_text_ai` trigger; `content_rowid='fts_rowid'`). It is a **separate per-base `index.sqlite`** (not the main DB, not drizzle-managed, not in `CUSTOM_SQL_STATEMENTS`), but the same hazard applies: its `reclaim()` path runs `VACUUM` to return freed pages to the OS after a large delete, which renumbers the implicit rowid — keying on `fts_rowid` keeps the external-content index aligned by construction. The regression guard is `KnowledgeIndexStore.test.ts` → "keeps search_text_fts aligned after a rowid-reshuffling rebuild".
 
 ## 5. Testing the build
 

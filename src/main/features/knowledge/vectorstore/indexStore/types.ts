@@ -23,6 +23,14 @@ export interface SqliteExecutor {
 /** A handle valid only inside SqliteDriver.transaction(); same surface as the driver. */
 export type SqliteTransaction = SqliteExecutor
 
+/** What a {@link SqliteDriver.reclaim} pass did. */
+export interface SqliteReclaimOutcome {
+  /** Whether a VACUUM ran (only when the freelist crossed the size threshold). */
+  vacuumed: boolean
+  /** Bytes the VACUUM returned to the OS (0 when it was skipped). */
+  reclaimedBytes: number
+}
+
 export interface SqliteDriver extends SqliteExecutor {
   /**
    * Run `fn` inside a single write transaction. Commits when `fn` resolves,
@@ -30,6 +38,18 @@ export interface SqliteDriver extends SqliteExecutor {
    * semantics rebuildMaterial relies on (no mixed old/new rows ever visible).
    */
   transaction<T>(fn: (tx: SqliteTransaction) => Promise<T>): Promise<T>
+  /**
+   * Return free space left by deletes to the OS: always checkpoint+truncate the
+   * WAL, and VACUUM the main file when its freelist has grown large (both a big
+   * fraction of the file AND past an absolute floor). Engine-level
+   * checkpoint/threshold/VACUUM only — schema-specific maintenance stays out of the
+   * driver: `preVacuumStatements` are caller-owned SQL (e.g. the knowledge FTS
+   * 'optimize') run once, gated behind the same threshold and right before the
+   * VACUUM, so a sub-threshold delete runs none of them. Serialized against this
+   * driver's writes; the VACUUM blocks the calling thread for the whole-file
+   * rewrite, which is why the threshold gates it to large deletes.
+   */
+  reclaim(preVacuumStatements?: readonly string[]): Promise<SqliteReclaimOutcome>
   /**
    * Whether {@link close} has been called. Lets a caller tell an operation that
    * failed because the store was closed mid-flight (concurrent base deletion or

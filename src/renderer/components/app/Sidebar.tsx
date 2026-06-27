@@ -5,9 +5,7 @@ import {
   type ResourceListRevealSource
 } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import {
-  findAppTabToFocus,
   getOrderedVisibleSidebarIcons,
-  getSidebarApp,
   getSidebarMenuPath,
   resolveSidebarActiveItem,
   SIDEBAR_ICON_COMPONENTS
@@ -41,7 +39,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const [sidebarFavorites] = usePreference('ui.sidebar.favorites')
-  const { activeTab, tabs, updateTab, openTab, setActiveTab } = useTabs()
+  const { activeTab, updateTab, openTab } = useTabs()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
 
   // Sidebar width — persisted across restarts. Dragging through the
@@ -130,21 +128,6 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       const title = getDefaultRouteTitle(path)
       const revealSource = getResourceListRevealSource(menuId)
 
-      // Uniqueness: if a tab for this app already exists, focus it instead of
-      // duplicating it (or clobbering the active tab into a second copy). Only
-      // fall through to reuse-active / open when no tab for the app exists yet.
-      const app = getSidebarApp(menuId)
-      const existingId = app ? findAppTabToFocus(app, tabs, { defaultPaintingProvider }) : undefined
-      if (existingId) {
-        if (existingId !== activeTab?.id) {
-          setActiveTab(existingId)
-        }
-        if (revealSource) {
-          emitResourceListReveal({ source: revealSource, tabId: existingId })
-        }
-        return
-      }
-
       if (activeTab?.isPinned) {
         const openedId = openTab(path, { forceNew: true, title })
         if (revealSource) {
@@ -171,7 +154,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         emitResourceListReveal({ source: revealSource, tabId: openedId })
       }
     },
-    [activeTab, tabs, updateTab, openTab, setActiveTab, defaultPaintingProvider]
+    [activeTab, updateTab, openTab, defaultPaintingProvider]
   )
   const handleOpenSettingsTab = useCallback(() => {
     openSettingsTab('/settings/provider')
