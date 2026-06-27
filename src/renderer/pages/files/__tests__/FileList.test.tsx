@@ -115,4 +115,20 @@ describe('FileList', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'files.select_file' }))
     expect(onSelect).toHaveBeenCalledWith(file.id)
   })
+
+  it('only shows the row show-in-folder action for external files', () => {
+    const externalFile: FileItem = {
+      ...file,
+      id: 'external-file',
+      origin: 'external'
+    }
+
+    const { rerender } = render(<FileList {...fileListProps(null)} files={[file]} />)
+
+    expect(screen.queryByRole('button', { name: 'files.show_in_folder' })).not.toBeInTheDocument()
+
+    rerender(<FileList {...fileListProps(null)} files={[externalFile]} />)
+
+    expect(screen.getByRole('button', { name: 'files.show_in_folder' })).toBeInTheDocument()
+  })
 })

@@ -212,18 +212,20 @@ export const FileList = memo(function FileList({
                       }}>
                       <Pencil size={12} />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={t('files.show_in_folder')}
-                      title={t('files.show_in_folder')}
-                      className="text-muted-foreground/55 hover:text-foreground"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onShowInFolder(file.id)
-                      }}>
-                      <FolderOpen size={12} />
-                    </Button>
+                    {file.origin === 'external' && (
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={t('files.show_in_folder')}
+                        title={t('files.show_in_folder')}
+                        className="text-muted-foreground/55 hover:text-foreground"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onShowInFolder(file.id)
+                        }}>
+                        <FolderOpen size={12} />
+                      </Button>
+                    )}
                   </>
                 )}
                 <Button

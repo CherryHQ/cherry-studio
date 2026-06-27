@@ -154,6 +154,9 @@ export interface FileEntryService {
    */
   findMany(query?: FindEntriesQuery): Promise<FileEntry[]>
 
+  /** Tx-scoped variant of `findMany` for composing write flows. */
+  findManyTx(tx: DbOrTx, query?: FindEntriesQuery): Promise<FileEntry[]>
+
   /**
    * Cursor-and-count list backing `GET /files/entries`. Returns
    * `{ items, total, nextCursor }` matching the DataApi cursor response shape,
@@ -416,6 +419,10 @@ class FileEntryServiceImpl implements FileEntryService {
   }
 
   async findMany(query: FindEntriesQuery = {}): Promise<FileEntry[]> {
+    return this.findManyTx(this.getDb(), query)
+  }
+
+  async findManyTx(tx: DbOrTx, query: FindEntriesQuery = {}): Promise<FileEntry[]> {
     const conditions: SQL[] = []
     if (query.origin) {
       conditions.push(eq(fileEntryTable.origin, query.origin))
@@ -426,7 +433,7 @@ class FileEntryServiceImpl implements FileEntryService {
       conditions.push(isNull(fileEntryTable.deletedAt))
     }
 
-    let queryBuilder = this.getDb()
+    let queryBuilder = tx
       .select()
       .from(fileEntryTable)
       .where(and(...conditions))
