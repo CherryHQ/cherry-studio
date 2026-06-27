@@ -314,8 +314,7 @@ describe('SkillService', () => {
       await seedAgent()
       await seedSkills()
 
-      // Pass undefined workspace to skip symlink ops
-      await skillService.initSkillsForAgent(AGENT_ID, undefined)
+      await skillService.initSkillsForAgent(AGENT_ID)
 
       const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, AGENT_ID))
 
@@ -337,7 +336,7 @@ describe('SkillService', () => {
         isEnabled: true
       })
 
-      await skillService.initSkillsForAgent(AGENT_ID, undefined)
+      await skillService.initSkillsForAgent(AGENT_ID)
 
       const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, AGENT_ID))
       expect(rows).toHaveLength(0)
