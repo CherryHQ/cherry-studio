@@ -34,6 +34,7 @@
     {
       "apiModelId": "claude-3-5-haiku-latest",
       "modelId": "claude-3-5-haiku-latest",
+      "name": "claude-3-5-haiku-latest",
       "pricing": {
         "input": {
           "currency": "USD",
@@ -2015,6 +2016,21 @@
     },
     {
       "apiModelId": "openai.gpt-oss-120b",
+      "modelId": "gpt-oss-120b",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.6
+        }
+      },
+      "providerId": "aws-bedrock"
+    },
+    {
+      "apiModelId": "openai.gpt-oss-120b-1:0",
       "modelId": "gpt-oss-120b",
       "pricing": {
         "input": {
@@ -4945,17 +4961,13 @@
       "apiModelId": "deepseek/deepseek-v3.1",
       "modelId": "deepseek-v3-1",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.28
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.56
+          "perMillionTokens": 0.6
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.68
+          "perMillionTokens": 1.7
         }
       },
       "providerId": "gateway"
@@ -5478,15 +5490,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 2.25
+          "perMillionTokens": 0.12
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 2.25
+          "perMillionTokens": 0.6
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.75
+          "perMillionTokens": 2.2
         }
       },
       "providerId": "gateway"
@@ -5535,11 +5547,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1
+          "perMillionTokens": 0.95
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.2
+          "perMillionTokens": 3.15
         }
       },
       "providerId": "gateway"
@@ -5554,11 +5566,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.4
+          "perMillionTokens": 1.3
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 4.4
+          "perMillionTokens": 4.3
         }
       },
       "providerId": "gateway"
@@ -6325,17 +6337,13 @@
       "apiModelId": "openai/gpt-oss-120b",
       "modelId": "gpt-oss-120b",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.25
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.35
+          "perMillionTokens": 0.1
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.75
+          "perMillionTokens": 0.5
         }
       },
       "providerId": "gateway"
@@ -18994,8 +19002,20 @@
       "providerId": "tokenhub"
     },
     {
+      "apiModelId": "deepseek-v4-flash-202605",
+      "modelId": "deepseek-v4-flash",
+      "name": "DeepSeek-V4-Flash 原厂直供",
+      "providerId": "tokenhub"
+    },
+    {
       "apiModelId": "deepseek-v4-pro",
       "modelId": "deepseek-v4-pro",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "deepseek-v4-pro-202606",
+      "modelId": "deepseek-v4-pro",
+      "name": "DeepSeek-V4-Pro 原厂直供",
       "providerId": "tokenhub"
     },
     {
@@ -19907,5 +19927,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "2026.06.26"
+  "version": "2026.06.27"
 }

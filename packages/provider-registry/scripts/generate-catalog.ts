@@ -242,15 +242,27 @@ function buildProviders(): { providers: ProviderEntry[]; version: string } {
 function buildProviderModels(md: ModelsDevApi, baseIds: Set<string>): { root: any; rows: number } {
   const seen = new Set<string>()
   const rows: any[] = []
-  const add = (o: any): void => {
-    const k = `${o.providerId} ${o.modelId} ${(o.modelVariants ?? []).slice().sort().join(',')}`
+  const variantsKey = (o: any): string => (o.modelVariants ?? []).slice().sort().join(',')
+  // Overrides key on `apiModelId` too, so one provider can serve the SAME canonical model under several
+  // apiModelIds (e.g. tokenhub's dated 原厂直供 variants alongside the undated id) — `listProviderRegistryModels`
+  // turns each surviving row into a distinct selectable model (its unique id derives from apiModelId).
+  const addOverride = (o: any): void => {
+    const k = `${o.providerId} ${o.modelId} ${o.apiModelId ?? ''} ${variantsKey(o)}`
+    if (seen.has(k)) return
+    seen.add(k)
+    rows.push(o)
+  }
+  // md-derived rows key on `modelId` only — upstream date snapshots that canonicalize to one id collapse to
+  // a single row. No provider declares both `overrides` and `modelsDevProvider`, so the two paths never
+  // share a (providerId, modelId) and an override never needs to shadow an md row.
+  const addModel = (o: any): void => {
+    const k = `${o.providerId} ${o.modelId} ${variantsKey(o)}`
     if (seen.has(k)) return
     seen.add(k)
     rows.push(o)
   }
   for (const p of PROVIDERS) {
-    // manual overrides first so they win the dedup
-    for (const ov of p.overrides ?? []) add({ providerId: p.id, ...ov })
+    for (const ov of p.overrides ?? []) addOverride({ providerId: p.id, ...ov })
     const src = p.modelsDevProvider ? (md[p.modelsDevProvider]?.models ?? {}) : {}
     for (const [apiModelId, m] of Object.entries(src)) {
       const meta = parseMdEntry(m)
@@ -262,7 +274,7 @@ function buildProviderModels(md: ModelsDevApi, baseIds: Set<string>): { root: an
         if (!meta.name) continue
         row.name = meta.name // vendor-exclusive → standalone
       }
-      add(row)
+      addModel(row)
     }
   }
   rows.sort((a, b) => `${a.providerId} ${a.modelId}`.localeCompare(`${b.providerId} ${b.modelId}`))

@@ -2768,6 +2768,36 @@
       }
     },
     {
+      "capabilities": ["function-call", "image-recognition", "file-input", "web-search"],
+      "contextWindow": 200000,
+      "family": "claude-haiku",
+      "id": "claude-3-5-haiku",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 8192,
+      "metadata": {},
+      "name": "Claude 3.5 Haiku",
+      "outputModalities": ["text"],
+      "ownedBy": "anthropic",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.08
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.8
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        }
+      }
+    },
+    {
       "capabilities": [
         "function-call",
         "reasoning",
@@ -3169,36 +3199,6 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "file-input", "web-search"],
-      "contextWindow": 200000,
-      "family": "claude-haiku",
-      "id": "claude-3-5-haiku",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 8192,
-      "metadata": {},
-      "name": "Claude Haiku 3.5",
-      "outputModalities": ["text"],
-      "ownedBy": "anthropic",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.08
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 1
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.8
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 4
-        }
-      }
-    },
-    {
       "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "web-search"],
       "contextWindow": 200000,
       "family": "claude-opus",
@@ -3408,36 +3408,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 15
-        }
-      }
-    },
-    {
-      "capabilities": ["function-call", "image-recognition", "file-input", "web-search"],
-      "contextWindow": 200000,
-      "family": "claude-haiku",
-      "id": "claude-3-5-haiku-latest",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 8192,
-      "metadata": {},
-      "name": "Claude Haiku 3.5 (latest)",
-      "outputModalities": ["text"],
-      "ownedBy": "anthropic",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.08
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 1
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.8
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 4
         }
       }
     },
@@ -5439,20 +5409,16 @@
     },
     {
       "capabilities": ["function-call", "reasoning"],
-      "contextWindow": 163840,
+      "contextWindow": 131072,
       "family": "deepseek",
       "id": "deepseek-v3-1",
       "inputModalities": ["text"],
-      "maxOutputTokens": 65536,
+      "maxOutputTokens": 128000,
       "metadata": {},
       "name": "DeepSeek V3.1",
       "outputModalities": ["text"],
       "ownedBy": "deepseek",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.28
-        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.574
@@ -10632,7 +10598,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.15
+          "perMillionTokens": 0.141
         },
         "input": {
           "currency": "USD",
@@ -12391,24 +12357,20 @@
       "family": "gpt-oss",
       "id": "gpt-oss-120b",
       "inputModalities": ["text"],
-      "maxOutputTokens": 131000,
+      "maxOutputTokens": 131072,
       "metadata": {},
       "name": "GPT OSS 120B",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.25
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.35
+          "perMillionTokens": 0.1
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.75
+          "perMillionTokens": 0.5
         }
       },
       "reasoning": {
@@ -15857,11 +15819,11 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "structured-output", "file-input"],
-      "contextWindow": 202800,
+      "contextWindow": 202752,
       "family": "glm",
       "id": "glm-5-1",
       "inputModalities": ["text"],
-      "maxOutputTokens": 131072,
+      "maxOutputTokens": 202000,
       "metadata": {},
       "name": "GLM-5.1",
       "openWeights": true,
@@ -15938,7 +15900,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 2.25
+          "perMillionTokens": 0.12
         },
         "cacheWrite": {
           "currency": "USD",
@@ -15946,11 +15908,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 2.25
+          "perMillionTokens": 0.6
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.75
+          "perMillionTokens": 2.2
         }
       },
       "reasoning": {
@@ -17354,6 +17316,18 @@
       }
     },
     {
+      "capabilities": ["image-generation"],
+      "contextWindow": 131072,
+      "family": "o",
+      "id": "arrow-1-1",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 131072,
+      "metadata": {},
+      "name": "Arrow 1.1",
+      "outputModalities": ["image"],
+      "ownedBy": "vercel"
+    },
+    {
       "capabilities": ["reasoning", "image-recognition"],
       "contextWindow": 1000000,
       "id": "interfaze-beta",
@@ -17435,5 +17409,5 @@
       "ownedBy": "vercel"
     }
   ],
-  "version": "2026.06.26"
+  "version": "2026.06.27"
 }

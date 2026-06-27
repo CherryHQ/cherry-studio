@@ -21,7 +21,11 @@ const dataDir = join(fileURLToPath(import.meta.url), '..', '..', '..', 'data')
 const read = (f: string) => JSON.parse(readFileSync(join(dataDir, f), 'utf8'))
 const models = read('models.json').models as Array<{ id: string; name?: string; ownedBy: string }>
 const providers = read('providers.json').providers as Array<{ id: string; endpointConfigs: unknown }>
-const overrides = read('provider-models.json').overrides as Array<{ providerId: string; modelId: string }>
+const overrides = read('provider-models.json').overrides as Array<{
+  providerId: string
+  modelId: string
+  apiModelId?: string
+}>
 
 const modelById = new Map(models.map((m) => [m.id, m]))
 const providerById = new Map(providers.map((p) => [p.id, p]))
@@ -66,12 +70,17 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
     expect(problems).toEqual([])
   })
 
-  it('every provider override resolves to a row in provider-models.json', () => {
-    const seen = new Set(overrides.map((o) => `${o.providerId}|${o.modelId}`))
+  it('every provider override resolves to a row in provider-models.json (distinct apiModelId variants included)', () => {
+    // Key on apiModelId too: a provider may serve the same canonical modelId under several apiModelIds
+    // (tokenhub's dated 原厂直供 variants). Keying on modelId alone would let a dropped variant slip through.
+    const key = (o: { providerId: string; modelId: string; apiModelId?: string }) =>
+      `${o.providerId}|${o.modelId}|${o.apiModelId ?? ''}`
+    const seen = new Set(overrides.map(key))
     const problems: string[] = []
     for (const p of PROVIDERS)
       for (const ov of p.overrides ?? [])
-        if (ov.modelId && !seen.has(`${p.id}|${ov.modelId}`)) problems.push(`${p.id}/${ov.modelId}`)
+        if (ov.modelId && !seen.has(key({ providerId: p.id, modelId: ov.modelId, apiModelId: ov.apiModelId })))
+          problems.push(`${p.id}/${ov.modelId}/${ov.apiModelId ?? ''}`)
     expect(problems).toEqual([])
   })
 })
