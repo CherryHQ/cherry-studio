@@ -151,7 +151,7 @@ describe('useProviderEditor', () => {
         providerId: 'new-provider-id',
         name: 'My Provider',
         defaultChatEndpoint: endpoint,
-        logo: 'data:image/png;base64,abc'
+        logo: { kind: 'key', key: 'data:image/png;base64,abc' }
       })
     })
 
@@ -259,7 +259,7 @@ describe('useProviderEditor', () => {
       expect(updateProviderByIdMock).toHaveBeenCalledWith('openai', {
         name: 'Renamed',
         defaultChatEndpoint: endpoint,
-        logo: 'data:image/png;base64,new'
+        logo: { kind: 'key', key: 'data:image/png;base64,new' }
       })
     })
 
@@ -274,7 +274,7 @@ describe('useProviderEditor', () => {
       expect(updateProviderByIdMock).toHaveBeenCalledWith('openai', {
         name: 'Renamed',
         defaultChatEndpoint: endpoint,
-        logo: null
+        logo: { kind: 'clear' }
       })
     })
 

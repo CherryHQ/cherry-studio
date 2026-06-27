@@ -174,7 +174,7 @@ describe('NewMiniAppPanel', () => {
         appId: 'generated-id',
         name: 'My App',
         url: 'https://my.app',
-        logo: 'application'
+        logo: { kind: 'key', key: 'application' }
       })
     })
   })
@@ -298,7 +298,7 @@ describe('NewMiniAppPanel', () => {
       expect(mocks.updateCustomMiniApp).toHaveBeenCalledWith('custom-app', {
         name: 'New App',
         url: 'https://new.app',
-        logoFileId: UPLOAD_ID
+        logo: { kind: 'file', fileId: UPLOAD_ID }
       })
     })
   })
@@ -342,7 +342,7 @@ describe('NewMiniAppPanel', () => {
         appId: 'generated-id',
         name: 'My App',
         url: 'https://my.app',
-        logoFileId: UPLOAD_ID
+        logo: { kind: 'file', fileId: UPLOAD_ID }
       })
     })
   })
@@ -388,7 +388,7 @@ describe('NewMiniAppPanel', () => {
         appId: 'generated-id',
         name: 'My App',
         url: 'https://my.app',
-        logoFileId: UPLOAD_ID
+        logo: { kind: 'file', fileId: UPLOAD_ID }
       })
     })
   })

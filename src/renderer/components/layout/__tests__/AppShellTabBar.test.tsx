@@ -75,6 +75,7 @@ vi.mock('../ShellTabBarActions', async () => {
 })
 
 vi.mock('react-i18next', () => ({
+  initReactI18next: { type: '3rdParty', init: () => {} },
   useTranslation: () => ({
     t: (key: string) => (key === 'title.launchpad' ? 'Launchpad' : key)
   })
