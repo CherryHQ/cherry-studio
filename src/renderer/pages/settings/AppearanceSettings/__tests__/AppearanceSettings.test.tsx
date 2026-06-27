@@ -3,7 +3,7 @@ import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import CommonSettings, { confirmMenuPresentationModeChange } from '../index'
+import AppearanceSettings, { confirmMenuPresentationModeChange } from '../index'
 
 const i18nMock = vi.hoisted(() => ({
   language: 'zh-CN',
@@ -151,6 +151,7 @@ vi.mock('@renderer/components/SettingsPrimitives', async () => {
     SettingRow: passthrough('div'),
     SettingRowTitle: passthrough('div'),
     SettingsContentBody: passthrough('main'),
+    SettingsContentColumn: passthrough('main'),
     SettingTitle: passthrough('h2')
   }
 })
@@ -174,7 +175,7 @@ vi.mock('@renderer/utils/error', () => ({
   formatErrorMessage: (error: unknown) => (error instanceof Error ? error.message : String(error))
 }))
 
-describe('CommonSettings menu presentation mode', () => {
+describe('AppearanceSettings menu presentation mode', () => {
   const t = (key: string) => key
   const setMenuPresentationMode = vi.fn<(mode: MenuPresentationMode) => Promise<void>>()
   const setTimeoutTimer = vi.fn<(key: string, callback: () => void, delay: number) => void>()
@@ -265,7 +266,7 @@ describe('CommonSettings menu presentation mode', () => {
   })
 })
 
-describe('CommonSettings language selector', () => {
+describe('AppearanceSettings language selector', () => {
   let originalApi: any
 
   beforeEach(() => {
@@ -287,7 +288,7 @@ describe('CommonSettings language selector', () => {
   it('shows the resolved i18n language when no app language preference is saved', async () => {
     MockUsePreferenceUtils.setPreferenceValue('app.language', null)
 
-    render(<CommonSettings />)
+    render(<AppearanceSettings />)
 
     await waitFor(() => {
       expect(window.api.getSystemFonts).toHaveBeenCalled()

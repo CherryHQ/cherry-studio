@@ -107,7 +107,7 @@ describe('EnvironmentDependencies', () => {
     expect(screen.getByText('Bun')).toBeInTheDocument()
     expect(screen.getByText('ripgrep')).toBeInTheDocument()
     // No custom tools → empty-state hint.
-    expect(screen.getByText('settings.plugins.customToolsEmpty')).toBeInTheDocument()
+    expect(screen.getByText('settings.dependencies.customToolsEmpty')).toBeInTheDocument()
   })
 
   it('renders a persisted custom tool instead of the empty state', async () => {
@@ -115,7 +115,7 @@ describe('EnvironmentDependencies', () => {
     render(<EnvironmentDependencies />)
 
     await waitFor(() => expect(screen.getByText('mytool')).toBeInTheDocument())
-    expect(screen.queryByText('settings.plugins.customToolsEmpty')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.dependencies.customToolsEmpty')).not.toBeInTheDocument()
   })
 
   it('shows an uninstall action for a mise-managed preset tool', async () => {
@@ -124,7 +124,7 @@ describe('EnvironmentDependencies', () => {
     render(<EnvironmentDependencies />)
 
     await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
-    await waitFor(() => expect(screen.getAllByLabelText('settings.plugins.remove').length).toBeGreaterThan(0))
+    await waitFor(() => expect(screen.getAllByLabelText('settings.dependencies.remove').length).toBeGreaterThan(0))
   })
 
   it('hides the uninstall action for a bundled-only preset tool', async () => {
@@ -133,7 +133,7 @@ describe('EnvironmentDependencies', () => {
     render(<EnvironmentDependencies />)
 
     await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
-    expect(screen.queryByLabelText('settings.plugins.remove')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
   })
 
   it('renders nothing in mini mode once core deps are available', async () => {
