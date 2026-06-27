@@ -1,4 +1,5 @@
 import { application } from '@application'
+import * as XLSX from '@e965/xlsx'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { checkName, getFileType as getFileTypeByExt, getName, readTextFileWithAutoEncoding } from '@main/utils/file'
@@ -18,7 +19,6 @@ import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
 import { isBinaryFile } from 'isbinaryfile'
 import officeParser from 'officeparser'
-import * as XLSX from '@e965/xlsx'
 import * as path from 'path'
 import { PDFDocument } from 'pdf-lib'
 import { v4 as uuidv4 } from 'uuid'
@@ -403,7 +403,7 @@ class FileStorage {
         // officeparser (it only handles xlsx/docx/pptx/odt/odp/ods/pdf), so they would
         // throw if routed there. Parse them with SheetJS, which reads BIFF .xls and .xlsm.
         if (fileExtension === '.xls' || fileExtension === '.xlsm') {
-          const workbook = XLSX.readFile(filePath)
+          const workbook = XLSX.read(fs.readFileSync(filePath))
           return workbook.SheetNames.map((name) => XLSX.utils.sheet_to_csv(workbook.Sheets[name])).join('\n\n')
         }
 
