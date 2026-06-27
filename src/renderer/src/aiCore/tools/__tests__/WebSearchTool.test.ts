@@ -35,8 +35,7 @@ describe('webSearchToolWithPreExtractedKeywords', () => {
       'request-1'
     ) as any
 
-    const firstResult = await searchTool.execute({})
-    const secondResult = await searchTool.execute({ additionalContext: 'new context' })
+    const result = await searchTool.execute({})
 
     expect(WebSearchService.processWebsearch).toHaveBeenCalledTimes(1)
     expect(WebSearchService.processWebsearch).toHaveBeenCalledWith(
@@ -49,17 +48,81 @@ describe('webSearchToolWithPreExtractedKeywords', () => {
       },
       'request-1'
     )
-    expect(firstResult.results[0].url).toBe('https://example.com/path?utm_source=newsletter#details')
-    expect(secondResult).toBe(firstResult)
+    expect(result.results[0].url).toBe('https://example.com/path?utm_source=newsletter#details')
 
-    const modelOutput = searchTool.toModelOutput({ output: firstResult })
+    const modelOutput = searchTool.toModelOutput({ output: result })
     const modelText = modelOutput.value.map((part: { text: string }) => part.text).join('\n')
 
     expect(modelText).toContain('"url": "https://example.com"')
     expect(modelText).not.toContain('utm_source')
   })
 
-  it('reuses the in-flight search request for concurrent executions', async () => {
+  it('reuses cached results for identical queries within a single response', async () => {
+    const searchTool = webSearchToolWithPreExtractedKeywords(
+      'tavily',
+      {
+        question: ['first']
+      },
+      'request-1'
+    ) as any
+
+    const firstResult = await searchTool.execute({})
+    const secondResult = await searchTool.execute({})
+
+    expect(WebSearchService.processWebsearch).toHaveBeenCalledTimes(1)
+    expect(secondResult).toBe(firstResult)
+  })
+
+  it('performs a new search when additionalContext changes the query', async () => {
+    vi.mocked(WebSearchService.processWebsearch)
+      .mockResolvedValueOnce({
+        query: 'first',
+        results: [{ title: 'A', content: 'a', url: 'https://a.com' }]
+      })
+      .mockResolvedValueOnce({
+        query: 'new context',
+        results: [{ title: 'B', content: 'b', url: 'https://b.com' }]
+      })
+
+    const searchTool = webSearchToolWithPreExtractedKeywords(
+      'tavily',
+      {
+        question: ['first']
+      },
+      'request-1'
+    ) as any
+
+    const firstResult = await searchTool.execute({})
+    const secondResult = await searchTool.execute({ additionalContext: 'new context' })
+
+    expect(WebSearchService.processWebsearch).toHaveBeenCalledTimes(2)
+    expect(WebSearchService.processWebsearch).toHaveBeenNthCalledWith(
+      1,
+      { id: 'tavily' },
+      {
+        websearch: {
+          question: ['first'],
+          links: undefined
+        }
+      },
+      'request-1'
+    )
+    expect(WebSearchService.processWebsearch).toHaveBeenNthCalledWith(
+      2,
+      { id: 'tavily' },
+      {
+        websearch: {
+          question: ['new context'],
+          links: undefined
+        }
+      },
+      'request-1'
+    )
+    expect(secondResult).not.toBe(firstResult)
+    expect(secondResult.results[0].title).toBe('B')
+  })
+
+  it('reuses the in-flight search request for concurrent executions with the same query', async () => {
     const searchResponse = {
       query: 'first',
       results: [
@@ -82,23 +145,43 @@ describe('webSearchToolWithPreExtractedKeywords', () => {
       'request-1'
     ) as any
 
+    const [firstResult, secondResult] = await Promise.all([searchTool.execute({}), searchTool.execute({})])
+
+    expect(WebSearchService.processWebsearch).toHaveBeenCalledTimes(1)
+    expect(firstResult).toBe(searchResponse)
+    expect(secondResult).toBe(searchResponse)
+  })
+
+  it('performs separate searches for concurrent executions with different queries', async () => {
+    vi.mocked(WebSearchService.processWebsearch).mockImplementation(
+      (_provider, extractResults) =>
+        new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve({
+                query: extractResults.websearch!.question[0],
+                results: [{ title: extractResults.websearch!.question[0], content: 'c', url: 'https://x.com' }]
+              }),
+            0
+          )
+        )
+    )
+
+    const searchTool = webSearchToolWithPreExtractedKeywords(
+      'tavily',
+      {
+        question: ['first']
+      },
+      'request-1'
+    ) as any
+
     const [firstResult, secondResult] = await Promise.all([
       searchTool.execute({ additionalContext: 'first context' }),
       searchTool.execute({ additionalContext: 'second context' })
     ])
 
-    expect(WebSearchService.processWebsearch).toHaveBeenCalledTimes(1)
-    expect(WebSearchService.processWebsearch).toHaveBeenCalledWith(
-      { id: 'tavily' },
-      {
-        websearch: {
-          question: ['first context'],
-          links: undefined
-        }
-      },
-      'request-1'
-    )
-    expect(firstResult).toBe(searchResponse)
-    expect(secondResult).toBe(searchResponse)
+    expect(WebSearchService.processWebsearch).toHaveBeenCalledTimes(2)
+    expect(firstResult.results[0].title).toBe('first context')
+    expect(secondResult.results[0].title).toBe('second context')
   })
 })

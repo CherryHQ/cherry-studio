@@ -44,7 +44,7 @@ export const webSearchToolWithPreExtractedKeywords = (
   requestId: string
 ) => {
   const webSearchProvider = WebSearchService.getWebSearchProvider(webSearchProviderId)
-  let cachedSearchResultsPromise: Promise<WebSearchProviderResponse> | undefined
+  const searchCache = new Map<string, Promise<WebSearchProviderResponse>>()
 
   return tool({
     description: `Web search tool for finding current information, news, and real-time data from the internet.
@@ -67,10 +67,6 @@ You can use this tool as-is to search with the prepared queries, or provide addi
     }),
 
     execute: async ({ additionalContext }) => {
-      if (cachedSearchResultsPromise) {
-        return cachedSearchResultsPromise
-      }
-
       let finalQueries = normalizeWebSearchQueries(extractedKeywords.question)
 
       if (additionalContext?.trim()) {
@@ -86,6 +82,13 @@ You can use this tool as-is to search with the prepared queries, or provide addi
         return { query: '', results: [] }
       }
 
+      // 同一查询（并发或串行）只真实搜索一次，换关键词再搜则执行新搜索
+      const cacheKey = JSON.stringify(finalQueries)
+      const cached = searchCache.get(cacheKey)
+      if (cached) {
+        return cached
+      }
+
       // 构建 ExtractResults 结构用于 processWebsearch
       const extractResults: ExtractResults = {
         websearch: {
@@ -93,11 +96,12 @@ You can use this tool as-is to search with the prepared queries, or provide addi
           links: extractedKeywords.links
         }
       }
-      cachedSearchResultsPromise = WebSearchService.processWebsearch(webSearchProvider!, extractResults, requestId)
+      const searchPromise = WebSearchService.processWebsearch(webSearchProvider!, extractResults, requestId)
+      searchCache.set(cacheKey, searchPromise)
       try {
-        return await cachedSearchResultsPromise
+        return await searchPromise
       } catch (error) {
-        cachedSearchResultsPromise = undefined
+        searchCache.delete(cacheKey)
         throw error
       }
     },
