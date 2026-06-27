@@ -151,9 +151,10 @@ export const miniAppLogoChecker: SourceTypeChecker<'mini_app_logo'> = {
 }
 
 /**
- * The user avatar is a singleton managed explicitly via `putEntityImage` /
- * `clearEntityImage`; its ref is never orphaned by source existence. Treat
- * every sourceId as alive so the sweeper leaves it alone.
+ * The user avatar is a singleton managed explicitly via the
+ * `file.put_entity_file` / `file.clear_entity_file` IpcApi routes; its ref is
+ * never orphaned by source existence. Treat every sourceId as alive so the
+ * sweeper leaves it alone.
  */
 export const userAvatarChecker: SourceTypeChecker<'user_avatar'> = {
   sourceType: 'user_avatar',

@@ -7,7 +7,7 @@ import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
-import type { FileEntryId } from '@shared/data/types/file'
+import { allSourceTypes, type FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
@@ -310,10 +310,11 @@ describe('runDbSweep (umbrella + observability)', () => {
     })
     expect(report.outcome).toBe('partial')
     if (report.outcome === 'partial') {
-      // scanAll iterates every sourceType in allSourceTypes (temp_session,
-      // knowledge_item, chat_message, painting) and listDistinctSourceIds
-      // throws for all of them → all four errored.
-      expect(Object.keys(report.errorsByType)).toHaveLength(4)
+      // scanAll iterates every sourceType in allSourceTypes and
+      // listDistinctSourceIds throws for all of them → every registered
+      // sourceType errored. Derived from the tuple so adding a variant can't
+      // silently stale this assertion.
+      expect(Object.keys(report.errorsByType)).toHaveLength(allSourceTypes.length)
       expect(report.errorsByType.temp_session).toMatch(/boom/)
     }
     expect(warnSpy).toHaveBeenCalledWith(

@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { clearEntitySlot, putEntitySlotFile } from '@main/services/file/entitySlotFile'
 import { dispatchHandle } from '@main/services/file/internal/dispatch'
 import { getMetadataByPath } from '@main/services/file/utils/metadata'
 import type { fileRequestSchemas } from '@shared/ipc/schemas/file'
@@ -45,8 +46,8 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   'file.batch_get_dangling_states': async ({ ids }) => application.get('FileManager').batchGetDanglingStates({ ids }),
   'file.batch_create_internal_entries': async ({ items }) =>
     application.get('FileManager').batchCreateInternalEntries(items as CreateInternalEntryIpcParams[]),
-  'file.put_entity_image': async (input) => application.get('FileManager').putEntityImage(input),
-  'file.clear_entity_image': async (input) => application.get('FileManager').clearEntityImage(input),
+  'file.put_entity_file': async (input) => putEntitySlotFile(input),
+  'file.clear_entity_file': async (input) => clearEntitySlot(input),
   'file.batch_trash': async ({ ids }) => application.get('FileManager').batchTrash(ids),
   'file.batch_restore': async ({ ids }) => application.get('FileManager').batchRestore(ids),
   'file.batch_permanent_delete': async ({ ids }) => application.get('FileManager').batchPermanentDelete(ids),

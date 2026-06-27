@@ -1,11 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, getMetadataByPathMock } = vi.hoisted(() => ({
+const { appGetMock, getMetadataByPathMock, putEntitySlotFileMock, clearEntitySlotMock } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
-  getMetadataByPathMock: vi.fn()
+  getMetadataByPathMock: vi.fn(),
+  putEntitySlotFileMock: vi.fn(),
+  clearEntitySlotMock: vi.fn()
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('@main/services/file/utils/metadata', () => ({ getMetadataByPath: getMetadataByPathMock }))
+vi.mock('@main/services/file/entitySlotFile', () => ({
+  putEntitySlotFile: putEntitySlotFileMock,
+  clearEntitySlot: clearEntitySlotMock
+}))
 
 import { fileHandlers } from '../file'
 
@@ -106,6 +112,24 @@ describe('fileHandlers', () => {
     expect(fileManager.rename).toHaveBeenCalledWith(ids[0], 'renamed')
     expect(fileManager.open).toHaveBeenCalledWith(ids[0])
     expect(fileManager.showInFolder).toHaveBeenCalledWith(ids[0])
+  })
+
+  it('delegates entity-file routes to the entitySlotFile module', async () => {
+    const putInput = {
+      data: new Uint8Array([1, 2, 3]),
+      ext: 'webp',
+      sourceType: 'user_avatar' as const,
+      sourceId: 'default',
+      role: 'avatar'
+    }
+    putEntitySlotFileMock.mockResolvedValue({ fileId: ids[0] })
+
+    await expect(fileHandlers['file.put_entity_file'](putInput, ctx)).resolves.toEqual({ fileId: ids[0] })
+    expect(putEntitySlotFileMock).toHaveBeenCalledWith(putInput)
+
+    const clearInput = { sourceType: 'user_avatar' as const, sourceId: 'default', role: 'avatar' }
+    await fileHandlers['file.clear_entity_file'](clearInput, ctx)
+    expect(clearEntitySlotMock).toHaveBeenCalledWith(clearInput)
   })
 
   it('delegates internal-entry batch create items to FileManager', async () => {

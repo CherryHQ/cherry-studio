@@ -6,11 +6,13 @@
  * - resolves a stored id → a `file://…/{id}.webp` URL for `<img src>` display,
  *   passing through every other value form (emoji / `icon:<id>` / preset id /
  *   `http(s)` / `data:`) unchanged;
- * - uploads bytes via the `file.put_entity_image` IpcApi route, which normalizes
- *   and stores the file in the main process and returns the new id.
+ * - normalizes uploads to a 128×128 WebP **here** (consumer side), then stores
+ *   the bytes via the content-agnostic `file.put_entity_file` IpcApi route, which
+ *   returns the new id. The main file layer carries no image knowledge.
  */
 
 import { ipcApi } from '@renderer/ipc'
+import { normalizeImageToWebp } from '@renderer/utils/image'
 import type { FileRefSourceType } from '@shared/data/types/file'
 
 /** file_entry ids are UUIDs (v7); anything else is an emoji / icon ref / url / preset id. */
@@ -36,8 +38,8 @@ export function resolveStoredImageSrc(value?: string | null, filesPath?: string)
 }
 
 /**
- * Normalize + persist an uploaded image for an entity slot, returning the new
- * file-entry id to store as the entity's reference.
+ * Normalize an uploaded image to a 128×128 WebP and persist it in the entity
+ * slot, returning the new file-entry id to store as the entity's reference.
  */
 export async function putEntityImageFromFile(
   file: File,
@@ -45,12 +47,12 @@ export async function putEntityImageFromFile(
   sourceId: string,
   role: string
 ): Promise<string> {
-  const data = new Uint8Array(await file.arrayBuffer())
-  const { fileId } = await ipcApi.request('file.put_entity_image', { data, sourceType, sourceId, role })
+  const data = await normalizeImageToWebp(file)
+  const { fileId } = await ipcApi.request('file.put_entity_file', { data, ext: 'webp', sourceType, sourceId, role })
   return fileId
 }
 
 /** Remove the entity's stored image (file + ref), if any. */
 export async function clearEntityImage(sourceType: FileRefSourceType, sourceId: string, role: string): Promise<void> {
-  await ipcApi.request('file.clear_entity_image', { sourceType, sourceId, role })
+  await ipcApi.request('file.clear_entity_file', { sourceType, sourceId, role })
 }

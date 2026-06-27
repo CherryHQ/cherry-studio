@@ -168,12 +168,6 @@ import {
   ensureExternal as internalEnsureExternal
 } from './internal/entry/create'
 import {
-  clearEntityImage as internalClearEntityImage,
-  type ClearEntityImageParams,
-  putEntityImage as internalPutEntityImage,
-  type PutEntityImageParams
-} from './internal/entry/entityImage'
-import {
   batchPermanentDelete as internalBatchPermanentDelete,
   batchRestore as internalBatchRestore,
   batchTrash as internalBatchTrash,
@@ -434,17 +428,6 @@ export interface IFileManager {
 
   /** Batch version of `createInternalEntry`. Each item produces an independent new entry. */
   batchCreateInternalEntries(items: CreateInternalEntryParams[]): Promise<BatchCreateResult>
-
-  /**
-   * Store a normalized 128×128 WebP image for an entity slot
-   * (`sourceType`/`sourceId`/`role`), replacing and deleting any previous
-   * image for that slot. Returns the new file-entry id, which the owning
-   * entity stores as a reference. Used for avatar / provider / mini-app logos.
-   */
-  putEntityImage(params: PutEntityImageParams): Promise<{ fileId: FileEntryId }>
-
-  /** Remove the entity's image for a slot, if any (delete ref + entry + file). */
-  clearEntityImage(params: ClearEntityImageParams): Promise<void>
 
   /**
    * Batch version of `ensureExternalEntry`. Within-batch path duplicates are
@@ -923,14 +906,6 @@ export class FileManager extends BaseService implements IFileManager {
       (_, index) => `#${index}`,
       (p) => this.createInternalEntry(p)
     )
-  }
-
-  async putEntityImage(params: PutEntityImageParams): Promise<{ fileId: FileEntryId }> {
-    return internalPutEntityImage(this.deps, params)
-  }
-
-  async clearEntityImage(params: ClearEntityImageParams): Promise<void> {
-    return internalClearEntityImage(this.deps, params)
   }
 
   async batchEnsureExternalEntries(items: EnsureExternalEntryParams[]): Promise<BatchCreateResult> {
