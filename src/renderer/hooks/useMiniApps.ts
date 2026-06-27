@@ -4,7 +4,10 @@ import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataAp
 import { usePreference } from '@data/hooks/usePreference'
 import { useReorder } from '@data/hooks/useReorder'
 import { loggerService } from '@logger'
+import { computeMinimalMoves } from '@renderer/data/utils/reorder'
+import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import i18n from '@renderer/i18n'
+import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp, MiniAppRegion, MiniAppStatus } from '@shared/data/types/miniApp'
@@ -44,6 +47,14 @@ const isVisibleForRegion = (app: MiniApp, region: MiniAppRegion): boolean => {
     return app.presetMiniAppId === null
   }
   return app.supportedRegions.includes('Global')
+}
+
+function isVisibleStatus(status: MiniAppStatus): boolean {
+  return status === 'enabled' || status === 'pinned'
+}
+
+function compareOrderKey(a: MiniApp, b: MiniApp): number {
+  return a.orderKey < b.orderKey ? -1 : a.orderKey > b.orderKey ? 1 : 0
 }
 
 // Filter apps by region
@@ -93,6 +104,14 @@ const detectUserRegion = async (): Promise<MiniAppRegion> => {
  */
 // Module-level logger to avoid recreating on every render (rerender-defer-reads)
 const logger = loggerService.withContext('useMiniApps')
+const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
+
+/** Extract the appId from a `/app/mini-app/<id>` URL, or null otherwise. */
+function miniAppIdFromTabUrl(url: string): string | null {
+  if (!url.startsWith(MINI_APP_ROUTE_PREFIX)) return null
+  const id = url.slice(MINI_APP_ROUTE_PREFIX.length).split('/')[0]
+  return id ? id : null
+}
 
 /**
  * Process Promise.allSettled results: throw on partial failures so callers
@@ -180,7 +199,7 @@ export const useMiniApps = () => {
 
   // === Region-filtered views ===
   // Include pinned apps so they remain visible in the grid when pinned to launchpad/sidebar
-  // Sort by sortOrder to maintain consistent positions regardless of status
+  // Sort by orderKey to maintain consistent visible positions regardless of status
   const miniApps = useMemo(() => {
     const visibleApps = [...enabled, ...pinned]
     const regionFiltered = filterByRegion(visibleApps, effectiveRegion)
@@ -195,6 +214,7 @@ export const useMiniApps = () => {
   const [currentMiniAppId, setCurrentMiniAppId] = useCache('mini_app.current_id')
   const [miniAppShow, setMiniAppShow] = useCache('mini_app.show')
   const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
+  const tabsContext = useOptionalTabsContext()
 
   // === Mutations (DataApi) ===
   const invalidate = useInvalidateCache()
@@ -226,6 +246,12 @@ export const useMiniApps = () => {
 
   // Template-path mutations for single-item operations (per DataApi convention)
   const { trigger: patchAppTrigger } = useMutation('PATCH', '/mini-apps/:appId', {
+    refresh: ['/mini-apps']
+  })
+  const { trigger: patchMiniAppOrderTrigger } = useMutation('PATCH', '/mini-apps/:id/order', {
+    refresh: ['/mini-apps']
+  })
+  const { trigger: patchMiniAppOrderBatchTrigger } = useMutation('PATCH', '/mini-apps/order:batch', {
     refresh: ['/mini-apps']
   })
   const { trigger: deleteAppTrigger } = useMutation('DELETE', '/mini-apps/:appId', {
@@ -285,16 +311,105 @@ export const useMiniApps = () => {
     [postMiniApp]
   )
 
+  const syncOpenedCustomMiniApp = useCallback(
+    (updated: MiniApp) => {
+      const openedKeepAliveApp = openedKeepAliveMiniApps.find((app) => app.appId === updated.appId)
+      const openedOneOffApp = openedOneOffMiniApp?.appId === updated.appId ? openedOneOffMiniApp : null
+      const urlChanged =
+        (openedKeepAliveApp !== undefined && openedKeepAliveApp.url !== updated.url) ||
+        (openedOneOffApp !== null && openedOneOffApp.url !== updated.url)
+
+      if (openedKeepAliveApp) {
+        setOpenedKeepAliveMiniApps(openedKeepAliveMiniApps.map((app) => (app.appId === updated.appId ? updated : app)))
+      }
+
+      if (openedOneOffApp) {
+        setOpenedOneOffMiniApp(updated)
+      }
+
+      if (urlChanged) {
+        setWebviewLoaded(updated.appId, false)
+      }
+
+      const title = updated.nameKey ? i18n.t(updated.nameKey) : updated.name
+      for (const tab of tabsContext?.tabs ?? []) {
+        if (miniAppIdFromTabUrl(tab.url) === updated.appId) {
+          tabsContext?.updateTab(tab.id, { title, icon: updated.logo })
+        }
+      }
+    },
+    [openedKeepAliveMiniApps, openedOneOffMiniApp, setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp, tabsContext]
+  )
+
+  const cleanupOpenedCustomMiniApp = useCallback(
+    (appId: string) => {
+      if (openedKeepAliveMiniApps.some((app) => app.appId === appId)) {
+        setOpenedKeepAliveMiniApps(openedKeepAliveMiniApps.filter((app) => app.appId !== appId))
+      }
+
+      if (openedOneOffMiniApp?.appId === appId) {
+        setOpenedOneOffMiniApp(null)
+      }
+
+      if (currentMiniAppId === appId) {
+        setCurrentMiniAppId('')
+        setMiniAppShow(false)
+      }
+
+      clearWebviewState(appId)
+
+      for (const tab of tabsContext?.tabs ?? []) {
+        if (miniAppIdFromTabUrl(tab.url) === appId) {
+          tabsContext?.closeTab(tab.id)
+        }
+      }
+    },
+    [
+      currentMiniAppId,
+      openedKeepAliveMiniApps,
+      openedOneOffMiniApp,
+      setCurrentMiniAppId,
+      setMiniAppShow,
+      setOpenedKeepAliveMiniApps,
+      setOpenedOneOffMiniApp,
+      tabsContext
+    ]
+  )
+
+  const updateCustomMiniApp = useCallback(
+    async (appId: string, dto: UpdateMiniAppDto) => {
+      try {
+        const updated = await patchAppTrigger({ params: { appId }, body: dto })
+        try {
+          syncOpenedCustomMiniApp(updated)
+        } catch (syncError) {
+          logger.error('Failed to sync opened custom mini app after update', { appId, error: syncError })
+        }
+        return updated
+      } catch (error) {
+        logger.error('Failed to update custom mini app', { appId, error: toDataApiError(error) })
+        throw toDataApiError(error)
+      }
+    },
+    [patchAppTrigger, syncOpenedCustomMiniApp]
+  )
+
   const removeCustomMiniApp = useCallback(
     async (appId: string) => {
       try {
-        return await deleteAppTrigger({ params: { appId } })
+        const result = await deleteAppTrigger({ params: { appId } })
+        try {
+          cleanupOpenedCustomMiniApp(appId)
+        } catch (syncError) {
+          logger.error('Failed to cleanup opened custom mini app after delete', { appId, error: syncError })
+        }
+        return result
       } catch (error) {
         logger.error('Failed to remove custom mini app', { appId, error: toDataApiError(error) })
         throw toDataApiError(error)
       }
     },
-    [deleteAppTrigger]
+    [cleanupOpenedCustomMiniApp, deleteAppTrigger]
   )
 
   /**
@@ -315,37 +430,34 @@ export const useMiniApps = () => {
   )
 
   /**
-   * Reorder miniApps inside a single status partition.
+   * Reorder miniApps inside a status-backed list.
    *
-   * `useReorder('/mini-apps')` diffs the new list against the full `/mini-apps`
-   * cache and `computeMinimalMoves` requires a permutation of the cache rows.
-   * Settings UI hands us only one column (e.g. enabled rows). We splice the
-   * subset back into the cache shape so the diff is well-formed and the
-   * resulting moves all stay within one partition — the server enforces single
-   * scope (see MiniAppService.reorder + applyScopedMoves).
+   * Settings UI only passes the affected list, so compute moves against that
+   * list's own order-key baseline. The service validates the same scopes:
+   * `enabled` + `pinned` share the visible list; `disabled` stays hidden.
    */
   const reorderMiniAppsByStatus = useCallback(
-    async (status: MiniAppStatus, orderedPartition: MiniApp[]) => {
-      const partitionIds = new Set(orderedPartition.map((a) => a.appId))
-      const hiddenTargets = allApps.filter((a) => a.status === status && !partitionIds.has(a.appId))
-      let hiddenCursor = 0
-      let partitionCursor = 0
+    async (status: MiniAppStatus | 'visible', orderedPartition: MiniApp[]) => {
+      const inScope = (app: MiniApp) => (status === 'visible' ? isVisibleStatus(app.status) : app.status === status)
+      const orderedIds = new Set(orderedPartition.map((app) => app.appId))
+      const currentPartition = allApps.filter((app) => orderedIds.has(app.appId) && inScope(app)).sort(compareOrderKey)
+      const moves = computeMinimalMoves(currentPartition, orderedPartition, 'appId')
+      if (moves.length === 0) return
 
-      const merged = allApps.map((a) => {
-        if (a.status !== status) return a
-        if (partitionCursor < orderedPartition.length) {
-          return orderedPartition[partitionCursor++]
-        }
-        return hiddenTargets[hiddenCursor++]
-      })
       try {
-        await applyMiniAppOrder(merged)
+        if (moves.length === 1) {
+          const [move] = moves
+          await patchMiniAppOrderTrigger({ params: { id: move.id }, body: move.anchor })
+        } else {
+          await patchMiniAppOrderBatchTrigger({ body: { moves } })
+        }
       } catch (error) {
+        await invalidate('/mini-apps')
         logger.error('Failed to reorder mini apps within status', { status, error: toDataApiError(error) })
         throw toDataApiError(error)
       }
     },
-    [allApps, applyMiniAppOrder]
+    [allApps, invalidate, patchMiniAppOrderBatchTrigger, patchMiniAppOrderTrigger]
   )
 
   return {
@@ -367,6 +479,7 @@ export const useMiniApps = () => {
     updateAppStatus,
     setAppStatusBulk,
     createCustomMiniApp,
+    updateCustomMiniApp,
     removeCustomMiniApp,
     reorderMiniApps,
     reorderMiniAppsByStatus

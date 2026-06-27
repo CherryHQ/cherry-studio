@@ -1,5 +1,13 @@
-import type { InferSharedCacheValue, ProcessKey, SharedCacheKey } from '@shared/data/cache/cacheSchemas'
+import { DefaultMainPersistCache } from '@shared/data/cache/cacheSchemas'
+import type {
+  InferSharedCacheValue,
+  MainPersistCacheKey,
+  MainPersistCacheSchema,
+  ProcessKey,
+  SharedCacheKey
+} from '@shared/data/cache/cacheSchemas'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
+import { isEqual } from 'lodash'
 import { vi } from 'vitest'
 
 /**
@@ -12,6 +20,9 @@ const mockMainCache = new Map<string, CacheEntry>()
 
 // Mock shared cache storage
 const mockSharedCache = new Map<string, CacheEntry>()
+
+// Mock main-process persist cache storage (backs getPersist/setPersist/hasPersist)
+const mockPersistCache = new Map<string, unknown>()
 
 // Mock broadcast tracking
 const mockBroadcastCalls: Array<{ message: CacheSyncMessage; senderWindowId?: number }> = []
@@ -141,6 +152,25 @@ export class MockMainCacheService {
     return true
   })
 
+  // ============ Persist Cache Methods ============
+  // Faithful to the real main persist tier: getPersist returns the stored
+  // override else the schema default (never undefined), setPersist installs an
+  // override, hasPersist reports deviation from the default.
+
+  public getPersist = vi.fn(<K extends MainPersistCacheKey>(key: K): MainPersistCacheSchema[K] => {
+    return (
+      mockPersistCache.has(key) ? mockPersistCache.get(key) : DefaultMainPersistCache[key]
+    ) as MainPersistCacheSchema[K]
+  })
+
+  public setPersist = vi.fn(<K extends MainPersistCacheKey>(key: K, value: MainPersistCacheSchema[K]): void => {
+    mockPersistCache.set(key, value)
+  })
+
+  public hasPersist = vi.fn(<K extends MainPersistCacheKey>(key: K): boolean => {
+    return mockPersistCache.has(key) && !isEqual(mockPersistCache.get(key), DefaultMainPersistCache[key])
+  })
+
   // ============ Subscription Methods ============
   // These are call-tracking stubs — the mock does NOT replicate fire semantics.
   // Each call returns a fresh vi.fn() unsubscribe stub, useful for verifying
@@ -166,6 +196,7 @@ export class MockMainCacheService {
   public cleanup = vi.fn((): void => {
     mockMainCache.clear()
     mockSharedCache.clear()
+    mockPersistCache.clear()
     mockBroadcastCalls.length = 0
   })
 
@@ -202,6 +233,7 @@ export const MockMainCacheServiceUtils = {
     // Reset cache state
     mockMainCache.clear()
     mockSharedCache.clear()
+    mockPersistCache.clear()
     mockBroadcastCalls.length = 0
 
     // Reset initialized state

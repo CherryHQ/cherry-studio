@@ -30,7 +30,6 @@ import { BinaryManager } from '@main/services/BinaryManager'
 import { CherryInOauthService } from '@main/services/CherryInOauthService'
 import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
-import { DevtoolsExtensionService } from '@main/services/DevtoolsExtensionService'
 import { FileManager } from '@main/services/file/FileManager'
 import { DirectoryTreeManager } from '@main/services/file/tree/DirectoryTreeManager'
 import { LanTransferService } from '@main/services/lanTransfer'
@@ -111,7 +110,6 @@ export const services = {
   WebSearchService,
   WebviewService,
   CherryInOauthService,
-  DevtoolsExtensionService,
   MainWindowService,
   QuickAssistantService,
   McpPackageService,

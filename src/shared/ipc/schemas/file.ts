@@ -39,7 +39,7 @@ const batchCreateResultSchema = z.strictObject({
 })
 
 // TODO(file-ipc): Unify these schemas with the branded transport types in
-// `src/shared/types/file/ipc.ts`. `FilePath`, `Base64String`, and `URLString` are
+// `src/shared/types/file/ipc.ts`. `FilePath`, `Base64String`, and `UrlString` are
 // TS-only aliases while their runtime schemas live elsewhere, so a successful
 // Zod parse still cannot prove `CreateInternalEntryIpcParams` without an `as`
 // cast in the handler. Keeping the type and schema definitions separate risks

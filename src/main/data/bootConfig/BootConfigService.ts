@@ -20,7 +20,7 @@ import type { BootConfigLoadError } from './types'
 const logger = loggerService.withContext('BootConfigService')
 
 /** Debounce delay for saving config (ms) */
-const SAVE_DEBOUNCE_MS = 500
+const SAVE_DEBOUNCE_MS = 350
 
 /** Payload for boot config change notifications */
 interface BootConfigChangePayload<K extends BootConfigKey = BootConfigKey> {

@@ -14,7 +14,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@renderer/config/constant', () => ({
+vi.mock('@renderer/utils/platform', () => ({
   get isMac() {
     return platformState.isMac
   }

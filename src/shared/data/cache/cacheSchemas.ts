@@ -355,6 +355,29 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.emoji.recently_used': []
 }
 
+/**
+ * Main-process persist cache schema (fixed keys only, main-authoritative).
+ *
+ * Independent from the renderer persist cache: the main-process CacheService
+ * stores these keys in its own JSON file. They are never relayed to, synced
+ * with, or readable by the renderer.
+ */
+export type MainPersistCacheSchema = {
+  // Persist-layer self-test key: exercises the typed persist API and round-trip
+  // tests for the generic mechanism, independent of any real consumer.
+  'internal.persist_probe': number
+  // Window geometry for WindowManager's "remember bounds" capability, keyed by
+  // WindowType value (a string). The schema lives in @shared while WindowType is
+  // a @main enum (no reverse import), so the key type is `string`; the
+  // windowBoundsTracker is the sole writer and controls which keys appear.
+  'window.bounds': Record<string, CacheValueTypes.WindowBoundsState>
+}
+
+export const DefaultMainPersistCache: MainPersistCacheSchema = {
+  'internal.persist_probe': 0,
+  'window.bounds': {}
+}
+
 // ============================================================================
 // Cache Key Types
 // ============================================================================
@@ -363,6 +386,11 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
  * Key type for renderer persist cache (fixed keys only)
  */
 export type RendererPersistCacheKey = keyof RendererPersistCacheSchema
+
+/**
+ * Key type for main-process persist cache (fixed keys only)
+ */
+export type MainPersistCacheKey = keyof MainPersistCacheSchema
 
 /**
  * Key type for shared cache (supports both fixed and template keys).

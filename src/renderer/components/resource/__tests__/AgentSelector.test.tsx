@@ -78,7 +78,7 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: useProvidersMock
 }))
 
-vi.mock('@renderer/hooks/agents/useAgentTools', () => ({
+vi.mock('@renderer/hooks/agent/useAgentTools', () => ({
   useAgentTools: () => ({ tools: [], isLoading: false, error: undefined })
 }))
 
