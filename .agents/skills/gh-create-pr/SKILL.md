@@ -69,10 +69,11 @@ description: Create or update GitHub pull requests using the repository-required
 cat .github/pull_request_template.md
 
 # show this full Markdown body in chat first
-pr_body_file="$(mktemp /tmp/gh-pr-body-XXXXXX).md"
+pr_body_file="/tmp/gh-pr-body-$(date +%s).md"
 cat > "$pr_body_file" <<'EOF'
 ...filled template body...
 EOF
+cat "$pr_body_file"
 
 # run only after explicit user confirmation
 gh pr create --base <base> --head <head> --title "<title>" --body-file "$pr_body_file"
