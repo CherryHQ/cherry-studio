@@ -5,7 +5,6 @@
 // (pnpm backup:refs:generate) and update the expected counts here.
 import { describe, expect, it } from 'vitest'
 
-import { ALWAYS_STRIP_TABLES } from './exclusions'
 import {
   column,
   columns,
@@ -16,6 +15,7 @@ import {
   DB_TABLES,
   table
 } from './dbSchemaRefs'
+import { ALWAYS_STRIP_TABLES } from './exclusions'
 
 // Current business-table count (sqliteTable() definitions). Update if schemas change.
 const EXPECTED_TABLE_COUNT = 35

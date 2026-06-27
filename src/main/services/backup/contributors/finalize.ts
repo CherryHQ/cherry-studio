@@ -8,6 +8,12 @@
 // `finalize` takes the contributors as a parameter so it is unit-testable with
 // synthetic contributors; the production ContributorManager wires the real 14
 // in via the CONTRIBUTORS barrel (B track).
+import type {
+  AggregateBoundary,
+  BackupContributor,
+  EntityReference,
+  ReadonlyBackupRegistry
+} from '@main/data/db/backup/contributor-types'
 import {
   DB_COLUMNS_BY_TABLE,
   DB_FOREIGN_KEYS,
@@ -15,18 +21,12 @@ import {
   type DbColumnName,
   type DbTableName
 } from '@main/data/db/backup/dbSchemaRefs'
-import { ALWAYS_STRIP_TABLES, INFRASTRUCTURE_TABLES } from '@main/data/db/backup/exclusions'
 import { BACKUP_DOMAINS, type BackupDomain } from '@main/data/db/backup/domains'
-import type {
-  AggregateBoundary,
-  BackupContributor,
-  EntityReference,
-  ReadonlyBackupRegistry
-} from '@main/data/db/backup/contributor-types'
+import { ALWAYS_STRIP_TABLES, INFRASTRUCTURE_TABLES } from '@main/data/db/backup/exclusions'
 import { allSourceTypes, type FileRefSourceType } from '@shared/data/types/file/ref'
 
 import { ContributorFinalizeError, type ContributorFinalizePayload } from './ContributorFinalizeError'
-import { ReadonlyBackupRegistryImpl, type FinalizedRegistryData } from './ReadonlyBackupRegistryImpl'
+import { type FinalizedRegistryData, ReadonlyBackupRegistryImpl } from './ReadonlyBackupRegistryImpl'
 
 const DB_TABLES_SET: ReadonlySet<DbTableName> = new Set(DB_TABLES)
 
@@ -71,8 +71,9 @@ export function finalize(
   }
   const missingDomains = BACKUP_DOMAINS.filter((d) => !byDomain.has(d))
   if (missingDomains.length > 0) fail({ invariant: 1, missingDomains })
-  const extraDomains = [...byDomain.keys()].filter((d) => !(BACKUP_DOMAINS as readonly string[]).includes(d))
-  if (extraDomains.length > 0) fail({ invariant: 1, extraDomains })
+  // Duplicate domains fail above (byDomain.has → extraDomains). A domain outside
+  // BACKUP_DOMAINS is impossible by type (contributors.domain: BackupDomain), so no
+  // separate extra-set check is needed.
 
   // ── #2/#3: owned tables ∈ DB_TABLES, no table multi-owned ────────────────────
   const tableOwner = new Map<DbTableName, BackupDomain>()
@@ -285,9 +286,11 @@ export function finalize(
   }
 
   // ── #25: every DB FK on an owned (non-excluded) table is declared by its owner ─
-  for (const [tableKey, fks] of Object.entries(DB_FOREIGN_KEYS)) {
-    const table = tableKey as DbTableName
+  // Iterate DB_TABLES (not Object.entries(DB_FOREIGN_KEYS)) so `table` stays a
+  // DbTableName and `fk.columns` elements stay DbColumnName — no casts needed.
+  for (const table of DB_TABLES) {
     if (ALWAYS_STRIP_TABLES.has(table) || !tableOwner.has(table)) continue
+    const fks = DB_FOREIGN_KEYS[table]
     const owner = tableOwner.get(table)!
     const ownerContributor = byDomain.get(owner)!
     const declaredColumns = new Set<DbColumnName>(
@@ -304,7 +307,7 @@ export function finalize(
       // knowledge_item's [baseId,groupId] self-link) have no standalone FK. Same-domain
       // self-FKs don't affect cross-domain topology anyway. Complete composite-FK
       // coverage is the importer/coverage test's job, not finalize's.
-      if (!fk.columns.some((col) => declaredColumns.has(col as DbColumnName))) {
+      if (!fk.columns.some((col) => declaredColumns.has(col))) {
         fail({ invariant: 25, table, columns: [...fk.columns], missingFromDomain: owner })
       }
     }
