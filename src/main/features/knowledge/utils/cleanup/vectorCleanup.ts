@@ -1,5 +1,8 @@
 import { application } from '@application'
+import { loggerService } from '@logger'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
+
+const logger = loggerService.withContext('KnowledgeVectorCleanup')
 
 export async function deleteKnowledgeItemVectors(base: KnowledgeBase, itemIds: string[]): Promise<void> {
   const uniqueItemIds = [...new Set(itemIds)]
@@ -13,17 +16,46 @@ export async function deleteKnowledgeItemVectors(base: KnowledgeBase, itemIds: s
     return
   }
 
-  const results = await Promise.allSettled(uniqueItemIds.map((itemId) => store.deleteMaterial(itemId)))
-  // Carry each root cause into the aggregate error — an id-only list would leave
-  // nothing to diagnose the individual deletions with.
-  const failures = uniqueItemIds.flatMap((itemId, index) => {
-    const result = results[index]
-    return result?.status === 'rejected' ? [{ itemId, reason: result.reason }] : []
-  })
-  if (failures.length > 0) {
-    const details = failures
-      .map(({ itemId, reason }) => `${itemId} (${reason instanceof Error ? reason.message : String(reason)})`)
-      .join(', ')
-    throw new Error(`Failed to delete knowledge item vectors for item ids: ${details}`)
+  // Delete every id in ONE batched transaction with a single collectIndexGarbage pass.
+  // The old per-id Promise.allSettled loop ran the two full-table GC scans once per item,
+  // so deleting a folder of N files scanned the whole embedding/content table N times —
+  // the multi-second main-process freeze on large (PDF-heavy) folders. deleteMaterials
+  // rolls the whole batch back on failure (throwing the root cause), so a retry
+  // re-discovers every affected id; no per-item failure aggregation is needed.
+  await store.deleteMaterials(uniqueItemIds)
+}
+
+/**
+ * Return the space a subtree delete freed in a base's index.sqlite to the OS.
+ * Best-effort: the rows and vectors are already gone, so a reclaim failure (e.g. a
+ * transient lock from a concurrent read) must never fail the delete job — it just
+ * leaves the freed pages for a later index to reuse. Only VACUUMs when the freelist
+ * crossed the driver's threshold (a large delete); otherwise it just truncates the WAL.
+ *
+ * A corruption-class failure is the exception that gets logged loudly (still swallowed):
+ * reclaim's whole-file checkpoint/optimize/VACUUM is often the first op to touch the full
+ * file after a delete, so it is where a structurally damaged index surfaces — and folding
+ * that into the generic "failed to reclaim" warn would bury it behind benign transient locks.
+ */
+export async function reclaimKnowledgeIndexSpace(base: KnowledgeBase): Promise<void> {
+  try {
+    // getIndexStoreIfExists itself can throw (a corrupt index, a readiness/base_id mismatch, a
+    // schema open failure) — keep it inside the try so an open failure is best-effort just like a
+    // reclaim failure, never failing the already-completed delete job.
+    const store = await application.get('KnowledgeVectorStoreService').getIndexStoreIfExists(base)
+    if (!store) {
+      return
+    }
+    const { vacuumed, reclaimedBytes } = await store.reclaimSpace()
+    if (vacuumed) {
+      logger.info('Reclaimed knowledge index space after delete', { baseId: base.id, reclaimedBytes })
+    }
+  } catch (error) {
+    const code = (error as { code?: string }).code
+    if (code === 'SQLITE_CORRUPT' || code === 'SQLITE_NOTADB') {
+      logger.error('Knowledge index appears corrupt during post-delete reclaim', error as Error, { baseId: base.id })
+    } else {
+      logger.warn('Failed to reclaim knowledge index space after delete', error as Error, { baseId: base.id })
+    }
   }
 }

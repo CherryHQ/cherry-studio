@@ -9,7 +9,7 @@ import {
   QoderCli,
   QwenCode
 } from '@cherrystudio/ui/icons'
-import { CLAUDE_SUPPORTED_PROVIDERS } from '@renderer/config/codeProviders'
+import { CLAUDE_SUPPORTED_PROVIDERS } from '@renderer/pages/code/codeProviders'
 import { formatApiHost } from '@renderer/utils/api'
 import { sanitizeProviderName } from '@renderer/utils/naming'
 import type { EndpointType } from '@shared/data/types/model'
