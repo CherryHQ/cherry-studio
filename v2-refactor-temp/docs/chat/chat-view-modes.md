@@ -3,8 +3,8 @@
 Each chat surface — assistant conversations (Home) and agent work — has its own
 view-mode preference. The **old view** is a compact entity rail plus a right-side
 resource panel; the **new view** is the classic single sidebar. The `new` / `old`
-values are used consistently across preference values, settings labels, and the
-`isOldView` flag in the pages.
+values are the persisted preference values and feed the `isOldView` flag in the
+pages.
 
 ## Preferences
 
@@ -17,8 +17,8 @@ both defaulting to `'old'`:
 Both are declared in `target-key-definitions.json` and generated into
 `preferenceSchemas.ts`; the legacy v1 `topicPosition` field is deleted during
 classification and is not migrated into either setting. The settings UI
-(`ChatPreferenceSections`) exposes them as "Conversation view" and "Work view",
-each "New view" / "Old view".
+(`CommonSettings`) exposes them as "Conversation view" and "Work view", each with
+"Efficient" / "Classic" labels.
 
 ## Layout
 
@@ -37,10 +37,12 @@ though the display-mode controls are currently hidden in the UI.
 
 - `chat.conversation_view` / `chat.work_view` select the mode per surface.
 - `topic.tab.show` controls whether the left entity rail is expanded/collapsed.
-- The right panel is tab-scoped component state, closed by default.
-- Toggling a surface old → new → old does not restore the old right-panel open
-  state.
-- No other persisted setting is introduced.
+- `ui.old_view.right_pane_open` persists the old-view right panel's open state
+  for Home and Agent. Home uses it directly on the page-level Shell; Agent owns
+  the same cached state in `AgentPage` and threads it through each `AgentChat`
+  Shell mount so it survives draft → persistent remounts and page re-entry.
+- Toggling a surface old → new → old restores the last cached old-view
+  right-panel open state.
 
 ## Left entity rail
 
