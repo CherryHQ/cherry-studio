@@ -10,13 +10,13 @@
  * server-side — the renderer never deals with `sourceType`/`sourceId`/`role`.
  * {@link resolveStoredImageSrc} resolves a stored id → a `file://…/{id}.webp`
  * URL for `<img src>`, passing through every other value form (emoji /
- * `icon:<id>` / preset id / `http(s)` / `data:`) unchanged.
+ * `icon:<id>` / preset id, plus the avatar's v1 base64 `data:` form) unchanged.
  */
 
 import { ipcApi } from '@renderer/ipc'
 import { normalizeImageToWebp } from '@renderer/utils/image'
 
-/** file_entry ids are UUIDs (v7); anything else is an emoji / icon ref / url / preset id. */
+/** file_entry ids are UUIDs (v7); anything else is an emoji / icon ref / preset id. */
 const FILE_ENTRY_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /** True when `value` is a stored entity-image reference (a file-entry id). */
@@ -27,8 +27,8 @@ export function isStoredImageId(value?: string | null): value is string {
 /**
  * Resolve a stored value to something `<img src>` can render. A file-entry id
  * becomes a `file://{filesPath}/{id}.webp` URL; every other form (emoji /
- * `icon:<id>` / preset id / remote URL / data URL / empty) is returned
- * unchanged. `filesPath` is the cached `app.path.files` dir — pass it from
+ * `icon:<id>` / preset id / the avatar's v1 base64 data URL / empty) is
+ * returned unchanged. `filesPath` is the cached `app.path.files` dir — pass it from
  * `useCache('app.path.files')` so the resolution stays reactive.
  */
 export function resolveStoredImageSrc(value?: string | null, filesPath?: string): string | undefined {
