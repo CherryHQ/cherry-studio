@@ -428,7 +428,7 @@ describe('AgentToolRenderer', () => {
       ).toBe(false)
     })
 
-    it('renders Write target paths as non-interactive intermediate output', () => {
+    it('renders the Write target path as a clickable link once the write completes', () => {
       const openArtifactFile = vi.fn()
       mockMessageListActions.mockReturnValue({ openArtifactFile })
       const toolResponse = createToolResponse({
@@ -436,6 +436,23 @@ describe('AgentToolRenderer', () => {
         status: 'done',
         arguments: { file_path: '/tmp/game.html', content: '<html></html>' },
         response: 'File written'
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      const link = screen.getByRole('link', { name: 'game.html' })
+      expect(link).toBeInTheDocument()
+      fireEvent.click(link)
+      expect(openArtifactFile).toHaveBeenCalledWith('/tmp/game.html')
+    })
+
+    it('keeps the Write target path non-interactive while the file is still being written', () => {
+      const openArtifactFile = vi.fn()
+      mockMessageListActions.mockReturnValue({ openArtifactFile })
+      const toolResponse = createToolResponse({
+        tool: { id: 'Write', name: 'Write', description: 'Write a file', type: 'provider' },
+        status: 'streaming',
+        partialArguments: '{"file_path": "/tmp/game.html", "content": "<html>'
       })
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
