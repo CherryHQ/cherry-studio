@@ -3876,64 +3876,6 @@
       "partial_failure": "{{count}} αποτελέσματα αναζήτησης, ορισμένες αναζητήσεις απέτυχαν"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "Προσθήκη στο Launchpad",
-    "add_to_sidebar": "Προσθήκη στην πλαϊνή μπάρα",
-    "popup": {
-      "close": "Κλείσιμο MinApp",
-      "devtools": "Εργαλεία Προγραμματιστών",
-      "goBack": "Πίσω",
-      "goForward": "Προχώρα",
-      "minimize": "Ελαχιστοποίηση MinApp",
-      "openExternal": "Άνοιγμα στον περιηγητή",
-      "open_link_external_off": "Τρέχον: Άνοιγμα συνδέσμων στο προεπιλεγμένο παράθυρο",
-      "open_link_external_on": "Τρέχον: Άνοιγμα συνδέσμων στον περιηγητή",
-      "refresh": "Ανανέωση",
-      "rightclick_copyurl": "Κάντε δεξί κλικ για να αντιγράψετε τη διεύθυνση URL"
-    },
-    "remove_from_launchpad": "Αφαίρεση από το Launchpad",
-    "remove_from_sidebar": "Αφαίρεση από την πλαϊνή μπάρα",
-    "sidebar": {
-      "close": {
-        "title": "Κλείσιμο"
-      },
-      "closeall": {
-        "title": "Κλείσιμο Όλων"
-      },
-      "hide": {
-        "title": "Κρύψε"
-      },
-      "remove_custom": {
-        "title": "Διαγραφή Προσαρμοσμένης Εφαρμογής"
-      }
-    },
-    "title": "MinApp"
-  },
-  "minapps": {
-    "ant-ling": "Μυρμηγκίδα",
-    "baichuan": "Μπάιτσουαν",
-    "baidu-ai-search": "Baidu AI Αναζήτηση",
-    "chatglm": "ChatGLM",
-    "dangbei": "Ντάγκμπεϊ",
-    "doubao": "Ντάουμπαο",
-    "hailuo": "Χαίλουο",
-    "ima": "εικόνα",
-    "metaso": "Μέτασο",
-    "minimax-agent": "Υπολογιστής Minimax CN",
-    "minimax-global": "Πράκτορας Minimax",
-    "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI Αναζήτηση",
-    "qwen": "Qwen",
-    "sensechat": "SenseChat",
-    "stepfun": "Stepfun",
-    "tencent-yuanbao": "Γιουάνμπαο",
-    "tiangong-ai": "Skywork",
-    "wanzhi": "Γουάνζι",
-    "wenxin": "ERNIE",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "Ξιαογι",
-    "zhihu": "Ζίχου"
-  },
   "miniApp": {
     "add_to_launchpad": "Προσθήκη στο Launchpad",
     "add_to_sidebar": "Προσθήκη στην πλευρική μπάρα",
@@ -3944,15 +3886,13 @@
     "hide_failed": "Failed to hide mini-app",
     "pin_failed": "Αποτυχία καρφιτσώματος μίνι εφαρμογής",
     "popup": {
-      "close": "Κλείσιμο της εφαρμογής",
       "devtools": "Εργαλεία προγραμματιστή",
       "goBack": "Πίσω",
       "goForward": "Μπροστά",
       "openExternal": "Άνοιγμα στον περιηγητή",
       "open_link_external_off": "Τρέχον: Άνοιγμα συνδέσμου χρησιμοποιώντας το προεπιλεγμένο παράθυρο",
       "open_link_external_on": "Τρέχον: Άνοιγμα συνδέσμου στον περιηγητή",
-      "refresh": "Ανανέωση",
-      "rightclick_copyurl": "Αντιγραφή URL με δεξί κλικ"
+      "refresh": "Ανανέωση"
     },
     "remove_from_launchpad": "Κατάργηση από το Launchpad",
     "remove_from_sidebar": "Κατάργηση από την πλευρική μπάρα",
@@ -3964,17 +3904,8 @@
     },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
-      "close": {
-        "title": "Κλείσιμο"
-      },
-      "closeall": {
-        "title": "Κλείσιμο όλων"
-      },
       "hide": {
         "title": "Απόκρυψη"
-      },
-      "remove_custom": {
-        "title": "Διαγραφή προσαρμοσμένης εφαρμογής"
       }
     },
     "title": "Μικρόπρογραμμα",
@@ -3994,7 +3925,6 @@
     "minimax-agent": "MiniMax Agent CN",
     "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
     "sensechat": "SenseChat",
     "stepfun": "Stepfun",
@@ -6526,37 +6456,22 @@
     "miniApps": {
       "cache_change_notice": "Η αλλαγή θα τεθεί σε ισχύ αφού το πλήθος των ανοιχτών μικροπρογραμμάτων φτάσει τη ρυθμισμένη τιμή",
       "cache_description": "Ορίστε τον μέγιστο αριθμό των μικροπρογραμμάτων που μπορούν να είναι ενεργά ταυτόχρονα",
-      "cache_settings": "Ρυθμίσεις Προσωρινής Μνήμης",
       "cache_title": "Ποσότητα Προσωρινής Μνήμης Μικροπρογράμματος",
       "custom": {
-        "conflicting_ids": "Υπάρχει σύγκρουση με τα προεπιλεγμένα ID της εφαρμογής: {{ids}}",
-        "duplicate_ids": "Εντοπίστηκαν διπλότυπα ID: {{ids}}",
-        "edit_description": "Επεξεργαστείτε τη διαμόρφωση της προσαρμοσμένης σας εφαρμογής εδώ. Κάθε εφαρμογή πρέπει να περιλαμβάνει τα πεδία id, name, url και logo.",
+        "create_title": "Δημιουργία προσαρμοσμένης μικροεφαρμογής",
         "edit_title": "Επεξεργασία Προσαρμοσμένης Εφαρμογής",
-        "id": "ID",
-        "id_error": "Το ID είναι υποχρεωτικό πεδίο.",
-        "id_placeholder": "Παρακαλώ εισάγετε το ID",
-        "logo": "Logo",
         "logo_file": "Μεταφόρτωση Logo Αρχείου",
-        "logo_upload_button": "Μεταφόρτωση",
         "logo_upload_error": "Αποτυχία μεταφόρτωσης του Logo.",
         "logo_upload_label": "Μεταφόρτωση Logo",
-        "logo_upload_success": "Το Logo μεταφορτώθηκε επιτυχώς.",
-        "logo_url": "Logo URL",
-        "logo_url_label": "Logo URL",
-        "logo_url_placeholder": "Παρακαλώ εισάγετε το Logo URL",
         "name": "Όνομα",
-        "name_error": "Το Όνομα είναι υποχρεωτικό πεδίο.",
         "name_placeholder": "Παρακαλώ εισάγετε το όνομα",
-        "placeholder": "Παρακαλώ εισάγετε τη διαμόρφωση της προσαρμοσμένης εφαρμογής (Μορφή JSON)",
         "remove_error": "Αποτυχία διαγραφής της προσαρμοσμένης εφαρμογής.",
         "remove_success": "Η προσαρμοσμένη εφαρμογή διαγράφηκε επιτυχώς.",
-        "save": "Αποθήκευση",
         "save_error": "Αποτυχία αποθήκευσης της προσαρμοσμένης εφαρμογής.",
         "save_success": "Η προσαρμοσμένη εφαρμογή αποθηκεύτηκε επιτυχώς.",
         "title": "Προσαρμοσμένη Εφαρμογή",
         "url": "URL",
-        "url_error": "Το URL είναι υποχρεωτικό πεδίο.",
+        "url_invalid": "Εισαγάγετε μια έγκυρη διεύθυνση URL http, https ή file.",
         "url_placeholder": "Παρακαλώ εισάγετε το URL"
       },
       "disabled": "Απόκρυψη μικροπρογράμματος",
@@ -6578,65 +6493,7 @@
         "title": "Φίλτραρισμα περιοχής για μικρές εφαρμογές"
       },
       "reset_tooltip": "Επαναφορά στις προεπιλεγμένες τιμές",
-      "title": "Ρυθμίσεις Μικροπρογράμματος",
       "visible": "Εμφανιζόμενα μικροπρογράμματα"
-    },
-    "miniapps": {
-      "cache_change_notice": "Οι αλλαγές θα τεθούν σε ισχύ όταν ο αριθμός των ανοιχτών μίνι εφαρμογών φτάσει την ορισμένη τιμή",
-      "cache_description": "Ορίστε τον μέγιστο αριθμό ενεργών μίνι εφαρμογών που θα διατηρούνται στη μνήμη",
-      "cache_settings": "Ρυθμίσεις Cache",
-      "cache_title": "Όριο Κρυφής Μνήμης Mini App",
-      "custom": {
-        "conflicting_ids": "Αντιφατικά αναγνωριστικά με τις προεπιλεγμένες εφαρμογές: {{ids}}",
-        "duplicate_ids": "Βρέθηκαν διπλότυπα αναγνωριστικά: {{ids}}",
-        "edit_description": "Επεξεργαστείτε εδώ τη ρύθμιση προσαρμοσμένου mini app. Κάθε εφαρμογή πρέπει να περιλαμβάνει τα πεδία id, name, url και logo.",
-        "edit_title": "Επεξεργασία Προσαρμοσμένης Mini Εφαρμογής",
-        "id": "Ταυτότητα",
-        "id_error": "Απαιτείται ταυτότητα.",
-        "id_placeholder": "Εισαγωγή ID",
-        "logo": "Λογότυπο",
-        "logo_file": "Ανέβασμα Αρχείου Λογότυπου",
-        "logo_upload_button": "Μεταφόρτωση",
-        "logo_upload_error": "Αποτυχία μεταφόρτωσης λογότυπου.",
-        "logo_upload_label": "Ανέβασμα Λογότυπου",
-        "logo_upload_success": "Το λογότυπο μεταφορτώθηκε με επιτυχία.",
-        "logo_url": "Διεύθυνση URL λογότυπου",
-        "logo_url_label": "Διεύθυνση URL λογότυπου",
-        "logo_url_placeholder": "Εισάγετε τη διεύθυνση URL του λογότυπου",
-        "name": "Όνομα",
-        "name_error": "Το όνομα είναι υποχρεωτικό.",
-        "name_placeholder": "Εισαγωγή ονόματος",
-        "placeholder": "Εισαγωγή προσαρμοσμένης διαμόρφωσης mini εφαρμογής (μορφή JSON)",
-        "remove_error": "Αποτυχία αφαίρεσης προσαρμοσμένης μικρής εφαρμογής.",
-        "remove_success": "Η προσαρμοσμένη μίνι εφαρμογή αφαιρέθηκε με επιτυχία.",
-        "save": "Αποθήκευση",
-        "save_error": "Αποτυχία αποθήκευσης προσαρμοσμένης μίνι εφαρμογής.",
-        "save_success": "Η προσαρμοσμένη μίνι εφαρμογή αποθηκεύτηκε με επιτυχία.",
-        "title": "Προσαρμοσμένο",
-        "url": "URL",
-        "url_error": "Απαιτείται URL.",
-        "url_placeholder": "Εισαγάγετε URL"
-      },
-      "disabled": "Κρυμμένα Μίνι Εφαρμογές",
-      "display_title": "Ρυθμίσεις Εμφάνισης Mini App",
-      "empty": "Κάντε κλικ στο εικονίδιο απόκρυψης σε μια εφαρμογή στα αριστερά και θα μετακινηθεί εδώ",
-      "hide_app": "Απόκρυψη {{name}}",
-      "open_link_external": {
-        "title": "Άνοιγμα συνδέσμων νέου παραθύρου στον περιηγητή"
-      },
-      "region": {
-        "auto": "Αυτόματη ανίχνευση",
-        "cn": "Κίνα",
-        "description": "Φιλτράρισμα μη υποστηριζόμενων μίνι προγραμμάτων με βάση την περιοχή",
-        "global": "Παγκόσμιος",
-        "title": "Φίλτρο Mini Program"
-      },
-      "reset_tooltip": "Επαναφορά στις προεπιλογές",
-      "show_app": "Εμφάνιση {{name}}",
-      "sidebar_description": "Εμφάνιση ενεργών μίνι εφαρμογών στην πλαϊνή στήλη",
-      "sidebar_title": "Εμφάνιση Ενεργών Mini Εφαρμογών στην Πλαϊνή Στήλη",
-      "title": "Ρυθμίσεις Mini Apps",
-      "visible": "Ορατές Μικρές Εφαρμογές"
     },
     "model": "Πρόεδρος Υπηρεσίας",
     "models": {

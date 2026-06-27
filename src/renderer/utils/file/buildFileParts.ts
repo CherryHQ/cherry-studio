@@ -15,7 +15,7 @@ import type { ComposerAttachment } from '@renderer/utils/message/composerAttachm
 import type { FileUIPart } from '@shared/data/types/message'
 import { withCherryMeta } from '@shared/data/types/uiParts'
 import type { FilePath } from '@shared/types/file/common'
-import { createFileEntryHandle } from '@shared/utils/file/handle'
+import { createFilePathHandle } from '@shared/utils/file/handle'
 
 /**
  * For each `ComposerAttachment` (with an absolute `path`), create a v2 internal
@@ -28,7 +28,7 @@ export async function buildFilePartsForAttachments(attachments: ComposerAttachme
     attachments.map(async (attachment) => {
       const entry = await window.api.file.createInternalEntry({ source: 'path', path: attachment.path as FilePath })
       const physicalPath = await window.api.file.getPhysicalPath({ id: entry.id })
-      const metadata = await window.api.file.getMetadata(createFileEntryHandle(entry.id))
+      const metadata = await window.api.file.getMetadata(createFilePathHandle(physicalPath))
       const basePart: FileUIPart = {
         type: 'file',
         mediaType: metadata.kind === 'file' ? metadata.mime : 'application/octet-stream',

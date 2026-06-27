@@ -4,9 +4,8 @@
  * System default apps are runtime-defined; the DB stores only user preferences
  * (status, orderKey) for them. Custom apps store full data + preferences.
  *
- * Ordering: per data-ordering-guide.md, items are partitioned by `status` and
- * stored in fractional-indexing `orderKey`. The list endpoint returns rows
- * already sorted by (status, orderKey); clients should not re-sort.
+ * Ordering: visible rows (`enabled` + `pinned`) share one fractional-indexing
+ * `orderKey` space; `disabled` rows use a separate key space.
  */
 
 import * as z from 'zod'

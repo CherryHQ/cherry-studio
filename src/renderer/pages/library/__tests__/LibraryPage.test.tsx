@@ -87,7 +87,7 @@ vi.mock('@renderer/hooks/useTags', () => ({
   })
 }))
 
-vi.mock('@renderer/context/TabsContext', () => ({
+vi.mock('@renderer/hooks/tab', () => ({
   useOptionalTabsContext: () => ({
     openTab: openTabMock
   })

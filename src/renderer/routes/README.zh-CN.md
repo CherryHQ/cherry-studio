@@ -76,7 +76,7 @@ function SettingsLayout() {
 打开新 Tab 或切换到已有 Tab，使用 `useTabs` hook：
 
 ```typescript
-import { useTabs } from '@renderer/hooks/useTabs'
+import { useTabs } from '@renderer/hooks/tab'
 
 function MyComponent() {
   const { openTab, closeTab } = useTabs()
