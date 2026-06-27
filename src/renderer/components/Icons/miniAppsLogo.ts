@@ -64,45 +64,6 @@ import {
   Zhida,
   Zhipu
 } from '@cherrystudio/ui/icons'
-import { PRESETS_MINI_APPS as SHARED_PRESETS } from '@shared/data/presets/miniApps'
-
-/**
- * Legacy mini-app entity type used by the deprecated Redux slice and config layer.
- * The v2 MiniApp entity lives in @shared/data/types/miniApp.
- */
-export type MiniAppType = {
-  id: string
-  name: string
-  nameKey?: string
-  supportedRegions?: string[]
-  logo?: string
-  url: string
-  bordered?: boolean
-  background?: string
-  style?: Record<string, unknown>
-  addTime?: string
-  type?: 'Custom' | 'Default'
-}
-
-// Renderer preset list, derived from the shared source of truth.
-// Custom mini apps are no longer file-backed in v2 — they live in the
-// `mini_app` SQLite table and are accessed via DataApi. Anything in v1's
-// `custom-miniApps.json` reaches v2 only through MiniAppMigrator.
-const PRESETS_MINI_APPS: MiniAppType[] = SHARED_PRESETS.map((app) => ({
-  id: app.id,
-  name: app.name,
-  nameKey: app.nameKey,
-  url: app.url,
-  logo: app.logo,
-  bordered: app.bordered,
-  background: app.background,
-  supportedRegions: app.supportedRegions,
-  style: app.style
-}))
-
-const allMiniApps = PRESETS_MINI_APPS
-
-export { allMiniApps, PRESETS_MINI_APPS }
 
 export function getMiniAppsLogo(LogoId: string | undefined): CompoundIcon | undefined {
   if (!LogoId) {

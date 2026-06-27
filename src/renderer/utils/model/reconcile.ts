@@ -13,20 +13,20 @@
  * patch needed". Callers compose multiple reconcile fns and only emit a
  * settings patch when at least one returned non-null.
  */
-import {
-  getThinkModelType,
-  isFunctionCallingModel,
-  isOpenRouterBuiltInWebSearchModel,
-  isSupportedReasoningEffortModel,
-  isSupportedThinkingTokenModel,
-  isWebSearchModel,
-  MODEL_SUPPORTED_OPTIONS,
-  MODEL_SUPPORTED_REASONING_EFFORT
-} from '@renderer/config/models'
 import { cacheService } from '@renderer/data/CacheService'
 import type { AssistantSettings } from '@renderer/types/assistant'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import type { Model } from '@shared/data/types/model'
+
+import {
+  getThinkModelType,
+  isSupportedReasoningEffortModel,
+  isSupportedThinkingTokenModel,
+  MODEL_SUPPORTED_OPTIONS,
+  MODEL_SUPPORTED_REASONING_EFFORT
+} from './reasoning'
+import { isFunctionCallingModel } from './tooluse'
+import { isOpenRouterBuiltInWebSearchModel, isWebSearchModel } from './websearch'
 
 export type ReasoningEffortPatch = {
   reasoning_effort?: string

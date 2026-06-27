@@ -1,26 +1,11 @@
-import { OpenClawSidebarIcon } from '@renderer/components/Icons/SvgIcon'
-import type { SidebarMenuItem } from '@renderer/components/Sidebar/types'
 import {
   buildTabInstanceMetadata,
   getTabInstanceAppId,
   getTabInstanceKey,
   hasTabInstanceMetadataForApp
-} from '@renderer/config/tabInstanceMetadata'
+} from '@renderer/utils/tabInstanceMetadata'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
-import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
-import {
-  Code,
-  FileSearch,
-  Folder,
-  Languages,
-  LayoutGrid,
-  Library,
-  MessageSquare,
-  MousePointerClick,
-  NotepadText,
-  Palette
-} from 'lucide-react'
 
 /**
  * Context passed to sidebar navigation handlers. Carries per-call state the
@@ -51,7 +36,6 @@ export interface SidebarInstanceKey {
 
 export interface SidebarApp {
   id: SidebarIcon
-  icon: SidebarMenuItem['icon']
   routePrefix: string
   /** Url to open when no tab exists yet (defaults to `routePrefix`). */
   resolveUrl?: (ctx: SidebarNavContext) => string
@@ -85,7 +69,6 @@ function isMessageOnlyConversationUrl(url: string): boolean {
 export const SIDEBAR_APPS: readonly SidebarApp[] = [
   {
     id: 'assistants',
-    icon: MessageSquare,
     routePrefix: '/app/chat',
     instanceKey: {
       keyFromUrl: (url) => getNormalConversationSearchParamFromUrl(url, 'topicId'),
@@ -95,7 +78,6 @@ export const SIDEBAR_APPS: readonly SidebarApp[] = [
   },
   {
     id: 'agents',
-    icon: MousePointerClick,
     routePrefix: '/app/agents',
     instanceKey: {
       keyFromUrl: (url) => getNormalConversationSearchParamFromUrl(url, 'sessionId'),
@@ -105,49 +87,40 @@ export const SIDEBAR_APPS: readonly SidebarApp[] = [
   },
   {
     id: 'paintings',
-    icon: Palette,
     routePrefix: '/app/paintings',
     resolveUrl: ({ defaultPaintingProvider }) => `/app/paintings/${defaultPaintingProvider}`
   },
   {
     id: 'translate',
-    icon: Languages,
     routePrefix: '/app/translate'
   },
   {
     id: 'store',
-    icon: Library,
     routePrefix: '/app/library'
   },
   {
     id: 'mini_app',
-    icon: LayoutGrid,
     routePrefix: '/app/mini-app',
     exactRouteFocus: true
   },
   {
     id: 'knowledge',
-    icon: FileSearch,
     routePrefix: '/app/knowledge'
   },
   {
     id: 'files',
-    icon: Folder,
     routePrefix: '/app/files'
   },
   {
     id: 'code_tools',
-    icon: Code,
     routePrefix: '/app/code'
   },
   {
     id: 'notes',
-    icon: NotepadText,
     routePrefix: '/app/notes'
   },
   {
     id: 'openclaw',
-    icon: OpenClawSidebarIcon,
     routePrefix: '/app/openclaw'
   }
 ]
@@ -196,28 +169,6 @@ export function resolveSidebarAppTabEntryUrl(tab: Pick<Tab, 'metadata' | 'url'>)
   return tab.url
 }
 
-/**
- * The tab id to focus on a sidebar click, or undefined if none exists. Apps with
- * sub-instances narrow the match to the last-focused key (so clicking returns to
- * that one); keyless apps focus any tab they own.
- */
-export function findAppTabToFocus(app: SidebarApp, tabs: Tab[], ctx: SidebarNavContext): string | undefined {
-  const key = app.instanceKey?.defaultKey(ctx)
-  const existing = tabs.find(
-    (t) =>
-      t.type === 'route' &&
-      (app.exactRouteFocus ? t.url === app.routePrefix : tabBelongsToApp(app, t.url)) &&
-      (app.instanceKey && key ? getSidebarAppTabInstanceKey(app, t) === key : true)
-  )
-  return existing?.id
-}
-
-/** The url to open when no owned tab exists yet (base route, resolveUrl, or routePrefix). */
-export function resolveAppOpenUrl(app: SidebarApp, ctx: SidebarNavContext): string {
-  const key = app.instanceKey?.defaultKey(ctx)
-  return app.instanceKey && key ? app.routePrefix : (app.resolveUrl?.(ctx) ?? app.routePrefix)
-}
-
 export function buildSidebarAppOpenMetadata(app: SidebarApp, key?: string): Tab['metadata'] {
   if (!app.instanceKey || !key) return undefined
   if (app.id !== 'assistants' && app.id !== 'agents') return undefined
@@ -238,22 +189,6 @@ export const SIDEBAR_ICON_ORDER: SidebarIcon[] = SIDEBAR_APPS.map((app) => app.i
 export const REQUIRED_SIDEBAR_ICONS: SidebarIcon[] = ['assistants']
 
 const sidebarIconSet = new Set<SidebarIcon>(SIDEBAR_ICON_ORDER)
-
-export const SIDEBAR_ROUTE_PREFIX_MAP: Record<SidebarIcon, string> = SIDEBAR_APPS.reduce(
-  (acc, app) => {
-    acc[app.id] = app.routePrefix
-    return acc
-  },
-  {} as Record<SidebarIcon, string>
-)
-
-export const SIDEBAR_ICON_COMPONENTS: Record<SidebarIcon, SidebarMenuItem['icon']> = SIDEBAR_APPS.reduce(
-  (acc, app) => {
-    acc[app.id] = app.icon
-    return acc
-  },
-  {} as Record<SidebarIcon, SidebarMenuItem['icon']>
-)
 
 export function getSidebarMenuPath(icon: SidebarIcon, defaultPaintingProvider: string): string {
   const app = getSidebarApp(icon)
@@ -301,8 +236,4 @@ export function getOrderedVisibleSidebarIcons(icons: readonly SidebarIcon[] | un
   }
 
   return visible
-}
-
-export function getDefaultSidebarFavorites(): SidebarIcon[] {
-  return getOrderedVisibleSidebarIcons(getDefaultValue('ui.sidebar.favorites'))
 }

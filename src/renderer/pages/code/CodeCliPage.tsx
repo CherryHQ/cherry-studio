@@ -18,7 +18,6 @@ import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 // resolved by tsgo on main's program (resolves on feat's); transitional, reverts
 // to the barrel once main converges with feat.
 import { ModelSelector } from '@renderer/components/Selector/model'
-import { CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS, isSiliconAnthropicCompatibleModel } from '@renderer/config/codeProviders'
 import { isMac, isWin } from '@renderer/config/constant'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
@@ -26,6 +25,10 @@ import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi } from '@renderer/ipc'
+import {
+  CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS,
+  isSiliconAnthropicCompatibleModel
+} from '@renderer/pages/code/codeProviders'
 import { loggerService } from '@renderer/services/LoggerService'
 import { EFFORT_RATIO } from '@renderer/types/reasoning'
 import { getThinkingBudget } from '@shared/ai/reasoningBudget'

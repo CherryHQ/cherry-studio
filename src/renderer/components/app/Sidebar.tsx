@@ -1,20 +1,16 @@
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
+import { SIDEBAR_ICON_COMPONENTS } from '@renderer/components/app/sidebarIcons'
 import {
   emitResourceListReveal,
   type ResourceListRevealSource
 } from '@renderer/components/chat/resources/resourceListRevealEvents'
-import {
-  getOrderedVisibleSidebarIcons,
-  getSidebarMenuPath,
-  resolveSidebarActiveItem,
-  SIDEBAR_ICON_COMPONENTS
-} from '@renderer/config/sidebar'
-import { clearTabInstanceMetadata } from '@renderer/config/tabInstanceMetadata'
 import { useTabs } from '@renderer/hooks/tab'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
+import { getOrderedVisibleSidebarIcons, getSidebarMenuPath, resolveSidebarActiveItem } from '@renderer/utils/sidebar'
+import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
 import type { SidebarIcon as SidebarIconType } from '@shared/data/preference/preferenceTypes'
 import type { Ref } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'

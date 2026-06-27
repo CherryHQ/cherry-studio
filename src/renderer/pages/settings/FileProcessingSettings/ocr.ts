@@ -1,3 +1,4 @@
+import { isMac, isWin } from '@renderer/config/constant'
 import type {
   BuiltinOcrProvider,
   BuiltinOcrProviderId,
@@ -9,8 +10,6 @@ import type {
   TesseractLangCode
 } from '@renderer/types/ocr'
 import { parseTranslateLangCode } from '@shared/data/preference/preferenceTypes'
-
-import { isMac, isWin } from './constant'
 
 const tesseract: OcrTesseractProvider = {
   id: 'tesseract',

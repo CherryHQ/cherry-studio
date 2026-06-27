@@ -1,5 +1,5 @@
 import { defineTool, registerTool, TopicType } from '@renderer/components/composer/tools/types'
-import { isGenerateImageModel } from '@renderer/config/models'
+import { isGenerateImageModel } from '@renderer/utils/model'
 import { Image } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 

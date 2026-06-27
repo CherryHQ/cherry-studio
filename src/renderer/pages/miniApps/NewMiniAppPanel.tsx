@@ -12,7 +12,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { LogoAvatar } from '@renderer/components/Icons'
-import { getMiniAppsLogo } from '@renderer/config/miniApps'
+import { getMiniAppsLogo } from '@renderer/components/Icons/miniAppsLogo'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { compressImage, convertToBase64 } from '@renderer/utils/image'
 import { uuid } from '@renderer/utils/uuid'
