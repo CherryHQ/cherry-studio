@@ -71,6 +71,7 @@ export class CacheService {
   // Persist cache debounce
   private persistSaveTimer?: NodeJS.Timeout
   private persistDirty = false
+  private readonly PERSIST_SAVE_DEBOUNCE_MS = 350
 
   // Shared cache ready state for initialization sync
   private sharedCacheReady = false
@@ -601,15 +602,31 @@ export class CacheService {
   }
 
   /**
-   * Check if key exists in persist cache
+   * Whether the key has been overridden — i.e. its effective value DIFFERS from
+   * the schema default. This is intentionally NOT "is the key in the backing
+   * store": loadPersistCache seeds every key, so store membership is always true
+   * and would be a useless signal. A key whose stored value equals the default
+   * (or was never set) reports false. Mirrors the main-process `hasPersist`.
    * @param key - Persist cache key to check
-   * @returns True if key exists in cache
+   * @returns True if the effective value differs from the schema default
    */
-  hasPersist(key: RendererPersistCacheKey): boolean {
-    return this.persistCache.has(key)
+  hasPersist<K extends RendererPersistCacheKey>(key: K): boolean {
+    return !isEqual(this.getPersist(key), DefaultRendererPersistCache[key])
   }
 
-  // Note: No deletePersist method as discussed
+  /**
+   * Reset a persist key to its schema default ("delete" the override).
+   *
+   * This tier has no absent state — getPersist always returns the default once
+   * the override is gone — so deletion is expressed as restoring the default.
+   * Delegates to setPersist, inheriting its same-value no-op (resetting an
+   * already-default key does nothing), cross-window broadcast, subscriber notify,
+   * and debounced localStorage save. Mirrors the main-process `deletePersist`.
+   * @param key - Persist cache key to reset
+   */
+  deletePersist<K extends RendererPersistCacheKey>(key: K): void {
+    this.setPersist(key, DefaultRendererPersistCache[key])
+  }
 
   // ============ Hook Reference Management ============
 
@@ -1025,7 +1042,7 @@ export class CacheService {
     this.persistSaveTimer = setTimeout(() => {
       this.savePersistCache()
       this.persistDirty = false
-    }, 200) // 200ms debounce
+    }, this.PERSIST_SAVE_DEBOUNCE_MS)
   }
 
   /**

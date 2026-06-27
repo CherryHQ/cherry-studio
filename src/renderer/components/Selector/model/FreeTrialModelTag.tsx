@@ -26,8 +26,7 @@ function resolveTrialProviderId(model: Model): string {
 }
 
 /**
- * v2 版 FreeTrialModelTag：替换旧 src/renderer/components/FreeTrialModelTag.tsx 中
- * styled-components + antd 依赖；其余业务语义保持一致：
+ * v2 版 FreeTrialModelTag：保留旧组件业务语义：
  * - 仅对 provider === 'cherryai' 的模型显示
  * - 特定试用模型 (Qwen/Qwen3-8B, Qwen/Qwen3-Next-80B-A3B-Instruct) 跳转到 cherryin provider
  */

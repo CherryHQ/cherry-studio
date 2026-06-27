@@ -13,8 +13,8 @@ import {
   SIDEBAR_ICON_COMPONENTS
 } from '@renderer/config/sidebar'
 import { clearTabInstanceMetadata } from '@renderer/config/tabInstanceMetadata'
+import { useTabs } from '@renderer/hooks/tab'
 import useAvatar from '@renderer/hooks/useAvatar'
-import { useTabs } from '@renderer/hooks/useTabs'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarIcon as SidebarIconType } from '@shared/data/preference/preferenceTypes'

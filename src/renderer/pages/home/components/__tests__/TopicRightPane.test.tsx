@@ -1,4 +1,4 @@
-import { TabIdProvider } from '@renderer/context/TabIdContext'
+import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'

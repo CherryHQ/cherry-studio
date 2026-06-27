@@ -27,7 +27,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@renderer/context/ThemeProvider', () => ({
+vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'light' })
 }))
 
@@ -61,14 +61,6 @@ vi.mock('@renderer/hooks/command/useCommandShortcuts', () => ({
 
 vi.mock('@renderer/components/Scrollbar', () => ({
   default: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
-}))
-
-vi.mock('@ant-design/icons', () => ({
-  UndoOutlined: ({ onClick, className }: { onClick?: () => void; className?: string }) => (
-    <button type="button" className={className} onClick={onClick}>
-      undo
-    </button>
-  )
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {

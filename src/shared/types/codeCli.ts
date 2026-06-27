@@ -34,11 +34,3 @@ export interface TerminalConfig {
 export interface TerminalConfigWithCommand extends TerminalConfig {
   command: (directory: string, fullCommand: string) => { command: string; args: string[] }
 }
-
-// Git Bash path configuration types
-export type GitBashPathSource = 'manual' | 'auto'
-
-export interface GitBashPathInfo {
-  path: string | null
-  source: GitBashPathSource | null
-}

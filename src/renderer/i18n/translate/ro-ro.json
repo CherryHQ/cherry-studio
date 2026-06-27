@@ -224,7 +224,12 @@
           "runFailed": "Nu s-a reușit executarea sarcinii",
           "updateFailed": "Nu s-a reușit actualizarea sarcinii"
         },
-        "intervalPlaceholder": "Interval în minute",
+        "frequency": {
+          "everyPrefix": "La fiecare",
+          "everySuffix": "minute",
+          "label": "Frecvență de execuție"
+        },
+        "intervalPlaceholder": "Cel puțin 1",
         "intervalUnit": "minute",
         "lastRun": "Ultima rulare",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Interval",
-          "label": "Tip program",
           "once": "O singură dată"
         },
-        "scheduleValue": "Valoare program",
         "status": {
           "active": "Activă",
           "completed": "Finalizată",
@@ -277,7 +280,7 @@
           "minutesAgo": "acum {{count}}m"
         },
         "timeout": {
-          "label": "Timeout",
+          "label": "Timp maxim de execuție",
           "placeholder": "Fără limită"
         },
         "title": "Sarcini programate"
@@ -3873,64 +3876,6 @@
       "partial_failure": "{{count}} rezultat(e) căutare, unele căutări au eșuat"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "Adaugă în Launchpad",
-    "add_to_sidebar": "Adaugă în bara laterală",
-    "popup": {
-      "close": "Închide MinApp",
-      "devtools": "Instrumente pentru dezvoltatori",
-      "goBack": "Înapoi",
-      "goForward": "Mergeți înainte",
-      "minimize": "Minimizează MinApp",
-      "openExternal": "Deschide în browser",
-      "open_link_external_off": "Curent: Deschide linkurile în fereastra implicită",
-      "open_link_external_on": "Curent: Deschide linkurile în browser",
-      "refresh": "Reîmprospătare",
-      "rightclick_copyurl": "Click dreapta pentru a copia adresa URL"
-    },
-    "remove_from_launchpad": "Elimină din Launchpad",
-    "remove_from_sidebar": "Elimină din bara laterală",
-    "sidebar": {
-      "close": {
-        "title": "Închide"
-      },
-      "closeall": {
-        "title": "Închide tot"
-      },
-      "hide": {
-        "title": "Ascunde"
-      },
-      "remove_custom": {
-        "title": "Șterge aplicația personalizată"
-      }
-    },
-    "title": "MinApp"
-  },
-  "minapps": {
-    "ant-ling": "Ant Ling",
-    "baichuan": "Baichuan",
-    "baidu-ai-search": "Căutare AI Baidu",
-    "chatglm": "ChatGLM",
-    "dangbei": "Dangbei",
-    "doubao": "Doubao",
-    "hailuo": "Hailuo",
-    "ima": "ima",
-    "metaso": "Metaso",
-    "minimax-agent": "Agent Minimax CN",
-    "minimax-global": "Agent Minimax",
-    "nami-ai": "Nami AI",
-    "nami-ai-search": "Căutare Nami AI",
-    "qwen": "Qwen",
-    "sensechat": "SenseChat",
-    "stepfun": "Stepfun",
-    "tencent-yuanbao": "Yuanbao",
-    "tiangong-ai": "Skywork",
-    "wanzhi": "Wanzhi",
-    "wenxin": "ERNIE",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "Xiaoyi",
-    "zhihu": "Zhihu"
-  },
   "miniApp": {
     "add_to_launchpad": "Adaugă în Launchpad",
     "add_to_sidebar": "Adaugă în bara laterală",
@@ -3941,15 +3886,13 @@
     "hide_failed": "Failed to hide mini-app",
     "pin_failed": "Nu s-a reușit fixarea mini-aplicației",
     "popup": {
-      "close": "Închide MiniApp",
       "devtools": "Instrumente dezvoltator",
       "goBack": "Mergi înapoi",
       "goForward": "Mergi înainte",
       "openExternal": "Deschide în browser",
       "open_link_external_off": "Curent: Deschide linkurile în fereastra implicită",
       "open_link_external_on": "Curent: Deschide linkurile în browser",
-      "refresh": "Reîmprospătează",
-      "rightclick_copyurl": "Clic dreapta pentru a copia URL-ul"
+      "refresh": "Reîmprospătează"
     },
     "remove_from_launchpad": "Elimină din Launchpad",
     "remove_from_sidebar": "Elimină din bara laterală",
@@ -3961,17 +3904,8 @@
     },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
-      "close": {
-        "title": "Închide"
-      },
-      "closeall": {
-        "title": "Închide tot"
-      },
       "hide": {
         "title": "Ascunde"
-      },
-      "remove_custom": {
-        "title": "Șterge aplicația personalizată"
       }
     },
     "title": "MiniApp",
@@ -3991,7 +3925,6 @@
     "minimax-agent": "Agent Minimax CN",
     "minimax-global": "Agent Minimax",
     "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
     "sensechat": "SenseChat",
     "stepfun": "Stepfun",
@@ -6523,37 +6456,22 @@
     "miniApps": {
       "cache_change_notice": "Modificările vor intra în vigoare când numărul de mini-aplicații deschise atinge valoarea setată",
       "cache_description": "Setează numărul maxim de mini-aplicații active de păstrat în memorie",
-      "cache_settings": "Setări cache",
       "cache_title": "Limită cache mini-aplicații",
       "custom": {
-        "conflicting_ids": "ID-uri conflictuale cu aplicațiile implicite: {{ids}}",
-        "duplicate_ids": "ID-uri duplicate găsite: {{ids}}",
-        "edit_description": "Editează configurația mini-aplicației personalizate aici. Fiecare aplicație ar trebui să includă câmpurile id, name, url și logo.",
+        "create_title": "Creează miniaplicație personalizată",
         "edit_title": "Editează mini-aplicație personalizată",
-        "id": "ID",
-        "id_error": "ID-ul este obligatoriu.",
-        "id_placeholder": "Introdu ID",
-        "logo": "Logo",
         "logo_file": "Încarcă fișier logo",
-        "logo_upload_button": "Încarcă",
         "logo_upload_error": "Încărcarea logo-ului a eșuat.",
         "logo_upload_label": "Încarcă logo",
-        "logo_upload_success": "Logo încărcat cu succes.",
-        "logo_url": "URL logo",
-        "logo_url_label": "URL logo",
-        "logo_url_placeholder": "Introdu URL logo",
         "name": "Nume",
-        "name_error": "Numele este obligatoriu.",
         "name_placeholder": "Introdu nume",
-        "placeholder": "Introdu configurația mini-aplicației personalizate (format JSON)",
         "remove_error": "Eliminarea mini-aplicației personalizate a eșuat.",
         "remove_success": "Mini-aplicația personalizată a fost eliminată cu succes.",
-        "save": "Salvează",
         "save_error": "Salvarea mini-aplicației personalizate a eșuat.",
         "save_success": "Mini-aplicația personalizată a fost salvată cu succes.",
         "title": "Personalizat",
         "url": "URL",
-        "url_error": "URL-ul este obligatoriu.",
+        "url_invalid": "Introduceți un URL http, https sau file valid.",
         "url_placeholder": "Introdu URL"
       },
       "disabled": "Mini-aplicații ascunse",
@@ -6575,65 +6493,7 @@
         "title": "Filtru zonă aplicație miniatură"
       },
       "reset_tooltip": "Resetează la implicit",
-      "title": "Setări mini-aplicații",
       "visible": "Mini-aplicații vizibile"
-    },
-    "miniapps": {
-      "cache_change_notice": "Modificările vor intra în vigoare când numărul de mini-aplicații deschise va atinge valoarea stabilită",
-      "cache_description": "Setează numărul maxim de mini-aplicații active de păstrat în memorie",
-      "cache_settings": "Setări Cache",
-      "cache_title": "Limita Cache Mini App",
-      "custom": {
-        "conflicting_ids": "ID-uri în conflict cu aplicațiile implicite: {{ids}}",
-        "duplicate_ids": "ID-uri duplicate găsite: {{ids}}",
-        "edit_description": "Editează aici configurația miniaplicației personalizate. Fiecare aplicație ar trebui să includă câmpurile id, name, url și logo.",
-        "edit_title": "Editează Mini App personalizat",
-        "id": "ID",
-        "id_error": "ID este obligatoriu.",
-        "id_placeholder": "Introduceți ID",
-        "logo": "Siglă",
-        "logo_file": "Încarcă fișierul logo",
-        "logo_upload_button": "Încărcare",
-        "logo_upload_error": "Încărcarea logo-ului a eșuat.",
-        "logo_upload_label": "Încarcă sigla",
-        "logo_upload_success": "Logo încărcat cu succes.",
-        "logo_url": "URL logo",
-        "logo_url_label": "URL logo",
-        "logo_url_placeholder": "Introduceți URL-ul logo-ului",
-        "name": "Nume",
-        "name_error": "Numele este obligatoriu.",
-        "name_placeholder": "Introduceți numele",
-        "placeholder": "Introduceți configurația personalizată pentru mini-aplicație (format JSON)",
-        "remove_error": "Nu s-a reușit eliminarea miniaplicației personalizate.",
-        "remove_success": "Mini-aplicația personalizată a fost eliminată cu succes.",
-        "save": "Salvează",
-        "save_error": "Nu s-a reușit salvarea mini-aplicației personalizate.",
-        "save_success": "Mini-aplicația personalizată a fost salvată cu succes.",
-        "title": "Personalizat",
-        "url": "URL",
-        "url_error": "Este necesar un URL.",
-        "url_placeholder": "Introduceți URL"
-      },
-      "disabled": "Mini Aplicații Ascunse",
-      "display_title": "Setări de afișare Mini App",
-      "empty": "Apasă pictograma de ascundere pe o aplicație din stânga și aceasta va fi mutată aici",
-      "hide_app": "Ascunde {{name}}",
-      "open_link_external": {
-        "title": "Deschide linkurile în fereastră nouă în browser"
-      },
-      "region": {
-        "auto": "Detectare automată",
-        "cn": "China",
-        "description": "Filtrarea mini-programelor nesuportate în funcție de regiune",
-        "global": "Global",
-        "title": "Filtru Mini Program"
-      },
-      "reset_tooltip": "Resetare la valorile implicite",
-      "show_app": "Arată {{name}}",
-      "sidebar_description": "Afișează miniaplicațiile active în bara laterală",
-      "sidebar_title": "Afișare Mini Aplicații Active în Bara Laterală",
-      "title": "Setări Mini Apps",
-      "visible": "Mini Aplicații Vizibile"
     },
     "model": "Model implicit",
     "models": {

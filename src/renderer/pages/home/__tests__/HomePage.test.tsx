@@ -206,7 +206,7 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
   )
 }))
 
-vi.mock('@renderer/context/TabIdContext', () => ({
+vi.mock('@renderer/hooks/tab', () => ({
   useCurrentTab: () => homeMocks.currentTab,
   useCurrentTabId: () => 'chat-tab',
   useIsActiveTab: () => homeMocks.isActiveTab,
@@ -498,7 +498,7 @@ vi.mock('@renderer/services/EventService', () => ({
   }
 }))
 
-import { useTabSelfMetadata } from '@renderer/context/TabIdContext'
+import { useTabSelfMetadata } from '@renderer/hooks/tab'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
 

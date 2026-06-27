@@ -55,11 +55,11 @@ vi.mock('@data/hooks/usePreference', () => ({
   ]
 }))
 
-vi.mock('@renderer/context/ThemeProvider', () => ({
+vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'light' })
 }))
 
-vi.mock('@renderer/context/CodeStyleProvider', () => ({
+vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({ themeNames: ['auto', 'github'] })
 }))
 
