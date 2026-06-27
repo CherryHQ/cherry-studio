@@ -678,11 +678,27 @@ describe('HomePage', () => {
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })
 
-  it('creates and activates a fresh empty topic from the old-view composer button without reusing a draft row', async () => {
+  it('reuses the current assistant empty topic from the old-view composer button', async () => {
     homeMocks.preferenceValues.set('chat.conversation_view', 'old')
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]
     homeMocks.oldViewTopics = [
       { id: 'topic-empty-latest', assistantId: 'assistant-1', name: '   ', updatedAt: '2026-01-03T00:00:00.000Z' }
+    ]
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create empty topic from composer' }))
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-empty-latest'))
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+    expect(homeMocks.refreshTopics).not.toHaveBeenCalled()
+  })
+
+  it('creates and activates a fresh empty topic from the old-view composer button when no empty topic exists', async () => {
+    homeMocks.preferenceValues.set('chat.conversation_view', 'old')
+    homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]
+    homeMocks.oldViewTopics = [
+      { id: 'topic-real-latest', assistantId: 'assistant-1', name: 'Real chat', updatedAt: '2026-01-03T00:00:00.000Z' }
     ]
     homeMocks.createTopic.mockResolvedValue({
       ...createdTopic,

@@ -776,13 +776,20 @@ const AgentPage = () => {
           : { type: AGENT_WORKSPACE_TYPE.SYSTEM }
 
     try {
-      const session = await dataApiService.post('/agent-sessions', {
-        body: {
-          agentId,
-          name: t('common.unnamed'),
-          workspace: workspaceSource
-        }
-      })
+      const reusableSession = findLatestUpdatedSession(
+        oldViewSessions.filter(
+          (candidate) => candidate.agentId === agentId && candidate.name.trim() === t('common.unnamed')
+        )
+      )
+      const session =
+        reusableSession ??
+        (await dataApiService.post('/agent-sessions', {
+          body: {
+            agentId,
+            name: t('common.unnamed'),
+            workspace: workspaceSource
+          }
+        }))
 
       setPendingLocateMessageId(undefined)
       pendingSelectedSessionRef.current = session
@@ -790,9 +797,11 @@ const AgentPage = () => {
       setMissingAgentDraft(false)
       rememberLastUsedSession(agentId, isUserWorkspaceSession(session) ? session.workspaceId : undefined)
       setActiveSessionId(session.id)
-      void invalidateCache(['/agent-sessions', '/agent-workspaces', `/agent-sessions/${session.id}`]).catch((err) => {
-        logger.warn('Failed to refresh session metadata after composer session create', err as Error)
-      })
+      if (!reusableSession) {
+        void invalidateCache(['/agent-sessions', '/agent-workspaces', `/agent-sessions/${session.id}`]).catch((err) => {
+          logger.warn('Failed to refresh session metadata after composer session create', err as Error)
+        })
+      }
     } catch (err) {
       logger.error('Failed to create empty agent session from old-view composer', err as Error, { agentId })
       window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
@@ -800,6 +809,7 @@ const AgentPage = () => {
   }, [
     activeResourceAgentId,
     invalidateCache,
+    oldViewSessions,
     rememberLastUsedSession,
     setActiveSessionId,
     setDraftSessionState,

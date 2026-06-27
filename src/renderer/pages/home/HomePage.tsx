@@ -533,22 +533,41 @@ const HomePage: FC = () => {
     async (payload?: AddNewTopicPayload) => {
       try {
         const selection = resolveDraftAssistantTarget(payload?.assistantId)
-        const topic = await createTopic({
-          ...(selection.assistantId ? { assistantId: selection.assistantId } : {})
-        })
+        const reusableTopic = selection.assistantId
+          ? findLatestUpdatedTopic(
+              oldViewTopics.filter(
+                (candidate) => candidate.assistantId === selection.assistantId && candidate.name.trim() === ''
+              )
+            )
+          : undefined
+        const topic =
+          reusableTopic ??
+          (await createTopic({
+            ...(selection.assistantId ? { assistantId: selection.assistantId } : {})
+          }))
         const rendererTopic = mapApiTopicToRendererTopic(topic)
 
         setDraftAssistantSelectionState(undefined)
         setActiveTopic(rendererTopic)
-        void refreshTopics().catch((err) => {
-          logger.warn('Failed to refresh topics after composer topic create', err as Error)
-        })
+        if (!reusableTopic) {
+          void refreshTopics().catch((err) => {
+            logger.warn('Failed to refresh topics after composer topic create', err as Error)
+          })
+        }
       } catch (err) {
         logger.error('Failed to create empty topic from old-view composer', err as Error)
         window.toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
       }
     },
-    [createTopic, refreshTopics, resolveDraftAssistantTarget, setActiveTopic, setDraftAssistantSelectionState, t]
+    [
+      createTopic,
+      oldViewTopics,
+      refreshTopics,
+      resolveDraftAssistantTarget,
+      setActiveTopic,
+      setDraftAssistantSelectionState,
+      t
+    ]
   )
 
   useEffect(() => {

@@ -655,7 +655,7 @@ describe('AgentPage', () => {
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
   })
 
-  it('creates and activates a fresh empty session from the old-view composer button with the current workspace', async () => {
+  it('reuses the current agent empty session from the old-view composer button', async () => {
     agentPageMocks.workView = 'old'
     activeSessionMocks.session = {
       ...agentPageMocks.persistedSession,
@@ -670,6 +670,36 @@ describe('AgentPage', () => {
         id: 'session-empty-latest',
         agentId: 'agent-a',
         name: 'common.unnamed',
+        updatedAt: '2026-01-03T00:00:00.000Z',
+        workspaceId: 'workspace-a',
+        workspace: { type: 'user' }
+      }
+    ]
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create empty session from composer' }))
+
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-empty-latest'))
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+    expect(agentPageMocks.invalidateCache).not.toHaveBeenCalled()
+  })
+
+  it('creates and activates a fresh empty session from the old-view composer button with the current workspace', async () => {
+    agentPageMocks.workView = 'old'
+    activeSessionMocks.session = {
+      ...agentPageMocks.persistedSession,
+      id: 'session-active',
+      agentId: 'agent-a',
+      workspaceId: 'workspace-a',
+      workspace: agentPageMocks.workspace
+    }
+    activeSessionMocks.sessionSource = 'query'
+    agentPageMocks.oldViewSessions = [
+      {
+        id: 'session-real-latest',
+        agentId: 'agent-a',
+        name: 'Real session',
         updatedAt: '2026-01-03T00:00:00.000Z',
         workspaceId: 'workspace-a',
         workspace: { type: 'user' }
