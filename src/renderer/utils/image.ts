@@ -1,9 +1,16 @@
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
-import imageCompression, { type Options as ImageCompressionOptions } from 'browser-image-compression'
-import * as htmlToImage from 'html-to-image'
+import type { Options as ImageCompressionOptions } from 'browser-image-compression'
+import type * as HtmlToImage from 'html-to-image'
 
 const logger = loggerService.withContext('Utils:image')
+
+let htmlToImagePromise: Promise<typeof HtmlToImage> | undefined
+
+const loadHtmlToImage = () => {
+  htmlToImagePromise ??= import('html-to-image')
+  return htmlToImagePromise
+}
 
 /**
  * 将文件转换为 Base64 编码的字符串或 ArrayBuffer。
@@ -25,6 +32,8 @@ export const convertToBase64 = (file: File): Promise<string | ArrayBuffer | null
  * @returns {Promise<File>} 压缩后的图像文件
  */
 export const compressImage = async (file: File, options: ImageCompressionOptions = {}): Promise<File> => {
+  const { default: imageCompression } = await import('browser-image-compression')
+
   return await imageCompression(file, {
     maxSizeMB: 1,
     maxWidthOrHeight: 300,
@@ -56,6 +65,7 @@ export const fileToAvatarDataUrl = async (file: File): Promise<string> => {
 export async function captureElement(elRef: React.RefObject<HTMLElement>) {
   if (elRef.current) {
     try {
+      const htmlToImage = await loadHtmlToImage()
       const canvas = await htmlToImage.toCanvas(elRef.current)
       const imageData = canvas.toDataURL('image/png')
       return imageData
@@ -143,6 +153,8 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
           color: getComputedStyle(el).color
         }
       }
+
+      const htmlToImage = await loadHtmlToImage()
 
       // Warm up html-to-image resource caches before taking the final canvas.
       const warmupCanvas = await htmlToImage.toCanvas(el, captureOptions)
@@ -379,6 +391,8 @@ export async function captureScrollableIframe(
     const styles = win.getComputedStyle(b)
     const backgroundColor = styles.backgroundColor || '#ffffff'
     const color = styles.color || '#000000'
+
+    const htmlToImage = await loadHtmlToImage()
 
     return await htmlToImage.toCanvas(de, {
       fontEmbedCSS,
