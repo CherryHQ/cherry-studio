@@ -18,7 +18,6 @@ import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 // resolved by tsgo on main's program (resolves on feat's); transitional, reverts
 // to the barrel once main converges with feat.
 import { ModelSelector } from '@renderer/components/Selector/model'
-import { isMac, isWin } from '@renderer/config/constant'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useModels } from '@renderer/hooks/useModel'
@@ -31,6 +30,7 @@ import {
 } from '@renderer/pages/code/codeProviders'
 import { loggerService } from '@renderer/services/LoggerService'
 import { EFFORT_RATIO } from '@renderer/types/reasoning'
+import { isMac, isWin } from '@renderer/utils/platform'
 import { getThinkingBudget } from '@shared/ai/reasoningBudget'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'

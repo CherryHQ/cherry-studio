@@ -25,10 +25,22 @@ function createMockAiApi() {
   const listeners = {
     chunk: [] as Array<(d: StreamChunkPayload) => void>,
     done: [] as Array<
-      (d: { topicId: string; executionId?: UniqueModelId; status: string; isTopicDone?: boolean }) => void
+      (d: {
+        topicId: string
+        executionId?: UniqueModelId
+        anchorMessageId?: string
+        status: string
+        isTopicDone?: boolean
+      }) => void
     >,
     error: [] as Array<
-      (d: { topicId: string; executionId?: UniqueModelId; isTopicDone?: boolean; error: unknown }) => void
+      (d: {
+        topicId: string
+        executionId?: UniqueModelId
+        anchorMessageId?: string
+        isTopicDone?: boolean
+        error: unknown
+      }) => void
     >
   }
   const mockApi = {
@@ -79,19 +91,27 @@ function createMockAiApi() {
     mockApi,
     request,
     on,
-    emitChunk: (topicId: string, executionId: UniqueModelId, chunk: UIMessageChunk) => {
-      for (const cb of [...listeners.chunk]) cb({ topicId, executionId, chunk })
+    emitChunk: (topicId: string, executionId: UniqueModelId, chunk: UIMessageChunk, anchorMessageId?: string) => {
+      for (const cb of [...listeners.chunk]) cb({ topicId, executionId, anchorMessageId, chunk })
     },
     emitDone: (
       topicId: string,
       executionId: UniqueModelId | undefined,
       status: 'success' | 'paused',
-      isTopicDone?: boolean
+      isTopicDone?: boolean,
+      anchorMessageId?: string
     ) => {
-      for (const cb of [...listeners.done]) cb({ topicId, executionId, status, isTopicDone })
+      for (const cb of [...listeners.done]) cb({ topicId, executionId, status, isTopicDone, anchorMessageId })
     },
-    emitError: (topicId: string, executionId: UniqueModelId | undefined, isTopicDone?: boolean) => {
-      for (const cb of [...listeners.error]) cb({ topicId, executionId, isTopicDone, error: new Error('boom') })
+    emitError: (
+      topicId: string,
+      executionId: UniqueModelId | undefined,
+      isTopicDone?: boolean,
+      anchorMessageId?: string
+    ) => {
+      for (const cb of [...listeners.error]) {
+        cb({ topicId, executionId, isTopicDone, anchorMessageId, error: new Error('boom') })
+      }
     }
   }
 }
@@ -174,6 +194,25 @@ describe('TopicStreamSubscription', () => {
     mock.emitDone(TOPIC, A, 'success')
 
     expect(await readAll(sa)).toEqual([textChunk('early')])
+    sub.dispose()
+  })
+
+  it('keeps same-execution continuation branches distinct by anchorMessageId', async () => {
+    const sub = new TopicStreamSubscription(TOPIC)
+    const first = sub.register(A, 'assistant-1')
+    await tick()
+
+    mock.emitChunk(TOPIC, A, textChunk('before-steer'), 'assistant-1')
+    mock.emitDone(TOPIC, A, 'success', false, 'assistant-1')
+
+    // The continuation can emit before React registers the new reader. It must
+    // buffer under assistant-2 instead of targeting the closed assistant-1 branch.
+    mock.emitChunk(TOPIC, A, textChunk('after-steer'), 'assistant-2')
+    const second = sub.register(A, 'assistant-2')
+    mock.emitDone(TOPIC, A, 'success', true, 'assistant-2')
+
+    expect(await readAll(first)).toEqual([textChunk('before-steer')])
+    expect(await readAll(second)).toEqual([textChunk('after-steer')])
     sub.dispose()
   })
 

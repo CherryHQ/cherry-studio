@@ -20,7 +20,6 @@ import {
   DropdownMenuTrigger
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { isMac, platform } from '@renderer/config/constant'
 import {
   useCommandContextReader,
   useCommandMenuPresentationMode,
@@ -29,6 +28,7 @@ import {
   useResolvedCommandMenu
 } from '@renderer/hooks/command'
 import { getCommandShortcutLabel } from '@renderer/utils/command'
+import { isMac, platform } from '@renderer/utils/platform'
 import type {
   MenuLocation,
   NativePopupMenuItem,
