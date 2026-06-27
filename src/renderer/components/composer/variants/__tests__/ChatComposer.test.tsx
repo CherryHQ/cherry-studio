@@ -641,12 +641,16 @@ describe('ChatComposer', () => {
     globalThis.ResizeObserver = originalResizeObserver
   })
 
-  it('renders the tool menu before assistant and model selectors', () => {
+  it('renders the tool menu after assistant and model selectors in the efficiency view', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
-    expect(screen.getByText('tool menu')).toBeInTheDocument()
-    expect(screen.getByText('Assistant 1')).toBeInTheDocument()
-    expect(screen.getByText('Model A | Provider')).toBeInTheDocument()
+    const leftControls = screen.getByTestId('composer-left-controls')
+    const assistantButton = within(leftControls).getByRole('button', { name: /Assistant 1/ })
+    const modelButton = within(leftControls).getByRole('button', { name: /Model A/ })
+    const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
+
+    expect(assistantButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(modelButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
   })
 

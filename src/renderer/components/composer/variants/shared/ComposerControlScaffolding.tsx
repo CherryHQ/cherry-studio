@@ -56,7 +56,7 @@ export const ComposerToolMenuControls = ({
   )
 }
 
-/** Toolbar (top) layout: tool menu + the variant-specific context controls. */
+/** Toolbar (top) layout: variant-specific context controls + the shared tool menu. */
 export const ComposerToolbarControls = ({
   inputAdapter,
   newConversationAction,
@@ -81,8 +81,8 @@ export const ComposerToolbarControls = ({
 
   return (
     <div ref={toolbarRef} className={cn(COMPOSER_TOOLBAR_CLASS, 'w-full')}>
-      <ComposerToolMenuControls inputAdapter={inputAdapter} />
       {contextControls}
+      <ComposerToolMenuControls inputAdapter={inputAdapter} />
     </div>
   )
 }
