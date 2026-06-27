@@ -36,6 +36,7 @@ const logger = loggerService.withContext('AgentResourceList')
 type AgentResourceListProps = {
   activeAgentId?: string | null
   onAddAgent?: () => void | Promise<void>
+  onOpenHistoryRecords?: () => void
   onSelectSession: (sessionId: string, session: AgentSessionEntity) => void
   onStartDraftAgent: (agentId: string) => void | Promise<void>
   onStartMissingAgentDraft?: () => void | Promise<void>
@@ -44,6 +45,7 @@ type AgentResourceListProps = {
 export function AgentResourceList({
   activeAgentId,
   onAddAgent,
+  onOpenHistoryRecords,
   onSelectSession,
   onStartDraftAgent,
   onStartMissingAgentDraft
@@ -246,6 +248,7 @@ export function AgentResourceList({
         addLabel={t('agent.add.title')}
         createItemLabel={t('chat.conversation.new')}
         onAdd={onAddAgent ?? (() => onStartMissingAgentDraft?.())}
+        onOpenHistoryRecords={onOpenHistoryRecords}
         onCreateItem={(item) => onStartDraftAgent(item.id)}
         onSelect={handleSelect}
         onReorder={handleReorder}

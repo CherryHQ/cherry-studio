@@ -33,6 +33,7 @@ const logger = loggerService.withContext('AssistantResourceList')
 type AssistantResourceListProps = {
   activeAssistantId?: string | null
   onAddAssistant?: () => void | Promise<void>
+  onOpenHistoryRecords?: () => void
   onSelectTopic: (topic: Topic) => void | boolean
   onStartDraftAssistant: (assistantId: string | null) => void | Promise<void>
 }
@@ -40,6 +41,7 @@ type AssistantResourceListProps = {
 export function AssistantResourceList({
   activeAssistantId,
   onAddAssistant,
+  onOpenHistoryRecords,
   onSelectTopic,
   onStartDraftAssistant
 }: AssistantResourceListProps) {
@@ -243,6 +245,7 @@ export function AssistantResourceList({
         addLabel={t('chat.add.assistant.title')}
         createItemLabel={t('chat.conversation.new')}
         onAdd={onAddAssistant ?? (() => onStartDraftAssistant(null))}
+        onOpenHistoryRecords={onOpenHistoryRecords}
         onCreateItem={(item) => onStartDraftAssistant(item.id)}
         onSelect={handleSelect}
         onReorder={handleReorder}

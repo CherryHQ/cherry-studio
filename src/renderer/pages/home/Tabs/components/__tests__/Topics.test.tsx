@@ -472,11 +472,6 @@ function renderTopicList({
   }
 }
 
-function openTopicListOptions() {
-  fireEvent.click(screen.getByLabelText('History'))
-  return screen.getAllByTestId('popover-content').find((element) => element.className.includes('w-44'))
-}
-
 function getTopicRow(topicName: string) {
   const row = screen.getByText(topicName).closest('[data-testid="topic-list-row"]')
   expect(row).toBeInTheDocument()
@@ -1386,11 +1381,11 @@ describe('Topics', () => {
     expect(screen.getByText('Beta topic 1')).toBeInTheDocument()
     expect(getTopicGroupExpansionCache().assistant).not.toContain(TOPIC_ASSISTANT_SECTION_ID)
 
-    const menuContent = openTopicListOptions()
-    expect(within(menuContent as HTMLElement).getByRole('button', { name: 'History' })).toBeInTheDocument()
-    expect(within(menuContent as HTMLElement).queryByText('Display mode')).not.toBeInTheDocument()
-    expect(within(menuContent as HTMLElement).queryByRole('button', { name: 'Collapse all' })).not.toBeInTheDocument()
-    expect(within(menuContent as HTMLElement).queryByRole('button', { name: 'Expand all' })).not.toBeInTheDocument()
+    // The assistant header exposes a direct history button and no bulk-action menu.
+    expect(screen.getByRole('button', { name: 'History' })).toBeInTheDocument()
+    expect(screen.queryByText('Display mode')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Collapse all' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Expand all' })).not.toBeInTheDocument()
   })
 
   it('does not show the assistant section toggle action in time display mode', () => {
@@ -1414,8 +1409,7 @@ describe('Topics', () => {
     expect(
       screen.queryAllByRole('button', { name: 'Assistant' }).some((button) => button.hasAttribute('aria-expanded'))
     ).toBe(false)
-    const menuContent = openTopicListOptions()
-    expect(within(menuContent as HTMLElement).queryByRole('button', { name: 'Collapse all' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Collapse all' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Collapse conversations' })).toHaveTextContent('Collapse conversations')
   })
 
@@ -1527,20 +1521,13 @@ describe('Topics', () => {
     expect(screen.queryByLabelText('Manage topics')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Display mode')).not.toBeInTheDocument()
 
-    const historyContent = openTopicListOptions()
-    expect(historyContent).toHaveClass('w-44', 'p-1')
-    expect(historyContent?.querySelector('svg')).not.toBeNull()
-    expect(within(historyContent as HTMLElement).getByRole('button', { name: 'History' })).not.toHaveClass(
-      'text-[11px]'
-    )
-    expect(within(historyContent as HTMLElement).queryByText('Display mode')).not.toBeInTheDocument()
-    expect(within(historyContent as HTMLElement).queryByRole('button', { name: 'Time' })).not.toBeInTheDocument()
-    expect(within(historyContent as HTMLElement).queryByRole('button', { name: 'Assistant' })).not.toBeInTheDocument()
-    expect(
-      within(historyContent as HTMLElement).queryByRole('button', { name: 'Manage topics' })
-    ).not.toBeInTheDocument()
+    // The assistant header shows a direct history button (no options popover / display-mode controls).
+    const historyButton = screen.getByRole('button', { name: 'History' })
+    expect(historyButton.querySelector('svg')).not.toBeNull()
+    expect(historyButton).not.toHaveClass('text-[11px]')
+    expect(screen.queryByText('Display mode')).not.toBeInTheDocument()
 
-    fireEvent.click(within(historyContent as HTMLElement).getByRole('button', { name: 'History' }))
+    fireEvent.click(historyButton)
     expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1)
     expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('assistant')
   })

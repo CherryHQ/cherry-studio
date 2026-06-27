@@ -570,6 +570,7 @@ const HomePage: FC = () => {
     <AssistantResourceList
       activeAssistantId={visibleAssistantId ?? null}
       onAddAssistant={() => setAssistantPickerOpen(true)}
+      onOpenHistoryRecords={openHistoryRecords}
       onSelectTopic={setActiveTopicAndDiscardDraft}
       onStartDraftAssistant={(assistantId) => startDraftAssistantSelection({ assistantId })}
     />

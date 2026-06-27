@@ -11,7 +11,7 @@ import {
 } from '@renderer/components/chat/resources'
 import { CommandPopupMenu } from '@renderer/components/command'
 import { cn } from '@renderer/utils/style'
-import { MoreHorizontal, SquarePen } from 'lucide-react'
+import { History, MoreHorizontal, SquarePen } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
 import { useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -48,6 +48,8 @@ export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionCon
   getContextMenuActions?: (item: T) => readonly ResolvedAction<TActionContext>[]
   listRef?: RefObject<HTMLDivElement | null>
   onAdd: () => void | Promise<void>
+  /** When provided, a history-records button sits next to the add button. */
+  onOpenHistoryRecords?: () => void
   onContextMenuAction?: (item: T, action: ResolvedAction<TActionContext>) => void | Promise<void>
   onCreateItem?: (item: T) => void | Promise<void>
   onReorder?: (payload: ResourceListReorderPayload) => void | Promise<void>
@@ -87,6 +89,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   getContextMenuActions,
   listRef,
   onAdd,
+  onOpenHistoryRecords,
   onContextMenuAction,
   onCreateItem,
   onReorder,
@@ -241,6 +244,18 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
             label={addLabel}
             aria-label={addLabel}
             onClick={() => void onAdd()}
+            actions={
+              onOpenHistoryRecords ? (
+                <Tooltip title={t('history.records.shortTitle')} delay={500}>
+                  <ResourceList.HeaderActionButton
+                    type="button"
+                    aria-label={t('history.records.shortTitle')}
+                    onClick={() => onOpenHistoryRecords()}>
+                    <History className="block" />
+                  </ResourceList.HeaderActionButton>
+                </Tooltip>
+              ) : undefined
+            }
           />
         </ResourceList.Header>
         <ResourceList.Body<T>

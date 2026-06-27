@@ -720,6 +720,7 @@ const AgentPage = () => {
     <AgentResourceList
       activeAgentId={activeResourceAgentId}
       onAddAgent={() => setAgentPickerOpen(true)}
+      onOpenHistoryRecords={openHistoryRecords}
       onSelectSession={handleResourceSessionSelect}
       onStartDraftAgent={(agentId) => startDraftSession({ agentId })}
       onStartMissingAgentDraft={startMissingAgentDraft}

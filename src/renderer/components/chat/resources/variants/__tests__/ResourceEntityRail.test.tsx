@@ -137,6 +137,40 @@ const EDIT_ACTION: ResolvedAction<unknown> = {
 }
 
 describe('ResourceEntityRail', () => {
+  it('renders a history button next to add that fires onOpenHistoryRecords', () => {
+    const onOpenHistoryRecords = vi.fn()
+
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants"
+        items={ITEMS}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onOpenHistoryRecords={onOpenHistoryRecords}
+        onSelect={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'history.records.shortTitle' }))
+    expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1)
+  })
+
+  it('omits the history button when onOpenHistoryRecords is not provided', () => {
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants"
+        items={ITEMS}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: 'history.records.shortTitle' })).not.toBeInTheDocument()
+  })
+
   it('uses grouped-list entity typography and selected state', () => {
     const onCreateItem = vi.fn()
     const onSelect = vi.fn()
