@@ -6465,6 +6465,8 @@
         "logo_upload_label": "ロゴをアップロード",
         "name": "名前",
         "name_placeholder": "名前を入力してください",
+        "remove_confirm_description": "カスタムミニアプリ「{{name}}」を削除しますか？この操作は元に戻せません。",
+        "remove_confirm_title": "カスタムミニアプリを削除しますか？",
         "remove_error": "カスタムミニアプリの削除に失敗しました。",
         "remove_success": "カスタムミニアプリの削除に成功しました。",
         "save_error": "カスタムミニアプリの保存に失敗しました。",
@@ -6493,6 +6495,7 @@
         "title": "ミニアプリ地域絞り込み"
       },
       "reset_tooltip": "デフォルト値にリセット",
+      "title": "ミニアプリ設定",
       "visible": "表示するミニアプリ"
     },
     "model": "デフォルトモデル",
@@ -6644,6 +6647,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
+        "sync_apply_default_in_use": "一部のモデルはデフォルトモデルとして使用されているため、削除できません。",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",

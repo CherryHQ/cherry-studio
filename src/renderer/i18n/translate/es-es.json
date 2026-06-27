@@ -6465,6 +6465,8 @@
         "logo_upload_label": "Cargar Logo",
         "name": "Nombre",
         "name_placeholder": "Por favor, introduzca el nombre",
+        "remove_confirm_description": "¿Eliminar la mini aplicación personalizada \"{{name}}\"? Esta acción no se puede deshacer.",
+        "remove_confirm_title": "¿Eliminar miniaplicación personalizada?",
         "remove_error": "No se pudo eliminar la aplicación pequeña personalizada.",
         "remove_success": "La aplicación pequeña personalizada se eliminó correctamente.",
         "save_error": "No se pudo guardar la aplicación pequeña personalizada.",
@@ -6493,6 +6495,7 @@
         "title": "Filtro de área de la miniaplicación"
       },
       "reset_tooltip": "Restablecer a los valores predeterminados",
+      "title": "Configuración de Mini Apps",
       "visible": "Miniaplicaciones visibles"
     },
     "model": "Modelo predeterminado",
@@ -6644,6 +6647,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
+        "sync_apply_default_in_use": "Algunos modelos están en uso como modelo predeterminado y no pueden ser eliminados.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",

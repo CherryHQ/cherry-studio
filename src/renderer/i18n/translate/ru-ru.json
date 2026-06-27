@@ -6465,6 +6465,8 @@
         "logo_upload_label": "Загрузить логотип",
         "name": "Имя",
         "name_placeholder": "Введите имя",
+        "remove_confirm_description": "Удалить пользовательское мини-приложение \"{{name}}\"? Это действие нельзя отменить.",
+        "remove_confirm_title": "Удалить пользовательское мини-приложение?",
         "remove_error": "Не удалось удалить мини-приложение.",
         "remove_success": "Мини-приложение успешно удалено.",
         "save_error": "Не удалось сохранить пользовательское мини-приложение.",
@@ -6493,6 +6495,7 @@
         "title": "Фильтрация по регионам в мини-программе"
       },
       "reset_tooltip": "Сбросить до значения по умолчанию",
+      "title": "Настройки Mini Apps",
       "visible": "Отображаемые мини-приложения"
     },
     "model": "Модель по умолчанию",
@@ -6644,6 +6647,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
+        "sync_apply_default_in_use": "Некоторые модели используются как модели по умолчанию и не могут быть удалены.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",
