@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "296e07c4-bf5e-41b5-b394-7d4de6ddea30",
+  "id": "948e5bed-8cee-46af-9fce-0b52617a2b98",
   "prevId": "5d72d904-e1ca-4832-a085-bbf3ee2a3a08",
   "tables": {
     "agent": {
@@ -2599,6 +2599,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "logo_file_id": {
+          "name": "logo_file_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "status": {
           "name": "status",
           "type": "text",
@@ -2677,7 +2684,17 @@
           "isUnique": false
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "mini_app_logo_file_id_file_entry_id_fk": {
+          "name": "mini_app_logo_file_id_file_entry_id_fk",
+          "tableFrom": "mini_app",
+          "tableTo": "file_entry",
+          "columnsFrom": ["logo_file_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
@@ -3649,6 +3666,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "logo_file_id": {
+          "name": "logo_file_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "endpoint_configs": {
           "name": "endpoint_configs",
           "type": "text",
@@ -3739,7 +3763,17 @@
           "isUnique": false
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "user_provider_logo_file_id_file_entry_id_fk": {
+          "name": "user_provider_logo_file_id_file_entry_id_fk",
+          "tableFrom": "user_provider",
+          "tableTo": "file_entry",
+          "columnsFrom": ["logo_file_id"],
+          "columnsTo": ["id"],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
