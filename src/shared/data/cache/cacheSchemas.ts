@@ -355,6 +355,24 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.emoji.recently_used': []
 }
 
+/**
+ * Main-process persist cache schema (fixed keys only, main-authoritative).
+ *
+ * Independent from the renderer persist cache: the main-process CacheService
+ * stores these keys in its own JSON file. They are never relayed to, synced
+ * with, or readable by the renderer.
+ */
+export type MainPersistCacheSchema = {
+  // Scaffold / self-test key: exercises the typed persist API and round-trip
+  // tests while no real consumer exists yet. Remove or replace it once the
+  // first real consumer key (e.g. window bounds) lands.
+  'internal.persist_probe': number
+}
+
+export const DefaultMainPersistCache: MainPersistCacheSchema = {
+  'internal.persist_probe': 0
+}
+
 // ============================================================================
 // Cache Key Types
 // ============================================================================
@@ -363,6 +381,11 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
  * Key type for renderer persist cache (fixed keys only)
  */
 export type RendererPersistCacheKey = keyof RendererPersistCacheSchema
+
+/**
+ * Key type for main-process persist cache (fixed keys only)
+ */
+export type MainPersistCacheKey = keyof MainPersistCacheSchema
 
 /**
  * Key type for shared cache (supports both fixed and template keys).

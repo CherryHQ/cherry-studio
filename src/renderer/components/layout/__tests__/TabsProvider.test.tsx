@@ -60,7 +60,9 @@ vi.mock('@renderer/utils/routeTitle', async () => {
   }
 })
 
-import { TabsProvider, useTabsContext } from '../TabsContext'
+import { useTabsContext } from '@renderer/hooks/tab'
+
+import { TabsProvider } from '../TabsProvider'
 
 function TabTitleWriter() {
   const { tabs, updateTab } = useTabsContext()
@@ -103,7 +105,7 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('TabsContext', () => {
+describe('TabsProvider', () => {
   it('preserves page-owned titles for the fixed home conversation tab', async () => {
     render(
       <TabsProvider

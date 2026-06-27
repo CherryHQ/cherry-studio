@@ -3,12 +3,12 @@ import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac, platform } from '@renderer/config/constant'
-import { useTheme } from '@renderer/context/ThemeProvider'
 import {
   getAllShortcutDefaultPreferences,
   type ShortcutSettingsGroup,
   useCommandShortcuts
 } from '@renderer/hooks/command/useCommandShortcuts'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { cn } from '@renderer/utils/style'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'

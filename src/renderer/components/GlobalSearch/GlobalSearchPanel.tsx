@@ -21,8 +21,8 @@ import {
   GroupedVirtualList,
   type GroupedVirtualListGroup
 } from '@renderer/components/VirtualList'
+import { useTabs } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
-import { useTabs } from '@renderer/hooks/useTabs'
 import { mapApiTopicToRendererTopic } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { cn } from '@renderer/utils/style'

@@ -1,5 +1,5 @@
 import { CopyIcon } from '@renderer/components/Icons'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { Check, Wrench } from 'lucide-react'

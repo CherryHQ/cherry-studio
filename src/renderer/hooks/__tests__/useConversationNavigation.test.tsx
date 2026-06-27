@@ -11,7 +11,7 @@ const tabsMock = vi.hoisted(() => ({
   windowFrameMode: 'embedded' as 'embedded' | 'window'
 }))
 
-vi.mock('@renderer/context/TabsContext', () => ({
+vi.mock('@renderer/hooks/tab', () => ({
   useOptionalTabsContext: () => tabsMock.ctx
 }))
 

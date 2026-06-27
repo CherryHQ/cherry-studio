@@ -545,7 +545,10 @@ describe('ChatComposer', () => {
         draftTokens.filter((token) => token.kind === 'knowledge').map((token) => token.id)
       )
       const configuredKnowledgeBaseIds = new Set(mocks.assistant?.knowledgeBaseIds ?? [])
-      const selectableKnowledgeBases = mocks.knowledgeBases.filter((base) => configuredKnowledgeBaseIds.has(base.id))
+      const selectableKnowledgeBases =
+        configuredKnowledgeBaseIds.size === 0
+          ? mocks.knowledgeBases
+          : mocks.knowledgeBases.filter((base) => configuredKnowledgeBaseIds.has(base.id))
       mocks.setSelectedKnowledgeBases((previousBases: KnowledgeBase[]) => {
         const nextBases = previousBases.filter((base) => knowledgeTokenIds.has(`knowledge:${base.id}`))
         const nextBaseIds = new Set(nextBases.map((base) => `knowledge:${base.id}`))
@@ -2343,7 +2346,7 @@ describe('ChatComposer', () => {
 
     mocks.assistant = {
       ...mocks.assistant,
-      knowledgeBaseIds: []
+      knowledgeBaseIds: ['kb-2']
     }
     view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
 
