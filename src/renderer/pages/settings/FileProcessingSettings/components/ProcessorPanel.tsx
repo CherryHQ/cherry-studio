@@ -122,7 +122,10 @@ export function ProcessorPanel({
     await FileProcessingApiKeyListPopup.show({
       processorId: processor.id,
       apiKeys: splitApiKeyString(formatApiKeys(apiKeysInput)),
-      onSetApiKeys,
+      onSetApiKeys: async (processorId, apiKeys) => {
+        await onSetApiKeys(processorId, apiKeys)
+        setApiKeysInput(formatApiKeys(apiKeys.join(', ')))
+      },
       title: `${processorName} ${t('settings.provider.api.key.list.title')}`
     })
   }, [apiKeysInput, onSetApiKeys, processor.id, processorName, t])

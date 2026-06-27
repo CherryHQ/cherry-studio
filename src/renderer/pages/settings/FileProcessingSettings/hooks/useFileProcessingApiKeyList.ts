@@ -1,5 +1,5 @@
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -34,12 +34,18 @@ export function useFileProcessingApiKeyList({
 }: UseFileProcessingApiKeyListOptions) {
   const { t } = useTranslation()
   const [pendingNewKey, setPendingNewKey] = useState<PendingApiKey | null>(null)
-  const keys = useMemo(() => normalizeFileProcessingApiKeys(apiKeys), [apiKeys])
+  const externalKeys = useMemo(() => normalizeFileProcessingApiKeys(apiKeys), [apiKeys])
+  const [keys, setKeys] = useState(() => externalKeys)
+
+  useEffect(() => {
+    setKeys(externalKeys)
+  }, [externalKeys])
 
   const updateKeys = useCallback(
     async (nextKeys: string[]) => {
       const normalizedKeys = normalizeFileProcessingApiKeys(nextKeys)
       await onSetApiKeys(processorId, normalizedKeys)
+      setKeys(normalizedKeys)
     },
     [onSetApiKeys, processorId]
   )
