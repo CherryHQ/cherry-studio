@@ -15,10 +15,6 @@ import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { usePins } from '@renderer/hooks/usePins'
-import {
-  type SessionListItem,
-  sortSessionsForDisplayGroups
-} from '@renderer/pages/agents/components/sessionListHelpers'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -26,11 +22,17 @@ import { Pin, PinOff, Plus, SquarePen, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { sortResourceItemsByPinnedTime } from './resourceEntitySort'
+
 const logger = loggerService.withContext('AgentResourceList')
 
 const AGENT_ENTITY_EDIT_ACTION_ID = 'agent-entity.edit'
 const AGENT_ENTITY_TOGGLE_PIN_ACTION_ID = 'agent-entity.toggle-pin'
 const AGENT_ENTITY_DELETE_ACTION_ID = 'agent-entity.delete'
+
+type SessionListItem = AgentSessionEntity & {
+  pinned?: boolean
+}
 
 type AgentResourceListProps = {
   activeAgentId?: string | null
@@ -105,10 +107,10 @@ export function AgentResourceList({
   )
 
   const sortSessionsForEntity = useCallback(
-    (entitySessions: SessionListItem[]) =>
-      sortSessionsForDisplayGroups(entitySessions, { mode: 'time', now: new Date() }),
+    (entitySessions: SessionListItem[]) => sortResourceItemsByPinnedTime(entitySessions, new Date()),
     []
   )
+  const getSessionAgentId = useCallback((session: SessionListItem) => session.agentId, [])
   const handlePickSession = useCallback(
     (session: SessionListItem) => onSelectSession(session.id, session),
     [onSelectSession]
@@ -130,7 +132,7 @@ export function AgentResourceList({
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
     entities,
     resources: sessionItems,
-    getResourceParentId: (session) => session.agentId,
+    getResourceParentId: getSessionAgentId,
     activeEntityId: activeAgentId,
     isLoading: isAgentsLoading || isLoading || isLoadingAll || !isFullyLoaded || isPinsLoading,
     isError: !!(agentsError || sessionsError),

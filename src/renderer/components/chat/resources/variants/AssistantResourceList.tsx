@@ -16,12 +16,13 @@ import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { usePins } from '@renderer/hooks/usePins'
 import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
-import { sortTopicsForDisplayGroups } from '@renderer/pages/home/Tabs/components/topicsHelpers'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { Bot, Edit3, PinIcon, PinOffIcon, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { sortResourceItemsByPinnedTime } from './resourceEntitySort'
 
 const logger = loggerService.withContext('AssistantResourceList')
 
@@ -101,9 +102,10 @@ export function AssistantResourceList({
   )
 
   const sortTopicsForEntity = useCallback(
-    (entityTopics: Topic[]) => sortTopicsForDisplayGroups(entityTopics, { mode: 'time', now: new Date() }),
+    (entityTopics: Topic[]) => sortResourceItemsByPinnedTime(entityTopics, new Date()),
     []
   )
+  const getTopicAssistantId = useCallback((topic: Topic) => topic.assistantId, [])
   const reorderAssistant = useCallback(async (assistantId: string, anchor: ResourceEntityRailReorderAnchor) => {
     await dataApiService.patch(`/assistants/${assistantId}/order`, { body: anchor })
   }, [])
@@ -118,7 +120,7 @@ export function AssistantResourceList({
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
     entities,
     resources: topics,
-    getResourceParentId: (topic) => topic.assistantId,
+    getResourceParentId: getTopicAssistantId,
     activeEntityId: activeAssistantId,
     isLoading: isAssistantsLoading || isTopicsLoadingAll || !isTopicsFullyLoaded || isTopicPinsLoading,
     isError: !!(assistantsError || topicsError),
