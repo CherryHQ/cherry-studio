@@ -5333,6 +5333,9 @@
       "auto_switch_to_topics": "Cambiar automáticamente a temas",
       "title": "Configuración avanzada"
     },
+    "appearance": {
+      "title": "[to be translated]:Appearance"
+    },
     "assistant": {
       "icon": {
         "type": {
@@ -5401,6 +5404,7 @@
         "cloud_storage": "Configuración de almacenamiento en la nube",
         "export_settings": "Configuración de exportación",
         "import_settings": "Importar configuración",
+        "note_export": "[to be translated]:Note Export",
         "third_party": "Conexiones de terceros"
       },
       "export_menu": {
@@ -5962,6 +5966,48 @@
         "token_placeholder": "Ingrese el Token de Yuque"
       }
     },
+    "dependencies": {
+      "addTool": "Add Tool",
+      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "coreDepsMissing": "Core dependencies not installed",
+      "customTools": "Custom Tools",
+      "customToolsEmpty": "Aún no hay herramientas personalizadas. Agrega una para comenzar.",
+      "description": "Administrar herramientas binarias y dependencias de tiempo de ejecución requeridas por la aplicación.",
+      "duplicateName": "A tool with the same name already exists",
+      "fieldVersion": "Version (optional, defaults to latest)",
+      "install": "Instalar",
+      "installError": "Failed to install tool",
+      "installing": "Instalando...",
+      "invalidTool": "Nombre de herramienta o clave inválida",
+      "notInstalled": "No instalado",
+      "openBinariesDir": "Open binaries directory",
+      "remove": "Remove tool",
+      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmTitle": "Remove Tool",
+      "searchFailed": "Search failed, check logs",
+      "searchRegistry": "Search mise registry...",
+      "source": {
+        "bundled": "bundled"
+      },
+      "title": "Dependencias del entorno",
+      "tools": {
+        "bun": "JavaScript runtime used by MCP services and related toolchains.",
+        "claude": "Anthropic's agentic coding tool for the terminal.",
+        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
+        "fd": "Fast file finder, alternative to find.",
+        "gh": "GitHub CLI for repository and workflow management.",
+        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
+        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
+        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
+        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
+        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
+        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
+        "rg": "Fast text search tool (ripgrep), alternative to grep.",
+        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
+        "uv": "Python package manager for MCP services and dependency installation."
+      },
+      "update": "Update to latest version"
+    },
     "developer": {
       "enable_developer_mode": "Habilitar modo de desarrollador",
       "help": "Una vez habilitado el modo de desarrollador, se podrá utilizar la función de cadena de llamadas para ver el flujo de datos del proceso de invocación del modelo.",
@@ -6412,10 +6458,11 @@
       "user": "Usuario"
     },
     "menuGroups": {
-      "appSettings": "Configuración de la aplicación",
-      "integrations": "Modelos",
-      "productivity": "Productividad",
-      "services": "Complementos",
+      "automation": "[to be translated]:Automation",
+      "capabilities": "[to be translated]:Capabilities & Tools",
+      "models": "[to be translated]:Models",
+      "personal": "[to be translated]:Personal",
+      "quickAccess": "[to be translated]:Quick Access",
       "system": "Sistema"
     },
     "messages": {
@@ -6465,6 +6512,8 @@
         "logo_upload_label": "Cargar Logo",
         "name": "Nombre",
         "name_placeholder": "Por favor, introduzca el nombre",
+        "remove_confirm_description": "[to be translated]:Delete custom mini app \"{{name}}\"? This action cannot be undone.",
+        "remove_confirm_title": "[to be translated]:Delete custom mini app?",
         "remove_error": "No se pudo eliminar la aplicación pequeña personalizada.",
         "remove_success": "La aplicación pequeña personalizada se eliminó correctamente.",
         "save_error": "No se pudo guardar la aplicación pequeña personalizada.",
@@ -6493,6 +6542,7 @@
         "title": "Filtro de área de la miniaplicación"
       },
       "reset_tooltip": "Restablecer a los valores predeterminados",
+      "title": "[to be translated]:Mini Apps Settings",
       "visible": "Miniaplicaciones visibles"
     },
     "model": "Modelo predeterminado",
@@ -6644,6 +6694,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
+        "sync_apply_default_in_use": "[to be translated]:Some models are in use as the default model and cannot be removed.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",
@@ -6758,48 +6809,6 @@
       }
     },
     "parameter_settings": "Configuración de Parámetros",
-    "plugins": {
-      "addTool": "Add Tool",
-      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
-      "coreDepsMissing": "Core dependencies not installed",
-      "customTools": "Custom Tools",
-      "customToolsEmpty": "Aún no hay herramientas personalizadas. Agrega una para comenzar.",
-      "description": "Administrar herramientas binarias y dependencias de tiempo de ejecución requeridas por la aplicación.",
-      "duplicateName": "A tool with the same name already exists",
-      "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "Instalar",
-      "installError": "Failed to install tool",
-      "installing": "Instalando...",
-      "invalidTool": "Nombre de herramienta o clave inválida",
-      "notInstalled": "No instalado",
-      "openBinariesDir": "Open binaries directory",
-      "remove": "Remove tool",
-      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
-      "removeConfirmTitle": "Remove Tool",
-      "searchFailed": "Search failed, check logs",
-      "searchRegistry": "Search mise registry...",
-      "source": {
-        "bundled": "bundled"
-      },
-      "title": "Dependencias del entorno",
-      "tools": {
-        "bun": "JavaScript runtime used by MCP services and related toolchains.",
-        "claude": "Anthropic's agentic coding tool for the terminal.",
-        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
-        "fd": "Fast file finder, alternative to find.",
-        "gh": "GitHub CLI for repository and workflow management.",
-        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
-        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
-        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
-        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
-        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
-        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
-        "rg": "Fast text search tool (ripgrep), alternative to grep.",
-        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
-        "uv": "Python package manager for MCP services and dependency installation."
-      },
-      "update": "Update to latest version"
-    },
     "power": {
       "prevent_sleep_when_busy": "Mantén el sistema activo mientras se ejecutan las tareas"
     },
@@ -7290,6 +7299,9 @@
       "uninstallSuccess": "Habilidad desinstalada: {{name}}",
       "viewSource": "Ver fuente",
       "zip": "CÓDIGO POSTAL"
+    },
+    "system": {
+      "title": "[to be translated]:System"
     },
     "theme": {
       "color_primary": "Color del tema",

@@ -1,6 +1,5 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
-import EditableNumber from '@renderer/components/EditableNumber'
 import { SettingGroup as PageSettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -44,7 +43,6 @@ const ChatPreferenceSections: FC = () => {
   const [codeShowLineNumbers, setCodeShowLineNumbers] = usePreference('chat.code.show_line_numbers')
   const [codeCollapsible, setCodeCollapsible] = usePreference('chat.code.collapsible')
   const [codeWrappable, setCodeWrappable] = usePreference('chat.code.wrappable')
-  const [codeImageTools, setCodeImageTools] = usePreference('chat.code.image_tools')
   const [codeEditor, setCodeEditor] = useMultiplePreferences({
     enabled: 'chat.code.editor.enabled',
     themeLight: 'chat.code.editor.theme_light',
@@ -57,10 +55,6 @@ const ChatPreferenceSections: FC = () => {
   const [codeViewer, setCodeViewer] = useMultiplePreferences({
     themeLight: 'chat.code.viewer.theme_light',
     themeDark: 'chat.code.viewer.theme_dark'
-  })
-  const [codeExecution, setCodeExecution] = useMultiplePreferences({
-    enabled: 'chat.code.execution.enabled',
-    timeoutMinutes: 'chat.code.execution.timeout_minutes'
   })
   const [codeFancyBlock, setCodeFancyBlock] = usePreference('chat.code.fancy_block')
   const wideMode = !narrowMode
@@ -337,34 +331,6 @@ const ChatPreferenceSections: FC = () => {
           <SettingDivider />
           <SettingRow>
             <SettingSwitch
-              checked={codeExecution.enabled}
-              onCheckedChange={(checked) => setCodeExecution({ enabled: checked })}
-              label={t('chat.settings.code_execution.title')}
-              hint={t('chat.settings.code_execution.tip')}
-            />
-          </SettingRow>
-          {codeExecution.enabled && (
-            <>
-              <SettingDivider />
-              <SettingRow className="pl-2">
-                <SettingRowTitleSmall hint={t('chat.settings.code_execution.timeout_minutes.tip')}>
-                  {t('chat.settings.code_execution.timeout_minutes.label')}
-                </SettingRowTitleSmall>
-                <EditableNumber
-                  size="small"
-                  className="w-20 text-sm"
-                  min={1}
-                  max={60}
-                  step={1}
-                  value={codeExecution.timeoutMinutes}
-                  onChange={(value) => setCodeExecution({ timeoutMinutes: value ?? 1 })}
-                />
-              </SettingRow>
-            </>
-          )}
-          <SettingDivider />
-          <SettingRow>
-            <SettingSwitch
               checked={codeEditor.enabled}
               onCheckedChange={(checked) => setCodeEditor({ enabled: checked })}
               label={t('chat.settings.code_editor.title')}
@@ -428,15 +394,6 @@ const ChatPreferenceSections: FC = () => {
               checked={codeWrappable}
               onCheckedChange={setCodeWrappable}
               label={t('chat.settings.code_wrappable')}
-            />
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingSwitch
-              checked={codeImageTools}
-              onCheckedChange={setCodeImageTools}
-              label={t('chat.settings.code_image_tools.label')}
-              hint={t('chat.settings.code_image_tools.tip')}
             />
           </SettingRow>
         </>

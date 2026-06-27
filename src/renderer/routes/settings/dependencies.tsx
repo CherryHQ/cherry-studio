@@ -2,12 +2,12 @@ import { SettingsContentColumn } from '@renderer/pages/settings'
 import EnvironmentDependencies from '@renderer/pages/settings/DependenciesSettings/EnvironmentDependencies'
 import { createFileRoute } from '@tanstack/react-router'
 
-const McpInstallWrapper = () => (
-  <SettingsContentColumn className="bg-inherit">
+const DependenciesWrapper = () => (
+  <SettingsContentColumn className="bg-transparent">
     <EnvironmentDependencies />
   </SettingsContentColumn>
 )
 
-export const Route = createFileRoute('/settings/mcp/mcp-install')({
-  component: McpInstallWrapper
+export const Route = createFileRoute('/settings/dependencies')({
+  component: DependenciesWrapper
 })
