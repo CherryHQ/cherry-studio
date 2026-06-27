@@ -1,11 +1,8 @@
-import { CodeEditor } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import type { FC } from 'react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Section } from '../PanelPrimitives'
+import { TogglePill } from '../TogglePill'
 
 export interface CodexConfigFieldsProps {
   /** The config body (source of truth, owned by the panel). */
@@ -14,73 +11,45 @@ export interface CodexConfigFieldsProps {
   onChange: (next: Record<string, unknown>) => void
 }
 
-const DEFAULT_AUTH = `{
-  "OPENAI_API_KEY": null
-}`
-const DEFAULT_TOML = `model_provider = "custom"
-model = "gpt-5.5"
-model_reasoning_effort = "high"
-disable_response_storage = true
+type CodexFlag = 'goalMode' | 'remoteCompaction' | 'commonConfig'
 
-[model_providers.custom]
-name = "custom"
-wire_api = "responses"
-requires_openai_auth = true`
-
-function asString(value: unknown, fallback: string): string {
-  return typeof value === 'string' ? value : fallback
-}
-
-/** Codex splits its provider config across two files — `~/.codex/auth.json`
- * (credentials) and `~/.codex/config.toml` (model + provider wiring) — so this
- * editor exposes both as raw editors. The two text blobs
- * live on the config body under `authJson` / `configToml`. */
+/** Codex config toggles stored on the config blob and applied to
+ * `~/.codex/config.toml` by `writeCodex` at launch. `commonConfig` is UI-only
+ * for now — merging a shared TOML snippet needs a snippet source first. */
 export const CodexConfigFields: FC<CodexConfigFieldsProps> = ({ config, onChange }) => {
   const { t } = useTranslation()
-  const { activeCmTheme } = useCodeStyle()
-  const [fontSize] = usePreference('chat.message.font_size')
 
-  const authJson = asString(config.authJson, DEFAULT_AUTH)
-  const configToml = asString(config.configToml, DEFAULT_TOML)
+  const goalMode = config.goalMode === true
+  const remoteCompaction = config.remoteCompaction === true
+  const commonConfig = config.commonConfig === true
 
-  const handleAuthChange = useCallback((next: string) => onChange({ ...config, authJson: next }), [config, onChange])
-
-  const handleConfigChange = useCallback(
-    (next: string) => onChange({ ...config, configToml: next }),
+  const toggle = useCallback(
+    (key: CodexFlag, value: boolean) => {
+      const next = { ...config }
+      if (value) next[key] = true
+      else delete next[key]
+      onChange(next)
+    },
     [config, onChange]
   )
 
   return (
-    <div className="space-y-4">
-      <Section title={t('code.adv.codex.auth_json')} description={t('code.config_json_hint')}>
-        <CodeEditor
-          theme={activeCmTheme}
-          fontSize={fontSize - 4}
-          value={authJson}
-          language="json"
-          onChange={handleAuthChange}
-          height="140px"
-          expanded={false}
-          wrapped
-          className="overflow-hidden rounded-md border border-border/40"
-          options={{ lint: true, lineNumbers: true, foldGutter: true, keymap: true }}
-        />
-      </Section>
-
-      <Section title={t('code.adv.codex.config_toml')} description={t('code.config_json_hint')}>
-        <CodeEditor
-          theme={activeCmTheme}
-          fontSize={fontSize - 4}
-          value={configToml}
-          language={'plaintext'}
-          onChange={handleConfigChange}
-          height="240px"
-          expanded={false}
-          wrapped
-          className="overflow-hidden rounded-md border border-border/40"
-          options={{ lineNumbers: true, foldGutter: true, keymap: true }}
-        />
-      </Section>
+    <div className="flex flex-wrap gap-1.5">
+      <TogglePill
+        label={t('code.adv.codex.goal_mode')}
+        active={goalMode}
+        onClick={() => toggle('goalMode', !goalMode)}
+      />
+      <TogglePill
+        label={t('code.adv.codex.remote_compaction')}
+        active={remoteCompaction}
+        onClick={() => toggle('remoteCompaction', !remoteCompaction)}
+      />
+      <TogglePill
+        label={t('code.adv.codex.common_config')}
+        active={commonConfig}
+        onClick={() => toggle('commonConfig', !commonConfig)}
+      />
     </div>
   )
 }

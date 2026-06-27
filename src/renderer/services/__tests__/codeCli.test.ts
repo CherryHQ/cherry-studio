@@ -38,10 +38,12 @@ const enabledKey: ApiKeyEntry = { id: 'k1', key: 'sk-secret', isEnabled: true }
 
 describe('injectCliConfig', () => {
   let written: { path: string; content: string } | null
+  let writes: { path: string; content: string }[]
   let existing: Record<string, string>
 
   beforeEach(() => {
     written = null
+    writes = []
     existing = {}
     Object.defineProperty(window, 'api', {
       configurable: true,
@@ -51,6 +53,7 @@ describe('injectCliConfig', () => {
           readExternal: vi.fn(async (absPath: string) => existing[absPath] ?? ''),
           write: vi.fn(async (absPath: string, content: string) => {
             written = { path: absPath, content }
+            writes.push({ path: absPath, content })
           })
         }
       }
@@ -172,9 +175,10 @@ describe('injectCliConfig', () => {
     })
   })
 
-  describe('codex (~/.codex/config.toml)', () => {
-    it('writes a merged TOML with a Cherry-* provider and the model', async () => {
-      // smol-toml parses on read to verify the round-trip
+  describe('codex (~/.codex/config.toml + auth.json)', () => {
+    const findWrite = (suffix: string) => writes.find((w) => w.path.endsWith(suffix))
+
+    it('writes both auth.json (OPENAI_API_KEY) and config.toml (requires_openai_auth)', async () => {
       mockGet({
         '/providers/deepseek': () => openaiCompatProvider,
         '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
@@ -186,14 +190,99 @@ describe('injectCliConfig', () => {
         modelId: 'deepseek::deepseek-chat'
       })
 
-      expect(written).not.toBeNull()
-      // re-parse the written TOML to assert structure
+      const tomlWrite = findWrite('config.toml')
+      const authWrite = findWrite('auth.json')
+      expect(tomlWrite).toBeTruthy()
+      expect(authWrite).toBeTruthy()
+
       const { parse: parseToml } = await import('smol-toml')
-      const parsed = parseToml(written!.content) as Record<string, any>
+      const parsed = parseToml(tomlWrite!.content) as Record<string, any>
       expect(parsed.model).toBe('deepseek-chat')
       expect(parsed.model_provider).toBe('Cherry-DeepSeek')
       expect(parsed.model_providers['Cherry-DeepSeek'].base_url).toBe('https://api.deepseek.com/v1')
-      expect(parsed.model_providers['Cherry-DeepSeek'].experimental_bearer_token).toBe('sk-secret')
+      expect(parsed.model_providers['Cherry-DeepSeek'].requires_openai_auth).toBe(true)
+      // key lives in auth.json now, not as a bearer token
+      expect(parsed.model_providers['Cherry-DeepSeek']).not.toHaveProperty('experimental_bearer_token')
+      expect(parsed.model_providers['Cherry-DeepSeek'].name).toBe('DeepSeek')
+      // goal mode is off by default → no features block
+      expect(parsed).not.toHaveProperty('features')
+
+      const authParsed = JSON.parse(authWrite!.content)
+      expect(authParsed.OPENAI_API_KEY).toBe('sk-secret')
+    })
+
+    it('merges OPENAI_API_KEY into auth.json, preserving unrelated OAuth keys', async () => {
+      existing['/resolved~/.codex/auth.json'] = JSON.stringify({
+        tokens: { id_token: 'oauth-jwt', access_token: 'oauth-access' }
+      })
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await injectCliConfig({
+        cliTool: codeCLI.openaiCodex,
+        modelId: 'deepseek::deepseek-chat'
+      })
+
+      const authParsed = JSON.parse(findWrite('auth.json')!.content)
+      expect(authParsed.tokens).toEqual({ id_token: 'oauth-jwt', access_token: 'oauth-access' })
+      expect(authParsed.OPENAI_API_KEY).toBe('sk-secret')
+    })
+
+    it('applies goal mode + remote compaction from the config blob', async () => {
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await injectCliConfig({
+        cliTool: codeCLI.openaiCodex,
+        modelId: 'deepseek::deepseek-chat',
+        configBlob: { goalMode: true, remoteCompaction: true }
+      })
+
+      const { parse: parseToml } = await import('smol-toml')
+      const parsed = parseToml(findWrite('config.toml')!.content) as Record<string, any>
+      expect(parsed.features).toEqual({ goals: true })
+      expect(parsed.model_providers['Cherry-DeepSeek'].name).toBe('OpenAI')
+    })
+
+    it('clears stale goal-mode / OpenAI name from a previous config when toggles are off', async () => {
+      // Previous config had goal mode + remote compaction on; the new config
+      // asserts neither, so both must be cleared (configs are independent).
+      existing['/resolved~/.codex/config.toml'] = [
+        'model = "deepseek-chat"',
+        'model_provider = "Cherry-DeepSeek"',
+        '',
+        '[features]',
+        'goals = true',
+        '',
+        '[model_providers.Cherry-DeepSeek]',
+        'name = "OpenAI"',
+        'base_url = "https://api.deepseek.com/v1"',
+        'wire_api = "responses"',
+        'requires_openai_auth = true',
+        ''
+      ].join('\n')
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await injectCliConfig({
+        cliTool: codeCLI.openaiCodex,
+        modelId: 'deepseek::deepseek-chat'
+        // no goalMode / remoteCompaction in the blob
+      })
+
+      const { parse: parseToml } = await import('smol-toml')
+      const parsed = parseToml(findWrite('config.toml')!.content) as Record<string, any>
+      expect(parsed).not.toHaveProperty('features')
+      expect(parsed.model_providers['Cherry-DeepSeek'].name).toBe('DeepSeek')
     })
 
     it('throws when the provider has no usable baseUrl', async () => {
@@ -206,6 +295,76 @@ describe('injectCliConfig', () => {
       await expect(
         injectCliConfig({ cliTool: codeCLI.openaiCodex, modelId: 'deepseek::deepseek-chat' })
       ).rejects.toThrow(/required fields/)
+    })
+  })
+
+  describe('opencode (~/.config/opencode/opencode.json)', () => {
+    const opencodeWrite = () => writes.find((w) => w.path.endsWith('opencode.json'))!
+
+    const reasoningModel = {
+      id: 'deepseek-chat',
+      reasoning: { supportedEfforts: ['low', 'medium', 'high'] }
+    } as unknown
+
+    it('writes a Cherry-* provider with the model and no reasoning by default', async () => {
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await injectCliConfig({
+        cliTool: codeCLI.openCode,
+        modelId: 'deepseek::deepseek-chat'
+      })
+
+      const parsed = JSON.parse(opencodeWrite().content)
+      const provider = parsed.provider['Cherry-DeepSeek']
+      expect(provider.npm).toBe('@ai-sdk/openai-compatible')
+      expect(provider.options.apiKey).toBe('sk-secret')
+      expect(provider.options.baseURL).toBe('https://api.deepseek.com/v1')
+      const model = provider.models['deepseek-chat']
+      expect(model.name).toBe('deepseek-chat')
+      expect(model).not.toHaveProperty('reasoning')
+      expect(model).not.toHaveProperty('limit')
+    })
+
+    it('enables anthropic thinking when reasoning is on', async () => {
+      mockGet({
+        '/providers/anthropic': () => anthropicProvider,
+        '/providers/anthropic/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await injectCliConfig({
+        cliTool: codeCLI.openCode,
+        modelId: 'anthropic::claude-sonnet-4-5',
+        configBlob: { env: { OPENCODE_REASONING: 'true' } }
+      })
+
+      const parsed = JSON.parse(opencodeWrite().content)
+      const model = parsed.provider['Cherry-Anthropic'].models['claude-sonnet-4-5']
+      expect(model.reasoning).toBe(true)
+      expect(model.options.thinking).toEqual({ budgetTokens: 10000, type: 'enabled' })
+    })
+
+    it('uses reasoningEffort for openai-compatible models that support it', async () => {
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => reasoningModel
+      })
+
+      await injectCliConfig({
+        cliTool: codeCLI.openCode,
+        modelId: 'deepseek::deepseek-chat',
+        configBlob: { env: { OPENCODE_REASONING: 'true' } }
+      })
+
+      const parsed = JSON.parse(opencodeWrite().content)
+      const model = parsed.provider['Cherry-DeepSeek'].models['deepseek-chat']
+      expect(model.reasoning).toBe(true)
+      expect(model.options.reasoningEffort).toBe('medium')
     })
   })
 })

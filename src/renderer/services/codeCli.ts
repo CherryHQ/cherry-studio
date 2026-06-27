@@ -21,6 +21,7 @@ const logger = loggerService.withContext('injectCliConfig')
  * `window.api.resolvePath` instead of `application.getPath`.
  */
 const CLAUDE_SETTINGS_PATH = '~/.claude/settings.json'
+const CODEX_AUTH_PATH = '~/.codex/auth.json'
 const CODEX_CONFIG_PATH = '~/.codex/config.toml'
 const OPENCODE_CONFIG_PATH = '~/.config/opencode/opencode.json'
 
@@ -113,21 +114,10 @@ function resolveNpmPackage(providerType: string): string {
   return providerType === 'anthropic' ? '@ai-sdk/anthropic' : '@ai-sdk/openai-compatible'
 }
 
-/**
- * Map the shared Model `reasoning` block to the fields opencode's config needs.
- */
-function deriveOpenCodeReasoning(modelRecord: Model | null): {
-  isReasoning: boolean
-  supportsReasoningEffort: boolean
-  budgetTokens?: number
-} {
-  const reasoning = modelRecord?.reasoning
-  if (!reasoning) return { isReasoning: false, supportsReasoningEffort: false }
-  return {
-    isReasoning: true,
-    supportsReasoningEffort: !!reasoning.supportedEfforts?.length,
-    budgetTokens: reasoning.thinkingTokenLimits?.default
-  }
+/** Whether a model advertises reasoning-effort support (shapes opencode's
+ * `reasoningEffort` option for openai-compatible providers). */
+function modelSupportsReasoningEffort(modelRecord: Model | null): boolean {
+  return !!modelRecord?.reasoning?.supportedEfforts?.length
 }
 
 /** Apply the claude-code config body to ~/.claude/settings.json (merged). */
@@ -167,10 +157,23 @@ async function writeClaude(
   logger.info(`Applied Claude Code config body to ${absPath}`)
 }
 
-/** Apply the codex config to ~/.codex/config.toml (merged). */
+/** Per-config Codex toggles read from the user-edited config blob. */
+interface CodexConfigOptions {
+  goalMode?: boolean
+  remoteCompaction?: boolean
+}
+
+/** Apply the codex config to ~/.codex/config.toml + ~/.codex/auth.json (merged).
+ *
+ * Codex splits its config across two files: `auth.json` holds the API key as
+ * `OPENAI_API_KEY`, and `config.toml` holds model/provider wiring. The Cherry
+ * provider is written with `requires_openai_auth = true` so Codex reads the key
+ * from auth.json (matching cc-switch). */
 async function writeCodex(
   existingToml: Record<string, any>,
-  resolved: { apiKey: string; baseUrl: string; providerName: string; model: string }
+  existingAuth: Record<string, any>,
+  resolved: { apiKey: string; baseUrl: string; providerName: string; model: string },
+  options: CodexConfigOptions = {}
 ): Promise<void> {
   const { apiKey, baseUrl, providerName, model } = resolved
   const providerKey = `Cherry-${providerName.replace(/\./g, '-')}`
@@ -185,6 +188,17 @@ async function writeCodex(
       cleaned[key] = value
     }
   }
+
+  // `features.goals` is Cherry-managed (goal-mode toggle): drop any stale value
+  // from the on-disk config so toggling it off doesn't leak across configs.
+  // Other user `features` keys are preserved.
+  if (cleaned.features && typeof cleaned.features === 'object') {
+    const features = { ...(cleaned.features as Record<string, any>) }
+    delete features.goals
+    if (Object.keys(features).length === 0) delete cleaned.features
+    else cleaned.features = features
+  }
+
   const merged: Record<string, any> = {
     ...cleaned,
     model,
@@ -194,41 +208,56 @@ async function writeCodex(
     model_providers: {
       ...preservedProviders,
       [providerKey]: {
-        name: providerName,
+        // `name = "OpenAI"` opts into Codex's remote (server-side) compaction.
+        name: options.remoteCompaction ? 'OpenAI' : providerName,
         base_url: baseUrl.replace(/\/$/, ''),
         wire_api: 'responses',
-        experimental_bearer_token: apiKey
+        requires_openai_auth: true
       }
     }
   }
+
+  if (options.goalMode) {
+    const features =
+      merged.features && typeof merged.features === 'object' ? { ...(merged.features as Record<string, any>) } : {}
+    features.goals = true
+    merged.features = features
+  }
+
+  // auth.json: merge OPENAI_API_KEY, preserving unrelated keys (e.g. OAuth
+  // login material) — matches cc-switch's login-cache preservation.
+  const mergedAuth = { ...existingAuth, OPENAI_API_KEY: apiKey }
+
   const absPath = await resolveAbs(CODEX_CONFIG_PATH)
+  const authAbsPath = await resolveAbs(CODEX_AUTH_PATH)
   await window.api.file.write(absPath, stringifyToml(merged))
-  logger.info(`Applied Codex config to ${absPath}`)
+  await window.api.file.write(authAbsPath, `${JSON.stringify(mergedAuth, null, 2)}\n`)
+  logger.info(`Applied Codex config to ${absPath} + ${authAbsPath}`)
+}
+
+/** Per-config OpenCode model options read from the user-edited config blob. */
+interface OpenCodeModelOptions {
+  reasoning: boolean
+  supportsReasoningEffort: boolean
 }
 
 /** Apply the opencode config to ~/.config/opencode/opencode.json (merged). */
 async function writeOpenCode(
   existing: Record<string, any>,
   provider: Provider,
-  resolved: {
-    apiKey: string
-    baseUrl: string
-    model: string
-    isAnthropic: boolean
-    reasoning: { isReasoning: boolean; supportsReasoningEffort: boolean; budgetTokens?: number }
-  }
+  resolved: { apiKey: string; baseUrl: string; model: string; isAnthropic: boolean },
+  options: OpenCodeModelOptions
 ): Promise<void> {
-  const { apiKey, baseUrl, model, isAnthropic, reasoning } = resolved
+  const { apiKey, baseUrl, model, isAnthropic } = resolved
   const providerType = isAnthropic ? 'anthropic' : 'openai'
   const providerName = sanitizeProviderName(provider.name, provider.id)
 
   const modelConfig: Record<string, any> = { name: model }
-  if (reasoning.isReasoning) {
+  if (options.reasoning) {
     modelConfig.reasoning = true
     if (isAnthropic) {
-      const budgetTokens = reasoning.budgetTokens ?? 10000
-      modelConfig.options = { thinking: { budgetTokens, type: 'enabled' } }
-    } else if (reasoning.supportsReasoningEffort) {
+      modelConfig.options = { thinking: { budgetTokens: 10000, type: 'enabled' } }
+    } else if (options.supportsReasoningEffort) {
       modelConfig.options = { reasoningEffort: 'medium' }
     }
   }
@@ -258,7 +287,7 @@ export interface InjectCliConfigArgs {
   cliTool: string
   /** Unique model id ("providerId::modelId"). */
   modelId: string
-  /** User-edited config blob (only claude-code consumes it). */
+  /** User-edited config blob (claude-code, codex, and opencode consume it). */
   configBlob?: Record<string, unknown>
 }
 
@@ -309,8 +338,19 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<void> 
         throw new Error('Codex config is missing required fields (apiKey/baseUrl)')
       }
       const absPath = await resolveAbs(CODEX_CONFIG_PATH)
+      const authAbsPath = await resolveAbs(CODEX_AUTH_PATH)
       const existing = parseTomlSafe(await readExternal(absPath))
-      await writeCodex(existing, { apiKey, baseUrl, providerName, model })
+      const existingAuth = parseJsonSafe(await readExternal(authAbsPath))
+      const blob = configBlob && typeof configBlob === 'object' ? (configBlob as Record<string, any>) : {}
+      await writeCodex(
+        existing,
+        existingAuth,
+        { apiKey, baseUrl, providerName, model },
+        {
+          goalMode: blob.goalMode === true,
+          remoteCompaction: blob.remoteCompaction === true
+        }
+      )
       return
     }
     case codeCLI.openCode: {
@@ -324,13 +364,19 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<void> 
       }
       const absPath = await resolveAbs(OPENCODE_CONFIG_PATH)
       const existing = parseJsonSafe(await readExternal(absPath))
-      await writeOpenCode(existing, provider, {
-        apiKey,
-        baseUrl,
-        model,
-        isAnthropic,
-        reasoning: deriveOpenCodeReasoning(modelRecord)
-      })
+      const env =
+        configBlob && typeof configBlob.env === 'object' && configBlob.env
+          ? (configBlob.env as Record<string, any>)
+          : {}
+      await writeOpenCode(
+        existing,
+        provider,
+        { apiKey, baseUrl, model, isAnthropic },
+        {
+          reasoning: env.OPENCODE_REASONING === 'true',
+          supportsReasoningEffort: modelSupportsReasoningEffort(modelRecord)
+        }
+      )
       return
     }
     default:

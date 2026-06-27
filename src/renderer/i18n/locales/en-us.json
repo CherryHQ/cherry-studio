@@ -1954,8 +1954,9 @@
         "sonnet_model": "Sonnet Model"
       },
       "codex": {
-        "auth_json": "auth.json",
-        "config_toml": "config.toml"
+        "common_config": "Write Common Config",
+        "goal_mode": "Enable Goal Mode",
+        "remote_compaction": "Enable Remote Compaction"
       },
       "hermes": {
         "context_length": "Context Length",
@@ -1965,11 +1966,6 @@
         "context_window": "Context Window",
         "max_tokens": "Max Tokens",
         "reasoning": "Enable Reasoning"
-      },
-      "opencode": {
-        "budget_tokens": "Reasoning Budget Tokens",
-        "context_limit": "Context Limit",
-        "output_limit": "Output Limit"
       },
       "select_placeholder": "Select…"
     },

@@ -1954,8 +1954,9 @@
         "sonnet_model": "Sonnet 模型"
       },
       "codex": {
-        "auth_json": "auth.json",
-        "config_toml": "config.toml"
+        "common_config": "写入通用配置",
+        "goal_mode": "启用 Goal 模式",
+        "remote_compaction": "启用远程压缩"
       },
       "hermes": {
         "context_length": "上下文长度",
@@ -1965,11 +1966,6 @@
         "context_window": "上下文窗口",
         "max_tokens": "最大 Token",
         "reasoning": "启用推理"
-      },
-      "opencode": {
-        "budget_tokens": "推理预算 Token",
-        "context_limit": "上下文限制",
-        "output_limit": "输出限制"
       },
       "select_placeholder": "请选择…"
     },
