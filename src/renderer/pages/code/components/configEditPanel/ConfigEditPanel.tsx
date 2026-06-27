@@ -16,7 +16,7 @@ import {
 import type { CliNamedConfig } from '@shared/data/preference/preferenceTypes'
 import type { Model } from '@shared/data/types/model'
 import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import type { codeCLI } from '@shared/types/codeCli'
+import { codeCLI } from '@shared/types/codeCli'
 import { ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -73,10 +73,10 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
 
   const { model: selectedModelRecord } = useModelById(modelId ?? null)
 
-  // NOTE: the selected model is NOT mirrored into the config blob here.
-  // `CodeCliService.resolveAndApplyConfig` injects the model (along with the
-  // resolved API key / base URL) at launch time, so the blob stays the user's
-  // editing surface and is never clobbered by the model picker.
+  // NOTE: the selected model is NOT mirrored into the config blob here. The
+  // blob stays the user's editing surface; the model (with resolved API key /
+  // base URL) is written to the CLI's native config file by `injectCliConfig`
+  // (renderer) at "enable config" time, so the picker never clobbers the blob.
 
   const selectedProvider = selectedModelRecord ? providerMap.get(selectedModelRecord.providerId) : undefined
 
@@ -90,8 +90,6 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
     setName((prev) => (prev.trim() ? prev : selectedModelRecord.name || selectedModelRecord.id))
   }, [selectedModelRecord])
 
-  // Model selection alone is sufficient to save — credentials and base URL
-  // are resolved from the model service at launch time, never required here.
   const canSubmit = !!modelId
 
   const renderModelTrigger = () => (
@@ -123,8 +121,6 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
     try {
       setSubmitting(true)
       const { providerId } = parseUniqueModelId(modelId)
-      // The config blob is stored as-is; model/credentials are injected by
-      // CodeCliService at launch time.
       await onSubmit({ name: name.trim(), providerId, modelId, config })
       onClose()
     } finally {
@@ -134,15 +130,15 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
 
   const renderToolFields = () => {
     switch (cliTool) {
-      case 'claude-code':
+      case codeCLI.claudeCode:
         return <ClaudeConfigFields config={config} onChange={setConfig} />
-      case 'openai-codex':
+      case codeCLI.openaiCodex:
         return <CodexConfigFields config={config} onChange={setConfig} />
-      case 'opencode':
+      case codeCLI.openCode:
         return <OpenCodeConfigFields config={config} onChange={setConfig} />
-      case 'openclaw':
+      case codeCLI.openclaw:
         return <OpenclawConfigFields config={config} onChange={setConfig} />
-      case 'hermes':
+      case codeCLI.hermes:
         return <HermesConfigFields config={config} onChange={setConfig} />
       default:
         return null

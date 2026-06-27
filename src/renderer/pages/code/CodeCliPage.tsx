@@ -7,7 +7,7 @@ import { loggerService } from '@renderer/services/LoggerService'
 import type { CliNamedConfig } from '@shared/data/preference/preferenceTypes'
 import { CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
 import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { Plus } from 'lucide-react'
+import { Play, Plus } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -46,7 +46,6 @@ const CodeCliPage: FC = () => {
     selectedCliTool,
     orderedList,
     currentConfig,
-    directories,
     selectedTerminal,
     addConfig,
     updateConfig,
@@ -78,6 +77,21 @@ const CodeCliPage: FC = () => {
           ...(values.config ? { config: values.config } : {})
         })
         logger.info('Updated CLI config', { toolId: selectedCliTool, configId: target.id })
+        // Re-apply to the native file when editing the currently active config;
+        // otherwise model/option edits stay stuck on the old on-disk snapshot
+        // until the user disables and re-enables the config.
+        if (currentConfig?.id === target.id) {
+          try {
+            await injectCliConfig({
+              cliTool: selectedCliTool,
+              modelId: values.modelId,
+              configBlob: values.config
+            })
+          } catch (err) {
+            logger.error('Failed to inject CLI config on edit:', err as Error)
+            window.toast.error(t('code.apply_failed'))
+          }
+        }
       } else {
         const newId = await addConfig(selectedCliTool, {
           name: values.name,
@@ -85,20 +99,22 @@ const CodeCliPage: FC = () => {
           modelId: values.modelId,
           ...(values.config ? { config: values.config } : {})
         })
-        await setCurrentConfig(selectedCliTool, newId)
+        // Inject first; only mark as current on success so the UI never shows a
+        // config as active while its native file failed to write.
         try {
           await injectCliConfig({
             cliTool: selectedCliTool,
             modelId: values.modelId,
             configBlob: values.config
           })
+          await setCurrentConfig(selectedCliTool, newId)
         } catch (err) {
           logger.error('Failed to inject CLI config on create:', err as Error)
           window.toast.error(t('code.apply_failed'))
         }
       }
     },
-    [panel, selectedCliTool, updateConfig, addConfig, setCurrentConfig]
+    [panel, selectedCliTool, currentConfig, updateConfig, addConfig, setCurrentConfig, t]
   )
 
   const handleDelete = useCallback(
@@ -113,14 +129,19 @@ const CodeCliPage: FC = () => {
     (config: CliNamedConfig) => {
       const isEnabling = currentConfig?.id !== config.id
       void (async () => {
-        await setCurrentConfig(selectedCliTool, isEnabling ? config.id : null)
-        if (!isEnabling) return
+        if (!isEnabling) {
+          await setCurrentConfig(selectedCliTool, null)
+          return
+        }
+        // Inject first; only mark as current on success so the UI never shows a
+        // config as active while its native file failed to write.
         try {
           await injectCliConfig({
             cliTool: selectedCliTool,
             modelId: config.modelId,
             configBlob: config.config
           })
+          await setCurrentConfig(selectedCliTool, config.id)
         } catch (err) {
           logger.error('Failed to inject CLI config on enable:', err as Error)
           window.toast.error(t('code.apply_failed'))
@@ -215,13 +236,24 @@ const CodeCliPage: FC = () => {
           {activeMeta ? (
             <div className="scrollbar-thin flex-1 overflow-y-auto px-6 py-5">
               <div className="mx-auto max-w-2xl space-y-5">
-                {/* Header: tool name + add button */}
+                {/* Header: tool name + launch/add buttons */}
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-foreground text-sm">{activeMeta.label}</span>
-                  <Button variant="default" size="sm" onClick={openAddPanel} className="gap-1 text-xs">
-                    <Plus size={12} />
-                    {t('code.add_config')}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => void handleLaunch()}
+                      disabled={!currentConfig?.directory}
+                      className="gap-1 text-xs">
+                      <Play size={12} />
+                      {t('code.launch.label')}
+                    </Button>
+                    <Button variant="default" size="sm" onClick={openAddPanel} className="gap-1 text-xs">
+                      <Plus size={12} />
+                      {t('code.add_config')}
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Version status card */}
@@ -255,15 +287,10 @@ const CodeCliPage: FC = () => {
                 {currentConfig && (
                   <CurrentConfigPanel
                     config={currentConfig}
-                    directories={directories}
                     terminals={availableTerminals}
                     selectedTerminal={selectedTerminal}
                     onSelectFolder={() => void handleSelectFolder()}
-                    onSelectDirectory={(dir) =>
-                      void updateConfig(selectedCliTool, currentConfig.id, { directory: dir })
-                    }
                     onSelectTerminal={(terminal) => void setTerminal(terminal)}
-                    onLaunch={() => void handleLaunch()}
                   />
                 )}
               </div>

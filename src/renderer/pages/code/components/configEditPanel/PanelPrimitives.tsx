@@ -2,24 +2,6 @@ import { Button, Label } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import type { FC, ReactNode } from 'react'
 
-export const Section: FC<{ title: string; description?: string; action?: ReactNode; children: ReactNode }> = ({
-  title,
-  description,
-  action,
-  children
-}) => (
-  <section className="space-y-3">
-    <div className="space-y-0.5">
-      <div className="flex items-center gap-1.5">
-        <span className="text-foreground/70 text-xs">{title}</span>
-        {action && <div className="ml-auto">{action}</div>}
-      </div>
-      {description && <p className="text-[11px] text-muted-foreground/50">{description}</p>}
-    </div>
-    {children}
-  </section>
-)
-
 export const FormField: FC<{ label: string; children: ReactNode }> = ({ label, children }) => (
   <div className="flex min-w-0 flex-col gap-1.5">
     <Label className="font-normal text-muted-foreground text-xs">{label}</Label>

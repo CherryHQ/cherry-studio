@@ -63,7 +63,6 @@ export const useCodeCli = () => {
 
   const selectedModel = currentConfig?.modelId ?? null
   const selectedTerminal = currentToolState.terminal
-  const directories = currentToolState.directories ?? []
 
   const canLaunch = Boolean(currentConfig?.modelId && currentConfig?.directory)
 
@@ -236,7 +235,6 @@ export const useCodeCli = () => {
     currentConfig,
     selectedModel,
     selectedTerminal,
-    directories,
     canLaunch,
     // config CRUD
     addConfig,
