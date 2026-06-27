@@ -357,10 +357,11 @@ describe('NewMiniAppPanel', () => {
     })
   })
 
-  it('surfaces a logo-specific toast when the set-logo command fails on save', async () => {
+  it('surfaces a logo-specific toast and closes the dialog when the set-logo command fails on save', async () => {
     mocks.ipcRequest.mockRejectedValueOnce(new Error('set logo failed'))
+    const onClose = vi.fn()
 
-    const { container } = render(<NewMiniAppPanel open={true} onClose={vi.fn()} />)
+    const { container } = render(<NewMiniAppPanel open={true} onClose={onClose} />)
     fireEvent.change(screen.getByPlaceholderText('settings.miniApps.custom.name_placeholder'), {
       target: { value: 'My App' }
     })
@@ -376,9 +377,14 @@ describe('NewMiniAppPanel', () => {
 
     await waitFor(() => {
       // The app saved; only the logo upload failed → a logo-specific message.
-      expect(mocks.createCustomMiniApp).toHaveBeenCalled()
+      expect(mocks.createCustomMiniApp).toHaveBeenCalledTimes(1)
       expect(window.toast.error).toHaveBeenCalledWith('settings.miniApps.custom.logo_upload_error')
     })
+    // The row is saved, so the dialog closes (no re-submittable create state that
+    // would mint a fresh appId and insert a duplicate row) and the generic
+    // success toast is suppressed in favor of the logo-specific error.
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(window.toast.success).not.toHaveBeenCalled()
   })
 
   it('cancel calls onClose', () => {

@@ -131,21 +131,26 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
       return
     }
 
-    // Logo upload is a separate command (bytes → file_entry main-side), so a
-    // logo failure surfaces a logo-specific message — the app is already saved.
+    // Logo upload is a separate command (bytes → file_entry main-side). The row
+    // is already saved, so a logo failure is NON-fatal: surface a logo-specific
+    // message but still close the dialog. Returning here instead would leave the
+    // dialog in create mode, and a second Save would mint a fresh appId and
+    // insert a duplicate row (mirrors the provider flow's non-fatal applyLogo).
+    let logoFailed = false
     if (stagedFile) {
       try {
         const data = new Uint8Array(await stagedFile.arrayBuffer())
         await ipcApi.request('mini_app.set_logo', { appId, image: { kind: 'image', data } })
       } catch (error) {
+        logoFailed = true
         window.toast.error(t('settings.miniApps.custom.logo_upload_error'))
         logger.error('Failed to set custom mini app logo:', error as Error)
-        setSubmitting(false)
-        return
       }
     }
 
-    window.toast.success(t('settings.miniApps.custom.save_success'))
+    if (!logoFailed) {
+      window.toast.success(t('settings.miniApps.custom.save_success'))
+    }
     handleClose()
     setSubmitting(false)
   }
