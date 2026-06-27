@@ -189,7 +189,11 @@ export const WIRE_REGISTRY: Record<string, WireRegistration> = {
   google: { profile: GOOGLE_WIRE_PROFILE },
   'google-vertex': { profile: GOOGLE_WIRE_PROFILE },
   dashscope: { profile: DASHSCOPE_WIRE_PROFILE, passthrough: true },
-  aihubmix: { profile: AIHUBMIX_WIRE_PROFILE, dualOpenAI: true },
+  // passthrough: forward the vendor bag (imageResolution / addWatermark /
+  // sequentialImageGeneration / responseFormat …) under the `aihubmix` key, where
+  // the per-backend custom model (Doubao Seedream / Qwen / Wan …) reads it. The
+  // `openai` mirror stays clean (mapped fields only).
+  aihubmix: { profile: AIHUBMIX_WIRE_PROFILE, dualOpenAI: true, passthrough: true },
   dmxapi: { profile: DMXAPI_WIRE_PROFILE, also: [{ key: 'google', profile: DMXAPI_GOOGLE_PROFILE }] }
 }
 

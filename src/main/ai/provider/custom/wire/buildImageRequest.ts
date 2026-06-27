@@ -93,10 +93,13 @@ export function buildVendorProviderOptions(
   const mapped = buildImageRequest(paramValues, registration.profile)
   const body = registration.passthrough ? { ...jsonBag(vendorBag), ...mapped } : mapped
   const result: Record<string, Record<string, JSONValue>> = {}
-  if (Object.keys(body).length > 0) {
-    result[providerId] = body
-    if (registration.dualOpenAI) result.openai = body
-  }
+  if (Object.keys(body).length > 0) result[providerId] = body
+  // The `openai` mirror carries the CLEAN OpenAI image body (mapped fields only),
+  // never the passthrough vendor bag: `@ai-sdk/openai` rejects unknown fields,
+  // while the provider's own key (e.g. aihubmix, whose custom model reads the bag)
+  // gets the full body. With no passthrough (the openai family) body === mapped, so
+  // this is unchanged for them.
+  if (registration.dualOpenAI && Object.keys(mapped).length > 0) result.openai = mapped
   // Sibling-key bodies (dmxapi → google.imageConfig), emitted only when non-empty.
   for (const extra of registration.also ?? []) {
     const extraBody = buildImageRequest(paramValues, extra.profile)

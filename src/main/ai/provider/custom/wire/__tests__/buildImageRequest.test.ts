@@ -143,12 +143,22 @@ describe('buildVendorProviderOptions — DashScope (passthrough, mapped wins)', 
   })
 })
 
-describe('buildVendorProviderOptions — aihubmix (openai body + seed, dual-keyed)', () => {
+describe('buildVendorProviderOptions — aihubmix (openai body + seed, bag forwarded under aihubmix)', () => {
   it('emits the openai fields + seed under openai + aihubmix', () => {
     const paramValues = { quality: 'high', background: 'transparent', seed: 9, numImages: 1 }
     expect(engine('aihubmix', paramValues)).toEqual({
       openai: { quality: 'high', background: 'transparent', seed: 9 },
       aihubmix: { quality: 'high', background: 'transparent', seed: 9 }
+    })
+  })
+
+  it('forwards the vendor bag (doubao params) under aihubmix only, keeping openai clean', () => {
+    // imageResolution / sequentialImageGeneration are non-binding canonical keys
+    // (vendor bag); the per-backend custom model reads them off the aihubmix key.
+    const paramValues = { seed: 9, imageResolution: '2K', sequentialImageGeneration: 'auto' }
+    expect(engine('aihubmix', paramValues)).toEqual({
+      openai: { seed: 9 },
+      aihubmix: { seed: 9, imageResolution: '2K', sequentialImageGeneration: 'auto' }
     })
   })
 })
