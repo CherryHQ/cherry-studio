@@ -36,7 +36,7 @@ import { resolveImageTransport } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
 import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
-import { WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
+import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
 import { listModels as listModelsFromProvider } from './provider/listModels'
 import { Agent } from './runtime/aiSdk/Agent'
 import type { AgentLoopHooks } from './runtime/aiSdk/loop'
@@ -47,7 +47,12 @@ import { WebContentsListener } from './streamManager/listeners/WebContentsListen
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin'
 import type { AppProviderSettingsMap } from './types'
 import type { AiBaseRequest, AiStreamRequest, AiTransportOptions, ListModelsRequest } from './types/requests'
-import { buildImageProviderOptions, type SplitImageParams, splitParamValues } from './utils/imageOptions'
+import {
+  buildImageProviderOptions,
+  LEGACY_EMITTER_PROVIDERS,
+  type SplitImageParams,
+  splitParamValues
+} from './utils/imageOptions'
 
 const logger = loggerService.withContext('AiService')
 
@@ -442,18 +447,26 @@ export class AiService extends BaseService {
     // used to send it pre-collapse.
     const { structured, vendorBag } = splitParamValues(request.paramValues)
 
-    // Vendor body (`providerOptions[providerId]`): the WireProfile engine for a
-    // registered provider (silicon + the OpenAI image family today), else the
-    // legacy buildImageProviderOptions emitter. Both produce a byte-identical bag
-    // (see wire/buildImageRequest.test.ts). Native params (n/size/seed/aspectRatio)
-    // flow via `structured` into imageParams below.
+    // Vendor body (`providerOptions[providerId]`): the WireProfile engine, except
+    // for the shrinking legacy-emitter allowlist (google/dmxapi/dashscope/aihubmix
+    // — bespoke wire the engine doesn't model yet) which keeps
+    // buildImageProviderOptions. The engine serves the OpenAI image family (by
+    // registration) and the diffusion family (DEFAULT_DIFFUSION_REGISTRATION, the
+    // catch-all). Both paths produce a byte-identical bag (see
+    // wire/buildImageRequest.test.ts). Native params (n/size/seed/aspectRatio) flow
+    // via `structured` into imageParams below.
     let imageProviderOptions: ReturnType<typeof buildImageProviderOptions>
-    const wireRegistration = WIRE_REGISTRY[sdkConfig.providerId]
-    if (wireRegistration) {
-      imageProviderOptions = buildVendorProviderOptions(sdkConfig.providerId, request.paramValues, wireRegistration)
-    } else {
+    if (LEGACY_EMITTER_PROVIDERS.has(sdkConfig.providerId)) {
       const providerOptions = Object.keys(vendorBag).length ? { [sdkConfig.providerId]: vendorBag } : undefined
       imageProviderOptions = buildImageProviderOptions(sdkConfig.providerId, { ...structured, providerOptions })
+    } else {
+      const registration = WIRE_REGISTRY[sdkConfig.providerId] ?? DEFAULT_DIFFUSION_REGISTRATION
+      imageProviderOptions = buildVendorProviderOptions(
+        sdkConfig.providerId,
+        request.paramValues,
+        registration,
+        vendorBag
+      )
     }
     // Async custom-provider transports (ppio / dashscope / modelscope /
     // dmxapi-bespoke) run the submit/poll loop on the job system so it survives

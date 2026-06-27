@@ -2,21 +2,28 @@ import { describe, expect, it } from 'vitest'
 
 import { buildImageProviderOptions, splitParamValues } from '../../../../utils/imageOptions'
 import { buildImageRequest, buildVendorProviderOptions } from '../buildImageRequest'
-import { DIFFUSION_WIRE_PROFILE, WIRE_REGISTRY } from '../wireProfile'
+import { DEFAULT_DIFFUSION_REGISTRATION, DIFFUSION_WIRE_PROFILE, WIRE_REGISTRY } from '../wireProfile'
 
-// The engine's silicon body must equal what buildImageProviderOptions produces
-// today (the diffusion emitter), so the wire stays byte-identical. The oracle is
-// computed from the REAL mapper — not a hand-written bag — to lock equivalence.
-function oracleSiliconBag(paramValues: Record<string, unknown>): Record<string, unknown> {
+// The engine's diffusion delivery must equal what buildImageProviderOptions
+// produces today (the diffusion emitter), so the wire stays byte-identical. The
+// oracle is computed from the REAL mapper — not a hand-written bag — to lock
+// equivalence. `cfg` rides via passthrough (vendor bag), not the profile.
+function oracleDiffusion(providerId: string, paramValues: Record<string, unknown>): Record<string, unknown> {
   const { structured, vendorBag } = splitParamValues(paramValues)
-  const opts = buildImageProviderOptions('silicon', {
+  const opts = buildImageProviderOptions(providerId, {
     ...structured,
-    providerOptions: { silicon: vendorBag as Record<string, unknown> }
+    providerOptions: { [providerId]: vendorBag as Record<string, unknown> }
   })
-  return (opts.silicon ?? {}) as Record<string, unknown>
+  return (opts[providerId] ?? {}) as Record<string, unknown>
 }
 
-describe('buildImageRequest — silicon', () => {
+function engineDiffusion(providerId: string, paramValues: Record<string, unknown>): Record<string, unknown> {
+  const { vendorBag } = splitParamValues(paramValues)
+  const opts = buildVendorProviderOptions(providerId, paramValues, DEFAULT_DIFFUSION_REGISTRATION, vendorBag)
+  return (opts[providerId] ?? {}) as Record<string, unknown>
+}
+
+describe('buildVendorProviderOptions — diffusion family (passthrough)', () => {
   it('reproduces the buildImageProviderOptions silicon bag byte-identically', () => {
     const paramValues = {
       numImages: 2,
@@ -25,22 +32,36 @@ describe('buildImageRequest — silicon', () => {
       negativePrompt: 'low quality',
       numInferenceSteps: 25,
       guidanceScale: 4.5,
-      cfg: 7.5
+      cfg: 7.5 // vendor-bag field → forwarded by passthrough, not the profile
     }
-    const body = buildImageRequest(paramValues, DIFFUSION_WIRE_PROFILE)
-    expect(body).toEqual(oracleSiliconBag(paramValues))
+    const body = engineDiffusion('silicon', paramValues)
+    expect(body).toEqual(oracleDiffusion('silicon', paramValues))
+    expect(body).toHaveProperty('cfg', 7.5)
     // native params (n/size) are not in the vendor body
     expect(body).not.toHaveProperty('n')
     expect(body).not.toHaveProperty('size')
   })
 
-  it("drops 'auto'/blank and passes cfg through (matches compact())", () => {
+  it("drops 'auto'/blank and passes cfg through (matches the legacy compact()/jsonBag merge)", () => {
     const paramValues = { quality: 'auto', negativePrompt: '', cfg: 7.5, promptEnhancement: true }
-    expect(buildImageRequest(paramValues, DIFFUSION_WIRE_PROFILE)).toEqual(oracleSiliconBag(paramValues))
+    expect(engineDiffusion('silicon', paramValues)).toEqual(oracleDiffusion('silicon', paramValues))
+  })
+
+  it('serves an unlisted provider as the catch-all (== legacy diffusion fallback)', () => {
+    const paramValues = { seed: 9, numInferenceSteps: 30, addWatermark: true, cfg: 3 }
+    expect(engineDiffusion('some-unlisted-provider', paramValues)).toEqual(
+      oracleDiffusion('some-unlisted-provider', paramValues)
+    )
   })
 
   it('matches the empty case', () => {
-    expect(buildImageRequest({}, DIFFUSION_WIRE_PROFILE)).toEqual(oracleSiliconBag({}))
+    expect(buildVendorProviderOptions('silicon', {}, DEFAULT_DIFFUSION_REGISTRATION, {})).toEqual({})
+  })
+
+  it('maps only the profile fields when passthrough is off', () => {
+    const paramValues = { negativePrompt: 'x', seed: 1, cfg: 7.5 }
+    // raw engine body (no passthrough): cfg is dropped, only profile fields map
+    expect(buildImageRequest(paramValues, DIFFUSION_WIRE_PROFILE)).toEqual({ negative_prompt: 'x', seed: 1 })
   })
 })
 
@@ -74,7 +95,8 @@ describe('buildVendorProviderOptions — OpenAI image family (dual-keyed)', () =
       moderation: 'low',
       style: 'vivid'
     }
-    const result = buildVendorProviderOptions(providerId, paramValues, WIRE_REGISTRY[providerId])
+    const { vendorBag } = splitParamValues(paramValues)
+    const result = buildVendorProviderOptions(providerId, paramValues, WIRE_REGISTRY[providerId], vendorBag)
     expect(result).toEqual(oracleOpenAIFamily(providerId, paramValues))
     // dual-keyed under `openai` and the provider id, with seed/native params absent
     expect(result).toEqual({
@@ -85,9 +107,10 @@ describe('buildVendorProviderOptions — OpenAI image family (dual-keyed)', () =
 
   it("drops 'auto'/blank and returns {} when nothing maps", () => {
     const paramValues = { quality: 'auto', background: '', numInferenceSteps: 20, cfg: 7.5 }
-    expect(buildVendorProviderOptions('openai', paramValues, WIRE_REGISTRY.openai)).toEqual(
+    const { vendorBag } = splitParamValues(paramValues)
+    expect(buildVendorProviderOptions('openai', paramValues, WIRE_REGISTRY.openai, vendorBag)).toEqual(
       oracleOpenAIFamily('openai', paramValues)
     )
-    expect(buildVendorProviderOptions('openai', paramValues, WIRE_REGISTRY.openai)).toEqual({})
+    expect(buildVendorProviderOptions('openai', paramValues, WIRE_REGISTRY.openai, vendorBag)).toEqual({})
   })
 })

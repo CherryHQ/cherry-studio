@@ -7,14 +7,13 @@
  * hand-written per-vendor body builders (`diffusionBody` / `openaiImageBody` /
  * the snake_case maps) one provider family at a time.
  *
- * Delivery (which provider key(s) the body rides under) is NOT the profile's
- * concern — it's the {@link WIRE_REGISTRY} registration (`dualOpenAI`) + the
- * adapter (`buildVendorProviderOptions`).
+ * Delivery (which provider key(s) the body rides under, and whether unmapped
+ * vendor-bag fields pass through) is NOT the profile's concern — it's the
+ * {@link WireRegistration} (`dualOpenAI` / `passthrough`) + the adapter
+ * (`buildVendorProviderOptions`).
  */
 import type { CanonicalParamKey } from '@shared/data/types/model'
 import type { JSONValue } from 'ai'
-
-import { SILICON_PROVIDER_NAME } from '../silicon/siliconProvider'
 
 /** Maps one canonical param to a vendor body field. `to` is the literal wire
  *  name (no implicit snake_case); `map` is an optional value transform that may
@@ -29,11 +28,13 @@ export interface WireProfile {
 }
 
 /**
- * OpenAI-compatible diffusion family (SiliconFlow / zhipu / deepseek / …).
- * Reproduces the old `diffusionBody` + vendor-bag passthrough — the
- * `siliconProvider` boundary test is the oracle: canonical → the providers'
- * snake_case sampling fields, `seed` duplicated into the body, `cfg` passed
- * through.
+ * OpenAI-compatible diffusion family (SiliconFlow / zhipu / deepseek / ppio /
+ * openrouter / any unlisted compat provider). Reproduces the old `diffusionBody`
+ * — the providers' real snake_case sampling fields, `seed` duplicated into the
+ * body. Registered with `passthrough` so vendor-bag fields the profile doesn't
+ * map (SiliconFlow Qwen-Image's `cfg`, …) still ride through, exactly as the
+ * legacy `diffusion` emitter's `jsonBagFields` merge did. The `silicon` boundary
+ * test is the oracle.
  */
 export const DIFFUSION_WIRE_PROFILE: WireProfile = {
   fields: {
@@ -42,8 +43,7 @@ export const DIFFUSION_WIRE_PROFILE: WireProfile = {
     numInferenceSteps: { to: 'num_inference_steps' },
     guidanceScale: { to: 'guidance_scale' },
     promptEnhancement: { to: 'prompt_enhancement' },
-    quality: { to: 'quality' },
-    cfg: { to: 'cfg' }
+    quality: { to: 'quality' }
   }
 }
 
@@ -62,20 +62,24 @@ export const OPENAI_WIRE_PROFILE: WireProfile = {
   }
 }
 
-/** A provider's engine registration: its body profile + delivery. */
+/** A provider's engine registration: its body profile + delivery flags. */
 export interface WireRegistration {
   readonly profile: WireProfile
   /** Dual-key the body under `openai` AND the provider id (OpenAI image family). */
   readonly dualOpenAI?: boolean
+  /** Forward vendor-bag fields the profile doesn't map (diffusion family) — the
+   *  legacy `jsonBagFields` merge, profile-mapped fields winning on collision. */
+  readonly passthrough?: boolean
 }
 
 /**
  * AI SDK provider id → its engine registration. A provider here routes its
- * vendor body through `buildImageRequest` instead of `buildImageProviderOptions`;
- * absent providers keep the legacy emitter. Grows one row per migrated provider.
+ * vendor body through `buildImageRequest` instead of `buildImageProviderOptions`.
+ * Providers absent from BOTH this map and the legacy-emitter allowlist fall back
+ * to {@link DEFAULT_DIFFUSION_REGISTRATION}. Grows one row per migrated provider
+ * with bespoke delivery; the plain diffusion family needs no row.
  */
 export const WIRE_REGISTRY: Record<string, WireRegistration> = {
-  [SILICON_PROVIDER_NAME]: { profile: DIFFUSION_WIRE_PROFILE },
   openai: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   'openai-chat': { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   azure: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
@@ -83,4 +87,14 @@ export const WIRE_REGISTRY: Record<string, WireRegistration> = {
   huggingface: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   cherryin: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   newapi: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true }
+}
+
+/**
+ * Fallback for any provider not in {@link WIRE_REGISTRY} and not on the legacy
+ * emitter allowlist — the OpenAI-compatible diffusion family (silicon and every
+ * unlisted compat provider). Byte-identical to the legacy `diffusion` emitter.
+ */
+export const DEFAULT_DIFFUSION_REGISTRATION: WireRegistration = {
+  profile: DIFFUSION_WIRE_PROFILE,
+  passthrough: true
 }
