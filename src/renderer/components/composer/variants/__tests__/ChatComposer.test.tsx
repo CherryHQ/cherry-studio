@@ -634,6 +634,13 @@ describe('ChatComposer', () => {
     expect(screen.getByText('tool menu')).toBeInTheDocument()
     expect(screen.getByText('Assistant 1')).toBeInTheDocument()
     expect(screen.getByText('Model A | Provider')).toBeInTheDocument()
+    expect(mocks.surfaceProps?.narrowMode).toBe(false)
+  })
+
+  it('keeps the home composer narrow even when chat wide layout is enabled', () => {
+    render(<ChatPlacementComposer isHome topic={topic} onSend={vi.fn()} />)
+
+    expect(mocks.surfaceProps?.narrowMode).toBe(true)
   })
 
   it('does not enable skill marker paste handling', () => {
