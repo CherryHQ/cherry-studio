@@ -1600,6 +1600,7 @@
     "copy_failed": "Falha ao copiar",
     "current": "Atual",
     "cut": "Cortar",
+    "decline": "Recusar",
     "default": "Padrão",
     "delete": "Excluir",
     "delete_confirm": "Tem certeza de que deseja excluir?",
@@ -1761,6 +1762,7 @@
     "detail": "Detalhes do erro",
     "details": "Detalhes",
     "diagnosis": {
+      "abnormal_finish": "A resposta terminou de forma anómala, tente novamente ou mude de modelo",
       "ai_button": "Diagnóstico IA",
       "ai_done": "Diagnosticado",
       "ai_loading": "A diagnosticar",
@@ -1776,6 +1778,7 @@
       "model_conflict": "O modelo de diagnóstico é igual ao modelo com erro",
       "network": "Não é possível ligar ao servidor, verifique as definições de rede ou proxy",
       "ocr": "Motor OCR não inicializado, verifique as definições de OCR",
+      "output_truncated": "A resposta atingiu o comprimento máximo e foi truncada",
       "parse": "A IA retornou uma resposta inválida, tente novamente ou mude de modelo",
       "payload": "Conteúdo da solicitação muito grande, reduza o tamanho do arquivo ou do texto",
       "proxy": "Erro de proxy ou certificado SSL, verifique as configurações de proxy e de rede",
@@ -2909,6 +2912,7 @@
   },
   "onboarding": {
     "privacy": {
+      "accept_and_continue": "Aceitar e continuar",
       "notice": "Ao continuar, você confirma que leu e concorda com",
       "period": ".",
       "policy": "Política de Privacidade"
@@ -3390,6 +3394,14 @@
     "source": "Ver código-fonte",
     "zoom_in": "ampliar",
     "zoom_out": "reduzir"
+  },
+  "privacy_policy": {
+    "title": "Política de Privacidade"
+  },
+  "privacy_policy_update": {
+    "description_before_link": "Atualizámos a política de privacidade. Reveja a versão mais recente ",
+    "policy": "Política de Privacidade",
+    "title": "Política de Privacidade atualizada"
   },
   "prompts": {
     "explanation": "Ajude-me a explicar este conceito",

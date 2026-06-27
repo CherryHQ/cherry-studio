@@ -1600,6 +1600,7 @@
     "copy_failed": "コピーに失敗しました",
     "current": "現在",
     "cut": "切り取り",
+    "decline": "拒否",
     "default": "デフォルト",
     "delete": "削除",
     "delete_confirm": "削除してもよろしいですか？",
@@ -1761,6 +1762,7 @@
     "detail": "エラーの詳細",
     "details": "詳細",
     "diagnosis": {
+      "abnormal_finish": "応答が異常終了しました。再試行するかモデルを変更してください",
       "ai_button": "AI 診断",
       "ai_done": "診断完了",
       "ai_loading": "診断中",
@@ -1776,6 +1778,7 @@
       "model_conflict": "診断モデルとエラーモデルが同一のため、診断できません",
       "network": "サーバーに接続できません。ネットワークまたはプロキシの設定を確認してください",
       "ocr": "OCR エンジンが初期化されていません。OCR 設定を確認してください",
+      "output_truncated": "応答が最大長に達したため切り詰められました",
       "parse": "AIが無効な応答を返しました。再試行するか、別のモデルに切り替えてください。",
       "payload": "リクエスト内容が大きすぎます。ファイルまたはテキストのサイズを減らしてください。",
       "proxy": "プロキシまたはSSL証明書エラー、プロキシとネットワーク設定を確認してください",
@@ -2909,6 +2912,7 @@
   },
   "onboarding": {
     "privacy": {
+      "accept_and_continue": "同意して続行",
       "notice": "続行することで、あなたは以下を読み、同意したことを確認します。",
       "period": "。",
       "policy": "プライバシーポリシー"
@@ -3390,6 +3394,14 @@
     "source": "ソースコードを表示",
     "zoom_in": "拡大",
     "zoom_out": "縮小"
+  },
+  "privacy_policy": {
+    "title": "プライバシーポリシー"
+  },
+  "privacy_policy_update": {
+    "description_before_link": "プライバシーポリシーを更新しました。最新の ",
+    "policy": "プライバシーポリシー",
+    "title": "プライバシーポリシーが更新されました"
   },
   "prompts": {
     "explanation": "この概念を説明してください",

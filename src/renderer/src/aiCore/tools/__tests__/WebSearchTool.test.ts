@@ -26,7 +26,7 @@ describe('webSearchToolWithPreExtractedKeywords', () => {
     })
   })
 
-  it('deduplicates queries, limits them, keeps full URLs in output, and shortens model URLs', async () => {
+  it('deduplicates queries, limits them, and keeps full URLs in output', async () => {
     const searchTool = webSearchToolWithPreExtractedKeywords(
       'tavily',
       {
@@ -53,8 +53,7 @@ describe('webSearchToolWithPreExtractedKeywords', () => {
     const modelOutput = searchTool.toModelOutput({ output: result })
     const modelText = modelOutput.value.map((part: { text: string }) => part.text).join('\n')
 
-    expect(modelText).toContain('"url": "https://example.com"')
-    expect(modelText).not.toContain('utm_source')
+    expect(modelText).toContain('"url": "https://example.com/path?utm_source=newsletter#details"')
   })
 
   it('reuses cached results for identical queries within a single response', async () => {

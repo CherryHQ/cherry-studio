@@ -350,6 +350,8 @@ describe('isVisionModel', () => {
       expect(isVisionModel(createModel({ id: 'moonshot/kimi-k2.5' }))).toBe(true)
       expect(isVisionModel(createModel({ id: 'kimi-k2.6' }))).toBe(true)
       expect(isVisionModel(createModel({ id: 'moonshot/kimi-k2.6' }))).toBe(true)
+      expect(isVisionModel(createModel({ id: 'kimi-k2.7-code' }))).toBe(true)
+      expect(isVisionModel(createModel({ id: 'moonshot/kimi-k2.7-code' }))).toBe(true)
     })
     it('should return false for kimi non-vision models', () => {
       expect(isVisionModel(createModel({ id: 'kimi-k2-thinking' }))).toBe(false)
