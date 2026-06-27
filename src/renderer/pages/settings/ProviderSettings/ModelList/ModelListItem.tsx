@@ -1,6 +1,6 @@
 import { Avatar, AvatarFallback, Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { getModelLogo } from '@renderer/config/models'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import type { Model } from '@shared/data/types/model'
 import { Settings, Trash2 } from 'lucide-react'
 import React, { memo, useCallback } from 'react'

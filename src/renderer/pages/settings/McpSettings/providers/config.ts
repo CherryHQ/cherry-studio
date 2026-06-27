@@ -1,6 +1,6 @@
 import type { CompoundIcon } from '@cherrystudio/ui'
 import { Ai302, Bailian, Lanyun, Mcprouter, Modelscope } from '@cherrystudio/ui/icons'
-import type { McpServer } from '@renderer/types'
+import type { McpServer } from '@shared/data/types/mcpServer'
 
 import { getAI302Token, saveAI302Token, syncAi302Servers } from './302ai'
 import { getBailianToken, saveBailianToken, syncBailianServers } from './bailian'

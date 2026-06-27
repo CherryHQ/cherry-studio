@@ -17,8 +17,8 @@ import type {
   ModelWithStatus
 } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
-import { cn } from '@renderer/utils'
 import { maskApiKey } from '@renderer/utils/api'
+import { cn } from '@renderer/utils/style'
 import { CheckCircle2, Info, Loader2, XCircle } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'

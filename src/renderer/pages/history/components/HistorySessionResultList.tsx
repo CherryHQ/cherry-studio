@@ -6,8 +6,8 @@ import type {
   SessionMenuActionContextOverride,
   SessionMenuPreset
 } from '@renderer/pages/agents/components/useSessionMenuActions'
-import { cn } from '@renderer/utils'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
+import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import { MessageSquareText } from 'lucide-react'

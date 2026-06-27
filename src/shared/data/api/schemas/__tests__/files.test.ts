@@ -16,6 +16,10 @@ describe('ListFilesQuerySchema', () => {
     expect(ListFilesQuerySchema.safeParse({ inTrash: true }).success).toBe(true)
   })
 
+  it('accepts ext sorting for file format/type column ordering', () => {
+    expect(ListFilesQuerySchema.safeParse({ sortBy: 'ext', sortOrder: 'asc' }).success).toBe(true)
+  })
+
   it('accepts inTrash=false with origin=external', () => {
     expect(ListFilesQuerySchema.safeParse({ inTrash: false, origin: 'external' }).success).toBe(true)
   })

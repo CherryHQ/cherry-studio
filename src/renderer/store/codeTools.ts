@@ -16,7 +16,7 @@
  */
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
-import type { Model } from '@renderer/types'
+import type { Model } from '@renderer/types/model'
 import { codeCLI, terminalApps } from '@shared/types/codeCli'
 
 // 常量定义

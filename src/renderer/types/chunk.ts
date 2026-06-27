@@ -1,5 +1,7 @@
-import type { ExternalToolResult, KnowledgeReference, McpToolResponse, NormalToolResponse, WebSearchResponse } from '.'
+import type { KnowledgeReference } from './knowledge'
+import type { ExternalToolResult, McpToolResponse, NormalToolResponse } from './mcpTool'
 import type { Response, ResponseError } from './newMessage'
+import type { WebSearchResponse } from './webSearchProvider'
 
 /**
  * Provider metadata type for passing provider-specific data through chunks

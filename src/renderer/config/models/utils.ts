@@ -1,4 +1,4 @@
-import { getLowerBaseModelName } from '@renderer/utils'
+import { getLowerBaseModelName } from '@renderer/utils/naming'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { OpenAIVerbosity, ValidOpenAIVerbosity } from '@shared/types/aiSdk'

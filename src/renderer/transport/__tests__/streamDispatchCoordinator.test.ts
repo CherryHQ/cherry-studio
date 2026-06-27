@@ -6,19 +6,24 @@ import { streamDispatchCoordinator } from '../streamDispatchCoordinator'
 const TOPIC = 'topic-1'
 const req: AiStreamOpenRequest = { trigger: 'submit-message', topicId: TOPIC, userMessageParts: [] }
 
-let streamOpen: ReturnType<typeof vi.fn>
-let originalApi: unknown
+// `streamOpen` backs the `ai.stream_open` route on the mocked ipcApi (hoisted so the
+// vi.mock factory can reference it).
+const { streamOpen } = vi.hoisted(() => ({ streamOpen: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (route: string, input: unknown) =>
+      route === 'ai.stream_open' ? streamOpen(input) : Promise.resolve(undefined),
+    on: () => () => {}
+  }
+}))
+
 let originalToast: unknown
 
 beforeEach(() => {
-  streamOpen = vi.fn()
-  originalApi = (window as unknown as { api: unknown }).api
   originalToast = (window as unknown as { toast: unknown }).toast
-  ;(window as unknown as { api: unknown }).api = { ...(originalApi as object), ai: { streamOpen } }
   ;(window as unknown as { toast: unknown }).toast = { error: vi.fn() }
 })
 afterEach(() => {
-  ;(window as unknown as { api: unknown }).api = originalApi
   ;(window as unknown as { toast: unknown }).toast = originalToast
   vi.clearAllMocks()
 })

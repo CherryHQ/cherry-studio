@@ -1,7 +1,7 @@
 import { NavbarHeader } from '@renderer/components/app/Navbar'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { useCommandHandler } from '@renderer/hooks/command'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { ReactNode } from 'react'
 

@@ -25,7 +25,7 @@ import { useConversationNavigation } from '@renderer/hooks/useConversationNaviga
 import { useTabs } from '@renderer/hooks/useTabs'
 import { mapApiTopicToRendererTopic } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import { ChevronDown, Clock3, CornerDownLeft, Search, X } from 'lucide-react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'

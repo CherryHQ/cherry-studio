@@ -1,4 +1,5 @@
-import type { Model, SystemProviderId } from '@renderer/types'
+import type { Model } from '@renderer/types/model'
+import type { SystemProviderId } from '@renderer/types/provider'
 import {
   CHERRYAI_DEFAULT_MODEL_GROUP,
   CHERRYAI_DEFAULT_MODEL_ID,

@@ -1,5 +1,5 @@
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models/embedding'
-import type { Model as V1Model } from '@renderer/types'
+import type { Model as V1Model } from '@renderer/types/model'
 import type { Model } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -58,12 +58,6 @@ vi.mock('@renderer/store/settings', () => {
     }
   )
 })
-
-vi.mock('@renderer/hooks/useSettings', () => ({
-  useSettings: vi.fn(() => ({})),
-  useMessageStyle: vi.fn(() => ({ isBubbleStyle: false })),
-  getStoreSetting: vi.fn()
-}))
 
 vi.mock('@renderer/config/models/embedding', () => ({
   isEmbeddingModel: vi.fn(),
