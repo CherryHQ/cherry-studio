@@ -37,6 +37,7 @@ import { resolveImageTransport } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
 import { listModels as listModelsFromProvider } from './provider/listModels'
+import { CherryRequestSource } from './requestSource'
 import { Agent } from './runtime/aiSdk/Agent'
 import type { AgentLoopHooks } from './runtime/aiSdk/loop'
 import { mergeUsage, ZERO_USAGE } from './runtime/aiSdk/observers/usage'
@@ -422,6 +423,7 @@ export class AiService extends BaseService {
     try {
       return await this.generateImage({
         ...payload,
+        source: { feature: CherryRequestSource.Paint },
         requestOptions: { ...payload.requestOptions, signal: controller.signal }
       })
     } finally {

@@ -1,4 +1,5 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources'
+import { parseRequestSourceHeaders } from '@main/ai/requestSource'
 import { Elysia } from 'elysia'
 import { approximateTokenSize } from 'tokenx'
 
@@ -92,7 +93,13 @@ export const messagesRoutes = new Elysia({ prefix: '/messages' })
         params: body,
         inputFormat: 'anthropic',
         outputFormat: 'anthropic',
-        signal: request.signal
+        signal: request.signal,
+        // A gateway-routed agent session forwards its provenance as X-Cherry-* headers;
+        // recover it so the upstream CherryIN call keeps the agent/session attribution.
+        // Scoped to this Anthropic dialect on purpose: the Claude Code subprocess is the
+        // only producer that routes provenance through the gateway and it always speaks
+        // /v1/messages, so the OpenAI-format routes have no such headers to recover today.
+        source: parseRequestSourceHeaders(request.headers)
       }),
     {
       body: MessagesBodySchema,

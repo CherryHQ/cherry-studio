@@ -56,6 +56,7 @@ describe('knowledge embedding', () => {
     expect(mocks.aiEmbedManyMock).toHaveBeenCalledWith({
       uniqueModelId: 'provider::embed',
       values: ['hello'],
+      source: { feature: 'knowledge' },
       requestOptions: undefined
     })
   })
@@ -68,6 +69,7 @@ describe('knowledge embedding', () => {
     expect(mocks.aiEmbedManyMock).toHaveBeenCalledWith({
       uniqueModelId: 'provider::embed',
       values: ['first', 'second'],
+      source: { feature: 'knowledge' },
       requestOptions: { signal: controller.signal }
     })
     expect(vectors).toEqual([

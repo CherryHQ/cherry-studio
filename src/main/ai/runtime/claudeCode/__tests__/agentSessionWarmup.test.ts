@@ -1,3 +1,4 @@
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -38,21 +39,21 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: { getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken }
 }))
 
-vi.mock('@main/core/application', () => ({
-  application: {
-    get: vi.fn((name: string) => {
-      if (name === 'ApiGatewayService') {
-        return {
-          ensureValidApiKey: mocks.apiGatewayEnsureKey,
-          isRunning: mocks.apiGatewayIsRunning,
-          start: mocks.apiGatewayStart,
-          getCurrentConfig: mocks.apiGatewayGetCurrentConfig
-        }
-      }
-      throw new Error(`Unexpected application.get(${name})`)
-    })
+vi.mock('@application', async () => {
+  const { createMockApplication } = await import('@test-mocks/main/application')
+  const application = createMockApplication()
+  const apiGatewayService = {
+    ensureValidApiKey: mocks.apiGatewayEnsureKey,
+    isRunning: mocks.apiGatewayIsRunning,
+    start: mocks.apiGatewayStart,
+    getCurrentConfig: mocks.apiGatewayGetCurrentConfig
   }
-}))
+  // PreferenceService (and other defaults) resolve through the unified mock so
+  // MockMainPreferenceServiceUtils controls them; ApiGatewayService is layered on top.
+  const baseGet = application.get
+  application.get = vi.fn((name: string) => (name === 'ApiGatewayService' ? apiGatewayService : baseGet(name)))
+  return { application, serviceList: [] }
+})
 
 vi.mock('../../provider/endpoint', () => ({
   resolveEffectiveEndpoint: mocks.resolveEffectiveEndpoint
@@ -188,5 +189,77 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     )
     expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
+  })
+})
+
+describe('buildClaudeCodeQueryRequestForAgentSession provenance headers', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.getSessionById.mockResolvedValue({ id: 'session-1', agentId: 'agent-1' })
+    mocks.getModelByKey.mockResolvedValue({ id: 'model-1', apiModelId: 'claude-sonnet' })
+    mocks.resolveEffectiveEndpoint.mockReturnValue({ baseUrl: 'https://api.example.com' })
+    mocks.getRotatedApiKey.mockResolvedValue('api-key')
+    mocks.getLastRuntimeResumeToken.mockResolvedValue(null)
+    mocks.buildSessionSettings.mockResolvedValue({ env: {} })
+    // Headers are gated on data-collection consent; grant it by default so these
+    // cases exercise the cherryin logic, and revoke it explicitly where tested.
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.privacy.data_collection.enabled', true)
+  })
+
+  it('injects the agent source + conversation headers via ANTHROPIC_CUSTOM_HEADERS for a cherryin model', async () => {
+    mocks.getAgent.mockResolvedValue({ id: 'agent-1', model: 'cherryin::model-1' })
+    mocks.getProviderByProviderId.mockResolvedValue({ id: 'cherryin', endpointConfigs: undefined })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
+      'X-Cherry-Source: agent\nX-Cherry-Conversation-Id: session-1'
+    )
+  })
+
+  it('appends to a user-preset ANTHROPIC_CUSTOM_HEADERS instead of overwriting it', async () => {
+    // A cherryin agent can set ANTHROPIC_CUSTOM_HEADERS through agent.configuration.env_vars
+    // (settingsBuilder's BLOCKED_ENV_KEYS does not block that key), so provenance must
+    // append to the existing value rather than clobber it.
+    mocks.buildSessionSettings.mockResolvedValue({ env: { ANTHROPIC_CUSTOM_HEADERS: 'X-User: keep' } })
+    mocks.getAgent.mockResolvedValue({ id: 'agent-1', model: 'cherryin::model-1' })
+    mocks.getProviderByProviderId.mockResolvedValue({ id: 'cherryin', endpointConfigs: undefined })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
+      'X-User: keep\nX-Cherry-Source: agent\nX-Cherry-Conversation-Id: session-1'
+    )
+  })
+
+  it('preserves a user-preset ANTHROPIC_CUSTOM_HEADERS when provenance is suppressed', async () => {
+    // Suppressing our headers (here: consent withheld) must not clobber the user's own.
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.privacy.data_collection.enabled', false)
+    mocks.buildSessionSettings.mockResolvedValue({ env: { ANTHROPIC_CUSTOM_HEADERS: 'X-User: keep' } })
+    mocks.getAgent.mockResolvedValue({ id: 'agent-1', model: 'cherryin::model-1' })
+    mocks.getProviderByProviderId.mockResolvedValue({ id: 'cherryin', endpointConfigs: undefined })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe('X-User: keep')
+  })
+
+  it('does not inject the headers for a cherryin model when data-collection consent is withheld', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.privacy.data_collection.enabled', false)
+    mocks.getAgent.mockResolvedValue({ id: 'agent-1', model: 'cherryin::model-1' })
+    mocks.getProviderByProviderId.mockResolvedValue({ id: 'cherryin', endpointConfigs: undefined })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBeUndefined()
+  })
+
+  it('does not inject the headers for a non-cherryin model', async () => {
+    mocks.getAgent.mockResolvedValue({ id: 'agent-1', model: 'provider-1::model-1' })
+    mocks.getProviderByProviderId.mockResolvedValue({ id: 'provider-1', endpointConfigs: undefined })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBeUndefined()
   })
 })

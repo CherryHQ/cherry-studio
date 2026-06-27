@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { CherryRequestSource } from '@main/ai/requestSource'
 import { DEFAULT_DOCUMENT_COUNT, DEFAULT_RELEVANT_SCORE } from '@main/utils/knowledge'
 import type { KnowledgeBase, KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
@@ -59,7 +60,8 @@ async function rerankWithAiService(
       uniqueModelId: parsed.data,
       query,
       documents: searchResults.map((result) => result.pageContent),
-      topN
+      topN,
+      source: { feature: CherryRequestSource.Knowledge }
     })
 
     return mergeRerankResults(searchResults, result.ranking)

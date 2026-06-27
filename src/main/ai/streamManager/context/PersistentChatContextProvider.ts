@@ -16,6 +16,7 @@ import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
+import { CherryRequestSource } from '../../requestSource'
 import { wrapSteerReminder } from '../../steerReminder'
 import type { AiStreamRequest } from '../../types/requests'
 import { PersistenceListener } from '../listeners/PersistenceListener'
@@ -479,7 +480,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       assistantId,
       uniqueModelId,
       messages: history,
-      messageId
+      messageId,
+      source: { feature: CherryRequestSource.Chat, conversationId: topicId }
     }
   }
 }

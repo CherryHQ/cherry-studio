@@ -141,12 +141,22 @@ describe('translateService.open', () => {
     expect(streamPromptMock).toHaveBeenCalledTimes(1)
     const arg = (
       streamPromptMock.mock.calls as unknown as Array<
-        [{ streamId: string; uniqueModelId: string; prompt: string; listener: { id: string } | Array<{ id: string }> }]
+        [
+          {
+            streamId: string
+            uniqueModelId: string
+            prompt: string
+            listener: { id: string } | Array<{ id: string }>
+            source?: { feature: string }
+          }
+        ]
       >
     )[0][0]
     expect(arg.streamId).toBe(streamId)
     expect(arg.uniqueModelId).toBe('openai::gpt-4o')
     expect(arg.prompt).toBe('Translate to English: hello')
+    // Tags the upstream request so cherryin can attribute it to the translate feature.
+    expect(arg.source).toEqual({ feature: 'translate' })
     const listeners = Array.isArray(arg.listener) ? arg.listener : [arg.listener]
     expect(listeners).toHaveLength(1)
     expect(listeners[0].id).toBe(`wc:test:${streamId}`)

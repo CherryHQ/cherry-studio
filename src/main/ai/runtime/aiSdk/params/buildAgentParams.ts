@@ -11,6 +11,7 @@ import { stepCountIs, type StopCondition, type ToolSet } from 'ai'
 import { createHttpTraceFetch } from '../../../observability'
 import { providerToAiSdkConfig } from '../../../provider/config'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../../provider/endpoint'
+import { type AiRequestSource, buildRequestSourceHeaders, isCherryinProviderId } from '../../../requestSource'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/applyDeferExposition'
 import { syncMcpToolsToRegistry } from '../../../tools/adapters/aiSdk/mcp/mcpTools'
@@ -63,6 +64,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
 
   const sdkConfig = await resolveSdkConfig(provider, model)
   applyHttpTrace(sdkConfig, request.chatId, model)
+  applyCherryinSourceHeaders(sdkConfig, provider, request.source)
   const { tools, deferredEntries, mcpToolIds } = canModelConsumeTools(model)
     ? await resolveTools(request, assistant, model)
     : { tools: undefined, deferredEntries: [] as ToolEntry[], mcpToolIds: new Set<string>() }
@@ -123,6 +125,24 @@ export function applyHttpTrace(sdkConfig: SdkConfig, topicId: string | undefined
     topicId,
     modelName: model.name ?? model.id
   })
+}
+
+/**
+ * Stamp the feature/conversation provenance onto the provider settings — but
+ * ONLY for the cherryin provider (the sole consumer) and ONLY when the user has
+ * consented to anonymous data collection. Every SDK call shape (text / embed /
+ * rerank / image) forwards `providerSettings.headers`, so doing it here once
+ * covers all features; other requests never receive the headers.
+ */
+export function applyCherryinSourceHeaders(
+  sdkConfig: SdkConfig,
+  provider: Provider,
+  source: AiRequestSource | undefined
+): void {
+  const dataCollectionEnabled = application.get('PreferenceService').get('app.privacy.data_collection.enabled') === true
+  if (!source || !isCherryinProviderId(provider.id) || !dataCollectionEnabled) return
+  const settings = sdkConfig.providerSettings as { headers?: Record<string, string | undefined> }
+  settings.headers = { ...settings.headers, ...buildRequestSourceHeaders(source) }
 }
 
 /**

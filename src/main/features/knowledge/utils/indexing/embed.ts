@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { CherryRequestSource } from '@main/ai/requestSource'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { isCompletedKnowledgeBase } from '@shared/data/types/knowledge'
@@ -23,6 +24,7 @@ export async function embedKnowledgeTexts(
   const result = await application.get('AiService').embedMany({
     uniqueModelId,
     values,
+    source: { feature: CherryRequestSource.Knowledge },
     requestOptions: signal ? { signal } : undefined
   })
 

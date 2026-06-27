@@ -1,9 +1,9 @@
+import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-import { application } from '@main/core/application'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
@@ -13,6 +13,12 @@ import { formatApiHost } from '@shared/utils/api'
 import { isGeminiProvider } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
+import {
+  buildRequestSourceHeaders,
+  CherryRequestSource,
+  isCherryinProviderId,
+  toAnthropicCustomHeaders
+} from '../../requestSource'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { withDeepSeek1mSuffix } from './deepseekContext'
 import { createClaudeCodeQueryOptions } from './queryOptions'
@@ -60,9 +66,21 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const route = await resolveClaudeCodeRuntimeRoute(agent, provider, model, modelId, baseUrl)
   const resumeSessionId =
     effectiveResume ?? (await agentSessionMessageService.getLastRuntimeResumeToken(session.id)) ?? undefined
+  // Provenance headers ride ANTHROPIC_CUSTOM_HEADERS — but only when the agent's
+  // model is served by cherryin (the sole consumer) and the user has consented to
+  // anonymous data collection. Otherwise nothing is sent.
+  const sendProvenance =
+    isCherryinProviderId(provider.id) &&
+    application.get('PreferenceService').get('app.privacy.data_collection.enabled') === true
+  const sourceCustomHeaders = sendProvenance
+    ? toAnthropicCustomHeaders(
+        buildRequestSourceHeaders({ feature: CherryRequestSource.Agent, conversationId: session.id })
+      )
+    : undefined
   const settings = mergeRuntimeSettings(
     await buildClaudeCodeSessionSettings(session, provider, { lastAgentSessionId: resumeSessionId }),
-    route
+    route,
+    sourceCustomHeaders
   )
   const sdkModelId = route.modelIds.primary
   const options = createClaudeCodeQueryOptions({
@@ -197,7 +215,12 @@ function resolveAnthropicBaseUrl(provider: Provider, baseUrl: string) {
   return rawBaseUrl ? formatApiHost(rawBaseUrl, false) : undefined
 }
 
-function mergeRuntimeSettings(settings: ClaudeCodeSettings, route: ClaudeCodeRuntimeRoute): ClaudeCodeSettings {
+function mergeRuntimeSettings(
+  settings: ClaudeCodeSettings,
+  route: ClaudeCodeRuntimeRoute,
+  sourceCustomHeaders: string | undefined
+): ClaudeCodeSettings {
+  const customHeaders = mergeAnthropicCustomHeaders(settings.env?.ANTHROPIC_CUSTOM_HEADERS, sourceCustomHeaders)
   return {
     ...settings,
     env: {
@@ -207,9 +230,16 @@ function mergeRuntimeSettings(settings: ClaudeCodeSettings, route: ClaudeCodeRun
       ANTHROPIC_DEFAULT_SONNET_MODEL: route.modelIds.sonnet,
       ANTHROPIC_DEFAULT_HAIKU_MODEL: route.modelIds.haiku,
       ...(route.apiKey ? { ANTHROPIC_API_KEY: route.apiKey, ANTHROPIC_AUTH_TOKEN: route.apiKey } : {}),
-      ...(route.baseUrl ? { ANTHROPIC_BASE_URL: route.baseUrl } : {})
+      ...(route.baseUrl ? { ANTHROPIC_BASE_URL: route.baseUrl } : {}),
+      ...(customHeaders ? { ANTHROPIC_CUSTOM_HEADERS: customHeaders } : {})
     }
   }
+}
+
+/** Append our provenance line(s) to any pre-existing ANTHROPIC_CUSTOM_HEADERS instead of clobbering them. */
+function mergeAnthropicCustomHeaders(existing: string | undefined, added: string | undefined): string | undefined {
+  if (!added) return existing
+  return existing ? `${existing}\n${added}` : added
 }
 
 export async function buildClaudeCodeWarmQueryRequestForAgentSession(

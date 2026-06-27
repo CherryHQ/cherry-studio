@@ -18,6 +18,7 @@
 
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
+import type { AiRequestSource } from '@main/ai/requestSource'
 import { SseListener } from '@main/ai/streamManager'
 import type { StreamListener } from '@main/ai/streamManager/types'
 import type { CallOverrides } from '@main/ai/types/requests'
@@ -72,6 +73,13 @@ export interface MessageConfig {
   outputFormat?: OutputFormat
   /** Request abort signal (`context.request.signal`); aborts the upstream stream on client disconnect. */
   signal?: AbortSignal
+  /**
+   * Feature provenance recovered from the caller's `X-Cherry-*` headers. Forwarded
+   * onto the stream request so a gateway-routed CherryIN call still carries its
+   * attribution; materialized into headers only when the resolved upstream
+   * provider is CherryIN (see `applyCherryinSourceHeaders`).
+   */
+  source?: AiRequestSource
   onError?: (error: unknown) => void
   onComplete?: () => void
 }
@@ -217,7 +225,8 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
           messages,
           listener,
           callOverrides,
-          idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
+          idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS,
+          source: config.source
         })
       },
       cancel() {
@@ -289,7 +298,8 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       messages,
       listener,
       callOverrides,
-      idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
+      idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS,
+      source: config.source
     })
 
     await done

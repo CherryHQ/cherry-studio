@@ -2,6 +2,8 @@ import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ChatTransport, ToolChoice, ToolSet, UIMessage } from 'ai'
 
+import type { AiRequestSource } from '../requestSource'
+
 /**
  * IPC-safe per-request transport config. Every field here survives
  * Electron's structured-clone — used on preload-bridge / IPC-handler
@@ -45,6 +47,8 @@ export interface AiBaseRequest {
   requestOptions?: AiTransportOptions
   /** Per-request overrides (in-process only; assistant-less callers like the API gateway). */
   callOverrides?: CallOverrides
+  /** Originating feature/conversation; materialized into `X-Cherry-*` headers only for the cherryin provider. */
+  source?: AiRequestSource
 }
 
 /**
