@@ -21,6 +21,7 @@ import {
   useShellActions,
   useShellState
 } from '@renderer/components/chat/panes/Shell'
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
 import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import NavbarIcon from '@renderer/components/NavbarIcon'
@@ -155,6 +156,7 @@ interface AgentRightPaneProviderProps extends AgentRightPaneMeta {
   children: ReactNode
   /** In old view the session list mounts as the first right-pane tab; null leaves files/status/flow. */
   resourcePane?: ResourcePaneConfig | null
+  revealRequest?: ResourceListRevealRequest
   defaultOpen?: boolean
   /** Persist open state across the per-branch Shell remount (draft→persistent handoff). */
   onOpenChange?: (open: boolean) => void
@@ -173,6 +175,21 @@ function useAgentRightPane(): AgentRightPaneContextValue {
 
 export function useAgentRightPaneActions(): AgentRightPaneActions {
   return useAgentRightPane().actions
+}
+
+function ResourcePaneLocateOpener({ revealRequest }: { revealRequest?: ResourceListRevealRequest }) {
+  const actions = useShellActions()
+  const resourcePane = useResourcePane()
+  const handledRequestIdRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (!resourcePane || !revealRequest?.clearFilters) return
+    if (handledRequestIdRef.current === revealRequest.requestId) return
+    handledRequestIdRef.current = revealRequest.requestId
+    actions.openTab(RESOURCE_PANE_TAB)
+  }, [actions, resourcePane, revealRequest])
+
+  return null
 }
 
 function AgentRightPaneStateProvider({
@@ -327,7 +344,7 @@ function AgentRightPaneStateProvider({
 }
 
 function AgentRightPaneProvider(props: AgentRightPaneProviderProps) {
-  const { children, resourcePane, defaultOpen = false, onOpenChange, ...rest } = props
+  const { children, resourcePane, revealRequest, defaultOpen = false, onOpenChange, ...rest } = props
   const shellModeKey = resourcePane ? 'resource-pane' : 'files-pane'
 
   return (
@@ -337,6 +354,7 @@ function AgentRightPaneProvider(props: AgentRightPaneProviderProps) {
       defaultOpen={defaultOpen}
       onOpenChange={onOpenChange}>
       <ResourcePaneProvider value={resourcePane ?? null}>
+        <ResourcePaneLocateOpener revealRequest={revealRequest} />
         <AgentRightPaneStateProvider {...rest}>{children}</AgentRightPaneStateProvider>
       </ResourcePaneProvider>
     </Shell>

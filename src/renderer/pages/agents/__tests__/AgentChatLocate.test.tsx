@@ -1,4 +1,4 @@
-import { render, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import type * as MotionReact from 'motion/react'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
@@ -10,7 +10,9 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   ...(await importOriginal()),
   Badge: ({ children }: PropsWithChildren) => <span>{children}</span>,
   Button: ({ children, ...props }: PropsWithChildren<Record<string, unknown>>) => (
-    <button {...props}>{children}</button>
+    <button type="button" {...props}>
+      {children}
+    </button>
   ),
   Tabs: ({ children }: PropsWithChildren) => <div>{children}</div>,
   TabsContent: ({ children }: PropsWithChildren) => <div>{children}</div>,
@@ -107,6 +109,14 @@ vi.mock('@renderer/components/chat', () => ({
   LoadingState: () => <div />,
   RightPaneHost: ({ children, open }: PropsWithChildren<{ open?: boolean }>) => (
     <section>{open ? children : null}</section>
+  )
+}))
+
+vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
+  RightPaneHost: ({ children, open }: PropsWithChildren<{ open?: boolean }>) => (
+    <section data-testid="agent-right-pane" data-open={String(Boolean(open))}>
+      {open ? children : null}
+    </section>
   )
 }))
 
@@ -394,5 +404,32 @@ describe('AgentChat locate pending message', () => {
       )
       expect(onLocateMessageHandled).toHaveBeenCalledTimes(1)
     })
+  })
+
+  it('opens the old-view resource pane when a locate reveal request arrives on the same session branch', async () => {
+    const resourcePane = { node: <div data-testid="session-resource-list">Sessions</div>, label: 'title.work' }
+    const baseProps = {
+      ...activeSessionProps(),
+      pane: <aside data-testid="session-pane" />,
+      paneOpen: true,
+      panePosition: 'left' as const,
+      resourcePane,
+      workPaneOpen: false,
+      onWorkPaneOpenChange: vi.fn()
+    }
+
+    const { rerender } = render(<AgentChat {...baseProps} />)
+
+    expect(screen.getByTestId('agent-right-pane')).toHaveAttribute('data-open', 'false')
+
+    rerender(
+      <AgentChat
+        {...baseProps}
+        resourcePaneRevealRequest={{ itemId: 'session-2', requestId: 1, clearFilters: true, clearQuery: true }}
+      />
+    )
+
+    await waitFor(() => expect(screen.getByTestId('agent-right-pane')).toHaveAttribute('data-open', 'true'))
+    expect(screen.getByTestId('session-resource-list')).toBeInTheDocument()
   })
 })

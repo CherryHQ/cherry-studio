@@ -7,6 +7,7 @@ import {
 } from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import type { ResourcePaneConfig } from '@renderer/components/chat/panes/Shell'
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
 import { AgentHomeComposer, MissingAgentHomeComposer } from '@renderer/components/composer/variants/AgentComposer'
 import { useCache } from '@renderer/data/hooks/useCache'
@@ -85,6 +86,7 @@ interface AgentChatProps {
   replacingDraftAgent?: boolean
   replacingDraftWorkspace?: boolean
   resourcePane?: ResourcePaneConfig | null
+  resourcePaneRevealRequest?: ResourceListRevealRequest
   workPaneOpen?: boolean
   onWorkPaneOpenChange?: (open: boolean) => void
 }
@@ -116,6 +118,7 @@ const AgentChat = ({
   replacingDraftAgent,
   replacingDraftWorkspace,
   resourcePane,
+  resourcePaneRevealRequest,
   workPaneOpen,
   onWorkPaneOpenChange
 }: AgentChatProps) => {
@@ -224,7 +227,8 @@ const AgentChat = ({
         partsByMessageId={EMPTY_PARTS}
         defaultOpen={workPaneOpen}
         onOpenChange={onWorkPaneOpenChange}
-        resourcePane={resourcePane}>
+        resourcePane={resourcePane}
+        revealRequest={resourcePaneRevealRequest}>
         <ConversationShell
           className={messageStyle}
           pane={pane}
@@ -347,7 +351,8 @@ const AgentChat = ({
           agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
           defaultOpen={workPaneOpen}
           onOpenChange={onWorkPaneOpenChange}
-          resourcePane={resourcePane}>
+          resourcePane={resourcePane}
+          revealRequest={resourcePaneRevealRequest}>
           {shell}
         </AgentRightPane>
       )
@@ -394,7 +399,8 @@ const AgentChat = ({
           partsByMessageId={EMPTY_PARTS}
           defaultOpen={workPaneOpen}
           onOpenChange={onWorkPaneOpenChange}
-          resourcePane={resourcePane}>
+          resourcePane={resourcePane}
+          revealRequest={resourcePaneRevealRequest}>
           {shell}
         </AgentRightPane>
       )
@@ -456,6 +462,7 @@ const AgentChat = ({
       onLocateMessageHandled={onLocateMessageHandled}
       onPaneCollapse={onPaneCollapse}
       resourcePane={resourcePane}
+      resourcePaneRevealRequest={resourcePaneRevealRequest}
       workPaneOpen={workPaneOpen}
       onWorkPaneOpenChange={onWorkPaneOpenChange}
       onNewSessionDraft={
@@ -505,6 +512,7 @@ interface AgentChatSessionFrameProps {
   onPaneCollapse?: () => void
   onNewSessionDraft?: () => void | Promise<void>
   resourcePane?: ResourcePaneConfig | null
+  resourcePaneRevealRequest?: ResourceListRevealRequest
   workPaneOpen?: boolean
   onWorkPaneOpenChange?: (open: boolean) => void
 }
@@ -534,6 +542,7 @@ const AgentChatSessionFrame = ({
   onPaneCollapse,
   onNewSessionDraft,
   resourcePane,
+  resourcePaneRevealRequest,
   workPaneOpen,
   onWorkPaneOpenChange
 }: AgentChatSessionFrameProps) => {
@@ -633,7 +642,8 @@ const AgentChatSessionFrame = ({
       modelFallback={runtime.fallbackSnapshot}
       defaultOpen={workPaneOpen}
       onOpenChange={onWorkPaneOpenChange}
-      resourcePane={resourcePane}>
+      resourcePane={resourcePane}
+      revealRequest={resourcePaneRevealRequest}>
       <ConversationShell
         className={className}
         pane={pane}

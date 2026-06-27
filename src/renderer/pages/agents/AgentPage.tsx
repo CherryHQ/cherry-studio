@@ -786,6 +786,7 @@ const AgentPage = () => {
           replacingDraftAgent={replacingDraftAgent}
           replacingDraftWorkspace={replacingDraftWorkspace}
           resourcePane={resourcePane}
+          resourcePaneRevealRequest={sessionRevealRequest}
           workPaneOpen={isOldView ? workPaneOpen : undefined}
           onWorkPaneOpenChange={isOldView ? setWorkPaneOpen : undefined}
         />
