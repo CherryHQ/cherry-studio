@@ -11,6 +11,8 @@ describe('AnimatedRevealText', () => {
     expect(root).toBeInTheDocument()
     expect(root).toHaveAttribute('aria-label', 'Hello')
     expect(root).toHaveTextContent('Hello')
+    expect(root).toHaveClass('font-normal', 'text-foreground')
+    expect(root).not.toHaveClass('font-semibold')
     expect(container.querySelector('.animated-reveal-text__base')).not.toBeInTheDocument()
     expect(container.querySelector('.animated-reveal-text__fill')).not.toBeInTheDocument()
   })
