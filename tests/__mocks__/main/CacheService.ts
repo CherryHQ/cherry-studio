@@ -7,7 +7,7 @@ import type {
   SharedCacheKey
 } from '@shared/data/cache/cacheSchemas'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
-import { isEqual } from 'lodash'
+import { isEqual } from 'es-toolkit/compat'
 import { vi } from 'vitest'
 
 /**

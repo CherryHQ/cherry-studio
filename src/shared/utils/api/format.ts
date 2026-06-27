@@ -1,4 +1,4 @@
-import { trim } from 'lodash'
+import { trim } from 'es-toolkit/compat'
 
 /**
  * Matches an API version at the end of a URL (with optional trailing slash).
