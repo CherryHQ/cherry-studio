@@ -1,5 +1,5 @@
-import { resolveSidebarAppTabEntryUrl } from '@renderer/config/sidebar'
 import type { Tab } from '@renderer/hooks/tab'
+import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useCallback, useEffect, useRef, useState } from 'react'
 

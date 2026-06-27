@@ -65,7 +65,7 @@ vi.mock('../adapters/agentAdapter', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/agents/useAgentModelFilter', () => ({
+vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelFilter: () => vi.fn(() => true)
 }))
 

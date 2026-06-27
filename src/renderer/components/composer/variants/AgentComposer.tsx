@@ -18,12 +18,12 @@ import type { QuickPanelInputAdapter, QuickPanelListItem } from '@renderer/compo
 import { AgentSelector, WorkspaceSelector } from '@renderer/components/resource'
 import { ModelSelector } from '@renderer/components/Selector'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { isSoulModeEnabled } from '@renderer/hooks/agents/agentConfiguration'
-import { useAgent, useUpdateAgent } from '@renderer/hooks/agents/useAgent'
-import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
-import { useAgentSessionCompaction } from '@renderer/hooks/agents/useAgentSessionCompaction'
-import { useAgentSessionContextUsage } from '@renderer/hooks/agents/useAgentSessionContextUsage'
-import { useSession, useUpdateSession } from '@renderer/hooks/agents/useSession'
+import { isSoulModeEnabled } from '@renderer/hooks/agent/agentConfiguration'
+import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
+import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
+import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
+import { useSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useModelById } from '@renderer/hooks/useModel'
@@ -133,6 +133,7 @@ type Props = {
 
 type AgentComposerRootProps = Props & {
   renderControls: AgentComposerControlsRenderer
+  forceNarrowLayout?: boolean
 }
 
 const AgentComposerRoot = ({
@@ -150,7 +151,8 @@ const AgentComposerRoot = ({
   workspaceChanging,
   isStreaming,
   sendDisabled = false,
-  renderControls
+  renderControls,
+  forceNarrowLayout = false
 }: AgentComposerRootProps) => {
   const { session: loadedSession } = useSession(sessionOverride ? null : sessionId)
   const session = sessionOverride ?? loadedSession
@@ -217,6 +219,7 @@ const AgentComposerRoot = ({
         isStreaming={isStreaming}
         sendDisabled={sendDisabled}
         renderControls={renderControls}
+        forceNarrowLayout={forceNarrowLayout}
       />
     </ComposerToolRuntimeProvider>
   )
@@ -240,6 +243,7 @@ interface InnerProps {
   isStreaming: boolean
   sendDisabled: boolean
   renderControls: AgentComposerControlsRenderer
+  forceNarrowLayout?: boolean
 }
 
 interface AgentComposerContextControlsProps {
@@ -520,7 +524,8 @@ const AgentComposerInner = ({
   workspaceChanging,
   isStreaming,
   sendDisabled,
-  renderControls
+  renderControls,
+  forceNarrowLayout = false
 }: InnerProps) => {
   const { agent: agentBase } = useAgent(agentId)
   const { updateModel } = useUpdateAgent()
@@ -940,7 +945,7 @@ const AgentComposerInner = ({
         enableDragDrop={config.enableDragDrop ?? true}
         enableSpellCheck={enableSpellCheck}
         fontSize={fontSize}
-        narrowMode={narrowMode}
+        narrowMode={forceNarrowLayout || narrowMode}
         onActionsChange={handleSurfaceActionsChange}
         getToolLaunchers={() => getLaunchers()}
         suggestionSources={suggestionSources}
@@ -974,7 +979,6 @@ const MissingAgentHomeComposerInner = ({
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherActions()
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
-  const [narrowMode] = usePreference('chat.narrow_mode')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { t } = useTranslation()
   const [text, setText] = useState('')
@@ -1045,7 +1049,7 @@ const MissingAgentHomeComposerInner = ({
         enableDragDrop={false}
         enableSpellCheck={enableSpellCheck}
         fontSize={fontSize}
-        narrowMode={narrowMode}
+        narrowMode
         onActionsChange={handleSurfaceActionsChange}
         getToolLaunchers={() => getLaunchers()}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
@@ -1086,7 +1090,7 @@ const AgentComposer = (props: Props) => {
 }
 
 export const AgentHomeComposer = (props: Props) => {
-  return <AgentComposerRoot {...props} renderControls={renderAgentHomeControls} />
+  return <AgentComposerRoot {...props} forceNarrowLayout renderControls={renderAgentHomeControls} />
 }
 
 export default AgentComposer
