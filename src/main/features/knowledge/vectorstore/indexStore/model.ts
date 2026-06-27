@@ -36,6 +36,8 @@ export interface RebuildMaterialInput {
   content: {
     text: string
   }
+  /** Extracted title (file name / display name) for file-name search indexing. */
+  title: string
   units: RebuildMaterialUnitInput[]
   embeddings: RebuildMaterialEmbeddingInput[]
 }

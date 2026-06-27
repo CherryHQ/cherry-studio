@@ -5,6 +5,7 @@ import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowled
 import { loggerService } from '@logger'
 import { DOCUMENT_SEPARATOR } from '@main/features/knowledge/utils/indexing/chunk'
 import {
+  extractTitleFromRelativePath,
   type MaterialFieldSource,
   toMaterialRelativePath
 } from '@main/features/knowledge/utils/indexing/materialFields'
@@ -237,6 +238,7 @@ function buildMigratedRebuildInput(
     content: {
       text: joinMigratedChunkText(chunks)
     },
+    title: extractTitleFromRelativePath(relativePath),
     units,
     embeddings: [...embeddingByHash.entries()].map(([embeddingTextHash, vector]) => ({ embeddingTextHash, vector }))
   }
@@ -1186,7 +1188,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           const uncovered = await driver.execute(
             `SELECT count(*) AS count FROM search_text st
                   LEFT JOIN embedding e ON e.embedding_text_hash = st.embedding_text_hash
-                  WHERE e.embedding_text_hash IS NULL`
+                  WHERE e.embedding_text_hash IS NULL AND st.kind = 'body'`
           )
           const uncoveredCount = Number(uncovered.rows[0]?.count ?? 0)
           if (uncoveredCount > 0) {

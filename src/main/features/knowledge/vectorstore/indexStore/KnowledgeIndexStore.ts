@@ -1,3 +1,4 @@
+import { extractTitleFromRelativePath } from '../../utils/indexing/materialFields'
 import { extractFtsTokens, needsLikeFallback, toFtsLikePattern, toFtsMatchQuery } from './ftsQuery'
 import { computeSearchTextId, computeUnitId, hashContentText, hashEmbeddingText } from './hashing'
 import type {
@@ -11,6 +12,9 @@ import { encodeVectorBlob } from './vectorBlob'
 
 /** RRF constant (1-indexed rank), matching the legacy hybrid fusion. */
 const RRF_K = 60
+
+/** Boost factor for title (file-name) matches over body-only matches. */
+const TITLE_SEARCH_BOOST = 1.5
 
 /** Max bound parameters per `listExistingEmbeddingHashes` query (SQLite's limit is ~999). */
 const EMBEDDING_HASH_QUERY_BATCH = 500
@@ -34,6 +38,9 @@ const DELETE_YIELD_BUDGET_MS = 50
  * the caller (it reads the global app DB, not this per-base index).
  */
 export class KnowledgeIndexStore {
+  /** Cached after the first backfill call; skips the probe query on subsequent searches. */
+  private titleBackfilled = false
+
   constructor(
     private readonly driver: SqliteDriver,
     private readonly vectorIndex: VectorIndex
@@ -125,6 +132,19 @@ export class KnowledgeIndexStore {
             unit.embeddingTextHash,
             now
           ]
+        )
+      }
+
+      // 5b. Insert title search_text row for file-name search (issue #16396).
+      //     The title is linked to the first unit so that title matches return the
+      //     material's first chunk via the normal search-unit join path.
+      if (input.title && units.length > 0) {
+        const titleEmbeddingHash = hashEmbeddingText(input.title)
+        const firstUnitId = units[0].unitId
+        await tx.execute(
+          `INSERT INTO search_text (search_text_id, target_type, target_id, kind, text, embedding_text_hash, created_at)
+           VALUES (?, 'search_unit', ?, 'title', ?, ?, ?)`,
+          [computeSearchTextId('search_unit', firstUnitId, 'title'), firstUnitId, input.title, titleEmbeddingHash, now]
         )
       }
 
@@ -266,6 +286,74 @@ export class KnowledgeIndexStore {
     return existing
   }
 
+  /**
+   * Backfill title search_text rows for materials that were indexed before the
+   * title feature (issue #16396). This enables file-name BM25/FTS search for
+   * existing items without requiring a full reindex. The title is derived from
+   * the material's relative_path. No embedding is created — title vector search
+   * will not work until the material is reindexed, but lexical search works
+   * immediately.
+   *
+   * Called lazily on the first search of a base that has backfill-eligible
+   * materials. Idempotent: materials with an existing title row are skipped.
+   * Cached after the first call so subsequent searches skip the probe query.
+   */
+  async backfillMissingTitleRows(): Promise<number> {
+    if (this.titleBackfilled) {
+      return 0
+    }
+
+    // Find materials that have at least one unit but no title search_text row.
+    const result = await this.driver.execute(
+      `SELECT m.material_id, m.relative_path
+       FROM material m
+       WHERE EXISTS (SELECT 1 FROM search_unit su WHERE su.material_id = m.material_id)
+         AND NOT EXISTS (
+           SELECT 1 FROM search_text st
+           WHERE st.target_type = 'search_unit'
+             AND st.target_id IN (SELECT su2.unit_id FROM search_unit su2 WHERE su2.material_id = m.material_id)
+             AND st.kind = 'title'
+         )`
+    )
+
+    if (result.rows.length === 0) {
+      this.titleBackfilled = true
+      return 0
+    }
+
+    let backfilled = 0
+
+    await this.driver.transaction(async (tx) => {
+      for (const row of result.rows) {
+        const title = extractTitleFromRelativePath(row.relative_path as string)
+        if (!title) {
+          continue
+        }
+
+        // Find the first unit of this material to link the title search_text to.
+        const unitResult = await tx.execute(
+          `SELECT unit_id FROM search_unit WHERE material_id = ? ORDER BY unit_index LIMIT 1`,
+          [row.material_id]
+        )
+        if (unitResult.rows.length === 0) {
+          continue
+        }
+        const firstUnitId = unitResult.rows[0].unit_id as string
+        const titleEmbeddingHash = hashEmbeddingText(title)
+
+        await tx.execute(
+          `INSERT OR IGNORE INTO search_text (search_text_id, target_type, target_id, kind, text, embedding_text_hash, created_at)
+           VALUES (?, 'search_unit', ?, 'title', ?, ?, ?)`,
+          [computeSearchTextId('search_unit', firstUnitId, 'title'), firstUnitId, title, titleEmbeddingHash, Date.now()]
+        )
+        backfilled++
+      }
+    })
+
+    this.titleBackfilled = true
+    return backfilled
+  }
+
   /** Read back a material's units (with body text), ordered by unit index. */
   async listMaterialUnits(materialId: string): Promise<KnowledgeSearchUnit[]> {
     const result = await this.driver.execute(
@@ -364,19 +452,25 @@ export class KnowledgeIndexStore {
     // `WHERE dist IS NOT NULL` drops degenerate (zero-norm) vectors: cosine distance is
     // undefined for them, and SQLite coerces that NULL/NaN to NULL — which would otherwise
     // sort first under `ORDER BY dist` and score `1 - Number(null) = 1`, outranking real hits.
+    // When a title row matches, we join back to the body row to return the actual chunk content.
     const result = await this.driver.execute(
-      `SELECT su.unit_id, su.material_id, su.unit_index, st.text AS body,
-              ${this.vectorIndex.buildDistanceExpression('e.vector_blob')} AS dist
+      `SELECT su.unit_id, su.material_id, su.unit_index,
+              COALESCE(body_st.text, st.text) AS body,
+              ${this.vectorIndex.buildDistanceExpression('e.vector_blob')} AS dist,
+              (CASE WHEN st.kind = 'title' THEN ${TITLE_SEARCH_BOOST} ELSE 1.0 END) AS boost
        FROM embedding e
        JOIN search_text st
-         ON st.embedding_text_hash = e.embedding_text_hash AND st.target_type = 'search_unit' AND st.kind = 'body'
+         ON st.embedding_text_hash = e.embedding_text_hash AND st.target_type = 'search_unit' AND st.kind IN ('body', 'title')
        JOIN search_unit su ON su.unit_id = st.target_id
+       LEFT JOIN search_text body_st
+         ON body_st.target_type = 'search_unit' AND body_st.target_id = su.unit_id AND body_st.kind = 'body'
        WHERE dist IS NOT NULL
        ORDER BY dist
        LIMIT ?`,
-      [this.vectorIndex.bindQueryVector(queryEmbedding), topK]
+      [this.vectorIndex.bindQueryVector(queryEmbedding), topK * 2]
     )
-    return result.rows.map((row) => toMatch(row, 1 - Number(row.dist)))
+    const matches = result.rows.map((row) => toMatch(row, (1 - Number(row.dist)) * Number(row.boost)))
+    return deduplicateByUnitId(matches).slice(0, topK)
   }
 
   private async bm25Search(queryText: string, topK: number): Promise<KnowledgeIndexSearchMatch[]> {
@@ -389,19 +483,25 @@ export class KnowledgeIndexStore {
     if (!matchQuery) {
       return []
     }
+    // When a title row matches, we join back to the body row to return the actual chunk content.
     const result = await this.driver.execute(
-      `SELECT su.unit_id, su.material_id, su.unit_index, st.text AS body, bm25(search_text_fts) AS score
+      `SELECT su.unit_id, su.material_id, su.unit_index,
+              COALESCE(body_st.text, st.text) AS body, bm25(search_text_fts) AS score,
+              (CASE WHEN st.kind = 'title' THEN ${TITLE_SEARCH_BOOST} ELSE 1.0 END) AS boost
        FROM search_text_fts
        JOIN search_text st
-         ON st.fts_rowid = search_text_fts.rowid AND st.target_type = 'search_unit' AND st.kind = 'body'
+         ON st.fts_rowid = search_text_fts.rowid AND st.target_type = 'search_unit' AND st.kind IN ('body', 'title')
        JOIN search_unit su ON su.unit_id = st.target_id
+       LEFT JOIN search_text body_st
+         ON body_st.target_type = 'search_unit' AND body_st.target_id = su.unit_id AND body_st.kind = 'body'
        WHERE search_text_fts MATCH ?
        ORDER BY score
        LIMIT ?`,
-      [matchQuery, topK]
+      [matchQuery, topK * 2]
     )
     // bm25() is lower-is-better; negate so the returned score is higher-is-better.
-    return result.rows.map((row) => toMatch(row, -Number(row.score)))
+    const matches = result.rows.map((row) => toMatch(row, -Number(row.score) * Number(row.boost)))
+    return deduplicateByUnitId(matches).slice(0, topK)
   }
 
   /**
@@ -416,18 +516,24 @@ export class KnowledgeIndexStore {
       return []
     }
     const likeClauses = tokens.map(() => `st.text LIKE ? ESCAPE '\\'`).join(' AND ')
-    const args: SqlValue[] = [...tokens.map(toFtsLikePattern), topK]
+    const args: SqlValue[] = [...tokens.map(toFtsLikePattern), topK * 2]
+    // When a title row matches, we join back to the body row to return the actual chunk content.
     const result = await this.driver.execute(
-      `SELECT su.unit_id, su.material_id, su.unit_index, st.text AS body, length(st.text) AS len
+      `SELECT su.unit_id, su.material_id, su.unit_index,
+              COALESCE(body_st.text, st.text) AS body, length(COALESCE(body_st.text, st.text)) AS len,
+              (CASE WHEN st.kind = 'title' THEN ${TITLE_SEARCH_BOOST} ELSE 1.0 END) AS boost
        FROM search_text st
        JOIN search_unit su ON su.unit_id = st.target_id
-       WHERE st.target_type = 'search_unit' AND st.kind = 'body'
+       LEFT JOIN search_text body_st
+         ON body_st.target_type = 'search_unit' AND body_st.target_id = su.unit_id AND body_st.kind = 'body'
+       WHERE st.target_type = 'search_unit' AND st.kind IN ('body', 'title')
          AND ${likeClauses}
        ORDER BY len ASC
        LIMIT ?`,
       args
     )
-    return result.rows.map((row) => toMatch(row, -Number(row.len)))
+    const matches = result.rows.map((row) => toMatch(row, -Number(row.len) / Number(row.boost)))
+    return deduplicateByUnitId(matches).slice(0, topK)
   }
 
   /** Throw (rolling back the surrounding rebuild) if any unit hash has no embedding row. */
@@ -476,6 +582,23 @@ function toMatch(row: Record<string, SqlValue>, score: number): KnowledgeIndexSe
     text: row.body as string,
     score
   }
+}
+
+/**
+ * Deduplicate search results by unitId, keeping the highest-scoring entry.
+ * When a unit has both body and title search_text rows, both can match in a
+ * single-lane search (BM25/vector/LIKE). This ensures each unit appears at
+ * most once in the results.
+ */
+function deduplicateByUnitId(matches: KnowledgeIndexSearchMatch[]): KnowledgeIndexSearchMatch[] {
+  const seen = new Map<string, KnowledgeIndexSearchMatch>()
+  for (const match of matches) {
+    const existing = seen.get(match.unitId)
+    if (!existing || match.score > existing.score) {
+      seen.set(match.unitId, match)
+    }
+  }
+  return [...seen.values()]
 }
 
 /**

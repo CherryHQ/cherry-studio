@@ -1,4 +1,4 @@
-import { KNOWLEDGE_INDEX_SCHEMA_VERSION } from './schema'
+import { KNOWLEDGE_INDEX_SCHEMA_VERSION, migrateV1ToV2 } from './schema'
 import type { SqliteExecutor } from './types'
 
 export interface IndexMetaInput {
@@ -35,6 +35,9 @@ export async function ensureIndexMeta(executor: SqliteExecutor, input: IndexMeta
       `index.sqlite belongs to a different base: expected base_id '${input.baseId}', found '${storedBaseId ?? '(none)'}'`
     )
   }
+
+  // Run any pending schema migrations (e.g. v1→v2 for title search support).
+  await migrateV1ToV2(executor)
 }
 
 /**

@@ -71,10 +71,12 @@ describe('index-documents job handler', () => {
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
 
     const input = lastRebuildInput()
-    expect(input.embeddings.length).toBeGreaterThanOrEqual(3)
+    // +1 for the title embedding (issue #16396)
+    expect(input.embeddings.length).toBeGreaterThanOrEqual(3 + 1)
     // Reconstruct each unit's body exactly as the store does (verbatim slice),
     // then assert the vector stored under that body's hash is the embedding of
     // that body — a mis-pairing would put the wrong vector under the hash.
+    // Title embeddings are excluded: their hash does not map to a unit body.
     const bodyByHash = new Map<string, string>()
     for (const unit of input.units) {
       const body = input.content.text.slice(unit.charStart, unit.charEnd)
@@ -82,8 +84,11 @@ describe('index-documents job handler', () => {
     }
     for (const embedding of input.embeddings) {
       const body = bodyByHash.get(embedding.embeddingTextHash)
-      expect(body, `no unit body hashes to ${embedding.embeddingTextHash}`).toBeDefined()
-      expect(embedding.vector).toEqual(fakeEmbedVector(body as string))
+      if (!body) {
+        // Title embedding — not derived from a unit body.
+        continue
+      }
+      expect(embedding.vector).toEqual(fakeEmbedVector(body))
     }
   })
 
@@ -121,9 +126,12 @@ describe('index-documents job handler', () => {
 
     // The paid embed seam receives zero bodies (embedKnowledgeTexts itself
     // short-circuits an empty input before AiService, pinned in embed.test.ts),
-    // and the rebuild reuses the stored vectors: no embeddings re-supplied.
+    // and the rebuild reuses the stored vectors: no body embeddings re-supplied.
+    // A title embedding is still produced for file-name search (issue #16396).
     expect(embedKnowledgeTextsMock.mock.calls[0][1]).toEqual([])
-    expect(lastRebuildInput().embeddings).toEqual([])
+    const bodyHashes = new Set(DISTINCT_DOCS.map(hashEmbeddingText))
+    const bodyEmbeddings = lastRebuildInput().embeddings.filter((e) => bodyHashes.has(e.embeddingTextHash))
+    expect(bodyEmbeddings).toEqual([])
     expect(lastRebuildInput().units).toHaveLength(DISTINCT_DOCS.length)
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
   })
@@ -183,9 +191,15 @@ describe('index-documents job handler', () => {
 
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'reading')
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'embedding')
+    // No body embeddings (no documents), but a title embedding is produced for file-name search.
     expect(rebuildMaterialMock).toHaveBeenCalledWith(
       NOTE_ITEM_ID,
-      expect.objectContaining({ content: expect.objectContaining({ text: '' }), units: [], embeddings: [] })
+      expect.objectContaining({
+        content: expect.objectContaining({ text: '' }),
+        units: [],
+        title: NOTE_ITEM_ID,
+        embeddings: [expect.objectContaining({ embeddingTextHash: hashEmbeddingText(NOTE_ITEM_ID) })]
+      })
     )
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
   })

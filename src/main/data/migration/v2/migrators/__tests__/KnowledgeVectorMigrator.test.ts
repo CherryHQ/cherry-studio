@@ -1105,14 +1105,23 @@ describe('KnowledgeVectorMigrator', () => {
       expect(unit).toMatchObject({ unit_index: 0, char_start: 0, char_end: 'file chunk'.length })
       expect(String(store.content[0].text).slice(Number(unit.char_start), Number(unit.char_end))).toBe('file chunk')
 
-      // search_text body references the embedding by hash.
+      // search_text: body row + title row (issue #16396).
       const expectedHash = hashEmbeddingText('file chunk')
-      expect(store.searchText).toHaveLength(1)
-      expect(store.searchText[0]).toMatchObject({
+      const expectedTitleHash = hashEmbeddingText(MIGRATED_FILE_ITEM_ID)
+      expect(store.searchText).toHaveLength(2)
+      const bodyRow = store.searchText.find((r: any) => r.kind === 'body')
+      expect(bodyRow).toMatchObject({
         target_type: 'search_unit',
         kind: 'body',
         text: 'file chunk',
         embedding_text_hash: expectedHash
+      })
+      const titleRow = store.searchText.find((r: any) => r.kind === 'title')
+      expect(titleRow).toMatchObject({
+        target_type: 'search_unit',
+        kind: 'title',
+        text: MIGRATED_FILE_ITEM_ID,
+        embedding_text_hash: expectedTitleHash
       })
 
       // embedding: vector reused verbatim — byte-identical to encodeVectorBlob (no re-embed).

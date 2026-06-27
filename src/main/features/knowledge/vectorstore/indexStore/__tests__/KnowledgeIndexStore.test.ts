@@ -28,6 +28,7 @@ function buildInput(
   return {
     material: { relativePath },
     content: { text },
+    title: '',
     units,
     embeddings: hashes.map((embeddingTextHash) => ({ embeddingTextHash, vector }))
   }
@@ -173,6 +174,7 @@ describe('KnowledgeIndexStore', () => {
     const broken: RebuildMaterialInput = {
       material: { relativePath: 'doc.md' },
       content: { text: 'broken input here' },
+      title: '',
       units: [
         { unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: 6 },
         { unitType: 'chunk', unitIndex: 0, charStart: 7, charEnd: 12 }
@@ -228,6 +230,7 @@ describe('KnowledgeIndexStore', () => {
     const drifted: RebuildMaterialInput = {
       material: { relativePath: 'doc.md' },
       content: { text: 'drifted body text' },
+      title: '',
       units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: 7 }],
       embeddings: [{ embeddingTextHash: hashEmbeddingText('not the sliced body'), vector: [0.1, 0.2, 0.3] }]
     }
