@@ -220,7 +220,7 @@ describe('AiService', () => {
     expect(result).toEqual({ files: [fileEntry] })
   })
 
-  it("omits SDK size when size is the 'auto' sentinel", async () => {
+  it("omits the SDK size for the 'auto' sentinel AND when no size is given (no 1024x1024 default)", async () => {
     const service = createService()
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: {
@@ -240,9 +240,16 @@ describe('AiService', () => {
       prompt: 'draw a cat',
       paramValues: { size: 'auto' }
     })
+    expect(mockGenerateImage.mock.calls[0]?.[2] as Record<string, unknown>).not.toHaveProperty('size')
 
-    const callOptions = mockGenerateImage.mock.calls[0]?.[2] as Record<string, unknown>
-    expect(callOptions).not.toHaveProperty('size')
+    // No size at all → omitted too (the provider/server applies its own default),
+    // rather than the old forced 1024x1024.
+    await service.generateImage({
+      uniqueModelId: 'test-provider::test-model',
+      prompt: 'draw a cat',
+      paramValues: {}
+    })
+    expect(mockGenerateImage.mock.calls[1]?.[2] as Record<string, unknown>).not.toHaveProperty('size')
   })
 
   it('routes silicon through the WireProfile engine, producing the same providerOptions.silicon', async () => {

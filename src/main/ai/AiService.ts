@@ -114,13 +114,14 @@ export function imageInputEntryParams(
 
 /**
  * Resolve the wire `size`. `'auto'` is the painting UI sentinel for "let the
- * server pick the size" — like `compact()` drops it from `providerOptions`, it
- * must never reach the request body as a literal, so it's omitted. An absent
- * size keeps the legacy client-side `1024x1024` default.
+ * server pick the size", so it's omitted. An absent size is also omitted — the
+ * provider/server applies its own default. (A blanket client-forced
+ * `1024x1024` was wrong for vendors like Doubao that only accept `1K`/`2K`/`4K`
+ * and reject a pixel size; models that want a concrete default declare it on
+ * their registry `size` param instead.)
  */
 function resolveImageRequestSize(size: string | undefined): string | undefined {
-  if (size === 'auto') return undefined
-  return size ?? '1024x1024'
+  return size === 'auto' ? undefined : size
 }
 
 /** Embedding request. */
