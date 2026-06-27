@@ -1,11 +1,10 @@
 import { Alert, Button, Dialog, DialogContent, Dropzone, DropzoneEmptyState } from '@cherrystudio/ui'
+import { useSkillInstall } from '@renderer/hooks/useSkills'
 import type { InstalledSkill } from '@shared/types/skill'
 import { FolderOpen, Loader2, Upload } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { useSkillMutations } from '../adapters/skillAdapter'
 
 interface Props {
   open: boolean
@@ -31,7 +30,7 @@ const AUTO_CLOSE_DELAY_MS = 1200
  */
 export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
   const { t } = useTranslation()
-  const { installFromZip, installFromDirectory } = useSkillMutations()
+  const { installFromZip, installFromDirectory } = useSkillInstall()
 
   const [status, setStatus] = useState<ImportStatus>({ kind: 'idle' })
   const [installing, setInstalling] = useState<InstallingKey>(null)
@@ -85,7 +84,7 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
     setStatus({ kind: 'idle' })
     try {
       const skill = await installFromZip(selected[0].path)
-      finishInstall(skill)
+      if (skill) finishInstall(skill)
     } catch (e) {
       failInstall(e)
     } finally {
@@ -103,7 +102,7 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
     setStatus({ kind: 'idle' })
     try {
       const skill = await installFromDirectory(selected[0].path)
-      finishInstall(skill)
+      if (skill) finishInstall(skill)
     } catch (e) {
       failInstall(e)
     } finally {
@@ -130,7 +129,7 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
       setInstalling('directory')
       try {
         const skill = await installFromDirectory(filePath)
-        finishInstall(skill)
+        if (skill) finishInstall(skill)
       } catch (e) {
         failInstall(e, file.name)
       } finally {
@@ -143,7 +142,7 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
       setInstalling('zip')
       try {
         const skill = await installFromZip(filePath)
-        finishInstall(skill)
+        if (skill) finishInstall(skill)
       } catch (e) {
         failInstall(e, file.name)
       } finally {

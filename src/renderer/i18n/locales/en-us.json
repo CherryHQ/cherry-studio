@@ -3164,13 +3164,9 @@
           "avatar_aria": "Choose avatar",
           "back": "Back",
           "capability": {
+            "import": "Import skill",
             "no_skills": "No skills installed",
-            "tab": {
-              "all": "All",
-              "mcp": "MCP",
-              "skill": "Skill",
-              "tools": "Tools"
-            }
+            "search": "Search skills"
           },
           "description_placeholder": "Describe what it is for...",
           "dialog_description": "Create a lightweight assistant or agent.",
@@ -3182,7 +3178,7 @@
           "next": "Next",
           "step": {
             "basic": "Basic info",
-            "capability": "Capabilities",
+            "capability": "Skills",
             "knowledge": "Knowledge",
             "persona": "Persona"
           },

@@ -7,6 +7,7 @@ import {
   type ResourceCreateWizardValues
 } from '@renderer/components/resource/dialogs'
 import { isSelectableAssistantModel } from '@renderer/components/resource/dialogs/form/assistantModelFilter'
+import { ImportSkillDialog } from '@renderer/components/resource/dialogs/ImportSkillDialog'
 import PromptEditDialog from '@renderer/components/resource/dialogs/PromptEditDialog'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
@@ -27,7 +28,6 @@ import SkillDetailDialog from './detail/skill/SkillDetailDialog'
 import { AssistantPresetPreviewDialog } from './list/AssistantPresetPreviewDialog'
 import { DeleteConfirmDialog } from './list/DeleteConfirmDialog'
 import { ImportAssistantDialog } from './list/ImportAssistantDialog'
-import { ImportSkillDialog } from './list/ImportSkillDialog'
 import { LibrarySidebar } from './list/LibrarySidebar'
 import { ResourceGrid } from './list/ResourceGrid'
 import {

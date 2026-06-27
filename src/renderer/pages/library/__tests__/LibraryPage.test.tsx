@@ -147,7 +147,7 @@ vi.mock('../list/ImportAssistantDialog', () => ({
   ImportAssistantDialog: () => null
 }))
 
-vi.mock('../list/ImportSkillDialog', () => ({
+vi.mock('@renderer/components/resource/dialogs/ImportSkillDialog', () => ({
   ImportSkillDialog: () => null
 }))
 
