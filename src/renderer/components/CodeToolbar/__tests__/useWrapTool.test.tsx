@@ -2,12 +2,10 @@ import { useWrapTool } from '@renderer/components/CodeToolbar/hooks/useWrapTool'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Mock dependencies
 const mocks = vi.hoisted(() => ({
   i18n: {
     t: vi.fn((key: string) => key)
   },
-  useToolManager: vi.fn(),
   TOOL_SPECS: {
     wrap: {
       id: 'wrap',
@@ -24,56 +22,32 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@renderer/components/ActionTools', () => ({
-  TOOL_SPECS: mocks.TOOL_SPECS,
-  useToolManager: mocks.useToolManager
-}))
-
-// Mock useToolManager
-const mockRegisterTool = vi.fn()
-const mockRemoveTool = vi.fn()
-mocks.useToolManager.mockImplementation(() => ({
-  registerTool: mockRegisterTool,
-  removeTool: mockRemoveTool
+  TOOL_SPECS: mocks.TOOL_SPECS
 }))
 
 vi.mock('lucide-react', () => ({
-  Text: () => <div data-testid="text-icon" />,
-  WrapText: () => <div data-testid="wrap-text-icon" />
+  Text: ({ className }: { className?: string }) => <div data-testid="text-icon" className={className} />,
+  WrapText: ({ className }: { className?: string }) => <div data-testid="wrap-text-icon" className={className} />
 }))
+
+const createMockProps = (overrides: Partial<Parameters<typeof useWrapTool>[0]> = {}) => ({
+  enabled: true,
+  wrapped: true,
+  wrappable: true,
+  toggle: vi.fn(),
+  ...overrides
+})
 
 describe('useWrapTool', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  // Helper function to create mock props
-  const createMockProps = (overrides: Partial<Parameters<typeof useWrapTool>[0]> = {}) => {
-    const defaultProps = {
-      enabled: true,
-      wrapped: true,
-      wrappable: true,
-      toggle: vi.fn(),
-      setTools: vi.fn()
-    }
+  it('returns a wrap tool when enabled', () => {
+    const { result } = renderHook(() => useWrapTool(createMockProps({ wrapped: true })))
 
-    return { ...defaultProps, ...overrides }
-  }
-
-  // Helper function for tool registration assertions
-  const expectToolRegistration = (times: number, toolConfig?: object) => {
-    expect(mockRegisterTool).toHaveBeenCalledTimes(times)
-    if (times > 0 && toolConfig) {
-      expect(mockRegisterTool).toHaveBeenCalledWith(expect.objectContaining(toolConfig))
-    }
-  }
-
-  describe('tool registration', () => {
-    it('should register wrap tool when enabled', () => {
-      const props = createMockProps({ enabled: true })
-      renderHook(() => useWrapTool(props))
-
-      expect(mocks.useToolManager).toHaveBeenCalledWith(props.setTools)
-      expectToolRegistration(1, {
+    expect(result.current).toEqual(
+      expect.objectContaining({
         id: 'wrap',
         type: 'quick',
         order: 13,
@@ -81,110 +55,52 @@ describe('useWrapTool', () => {
         onClick: expect.any(Function),
         visible: expect.any(Function)
       })
-    })
-
-    it('should not register tool when disabled', () => {
-      const props = createMockProps({ enabled: false })
-      renderHook(() => useWrapTool(props))
-
-      expect(mockRegisterTool).not.toHaveBeenCalled()
-    })
-
-    it('should re-register tool when wrapped changes', () => {
-      const props = createMockProps({ wrapped: true })
-      const { rerender } = renderHook((hookProps) => useWrapTool(hookProps), {
-        initialProps: props
-      })
-
-      expect(mockRegisterTool).toHaveBeenCalledTimes(1)
-      const firstCall = mockRegisterTool.mock.calls[0][0]
-      expect(firstCall.tooltip).toBe('code_block.wrap.off')
-
-      // Change wrapped to false and rerender
-      const newProps = { ...props, wrapped: false }
-      rerender(newProps)
-
-      expect(mockRegisterTool).toHaveBeenCalledTimes(2)
-      const secondCall = mockRegisterTool.mock.calls[1][0]
-      expect(secondCall.tooltip).toBe('code_block.wrap.on')
-    })
+    )
   })
 
-  describe('visibility behavior', () => {
-    it('should be visible when wrappable is true', () => {
-      const props = createMockProps({ wrappable: true })
-      renderHook(() => useWrapTool(props))
+  it('returns null when disabled', () => {
+    const { result } = renderHook(() => useWrapTool(createMockProps({ enabled: false })))
 
-      const registeredTool = mockRegisterTool.mock.calls[0][0]
-      expect(registeredTool.visible()).toBe(true)
-    })
-
-    it('should not be visible when wrappable is false', () => {
-      const props = createMockProps({ wrappable: false })
-      renderHook(() => useWrapTool(props))
-
-      const registeredTool = mockRegisterTool.mock.calls[0][0]
-      expect(registeredTool.visible()).toBe(false)
-    })
-
-    it('should not be visible when wrappable is undefined', () => {
-      const props = createMockProps({ wrappable: undefined })
-      renderHook(() => useWrapTool(props))
-
-      const registeredTool = mockRegisterTool.mock.calls[0][0]
-      expect(registeredTool.visible()).toBe(false)
-    })
+    expect(result.current).toBeNull()
   })
 
-  describe('toggle functionality', () => {
-    it('should execute toggle function when tool is clicked', () => {
-      const mockToggle = vi.fn()
-      const props = createMockProps({ toggle: mockToggle })
-      renderHook(() => useWrapTool(props))
+  it('uses the enable wrapping tooltip when currently unwrapped', () => {
+    const { result } = renderHook(() => useWrapTool(createMockProps({ wrapped: false })))
 
-      const registeredTool = mockRegisterTool.mock.calls[0][0]
-      act(() => {
-        registeredTool.onClick()
-      })
-
-      expect(mockToggle).toHaveBeenCalledTimes(1)
-    })
+    expect(result.current?.tooltip).toBe('code_block.wrap.on')
   })
 
-  describe('cleanup', () => {
-    it('should remove tool on unmount', () => {
-      const props = createMockProps()
-      const { unmount } = renderHook(() => useWrapTool(props))
+  it('exposes visibility based on wrappability', () => {
+    const { result: visibleResult } = renderHook(() => useWrapTool(createMockProps({ wrappable: true })))
+    const { result: hiddenResult } = renderHook(() => useWrapTool(createMockProps({ wrappable: false })))
+    const { result: undefinedResult } = renderHook(() => useWrapTool(createMockProps({ wrappable: undefined })))
 
-      unmount()
-
-      expect(mockRemoveTool).toHaveBeenCalledWith('wrap')
-    })
+    expect(visibleResult.current?.visible?.()).toBe(true)
+    expect(hiddenResult.current?.visible?.()).toBe(false)
+    expect(undefinedResult.current?.visible?.()).toBe(false)
   })
 
-  describe('edge cases', () => {
-    it('should handle missing setTools gracefully', () => {
-      const props = createMockProps({ setTools: undefined })
+  it('executes toggle when clicked', () => {
+    const mockToggle = vi.fn()
+    const { result } = renderHook(() => useWrapTool(createMockProps({ toggle: mockToggle })))
 
-      expect(() => {
-        renderHook(() => useWrapTool(props))
-      }).not.toThrow()
-
-      // Should still call useToolManager (but won't actually register)
-      expect(mocks.useToolManager).toHaveBeenCalledWith(undefined)
+    act(() => {
+      result.current?.onClick?.()
     })
 
-    it('should not break when toggle is undefined', () => {
-      const props = createMockProps({ toggle: undefined })
-      renderHook(() => useWrapTool(props))
+    expect(mockToggle).toHaveBeenCalledTimes(1)
+  })
 
-      const registeredTool = mockRegisterTool.mock.calls[0][0]
-
-      expect(() => {
-        act(() => {
-          registeredTool.onClick()
-        })
-      }).not.toThrow()
+  it('updates the returned tooltip when wrapped changes', () => {
+    const props = createMockProps({ wrapped: true })
+    const { result, rerender } = renderHook((hookProps) => useWrapTool(hookProps), {
+      initialProps: props
     })
+
+    expect(result.current?.tooltip).toBe('code_block.wrap.off')
+
+    rerender({ ...props, wrapped: false })
+
+    expect(result.current?.tooltip).toBe('code_block.wrap.on')
   })
 })

@@ -106,7 +106,6 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   const [isRunning, setIsRunning] = useState(false)
   const [executionResult, setExecutionResult] = useState<{ text: string; image?: string } | null>(null)
 
-  const [tools, setTools] = useState<ActionTool[]>([])
   const codeEditorEnabled = codeEditor.enabled && editable
 
   const isExecutable = useMemo(() => {
@@ -207,70 +206,70 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   const hasStatusBar = isExecutable && !!executionResult
 
   // 复制按钮
-  useCopyTool({
+  const copyTools = useCopyTool({
     showPreviewTools,
     previewRef: specialViewRef,
-    onCopySource: handleCopySource,
-    setTools
+    onCopySource: handleCopySource
   })
 
   // 下载按钮
-  useDownloadTool({
+  const downloadTool = useDownloadTool({
     showPreviewTools,
     previewRef: specialViewRef,
-    onDownloadSource: handleDownloadSource,
-    setTools
+    onDownloadSource: handleDownloadSource
   })
 
   // 特殊视图的编辑/查看源码按钮，在分屏模式下不可用
-  useViewSourceTool({
+  const viewSourceTool = useViewSourceTool({
     enabled: hasSpecialView,
     editable: codeEditorEnabled,
     viewMode,
-    onViewModeChange: setViewMode,
-    setTools
+    onViewModeChange: setViewMode
   })
 
   // 特殊视图存在时的分屏按钮
-  useSplitViewTool({
+  const splitViewTool = useSplitViewTool({
     enabled: hasSpecialView,
     viewMode,
-    onToggleSplitView: toggleSplitView,
-    setTools
+    onToggleSplitView: toggleSplitView
   })
 
   // 运行按钮
-  useRunTool({
+  const runTool = useRunTool({
     enabled: isExecutable,
     isRunning,
-    onRun: handleRunScript,
-    setTools
+    onRun: handleRunScript
   })
 
   // 源代码视图的展开/折叠按钮
-  useExpandTool({
+  const expandTool = useExpandTool({
     enabled: !isInSpecialView,
     expanded: shouldExpand,
     expandable,
-    toggle: useCallback(() => setExpandOverride((prev) => !prev), []),
-    setTools
+    toggle: useCallback(() => setExpandOverride((prev) => !prev), [])
   })
 
   // 源代码视图的自动换行按钮
-  useWrapTool({
+  const wrapTool = useWrapTool({
     enabled: !isInSpecialView,
     wrapped: shouldWrap,
     wrappable: codeWrappable,
-    toggle: useCallback(() => setWrapOverride((prev) => !prev), []),
-    setTools
+    toggle: useCallback(() => setWrapOverride((prev) => !prev), [])
   })
 
   // 代码编辑器的保存按钮
-  useSaveTool({
+  const saveTool = useSaveTool({
     enabled: codeEditorEnabled && !isInSpecialView,
-    sourceViewRef,
-    setTools
+    sourceViewRef
   })
+
+  const tools = useMemo(
+    () =>
+      [...copyTools, downloadTool, viewSourceTool, splitViewTool, runTool, expandTool, wrapTool, saveTool]
+        .filter((tool): tool is ActionTool => tool !== null)
+        .sort((a, b) => b.order - a.order),
+    [copyTools, downloadTool, viewSourceTool, splitViewTool, runTool, expandTool, wrapTool, saveTool]
+  )
 
   // 源代码视图组件
   const sourceView = useMemo(

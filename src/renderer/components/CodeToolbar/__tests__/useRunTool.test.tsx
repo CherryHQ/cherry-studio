@@ -2,12 +2,10 @@ import { useRunTool } from '@renderer/components/CodeToolbar/hooks/useRunTool'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Mock dependencies
 const mocks = vi.hoisted(() => ({
   i18n: {
     t: vi.fn((key: string) => key)
   },
-  useToolManager: vi.fn(),
   TOOL_SPECS: {
     run: {
       id: 'run',
@@ -17,149 +15,89 @@ const mocks = vi.hoisted(() => ({
   }
 }))
 
+vi.mock('@renderer/components/Icons', () => ({
+  LoadingIcon: ({ className }: { className?: string }) => <div data-testid="loading-icon" className={className} />
+}))
+
+vi.mock('lucide-react', () => ({
+  CirclePlay: ({ className }: { className?: string }) => <div data-testid="play-icon" className={className} />
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: mocks.i18n.t
   })
 }))
 
-vi.mock('lucide-react', () => ({
-  CirclePlay: () => <div>CirclePlay</div>
-}))
-
-vi.mock('@renderer/components/Icons', () => ({
-  LoadingIcon: () => <div>Loading</div>
-}))
-
 vi.mock('@renderer/components/ActionTools', () => ({
-  TOOL_SPECS: mocks.TOOL_SPECS,
-  useToolManager: mocks.useToolManager
+  TOOL_SPECS: mocks.TOOL_SPECS
 }))
 
-const mockRegisterTool = vi.fn()
-const mockRemoveTool = vi.fn()
-mocks.useToolManager.mockImplementation(() => ({
-  registerTool: mockRegisterTool,
-  removeTool: mockRemoveTool
-}))
+const createMockProps = (overrides: Partial<Parameters<typeof useRunTool>[0]> = {}) => ({
+  enabled: true,
+  isRunning: false,
+  onRun: vi.fn(),
+  ...overrides
+})
 
 describe('useRunTool', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  const createMockProps = (overrides: Partial<Parameters<typeof useRunTool>[0]> = {}) => {
-    const defaultProps = {
-      enabled: true,
-      isRunning: false,
-      onRun: vi.fn(),
-      setTools: vi.fn()
-    }
+  it('returns null when disabled', () => {
+    const { result } = renderHook(() => useRunTool(createMockProps({ enabled: false })))
 
-    return { ...defaultProps, ...overrides }
-  }
+    expect(result.current).toBeNull()
+  })
 
-  const expectToolRegistration = (times: number, toolConfig?: object) => {
-    expect(mockRegisterTool).toHaveBeenCalledTimes(times)
-    if (times > 0 && toolConfig) {
-      expect(mockRegisterTool).toHaveBeenCalledWith(expect.objectContaining(toolConfig))
-    }
-  }
+  it('returns a run tool when enabled', () => {
+    const { result } = renderHook(() => useRunTool(createMockProps()))
 
-  describe('tool registration', () => {
-    it('should not register tool when disabled', () => {
-      const props = createMockProps({ enabled: false })
-      renderHook(() => useRunTool(props))
-
-      expect(mockRegisterTool).not.toHaveBeenCalled()
-    })
-
-    it('should register run tool when enabled', () => {
-      const props = createMockProps({ enabled: true })
-      renderHook(() => useRunTool(props))
-
-      expectToolRegistration(1, {
+    expect(result.current).toEqual(
+      expect.objectContaining({
         id: 'run',
         type: 'quick',
         order: 11,
-        tooltip: 'code_block.run'
+        tooltip: 'code_block.run',
+        onClick: expect.any(Function)
       })
-    })
-
-    it('should re-register tool when isRunning changes', () => {
-      const props = createMockProps({ isRunning: false })
-      const { rerender } = renderHook((hookProps) => useRunTool(hookProps), {
-        initialProps: props
-      })
-
-      expect(mockRegisterTool).toHaveBeenCalledTimes(1)
-
-      const newProps = { ...props, isRunning: true }
-      rerender(newProps)
-
-      expect(mockRegisterTool).toHaveBeenCalledTimes(2)
-    })
+    )
   })
 
-  describe('run functionality', () => {
-    it('should execute onRun when tool is clicked and not running', () => {
-      const mockOnRun = vi.fn()
-      const props = createMockProps({ onRun: mockOnRun, isRunning: false })
-      renderHook(() => useRunTool(props))
+  it('executes run behavior when clicked and not already running', () => {
+    const mockOnRun = vi.fn()
+    const { result } = renderHook(() => useRunTool(createMockProps({ onRun: mockOnRun, isRunning: false })))
 
-      const registeredTool = mockRegisterTool.mock.calls[0][0]
-      act(() => {
-        registeredTool.onClick()
-      })
-
-      expect(mockOnRun).toHaveBeenCalledTimes(1)
+    act(() => {
+      result.current?.onClick?.()
     })
 
-    it('should not execute onRun when tool is clicked and already running', () => {
-      const mockOnRun = vi.fn()
-      const props = createMockProps({ onRun: mockOnRun, isRunning: true })
-      renderHook(() => useRunTool(props))
-
-      const registeredTool = mockRegisterTool.mock.calls[0][0]
-      act(() => {
-        registeredTool.onClick()
-      })
-
-      expect(mockOnRun).not.toHaveBeenCalled()
-    })
+    expect(mockOnRun).toHaveBeenCalledTimes(1)
   })
 
-  describe('cleanup', () => {
-    it('should remove tool on unmount', () => {
-      const props = createMockProps()
-      const { unmount } = renderHook(() => useRunTool(props))
+  it('does not execute run behavior while already running', () => {
+    const mockOnRun = vi.fn()
+    const { result } = renderHook(() => useRunTool(createMockProps({ onRun: mockOnRun, isRunning: true })))
 
-      unmount()
-
-      expect(mockRemoveTool).toHaveBeenCalledWith('run')
+    act(() => {
+      result.current?.onClick?.()
     })
+
+    expect(mockOnRun).not.toHaveBeenCalled()
   })
 
-  describe('edge cases', () => {
-    it('should handle missing setTools gracefully', () => {
-      const props = createMockProps({ setTools: undefined })
-
-      expect(() => {
-        renderHook(() => useRunTool(props))
-      }).not.toThrow()
+  it('keeps the same tool id and updates when running state changes', () => {
+    const props = createMockProps({ isRunning: false })
+    const { result, rerender } = renderHook((hookProps) => useRunTool(hookProps), {
+      initialProps: props
     })
 
-    it('should not break when onRun is undefined', () => {
-      const props = createMockProps({ onRun: undefined })
-      renderHook(() => useRunTool(props))
+    expect(result.current?.id).toBe('run')
 
-      const registeredTool = mockRegisterTool.mock.calls[0][0]
+    rerender({ ...props, isRunning: true })
 
-      expect(() => {
-        act(() => {
-          registeredTool.onClick()
-        })
-      }).not.toThrow()
-    })
+    expect(result.current?.id).toBe('run')
+    expect(result.current?.tooltip).toBe('code_block.run')
   })
 })

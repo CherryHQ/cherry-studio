@@ -1,3 +1,4 @@
+import type { ActionTool } from '@renderer/components/ActionTools'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -13,7 +14,9 @@ const mocks = vi.hoisted(() => ({
   useExpandTool: vi.fn(),
   useWrapTool: vi.fn(),
   useSaveTool: vi.fn(),
-  CodeToolbar: vi.fn(() => <div data-testid="code-toolbar" />),
+  CodeToolbar: vi.fn(({ tools }: { tools: ActionTool[] }) => (
+    <div data-testid="code-toolbar" data-tools={tools.map((tool) => tool.id).join(',')} />
+  )),
   CodeEditor: vi.fn(({ value }) => <div data-testid="code-editor">{value}</div>),
   CodeViewer: vi.fn(({ value }) => <div data-testid="code-viewer">{value}</div>)
 }))
@@ -48,6 +51,13 @@ vi.mock('@renderer/services/PyodideService', () => ({
   }
 }))
 
+const createTool = (id: string, order: number, type: ActionTool['type'] = 'core'): ActionTool => ({
+  id,
+  order,
+  type,
+  icon: null
+})
+
 describe('CodeBlockView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -68,6 +78,15 @@ describe('CodeBlockView', () => {
       'chat.code.editor.theme_light': 'auto',
       'chat.code.editor.theme_dark': 'auto'
     })
+
+    mocks.useCopyTool.mockReturnValue([createTool('copy', 11)])
+    mocks.useDownloadTool.mockReturnValue(createTool('download', 10))
+    mocks.useViewSourceTool.mockReturnValue(createTool('view-source', 12))
+    mocks.useSplitViewTool.mockReturnValue(createTool('split-view', 10, 'quick'))
+    mocks.useRunTool.mockReturnValue(null)
+    mocks.useExpandTool.mockReturnValue(createTool('expand', 20))
+    mocks.useWrapTool.mockReturnValue(createTool('wrap', 20, 'quick'))
+    mocks.useSaveTool.mockReturnValue(createTool('save', 13))
   })
 
   it('renders a read-only viewer when editable is false even if the code editor setting is enabled', () => {
@@ -100,5 +119,19 @@ describe('CodeBlockView', () => {
         enabled: true
       })
     )
+  })
+
+  it('passes tools returned from toolbar hooks directly to CodeToolbar sorted by order', () => {
+    render(
+      <CodeBlockView language="javascript" editable onSave={vi.fn()}>
+        const value = 1
+      </CodeBlockView>
+    )
+
+    expect(screen.getByTestId('code-toolbar')).toHaveAttribute(
+      'data-tools',
+      'expand,wrap,save,view-source,copy,download,split-view'
+    )
+    expect(mocks.useCopyTool).toHaveBeenCalledWith(expect.not.objectContaining({ setTools: expect.anything() }))
   })
 })

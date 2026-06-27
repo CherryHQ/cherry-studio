@@ -1,33 +1,29 @@
 import type { ActionTool } from '@renderer/components/ActionTools'
-import { TOOL_SPECS, useToolManager } from '@renderer/components/ActionTools'
+import { TOOL_SPECS } from '@renderer/components/ActionTools'
 import { FilePngIcon, FileSvgIcon } from '@renderer/components/Icons'
 import type { BasicPreviewHandles } from '@renderer/components/Preview'
 import { Download, FileCode } from 'lucide-react'
-import { useEffect } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface UseDownloadToolProps {
   showPreviewTools?: boolean
   previewRef: React.RefObject<BasicPreviewHandles | null>
   onDownloadSource: () => void
-  setTools: React.Dispatch<React.SetStateAction<ActionTool[]>>
 }
 
-export const useDownloadTool = ({ showPreviewTools, previewRef, onDownloadSource, setTools }: UseDownloadToolProps) => {
+export const useDownloadTool = ({ showPreviewTools, previewRef, onDownloadSource }: UseDownloadToolProps) => {
   const { t } = useTranslation()
-  const { registerTool, removeTool } = useToolManager(setTools)
 
-  useEffect(() => {
-    const includePreviewTools = showPreviewTools && previewRef.current !== null
-
+  return useMemo<ActionTool>(() => {
     const baseTool = {
       ...TOOL_SPECS.download,
       icon: <Download className="tool-icon" />,
-      tooltip: includePreviewTools ? undefined : t('code_block.download.source')
+      tooltip: showPreviewTools ? undefined : t('code_block.download.source')
     }
 
-    if (includePreviewTools) {
-      registerTool({
+    if (showPreviewTools) {
+      return {
         ...baseTool,
         children: [
           {
@@ -49,14 +45,12 @@ export const useDownloadTool = ({ showPreviewTools, previewRef, onDownloadSource
             onClick: () => previewRef.current?.download('png')
           }
         ]
-      })
-    } else {
-      registerTool({
-        ...baseTool,
-        onClick: onDownloadSource
-      })
+      }
     }
 
-    return () => removeTool(TOOL_SPECS.download.id)
-  }, [onDownloadSource, registerTool, removeTool, t, showPreviewTools, previewRef])
+    return {
+      ...baseTool,
+      onClick: onDownloadSource
+    }
+  }, [onDownloadSource, previewRef, showPreviewTools, t])
 }
