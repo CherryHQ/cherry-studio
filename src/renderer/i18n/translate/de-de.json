@@ -6965,7 +6965,6 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Beschleunigungsdomäne",
-          "backup": "Sicherungsdomäne",
           "international": "Internationale Domäne"
         }
       },
