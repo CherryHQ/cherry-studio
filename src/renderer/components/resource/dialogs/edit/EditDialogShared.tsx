@@ -112,7 +112,7 @@ const HelpIconButton = ({
       size="icon-sm"
       aria-label={ariaLabel}
       className={cn(
-        'flex size-4 min-h-0 shrink-0 items-center justify-center rounded-2xs border border-border/20 p-0 text-muted-foreground/70 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0',
+        'flex size-4 min-h-0 shrink-0 items-center justify-center rounded-full border border-border/20 p-0 text-muted-foreground/70 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0',
         className
       )}>
       <HelpCircle className="size-[11px]" />
