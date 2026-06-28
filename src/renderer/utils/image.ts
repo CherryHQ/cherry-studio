@@ -8,7 +8,10 @@ const logger = loggerService.withContext('Utils:image')
 let htmlToImagePromise: Promise<typeof HtmlToImage> | undefined
 
 const loadHtmlToImage = () => {
-  htmlToImagePromise ??= import('html-to-image')
+  htmlToImagePromise ??= import('html-to-image').catch((error) => {
+    htmlToImagePromise = undefined
+    throw error
+  })
   return htmlToImagePromise
 }
 
@@ -83,20 +86,22 @@ export async function captureElement(elRef: React.RefObject<HTMLElement>) {
  * @returns Promise<HTMLCanvasElement | undefined> 捕获的画布对象，如果失败则返回 undefined
  */
 export const captureScrollable = async (elRef: React.RefObject<HTMLElement | null>) => {
-  if (elRef.current) {
+  const el = elRef.current
+
+  if (el) {
+    const htmlToImage = await loadHtmlToImage()
+
+    // Save original styles
+    const originalStyle = {
+      height: el.style.height,
+      maxHeight: el.style.maxHeight,
+      overflow: el.style.overflow,
+      position: el.style.position
+    }
+
+    const originalScrollTop = el.scrollTop
+
     try {
-      const el = elRef.current
-
-      // Save original styles
-      const originalStyle = {
-        height: el.style.height,
-        maxHeight: el.style.maxHeight,
-        overflow: el.style.overflow,
-        position: el.style.position
-      }
-
-      const originalScrollTop = el.scrollTop
-
       // Hide scrollbars during capture
       el.classList.add('hide-scrollbar')
 
@@ -113,17 +118,6 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
       // check if the size of the element is too large
       const MAX_ALLOWED_DIMENSION = 32767 // the maximum allowed pixel size
       if (totalHeight > MAX_ALLOWED_DIMENSION || totalWidth > MAX_ALLOWED_DIMENSION) {
-        // restore the original styles
-        el.style.height = originalStyle.height
-        el.style.maxHeight = originalStyle.maxHeight
-        el.style.overflow = originalStyle.overflow
-        el.style.position = originalStyle.position
-
-        // restore the original scroll position
-        setTimeout(() => {
-          el.scrollTop = originalScrollTop
-        }, 0)
-
         window.toast.error(i18n.t('message.error.dimension_too_large'))
         return Promise.reject()
       }
@@ -154,34 +148,28 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
         }
       }
 
-      const htmlToImage = await loadHtmlToImage()
-
       // Warm up html-to-image resource caches before taking the final canvas.
       const warmupCanvas = await htmlToImage.toCanvas(el, captureOptions)
       warmupCanvas.width = 0
       warmupCanvas.height = 0
-      const canvas = await htmlToImage.toCanvas(el, captureOptions)
-
+      return await htmlToImage.toCanvas(el, captureOptions)
+    } catch (error) {
+      logger.error('Error capturing scrollable element:', error as Error)
+      throw error
+    } finally {
       // Restore original styles
       el.style.height = originalStyle.height
       el.style.maxHeight = originalStyle.maxHeight
       el.style.overflow = originalStyle.overflow
       el.style.position = originalStyle.position
 
-      const imageData = canvas
-
       // Restore original scroll position
       setTimeout(() => {
         el.scrollTop = originalScrollTop
       }, 0)
 
-      return imageData
-    } catch (error) {
-      logger.error('Error capturing scrollable element:', error as Error)
-      throw error
-    } finally {
       // Remove scrollbar hiding class
-      elRef.current?.classList.remove('hide-scrollbar')
+      el.classList.remove('hide-scrollbar')
     }
   }
 
@@ -336,14 +324,7 @@ export async function captureScrollableIframe(
   const animationStyle = disableAnimations()
   let injectedFontStyle: HTMLStyleElement | null = null
 
-  const ensureFontStyle = (css: string): HTMLStyleElement => {
-    const EXISTING = doc.head.querySelector<HTMLStyleElement>('style[data-cs-inline-fonts="true"]')
-    if (EXISTING) {
-      if (css && css.trim()) {
-        EXISTING.textContent = `${EXISTING.textContent || ''}\n${css}`
-      }
-      return EXISTING
-    }
+  const createFontStyle = (css: string): HTMLStyleElement => {
     const style = doc.createElement('style')
     style.setAttribute('data-cs-inline-fonts', 'true')
     style.textContent = css
@@ -363,7 +344,7 @@ export async function captureScrollableIframe(
 
     // 将字体 CSS 注入到 iframe 文档中，确保注册到 FontFaceSet
     if (fontEmbedCSS && fontEmbedCSS.trim().length > 0) {
-      injectedFontStyle = ensureFontStyle(fontEmbedCSS)
+      injectedFontStyle = createFontStyle(fontEmbedCSS)
       // 访问一次以避免被标记为未使用
       if (injectedFontStyle.parentNode == null) {
         doc.head.appendChild(injectedFontStyle)
@@ -415,6 +396,7 @@ export async function captureScrollableIframe(
     logger.error('Error capturing iframe:', error as Error)
     return undefined
   } finally {
+    injectedFontStyle?.remove()
     // 恢复动画
     animationStyle.remove()
   }
