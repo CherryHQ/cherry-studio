@@ -36,7 +36,7 @@ import ChatNavbar from './components/ChatNavBar'
 import Inputbar from './Inputbar/Inputbar'
 import { type Branch, type BranchAnchor, BranchPane, pickNextColor } from './Messages/BranchPanel'
 import { abortBranchTopicStream } from './Messages/BranchPanel/abortBranchTopicStream'
-import { shouldWriteBranchAnchorOnce } from './Messages/BranchPanel/branchAnchorWrite'
+import { buildCreateBranchAnchorBody, shouldWriteBranchAnchorOnce } from './Messages/BranchPanel/branchAnchorWrite'
 import {
   DEFAULT_BRANCH_DISPOSITION,
   disposeBranchTopicOnClose,
@@ -97,6 +97,36 @@ const Chat: FC<Props> = (props) => {
   const creatingBranchIdRef = useRef<string | null>(null)
   const [creatingBranchId, setCreatingBranchId] = useState<string | null>(null)
 
+  const { trigger: createBranchAnchor } = useMutation('POST', '/branch-anchors')
+  const persistBranchAnchorIfReady = useCallback(
+    (branch: Branch, source: 'onCreated' | 'toggleKeepBranch') => {
+      if (!shouldWriteBranchAnchorOnce(branch)) return
+
+      const body = buildCreateBranchAnchorBody(props.activeTopic.id, branch)
+      if (!body) return
+
+      void createBranchAnchor({ body })
+        .then((anchor) => {
+          logger.debug('Created branch anchor for kept branch', {
+            source,
+            anchorId: anchor.id,
+            branchId: branch.id,
+            branchTopicId: body.branchTopicId,
+            parentTopicId: body.parentTopicId
+          })
+        })
+        .catch((error) => {
+          logger.error('Failed to create branch anchor for kept branch', error as Error, {
+            source,
+            branchId: branch.id,
+            branchTopicId: body.branchTopicId,
+            parentTopicId: body.parentTopicId
+          })
+        })
+    },
+    [createBranchAnchor, props.activeTopic.id]
+  )
+
   // P1-S2b-1: a fresh anchor APPENDS to branches (S1 replace semantics is
   // dropped). The new Branch starts with `topic: null` to mirror the
   // previous "anchor first, POST /topics later" two-phase timing. `color` is
@@ -126,31 +156,28 @@ const Chat: FC<Props> = (props) => {
   const branchFork = useBranchFork({
     assistant,
     topic: props.activeTopic,
-    onCreated: useCallback((created: Topic) => {
-      // P1-S2b-1: attach the new topic to the branch that initiated this
-      // fork. Tracked via ref (closure-captured stably across renders) so
-      // multiple concurrent compose-state branches don't fight for it.
-      const id = creatingBranchIdRef.current
-      if (id === null) return
-      setBranches((prev) =>
-        prev.map((b) => {
-          if (b.id !== id) return b
+    onCreated: useCallback(
+      (created: Topic) => {
+        // P1-S2b-1: attach the new topic to the branch that initiated this
+        // fork. Tracked via ref (closure-captured stably across renders) so
+        // multiple concurrent compose-state branches don't fight for it.
+        const id = creatingBranchIdRef.current
+        if (id === null) return
+        setBranches((prev) =>
+          prev.map((b) => {
+            if (b.id !== id) return b
 
-          const nextBranch = { ...b, topic: created }
-          if (shouldWriteBranchAnchorOnce(nextBranch)) {
-            console.log('[branch-anchor] onCreated shouldWriteBranchAnchorOnce', {
-              branchId: nextBranch.id,
-              branchTopicId: nextBranch.topic?.id,
-              disposition: nextBranch.disposition
-            })
-          }
+            const nextBranch = { ...b, topic: created }
+            persistBranchAnchorIfReady(nextBranch, 'onCreated')
 
-          return nextBranch
-        })
-      )
-      creatingBranchIdRef.current = null
-      setCreatingBranchId(null)
-    }, [])
+            return nextBranch
+          })
+        )
+        creatingBranchIdRef.current = null
+        setCreatingBranchId(null)
+      },
+      [persistBranchAnchorIfReady]
+    )
   })
 
   // P1-S2b-1: per-card onCreate. BranchPane forwards (branchId, followUp)
@@ -224,24 +251,21 @@ const Chat: FC<Props> = (props) => {
   })
 
   // P1-S3: Keep toggle (pending ↔ kept). Lifted like the other branch fields.
-  const toggleKeepBranch = useCallback((branchId: string) => {
-    setBranches((prev) =>
-      prev.map((b) => {
-        if (b.id !== branchId) return b
+  const toggleKeepBranch = useCallback(
+    (branchId: string) => {
+      setBranches((prev) =>
+        prev.map((b) => {
+          if (b.id !== branchId) return b
 
-        const nextBranch = { ...b, disposition: toggleDisposition(b.disposition) }
-        if (shouldWriteBranchAnchorOnce(nextBranch)) {
-          console.log('[branch-anchor] toggleKeepBranch shouldWriteBranchAnchorOnce', {
-            branchId: nextBranch.id,
-            branchTopicId: nextBranch.topic?.id,
-            disposition: nextBranch.disposition
-          })
-        }
+          const nextBranch = { ...b, disposition: toggleDisposition(b.disposition) }
+          persistBranchAnchorIfReady(nextBranch, 'toggleKeepBranch')
 
-        return nextBranch
-      })
-    )
-  }, [])
+          return nextBranch
+        })
+      )
+    },
+    [persistBranchAnchorIfReady]
+  )
 
   // P1-S2b-1 + B5 + S3: per-branch close (X-button OR composer Cancel).
   // 0. P1-B5: abort this branch's in-flight streaming reply FIRST (capture the
