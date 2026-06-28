@@ -20,6 +20,7 @@ import type {
 import type { Model } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
+import type { FileUrlString } from '@shared/types/file'
 import type { ReactNode } from 'react'
 
 export interface MessageUiState {
@@ -63,8 +64,7 @@ export interface MessageActivityState {
 
 export interface MessageFileView {
   displayName: string
-  safePath?: string
-  previewUrl?: string
+  previewUrl?: FileUrlString
 }
 
 export interface MessageMenuExportOptions {
@@ -290,6 +290,7 @@ export interface MessageListActions {
   exportToJoplin?: (message: MessageExportView) => void | Promise<void>
   exportToSiyuan?: (message: MessageExportView) => void | Promise<void>
   openArtifactFile?: (path: string) => void | Promise<void>
+  openFile?: (file: FileMetadata) => void | Promise<void>
   openPath?: (path: string) => void | Promise<void>
   /** Probe whether a path points at a directory (fs.stat-backed; resolves false on missing). */
   isDirectory?: (path: string) => Promise<boolean>
