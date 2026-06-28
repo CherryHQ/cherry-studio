@@ -1,6 +1,5 @@
 import { CircularProgress, Flex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { CopyIcon } from '@renderer/components/Icons'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -19,6 +18,7 @@ import {
 import { getEffectiveStatus, SkeletonSpan, ToolStatusIndicator, TruncatedIndicator } from '../agent/GenericTools'
 import { useToolApproval } from '../hooks/useToolApproval'
 import { ArgKey, ArgsSection, ArgsSectionTitle, ArgsTable, ArgValue, ResponseSection } from '../shared/ArgsTable'
+import { parseMcpToolResultContent } from '../shared/mcpToolResult'
 import { ToolDisclosure, type ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
 
@@ -185,15 +185,11 @@ type ExtractedContent = {
   images: Array<{ data: string; mimeType: string }>
 }
 
-/**
- * Extract preview content from MCP tool response using SDK schema
- */
 const extractPreviewContent = (response: unknown): ExtractedContent => {
   if (!response) return { text: '', images: [] }
 
-  const result = CallToolResultSchema.safeParse(response)
-  if (result.success) {
-    const contents = result.data.content
+  const contents = parseMcpToolResultContent(response)
+  if (contents) {
     if (contents.length === 0) return { text: '', images: [] }
 
     const textParts: string[] = []
@@ -211,12 +207,10 @@ const extractPreviewContent = (response: unknown): ExtractedContent => {
           }
           break
         case 'image':
-          if (content.data) {
-            images.push({ data: content.data, mimeType: content.mimeType ?? 'image/png' })
-          }
+          images.push({ data: content.data, mimeType: content.mimeType })
           break
         case 'resource':
-          textParts.push(`[Resource: ${content.resource?.uri ?? 'unknown'}]`)
+          textParts.push(`[Resource: ${content.resource.uri}]`)
           break
       }
     }
