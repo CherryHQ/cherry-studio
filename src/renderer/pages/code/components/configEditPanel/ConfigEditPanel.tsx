@@ -1,28 +1,20 @@
-import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input } from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { ModelSelector } from '@renderer/components/Selector/model'
 import { useModelById } from '@renderer/hooks/useModel'
-import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
+import { getProviderDisplayName } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
-import {
-  SettingContainer,
-  SettingDivider,
-  SettingGroup,
-  SettingHelpText,
-  SettingRow,
-  SettingRowTitle,
-  SettingTitle
-} from '@renderer/pages/settings'
-import type { CliNamedConfig } from '@shared/data/preference/preferenceTypes'
-import type { Model } from '@shared/data/types/model'
-import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { SettingContainer, SettingDivider, SettingGroup, SettingHelpText, SettingTitle } from '@renderer/pages/settings'
+import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
+import type { Provider } from '@shared/data/types/provider'
+import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
 import { ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { CLI_TOOLS } from '../../cliTools'
 import { ClaudeConfigFields } from './tools/ClaudeConfigFields'
 import { CodexConfigFields } from './tools/CodexConfigFields'
 import { HermesConfigFields } from './tools/HermesConfigFields'
@@ -33,62 +25,31 @@ export interface ConfigEditPanelProps {
   open: boolean
   onClose: () => void
   cliTool: CodeCli
-  config: CliNamedConfig | null
+  provider: Provider
+  providerConfig: CliProviderConfig | null
+  /** First model for the provider — used as the selector default when no model is saved. */
+  defaultModelId: UniqueModelId | undefined
   modelFilter: (model: Model) => boolean
-  onSubmit: (values: {
-    name: string
-    providerId: string
-    modelId: UniqueModelId
-    config?: Record<string, unknown>
-  }) => Promise<void>
+  onSubmit: (values: { modelId: UniqueModelId; config?: Record<string, unknown> }) => Promise<void>
 }
 
 export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
-  const { open, onClose, cliTool, modelFilter, onSubmit } = props
+  const { open, onClose, cliTool, provider, providerConfig, defaultModelId, modelFilter, onSubmit } = props
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const { providers } = useProviders()
-  const providerMap = useMemo(() => new Map(providers.map((p) => [p.id, p])), [providers])
 
-  const [name, setName] = useState('')
   const [modelId, setModelId] = useState<UniqueModelId | undefined>(undefined)
   const [config, setConfig] = useState<Record<string, unknown>>({})
   const [submitting, setSubmitting] = useState(false)
 
-  const toolMeta = useMemo(() => CLI_TOOLS.find((ti) => ti.value === cliTool), [cliTool])
-
-  // Initialize form fields on open / config change.
   useEffect(() => {
     if (!open) return
-    if (props.config) {
-      setName(props.config.name)
-      setModelId(isUniqueModelId(props.config.modelId) ? props.config.modelId : undefined)
-      setConfig(props.config.config ?? {})
-    } else {
-      setName('')
-      setModelId(undefined)
-      setConfig({})
-    }
-  }, [open, props.config])
+    const saved = providerConfig && isUniqueModelId(providerConfig.modelId) ? providerConfig.modelId : undefined
+    setModelId(saved ?? defaultModelId)
+    setConfig(providerConfig?.config ?? {})
+  }, [open, providerConfig, defaultModelId])
 
   const { model: selectedModelRecord } = useModelById(modelId ?? null)
-
-  // NOTE: the selected model is NOT mirrored into the config blob here. The
-  // blob stays the user's editing surface; the model (with resolved API key /
-  // base URL) is written to the CLI's native config file by `injectCliConfig`
-  // (renderer) at "enable config" time, so the picker never clobbers the blob.
-
-  const selectedProvider = selectedModelRecord ? providerMap.get(selectedModelRecord.providerId) : undefined
-
-  // Auto-fill the config name (once per selected model) so the list keeps a
-  // readable label without forcing the user to type one before saving.
-  const lastAutoFilledFor = useRef<string | undefined>(undefined)
-  useEffect(() => {
-    if (!selectedModelRecord) return
-    if (lastAutoFilledFor.current === selectedModelRecord.id) return
-    lastAutoFilledFor.current = selectedModelRecord.id
-    setName((prev) => (prev.trim() ? prev : selectedModelRecord.name || selectedModelRecord.id))
-  }, [selectedModelRecord])
 
   const canSubmit = !!modelId
 
@@ -101,9 +62,6 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
           <>
             <ModelAvatar model={selectedModelRecord} size={18} />
             <span className="truncate text-foreground">{selectedModelRecord.name || selectedModelRecord.id}</span>
-            {selectedProvider && (
-              <span className="shrink-0 text-muted-foreground text-xs">{getProviderDisplayName(selectedProvider)}</span>
-            )}
           </>
         ) : (
           <span className="truncate text-muted-foreground/50">{t('code.model_placeholder')}</span>
@@ -116,34 +74,73 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
     </button>
   )
 
+  // The model picker is folded into each tool's Advanced Settings collapsible
+  // (passed as `children`), so there is exactly ONE Advanced Settings toggle
+  // per panel instead of a panel-level wrapper duplicating each tool's own.
+  const modelSlot: ReactNode = (
+    <>
+      <ModelSelector
+        multiple={false}
+        selectionType="id"
+        value={modelId}
+        onSelect={setModelId}
+        filter={modelFilter}
+        showTagFilter
+        trigger={renderModelTrigger()}
+      />
+      <SettingHelpText className="mt-2">{t('code.model_hint_config')}</SettingHelpText>
+    </>
+  )
+
   const handleSubmit = useCallback(async () => {
     if (!canSubmit || !modelId) return
     try {
       setSubmitting(true)
-      const { providerId } = parseUniqueModelId(modelId)
-      await onSubmit({ name: name.trim(), providerId, modelId, config })
+      await onSubmit({ modelId, config })
       onClose()
     } finally {
       setSubmitting(false)
     }
-  }, [canSubmit, modelId, name, config, onSubmit, onClose])
+  }, [canSubmit, modelId, config, onSubmit, onClose])
 
-  const renderToolFields = () => {
+  // Computed once per render so the stateful ModelSelector (inside modelSlot)
+  // isn't mounted twice.
+  const toolFields: ReactNode = (() => {
     switch (cliTool) {
       case CodeCli.CLAUDE_CODE:
-        return <ClaudeConfigFields config={config} onChange={setConfig} />
+        return (
+          <ClaudeConfigFields config={config} onChange={setConfig}>
+            {modelSlot}
+          </ClaudeConfigFields>
+        )
       case CodeCli.OPENAI_CODEX:
-        return <CodexConfigFields config={config} onChange={setConfig} />
+        return (
+          <CodexConfigFields config={config} onChange={setConfig}>
+            {modelSlot}
+          </CodexConfigFields>
+        )
       case CodeCli.OPEN_CODE:
-        return <OpenCodeConfigFields config={config} onChange={setConfig} />
+        return (
+          <OpenCodeConfigFields config={config} onChange={setConfig}>
+            {modelSlot}
+          </OpenCodeConfigFields>
+        )
       case CodeCli.OPENCLAW:
-        return <OpenclawConfigFields config={config} onChange={setConfig} />
+        return (
+          <OpenclawConfigFields config={config} onChange={setConfig}>
+            {modelSlot}
+          </OpenclawConfigFields>
+        )
       case CodeCli.HERMES:
-        return <HermesConfigFields config={config} onChange={setConfig} />
+        return (
+          <HermesConfigFields config={config} onChange={setConfig}>
+            {modelSlot}
+          </HermesConfigFields>
+        )
       default:
         return null
     }
-  }
+  })()
 
   return (
     <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : undefined)}>
@@ -153,44 +150,15 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
         onOpenAutoFocus={(e) => e.preventDefault()}
         className="flex max-h-[85vh] flex-col">
         <DialogHeader>
-          <DialogTitle>{toolMeta?.label ?? cliTool}</DialogTitle>
+          <DialogTitle>{t('code.configuring_provider', { provider: getProviderDisplayName(provider) })}</DialogTitle>
         </DialogHeader>
 
         <SettingContainer theme={theme} style={{ background: 'transparent' }}>
-          <SettingGroup theme={theme}>
-            <SettingTitle>{t('code.basic_info')}</SettingTitle>
-            <SettingDivider />
-            <SettingRow>
-              <SettingRowTitle>{t('code.config_name')}</SettingRowTitle>
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={t('code.config_name_placeholder')}
-                className="h-9 max-w-[300px]"
-              />
-            </SettingRow>
-          </SettingGroup>
-
-          <SettingGroup theme={theme}>
-            <SettingTitle>{t('code.model')}</SettingTitle>
-            <SettingDivider />
-            <ModelSelector
-              multiple={false}
-              selectionType="id"
-              value={modelId}
-              onSelect={setModelId}
-              filter={modelFilter}
-              showTagFilter
-              trigger={renderModelTrigger()}
-            />
-            <SettingHelpText className="mt-2">{t('code.model_hint_config')}</SettingHelpText>
-          </SettingGroup>
-
-          {renderToolFields() && (
+          {toolFields && (
             <SettingGroup theme={theme}>
               <SettingTitle>{t('code.tool_parameters')}</SettingTitle>
               <SettingDivider />
-              {renderToolFields()}
+              {toolFields}
             </SettingGroup>
           )}
         </SettingContainer>

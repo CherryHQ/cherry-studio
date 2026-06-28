@@ -1,14 +1,8 @@
 import type { IconComponent } from '@cherrystudio/ui/icons'
 import { ClaudeCode, Nousresearch, OpenaiCodex, Openclaw, OpenCode } from '@cherrystudio/ui/icons'
-import { CLAUDE_SUPPORTED_PROVIDERS } from '@renderer/pages/code/codeProviders'
 import type { Provider } from '@shared/data/types/provider'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
-import {
-  isAnthropicProvider,
-  isNewApiProvider,
-  isOpenAICompatibleProvider,
-  isOpenAIProvider
-} from '@shared/utils/provider'
 
 export const CLI_TOOLS = [
   { value: CodeCli.CLAUDE_CODE, label: 'Claude Code', icon: ClaudeCode },
@@ -27,27 +21,29 @@ export const CLI_BINARY_NAMES: Record<CodeCli, string> = {
   [CodeCli.HERMES]: 'hermes'
 }
 
-const OPENAI_CODEX_SUPPORTED_PROVIDERS = ['openai', 'openrouter', 'aihubmix', 'new-api', 'cherryin']
+const hasEndpoint = (p: Provider, type: string): boolean =>
+  Boolean(p.endpointConfigs?.[type as 'anthropic-messages']?.baseUrl)
+const hasAnthropic = (p: Provider): boolean => hasEndpoint(p, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+const hasChat = (p: Provider): boolean => hasEndpoint(p, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+const hasResponses = (p: Provider): boolean => hasEndpoint(p, ENDPOINT_TYPE.OPENAI_RESPONSES)
+const hasOpenAILike = (p: Provider): boolean => hasChat(p) || hasResponses(p)
 
-// Provider 过滤映射
-const ANTHROPIC_MESSAGES_ENDPOINT = 'anthropic-messages'
-const hasAnthropicEndpoint = (p: Provider): boolean =>
-  Boolean(p.endpointConfigs?.[ANTHROPIC_MESSAGES_ENDPOINT]?.baseUrl)
-const isOpenAILikeProvider = (p: Provider): boolean => isOpenAICompatibleProvider(p) || isOpenAIProvider(p)
-const isOpenCodeProvider = (p: Provider): boolean =>
-  isOpenAILikeProvider(p) || isAnthropicProvider(p) || isNewApiProvider(p)
-
+/**
+ * CLI tool → supported-provider filter. Filters mirror the endpoint selection
+ * in `injectCliConfig` so a provider only shows up when its native config can
+ * actually be written. All judgments are based on `endpointConfigs` (the only
+ * source inject reads), never on `defaultChatEndpoint`/`presetProviderId`
+ * indirect signals that may be unset on user or migrated providers.
+ *
+ * - Claude Code: inject reads `anthropic-messages`.
+ * - Codex: inject reads `openai-responses` (preferred) or `openai-chat-completions`,
+ *   picking `wire_api` to match.
+ * - OpenCode / OpenClaw / Hermes: inject reads anthropic-or-openai at runtime.
+ */
 export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Provider[]> = {
-  [CodeCli.CLAUDE_CODE]: (providers) =>
-    providers.filter(
-      (p) => isAnthropicProvider(p) || CLAUDE_SUPPORTED_PROVIDERS.includes(p.id) || hasAnthropicEndpoint(p)
-    ),
-  [CodeCli.OPENAI_CODEX]: (providers) =>
-    providers.filter(
-      (p) => isOpenAICompatibleProvider(p) || isOpenAIProvider(p) || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(p.id)
-    ),
-
-  [CodeCli.OPEN_CODE]: (providers) => providers.filter(isOpenCodeProvider),
-  [CodeCli.OPENCLAW]: (providers) => providers.filter(isOpenCodeProvider),
-  [CodeCli.HERMES]: (providers) => providers.filter(isOpenAILikeProvider)
+  [CodeCli.CLAUDE_CODE]: (providers) => providers.filter(hasAnthropic),
+  [CodeCli.OPENAI_CODEX]: (providers) => providers.filter(hasOpenAILike),
+  [CodeCli.OPEN_CODE]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
+  [CodeCli.OPENCLAW]: (providers) => providers.filter((p) => hasAnthropic(p) || hasOpenAILike(p)),
+  [CodeCli.HERMES]: (providers) => providers.filter(hasOpenAILike)
 }

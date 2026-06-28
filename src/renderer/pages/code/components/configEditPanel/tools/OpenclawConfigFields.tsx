@@ -1,5 +1,6 @@
 import { Input } from '@cherrystudio/ui'
 import type { FC } from 'react'
+import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -11,6 +12,7 @@ import { useConfigEnv } from './useConfigEnv'
 export interface OpenclawConfigFieldsProps {
   config: Record<string, unknown>
   onChange: (next: Record<string, unknown>) => void
+  children?: ReactNode
 }
 
 const NUMBER_FIELDS = [
@@ -20,7 +22,7 @@ const NUMBER_FIELDS = [
 
 /** OpenClaw config fields — reasoning toggle (always visible) plus context
  * window / max tokens inside the advanced collapsible. */
-export const OpenclawConfigFields: FC<OpenclawConfigFieldsProps> = ({ config, onChange }) => {
+export const OpenclawConfigFields: FC<OpenclawConfigFieldsProps> = ({ config, onChange, children }) => {
   const { t } = useTranslation()
   const { env, updateField } = useConfigEnv(config, onChange)
   const [open, setOpen] = useState(false)
@@ -36,6 +38,7 @@ export const OpenclawConfigFields: FC<OpenclawConfigFieldsProps> = ({ config, on
       />
 
       <AdvancedConfigToggle open={open} onToggle={() => setOpen((o) => !o)}>
+        {children}
         <div className="grid grid-cols-1 items-start gap-x-4 gap-y-4 xl:grid-cols-2">
           {NUMBER_FIELDS.map((field) => (
             <FormField key={field.envKey} label={t(field.labelKey)}>

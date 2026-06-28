@@ -1,22 +1,21 @@
 import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import { isMac, isWin } from '@renderer/utils/platform'
-import type { CliNamedConfig } from '@shared/data/preference/preferenceTypes'
 import type { TerminalConfig } from '@shared/types/codeCli'
 import { FolderOpen } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface CurrentConfigPanelProps {
-  config: CliNamedConfig
+  directory?: string
   terminals: TerminalConfig[]
   selectedTerminal: string | undefined
   onSelectFolder: () => void
   onSelectTerminal: (terminal: string) => void
 }
 
-/** Current-config working-directory + terminal picker + launch affordance. */
+/** Current provider's working-directory + terminal picker. */
 export const CurrentConfigPanel: FC<CurrentConfigPanelProps> = ({
-  config,
+  directory,
   terminals,
   selectedTerminal,
   onSelectFolder,
@@ -33,7 +32,7 @@ export const CurrentConfigPanel: FC<CurrentConfigPanelProps> = ({
       <div className="space-y-1.5">
         <label className="text-foreground/70 text-xs">{t('code.working_directory')}</label>
         <div className="flex w-full items-center">
-          <Input value={config.directory ?? ''} placeholder={t('code.folder_placeholder')} readOnly tabIndex={-1} />
+          <Input value={directory ?? ''} placeholder={t('code.folder_placeholder')} readOnly tabIndex={-1} />
           <Button variant="default" onClick={onSelectFolder} className="ml-2 shrink-0">
             <FolderOpen size={16} />
             {t('code.select_folder')}

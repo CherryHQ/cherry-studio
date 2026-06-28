@@ -1933,7 +1933,6 @@
     }
   },
   "code": {
-    "add_config": "Add",
     "add_provider_hint": "Add provider in Settings → Model Service",
     "adv": {
       "claude": {
@@ -1971,14 +1970,11 @@
     },
     "apply_failed": "Failed to write CLI config to the system file",
     "auto_update_to_latest": "Automatically update to latest version",
-    "basic_info": "Basic Info",
     "bun_required_message": "Bun environment is required to run CLI tools",
     "can_upgrade": "Upgrade available",
     "cli_tool": "CLI Tool",
     "cli_tool_placeholder": "Select the CLI tool to use",
     "config_json_hint": "Paste or edit raw JSON; it stays in sync with the fields above",
-    "config_name": "Name",
-    "config_name_placeholder": "e.g. Work Claude",
     "configure": "Configure",
     "configuring_provider": "Configure {{provider}}",
     "count_one": "{{count}} item",
@@ -2020,9 +2016,10 @@
     "model_hint_config": "Select the model to use",
     "model_placeholder": "Select the model to use",
     "model_required": "Please select a model",
-    "no_configs_description": "Add a named config to manage multiple providers/models for this CLI tool",
-    "no_configs_title": "No configs yet",
     "no_matching_tools": "No matching tools",
+    "no_model_for_provider": "No model available for this provider",
+    "no_providers_description": "Enable a supported provider in Settings → Model Service",
+    "no_providers_title": "No enabled providers",
     "no_tools": "No tools available",
     "not_installed": "Not installed",
     "providers": "Providers",

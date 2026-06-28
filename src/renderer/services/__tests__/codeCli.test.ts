@@ -201,6 +201,8 @@ describe('injectCliConfig', () => {
       expect(parsed.model_provider).toBe('Cherry-DeepSeek')
       expect(parsed.model_providers['Cherry-DeepSeek'].base_url).toBe('https://api.deepseek.com/v1')
       expect(parsed.model_providers['Cherry-DeepSeek'].requires_openai_auth).toBe(true)
+      // chat-completions-only provider → wire_api follows the endpoint
+      expect(parsed.model_providers['Cherry-DeepSeek'].wire_api).toBe('chat_completions')
       // key lives in auth.json now, not as a bearer token
       expect(parsed.model_providers['Cherry-DeepSeek']).not.toHaveProperty('experimental_bearer_token')
       expect(parsed.model_providers['Cherry-DeepSeek'].name).toBe('DeepSeek')
@@ -285,7 +287,29 @@ describe('injectCliConfig', () => {
       expect(parsed.model_providers['Cherry-DeepSeek'].name).toBe('DeepSeek')
     })
 
-    it('throws when the provider has no usable baseUrl', async () => {
+    it('prefers the responses endpoint and sets wire_api = responses when available', async () => {
+      const responsesProvider = {
+        ...openaiCompatProvider,
+        endpointConfigs: {
+          'openai-chat-completions': { baseUrl: 'https://chat.example.com' },
+          'openai-responses': { baseUrl: 'https://api.deepseek.com/v1' }
+        }
+      } as unknown as Provider
+      mockGet({
+        '/providers/deepseek': () => responsesProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await injectCliConfig({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::deepseek-chat' })
+
+      const { parse: parseToml } = await import('smol-toml')
+      const parsed = parseToml(findWrite('config.toml')!.content) as Record<string, any>
+      expect(parsed.model_providers['Cherry-DeepSeek'].base_url).toBe('https://api.deepseek.com/v1')
+      expect(parsed.model_providers['Cherry-DeepSeek'].wire_api).toBe('responses')
+    })
+
+    it('throws when the provider has no OpenAI endpoint base URL', async () => {
       const noUrl = { ...openaiCompatProvider, endpointConfigs: {} } as unknown as Provider
       mockGet({
         '/providers/deepseek': () => noUrl,
@@ -294,7 +318,7 @@ describe('injectCliConfig', () => {
       })
       await expect(
         injectCliConfig({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::deepseek-chat' })
-      ).rejects.toThrow(/required fields/)
+      ).rejects.toThrow(/OpenAI endpoint base URL/)
     })
   })
 

@@ -249,25 +249,23 @@ export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
 
 export type CodeCliId = (typeof CODE_CLI_IDS)[number]
 
-/** A named, user-editable CLI provider config for one CLI tool. */
-export interface CliNamedConfig {
-  id: string
-  name: string
-  providerId: string
+/** A CLI provider config, keyed by providerId in `CodeCliToolState.providers`. */
+export interface CliProviderConfig {
+  /** Unique model id ("providerId::modelId"). */
   modelId: string
+  /** User-edited tool-specific config blob. */
   config?: Record<string, unknown>
   directory?: string
   createdAt?: number
-  sortIndex?: number
-  notes?: string
-  icon?: string
-  iconColor?: string
 }
 
-/** Per-CLI-tool state holding all named configs and the active one. */
+/** Per-CLI-tool state: per-provider configs (keyed by providerId) + the active one. */
 export interface CodeCliToolState {
-  providers: Record<string, CliNamedConfig>
+  providers: Record<string, CliProviderConfig>
+  /** Currently enabled providerId (single-select). */
   current: string | null
+  /** User-ordered provider ids for the list (drag-to-reorder). */
+  providerOrder?: string[]
   /** Terminal app — matches `terminalApps` values. */
   terminal?: string
   directories?: string[]

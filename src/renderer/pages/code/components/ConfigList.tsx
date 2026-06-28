@@ -1,57 +1,66 @@
-import { EmptyState } from '@cherrystudio/ui'
-import type { CliNamedConfig } from '@shared/data/preference/preferenceTypes'
+import { EmptyState, ReorderableList } from '@cherrystudio/ui'
+import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
+import type { Provider } from '@shared/data/types/provider'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ConfigCard } from './ConfigCard'
+import { ProviderCard } from './ConfigCard'
 
 export interface ConfigListProps {
-  configs: CliNamedConfig[]
-  currentConfigId: string | null
-  resolveMeta: (config: CliNamedConfig) => { providerName?: string; modelName?: string }
-  onEdit: (config: CliNamedConfig) => void
-  onDelete: (config: CliNamedConfig) => void
-  onToggleCurrent: (config: CliNamedConfig) => void
+  providers: Provider[]
+  providerConfigs: Record<string, CliProviderConfig>
+  currentProviderId: string | null
+  resolveMeta: (provider: Provider, cfg?: CliProviderConfig) => { providerName: string; modelName?: string }
+  onConfigure: (provider: Provider) => void
+  onToggleCurrent: (provider: Provider) => void
+  onReorder: (nextProviders: Provider[]) => void | Promise<void>
 }
 
-/** Named-config list for a tool, with an empty-state fallback. */
+/** Enabled-provider list for a tool. Drag a row to reorder (persisted via
+ * `onReorder`); empty-state fallback when no provider matches the tool. */
 export const ConfigList: FC<ConfigListProps> = ({
-  configs,
-  currentConfigId,
+  providers,
+  providerConfigs,
+  currentProviderId,
   resolveMeta,
-  onEdit,
-  onDelete,
-  onToggleCurrent
+  onConfigure,
+  onToggleCurrent,
+  onReorder
 }) => {
   const { t } = useTranslation()
 
-  if (configs.length === 0) {
+  if (providers.length === 0) {
     return (
       <EmptyState
         preset="no-code-tool"
-        title={t('code.no_configs_title')}
-        description={t('code.no_configs_description')}
+        title={t('code.no_providers_title')}
+        description={t('code.no_providers_description')}
       />
     )
   }
 
   return (
-    <div className="space-y-[1px]">
-      {configs.map((config) => {
-        const meta = resolveMeta(config)
+    <ReorderableList
+      items={providers}
+      getId={(p) => p.id}
+      onReorder={onReorder}
+      gap="1px"
+      renderItem={(provider, _index, { dragging }) => {
+        const cfg = providerConfigs[provider.id]
+        const meta = resolveMeta(provider, cfg)
         return (
-          <ConfigCard
-            key={config.id}
-            config={config}
+          <ProviderCard
+            provider={provider}
             providerName={meta.providerName}
+            providerConfig={cfg}
             modelName={meta.modelName}
-            isCurrent={currentConfigId === config.id}
-            onEdit={onEdit}
-            onDelete={onDelete}
+            isCurrent={currentProviderId === provider.id}
+            dragging={dragging}
+            onConfigure={onConfigure}
             onToggleCurrent={onToggleCurrent}
           />
         )
-      })}
-    </div>
+      }}
+    />
   )
 }

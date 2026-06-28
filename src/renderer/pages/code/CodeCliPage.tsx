@@ -2,15 +2,18 @@ import { Button } from '@cherrystudio/ui'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { injectCliConfig } from '@renderer/services/codeCli'
 import { loggerService } from '@renderer/services/LoggerService'
-import type { CliNamedConfig } from '@shared/data/preference/preferenceTypes'
+import type { Provider } from '@shared/data/types/provider'
+import type { UniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import { CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
-import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { Play, Plus } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from '@tanstack/react-router'
 
 import { CLI_TOOLS } from './cliTools'
 import { CodeCliSidebar } from './components/CodeCliSidebar'
@@ -28,7 +31,6 @@ const logger = loggerService.withContext('CodeCliPage')
 
 type CliToolOption = (typeof CLI_TOOLS)[number]
 
-// Stable list of CLI tool ids for the version-status hook.
 const CLI_TOOL_IDS = CLI_TOOLS.map((tool) => tool.value)
 
 const toMeta = (tool: CliToolOption): CodeToolMeta => ({
@@ -37,145 +39,151 @@ const toMeta = (tool: CliToolOption): CodeToolMeta => ({
   icon: tool.icon
 })
 
-type PanelState = { open: true; target: CliNamedConfig | null } | { open: false }
-
 const CodeCliPage: FC = () => {
   const { t } = useTranslation()
   const [, setIsBunInstalled] = usePersistCache('feature.mcp.is_bun_installed')
   const {
     selectedCliTool,
-    orderedList,
-    currentConfig,
-    selectedTerminal,
-    addConfig,
-    updateConfig,
-    deleteConfig,
-    setCurrentConfig,
+    currentToolState,
+    currentProviderId,
+    currentProviderConfig,
+    providerConfigs,
+    upsertProviderConfig,
+    setCurrentProvider,
+    reorderProviders,
     selectTool,
     setTerminal,
-    selectFolder
+    selectFolder,
+    selectedTerminal
   } = useCodeCli()
 
   const { install, upgrade, remove, installingTools, upgradingTools } = useBinaryActions()
   const availableTerminals = useAvailableTerminals()
-  const { modelFilter, resolveConfigMeta } = useConfigMetadata(selectedCliTool)
+  const { providers } = useProviders()
+  const { filterProviders, makeModelFilter, resolveProviderMeta, firstModelByProvider } =
+    useConfigMetadata(selectedCliTool)
+  const navigate = useNavigate()
 
-  const [panel, setPanel] = useState<PanelState>({ open: false })
+  const supportedProviders = useMemo(() => {
+    const filtered = filterProviders(providers)
+    const order = currentToolState.providerOrder
+    if (!order?.length) return filtered
+    const byId = new Map(filtered.map((p) => [p.id, p]))
+    const ordered = order.map((id) => byId.get(id)).filter((p): p is Provider => !!p)
+    const orderedIds = new Set(ordered.map((p) => p.id))
+    const rest = filtered.filter((p) => !orderedIds.has(p.id))
+    return [...ordered, ...rest]
+  }, [filterProviders, providers, currentToolState])
 
-  const openAddPanel = useCallback(() => setPanel({ open: true, target: null }), [])
-  const openEditPanel = useCallback((target: CliNamedConfig) => setPanel({ open: true, target }), [])
-  const closePanel = useCallback(() => setPanel({ open: false }), [])
+  const handleReorder = useCallback(
+    (nextProviders: Provider[]) => {
+      void reorderProviders(nextProviders.map((p) => p.id))
+    },
+    [reorderProviders]
+  )
+
+  const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
+  const openConfigurePanel = useCallback((provider: Provider) => setEditingProvider(provider), [])
+  const closePanel = useCallback(() => setEditingProvider(null), [])
 
   const handlePanelSubmit = useCallback(
-    async (values: { name: string; providerId: string; modelId: UniqueModelId; config?: Record<string, unknown> }) => {
-      const target = panel.open ? panel.target : null
-      if (target) {
-        await updateConfig(selectedCliTool, target.id, {
-          name: values.name,
-          providerId: values.providerId,
-          modelId: values.modelId,
-          ...(values.config ? { config: values.config } : {})
-        })
-        logger.info('Updated CLI config', { toolId: selectedCliTool, configId: target.id })
-        // Re-apply to the native file when editing the currently active config;
-        // otherwise model/option edits stay stuck on the old on-disk snapshot
-        // until the user disables and re-enables the config.
-        if (currentConfig?.id === target.id) {
-          try {
-            await injectCliConfig({
-              cliTool: selectedCliTool,
-              modelId: values.modelId,
-              configBlob: values.config
-            })
-          } catch (err) {
-            logger.error('Failed to inject CLI config on edit:', err as Error)
-            window.toast.error(t('code.apply_failed'))
-          }
-        }
-      } else {
-        const newId = await addConfig(selectedCliTool, {
-          name: values.name,
-          providerId: values.providerId,
-          modelId: values.modelId,
-          ...(values.config ? { config: values.config } : {})
-        })
-        // Inject first; only mark as current on success so the UI never shows a
-        // config as active while its native file failed to write.
+    async (values: { modelId: UniqueModelId; config?: Record<string, unknown> }) => {
+      if (!editingProvider) return
+      await upsertProviderConfig(editingProvider.id, {
+        modelId: values.modelId,
+        ...(values.config ? { config: values.config } : {})
+      })
+      logger.info('Updated CLI provider config', { toolId: selectedCliTool, providerId: editingProvider.id })
+      // Re-apply to the native file when editing the currently active provider.
+      if (currentProviderId === editingProvider.id) {
         try {
           await injectCliConfig({
             cliTool: selectedCliTool,
             modelId: values.modelId,
             configBlob: values.config
           })
-          await setCurrentConfig(selectedCliTool, newId)
         } catch (err) {
-          logger.error('Failed to inject CLI config on create:', err as Error)
+          logger.error('Failed to inject CLI config on edit:', err as Error)
           window.toast.error(t('code.apply_failed'))
         }
       }
     },
-    [panel, selectedCliTool, currentConfig, updateConfig, addConfig, setCurrentConfig, t]
-  )
-
-  const handleDelete = useCallback(
-    async (config: CliNamedConfig) => {
-      await deleteConfig(selectedCliTool, config.id)
-      window.toast.success(t('common.delete_success'))
-    },
-    [deleteConfig, selectedCliTool, t]
+    [editingProvider, selectedCliTool, currentProviderId, upsertProviderConfig, t]
   )
 
   const handleToggleCurrent = useCallback(
-    (config: CliNamedConfig) => {
-      const isEnabling = currentConfig?.id !== config.id
+    (provider: Provider) => {
+      const isEnabling = currentProviderId !== provider.id
       void (async () => {
         if (!isEnabling) {
-          await setCurrentConfig(selectedCliTool, null)
+          await setCurrentProvider(null)
           return
         }
+        // Ensure the provider has a config + modelId before injecting. Auto-pick
+        // the provider's first enabled model when the user hasn't configured one.
+        let cfg = providerConfigs[provider.id]
+        let modelId = cfg?.modelId
+        if (!modelId) {
+          const firstModel = firstModelByProvider.get(provider.id)
+          if (!firstModel) {
+            window.toast.error(t('code.no_model_for_provider'))
+            return
+          }
+          modelId = firstModel
+          await upsertProviderConfig(provider.id, { modelId: firstModel })
+          cfg = providerConfigs[provider.id]
+        }
         // Inject first; only mark as current on success so the UI never shows a
-        // config as active while its native file failed to write.
+        // provider as active while its native file failed to write.
         try {
           await injectCliConfig({
             cliTool: selectedCliTool,
-            modelId: config.modelId,
-            configBlob: config.config
+            modelId,
+            configBlob: cfg?.config
           })
-          await setCurrentConfig(selectedCliTool, config.id)
+          await setCurrentProvider(provider.id)
         } catch (err) {
           logger.error('Failed to inject CLI config on enable:', err as Error)
           window.toast.error(t('code.apply_failed'))
         }
       })()
     },
-    [setCurrentConfig, selectedCliTool, currentConfig, t]
+    [
+      currentProviderId,
+      selectedCliTool,
+      firstModelByProvider,
+      providerConfigs,
+      upsertProviderConfig,
+      setCurrentProvider,
+      t
+    ]
   )
 
   const handleSelectFolder = useCallback(async () => {
-    if (!currentConfig) return
+    if (!currentProviderId) return
     try {
-      await selectFolder(currentConfig.id)
+      await selectFolder(currentProviderId)
     } catch (err) {
       logger.error('Failed to select folder:', err as Error)
     }
-  }, [currentConfig, selectFolder])
+  }, [currentProviderId, selectFolder])
 
   // The native config file is written at "enable" time, not here — launch only
-  // opens a terminal running the CLI in the config's directory.
+  // opens a terminal running the CLI in the provider's directory.
   const handleLaunch = useCallback(async () => {
-    if (!currentConfig || !currentConfig.directory) {
+    if (!currentProviderConfig || !currentProviderConfig.directory) {
       window.toast.error(t('code.folder_placeholder'))
       return
     }
-    const { providerId, modelId: rawModelId } = isUniqueModelId(currentConfig.modelId)
-      ? parseUniqueModelId(currentConfig.modelId)
-      : { providerId: '', modelId: currentConfig.modelId }
+    const { providerId, modelId: rawModelId } = isUniqueModelId(currentProviderConfig.modelId)
+      ? parseUniqueModelId(currentProviderConfig.modelId)
+      : { providerId: '', modelId: currentProviderConfig.modelId }
     try {
       const runResult = await window.api.codeCli.run(
         selectedCliTool,
         rawModelId,
         providerId,
-        currentConfig.directory,
+        currentProviderConfig.directory,
         {},
         { terminal: selectedTerminal ?? undefined }
       )
@@ -186,7 +194,7 @@ const CodeCliPage: FC = () => {
       logger.error('Failed to launch CLI tool:', err as Error)
       window.toast.error(t('code.launch.error'))
     }
-  }, [currentConfig, selectedCliTool, selectedTerminal, t])
+  }, [currentProviderConfig, selectedCliTool, selectedTerminal, t])
 
   const activeTool = useMemo<CliToolOption | undefined>(
     () => CLI_TOOLS.find((ti) => ti.value === selectedCliTool),
@@ -236,24 +244,18 @@ const CodeCliPage: FC = () => {
           {activeMeta ? (
             <div className="scrollbar-thin flex-1 overflow-y-auto px-6 py-5">
               <div className="mx-auto max-w-2xl space-y-5">
-                {/* Header: tool name + launch/add buttons */}
+                {/* Header: tool name + launch button */}
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-foreground text-sm">{activeMeta.label}</span>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => void handleLaunch()}
-                      disabled={!currentConfig?.directory}
-                      className="gap-1 text-xs">
-                      <Play size={12} />
-                      {t('code.launch.label')}
-                    </Button>
-                    <Button variant="default" size="sm" onClick={openAddPanel} className="gap-1 text-xs">
-                      <Plus size={12} />
-                      {t('code.add_config')}
-                    </Button>
-                  </div>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => void handleLaunch()}
+                    disabled={!currentProviderConfig?.directory}
+                    className="gap-1 text-xs">
+                    <Play size={12} />
+                    {t('code.launch.label')}
+                  </Button>
                 </div>
 
                 {/* Version status card */}
@@ -273,20 +275,30 @@ const CodeCliPage: FC = () => {
                   />
                 )}
 
-                {/* Named configs list */}
+                {/* Enabled-provider list */}
                 <ConfigList
-                  configs={orderedList}
-                  currentConfigId={currentConfig?.id ?? null}
-                  resolveMeta={resolveConfigMeta}
-                  onEdit={openEditPanel}
-                  onDelete={handleDelete}
+                  providers={supportedProviders}
+                  providerConfigs={providerConfigs}
+                  currentProviderId={currentProviderId}
+                  resolveMeta={resolveProviderMeta}
+                  onConfigure={openConfigurePanel}
                   onToggleCurrent={handleToggleCurrent}
+                  onReorder={handleReorder}
                 />
 
-                {/* Current config: working directory + terminal */}
-                {currentConfig && (
+                {/* Footer link: add / manage providers in Settings */}
+                <button
+                  type="button"
+                  onClick={() => void navigate({ to: '/settings/provider' })}
+                  className="mx-auto flex items-center gap-1.5 pt-1 text-[11px] text-muted-foreground/60 transition-colors hover:text-primary">
+                  <Plus size={11} />
+                  {t('code.add_provider_hint')}
+                </button>
+
+                {/* Current provider: working directory + terminal */}
+                {currentProviderConfig && (
                   <CurrentConfigPanel
-                    config={currentConfig}
+                    directory={currentProviderConfig.directory}
                     terminals={availableTerminals}
                     selectedTerminal={selectedTerminal}
                     onSelectFolder={() => void handleSelectFolder()}
@@ -303,15 +315,19 @@ const CodeCliPage: FC = () => {
         </div>
       </div>
 
-      {/* Add / Edit dialog */}
-      <ConfigEditPanel
-        open={panel.open}
-        onClose={closePanel}
-        cliTool={selectedCliTool}
-        config={panel.open ? panel.target : null}
-        modelFilter={modelFilter}
-        onSubmit={handlePanelSubmit}
-      />
+      {/* Configure dialog */}
+      {editingProvider && (
+        <ConfigEditPanel
+          open={true}
+          onClose={closePanel}
+          cliTool={selectedCliTool}
+          provider={editingProvider}
+          providerConfig={providerConfigs[editingProvider.id] ?? null}
+          defaultModelId={firstModelByProvider.get(editingProvider.id)}
+          modelFilter={makeModelFilter(editingProvider.id)}
+          onSubmit={handlePanelSubmit}
+        />
+      )}
     </div>
   )
 }

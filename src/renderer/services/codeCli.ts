@@ -23,6 +23,8 @@ const logger = loggerService.withContext('injectCliConfig')
 const CLAUDE_SETTINGS_PATH = '~/.claude/settings.json'
 const CODEX_AUTH_PATH = '~/.codex/auth.json'
 const CODEX_CONFIG_PATH = '~/.codex/config.toml'
+const CODEX_RESPONSES_ENDPOINT = 'openai-responses'
+const CODEX_CHAT_ENDPOINT = 'openai-chat-completions'
 const OPENCODE_CONFIG_PATH = '~/.config/opencode/opencode.json'
 
 /**
@@ -168,11 +170,17 @@ interface CodexConfigOptions {
  * Codex splits its config across two files: `auth.json` holds the API key as
  * `OPENAI_API_KEY`, and `config.toml` holds model/provider wiring. The Cherry
  * provider is written with `requires_openai_auth = true` so Codex reads the key
- * from auth.json (matching cc-switch). */
+ * from auth.json. */
 async function writeCodex(
   existingToml: Record<string, any>,
   existingAuth: Record<string, any>,
-  resolved: { apiKey: string; baseUrl: string; providerName: string; model: string },
+  resolved: {
+    apiKey: string
+    baseUrl: string
+    providerName: string
+    model: string
+    wireApi: 'responses' | 'chat_completions'
+  },
   options: CodexConfigOptions = {}
 ): Promise<void> {
   const { apiKey, baseUrl, providerName, model } = resolved
@@ -211,7 +219,7 @@ async function writeCodex(
         // `name = "OpenAI"` opts into Codex's remote (server-side) compaction.
         name: options.remoteCompaction ? 'OpenAI' : providerName,
         base_url: baseUrl.replace(/\/$/, ''),
-        wire_api: 'responses',
+        wire_api: resolved.wireApi,
         requires_openai_auth: true
       }
     }
@@ -225,7 +233,7 @@ async function writeCodex(
   }
 
   // auth.json: merge OPENAI_API_KEY, preserving unrelated keys (e.g. OAuth
-  // login material) — matches cc-switch's login-cache preservation.
+  // login material).
   const mergedAuth = { ...existingAuth, OPENAI_API_KEY: apiKey }
 
   const absPath = await resolveAbs(CODEX_CONFIG_PATH)
@@ -331,11 +339,16 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<void> 
       return
     }
     case CodeCli.OPENAI_CODEX: {
-      const endpointType = provider.defaultChatEndpoint ?? 'openai-chat-completions'
-      const baseUrl = provider.endpointConfigs?.[endpointType]?.baseUrl ?? ''
+      const responsesUrl = provider.endpointConfigs?.[CODEX_RESPONSES_ENDPOINT]?.baseUrl
+      const chatUrl = provider.endpointConfigs?.[CODEX_CHAT_ENDPOINT]?.baseUrl
+      const baseUrl = responsesUrl ?? chatUrl ?? ''
+      const wireApi: 'responses' | 'chat_completions' = responsesUrl ? 'responses' : 'chat_completions'
       const providerName = sanitizeProviderName(provider.name, provider.id)
-      if (!apiKey || !baseUrl) {
-        throw new Error('Codex config is missing required fields (apiKey/baseUrl)')
+      if (!apiKey) {
+        throw new Error('Codex config is missing the API key')
+      }
+      if (!baseUrl) {
+        throw new Error('Codex config is missing the OpenAI endpoint base URL')
       }
       const absPath = await resolveAbs(CODEX_CONFIG_PATH)
       const authAbsPath = await resolveAbs(CODEX_AUTH_PATH)
@@ -345,7 +358,7 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<void> 
       await writeCodex(
         existing,
         existingAuth,
-        { apiKey, baseUrl, providerName, model },
+        { apiKey, baseUrl, providerName, model, wireApi },
         {
           goalMode: blob.goalMode === true,
           remoteCompaction: blob.remoteCompaction === true

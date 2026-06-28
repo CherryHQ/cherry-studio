@@ -1933,7 +1933,6 @@
     }
   },
   "code": {
-    "add_config": "添加",
     "add_provider_hint": "在 设置 → 模型服务 添加服务商",
     "adv": {
       "claude": {
@@ -1971,14 +1970,11 @@
     },
     "apply_failed": "写入 CLI 配置到系统文件失败",
     "auto_update_to_latest": "检查更新并安装最新版本",
-    "basic_info": "基本信息",
     "bun_required_message": "运行 CLI 工具需要安装 Bun 环境",
     "can_upgrade": "可升级",
     "cli_tool": "CLI 工具",
     "cli_tool_placeholder": "选择要使用的 CLI 工具",
     "config_json_hint": "粘贴或编辑原始 JSON，可与上方参数双向同步",
-    "config_name": "名称",
-    "config_name_placeholder": "例如：工作 Claude",
     "configure": "配置",
     "configuring_provider": "配置 {{provider}}",
     "count_one": "{{count}} 个",
@@ -2020,9 +2016,10 @@
     "model_hint_config": "选择要使用的模型",
     "model_placeholder": "选择要使用的模型",
     "model_required": "请选择模型",
-    "no_configs_description": "添加命名配置以管理此 CLI 工具的多个供应商/模型",
-    "no_configs_title": "暂无配置",
     "no_matching_tools": "没有匹配的工具",
+    "no_model_for_provider": "该服务商没有可用的模型",
+    "no_providers_description": "在 设置 → 模型服务 中启用支持的服务商",
+    "no_providers_title": "没有已启用的服务商",
     "no_tools": "暂无工具",
     "not_installed": "未安装",
     "providers": "服务商",

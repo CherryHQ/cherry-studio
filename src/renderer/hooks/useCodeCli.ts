@@ -1,7 +1,7 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type {
-  CliNamedConfig,
+  CliProviderConfig,
   CodeCliConfigs,
   CodeCliId,
   CodeCliToolState
@@ -20,29 +20,12 @@ function getToolState(toolId: CodeCliId, configs: CodeCliConfigs): CodeCliToolSt
   return configs[toolId] ?? EMPTY_TOOL_STATE
 }
 
-/** Generate a short unique client id (timestamp + random). */
-function generateConfigId(): string {
-  return `cfg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
-}
-
-/** Ordered list of configs for a tool (sorted by sortIndex then insertion). */
-function orderedConfigs(state: CodeCliToolState): CliNamedConfig[] {
-  const entries = Object.values(state.providers)
-  return entries.sort((a, b) => {
-    const ai = a.sortIndex ?? 0
-    const bi = b.sortIndex ?? 0
-    if (ai !== bi) return ai - bi
-    return (a.createdAt ?? 0) - (b.createdAt ?? 0)
-  })
-}
-
 export const useCodeCli = () => {
   const [configs, setConfigs] = usePreference(PREFERENCE_KEY)
 
   // Mirror configs in a ref so sequential writes chain correctly: usePreference's
   // setter takes a plain value, so two awaited writes back-to-back would otherwise
-  // have the second read a stale snapshot and clobber the first (e.g. addConfig()
-  // immediately followed by setCurrentConfig() wiped the just-added provider).
+  // have the second read a stale snapshot and clobber the first.
   const configsRef = useRef(configs)
   configsRef.current = configs
 
@@ -54,19 +37,14 @@ export const useCodeCli = () => {
 
   const currentToolState = useMemo(() => getToolState(selectedCliTool, configs), [selectedCliTool, configs])
 
-  const orderedList = useMemo(() => orderedConfigs(currentToolState), [currentToolState])
-
-  const currentConfig = useMemo(
-    () => (currentToolState.current ? (currentToolState.providers[currentToolState.current] ?? null) : null),
-    [currentToolState]
+  const currentProviderId = currentToolState.current
+  const currentProviderConfig = useMemo(
+    () => (currentProviderId ? (currentToolState.providers[currentProviderId] ?? null) : null),
+    [currentToolState, currentProviderId]
   )
-
-  const selectedModel = currentConfig?.modelId ?? null
   const selectedTerminal = currentToolState.terminal
+  const providerConfigs = currentToolState.providers
 
-  const canLaunch = Boolean(currentConfig?.modelId && currentConfig?.directory)
-
-  /** Patch a single tool's state. */
   const patchToolState = useCallback(
     async (toolId: CodeCliId, patch: (prev: CodeCliToolState) => CodeCliToolState) => {
       const latest = configsRef.current
@@ -78,94 +56,62 @@ export const useCodeCli = () => {
     [setConfigs]
   )
 
-  /** Add a new named config for a tool. Returns the new config id. */
-  const addConfig = useCallback(
+  const upsertProviderConfig = useCallback(
     async (
-      toolId: CodeCliId,
-      partial: Pick<CliNamedConfig, 'name' | 'providerId' | 'modelId'> & Partial<CliNamedConfig>
+      providerId: string,
+      partial: Pick<CliProviderConfig, 'modelId'> & Partial<CliProviderConfig>
     ): Promise<string> => {
-      const id = generateConfigId()
+      const toolId = selectedCliTool as CodeCliId
       const now = Date.now()
-      const orderLen = orderedConfigs(getToolState(toolId, configs)).length
-      const config: CliNamedConfig = {
-        id,
-        name: partial.name,
-        providerId: partial.providerId,
+      const existing = getToolState(toolId, configsRef.current).providers[providerId]
+      const next: CliProviderConfig = {
         modelId: partial.modelId,
-        createdAt: now,
-        sortIndex: orderLen,
-        ...(partial.config ? { config: partial.config } : {}),
-        ...(partial.directory ? { directory: partial.directory } : {}),
-        ...(partial.notes ? { notes: partial.notes } : {}),
-        ...(partial.icon ? { icon: partial.icon } : {}),
-        ...(partial.iconColor ? { iconColor: partial.iconColor } : {})
+        ...(partial.config || existing?.config ? { config: partial.config ?? existing?.config } : {}),
+        ...(partial.directory || existing?.directory ? { directory: partial.directory ?? existing?.directory } : {}),
+        createdAt: existing?.createdAt ?? now
       }
       await patchToolState(toolId, (prev) => ({
         ...prev,
-        providers: { ...prev.providers, [id]: config }
+        providers: { ...prev.providers, [providerId]: next }
       }))
-      logger.info('Added CLI config', { toolId, configId: id })
-      return id
+      logger.info('Upserted CLI provider config', { toolId, providerId })
+      return providerId
     },
-    [configs, patchToolState]
+    [patchToolState, selectedCliTool]
   )
 
-  /** Update an existing named config (by id) for a tool. */
-  const updateConfig = useCallback(
-    async (toolId: CodeCliId, configId: string, patch: Partial<CliNamedConfig>) => {
-      await patchToolState(toolId, (prev) => {
-        const existing = prev.providers[configId]
-        if (!existing) return prev
-        return { ...prev, providers: { ...prev.providers, [configId]: { ...existing, ...patch } } }
-      })
-    },
-    [patchToolState]
-  )
-
-  /** Delete a named config; clears `current` if it was active. */
-  const deleteConfig = useCallback(
-    async (toolId: CodeCliId, configId: string) => {
+  const deleteProviderConfig = useCallback(
+    async (providerId: string) => {
+      const toolId = selectedCliTool as CodeCliId
       await patchToolState(toolId, (prev) => {
         const nextProviders = { ...prev.providers }
-        delete nextProviders[configId]
+        delete nextProviders[providerId]
         return {
           ...prev,
           providers: nextProviders,
-          current: prev.current === configId ? null : prev.current
+          current: prev.current === providerId ? null : prev.current
         }
       })
     },
-    [patchToolState]
+    [patchToolState, selectedCliTool]
   )
 
-  /** Set the tool's active config. */
-  const setCurrentConfig = useCallback(
-    async (toolId: CodeCliId, configId: string | null) => {
-      await patchToolState(toolId, (prev) => ({ ...prev, current: configId }))
+  const setCurrentProvider = useCallback(
+    async (providerId: string | null) => {
+      const toolId = selectedCliTool as CodeCliId
+      await patchToolState(toolId, (prev) => ({ ...prev, current: providerId }))
     },
-    [patchToolState]
+    [patchToolState, selectedCliTool]
   )
 
-  /** Reorder configs by id list (drag-to-reorder). */
-  const reorderConfigs = useCallback(
-    async (toolId: CodeCliId, orderedIds: string[]) => {
-      await patchToolState(toolId, (prev) => {
-        const nextProviders: Record<string, CliNamedConfig> = {}
-        orderedIds.forEach((id, index) => {
-          const existing = prev.providers[id]
-          if (existing) nextProviders[id] = { ...existing, sortIndex: index }
-        })
-        const remainder = orderedConfigs(prev)
-          .filter((c) => !orderedIds.includes(c.id))
-          .map((c, i) => ({ ...c, sortIndex: orderedIds.length + i }))
-        for (const c of remainder) nextProviders[c.id] = c
-        return { ...prev, providers: nextProviders }
-      })
+  const reorderProviders = useCallback(
+    async (orderedIds: string[]) => {
+      const toolId = selectedCliTool as CodeCliId
+      await patchToolState(toolId, (prev) => ({ ...prev, providerOrder: orderedIds }))
     },
-    [patchToolState]
+    [patchToolState, selectedCliTool]
   )
 
-  /** Set the tool-level terminal (shared across the tool's configs). */
   const setTerminal = useCallback(
     async (terminal: string) => {
       await patchToolState(selectedCliTool as CodeCliId, (prev) => ({ ...prev, terminal }))
@@ -173,9 +119,8 @@ export const useCodeCli = () => {
     [patchToolState, selectedCliTool]
   )
 
-  /** Set a config's working directory and refresh the tool-level MRU list. */
   const setDirectory = useCallback(
-    async (configId: string, directory: string) => {
+    async (providerId: string, directory: string) => {
       const toolId = selectedCliTool as CodeCliId
       const state = getToolState(toolId, configs)
       const currentDirs = state.directories ?? []
@@ -190,21 +135,20 @@ export const useCodeCli = () => {
       await patchToolState(toolId, (prev) => ({
         ...prev,
         directories: newDirs,
-        providers: prev.providers[configId]
-          ? { ...prev.providers, [configId]: { ...prev.providers[configId], directory } }
+        providers: prev.providers[providerId]
+          ? { ...prev.providers, [providerId]: { ...prev.providers[providerId], directory } }
           : prev.providers
       }))
     },
     [configs, patchToolState, selectedCliTool]
   )
 
-  /** Pick a folder via native dialog and assign it to the given config. */
   const selectFolder = useCallback(
-    async (configId: string): Promise<string | null> => {
+    async (providerId: string): Promise<string | null> => {
       try {
         const folderPath = await window.api.file.selectFolder()
         if (folderPath) {
-          await setDirectory(configId, folderPath)
+          await setDirectory(providerId, folderPath)
           return folderPath
         }
         return null
@@ -216,37 +160,20 @@ export const useCodeCli = () => {
     [setDirectory]
   )
 
-  const removeDir = useCallback(
-    async (directory: string) => {
-      await patchToolState(selectedCliTool as CodeCliId, (prev) => {
-        const currentDirs = prev.directories ?? []
-        const newDirs = currentDirs.filter((d) => d !== directory)
-        return { ...prev, directories: newDirs }
-      })
-    },
-    [patchToolState, selectedCliTool]
-  )
-
   return {
     selectedCliTool,
-    configs,
     currentToolState,
-    orderedList,
-    currentConfig,
-    selectedModel,
+    currentProviderId,
+    currentProviderConfig,
+    providerConfigs,
     selectedTerminal,
-    canLaunch,
-    // config CRUD
-    addConfig,
-    updateConfig,
-    deleteConfig,
-    setCurrentConfig,
-    reorderConfigs,
-    // tool-level
+    upsertProviderConfig,
+    deleteProviderConfig,
+    setCurrentProvider,
+    reorderProviders,
     selectTool,
     setTerminal,
     setDirectory,
-    selectFolder,
-    removeDir
+    selectFolder
   }
 }
