@@ -1,3 +1,4 @@
+import { imageParamsSchema } from '@cherrystudio/provider-registry'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -55,13 +56,12 @@ const aiImagePayloadSchema = z.strictObject({
    */
   mode: ImageGenerationModeSchema.optional(),
   /**
-   * The canonical param bag (registry param keys → coerced values). The renderer
-   * already validated/coerced it via `buildParamsSchema`; main re-derives the wire
-   * shape from it (`splitParamValues` + the WireProfile engine). Loose by
-   * design — vendor-bag keys (cfg, addWatermark, …) are open-ended, and
-   * re-validating what `buildParamsSchema` already owns buys nothing.
+   * The canonical param bag, validated + coerced at the IPC boundary by the
+   * catalog value schema — the router's `safeParse` yields a typed `ParamValues`
+   * (non-catalog keys stripped). Per-model option/range constraints already ran
+   * in the renderer's `buildParamsSchema`; this is the value-type gate.
    */
-  paramValues: z.record(z.string(), z.unknown()),
+  paramValues: imageParamsSchema,
   /** Attached images / mask are encoded file bytes (data URLs), not form params. */
   inputImages: z.array(z.string()).optional(),
   mask: z.string().optional()

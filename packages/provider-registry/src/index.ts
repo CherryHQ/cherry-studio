@@ -27,8 +27,8 @@ export type {
 export {
   IMAGE_PARAM_CATALOG,
   IMAGE_PARAM_CATALOG_KEYS,
+  imageParamsSchema,
   paramCatalogEntry,
-  parseImageParams,
   wireName
 } from './schemas/imageParamCatalog'
 export { ImageGenerationModeSchema, ImageGenerationSupportSchema } from './schemas/model'

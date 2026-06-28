@@ -3,7 +3,7 @@ import {
   generateImage as aiCoreGenerateImage,
   rerank as aiCoreRerank
 } from '@cherrystudio/ai-core'
-import { parseImageParams } from '@cherrystudio/provider-registry'
+import type { ParamValues } from '@cherrystudio/provider-registry'
 import { assistantDataService } from '@data/services/AssistantService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
@@ -93,10 +93,12 @@ export interface AiImageRequest extends AiBaseRequest {
    *  (`vendorTransport` → descriptor) from the registry using this. */
   mode?: ImageGenerationMode
   /**
-   * Canonical param bag (registry param keys → coerced values). main derives the
-   * structured request fields + the vendor bag from it via `splitParamValues`.
+   * Canonical param bag — already a strict, coerced `ParamValues` (the
+   * `ai.generate_image` IPC validated it via the catalog `imageParamsSchema`).
+   * main derives the structured request fields + the vendor bag from it via
+   * `splitParamValues`.
    */
-  paramValues: Record<string, unknown>
+  paramValues: ParamValues
 }
 
 /** Image generation result — persisted file entries (main writes the bytes). */
@@ -442,15 +444,13 @@ export class AiService extends BaseService {
       ? { text: request.prompt, images: request.inputImages, ...(request.mask && { mask: request.mask }) }
       : request.prompt
 
-    // Re-type the IPC `paramValues` bag (loose `Record<string,unknown>`) into a
-    // strict, coerced `ParamValues` at the main boundary — the catalog value
-    // schemas, the inverse of the renderer's `buildParamsSchema`. Now-pure
-    // canonical (transport routing left the bag in Stage 5a).
-    const params = parseImageParams(request.paramValues)
-
-    // Split it into the structured fields the AI SDK call consumes
-    // (n/size/seed/aspectRatio → imageParams below) vs the leftover vendor bag
-    // (cfg, the diffusion/openai knobs, …) the WireProfile engine forwards.
+    // `request.paramValues` is already a strict, coerced `ParamValues` — the
+    // `ai.generate_image` IPC validated it via the catalog `imageParamsSchema` at
+    // the boundary (no main-side re-parse / cast). Split it into the structured
+    // fields the AI SDK call consumes (n/size/seed/aspectRatio → imageParams
+    // below) vs the leftover vendor bag (cfg, the diffusion/openai knobs, …) the
+    // WireProfile engine forwards.
+    const params = request.paramValues
     const { structured, vendorBag } = splitParamValues(params)
 
     // Vendor body (`providerOptions[providerId]`): the WireProfile engine maps the

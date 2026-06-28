@@ -98,31 +98,19 @@ export type ParamValue<K extends CanonicalParamKey> = z.infer<(typeof IMAGE_PARA
 export type ParamValues = { [K in CanonicalParamKey]?: ParamValue<K> }
 
 /**
- * Catalog-only param schema (every canonical key's value schema, no per-model
- * constraints). `.loose()` so unknown keys pass through during migration. Use
- * {@link parseImageParams} to coerce a raw bag at the main boundary into a typed
- * {@link ParamValues}; per-model validation is the renderer's `buildParamsSchema`.
+ * Catalog value schema — every canonical key's value schema as a single typed
+ * `z.object` whose `z.infer` is exactly {@link ParamValues}. The one `as` is on
+ * the dynamic `Object.fromEntries` SHAPE (provably the catalog keys → their
+ * schemas); the output type then flows without a cast. Consumers (the
+ * `ai.generate_image` IPC payload) use this to validate + coerce the bag with zod
+ * AT THE BOUNDARY — non-catalog keys are stripped, per-model option/range
+ * constraints stay in the renderer's `buildParamsSchema`.
  */
-const imageParamsSchema = z
-  .object(
-    Object.fromEntries(
-      (Object.entries(IMAGE_PARAM_CATALOG) as [CanonicalParamKey, ImageParamCatalogEntry][]).map(([key, entry]) => [
-        key,
-        entry.schema
-      ])
-    )
-  )
-  .loose()
-
-/**
- * Coerce a raw canonical param bag (e.g. across IPC) into a typed `ParamValues`.
- * Soft-fail: the renderer already validated via `buildParamsSchema`, so a value
- * that somehow fails here falls back to the raw bag rather than crashing main.
- */
-export function parseImageParams(raw: unknown): ParamValues {
-  const result = imageParamsSchema.safeParse(raw)
-  return (result.success ? result.data : raw) as ParamValues
-}
+export const imageParamsSchema = z.object(
+  Object.fromEntries(Object.entries(IMAGE_PARAM_CATALOG).map(([key, entry]) => [key, entry.schema])) as {
+    [K in CanonicalParamKey]: (typeof IMAGE_PARAM_CATALOG)[K]['schema']
+  }
+)
 
 /** The catalog entry for `key`. */
 export function paramCatalogEntry(key: CanonicalParamKey): ImageParamCatalogEntry {
