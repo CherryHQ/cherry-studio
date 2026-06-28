@@ -16,7 +16,7 @@
 import type { CanonicalParamKey } from '@shared/data/types/model'
 
 interface NativeBinding {
-  /** The structured field name (`AiImageRequest` / `ImageOptionParams` key). */
+  /** The structured field name (the `ParamValues` key, `numImages → n`). */
   readonly option: string
   /** Optional wire normalization applied once during the split. */
   readonly map?: (value: unknown) => unknown

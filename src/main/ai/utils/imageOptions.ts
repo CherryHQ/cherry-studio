@@ -1,32 +1,13 @@
-import type { GenerateImageParams } from '@shared/types/image'
+import type { ParamValues } from '@cherrystudio/provider-registry'
 
 import { nativeBindingFor } from './aiSdkNativeBindings'
 
-/**
- * Structural subset of the canonical image params that land in the structured
- * request fields (the AI SDK call options + each provider's vendor body). Both
- * `GenerateImageParams` and `EditImageParams` satisfy this. `background` /
- * `moderation` / `style` are OpenAI image-body fields carried alongside.
- */
-export type ImageOptionParams = Partial<
-  Pick<
-    GenerateImageParams,
-    | 'negativePrompt'
-    | 'seed'
-    | 'numInferenceSteps'
-    | 'guidanceScale'
-    | 'promptEnhancement'
-    | 'personGeneration'
-    | 'quality'
-    | 'aspectRatio'
-    | 'size'
-  >
-> & { background?: string; moderation?: string; style?: string }
-
 /** The structured fields + leftover vendor bag split out of a canonical `paramValues` bag. */
 export interface SplitImageParams {
-  /** `ImageOptionParams`-shaped (+ `n`): the binding-mapped structured fields. */
-  readonly structured: ImageOptionParams & { n?: number }
+  /** The binding-mapped structured fields — typed straight from the catalog
+   *  (`ParamValues`), `+ n` (the `numImages → n` rename). No hand-maintained
+   *  param-shape type. */
+  readonly structured: ParamValues & { n?: number }
   /** Non-binding canonical keys (cfg, addWatermark, modelDescriptor, …). */
   readonly vendorBag: Record<string, unknown>
 }
@@ -55,5 +36,5 @@ export function splitParamValues(paramValues: Record<string, unknown>): SplitIma
       vendorBag[key] = value
     }
   }
-  return { structured: structured as ImageOptionParams & { n?: number }, vendorBag }
+  return { structured: structured as ParamValues & { n?: number }, vendorBag }
 }
