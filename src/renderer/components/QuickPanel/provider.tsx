@@ -41,6 +41,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const keyDownHandlerRef = useRef<QuickPanelKeyDownHandler | undefined>(undefined)
   const isMountedRef = useRef(true)
   const isVisibleRef = useRef(isVisible)
+  const contextRef = useRef<QuickPanelContextType | null>(null)
   const panelGenerationRef = useRef(0)
   const generatedItemIdsRef = useRef(new WeakMap<QuickPanelListItem, string>())
   const generatedItemIdCounterRef = useRef(0)
@@ -135,7 +136,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       isVisibleRef.current = false
       setIsVisible(false)
       setLastCloseAction(action)
-      onClose?.({ action, searchText, item: {} as QuickPanelListItem, context: this })
+      onClose?.({ action, searchText, item: {} as QuickPanelListItem, context: contextRef.current! })
 
       clearTimer.current = window.setTimeout(() => {
         clearTimer.current = null
@@ -252,6 +253,8 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       afterAction
     ]
   )
+
+  contextRef.current = value
 
   return <QuickPanelContext value={value}>{children}</QuickPanelContext>
 }

@@ -190,6 +190,37 @@ describe('QuickPanelView', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
+  it('passes the current context to onClose callbacks', async () => {
+    const onClose = vi.fn()
+    let quickPanel: QuickPanelContextType | undefined
+
+    render(
+      <QuickPanelProvider>
+        <CaptureQuickPanel onCapture={(context) => (quickPanel = context)} />
+      </QuickPanelProvider>
+    )
+
+    await waitFor(() => {
+      expect(quickPanel).toBeDefined()
+    })
+
+    act(() => {
+      quickPanel?.open({ list: [], symbol: '/', onClose })
+    })
+
+    await waitFor(() => {
+      expect(quickPanel?.symbol).toBe('/')
+    })
+
+    const openContext = quickPanel
+    act(() => {
+      openContext?.close('esc')
+    })
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(onClose.mock.calls[0][0].context).toBe(openContext)
+  })
+
   it('dispatches keydown immediately after opening in the same effect tick', async () => {
     const onHandled = vi.fn()
 
