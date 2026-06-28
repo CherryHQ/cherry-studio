@@ -173,12 +173,19 @@ describe('ClickableFilePath', () => {
     expect(mockOpenPath).not.toHaveBeenCalled()
   })
 
-  it('should stay clickable when only openPath is available', () => {
-    renderWithProvider(<ClickableFilePath path="/Users/foo/essays/" />, {
-      openPath: mockOpenPath,
-      isDirectory: mockIsDirectory
+  it('should open via openPath when only openPath is available (no preview pane)', async () => {
+    // Home-chat surfaces wire openPath but neither openArtifactFile nor
+    // isDirectory; a non-directory path must still open via the file manager
+    // rather than silently dead-ending on the missing preview pane.
+    renderWithProvider(<ClickableFilePath path="/Users/foo/bar.tsx" />, {
+      openPath: mockOpenPath
     })
-    expect(screen.getByRole('link', { name: '/Users/foo/essays/' })).toBeInTheDocument()
+    const link = screen.getByRole('link', { name: '/Users/foo/bar.tsx' })
+    expect(link).toBeInTheDocument()
+    fireEvent.click(link)
+    await waitFor(() => {
+      expect(mockOpenPath).toHaveBeenCalledWith('/Users/foo/bar.tsx')
+    })
   })
 
   it('should normalize paths wrapped in backticks before opening', async () => {

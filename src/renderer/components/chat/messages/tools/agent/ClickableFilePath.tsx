@@ -72,12 +72,16 @@ export const ClickableFilePath = memo(function ClickableFilePath({
       // missing path, so a vanished file still falls through to the preview
       // pane, which reports its own missing / unreadable state (no TOCTOU
       // preflight, no error interpretation in the renderer).
+      //
+      // Some surfaces (e.g. Home chat) wire only `openPath` and no preview
+      // pane — there, route everything through the system file manager so the
+      // link is never a silent dead end.
       try {
         const directory = isDirectory ? await isDirectory(targetPath) : false
-        if (directory) {
+        if (directory || !openArtifactFile) {
           await openPath?.(targetPath)
         } else {
-          await openArtifactFile?.(targetPath)
+          await openArtifactFile(targetPath)
         }
       } catch {
         notifyError?.(t('chat.input.tools.open_file_error', { path: targetPath }))
