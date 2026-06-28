@@ -6466,6 +6466,8 @@
         "logo_upload_label": "Logo hochladen",
         "name": "Name",
         "name_placeholder": "Bitte Namen eingeben",
+        "remove_confirm_description": "Benutzerdefinierte Mini-App „{{name}}“ löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+        "remove_confirm_title": "Benutzerdefinierte Mini-App löschen?",
         "remove_error": "Löschen der benutzerdefinierten Mini-App fehlgeschlagen",
         "remove_success": "Benutzerdefinierte Mini-App erfolgreich gelöscht",
         "save_error": "Benutzerdefinierte Mini-App-Speicherung fehlgeschlagen",
@@ -6494,6 +6496,7 @@
         "title": "Bereichsfilterung für Mini-Programme"
       },
       "reset_tooltip": "Zurücksetzen auf Standardwert",
+      "title": "Mini-Apps-Einstellungen",
       "visible": "Angezeigte Mini-Apps"
     },
     "model": "Standardmodell",
@@ -6645,6 +6648,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
+        "sync_apply_default_in_use": "Einige Modelle sind als Standardmodell in Gebrauch und können nicht entfernt werden.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",
