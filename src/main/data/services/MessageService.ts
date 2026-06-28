@@ -9,6 +9,8 @@
  */
 
 import { application } from '@application'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { type MessageRow, messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx, DbType } from '@data/db/types'
@@ -37,6 +39,7 @@ import {
   type TreeResponse
 } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 
@@ -45,6 +48,8 @@ import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MessageService')
+const SQLITE_INARRAY_CHUNK = 500
+const SQLITE_INSERT_CHUNK = 100
 
 /**
  * Input for `createUserMessageWithPlaceholders` — one chat turn (user
@@ -173,6 +178,59 @@ function extractPreview(message: Message): string {
   }
 
   return ''
+}
+
+function extractChatMessageFileEntryIds(data: MessageData | null | undefined): string[] {
+  const ids: string[] = []
+  const seen = new Set<string>()
+  for (const part of data?.parts ?? []) {
+    if (part.type !== 'file') continue
+    const fileEntryId = readCherryMeta(part)?.fileEntryId
+    if (!fileEntryId || seen.has(fileEntryId)) continue
+    seen.add(fileEntryId)
+    ids.push(fileEntryId)
+  }
+  return ids
+}
+
+async function selectExistingFileEntryIdsTx(tx: DbOrTx, ids: readonly string[]): Promise<Set<string>> {
+  const existing = new Set<string>()
+  for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
+    const chunk = ids.slice(i, i + SQLITE_INARRAY_CHUNK)
+    const rows = await tx
+      .select({ id: fileEntryTable.id })
+      .from(fileEntryTable)
+      .where(inArray(fileEntryTable.id, chunk))
+    for (const row of rows) existing.add(row.id)
+  }
+  return existing
+}
+
+async function replaceChatMessageFileRefsTx(tx: DbOrTx, messageId: string, data: MessageData): Promise<void> {
+  await tx.delete(chatMessageFileRefTable).where(eq(chatMessageFileRefTable.sourceId, messageId))
+
+  const fileEntryIds = extractChatMessageFileEntryIds(data)
+  if (fileEntryIds.length === 0) return
+
+  const existingIds = await selectExistingFileEntryIdsTx(tx, fileEntryIds)
+  const now = Date.now()
+  const rows: Array<typeof chatMessageFileRefTable.$inferInsert> = []
+  for (const fileEntryId of fileEntryIds) {
+    if (!existingIds.has(fileEntryId)) continue
+    rows.push({ fileEntryId, sourceId: messageId, role: 'attachment', createdAt: now, updatedAt: now })
+  }
+
+  if (rows.length !== fileEntryIds.length) {
+    logger.warn('Dropped chat message file refs without matching file_entry', {
+      messageId,
+      dropped: fileEntryIds.length - rows.length,
+      total: fileEntryIds.length
+    })
+  }
+
+  for (let i = 0; i < rows.length; i += SQLITE_INSERT_CHUNK) {
+    await tx.insert(chatMessageFileRefTable).values(rows.slice(i, i + SQLITE_INSERT_CHUNK))
+  }
 }
 
 /**
@@ -835,6 +893,7 @@ export class MessageService {
           siblingsGroupId
         })
         .returning()
+      await replaceChatMessageFileRefsTx(tx, row.id, data)
 
       const topicService = getDataService('TopicService')
       await topicService.setActiveNodeTx(tx, source.topicId, row.id, { assumeValid: true })
@@ -950,6 +1009,7 @@ export class MessageService {
           stats: dto.stats
         })
         .returning()
+      await replaceChatMessageFileRefsTx(tx, row.id, dto.data)
 
       // Update activeNodeId if setAsActive is not explicitly false
       if (dto.setAsActive !== false) {
@@ -1029,6 +1089,7 @@ export class MessageService {
             stats: dto.stats
           })
           .returning()
+        await replaceChatMessageFileRefsTx(tx, row.id, dto.data)
         userMessage = rowToMessage(row)
       } else {
         const [row] = await tx.select().from(messageTable).where(eq(messageTable.id, input.userMessage.id)).limit(1)
@@ -1070,6 +1131,7 @@ export class MessageService {
             stats: p.stats
           })
           .returning()
+        await replaceChatMessageFileRefsTx(tx, row.id, p.data)
         placeholders.push(rowToMessage(row))
       }
 
@@ -1153,6 +1215,9 @@ export class MessageService {
       if (dto.stats !== undefined) updates.stats = dto.stats
 
       const [row] = await tx.update(messageTable).set(updates).where(eq(messageTable.id, id)).returning()
+      if (dto.data !== undefined) {
+        await replaceChatMessageFileRefsTx(tx, id, dto.data)
+      }
 
       logger.info('Updated message', { id, changes: Object.keys(dto) })
 

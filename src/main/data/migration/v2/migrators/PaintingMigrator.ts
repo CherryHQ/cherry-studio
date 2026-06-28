@@ -20,6 +20,7 @@ import {
 const logger = loggerService.withContext('PaintingMigrator')
 
 const INSERT_BATCH_SIZE = 100
+const INARRAY_CHUNK = 500
 
 export class PaintingMigrator extends BaseMigrator {
   readonly id = 'painting'
@@ -169,11 +170,15 @@ export class PaintingMigrator extends BaseMigrator {
         }
         if (allFileIds.size > 0) {
           const idList = Array.from(allFileIds)
-          const existing = await tx
-            .select({ id: fileEntryTable.id })
-            .from(fileEntryTable)
-            .where(inArray(fileEntryTable.id, idList))
-          const existingIds = new Set(existing.map((r) => r.id))
+          const existingIds = new Set<string>()
+          for (let i = 0; i < idList.length; i += INARRAY_CHUNK) {
+            const chunk = idList.slice(i, i + INARRAY_CHUNK)
+            const existing = await tx
+              .select({ id: fileEntryTable.id })
+              .from(fileEntryTable)
+              .where(inArray(fileEntryTable.id, chunk))
+            for (const row of existing) existingIds.add(row.id)
+          }
 
           const now = Date.now()
           const refRows: Array<typeof paintingFileRefTable.$inferInsert> = []

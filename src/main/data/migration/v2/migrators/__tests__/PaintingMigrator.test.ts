@@ -243,6 +243,47 @@ describe('PaintingMigrator painting_file_ref integration', () => {
     expect(fkCheck.rows).toHaveLength(0)
   })
 
+  it('chunks file_entry lookup for more than SQLite parameter limit file ids', async () => {
+    const FILE_COUNT = 1200
+    const fileIdAt = (index: number) => `019606a0-0000-7000-8000-${index.toString(16).padStart(12, '0')}`
+    const paintingIdAt = (index: number) => `44444444-4444-4444-8444-${index.toString(16).padStart(12, '0')}`
+    const fileIds = Array.from({ length: FILE_COUNT }, (_, i) => fileIdAt(i + 1000))
+    const now = Date.now()
+
+    for (let i = 0; i < fileIds.length; i += 100) {
+      await dbh.db.insert(fileEntryTable).values(
+        fileIds.slice(i, i + 100).map((id) => ({
+          id,
+          origin: 'internal',
+          name: `image-${id.slice(-4)}`,
+          ext: 'png',
+          size: 1024,
+          createdAt: now,
+          updatedAt: now
+        }))
+      )
+    }
+
+    const migrator = new PaintingMigrator()
+    const ctx = makeCtx(dbh, {
+      siliconflow_paintings: fileIds.map((fileId, i) => ({
+        id: paintingIdAt(i + 1000),
+        prompt: `bulk ${i}`,
+        files: [{ id: fileId }]
+      }))
+    })
+
+    expect((await migrator.prepare(ctx)).success).toBe(true)
+    await expect(migrator.execute(ctx)).resolves.toMatchObject({ success: true, processedCount: FILE_COUNT })
+
+    const refRows = await dbh.db.select().from(paintingFileRefTable)
+    expect(refRows).toHaveLength(FILE_COUNT)
+    expect((migrator as unknown as { droppedFileRefs: number }).droppedFileRefs).toBe(0)
+
+    const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
+    expect(fkCheck.rows).toHaveLength(0)
+  })
+
   it('validates migrated row counts after a mixed present/dangling run', async () => {
     await seedInternalFile(dbh, FILE_PRESENT_OUTPUT_ID)
 
