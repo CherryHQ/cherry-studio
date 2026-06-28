@@ -25,6 +25,7 @@ const overrides = read('provider-models.json').overrides as Array<{
   providerId: string
   modelId: string
   apiModelId?: string
+  modelVariants?: string[]
 }>
 
 const modelById = new Map(models.map((m) => [m.id, m]))
@@ -70,16 +71,23 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
     expect(problems).toEqual([])
   })
 
-  it('every provider override resolves to a row in provider-models.json (distinct apiModelId variants included)', () => {
-    // Key on apiModelId too: a provider may serve the same canonical modelId under several apiModelIds
-    // (tokenhub's dated 原厂直供 variants). Keying on modelId alone would let a dropped variant slip through.
-    const key = (o: { providerId: string; modelId: string; apiModelId?: string }) =>
-      `${o.providerId}|${o.modelId}|${o.apiModelId ?? ''}`
+  it('every provider override resolves to a row in provider-models.json (full generator identity)', () => {
+    // Mirror the generator's dedup identity exactly — providerId + modelId + apiModelId + sorted
+    // modelVariants (see generate-catalog.ts `addOverride`). A provider may serve the same canonical
+    // modelId under several apiModelIds (tokenhub's dated 原厂直供 variants); keying on less than the full
+    // identity would let a dropped variant — or a stale row with wrong/missing modelVariants — slip through.
+    const key = (o: { providerId: string; modelId: string; apiModelId?: string; modelVariants?: string[] }) =>
+      `${o.providerId}|${o.modelId}|${o.apiModelId ?? ''}|${(o.modelVariants ?? []).slice().sort().join(',')}`
     const seen = new Set(overrides.map(key))
     const problems: string[] = []
     for (const p of PROVIDERS)
       for (const ov of p.overrides ?? [])
-        if (ov.modelId && !seen.has(key({ providerId: p.id, modelId: ov.modelId, apiModelId: ov.apiModelId })))
+        if (
+          ov.modelId &&
+          !seen.has(
+            key({ providerId: p.id, modelId: ov.modelId, apiModelId: ov.apiModelId, modelVariants: ov.modelVariants })
+          )
+        )
           problems.push(`${p.id}/${ov.modelId}/${ov.apiModelId ?? ''}`)
     expect(problems).toEqual([])
   })

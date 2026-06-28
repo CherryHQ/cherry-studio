@@ -18,7 +18,8 @@
   "author": "Cherry Studio",
   "license": "MIT",
   "files": [
-    "dist/**/*"
+    "dist/**/*",
+    "data/**/*"
   ],
   "repository": {
     "type": "git",
