@@ -23,6 +23,8 @@ import type { CherryInProvider, CherryInProviderSettings } from '@cherrystudio/a
 import { createCherryIn } from '@cherrystudio/ai-sdk-provider'
 import type { OpenRouterProviderSettings } from '@openrouter/ai-sdk-provider'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
+import type { RequestyProviderSettings } from '@requesty/ai-sdk'
+import { createRequesty } from '@requesty/ai-sdk'
 import { customProvider } from 'ai'
 
 import type { OpenRouterSearchConfig } from '../../plugins/built-in/webSearchPlugin'
@@ -225,6 +227,11 @@ const OpenRouterExtension = ProviderExtension.create({
   }
 } as const satisfies ProviderExtensionConfig<OpenRouterProviderSettings, ProviderV3, 'openrouter'>)
 
+const RequestyExtension = ProviderExtension.create({
+  name: 'requesty',
+  create: createRequesty
+} as const satisfies ProviderExtensionConfig<RequestyProviderSettings, ProviderV3, 'requesty'>)
+
 const XaiExtension = ProviderExtension.create({
   name: 'xai',
   aliases: ['grok'] as const,
@@ -263,6 +270,7 @@ export const coreExtensions = [
   XaiExtension,
   DeepSeekExtension,
   OpenRouterExtension,
+  RequestyExtension,
   OpenAICompatibleExtension,
   CherryInExtension
 ] as const

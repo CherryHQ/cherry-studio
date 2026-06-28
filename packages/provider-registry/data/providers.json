@@ -449,6 +449,30 @@
       }
     },
     {
+      "id": "requesty",
+      "name": "Requesty",
+      "description": "Requesty - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "baseUrl": "https://router.requesty.ai/v1",
+          "adapterFamily": "requesty"
+        },
+        "anthropic-messages": {
+          "baseUrl": "https://router.requesty.ai",
+          "adapterFamily": "requesty"
+        }
+      },
+      "metadata": {
+        "website": {
+          "official": "https://requesty.ai/",
+          "apiKey": "https://app.requesty.ai/api-keys",
+          "docs": "https://docs.requesty.ai",
+          "models": "https://app.requesty.ai/router/list"
+        }
+      }
+    },
+    {
       "id": "ollama",
       "name": "Ollama",
       "description": "Ollama - AI model provider",
