@@ -3,6 +3,7 @@ import {
   generateImage as aiCoreGenerateImage,
   rerank as aiCoreRerank
 } from '@cherrystudio/ai-core'
+import { parseImageParams } from '@cherrystudio/provider-registry'
 import { assistantDataService } from '@data/services/AssistantService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
@@ -441,22 +442,23 @@ export class AiService extends BaseService {
       ? { text: request.prompt, images: request.inputImages, ...(request.mask && { mask: request.mask }) }
       : request.prompt
 
-    // Split the canonical `paramValues` bag into the structured fields the AI SDK
-    // call consumes (n/size/seed/aspectRatio → imageParams below) vs the leftover
-    // vendor bag (cfg, modelDescriptor, …) the WireProfile engine forwards.
-    const { structured, vendorBag } = splitParamValues(request.paramValues)
+    // Re-type the IPC `paramValues` bag (loose `Record<string,unknown>`) into a
+    // strict, coerced `ParamValues` at the main boundary — the catalog value
+    // schemas, the inverse of the renderer's `buildParamsSchema`. Now-pure
+    // canonical (transport routing left the bag in Stage 5a).
+    const params = parseImageParams(request.paramValues)
+
+    // Split it into the structured fields the AI SDK call consumes
+    // (n/size/seed/aspectRatio → imageParams below) vs the leftover vendor bag
+    // (cfg, the diffusion/openai knobs, …) the WireProfile engine forwards.
+    const { structured, vendorBag } = splitParamValues(params)
 
     // Vendor body (`providerOptions[providerId]`): the WireProfile engine maps the
     // canonical bag to each provider's wire — a registered profile for the
     // OpenAI / google / dashscope / aihubmix / dmxapi families, else the diffusion
     // catch-all (DEFAULT_DIFFUSION_REGISTRATION).
     const registration = WIRE_REGISTRY[sdkConfig.providerId] ?? DEFAULT_DIFFUSION_REGISTRATION
-    const imageProviderOptions = buildVendorProviderOptions(
-      sdkConfig.providerId,
-      request.paramValues,
-      registration,
-      vendorBag
-    )
+    const imageProviderOptions = buildVendorProviderOptions(sdkConfig.providerId, params, registration, vendorBag)
     // Async custom-provider transports (ppio / dashscope / modelscope /
     // dmxapi-bespoke) run the submit/poll loop on the job system so it survives
     // a restart. Unlike the in-SDK path (whose `providerOptions[id]` IS the wire

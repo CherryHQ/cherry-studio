@@ -1,13 +1,31 @@
 import { describe, expect, it } from 'vitest'
 
 import { CANONICAL_PARAM_KEY } from '../schemas/enums'
-import { IMAGE_PARAM_CATALOG_KEYS } from '../schemas/imageParamCatalog'
+import { IMAGE_PARAM_CATALOG_KEYS, parseImageParams } from '../schemas/imageParamCatalog'
 import type { ImageGenerationSupport } from '../schemas/model'
 import { buildParamsSchema } from '../utils/buildParamsSchema'
 
 describe('IMAGE_PARAM_CATALOG', () => {
   it('is exhaustive over CANONICAL_PARAM_KEY (no missing / extra keys)', () => {
     expect([...IMAGE_PARAM_CATALOG_KEYS].sort()).toEqual(Object.values(CANONICAL_PARAM_KEY).sort())
+  })
+})
+
+describe('parseImageParams (catalog-only boundary re-type)', () => {
+  it('coerces canonical value types (seed string → int, numImages string → int)', () => {
+    expect(parseImageParams({ seed: '42', numImages: '2', negativePrompt: 'blur' })).toEqual({
+      seed: 42,
+      numImages: 2,
+      negativePrompt: 'blur'
+    })
+  })
+
+  it('passes unknown keys through (loose) and soft-fails to raw on a bad bag', () => {
+    expect(parseImageParams({ cfg: 7.5, modelDescriptor: { id: 'x' } })).toMatchObject({
+      cfg: 7.5,
+      modelDescriptor: { id: 'x' }
+    })
+    expect(parseImageParams('not-an-object')).toBe('not-an-object')
   })
 })
 
