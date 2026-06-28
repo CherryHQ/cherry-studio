@@ -1271,6 +1271,9 @@ importers:
       '@openrouter/ai-sdk-provider':
         specifier: ^2.3.3
         version: 2.3.3(patch_hash=6f905d5d4efe8dacf34b76a13807f84b19418cf68adc7febeaf1a96fa5886df8)(ai@6.0.143(patch_hash=a6fc1788c6b23da25d4d91aee1fa72564041e79e3cb20811d7d9e61a2c53878e)(zod@4.3.4))(zod@4.3.4)
+      '@requesty/ai-sdk':
+        specifier: ^3.4.0
+        version: 3.4.0(rolldown-vite@7.3.0(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))(zod@4.3.4)
       ai:
         specifier: ^6.0.116
         version: 6.0.143(patch_hash=a6fc1788c6b23da25d4d91aee1fa72564041e79e3cb20811d7d9e61a2c53878e)(zod@4.3.4)
@@ -5363,6 +5366,13 @@ packages:
       '@lezer/highlight': ^1.0.0
       '@lezer/javascript': ^1.2.0
       '@lezer/lr': ^1.0.0
+
+  '@requesty/ai-sdk@3.4.0':
+    resolution: {integrity: sha512-EM28sf63dIiMgtKcX/WOmtr3Rid1EOpn3IJiFbM/KxL+NECJNogjzR2X72jYxd1F6M3umJKL/6KdmzV+4OCsYg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      vite: ^7.1.7
+      zod: ^3.25.76 || ^4.0.0
 
   '@rolldown/binding-android-arm64@1.0.0-beta.45':
     resolution: {integrity: sha512-bfgKYhFiXJALeA/riil908+2vlyWGdwa7Ju5S+JgWZYdR4jtiPOGdM6WLfso1dojCh+4ZWeiTwPeV9IKQEX+4g==}
@@ -18833,6 +18843,13 @@ snapshots:
       '@lezer/highlight': 1.2.3
       '@lezer/javascript': 1.5.4
       '@lezer/lr': 1.4.8
+
+  '@requesty/ai-sdk@3.4.0(rolldown-vite@7.3.0(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2))(zod@4.3.4)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.11
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.3.4)
+      vite: rolldown-vite@7.3.0(@types/node@24.10.4)(esbuild@0.25.12)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.8.2)
+      zod: 4.3.4
 
   '@rolldown/binding-android-arm64@1.0.0-beta.45':
     optional: true
