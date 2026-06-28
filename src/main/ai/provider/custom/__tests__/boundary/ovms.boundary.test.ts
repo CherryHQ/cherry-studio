@@ -35,7 +35,8 @@ describe('OVMS request boundary', () => {
       modelId: 'OpenVINO/stable-diffusion-v1-5',
       prompt: 'a fox',
       size: '768x768',
-      providerParams: { numInferenceSteps: 8, seed: 123 }
+      seed: 123,
+      providerParams: { numInferenceSteps: 8 }
     } as ImageGenerationSubmitInput)
 
     expect(req.url).toBe('http://localhost:8000/images/generations')

@@ -36,14 +36,6 @@ function readNumber(bag: Record<string, unknown>, ...keys: string[]): number | u
   return undefined
 }
 
-function readString(bag: Record<string, unknown>, ...keys: string[]): string | undefined {
-  for (const key of keys) {
-    const value = bag[key]
-    if (typeof value === 'string' && value !== '') return value
-  }
-  return undefined
-}
-
 class OvmsTransport implements ImageGenerationTransport {
   private baseURL: string
 
@@ -54,12 +46,13 @@ class OvmsTransport implements ImageGenerationTransport {
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
     const bag = input.providerParams ?? {}
 
+    // The bag is canonical camelCase; native size/seed come from `input.*`.
     const requestBody = {
       model: input.modelId,
       prompt: input.prompt ?? '',
-      size: input.size ?? readString(bag, 'size') ?? '512x512',
-      num_inference_steps: readNumber(bag, 'numInferenceSteps', 'num_inference_steps') ?? 4,
-      rng_seed: readNumber(bag, 'rngSeed', 'rng_seed', 'seed') ?? input.seed ?? 0
+      size: input.size ?? '512x512',
+      num_inference_steps: readNumber(bag, 'numInferenceSteps') ?? 4,
+      rng_seed: readNumber(bag, 'rngSeed') ?? input.seed ?? 0
     }
 
     const response = await fetch(`${this.baseURL}/images/generations`, {

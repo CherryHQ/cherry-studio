@@ -126,20 +126,18 @@ class ModelscopeTransport implements ImageGenerationTransport {
       }
     }
 
-    // ModelScope uses `steps` / `guidance`, not `num_inference_steps` /
-    // `guidance_scale`. The bag arrives snake-cased from the WireProfile engine
-    // (diffusion profile); accept both forms.
-    const steps = readNumber(bag, 'numInferenceSteps', 'num_inference_steps', 'steps')
+    // The bag is canonical camelCase; ModelScope's wire names are `steps` /
+    // `guidance` (not `num_inference_steps` / `guidance_scale`).
+    const steps = readNumber(bag, 'numInferenceSteps')
     if (steps !== undefined) body.steps = steps
 
-    const guidance = readNumber(bag, 'guidanceScale', 'guidance_scale', 'guidance')
+    const guidance = readNumber(bag, 'guidanceScale')
     if (guidance !== undefined) body.guidance = guidance
 
-    const negativePrompt = readString(bag, 'negativePrompt', 'negative_prompt')
+    const negativePrompt = readString(bag, 'negativePrompt')
     if (negativePrompt) body.negative_prompt = negativePrompt
 
-    const seed = readNumber(bag, 'seed') ?? input.seed
-    if (seed !== undefined) body.seed = seed
+    if (input.seed !== undefined) body.seed = input.seed
 
     const response = await this.request<{ task_id: string }>(`/v1/images/generations`, 'POST', body, {
       timeout: 120000,

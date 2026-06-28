@@ -31,7 +31,8 @@ describe('OvmsTransport', () => {
       ...baseInput,
       modelId: 'sd',
       prompt: 'a cat',
-      providerParams: { model: 'sd', size: '768x768', numInferenceSteps: 8, rngSeed: 7 }
+      size: '768x768',
+      providerParams: { model: 'sd', numInferenceSteps: 8, rngSeed: 7 }
     })
 
     const call = fetchMock.mock.calls[0]
