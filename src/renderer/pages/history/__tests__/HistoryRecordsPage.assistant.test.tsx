@@ -202,6 +202,7 @@ vi.mock('react-i18next', () => ({
         'chat.topics.export.notion': 'Export to Notion',
         'chat.topics.export.obsidian': 'Export to Obsidian',
         'chat.topics.export.siyuan': 'Export to Siyuan',
+        'chat.topics.export.html': 'Export as HTML',
         'chat.topics.export.title': 'Export',
         'chat.topics.export.word': 'Export as Word',
         'chat.topics.export.yuque': 'Export to Yuque',
@@ -351,7 +352,8 @@ describe('HistoryRecordsPage assistant mode', () => {
         obsidian: true,
         plain_text: true,
         siyuan: true,
-        yuque: true
+        yuque: true,
+        html: true
       }
     ])
     hookMocks.deleteTopic.mockReset()
@@ -909,7 +911,7 @@ describe('HistoryRecordsPage assistant mode', () => {
       '',
       'Save to notes',
       'Save to knowledge base',
-      'ExportExport as ImageExport as MarkdownExport as Markdown with ReasoningExport as WordExport to NotionExport to YuqueExport to ObsidianExport to JoplinExport to Siyuan',
+      'ExportExport as ImageExport as MarkdownExport as Markdown with ReasoningExport as WordExport to NotionExport to YuqueExport to ObsidianExport to JoplinExport to SiyuanExport as HTML',
       'CopyCopy as ImageCopy as MarkdownCopy as Plain Text',
       '',
       'Delete'

@@ -9,6 +9,7 @@ import {
   exportMarkdownToJoplin,
   exportMarkdownToSiyuan,
   exportMarkdownToYuque,
+  exportTopicAsHtml,
   exportTopicAsMarkdown,
   exportTopicToNotes,
   exportTopicToNotion,
@@ -86,6 +87,9 @@ export function createTopicActionContext({
     },
     onExportObsidian: (topic) => {
       void ObsidianExportPopup.show({ title: topic.name, topic, processingMethod: '3' })
+    },
+    onExportHtml: (topic) => {
+      void exportTopicAsHtml(topic)
     },
     onExportSiyuan: async (topic) => {
       const markdown = await topicToMarkdown(topic)

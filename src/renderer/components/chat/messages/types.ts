@@ -71,6 +71,7 @@ export interface MessageMenuExportOptions {
   image: boolean
   markdown: boolean
   markdown_reason: boolean
+  html: boolean
   notion: boolean
   yuque: boolean
   joplin: boolean
@@ -90,6 +91,7 @@ export const defaultMessageMenuExportOptions: MessageMenuExportOptions = {
   image: false,
   markdown: false,
   markdown_reason: false,
+  html: false,
   notion: false,
   yuque: false,
   joplin: false,
@@ -289,6 +291,7 @@ export interface MessageListActions {
   exportToObsidian?: (message: MessageExportView) => void | Promise<void>
   exportToJoplin?: (message: MessageExportView) => void | Promise<void>
   exportToSiyuan?: (message: MessageExportView) => void | Promise<void>
+  exportToHtml?: (message: MessageExportView) => void | Promise<void>
   openArtifactFile?: (path: string) => void | Promise<void>
   openPath?: (path: string) => void | Promise<void>
   openCitationsPanel?: (data: { citations: Citation[] }) => void

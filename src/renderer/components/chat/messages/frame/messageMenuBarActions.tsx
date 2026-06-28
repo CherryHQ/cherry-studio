@@ -276,6 +276,10 @@ registerCommand('message.exportSiyuan', async ({ actions, messageForExport }) =>
   await actions.exportToSiyuan?.(messageForExport)
 })
 
+registerCommand('message.exportHtml', async ({ actions, messageForExport }) => {
+  await actions.exportToHtml?.(messageForExport)
+})
+
 registerCommand('message.useful', ({ message, onUpdateUseful }) => {
   onUpdateUseful?.(message.id)
 })
@@ -528,6 +532,12 @@ registerAction({
       commandId: 'message.exportSiyuan',
       label: ({ t }) => t('chat.topics.export.siyuan'),
       availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.siyuan && !!actions.exportToSiyuan
+    },
+    {
+      id: 'export.html',
+      commandId: 'message.exportHtml',
+      label: ({ t }) => t('chat.topics.export.html'),
+      availability: ({ actions, menuConfig }) => menuConfig.exportMenuOptions.html && !!actions.exportToHtml
     }
   ]
 })
