@@ -315,6 +315,11 @@ type ChatComposerRootProps = ChatComposerProps & {
   forceNarrowLayout?: boolean
 }
 
+type ChatDockedPlacementComposerProps = Omit<ChatComposerProps, 'onDraftAssistantChange'>
+type ChatPlacementComposerProps =
+  | (ChatComposerProps & { placement: 'home' })
+  | (ChatDockedPlacementComposerProps & { placement: 'docked' })
+
 const ChatComposerRoot = ({
   topic,
   scopeKey,
@@ -1023,20 +1028,29 @@ export const ChatHomeComposer = (props: ChatComposerProps) => {
   )
 }
 
-export const ChatPlacementComposer = ({
-  isHome,
-  onDraftAssistantChange,
-  ...props
-}: ChatComposerProps & { isHome: boolean }) => {
-  return (
-    <ChatComposerRoot
-      {...props}
-      onDraftAssistantChange={isHome ? onDraftAssistantChange : undefined}
-      useMentionedModelSelector
-      forceNarrowLayout={isHome}
-      renderControls={isHome ? renderChatHomeControls : renderChatToolbarControls}
-    />
-  )
+export const ChatPlacementComposer = (props: ChatPlacementComposerProps) => {
+  const { placement, ...composerProps } = props
+
+  if (placement === 'home') {
+    return (
+      <ChatComposerRoot
+        {...composerProps}
+        useMentionedModelSelector
+        forceNarrowLayout
+        renderControls={renderChatHomeControls}
+      />
+    )
+  }
+
+  return <ChatComposerRoot {...composerProps} useMentionedModelSelector renderControls={renderChatToolbarControls} />
+}
+
+export const ChatDockedPlacementComposer = (props: ChatDockedPlacementComposerProps) => {
+  return <ChatPlacementComposer {...props} placement="docked" />
+}
+
+export const ChatHomePlacementComposer = (props: ChatComposerProps) => {
+  return <ChatPlacementComposer {...props} placement="home" />
 }
 
 export default ChatComposer

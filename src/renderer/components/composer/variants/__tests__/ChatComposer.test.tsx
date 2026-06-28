@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import type { ComposerSerializedToken } from '../../tokens'
-import ChatComposer, { ChatHomeComposer, ChatPlacementComposer } from '../ChatComposer'
+import ChatComposer, { ChatDockedPlacementComposer, ChatHomeComposer, ChatPlacementComposer } from '../ChatComposer'
 
 const mocks = vi.hoisted(() => ({
   createTopic: vi.fn(),
@@ -647,9 +647,19 @@ describe('ChatComposer', () => {
   })
 
   it('keeps the home composer narrow even when chat wide layout is enabled', () => {
-    render(<ChatPlacementComposer isHome topic={topic} onSend={vi.fn()} />)
+    render(<ChatPlacementComposer placement="home" topic={topic} onSend={vi.fn()} />)
 
     expect(mocks.surfaceProps?.narrowMode).toBe(true)
+  })
+
+  it('renders docked placement with toolbar controls and sendDisabled behavior', () => {
+    render(<ChatDockedPlacementComposer topic={topic} onSend={vi.fn()} sendDisabled />)
+
+    expect(mocks.surfaceProps?.narrowMode).toBe(false)
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    expect(screen.getByText('tool menu')).toBeInTheDocument()
+    expect(screen.getByText('Assistant 1')).toBeInTheDocument()
+    expect(screen.getByText('Model A | Provider')).toBeInTheDocument()
   })
 
   it('does not enable skill marker paste handling', () => {
@@ -2459,7 +2469,7 @@ describe('ChatComposer', () => {
   })
 
   it('keeps draft multi-model selection when the composer placement docks', () => {
-    const view = render(<ChatPlacementComposer isHome topic={topic} onSend={vi.fn()} />)
+    const view = render(<ChatPlacementComposer placement="home" topic={topic} onSend={vi.fn()} />)
 
     fireEvent.click(screen.getByText('toggle model multi select'))
     fireEvent.click(screen.getByText('select models 1 and 2'))
@@ -2468,7 +2478,7 @@ describe('ChatComposer', () => {
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '2')
     expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-model-count', '2')
 
-    view.rerender(<ChatPlacementComposer isHome={false} topic={topic} onSend={vi.fn()} />)
+    view.rerender(<ChatPlacementComposer placement="docked" topic={topic} onSend={vi.fn()} />)
 
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multi-select-mode', 'true')
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '2')

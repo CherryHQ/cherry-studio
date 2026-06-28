@@ -120,18 +120,18 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
     )
   },
   ChatPlacementComposer: ({
-    isHome,
+    placement,
     onSend,
     sendDisabled,
     onDraftAssistantChange
   }: {
-    isHome: boolean
+    placement: 'home' | 'docked'
     onSend: (text: string, options?: { userMessageParts?: CherryMessagePart[] }) => Promise<void> | void
     sendDisabled?: boolean
     onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
   }) => {
     capturedOnSend = onSend
-    if (isHome) {
+    if (placement === 'home') {
       return (
         <button type="button" data-testid="chat-home-composer" onClick={() => onDraftAssistantChange?.('assistant-2')}>
           home composer
