@@ -1,6 +1,11 @@
+import { wireName } from '@cherrystudio/provider-registry'
 import type { JSONValue } from 'ai'
 
 import type { WireProfile, WireRegistration } from './wireProfile'
+
+function skipValue(value: unknown): boolean {
+  return value === undefined || value === '' || value === null || value === 'auto'
+}
 
 function isPlainObject(v: unknown): v is Record<string, JSONValue> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
@@ -26,24 +31,29 @@ function mergeContribution(body: Record<string, JSONValue>, contribution: Record
 }
 
 /**
- * Map a canonical `paramValues` bag to a vendor request body via the profile's
- * field rules. Drops `undefined` / `''` / `null` / `'auto'` — mirroring the old
- * `compact()` so the body is byte-identical to the legacy per-provider emitter. A
- * `to`/`map` rule sets one field; a `contribute` rule merges a partial body (the
- * one-to-many / nested escape hatch). Native params (`n`/`size`/`seed`/
- * `aspectRatio`) are NOT this function's concern except where a profile
- * re-declares one in the body (silicon duplicates `seed`; google nests
- * `aspectRatio`/`size` into `imageConfig`).
+ * Map a canonical `paramValues` bag to a vendor request body. `forward` keys ride
+ * as `wireName(key) → value` (the catalog supplies the snake_case name — one
+ * source, no per-profile rename). `fields` carry explicit overrides: a `to`/`map`
+ * rule sets one field, a `contribute` rule merges a partial body (one-to-many /
+ * nested). Drops `undefined` / `''` / `null` / `'auto'` — mirroring the old
+ * `compact()` so the body is byte-identical. Native params (`n`/`size`/`seed`/
+ * `aspectRatio`) are routed elsewhere except where a profile re-declares one in
+ * the body (silicon duplicates `seed`; google nests `aspectRatio`/`size`).
  */
 export function buildImageRequest(
   paramValues: Record<string, unknown>,
   profile: WireProfile
 ): Record<string, JSONValue> {
   const body: Record<string, JSONValue> = {}
-  for (const [key, rule] of Object.entries(profile.fields)) {
+  for (const key of profile.forward ?? []) {
+    const value = paramValues[key]
+    if (skipValue(value)) continue
+    body[wireName(key)] = value as JSONValue
+  }
+  for (const [key, rule] of Object.entries(profile.fields ?? {})) {
     if (!rule) continue
     const value = paramValues[key]
-    if (value === undefined || value === '' || value === null || value === 'auto') continue
+    if (skipValue(value)) continue
     if (rule.contribute) {
       mergeContribution(body, rule.contribute(value, paramValues))
     } else if (rule.to) {

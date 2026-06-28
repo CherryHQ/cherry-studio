@@ -18,11 +18,14 @@ import type { JSONValue } from 'ai'
 import { normalizeAspectRatio } from '../../../utils/aiSdkNativeBindings'
 
 /**
- * Maps one canonical param to the vendor body. A rule is either a one-to-one
- * field map (`to` + optional `map`) or a one-to-many escape hatch (`contribute`).
+ * An EXPLICIT-OVERRIDE rule for a param whose wire treatment isn't the plain
+ * `wireName(key) → value` default — either an explicit `to` (e.g. google's
+ * camelCase provider-option name) + optional `map` transform, or a `contribute`
+ * escape hatch (one-to-many / nested). Plain snake_case fields don't need a rule;
+ * they go in `WireProfile.forward`.
  */
 export interface WireRule {
-  /** Literal wire field name (no implicit snake_case). Omit when using `contribute`. */
+  /** Literal wire field name (overrides `wireName(key)`). Omit when using `contribute`. */
   to?: string
   /** Value transform for the `to` field; may read sibling params via `all`. */
   map?: (value: unknown, all: Record<string, unknown>) => JSONValue
@@ -33,7 +36,11 @@ export interface WireRule {
 }
 
 export interface WireProfile {
-  fields: Partial<Record<CanonicalParamKey, WireRule>>
+  /** Plain fields: forwarded as `wireName(key) → value` (the catalog supplies the
+   *  snake_case name). The common case — no per-param rename declared here. */
+  forward?: CanonicalParamKey[]
+  /** Explicit overrides (irregular wire name / value transform / nested block). */
+  fields?: Partial<Record<CanonicalParamKey, WireRule>>
 }
 
 /**
@@ -46,14 +53,7 @@ export interface WireProfile {
  * test is the oracle.
  */
 export const DIFFUSION_WIRE_PROFILE: WireProfile = {
-  fields: {
-    negativePrompt: { to: 'negative_prompt' },
-    seed: { to: 'seed' },
-    numInferenceSteps: { to: 'num_inference_steps' },
-    guidanceScale: { to: 'guidance_scale' },
-    promptEnhancement: { to: 'prompt_enhancement' },
-    quality: { to: 'quality' }
-  }
+  forward: ['negativePrompt', 'seed', 'numInferenceSteps', 'guidanceScale', 'promptEnhancement', 'quality']
 }
 
 /**
@@ -63,12 +63,7 @@ export const DIFFUSION_WIRE_PROFILE: WireProfile = {
  * profile). Dual-keyed under `openai` + the provider id by the registry.
  */
 export const OPENAI_WIRE_PROFILE: WireProfile = {
-  fields: {
-    quality: { to: 'quality' },
-    background: { to: 'background' },
-    moderation: { to: 'moderation' },
-    style: { to: 'style' }
-  }
+  forward: ['quality', 'background', 'moderation', 'style']
 }
 
 /**
@@ -78,10 +73,7 @@ export const OPENAI_WIRE_PROFILE: WireProfile = {
  * `openai` + `aihubmix` by the registry.
  */
 export const AIHUBMIX_WIRE_PROFILE: WireProfile = {
-  fields: {
-    ...OPENAI_WIRE_PROFILE.fields,
-    seed: { to: 'seed' }
-  }
+  forward: [...(OPENAI_WIRE_PROFILE.forward ?? []), 'seed']
 }
 
 /**
@@ -94,11 +86,7 @@ export const AIHUBMIX_WIRE_PROFILE: WireProfile = {
  * this bag is what it receives as `providerParams`.
  */
 export const DASHSCOPE_WIRE_PROFILE: WireProfile = {
-  fields: {
-    negativePrompt: { to: 'negative_prompt' },
-    seed: { to: 'seed' },
-    style: { to: 'style' }
-  }
+  forward: ['negativePrompt', 'seed', 'style']
 }
 
 /** `aspectRatio` (normalized) → google `imageConfig.aspectRatio`. Shared by the
@@ -139,11 +127,7 @@ export const GOOGLE_WIRE_PROFILE: WireProfile = {
  * `aspectRatio` + `imageResolution` (1K/2K/4K — no top-level AI SDK field).
  */
 export const DMXAPI_WIRE_PROFILE: WireProfile = {
-  fields: {
-    negativePrompt: { to: 'negative_prompt' },
-    seed: { to: 'seed' },
-    quality: { to: 'quality' }
-  }
+  forward: ['negativePrompt', 'seed', 'quality']
 }
 
 /** dmxapi's google-routed block: aspectRatio + `imageResolution` (a vendor-bag
