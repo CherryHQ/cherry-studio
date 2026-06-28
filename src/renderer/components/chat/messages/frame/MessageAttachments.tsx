@@ -21,11 +21,17 @@ const MessageAttachments: FC<Props> = ({ file }) => {
   }
 
   const fileView = messageUi?.getFileView?.(file)
-  const safePath = fileView?.safePath
   const fileName = fileView?.displayName || file.origin_name || file.name || file.path || ''
   const fileSuffix = file.ext ? file.ext.replace('.', '').toUpperCase() : file.type.toUpperCase()
-  const openPath = actions?.openPath
+  const openFile = actions?.openFile
   const previewFile = actions?.previewFile
+
+  const handleOpen = () => {
+    if (!openFile) return
+    void Promise.resolve(openFile(file)).catch(() => {
+      window.modal.error({ content: t('files.preview.error'), centered: true })
+    })
+  }
 
   const handlePreview = () => {
     void previewFile?.(file)
@@ -52,11 +58,7 @@ const MessageAttachments: FC<Props> = ({ file }) => {
           <Button size="sm" variant="secondary" disabled={!previewFile} onClick={handlePreview}>
             {t('common.preview')}
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={!openPath || !safePath}
-            onClick={() => safePath && void openPath?.(safePath)}>
+          <Button size="sm" variant="outline" disabled={!openFile} onClick={handleOpen}>
             {t('files.open')}
           </Button>
         </div>
