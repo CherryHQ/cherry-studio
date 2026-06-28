@@ -170,6 +170,12 @@ export async function fetchXOEmbed(url: string): Promise<{ author: string; text:
   }
 }
 
+/**
+ * SWR cache key for an X/Twitter oEmbed fetch. Shared between the citations
+ * panel and the citation tooltip so both reuse a single cached oEmbed result.
+ */
+export const xOembedKey = (url: string) => `xOembed/${url}`
+
 export async function fetchRedirectUrl(url: string) {
   try {
     const response = await fetch(url, {
