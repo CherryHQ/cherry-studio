@@ -1,5 +1,5 @@
 import { Badge, Scrollbar, SearchInput } from '@cherrystudio/ui'
-import type { codeCLI } from '@shared/types/codeCli'
+import type { CodeCli } from '@shared/types/codeCli'
 import { Loader2 } from 'lucide-react'
 import { type FC, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -12,8 +12,8 @@ type CliToolOption = (typeof CLI_TOOLS)[number]
 
 export interface CodeCliSidebarProps {
   tools: readonly CliToolOption[]
-  selectedCliTool: codeCLI
-  onSelectTool: (tool: codeCLI) => void
+  selectedCliTool: CodeCli
+  onSelectTool: (tool: CodeCli) => void
   toMeta: (tool: CliToolOption) => CodeToolMeta
   statuses: Record<string, VersionStatus>
   installingTools: Set<string>

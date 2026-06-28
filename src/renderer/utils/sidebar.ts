@@ -1,4 +1,3 @@
-import type { SidebarMenuItem } from '@renderer/components/Sidebar/types'
 import {
   buildTabInstanceMetadata,
   getTabInstanceAppId,

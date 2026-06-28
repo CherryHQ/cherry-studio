@@ -1,7 +1,7 @@
-import { codeCLI } from '@shared/types/codeCli'
+import { CodeCli } from '@shared/types/codeCli'
 
 export interface CliToolPreset {
-  id: codeCLI
+  id: CodeCli
   name: string
   /** i18n key for description (e.g. 'code.tool_description.claude_code') */
   descriptionKey: string
@@ -12,7 +12,7 @@ export interface CliToolPreset {
 
 export const CLI_TOOL_PRESETS: CliToolPreset[] = [
   {
-    id: codeCLI.claudeCode,
+    id: CodeCli.CLAUDE_CODE,
     name: 'Claude Code',
     descriptionKey: 'code.tool_description.claude_code',
     repoUrl: 'https://github.com/anthropics/claude-code',
@@ -20,14 +20,14 @@ export const CLI_TOOL_PRESETS: CliToolPreset[] = [
     miseTool: 'claude'
   },
   {
-    id: codeCLI.openaiCodex,
+    id: CodeCli.OPENAI_CODEX,
     name: 'OpenAI Codex',
     descriptionKey: 'code.tool_description.openai_codex',
     repoUrl: 'https://github.com/openai/codex',
     miseTool: 'codex'
   },
   {
-    id: codeCLI.openCode,
+    id: CodeCli.OPEN_CODE,
     name: 'OpenCode',
     descriptionKey: 'code.tool_description.opencode',
     repoUrl: 'https://github.com/anomalyco/opencode',
@@ -35,7 +35,7 @@ export const CLI_TOOL_PRESETS: CliToolPreset[] = [
     miseTool: 'opencode'
   },
   {
-    id: codeCLI.openclaw,
+    id: CodeCli.OPENCLAW,
     name: 'OpenClaw',
     descriptionKey: 'code.tool_description.openclaw',
     repoUrl: 'https://github.com/openclaw/openclaw',
@@ -43,7 +43,7 @@ export const CLI_TOOL_PRESETS: CliToolPreset[] = [
     miseTool: 'npm:openclaw'
   },
   {
-    id: codeCLI.hermes,
+    id: CodeCli.HERMES,
     name: 'Hermes',
     descriptionKey: 'code.tool_description.hermes',
     repoUrl: 'https://github.com/NousResearch/hermes-agent',

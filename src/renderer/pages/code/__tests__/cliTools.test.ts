@@ -1,4 +1,4 @@
-import { codeCLI } from '@shared/types/codeCli'
+import { CodeCli } from '@shared/types/codeCli'
 import { describe, expect, it } from 'vitest'
 
 import { CLI_TOOLS } from '../cliTools'

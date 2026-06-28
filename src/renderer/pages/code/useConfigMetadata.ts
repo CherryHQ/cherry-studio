@@ -2,7 +2,7 @@ import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
 import type { CliNamedConfig } from '@shared/data/preference/preferenceTypes'
 import { isUniqueModelId, type Model, parseUniqueModelId } from '@shared/data/types/model'
-import type { codeCLI } from '@shared/types/codeCli'
+import type { CodeCli } from '@shared/types/codeCli'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@shared/utils/model'
 import { useCallback, useMemo } from 'react'
 
@@ -13,7 +13,7 @@ import { CLI_TOOL_PROVIDER_MAP } from './cliTools'
  * allowlist, the model filter handed to the edit panel's `ModelSelector`, and a
  * display-name resolver for the config list.
  */
-export function useConfigMetadata(selectedCliTool: codeCLI) {
+export function useConfigMetadata(selectedCliTool: CodeCli) {
   const { providers } = useProviders()
   const providerMap = useMemo(() => new Map(providers.map((p) => [p.id, p])), [providers])
   const { models: allModels } = useModels({ enabled: true })

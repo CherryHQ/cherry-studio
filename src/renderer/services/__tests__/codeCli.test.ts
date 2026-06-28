@@ -1,6 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
-import { codeCLI } from '@shared/types/codeCli'
+import { CodeCli } from '@shared/types/codeCli'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { injectCliConfig } from '../codeCli'
@@ -66,15 +66,15 @@ describe('injectCliConfig', () => {
 
   it('is a no-op for hermes / openclaw (still injected in main run())', async () => {
     mockGet({})
-    await injectCliConfig({ cliTool: codeCLI.hermes, modelId: 'p::m' })
-    await injectCliConfig({ cliTool: codeCLI.openclaw, modelId: 'p::m' })
+    await injectCliConfig({ cliTool: CodeCli.HERMES, modelId: 'p::m' })
+    await injectCliConfig({ cliTool: CodeCli.OPENCLAW, modelId: 'p::m' })
     expect(written).toBeNull()
     expect(dataApiService.get).not.toHaveBeenCalled()
   })
 
   it('throws when the provider cannot be resolved', async () => {
     mockGet({ '/providers/ghost': () => undefined })
-    await expect(injectCliConfig({ cliTool: codeCLI.claudeCode, modelId: 'ghost::claude-4' })).rejects.toThrow(
+    await expect(injectCliConfig({ cliTool: CodeCli.CLAUDE_CODE, modelId: 'ghost::claude-4' })).rejects.toThrow(
       /Provider not found/
     )
   })
@@ -88,7 +88,7 @@ describe('injectCliConfig', () => {
       })
 
       await injectCliConfig({
-        cliTool: codeCLI.claudeCode,
+        cliTool: CodeCli.CLAUDE_CODE,
         modelId: 'anthropic::claude-sonnet-4-5'
       })
 
@@ -114,7 +114,7 @@ describe('injectCliConfig', () => {
       })
 
       await injectCliConfig({
-        cliTool: codeCLI.claudeCode,
+        cliTool: CodeCli.CLAUDE_CODE,
         modelId: 'anthropic::claude-sonnet-4-5'
       })
 
@@ -152,7 +152,7 @@ describe('injectCliConfig', () => {
       })
 
       await injectCliConfig({
-        cliTool: codeCLI.claudeCode,
+        cliTool: CodeCli.CLAUDE_CODE,
         modelId: 'anthropic::claude-sonnet-4-5'
         // no configBlob: nothing re-asserted
       })
@@ -186,7 +186,7 @@ describe('injectCliConfig', () => {
       })
 
       await injectCliConfig({
-        cliTool: codeCLI.openaiCodex,
+        cliTool: CodeCli.OPENAI_CODEX,
         modelId: 'deepseek::deepseek-chat'
       })
 
@@ -222,7 +222,7 @@ describe('injectCliConfig', () => {
       })
 
       await injectCliConfig({
-        cliTool: codeCLI.openaiCodex,
+        cliTool: CodeCli.OPENAI_CODEX,
         modelId: 'deepseek::deepseek-chat'
       })
 
@@ -239,7 +239,7 @@ describe('injectCliConfig', () => {
       })
 
       await injectCliConfig({
-        cliTool: codeCLI.openaiCodex,
+        cliTool: CodeCli.OPENAI_CODEX,
         modelId: 'deepseek::deepseek-chat',
         configBlob: { goalMode: true, remoteCompaction: true }
       })
@@ -274,7 +274,7 @@ describe('injectCliConfig', () => {
       })
 
       await injectCliConfig({
-        cliTool: codeCLI.openaiCodex,
+        cliTool: CodeCli.OPENAI_CODEX,
         modelId: 'deepseek::deepseek-chat'
         // no goalMode / remoteCompaction in the blob
       })
@@ -293,7 +293,7 @@ describe('injectCliConfig', () => {
         '/models/': () => null
       })
       await expect(
-        injectCliConfig({ cliTool: codeCLI.openaiCodex, modelId: 'deepseek::deepseek-chat' })
+        injectCliConfig({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::deepseek-chat' })
       ).rejects.toThrow(/required fields/)
     })
   })
@@ -314,7 +314,7 @@ describe('injectCliConfig', () => {
       })
 
       await injectCliConfig({
-        cliTool: codeCLI.openCode,
+        cliTool: CodeCli.OPEN_CODE,
         modelId: 'deepseek::deepseek-chat'
       })
 
@@ -337,7 +337,7 @@ describe('injectCliConfig', () => {
       })
 
       await injectCliConfig({
-        cliTool: codeCLI.openCode,
+        cliTool: CodeCli.OPEN_CODE,
         modelId: 'anthropic::claude-sonnet-4-5',
         configBlob: { env: { OPENCODE_REASONING: 'true' } }
       })
@@ -356,7 +356,7 @@ describe('injectCliConfig', () => {
       })
 
       await injectCliConfig({
-        cliTool: codeCLI.openCode,
+        cliTool: CodeCli.OPEN_CODE,
         modelId: 'deepseek::deepseek-chat',
         configBlob: { env: { OPENCODE_REASONING: 'true' } }
       })

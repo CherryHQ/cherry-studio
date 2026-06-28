@@ -1,5 +1,5 @@
 import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
-import { isMac, isWin } from '@renderer/config/constant'
+import { isMac, isWin } from '@renderer/utils/platform'
 import type { CliNamedConfig } from '@shared/data/preference/preferenceTypes'
 import type { TerminalConfig } from '@shared/types/codeCli'
 import { FolderOpen } from 'lucide-react'

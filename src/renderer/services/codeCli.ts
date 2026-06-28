@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import type { Model } from '@shared/data/types/model'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
-import { codeCLI } from '@shared/types/codeCli'
+import { CodeCli } from '@shared/types/codeCli'
 import { parse as parseJsonc } from 'jsonc-parser'
 import { parse as parseToml, stringify as stringifyToml } from 'smol-toml'
 
@@ -300,7 +300,7 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<void> 
   const { cliTool, configBlob } = args
 
   // Only the file-based tools are injected here.
-  if (cliTool !== codeCLI.claudeCode && cliTool !== codeCLI.openaiCodex && cliTool !== codeCLI.openCode) {
+  if (cliTool !== CodeCli.CLAUDE_CODE && cliTool !== CodeCli.OPENAI_CODEX && cliTool !== CodeCli.OPEN_CODE) {
     return
   }
   if (!isUniqueModelId(args.modelId)) {
@@ -321,7 +321,7 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<void> 
   const apiKey = firstApiKey(apiKeysRes?.keys)
 
   switch (cliTool) {
-    case codeCLI.claudeCode: {
+    case CodeCli.CLAUDE_CODE: {
       const baseUrl = provider.endpointConfigs?.['anthropic-messages']?.baseUrl ?? ''
       await writeClaude(configBlob && typeof configBlob === 'object' ? (configBlob as Record<string, any>) : {}, {
         apiKey,
@@ -330,7 +330,7 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<void> 
       })
       return
     }
-    case codeCLI.openaiCodex: {
+    case CodeCli.OPENAI_CODEX: {
       const endpointType = provider.defaultChatEndpoint ?? 'openai-chat-completions'
       const baseUrl = provider.endpointConfigs?.[endpointType]?.baseUrl ?? ''
       const providerName = sanitizeProviderName(provider.name, provider.id)
@@ -353,7 +353,7 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<void> 
       )
       return
     }
-    case codeCLI.openCode: {
+    case CodeCli.OPEN_CODE: {
       const isAnthropic = !!provider.endpointConfigs?.['anthropic-messages']?.baseUrl
       const endpointType = isAnthropic
         ? 'anthropic-messages'

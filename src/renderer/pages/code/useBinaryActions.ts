@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
-import type { codeCLI } from '@shared/types/codeCli'
+import type { CodeCli } from '@shared/types/codeCli'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -20,7 +20,7 @@ export function useBinaryActions() {
   const [upgradingTools, setUpgradingTools] = useState<Set<string>>(() => new Set())
 
   const install = useCallback(
-    async (toolId: codeCLI) => {
+    async (toolId: CodeCli) => {
       try {
         setInstallingTools((prev) => new Set(prev).add(toolId))
         const cliPreset = CLI_TOOL_PRESET_MAP[toolId]
@@ -46,7 +46,7 @@ export function useBinaryActions() {
   )
 
   const upgrade = useCallback(
-    async (toolId: codeCLI) => {
+    async (toolId: CodeCli) => {
       try {
         setUpgradingTools((prev) => new Set(prev).add(toolId))
         const cliPreset = CLI_TOOL_PRESET_MAP[toolId]
@@ -72,7 +72,7 @@ export function useBinaryActions() {
   )
 
   const remove = useCallback(
-    async (toolId: codeCLI) => {
+    async (toolId: CodeCli) => {
       try {
         await ipcApi.request('binary.remove_tool', CLI_BINARY_NAMES[toolId])
         window.toast.success(t('common.delete_success'))

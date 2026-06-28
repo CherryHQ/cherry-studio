@@ -16,7 +16,7 @@ import {
 import type { CliNamedConfig } from '@shared/data/preference/preferenceTypes'
 import type { Model } from '@shared/data/types/model'
 import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { codeCLI } from '@shared/types/codeCli'
+import { CodeCli } from '@shared/types/codeCli'
 import { ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -32,7 +32,7 @@ import { OpenCodeConfigFields } from './tools/OpenCodeConfigFields'
 export interface ConfigEditPanelProps {
   open: boolean
   onClose: () => void
-  cliTool: codeCLI
+  cliTool: CodeCli
   config: CliNamedConfig | null
   modelFilter: (model: Model) => boolean
   onSubmit: (values: {
@@ -130,15 +130,15 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
 
   const renderToolFields = () => {
     switch (cliTool) {
-      case codeCLI.claudeCode:
+      case CodeCli.CLAUDE_CODE:
         return <ClaudeConfigFields config={config} onChange={setConfig} />
-      case codeCLI.openaiCodex:
+      case CodeCli.OPENAI_CODEX:
         return <CodexConfigFields config={config} onChange={setConfig} />
-      case codeCLI.openCode:
+      case CodeCli.OPEN_CODE:
         return <OpenCodeConfigFields config={config} onChange={setConfig} />
-      case codeCLI.openclaw:
+      case CodeCli.OPENCLAW:
         return <OpenclawConfigFields config={config} onChange={setConfig} />
-      case codeCLI.hermes:
+      case CodeCli.HERMES:
         return <HermesConfigFields config={config} onChange={setConfig} />
       default:
         return null

@@ -1,13 +1,13 @@
 import { ClaudeCode, Nousresearch, OpenaiCodex, Openclaw, OpenCode } from '@cherrystudio/ui/icons'
-import { codeCLI } from '@shared/types/codeCli'
+import { CodeCli } from '@shared/types/codeCli'
 import type { FC } from 'react'
 
 const CLI_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
-  [codeCLI.claudeCode]: ClaudeCode,
-  [codeCLI.openaiCodex]: OpenaiCodex,
-  [codeCLI.openCode]: OpenCode,
-  [codeCLI.openclaw]: Openclaw,
-  [codeCLI.hermes]: Nousresearch
+  [CodeCli.CLAUDE_CODE]: ClaudeCode,
+  [CodeCli.OPENAI_CODEX]: OpenaiCodex,
+  [CodeCli.OPEN_CODE]: OpenCode,
+  [CodeCli.OPENCLAW]: Openclaw,
+  [CodeCli.HERMES]: Nousresearch
 }
 
 interface CLIIconProps {

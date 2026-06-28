@@ -24,12 +24,12 @@ import { isMac, isWin } from '@main/core/platform'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { regionService } from '@main/services/RegionService'
-import { removeEnvProxy } from '@main/utils'
+import { removeEnvProxy } from '@main/utils/shell-env'
 import { getBinaryExecutionEnv, getBinaryPath, isBinaryExists } from '@main/utils/process'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
-import { codeCLI, terminalApps, type TerminalConfig, type TerminalConfigWithCommand } from '@shared/types/codeCli'
+import { CodeCli, TerminalApp, type TerminalConfig, type TerminalConfigWithCommand } from '@shared/types/codeCli'
 import type { CodeToolsRunResult } from '@shared/types/codeTools'
 import { spawn } from 'child_process'
 import { promisify } from 'util'
@@ -124,13 +124,13 @@ export class CodeCliService extends BaseService {
     switch (cliTool) {
       case CodeCli.CLAUDE_CODE:
         return '@anthropic-ai/claude-code'
-      case codeCLI.openaiCodex:
+      case CodeCli.OPENAI_CODEX:
         return '@openai/codex'
-      case codeCLI.openCode:
+      case CodeCli.OPEN_CODE:
         return 'opencode-ai'
-      case codeCLI.openclaw:
+      case CodeCli.OPENCLAW:
         return 'openclaw'
-      case codeCLI.hermes:
+      case CodeCli.HERMES:
         return 'hermes-agent'
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
@@ -141,13 +141,13 @@ export class CodeCliService extends BaseService {
     switch (cliTool) {
       case CodeCli.CLAUDE_CODE:
         return { name: 'claude', tool: 'claude' }
-      case codeCLI.openaiCodex:
+      case CodeCli.OPENAI_CODEX:
         return { name: 'codex', tool: 'codex' }
-      case codeCLI.openCode:
+      case CodeCli.OPEN_CODE:
         return { name: 'opencode', tool: 'opencode' }
-      case codeCLI.openclaw:
+      case CodeCli.OPENCLAW:
         return { name: 'openclaw', tool: 'npm:openclaw' }
-      case codeCLI.hermes:
+      case CodeCli.HERMES:
         return { name: 'hermes', tool: 'pipx:hermes-agent' }
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
@@ -158,13 +158,13 @@ export class CodeCliService extends BaseService {
     switch (cliTool) {
       case CodeCli.CLAUDE_CODE:
         return 'claude'
-      case codeCLI.openaiCodex:
+      case CodeCli.OPENAI_CODEX:
         return 'codex'
-      case codeCLI.openCode:
+      case CodeCli.OPEN_CODE:
         return 'opencode'
-      case codeCLI.openclaw:
+      case CodeCli.OPENCLAW:
         return 'openclaw'
-      case codeCLI.hermes:
+      case CodeCli.HERMES:
         return 'hermes'
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
@@ -592,7 +592,7 @@ export class CodeCliService extends BaseService {
     const apiKey = apiKeys[0]?.key ?? ''
 
     switch (cliTool) {
-      case codeCLI.hermes: {
+      case CodeCli.HERMES: {
         const isAnthropic = !!provider.endpointConfigs?.['anthropic-messages']?.baseUrl
         const endpointType = isAnthropic
           ? 'anthropic-messages'
@@ -615,7 +615,7 @@ export class CodeCliService extends BaseService {
         })
         return
       }
-      case codeCLI.openclaw: {
+      case CodeCli.OPENCLAW: {
         // OpenClaw config is synced via OpenClawService, not a file writer.
         await application.get('OpenClawService').syncConfig(`${providerId}::${model}`)
         return
@@ -704,7 +704,7 @@ export class CodeCliService extends BaseService {
     }
 
     // OpenClaw starts as a background gateway, not a terminal process
-    if (cliTool === codeCLI.openclaw) {
+    if (cliTool === CodeCli.OPENCLAW) {
       try {
         const gatewayResult = await application.get('OpenClawService').startGateway()
         if (!gatewayResult.success) {
@@ -781,7 +781,7 @@ export class CodeCliService extends BaseService {
 
     // OpenCode reads its provider from the opencode.json written above; here we only select the model
     // at launch (matching the written provider key) and disable its own auto-update.
-    if (cliTool === codeCLI.openCode) {
+    if (cliTool === CodeCli.OPEN_CODE) {
       let providerName = 'Studio'
       try {
         const provider = await providerService.getByProviderId(providerId)

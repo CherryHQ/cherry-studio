@@ -6,13 +6,13 @@ import type {
   CodeCliId,
   CodeCliToolState
 } from '@shared/data/preference/preferenceTypes'
-import { codeCLI } from '@shared/types/codeCli'
+import { CodeCli } from '@shared/types/codeCli'
 import { useCallback, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useCodeCli')
 
 const PREFERENCE_KEY = 'feature.code_cli.configs'
-const DEFAULT_TOOL = codeCLI.claudeCode
+const DEFAULT_TOOL = CodeCli.CLAUDE_CODE
 
 const EMPTY_TOOL_STATE: CodeCliToolState = { providers: {}, current: null }
 
@@ -46,9 +46,9 @@ export const useCodeCli = () => {
   const configsRef = useRef(configs)
   configsRef.current = configs
 
-  const [selectedCliTool, setSelectedCliTool] = useState<codeCLI>(DEFAULT_TOOL)
+  const [selectedCliTool, setSelectedCliTool] = useState<CodeCli>(DEFAULT_TOOL)
 
-  const selectTool = useCallback((tool: codeCLI) => {
+  const selectTool = useCallback((tool: CodeCli) => {
     setSelectedCliTool(tool)
   }, [])
 

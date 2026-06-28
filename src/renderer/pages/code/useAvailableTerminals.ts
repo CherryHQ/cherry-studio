@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { isMac, isWin } from '@renderer/config/constant'
+import { isMac, isWin } from '@renderer/utils/platform'
 import type { TerminalConfig } from '@shared/types/codeCli'
 import { useEffect, useState } from 'react'
 

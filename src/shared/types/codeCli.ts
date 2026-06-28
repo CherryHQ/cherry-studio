@@ -1,9 +1,9 @@
-export enum codeCLI {
-  claudeCode = 'claude-code',
-  openaiCodex = 'openai-codex',
-  openCode = 'opencode',
-  openclaw = 'openclaw',
-  hermes = 'hermes'
+export enum CodeCli {
+  CLAUDE_CODE = 'claude-code',
+  OPENAI_CODEX = 'openai-codex',
+  OPEN_CODE = 'opencode',
+  OPENCLAW = 'openclaw',
+  HERMES = 'hermes'
 }
 
 export enum TerminalApp {

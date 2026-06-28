@@ -2,7 +2,7 @@ import { ipcApi } from '@renderer/ipc'
 import { useIpcOn } from '@renderer/ipc/useIpcOn'
 import { loggerService } from '@renderer/services/LoggerService'
 import type { BinaryState } from '@shared/data/preference/preferenceTypes'
-import { codeCLI } from '@shared/types/codeCli'
+import { CodeCli } from '@shared/types/codeCli'
 import { useEffect, useRef, useState } from 'react'
 
 import { CLI_BINARY_NAMES } from './cliTools'
@@ -43,7 +43,7 @@ const buildStatus = (state: BinaryState, binaryName: string | undefined, latest?
  * `CodeCliService.getVersionInfo`) is wired up. The installed/current fields
  * are unaffected and always accurate.
  */
-export const useCliVersionStatuses = (toolIds: readonly codeCLI[]): Record<string, VersionStatus> => {
+export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): Record<string, VersionStatus> => {
   const [statuses, setStatuses] = useState<Record<string, VersionStatus>>({})
   // Latest versions survive the `binary.state_changed` broadcast (which carries
   // installed state only) so canUpgrade stays accurate without a registry re-query.
@@ -61,7 +61,7 @@ export const useCliVersionStatuses = (toolIds: readonly codeCLI[]): Record<strin
           return null
         }),
         Promise.all(
-          tools.map(async (toolId): Promise<readonly [codeCLI, string | undefined]> => {
+          tools.map(async (toolId): Promise<readonly [CodeCli, string | undefined]> => {
             const binaryName = CLI_BINARY_NAMES[toolId]
             if (!binaryName) return [toolId, undefined]
             try {

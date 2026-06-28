@@ -1,5 +1,5 @@
 import type { CliNamedConfig, CodeCliConfigs } from '@shared/data/preference/preferenceTypes'
-import { codeCLI } from '@shared/types/codeCli'
+import { CodeCli } from '@shared/types/codeCli'
 import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -67,9 +67,9 @@ describe('useCodeCli', () => {
       } as CodeCliConfigs)
       const { result } = renderHook(() => useCodeCli())
       act(() => {
-        result.current.selectTool(codeCLI.openaiCodex)
+        result.current.selectTool(CodeCli.OPENAI_CODEX)
       })
-      expect(result.current.selectedCliTool).toBe(codeCLI.openaiCodex)
+      expect(result.current.selectedCliTool).toBe(CodeCli.OPENAI_CODEX)
     })
   })
 
@@ -131,7 +131,7 @@ describe('useCodeCli', () => {
 
       let newId = ''
       await act(async () => {
-        newId = await result.current.addConfig(codeCLI.claudeCode, {
+        newId = await result.current.addConfig(CodeCli.CLAUDE_CODE, {
           name: 'New',
           providerId: 'anthropic',
           modelId: 'anthropic::claude-4'
@@ -155,17 +155,17 @@ describe('useCodeCli', () => {
 
       let newId = ''
       await act(async () => {
-        newId = await result.current.addConfig(codeCLI.claudeCode, {
+        newId = await result.current.addConfig(CodeCli.CLAUDE_CODE, {
           name: 'New',
           providerId: 'anthropic',
           modelId: 'anthropic::claude-4'
         })
-        await result.current.setCurrentConfig(codeCLI.claudeCode, newId)
+        await result.current.setCurrentConfig(CodeCli.CLAUDE_CODE, newId)
       })
 
       expect(mockSetter).toHaveBeenCalledTimes(2)
       const lastWrite = mockSetter.mock.calls[1][0] as CodeCliConfigs
-      const toolState = lastWrite[codeCLI.claudeCode]
+      const toolState = lastWrite[CodeCli.CLAUDE_CODE]
       expect(toolState.providers[newId]).toBeDefined()
       expect(toolState.current).toBe(newId)
     })
@@ -179,7 +179,7 @@ describe('useCodeCli', () => {
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
-        await result.current.updateConfig(codeCLI.claudeCode, 'cfg1', { name: 'Renamed' })
+        await result.current.updateConfig(CodeCli.CLAUDE_CODE, 'cfg1', { name: 'Renamed' })
       })
 
       expect(mockSetter).toHaveBeenCalled()
@@ -192,7 +192,7 @@ describe('useCodeCli', () => {
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
-        await result.current.updateConfig(codeCLI.claudeCode, 'missing', { name: 'X' })
+        await result.current.updateConfig(CodeCli.CLAUDE_CODE, 'missing', { name: 'X' })
       })
 
       // Setter still called (it patches), but the providers map is unchanged by the reducer
@@ -208,7 +208,7 @@ describe('useCodeCli', () => {
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
-        await result.current.deleteConfig(codeCLI.claudeCode, 'cfg1')
+        await result.current.deleteConfig(CodeCli.CLAUDE_CODE, 'cfg1')
       })
 
       expect(mockSetter).toHaveBeenCalled()
@@ -223,7 +223,7 @@ describe('useCodeCli', () => {
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
-        await result.current.setCurrentConfig(codeCLI.claudeCode, 'cfg2')
+        await result.current.setCurrentConfig(CodeCli.CLAUDE_CODE, 'cfg2')
       })
 
       expect(mockSetter).toHaveBeenCalled()
