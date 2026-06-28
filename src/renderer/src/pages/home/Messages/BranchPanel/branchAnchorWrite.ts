@@ -1,4 +1,4 @@
-import type { CreateBranchAnchorDto } from '@shared/data/api/schemas/branchAnchors'
+import { type CreateBranchAnchorDto, CreateBranchAnchorSchema } from '@shared/data/api/schemas/branchAnchors'
 
 import type { Branch } from './types'
 
@@ -30,7 +30,7 @@ export function shouldWriteBranchAnchorOnce(branch: Branch): boolean {
 export function buildCreateBranchAnchorBody(parentTopicId: string, branch: Branch): CreateBranchAnchorDto | null {
   if (branch.disposition !== 'kept' || !hasBranchTopic(branch)) return null
 
-  return {
+  const candidate = {
     parentTopicId,
     branchTopicId: branch.topic.id,
     messageId: branch.source.messageId,
@@ -39,6 +39,9 @@ export function buildCreateBranchAnchorBody(parentTopicId: string, branch: Branc
     selectionStart: branch.source.offsets.start,
     selectionEnd: branch.source.offsets.end
   }
+
+  const parsed = CreateBranchAnchorSchema.safeParse(candidate)
+  return parsed.success ? parsed.data : null
 }
 
 export function resetBranchAnchorWriteGuardForTest(): void {

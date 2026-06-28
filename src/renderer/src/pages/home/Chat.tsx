@@ -100,10 +100,10 @@ const Chat: FC<Props> = (props) => {
   const { trigger: createBranchAnchor } = useMutation('POST', '/branch-anchors')
   const persistBranchAnchorIfReady = useCallback(
     (branch: Branch) => {
-      if (!shouldWriteBranchAnchorOnce(branch)) return
-
       const body = buildCreateBranchAnchorBody(props.activeTopic.id, branch)
       if (!body) return
+
+      if (!shouldWriteBranchAnchorOnce(branch)) return
 
       void createBranchAnchor({ body })
         .then((anchor) => {
