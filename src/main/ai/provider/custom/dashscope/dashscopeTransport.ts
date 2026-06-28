@@ -77,7 +77,6 @@ export interface DashScopeModelDescriptor {
 }
 
 export interface DashScopeProviderParams {
-  model?: string
   /** Canonical camelCase params (the transport receives the vendorBag directly;
    *  native `seed` comes from `input.seed`, routing from `input.modelDescriptor`). */
   negativePrompt?: string
@@ -106,7 +105,6 @@ export interface DashScopeProviderParams {
   leftScale?: number
   rightScale?: number
   isSketch?: boolean
-  onSubmitTaskId?: (taskId: string) => void
 }
 
 export interface DashScopeTransportSettings {
@@ -378,10 +376,9 @@ class DashScopeTransport implements ImageGenerationTransport {
   }
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
-    const bag = (input.providerParams ?? {}) as DashScopeProviderParams
     const descriptor = input.modelDescriptor
     if (!descriptor) {
-      throw new Error(`Missing modelDescriptor for DashScope model: ${bag.model ?? input.modelId}`)
+      throw new Error(`Missing modelDescriptor for DashScope model: ${input.modelId}`)
     }
 
     const body = buildRequestBody(input, descriptor)
@@ -402,7 +399,6 @@ class DashScopeTransport implements ImageGenerationTransport {
       throw new DashScopeApiError('DashScope async submit returned no task_id', 0)
     }
     this.pendingDescriptors.set(taskId, descriptor)
-    bag.onSubmitTaskId?.(taskId)
     return { taskId }
   }
 

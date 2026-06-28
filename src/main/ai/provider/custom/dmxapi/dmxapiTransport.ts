@@ -21,7 +21,6 @@ interface NormalizedInput {
  * path under `this.baseURL`, so it needs no `modelDescriptor` routing.
  */
 export interface DmxapiProviderParams {
-  model?: string
   /** doubao-seedream multi-image options. */
   sequentialImageGeneration?: 'auto' | 'disabled'
   maxImages?: number

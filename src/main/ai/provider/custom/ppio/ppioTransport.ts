@@ -87,16 +87,13 @@ export interface PpioModelDescriptor {
  * `PpioPaintingData` subset the legacy `buildRequestParams` consumed.
  */
 export interface PpioProviderParams {
-  model?: string
   size?: string
   ppioSeed?: number
   usePreLlm?: boolean
   addWatermark?: boolean
   outputFormat?: string
+  /** SDK-path (chat) progress callback; the job path reports via `ctx.reportProgress`. */
   onProgress?: (progress: number) => void
-  /** Painting telemetry: called once with the PPIO async task id (parity with
-   * the bespoke `onGenerationStateChange({ generationTaskId })` callback). */
-  onSubmitTaskId?: (taskId: string) => void
 }
 
 export interface PpioTransportSettings {
@@ -183,7 +180,7 @@ class PpioTransport implements ImageGenerationTransport {
     const bagParams = input.providerParams as PpioProviderParams
     const descriptor = input.modelDescriptor
     if (!descriptor) {
-      throw new Error(`Unknown model: ${bagParams.model}`)
+      throw new Error(`Unknown model: ${input.modelId}`)
     }
 
     // Native AI SDK fields (size / seed) land on `input.*` post-canonicalGenerate
@@ -210,11 +207,6 @@ class PpioTransport implements ImageGenerationTransport {
       timeout: 120000,
       signal: input.signal
     })
-    // Surface the async task id so the painting layer can record/resume it
-    // (parity with the bespoke `onGenerationStateChange({ generationTaskId })`).
-    if (typeof params.onSubmitTaskId === 'function') {
-      params.onSubmitTaskId(result.task_id)
-    }
     return { taskId: result.task_id }
   }
 
