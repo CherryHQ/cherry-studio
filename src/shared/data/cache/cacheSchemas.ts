@@ -116,7 +116,6 @@ export type UseCacheSchema = {
   'app.dist.update_state': CacheValueTypes.CacheAppUpdateState
   'app.user.avatar': string
 
-  'app.path.files': string
   'app.path.resources': string
 
   // Chat context
@@ -199,7 +198,6 @@ export const DefaultUseCache: UseCacheSchema = {
     manualCheck: false
   },
   'app.user.avatar': '',
-  'app.path.files': '',
   'app.path.resources': '',
   // Chat context
   'chat.multi_select_mode': false,

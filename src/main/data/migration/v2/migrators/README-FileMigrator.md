@@ -39,7 +39,7 @@ No cross-migrator shared state is published: per migration-plan §2.9 the v1 fil
 
 - Legacy v1 `ext` field may include a leading dot (`.pdf`, `.txt`) or be empty
 - Leading dot is stripped before writing (`pdf`, `txt`)
-- Empty / whitespace-only / missing ext → `null` in `file_entry.ext` (matches the `SafeExtSchema` whitespace guard in essential.ts so the migrated rows pass the same validation as v2-native writes)
+- Empty / whitespace-only / missing ext → `null` in `file_entry.ext` (matches the `SafeExtSchema` whitespace guard in shared file `common.ts` so the migrated rows pass the same validation as v2-native writes)
 
 ### Timestamp Conversion
 
