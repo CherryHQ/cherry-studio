@@ -123,6 +123,7 @@ export async function canonicalGenerate<T extends PaintingData>(
     signal: abortController.signal,
     modelId,
     prompt,
+    ...(options.mode && { mode: options.mode }),
     paramValues,
     ...(inputImages && { inputImages })
   })

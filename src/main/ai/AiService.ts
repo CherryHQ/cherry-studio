@@ -4,6 +4,7 @@ import {
   rerank as aiCoreRerank
 } from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import type { JobHandle } from '@main/core/job/types'
@@ -17,6 +18,7 @@ import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { FileEntry } from '@shared/data/types/file/fileEntry'
+import type { ImageGenerationMode } from '@shared/data/types/model'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Base64String, URLString } from '@shared/types/file/common'
@@ -86,6 +88,9 @@ export interface AiImageRequest extends AiBaseRequest {
   inputImages?: string[]
   /** Mask for inpainting (only with inputImages). */
   mask?: string
+  /** Image-generation mode (which tab). main derives per-model transport routing
+   *  (`vendorTransport` → descriptor) from the registry using this. */
+  mode?: ImageGenerationMode
   /**
    * Canonical param bag (registry param keys → coerced values). main derives the
    * structured request fields + the vendor bag from it via `splitParamValues`.
@@ -570,6 +575,17 @@ export class AiService extends BaseService {
       const maskFileId = request.mask ? await persistInputImage(request.mask) : undefined
       const requestSize = resolveImageRequestSize(structured.size)
 
+      // Per-model transport routing, derived from the registry (main hosts it) —
+      // NOT laundered through paramValues. Persisted in the payload so a restart-
+      // resume reaches the right endpoint / response family.
+      const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+      const mode = request.mode ?? 'generate'
+      const support = await providerRegistryService.getImageGenerationSupport(providerId, modelId)
+      const vendorTransport = support?.modes?.[mode]?.vendorTransport
+      const modelDescriptor = vendorTransport?.endpoint
+        ? { id: modelId, endpoint: vendorTransport.endpoint, isSync: vendorTransport.isSync, mode }
+        : undefined
+
       const payload: ImageGenerationJobPayload = {
         uniqueModelId,
         prompt: request.prompt,
@@ -578,6 +594,7 @@ export class AiService extends BaseService {
         seed: structured.seed,
         ...(inputFileIds && { inputFileIds }),
         ...(maskFileId && { maskFileId }),
+        ...(modelDescriptor && { modelDescriptor }),
         providerParams
       }
       handle = await jobManager.enqueue('image-generation.generate', payload)

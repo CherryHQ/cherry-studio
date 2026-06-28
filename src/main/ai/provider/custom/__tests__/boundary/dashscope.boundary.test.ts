@@ -1,3 +1,4 @@
+import type { ImageGenerationMode } from '@shared/data/types/model'
 import { describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
@@ -24,7 +25,7 @@ const base = {
   mask: undefined
 } satisfies Partial<ImageGenerationSubmitInput>
 
-const descriptor = (id: string, mode: string) => ({
+const descriptor = (id: string, mode: ImageGenerationMode) => ({
   id,
   endpoint: '/api/v1/services/aigc/image',
   isSync: false,
@@ -48,7 +49,8 @@ const CASES: Case[] = [
       prompt: 'a fox',
       size: '1024x1024',
       seed: 42,
-      providerParams: { modelDescriptor: descriptor('qwen-image', 'generate') }
+      modelDescriptor: descriptor('qwen-image', 'generate'),
+      providerParams: {}
     } as ImageGenerationSubmitInput,
     schema: z.strictObject({
       model: z.string(),
@@ -63,7 +65,8 @@ const CASES: Case[] = [
       modelId: 'qwen-image-edit',
       prompt: 'a fox',
       files: file([1, 2, 3]),
-      providerParams: { modelDescriptor: descriptor('qwen-image-edit', 'edit') }
+      modelDescriptor: descriptor('qwen-image-edit', 'edit'),
+      providerParams: {}
     } as ImageGenerationSubmitInput,
     schema: z.strictObject({
       model: z.string(),
@@ -81,8 +84,8 @@ const CASES: Case[] = [
       size: '1024x1024',
       seed: 7,
       files: file([9]),
+      modelDescriptor: descriptor('wanx-v1', 'generate'),
       providerParams: {
-        modelDescriptor: descriptor('wanx-v1', 'generate'),
         style: '<photography>',
         refStrength: 0.5,
         refMode: 'repaint'
@@ -111,7 +114,8 @@ const CASES: Case[] = [
         { mediaType: 'image/png', data: new Uint8Array([1]) },
         { mediaType: 'image/jpeg', data: new Uint8Array([2]) }
       ] as ImageGenerationSubmitInput['files'],
-      providerParams: { modelDescriptor: descriptor('wan2.5-i2i-preview', 'edit') }
+      modelDescriptor: descriptor('wan2.5-i2i-preview', 'edit'),
+      providerParams: {}
     } as ImageGenerationSubmitInput,
     schema: z.strictObject({
       model: z.string(),
@@ -126,7 +130,8 @@ const CASES: Case[] = [
       modelId: 'qwen-mt-image',
       prompt: undefined,
       files: file([4, 5, 6]),
-      providerParams: { modelDescriptor: descriptor('qwen-mt-image', 'generate'), sourceLang: 'auto', targetLang: 'en' }
+      modelDescriptor: descriptor('qwen-mt-image', 'generate'),
+      providerParams: { sourceLang: 'auto', targetLang: 'en' }
     } as ImageGenerationSubmitInput,
     schema: z.strictObject({
       model: z.string(),
@@ -141,8 +146,8 @@ const CASES: Case[] = [
       prompt: 'a fox',
       files: file([7, 8]),
       seed: 3,
+      modelDescriptor: descriptor('wanx2.1-imageedit', 'edit'),
       providerParams: {
-        modelDescriptor: descriptor('wanx2.1-imageedit', 'edit'),
         function: 'super_resolution',
         upscaleFactor: 2,
         addWatermark: true
@@ -222,7 +227,7 @@ describe('DashScope poll resume (restart-safe response family)', () => {
   const succeeded = (output: Record<string, unknown>) =>
     new Response(JSON.stringify({ output: { task_status: 'SUCCEEDED', ...output } }), { status: 200 })
 
-  it('uses providerParams.modelDescriptor to pick the response family when pendingDescriptors is empty', async () => {
+  it('uses the persisted modelDescriptor to pick the response family when pendingDescriptors is empty', async () => {
     // A fresh transport == post-restart: the submit-time pendingDescriptors entry is gone.
     const transport = createDashScopeTransport({ apiKey: 'ds-key', imageBaseURL: host })
     const fetchSpy = vi
@@ -232,7 +237,7 @@ describe('DashScope poll resume (restart-safe response family)', () => {
       // qwen-mt-image → 'image_url' family. Without the descriptor it would fall back
       // to 'results' and return [] even though the remote task succeeded.
       const urls = await transport.poll('task-resumed', {
-        providerParams: { modelDescriptor: descriptor('qwen-mt-image', 'generate') }
+        modelDescriptor: descriptor('qwen-mt-image', 'generate')
       })
       expect(urls).toEqual(['https://img.example/x.png'])
     } finally {

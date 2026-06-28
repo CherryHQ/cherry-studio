@@ -113,6 +113,7 @@ async function buildSubmitInput(
     seed: input.seed,
     files,
     mask,
+    modelDescriptor: input.modelDescriptor,
     providerParams: input.providerParams,
     signal
   }
@@ -147,9 +148,9 @@ async function pollUntilDone(
     return await transport.poll(taskId, {
       signal: ctx.signal,
       onProgress: (progress) => ctx.reportProgress(progress, { stage: 'polling' }),
-      // Carry the submit-time vendor bag so a restart-resumed poll can rebuild
-      // per-task state (e.g. DashScope's response-family descriptor).
-      providerParams: ctx.input.providerParams
+      // Carry the persisted descriptor so a restart-resumed poll on a fresh
+      // transport instance rebuilds per-task state (DashScope's response family).
+      modelDescriptor: ctx.input.modelDescriptor
     })
   } finally {
     if (cancelRemote) ctx.signal.removeEventListener('abort', cancelRemote)

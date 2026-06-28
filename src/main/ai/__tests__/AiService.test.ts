@@ -12,6 +12,7 @@ const mockMessageApplyApproval = vi.fn()
 const mockProviderGetByProviderId = vi.fn()
 const mockProviderGetRotatedApiKey = vi.fn()
 const mockModelGetByKey = vi.fn()
+const mockGetImageGenerationSupport = vi.fn()
 
 vi.mock('@main/core/application', () => ({
   application: {
@@ -29,6 +30,12 @@ vi.mock('@main/data/services/ProviderService', () => ({
 vi.mock('@main/data/services/ModelService', () => ({
   modelService: {
     getByKey: (...args: unknown[]) => mockModelGetByKey(...args)
+  }
+}))
+
+vi.mock('@data/services/ProviderRegistryService', () => ({
+  providerRegistryService: {
+    getImageGenerationSupport: (...args: unknown[]) => mockGetImageGenerationSupport(...args)
   }
 }))
 

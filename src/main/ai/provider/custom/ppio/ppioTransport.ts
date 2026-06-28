@@ -88,7 +88,6 @@ export interface PpioModelDescriptor {
  */
 export interface PpioProviderParams {
   model?: string
-  modelDescriptor?: PpioModelDescriptor
   size?: string
   ppioSeed?: number
   usePreLlm?: boolean
@@ -182,7 +181,7 @@ class PpioTransport implements ImageGenerationTransport {
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
     const bagParams = input.providerParams as PpioProviderParams
-    const descriptor = bagParams.modelDescriptor
+    const descriptor = input.modelDescriptor
     if (!descriptor) {
       throw new Error(`Unknown model: ${bagParams.model}`)
     }

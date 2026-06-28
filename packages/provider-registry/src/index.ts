@@ -30,7 +30,7 @@ export {
   paramCatalogEntry,
   wireName
 } from './schemas/imageParamCatalog'
-export { ImageGenerationSupportSchema } from './schemas/model'
+export { ImageGenerationModeSchema, ImageGenerationSupportSchema } from './schemas/model'
 export { buildParamsSchema } from './utils/buildParamsSchema'
 
 // Enum types (PascalCase, derived from const objects)

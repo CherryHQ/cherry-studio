@@ -8,7 +8,7 @@ import type {
 } from '@shared/ai/transport'
 import { type FileEntry, FileEntrySchema } from '@shared/data/types/file/fileEntry'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { ModelSchema, type UniqueModelId } from '@shared/data/types/model'
+import { ImageGenerationModeSchema, ModelSchema, type UniqueModelId } from '@shared/data/types/model'
 import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
 import * as z from 'zod'
 
@@ -49,11 +49,17 @@ const aiImagePayloadSchema = z.strictObject({
   ...aiBaseRequestShape,
   prompt: z.string(),
   /**
+   * The image-generation mode (which tab). A request property — NOT a param — so
+   * main can derive per-model transport routing (`vendorTransport` → descriptor)
+   * from the registry itself. Defaults to `generate` when absent.
+   */
+  mode: ImageGenerationModeSchema.optional(),
+  /**
    * The canonical param bag (registry param keys → coerced values). The renderer
    * already validated/coerced it via `buildParamsSchema`; main re-derives the wire
    * shape from it (`splitParamValues` + the WireProfile engine). Loose by
-   * design — vendor-bag keys (cfg, addWatermark, modelDescriptor) are open-ended,
-   * and re-validating what `buildParamsSchema` already owns buys nothing.
+   * design — vendor-bag keys (cfg, addWatermark, …) are open-ended, and
+   * re-validating what `buildParamsSchema` already owns buys nothing.
    */
   paramValues: z.record(z.string(), z.unknown()),
   /** Attached images / mask are encoded file bytes (data URLs), not form params. */

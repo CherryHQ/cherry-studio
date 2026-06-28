@@ -61,7 +61,8 @@ function createCtx(
       prompt: 'a cat',
       n: 1,
       size: '1024x1024',
-      providerParams: { modelDescriptor: { id: 'qwen-image', isSync: false } }
+      modelDescriptor: { id: 'qwen-image', endpoint: '/v3/async/qwen-image', isSync: false },
+      providerParams: {}
     },
     attempt: 0,
     signal: controller.signal,
@@ -127,7 +128,7 @@ describe('imageGenerationJobHandler.execute', () => {
     expect(ctx.patchMetadata).toHaveBeenCalledWith({ taskId: 'task-xyz' })
     expect(pollMock).toHaveBeenCalledWith(
       'task-xyz',
-      expect.objectContaining({ signal: ctx.signal, providerParams: ctx.input.providerParams })
+      expect.objectContaining({ signal: ctx.signal, modelDescriptor: ctx.input.modelDescriptor })
     )
     expect(ctx.reportProgress).toHaveBeenCalledWith(50, { stage: 'polling' })
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'done' })
@@ -142,11 +143,11 @@ describe('imageGenerationJobHandler.execute', () => {
 
     expect(submitMock).not.toHaveBeenCalled()
     expect(ctx.patchMetadata).not.toHaveBeenCalled()
-    // Resume must re-supply the submit-time vendor bag so a stateful transport
-    // (DashScope) can rebuild its response-family descriptor.
+    // Resume must re-supply the persisted descriptor so a stateful transport
+    // (DashScope) can rebuild its response-family routing.
     expect(pollMock).toHaveBeenCalledWith(
       'resumed-task',
-      expect.objectContaining({ signal: ctx.signal, providerParams: ctx.input.providerParams })
+      expect.objectContaining({ signal: ctx.signal, modelDescriptor: ctx.input.modelDescriptor })
     )
   })
 

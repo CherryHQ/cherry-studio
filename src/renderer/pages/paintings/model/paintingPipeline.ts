@@ -44,10 +44,6 @@ export async function paintingGenerate(input: GenerateInput): Promise<FileMetada
   // the model's registry support + central catalog (already prefetched here).
   let support: ImageGenerationSupport | undefined
   let effectiveMode: ImageGenerationMode | undefined
-  // Local params copy threaded to canonicalGenerate — never reassign
-  // `input.painting.params`, or the synthetic `modelDescriptor` leaks into
-  // the live in-memory draft and re-emits on regenerate.
-  let paramsForGenerate = input.painting.params
 
   if (modelId) {
     try {
@@ -62,20 +58,7 @@ export async function paintingGenerate(input: GenerateInput): Promise<FileMetada
           : modes
             ? (Object.keys(modes)[0] as ImageGenerationMode)
             : undefined
-      const modeDef = effectiveMode && modes ? modes[effectiveMode] : undefined
-      const transport = modeDef?.vendorTransport
-      requirePrompt = modeDef?.requirePrompt
-      if (transport?.endpoint) {
-        paramsForGenerate = {
-          ...input.painting.params,
-          modelDescriptor: {
-            id: modelId,
-            endpoint: transport.endpoint,
-            isSync: transport.isSync,
-            mode: effectiveMode
-          }
-        }
-      }
+      requirePrompt = effectiveMode && modes ? modes[effectiveMode]?.requirePrompt : undefined
     } catch (error) {
       logger.warn('Failed to prefetch vendorTransport', {
         providerId: input.provider.id,
@@ -91,9 +74,5 @@ export async function paintingGenerate(input: GenerateInput): Promise<FileMetada
     ...(support !== undefined && { support }),
     ...(effectiveMode !== undefined && { mode: effectiveMode })
   }
-  const generateInput: GenerateInput =
-    paramsForGenerate === input.painting.params
-      ? input
-      : { ...input, painting: { ...input.painting, params: paramsForGenerate } }
-  return canonicalGenerate(generateInput, Object.keys(options).length > 0 ? options : undefined)
+  return canonicalGenerate(input, Object.keys(options).length > 0 ? options : undefined)
 }

@@ -1,6 +1,10 @@
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 
-import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
+import type {
+  ImageGenerationSubmitInput,
+  ImageGenerationTransport,
+  ImageTransportDescriptor
+} from '../imageGenerationModel'
 import { createAbortError, fileToDataUrl, isTerminalHttpStatus, waitWithSignal } from '../transportUtils'
 
 /**
@@ -74,9 +78,8 @@ export interface DashScopeModelDescriptor {
 
 export interface DashScopeProviderParams {
   model?: string
-  modelDescriptor?: DashScopeModelDescriptor
   /** Canonical camelCase params (the transport receives the vendorBag directly;
-   *  native `seed` comes from `input.seed`, not the bag). */
+   *  native `seed` comes from `input.seed`, routing from `input.modelDescriptor`). */
   negativePrompt?: string
   style?: string
   promptExtend?: boolean
@@ -376,7 +379,7 @@ class DashScopeTransport implements ImageGenerationTransport {
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
     const bag = (input.providerParams ?? {}) as DashScopeProviderParams
-    const descriptor = bag.modelDescriptor
+    const descriptor = input.modelDescriptor
     if (!descriptor) {
       throw new Error(`Missing modelDescriptor for DashScope model: ${bag.model ?? input.modelId}`)
     }
@@ -405,15 +408,17 @@ class DashScopeTransport implements ImageGenerationTransport {
 
   async poll(
     taskId: string,
-    options: { signal?: AbortSignal; onProgress?: (progress: number) => void; providerParams?: Record<string, unknown> }
+    options: {
+      signal?: AbortSignal
+      onProgress?: (progress: number) => void
+      modelDescriptor?: ImageTransportDescriptor
+    }
   ): Promise<string[]> {
     // On a cross-restart resume the in-memory descriptor is gone (the transport is
     // rebuilt without the submit-time `pendingDescriptors` entry); fall back to the
-    // descriptor carried in `providerParams` (persisted in the job input) so the
-    // response family is still resolved correctly instead of defaulting to `results`.
-    const descriptor =
-      this.pendingDescriptors.get(taskId) ??
-      (options.providerParams?.modelDescriptor as DashScopeModelDescriptor | undefined)
+    // descriptor persisted in the job input so the response family is still
+    // resolved correctly instead of defaulting to `results`.
+    const descriptor = this.pendingDescriptors.get(taskId) ?? options.modelDescriptor
     try {
       const result = await this.pollTaskResult(taskId, options)
       const family = descriptor ? responseFamilyFor(descriptor) : 'results'

@@ -1,6 +1,8 @@
 import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import type { UniqueModelId } from '@shared/data/types/model'
 
+import type { ImageTransportDescriptor } from '../imageGenerationModel'
+
 /**
  * Payload for the async image-generation job. Carries only what the handler
  * needs to (re)build the submit input after a restart — NO secrets and NO raw
@@ -23,6 +25,9 @@ export interface ImageGenerationJobPayload {
   seed?: number
   inputFileIds?: string[]
   maskFileId?: string
+  /** Per-model transport routing, derived in main from the registry — persisted
+   *  here so a restart-resume reaches the right endpoint / response family. */
+  modelDescriptor?: ImageTransportDescriptor
   providerParams: Record<string, unknown>
 }
 

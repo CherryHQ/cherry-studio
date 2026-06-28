@@ -15,27 +15,13 @@ interface NormalizedInput {
 }
 
 /**
- * Per-model descriptor injected by `paintingPipeline` from
- * `modes[mode].vendorTransport`. `endpoint` carries the path the transport
- * POSTs to (with `{model}` substitution for the gemini family); `id` drives
- * `resolveDmxapiFamily` to pick the body builder + response parser.
- */
-export interface DmxapiModelDescriptor {
-  id: string
-  endpoint: string
-  isSync?: boolean
-  mode?: string
-}
-
-/**
  * Vendor-specific fields forwarded through `providerOptions.dmxapi`. AI SDK
  * native fields (size / n / seed / prompt) source from `input.*` at submit
- * entry, not from this bag — canonicalGenerate's POSITIONAL_RENAME +
- * AI_SDK_NATIVE_KEYS partition puts them on the AI SDK call options instead.
+ * entry. DMXAPI dispatches by `resolveDmxapiFamily(input.modelId)` to a family
+ * path under `this.baseURL`, so it needs no `modelDescriptor` routing.
  */
 export interface DmxapiProviderParams {
   model?: string
-  modelDescriptor?: DmxapiModelDescriptor
   /** doubao-seedream multi-image options. */
   sequentialImageGeneration?: 'auto' | 'disabled'
   maxImages?: number

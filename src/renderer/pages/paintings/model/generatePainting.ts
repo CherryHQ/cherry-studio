@@ -1,5 +1,6 @@
 import { ipcApi } from '@renderer/ipc'
 import type { FileMetadata } from '@renderer/types/file'
+import type { ImageGenerationMode } from '@shared/data/types/model'
 
 import { fileEntryToMetadata } from '../utils/fileEntryAdapter'
 import { runPainting } from './runPainting'
@@ -23,6 +24,9 @@ export interface GeneratePaintingOptions {
   readonly modelId: string
   /** User-entered prompt; pass `''` when the model allows empty prompts. */
   readonly prompt: string
+  /** Resolved image-generation mode — lets main derive per-model transport
+   *  routing from the registry instead of the renderer injecting it. */
+  readonly mode?: ImageGenerationMode
   /**
    * Canonical param bag (registry param keys → coerced values; blanks dropped,
    * customSize composed into `size`). main partitions it (`splitParamValues`)
@@ -44,6 +48,7 @@ export function generatePainting(opts: GeneratePaintingOptions): Promise<FileMet
         payload: {
           uniqueModelId: `${opts.provider.id}::${opts.modelId}`,
           prompt: opts.prompt,
+          ...(opts.mode && { mode: opts.mode }),
           paramValues: opts.paramValues,
           ...(opts.inputImages && opts.inputImages.length > 0 && { inputImages: opts.inputImages })
         }
