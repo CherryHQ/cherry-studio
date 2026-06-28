@@ -2,11 +2,11 @@
 // `setupTestDatabase()` so the production migrations, FK constraints, and
 // transaction semantics all apply.
 //
-// The riskiest (previously untested) path is the `file_ref` emission in
+// The riskiest (previously untested) path is the `painting_file_ref` emission in
 // `execute()`: legacy painting rows carry output/input `file_entry.id`s in
 // JSON, but the FileMigrator may have skipped some of those ids as malformed.
 // `execute()` resolves the referenced ids against `file_entry` and emits
-// `file_ref` rows ONLY for ids that survived — dropping (and counting as
+// `painting_file_ref` rows ONLY for ids that survived — dropping (and counting as
 // `droppedFileRefs`) the dangling ones so the engine's final
 // `PRAGMA foreign_key_check` never aborts the whole migration.
 //
@@ -15,7 +15,8 @@
 // deliberate: if the dangling guard ever regresses, the FK constraint fires
 // immediately on insert and `execute()` returns `success=false` — the same
 // signal as the production check, just earlier.
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { paintingTable } from '@data/db/schemas/painting'
 import { paintingFileRefSchema, paintingSourceType } from '@shared/data/types/file/ref'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -36,7 +37,7 @@ vi.mock('@logger', () => ({
 }))
 
 // `painting.id` is a UUID v4 (the painting file-ref variant validates sourceId
-// as `z.uuidv4()`), so seed realistic v4 ids even though `file_ref.sourceId`
+// as `z.uuidv4()`), so seed realistic v4 ids even though `painting_file_ref.sourceId`
 // carries no FK constraint at the DB layer.
 const PAINTING_OUTPUT_ID = '11111111-1111-4111-8111-111111111111'
 const PAINTING_INPUT_ID = '22222222-2222-4222-8222-222222222222'
@@ -78,10 +79,10 @@ async function seedInternalFile(dbh: Dbh, id: string): Promise<void> {
   })
 }
 
-describe('PaintingMigrator file_ref integration', () => {
+describe('PaintingMigrator painting_file_ref integration', () => {
   const dbh = setupTestDatabase()
 
-  it('emits file_ref rows for present file ids and inserts painting rows (happy path)', async () => {
+  it('emits painting_file_ref rows for present file ids and inserts painting rows (happy path)', async () => {
     await seedInternalFile(dbh, FILE_PRESENT_OUTPUT_ID)
     await seedInternalFile(dbh, FILE_PRESENT_INPUT_ID)
 
@@ -111,9 +112,11 @@ describe('PaintingMigrator file_ref integration', () => {
     })
     expect(paintingRows[0].orderKey).toEqual(expect.any(String))
 
-    const refRows = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceId, PAINTING_OUTPUT_ID))
+    const refRows = await dbh.db
+      .select()
+      .from(paintingFileRefTable)
+      .where(eq(paintingFileRefTable.sourceId, PAINTING_OUTPUT_ID))
     expect(refRows).toHaveLength(2)
-    expect(refRows.every((r) => r.sourceType === paintingSourceType)).toBe(true)
     const byRole = new Map(refRows.map((r) => [r.role, r.fileEntryId]))
     expect(byRole.get('output')).toBe(FILE_PRESENT_OUTPUT_ID)
     expect(byRole.get('input')).toBe(FILE_PRESENT_INPUT_ID)
@@ -160,14 +163,13 @@ describe('PaintingMigrator file_ref integration', () => {
     const paintingRows = await dbh.db.select().from(paintingTable)
     expect(paintingRows.map((r) => r.id).sort()).toEqual([PAINTING_OUTPUT_ID, PAINTING_INPUT_ID].sort())
 
-    // Only the present output id produced a file_ref; the two missing ids were
+    // Only the present output id produced a painting_file_ref; the two missing ids were
     // dropped (one output + one input).
-    const refRows = await dbh.db.select().from(fileRefTable)
+    const refRows = await dbh.db.select().from(paintingFileRefTable)
     expect(refRows).toHaveLength(1)
     expect(refRows[0]).toMatchObject({
       fileEntryId: FILE_PRESENT_OUTPUT_ID,
       sourceId: PAINTING_OUTPUT_ID,
-      sourceType: paintingSourceType,
       role: 'output'
     })
     expect((migrator as unknown as { droppedFileRefs: number }).droppedFileRefs).toBe(2)
@@ -197,7 +199,7 @@ describe('PaintingMigrator file_ref integration', () => {
     expect(paintingRows).toHaveLength(1)
     expect(paintingRows[0].id).toBe(PAINTING_DANGLING_ID)
 
-    const refRows = await dbh.db.select().from(fileRefTable)
+    const refRows = await dbh.db.select().from(paintingFileRefTable)
     expect(refRows).toHaveLength(0)
     expect((migrator as unknown as { droppedFileRefs: number }).droppedFileRefs).toBe(2)
 
@@ -205,13 +207,13 @@ describe('PaintingMigrator file_ref integration', () => {
     expect(fkCheck.rows).toHaveLength(0)
   })
 
-  it('rewrites a cross-namespace duplicate id to a fresh uuidv4 so file_refs validate', async () => {
+  it('rewrites a cross-namespace duplicate id to a fresh uuidv4 so painting_file_refs validate', async () => {
     await seedInternalFile(dbh, FILE_PRESENT_OUTPUT_ID)
     await seedInternalFile(dbh, FILE_PRESENT_INPUT_ID)
 
     // Same legacy id in two namespaces → the second occurrence collides and
     // must be rewritten. The composite `${id}_${ns}_${i}` form used previously
-    // is not a uuidv4, so its emitted file_ref would fail `paintingFileRefSchema`.
+    // is not a uuidv4, so its emitted painting_file_ref would fail `paintingFileRefSchema`.
     const migrator = new PaintingMigrator()
     const ctx = makeCtx(dbh, {
       siliconflow_paintings: [{ id: PAINTING_OUTPUT_ID, prompt: 'first', files: [{ id: FILE_PRESENT_OUTPUT_ID }] }],
@@ -228,12 +230,12 @@ describe('PaintingMigrator file_ref integration', () => {
     expect(new Set(ids).size).toBe(2)
     expect(ids).toContain(PAINTING_OUTPUT_ID)
 
-    // Every emitted file_ref (including the rewritten sourceId) parses against
+    // Every emitted painting_file_ref (including the rewritten sourceId) parses against
     // the painting ref schema, whose `sourceId` is `z.uuidv4()`.
-    const refRows = await dbh.db.select().from(fileRefTable)
+    const refRows = await dbh.db.select().from(paintingFileRefTable)
     expect(refRows).toHaveLength(2)
     for (const row of refRows) {
-      expect(() => paintingFileRefSchema.parse(row)).not.toThrow()
+      expect(() => paintingFileRefSchema.parse({ ...row, sourceType: paintingSourceType })).not.toThrow()
     }
     expect(new Set(refRows.map((r) => r.sourceId))).toEqual(new Set(ids))
 

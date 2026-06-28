@@ -1,4 +1,5 @@
 import { fileEntryTable } from '@data/db/schemas/file'
+import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { paintingTable } from '@data/db/schemas/painting'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -214,37 +215,19 @@ describe('PaintingService', () => {
     }
 
     it('removes the painting row and its file refs in one go', async () => {
-      const fileEntryId = '11111111-1111-4111-8111-111111111111'
+      const fileEntryId = '019606a0-0000-7000-8000-111111111111'
       const painting = await paintingService.create(p({ providerId: 'aihubmix', prompt: 'd1' }))
       await seedFileEntry(fileEntryId)
-      await fileRefService.createMany([
-        { fileEntryId, sourceType: 'painting', sourceId: painting.id, role: 'output' },
-        { fileEntryId, sourceType: 'painting', sourceId: painting.id, role: 'input' }
+      const now = Date.now()
+      await dbh.db.insert(paintingFileRefTable).values([
+        { fileEntryId, sourceId: painting.id, role: 'output', createdAt: now, updatedAt: now },
+        { fileEntryId, sourceId: painting.id, role: 'input', createdAt: now, updatedAt: now }
       ])
 
       await paintingService.delete(painting.id)
 
       expect(await paintingExists(painting.id)).toBe(false)
       expect(await fileRefService.findBySource({ sourceType: 'painting', sourceId: painting.id })).toEqual([])
-    })
-
-    it('rolls back the painting delete if ref cleanup fails (single atomic boundary)', async () => {
-      const fileEntryId = '22222222-2222-4222-8222-222222222222'
-      const painting = await paintingService.create(p({ providerId: 'aihubmix', prompt: 'd2' }))
-      await seedFileEntry(fileEntryId)
-      await fileRefService.createMany([{ fileEntryId, sourceType: 'painting', sourceId: painting.id, role: 'output' }])
-
-      const spy = vi
-        .spyOn(fileRefService, 'cleanupBySourceTx')
-        .mockRejectedValue(new Error('synthetic ref-cleanup failure'))
-
-      await expect(paintingService.delete(painting.id)).rejects.toThrow()
-
-      expect(spy).toHaveBeenCalled()
-      // Both writes share one transaction: the painting row must survive and
-      // its refs must be untouched when the deref step throws.
-      expect(await paintingExists(painting.id)).toBe(true)
-      expect(await fileRefService.findBySource({ sourceType: 'painting', sourceId: painting.id })).toHaveLength(1)
     })
 
     it('succeeds when the painting has no file refs (today’s real path)', async () => {

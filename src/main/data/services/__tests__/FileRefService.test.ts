@@ -1,7 +1,13 @@
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { chatMessageFileRefTable, paintingFileRefTable } from '@data/db/schemas/fileRelations'
+import { messageTable } from '@data/db/schemas/message'
+import { paintingTable } from '@data/db/schemas/painting'
+import { topicTable } from '@data/db/schemas/topic'
 import type { FileEntryId } from '@shared/data/types/file'
-import { setupTestDatabase } from '@test-helpers/db'
+import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -14,9 +20,12 @@ const { fileRefService } = await import('../FileRefService')
 
 describe('FileRefService', () => {
   const dbh = setupTestDatabase()
+  let orderKeySeq = 0
 
   beforeEach(() => {
     MockMainDbServiceUtils.setDb(dbh.db)
+    MockMainCacheServiceUtils.resetMocks()
+    orderKeySeq = 0
   })
 
   async function seedEntry(id: FileEntryId): Promise<void> {
@@ -34,417 +43,190 @@ describe('FileRefService', () => {
     })
   }
 
-  describe('findByEntryId', () => {
-    it('returns refs whose fileEntryId matches', async () => {
+  async function seedPainting(id = uuidv4()): Promise<string> {
+    orderKeySeq += 1
+    await dbh.db.insert(paintingTable).values({
+      id,
+      providerId: 'provider',
+      modelId: null,
+      prompt: 'prompt',
+      orderKey: `a${orderKeySeq}`
+    })
+    return id
+  }
+
+  async function seedChatMessage(topicId = uuidv4(), messageId = uuidv4()): Promise<string> {
+    await dbh.db.insert(topicTable).values({ id: topicId, activeNodeId: messageId, orderKey: `t${orderKeySeq++}` })
+    await dbh.db.insert(messageTable).values(
+      withRoot(topicId, [
+        {
+          id: messageId,
+          parentId: null,
+          topicId,
+          role: 'user',
+          data: { parts: [{ type: 'text', text: 'hello' }] },
+          status: 'success',
+          createdAt: 10,
+          updatedAt: 10
+        }
+      ])
+    )
+    return messageId
+  }
+
+  async function seedPaintingRef(fileEntryId: FileEntryId, sourceId: string, role: 'output' | 'input'): Promise<void> {
+    await dbh.db.insert(paintingFileRefTable).values({ fileEntryId, sourceId, role })
+  }
+
+  async function seedChatRef(fileEntryId: FileEntryId, sourceId: string): Promise<void> {
+    await dbh.db.insert(chatMessageFileRefTable).values({ fileEntryId, sourceId, role: 'attachment' })
+  }
+
+  describe('read aggregation', () => {
+    it('findByEntryId returns refs across persistent tables and temp-session cache', async () => {
       const entryId = '019606a0-0000-7000-8000-00000000aa01' as FileEntryId
+      const paintingId = await seedPainting()
+      const messageId = await seedChatMessage()
       await seedEntry(entryId)
-      const now = Date.now()
-      await dbh.db.insert(fileRefTable).values([
-        {
-          id: uuidv4(),
-          fileEntryId: entryId,
-          sourceType: 'temp_session',
-          sourceId: 'session-A',
-          role: 'pending',
-          createdAt: now,
-          updatedAt: now
-        },
-        {
-          id: uuidv4(),
-          fileEntryId: entryId,
-          sourceType: 'temp_session',
-          sourceId: 'session-B',
-          role: 'pending',
-          createdAt: now,
-          updatedAt: now
-        }
-      ])
+      await seedPaintingRef(entryId, paintingId, 'output')
+      await seedChatRef(entryId, messageId)
+      await fileRefService.createTempSessionRef({ fileEntryId: entryId, sourceId: 'session-A', role: 'pending' })
 
       const refs = await fileRefService.findByEntryId(entryId)
-      expect(refs).toHaveLength(2)
+      expect(refs).toHaveLength(3)
       expect(refs.every((r) => r.fileEntryId === entryId)).toBe(true)
+      expect(refs.map((r) => r.sourceType).sort()).toEqual(['chat_message', 'painting', 'temp_session'])
     })
 
-    it('returns empty array when entry has no refs', async () => {
+    it('findBySource reads persistent sources without owning their write path', async () => {
       const entryId = '019606a0-0000-7000-8000-00000000aa02' as FileEntryId
+      const paintingId = await seedPainting()
       await seedEntry(entryId)
-      const refs = await fileRefService.findByEntryId(entryId)
-      expect(refs).toEqual([])
-    })
-  })
+      await seedPaintingRef(entryId, paintingId, 'input')
 
-  describe('findBySource', () => {
-    it('returns refs for the given source key', async () => {
-      const entryA = '019606a0-0000-7000-8000-00000000bb01' as FileEntryId
-      const entryB = '019606a0-0000-7000-8000-00000000bb02' as FileEntryId
-      await seedEntry(entryA)
-      await seedEntry(entryB)
-      const now = Date.now()
-      await dbh.db.insert(fileRefTable).values([
-        {
-          id: uuidv4(),
-          fileEntryId: entryA,
-          sourceType: 'temp_session',
-          sourceId: 'session-X',
-          role: 'pending',
-          createdAt: now,
-          updatedAt: now
-        },
-        {
-          id: uuidv4(),
-          fileEntryId: entryB,
-          sourceType: 'temp_session',
-          sourceId: 'session-X',
-          role: 'pending',
-          createdAt: now,
-          updatedAt: now
-        },
-        {
-          id: uuidv4(),
-          fileEntryId: entryA,
-          sourceType: 'temp_session',
-          sourceId: 'session-Y',
-          role: 'pending',
-          createdAt: now,
-          updatedAt: now
-        }
+      await expect(fileRefService.findBySource({ sourceType: 'painting', sourceId: paintingId })).resolves.toEqual([
+        expect.objectContaining({ fileEntryId: entryId, sourceType: 'painting', sourceId: paintingId, role: 'input' })
       ])
-
-      const refs = await fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'session-X' })
-      expect(refs).toHaveLength(2)
-      expect(refs.every((r) => r.sourceId === 'session-X')).toBe(true)
     })
 
-    it('returns empty array when source key has no refs', async () => {
-      const refs = await fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'no-such' })
-      expect(refs).toEqual([])
+    it('findBySource returns empty array when source key has no refs', async () => {
+      await expect(fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'no-such' })).resolves.toEqual(
+        []
+      )
     })
   })
 
-  describe('create / createMany', () => {
-    it('inserts a single ref and returns it parsed', async () => {
-      const entryId = '019606a0-0000-7000-8000-00000000cc01' as FileEntryId
+  describe('temp-session writes', () => {
+    it('creates a single temp ref and returns it parsed', async () => {
+      const entryId = '019606a0-0000-7000-8000-00000000bb01' as FileEntryId
       await seedEntry(entryId)
-      const ref = await fileRefService.create({
+
+      const ref = await fileRefService.createTempSessionRef({
         fileEntryId: entryId,
-        sourceType: 'temp_session',
         sourceId: 'session-K',
         role: 'pending'
       })
-      expect(ref.fileEntryId).toBe(entryId)
-      expect(ref.sourceType).toBe('temp_session')
-      expect(ref.sourceId).toBe('session-K')
-      expect(ref.role).toBe('pending')
+
+      expect(ref).toEqual(
+        expect.objectContaining({
+          fileEntryId: entryId,
+          sourceType: 'temp_session',
+          sourceId: 'session-K',
+          role: 'pending'
+        })
+      )
     })
 
-    it('throws on duplicate (entryId, sourceType, sourceId, role)', async () => {
-      const entryId = '019606a0-0000-7000-8000-00000000cc02' as FileEntryId
+    it('throws on duplicate temp ref (entryId, sourceId, role)', async () => {
+      const entryId = '019606a0-0000-7000-8000-00000000bb02' as FileEntryId
       await seedEntry(entryId)
-      const values = {
-        fileEntryId: entryId,
-        sourceType: 'temp_session' as const,
-        sourceId: 'dup',
-        role: 'pending'
-      }
-      await fileRefService.create(values)
-      await expect(fileRefService.create(values)).rejects.toThrow()
+      const values = { fileEntryId: entryId, sourceId: 'dup', role: 'pending' }
+      await fileRefService.createTempSessionRef(values)
+      await expect(fileRefService.createTempSessionRef(values)).rejects.toThrow()
     })
 
-    it('createMany skips conflicting rows and returns the inserted ones', async () => {
-      const entryId = '019606a0-0000-7000-8000-00000000cc03' as FileEntryId
+    it('createManyTempSessionRefs skips conflicting rows and returns inserted ones', async () => {
+      const entryId = '019606a0-0000-7000-8000-00000000bb03' as FileEntryId
       await seedEntry(entryId)
-      const base = { fileEntryId: entryId, sourceType: 'temp_session' as const, role: 'pending' }
-      await fileRefService.create({ ...base, sourceId: 'one' })
+      const base = { fileEntryId: entryId, role: 'pending' }
+      await fileRefService.createTempSessionRef({ ...base, sourceId: 'one' })
 
-      const result = await fileRefService.createMany([
+      const result = await fileRefService.createManyTempSessionRefs([
         { ...base, sourceId: 'one' },
         { ...base, sourceId: 'two' },
         { ...base, sourceId: 'three' }
       ])
-      // 'one' already existed → skipped; 'two' and 'three' inserted
+
       expect(result).toHaveLength(2)
-      const ids = result.map((r) => r.sourceId).sort()
-      expect(ids).toEqual(['three', 'two'])
-    })
-  })
-
-  describe('copyBySourceIdMapTx', () => {
-    it('duplicates refs for mapped source ids inside the provided transaction', async () => {
-      const entryA = '019606a0-0000-7000-8000-00000000cc04' as FileEntryId
-      const entryB = '019606a0-0000-7000-8000-00000000cc05' as FileEntryId
-      await seedEntry(entryA)
-      await seedEntry(entryB)
-      await fileRefService.createMany([
-        { fileEntryId: entryA, sourceType: 'temp_session', sourceId: 'source-a', role: 'pending' },
-        { fileEntryId: entryB, sourceType: 'temp_session', sourceId: 'source-b', role: 'pending' }
-      ])
-
-      await dbh.db.transaction((tx) =>
-        fileRefService.copyBySourceIdMapTx(
-          tx,
-          'temp_session',
-          new Map([
-            ['source-a', 'copy-a'],
-            ['missing-source', 'copy-missing']
-          ])
-        )
-      )
-
-      await expect(fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'copy-a' })).resolves.toEqual([
-        expect.objectContaining({
-          fileEntryId: entryA,
-          sourceType: 'temp_session',
-          sourceId: 'copy-a',
-          role: 'pending'
-        })
-      ])
-      expect(await fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'copy-missing' })).toEqual([])
+      expect(result.map((r) => r.sourceId).sort()).toEqual(['three', 'two'])
     })
 
-    it('fails the transaction when the copied target ref already exists', async () => {
-      const entryA = '019606a0-0000-7000-8000-00000000cc06' as FileEntryId
-      const entryB = '019606a0-0000-7000-8000-00000000cc07' as FileEntryId
-      const sentinelSourceId = 'same-tx-sentinel'
+    it('cleanupTempSessionSource removes all temp refs owned by one source', async () => {
+      const entryA = '019606a0-0000-7000-8000-00000000bb04' as FileEntryId
+      const entryB = '019606a0-0000-7000-8000-00000000bb05' as FileEntryId
       await seedEntry(entryA)
       await seedEntry(entryB)
-      await fileRefService.createMany([
-        { fileEntryId: entryA, sourceType: 'temp_session', sourceId: 'source-a', role: 'pending' },
-        { fileEntryId: entryA, sourceType: 'temp_session', sourceId: 'copy-a', role: 'pending' },
-        { fileEntryId: entryB, sourceType: 'temp_session', sourceId: 'source-b', role: 'pending' }
+      await fileRefService.createManyTempSessionRefs([
+        { fileEntryId: entryA, sourceId: 'cleanup-A', role: 'pending' },
+        { fileEntryId: entryB, sourceId: 'cleanup-A', role: 'pending' }
       ])
 
-      await expect(
-        dbh.db.transaction(async (tx) => {
-          const now = Date.now()
-          await tx.insert(fileRefTable).values({
-            id: uuidv4(),
-            fileEntryId: entryB,
-            sourceType: 'temp_session',
-            sourceId: sentinelSourceId,
-            role: 'pending',
-            createdAt: now,
-            updatedAt: now
-          })
-
-          await fileRefService.copyBySourceIdMapTx(
-            tx,
-            'temp_session',
-            new Map([
-              ['source-a', 'copy-a'],
-              ['source-b', 'copy-b']
-            ])
-          )
-        })
-      ).rejects.toThrow()
-
-      expect(await fileRefService.findBySource({ sourceType: 'temp_session', sourceId: sentinelSourceId })).toEqual([])
-      expect(await fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'copy-b' })).toEqual([])
-    })
-
-    it('copies multiple refs for a mapped source id', async () => {
-      const entryA = '019606a0-0000-7000-8000-00000000cc08' as FileEntryId
-      const entryB = '019606a0-0000-7000-8000-00000000cc09' as FileEntryId
-      await seedEntry(entryA)
-      await seedEntry(entryB)
-      await fileRefService.createMany([
-        { fileEntryId: entryA, sourceType: 'temp_session', sourceId: 'source-a', role: 'pending' },
-        { fileEntryId: entryB, sourceType: 'temp_session', sourceId: 'source-a', role: 'pending' }
-      ])
-
-      await dbh.db.transaction((tx) =>
-        fileRefService.copyBySourceIdMapTx(tx, 'temp_session', new Map([['source-a', 'copy-a']]))
-      )
-
-      const copied = await fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'copy-a' })
-      expect(copied).toHaveLength(2)
-      expect(copied).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            fileEntryId: entryA,
-            sourceType: 'temp_session',
-            sourceId: 'copy-a',
-            role: 'pending'
-          }),
-          expect.objectContaining({
-            fileEntryId: entryB,
-            sourceType: 'temp_session',
-            sourceId: 'copy-a',
-            role: 'pending'
-          })
-        ])
+      await expect(fileRefService.cleanupTempSessionSource('cleanup-A')).resolves.toBe(2)
+      await expect(fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'cleanup-A' })).resolves.toEqual(
+        []
       )
     })
-  })
 
-  describe('cleanupBySource / cleanupBySourceBatch', () => {
-    it('removes all refs owned by a single source', async () => {
-      const entryA = '019606a0-0000-7000-8000-00000000dd01' as FileEntryId
-      const entryB = '019606a0-0000-7000-8000-00000000dd99' as FileEntryId
-      await seedEntry(entryA)
-      await seedEntry(entryB)
-      await fileRefService.create({
-        fileEntryId: entryA,
-        sourceType: 'temp_session',
-        sourceId: 'cleanup-A',
-        role: 'pending'
-      })
-      await fileRefService.create({
-        fileEntryId: entryB,
-        sourceType: 'temp_session',
-        sourceId: 'cleanup-A',
-        role: 'pending'
-      })
-      const removed = await fileRefService.cleanupBySource({ sourceType: 'temp_session', sourceId: 'cleanup-A' })
-      expect(removed).toBe(2)
-      expect(await fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'cleanup-A' })).toEqual([])
-    })
-
-    it('cleanupBySource on missing source returns 0', async () => {
-      const removed = await fileRefService.cleanupBySource({ sourceType: 'temp_session', sourceId: 'never' })
-      expect(removed).toBe(0)
-    })
-
-    it('cleanupBySourceBatch removes refs across multiple sourceIds', async () => {
-      const entryId = '019606a0-0000-7000-8000-00000000dd02' as FileEntryId
+    it('cleanupTempSessionSources removes temp refs across multiple sourceIds', async () => {
+      const entryId = '019606a0-0000-7000-8000-00000000bb06' as FileEntryId
       await seedEntry(entryId)
-      const make = (sid: string) => ({
-        fileEntryId: entryId,
-        sourceType: 'temp_session' as const,
-        sourceId: sid,
-        role: 'pending'
-      })
-      await fileRefService.create(make('s1'))
-      await fileRefService.create(make('s2'))
-      await fileRefService.create(make('s3'))
-      const removed = await fileRefService.cleanupBySourceBatch('temp_session', ['s1', 's3'])
-      expect(removed).toBe(2)
+      const make = (sourceId: string) => ({ fileEntryId: entryId, sourceId, role: 'pending' })
+      await fileRefService.createManyTempSessionRefs([make('s1'), make('s2'), make('s3')])
+
+      await expect(fileRefService.cleanupTempSessionSources(['s1', 's3'])).resolves.toBe(2)
       const remaining = await fileRefService.findByEntryId(entryId)
       expect(remaining.map((r) => r.sourceId)).toEqual(['s2'])
     })
-
-    it('cleanupBySourceBatch chunks past the SQLite IN-list cap', async () => {
-      // SQLITE_INARRAY_CHUNK = 500; 1200 ids forces three chunks (500/500/200)
-      // and validates the per-chunk count summation. A bug that runs only the
-      // first chunk would return ~500 instead of 1200.
-      const entryId = '019606a0-0000-7000-8000-00000000ee01' as FileEntryId
-      await seedEntry(entryId)
-      const sids = Array.from({ length: 1200 }, (_, i) => `bulk-${String(i).padStart(4, '0')}`)
-      const SEED_CHUNK = 200
-      for (let i = 0; i < sids.length; i += SEED_CHUNK) {
-        await fileRefService.createMany(
-          sids.slice(i, i + SEED_CHUNK).map((sid) => ({
-            fileEntryId: entryId,
-            sourceType: 'temp_session' as const,
-            sourceId: sid,
-            role: 'pending'
-          }))
-        )
-      }
-      const removed = await fileRefService.cleanupBySourceBatch('temp_session', sids)
-      expect(removed).toBe(1200)
-      expect(await fileRefService.findByEntryId(entryId)).toEqual([])
-    })
   })
 
-  describe('listDistinctSourceIds', () => {
-    it('returns distinct sourceIds for a sourceType (de-duplicates within source)', async () => {
-      const entryA = '019606a0-0000-7000-8000-00000000dd10' as FileEntryId
-      const entryB = '019606a0-0000-7000-8000-00000000dd11' as FileEntryId
-      await seedEntry(entryA)
-      await seedEntry(entryB)
-      // Same sourceId 'sess-shared' referenced by two entries → must dedupe
-      await fileRefService.create({
-        fileEntryId: entryA,
-        sourceType: 'temp_session',
-        sourceId: 'sess-shared',
-        role: 'pending'
-      })
-      await fileRefService.create({
-        fileEntryId: entryB,
-        sourceType: 'temp_session',
-        sourceId: 'sess-shared',
-        role: 'pending'
-      })
-      await fileRefService.create({
-        fileEntryId: entryA,
-        sourceType: 'temp_session',
-        sourceId: 'sess-other',
-        role: 'pending'
-      })
-      const ids = await fileRefService.listDistinctSourceIds('temp_session')
-      expect(new Set(ids)).toEqual(new Set(['sess-shared', 'sess-other']))
-    })
-
-    it('returns empty array when no refs exist for the sourceType', async () => {
-      expect(await fileRefService.listDistinctSourceIds('temp_session')).toEqual([])
-    })
-
-    it('scopes by sourceType — refs with a different sourceType are excluded', async () => {
-      const entryId = '019606a0-0000-7000-8000-00000000dd20' as FileEntryId
-      await seedEntry(entryId)
-      await fileRefService.create({
-        fileEntryId: entryId,
-        sourceType: 'temp_session',
-        sourceId: 'in-temp',
-        role: 'pending'
-      })
-      // The other registered sourceType (`knowledge_item`) is intentionally
-      // not seeded — this test verifies that a query for it returns empty.
-      expect(await fileRefService.listDistinctSourceIds('knowledge_item')).toEqual([])
-      expect(await fileRefService.listDistinctSourceIds('temp_session')).toEqual(['in-temp'])
-    })
-  })
-
-  describe('countByEntryIds', () => {
-    it('returns an empty map for an empty input list', async () => {
-      const result = await fileRefService.countByEntryIds([])
-      expect(result.size).toBe(0)
-    })
-
-    it('counts refs per fileEntryId; entries without refs are absent from the map', async () => {
-      const idA = '019606a0-0000-7000-8000-00000000ee01' as FileEntryId
-      const idB = '019606a0-0000-7000-8000-00000000ee02' as FileEntryId
-      const idC = '019606a0-0000-7000-8000-00000000ee03' as FileEntryId
+  describe('sweep helpers', () => {
+    it('countByEntryIds counts refs per fileEntryId across persistent and temp refs', async () => {
+      const idA = '019606a0-0000-7000-8000-00000000cc01' as FileEntryId
+      const idB = '019606a0-0000-7000-8000-00000000cc02' as FileEntryId
+      const idC = '019606a0-0000-7000-8000-00000000cc03' as FileEntryId
+      const paintingId = await seedPainting()
       await seedEntry(idA)
       await seedEntry(idB)
       await seedEntry(idC)
-
-      const now = Date.now()
-      await dbh.db.insert(fileRefTable).values([
-        {
-          id: uuidv4(),
-          fileEntryId: idA,
-          sourceType: 'temp_session',
-          sourceId: 's1',
-          role: 'pending',
-          createdAt: now,
-          updatedAt: now
-        },
-        {
-          id: uuidv4(),
-          fileEntryId: idA,
-          sourceType: 'temp_session',
-          sourceId: 's2',
-          role: 'pending',
-          createdAt: now,
-          updatedAt: now
-        },
-        {
-          id: uuidv4(),
-          fileEntryId: idB,
-          sourceType: 'temp_session',
-          sourceId: 's1',
-          role: 'pending',
-          createdAt: now,
-          updatedAt: now
-        }
+      await fileRefService.createManyTempSessionRefs([
+        { fileEntryId: idA, sourceId: 's1', role: 'pending' },
+        { fileEntryId: idA, sourceId: 's2', role: 'pending' }
       ])
+      await seedPaintingRef(idB, paintingId, 'output')
 
       const result = await fileRefService.countByEntryIds([idA, idB, idC])
       expect(result.get(idA)).toBe(2)
       expect(result.get(idB)).toBe(1)
-      // idC has no refs — absent from the map; handler treats missing as 0.
       expect(result.has(idC)).toBe(false)
+    })
+
+    it('pruneMissingTempSessionRefs removes stale temp refs and keeps existing ones', async () => {
+      const existing = '019606a0-0000-7000-8000-00000000cc04' as FileEntryId
+      const missing = '019606a0-0000-7000-8000-00000000cc05' as FileEntryId
+      await seedEntry(existing)
+      await seedEntry(missing)
+      await fileRefService.createManyTempSessionRefs([
+        { fileEntryId: existing, sourceId: 's', role: 'pending' },
+        { fileEntryId: missing, sourceId: 's', role: 'pending' }
+      ])
+      await dbh.db.delete(fileEntryTable).where(eq(fileEntryTable.id, missing))
+
+      const removed = await fileRefService.pruneMissingTempSessionRefs(new Set([existing]))
+
+      expect(removed).toBe(1)
+      await expect(fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 's' })).resolves.toEqual([
+        expect.objectContaining({ fileEntryId: existing })
+      ])
     })
   })
 })

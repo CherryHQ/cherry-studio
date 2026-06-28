@@ -46,11 +46,11 @@ Any non-delete subtree status update must reconcile parent containers outside th
 
 Subtree membership must be resolved in the same serialized write transaction as the status write. Do not precompute subtree ids before entering `DbService.withWriteTx`; a concurrent create/delete between the read and update can leave descendants visible or reconcile containers against stale membership.
 
-### Hard Delete FileRef Cleanup
+### Hard Delete File Cleanup
 
-Final hard deletes must clear Knowledge `file_ref` rows for the full deletion subtree in the same `DbService.withWriteTx` before deleting `knowledge_item` rows. `file_ref.sourceId` is polymorphic and has no FK to `knowledge_item`; deleting a container cascades child `knowledge_item` rows through `knowledge_item.groupId`, but the database cannot cascade their file refs.
+Final hard deletes remove Knowledge-owned vectors, raw files, and `knowledge_item` rows. Knowledge create/index no longer registers FileManager refs, so `deleteItemsByIds` does not perform a FileManager ref cleanup step.
 
-`deleteItemsByIds` must therefore expand explicit ids to the full subtree with a recursive CTE for ref cleanup. Row deletion may still target the explicit ids and rely on the `groupId` cascade, but ref cleanup must use the complete subtree id set.
+`deleteItemsByIds` may delete explicit ids and rely on the `groupId` cascade for descendants; file bytes are purged by the workflow cleanup utilities before row deletion.
 
 ### `assertSubtreesCanReindex`
 
@@ -150,7 +150,7 @@ This keeps delete cleanup durable across process restart without maintaining a r
 
 ### Why Delete Cleanup Failure Does Not Mark Items `failed`
 
-`knowledge.delete-subtree` is responsible for removing vector artifacts, detaching Knowledge file references, and deleting the resolved `knowledge_item` rows. If that job fails or is cancelled after rows were already marked `deleting`, the rows must stay `deleting`.
+`knowledge.delete-subtree` is responsible for removing vector artifacts, deleting Knowledge-owned raw files, and deleting the resolved `knowledge_item` rows. If that job fails or is cancelled after rows were already marked `deleting`, the rows must stay `deleting`.
 
 Do not convert these rows to ordinary `failed` items as a terminal fallback:
 
@@ -224,13 +224,11 @@ After the reset mutation, selected roots are deliberately visible as `preparing`
 
 Because those active statuses are written before `scheduleItem`, the handler must compensate if scheduling fails. The failing roots are marked `failed` so the UI does not show stuck active work without a durable job. Do not remove this compensation unless reindex introduces a separate non-active pending state, such as a dedicated `reindexing` or `pending_reindex` lifecycle state.
 
-### Reindex FileRef Ownership
+### Reindex File Ownership
 
-Knowledge source `file_ref` rows are business ownership refs, not vector artifacts. Reindex must not detach refs for selected leaf roots because the root `knowledge_item` rows remain alive and still read `data.fileEntryId`.
+Knowledge source files are Knowledge-owned raw files, not FileManager refs. Reindex must not detach FileManager refs for selected leaf roots because there are none to detach; the root `knowledge_item` rows remain alive and read `data.relativePath` / `data.indexedRelativePath`.
 
-Leaf indexing repairs this relationship instead: `knowledge.index-documents` rebuilds Knowledge source refs from the current `knowledge_item.data` before reading the source. For file items, that creates the canonical `knowledge_item` / `source` ref to `data.fileEntryId`; for note and URL items, it clears stale Knowledge file refs.
-
-File ref detach during reindex is valid only when rows are actually being removed, such as stale descendants from a container expansion. Those descendants are deleted through `deleteItemsByIds`, which performs full subtree ref cleanup in the delete transaction.
+Leaf indexing reads from the current `knowledge_item.data` and rewrites derived vector material. Stale descendants from a container expansion are removed through the delete-subtree cleanup path, which purges vectors/files and then deletes rows.
 
 ## `prepare-root`
 

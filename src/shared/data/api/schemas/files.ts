@@ -1,16 +1,18 @@
 /**
  * File API Schema definitions (read-only DataApi)
  *
- * DataApi is a **pure SQL read surface** for file data. Handlers:
+ * DataApi is a SQL-first read surface for file data. Handlers:
  *
  * - MUST NOT read or `stat` the filesystem
  * - MUST NOT call main-side resolvers (`resolvePhysicalPath`, etc.)
- * - MUST NOT consult in-memory caches outside the DB (no `danglingCache.check`, no `versionCache`)
+ * - MUST NOT consult FS-state caches (`danglingCache.check`, `versionCache`)
  * - MUST return a **fixed shape per endpoint** — no opt-in flags that toggle extra fields
  *
- * The only allowed "derivation" inside DataApi is **SQL aggregation** (JOIN / GROUP BY /
- * COUNT), because that stays in the DB layer. Anything that requires FS IO or main-side
- * computation lives in **File IPC** (see `src/shared/types/file/ipc.ts`).
+ * SQL aggregation (JOIN / GROUP BY / COUNT) stays in the DB layer. Temp-session refs are
+ * the narrow exception: they are main-memory CacheService state by design and are included
+ * by the ref endpoints so a temp attachment is not reported as orphan during the session.
+ * Anything that requires FS IO or main-side path computation lives in **File IPC** (see
+ * `src/shared/types/file/ipc.ts`).
  *
  * Endpoints:
  * - `GET /files/entries`            — FileEntry list (fixed shape)
@@ -55,7 +57,7 @@ import * as z from 'zod'
 /**
  * Per-entry reference-count record produced by `GET /files/entries/ref-counts`.
  *
- * Pure SQL aggregation (`SELECT fileEntryId, COUNT(*) FROM file_ref GROUP BY fileEntryId`).
+ * Ref aggregation across persistent association tables plus CacheService-backed temp-session refs.
  * Entries with zero refs are still returned with `refCount = 0` so the renderer can
  * safely map by id without special-casing missing keys.
  */
@@ -229,8 +231,8 @@ export type FileSchemas = {
    * (`z.strictObject` — neither is optional), so the URL always carries the
    * full source key even though the path stays a plain `/files/refs`.
    *
-   * Ref write operations (create / cleanup) are NOT exposed via DataApi.
-   * Business services call fileRefService directly; Renderer does not manage refs.
+   * Ref write operations are NOT exposed via DataApi. Persistent refs are
+   * owned by business services; temp-session refs are main-process only.
    *
    * @example GET /files/refs?sourceType=chat_message&sourceId=msg1
    */

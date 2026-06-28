@@ -5,14 +5,15 @@
  * - Listing and filtering paintings
  * - Row to API Painting conversion
  *
- * Output / input files are stored in `file_ref` (not on the painting row).
- * `create` writes the refs; `get` / `list` hydrate them via a single
- * `IN (...)` query, then group by sourceId + role. `delete` derefs through
- * `fileRefService.cleanupBySourceTx`.
+ * Output / input files are stored in `painting_file_ref` (not on the painting
+ * row). `create` writes the refs; `get` / `list` hydrate them via a single
+ * `IN (...)` query, then group by sourceId + role. `delete` relies on DB-level
+ * cascade from `painting_file_ref.sourceId`.
  */
 
 import { application } from '@application'
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { type InsertPaintingRow, type PaintingRow, paintingTable } from '@data/db/schemas/painting'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
@@ -26,13 +27,11 @@ import type {
   UpdatePaintingDto
 } from '@shared/data/api/schemas/paintings'
 import { PAINTINGS_DEFAULT_LIMIT, PAINTINGS_MAX_LIMIT } from '@shared/data/api/schemas/paintings'
-import { paintingSourceType } from '@shared/data/types/file/ref'
 import { createUniqueModelId, isUniqueModelId } from '@shared/data/types/model'
 import type { Painting, PaintingFiles } from '@shared/data/types/painting'
 import type { SQL } from 'drizzle-orm'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 
-import { fileRefService } from './FileRefService'
 import { asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { timestampToISO } from './utils/rowMappers'
@@ -46,7 +45,7 @@ const EMPTY_FILES: PaintingFiles = { output: [], input: [] }
  * Exported for test coverage — ensures no DTO field is silently dropped.
  *
  * `files` is intentionally NOT in this map: file membership is owned by
- * `file_ref`, not the painting row. The update path handles it separately.
+ * `painting_file_ref`, not the painting row. The update path handles it separately.
  */
 export const UPDATE_PAINTING_FIELD_MAP: Array<keyof UpdatePaintingDto> = ['providerId', 'modelId', 'prompt']
 
@@ -69,8 +68,8 @@ function normalizeModelId(providerId: string, modelId: string | null | undefined
 }
 
 /**
- * Batch-load file_ref rows for a set of painting ids and group them by
- * painting id and role. Returns a Map from painting id → { output, input }.
+ * Batch-load painting_file_ref rows for a set of painting ids and group them
+ * by painting id and role. Returns a Map from painting id → { output, input }.
  * Paintings with no refs simply don't appear in the map.
  */
 async function loadFilesForPaintings(paintingIds: readonly string[]): Promise<Map<string, PaintingFiles>> {
@@ -78,12 +77,12 @@ async function loadFilesForPaintings(paintingIds: readonly string[]): Promise<Ma
   const db = application.get('DbService').getDb()
   const refs = await db
     .select({
-      sourceId: fileRefTable.sourceId,
-      fileEntryId: fileRefTable.fileEntryId,
-      role: fileRefTable.role
+      sourceId: paintingFileRefTable.sourceId,
+      fileEntryId: paintingFileRefTable.fileEntryId,
+      role: paintingFileRefTable.role
     })
-    .from(fileRefTable)
-    .where(and(eq(fileRefTable.sourceType, paintingSourceType), inArray(fileRefTable.sourceId, [...paintingIds])))
+    .from(paintingFileRefTable)
+    .where(inArray(paintingFileRefTable.sourceId, [...paintingIds]))
 
   const grouped = new Map<string, PaintingFiles>()
   for (const ref of refs) {
@@ -181,7 +180,7 @@ class PaintingService {
           const now = Date.now()
           const refRows = await buildPaintingRefRowsFiltered(tx, insertedRow.id, dto.files, now)
           if (refRows.length > 0) {
-            await tx.insert(fileRefTable).values(refRows).onConflictDoNothing()
+            await tx.insert(paintingFileRefTable).values(refRows).onConflictDoNothing()
           }
           return insertedRow
         }),
@@ -198,7 +197,7 @@ class PaintingService {
     // FileManager path, so their `file_entry` rows don't exist yet and
     // `buildPaintingRefRowsFiltered` drops every id — re-hydrating here would
     // hand back empty files for a painting the caller just populated. The
-    // divergence from `list`/`get` (which read `file_ref`) is intentional and
+    // divergence from `list`/`get` (which read `painting_file_ref`) is intentional and
     // disappears once the renderer cuts over to `createInternalEntry`.
     return rowToPainting(row, dto.files)
   }
@@ -247,11 +246,11 @@ class PaintingService {
             // then insert the new set. Wholesale replacement matches DTO
             // semantics — `files` is the complete final state — and avoids
             // per-id diffing that would also need to honor the UNIQUE
-            // (fileEntryId, sourceType, sourceId, role) constraint.
-            await fileRefService.cleanupBySourceTx(tx, { sourceType: paintingSourceType, sourceId: id })
+            // (fileEntryId, sourceId, role) constraint.
+            await tx.delete(paintingFileRefTable).where(eq(paintingFileRefTable.sourceId, id))
             const refRows = await buildPaintingRefRowsFiltered(tx, id, dto.files, Date.now())
             if (refRows.length > 0) {
-              await tx.insert(fileRefTable).values(refRows).onConflictDoNothing()
+              await tx.insert(paintingFileRefTable).values(refRows).onConflictDoNothing()
             }
           }
           return target
@@ -270,13 +269,9 @@ class PaintingService {
   async delete(id: string): Promise<void> {
     const db = application.get('DbService').getDb()
     await this.getById(id)
-    // Delete the painting row and its file refs in one atomic boundary.
+    // painting_file_ref rows are removed by the FK cascade.
     await withSqliteErrors(
-      () =>
-        db.transaction(async (tx) => {
-          await tx.delete(paintingTable).where(eq(paintingTable.id, id))
-          await fileRefService.cleanupBySourceTx(tx, { sourceType: paintingSourceType, sourceId: id })
-        }),
+      () => db.transaction(async (tx) => tx.delete(paintingTable).where(eq(paintingTable.id, id))),
       defaultHandlersFor('Painting', id)
     )
     logger.info('Deleted painting', { id })
@@ -326,7 +321,7 @@ class PaintingService {
 }
 
 /**
- * Build the `file_ref` rows for a painting, **filtered against `file_entry`**
+ * Build the `painting_file_ref` rows for a painting, **filtered against `file_entry`**
  * so dangling ids don't trip the FK constraint.
  *
  * During the v1→v2 transition the renderer still writes new painting outputs
@@ -345,7 +340,7 @@ async function buildPaintingRefRowsFiltered(
   paintingId: string,
   files: PaintingFiles | undefined,
   now: number
-): Promise<Array<typeof fileRefTable.$inferInsert>> {
+): Promise<Array<typeof paintingFileRefTable.$inferInsert>> {
   if (!files) return []
   const requested = new Set<string>()
   for (const id of files.output) requested.add(id)
@@ -358,7 +353,7 @@ async function buildPaintingRefRowsFiltered(
     .where(inArray(fileEntryTable.id, [...requested]))
   const existingIds = new Set(existing.map((r) => r.id))
 
-  const rows: Array<typeof fileRefTable.$inferInsert> = []
+  const rows: Array<typeof paintingFileRefTable.$inferInsert> = []
   let dropped = 0
   for (const fileId of files.output) {
     if (!existingIds.has(fileId)) {
@@ -367,7 +362,6 @@ async function buildPaintingRefRowsFiltered(
     }
     rows.push({
       fileEntryId: fileId,
-      sourceType: paintingSourceType,
       sourceId: paintingId,
       role: 'output',
       createdAt: now,
@@ -381,7 +375,6 @@ async function buildPaintingRefRowsFiltered(
     }
     rows.push({
       fileEntryId: fileId,
-      sourceType: paintingSourceType,
       sourceId: paintingId,
       role: 'input',
       createdAt: now,

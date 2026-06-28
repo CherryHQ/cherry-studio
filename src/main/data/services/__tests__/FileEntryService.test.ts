@@ -1,4 +1,6 @@
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
+import { paintingTable } from '@data/db/schemas/painting'
 import { DataApiError, ErrorCode } from '@shared/data/api'
 import type { CanonicalExternalPath, FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -1316,18 +1318,27 @@ describe('FileEntryService', () => {
   describe('findUnreferenced', () => {
     async function seedRef(fileEntryId: FileEntryId): Promise<void> {
       const now = Date.now()
-      await dbh.db.insert(fileRefTable).values({
-        id: '11111111-1111-4111-8111-' + fileEntryId.slice(-12),
+      const paintingId = '11111111-1111-4111-8111-' + fileEntryId.slice(-12)
+      await dbh.db.insert(paintingTable).values({
+        id: paintingId,
+        providerId: 'provider',
+        modelId: null,
+        prompt: 'prompt',
+        orderKey: paintingId,
+        createdAt: now,
+        updatedAt: now
+      })
+      await dbh.db.insert(paintingFileRefTable).values({
+        id: '22222222-2222-4222-8222-' + fileEntryId.slice(-12),
         fileEntryId,
-        sourceType: 'temp_session',
-        sourceId: 'sess-1',
-        role: 'pending',
+        sourceId: paintingId,
+        role: 'output',
         createdAt: now,
         updatedAt: now
       })
     }
 
-    it('returns only entries with zero file_refs', async () => {
+    it('returns only entries with zero persistent refs', async () => {
       const referenced = '019606a0-0000-7000-8000-000000000d01' as FileEntryId
       const orphan = '019606a0-0000-7000-8000-000000000d02' as FileEntryId
       await fileEntryService.create({

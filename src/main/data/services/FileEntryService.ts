@@ -19,7 +19,8 @@
  */
 
 import { application } from '@application'
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { chatMessageFileRefTable, paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
@@ -180,9 +181,9 @@ export interface FileEntryService {
   getStats(): Promise<FileEntryStats>
 
   /**
-   * Active (non-trashed) entries with zero `file_ref` rows pointing at them.
-   * Used by Phase 1b.4 OrphanRefScanner's report-only entry pass — see
-   * file-manager-architecture §7.1 (default policy is "preserve").
+   * Active (non-trashed) entries with zero persistent association rows pointing
+   * at them. Temp-session refs live in CacheService and are filtered by the
+   * orphan-sweep layer.
    *
    * Un-parseable rows are skipped with a warning (see `rowToFileEntrySafe`).
    */
@@ -223,7 +224,7 @@ export interface FileEntryService {
     name: string
   ): Promise<FileEntry>
 
-  /** Remove the row (CASCADE drops dependent `file_ref`s). No-op if already gone. */
+  /** Remove the row (CASCADE drops dependent persistent file refs). No-op if already gone. */
   delete(id: FileEntryId): Promise<void>
 
   /** Tx-scoped variant of `delete` for composing write flows. */
@@ -510,12 +511,17 @@ class FileEntryServiceImpl implements FileEntryService {
   }
 
   async findUnreferenced(query: { origin?: FileEntryOrigin } = {}): Promise<FileEntry[]> {
-    const conditions: SQL[] = [isNull(fileEntryTable.deletedAt), isNull(fileRefTable.id)]
+    const conditions: SQL[] = [
+      isNull(fileEntryTable.deletedAt),
+      isNull(chatMessageFileRefTable.id),
+      isNull(paintingFileRefTable.id)
+    ]
     if (query.origin) conditions.push(eq(fileEntryTable.origin, query.origin))
     const rows = await this.getDb()
       .select({ entry: fileEntryTable })
       .from(fileEntryTable)
-      .leftJoin(fileRefTable, eq(fileRefTable.fileEntryId, fileEntryTable.id))
+      .leftJoin(chatMessageFileRefTable, eq(chatMessageFileRefTable.fileEntryId, fileEntryTable.id))
+      .leftJoin(paintingFileRefTable, eq(paintingFileRefTable.fileEntryId, fileEntryTable.id))
       .where(and(...conditions))
       .orderBy(asc(fileEntryTable.createdAt))
     return rows.map((r) => rowToFileEntrySafe(r.entry)).filter((e): e is FileEntry => e !== null)
