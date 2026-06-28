@@ -34,25 +34,21 @@ export function normalizeAspectRatio(value: string | undefined): string | undefi
   return /^\d+:\d+$/.test(stripped) ? stripped : undefined
 }
 
+// The genuine AI SDK `ImageModelV3CallOptions` image params (`@ai-sdk/provider`):
+// `n` / `size` / `aspectRatio` / `seed` (+ `files`/`mask`, handled separately via
+// `request.inputImages`/`mask`). EVERYTHING ELSE — negativePrompt, numInferenceSteps,
+// guidanceScale, quality, background, moderation, style, personGeneration, … — is
+// NOT a typed SDK option; the SDK's only channel for it is `providerOptions` (the
+// vendor body). So those flow through `vendorBag` → the WireProfile engine (SDK
+// delivery) / the transports (job delivery), never this table.
 export const AI_SDK_NATIVE_BINDINGS = {
-  // Genuine AI SDK ImageModelV3CallOptions:
   numImages: { option: 'n' },
   size: { option: 'size' },
   seed: { option: 'seed' },
   aspectRatio: {
     option: 'aspectRatio',
     map: (v: unknown) => normalizeAspectRatio(typeof v === 'string' ? v : undefined)
-  },
-  // Diffusion / OpenAI-image knobs → WireProfile body params in PR4+:
-  negativePrompt: { option: 'negativePrompt' },
-  numInferenceSteps: { option: 'numInferenceSteps' },
-  guidanceScale: { option: 'guidanceScale' },
-  promptEnhancement: { option: 'promptEnhancement' },
-  personGeneration: { option: 'personGeneration' },
-  quality: { option: 'quality' },
-  background: { option: 'background' },
-  moderation: { option: 'moderation' },
-  style: { option: 'style' }
+  }
 } as const satisfies Partial<Record<CanonicalParamKey, NativeBinding>>
 
 /** The binding entry for a canonical `key`, or `undefined` for vendor-bag params. */

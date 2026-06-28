@@ -46,12 +46,14 @@ class OvmsTransport implements ImageGenerationTransport {
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
     const bag = input.providerParams ?? {}
 
-    // The bag is canonical camelCase; native size/seed come from `input.*`.
+    // OVMS is the in-SDK (createImageGenerationModel) path, so its bag is the
+    // wire-named `providerOptions.ovms` body (snake), not the job's camelCase
+    // vendorBag — read both forms. Native size/seed come from `input.*`.
     const requestBody = {
       model: input.modelId,
       prompt: input.prompt ?? '',
       size: input.size ?? '512x512',
-      num_inference_steps: readNumber(bag, 'numInferenceSteps') ?? 4,
+      num_inference_steps: readNumber(bag, 'numInferenceSteps', 'num_inference_steps') ?? 4,
       rng_seed: readNumber(bag, 'rngSeed') ?? input.seed ?? 0
     }
 

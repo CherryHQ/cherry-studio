@@ -167,7 +167,8 @@ describe('AiService', () => {
       uniqueModelId: 'test-provider::test-model',
       prompt: 'draw a cat',
       // Canonical paramValues bag (`numImages`, not `n`); main re-derives the
-      // wire shape. The assertion below is unchanged — same wire, new input shape.
+      // wire shape. Only n/size/seed/aspectRatio are AI SDK native options; the
+      // knobs (negativePrompt/quality/…) ride in `providerOptions[id]` (wire-named).
       paramValues: {
         numImages: 2,
         size: '1024x1024',
@@ -189,12 +190,17 @@ describe('AiService', () => {
         prompt: 'draw a cat',
         n: 2,
         size: '1024x1024',
-        negativePrompt: 'blurry',
         seed: 7,
-        quality: 'high',
-        numInferenceSteps: 30,
-        guidanceScale: 4.5,
-        promptEnhancement: true
+        providerOptions: {
+          'test-provider': {
+            negative_prompt: 'blurry',
+            seed: 7,
+            quality: 'high',
+            num_inference_steps: 30,
+            guidance_scale: 4.5,
+            prompt_enhancement: true
+          }
+        }
       })
     )
 
@@ -793,6 +799,52 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     )
     expect(result).toEqual({ files: outputFiles })
     expect(permanentDelete).toHaveBeenCalledWith('in-1')
+  })
+
+  it('forwards the vendor knobs to the transport via providerParams (camelCase)', async () => {
+    // Regression guard: negativePrompt / numInferenceSteps / guidanceScale are NOT
+    // AI SDK native options — they must reach the transport in `providerParams`
+    // (the canonical camelCase vendorBag), not get dropped into `structured`.
+    // The boundary tests hand-build providerParams, so only this split→transport
+    // assertion catches a mis-classified native binding.
+    const service = createService()
+    stubResolution(service)
+    const enqueue = vi.fn().mockResolvedValue({
+      id: 'job-1',
+      snapshot: {},
+      finished: Promise.resolve({ status: 'completed', output: { files: [] }, error: null })
+    })
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'FileManager') return { createInternalEntry: vi.fn(), permanentDelete: vi.fn() }
+      if (name === 'JobManager') return { enqueue, cancel: vi.fn() }
+      return undefined
+    })
+
+    await service.generateImage({
+      uniqueModelId: 'ppio::qwen-image',
+      prompt: 'a cat',
+      paramValues: {
+        numImages: 1,
+        size: '1024x1024',
+        seed: 9,
+        negativePrompt: 'blurry',
+        numInferenceSteps: 30,
+        guidanceScale: 4.5,
+        promptExtend: true
+      },
+      requestOptions: { signal: new AbortController().signal }
+    })
+
+    expect(enqueue).toHaveBeenCalledWith(
+      'image-generation.generate',
+      expect.objectContaining({
+        n: 1,
+        size: '1024x1024',
+        seed: 9,
+        // native n/size/seed travel as payload fields; the knobs ride the bag
+        providerParams: { negativePrompt: 'blurry', numInferenceSteps: 30, guidanceScale: 4.5, promptExtend: true }
+      })
+    )
   })
 
   it('maps a failed job snapshot to a thrown error', async () => {

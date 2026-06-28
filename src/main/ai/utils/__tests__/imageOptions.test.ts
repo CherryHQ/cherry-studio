@@ -13,9 +13,10 @@ describe('splitParamValues', () => {
   })
 
   it('skips empty-string / null / undefined values (byte-identical-wire guard)', () => {
+    // negativePrompt is NOT an AI SDK native option → vendorBag.
     expect(splitParamValues({ size: '', seed: undefined, cfg: null, negativePrompt: 'x' })).toEqual({
-      structured: { negativePrompt: 'x' },
-      vendorBag: {}
+      structured: {},
+      vendorBag: { negativePrompt: 'x' }
     })
   })
 
@@ -26,12 +27,12 @@ describe('splitParamValues', () => {
     })
   })
 
-  it('keeps diffusion knobs (personGeneration/background/style) structured, vendor extras (cfg) bagged', () => {
+  it('bags the vendor-body knobs (personGeneration/background/style/cfg) — only n/size/seed/aspectRatio are native', () => {
     expect(
       splitParamValues({ personGeneration: 'allow_adult', background: 'opaque', style: 'vivid', cfg: 7.5 })
     ).toEqual({
-      structured: { personGeneration: 'allow_adult', background: 'opaque', style: 'vivid' },
-      vendorBag: { cfg: 7.5 }
+      structured: {},
+      vendorBag: { personGeneration: 'allow_adult', background: 'opaque', style: 'vivid', cfg: 7.5 }
     })
   })
 

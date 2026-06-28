@@ -469,17 +469,17 @@ export class AiService extends BaseService {
     // native binding's `map` (in `splitParamValues`).
     const requestSize = resolveImageRequestSize(structured.size)
 
+    // Only the genuine AI SDK `ImageModelV3CallOptions` image params (n/size/seed/
+    // aspectRatio). The vendor knobs (negativePrompt/quality/numInferenceSteps/…)
+    // are NOT typed SDK options — they reach the wire via `providerOptions[id]`
+    // (the WireProfile engine), which the image models read; passing them here is
+    // dropped by `generateImage`, so they're omitted.
     const imageParams = {
       model: sdkConfig.modelId,
       prompt: promptParam,
       n: structured.n ?? 1,
       ...(requestSize !== undefined && { size: requestSize as `${number}x${number}` }),
-      ...(structured.negativePrompt ? { negativePrompt: structured.negativePrompt } : {}),
       ...(structured.seed !== undefined ? { seed: structured.seed } : {}),
-      ...(structured.quality ? { quality: structured.quality } : {}),
-      ...(structured.numInferenceSteps !== undefined ? { numInferenceSteps: structured.numInferenceSteps } : {}),
-      ...(structured.guidanceScale !== undefined ? { guidanceScale: structured.guidanceScale } : {}),
-      ...(structured.promptEnhancement !== undefined ? { promptEnhancement: structured.promptEnhancement } : {}),
       ...(structured.aspectRatio ? { aspectRatio: structured.aspectRatio as `${number}:${number}` } : {}),
       ...(Object.keys(imageProviderOptions).length > 0 ? { providerOptions: imageProviderOptions } : {}),
       ...(signal ? { abortSignal: signal } : {}),

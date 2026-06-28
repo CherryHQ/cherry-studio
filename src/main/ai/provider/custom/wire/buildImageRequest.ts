@@ -79,6 +79,17 @@ function jsonBag(bag: Record<string, unknown>): Record<string, JSONValue> {
   return out
 }
 
+/** The vendor-bag entries the profile does NOT map (via `forward` or `fields`) —
+ *  what `passthrough` forwards. */
+function passthroughExtras(vendorBag: Record<string, unknown>, profile: WireProfile): Record<string, unknown> {
+  const mapped = new Set<string>([...(profile.forward ?? []), ...Object.keys(profile.fields ?? {})])
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(vendorBag)) {
+    if (!mapped.has(k)) out[k] = v
+  }
+  return out
+}
+
 /**
  * Build the AI SDK `providerOptions` map for a registered provider: its engine
  * body keyed by the provider id (and `openai` too when `dualOpenAI`). Returns
@@ -101,7 +112,12 @@ export function buildVendorProviderOptions(
   vendorBag: Record<string, unknown> = {}
 ): Record<string, Record<string, JSONValue>> {
   const mapped = buildImageRequest(paramValues, registration.profile)
-  const body = registration.passthrough ? { ...jsonBag(vendorBag), ...mapped } : mapped
+  // passthrough forwards vendor-bag fields the profile does NOT map (cfg,
+  // imageResolution, …) — never the canonical keys the profile already
+  // wire-names, or they'd ride twice (camelCase from the bag + snake from the
+  // profile). Native params (n/size/seed/aspectRatio) never reach the bag.
+  const extras = passthroughExtras(vendorBag, registration.profile)
+  const body = registration.passthrough ? { ...jsonBag(extras), ...mapped } : mapped
   const result: Record<string, Record<string, JSONValue>> = {}
   if (Object.keys(body).length > 0) result[providerId] = body
   // The `openai` mirror carries the CLEAN OpenAI image body (mapped fields only),
