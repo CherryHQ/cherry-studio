@@ -1,5 +1,6 @@
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
+import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
@@ -77,6 +78,13 @@ export interface AgentRuntimeConnection {
    * Optional ⇒ the host treats the runtime as unable to report usage.
    */
   getContextUsage?(): Promise<AgentSessionContextUsage | null>
+  /**
+   * Read this session's available slash command catalog (`query.supportedCommands()`), including
+   * any custom project/user commands the SDK discovered. Returns null when the runtime can't report
+   * it (no query yet, or a driver that doesn't support it). Optional ⇒ the host falls back to the
+   * static builtin list.
+   */
+  getSupportedCommands?(): Promise<AgentSessionSlashCommand[] | null>
   close(): void | Promise<void>
 }
 

@@ -71,7 +71,7 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   // ── Agent sessions & tasks — delegate to the owning services. ──
   'ai.prewarm_agent_session': async ({ sessionId }) => {
-    await application.get('ClaudeCodeWarmQueryManager').prewarmAgentSession(sessionId)
+    await application.get('AgentSessionRuntimeService').primeConnection(sessionId)
   },
   'ai.close_agent_session_warm': async ({ sessionId }) => {
     application.get('ClaudeCodeWarmQueryManager').closeAgentSessionWarm(sessionId)

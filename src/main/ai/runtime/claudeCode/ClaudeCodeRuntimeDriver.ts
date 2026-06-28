@@ -24,6 +24,7 @@ import {
 import { application } from '@main/core/application'
 import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
+import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
 
@@ -242,6 +243,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       return await this.query.getContextUsage()
     } catch (error) {
       logger.warn('getContextUsage failed', { sessionId: this.input.sessionId, error })
+      return null
+    }
+  }
+
+  async getSupportedCommands(): Promise<AgentSessionSlashCommand[] | null> {
+    if (!this.query) return null
+    try {
+      return await this.query.supportedCommands()
+    } catch (error) {
+      logger.warn('getSupportedCommands failed', { sessionId: this.input.sessionId, error })
       return null
     }
   }

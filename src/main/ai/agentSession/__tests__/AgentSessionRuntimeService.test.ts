@@ -13,7 +13,17 @@ const mocks = vi.hoisted(() => ({
   pauseRuntimeTurn: vi.fn(),
   broadcastTopicError: vi.fn(),
   cacheSetShared: vi.fn(),
-  cacheDeleteShared: vi.fn()
+  cacheDeleteShared: vi.fn(),
+  getSessionById: vi.fn(),
+  getAgent: vi.fn()
+}))
+
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: { getById: mocks.getSessionById }
+}))
+
+vi.mock('@data/services/AgentService', () => ({
+  agentService: { getAgent: mocks.getAgent, onAgentUpdated: () => () => {} }
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
@@ -719,6 +729,46 @@ describe('AgentSessionRuntimeService', () => {
     events.push({ type: 'turn-complete' })
     await expect(reader.read()).resolves.toMatchObject({ done: true })
     await vi.waitFor(() => expect(connection.getContextUsage).toHaveBeenCalledTimes(2))
+  })
+
+  describe('primeConnection — eager command load on session open', () => {
+    it('opens the connection without a turn and caches the slash-command catalog', async () => {
+      const commands = [{ name: 'clear', description: 'Clear conversation' }]
+      const connection = {
+        events: createAsyncQueue<any>().iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        getSupportedCommands: vi.fn().mockResolvedValue(commands)
+      }
+      const connect = vi.fn().mockResolvedValue(connection)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      mocks.getSessionById.mockResolvedValue({ id: 'session-1', agentId: 'agent-1' })
+      mocks.getAgent.mockResolvedValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+
+      const service = new AgentSessionRuntimeService()
+      await service.primeConnection('session-1')
+
+      expect(connect).toHaveBeenCalledTimes(1)
+      await vi.waitFor(() =>
+        expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.slash_commands.session-1', commands)
+      )
+      // No turn was admitted — the entry sits idle and the stream manager was never asked to start one.
+      expect(service.inspect('session-1')?.status).toBe('idle')
+      expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
+    })
+
+    it('is a no-op for a session whose agent was deleted', async () => {
+      mocks.getSessionById.mockResolvedValue({ id: 'session-1', agentId: null })
+      const service = new AgentSessionRuntimeService()
+      await service.primeConnection('session-1')
+      expect(service.inspect('session-1')).toBeUndefined()
+    })
   })
 
   it('publishes compaction state through shared cache and treats compaction as busy', () => {

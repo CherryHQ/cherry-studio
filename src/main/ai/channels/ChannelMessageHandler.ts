@@ -15,6 +15,7 @@ import { ChannelAdapterListener, type StreamListener } from '@main/ai/streamMana
 import { startAgentSessionRun } from '@main/ai/streamManager/api/startAgentSessionRun'
 import { application } from '@main/core/application'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
+import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent } from './ChannelAdapter'
@@ -356,12 +357,13 @@ export class ChannelMessageHandler {
           const agent = await agentService.getAgent(agentId)
           const name = agent?.name ?? 'CherryClaw'
           const description = agent?.description ?? ''
+          const commands = await this.helpCommandsForChat(agentId, adapter.channelId, command.chatId)
           const helpText = [
             `*${name}*`,
             description ? `_${description}_` : '',
             '',
             'Available commands:',
-            ...SLASH_COMMANDS.map((cmd) => `/${cmd.name} - ${cmd.description}`)
+            ...commands.map((cmd) => `/${cmd.name} - ${cmd.description}`)
           ]
             .filter(Boolean)
             .join('\n')
@@ -456,6 +458,43 @@ export class ChannelMessageHandler {
    */
   private abortSessionStream(sessionId: string, reason: string): void {
     application.get('AiStreamManager').abort(buildAgentSessionTopicId(sessionId), reason)
+  }
+
+  /**
+   * The command list shown by `/help`: the channel control commands merged with the bound session's
+   * live SDK catalog (custom commands included). Control commands win on name collision and come
+   * first; session-only commands follow. Read-only — never creates a session, so `/help` on a fresh
+   * chat just lists the control commands.
+   */
+  private async helpCommandsForChat(
+    agentId: string,
+    channelId: string,
+    chatId: string
+  ): Promise<Array<{ name: string; description: string }>> {
+    const merged: Array<{ name: string; description: string }> = SLASH_COMMANDS.map((cmd) => ({
+      name: cmd.name,
+      description: cmd.description
+    }))
+    const sessionId = await this.peekSessionId(agentId, channelId, chatId)
+    if (!sessionId) return merged
+
+    const sessionCommands =
+      application.get('CacheService').getShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId)) ?? []
+    const controlNames = new Set(merged.map((cmd) => cmd.name))
+    for (const cmd of sessionCommands) {
+      if (controlNames.has(cmd.name)) continue
+      merged.push({ name: cmd.name, description: cmd.description })
+    }
+    return merged
+  }
+
+  /** Read-only lookup of the session currently bound to a chat — tracker first, then the persisted
+   *  channel row. Returns null when no session exists yet (unlike {@link resolveSession}, never creates one). */
+  private async peekSessionId(agentId: string, channelId: string, chatId: string): Promise<string | null> {
+    const tracked = this.sessionTracker.get(`${agentId}:${channelId}:${chatId}`)
+    if (tracked) return tracked
+    const channelRow = await channelService.getChannel(channelId)
+    return channelRow?.sessionId ?? null
   }
 
   private async resolveSession(

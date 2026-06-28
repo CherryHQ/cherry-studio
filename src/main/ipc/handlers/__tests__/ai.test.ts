@@ -25,6 +25,7 @@ const aiStreamManager = {
 }
 
 const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn(), closeAgentSessionWarm: vi.fn() }
+const agentSessionRuntimeService = { primeConnection: vi.fn() }
 const agentJobsService = { runTask: vi.fn() }
 
 // WebContentsListener (constructed in the stream_open handler) wires once()/isDestroyed().
@@ -42,6 +43,8 @@ beforeEach(() => {
         return aiStreamManager
       case 'ClaudeCodeWarmQueryManager':
         return claudeCodeWarmQueryManager
+      case 'AgentSessionRuntimeService':
+        return agentSessionRuntimeService
       case 'AgentJobsService':
         return agentJobsService
       case 'WindowManager':
@@ -195,10 +198,10 @@ describe('aiHandlers — streaming', () => {
 })
 
 describe('aiHandlers — agent sessions & tasks', () => {
-  it('prewarm_agent_session delegates to ClaudeCodeWarmQueryManager', async () => {
-    claudeCodeWarmQueryManager.prewarmAgentSession.mockResolvedValue(undefined)
+  it('prewarm_agent_session primes the session connection so commands load before the first turn', async () => {
+    agentSessionRuntimeService.primeConnection.mockResolvedValue(undefined)
     await aiHandlers['ai.prewarm_agent_session']({ sessionId: 's1' }, ctx)
-    expect(claudeCodeWarmQueryManager.prewarmAgentSession).toHaveBeenCalledWith('s1')
+    expect(agentSessionRuntimeService.primeConnection).toHaveBeenCalledWith('s1')
   })
 
   it('close_agent_session_warm delegates to ClaudeCodeWarmQueryManager', async () => {

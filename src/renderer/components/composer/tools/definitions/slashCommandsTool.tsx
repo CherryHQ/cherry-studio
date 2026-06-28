@@ -59,7 +59,11 @@ const slashCommandsTool = defineTool({
     menuItems: {
       createItems: (context) => {
         const { session, actions, t } = context
-        const slashCommands = getBuiltinSlashCommands(session?.agentType)
+        // Prefer the live SDK catalog for this session (custom commands included); fall back to the
+        // static builtin list before the runtime has reported one (e.g. first paint, no run yet).
+        const slashCommands = session?.slashCommands?.length
+          ? session.slashCommands
+          : getBuiltinSlashCommands(session?.agentType)
 
         if (slashCommands.length === 0) {
           return []

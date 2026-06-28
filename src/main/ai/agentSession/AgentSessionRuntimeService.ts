@@ -1,5 +1,6 @@
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { application } from '@main/core/application'
@@ -15,6 +16,7 @@ import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
   type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
+import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -36,7 +38,7 @@ import { PersistenceListener } from '../streamManager/listeners/PersistenceListe
 import { TraceFlushListener } from '../streamManager/listeners/TraceFlushListener'
 import type { StreamErrorResult, StreamListener, StreamPausedResult } from '../streamManager/types'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
-import { extractAgentSessionId, isAgentSessionTopic } from './topic'
+import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } from './topic'
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
@@ -243,6 +245,61 @@ export class AgentSessionRuntimeService extends BaseService {
         new TraceFlushListener(input.topicId)
       ],
       turnId
+    }
+  }
+
+  /**
+   * Open the session's runtime connection ahead of the first turn (on session open) so the driver's
+   * slash-command catalog (`query.supportedCommands()`) is read into the shared cache before the user
+   * types — the SDK warm-query handle can't expose commands without a live connection. Best-effort and
+   * idempotent: an existing entry (idle-warm or mid-turn) is just kept connected; a freshly primed
+   * entry idles under the same TTL as a post-turn one, so it self-tears-down if never used.
+   */
+  async primeConnection(sessionId: string): Promise<void> {
+    try {
+      const existing = this.entries.get(sessionId)
+      if (existing) {
+        void this.ensureConnection(existing)
+        return
+      }
+
+      const session = await agentSessionService.getById(sessionId)
+      if (!session?.agentId) return
+      const agent = await agentService.getAgent(session.agentId)
+      if (!agent?.model) return
+      if (!runtimeDriverRegistry.getAgentSessionDriver(agent.type)) return
+
+      // A real turn may have created the entry while we awaited the lookups — defer to it.
+      const raced = this.entries.get(sessionId)
+      if (raced) {
+        void this.ensureConnection(raced)
+        return
+      }
+
+      const entry: AgentSessionRuntimeEntry = {
+        sessionId,
+        topicId: buildAgentSessionTopicId(sessionId),
+        agentId: session.agentId,
+        agentType: agent.type,
+        modelId: agent.model,
+        status: 'idle',
+        pendingTurns: []
+      }
+      this.entries.set(sessionId, entry)
+
+      const connected = await this.ensureConnection(entry)
+      // A turn may have superseded/cleared this entry while connecting — leave its lifecycle to it.
+      if (this.entries.get(sessionId) !== entry) return
+      if (!connected) {
+        this.closeSession(sessionId)
+        return
+      }
+      // Still idle (no turn took over): arm the TTL so an unused primed connection self-closes.
+      if (entry.status === 'idle' && !entry.currentTurn) {
+        this.refreshIdleTimer(entry)
+      }
+    } catch (error) {
+      logger.warn('Failed to prime agent session connection', { sessionId, error })
     }
   }
 
@@ -530,6 +587,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
     entry.connection = connection
     this.refreshContextUsage(entry, connection)
+    this.refreshSupportedCommands(entry, connection)
     entry.connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
       if (entry.connection === connection) entry.connection = undefined
       if (entry.connectionLoop) entry.connectionLoop = undefined
@@ -674,6 +732,22 @@ export class AgentSessionRuntimeService extends BaseService {
   private persistContextUsage(entry: AgentSessionRuntimeEntry, usage: AgentSessionContextUsage): void {
     if (!this.isCurrentEntry(entry)) return
     application.get('CacheService').setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId), usage)
+  }
+
+  // The session's slash command catalog (`query.supportedCommands()`) is stable for a connection —
+  // it only shifts when the SDK reloads commands — so a single read once the connection is live is
+  // enough. The cached list feeds both the renderer composer and the channel `/help` listing.
+  private refreshSupportedCommands(entry: AgentSessionRuntimeEntry, connection = entry.connection): void {
+    if (!connection?.getSupportedCommands) return
+
+    void (async () => {
+      const commands = await connection.getSupportedCommands?.()
+      if (!commands) return
+      if (!this.isCurrentEntry(entry) || entry.connection !== connection) return
+      application.get('CacheService').setShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(entry.sessionId), commands)
+    })().catch((error) => {
+      logger.warn('Failed to refresh agent session slash commands', { sessionId: entry.sessionId, error })
+    })
   }
 
   private handleRuntimeError(entry: AgentSessionRuntimeEntry, error: unknown): void {
@@ -1039,6 +1113,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     entry.compacting = false
     application.get('CacheService').deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId))
+    application.get('CacheService').deleteShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(entry.sessionId))
 
     const connection = this.closeConnection(entry)
     entry.currentTurn = undefined
