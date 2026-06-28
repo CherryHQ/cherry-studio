@@ -23,6 +23,7 @@ import type { AssertValidSchemas } from '../apiTypes'
 import type { AgentChannelSchemas } from './agentChannels'
 import type { AgentSchemas } from './agents'
 import type { AssistantSchemas } from './assistants'
+import type { BranchAnchorSchemas } from './branchAnchors'
 import type { FileSchemas } from './files'
 import type { GroupSchemas } from './groups'
 import type { KnowledgeSchemas } from './knowledges'
@@ -52,6 +53,7 @@ import type { TranslateSchemas } from './translate'
  */
 export type ApiSchemas = AssertValidSchemas<
   TopicSchemas &
+    BranchAnchorSchemas &
     MessageSchemas &
     TemporaryChatSchemas &
     ModelSchemas &

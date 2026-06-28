@@ -175,6 +175,20 @@
       "when": 1778738430302,
       "tag": "0024_eager_patriot",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1782405402048,
+      "tag": "0025_stormy_black_bird",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1782663610392,
+      "tag": "0026_watery_tenebrous",
+      "breakpoints": true
     }
   ],
   "version": "7"
