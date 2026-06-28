@@ -47,7 +47,8 @@ const CASES: Case[] = [
       modelId: 'qwen-image',
       prompt: 'a fox',
       size: '1024x1024',
-      providerParams: { modelDescriptor: descriptor('qwen-image', 'generate'), seed: 42 }
+      seed: 42,
+      providerParams: { modelDescriptor: descriptor('qwen-image', 'generate') }
     } as ImageGenerationSubmitInput,
     schema: z.strictObject({
       model: z.string(),
@@ -78,10 +79,10 @@ const CASES: Case[] = [
       modelId: 'wanx-v1',
       prompt: 'a fox',
       size: '1024x1024',
+      seed: 7,
       files: file([9]),
       providerParams: {
         modelDescriptor: descriptor('wanx-v1', 'generate'),
-        seed: 7,
         style: '<photography>',
         refStrength: 0.5,
         refMode: 'repaint'
@@ -139,12 +140,12 @@ const CASES: Case[] = [
       modelId: 'wanx2.1-imageedit',
       prompt: 'a fox',
       files: file([7, 8]),
+      seed: 3,
       providerParams: {
         modelDescriptor: descriptor('wanx2.1-imageedit', 'edit'),
         function: 'super_resolution',
         upscaleFactor: 2,
-        addWatermark: true,
-        seed: 3
+        addWatermark: true
       }
     } as ImageGenerationSubmitInput,
     schema: z.strictObject({

@@ -454,19 +454,15 @@ export class AiService extends BaseService {
     )
     // Async custom-provider transports (ppio / dashscope / modelscope /
     // dmxapi-bespoke) run the submit/poll loop on the job system so it survives
-    // a restart (resumes the same remote task instead of re-submitting). Other
-    // providers/models keep the in-SDK path below. The vendor params bag handed
-    // to the transport is identical to what the SDK path forwards.
+    // a restart. Unlike the in-SDK path (whose `providerOptions[id]` IS the wire
+    // body), a transport builds its own request envelope per model, so it receives
+    // the canonical camelCase `vendorBag` directly (native n/size/seed travel via
+    // the job payload → `input.*`). No wire-naming, no casing probes.
     if (
       request.uniqueModelId &&
       resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
     ) {
-      return await this.generateImageViaJob(
-        request,
-        structured,
-        imageProviderOptions[sdkConfig.providerId] ?? {},
-        signal
-      )
+      return await this.generateImageViaJob(request, structured, vendorBag, signal)
     }
 
     // `structured.aspectRatio` is already normalized to `X:Y` by the aspectRatio

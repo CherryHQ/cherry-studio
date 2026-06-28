@@ -75,11 +75,9 @@ export interface DashScopeModelDescriptor {
 export interface DashScopeProviderParams {
   model?: string
   modelDescriptor?: DashScopeModelDescriptor
-  /** Coerced to number by the WireProfile engine (DASHSCOPE_WIRE_PROFILE). */
-  seed?: number
-  /** Snake-cased by the WireProfile engine (DASHSCOPE_WIRE_PROFILE). */
-  negative_prompt?: string
-  /** Routed through the WireProfile engine (DASHSCOPE_WIRE_PROFILE, wanx-v1). */
+  /** Canonical camelCase params (the transport receives the vendorBag directly;
+   *  native `seed` comes from `input.seed`, not the bag). */
+  negativePrompt?: string
   style?: string
   promptExtend?: boolean
   addWatermark?: boolean
@@ -175,13 +173,13 @@ function resolveSizeParameter(input: ImageGenerationSubmitInput, bag: DashScopeP
 function buildText2ImageBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams): Record<string, unknown> {
   const inputBlock: Record<string, unknown> = {}
   if (input.prompt) inputBlock.prompt = input.prompt
-  if (bag.negative_prompt) inputBlock.negative_prompt = bag.negative_prompt
+  if (bag.negativePrompt) inputBlock.negative_prompt = bag.negativePrompt
 
   const parameters: Record<string, unknown> = {}
   const sizeWire = resolveSizeParameter(input, bag)
   if (sizeWire) parameters.size = sizeWire
   if (input.n && input.n > 1) parameters.n = input.n
-  if (typeof bag.seed === 'number') parameters.seed = bag.seed
+  if (typeof input.seed === 'number') parameters.seed = input.seed
   if (bag.promptExtend !== undefined) parameters.prompt_extend = bag.promptExtend
   if (bag.addWatermark !== undefined) parameters.watermark = bag.addWatermark
 
@@ -211,8 +209,8 @@ function buildChatLikeBody(input: ImageGenerationSubmitInput, bag: DashScopeProv
   const sizeWire = resolveSizeParameter(input, bag)
   if (sizeWire) parameters.size = sizeWire
   if (input.n && input.n > 1) parameters.n = input.n
-  if (typeof bag.seed === 'number') parameters.seed = bag.seed
-  if (bag.negative_prompt) parameters.negative_prompt = bag.negative_prompt
+  if (typeof input.seed === 'number') parameters.seed = input.seed
+  if (bag.negativePrompt) parameters.negative_prompt = bag.negativePrompt
   if (bag.promptExtend !== undefined) parameters.prompt_extend = bag.promptExtend
   if (bag.thinkingMode !== undefined) parameters.thinking_mode = bag.thinkingMode
   if (bag.enableInterleave !== undefined) parameters.enable_interleave = bag.enableInterleave
@@ -233,7 +231,7 @@ function buildChatLikeBody(input: ImageGenerationSubmitInput, bag: DashScopeProv
 function buildWanxV1Body(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams): Record<string, unknown> {
   const inputBlock: Record<string, unknown> = {}
   if (input.prompt) inputBlock.prompt = input.prompt
-  if (bag.negative_prompt) inputBlock.negative_prompt = bag.negative_prompt
+  if (bag.negativePrompt) inputBlock.negative_prompt = bag.negativePrompt
   const refFile = input.files?.[0]
   if (refFile) inputBlock.ref_image = fileToDataUrl(refFile)
 
@@ -241,7 +239,7 @@ function buildWanxV1Body(input: ImageGenerationSubmitInput, bag: DashScopeProvid
   const sizeWire = resolveSizeParameter(input, bag)
   if (sizeWire) parameters.size = sizeWire
   if (input.n && input.n > 1) parameters.n = input.n
-  if (typeof bag.seed === 'number') parameters.seed = bag.seed
+  if (typeof input.seed === 'number') parameters.seed = input.seed
   if (bag.style) parameters.style = bag.style
   if (typeof bag.refStrength === 'number') parameters.ref_strength = bag.refStrength
   if (bag.refMode) parameters.ref_mode = bag.refMode
@@ -260,7 +258,7 @@ function buildWanxV1Body(input: ImageGenerationSubmitInput, bag: DashScopeProvid
 function buildWan25I2IBody(input: ImageGenerationSubmitInput, bag: DashScopeProviderParams): Record<string, unknown> {
   const inputBlock: Record<string, unknown> = {}
   if (input.prompt) inputBlock.prompt = input.prompt
-  if (bag.negative_prompt) inputBlock.negative_prompt = bag.negative_prompt
+  if (bag.negativePrompt) inputBlock.negative_prompt = bag.negativePrompt
   if (input.files && input.files.length > 0) {
     inputBlock.images = input.files.map((f) => fileToDataUrl(f))
   }
@@ -269,7 +267,7 @@ function buildWan25I2IBody(input: ImageGenerationSubmitInput, bag: DashScopeProv
   const sizeWire = resolveSizeParameter(input, bag)
   if (sizeWire) parameters.size = sizeWire
   if (input.n && input.n > 1) parameters.n = input.n
-  if (typeof bag.seed === 'number') parameters.seed = bag.seed
+  if (typeof input.seed === 'number') parameters.seed = input.seed
   if (bag.promptExtend !== undefined) parameters.prompt_extend = bag.promptExtend
   if (bag.addWatermark !== undefined) parameters.watermark = bag.addWatermark
 
@@ -317,7 +315,7 @@ function buildWanxImageEditBody(
 
   const parameters: Record<string, unknown> = {}
   if (input.n && input.n > 1) parameters.n = input.n
-  if (typeof bag.seed === 'number') parameters.seed = bag.seed
+  if (typeof input.seed === 'number') parameters.seed = input.seed
   if (bag.addWatermark !== undefined) parameters.watermark = bag.addWatermark
   if (typeof bag.strength === 'number') parameters.strength = bag.strength
   if (typeof bag.upscaleFactor === 'number') parameters.upscale_factor = bag.upscaleFactor

@@ -44,8 +44,8 @@ export interface DmxapiProviderParams {
   addWatermark?: boolean
   /** wan family extras (DashScope-passthrough). */
   promptExtend?: boolean
-  /** Snake-cased by the WireProfile engine (DMXAPI_WIRE_PROFILE). */
-  negative_prompt?: string
+  /** Canonical camelCase (the transport receives the vendorBag directly). */
+  negativePrompt?: string
 }
 
 export interface DmxapiTransportSettings {
@@ -183,7 +183,7 @@ class DmxapiTransport implements ImageGenerationTransport {
     if (normalized.size) parameters.size = normalized.size.replace(/x/i, '*')
     if (normalized.n && normalized.n > 1) parameters.n = normalized.n
     if (typeof normalized.seed === 'number') parameters.seed = normalized.seed
-    if (params.negative_prompt) parameters.negative_prompt = params.negative_prompt
+    if (params.negativePrompt) parameters.negative_prompt = params.negativePrompt
     if (params.promptExtend !== undefined) parameters.prompt_extend = params.promptExtend
     if (params.addWatermark !== undefined) parameters.watermark = params.addWatermark
 
