@@ -25,6 +25,13 @@ export {
 } from './reconcile'
 export { getSearchMatchScore } from './search'
 export { isFunctionCallingModel } from './tooluse'
-export { isGenerateImageModels, isVisionModels } from './utils'
+export {
+  isAudioModel,
+  isAudioModels,
+  isGenerateImageModels,
+  isVideoModel,
+  isVideoModels,
+  isVisionModels
+} from './utils'
 export { isGenerateImageModel, isVisionModel } from './vision'
 export { isOpenAIWebSearchModel, isOpenRouterBuiltInWebSearchModel, isWebSearchModel } from './websearch'
