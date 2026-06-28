@@ -2,18 +2,20 @@
  * Central image-generation parameter catalog.
  *
  * The single source of truth for each canonical param's **value type** (the
- * zod `schema`) and its default **control kind**. Per-model `supports` (in the
- * registry data) keeps only the per-model constraints — options / default /
- * range — and is composed with this catalog by `buildParamsSchema`.
+ * zod `schema`), its default **control kind**, and its **vendor wire field
+ * name** (`wire` — see {@link wireName}). Per-model `supports` (in the registry
+ * data) keeps only the per-model constraints — options / default / range — and
+ * is composed with this catalog by `buildParamsSchema`.
  *
  * Two invariants:
  *  - The catalog is **exhaustive** over `CanonicalParamKey`
  *    (`satisfies Record<CanonicalParamKey, …>`): a missing key is a compile
  *    error, an unknown key is a compile error. A runtime test additionally
  *    locks key-set equality with `CANONICAL_PARAM_KEY`.
- *  - **No AI SDK / wire knowledge here** — only the canonical value type. Wire
- *    field names + transforms live in per-provider WireProfiles; AI-SDK-native
- *    routing lives in `AI_SDK_NATIVE_BINDINGS` (app layer).
+ *  - The wire name is the **vendor API field name** (`negative_prompt`, …) — a
+ *    vendor convention, NOT AI-SDK knowledge, so it belongs here. Only the
+ *    AI-SDK-native routing (`n`/`size`/`seed`/`aspectRatio`) stays app-layer in
+ *    `AI_SDK_NATIVE_BINDINGS`.
  */
 import * as z from 'zod'
 
@@ -27,6 +29,9 @@ export interface ImageParamCatalogEntry<S extends z.ZodTypeAny = z.ZodTypeAny> {
   readonly schema: S
   /** Default control kind (consumed once the form is catalog-driven). */
   readonly control: ParamControlKind
+  /** Vendor wire field name override. Omit when it's the auto camelCase→snake_case
+   *  form (the common case — see {@link wireName}); set only for irregulars. */
+  readonly wire?: string
 }
 
 // ── Value-type helpers ───────────────────────────────────────────────────────
@@ -42,7 +47,7 @@ const optInt = z.preprocess(blankToUndefined, z.coerce.number().int().optional()
  * survive for {@link ParamValue} (annotating the object would widen them).
  */
 export const IMAGE_PARAM_CATALOG = {
-  addWatermark: { schema: optBool, control: 'switch' },
+  addWatermark: { schema: optBool, control: 'switch', wire: 'watermark' },
   aspectRatio: { schema: optString, control: 'enum' },
   background: { schema: optString, control: 'enum' },
   bottomScale: { schema: optNumber, control: 'range' },
@@ -52,7 +57,7 @@ export const IMAGE_PARAM_CATALOG = {
   enableInterleave: { schema: optBool, control: 'switch' },
   function: { schema: optString, control: 'enum' },
   guidanceScale: { schema: optNumber, control: 'range' },
-  imageResolution: { schema: optString, control: 'enum' },
+  imageResolution: { schema: optString, control: 'enum', wire: 'size' },
   imageWeight: { schema: optNumber, control: 'range' },
   isSketch: { schema: optBool, control: 'switch' },
   leftScale: { schema: optNumber, control: 'range' },
@@ -95,6 +100,23 @@ export type ParamValues = { [K in CanonicalParamKey]?: ParamValue<K> }
 /** The catalog entry for `key`. */
 export function paramCatalogEntry(key: CanonicalParamKey): ImageParamCatalogEntry {
   return IMAGE_PARAM_CATALOG[key]
+}
+
+/** `camelCase` → `snake_case` (the default vendor wire spelling). */
+function autoSnakeCase(key: string): string {
+  return key.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`)
+}
+
+/**
+ * The vendor wire field name for a canonical param: the catalog `wire` override
+ * when set, else the auto camelCase→snake_case form. This is the SINGLE source
+ * of the canonical→wire rename — every flat-body provider (silicon / dashscope /
+ * dmxapi / aihubmix / …) derives its field name from here instead of repeating
+ * the rename. Native params (`n`/`size`/`seed`/`aspectRatio`) are routed by
+ * `AI_SDK_NATIVE_BINDINGS` and don't go through this.
+ */
+export function wireName(key: CanonicalParamKey): string {
+  return paramCatalogEntry(key).wire ?? autoSnakeCase(key)
 }
 
 /** Every canonical key the catalog covers (for the exhaustiveness lock test). */

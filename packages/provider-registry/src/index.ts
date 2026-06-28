@@ -24,7 +24,12 @@ export type {
   ParamValue,
   ParamValues
 } from './schemas/imageParamCatalog'
-export { IMAGE_PARAM_CATALOG, IMAGE_PARAM_CATALOG_KEYS, paramCatalogEntry } from './schemas/imageParamCatalog'
+export {
+  IMAGE_PARAM_CATALOG,
+  IMAGE_PARAM_CATALOG_KEYS,
+  paramCatalogEntry,
+  wireName
+} from './schemas/imageParamCatalog'
 export { ImageGenerationSupportSchema } from './schemas/model'
 export { buildParamsSchema } from './utils/buildParamsSchema'
 
