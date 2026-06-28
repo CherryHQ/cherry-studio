@@ -36,6 +36,7 @@ import ChatNavbar from './components/ChatNavBar'
 import Inputbar from './Inputbar/Inputbar'
 import { type Branch, type BranchAnchor, BranchPane, pickNextColor } from './Messages/BranchPanel'
 import { abortBranchTopicStream } from './Messages/BranchPanel/abortBranchTopicStream'
+import { shouldWriteBranchAnchorOnce } from './Messages/BranchPanel/branchAnchorWrite'
 import {
   DEFAULT_BRANCH_DISPOSITION,
   disposeBranchTopicOnClose,
@@ -131,7 +132,22 @@ const Chat: FC<Props> = (props) => {
       // multiple concurrent compose-state branches don't fight for it.
       const id = creatingBranchIdRef.current
       if (id === null) return
-      setBranches((prev) => prev.map((b) => (b.id === id ? { ...b, topic: created } : b)))
+      setBranches((prev) =>
+        prev.map((b) => {
+          if (b.id !== id) return b
+
+          const nextBranch = { ...b, topic: created }
+          if (shouldWriteBranchAnchorOnce(nextBranch)) {
+            console.log('[branch-anchor] onCreated shouldWriteBranchAnchorOnce', {
+              branchId: nextBranch.id,
+              branchTopicId: nextBranch.topic?.id,
+              disposition: nextBranch.disposition
+            })
+          }
+
+          return nextBranch
+        })
+      )
       creatingBranchIdRef.current = null
       setCreatingBranchId(null)
     }, [])
@@ -210,7 +226,20 @@ const Chat: FC<Props> = (props) => {
   // P1-S3: Keep toggle (pending ↔ kept). Lifted like the other branch fields.
   const toggleKeepBranch = useCallback((branchId: string) => {
     setBranches((prev) =>
-      prev.map((b) => (b.id === branchId ? { ...b, disposition: toggleDisposition(b.disposition) } : b))
+      prev.map((b) => {
+        if (b.id !== branchId) return b
+
+        const nextBranch = { ...b, disposition: toggleDisposition(b.disposition) }
+        if (shouldWriteBranchAnchorOnce(nextBranch)) {
+          console.log('[branch-anchor] toggleKeepBranch shouldWriteBranchAnchorOnce', {
+            branchId: nextBranch.id,
+            branchTopicId: nextBranch.topic?.id,
+            disposition: nextBranch.disposition
+          })
+        }
+
+        return nextBranch
+      })
     )
   }, [])
 
