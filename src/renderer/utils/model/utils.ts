@@ -5,6 +5,7 @@ import type { OpenAIVerbosity, ValidOpenAIVerbosity } from '@shared/types/aiSdk'
 import {
   GEMINI_FLASH_MODEL_REGEX as SHARED_GEMINI_FLASH_MODEL_REGEX,
   isAnthropicModel as sharedIsAnthropicModel,
+  isAudioModel as sharedIsAudioModel,
   isClaude46SeriesModel as sharedIsClaude46SeriesModel,
   isClaude47SeriesModel as sharedIsClaude47SeriesModel,
   isDeepSeekModel as sharedIsDeepSeekModel,
@@ -23,6 +24,7 @@ import {
   isNotSupportSystemMessageModel as sharedIsNotSupportSystemMessageModel,
   isNotSupportTextDeltaModel as sharedIsNotSupportTextDeltaModel,
   isSupportFlexServiceTierModel as sharedIsSupportFlexServiceTierModel,
+  isVideoModel as sharedIsVideoModel,
   isZhipuModel as sharedIsZhipuModel
 } from '@shared/utils/model'
 
@@ -73,6 +75,10 @@ export const isAnthropicModel = (model?: Model): boolean => (model ? sharedIsAnt
 
 export const isDeepSeekModel = (model?: Model): boolean => (model ? sharedIsDeepSeekModel(model) : false)
 
+export const isAudioModel = (model: Model): boolean => sharedIsAudioModel(model)
+
+export const isVideoModel = (model: Model): boolean => sharedIsVideoModel(model)
+
 export const isGeminiModel = (model: Model): boolean => sharedIsGeminiModel(model)
 
 export const isGrokModel = (model: Model): boolean => sharedIsGrokModel(model)
@@ -109,6 +115,10 @@ export const isNotSupportSystemMessageModel = (model: Model): boolean => sharedI
 export const isVisionModels = (models: Model[]): boolean => models.every(isVisionModel)
 
 export const isGenerateImageModels = (models: Model[]): boolean => models.every(isGenerateImageModel)
+
+export const isAudioModels = (models: Model[]): boolean => models.every(isAudioModel)
+
+export const isVideoModels = (models: Model[]): boolean => models.every(isVideoModel)
 
 // ── Renderer-only data grouping ─────────────────────────────────────────
 /**

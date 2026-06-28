@@ -1,7 +1,27 @@
 import type { FilePath, FileUrlString } from '@shared/types/file'
 import { describe, expect, it } from 'vitest'
 
-import { fileUrlToPath, isDangerExt, toFileUrl, toSafeFileUrl } from '../url'
+import { fileUrlToPath, isDangerExt, normalizeExt, toFileUrl, toSafeFileUrl } from '../url'
+
+describe('normalizeExt', () => {
+  it('normalizes dotted, cased, and boundary-padded extensions', () => {
+    expect(normalizeExt('.EXE. ')).toBe('exe')
+    expect(normalizeExt(' .EXE')).toBe('exe')
+    expect(normalizeExt('\t..EXE')).toBe('exe')
+    expect(normalizeExt('Pdf')).toBe('pdf')
+    expect(normalizeExt(null)).toBeNull()
+    expect(normalizeExt('...')).toBeNull()
+  })
+
+  it('returns null for normalized extensions that are not conservative bare suffixes', () => {
+    expect(normalizeExt('tar.gz')).toBeNull()
+    expect(normalizeExt('ex e')).toBeNull()
+    expect(normalizeExt('dir/exe')).toBeNull()
+    expect(normalizeExt('dir\\exe')).toBeNull()
+    expect(normalizeExt('exe\0')).toBeNull()
+    expect(normalizeExt('x'.repeat(256))).toBeNull()
+  })
+})
 
 describe('isDangerExt', () => {
   it('returns false for null and empty string', () => {
@@ -9,10 +29,13 @@ describe('isDangerExt', () => {
     expect(isDangerExt('')).toBe(false)
   })
 
-  it('matches case-insensitively', () => {
+  it('matches case-insensitively and normalizes legacy dotted extensions', () => {
     expect(isDangerExt('exe')).toBe(true)
     expect(isDangerExt('EXE')).toBe(true)
     expect(isDangerExt('Exe')).toBe(true)
+    expect(isDangerExt('.exe')).toBe(true)
+    expect(isDangerExt('exe.')).toBe(true)
+    expect(isDangerExt('exe ')).toBe(true)
   })
 
   it('matches every category from the policy list', () => {
@@ -106,6 +129,7 @@ describe('toSafeFileUrl', () => {
 
   it('returns the dirname URL for dangerous extensions', () => {
     expect(toSafeFileUrl('/foo/bar/payload.exe' as FilePath, 'exe')).toBe('file:///foo/bar')
+    expect(toSafeFileUrl('/foo/bar/payload.exe' as FilePath, '.exe')).toBe('file:///foo/bar')
     expect(toSafeFileUrl('/foo/bar/icon.svg' as FilePath, 'svg')).toBe('file:///foo/bar')
   })
 

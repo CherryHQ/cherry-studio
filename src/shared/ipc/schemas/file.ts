@@ -3,10 +3,9 @@ import {
   DanglingStateSchema,
   FileEntryIdSchema,
   FileEntrySchema,
-  SafeExtSchema,
   SafeNameSchema
 } from '@shared/data/types/file'
-import { FileHandleSchema, PhysicalFileMetadataSchema } from '@shared/types/file'
+import { FileHandleSchema, PhysicalFileMetadataSchema, SafeExtSchema } from '@shared/types/file'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -18,10 +17,6 @@ export const FILE_IPC_MAX_BATCH_CREATE_ITEMS = 100
 
 const fileEntryIdsInputSchema = z.strictObject({
   ids: z.array(FileEntryIdSchema).max(FILE_IPC_MAX_BATCH_IDS)
-})
-
-const fileEntryIdInputSchema = z.strictObject({
-  id: FileEntryIdSchema
 })
 
 const batchGetMetadataInputSchema = z.strictObject({
@@ -91,6 +86,6 @@ export const fileRequestSchemas = {
     input: z.strictObject({ id: FileEntryIdSchema, newName: SafeNameSchema }),
     output: FileEntrySchema
   }),
-  'file.open': defineRoute({ input: fileEntryIdInputSchema, output: z.void() }),
-  'file.show_in_folder': defineRoute({ input: fileEntryIdInputSchema, output: z.void() })
+  'file.open': defineRoute({ input: FileHandleSchema, output: z.void() }),
+  'file.show_in_folder': defineRoute({ input: FileHandleSchema, output: z.void() })
 }
