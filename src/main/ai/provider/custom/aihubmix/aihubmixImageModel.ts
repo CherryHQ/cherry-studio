@@ -22,9 +22,11 @@ import { OpenAICompatibleImageModel } from '@ai-sdk/openai-compatible'
 import type { ImageModelV3, ImageModelV3CallOptions, JSONValue } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { withoutTrailingSlash } from '@ai-sdk/provider-utils'
+import { IMAGE_PARAM_CATALOG_KEYS, wireName } from '@cherrystudio/provider-registry'
 import { loggerService } from '@logger'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import { readErrorMessage } from '@shared/ai/readErrorMessage'
+import type { CanonicalParamKey } from '@shared/data/types/model'
 import * as z from 'zod'
 
 import { fileToDataUrl } from '../transportUtils'
@@ -129,40 +131,24 @@ function aspectRatioToIdeogramV1V2(value: string | undefined): string | undefine
   return value
 }
 
-/**
- * Aihubmix gateway / FLUX expect snake_case body keys for the bespoke
- * fields (`safety_tolerance`). Renderer emits canonical camelCase
- * `safetyTolerance` in `providerOptions.aihubmix`. Rename known keys so
- * `OpenAICompatibleImageModel`'s "spread bag into body" produces the wire
- * shape the gateway accepts.
- */
-const AIHUBMIX_SNAKE_CASE_KEYS: Record<string, string> = {
-  safetyTolerance: 'safety_tolerance',
-  personGeneration: 'person_generation',
-  negativePrompt: 'negative_prompt',
-  magicPromptOption: 'magic_prompt_option',
-  styleType: 'style_type',
-  renderingSpeed: 'rendering_speed',
-  // Doubao Seedream / Wan / Qwen-Image / iRAG canonical → wire renames.
-  // The registry uses Cherry-canonical camelCase keys (`imageResolution`,
-  // `addWatermark`, …); aihubmix's body fields use the snake-case or short
-  // form documented in https://docs.aihubmix.com/cn/api/Image-Gen.
-  imageResolution: 'size',
-  addWatermark: 'watermark',
-  promptExtend: 'prompt_extend',
-  thinkingMode: 'thinking_mode',
-  colorPalette: 'color_palette',
-  referImage: 'refer_image'
-}
+const CANONICAL_KEYS = new Set<string>(IMAGE_PARAM_CATALOG_KEYS)
 
-function snakeCaseAihubmixBag(
+/**
+ * The aihubmix gateway expects vendor wire field names (`safety_tolerance`,
+ * `size`, …); the renderer emits canonical camelCase in `providerOptions.aihubmix`.
+ * Rename each canonical key to its catalog `wireName` so the inner
+ * `OpenAICompatibleImageModel`'s "spread bag into body" produces the wire shape.
+ * The single `wireName` source replaces the bespoke snake-case map (the renames
+ * were proven equal in wireName.test.ts). Non-canonical keys pass through.
+ */
+function wireNameAihubmixBag(
   providerOptions: ImageModelV3CallOptions['providerOptions']
 ): ImageModelV3CallOptions['providerOptions'] {
   if (!providerOptions?.aihubmix) return providerOptions
   const aihubmix = providerOptions.aihubmix as Record<string, JSONValue>
   const renamed: Record<string, JSONValue> = {}
   for (const [key, value] of Object.entries(aihubmix)) {
-    const wireKey = AIHUBMIX_SNAKE_CASE_KEYS[key] ?? key
+    const wireKey = CANONICAL_KEYS.has(key) ? wireName(key as CanonicalParamKey) : key
     renamed[wireKey] = value
   }
   return { ...providerOptions, aihubmix: renamed }
@@ -529,7 +515,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
         headers,
         fetch: customFetch
       })
-      return inner.doGenerate({ ...options, providerOptions: snakeCaseAihubmixBag(options.providerOptions) })
+      return inner.doGenerate({ ...options, providerOptions: wireNameAihubmixBag(options.providerOptions) })
     }
 
     // ---- Ideogram V_1/V_2 (non-default) + V_3 upscale branch (relocated verbatim) ----
