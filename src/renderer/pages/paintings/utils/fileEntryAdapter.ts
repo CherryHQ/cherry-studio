@@ -7,6 +7,7 @@ import type { FileEntry } from '@shared/data/types/file/fileEntry'
  * `getPhysicalPath` IPC; call sites batch their lookups in `Promise.all`.
  *
  * Used by:
+ *   - `generatePainting` (direct generation result)
  *   - `runPainting.resolvePaintingFiles` (base64 branch)
  *   - `downloadImages` (url branch)
  *   - `recordToPaintingData` (history hydration)

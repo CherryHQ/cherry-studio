@@ -53,6 +53,10 @@ describe('internal/system/shell', () => {
     }
   })
 
+  it.each(['/tmp/report.md', '/tmp/payload'])('path default-open guard allows safe path %s', (physicalPath) => {
+    expect(() => assertSafePathForDefaultOpen(physicalPath as FilePath)).not.toThrow()
+  })
+
   it('showInFolder delegates to shell.showItemInFolder', async () => {
     await showInFolder('/some/file.pdf' as FilePath)
     expect(showItemInFolderSpy).toHaveBeenCalledWith('/some/file.pdf')

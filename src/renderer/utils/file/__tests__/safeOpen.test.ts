@@ -59,6 +59,17 @@ describe('safeOpen', () => {
     expect(mocks.error).toHaveBeenCalledWith('Failed to open file', error)
   })
 
+  it('rethrows non-blocked IpcError without revealing the handle', async () => {
+    const error = new IpcError('FILE_NOT_FOUND', 'not found')
+    mocks.request.mockRejectedValueOnce(error)
+
+    await expect(safeOpen(handle)).rejects.toBe(error)
+
+    expect(mocks.request).toHaveBeenCalledWith('file.open', handle)
+    expect(mocks.request).toHaveBeenCalledTimes(1)
+    expect(mocks.error).toHaveBeenCalledWith('Failed to open file', error)
+  })
+
   it('logs and rethrows reveal fallback failures', async () => {
     const showError = new Error('show failed')
     mocks.request

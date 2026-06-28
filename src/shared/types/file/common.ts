@@ -52,7 +52,8 @@ export type UrlString = `http://${string}` | `https://${string}`
  * - dots and whitespace are rejected so OS-default-open safety checks cannot
  *   be bypassed by platform-normalized suffixes such as `exe.` or `exe `
  * - separators and null bytes are rejected so an extension cannot become more
- *   than one path segment when composed into a filename
+ *   than one path segment when composed into `{id}.{ext}` for internal-entry
+ *   writes (managed-directory escape / truncation risk)
  */
 // TODO(file-ext): Refactor this into a branded bare-extension type, then make
 // `normalizeExt` the factory that returns that branded value or `null`.

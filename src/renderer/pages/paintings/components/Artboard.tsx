@@ -100,7 +100,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
   const currentFile = painting.files[displayedImageIndex]
   // TODO(#15353): swap for `cherrystudio://file/internal/${id}.${ext}` once the
   // custom-protocol handler is registered and paintings consume `FileEntry` directly.
-  const currentImageUrl = currentFile ? getPaintingFileUrl(currentFile) : ''
+  const currentImageUrl = currentFile ? getPaintingFileUrl(currentFile) : undefined
   const loadingText = loadText || t('paintings.generating')
 
   const onPrevImage = useCallback(() => {

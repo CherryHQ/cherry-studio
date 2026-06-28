@@ -9,7 +9,7 @@ type PaintingFileUrlSource = Pick<FileMetadata, 'path' | 'ext'>
  * carries v1 `FileMetadata`. The path itself is resolved by main process via
  * `getPhysicalPath`; renderer only applies shared file-url formatting/safety.
  */
-export function getPaintingFileUrl(file: PaintingFileUrlSource): FileUrlString | '' {
-  if (!file.path) return ''
+export function getPaintingFileUrl(file: PaintingFileUrlSource): FileUrlString | undefined {
+  if (!file.path) return undefined
   return toSafeFileUrl(file.path as FilePath, file.ext || null)
 }

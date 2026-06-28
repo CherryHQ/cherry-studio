@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { getPaintingFileUrl } from '../paintingFileUrl'
 
 describe('getPaintingFileUrl', () => {
-  it('returns an empty URL when no physical path is available', () => {
-    expect(getPaintingFileUrl({ path: '', ext: '.png' })).toBe('')
+  it('returns undefined when no physical path is available', () => {
+    expect(getPaintingFileUrl({ path: '', ext: '.png' })).toBeUndefined()
   })
 
   it('builds the preview URL from the resolved physical path instead of the legacy file name', () => {
