@@ -338,7 +338,7 @@ export class MigrationEngine {
       { table: agentWorkspaceTable, name: 'agent_workspace' },
       { table: agentGlobalSkillTable, name: 'agent_global_skill' },
       { table: agentTable, name: 'agent' },
-      // File-domain tables — child before parent (file ref tables CASCADE from file_entry)
+      // File-domain tables. Migration runs with FK checks disabled, but keep ref tables before file_entry for readability.
       { table: chatMessageFileRefTable, name: 'chat_message_file_ref' },
       { table: paintingFileRefTable, name: 'painting_file_ref' },
       { table: fileEntryTable, name: 'file_entry' }

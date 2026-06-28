@@ -10,8 +10,10 @@
 import { randomUUID } from 'node:crypto'
 
 import { fileEntryTable } from '@data/db/schemas/file'
-import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
+import { chatMessageFileRefTable, paintingFileRefTable } from '@data/db/schemas/fileRelations'
+import { messageTable } from '@data/db/schemas/message'
 import { paintingTable } from '@data/db/schemas/painting'
+import { topicTable } from '@data/db/schemas/topic'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
@@ -145,6 +147,140 @@ describe('fileEntryTable — fe_size_internal_only check', () => {
     ).rejects.toThrow()
     await expect(
       dbh.db.insert(fileEntryTable).values(baseExternal('/Users/me/big.pdf', { size: 12345 }))
+    ).rejects.toThrow()
+  })
+})
+
+describe('chatMessageFileRefTable — CASCADE FK', () => {
+  const dbh = setupTestDatabase()
+
+  async function seedMessage(id = randomUUID()) {
+    const topicId = randomUUID()
+    const rootId = randomUUID()
+    await dbh.db.insert(topicTable).values({
+      id: topicId,
+      activeNodeId: id,
+      orderKey: topicId,
+      createdAt: TS,
+      updatedAt: TS
+    })
+    await dbh.db.insert(messageTable).values([
+      {
+        id: rootId,
+        parentId: null,
+        topicId,
+        role: 'root',
+        data: { parts: [] },
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: TS,
+        updatedAt: TS
+      },
+      {
+        id,
+        parentId: rootId,
+        topicId,
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'hello' }] },
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: TS,
+        updatedAt: TS
+      }
+    ])
+    return id
+  }
+
+  it('deleting a file_entry removes chat_message_file_ref rows via CASCADE', async () => {
+    const entry = baseInternal()
+    const messageId = await seedMessage()
+    await dbh.db.insert(fileEntryTable).values(entry)
+
+    await dbh.db.insert(chatMessageFileRefTable).values({
+      id: randomUUID(),
+      fileEntryId: entry.id,
+      sourceId: messageId,
+      role: 'attachment',
+      createdAt: TS,
+      updatedAt: TS
+    })
+
+    const beforeDelete = await dbh.db
+      .select()
+      .from(chatMessageFileRefTable)
+      .where(eq(chatMessageFileRefTable.fileEntryId, entry.id))
+    expect(beforeDelete).toHaveLength(1)
+
+    await dbh.db.delete(fileEntryTable).where(eq(fileEntryTable.id, entry.id))
+
+    const afterDelete = await dbh.db
+      .select()
+      .from(chatMessageFileRefTable)
+      .where(eq(chatMessageFileRefTable.fileEntryId, entry.id))
+    expect(afterDelete).toHaveLength(0)
+  })
+
+  it('deleting a message removes chat_message_file_ref rows via CASCADE', async () => {
+    const entry = baseInternal()
+    const messageId = await seedMessage()
+    await dbh.db.insert(fileEntryTable).values(entry)
+    await dbh.db.insert(chatMessageFileRefTable).values({
+      id: randomUUID(),
+      fileEntryId: entry.id,
+      sourceId: messageId,
+      role: 'attachment',
+      createdAt: TS,
+      updatedAt: TS
+    })
+
+    await dbh.db.delete(messageTable).where(eq(messageTable.id, messageId))
+
+    const remaining = await dbh.db.select().from(chatMessageFileRefTable)
+    expect(remaining).toHaveLength(0)
+  })
+
+  it('rejects chat_message_file_ref pointing to a non-existent file_entry', async () => {
+    const messageId = await seedMessage()
+    await expect(
+      dbh.db.insert(chatMessageFileRefTable).values({
+        id: randomUUID(),
+        fileEntryId: uuidv7(),
+        sourceId: messageId,
+        role: 'attachment',
+        createdAt: TS,
+        updatedAt: TS
+      })
+    ).rejects.toThrow()
+  })
+
+  it('rejects chat_message_file_ref pointing to a non-existent message', async () => {
+    const entry = baseInternal()
+    await dbh.db.insert(fileEntryTable).values(entry)
+    await expect(
+      dbh.db.insert(chatMessageFileRefTable).values({
+        id: randomUUID(),
+        fileEntryId: entry.id,
+        sourceId: randomUUID(),
+        role: 'attachment',
+        createdAt: TS,
+        updatedAt: TS
+      })
+    ).rejects.toThrow()
+  })
+
+  it('rejects unsupported chat_message_file_ref roles', async () => {
+    const entry = baseInternal()
+    const messageId = await seedMessage()
+    await dbh.db.insert(fileEntryTable).values(entry)
+    await expect(
+      dbh.db.insert(chatMessageFileRefTable).values({
+        id: randomUUID(),
+        fileEntryId: entry.id,
+        sourceId: messageId,
+        role: 'source',
+        createdAt: TS,
+        updatedAt: TS
+      })
     ).rejects.toThrow()
   })
 })

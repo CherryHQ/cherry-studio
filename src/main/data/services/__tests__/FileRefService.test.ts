@@ -137,6 +137,14 @@ describe('FileRefService', () => {
       )
     })
 
+    it('rejects temp refs for missing file_entry rows', async () => {
+      const missing = '019606a0-0000-7000-8000-00000000bb08' as FileEntryId
+
+      await expect(
+        fileRefService.createTempSessionRef({ fileEntryId: missing, sourceId: 'missing-entry', role: 'pending' })
+      ).rejects.toThrow(`FileEntry not found: ${missing}`)
+    })
+
     it('throws on duplicate temp ref (entryId, sourceId, role)', async () => {
       const entryId = '019606a0-0000-7000-8000-00000000bb02' as FileEntryId
       await seedEntry(entryId)
