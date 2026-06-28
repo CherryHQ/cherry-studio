@@ -1,150 +1,66 @@
 {
-  "generated_at": "2026-06-27",
-  "data_source_note": "GitHub Discussions GraphQL API not accessible via current MCP tooling. Derived from issue/PR signals overlapping with discussion topics.",
-  "discussion_signals_from_issues": {
-    "issues_labeled_discussion": 2,
-    "discussion_topics_inferred": [
-      {
-        "topic": "Agent/MCP initialization and stability",
-        "evidence_issues": [
-          "#15712 (MCP tool messages lost from context in multi-turn)",
-          "#16446 (NEW: disastrous agent history loss after N task rounds)",
-          "#16460 (NEW: mini app keep-alive state race condition)"
-        ],
-        "signal_strength": "very_high",
-        "notes": "Multiple independent reports of agent/MCP reliability issues; growing urgency with 2 new filed today.",
-        "trend": "increasing"
-      },
-      {
-        "topic": "Agent context management and cost",
-        "evidence_issues": [
-          "#16398 ({{time}} busts Anthropic prompt cache — cost impact)",
-          "#16446 (history wipe in agent conversations)"
-        ],
-        "signal_strength": "high",
-        "notes": "Growing concern about token cost and cache invalidation. #16398 active with direct cost impact.",
-        "trend": "increasing"
-      },
-      {
-        "topic": "Model provider compatibility (OpenAI-compat, Gemini, MiniMax, Anthropic)",
-        "evidence_issues": [
-          "#16431 (MiniMax-M3 thinking type error — closed today, fix PR #16405 open)",
-          "#16195 (CherryIN gemini-3.1 AI_APICallError — closed today)",
-          "#13193 (P1: Azure OpenAI defaults to responses API — 115+ days unresolved)",
-          "#15782 (MiniMax-M3 error on v1.9.11)"
-        ],
-        "signal_strength": "high",
-        "notes": "Fix PRs active for MiniMax M3. Azure P1 bug #13193 unresolved 115+ days.",
-        "trend": "stable"
-      },
-      {
-        "topic": "Bundle size and startup performance optimization",
-        "evidence_issues": [
-          "#16524 (CodeBlockView loads all special previews unconditionally)",
-          "#16523 (image utility helpers pull capture/compression stacks eagerly)",
-          "#16522 (markdown utilities pull parser dependencies into lightweight paths)",
-          "#16521 (message export helpers load provider stacks in chat render path)",
-          "#16479 (lodash → lodash-es, ~350-450KB bundle reduction)",
-          "#16478 (lazy load markdown/math/mermaid rendering)",
-          "#16476 (static WebP provider icons)"
-        ],
-        "signal_strength": "high",
-        "notes": "NEW TODAY: Focused performance sprint by DeJeune — 7 issues + 6 PRs filed in one day.",
-        "trend": "new_sprint"
-      },
-      {
-        "topic": "UI/UX polish and navigation",
-        "evidence_issues": [
-          "#16459 (NEW: selection overlays load dynamic Lucide icons — Performance)",
-          "#16461 (NEW: code block toolbar effect-driven state)",
-          "#16209 (note editor settings not applied immediately)",
-          "#16465 (recent items in GlobalSearch don't update after rename)"
-        ],
-        "signal_strength": "high",
-        "notes": "56+ open UI/UX issues; multiple new performance/UX issues filed today.",
-        "trend": "stable"
-      },
-      {
-        "topic": "Knowledge Base / RAG enhancements",
-        "evidence_issues": [
-          "#16396 (KB doesn't search file names — fix PR #16486 open)",
-          "#16473 (support local embedding and OCR with local models)"
-        ],
-        "signal_strength": "high",
-        "notes": "Fix PR #16486 active. Local embedding RFC (#16407) open as draft.",
-        "trend": "stable"
-      },
-      {
-        "topic": "AI SDK and runtime architecture",
-        "evidence_issues": [
-          "#16462 (NEW: AI SDK v7 migration plan docs — PR open as draft)",
-          "#16401 (provider-registry catalog generation — PR open)"
-        ],
-        "signal_strength": "medium",
-        "notes": "Major architectural PRs open today. AI SDK v7 migration signals upcoming breaking changes.",
-        "trend": "emerging"
-      },
-      {
-        "topic": "v2 migration cleanup",
-        "evidence_issues": [
-          "#16440 (dexie retirement PR open — active cleanup)",
-          "1 issue labeled 'Blocked: v2' (down from 47 yesterday)"
-        ],
-        "signal_strength": "medium",
-        "notes": "v2 merged to main; Dexie retirement in progress. Blocked: v2 label significantly reduced.",
-        "trend": "decreasing (active resolution)"
-      }
-    ]
+  "generated_at": "2026-06-28",
+  "repository": "CherryHQ/cherry-studio",
+  "data_availability": "PARTIAL — GitHub GraphQL Discussions API not accessible via current MCP tooling; data sourced from issues tagged 'discussion' or 'help wanted'",
+
+  "discussion_label_proxies": {
+    "issues_labeled_discussion": {
+      "open_sampled": 10,
+      "closed_in_30d_sampled": 5,
+      "note": "Issues tagged 'discussion' are the closest available proxy for community discussions"
+    },
+    "issues_labeled_help_wanted": {
+      "open_sampled": 10,
+      "closed_in_30d_sampled": 5
+    }
   },
-  "top_engagement_issues": [
+
+  "notable_discussion_issues": [
     {
       "number": 6505,
-      "title": "[FAQ&反馈]: 划词助手 / Selection Assistant",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/6505",
-      "labels": ["Assistant"],
+      "title": "Long-running FAQ/feedback mega-thread",
       "comments": 362,
-      "priority_note": "Mega-thread: 13-month-old FAQ thread still active, 362 comments"
+      "created_at": "~2025-05",
+      "status": "open",
+      "note": "Most commented open issue — acts as community FAQ hub"
     },
     {
-      "number": 16446,
-      "title": "[Bug]: Disastrous agent history bug",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16446",
-      "labels": ["needs-repro"],
-      "created_at": "2026-06-26",
-      "priority_note": "NEW (yesterday) — Highest severity new issue. Needs immediate triage."
+      "number": 15267,
+      "title": "[Discussion]: How to fully disable analytics",
+      "labels": ["P1", "help wanted", "discussion"],
+      "status": "open",
+      "note": "P1-labeled discussion — user privacy/telemetry concern"
     },
     {
-      "number": 13301,
-      "title": "[Feature]: Support Multi-Agent Workflow and Collaboration",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13301",
-      "labels": ["feature", "Assistant", "Blocked: v2"],
-      "comments": 8,
-      "priority_note": "High-engagement feature request; v2 merged — should be unblocked"
-    },
-    {
-      "number": 14603,
-      "title": "[Bug] Web search returns unrelated results",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/14603",
-      "comments": 10,
-      "priority_note": "Persistent web search quality issue, 10 comments"
+      "number": 14022,
+      "title": "[Feature]: Track Vercel AI SDK v7 features and migration plan for Cherry Studio v2",
+      "labels": ["needs-triage"],
+      "author": "DeJeune",
+      "status": "open",
+      "note": "Internal technical tracking discussion"
     }
   ],
-  "new_issues_today": {
-    "total_opened": 12,
-    "notable": [
-      "#16524 - CodeBlockView loads all special preview components (Performance)",
-      "#16523 - Image utility helpers pull capture dependencies eagerly (Performance)",
-      "#16522 - Markdown utilities pull parser deps into lightweight paths (Performance)",
-      "#16521 - Message export helpers load provider stacks in chat render (Performance)",
-      "#16479 - Build optimization: lodash → lodash-es (~350-450KB reduction) (Performance)",
-      "#16478 - First Screen Optimization: Lazy Load markdown/math/mermaid (Performance)",
-      "#16476 - First screen: static WebP provider icons (Performance)",
-      "#16495 - websearch returns same content when models search again",
-      "#16483 - feat: support Raspberry Pi as Agent Runtime",
-      "#16482 - feat: optimize tools auto mode",
-      "#16473 - feat: support local embedding and OCR with local models",
-      "#16471 - Model think feature not working properly"
+
+  "community_signals": {
+    "top_feature_categories_by_volume": [
+      "UI/UX improvements (86 open issues sampled)",
+      "AI Model compatibility (47 open issues sampled)",
+      "Agent/Assistant features (46 open issues sampled)",
+      "MCP integration (25 open issues sampled)",
+      "Knowledge base / RAG (11 open issues sampled)",
+      "Performance (16 open issues sampled)"
+    ],
+    "high_engagement_areas": [
+      "Agent mode reliability (MCP connectivity, tool errors, SOUL.md validation)",
+      "Cross-device sync (backup race conditions, WebDAV issues)",
+      "Model support (xiaomi mimo, doubao seed, opus 4.x reasoning)",
+      "UI personalization (notification center, font options, sidebar customization)"
     ]
   },
-  "recommendation": "Enable GraphQL Discussions API in future runs. TODAY'S TOP PRIORITY: Performance optimization sprint by DeJeune (7 issues + 6 PRs) signals major v2 bundle work. Agent history bug (#16446) still unassigned."
+
+  "action_items": [
+    "Enable Discussions GraphQL API access or schedule separate discussions fetch",
+    "Address #15267 (analytics opt-out P1) — community privacy concern",
+    "Review closed 'discussion' issues to identify patterns for FAQ updates"
+  ]
 }

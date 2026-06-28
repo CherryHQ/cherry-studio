@@ -1,116 +1,126 @@
 {
-  "generated_at": "2026-06-27",
-  "cutoff_definitions": {
-    "Active":  "updated within 7 days  (after 2026-06-20)",
-    "Aging":   "updated 7–30 days ago  (2026-05-28 – 2026-06-20)",
-    "Stale":   "updated 30–90 days ago (2026-03-28 – 2026-05-28)",
-    "Zombie":  "not updated in 90+ days (before 2026-03-28)"
-  },
-  "health_summary": {
+  "generated_at": "2026-06-28",
+  "repository": "CherryHQ/cherry-studio",
+  "methodology": "300-issue sample from 968 total open issues, ordered by updatedAt DESC. Health classification based on updatedAt recency.",
+
+  "summary": {
+    "total_open": 968,
     "active": {
-      "count": 200,
-      "pct": 20.7,
-      "definition": "updated within last 7 days (confirmed from first 200 of 967 sorted by updatedAt DESC)"
+      "count_estimated": 173,
+      "pct": "~18%",
+      "definition": "updatedAt within last 7 days",
+      "note": "pages 1+2 of updatedAt-sorted list"
     },
     "aging": {
-      "count": 150,
-      "pct": 15.5,
-      "definition": "updated 7-30 days ago"
+      "count_estimated": 127,
+      "pct": "~13%",
+      "definition": "updatedAt 7–30 days ago",
+      "note": "late page 2 + page 3"
     },
     "stale": {
-      "count": 300,
-      "pct": 31.0,
-      "definition": "updated 30-90 days ago"
+      "count_estimated": 300,
+      "pct": "~31%",
+      "definition": "updatedAt 30–90 days ago",
+      "note": "estimated from pages 4–7 (not fully sampled)"
     },
     "zombie": {
-      "count": 317,
-      "pct": 32.8,
-      "definition": "not updated in 90+ days (oldest known: May 2025)",
-      "source": "extrapolated from issue age signals and inactive label prevalence"
-    },
-    "total_measured": 967
-  },
-  "triage_needs": {
-    "unlabeled": 97,
-    "unlabeled_pct": 10.0,
-    "needs_repro": 16,
-    "needs_more_info": 10,
-    "inactive_auto_labeled": 45,
-    "blocked_v2": 1,
-    "blocked_v2_note": "Significantly down from yesterday's 47 — batch triage completed"
-  },
-  "priority_breakdown": {
-    "P1": {
-      "count": 3,
-      "issues": [
-        {"number": 14899, "title": "Unified Notification Center", "milestone": "v2.4.0"},
-        {"number": 13608, "title": "xiaomi mimo response only displays last line", "age_days": 101},
-        {"number": 13193, "title": "Azure OpenAI defaults to responses API (404)", "age_days": 115, "assignee": "DeJeune"}
-      ]
-    },
-    "P2": {"count": 0, "note": "No P2 labels observed in sample"},
-    "P3": {"count": 1, "issues": [{"number": 14585, "title": "Thinking reset on topic switch"}]}
-  },
-  "closed_last_30d": {
-    "total": 420,
-    "delta_vs_yesterday": "+1",
-    "resolution_avg_days": 35.67,
-    "closure_drivers": {
-      "inactive_auto_closure_pct": 75,
-      "team_resolved_pct": 15,
-      "closed_no_response_pct": 4,
-      "other_pct": 6
+      "count_estimated": 368,
+      "pct": "~38%",
+      "definition": "updatedAt >90 days ago",
+      "note": "estimated from pages 7+ (not fully sampled)"
     }
   },
-  "notable_open_bugs": [
+
+  "triage_backlog": {
+    "needs_triage": 5,
+    "needs_repro": 25,
+    "needs_more_info": 6,
+    "inactive_still_open": 102,
+    "total_action_required": 138
+  },
+
+  "critical_items": [
     {
-      "number": 16446,
-      "title": "[Bug]: Disastrous agent history bug",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16446",
-      "created_at": "2026-06-26T09:33:30Z",
-      "labels": ["needs-repro"],
-      "priority_note": "URGENT — Agent conversation history silently wiped after many task rounds. No fix PR. Needs immediate triage."
+      "number": 15316,
+      "title": "agents.db backup races with concurrent writes — corrupted restores",
+      "severity": "DATA INTEGRITY",
+      "category": "Bug",
+      "milestone": "v1.9.8",
+      "assignee": "kangfenmao",
+      "status": "open / in progress",
+      "impact": "Users syncing via Nutstore/WebDAV backup lose agents/sessions silently",
+      "age_days": 34,
+      "labels": ["needs-triage", "Data"]
     },
     {
-      "number": 16460,
-      "title": "[Bug]: Mini app keep-alive cache updates can overwrite newer state",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16460",
-      "created_at": "2026-06-26T16:10:56Z",
-      "labels": [],
-      "priority_note": "NEW — Race condition in keep-alive list write. Detailed repro from DeJeune. Fix PR open (#16498)."
+      "number": 15409,
+      "title": "CherryIN OAuth flow can be completed by a different renderer sender",
+      "severity": "SECURITY",
+      "category": "Bug",
+      "status": "open (FIX SHIPPED in v1.9.11 via PR #15410)",
+      "fix_pr": 15410,
+      "fix_version": "v1.9.11",
+      "note": "Issue remains open despite being fixed — should be closed",
+      "labels": ["needs-triage", "inactive"]
     },
     {
-      "number": 16450,
-      "title": "[Bug]: Painting migrator leaves dangling model_id",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16450",
-      "updated_at": "2026-06-26T10:40:14Z",
-      "labels": ["Data"],
-      "priority_note": "Data migration bug — composer cannot resolve model, send button disabled for affected users"
+      "number": 15826,
+      "title": "@cherrystudio/ai-core CJS/type exports point to missing dist files",
+      "severity": "ECOSYSTEM",
+      "category": "Bug",
+      "status": "open / needs triage",
+      "impact": "CommonJS consumers and TypeScript declaration resolution broken for published package",
+      "labels": ["needs-triage"]
     },
     {
-      "number": 16398,
-      "title": "{{time}}/{{datetime}} system-prompt variables bust the Anthropic prompt cache (second-level granularity)",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16398",
-      "updated_at": "2026-06-26T11:22:32Z",
-      "labels": ["Performance"],
-      "priority_note": "Second-level time variables invalidate prompt cache on every request — measurable user cost increase"
-    },
-    {
-      "number": 15712,
-      "title": "[Bug]: MCP Tool Messages Are Removed From Conversation Context In Subsequent Turns",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/15712",
-      "updated_at": "2026-06-25T12:37:22Z",
-      "labels": ["MCP"],
-      "priority_note": "Ongoing — High-impact MCP context loss affecting multi-turn sessions. No fix PR."
+      "number": 15983,
+      "title": "MCP/Skill references in Agent SOUL.md lack automatic validation after deletion",
+      "severity": "UX / AGENT RELIABILITY",
+      "category": "Bug",
+      "status": "open / needs triage",
+      "labels": ["MCP", "needs-triage"]
     }
   ],
+
+  "active_p1_issues": [
+    {
+      "number": 14899,
+      "title": "[Feature]: Unified Notification Center",
+      "labels": ["Planned", "P1", "feature", "UI/UX"],
+      "status": "planned"
+    },
+    {
+      "number": 13608,
+      "title": "[Bug]: xiaomi mimo response only displays the last line",
+      "labels": ["P1", "Models"],
+      "status": "open — no assignee"
+    },
+    {
+      "number": 13193,
+      "title": "[Bug]: [AI_APICallError: Resource not found, default use responses API]",
+      "labels": ["P1", "Models"],
+      "assignee": "DeJeune",
+      "status": "open — assigned"
+    }
+  ],
+
+  "label_health_signals": {
+    "inactive_open": 102,
+    "blocked_v2_open": 2,
+    "prd_issues": 14,
+    "internal_team_issues": 46,
+    "no_label_issues": 99
+  },
+
+  "unlabeled_ratio": "10.2%",
+  "internal_driven_pct": "~15% (46/300 sampled have internal_team label)",
+  "community_stale_pct": "~29% (88/300 sampled have inactive label)",
+
   "recommendations": [
-    "URGENT: #16446 (agent history wipe) filed yesterday with no assignee — assign immediately and find root cause",
-    "97 unlabeled issues need triage (10% of open backlog)",
-    "317 zombie issues (>90 days inactive) are candidates for bulk closure review",
-    "P1 #13193 (Azure OpenAI 404) is 115+ days old and assigned to DeJeune — check status",
-    "P1 #13608 (MiniMax response display) is 101+ days old — may be fixed in v2, needs verification",
-    "MCP context loss (#15712) has no fix PR and high user impact — prioritize",
-    "Performance sprint today: verify PRs #16525, #16526, #16499, #16500, #16528 do not regress functionality"
+    "Close #15409 — OAuth fix is already shipped in v1.9.11",
+    "Escalate #15316 (agents.db backup corruption) — active data integrity issue in milestone v1.9.8",
+    "Triage #15826 (@cherrystudio/ai-core CJS exports) — affects external package consumers",
+    "Review 102 inactive-labeled open issues — many could be closed",
+    "Add P1/severity labels to #15316 and #15826 to make triage easier"
   ]
 }

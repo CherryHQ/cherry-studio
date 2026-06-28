@@ -1,178 +1,127 @@
 {
-  "generated_at": "2026-06-27",
-  "source": "GitHub MCP API (daily automated run)",
+  "generated_at": "2026-06-28",
+  "data_source": "GitHub API via MCP (mcp__github__*), sampled 300 of 968 open issues",
+  "repository": "CherryHQ/cherry-studio",
+
   "open_issues": {
-    "total": 967,
-    "delta_vs_yesterday": "+12 (955 → 967)",
-    "unlabeled": 97,
-    "unlabeled_pct": 10.0,
-    "inactive_labeled": 45,
-    "blocked_v2": 1
+    "total": 968,
+    "inactive_label_count": 102,
+    "no_label_count": 99,
+    "needs_triage_count": 5,
+    "p1_open_active": 3,
+    "p1_active_list": [
+      { "number": 14899, "title": "[Feature]: Unified Notification Center", "labels": ["Planned", "P1", "feature", "UI/UX"] },
+      { "number": 13608, "title": "[Bug]: xiaomi mimo response only displays the last line", "labels": ["P1", "Models"] },
+      { "number": 13193, "title": "[Bug]: [AI_APICallError: Resource not found, default use responses API]", "labels": ["P1", "Models"] }
+    ],
+    "needs_triage_list": [
+      { "number": 15983, "title": "[Bug]: MCP/Skill references in Agent SOUL.md lack automatic validation", "labels": ["MCP", "needs-triage"], "note": "no fix yet" },
+      { "number": 15826, "title": "@cherrystudio/ai-core CJS/type exports point to missing dist files", "labels": ["needs-triage"], "note": "package publishing issue" },
+      { "number": 15409, "title": "[Bug]: CherryIN OAuth flow can be completed by a different renderer sender", "labels": ["needs-triage", "inactive"], "note": "FIXED in v1.9.11 via PR #15410 — issue open but resolved" },
+      { "number": 15316, "title": "[Bug]: agents.db backup races with concurrent writes, producing corrupted restores", "labels": ["needs-triage", "Data"], "milestone": "v1.9.8", "assignee": "kangfenmao", "note": "data integrity — hotfix candidate" },
+      { "number": 14022, "title": "[Feature]: Track Vercel AI SDK v7 features and migration plan", "labels": ["needs-triage"], "note": "internal tracking issue by DeJeune" }
+    ],
+    "label_frequency_sampled_300": {
+      "inactive": 88,
+      "UI/UX": 86,
+      "Models": 47,
+      "Assistant": 46,
+      "internal_team": 46,
+      "feature": 29,
+      "MCP": 25,
+      "needs-repro": 25,
+      "prd": 14,
+      "Performance": 16,
+      "RAG": 11,
+      "help wanted": 10,
+      "discussion": 10,
+      "Connectivity": 10,
+      "Data": 8,
+      "needs-more-info": 6,
+      "Agent": 5,
+      "BUG": 4,
+      "Blocked: v2": 2,
+      "needs-triage": 1
+    },
+    "age_distribution_sampled_300": {
+      "lt_7_days": 90,
+      "7_to_30_days": 98,
+      "30_to_90_days": 106,
+      "gt_90_days": 6
+    },
+    "notable_issues": [
+      { "number": 6505, "title": "Long-running FAQ/feedback mega-thread", "comments": 362, "note": "most commented open issue" },
+      { "number": 15316, "title": "agents.db backup race condition — data integrity hotfix", "priority": "HIGH", "milestone": "v1.9.8" }
+    ]
   },
+
   "open_prs": {
     "total": 100,
-    "delta_vs_yesterday": "~+8 (82 created last 7 days)",
     "by_base_branch": {
-      "main": 81,
-      "v1": 6,
-      "stacked_ui_chain": 13
+      "main": 82,
+      "v1": 5,
+      "v2": 0,
+      "stacked_feature_branches": 13
     },
-    "draft_count": 25,
-    "ready_to_merge_count": 2
+    "draft_count": 24,
+    "non_draft_count": 76,
+    "unlabeled_count": 97,
+    "age_distribution": {
+      "lt_7_days": 83,
+      "7_to_30_days": 14,
+      "30_to_90_days": 2,
+      "gt_90_days": 1
+    },
+    "notable_workstreams": [
+      {
+        "name": "SiinXu UI Design System v2 Overhaul",
+        "pr_count": 13,
+        "description": "13-part stacked PR chain refactoring design tokens, primitives, composites, sidebar, window shell, settings pages, and shared components",
+        "lead": "SiinXu",
+        "status": "draft — in progress",
+        "pr_range": "#16502–#16513 + #16104",
+        "base_branches": "stacked (each PR bases on the previous one)"
+      }
+    ],
+    "top_contributors": [
+      { "author": "DeJeune", "open_prs": 20 },
+      { "author": "SiinXu", "open_prs": 13 },
+      { "author": "kangfenmao", "open_prs": 6 },
+      { "author": "zhangjiadi225", "open_prs": 5 },
+      { "author": "eeee0717", "open_prs": 4 },
+      { "author": "kovsu", "open_prs": 3 },
+      { "author": "vaayne", "open_prs": 3 }
+    ]
   },
-  "closed_last_30d": {
-    "issues_closed": 420,
-    "delta_vs_yesterday": "+1 (419 → 420)"
+
+  "closed_issues_30d": {
+    "total_count": 427,
+    "api_sample_size": 100,
+    "by_iso_week": {
+      "2026-W25 (Jun 16-22)": 26,
+      "2026-W26 (Jun 23-28)": 74
+    },
+    "quick_closes_lt_24h": 17,
+    "dominant_close_reason": "inactive stale sweep (75% of sample)",
+    "top_labels_on_closed": ["inactive (75)", "UI/UX (33)", "Assistant (20)", "Models (18)", "MCP (9)", "internal_team (9)"],
+    "most_commented_closed": [
+      { "number": 15416, "title": "[Bug]: Taskbar icon becomes blank after merging", "comments": 10 },
+      { "number": 15051, "title": "[Bug]: Cannot select any model while trying to create a new Agent", "comments": 6 },
+      { "number": 14800, "title": "[Bug]: Cherry's agent stops with errors when using LM Studio", "comments": 5 }
+    ]
   },
-  "health_buckets": {
-    "active_7d": 200,
-    "aging_7_30d": 150,
-    "stale_30_90d": 300,
-    "zombie_gt90d": 317,
-    "note": "Active count confirmed from first 200 sorted by updatedAt DESC. Remaining extrapolated."
+
+  "releases": {
+    "latest_stable": "v1.9.11",
+    "latest_stable_date": "2026-06-07",
+    "in_draft": "v1.9.12",
+    "previous": "v1.9.9 (2026-06-02)"
   },
-  "top_labels_open_sampled": {
-    "UI_UX": 56,
-    "inactive": 45,
-    "internal_team": 41,
-    "Assistant": 38,
-    "Models": 34,
-    "feature": 25,
-    "Performance": 18,
-    "needs_repro": 16,
-    "RAG": 11,
-    "needs_more_info": 10,
-    "MCP": 8,
-    "Data": 8,
-    "Connectivity": 8,
-    "Blocked_v2": 2,
-    "help_wanted": 2,
-    "discussion": 2,
-    "Docs": 2,
-    "BUG": 2,
-    "P3": 2
-  },
-  "p1_issues": [
-    {
-      "number": 14899,
-      "title": "[Feature]: Unified Notification Center",
-      "labels": ["Planned", "P1", "feature", "UI/UX"],
-      "milestone": "v2.4.0",
-      "created_at": "2026-05-07",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/14899"
-    },
-    {
-      "number": 13608,
-      "title": "[Bug]: xiaomi mimo response only displays the last line",
-      "labels": ["P1", "Models"],
-      "milestone": "v1.8.1 (closed)",
-      "created_at": "2026-03-18",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
-    },
-    {
-      "number": 13193,
-      "title": "[Bug]: Azure OpenAI defaults to responses API (Resource not found, 404)",
-      "labels": ["P1", "Models"],
-      "assignee": "DeJeune",
-      "created_at": "2026-03-04",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
-    }
-  ],
-  "top_pr_contributors_open": {
-    "DeJeune": 18,
-    "kangfenmao": 8,
-    "zhangjiadi225": 6,
-    "eeee0717": 5,
-    "ousugo": 5,
-    "SiinXu": 13,
-    "vaayne": 4,
-    "LWWZH": 3,
-    "he-yufeng": 4,
-    "Pleasurecruise": 3
-  },
-  "notable_open_bugs_today": [
-    {
-      "number": 16446,
-      "title": "[Bug]: Disastrous agent history bug",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16446",
-      "labels": ["needs-repro"],
-      "created_at": "2026-06-26",
-      "priority_note": "Agent history silently wiped after N task rounds — high severity, no fix PR open"
-    },
-    {
-      "number": 16460,
-      "title": "[Bug]: Mini app keep-alive cache updates can overwrite newer state",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16460",
-      "labels": [],
-      "created_at": "2026-06-26",
-      "priority_note": "Race condition in keep-alive cache setter; DeJeune filed with repro steps"
-    },
-    {
-      "number": 16450,
-      "title": "[Bug]: Painting migrator leaves dangling model_id",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16450",
-      "labels": ["Data"],
-      "created_at": "2026-06-26",
-      "priority_note": "Data migration bug — composer can't resolve model, send button disabled"
-    },
-    {
-      "number": 16398,
-      "title": "{{time}}/{{datetime}} system-prompt variables bust the Anthropic prompt cache",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16398",
-      "labels": ["Performance"],
-      "updated_at": "2026-06-26",
-      "priority_note": "Second-level timestamp invalidates cache on every request — direct user cost impact"
-    },
-    {
-      "number": 15712,
-      "title": "[Bug]: MCP Tool Messages Are Removed From Conversation Context In Subsequent Turns",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/15712",
-      "labels": ["MCP"],
-      "priority_note": "Ongoing: MCP context loss in multi-turn sessions — high impact, no fix PR"
-    }
-  ],
-  "today_performance_sprint": {
-    "description": "DeJeune opened 7+ Performance-labeled issues and corresponding fix PRs targeting bundle size and startup time",
-    "issues": [16524, 16523, 16522, 16521, 16479, 16478, 16476],
-    "prs": [16528, 16526, 16525, 16500, 16499, 16498]
-  },
-  "recent_hot_prs_today": [
-    {
-      "number": 16528,
-      "title": "refactor(deps): replace lodash with es-toolkit/compat and drop it",
-      "author": "DeJeune",
-      "base": "main"
-    },
-    {
-      "number": 16529,
-      "title": "fix(clickable-file-path): open directories in the file manager",
-      "author": "DeJeune",
-      "base": "main"
-    },
-    {
-      "number": 16491,
-      "title": "refactor(code-cli): persist provider configs to native CLI files",
-      "author": "Pleasurecruise",
-      "base": "main"
-    },
-    {
-      "number": 16462,
-      "title": "docs(unified-runtime): AI SDK v7 migration plan and design docs",
-      "author": "DeJeune",
-      "base": "main",
-      "draft": true
-    },
-    {
-      "number": 16401,
-      "title": "feat(provider-registry): generate catalog from src/labs + src/provider, add TokenHub",
-      "author": "DeJeune",
-      "base": "main"
-    },
-    {
-      "number": 16489,
-      "title": "refactor(settings): remove standalone settings window",
-      "author": "kangfenmao",
-      "base": "main"
-    }
-  ]
+
+  "v2_branch_status": {
+    "status": "merged into main — no active v2 branch",
+    "last_merge_week": "2026-W22 (~May 31, 2026)",
+    "open_prs_targeting_v2": 0,
+    "note": "main is now the active development branch for v2 features"
+  }
 }
