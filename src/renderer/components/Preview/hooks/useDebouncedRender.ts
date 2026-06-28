@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { debounce } from 'lodash'
+import debounce from 'lodash/debounce'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useDebouncedRender')

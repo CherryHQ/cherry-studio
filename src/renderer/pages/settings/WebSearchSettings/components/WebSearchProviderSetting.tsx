@@ -16,7 +16,7 @@ import type {
   WebSearchProviderOverrides
 } from '@shared/data/preference/preferenceTypes'
 import { useNavigate } from '@tanstack/react-router'
-import { isEmpty } from 'lodash'
+import isEmpty from 'lodash/isEmpty'
 import { ExternalLink, List } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'

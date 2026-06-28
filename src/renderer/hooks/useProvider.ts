@@ -11,7 +11,8 @@ import type {
   UpdateProviderDto
 } from '@shared/data/api/schemas/providers'
 import type { ApiKeyEntry, AuthConfig, Provider } from '@shared/data/types/provider'
-import { isUndefined, omitBy } from 'lodash'
+import isUndefined from 'lodash/isUndefined'
+import omitBy from 'lodash/omitBy'
 import { useCallback } from 'react'
 import type { SWRConfiguration } from 'swr'
 

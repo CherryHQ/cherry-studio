@@ -14,7 +14,7 @@ import { removeSpecialCharactersForTopicName } from '@renderer/utils/naming'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { isFileUIPart } from 'ai'
-import { takeRight } from 'lodash'
+import takeRight from 'lodash/takeRight'
 
 import { readDefaultModel, readQuickModel } from './ModelService'
 

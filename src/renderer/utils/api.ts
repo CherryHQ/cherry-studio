@@ -1,5 +1,5 @@
 import { formatApiHost, withoutTrailingSlash } from '@shared/utils/api'
-import { trim } from 'lodash'
+import trim from 'lodash/trim'
 
 // Re-export from shared, for backward compatibility
 export {

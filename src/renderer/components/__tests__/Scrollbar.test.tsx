@@ -5,11 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vite
 import Scrollbar from '../Scrollbar'
 
 // Mock lodash throttle
-vi.mock('lodash', async () => {
-  const actual = await import('lodash')
+vi.mock('lodash/throttle', () => {
   return {
-    ...actual,
-    throttle: vi.fn((fn) => {
+    default: vi.fn((fn) => {
       // 简单地直接返回函数，不实际执行节流
       const throttled = (...args: any[]) => fn(...args)
       throttled.cancel = vi.fn()
@@ -124,7 +122,7 @@ describe('Scrollbar', () => {
 
   describe('throttling', () => {
     it('should use throttled scroll handler', async () => {
-      const { throttle } = await import('lodash')
+      const { default: throttle } = await import('lodash/throttle')
 
       render(<Scrollbar data-testid="scrollbar">内容</Scrollbar>)
 
@@ -153,7 +151,7 @@ describe('Scrollbar', () => {
       expect(clearTimeoutSpy).toHaveBeenCalled()
 
       // 验证 throttle.cancel 被调用
-      const { throttle } = await import('lodash')
+      const { default: throttle } = await import('lodash/throttle')
       const throttledFunction = (throttle as unknown as Mock).mock.results[0].value
       expect(throttledFunction.cancel).toHaveBeenCalled()
     })

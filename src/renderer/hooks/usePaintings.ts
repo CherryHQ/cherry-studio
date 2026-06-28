@@ -2,7 +2,8 @@ import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { useReorder } from '@renderer/data/hooks/useReorder'
 import type { CreatePaintingDto, ListPaintingsQueryParams, UpdatePaintingDto } from '@shared/data/api/schemas/paintings'
 import type { Painting } from '@shared/data/types/painting'
-import { isUndefined, omitBy } from 'lodash'
+import isUndefined from 'lodash/isUndefined'
+import omitBy from 'lodash/omitBy'
 import { useCallback } from 'react'
 
 export function usePaintings(query?: ListPaintingsQueryParams) {

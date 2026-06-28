@@ -1,5 +1,5 @@
 import i18next from 'i18next'
-import { isEmpty } from 'lodash'
+import isEmpty from 'lodash/isEmpty'
 
 import { openSettingsWindow } from '../../../services/SettingsWindowService'
 import type { PaintingProviderRuntime } from '../model/types/paintingProviderRuntime'

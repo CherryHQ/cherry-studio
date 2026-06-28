@@ -6,7 +6,7 @@ import type {
   UnifiedPreferenceType
 } from '@shared/data/preference/preferenceTypes'
 import { getDefaultValue } from '@shared/data/preference/preferenceUtils'
-import { isEqual } from 'lodash'
+import isEqual from 'lodash/isEqual'
 
 const logger = loggerService.withContext('PreferenceService')
 

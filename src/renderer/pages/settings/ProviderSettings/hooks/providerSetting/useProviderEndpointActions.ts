@@ -5,7 +5,8 @@ import { ErrorCode, isDataApiError, isSerializedDataApiError, toDataApiError } f
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isVertexProvider } from '@shared/utils/provider'
-import { debounce, trim } from 'lodash'
+import debounce from 'lodash/debounce'
+import trim from 'lodash/trim'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 

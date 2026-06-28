@@ -7,7 +7,7 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { isDev } from '@renderer/utils/platform'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import { useNavigate } from '@tanstack/react-router'
-import { first } from 'lodash'
+import first from 'lodash/first'
 import { Pin, Settings2 } from 'lucide-react'
 import {
   type KeyboardEvent,

@@ -42,7 +42,7 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import dayjs from 'dayjs'
-import { findIndex } from 'lodash'
+import findIndex from 'lodash/findIndex'
 import {
   Bot,
   ChevronsDownUp,

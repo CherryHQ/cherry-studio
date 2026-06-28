@@ -10,7 +10,8 @@ import type {
 } from '@shared/data/api/schemas/models'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
-import { isUndefined, omitBy } from 'lodash'
+import isUndefined from 'lodash/isUndefined'
+import omitBy from 'lodash/omitBy'
 import { useCallback } from 'react'
 import type { SWRConfiguration } from 'swr'
 

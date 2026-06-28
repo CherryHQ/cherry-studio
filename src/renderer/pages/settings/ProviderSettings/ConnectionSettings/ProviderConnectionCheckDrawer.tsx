@@ -1,7 +1,7 @@
 import { Button, RadioGroup, RadioGroupItem, SelectDropdown } from '@cherrystudio/ui'
 import { maskApiKey } from '@renderer/utils/api'
 import type { Model } from '@shared/data/types/model'
-import { sortBy } from 'lodash'
+import sortBy from 'lodash/sortBy'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

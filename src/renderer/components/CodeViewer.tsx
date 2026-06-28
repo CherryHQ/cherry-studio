@@ -6,7 +6,7 @@ import { getReactStyleFromToken } from '@renderer/utils/shiki'
 import { cn } from '@renderer/utils/style'
 import { uuid } from '@renderer/utils/uuid'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { debounce } from 'lodash'
+import debounce from 'lodash/debounce'
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import type { ThemedToken } from 'shiki/core'
 

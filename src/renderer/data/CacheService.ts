@@ -35,7 +35,7 @@ import type {
   CacheSyncMessage,
   CacheTierSummary
 } from '@shared/data/cache/cacheTypes'
-import { isEqual } from 'lodash'
+import isEqual from 'lodash/isEqual'
 
 const STORAGE_PERSIST_KEY = 'cs_cache_persist'
 

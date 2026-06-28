@@ -24,7 +24,7 @@ import {
   type ShortcutBinding,
   type ShortcutToken
 } from '@shared/utils/shortcut'
-import { isEmpty } from 'lodash'
+import isEmpty from 'lodash/isEmpty'
 import { Keyboard, MessageSquareText, Search, Sparkles, Tags, Undo2 } from 'lucide-react'
 import type { FC, KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'

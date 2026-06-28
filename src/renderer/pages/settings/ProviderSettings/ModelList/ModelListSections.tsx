@@ -1,6 +1,6 @@
 import { LoadingIcon } from '@renderer/components/Icons'
 import type { Model } from '@shared/data/types/model'
-import { isEmpty } from 'lodash'
+import isEmpty from 'lodash/isEmpty'
 import type React from 'react'
 import { useTranslation } from 'react-i18next'
 

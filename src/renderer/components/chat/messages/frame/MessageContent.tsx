@@ -1,6 +1,6 @@
 import { Flex } from '@cherrystudio/ui'
 import { createUniqueModelId } from '@shared/data/types/model'
-import { isEmpty } from 'lodash'
+import isEmpty from 'lodash/isEmpty'
 import React from 'react'
 
 import MessagePartsRenderer from '../blocks/MessagePartsRenderer'
