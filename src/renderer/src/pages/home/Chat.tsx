@@ -26,7 +26,7 @@ import { Flex } from 'antd'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useMemo, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -36,13 +36,13 @@ import ChatNavbar from './components/ChatNavBar'
 import Inputbar from './Inputbar/Inputbar'
 import { type Branch, type BranchAnchor, BranchPane, pickNextColor } from './Messages/BranchPanel'
 import { abortBranchTopicStream } from './Messages/BranchPanel/abortBranchTopicStream'
-import { buildCreateBranchAnchorBody, shouldWriteBranchAnchorOnce } from './Messages/BranchPanel/branchAnchorWrite'
 import {
   DEFAULT_BRANCH_DISPOSITION,
   disposeBranchTopicOnClose,
   toggleDisposition
 } from './Messages/BranchPanel/branchDisposition'
 import { scheduleForkTopicDeletion } from './Messages/BranchPanel/scheduleForkTopicDeletion'
+import { useBranchAnchorPersistence } from './Messages/BranchPanel/useBranchAnchorPersistence'
 import ChatNavigation from './Messages/ChatNavigation'
 import Messages from './Messages/Messages'
 import Tabs from './Tabs'
@@ -97,37 +97,7 @@ const Chat: FC<Props> = (props) => {
   const creatingBranchIdRef = useRef<string | null>(null)
   const [creatingBranchId, setCreatingBranchId] = useState<string | null>(null)
 
-  const { trigger: createBranchAnchor } = useMutation('POST', '/branch-anchors')
-  const persistBranchAnchorIfReady = useCallback(
-    (branch: Branch) => {
-      const body = buildCreateBranchAnchorBody(props.activeTopic.id, branch)
-      if (!body) return
-
-      if (!shouldWriteBranchAnchorOnce(branch)) return
-
-      void createBranchAnchor({ body })
-        .then((anchor) => {
-          logger.debug('Created branch anchor for kept branch', {
-            anchorId: anchor.id,
-            branchId: branch.id,
-            branchTopicId: body.branchTopicId,
-            parentTopicId: body.parentTopicId
-          })
-        })
-        .catch((error) => {
-          logger.error('Failed to create branch anchor for kept branch', error as Error, {
-            branchId: branch.id,
-            branchTopicId: body.branchTopicId,
-            parentTopicId: body.parentTopicId
-          })
-        })
-    },
-    [createBranchAnchor, props.activeTopic.id]
-  )
-
-  useEffect(() => {
-    branches.forEach((branch) => persistBranchAnchorIfReady(branch))
-  }, [branches, persistBranchAnchorIfReady])
+  useBranchAnchorPersistence({ parentTopicId: props.activeTopic.id, branches })
 
   // P1-S2b-1: a fresh anchor APPENDS to branches (S1 replace semantics is
   // dropped). The new Branch starts with `topic: null` to mirror the
