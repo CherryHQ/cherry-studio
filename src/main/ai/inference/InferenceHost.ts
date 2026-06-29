@@ -54,7 +54,14 @@ class InferenceHost {
     worker.on('error', (err) => this.failAll(err instanceof Error ? err : new Error(String(err))))
     worker.on('exit', (code) => {
       this.worker = null
-      if (code !== 0) this.failAll(new Error(`inference worker exited with code ${code}`))
+      // A non-zero exit is an abnormal crash (native onnxruntime fault, OOM kill). Log it
+      // unconditionally — failAll's no-op-when-idle guard below would otherwise swallow the
+      // only crash breadcrumb when nothing is pending, leaving the auto-respawn invisible.
+      if (code !== 0) logger.error('inference worker exited abnormally', new Error(`exit code ${code}`))
+      // A clean (code 0) exit with requests still in flight would otherwise hang their
+      // promises forever. failAll no-ops when nothing is pending (the normal terminate()
+      // path), so this never double-reports.
+      this.failAll(new Error(`inference worker exited unexpectedly (code ${code})`))
     })
     worker.postMessage({
       type: 'init',
@@ -99,6 +106,9 @@ class InferenceHost {
   }
 
   private failAll(err: Error): void {
+    // No-op when idle so an intentional terminate() (or a second exit/error event)
+    // doesn't log a spurious "worker failed" with nothing to reject.
+    if (this.pending.size === 0) return
     logger.error('inference worker failed', err)
     for (const [, pending] of this.pending) pending.reject(err)
     this.pending.clear()
