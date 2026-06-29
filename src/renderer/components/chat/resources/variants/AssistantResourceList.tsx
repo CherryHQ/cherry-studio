@@ -1,4 +1,3 @@
-import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import {
@@ -11,6 +10,7 @@ import {
 } from '@renderer/components/chat/resources/variants/useResourceEntityRail'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
+import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { usePins } from '@renderer/hooks/usePins'
@@ -104,9 +104,13 @@ export function AssistantResourceList({
     []
   )
   const getTopicAssistantId = useCallback((topic: Topic) => topic.assistantId, [])
-  const reorderAssistant = useCallback(async (assistantId: string, anchor: ResourceEntityRailReorderAnchor) => {
-    await dataApiService.patch(`/assistants/${assistantId}/order`, { body: anchor })
-  }, [])
+  const { trigger: reorderAssistantOrder } = useMutation('PATCH', '/assistants/:id/order', { refresh: ['/assistants'] })
+  const reorderAssistant = useCallback(
+    async (assistantId: string, anchor: ResourceEntityRailReorderAnchor) => {
+      await reorderAssistantOrder({ params: { id: assistantId }, body: anchor })
+    },
+    [reorderAssistantOrder]
+  )
   const handleReorderError = useCallback(
     (error: unknown) => {
       logger.error('Failed to reorder assistant old-view rail', { error })

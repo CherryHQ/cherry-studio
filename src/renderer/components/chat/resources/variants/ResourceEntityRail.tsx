@@ -11,7 +11,7 @@ import {
 } from '@renderer/components/chat/resources'
 import { CommandPopupMenu } from '@renderer/components/command'
 import { cn } from '@renderer/utils/style'
-import { History, MoreHorizontal, SquarePen } from 'lucide-react'
+import { History, MoreHorizontal } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
 import { useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -41,7 +41,6 @@ export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionCon
   addIcon?: ReactNode
   addLabel: string
   ariaLabel: string
-  createItemLabel?: string
   /** Header for the non-pinned group ("助手" for assistants, "智能体" for agents). */
   defaultGroupLabel?: string
   emptyFallback?: ReactNode
@@ -51,7 +50,6 @@ export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionCon
   /** When provided, a history-records button sits next to the add button. */
   onOpenHistoryRecords?: () => void
   onContextMenuAction?: (item: T, action: ResolvedAction<TActionContext>) => void | Promise<void>
-  onCreateItem?: (item: T) => void | Promise<void>
   onReorder?: (payload: ResourceListReorderPayload) => void | Promise<void>
   onSelect: (item: T) => void | Promise<void>
   selectedId?: string | null
@@ -83,7 +81,6 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   addIcon,
   addLabel,
   ariaLabel,
-  createItemLabel,
   defaultGroupLabel,
   emptyFallback,
   getContextMenuActions,
@@ -91,7 +88,6 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   onAdd,
   onOpenHistoryRecords,
   onContextMenuAction,
-  onCreateItem,
   onReorder,
   onSelect,
   selectedId,
@@ -128,7 +124,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
     (item: T) => {
       const actions = getContextMenuActions?.(item) ?? []
       const hasVisibleMenuActions = !!onContextMenuAction && actions.some((action) => action.availability.visible)
-      const trailingActionCount = (onCreateItem && createItemLabel ? 1 : 0) + (hasVisibleMenuActions ? 1 : 0)
+      const trailingActionCount = hasVisibleMenuActions ? 1 : 0
       const trailingActionPaddingClassName = getEntityRailTrailingActionPaddingClassName(trailingActionCount)
       const extraItems = hasVisibleMenuActions
         ? actionsToCommandMenuExtraItems(actions, (action) => runContextMenuAction(item, action))
@@ -143,36 +139,21 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
             title={item.name}>
             {item.name}
           </ResourceList.ItemTitle>
-          {(onCreateItem || hasVisibleMenuActions) && (
+          {hasVisibleMenuActions && (
             // Stop clicks bubbling to the row's onClick: the "more" menu portals its content out of
             // the DOM but React still routes the menu-item click up the React tree (…→ ItemActions →
             // row), which would otherwise select the entity when a menu action (e.g. edit) is picked.
             <ResourceList.ItemActions onClick={(event) => event.stopPropagation()}>
-              {onCreateItem && createItemLabel && (
-                <Tooltip title={createItemLabel} delay={500}>
+              <Tooltip title={t('common.more')} delay={500}>
+                <CommandPopupMenu location="webcontents.context" extraItems={extraItems} align="end" side="bottom">
                   <ResourceList.GroupHeaderActionButton
                     type="button"
-                    aria-label={createItemLabel}
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      void onCreateItem(item)
-                    }}>
-                    <SquarePen className="block" />
+                    aria-label={t('common.more')}
+                    onClick={(event) => event.stopPropagation()}>
+                    <MoreHorizontal className="block" />
                   </ResourceList.GroupHeaderActionButton>
-                </Tooltip>
-              )}
-              {hasVisibleMenuActions && (
-                <Tooltip title={t('common.more')} delay={500}>
-                  <CommandPopupMenu location="webcontents.context" extraItems={extraItems} align="end" side="bottom">
-                    <ResourceList.GroupHeaderActionButton
-                      type="button"
-                      aria-label={t('common.more')}
-                      onClick={(event) => event.stopPropagation()}>
-                      <MoreHorizontal className="block" />
-                    </ResourceList.GroupHeaderActionButton>
-                  </CommandPopupMenu>
-                </Tooltip>
-              )}
+                </CommandPopupMenu>
+              </Tooltip>
             </ResourceList.ItemActions>
           )}
         </ResourceList.Item>
@@ -189,7 +170,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
         </ResourceListActionContextMenu>
       )
     },
-    [createItemLabel, getContextMenuActions, onContextMenuAction, onCreateItem, onSelect, runContextMenuAction, t]
+    [getContextMenuActions, onContextMenuAction, onSelect, runContextMenuAction, t]
   )
   const empty = useMemo(() => emptyFallback ?? <div className="min-h-0 flex-1" />, [emptyFallback])
   // Collapsible sections matching the new view's left assistant/agent layout (minus the nested

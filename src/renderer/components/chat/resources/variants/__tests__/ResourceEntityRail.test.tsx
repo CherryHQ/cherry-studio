@@ -172,7 +172,6 @@ describe('ResourceEntityRail', () => {
   })
 
   it('uses grouped-list entity typography and selected state', () => {
-    const onCreateItem = vi.fn()
     const onSelect = vi.fn()
     const onContextMenuAction = vi.fn()
     const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
@@ -184,14 +183,12 @@ describe('ResourceEntityRail', () => {
       <ResourceEntityRail
         addLabel="New"
         ariaLabel="Assistants"
-        createItemLabel="New Conversation"
         getContextMenuActions={() => [EDIT_ACTION]}
         items={ITEMS}
         selectedId="assistant-a"
         variant="assistant"
         onAdd={vi.fn()}
         onContextMenuAction={onContextMenuAction}
-        onCreateItem={onCreateItem}
         onSelect={onSelect}
       />
     )
@@ -208,8 +205,8 @@ describe('ResourceEntityRail', () => {
       'font-medium',
       'text-foreground',
       'transition-[padding]',
-      'group-hover:pr-12',
-      'group-focus-within:pr-12',
+      'group-hover:pr-7',
+      'group-focus-within:pr-7',
       'group-hover:text-inherit',
       'group-focus-visible:text-inherit',
       'group-data-[selected=true]:text-inherit'
@@ -221,10 +218,6 @@ describe('ResourceEntityRail', () => {
       'group-focus-visible:text-inherit',
       'group-data-[selected=true]:text-inherit'
     )
-
-    fireEvent.click(screen.getAllByRole('button', { name: 'New Conversation' })[0])
-    expect(onCreateItem).toHaveBeenCalledWith(ITEMS[0])
-    expect(onSelect).not.toHaveBeenCalled()
 
     expect(screen.getAllByRole('button', { name: 'common.more' })[0]).toHaveClass('size-6', '[&_svg]:size-3!')
     fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0])
