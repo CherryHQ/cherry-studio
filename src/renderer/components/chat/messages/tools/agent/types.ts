@@ -399,6 +399,8 @@ export interface ToolOutputMap {
 export type ToolRendererProps<T extends AgentToolsType = AgentToolsType> = {
   input?: ToolInputMap[T]
   output?: ToolOutputMap[T]
+  /** True when the tool call finished with an error response. */
+  hasError?: boolean
 }
 
 export type ToolRendererFn<T extends AgentToolsType = AgentToolsType> = (

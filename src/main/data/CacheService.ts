@@ -35,7 +35,7 @@ import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes
 import { isTemplateKey, templateToRegex } from '@shared/data/cache/templateKey'
 import { IpcChannel } from '@shared/IpcChannel'
 import { BrowserWindow } from 'electron'
-import { isEqual } from 'lodash'
+import { isEqual } from 'es-toolkit/compat'
 
 const logger = loggerService.withContext('CacheService')
 
@@ -456,7 +456,7 @@ export class CacheService extends BaseService {
    * Subscribe to internal cache changes for an exact key.
    *
    * Fire semantics:
-   * - Fires on explicit `set` (when value actually differs via lodash.isEqual)
+   * - Fires on explicit `set` (when value actually differs via isEqual)
    *   and on `delete` (when a non-expired value existed).
    * - Does NOT fire on TTL-only refresh (same value, new expireAt).
    * - Does NOT fire on lazy TTL cleanup, GC sweeps, or onStop clearing.

@@ -10,7 +10,7 @@ import { cn, generateColorFromChar, getForegroundColor } from '@renderer/utils/s
 import { uuid } from '@renderer/utils/uuid'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { ApiKeyEntry, AuthConfig, AuthType, EndpointConfig, Provider } from '@shared/data/types/provider'
-import { isEmpty } from 'lodash'
+import { isEmpty } from 'es-toolkit/compat'
 import { ChevronRight, Eye, EyeOff, ImagePlus, RotateCcw } from 'lucide-react'
 import { type ChangeEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
