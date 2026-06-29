@@ -2526,6 +2526,28 @@ describe('ResourceList', () => {
     )
   })
 
+  it('keeps the search icon centered against the input when the wrapper adds top spacing', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    const { container } = render(
+      <Provider items={ITEMS}>
+        <ResourceList.Frame>
+          <ResourceList.Search placeholder="Search resources" wrapperClassName="pt-1" />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const input = screen.getByPlaceholderText('Search resources')
+    const wrapper = container.querySelector('.pt-1')
+    const inputFrame = input.parentElement
+    const iconFrame = wrapper?.querySelector('.lucide-search')?.parentElement
+
+    expect(wrapper).toHaveClass('pt-1')
+    expect(inputFrame).toHaveClass('relative')
+    expect(inputFrame).not.toHaveClass('pt-1')
+    expect(iconFrame?.parentElement).toBe(inputFrame)
+  })
+
   it('keeps a command HeaderItem shrinkable so its actions stay visible', () => {
     const Provider = ResourceList.Provider<TestItem>
 
