@@ -1,4 +1,4 @@
-import { Button, ReorderableList } from '@cherrystudio/ui'
+import { Button, ReorderableList, Tooltip } from '@cherrystudio/ui'
 import { ComposerToken } from '@renderer/components/composer/tokenView/ComposerToken'
 import {
   CHAT_INPUT_TOKEN_KINDS,
@@ -66,33 +66,39 @@ function QueuedFollowupRow({
         <DraftTokenChips item={item} />
       </div>
       <div className="flex shrink-0 items-center gap-0.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="size-7 shadow-none"
-          aria-label={t('chat.input.followup_queue.steer')}
-          onClick={() => onSteer(item.id)}>
-          <Zap className="size-4" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="size-7 shadow-none"
-          aria-label={t('chat.input.followup_queue.edit')}
-          onClick={() => onEdit(item.id)}>
-          <Pencil className="size-4" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="size-7 shadow-none"
-          aria-label={t('chat.input.followup_queue.remove')}
-          onClick={() => onRemove(item.id)}>
-          <X className="size-4" />
-        </Button>
+        <Tooltip placement="top" content={t('chat.input.followup_queue.steer')}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="size-7 shadow-none"
+            aria-label={t('chat.input.followup_queue.steer')}
+            onClick={() => onSteer(item.id)}>
+            <Zap className="size-4" />
+          </Button>
+        </Tooltip>
+        <Tooltip placement="top" content={t('chat.input.followup_queue.edit')}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="size-7 shadow-none"
+            aria-label={t('chat.input.followup_queue.edit')}
+            onClick={() => onEdit(item.id)}>
+            <Pencil className="size-4" />
+          </Button>
+        </Tooltip>
+        <Tooltip placement="top" content={t('chat.input.followup_queue.remove')}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="size-7 shadow-none"
+            aria-label={t('chat.input.followup_queue.remove')}
+            onClick={() => onRemove(item.id)}>
+            <X className="size-4" />
+          </Button>
+        </Tooltip>
       </div>
     </div>
   )
@@ -121,15 +127,19 @@ export function QueuedFollowupsDock({
         <span className="text-muted-foreground text-xs">
           {t('chat.input.followup_queue.title', { count: items.length })}
         </span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="size-6 shadow-none"
-          aria-label={paused ? t('chat.input.followup_queue.resume') : t('chat.input.followup_queue.pause')}
-          onClick={onTogglePause}>
-          {paused ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
-        </Button>
+        <Tooltip
+          placement="top"
+          content={paused ? t('chat.input.followup_queue.resume') : t('chat.input.followup_queue.pause')}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="size-6 shadow-none"
+            aria-label={paused ? t('chat.input.followup_queue.resume') : t('chat.input.followup_queue.pause')}
+            onClick={onTogglePause}>
+            {paused ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
+          </Button>
+        </Tooltip>
       </div>
       <div className="max-h-40 overflow-y-auto">
         <ReorderableList
