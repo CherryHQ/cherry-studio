@@ -122,15 +122,19 @@ describe('utils/image', () => {
         }
       })
 
-      const { captureElement: captureElementWithRetry } = await import('../image')
-      const ref = { current: document.createElement('div') } as React.RefObject<HTMLDivElement>
+      try {
+        const { captureElement: captureElementWithRetry } = await import('../image')
+        const ref = { current: document.createElement('div') } as React.RefObject<HTMLDivElement>
 
-      await expect(captureElementWithRetry(ref)).rejects.toBeUndefined()
+        await expect(captureElementWithRetry(ref)).rejects.toBeUndefined()
 
-      failImport = false
-      await expect(captureElementWithRetry(ref)).resolves.toBe('data:image/png;base64,recovered')
-
-      vi.doUnmock('html-to-image')
+        failImport = false
+        await expect(captureElementWithRetry(ref)).resolves.toBe('data:image/png;base64,recovered')
+      } finally {
+        vi.doMock('html-to-image', () => ({
+          toCanvas: htmlToImage.toCanvas
+        }))
+      }
     })
   })
 
