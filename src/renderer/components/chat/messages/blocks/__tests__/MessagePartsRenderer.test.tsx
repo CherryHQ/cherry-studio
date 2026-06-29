@@ -962,15 +962,15 @@ describe('MessagePartsRenderer', () => {
   })
 
   // -- data-video --
-  it('renders data-video with filePath', () => {
+  it('renders data-video with filePath', async () => {
     renderParts([{ type: 'data-video', data: { filePath: '/tmp/v.mp4' } } as unknown as CherryMessagePart])
-    const el = screen.getByTestId('mock-message-video')
+    const el = await screen.findByTestId('mock-message-video')
     expect(el.getAttribute('data-file-path')).toBe('/tmp/v.mp4')
   })
 
-  it('renders data-video with url', () => {
+  it('renders data-video with url', async () => {
     renderParts([{ type: 'data-video', data: { url: 'https://v.test/v.mp4' } } as unknown as CherryMessagePart])
-    expect(screen.getByTestId('mock-message-video').getAttribute('data-url')).toBe('https://v.test/v.mp4')
+    expect((await screen.findByTestId('mock-message-video')).getAttribute('data-url')).toBe('https://v.test/v.mp4')
   })
 
   // -- data-error --

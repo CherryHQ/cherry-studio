@@ -31,7 +31,6 @@ import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import MessageAttachments from '../frame/MessageAttachments'
-import MessageVideo from '../frame/MessageVideo'
 import { useMessageRenderConfig } from '../MessageListProvider'
 import { isReportArtifactsToolResponse, MessageReportArtifacts } from '../tools/agent/ReportArtifacts'
 import MessageTools, { canRenderMessageTool } from '../tools/MessageTools'
@@ -51,6 +50,8 @@ import { ToolBlockGroupContent, ToolBlockGroupHeaderContent } from './ToolBlockG
 import TranslationBlock from './TranslationBlock'
 
 const logger = loggerService.withContext('MessagePartsRenderer')
+
+const MessageVideo = React.lazy(() => import('../frame/MessageVideo'))
 
 // ============================================================================
 // Animation shared by message block renderers.
@@ -403,7 +404,11 @@ function renderPart(
     case 'data-video': {
       const rawData = 'data' in part ? part.data : undefined
       if (!rawData) return null
-      return <MessageVideo key={partId} url={rawData.url} filePath={rawData.filePath} />
+      return (
+        <React.Suspense key={partId} fallback={null}>
+          <MessageVideo url={rawData.url} filePath={rawData.filePath} />
+        </React.Suspense>
+      )
     }
 
     case 'data-agent-task-event':
