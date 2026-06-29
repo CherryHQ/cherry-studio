@@ -214,11 +214,11 @@ describe('useExecutionOverlay', () => {
 
     fake.emit(A, {
       type: 'message-metadata',
-      messageMetadata: { thoughtsTokens: 321 }
+      messageMetadata: { totalTokens: 321 }
     } as CherryUIMessageChunk)
 
     await waitFor(() => {
-      expect(result.current.liveAssistants.at(-1)?.metadata?.thoughtsTokens).toBe(321)
+      expect(result.current.liveAssistants.at(-1)?.metadata?.totalTokens).toBe(321)
     })
   })
 

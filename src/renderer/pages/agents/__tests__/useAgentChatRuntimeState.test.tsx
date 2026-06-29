@@ -233,7 +233,7 @@ describe('useAgentChatRuntimeState', () => {
           ...assistantMessage,
           metadata: {
             ...assistantMessage.metadata,
-            thoughtsTokens: 256
+            totalTokens: 256
           }
         } as CherryUIMessage
       ],
@@ -250,7 +250,7 @@ describe('useAgentChatRuntimeState', () => {
       })
     )
 
-    expect(result.current.uiMessages[0]?.metadata?.thoughtsTokens).toBe(256)
+    expect(result.current.uiMessages[0]?.metadata?.totalTokens).toBe(256)
   })
 
   it('stores AskUserQuestion submitted input as a temporary tool input', async () => {

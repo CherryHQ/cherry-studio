@@ -48,11 +48,6 @@ function statsFromMetadata(metadata: CherryUIMessage['metadata']): MessageStats 
   if (!metadata) return undefined
   const stats: MessageStats = { ...metadata.stats }
   if (metadata.totalTokens !== undefined) stats.totalTokens = metadata.totalTokens
-  if (metadata.promptTokens !== undefined) stats.inputTokens = metadata.promptTokens
-  if (metadata.completionTokens !== undefined) stats.outputTokens = metadata.completionTokens
-  if (metadata.thoughtsTokens !== undefined) {
-    stats.outputTokenDetails = { ...stats.outputTokenDetails, reasoningTokens: metadata.thoughtsTokens }
-  }
   return Object.keys(stats).length > 0 ? stats : undefined
 }
 

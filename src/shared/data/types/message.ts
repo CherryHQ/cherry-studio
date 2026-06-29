@@ -174,20 +174,12 @@ export interface CherryUIMessageMetadata {
    */
   providerCostUsd?: number
 
-  // ── Token stats. Flat convenience mirrors of `stats` so call-sites that only
-  //    need a single counter can skip the nested object. Named with the legacy
-  //    aliases; values track the AI SDK v6 `MessageStats` fields.
-  /** Total tokens (mirrors `MessageStats.totalTokens`). */
-  totalTokens?: number
-  /** Input / prompt tokens (AI SDK `inputTokens`, legacy `promptTokens`). */
-  promptTokens?: number
-  /** Output / completion tokens (AI SDK `outputTokens`, legacy `completionTokens`). */
-  completionTokens?: number
   /**
-   * Reasoning / thinking tokens — AI SDK `outputTokenDetails.reasoningTokens`
-   * (Gemini thoughts, Anthropic extended thinking, OpenAI o-series).
+   * Total-tokens convenience mirror of `MessageStats.totalTokens`, populated by
+   * the DB→UI projection so call-sites that only need the single counter can
+   * skip the nested `stats` object.
    */
-  thoughtsTokens?: number
+  totalTokens?: number
   /** Token usage + durations snapshot (the persisted `MessageStats` shape). */
   stats?: MessageStats
 }
