@@ -1,6 +1,6 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
-import { motion } from 'framer-motion'
 import { ImageDown, ImageUp, RefreshCcw, RotateCcwSquare, RotateCwSquare, ZoomIn, ZoomOut } from 'lucide-react'
+import { motion } from 'motion/react'
 import {
   type FC,
   type PointerEvent,

@@ -140,7 +140,7 @@ Fire semantics, re-entrance rules, and the placeholder / character-set contract 
 
 - Fires only on explicit `set` / `delete` / `setShared` / `deleteShared` and renderer-origin writes relayed via IPC
 - Never fires immediately on subscribe — call `get()` / `getShared()` yourself for initial state
-- Same-value writes are suppressed (`lodash.isEqual`)
+- Same-value writes are suppressed (`isEqual` from es-toolkit/compat)
 - Callback errors are caught; other subscribers still fire
 
 ## Shared Cache Ready State
