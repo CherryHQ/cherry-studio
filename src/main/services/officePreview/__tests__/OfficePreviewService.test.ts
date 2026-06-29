@@ -21,7 +21,7 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('../officePreview/officePreviewWorker?modulePath', () => ({
+vi.mock('../officePreviewWorker?modulePath', () => ({
   default: '/mock/officePreviewWorker.js'
 }))
 
@@ -40,7 +40,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-import { officePreviewService } from '../officePreview'
+import { officePreviewService } from '..'
 
 type ChildListener = (payload?: unknown) => void
 
@@ -272,5 +272,53 @@ describe('OfficePreviewService', () => {
     child.emit('message', { ok: true, html: '<p>Hello</p>' })
 
     await expect(resultPromise).resolves.toEqual({ html: '<p>Hello</p>' })
+  })
+
+  it('replaces a previous in-flight preview for the same window', async () => {
+    const first = mockNextUtilityChild()
+    const firstPromise = officePreviewService.render(
+      { workspacePath: '/tmp/workspace', filePath: 'a.docx', requestId: 'preview-1' },
+      'w1'
+    )
+    await vi.waitFor(() => expect(mocks.fork).toHaveBeenCalledTimes(1))
+    // Attach the rejection handler before the supersede so it is never unhandled.
+    const firstRejection = expect(firstPromise).rejects.toMatchObject({ code: 'OFFICE_PREVIEW_CANCELLED' })
+
+    const second = mockNextUtilityChild()
+    const secondPromise = officePreviewService.render(
+      { workspacePath: '/tmp/workspace', filePath: 'b.docx', requestId: 'preview-2' },
+      'w1'
+    )
+    await vi.waitFor(() => expect(mocks.fork).toHaveBeenCalledTimes(2))
+
+    // The superseded preview is cancelled and its worker killed.
+    await firstRejection
+    expect(first.kill).toHaveBeenCalled()
+
+    second.emit('message', { ok: true, html: '<p>b</p>' })
+    await expect(secondPromise).resolves.toEqual({ html: '<p>b</p>' })
+  })
+
+  it('cancels a render that is still validating before the worker starts', async () => {
+    let releaseList: (() => void) | undefined
+    mocks.listWorkspaces.mockReturnValueOnce(
+      new Promise((resolve) => {
+        releaseList = () => resolve([{ path: '/tmp/workspace' }])
+      })
+    )
+
+    const resultPromise = officePreviewService.render(
+      { workspacePath: '/tmp/workspace', filePath: 'report.docx', requestId: 'preview-1' },
+      'w1'
+    )
+
+    // Cancel while the workspace lookup is still pending — before any fork.
+    expect(officePreviewService.cancel('preview-1', 'w1')).toEqual({ cancelled: true })
+    releaseList?.()
+
+    await expect(resultPromise).rejects.toMatchObject({
+      code: 'OFFICE_PREVIEW_CANCELLED'
+    })
+    expect(mocks.fork).not.toHaveBeenCalled()
   })
 })

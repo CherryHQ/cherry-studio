@@ -25,10 +25,6 @@ const OFFICE_PREVIEW_TIMEOUT_MS = 15_000
 
 type OfficePreviewUtilityProcess = ReturnType<typeof utilityProcess.fork>
 
-interface ActiveOfficePreviewTask {
-  cancel(): void
-}
-
 const isAbsoluteInputPath = (filePath: string): boolean =>
   path.isAbsolute(filePath) || filePath.startsWith('/') || filePath.startsWith('\\') || /^[A-Za-z]:[\\/]/.test(filePath)
 
@@ -67,72 +63,116 @@ function isWorkerResponse(value: unknown): value is OfficePreviewWorkerResponse 
   return response.ok === false && typeof response.code === 'string'
 }
 
-function getTaskKey(ownerId: string, requestId: string): string {
-  return `${ownerId}:${requestId}`
+/**
+ * Per-request cancellation token. Cancellation is registered before the (async)
+ * validation phase, so a cancel that arrives while the request is still
+ * resolving paths — before the worker is even forked — is still honored.
+ */
+class OfficePreviewCancellation {
+  private cancelledFlag = false
+  private onCancelHandler: (() => void) | null = null
+
+  constructor(public readonly requestId: string) {}
+
+  get cancelled(): boolean {
+    return this.cancelledFlag
+  }
+
+  cancel(): void {
+    if (this.cancelledFlag) return
+    this.cancelledFlag = true
+    const handler = this.onCancelHandler
+    this.onCancelHandler = null
+    handler?.()
+  }
+
+  throwIfCancelled(): void {
+    if (this.cancelledFlag) throw new IpcError(officePreviewErrorCodes.CANCELLED)
+  }
+
+  /** Register the active-phase canceller (kills the worker / rejects the render). */
+  onCancelled(handler: () => void): void {
+    if (this.cancelledFlag) {
+      handler()
+      return
+    }
+    this.onCancelHandler = handler
+  }
 }
 
 class OfficePreviewService {
-  private readonly activeTasks = new Map<string, ActiveOfficePreviewTask>()
+  // A window shows one preview at a time, so in-flight tasks are keyed by owner.
+  private readonly activeTasks = new Map<string, OfficePreviewCancellation>()
 
   public async render(input: OfficePreviewRenderInput, ownerId: string): Promise<OfficePreviewRenderResult> {
     const extension = getOfficePreviewExtension(input.filePath)
-
     if (!extension) {
       throw new IpcError(officePreviewErrorCodes.UNSUPPORTED_EXTENSION)
     }
 
-    if (input.filePath.includes('\0') || isAbsoluteInputPath(input.filePath)) {
+    // Null bytes are rejected by the request schema; here we only keep the path
+    // workspace-relative so path.resolve below cannot escape the workspace root.
+    if (isAbsoluteInputPath(input.filePath)) {
       throw new IpcError(officePreviewErrorCodes.INVALID_REQUEST)
     }
 
-    if (!(await isRegisteredAgentWorkspace(input.workspacePath))) {
-      throw new IpcError(officePreviewErrorCodes.INVALID_REQUEST)
-    }
+    // Replace any preview still running for this window before starting a new one.
+    this.activeTasks.get(ownerId)?.cancel()
 
-    let targetRealPath: string
+    const token = new OfficePreviewCancellation(input.requestId)
+    this.activeTasks.set(ownerId, token)
     try {
-      const workspaceRealPath = await realpath(input.workspacePath)
-      const targetPath = path.resolve(workspaceRealPath, input.filePath)
-      targetRealPath = await realpath(targetPath)
+      token.throwIfCancelled()
 
-      if (!isPathInside(workspaceRealPath, targetRealPath)) {
+      if (!(await isRegisteredAgentWorkspace(input.workspacePath))) {
         throw new IpcError(officePreviewErrorCodes.INVALID_REQUEST)
       }
+      token.throwIfCancelled()
 
-      const fileStat = await stat(targetRealPath)
-      if (!fileStat.isFile()) {
+      let targetRealPath: string
+      try {
+        const workspaceRealPath = await realpath(input.workspacePath)
+        const targetPath = path.resolve(workspaceRealPath, input.filePath)
+        targetRealPath = await realpath(targetPath)
+
+        if (!isPathInside(workspaceRealPath, targetRealPath)) {
+          throw new IpcError(officePreviewErrorCodes.INVALID_REQUEST)
+        }
+
+        const fileStat = await stat(targetRealPath)
+        if (!fileStat.isFile()) {
+          throw new IpcError(officePreviewErrorCodes.FILE_UNAVAILABLE)
+        }
+        if (fileStat.size > OFFICE_PREVIEW_MAX_SIZE_BYTES) {
+          throw new IpcError(officePreviewErrorCodes.FILE_TOO_LARGE)
+        }
+      } catch (error) {
+        if (error instanceof IpcError) throw error
+        logger.warn('Office preview file unavailable', error instanceof Error ? error : new Error(String(error)))
         throw new IpcError(officePreviewErrorCodes.FILE_UNAVAILABLE)
       }
-      if (fileStat.size > OFFICE_PREVIEW_MAX_SIZE_BYTES) {
-        throw new IpcError(officePreviewErrorCodes.FILE_TOO_LARGE)
-      }
-    } catch (error) {
-      if (error instanceof IpcError) throw error
-      logger.warn('Office preview file unavailable', error instanceof Error ? error : new Error(String(error)))
-      throw new IpcError(officePreviewErrorCodes.FILE_UNAVAILABLE)
-    }
+      token.throwIfCancelled()
 
-    return { html: await this.renderInUtilityProcess(input.requestId, ownerId, { targetRealPath, extension }) }
+      return { html: await this.renderInUtilityProcess(token, { targetRealPath, extension }) }
+    } finally {
+      if (this.activeTasks.get(ownerId) === token) {
+        this.activeTasks.delete(ownerId)
+      }
+    }
   }
 
   public cancel(requestId: string, ownerId: string): OfficePreviewCancelResult {
-    const task = this.activeTasks.get(getTaskKey(ownerId, requestId))
-    if (!task) return { cancelled: false }
+    const token = this.activeTasks.get(ownerId)
+    if (!token || token.requestId !== requestId) return { cancelled: false }
 
-    task.cancel()
+    token.cancel()
     return { cancelled: true }
   }
 
   private renderInUtilityProcess(
-    requestId: string,
-    ownerId: string,
+    token: OfficePreviewCancellation,
     request: OfficePreviewWorkerRequest
   ): Promise<string> {
-    const taskKey = getTaskKey(ownerId, requestId)
-    if (this.activeTasks.has(taskKey)) {
-      throw new IpcError(officePreviewErrorCodes.INVALID_REQUEST)
-    }
-
     let child: OfficePreviewUtilityProcess
     try {
       child = utilityProcess.fork(officePreviewWorkerPath, [], {
@@ -156,17 +196,14 @@ class OfficePreviewService {
         if (settled) return
         settled = true
         clearTimeout(timeout)
-        this.activeTasks.delete(taskKey)
         if (!exited) {
           child.kill()
         }
         settle()
       }
 
-      this.activeTasks.set(taskKey, {
-        cancel: () => {
-          finish(() => reject(new IpcError(officePreviewErrorCodes.CANCELLED)))
-        }
+      token.onCancelled(() => {
+        finish(() => reject(new IpcError(officePreviewErrorCodes.CANCELLED)))
       })
 
       child.on('message', (message) => {
@@ -191,6 +228,7 @@ class OfficePreviewService {
       })
 
       child.on('error', (error) => {
+        if (settled) return
         const normalizedError = error as unknown
         logger.error(
           'Office preview utility process failed',

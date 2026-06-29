@@ -79,7 +79,9 @@ export default function OfficePreviewPanel({ workspacePath, filePath, refreshKey
 
     return () => {
       cancelled = true
-      void Promise.resolve(ipcApi.request('office_preview.cancel', { requestId })).catch(() => {})
+      ipcApi.request('office_preview.cancel', { requestId }).catch((error) => {
+        logger.debug('Failed to cancel Office preview', error instanceof Error ? error : new Error(String(error)))
+      })
     }
   }, [filePath, refreshKey, workspacePath])
 

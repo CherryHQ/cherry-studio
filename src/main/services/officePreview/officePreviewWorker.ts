@@ -29,10 +29,9 @@ async function handleRender(input: OfficePreviewWorkerRequest): Promise<void> {
   }
 }
 
-if (!parentPort) {
-  process.exit(1)
-} else {
-  parentPort.once('message', (event) => {
-    void handleRender(event.data)
-  })
-}
+// Only wire up the message handler when actually launched as a utility process.
+// Guarding on parentPort keeps this module side-effect-free when it is merely
+// imported (e.g. transitively in tests), instead of exiting the host process.
+parentPort?.once('message', (event) => {
+  void handleRender(event.data)
+})

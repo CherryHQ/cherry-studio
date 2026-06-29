@@ -46,6 +46,8 @@ import OfficePreviewPanel from '../OfficePreviewPanel'
 describe('OfficePreviewPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // ipcApi.request always returns a Promise; default the cancel cleanup call.
+    mocks.request.mockResolvedValue({ cancelled: true })
   })
 
   it('renders xlsx previews as an Excel document frame', async () => {
