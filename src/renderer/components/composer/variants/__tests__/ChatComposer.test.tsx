@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import type { ComposerSerializedToken } from '../../tokens'
-import ChatComposer, { ChatDockedPlacementComposer, ChatHomeComposer, ChatPlacementComposer } from '../ChatComposer'
+import ChatComposer, { ChatHomeComposer, ChatPlacementComposer } from '../ChatComposer'
 
 const mocks = vi.hoisted(() => ({
   createTopic: vi.fn(),
@@ -653,7 +653,7 @@ describe('ChatComposer', () => {
   })
 
   it('renders docked placement with toolbar controls and sendDisabled behavior', () => {
-    render(<ChatDockedPlacementComposer topic={topic} onSend={vi.fn()} sendDisabled />)
+    render(<ChatPlacementComposer placement="docked" topic={topic} onSend={vi.fn()} sendDisabled />)
 
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
     expect(mocks.surfaceProps?.sendDisabled).toBe(true)
