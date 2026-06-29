@@ -197,7 +197,7 @@ describe('LaunchpadPage', () => {
     expect(appLabels.slice(0, 4)).toEqual(['Translate', 'Chat', 'Agent', 'Paintings'])
   })
 
-  it('sorts only fixed sidebar apps and drops stale mini app favorite ids', () => {
+  it('sorts only fixed sidebar apps and preserves mini app favorite ids', () => {
     mocks.sidebarFavorites = ['translate', 'assistants', 'agents', 'calculator']
 
     render(<LaunchpadPage />)
@@ -208,7 +208,7 @@ describe('LaunchpadPage', () => {
 
     systemSortable.onSortEnd({ oldIndex: 0, newIndex: 2 })
 
-    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith(['assistants', 'agents', 'translate'])
+    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith(['assistants', 'agents', 'translate', 'calculator'])
   })
 
   it('navigates apps inside the current launchpad tab', async () => {

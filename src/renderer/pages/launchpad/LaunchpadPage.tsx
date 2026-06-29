@@ -9,6 +9,7 @@ import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import {
   getOrderedVisibleSidebarFavorites,
   getSidebarMenuPath,
+  getSidebarMiniAppFavoriteIds,
   REQUIRED_SIDEBAR_FAVORITES,
   sanitizeSidebarFavorites,
   SIDEBAR_FAVORITE_ORDER
@@ -55,8 +56,9 @@ function getSidebarFavoritesWithPinnedState({
   favorites: readonly string[] | undefined
   favorite: SidebarFavorite
   pinned: boolean
-}): SidebarFavorite[] {
+}): string[] {
   const nextFavorites = sanitizeSidebarFavorites(favorites).filter((existing) => existing !== favorite)
+  const miniAppFavorites = getSidebarMiniAppFavoriteIds(favorites)
 
   for (const requiredFavorite of REQUIRED_SIDEBAR_FAVORITES) {
     if (!nextFavorites.includes(requiredFavorite)) {
@@ -68,7 +70,7 @@ function getSidebarFavoritesWithPinnedState({
     nextFavorites.push(favorite)
   }
 
-  return nextFavorites
+  return [...nextFavorites, ...miniAppFavorites]
 }
 
 function reorderByIndex<T>(items: readonly T[], oldIndex: number, newIndex: number): T[] {
@@ -239,12 +241,13 @@ export default function LaunchpadPage() {
   const handleSidebarAppsSortEnd = useCallback(
     ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
       const nextItems = reorderByIndex(pinnedAppMenuItems, oldIndex, newIndex)
+      const miniAppFavorites = getSidebarMiniAppFavoriteIds(sidebarFavorites)
 
-      void setSidebarFavorites(nextItems.map((item) => item.id)).catch(() => {
+      void setSidebarFavorites([...nextItems.map((item) => item.id), ...miniAppFavorites]).catch(() => {
         window.toast?.error(t('common.error'))
       })
     },
-    [pinnedAppMenuItems, setSidebarFavorites, t]
+    [pinnedAppMenuItems, setSidebarFavorites, sidebarFavorites, t]
   )
 
   const handleSidebarMiniAppsSortEnd = useCallback(

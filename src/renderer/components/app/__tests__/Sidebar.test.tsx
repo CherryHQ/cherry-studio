@@ -38,7 +38,7 @@ const mocks = vi.hoisted(() => ({
   sidebarWidth: 50,
   tabs: [] as FakeTab[],
   sidebarFavorites: ['assistants'] as string[],
-  pinnedMiniApps: [] as FakeMiniApp[]
+  miniApps: [] as FakeMiniApp[]
 }))
 
 vi.mock('@data/hooks/useCache', () => ({
@@ -64,7 +64,7 @@ vi.mock('@renderer/hooks/useAvatar', () => ({
 }))
 
 vi.mock('@renderer/hooks/useMiniApps', () => ({
-  useMiniApps: () => ({ pinned: mocks.pinnedMiniApps })
+  useMiniApps: () => ({ miniApps: mocks.miniApps })
 }))
 vi.mock('@renderer/i18n/label', () => ({
   getSidebarIconLabelKey: (icon: string) =>
@@ -231,7 +231,7 @@ afterEach(() => {
     title: 'Chat'
   }
   mocks.tabs = []
-  mocks.pinnedMiniApps = []
+  mocks.miniApps = []
   mocks.sidebarWidth = 50
   vi.useRealTimers()
   document.documentElement.style.removeProperty('--sidebar-width')
@@ -294,9 +294,9 @@ describe('app Sidebar', () => {
     expect(labels).toEqual(['Translate', 'Chat', 'Work'])
   })
 
-  it('renders pinned mini apps directly in the sidebar mini app section', () => {
-    mocks.sidebarFavorites = ['assistants', 'mini_app']
-    mocks.pinnedMiniApps = [
+  it('renders favorite mini apps directly in the sidebar mini app section', () => {
+    mocks.sidebarFavorites = ['assistants', 'mini_app', 'calculator', 'weather']
+    mocks.miniApps = [
       { appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' },
       { appId: 'weather', name: 'Weather', logo: 'weather-logo', url: 'https://weather.example' }
     ]
@@ -322,20 +322,28 @@ describe('app Sidebar', () => {
     ).toEqual(['Calculator', 'Weather'])
   })
 
-  it('does not render mini app ids from sidebar favorites unless the app is pinned', () => {
-    mocks.sidebarFavorites = ['assistants', 'mini_app', 'calculator', 'stale']
+  it('does not render mini apps unless they are sidebar favorites', () => {
+    mocks.sidebarFavorites = ['assistants', 'mini_app']
+    mocks.miniApps = [{ appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }]
 
     render(<Sidebar />)
 
     expect(screen.queryByTestId('sidebar-mini-app-calculator')).not.toBeInTheDocument()
+  })
+
+  it('drops stale mini app ids from sidebar favorites', () => {
+    mocks.sidebarFavorites = ['assistants', 'mini_app', 'calculator', 'stale']
+    mocks.miniApps = [{ appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }]
+
+    render(<Sidebar />)
+
+    expect(screen.getByTestId('sidebar-mini-app-calculator')).toHaveTextContent('Calculator')
     expect(screen.queryByTestId('sidebar-mini-app-stale')).not.toBeInTheDocument()
   })
 
   it('opens a mini app tab from the sidebar mini app section', () => {
-    mocks.sidebarFavorites = ['assistants', 'mini_app']
-    mocks.pinnedMiniApps = [
-      { appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }
-    ]
+    mocks.sidebarFavorites = ['assistants', 'mini_app', 'calculator']
+    mocks.miniApps = [{ appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }]
 
     render(<Sidebar />)
     fireEvent.click(screen.getByTestId('sidebar-mini-app-calculator'))

@@ -105,10 +105,10 @@
     },
     {
       "targetKey": "ui.sidebar.favorites",
-      "type": "PreferenceTypes.SidebarFavorite[]",
+      "type": "string[]",
       "defaultValue": ["assistants", "agents", "store", "translate", "mini_app"],
       "status": "classified",
-      "description": "Left sidebar favorite app ids, stored as an ordered subset of the sidebar app catalog"
+      "description": "Left sidebar favorite ids, stored as fixed sidebar app ids plus mini app ids"
     },
     {
       "targetKey": "chat.default_model_id",

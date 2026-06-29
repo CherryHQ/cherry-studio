@@ -1,5 +1,6 @@
 import { ConfirmDialog } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import MiniAppIcon from '@renderer/components/Icons/MiniAppIcon'
@@ -37,10 +38,12 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
     updateAppStatus,
     removeCustomMiniApp
   } = useMiniApps()
+  const [sidebarFavorites, setSidebarFavorites] = usePreference('ui.sidebar.favorites')
   const { openTab } = useTabs()
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false)
   const [removingCustom, setRemovingCustom] = useState(false)
   const isPinned = pinned.some((p) => p.appId === app.appId)
+  const isSidebarFavorite = sidebarFavorites?.includes(app.appId) ?? false
   const isVisible = miniApps.some((m) => m.appId === app.appId)
   // Pinned apps should always be visible regardless of region/locale filtering
   const shouldShow = isVisible || isPinned
@@ -94,6 +97,15 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
     )
   }
 
+  const handleToggleSidebarFavorite = () => {
+    const currentFavorites = sidebarFavorites ?? []
+    const nextFavorites = isSidebarFavorite
+      ? currentFavorites.filter((favorite) => favorite !== app.appId)
+      : [...currentFavorites.filter((favorite) => favorite !== app.appId), app.appId]
+
+    setSidebarFavorites(nextFavorites).catch(reportFailure('common.error'))
+  }
+
   const handleHide = () => {
     updateAppStatus(app.appId, 'disabled')
       .then(() => {
@@ -127,6 +139,12 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
 
   const contextMenuItems: CommandContextMenuExtraItem[] = [
     { type: 'item', id: 'mini-app.toggle-pin', label: togglePinLabel, onSelect: handleTogglePin },
+    {
+      type: 'item',
+      id: 'mini-app.toggle-sidebar-favorite',
+      label: t(isSidebarFavorite ? 'miniApp.remove_from_sidebar' : 'miniApp.add_to_sidebar'),
+      onSelect: handleToggleSidebarFavorite
+    },
     ...(!isPinned
       ? ([
           { type: 'item', id: 'mini-app.hide', label: t('miniApp.sidebar.hide.title'), onSelect: handleHide }

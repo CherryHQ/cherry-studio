@@ -13,6 +13,7 @@ import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import {
   getOrderedVisibleSidebarFavorites,
   getSidebarMenuPath,
+  getSidebarMiniAppFavoriteIds,
   resolveSidebarActiveItem
 } from '@renderer/utils/sidebar'
 import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
@@ -46,7 +47,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const [userName] = usePreference('app.user.name')
   const [sidebarFavorites] = usePreference('ui.sidebar.favorites')
   const { activeTab, updateTab, openTab } = useTabs()
-  const { pinned: pinnedMiniApps } = useMiniApps()
+  const { miniApps } = useMiniApps()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
 
   // Sidebar width — persisted across restarts. Dragging through the
@@ -105,19 +106,29 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   // Menu items
   const pathname = activeTab?.url || '/'
   const activeMiniAppId = getMiniAppIdFromUrl(activeTab?.url)
+  const sidebarMiniAppFavoriteIds = useMemo(() => getSidebarMiniAppFavoriteIds(sidebarFavorites), [sidebarFavorites])
 
   const sidebarMiniAppTabs = useMemo<SidebarMiniAppTab[]>(() => {
-    return pinnedMiniApps.map((app) => ({
-      id: app.appId,
-      title: app.nameKey ? t(app.nameKey) : app.name,
-      type: 'miniapp',
-      miniApp: {
-        id: app.appId,
-        logo: app.logo,
-        url: app.url
-      }
-    }))
-  }, [pinnedMiniApps, t])
+    const appById = new Map(miniApps.map((app) => [app.appId, app]))
+
+    return sidebarMiniAppFavoriteIds.flatMap((appId) => {
+      const app = appById.get(appId)
+      if (!app) return []
+
+      return [
+        {
+          id: app.appId,
+          title: app.nameKey ? t(app.nameKey) : app.name,
+          type: 'miniapp',
+          miniApp: {
+            id: app.appId,
+            logo: app.logo,
+            url: app.url
+          }
+        }
+      ]
+    })
+  }, [miniApps, sidebarMiniAppFavoriteIds, t])
 
   const items = useMemo<SidebarMenuItem[]>(
     () =>
@@ -183,7 +194,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const handleOpenMiniAppTab = useCallback(
     (appId: string) => {
-      const app = pinnedMiniApps.find((item) => item.appId === appId)
+      const app = miniApps.find((item) => item.appId === appId)
       if (!app) return
 
       openTab(`${MINI_APP_ROUTE_PREFIX}${app.appId}`, {
@@ -191,7 +202,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         icon: app.logo
       })
     },
-    [openTab, pinnedMiniApps, t]
+    [miniApps, openTab, t]
   )
 
   // Common props shared between normal and floating sidebar

@@ -6,6 +6,7 @@ import {
   getOrderedVisibleSidebarFavorites,
   getRequiredSidebarFavoritesVisible,
   getSidebarMenuPath,
+  getSidebarMiniAppFavoriteIds,
   resolveSidebarActiveItem,
   SIDEBAR_FAVORITE_ORDER
 } from '../sidebar'
@@ -42,11 +43,18 @@ describe('sidebar config helpers', () => {
     ])
   })
 
-  it('ignores pinned mini app ids when reading system sidebar favorites', () => {
+  it('ignores mini app ids when reading system sidebar favorites', () => {
     expect(getOrderedVisibleSidebarFavorites(['translate', 'calculator', 'assistants', 'agents'])).toEqual([
       'translate',
       'assistants',
       'agents'
+    ])
+  })
+
+  it('reads mini app favorite ids from the shared sidebar favorites field', () => {
+    expect(getSidebarMiniAppFavoriteIds(['translate', 'calculator', 'assistants', 'calculator', 'weather'])).toEqual([
+      'calculator',
+      'weather'
     ])
   })
 

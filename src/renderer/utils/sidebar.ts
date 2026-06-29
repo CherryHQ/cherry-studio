@@ -218,6 +218,19 @@ export function sanitizeSidebarFavorites(favorites: readonly string[] | undefine
   })
 }
 
+export function getSidebarMiniAppFavoriteIds(favorites: readonly string[] | undefined): string[] {
+  const seen = new Set<string>()
+
+  return (favorites ?? []).filter((favorite) => {
+    if (isSidebarFavorite(favorite) || seen.has(favorite)) {
+      return false
+    }
+
+    seen.add(favorite)
+    return true
+  })
+}
+
 export function getRequiredSidebarFavoritesVisible(favorites: readonly string[] | undefined): SidebarFavorite[] {
   const visible = new Set(sanitizeSidebarFavorites(favorites))
 
