@@ -12,10 +12,11 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { decodeTextWithAutoEncoding } from '@main/utils/file'
+import { convertOfficeToText } from '@main/utils/officeText'
 import { extractPdfText } from '@main/utils/pdf'
 import type { FileEntryId } from '@shared/data/types/file'
 import { documentExts } from '@shared/utils/file'
-import { OfficeConverter, type SupportedFileType } from 'officeparser'
+import type { SupportedFileType } from 'officeparser'
 import WordExtractor from 'word-extractor'
 
 const logger = loggerService.withContext('ai:documentExtraction')
@@ -40,20 +41,7 @@ async function extract(entryId: FileEntryId, ext: string): Promise<string> {
     return extracted.getBody().trim()
   }
   if (OFFICE_PARSER_EXTS.has(ext as SupportedFileType)) {
-    const result = await OfficeConverter.convert(buffer, 'text', {
-      parseConfig: {
-        fileType: ext as SupportedFileType
-      },
-      generatorConfig: {
-        includeImages: false,
-        includeCharts: false,
-        textConfig: {
-          newlineDelimiter: '\n',
-          preserveLayout: true
-        }
-      }
-    })
-    return String(result.value).trim()
+    return (await convertOfficeToText(buffer, ext as SupportedFileType)).trim()
   }
   if (documentExts.includes(`.${ext}`)) return ''
   return decodeTextWithAutoEncoding(buffer).trim()

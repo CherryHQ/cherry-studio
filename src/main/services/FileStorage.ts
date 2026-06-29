@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { checkName, getFileType as getFileTypeByExt, getName, readTextFileWithAutoEncoding } from '@main/utils/file'
 import { t } from '@main/utils/language'
+import { convertOfficeToText } from '@main/utils/officeText'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import type { FileType } from '@shared/types/file'
 import { FILE_TYPE } from '@shared/types/file'
@@ -17,7 +18,6 @@ import * as fs from 'fs'
 import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
 import { isBinaryFile } from 'isbinaryfile'
-import { OfficeConverter } from 'officeparser'
 import * as path from 'path'
 import { PDFDocument } from 'pdf-lib'
 import { v4 as uuidv4 } from 'uuid'
@@ -403,17 +403,7 @@ class FileStorage {
           throw new Error(`Unsupported document format: ${fileExtension}`)
         }
 
-        const data = await OfficeConverter.convert(filePath, 'text', {
-          generatorConfig: {
-            includeImages: false,
-            includeCharts: false,
-            textConfig: {
-              newlineDelimiter: '\n',
-              preserveLayout: true
-            }
-          }
-        })
-        return String(data.value)
+        return await convertOfficeToText(filePath)
       } catch (error) {
         logger.error('Failed to read document file:', error as Error)
         throw error
