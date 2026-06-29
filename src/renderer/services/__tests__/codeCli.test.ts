@@ -198,14 +198,14 @@ describe('injectCliConfig', () => {
       const { parse: parseToml } = await import('smol-toml')
       const parsed = parseToml(tomlWrite!.content) as Record<string, any>
       expect(parsed.model).toBe('deepseek-chat')
-      expect(parsed.model_provider).toBe('Cherry-DeepSeek')
-      expect(parsed.model_providers['Cherry-DeepSeek'].base_url).toBe('https://api.deepseek.com/v1')
-      expect(parsed.model_providers['Cherry-DeepSeek'].requires_openai_auth).toBe(true)
+      expect(parsed.model_provider).toBe('cherry-DeepSeek')
+      expect(parsed.model_providers['cherry-DeepSeek'].base_url).toBe('https://api.deepseek.com/v1')
+      expect(parsed.model_providers['cherry-DeepSeek'].requires_openai_auth).toBe(true)
       // chat-completions-only provider → wire_api follows the endpoint
-      expect(parsed.model_providers['Cherry-DeepSeek'].wire_api).toBe('chat_completions')
+      expect(parsed.model_providers['cherry-DeepSeek'].wire_api).toBe('chat_completions')
       // key lives in auth.json now, not as a bearer token
-      expect(parsed.model_providers['Cherry-DeepSeek']).not.toHaveProperty('experimental_bearer_token')
-      expect(parsed.model_providers['Cherry-DeepSeek'].name).toBe('DeepSeek')
+      expect(parsed.model_providers['cherry-DeepSeek']).not.toHaveProperty('experimental_bearer_token')
+      expect(parsed.model_providers['cherry-DeepSeek'].name).toBe('DeepSeek')
       // goal mode is off by default → no features block
       expect(parsed).not.toHaveProperty('features')
 
@@ -249,7 +249,7 @@ describe('injectCliConfig', () => {
       const { parse: parseToml } = await import('smol-toml')
       const parsed = parseToml(findWrite('config.toml')!.content) as Record<string, any>
       expect(parsed.features).toEqual({ goals: true })
-      expect(parsed.model_providers['Cherry-DeepSeek'].name).toBe('OpenAI')
+      expect(parsed.model_providers['cherry-DeepSeek'].name).toBe('OpenAI')
     })
 
     it('clears stale goal-mode / OpenAI name from a previous config when toggles are off', async () => {
@@ -257,12 +257,12 @@ describe('injectCliConfig', () => {
       // asserts neither, so both must be cleared (configs are independent).
       existing['/resolved~/.codex/config.toml'] = [
         'model = "deepseek-chat"',
-        'model_provider = "Cherry-DeepSeek"',
+        'model_provider = "cherry-DeepSeek"',
         '',
         '[features]',
         'goals = true',
         '',
-        '[model_providers.Cherry-DeepSeek]',
+        '[model_providers.cherry-DeepSeek]',
         'name = "OpenAI"',
         'base_url = "https://api.deepseek.com/v1"',
         'wire_api = "responses"',
@@ -284,7 +284,7 @@ describe('injectCliConfig', () => {
       const { parse: parseToml } = await import('smol-toml')
       const parsed = parseToml(findWrite('config.toml')!.content) as Record<string, any>
       expect(parsed).not.toHaveProperty('features')
-      expect(parsed.model_providers['Cherry-DeepSeek'].name).toBe('DeepSeek')
+      expect(parsed.model_providers['cherry-DeepSeek'].name).toBe('DeepSeek')
     })
 
     it('prefers the responses endpoint and sets wire_api = responses when available', async () => {
@@ -305,8 +305,8 @@ describe('injectCliConfig', () => {
 
       const { parse: parseToml } = await import('smol-toml')
       const parsed = parseToml(findWrite('config.toml')!.content) as Record<string, any>
-      expect(parsed.model_providers['Cherry-DeepSeek'].base_url).toBe('https://api.deepseek.com/v1')
-      expect(parsed.model_providers['Cherry-DeepSeek'].wire_api).toBe('responses')
+      expect(parsed.model_providers['cherry-DeepSeek'].base_url).toBe('https://api.deepseek.com/v1')
+      expect(parsed.model_providers['cherry-DeepSeek'].wire_api).toBe('responses')
     })
 
     it('throws when the provider has no OpenAI endpoint base URL', async () => {
@@ -343,7 +343,7 @@ describe('injectCliConfig', () => {
       })
 
       const parsed = JSON.parse(opencodeWrite().content)
-      const provider = parsed.provider['Cherry-DeepSeek']
+      const provider = parsed.provider['cherry-DeepSeek']
       expect(provider.npm).toBe('@ai-sdk/openai-compatible')
       expect(provider.options.apiKey).toBe('sk-secret')
       expect(provider.options.baseURL).toBe('https://api.deepseek.com/v1')
@@ -367,7 +367,7 @@ describe('injectCliConfig', () => {
       })
 
       const parsed = JSON.parse(opencodeWrite().content)
-      const model = parsed.provider['Cherry-Anthropic'].models['claude-sonnet-4-5']
+      const model = parsed.provider['cherry-Anthropic'].models['claude-sonnet-4-5']
       expect(model.reasoning).toBe(true)
       expect(model.options.thinking).toEqual({ budgetTokens: 10000, type: 'enabled' })
     })
@@ -386,7 +386,7 @@ describe('injectCliConfig', () => {
       })
 
       const parsed = JSON.parse(opencodeWrite().content)
-      const model = parsed.provider['Cherry-DeepSeek'].models['deepseek-chat']
+      const model = parsed.provider['cherry-DeepSeek'].models['deepseek-chat']
       expect(model.reasoning).toBe(true)
       expect(model.options.reasoningEffort).toBe('medium')
     })

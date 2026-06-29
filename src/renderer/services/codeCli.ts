@@ -60,7 +60,7 @@ const CLAUDE_MANAGED_ENV_KEYS = [
 ] as const
 
 const OPENCODE_SCHEMA = 'https://opencode.ai/config.json'
-const CHERRY_PROVIDER_PREFIX = 'Cherry-'
+const CHERRY_PROVIDER_PREFIX = 'cherry-'
 const CODEX_MANAGED_TOP_LEVEL_KEYS = [
   'model_reasoning_effort',
   'disable_response_storage',
@@ -184,11 +184,11 @@ async function writeCodex(
   options: CodexConfigOptions = {}
 ): Promise<void> {
   const { apiKey, baseUrl, providerName, model } = resolved
-  const providerKey = `Cherry-${providerName.replace(/\./g, '-')}`
+  const providerKey = `${CHERRY_PROVIDER_PREFIX}${providerName.replace(/\./g, '-')}`
   const existingProviders =
     existingToml.model_providers && typeof existingToml.model_providers === 'object' ? existingToml.model_providers : {}
   const preservedProviders = Object.fromEntries(
-    Object.entries(existingProviders).filter(([key]) => !key.startsWith('Cherry-'))
+    Object.entries(existingProviders).filter(([key]) => !key.startsWith(CHERRY_PROVIDER_PREFIX))
   )
   const cleaned: Record<string, any> = {}
   for (const [key, value] of Object.entries(existingToml)) {

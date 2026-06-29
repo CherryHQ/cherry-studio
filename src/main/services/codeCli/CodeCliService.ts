@@ -24,8 +24,8 @@ import { isMac, isWin } from '@main/core/platform'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { regionService } from '@main/services/RegionService'
-import { removeEnvProxy } from '@main/utils/shell-env'
 import { getBinaryExecutionEnv, getBinaryPath, isBinaryExists } from '@main/utils/process'
+import { removeEnvProxy } from '@main/utils/shell-env'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -789,7 +789,7 @@ export class CodeCliService extends BaseService {
       } catch {
         /* keep default */
       }
-      baseCommand = `${baseCommand} --model Cherry-${providerName}/${model}`
+      baseCommand = `${baseCommand} --model cherry-${providerName}/${model}`
       env.OPENCODE_DISABLE_AUTOUPDATE = 'true'
     }
 

@@ -1,15 +1,12 @@
 import type { FC } from 'react'
-import type { ReactNode } from 'react'
-import { useCallback, useState } from 'react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { AdvancedConfigToggle } from '../AdvancedConfigToggle'
 import { TogglePill } from '../TogglePill'
 
 export interface CodexConfigFieldsProps {
   config: Record<string, unknown>
   onChange: (next: Record<string, unknown>) => void
-  children?: ReactNode
 }
 
 type CodexFlag = 'goalMode' | 'remoteCompaction' | 'commonConfig'
@@ -17,9 +14,8 @@ type CodexFlag = 'goalMode' | 'remoteCompaction' | 'commonConfig'
 /** Codex config toggles stored on the config blob and applied to
  * `~/.codex/config.toml` by `writeCodex` at launch. `commonConfig` is UI-only
  * for now — merging a shared TOML snippet needs a snippet source first. */
-export const CodexConfigFields: FC<CodexConfigFieldsProps> = ({ config, onChange, children }) => {
+export const CodexConfigFields: FC<CodexConfigFieldsProps> = ({ config, onChange }) => {
   const { t } = useTranslation()
-  const [advancedOpen, setAdvancedOpen] = useState(false)
 
   const goalMode = config.goalMode === true
   const remoteCompaction = config.remoteCompaction === true
@@ -36,28 +32,22 @@ export const CodexConfigFields: FC<CodexConfigFieldsProps> = ({ config, onChange
   )
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-1.5">
-        <TogglePill
-          label={t('code.adv.codex.goal_mode')}
-          active={goalMode}
-          onClick={() => toggle('goalMode', !goalMode)}
-        />
-        <TogglePill
-          label={t('code.adv.codex.remote_compaction')}
-          active={remoteCompaction}
-          onClick={() => toggle('remoteCompaction', !remoteCompaction)}
-        />
-        <TogglePill
-          label={t('code.adv.codex.common_config')}
-          active={commonConfig}
-          onClick={() => toggle('commonConfig', !commonConfig)}
-        />
-      </div>
-
-      <AdvancedConfigToggle open={advancedOpen} onToggle={() => setAdvancedOpen((o) => !o)}>
-        {children}
-      </AdvancedConfigToggle>
+    <div className="flex flex-wrap gap-1.5">
+      <TogglePill
+        label={t('code.adv.codex.goal_mode')}
+        active={goalMode}
+        onClick={() => toggle('goalMode', !goalMode)}
+      />
+      <TogglePill
+        label={t('code.adv.codex.remote_compaction')}
+        active={remoteCompaction}
+        onClick={() => toggle('remoteCompaction', !remoteCompaction)}
+      />
+      <TogglePill
+        label={t('code.adv.codex.common_config')}
+        active={commonConfig}
+        onClick={() => toggle('commonConfig', !commonConfig)}
+      />
     </div>
   )
 }

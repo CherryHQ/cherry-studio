@@ -37,7 +37,6 @@ function setupUpdaterMock(configs: CodeCliConfigs) {
 const cfg = (overrides: Partial<CliProviderConfig> = {}): CliProviderConfig => ({
   modelId: overrides.modelId ?? 'anthropic::claude-4',
   ...(overrides.config ? { config: overrides.config } : {}),
-  ...(overrides.directory ? { directory: overrides.directory } : {}),
   ...(overrides.createdAt ? { createdAt: overrides.createdAt } : {})
 })
 
@@ -125,9 +124,9 @@ describe('useCodeCli', () => {
       expect(lastWrite['claude-code'].providers['openrouter'].modelId).toBe('openrouter::claude-4')
     })
 
-    it('should preserve existing config/directory when updating only modelId', async () => {
+    it('should preserve existing config when updating only modelId', async () => {
       const mockSetter = setupUpdaterMock({
-        'claude-code': state({ anthropic: cfg({ directory: '/keep', config: { foo: 1 } }) }, 'anthropic')
+        'claude-code': state({ anthropic: cfg({ config: { foo: 1 } }) }, 'anthropic')
       } as unknown as CodeCliConfigs)
       const { result } = renderHook(() => useCodeCli())
 
@@ -140,7 +139,6 @@ describe('useCodeCli', () => {
       const lastWrite = mockSetter.mock.calls.at(-1)?.[0] as CodeCliConfigs
       const updated = lastWrite['claude-code'].providers['anthropic']
       expect(updated.modelId).toBe('anthropic::claude-5')
-      expect(updated.directory).toBe('/keep')
       expect(updated.config).toEqual({ foo: 1 })
     })
   })
@@ -230,18 +228,18 @@ describe('useCodeCli', () => {
   })
 
   describe('setDirectory', () => {
-    it('should set a provider directory and prepend to the tool MRU list', async () => {
+    it('should set the tool-level directory and prepend to the MRU list', async () => {
       const mockSetter = setupUpdaterMock({
         'claude-code': state({ anthropic: cfg() }, 'anthropic')
       } as unknown as CodeCliConfigs)
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
-        await result.current.setDirectory('anthropic', '/new/project')
+        await result.current.setDirectory('/new/project')
       })
 
       const lastWrite = mockSetter.mock.calls.at(-1)?.[0] as CodeCliConfigs
-      expect(lastWrite['claude-code'].providers['anthropic'].directory).toBe('/new/project')
+      expect(lastWrite['claude-code'].directory).toBe('/new/project')
       expect(lastWrite['claude-code'].directories).toContain('/new/project')
     })
   })

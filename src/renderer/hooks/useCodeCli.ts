@@ -43,6 +43,7 @@ export const useCodeCli = () => {
     [currentToolState, currentProviderId]
   )
   const selectedTerminal = currentToolState.terminal
+  const directory = currentToolState.directory
   const providerConfigs = currentToolState.providers
 
   const patchToolState = useCallback(
@@ -67,7 +68,6 @@ export const useCodeCli = () => {
       const next: CliProviderConfig = {
         modelId: partial.modelId,
         ...(partial.config || existing?.config ? { config: partial.config ?? existing?.config } : {}),
-        ...(partial.directory || existing?.directory ? { directory: partial.directory ?? existing?.directory } : {}),
         createdAt: existing?.createdAt ?? now
       }
       await patchToolState(toolId, (prev) => ({
@@ -120,45 +120,37 @@ export const useCodeCli = () => {
   )
 
   const setDirectory = useCallback(
-    async (providerId: string, directory: string) => {
+    async (directory: string) => {
       const toolId = selectedCliTool as CodeCliId
-      const state = getToolState(toolId, configs)
-      const currentDirs = state.directories ?? []
-      let newDirs: string[]
-      if (directory && !currentDirs.includes(directory)) {
-        newDirs = [directory, ...currentDirs].slice(0, 10)
-      } else if (directory && currentDirs.includes(directory)) {
-        newDirs = [directory, ...currentDirs.filter((d) => d !== directory)]
-      } else {
-        newDirs = currentDirs
-      }
-      await patchToolState(toolId, (prev) => ({
-        ...prev,
-        directories: newDirs,
-        providers: prev.providers[providerId]
-          ? { ...prev.providers, [providerId]: { ...prev.providers[providerId], directory } }
-          : prev.providers
-      }))
+      await patchToolState(toolId, (prev) => {
+        const currentDirs = prev.directories ?? []
+        let newDirs: string[]
+        if (directory && !currentDirs.includes(directory)) {
+          newDirs = [directory, ...currentDirs].slice(0, 10)
+        } else if (directory && currentDirs.includes(directory)) {
+          newDirs = [directory, ...currentDirs.filter((d) => d !== directory)]
+        } else {
+          newDirs = currentDirs
+        }
+        return { ...prev, directory, directories: newDirs }
+      })
     },
-    [configs, patchToolState, selectedCliTool]
+    [patchToolState, selectedCliTool]
   )
 
-  const selectFolder = useCallback(
-    async (providerId: string): Promise<string | null> => {
-      try {
-        const folderPath = await window.api.file.selectFolder()
-        if (folderPath) {
-          await setDirectory(providerId, folderPath)
-          return folderPath
-        }
-        return null
-      } catch (error) {
-        logger.error('Failed to select folder:', error as Error)
-        throw error
+  const selectFolder = useCallback(async (): Promise<string | null> => {
+    try {
+      const folderPath = await window.api.file.selectFolder()
+      if (folderPath) {
+        await setDirectory(folderPath)
+        return folderPath
       }
-    },
-    [setDirectory]
-  )
+      return null
+    } catch (error) {
+      logger.error('Failed to select folder:', error as Error)
+      throw error
+    }
+  }, [setDirectory])
 
   return {
     selectedCliTool,
@@ -166,6 +158,7 @@ export const useCodeCli = () => {
     currentProviderId,
     currentProviderConfig,
     providerConfigs,
+    directory,
     selectedTerminal,
     upsertProviderConfig,
     deleteProviderConfig,

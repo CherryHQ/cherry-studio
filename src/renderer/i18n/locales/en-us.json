@@ -1957,15 +1957,6 @@
         "goal_mode": "Enable Goal Mode",
         "remote_compaction": "Enable Remote Compaction"
       },
-      "hermes": {
-        "context_length": "Context Length",
-        "max_tokens": "Max Tokens"
-      },
-      "openclaw": {
-        "context_window": "Context Window",
-        "max_tokens": "Max Tokens",
-        "reasoning": "Enable Reasoning"
-      },
       "select_placeholder": "Select…"
     },
     "apply_failed": "Failed to write CLI config to the system file",
@@ -1990,6 +1981,8 @@
     "edit_config": "Edit Config",
     "enable": "Enable",
     "enabled": "Enabled",
+    "endpoint_default": "Using provider default",
+    "endpoint_hint": "Endpoint / Key in Model Service",
     "env_vars_help": "Enter custom environment variables (one per line, format: KEY=value)",
     "environment_variables": "Environment Variables",
     "folder_placeholder": "Select working directory",

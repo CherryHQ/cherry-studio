@@ -4,11 +4,12 @@ import { ModelSelector } from '@renderer/components/Selector/model'
 import { useModelById } from '@renderer/hooks/useModel'
 import { getProviderDisplayName } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { SettingContainer, SettingDivider, SettingGroup, SettingHelpText, SettingTitle } from '@renderer/pages/settings'
+import { SettingContainer, SettingGroup, SettingHelpText, SettingTitle } from '@renderer/pages/settings'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
-import type { Provider } from '@shared/data/types/provider'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
+import { getProviderHostTopology } from '@shared/utils/providerTopology'
 import { ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
 import type { ReactNode } from 'react'
@@ -17,9 +18,6 @@ import { useTranslation } from 'react-i18next'
 
 import { ClaudeConfigFields } from './tools/ClaudeConfigFields'
 import { CodexConfigFields } from './tools/CodexConfigFields'
-import { HermesConfigFields } from './tools/HermesConfigFields'
-import { OpenclawConfigFields } from './tools/OpenclawConfigFields'
-import { OpenCodeConfigFields } from './tools/OpenCodeConfigFields'
 
 export interface ConfigEditPanelProps {
   open: boolean
@@ -51,6 +49,8 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
 
   const { model: selectedModelRecord } = useModelById(modelId ?? null)
 
+  const endpointUrl = getProviderHostTopology(provider).primaryBaseUrl
+
   const canSubmit = !!modelId
 
   const renderModelTrigger = () => (
@@ -74,9 +74,17 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
     </button>
   )
 
-  // The model picker is folded into each tool's Advanced Settings collapsible
-  // (passed as `children`), so there is exactly ONE Advanced Settings toggle
-  // per panel instead of a panel-level wrapper duplicating each tool's own.
+  const endpointRow: ReactNode = (
+    <div className="flex items-center gap-2 rounded-lg border border-border/40 bg-accent/15 px-3 py-2">
+      <span className="h-2 w-2 shrink-0 rounded-full bg-success" />
+      <span className="shrink-0 text-xs font-medium text-foreground">{getProviderDisplayName(provider)}</span>
+      <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground/45">
+        {endpointUrl || t('code.endpoint_default')}
+      </span>
+      <span className="shrink-0 text-[10px] text-muted-foreground/45">{t('code.endpoint_hint')}</span>
+    </div>
+  )
+
   const modelSlot: ReactNode = (
     <>
       <ModelSelector
@@ -103,40 +111,12 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
     }
   }, [canSubmit, modelId, config, onSubmit, onClose])
 
-  // Computed once per render so the stateful ModelSelector (inside modelSlot)
-  // isn't mounted twice.
   const toolFields: ReactNode = (() => {
     switch (cliTool) {
       case CodeCli.CLAUDE_CODE:
-        return (
-          <ClaudeConfigFields config={config} onChange={setConfig}>
-            {modelSlot}
-          </ClaudeConfigFields>
-        )
+        return <ClaudeConfigFields config={config} onChange={setConfig} />
       case CodeCli.OPENAI_CODEX:
-        return (
-          <CodexConfigFields config={config} onChange={setConfig}>
-            {modelSlot}
-          </CodexConfigFields>
-        )
-      case CodeCli.OPEN_CODE:
-        return (
-          <OpenCodeConfigFields config={config} onChange={setConfig}>
-            {modelSlot}
-          </OpenCodeConfigFields>
-        )
-      case CodeCli.OPENCLAW:
-        return (
-          <OpenclawConfigFields config={config} onChange={setConfig}>
-            {modelSlot}
-          </OpenclawConfigFields>
-        )
-      case CodeCli.HERMES:
-        return (
-          <HermesConfigFields config={config} onChange={setConfig}>
-            {modelSlot}
-          </HermesConfigFields>
-        )
+        return <CodexConfigFields config={config} onChange={setConfig} />
       default:
         return null
     }
@@ -153,11 +133,15 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
           <DialogTitle>{t('code.configuring_provider', { provider: getProviderDisplayName(provider) })}</DialogTitle>
         </DialogHeader>
 
-        <SettingContainer theme={theme} style={{ background: 'transparent' }}>
+        <SettingContainer theme={theme} style={{ background: 'transparent' }} className="gap-5">
+          {endpointRow}
+          <SettingGroup theme={theme} className="border-t-0 pt-0">
+            <SettingTitle className="mb-2.5">{t('code.model')}</SettingTitle>
+            {modelSlot}
+          </SettingGroup>
           {toolFields && (
-            <SettingGroup theme={theme}>
-              <SettingTitle>{t('code.tool_parameters')}</SettingTitle>
-              <SettingDivider />
+            <SettingGroup theme={theme} className="border-t-0 pt-0">
+              <SettingTitle className="mb-2.5">{t('code.tool_parameters')}</SettingTitle>
               {toolFields}
             </SettingGroup>
           )}

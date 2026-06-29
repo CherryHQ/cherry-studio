@@ -255,7 +255,6 @@ export interface CliProviderConfig {
   modelId: string
   /** User-edited tool-specific config blob. */
   config?: Record<string, unknown>
-  directory?: string
   createdAt?: number
 }
 
@@ -268,6 +267,9 @@ export interface CodeCliToolState {
   providerOrder?: string[]
   /** Terminal app — matches `terminalApps` values. */
   terminal?: string
+  /** Working directory for this CLI tool (shared across all its providers). */
+  directory?: string
+  /** Most-recently-used working directories (MRU, tool-level). */
   directories?: string[]
 }
 

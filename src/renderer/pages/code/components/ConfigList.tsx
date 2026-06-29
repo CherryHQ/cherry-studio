@@ -52,7 +52,6 @@ export const ConfigList: FC<ConfigListProps> = ({
           <ProviderCard
             provider={provider}
             providerName={meta.providerName}
-            providerConfig={cfg}
             modelName={meta.modelName}
             isCurrent={currentProviderId === provider.id}
             dragging={dragging}

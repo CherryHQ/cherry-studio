@@ -1,7 +1,6 @@
 import { Input, Switch } from '@cherrystudio/ui'
 import { SettingHelpText } from '@renderer/pages/settings'
 import type { FC } from 'react'
-import type { ReactNode } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -36,7 +35,6 @@ const BOOLEAN_TOGGLES = [
 export interface ClaudeConfigFieldsProps {
   config: Record<string, unknown>
   onChange: (next: Record<string, unknown>) => void
-  children?: ReactNode
 }
 
 function getEnv(config: Record<string, unknown>): Record<string, string> {
@@ -72,7 +70,7 @@ function setOneMMarker(value: string, enabled: boolean): string {
 }
 
 /** Self-contained Claude Code configuration fields. */
-export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({ config, onChange, children }) => {
+export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({ config, onChange }) => {
   const { t } = useTranslation()
 
   const env = useMemo(() => getEnv(config), [config])
@@ -142,7 +140,6 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({ config, onChan
       </div>
 
       <AdvancedConfigToggle open={advancedOpen} onToggle={() => setAdvancedOpen((o) => !o)}>
-        {children}
         {/* Model role mapping (role | model | 1M) */}
         <SettingHelpText className="mb-2">{t('code.adv.claude.model_roles_hint')}</SettingHelpText>
         <div className="overflow-hidden rounded-lg border border-border/40">

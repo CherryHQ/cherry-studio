@@ -1,13 +1,6 @@
-import { Button, Label } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
-import type { FC, ReactNode } from 'react'
-
-export const FormField: FC<{ label: string; children: ReactNode }> = ({ label, children }) => (
-  <div className="flex min-w-0 flex-col gap-1.5">
-    <Label className="font-normal text-muted-foreground text-xs">{label}</Label>
-    {children}
-  </div>
-)
+import type { FC } from 'react'
 
 /** "Advanced Settings" toggle (ghost button with a leading icon). */
 export const AdvancedSettingsButton: FC<React.ComponentPropsWithoutRef<typeof Button>> = ({

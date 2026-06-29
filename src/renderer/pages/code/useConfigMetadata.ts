@@ -1,10 +1,11 @@
 import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName } from '@renderer/hooks/useProvider'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
-import { isUniqueModelId, type Model, type UniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { CodeCli } from '@shared/types/codeCli'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@shared/utils/model'
+import { isCherryAIProvider } from '@shared/utils/provider'
 import { useCallback, useMemo } from 'react'
 
 import { CLI_TOOL_PROVIDER_MAP } from './cliTools'
@@ -29,7 +30,7 @@ export function useConfigMetadata(selectedCliTool: CodeCli) {
   const filterProviders = useCallback(
     (providers: Provider[]): Provider[] => {
       const filterFn = CLI_TOOL_PROVIDER_MAP[selectedCliTool]
-      return filterFn ? filterFn(providers).filter((p) => p.isEnabled) : []
+      return filterFn ? filterFn(providers).filter((p) => p.isEnabled && !isCherryAIProvider(p)) : []
     },
     [selectedCliTool]
   )

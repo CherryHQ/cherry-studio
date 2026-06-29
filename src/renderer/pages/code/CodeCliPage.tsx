@@ -5,15 +5,15 @@ import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { injectCliConfig } from '@renderer/services/codeCli'
 import { loggerService } from '@renderer/services/LoggerService'
-import type { Provider } from '@shared/data/types/provider'
+import { CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
-import { CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
+import type { Provider } from '@shared/data/types/provider'
+import { useNavigate } from '@tanstack/react-router'
 import { Play, Plus } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from '@tanstack/react-router'
 
 import { CLI_TOOLS } from './cliTools'
 import { CodeCliSidebar } from './components/CodeCliSidebar'
@@ -48,6 +48,7 @@ const CodeCliPage: FC = () => {
     currentProviderId,
     currentProviderConfig,
     providerConfigs,
+    directory,
     upsertProviderConfig,
     setCurrentProvider,
     reorderProviders,
@@ -160,18 +161,17 @@ const CodeCliPage: FC = () => {
   )
 
   const handleSelectFolder = useCallback(async () => {
-    if (!currentProviderId) return
     try {
-      await selectFolder(currentProviderId)
+      await selectFolder()
     } catch (err) {
       logger.error('Failed to select folder:', err as Error)
     }
-  }, [currentProviderId, selectFolder])
+  }, [selectFolder])
 
   // The native config file is written at "enable" time, not here — launch only
   // opens a terminal running the CLI in the provider's directory.
   const handleLaunch = useCallback(async () => {
-    if (!currentProviderConfig || !currentProviderConfig.directory) {
+    if (!currentProviderConfig || !directory) {
       window.toast.error(t('code.folder_placeholder'))
       return
     }
@@ -183,7 +183,7 @@ const CodeCliPage: FC = () => {
         selectedCliTool,
         rawModelId,
         providerId,
-        currentProviderConfig.directory,
+        directory,
         {},
         { terminal: selectedTerminal ?? undefined }
       )
@@ -194,7 +194,7 @@ const CodeCliPage: FC = () => {
       logger.error('Failed to launch CLI tool:', err as Error)
       window.toast.error(t('code.launch.error'))
     }
-  }, [currentProviderConfig, selectedCliTool, selectedTerminal, t])
+  }, [currentProviderConfig, directory, selectedCliTool, selectedTerminal, t])
 
   const activeTool = useMemo<CliToolOption | undefined>(
     () => CLI_TOOLS.find((ti) => ti.value === selectedCliTool),
@@ -251,7 +251,7 @@ const CodeCliPage: FC = () => {
                     variant="default"
                     size="sm"
                     onClick={() => void handleLaunch()}
-                    disabled={!currentProviderConfig?.directory}
+                    disabled={!currentProviderConfig || !directory}
                     className="gap-1 text-xs">
                     <Play size={12} />
                     {t('code.launch.label')}
@@ -295,16 +295,14 @@ const CodeCliPage: FC = () => {
                   {t('code.add_provider_hint')}
                 </button>
 
-                {/* Current provider: working directory + terminal */}
-                {currentProviderConfig && (
-                  <CurrentConfigPanel
-                    directory={currentProviderConfig.directory}
-                    terminals={availableTerminals}
-                    selectedTerminal={selectedTerminal}
-                    onSelectFolder={() => void handleSelectFolder()}
-                    onSelectTerminal={(terminal) => void setTerminal(terminal)}
-                  />
-                )}
+                {/* Working directory + terminal (per CLI tool, shared across providers) */}
+                <CurrentConfigPanel
+                  directory={directory}
+                  terminals={availableTerminals}
+                  selectedTerminal={selectedTerminal}
+                  onSelectFolder={() => void handleSelectFolder()}
+                  onSelectTerminal={(terminal) => void setTerminal(terminal)}
+                />
               </div>
             </div>
           ) : (

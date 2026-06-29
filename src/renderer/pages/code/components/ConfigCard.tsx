@@ -1,5 +1,4 @@
 import { Badge, Button, Tooltip } from '@cherrystudio/ui'
-import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { Pencil, Power } from 'lucide-react'
 import type { FC } from 'react'
@@ -8,7 +7,6 @@ import { useTranslation } from 'react-i18next'
 export interface ProviderCardProps {
   provider: Provider
   providerName: string
-  providerConfig?: CliProviderConfig
   modelName?: string
   isCurrent: boolean
   dragging?: boolean
@@ -21,7 +19,6 @@ export interface ProviderCardProps {
 export const ProviderCard: FC<ProviderCardProps> = ({
   provider,
   providerName,
-  providerConfig,
   modelName,
   isCurrent,
   dragging,
@@ -50,12 +47,6 @@ export const ProviderCard: FC<ProviderCardProps> = ({
           </div>
           <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground/50">
             {modelName && <span className="truncate font-mono">{modelName}</span>}
-            {providerConfig?.directory && (
-              <>
-                <span className="text-muted-foreground/30">·</span>
-                <span className="truncate">{providerConfig.directory}</span>
-              </>
-            )}
           </div>
         </div>
       </div>
