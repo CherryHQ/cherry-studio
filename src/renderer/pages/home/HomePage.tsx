@@ -11,7 +11,7 @@ import {
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
-import { ChatPlacementComposer } from '@renderer/components/composer/variants/ChatComposer'
+import { ChatHomePlacementComposer } from '@renderer/components/composer/variants/ChatComposer'
 import {
   createRecentTopicEntryFromTopic,
   upsertGlobalSearchRecentEntry
@@ -580,8 +580,7 @@ function DraftWelcomeChat({
   const [messageStyle] = usePreference('chat.message.style')
 
   const composer = (
-    <ChatPlacementComposer
-      isHome
+    <ChatHomePlacementComposer
       scopeKey={scopeKey}
       assistantId={assistantId}
       onSend={onSend}
