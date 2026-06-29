@@ -116,7 +116,7 @@ export function useModelSelectorData({
   // key and cannot serve a normal chat request — it is agent-only.
   const agentOnlyProviderIds = useMemo(
     () =>
-      new Set(availableProviders.filter((provider) => provider.credentialSource === 'external-cli').map((p) => p.id)),
+      new Set(availableProviders.filter((provider) => provider.authMethods?.includes('external-cli')).map((p) => p.id)),
     [availableProviders]
   )
 

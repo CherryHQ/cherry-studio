@@ -548,7 +548,7 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
   // CLI login. Elsewhere credentials live in <CLAUDE_CONFIG_DIR>/.credentials.json,
   // so point at the user's real config dir (their shell's CLAUDE_CONFIG_DIR, or
   // ~/.claude) rather than Cherry's relocated agent config.
-  if (provider.credentialSource === 'external-cli') {
+  if (provider.authMethods?.includes('external-cli')) {
     delete env.ANTHROPIC_API_KEY
     delete env.ANTHROPIC_AUTH_TOKEN
     delete env.ANTHROPIC_BASE_URL

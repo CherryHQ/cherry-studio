@@ -124,7 +124,7 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     endpointConfigs: row.endpointConfigs ?? undefined,
     defaultChatEndpoint: row.defaultChatEndpoint ?? undefined,
     modelListSource: presetMetadata.modelListSource,
-    credentialSource: presetMetadata.credentialSource,
+    authMethods: presetMetadata.authMethods,
     apiKeys,
     authType,
     apiFeatures,

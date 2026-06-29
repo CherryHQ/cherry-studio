@@ -125,7 +125,7 @@ async function resolveClaudeCodeRuntimeRoute(
     }
   }
 
-  if (primaryProvider.credentialSource === 'external-cli') {
+  if (primaryProvider.authMethods?.includes('external-cli')) {
     return {
       modelIds: {
         primary: primaryRef.apiModelId,

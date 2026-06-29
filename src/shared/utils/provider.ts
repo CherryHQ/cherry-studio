@@ -1,7 +1,4 @@
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { isClaudeCodeProviderId } from '@shared/data/presets/claudeCode'
-import { isCodexProviderId } from '@shared/data/presets/codex'
-import { isGrokCliProviderId } from '@shared/data/presets/grokCli'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
@@ -120,12 +117,17 @@ export function isProviderSupportAuth(provider: Pick<Provider, 'id'>): boolean {
 }
 
 /**
- * Login-based providers that authenticate via a sign-in flow (CLI login / hosted
- * OAuth), not an API key — their sign-in panels render through the provider
- * registry, so the generic API-key/host UI is suppressed for them.
+ * Login-based providers authenticate via a sign-in flow (CLI login / hosted
+ * OAuth) and accept no user API key, so the generic API-key/host UI is
+ * suppressed and their sign-in panel renders through the provider registry
+ * instead. Derived from the provider's `authMethods` (registry capability):
+ * login-based ⇔ it declares methods and none is `'api-key'`. Absent ⇒ default
+ * `['api-key']` ⇒ not login-based. CherryIN declares `['api-key', 'oauth']`, so
+ * it is *not* login-based — its key inputs stay alongside the OAuth panel.
  */
-export function isLoginBasedProviderId(providerId: string): boolean {
-  return isClaudeCodeProviderId(providerId) || isCodexProviderId(providerId) || isGrokCliProviderId(providerId)
+export function isLoginBasedProvider(provider: Pick<Provider, 'authMethods'>): boolean {
+  const methods = provider.authMethods
+  return methods !== undefined && methods.length > 0 && !methods.includes('api-key')
 }
 
 export function isAnthropicSupportedProvider(provider: Provider): boolean {

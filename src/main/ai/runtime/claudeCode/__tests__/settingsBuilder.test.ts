@@ -602,7 +602,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
       const settings = await buildClaudeCodeSessionSettings(
         session as never,
-        { id: 'claude-code', credentialSource: 'external-cli' } as never
+        { id: 'claude-code', authMethods: ['external-cli'] } as never
       )
 
       expect(settings.env).not.toHaveProperty('ANTHROPIC_API_KEY')
@@ -621,7 +621,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
       const settings = await buildClaudeCodeSessionSettings(
         session as never,
-        { id: 'claude-code', credentialSource: 'external-cli' } as never
+        { id: 'claude-code', authMethods: ['external-cli'] } as never
       )
 
       expect(settings.env).not.toHaveProperty('ANTHROPIC_API_KEY')
@@ -636,7 +636,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
       const settings = await buildClaudeCodeSessionSettings(
         session as never,
-        { id: 'claude-code', credentialSource: 'external-cli' } as never
+        { id: 'claude-code', authMethods: ['external-cli'] } as never
       )
 
       expect(settings.env!.CLAUDE_CONFIG_DIR).toBe('/app/sys.home/.claude')
@@ -648,7 +648,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
       const settings = await buildClaudeCodeSessionSettings(
         session as never,
-        { id: 'claude-code', credentialSource: 'external-cli' } as never
+        { id: 'claude-code', authMethods: ['external-cli'] } as never
       )
 
       expect(settings.env).not.toHaveProperty('CLAUDE_CONFIG_DIR')

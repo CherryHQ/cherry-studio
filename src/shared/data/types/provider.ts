@@ -279,11 +279,13 @@ export const ProviderSchema = z.object({
    */
   modelListSource: z.enum(['api', 'registry']).optional(),
   /**
-   * Set when the credential lives in an external CLI store (e.g. `claude-code`)
-   * rather than being an app-held token. Drives env stripping and chat-picker
-   * hiding. Carried from the registry; absent for normal providers.
+   * Which credential kinds this provider accepts (`'api-key'` / `'oauth'` /
+   * `'external-cli'`) — a set, since a provider can offer more than one (CherryIN
+   * takes both a user key and an OAuth login). Carried from the registry; absent
+   * ⇒ `['api-key']`. "Login-based" is the derived `!includes('api-key')`. See
+   * {@link isLoginBasedProvider}.
    */
-  credentialSource: z.enum(['external-cli']).optional(),
+  authMethods: z.array(z.enum(['api-key', 'oauth', 'external-cli'])).optional(),
   /** API Keys (without actual key values) */
   apiKeys: z.array(RuntimeApiKeySchema),
   /** Authentication type (no sensitive data) */

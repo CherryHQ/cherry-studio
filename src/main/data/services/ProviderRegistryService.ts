@@ -38,8 +38,8 @@ export interface ProviderDisplayMetadata {
   websites?: ProviderWebsites
   /** Registry capability: where the model list comes from (default `'api'`). */
   modelListSource?: 'api' | 'registry'
-  /** Registry capability: external-CLI credential providers (e.g. claude-code). */
-  credentialSource?: 'external-cli'
+  /** Registry capability: accepted credential kinds (default `['api-key']`). */
+  authMethods?: ('api-key' | 'oauth' | 'external-cli')[]
 }
 
 export interface ListProviderRegistryModelsOptions {
@@ -443,7 +443,7 @@ class ProviderRegistryService {
         description: provider?.description,
         websites: provider?.metadata?.website,
         modelListSource: provider?.modelListSource,
-        credentialSource: provider?.credentialSource
+        authMethods: provider?.authMethods
       }
     } catch (error) {
       logger.warn('Failed to load provider display metadata', { providerId, presetProviderId, error })

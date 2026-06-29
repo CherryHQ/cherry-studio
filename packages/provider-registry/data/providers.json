@@ -6,6 +6,7 @@
       "name": "CherryIN",
       "description": "CherryIN - AI model provider",
       "defaultChatEndpoint": "openai-chat-completions",
+      "authMethods": ["api-key", "oauth"],
       "endpointConfigs": {
         "openai-chat-completions": {
           "baseUrl": "https://open.cherryin.net",
@@ -539,7 +540,7 @@
       "description": "Claude Code - agent-only provider that reuses your Claude Code CLI subscription login",
       "defaultChatEndpoint": "anthropic-messages",
       "modelListSource": "registry",
-      "credentialSource": "external-cli",
+      "authMethods": ["external-cli"],
       "endpointConfigs": {
         "anthropic-messages": {
           "baseUrl": "https://api.anthropic.com",
@@ -559,6 +560,7 @@
       "description": "OpenAI Codex - login-based provider that uses your ChatGPT Plus/Pro subscription via OAuth",
       "defaultChatEndpoint": "openai-responses",
       "modelListSource": "registry",
+      "authMethods": ["oauth"],
       "apiFeatures": {
         "serviceTier": true
       },
@@ -581,6 +583,7 @@
       "description": "Grok CLI - login-based provider that uses your SuperGrok subscription via xAI OAuth",
       "defaultChatEndpoint": "openai-responses",
       "modelListSource": "registry",
+      "authMethods": ["oauth"],
       "endpointConfigs": {
         "openai-responses": {
           "baseUrl": "https://cli-chat-proxy.grok.com/v1",

@@ -4,7 +4,7 @@
  * key. It is **agent-only**: the Claude Agent SDK reuses the CLI's stored
  * credential when no `ANTHROPIC_API_KEY` is injected, so this provider carries
  * no key and must not be offered to chat/assistants. The agent-only behavior is
- * driven by the provider's `credentialSource === 'external-cli'` capability flag
+ * driven by the provider's `authMethods` including `'external-cli'` capability
  * (see `src/main/ai/runtime/claudeCode/settingsBuilder.ts` for env wiring); this
  * id helper is only for the bespoke UI surfaces keyed to this specific provider.
  *

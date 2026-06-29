@@ -16,8 +16,8 @@ import { defineRoute } from '../define'
  * providers without an account concept resolve `{ accountId: null }`.
  *
  * `check_external_login` covers the other login shape — providers whose
- * credential lives in an external CLI's store (`credentialSource:
- * 'external-cli'`, e.g. Claude Code) rather than an app-held token. It is a
+ * credential lives in an external CLI's store (`authMethods` includes
+ * `'external-cli'`, e.g. Claude Code) rather than an app-held token. It is a
  * read-only presence probe; no credential is read or returned.
  */
 
