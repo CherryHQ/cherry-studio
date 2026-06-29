@@ -17,6 +17,7 @@ type TurndownModule = { default: typeof TurndownService }
 let readabilityPromise: Promise<typeof ReadabilityModule> | undefined
 let turndownPromise: Promise<TurndownModule> | undefined
 let turndownService: TurndownService | undefined
+let turndownServicePromise: Promise<TurndownService> | undefined
 
 const loadReadability = () => {
   readabilityPromise ??= import('@mozilla/readability')
@@ -24,12 +25,17 @@ const loadReadability = () => {
 }
 
 const getTurndownService = async () => {
-  if (!turndownService) {
-    const { default: TurndownService } = await (turndownPromise ??= import('turndown'))
-    turndownService = new TurndownService()
+  if (turndownService) {
+    return turndownService
   }
 
-  return turndownService
+  turndownServicePromise ??= (async () => {
+    const { default: TurndownService } = await (turndownPromise ??= import('turndown'))
+    turndownService = new TurndownService()
+    return turndownService
+  })()
+
+  return turndownServicePromise
 }
 
 /**

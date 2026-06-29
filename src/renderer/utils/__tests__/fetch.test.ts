@@ -102,6 +102,17 @@ describe('fetch', () => {
     })
   })
 
+  describe('parser initialization', () => {
+    it('should initialize TurndownService once for concurrent markdown fetches', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse()).mockResolvedValueOnce(createMockResponse())
+
+      await fetchWebContents(['https://example1.com', 'https://example2.com'])
+
+      expect(parserMocks.turndownModuleLoad).toHaveBeenCalledTimes(1)
+      expect(parserMocks.turndownConstructor).toHaveBeenCalledTimes(1)
+    })
+  })
+
   describe('fetchWebContent', () => {
     it('should fetch and return content successfully', async () => {
       vi.mocked(global.fetch).mockResolvedValueOnce(createMockResponse())
