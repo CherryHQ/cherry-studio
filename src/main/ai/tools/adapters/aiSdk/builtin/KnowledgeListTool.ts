@@ -11,7 +11,7 @@
  * returned; when empty, all user bases are returned.
  */
 
-import { KB_LIST_TOOL_NAME, kbListInputSchema, kbListOutputSchema } from '@shared/ai/builtinTools'
+import { KB_LIST_TOOL_NAME, kbListOutputSchema, kbListStrictInputSchema } from '@shared/ai/builtinTools'
 import { tool } from 'ai'
 import * as z from 'zod'
 
@@ -31,7 +31,7 @@ const knowledgeListResultSchema = z.union([kbListOutputSchema, knowledgeLookupEr
 
 const kbListTool = tool({
   description: KNOWLEDGE_LIST_DESCRIPTION,
-  inputSchema: kbListInputSchema,
+  inputSchema: kbListStrictInputSchema,
   outputSchema: knowledgeListResultSchema,
   strict: true,
   execute: async ({ query, groupId }, options) => {

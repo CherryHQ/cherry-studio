@@ -13,11 +13,33 @@ import * as z from 'zod'
 
 export const KB_LIST_TOOL_NAME = 'kb_list'
 
-// Both filters are `.nullable()` rather than `.optional()` so the strict JSON schema lists them in
-// `required` (with a null option) instead of emitting no `required` at all — an all-optional object
-// serializes `required` away, which strict OpenAI-compatible providers reject ("None is not of type
-// 'array'"). Pass null to skip a filter. See listKnowledgeBases, which treats null as "no filter".
+// kb_list is consumed by two paths with conflicting schema needs, so it has two shapes.
+//
+// MCP / Claude Code bridge (cherryBuiltinTools): the agent parses raw args with this schema and may
+// omit either filter, so they are `.optional()`. `z.toJSONSchema` legitimately drops them from
+// `required`, which the non-strict MCP schema accepts. Omit a filter to skip it.
 export const kbListInputSchema = z.object({
+  query: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .optional()
+    .describe('Case-insensitive substring filter against base name and sample sources. Omit to list all.'),
+  groupId: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe('Restrict the result to a single knowledge base group. Omit to span all groups.')
+})
+
+// AI-SDK path (KnowledgeListTool) runs with `strict: true`. A strict OpenAI-compatible provider (e.g.
+// glm) rejects the all-optional shape above because its `required` serializes away to nothing ("None
+// is not of type 'array'"), killing every tool call. Express the same optionality with `.nullable()`
+// so each field stays in `required` with a null option; listKnowledgeBases treats null (like
+// undefined) as "no filter".
+export const kbListStrictInputSchema = z.object({
   query: z
     .string()
     .trim()

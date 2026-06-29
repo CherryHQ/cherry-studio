@@ -5,6 +5,7 @@ import {
   KB_LIST_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
   kbListInputSchema,
+  kbListStrictInputSchema,
   kbSearchInputSchema,
   REPORT_ARTIFACTS_DESCRIPTION,
   REPORT_ARTIFACTS_TOOL_NAME,
@@ -37,17 +38,26 @@ describe('builtin tool contracts', () => {
     expect(description).not.toContain('web__search')
   })
 
-  it('keeps kb_list filters in `required` so strict providers accept the schema', () => {
-    // Regression: kb_list's filters are both optional in intent, but an all-optional object serializes
-    // away `required` entirely, and a strict OpenAI-compatible provider then rejects the whole request
-    // ("Tool ... has invalid 'parameters' schema: None is not of type 'array'"), killing every tool call.
-    // Making the fields `.nullable()` (null = no filter) keeps them in `required` with a null option.
-    const json = z.toJSONSchema(kbListInputSchema) as { required?: unknown }
+  it('keeps kb_list strict-path filters in `required` so strict providers accept the schema', () => {
+    // Regression: the AI-SDK path (KnowledgeListTool) runs strict:true. An all-optional object
+    // serializes away `required` entirely, and a strict OpenAI-compatible provider then rejects the
+    // whole request ("Tool ... has invalid 'parameters' schema: None is not of type 'array'"), killing
+    // every tool call. The strict variant makes the fields `.nullable()` (null = no filter) so they
+    // stay in `required` with a null option.
+    const json = z.toJSONSchema(kbListStrictInputSchema) as { required?: unknown }
 
     expect(Array.isArray(json.required)).toBe(true)
     expect(json.required).toEqual(expect.arrayContaining(['query', 'groupId']))
     // null is the "no filter" signal; an explicit null must still parse.
-    expect(kbListInputSchema.safeParse({ query: null, groupId: null }).success).toBe(true)
+    expect(kbListStrictInputSchema.safeParse({ query: null, groupId: null }).success).toBe(true)
+  })
+
+  it('lets the MCP kb_list path omit either filter', () => {
+    // The Claude Code bridge parses raw args with kbListInputSchema; an agent may omit filters
+    // entirely, so the optional shape must accept `{}` and a lone query without erroring. (Making it
+    // `.nullable()` to satisfy the strict path broke this — hence the separate strict variant.)
+    expect(kbListInputSchema.safeParse({}).success).toBe(true)
+    expect(kbListInputSchema.safeParse({ query: 'recipes' }).success).toBe(true)
   })
 
   it('validates final report artifacts', () => {
