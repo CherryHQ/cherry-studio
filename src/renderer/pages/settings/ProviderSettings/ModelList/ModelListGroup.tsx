@@ -1,6 +1,6 @@
 import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import type { Model } from '@shared/data/types/model'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChevronRight, Trash2 } from 'lucide-react'

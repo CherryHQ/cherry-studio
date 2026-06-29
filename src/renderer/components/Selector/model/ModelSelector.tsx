@@ -3,11 +3,11 @@ import { resolveIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { getModelDisplayTags, ModelTag } from '@renderer/components/Tags/Model'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
-import { isDev } from '@renderer/config/constant'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { isDev } from '@renderer/utils/platform'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import { useNavigate } from '@tanstack/react-router'
-import { first } from 'lodash'
+import { first } from 'es-toolkit/compat'
 import { Pin, Settings2 } from 'lucide-react'
 import {
   type KeyboardEvent,

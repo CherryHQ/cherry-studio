@@ -1,3 +1,4 @@
+import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import type { SerializedError } from '@renderer/types/error'
 import type { Model } from '@shared/data/types/model'
@@ -26,7 +27,7 @@ export interface DiagnosisContext {
 
 async function getCherryAiFreeModel(): Promise<Model | undefined> {
   try {
-    const models = await window.api.ai.listModels({ providerId: 'cherryai' })
+    const models = await ipcApi.request('ai.list_models', { providerId: 'cherryai' })
     const first = models[0]
     // listModels returns Partial<Model>; the diagnosis flow only needs `.id`,
     // which the IPC always populates. Cast through the known-complete subset.

@@ -1,5 +1,5 @@
 import { ResetIcon } from '@renderer/components/Icons'
-import { classNames } from '@renderer/utils'
+import { classNames } from '@renderer/utils/style'
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Scan, ZoomIn, ZoomOut } from 'lucide-react'
 import { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -30,7 +30,7 @@ const ImageToolbar = ({ pan, zoom, dialog, className }: ImageToolbarProps) => {
   return (
     <div
       className={classNames(
-        'preview-toolbar absolute right-[1em] bottom-[1em] z-[5] flex flex-col items-center gap-1 [&_.ant-btn]:leading-[0]',
+        'preview-toolbar absolute right-[1em] bottom-[1em] z-[5] flex flex-col items-center gap-1',
         className
       )}
       role="toolbar"

@@ -21,17 +21,21 @@ import {
   GroupedVirtualList,
   type GroupedVirtualListGroup
 } from '@renderer/components/VirtualList'
+import { useTabs } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
-import { useTabs } from '@renderer/hooks/useTabs'
 import { mapApiTopicToRendererTopic } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
+import type { GlobalSearchRecentEntry } from '@shared/data/cache/cacheValueTypes'
 import { ChevronDown, Clock3, CornerDownLeft, Search, X } from 'lucide-react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+  areGlobalSearchRecentEntriesEqual,
+  getDisplayGlobalSearchRecentEntries,
+  getGlobalSearchRecentEntryId,
   type GlobalMessageSearchPanelItem,
   type GlobalMessageSearchResult,
   type GlobalMessageSearchSourceFilter,
@@ -80,6 +84,8 @@ const MESSAGE_SOURCE_FILTER_BUTTONS: Exclude<GlobalMessageSearchSourceFilter, 'a
 const SEARCH_SCOPE_CONTROL_CLASS_NAME =
   'h-7 shrink-0 border-border-subtle bg-muted/40 p-0.5 [&_[role=radio]]:h-6 [&_[role=radio]]:px-2 [&_[role=radio]]:text-xs [&_[role=radio]]:leading-none'
 const logger = loggerService.withContext('GlobalSearchPanel')
+const RECENT_ITEMS_REFRESH_THROTTLE_MS = 60 * 1000 // 1 minute throttle
+const recentRefreshHistory = new Map<string, number>()
 const FILTER_LABEL_KEYS: Record<GlobalSearchFilter, string> = {
   all: 'globalSearch.filters.all',
   topic: 'globalSearch.filters.topic',
@@ -300,7 +306,12 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const [expandedMessageParentIds, setExpandedMessageParentIds] = useState<ReadonlySet<string>>(() => new Set())
   const [messagePreviewTarget, setMessagePreviewTarget] = useState<GlobalSearchMessagePreviewTarget | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
-  const [recentItems] = usePersistCache('ui.global_search.recent_items')
+  const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
+  // Mirror the persist-cache value so the mount-time refresh effect can
+  // read the latest snapshot after its async fetches resolve without
+  // re-running on every recent-items change.
+  const recentItemsRef = useRef(recentItems)
+  recentItemsRef.current = recentItems
   const [userName] = usePreference('app.user.name')
   const {
     error,
@@ -352,6 +363,83 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
 
   useEffect(() => {
     inputRef.current?.focus({ preventScroll: true })
+  }, [])
+
+  // On open: best-effort refresh of up to GLOBAL_SEARCH_DISPLAY_RECENT_LIMIT
+  // recent topic/session titles. Persisted snapshots may carry stale titles
+  // when the entity was renamed after the last visit; a single parallel
+  // fetch per id corrects the snapshot in place. Failures (deleted entity,
+  // network) silently fall back to the cached title. Runs once per mount;
+  // the ref + setRecentItems pairing reads the latest snapshot when the
+  // fetch resolves, so the effect doesn't need to re-run on every change.
+  useEffect(() => {
+    const display = getDisplayGlobalSearchRecentEntries(recentItemsRef.current ?? [])
+    type Refreshable = Extract<GlobalSearchRecentEntry, { kind: 'topic' | 'session' }>
+    const refreshable: Refreshable[] = display.flatMap((entry): Refreshable[] => {
+      if (entry.kind === 'route') return []
+      return [entry]
+    })
+
+    const now = Date.now()
+    const due = refreshable.filter((entry) => {
+      if (entry.title.trim() === '') return true
+      const lastRefresh = recentRefreshHistory.get(getGlobalSearchRecentEntryId(entry)) ?? 0
+      return now - lastRefresh > RECENT_ITEMS_REFRESH_THROTTLE_MS
+    })
+
+    if (due.length === 0) return
+
+    let cancelled = false
+    void Promise.all(
+      due.map(async (entry) => {
+        const refreshKey = getGlobalSearchRecentEntryId(entry)
+        // Don't poison the cooldown on failure: only mark the throttle slot
+        // after a fetch resolves (success or empty-name) so retries aren't
+        // blocked for an entry we never actually refreshed.
+        try {
+          const fetched = await dataApiService.get(
+            entry.kind === 'topic' ? `/topics/${entry.topicId}` : `/agent-sessions/${entry.sessionId}`
+          )
+          const name = (fetched as { name?: string })?.name?.trim()
+          if (name) {
+            recentRefreshHistory.set(refreshKey, Date.now())
+            return { id: refreshKey, name }
+          }
+          recentRefreshHistory.set(refreshKey, Date.now())
+          return null
+        } catch (error) {
+          logger.warn('Failed to refresh recent title', { entryKind: entry.kind, id: refreshKey, error })
+          return null
+        }
+      })
+    ).then((results) => {
+      if (cancelled) return
+      const updates = new Map<string, string>()
+      for (const result of results) {
+        if (!result) continue
+        updates.set(result.id, result.name)
+      }
+      if (updates.size === 0) return
+      const current = recentItemsRef.current ?? []
+      const next = current.map((entry) => {
+        if (entry.kind === 'route') return entry
+        const updateName = updates.get(getGlobalSearchRecentEntryId(entry))
+        // Compare against the trimmed name so a fetch returning "" or " "
+        // never overwrites a non-empty cached title; the empty-title bypass
+        // above keeps refetching until the server actually returns one.
+        return updateName && entry.title.trim() !== updateName ? { ...entry, title: updateName } : entry
+      })
+      if (!next.every((entry, index) => areGlobalSearchRecentEntriesEqual(entry, current[index]))) {
+        setRecentItems(next)
+      }
+    })
+
+    return () => {
+      cancelled = true
+    }
+    // recentItems is read through recentItemsRef so this effect only runs
+    // once on mount; updates flow through setRecentItems.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -1020,4 +1108,8 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       />
     </div>
   )
+}
+
+export const testOnlyClearRefreshHistory = () => {
+  recentRefreshHistory.clear()
 }

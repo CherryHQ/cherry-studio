@@ -1,14 +1,13 @@
-import type { ComposerContextValue } from '@renderer/components/chat/composer/ComposerContext'
-import ConversationComposerSlot from '@renderer/components/chat/composer/ConversationComposerSlot'
-import { ChatPlacementComposer } from '@renderer/components/chat/composer/variants/ChatComposer'
-import type { Topic } from '@renderer/types'
+import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
+import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
+import { ChatPlacementComposer } from '@renderer/components/composer/variants/ChatComposer'
+import type { Topic } from '@renderer/types/topic'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import type { AddNewTopicPayload } from './types'
 
-interface ChatComposerSlotProps {
-  isHome: boolean
+interface ChatComposerSlotBaseProps {
   topic: Topic
   onSend: (
     text: string,
@@ -19,29 +18,42 @@ interface ChatComposerSlotProps {
     }
   ) => Promise<void>
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
-  sendDisabled?: boolean
   composerContext?: ComposerContextValue
 }
 
+type ChatComposerSlotProps =
+  | (ChatComposerSlotBaseProps & { placement: 'home'; sendDisabled?: never })
+  | (ChatComposerSlotBaseProps & { placement: 'docked'; sendDisabled?: boolean })
+
 export default function ChatComposerSlot({
-  isHome,
+  placement,
   topic,
   onSend,
   onNewTopic,
   sendDisabled,
   composerContext
 }: ChatComposerSlotProps) {
-  const fallback = (
-    <ChatPlacementComposer
-      isHome={isHome}
-      scopeKey={topic.id}
-      topicId={topic.id}
-      assistantId={topic.assistantId}
-      onSend={onSend}
-      onNewTopic={onNewTopic}
-      sendDisabled={isHome ? undefined : sendDisabled}
-    />
-  )
+  const fallback =
+    placement === 'home' ? (
+      <ChatPlacementComposer
+        placement="home"
+        scopeKey={topic.id}
+        topicId={topic.id}
+        assistantId={topic.assistantId}
+        onSend={onSend}
+        onNewTopic={onNewTopic}
+      />
+    ) : (
+      <ChatPlacementComposer
+        placement="docked"
+        scopeKey={topic.id}
+        topicId={topic.id}
+        assistantId={topic.assistantId}
+        onSend={onSend}
+        onNewTopic={onNewTopic}
+        sendDisabled={sendDisabled}
+      />
+    )
 
   return <ConversationComposerSlot composerContext={composerContext} fallback={fallback} />
 }

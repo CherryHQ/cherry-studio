@@ -2,7 +2,7 @@ import { Badge, Button, Popover, PopoverContent, PopoverTrigger, Tabs, TabsList,
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { getBuiltInMcpServerDescriptionLabelKey } from '@renderer/i18n/label'
-import { builtinMcpServers } from '@renderer/store/mcp'
+import { builtinMcpServers } from '@renderer/pages/settings/McpSettings/builtinMcpServers'
 import { cn } from '@renderer/utils/style'
 import { Check, Plus } from 'lucide-react'
 import type { FC } from 'react'

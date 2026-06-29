@@ -4,16 +4,17 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
-import type { Assistant } from '@renderer/types'
+import { ipcApi } from '@renderer/ipc'
+import type { Assistant } from '@renderer/types/assistant'
 import type { ExportableMessage } from '@renderer/types/messageExport'
-import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { getErrorMessage } from '@renderer/utils/error'
 import { purifyMarkdownImages } from '@renderer/utils/markdown'
 import { getNamingTextContent } from '@renderer/utils/message/find'
+import { removeSpecialCharactersForTopicName } from '@renderer/utils/naming'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { isFileUIPart } from 'ai'
-import { takeRight } from 'lodash'
+import { takeRight } from 'es-toolkit/compat'
 
 import { readDefaultModel, readQuickModel } from './ModelService'
 
@@ -51,7 +52,7 @@ export async function fetchMessagesSummary({
   const conversation = JSON.stringify(structuredMessages)
 
   try {
-    const { text } = await window.api.ai.generateText({
+    const { text } = await ipcApi.request('ai.generate_text', {
       uniqueModelId: model.id,
       system: prompt,
       prompt: conversation
@@ -81,7 +82,7 @@ export async function fetchNoteSummary({ content }: { content: string; assistant
   const purifiedContent = purifyMarkdownImages(content.substring(0, 2000))
 
   try {
-    const { text } = await window.api.ai.generateText({
+    const { text } = await ipcApi.request('ai.generate_text', {
       uniqueModelId: model.id,
       system: prompt,
       prompt: purifiedContent
@@ -110,7 +111,7 @@ export async function fetchGenerate({
       if (throwOnError) throw new Error(i18n.t('error.model.not_exists'))
       return ''
     }
-    const { text } = await window.api.ai.generateText({
+    const { text } = await ipcApi.request('ai.generate_text', {
       uniqueModelId: resolvedModel.id,
       system: prompt,
       prompt: content
@@ -135,7 +136,7 @@ export async function checkApi(
   options?: { timeout?: number; signal?: AbortSignal }
 ): Promise<{ latency: number }> {
   options?.signal?.throwIfAborted()
-  return await window.api.ai.checkModel({
+  return await ipcApi.request('ai.check_model', {
     uniqueModelId,
     timeout: options?.timeout ?? 15000
   })

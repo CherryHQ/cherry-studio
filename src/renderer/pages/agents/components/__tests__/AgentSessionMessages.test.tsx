@@ -18,7 +18,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: () => ['anchor']
 }))
 
-vi.mock('@renderer/hooks/agents/useSession', () => ({
+vi.mock('@renderer/hooks/agent/useSession', () => ({
   useSession: () => ({
     session: {
       id: 'session-1',
@@ -34,18 +34,15 @@ vi.mock('../../messages/agentMessageListAdapter', () => ({
   useAgentMessageListProviderValue: useAgentMessageListProviderValueMock
 }))
 
+// The mount effect fires ipcApi.request('ai.prewarm_agent_session' / 'ai.close_agent_session_warm');
+// a static mock keeps it from crashing (this suite doesn't assert on the warm-up calls).
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: vi.fn().mockResolvedValue(undefined), on: vi.fn(() => () => {}) }
+}))
+
 describe('AgentSessionMessages', () => {
   beforeEach(() => {
     useAgentMessageListProviderValueMock.mockClear()
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        ai: {
-          prewarmAgentSession: vi.fn().mockResolvedValue(undefined),
-          closeAgentSessionWarm: vi.fn().mockResolvedValue(undefined)
-        }
-      }
-    })
   })
 
   it('normalizes blank agent avatars before passing the assistant profile to the message list', () => {

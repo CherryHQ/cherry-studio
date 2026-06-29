@@ -49,7 +49,6 @@ type PendingBatch = {
 }
 
 export class ChannelMessageHandler {
-  private static instance: ChannelMessageHandler | null = null
   // TODO: in v2 use cacheService
   private readonly sessionTracker = new Map<string, string>() // `${agentId}:${channelId}:${chatId}` -> sessionId
   private readonly pendingResolutions = new Map<string, Promise<AgentSessionEntity | null>>()
@@ -59,13 +58,6 @@ export class ChannelMessageHandler {
   private readonly chatQueues = new Map<string, Promise<void>>()
   /** Active abort controllers per session — allows renderer to abort via IPC */
   private readonly activeAbortControllers = new Map<string, AbortController>()
-
-  static getInstance(): ChannelMessageHandler {
-    if (!ChannelMessageHandler.instance) {
-      ChannelMessageHandler.instance = new ChannelMessageHandler()
-    }
-    return ChannelMessageHandler.instance
-  }
 
   handleIncoming(adapter: ChannelAdapter, message: ChannelMessageEvent): Promise<void> {
     const batchKey = `${adapter.agentId}:${adapter.channelId}:${message.chatId}`
@@ -642,4 +634,4 @@ export class ChannelMessageHandler {
   }
 }
 
-export const channelMessageHandler = ChannelMessageHandler.getInstance()
+export const channelMessageHandler = new ChannelMessageHandler()

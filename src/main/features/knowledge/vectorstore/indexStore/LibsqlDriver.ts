@@ -4,9 +4,19 @@ import { type Client, createClient, type InValue, type ResultSet } from '@libsql
 import { loggerService } from '@logger'
 import { Mutex } from 'async-mutex'
 
-import type { SqliteDriver, SqliteTransaction, SqlQueryResult, SqlValue } from './types'
+import type { SqliteDriver, SqliteReclaimOutcome, SqliteTransaction, SqlQueryResult, SqlValue } from './types'
 
 const logger = loggerService.withContext('LibsqlDriver')
+
+/**
+ * VACUUM in {@link LibsqlDriver.reclaim} only when the freelist is BOTH a large
+ * fraction of the file AND past an absolute floor. The fraction skips rewriting a
+ * huge index to reclaim a relatively tiny delete (whose freed pages a later index
+ * would reuse anyway); the floor skips the whole-file-rewrite block when there is
+ * little to actually return. Below either bound, reclaim just truncates the WAL.
+ */
+const VACUUM_MIN_FREELIST_RATIO = 0.2
+const VACUUM_MIN_FREED_BYTES = 8 * 1024 * 1024
 
 function toQueryResult(result: ResultSet): SqlQueryResult {
   const rows = result.rows.map((row) => {
@@ -112,6 +122,55 @@ export class LibsqlDriver implements SqliteDriver {
       }
       throw error
     }
+  }
+
+  async reclaim(preVacuumStatements: readonly string[] = []): Promise<SqliteReclaimOutcome> {
+    this.assertOpen()
+    // Hold the write mutex so VACUUM never overlaps one of this driver's write
+    // transactions on the same connection (reads run outside it and ride the WAL /
+    // busy_timeout). runExclusive only serializes — it issues no BEGIN, so VACUUM,
+    // which cannot run inside a transaction, executes in autocommit as required.
+    return this.writeMutex.runExclusive(async () => {
+      this.assertOpen()
+      // Checkpoint first: frees the WAL (cheap) and folds committed frees from the
+      // delete into the main file so freelist_count reflects them.
+      await this.client.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+
+      const pageSize = await this.readPragmaInt('page_size')
+      const pageCount = await this.readPragmaInt('page_count')
+      const freelist = await this.readPragmaInt('freelist_count')
+      const ratio = pageCount > 0 ? freelist / pageCount : 0
+      if (ratio < VACUUM_MIN_FREELIST_RATIO || freelist * pageSize < VACUUM_MIN_FREED_BYTES) {
+        return { vacuumed: false, reclaimedBytes: 0 }
+      }
+
+      // Run caller-owned maintenance now that we've committed to the whole-file rewrite —
+      // gated behind the same threshold so a sub-threshold delete never pays for it. The
+      // driver stays schema-agnostic: the knowledge store passes its external-content FTS
+      // 'optimize' (which compacts the dead trigram-segment rows VACUUM cannot reach on its
+      // own), but that table name and op live with the schema, not in this generic driver.
+      for (const statement of preVacuumStatements) {
+        await this.client.execute(statement)
+      }
+      await this.client.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+
+      // VACUUM rewrites the whole file and renumbers every table's implicit rowid, so any
+      // external-content FTS in the schema must key on a stable surrogate column rather than
+      // the implicit rowid (the knowledge schema's fts_rowid does — see schema.ts; keying on
+      // the implicit rowid would reintroduce the #16132 desync). VACUUM rewrites into the WAL,
+      // so checkpoint+truncate again to release it.
+      await this.client.execute('VACUUM')
+      await this.client.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+      const pageCountAfter = await this.readPragmaInt('page_count')
+      return { vacuumed: true, reclaimedBytes: Math.max(0, pageCount - pageCountAfter) * pageSize }
+    })
+  }
+
+  /** Read a single-value PRAGMA (e.g. `page_count`) as a number. */
+  private async readPragmaInt(pragma: string): Promise<number> {
+    const result = toQueryResult(await this.client.execute(`PRAGMA ${pragma}`))
+    const row = result.rows[0]
+    return row ? Number(Object.values(row)[0] ?? 0) : 0
   }
 
   isClosed(): boolean {

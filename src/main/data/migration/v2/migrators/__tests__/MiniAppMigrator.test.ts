@@ -353,6 +353,33 @@ describe('MiniAppMigrator', () => {
       expect(rows[1].orderKey < rows[2].orderKey).toBe(true)
     })
 
+    it('should stamp enabled and pinned rows in one visible order scope', async () => {
+      const ctx = createTestContext(
+        {
+          minapps: {
+            enabled: [
+              { id: 'enabled-1', name: 'Enabled 1', url: 'https://1.com' },
+              { id: 'enabled-2', name: 'Enabled 2', url: 'https://2.com' }
+            ],
+            disabled: [{ id: 'disabled-1', name: 'Disabled 1', url: 'https://3.com' }],
+            pinned: [{ id: 'pinned-1', name: 'Pinned 1', url: 'https://4.com' }]
+          }
+        },
+        dbh.db
+      ) as any
+
+      await migrator.prepare(ctx)
+      await migrator.execute(ctx)
+
+      const rows = await dbh.db.select().from(miniAppTable)
+      const visibleOrderKeys = rows
+        .filter((row) => row.status === 'enabled' || row.status === 'pinned')
+        .map((row) => row.orderKey)
+
+      expect(visibleOrderKeys).toHaveLength(3)
+      expect(new Set(visibleOrderKeys).size).toBe(3)
+    })
+
     it('should set pinned status for pinned apps (dedup priority)', async () => {
       const ctx = createTestContext(
         {

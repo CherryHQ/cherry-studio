@@ -1,0 +1,228 @@
+/**
+ * URL formatting and file-open safety utilities for FileEntry paths — pure,
+ * cross-platform, renderer-safe (no `node:*` imports).
+ *
+ * These helpers replace what the (now-removed) `getSafeUrl` / `batchGetSafeUrls`
+ * IPC methods used to do. Path resolution itself still belongs to Main (via File
+ * IPC `getPhysicalPath` / `batchGetPhysicalPaths`) — this module only handles the
+ * **formatting / safety-policy layer** on top of an already-resolved path string:
+ *
+ * 1. `normalizeExt(ext)` — normalize legacy dotted extensions (`.exe`) and v2
+ *    bare extensions (`exe`) for shared safety checks.
+ * 2. `isDangerExt(ext)` — which extensions count as "dangerous" when a file
+ *    path may be handed to OS file associations (safe URL rendering wraps to
+ *    the containing directory; default-open flows block the action).
+ * 3. `toFileUrl(path)` — encode an absolute filesystem path into a `file://`
+ *    URL (Windows drive letters, URL-encoded segments, forward-slash normalized).
+ * 4. `fileUrlToPath(url)` — decode an existing `file://` URL back to a path
+ *    string in renderer-safe code (including Windows drive and UNC URL forms).
+ * 5. `toSafeFileUrl(path, ext)` — the composition that used to live behind
+ *    the `getSafeUrl` IPC: apply the danger-wrap then `toFileUrl`.
+ *
+ * ## Why "formatting" stays in a shared module, not behind an IPC
+ *
+ * - **Authority** (how `id + ext` maps to a physical path, where `userData`
+ *   lives, whether storage becomes hash-bucketed) remains exclusively in
+ *   Main's `resolvePhysicalPath`. Renderer never replicates this logic.
+ * - **Formatting** (path → `file://` URL, danger-ext wrap) is a pure string
+ *   transformation on a value renderer already holds. Duplicating it across
+ *   the IPC boundary had no authority benefit and cost an IPC round-trip per
+ *   `<img src>` composition.
+ *
+ * Keep additions to this module **pure**. Anything that needs FS IO, DB
+ * access, or main-process singletons belongs in File IPC.
+ */
+
+import { type FilePath, type FileUrlString, SafeExtSchema } from '@shared/types/file/common'
+
+// ─── Danger extension policy ───
+
+/**
+ * Extensions treated as "dangerous" when a UI action may hand the path to OS
+ * file associations. HTML rendering callers wrap these to dirname URLs;
+ * system default-open callers block them before invoking Electron shell APIs.
+ *
+ * This list is a starting point — extend as concrete misuse vectors surface.
+ * It is NOT a general-purpose allowlist/denylist for path-safe operations:
+ * reading, hashing, revealing in folder, and explicit save/delete flows have
+ * separate semantics.
+ */
+const DANGEROUS_EXTS = new Set([
+  // Shell scripts
+  'sh',
+  'bash',
+  'zsh',
+  'fish',
+  'csh',
+  'ksh',
+  // Windows executable / script
+  'exe',
+  'com',
+  'bat',
+  'cmd',
+  'msi',
+  'scr',
+  'pif',
+  'cpl',
+  'ps1',
+  'psm1',
+  'psd1',
+  'vbs',
+  'vbe',
+  'js',
+  'jse',
+  'wsf',
+  'wsh',
+  'hta',
+  'reg',
+  'msc',
+  'inf',
+  'application',
+  'appref-ms',
+  // Windows shortcuts — can point at arbitrary targets, including remote scripts
+  'lnk',
+  'url',
+  // Auto-mount/container formats — default-open can expose launcher payloads inside
+  'iso',
+  'img',
+  'vhd',
+  'vhdx',
+  // macOS
+  'app',
+  'command',
+  'terminal',
+  'workflow',
+  'scpt',
+  // Linux launchers — `.desktop` can exec arbitrary commands via the `Exec=` key
+  'desktop',
+  'appimage',
+  'run',
+  // Java — executable archives / Web Start
+  'jar',
+  'jnlp',
+  'py',
+  'pyw',
+  // SVG — `<embed>` / `<object>` references can execute embedded script
+  // (note: `<img src>` sandboxes SVG script, but toSafeFileUrl serves <embed> too)
+  'svg',
+  // Installer bundles that can launch executables
+  'dmg',
+  'pkg'
+])
+
+/**
+ * Normalize a file extension for shared file safety checks.
+ *
+ * Accepts legacy dotted extensions (`.exe`) and v2 bare extensions (`exe`),
+ * strips boundary spaces / dots that can appear in filesystem paths, then
+ * accepts only a conservative bare-extension shape for safety checks.
+ */
+export function normalizeExt(ext: string | null | undefined): string | null {
+  if (!ext) return null
+  const normalized = ext
+    .replace(/^[\s.]+/, '')
+    .replace(/[\s.]+$/, '')
+    .toLowerCase()
+
+  return SafeExtSchema.safeParse(normalized).success ? normalized : null
+}
+
+/**
+ * Is this extension on the danger list? Case-insensitive; accepts legacy dotted
+ * extensions (`.exe`) and v2 bare extensions (`exe`); `null` / `undefined`
+ * return `false`.
+ */
+export function isDangerExt(ext: string | null | undefined): boolean {
+  const normalized = normalizeExt(ext)
+  if (!normalized) return false
+  return DANGEROUS_EXTS.has(normalized)
+}
+
+// ─── Path formatting ───
+
+/**
+ * Cross-platform dirname on a plain string — no `node:path` dependency, so it
+ * works in renderer bundles. Treats both `/` and `\` as separators.
+ *
+ * `sepIdx === 0` is the POSIX-root case (`/payload.exe`): degrade to `'/'` so
+ * the safety wrap in `toSafeFileUrl` still strips the filename. Returning the
+ * original string here would defeat the entire danger-ext policy.
+ */
+function dirnameSimple(absolutePath: string): string {
+  const sepIdx = Math.max(absolutePath.lastIndexOf('/'), absolutePath.lastIndexOf('\\'))
+  if (sepIdx > 0) return absolutePath.slice(0, sepIdx)
+  if (sepIdx === 0) return '/'
+  return absolutePath
+}
+
+/**
+ * Encode an absolute filesystem path into a `file://` URL.
+ *
+ * - Unix:    `/foo/bar baz.pdf`     → `file:///foo/bar%20baz.pdf`
+ * - Windows: `C:\foo\bar baz.pdf`   → `file:///C:/foo/bar%20baz.pdf`
+ *
+ * Backslashes are normalized to forward slashes; each path segment is URL-encoded
+ * (special chars like space, `#`, `?` become `%20` / `%23` / `%3F`). The Windows
+ * drive letter segment (`C:`) is preserved unencoded because `%3A` would break
+ * UNC / drive resolution in `<img src>` contexts.
+ *
+ * @param absolutePath Absolute filesystem path (Unix or Windows form).
+ * @returns `file://` URL suitable for `<img src>` / `<video src>` / `<embed>`.
+ */
+export function toFileUrl(absolutePath: FilePath): FileUrlString {
+  let normalized: string = absolutePath.replace(/\\/g, '/')
+  if (/^[A-Za-z]:/.test(normalized)) {
+    normalized = '/' + normalized
+  }
+  const encoded = normalized
+    .split('/')
+    .map((segment) => (/^[A-Za-z]:$/.test(segment) ? segment : encodeURIComponent(segment)))
+    .join('/')
+  return `file://${encoded}`
+}
+
+/**
+ * Decode a `file://` URL into a filesystem path string without importing
+ * `node:url`, so renderer/shared callers can use the same path handling.
+ *
+ * - Unix:    `file:///foo/bar%20baz.pdf`     → `/foo/bar baz.pdf`
+ * - Windows: `file:///C:/foo/bar%20baz.pdf`  → `C:/foo/bar baz.pdf`
+ * - UNC:     `file://server/share/file.pdf`  → `//server/share/file.pdf`
+ *
+ * Main-process code should use Node's `fileURLToPath` when it is already in a
+ * Node-only module. This helper exists for shared / renderer-safe code.
+ *
+ * Throws `TypeError` for a non-`file:` URL and `URIError` for malformed
+ * percent-encoding (via `decodeURIComponent`).
+ */
+export function fileUrlToPath(fileUrl: FileUrlString | URL): string {
+  const url = typeof fileUrl === 'string' ? new URL(fileUrl) : fileUrl
+  if (url.protocol !== 'file:') {
+    throw new TypeError('Expected a file:// URL')
+  }
+
+  const pathname = decodeURIComponent(url.pathname)
+  if (url.hostname) return `//${url.hostname}${pathname}`
+  if (/^\/[A-Za-z]:\//.test(pathname)) return pathname.slice(1)
+  return pathname
+}
+
+/**
+ * `file://` URL with danger-file safety wrap.
+ *
+ * For `<img src>` / `<video src>` / `<embed>` synchronous rendering — if
+ * `isDangerExt(ext)` returns `true`, the URL points at the containing
+ * directory instead of the file, preventing accidental launch through OS file
+ * associations on hover / drag / double-click of the rendered element.
+ *
+ * **Scope**: HTML rendering contexts only. Do NOT compose this URL into
+ * command-line arguments or subprocess args — use the raw `FilePath` from
+ * File IPC `getPhysicalPath` for those cases.
+ *
+ * @param absolutePath Absolute filesystem path (from `getPhysicalPath` IPC).
+ * @param ext File extension, with or without leading dot, or `null`.
+ */
+export function toSafeFileUrl(absolutePath: FilePath, ext: string | null): FileUrlString {
+  const effectivePath = isDangerExt(ext) ? dirnameSimple(absolutePath) : absolutePath
+  return toFileUrl(effectivePath as FilePath)
+}

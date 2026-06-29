@@ -1,5 +1,5 @@
-import type { FileMetadata } from '@renderer/types'
-import { filterSupportedFiles } from '@renderer/utils'
+import type { FileMetadata } from '@renderer/types/file'
+import { filterSupportedFiles } from '@renderer/utils/file'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -59,12 +59,12 @@ export const useFiles = (props?: Props) => {
 
       if (_files) {
         if (!useAllFiles) {
-          setFiles([...files, ..._files])
+          setFiles((currentFiles) => [...currentFiles, ..._files])
           return _files
         }
         const supportedFiles = await filterSupportedFiles(_files, extensions)
         if (supportedFiles.length > 0) {
-          setFiles([...files, ...supportedFiles])
+          setFiles((currentFiles) => [...currentFiles, ...supportedFiles])
         }
 
         if (supportedFiles.length !== _files.length) {
@@ -79,7 +79,7 @@ export const useFiles = (props?: Props) => {
         return []
       }
     },
-    [extensions, files, selecting, t]
+    [extensions, selecting, t]
   )
 
   const clearFiles = useCallback(() => {

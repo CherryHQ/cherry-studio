@@ -12,7 +12,8 @@
  */
 
 import { loggerService } from '@logger'
-import type { Citation, WebSearchSource } from '@renderer/types/index'
+import type { Citation } from '@renderer/types/message'
+import type { WebSearchSource } from '@renderer/types/webSearchProvider'
 import type { CitationReference, ContentReference } from '@shared/data/types/message'
 import { isKnowledgeCitation, isMemoryCitation, isWebCitation, ReferenceCategory } from '@shared/data/types/message'
 

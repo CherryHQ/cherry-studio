@@ -4,9 +4,10 @@ import { MessageListProvider } from '@renderer/components/chat/messages/MessageL
 import { AskUserQuestionOptimisticInputProvider } from '@renderer/components/chat/messages/tools/agent/AskUserQuestionOptimisticContext'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { useSession } from '@renderer/hooks/agents/useSession'
-import type { GetAgentResponse, Topic, TopicType as TopicTypeEnum } from '@renderer/types'
-import { TopicType } from '@renderer/types'
+import { useSession } from '@renderer/hooks/agent/useSession'
+import { ipcApi } from '@renderer/ipc'
+import type { GetAgentResponse } from '@renderer/types/agent'
+import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
@@ -100,11 +101,11 @@ const AgentSessionMessages = ({
   })
 
   useEffect(() => {
-    void window.api.ai.prewarmAgentSession({ sessionId }).catch((error) => {
+    void ipcApi.request('ai.prewarm_agent_session', { sessionId }).catch((error) => {
       logger.warn('Failed to prewarm agent session', error as Error)
     })
     return () => {
-      void window.api.ai.closeAgentSessionWarm({ sessionId }).catch((error) => {
+      void ipcApi.request('ai.close_agent_session_warm', { sessionId }).catch((error) => {
         logger.warn('Failed to close agent session warm query', error as Error)
       })
     }

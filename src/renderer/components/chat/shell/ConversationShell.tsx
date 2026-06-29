@@ -1,8 +1,8 @@
 import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
 import { TITLE_BAR_HEIGHT_CLASS, TITLE_BAR_HEIGHT_PX } from '@renderer/components/layout/titleBar'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
-import { isMac } from '@renderer/config/constant'
-import { cn } from '@renderer/utils'
+import { isMac } from '@renderer/utils/platform'
+import { cn } from '@renderer/utils/style'
 import type { CSSProperties, ReactNode, Ref } from 'react'
 
 import { ChatMaximizedOverlayInsetProvider } from '../layout/ChatViewportInsetContext'

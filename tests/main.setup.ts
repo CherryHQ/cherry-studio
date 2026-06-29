@@ -89,7 +89,10 @@ vi.mock('electron', () => {
     session: {
       defaultSession: {
         clearCache: vi.fn(),
-        clearStorageData: vi.fn()
+        clearStorageData: vi.fn(),
+        webRequest: {
+          onBeforeSendHeaders: vi.fn()
+        }
       }
     },
     webContents: {
