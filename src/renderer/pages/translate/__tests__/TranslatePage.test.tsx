@@ -41,7 +41,7 @@ const clipboardWriteTextMock = vi.hoisted(() => vi.fn())
 const toastLoadingMock = vi.hoisted(() => vi.fn())
 const toastCloseToastMock = vi.hoisted(() => vi.fn())
 const modelSelectorMock = vi.hoisted(() => vi.fn())
-const exportMessageToNotesMock = vi.hoisted(() => vi.fn())
+const exportContentToNotesMock = vi.hoisted(() => vi.fn())
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -141,7 +141,7 @@ vi.mock('@renderer/hooks/useTimer', () => ({
 }))
 
 vi.mock('@renderer/services/ExportService', () => ({
-  exportMessageToNotes: exportMessageToNotesMock
+  exportContentToNotes: exportContentToNotesMock
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -343,8 +343,8 @@ describe('TranslatePage', () => {
     clipboardWriteTextMock.mockResolvedValue(undefined)
     toastLoadingMock.mockReset()
     toastCloseToastMock.mockReset()
-    exportMessageToNotesMock.mockReset()
-    exportMessageToNotesMock.mockResolvedValue(undefined)
+    exportContentToNotesMock.mockReset()
+    exportContentToNotesMock.mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: {
@@ -392,7 +392,7 @@ describe('TranslatePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'notes.save' }))
 
     await waitFor(() =>
-      expect(exportMessageToNotesMock).toHaveBeenCalledWith(
+      expect(exportContentToNotesMock).toHaveBeenCalledWith(
         'First translated line',
         'First translated line\nSecond translated line',
         '/notes'

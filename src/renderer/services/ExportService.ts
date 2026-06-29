@@ -975,16 +975,14 @@ async function createSiyuanDoc(
 }
 
 /**
- * 导出消息到笔记工作区
- * @returns 创建的笔记节点
- * @param title
- * @param content
- * @param folderPath
+ * 导出任意文本内容到笔记工作区
+ * @param title 笔记标题
+ * @param content 笔记内容
+ * @param folderPath 目标笔记文件夹
  */
-export const exportMessageToNotes = async (title: string, content: string, folderPath: string): Promise<void> => {
+export const exportContentToNotes = async (title: string, content: string, folderPath: string): Promise<void> => {
   try {
-    const cleanedContent = content.replace(/^## 🤖 Assistant(\n|$)/m, '')
-    await addNote(title, cleanedContent, folderPath)
+    await addNote(title, content, folderPath)
 
     window.toast.success(i18n.t('message.success.notes.export'))
   } catch (error) {
@@ -995,22 +993,24 @@ export const exportMessageToNotes = async (title: string, content: string, folde
 }
 
 /**
+ * 导出消息到笔记工作区
+ * @param title
+ * @param content
+ * @param folderPath
+ */
+export const exportMessageToNotes = async (title: string, content: string, folderPath: string): Promise<void> => {
+  const cleanedContent = content.replace(/^## 🤖 Assistant(\n|$)/m, '')
+  await exportContentToNotes(title, cleanedContent, folderPath)
+}
+
+/**
  * 导出话题到笔记工作区
  * @param topic 要导出的话题
  * @param folderPath
- * @returns 创建的笔记节点
  */
 export const exportTopicToNotes = async (topic: Topic, folderPath: string): Promise<void> => {
-  try {
-    const content = await topicToMarkdown(topic)
-    await addNote(topic.name, content, folderPath)
-
-    window.toast.success(i18n.t('message.success.notes.export'))
-  } catch (error) {
-    logger.error('导出到笔记失败:', error as Error)
-    window.toast.error(i18n.t('message.error.notes.export'))
-    throw error
-  }
+  const content = await topicToMarkdown(topic)
+  await exportContentToNotes(topic.name, content, folderPath)
 }
 
 // NOTE (domain-axis follow-up, deferred per the cycle-break refactor plan):

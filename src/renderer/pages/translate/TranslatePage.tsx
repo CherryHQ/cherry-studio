@@ -21,9 +21,10 @@ import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi } from '@renderer/ipc'
-import { exportMessageToNotes } from '@renderer/services/ExportService'
+import { exportContentToNotes } from '@renderer/services/ExportService'
 import { type FileMetadata, isImageFileMetadata } from '@renderer/types/file'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { getTitleFromString } from '@renderer/utils/export'
 import { getFileExtension, isTextFile } from '@renderer/utils/file'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
 import { cn } from '@renderer/utils/style'
@@ -70,11 +71,6 @@ const EXCLUDED_TRANSLATE_MODEL_CAPABILITIES = new Set<string>([
 const getModelIdentifier = (model: SelectorModel) => model.apiModelId ?? parseUniqueModelId(model.id).modelId
 
 const getModelInitial = (model: SelectorModel) => model.name.trim().charAt(0) || 'M'
-
-const TRANSLATION_RESULT_NOTE_TITLE_MAX_LENGTH = 80
-
-const getTranslationResultNoteTitle = (content: string) =>
-  content.trim().split(/\r?\n/, 1)[0].slice(0, TRANSLATION_RESULT_NOTE_TITLE_MAX_LENGTH)
 
 type OcrJob = {
   jobId: string
@@ -266,7 +262,7 @@ const TranslatePage: FC = () => {
 
   const onExportOutputToNotes = useCallback(async () => {
     if (!translateOutput.trim()) return
-    await exportMessageToNotes(getTranslationResultNoteTitle(translateOutput), translateOutput, notesPath)
+    await exportContentToNotes(getTitleFromString(translateOutput), translateOutput, notesPath)
   }, [notesPath, translateOutput])
 
   const translate = useCallback(
