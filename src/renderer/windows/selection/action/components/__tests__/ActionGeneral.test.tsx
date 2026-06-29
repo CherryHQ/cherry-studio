@@ -70,7 +70,7 @@ vi.mock('../WindowFooter', () => ({
   default: () => <div data-testid="window-footer" />
 }))
 
-vi.mock('@renderer/transport/IpcChatTransport', () => ({
+vi.mock('@renderer/services/aiTransport', () => ({
   ipcChatTransport: {}
 }))
 
