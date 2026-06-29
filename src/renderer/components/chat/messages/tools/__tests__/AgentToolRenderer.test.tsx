@@ -477,6 +477,24 @@ describe('AgentToolRenderer', () => {
       expect(screen.getByText('plane.html')).toBeInTheDocument()
       expect(screen.getAllByTestId('tooltip-content').some((element) => element.textContent === errorText)).toBe(true)
     })
+
+    it('keeps the Write target path non-interactive when the write failed', () => {
+      const openArtifactFile = vi.fn()
+      mockMessageListActions.mockReturnValue({ openArtifactFile })
+      const toolResponse = createToolResponse({
+        tool: { id: 'Write', name: 'Write', description: 'Write a file', type: 'provider' },
+        status: 'error',
+        arguments: { file_path: '/plane.html', content: '<html></html>' },
+        response: { isError: true, content: [{ type: 'text', text: 'EROFS: read-only file system' }] }
+      })
+
+      render(<AgentToolRenderer toolResponse={toolResponse} />)
+
+      expect(screen.getByText('plane.html')).toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: 'plane.html' })).not.toBeInTheDocument()
+      fireEvent.click(screen.getByText('plane.html'))
+      expect(openArtifactFile).not.toHaveBeenCalled()
+    })
   })
 
   describe('pending without streaming', () => {

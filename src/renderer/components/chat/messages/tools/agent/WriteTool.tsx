@@ -6,12 +6,21 @@ import { ClickableFilePath } from './ClickableFilePath'
 import { SkeletonValue, ToolHeader } from './GenericTools'
 import { AgentToolsType, type WriteToolInput, type WriteToolOutput } from './types'
 
-export function WriteTool({ input, output }: { input?: WriteToolInput; output?: WriteToolOutput }): ToolDisclosureItem {
+export function WriteTool({
+  input,
+  output,
+  hasError
+}: {
+  input?: WriteToolInput
+  output?: WriteToolOutput
+  hasError?: boolean
+}): ToolDisclosureItem {
   const filename = input?.file_path?.split('/').pop()
   const language = getLanguageByFilePath(input?.file_path ?? '')
-  // A Write creates the file: until the tool call completes (output present),
-  // the file may not exist on disk yet, so the path must not be clickable.
-  const fileWritten = output !== undefined
+  // A Write creates the file: keep the path inert until the call finishes
+  // successfully (output present and no error). While streaming the file may
+  // not exist yet, and a failed write never created it — so neither is clickable.
+  const fileWritten = output !== undefined && !hasError
 
   return {
     key: AgentToolsType.Write,

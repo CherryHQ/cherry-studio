@@ -56,7 +56,7 @@ export function AgentToolCallCard({
 }) {
   const actions = useOptionalMessageListActions()
   const renderedItem = isValidAgentToolsType(toolName)
-    ? renderTool(toolName, input ?? {}, output)
+    ? renderTool(toolName, input ?? {}, output, hasError)
     : UnknownToolRenderer({ toolName: toolName ?? 'Tool', input, output })
   const openToolFlow =
     openFlowOnClick && actions?.openAgentToolFlow && toolCallId
