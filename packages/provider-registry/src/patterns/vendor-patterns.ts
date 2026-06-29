@@ -45,8 +45,13 @@ export const VENDOR_PATTERNS = {
   /** xAI Grok family. */
   grok: /^grok/i,
 
-  /** OpenAI (chat + reasoning + legacy). Matches GPT-n and bare o<digit>-series. */
-  openai: /\bgpt\b|^o[134]/i,
+  /**
+   * OpenAI (chat + reasoning + legacy + media + embeddings). GPT-n, ChatGPT, the bare o<digit> series,
+   * codex/davinci/babbage, DALL·E, moderation, and OpenAI's `text-embedding-3*` / `-ada` embeddings.
+   * `text-embedding` is scoped to the `-3`/`-ada` SKUs on purpose — bare `text-embedding-0xx` is Google's,
+   * and `VENDOR_PATTERNS` is a flat set with no per-lab disambiguation.
+   */
+  openai: /\bgpt\b|^o[134]|^chatgpt|^codex|^davinci|^babbage|^dall-e|^text-moderation|^text-embedding-(?:3|ada)/i,
 
   /** Alibaba Qwen family (qwen, qwq, qvq). */
   qwen: /^qwen|^qwq|^qvq|^tongyi/i,
@@ -75,8 +80,8 @@ export const VENDOR_PATTERNS = {
   /** Ant Group Ling / Ring family. */
   ling: /^(?:ling|ring)-/i,
 
-  /** MiniMax family. */
-  minimax: /^minimax/i,
+  /** MiniMax family — current `minimax-*` plus the legacy `abab-*` SKUs the lab still claims. */
+  minimax: /^(?:minimax|abab)/i,
 
   /** StepFun family. */
   step: /^step-/i,
@@ -84,8 +89,8 @@ export const VENDOR_PATTERNS = {
   /** Zhipu / GLM family. */
   zhipu: /^(?:glm|chatglm|cogview|cogvideo|codegeex)/i,
 
-  /** Mistral family */
-  mistral: /^(?:mistral|pixtral|codestral|ministral|voxtral|devstral|mixtral|magistral)/i
+  /** Mistral family — incl. the `open-*` open-weight line (`open-mistral-7b`, `open-mixtral-8x22b`) and `labs-*`. */
+  mistral: /^(?:open-|labs-)?(?:mistral|pixtral|codestral|ministral|voxtral|devstral|mixtral|magistral)/i
 } as const satisfies Record<string, RegExp>
 
 export type VendorKey = keyof typeof VENDOR_PATTERNS

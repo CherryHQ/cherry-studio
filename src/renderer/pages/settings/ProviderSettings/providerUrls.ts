@@ -522,6 +522,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       models: 'https://console.cloud.tencent.com/tione/v2/aimarket'
     }
   },
+  tokenhub: {
+    api: {
+      url: 'https://tokenhub.tencentmaas.com/v1'
+    },
+    websites: {
+      official: 'https://cloud.tencent.com/product/tokenhub',
+      apiKey: 'https://console.cloud.tencent.com/tokenhub/inference',
+      docs: 'https://cloud.tencent.com/document/product/1823',
+      models: 'https://cloud.tencent.com/document/product/1823/130079'
+    }
+  },
   gpustack: {
     api: {
       url: ''

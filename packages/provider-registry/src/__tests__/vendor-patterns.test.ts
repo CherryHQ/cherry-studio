@@ -58,3 +58,39 @@ describe('matchVendor — lab/runtime parity for doubao + zhipu (#8, #9)', () =>
     expect(matchVendor('glm-4-6')).toBe('zhipu')
   })
 })
+
+describe('matchVendor — lab/runtime parity for openai, mistral, minimax', () => {
+  it('openai claims chatgpt, codex, davinci/babbage, dall-e, moderation, and 3/ada embeddings', () => {
+    expect(matchVendor('gpt-4o')).toBe('openai')
+    expect(matchVendor('chatgpt-image-latest')).toBe('openai') // no \b inside "chatgpt" — needs its own branch
+    expect(matchVendor('codex-mini-latest')).toBe('openai')
+    expect(matchVendor('davinci-002')).toBe('openai')
+    expect(matchVendor('babbage-002')).toBe('openai')
+    expect(matchVendor('dall-e-3')).toBe('openai')
+    expect(matchVendor('text-moderation-latest')).toBe('openai')
+    expect(matchVendor('text-embedding-3-large')).toBe('openai')
+    expect(matchVendor('text-embedding-ada-002')).toBe('openai')
+  })
+
+  it('openai does NOT steal Google text-embedding-0xx (flat regex set, no per-lab disambiguation)', () => {
+    expect(matchVendor('text-embedding-004')).toBeUndefined()
+    expect(matchVendor('text-embedding-005')).toBeUndefined()
+  })
+
+  it('mistral claims the open-weight / labs prefixes', () => {
+    expect(matchVendor('open-mistral-7b')).toBe('mistral')
+    expect(matchVendor('open-mixtral-8x22b')).toBe('mistral')
+    expect(matchVendor('labs-devstral-small')).toBe('mistral')
+    expect(matchVendor('mistral-large-3')).toBe('mistral')
+  })
+
+  it('the optional open-/labs- prefix does not over-match non-mistral ids', () => {
+    expect(matchVendor('openrouter-auto')).toBeUndefined()
+    expect(matchVendor('open-weights-llama')).toBeUndefined()
+  })
+
+  it('minimax claims the legacy abab SKUs', () => {
+    expect(matchVendor('abab6-5s-chat')).toBe('minimax')
+    expect(matchVendor('minimax-m2')).toBe('minimax')
+  })
+})

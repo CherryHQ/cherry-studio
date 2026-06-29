@@ -6,6 +6,7 @@
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
+import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -341,6 +342,44 @@ describe('ProviderRegistryService', () => {
 
       expect(models).toHaveLength(1)
       expect(models[0].name).toBe('GPT-4o')
+    })
+
+    it('preserves the exact apiModelId identity for same-canonical variants (keeps canonical presetModelId)', async () => {
+      // A provider serving one canonical model under several apiModelIds (tokenhub's dated 原厂直供 variants).
+      mockReadModels.mockReturnValue({
+        version: '1.0',
+        models: [{ id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', capabilities: ['function-call'] }]
+      } as ReturnType<typeof readModelRegistry>)
+      mockReadProviderModels.mockReturnValue({
+        version: '1.0',
+        overrides: [
+          { providerId: 'tokenhub', modelId: 'deepseek-v4-flash', apiModelId: 'deepseek-v4-flash' },
+          {
+            providerId: 'tokenhub',
+            modelId: 'deepseek-v4-flash',
+            apiModelId: 'deepseek-v4-flash-202605',
+            name: 'DeepSeek-V4-Flash 原厂直供'
+          }
+        ]
+      } as ReturnType<typeof readProviderModelRegistry>)
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers: [
+          {
+            id: 'tokenhub',
+            name: 'TokenHub',
+            endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://tokenhub.tencentmaas.com/v1' } },
+            defaultChatEndpoint: 'openai-chat-completions',
+            metadata: { website: { official: 'https://cloud.tencent.com/product/tokenhub' } }
+          }
+        ]
+      } as ReturnType<typeof readProviderRegistry>)
+
+      const [dated] = await providerRegistryService.resolveModels('tokenhub', ['deepseek-v4-flash-202605'])
+      // unique id rebuilt from the apiModelId (NOT collapsed to the canonical tokenhub::deepseek-v4-flash)
+      expect(dated.id).toBe(createUniqueModelId('tokenhub', 'deepseek-v4-flash-202605'))
+      expect(dated.apiModelId).toBe('deepseek-v4-flash-202605')
+      expect(dated.presetModelId).toBe('deepseek-v4-flash') // canonical preset preserved for metadata
     })
 
     it('getImageGenerationSupport returns the model block when present', async () => {
