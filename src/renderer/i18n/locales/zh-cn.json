@@ -3178,12 +3178,22 @@
           "agent_title": "新建智能体",
           "assistant_title": "新建助手",
           "avatar_aria": "选择头像",
+          "back": "上一步",
+          "capability": {
+            "import": "导入技能",
+            "no_skills": "未安装技能",
+            "search": "搜索技能"
+          },
           "description_placeholder": "描述它的用途...",
-          "dialog_description": "轻量新建助手或智能体。",
-          "model_placeholder": "选择模型",
-          "model_required": "请选择模型",
+          "guided_progress": "引导式创建 · 第 {{current}} / {{total}} 步",
           "name_placeholder": "输入名称",
-          "name_required": "请输入名称",
+          "next": "下一步",
+          "step": {
+            "basic": "基础信息",
+            "capability": "技能",
+            "knowledge": "知识库",
+            "persona": "设定人格"
+          },
           "submit": "新建",
           "submit_failed": "新建失败"
         },

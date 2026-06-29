@@ -20,7 +20,7 @@ Cherry Studio UI component library for React applications.
 ```bash
 npm install @cherrystudio/ui
 # peer dependencies
-npm install framer-motion react react-dom tailwindcss
+npm install motion react react-dom tailwindcss
 ```
 
 > The recommended integration style in this repository is to use the package export entry points:

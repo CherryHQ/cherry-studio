@@ -1,7 +1,7 @@
 import { Button } from '@cherrystudio/ui/components/primitives/button'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { AnimatePresence, motion } from 'framer-motion'
 import { XIcon } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 import * as React from 'react'
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
