@@ -1,11 +1,9 @@
 import { SIDEBAR_ICON_COMPONENTS } from '@renderer/components/app/sidebarIcons'
-import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
 import { Library } from 'lucide-react'
 import { describe, expect, it } from 'vitest'
 
 import {
   getOrderedVisibleSidebarFavorites,
-  getSidebarFavoriteIds,
   getSidebarMenuPath,
   getSidebarMiniAppFavoriteIds,
   resolveSidebarActiveItem,
@@ -40,7 +38,7 @@ describe('sidebar config helpers', () => {
     ])
   })
 
-  it('ignores mini app favorites when reading system sidebar favorites', () => {
+  it('ignores non-app ids when reading system sidebar favorites', () => {
     expect(getOrderedVisibleSidebarFavorites(['translate', 'calculator', 'assistants', 'agents'])).toEqual([
       'translate',
       'assistants',
@@ -48,27 +46,8 @@ describe('sidebar config helpers', () => {
     ])
   })
 
-  it('reads mini app favorite ids from sidebar favorite ids', () => {
-    expect(getSidebarMiniAppFavoriteIds(['translate', 'calculator', 'assistants', 'calculator', 'weather'])).toEqual([
-      'calculator',
-      'weather'
-    ])
-  })
-
-  it('dedupes favorite ids and preserves mini app ids', () => {
-    expect(getSidebarFavoriteIds(['translate', 'calculator', 'assistants', 'calculator', 'weather'])).toEqual([
-      'translate',
-      'calculator',
-      'assistants',
-      'weather'
-    ])
-  })
-
-  it('keeps preset mini app ids out of the system sidebar id namespace', () => {
-    const sidebarFavoriteSet = new Set<string>(SIDEBAR_FAVORITE_ORDER)
-    const conflictingPresetIds = PRESETS_MINI_APPS.flatMap((app) => (sidebarFavoriteSet.has(app.id) ? [app.id] : []))
-
-    expect(conflictingPresetIds).toEqual([])
+  it('dedupes mini app favorite ids and preserves their order', () => {
+    expect(getSidebarMiniAppFavoriteIds(['calculator', 'weather', 'calculator'])).toEqual(['calculator', 'weather'])
   })
 
   it('resolves menu paths and active items with the paintings provider route', () => {

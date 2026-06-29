@@ -108,7 +108,14 @@
       "type": "PreferenceTypes.SidebarFavorite[]",
       "defaultValue": ["assistants", "agents", "store", "translate", "mini_app"],
       "status": "classified",
-      "description": "Left sidebar favorite app ids, stored as an ordered subset of the sidebar app catalog"
+      "description": "Left sidebar favorite built-in app ids, stored as an ordered subset of the sidebar app catalog"
+    },
+    {
+      "targetKey": "ui.sidebar.mini_app_favorites",
+      "type": "string[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Left sidebar favorite mini app ids, ordered and independent of launchpad pinning"
     },
     {
       "targetKey": "chat.default_model_id",

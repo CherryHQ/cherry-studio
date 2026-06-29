@@ -145,7 +145,6 @@ vi.mock('react-i18next', () => ({
 import LaunchpadPage from '../LaunchpadPage'
 
 const appFavorite = (id: SidebarAppId): string => id
-const miniAppFavorite = (id: string): string => id
 
 afterEach(() => {
   cleanup()
@@ -200,13 +199,8 @@ describe('LaunchpadPage', () => {
     expect(appLabels.slice(0, 4)).toEqual(['Translate', 'Chat', 'Agent', 'Paintings'])
   })
 
-  it('sorts only fixed sidebar apps and preserves mini app favorite ids', () => {
-    mocks.sidebarFavorites = [
-      appFavorite('translate'),
-      appFavorite('assistants'),
-      appFavorite('agents'),
-      miniAppFavorite('calculator')
-    ]
+  it('sorts fixed sidebar apps and persists the new order', () => {
+    mocks.sidebarFavorites = [appFavorite('translate'), appFavorite('assistants'), appFavorite('agents')]
 
     render(<LaunchpadPage />)
 
@@ -219,8 +213,7 @@ describe('LaunchpadPage', () => {
     expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([
       appFavorite('assistants'),
       appFavorite('agents'),
-      appFavorite('translate'),
-      miniAppFavorite('calculator')
+      appFavorite('translate')
     ])
   })
 

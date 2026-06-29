@@ -8,7 +8,7 @@ import IndicatorLight from '@renderer/components/IndicatorLight'
 import MarqueeText from '@renderer/components/MarqueeText'
 import { useTabs } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { createSidebarMiniAppFavorite, getSidebarFavoriteIds } from '@renderer/utils/sidebar'
+import { getSidebarMiniAppFavoriteIds } from '@renderer/utils/sidebar'
 import { ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { FC, KeyboardEvent } from 'react'
@@ -39,13 +39,13 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
     updateAppStatus,
     removeCustomMiniApp
   } = useMiniApps()
-  const [sidebarFavorites, setSidebarFavorites] = usePreference('ui.sidebar.favorites')
+  const [sidebarMiniAppFavorites, setSidebarMiniAppFavorites] = usePreference('ui.sidebar.mini_app_favorites')
   const { openTab } = useTabs()
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false)
   const [removingCustom, setRemovingCustom] = useState(false)
   const isPinned = pinned.some((p) => p.appId === app.appId)
-  const sidebarFavoriteIds = getSidebarFavoriteIds(sidebarFavorites)
-  const isSidebarFavorite = sidebarFavoriteIds.includes(app.appId)
+  const sidebarMiniAppFavoriteIds = getSidebarMiniAppFavoriteIds(sidebarMiniAppFavorites)
+  const isSidebarFavorite = sidebarMiniAppFavoriteIds.includes(app.appId)
   const isVisible = miniApps.some((m) => m.appId === app.appId)
   // Pinned apps should always be visible regardless of region/locale filtering
   const shouldShow = isVisible || isPinned
@@ -100,11 +100,10 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
   }
 
   const handleToggleSidebarFavorite = () => {
-    const nextFavorites = isSidebarFavorite
-      ? sidebarFavoriteIds.filter((favorite) => favorite !== app.appId)
-      : [...sidebarFavoriteIds.filter((favorite) => favorite !== app.appId), createSidebarMiniAppFavorite(app.appId)]
+    const withoutApp = sidebarMiniAppFavoriteIds.filter((favorite) => favorite !== app.appId)
+    const nextFavorites = isSidebarFavorite ? withoutApp : [...withoutApp, app.appId]
 
-    setSidebarFavorites(nextFavorites).catch(reportFailure('common.error'))
+    setSidebarMiniAppFavorites(nextFavorites).catch(reportFailure('common.error'))
   }
 
   const handleHide = () => {

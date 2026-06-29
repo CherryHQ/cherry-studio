@@ -21,11 +21,11 @@ const mocks = vi.hoisted(() => ({
   updateAppStatus: vi.fn(() => Promise.resolve()),
   removeCustomMiniApp: vi.fn(() => Promise.resolve()),
   setOpenedKeepAliveMiniApps: vi.fn(),
-  setSidebarFavorites: vi.fn(() => Promise.resolve()),
+  setSidebarMiniAppFavorites: vi.fn(() => Promise.resolve()),
   miniApps: [] as MiniAppType[],
   pinned: [] as MiniAppType[],
   openedKeepAliveMiniApps: [] as MiniAppType[],
-  sidebarFavorites: ['assistants'] as string[]
+  sidebarMiniAppFavorites: [] as string[]
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -88,7 +88,8 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
 
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
-    if (key === 'ui.sidebar.favorites') return [mocks.sidebarFavorites, mocks.setSidebarFavorites]
+    if (key === 'ui.sidebar.mini_app_favorites')
+      return [mocks.sidebarMiniAppFavorites, mocks.setSidebarMiniAppFavorites]
     return [undefined, vi.fn()]
   }
 }))
@@ -121,7 +122,7 @@ afterEach(() => {
   mocks.miniApps = []
   mocks.pinned = []
   mocks.openedKeepAliveMiniApps = []
-  mocks.sidebarFavorites = ['assistants']
+  mocks.sidebarMiniAppFavorites = []
 })
 
 describe('MiniApp launchpad pin menu', () => {
@@ -142,17 +143,17 @@ describe('MiniApp launchpad pin menu', () => {
     render(<MiniApp app={enabledApp} variant="launchpad" />)
     fireEvent.click(screen.getByRole('button', { name: 'miniApp.add_to_sidebar' }))
 
-    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith(['assistants', 'calculator'])
+    expect(mocks.setSidebarMiniAppFavorites).toHaveBeenCalledWith(['calculator'])
   })
 
   it('removes a mini app from sidebar favorites', () => {
-    mocks.sidebarFavorites = ['assistants', 'calculator', 'weather']
+    mocks.sidebarMiniAppFavorites = ['calculator', 'weather']
     mocks.pinned = [calculatorApp]
 
     render(<MiniApp app={calculatorApp} variant="launchpad" />)
     fireEvent.click(screen.getByRole('button', { name: 'miniApp.remove_from_sidebar' }))
 
-    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith(['assistants', 'weather'])
+    expect(mocks.setSidebarMiniAppFavorites).toHaveBeenCalledWith(['weather'])
   })
 
   it('removes a pinned mini app from launchpad by restoring enabled status', () => {

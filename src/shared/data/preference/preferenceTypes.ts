@@ -98,7 +98,6 @@ export type SidebarFavorite =
   | 'code_tools'
   | 'notes'
   | 'openclaw'
-  | (string & {})
 
 export type AssistantIconType = 'model' | 'emoji' | 'none'
 

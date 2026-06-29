@@ -210,47 +210,31 @@ export function isSidebarAppId(value: string): value is SidebarAppId {
   return sidebarFavoriteSet.has(value as SidebarAppId)
 }
 
-export function createSidebarAppFavorite(id: SidebarAppId): SidebarFavorite {
-  return id
-}
-
-export function createSidebarMiniAppFavorite(id: string): SidebarFavorite {
-  return id
-}
-
-export function getSidebarFavoriteIds(favorites: readonly SidebarFavorite[] | undefined): SidebarFavorite[] {
+/** Dedupe an ordered id list, preserving first-seen order and dropping empties. */
+function dedupeIds(ids: readonly string[] | undefined): string[] {
   const seen = new Set<string>()
-  const ids: SidebarFavorite[] = []
+  const result: string[] = []
 
-  for (const favorite of favorites ?? []) {
-    if (!favorite || seen.has(favorite)) continue
-
-    seen.add(favorite)
-    ids.push(favorite)
-  }
-
-  return ids
-}
-
-function sanitizeSidebarFavorites(favorites: readonly SidebarFavorite[] | undefined): SidebarAppId[] {
-  const seen = new Set<SidebarAppId>()
-  const sidebarFavorites: SidebarAppId[] = []
-
-  for (const id of getSidebarFavoriteIds(favorites)) {
-    if (!isSidebarAppId(id) || seen.has(id)) continue
+  for (const id of ids ?? []) {
+    if (!id || seen.has(id)) continue
 
     seen.add(id)
-    sidebarFavorites.push(id)
+    result.push(id)
   }
 
-  return sidebarFavorites
+  return result
 }
 
-export function getSidebarMiniAppFavoriteIds(favorites: readonly SidebarFavorite[] | undefined): string[] {
-  return getSidebarFavoriteIds(favorites).filter((id) => !isSidebarAppId(id))
+function sanitizeSidebarFavorites(favorites: readonly string[] | undefined): SidebarAppId[] {
+  return dedupeIds(favorites).filter(isSidebarAppId)
 }
 
-export function getOrderedVisibleSidebarFavorites(favorites: readonly SidebarFavorite[] | undefined): SidebarAppId[] {
+/** Mini app sidebar favorites: an ordered, deduped list of mini app ids. */
+export function getSidebarMiniAppFavoriteIds(favorites: readonly string[] | undefined): string[] {
+  return dedupeIds(favorites)
+}
+
+export function getOrderedVisibleSidebarFavorites(favorites: readonly string[] | undefined): SidebarAppId[] {
   const visible = sanitizeSidebarFavorites(favorites)
 
   for (const favorite of REQUIRED_SIDEBAR_FAVORITES) {

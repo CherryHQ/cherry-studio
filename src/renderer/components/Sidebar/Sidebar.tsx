@@ -33,8 +33,6 @@ export interface SidebarProps {
   onSearchClick?: () => void
   onExtensionsClick?: () => void
   onMiniAppTabClick?: (tabId: string) => void
-  onStartSidebarDrag?: (e: React.MouseEvent, tabId: string) => void
-  onCloseDockedTab?: (tabId: string) => void
   onDismiss?: () => void
 }
 
@@ -58,8 +56,6 @@ export function Sidebar({
   onSearchClick,
   onExtensionsClick,
   onMiniAppTabClick,
-  onStartSidebarDrag,
-  onCloseDockedTab,
   onDismiss
 }: SidebarProps) {
   const isMacTransparentWindow = useMacTransparentWindow()
@@ -91,7 +87,7 @@ export function Sidebar({
   }, [onDismiss])
 
   const menuProps = { items, activeItem, onItemClick }
-  const dockedProps = { dockedTabs, activeTabId, onMiniAppTabClick, onStartSidebarDrag, onCloseDockedTab }
+  const dockedProps = { dockedTabs, activeTabId, onMiniAppTabClick }
   const footerProps = { user, actions, extensionsLabel, onExtensionsClick }
 
   // --- Floating sidebar ---

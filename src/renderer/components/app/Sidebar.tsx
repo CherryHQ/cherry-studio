@@ -46,6 +46,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const [sidebarFavorites] = usePreference('ui.sidebar.favorites')
+  const [sidebarMiniAppFavorites] = usePreference('ui.sidebar.mini_app_favorites')
   const { activeTab, updateTab, openTab } = useTabs()
   const { allApps } = useMiniApps()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
@@ -106,7 +107,10 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   // Menu items
   const pathname = activeTab?.url || '/'
   const activeMiniAppId = getMiniAppIdFromUrl(activeTab?.url)
-  const sidebarMiniAppFavoriteIds = useMemo(() => getSidebarMiniAppFavoriteIds(sidebarFavorites), [sidebarFavorites])
+  const sidebarMiniAppFavoriteIds = useMemo(
+    () => getSidebarMiniAppFavoriteIds(sidebarMiniAppFavorites),
+    [sidebarMiniAppFavorites]
+  )
 
   const sidebarMiniAppTabs = useMemo<SidebarMiniAppTab[]>(() => {
     const appById = new Map(allApps.map((app) => [app.appId, app]))
