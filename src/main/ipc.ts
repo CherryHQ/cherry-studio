@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { statfs } from 'node:fs/promises'
 import { arch } from 'node:os'
 import path from 'node:path'
 
@@ -33,7 +34,6 @@ import type {
   SupportedOcrFile,
   ThemeMode
 } from '@types'
-import checkDiskSpace from 'check-disk-space'
 import type { ProxyConfig } from 'electron'
 import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
@@ -966,14 +966,20 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   )
 
   ipcMain.handle(IpcChannel.App_GetDiskInfo, async (_, directoryPath: string) => {
+    // Use fs.statfs instead of the former check-disk-space@3.4.0 dependency.
+    // check-disk-space on Windows shells out to `powershell Get-CimInstance
+    // Win32_LogicalDisk ...` and leaks conhost processes (188 zombies / 48h
+    // observed in issue #16550). fs.statfs is a native syscall (libuv thread
+    // pool on Windows → GetDiskFreeSpaceExW) and does not spawn any subprocess.
+    // Returned shape { free, size } matches the prior contract; bavail reflects
+    // bytes available to an unprivileged writer, which is what the data-limit
+    // warning actually wants to measure.
     try {
-      const diskSpace = await checkDiskSpace(directoryPath) // { free, size } in bytes
-      logger.debug('disk space', diskSpace)
-      const { free, size } = diskSpace
-      return {
-        free,
-        size
-      }
+      const stats = await statfs(directoryPath)
+      const free = stats.bsize * stats.bavail
+      const size = stats.bsize * stats.blocks
+      logger.debug('disk space', { free, size })
+      return { free, size }
     } catch (error) {
       logger.error('check disk space error', error as Error)
       return null
