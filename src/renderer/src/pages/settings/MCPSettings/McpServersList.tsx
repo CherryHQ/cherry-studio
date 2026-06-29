@@ -128,6 +128,7 @@ const McpServersList: FC = () => {
           centered: true,
           onOk: async () => {
             await window.api.mcp.removeServer(server)
+            await window.api.mcp.cleanupAgentReferences(server.id)
             deleteMCPServer(server.id)
             window.toast.success(t('settings.mcp.deleteSuccess'))
           }
