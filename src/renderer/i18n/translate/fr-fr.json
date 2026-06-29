@@ -224,7 +224,12 @@
           "runFailed": "Échec de l'exécution de la tâche",
           "updateFailed": "Échec de la mise à jour de la tâche"
         },
-        "intervalPlaceholder": "Intervalle en minutes",
+        "frequency": {
+          "everyPrefix": "Toutes les",
+          "everySuffix": "minutes",
+          "label": "Fréquence d’exécution"
+        },
+        "intervalPlaceholder": "Au moins 1",
         "intervalUnit": "minutes",
         "lastRun": "Dernière exécution",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Intervalle",
-          "label": "Type de planification",
           "once": "Une fois"
         },
-        "scheduleValue": "Valeur de planification",
         "status": {
           "active": "Actif",
           "completed": "Terminé",
@@ -277,7 +280,7 @@
           "minutesAgo": "{{count}}m il y a"
         },
         "timeout": {
-          "label": "Délai d'attente dépassé",
+          "label": "Temps d’exécution maximal",
           "placeholder": "Aucune limite"
         },
         "title": "Tâches planifiées"
@@ -3873,64 +3876,6 @@
       "partial_failure": "{{count}} résultats de recherche, certaines recherches ont échoué"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "Ajouter à Launchpad",
-    "add_to_sidebar": "Ajouter à la barre latérale",
-    "popup": {
-      "close": "Fermer MinApp",
-      "devtools": "Outils de développement",
-      "goBack": "Retour",
-      "goForward": "Avancer",
-      "minimize": "Réduire MinApp",
-      "openExternal": "Ouvrir dans le navigateur",
-      "open_link_external_off": "Actuel : Ouvrir les liens dans la fenêtre par défaut",
-      "open_link_external_on": "Actuel : Ouvrir les liens dans le navigateur",
-      "refresh": "Actualiser",
-      "rightclick_copyurl": "Clic droit pour copier l'URL"
-    },
-    "remove_from_launchpad": "Supprimer de Launchpad",
-    "remove_from_sidebar": "Supprimer de la barre latérale",
-    "sidebar": {
-      "close": {
-        "title": "Fermer"
-      },
-      "closeall": {
-        "title": "Tout fermer"
-      },
-      "hide": {
-        "title": "Cacher"
-      },
-      "remove_custom": {
-        "title": "Supprimer l'application personnalisée"
-      }
-    },
-    "title": "MinApp"
-  },
-  "minapps": {
-    "ant-ling": "Fourmi Ling",
-    "baichuan": "Baichuan",
-    "baidu-ai-search": "Recherche IA Baidu",
-    "chatglm": "ChatGLM",
-    "dangbei": "Dangbei",
-    "doubao": "Doubao",
-    "hailuo": "Hailuo",
-    "ima": "ima",
-    "metaso": "Metaso",
-    "minimax-agent": "Agent Minimax CN",
-    "minimax-global": "Agent Minimax",
-    "nami-ai": "Nami IA",
-    "nami-ai-search": "Recherche Nami AI",
-    "qwen": "Qwen",
-    "sensechat": "SenseChat",
-    "stepfun": "Stepfun",
-    "tencent-yuanbao": "Yuanbao",
-    "tiangong-ai": "Skywork",
-    "wanzhi": "Wanzhi",
-    "wenxin": "ERNIE",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "Xiaoyi",
-    "zhihu": "Zhihu"
-  },
   "miniApp": {
     "add_to_launchpad": "Ajouter au tableau de bord",
     "add_to_sidebar": "Ajouter à la barre latérale",
@@ -3941,15 +3886,13 @@
     "hide_failed": "Failed to hide mini-app",
     "pin_failed": "Échec de l'épinglage de la mini-application",
     "popup": {
-      "close": "Закрыть мини-программу",
       "devtools": "Инструменты разработчика",
       "goBack": "Reculer",
       "goForward": "Avancer",
       "openExternal": "Открыть в браузере",
       "open_link_external_off": "Текущий: открывать ссылки в окне по умолчанию",
       "open_link_external_on": "Текущий: открывать ссылки в браузере",
-      "refresh": "Обновить",
-      "rightclick_copyurl": "Скопировать URL через правую кнопку мыши"
+      "refresh": "Обновить"
     },
     "remove_from_launchpad": "Supprimer du tableau de bord",
     "remove_from_sidebar": "Supprimer de la barre latérale",
@@ -3961,17 +3904,8 @@
     },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
-      "close": {
-        "title": "Fermer"
-      },
-      "closeall": {
-        "title": "Закрыть все"
-      },
       "hide": {
         "title": "Cacher"
-      },
-      "remove_custom": {
-        "title": "Supprimer l'application personnalisée"
       }
     },
     "title": "Mini-programme",
@@ -3991,7 +3925,6 @@
     "minimax-agent": "MiniMax Agent CN",
     "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
     "sensechat": "SenseChat",
     "stepfun": "Stepfun",
@@ -6524,37 +6457,24 @@
     "miniApps": {
       "cache_change_notice": "Les modifications prendront effet après l'ajout ou la suppression d'applications ouvertes jusqu'à atteindre la valeur définie",
       "cache_description": "Définir le nombre maximum d'applications pouvant rester actives simultanément",
-      "cache_settings": "Paramètres du cache",
       "cache_title": "Nombre de caches d'applications",
       "custom": {
-        "conflicting_ids": "Конфликтующие ID с ID по умолчанию: {{ids}}",
-        "duplicate_ids": "Обнаружены повторяющиеся ID: {{ids}}",
-        "edit_description": "Здесь вы можете отредактировать конфигурацию пользовательского приложения. Каждое приложение должно содержать поля id, name, url и logo.",
+        "create_title": "Créer une mini-application personnalisée",
         "edit_title": "Редактировать пользовательское приложение",
-        "id": "ID",
-        "id_error": "Поле ID обязательно для заполнения.",
-        "id_placeholder": "Введите ID",
-        "logo": "Логотип",
         "logo_file": "Загрузить файл логотипа",
-        "logo_upload_button": "Загрузить",
         "logo_upload_error": "Не удалось загрузить логотип.",
         "logo_upload_label": "Загрузить логотип",
-        "logo_upload_success": "Логотип успешно загружен.",
-        "logo_url": "URL логотипа",
-        "logo_url_label": "URL логотипа",
-        "logo_url_placeholder": "Введите URL логотипа",
         "name": "Имя",
-        "name_error": "Поле Имя обязательно для заполнения.",
         "name_placeholder": "Введите имя",
-        "placeholder": "Введите конфигурацию пользовательского приложения (в формате JSON)",
+        "remove_confirm_description": "Supprimer le mini-app personnalisé \"{{name}}\" ? Cette action ne peut pas être annulée.",
+        "remove_confirm_title": "Supprimer le mini-app personnalisé ?",
         "remove_error": "Не удалось удалить пользовательское приложение.",
         "remove_success": "Пользовательское приложение успешно удалено.",
-        "save": "Сохранить",
         "save_error": "Не удалось сохранить пользовательское приложение.",
         "save_success": "Пользовательское приложение успешно сохранено.",
         "title": "Пользовательское приложение",
         "url": "URL",
-        "url_error": "Поле URL обязательно для заполнения.",
+        "url_invalid": "Saisissez une URL http, https ou file valide.",
         "url_placeholder": "Введите URL"
       },
       "disabled": "Applications masquées",
@@ -6576,65 +6496,8 @@
         "title": "Filtrage par zone de la mini-application"
       },
       "reset_tooltip": "Réinitialiser aux valeurs par défaut",
-      "title": "Paramètres de l'application",
-      "visible": "Applications visibles"
-    },
-    "miniapps": {
-      "cache_change_notice": "Les changements prendront effet lorsque le nombre d’applications mini ouvertes atteindra la valeur définie",
-      "cache_description": "Définir le nombre maximal de mini-applications actives à conserver en mémoire",
-      "cache_settings": "Paramètres du cache",
-      "cache_title": "Limite du cache de la mini-application",
-      "custom": {
-        "conflicting_ids": "IDs en conflit avec les applications par défaut : {{ids}}",
-        "duplicate_ids": "IDs en double trouvés : {{ids}}",
-        "edit_description": "Modifiez ici la configuration de la mini-application personnalisée. Chaque application doit inclure les champs id, name, url et logo.",
-        "edit_title": "Modifier la mini-application personnalisée",
-        "id": "ID",
-        "id_error": "L'ID est requis.",
-        "id_placeholder": "Entrez l'ID",
-        "logo": "Logo",
-        "logo_file": "Télécharger le fichier du logo",
-        "logo_upload_button": "Télécharger",
-        "logo_upload_error": "Échec du téléchargement du logo.",
-        "logo_upload_label": "Télécharger le logo",
-        "logo_upload_success": "Logo téléchargé avec succès.",
-        "logo_url": "URL du logo",
-        "logo_url_label": "URL du logo",
-        "logo_url_placeholder": "Entrer l'URL du logo",
-        "name": "Nom",
-        "name_error": "Le nom est requis.",
-        "name_placeholder": "Entrez le nom",
-        "placeholder": "Entrez la configuration personnalisée de la mini-application (format JSON)",
-        "remove_error": "Échec de la suppression de la mini-application personnalisée.",
-        "remove_success": "Mini application personnalisée supprimée avec succès.",
-        "save": "Enregistrer",
-        "save_error": "Échec de l'enregistrement de la mini-application personnalisée.",
-        "save_success": "Mini-app personnalisée enregistrée avec succès.",
-        "title": "Personnalisé",
-        "url": "URL",
-        "url_error": "L'URL est requise.",
-        "url_placeholder": "Entrez l'URL"
-      },
-      "disabled": "Mini-applications cachées",
-      "display_title": "Paramètres d'affichage de la mini-application",
-      "empty": "Cliquez sur l’icône de masquage d’une application à gauche et elle se déplacera ici.",
-      "hide_app": "Masquer {{name}}",
-      "open_link_external": {
-        "title": "Ouvrir les liens dans une nouvelle fenêtre du navigateur"
-      },
-      "region": {
-        "auto": "Détection automatique",
-        "cn": "Chine",
-        "description": "Filtrage des mini-programmes non pris en charge en fonction de la région",
-        "global": "Mondial",
-        "title": "Filtre Mini Programme"
-      },
-      "reset_tooltip": "Rétablir les paramètres par défaut",
-      "show_app": "Afficher {{name}}",
-      "sidebar_description": "Afficher les mini-applications actives dans la barre latérale",
-      "sidebar_title": "Affichage des Mini Apps actives dans la barre latérale",
       "title": "Paramètres des Mini Apps",
-      "visible": "Mini Applications Visibles"
+      "visible": "Applications visibles"
     },
     "model": "Modèle par défaut",
     "models": {
@@ -6785,6 +6648,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
+        "sync_apply_default_in_use": "Certains modèles sont utilisés comme modèles par défaut et ne peuvent pas être supprimés.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",
@@ -7106,7 +6970,6 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Domaine d'accélération",
-          "backup": "Domaine de sauvegarde",
           "international": "Domaine international"
         }
       },

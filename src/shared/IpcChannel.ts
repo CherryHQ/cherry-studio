@@ -267,10 +267,7 @@ export enum IpcChannel {
   System_GetDeviceType = 'system:getDeviceType',
   System_GetHostname = 'system:getHostname',
   System_GetCpuName = 'system:getCpuName',
-  System_CheckGitBash = 'system:checkGitBash',
-  System_GetGitBashPath = 'system:getGitBashPath',
-  System_GetGitBashPathInfo = 'system:getGitBashPathInfo',
-  System_SetGitBashPath = 'system:setGitBashPath',
+  // Git Bash has no IPC channel; resolved in-process (settingsBuilder).
 
   // DevTools
   System_ToggleDevTools = 'system:toggleDevTools',

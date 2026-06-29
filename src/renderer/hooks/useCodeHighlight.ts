@@ -1,4 +1,4 @@
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ThemedToken } from 'shiki/core'
 

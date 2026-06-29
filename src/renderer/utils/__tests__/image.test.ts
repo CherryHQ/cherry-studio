@@ -1,3 +1,4 @@
+import imageCompression from 'browser-image-compression'
 import * as htmlToImage from 'html-to-image'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -57,6 +58,21 @@ describe('utils/image', () => {
       expect(result).toBeInstanceOf(File)
       expect(result.name).toBe('compressed.png')
     })
+
+    it('should pass custom compression options', async () => {
+      const file = new File(['img'], 'img.png', { type: 'image/png' })
+
+      await compressImage(file, { maxSizeMB: 0.25, maxWidthOrHeight: 256 })
+
+      expect(imageCompression).toHaveBeenLastCalledWith(
+        file,
+        expect.objectContaining({
+          maxSizeMB: 0.25,
+          maxWidthOrHeight: 256,
+          useWebWorker: false
+        })
+      )
+    })
   })
 
   describe('fileToAvatarDataUrl', () => {
@@ -86,6 +102,39 @@ describe('utils/image', () => {
       const ref = { current: null } as unknown as React.RefObject<HTMLDivElement>
       const result = await captureElement(ref)
       expect(result).toBeUndefined()
+    })
+
+    it('should retry loading html-to-image after a failed dynamic import', async () => {
+      vi.resetModules()
+
+      let failImport = true
+      vi.doMock('html-to-image', () => {
+        if (failImport) {
+          throw new Error('load failed')
+        }
+
+        return {
+          toCanvas: vi.fn(() =>
+            Promise.resolve({
+              toDataURL: vi.fn(() => 'data:image/png;base64,recovered')
+            })
+          )
+        }
+      })
+
+      try {
+        const { captureElement: captureElementWithRetry } = await import('../image')
+        const ref = { current: document.createElement('div') } as React.RefObject<HTMLDivElement>
+
+        await expect(captureElementWithRetry(ref)).rejects.toBeUndefined()
+
+        failImport = false
+        await expect(captureElementWithRetry(ref)).resolves.toBe('data:image/png;base64,recovered')
+      } finally {
+        vi.doMock('html-to-image', () => ({
+          toCanvas: htmlToImage.toCanvas
+        }))
+      }
     })
   })
 
@@ -137,6 +186,30 @@ describe('utils/image', () => {
       expect(result).toBe(finalCanvas)
     })
 
+    it('should restore styles when html-to-image capture fails', async () => {
+      vi.mocked(htmlToImage.toCanvas).mockRejectedValueOnce(new Error('capture failed'))
+
+      const div = document.createElement('div')
+      div.style.height = '120px'
+      div.style.maxHeight = '240px'
+      div.style.overflow = 'auto'
+      div.style.position = 'relative'
+      div.scrollTop = 32
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+
+      await expect(captureScrollable(ref)).rejects.toThrow('capture failed')
+
+      expect(div.style.height).toBe('120px')
+      expect(div.style.maxHeight).toBe('240px')
+      expect(div.style.overflow).toBe('auto')
+      expect(div.style.position).toBe('relative')
+      expect(div.classList.contains('hide-scrollbar')).toBe(false)
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(div.scrollTop).toBe(32)
+    })
+
     it('should return undefined when elRef.current is null', async () => {
       const ref = { current: null } as unknown as React.RefObject<HTMLDivElement>
       const result = await captureScrollable(ref)
@@ -150,6 +223,7 @@ describe('utils/image', () => {
       const ref = { current: div } as React.RefObject<HTMLDivElement>
       await expect(captureScrollable(ref)).rejects.toBeUndefined()
       expect(window.toast.error).toHaveBeenCalled()
+      expect(div.classList.contains('hide-scrollbar')).toBe(false)
     })
   })
 

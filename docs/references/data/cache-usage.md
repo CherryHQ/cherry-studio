@@ -94,7 +94,7 @@ import { application } from '@application'
 const cacheService = application.get('CacheService')
 ```
 
-Main does not expose casual methods or Persist storage. Persist sync goes through Main as an IPC relay only.
+Main does not expose casual methods. Main has its own persist storage — an independent JSON file (`{userData}/cache.json`) accessed via `getPersist` / `setPersist` / `hasPersist`, separate from the renderer's `localStorage` persist and never shared with it. Renderer-origin persist sync still goes through Main as an IPC relay only.
 
 ### Internal and Shared Access
 
@@ -140,7 +140,7 @@ Fire semantics, re-entrance rules, and the placeholder / character-set contract 
 
 - Fires only on explicit `set` / `delete` / `setShared` / `deleteShared` and renderer-origin writes relayed via IPC
 - Never fires immediately on subscribe — call `get()` / `getShared()` yourself for initial state
-- Same-value writes are suppressed (`lodash.isEqual`)
+- Same-value writes are suppressed (`isEqual` from es-toolkit/compat)
 - Callback errors are caught; other subscribers still fire
 
 ## Shared Cache Ready State

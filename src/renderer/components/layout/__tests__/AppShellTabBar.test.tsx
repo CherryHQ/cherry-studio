@@ -31,14 +31,14 @@ vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
   default: () => false
 }))
 
-vi.mock('@renderer/config/constant', () => ({
+vi.mock('@renderer/utils/platform', () => ({
   isMac: false,
   isLinux: false,
   isWin: false,
   platform: 'linux'
 }))
 
-vi.mock('@renderer/config/miniApps', () => ({
+vi.mock('@renderer/components/Icons/miniAppsLogo', () => ({
   getMiniAppsLogo: () => undefined
 }))
 
@@ -50,7 +50,7 @@ vi.mock('@data/hooks/usePreference', () => ({
   usePreference: () => [false]
 }))
 
-vi.mock('@renderer/context/ThemeProvider', () => ({
+vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ settedTheme: 'light', toggleTheme: vi.fn() })
 }))
 

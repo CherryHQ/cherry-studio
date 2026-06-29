@@ -3,11 +3,11 @@ import { modelFilterIncludesAgentOnlyProviders } from '@renderer/hooks/agents/us
 import { useModels } from '@renderer/hooks/useModel'
 import { usePins } from '@renderer/hooks/usePins'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { getSearchMatchScore } from '@renderer/utils/modelSearch'
+import { getSearchMatchScore } from '@renderer/utils/model'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { sortBy } from 'lodash'
+import { sortBy } from 'es-toolkit/compat'
 import { useCallback, useMemo } from 'react'
 
 import { MODEL_SELECTOR_TAGS, type ModelSelectorTag, useModelTagFilter } from './filters'

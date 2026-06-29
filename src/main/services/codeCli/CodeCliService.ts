@@ -22,12 +22,11 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
 import { regionService } from '@main/services/RegionService'
-import { removeEnvProxy } from '@main/utils'
 import { getFunctionalKeys, parseJSONC } from '@main/utils/jsonc'
 import { getBinaryExecutionEnv, getBinaryPath, isBinaryExists } from '@main/utils/process'
-import getLoginShellEnvironment from '@main/utils/shell-env'
+import getLoginShellEnvironment, { removeEnvProxy } from '@main/utils/shell-env'
 import { IpcChannel } from '@shared/IpcChannel'
-import { codeCLI, terminalApps, type TerminalConfig, type TerminalConfigWithCommand } from '@shared/types/codeCli'
+import { CodeCli, TerminalApp, type TerminalConfig, type TerminalConfigWithCommand } from '@shared/types/codeCli'
 import type { CodeToolsRunResult } from '@shared/types/codeTools'
 import { spawn } from 'child_process'
 import semver from 'semver'
@@ -162,21 +161,21 @@ export class CodeCliService extends BaseService {
   // npm package name used only for version registry lookups (not installation)
   private async getPackageName(cliTool: string) {
     switch (cliTool) {
-      case codeCLI.claudeCode:
+      case CodeCli.CLAUDE_CODE:
         return '@anthropic-ai/claude-code'
-      case codeCLI.geminiCli:
+      case CodeCli.GEMINI_CLI:
         return '@google/gemini-cli'
-      case codeCLI.openaiCodex:
+      case CodeCli.OPENAI_CODEX:
         return '@openai/codex'
-      case codeCLI.qwenCode:
+      case CodeCli.QWEN_CODE:
         return '@qwen-code/qwen-code'
-      case codeCLI.qoderCli:
+      case CodeCli.QODER_CLI:
         return '@qodercn-ai/qoderclicn'
-      case codeCLI.githubCopilotCli:
+      case CodeCli.GITHUB_COPILOT_CLI:
         return '@github/copilot'
-      case codeCLI.kimiCli:
+      case CodeCli.KIMI_CLI:
         return 'kimi-cli'
-      case codeCLI.openCode:
+      case CodeCli.OPEN_CODE:
         return 'opencode-ai'
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
@@ -185,21 +184,21 @@ export class CodeCliService extends BaseService {
 
   private getToolInstallSpec(cliTool: string): { name: string; tool: string } {
     switch (cliTool) {
-      case codeCLI.claudeCode:
+      case CodeCli.CLAUDE_CODE:
         return { name: 'claude', tool: 'claude' }
-      case codeCLI.geminiCli:
+      case CodeCli.GEMINI_CLI:
         return { name: 'gemini', tool: 'npm:@google/gemini-cli' }
-      case codeCLI.openaiCodex:
+      case CodeCli.OPENAI_CODEX:
         return { name: 'codex', tool: 'codex' }
-      case codeCLI.qwenCode:
+      case CodeCli.QWEN_CODE:
         return { name: 'qwen', tool: 'npm:@qwen-code/qwen-code' }
-      case codeCLI.qoderCli:
+      case CodeCli.QODER_CLI:
         return { name: 'qoderclicn', tool: 'npm:@qodercn-ai/qoderclicn' }
-      case codeCLI.githubCopilotCli:
+      case CodeCli.GITHUB_COPILOT_CLI:
         return { name: 'copilot', tool: 'npm:@github/copilot' }
-      case codeCLI.kimiCli:
+      case CodeCli.KIMI_CLI:
         return { name: 'kimi', tool: 'pipx:kimi-cli' }
-      case codeCLI.openCode:
+      case CodeCli.OPEN_CODE:
         return { name: 'opencode', tool: 'opencode' }
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
@@ -208,21 +207,21 @@ export class CodeCliService extends BaseService {
 
   public async getCliExecutableName(cliTool: string) {
     switch (cliTool) {
-      case codeCLI.claudeCode:
+      case CodeCli.CLAUDE_CODE:
         return 'claude'
-      case codeCLI.geminiCli:
+      case CodeCli.GEMINI_CLI:
         return 'gemini'
-      case codeCLI.openaiCodex:
+      case CodeCli.OPENAI_CODEX:
         return 'codex'
-      case codeCLI.qwenCode:
+      case CodeCli.QWEN_CODE:
         return 'qwen'
-      case codeCLI.qoderCli:
+      case CodeCli.QODER_CLI:
         return 'qoderclicn'
-      case codeCLI.githubCopilotCli:
+      case CodeCli.GITHUB_COPILOT_CLI:
         return 'copilot'
-      case codeCLI.kimiCli:
+      case CodeCli.KIMI_CLI:
         return 'kimi'
-      case codeCLI.openCode:
+      case CodeCli.OPEN_CODE:
         return 'opencode'
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
@@ -509,11 +508,11 @@ export class CodeCliService extends BaseService {
   private async checkWindowsTerminalAvailability(terminal: TerminalConfig): Promise<TerminalConfig | null> {
     try {
       switch (terminal.id) {
-        case terminalApps.cmd:
+        case TerminalApp.CMD:
           // CMD is always available on Windows
           return terminal
 
-        case terminalApps.powershell:
+        case TerminalApp.POWERSHELL:
           // Check for PowerShell in PATH
           try {
             await execAsync('powershell -Command "Get-Host"', {
@@ -529,7 +528,7 @@ export class CodeCliService extends BaseService {
             }
           }
 
-        case terminalApps.windowsTerminal:
+        case TerminalApp.WINDOWS_TERMINAL:
           // Check for Windows Terminal via where command (doesn't launch the terminal)
           try {
             await execAsync('where wt', { timeout: 3000 })
@@ -538,7 +537,7 @@ export class CodeCliService extends BaseService {
             return null
           }
 
-        case terminalApps.wsl:
+        case TerminalApp.WSL:
           // Check for WSL
           try {
             await execAsync('wsl --status', { timeout: 3000 })
@@ -574,7 +573,7 @@ export class CodeCliService extends BaseService {
 
     // Fallback to PATH check
     try {
-      const command = terminal.id === terminalApps.alacritty ? 'alacritty' : 'wezterm'
+      const command = terminal.id === TerminalApp.ALACRITTY ? 'alacritty' : 'wezterm'
       await execAsync(`${command} --version`, { timeout: 3000 })
       return terminal
     } catch {
@@ -672,7 +671,7 @@ export class CodeCliService extends BaseService {
   private async getTerminalConfig(terminalId?: string): Promise<TerminalConfigWithCommand> {
     const availableTerminals = await this.getAvailableTerminals()
     const terminalCommands = isWin ? WINDOWS_TERMINALS_WITH_COMMANDS : MACOS_TERMINALS_WITH_COMMANDS
-    const defaultTerminal = isWin ? terminalApps.cmd : terminalApps.systemDefault
+    const defaultTerminal = isWin ? TerminalApp.CMD : TerminalApp.SYSTEM_DEFAULT
 
     if (terminalId) {
       let requestedTerminal = terminalCommands.find(
@@ -1004,7 +1003,7 @@ export class CodeCliService extends BaseService {
     let baseCommand = `"${executablePath}"`
 
     // Special handling for qwen-code: add --auth-type openai for version >= 0.12.3
-    if (cliTool === codeCLI.qwenCode) {
+    if (cliTool === CodeCli.QWEN_CODE) {
       // Use semver for proper version comparison (handles v-prefix, prereleases, etc.)
       const coerced = semver.coerce(installedVersion)
       const needsAuthType = installedVersion && coerced && semver.gte(coerced, '0.12.3')
@@ -1017,7 +1016,7 @@ export class CodeCliService extends BaseService {
     }
 
     // Add configuration parameters for OpenAI Codex using command line args
-    if (cliTool === codeCLI.openaiCodex && env.CHERRY_CODEX_PROVIDER_ID) {
+    if (cliTool === CodeCli.OPENAI_CODEX && env.CHERRY_CODEX_PROVIDER_ID) {
       const providerId = env.CHERRY_CODEX_PROVIDER_ID
       const providerName = env.CHERRY_CODEX_PROVIDER_NAME || providerId
       const normalizedBaseUrl = env.CHERRY_CODEX_BASE_URL.replace(/\/$/, '')
@@ -1036,7 +1035,7 @@ export class CodeCliService extends BaseService {
     }
 
     // Special handling for OpenCode: generate config file and add --model flag
-    if (cliTool === codeCLI.openCode) {
+    if (cliTool === CodeCli.OPEN_CODE) {
       const baseUrl = env.OPENCODE_BASE_URL
       const modelId = _model
       const modelName = env.OPENCODE_MODEL_NAME || modelId

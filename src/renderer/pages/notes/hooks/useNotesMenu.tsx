@@ -2,10 +2,11 @@ import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { CommandContextMenuExtraItem } from '@renderer/components/command'
 import { DeleteIcon } from '@renderer/components/Icons'
+import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
+import { exportNote } from '@renderer/services/ExportService'
 import type { NotesTreeNode } from '@renderer/types/note'
-import { exportNote } from '@renderer/utils/export'
 import { Edit3, FilePlus, FileSearch, Folder, FolderOpen, Sparkles, Star, StarOff, UploadIcon } from 'lucide-react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -98,6 +99,11 @@ export const useNotesMenu = ({
     },
     [t]
   )
+
+  const handleObsidianExport = useCallback(async (node: NotesTreeNode) => {
+    const content = await window.api.file.readExternal(node.externalPath)
+    await ObsidianExportPopup.show({ title: node.name, processingMethod: '1', rawContent: content })
+  }, [])
 
   const handleDeleteNodeWrapper = useCallback(
     (node: NotesTreeNode) => {
@@ -194,7 +200,7 @@ export const useNotesMenu = ({
         const addExport = (
           id: string,
           label: string,
-          platform: 'markdown' | 'docx' | 'notion' | 'yuque' | 'obsidian' | 'joplin' | 'siyuan'
+          platform: 'markdown' | 'docx' | 'notion' | 'yuque' | 'joplin' | 'siyuan'
         ) =>
           exportChildren.push({
             type: 'item',
@@ -222,7 +228,14 @@ export const useNotesMenu = ({
         if (exportMenuOptions.docx) addExport('notes.export.docx', t('chat.topics.export.word'), 'docx')
         if (exportMenuOptions.notion) addExport('notes.export.notion', t('chat.topics.export.notion'), 'notion')
         if (exportMenuOptions.yuque) addExport('notes.export.yuque', t('chat.topics.export.yuque'), 'yuque')
-        if (exportMenuOptions.obsidian) addExport('notes.export.obsidian', t('chat.topics.export.obsidian'), 'obsidian')
+        if (exportMenuOptions.obsidian) {
+          exportChildren.push({
+            type: 'item',
+            id: 'notes.export.obsidian',
+            label: t('chat.topics.export.obsidian'),
+            onSelect: () => void runExport(() => handleObsidianExport(node))
+          })
+        }
         if (exportMenuOptions.joplin) addExport('notes.export.joplin', t('chat.topics.export.joplin'), 'joplin')
         if (exportMenuOptions.siyuan) addExport('notes.export.siyuan', t('chat.topics.export.siyuan'), 'siyuan')
 
@@ -257,6 +270,7 @@ export const useNotesMenu = ({
       onToggleStar,
       handleExportKnowledge,
       handleImageAction,
+      handleObsidianExport,
       handleDeleteNodeWrapper,
       renamingNodeIds,
       handleAutoRename,

@@ -2,7 +2,7 @@ import '@cherrystudio/ui/components/composites/markdown/styles'
 
 import { Button, CodeEditor, type CodeEditorHandles, Field, FieldContent, FieldError, Markdown } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { Edit, Eye } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from 'react'

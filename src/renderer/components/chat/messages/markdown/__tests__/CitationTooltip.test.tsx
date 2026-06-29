@@ -1,13 +1,14 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
+import { SWRConfig } from 'swr'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import CitationTooltip from '../CitationTooltip'
 
 vi.mock('@renderer/utils/fetch', () => ({
   fetchXOEmbed: vi.fn().mockResolvedValue(null),
-  isXPostUrl: vi.fn().mockReturnValue(false)
+  isXPostUrl: vi.fn().mockReturnValue(false),
+  xOembedKey: (url: string) => `xOembed/${url}`
 }))
 
 vi.mock('@renderer/components/Icons/FallbackFavicon', () => ({
@@ -45,11 +46,8 @@ describe('CitationTooltip', () => {
   })
 
   const createWrapper = () => {
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } }
-    })
     return ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>{children}</SWRConfig>
     )
   }
 

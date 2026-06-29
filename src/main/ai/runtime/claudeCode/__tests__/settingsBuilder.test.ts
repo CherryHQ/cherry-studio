@@ -115,7 +115,7 @@ vi.mock('@main/services/proxy/proxyEnv', () => ({
   getProxyEnvironment: mocks.getProxyEnvironment
 }))
 
-vi.mock('@main/utils', () => ({
+vi.mock('@main/utils/asar', () => ({
   toAsarUnpackedPath: (input: string) => input
 }))
 
