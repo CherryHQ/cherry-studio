@@ -7,7 +7,7 @@ import { BaseService } from '@main/core/lifecycle'
 import { convertSpanToSpanEntity } from '@mcp-trace/trace-core/core/spanConvert'
 import type { SpanEntity } from '@mcp-trace/trace-core/types/config'
 import { SpanStatusCode } from '@opentelemetry/api'
-import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
+import type { ReadableSpan, TimedEvent } from '@opentelemetry/sdk-trace-base'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -48,6 +48,10 @@ function readableSpan(overrides: { spanId: string; traceId: string; ended: boole
     events: [],
     links: []
   } as unknown as ReadableSpan
+}
+
+function timedEvent(name: string): TimedEvent {
+  return { name, time: [0, 0], attributes: {} } as TimedEvent
 }
 
 describe('TraceStorageService', () => {
@@ -192,5 +196,42 @@ describe('TraceStorageService', () => {
     await service.saveSpans('topic')
     const flushed = await service.getSpans('topic', 'trace')
     expect(flushed.map((s) => s.id).sort()).toEqual(['s1', 's2'])
+  })
+
+  // Claude Code's OTLP log events stream in DURING a turn but the span they reference is exported on
+  // its END, so events routinely precede their span. Pre-fix they were dropped ("span not found in
+  // store") and the rich per-span detail (raw API bodies, tool I/O) was silently lost.
+  it('buffers an orphan span event and drains it once the span arrives via saveEntity', async () => {
+    await service._doInit()
+
+    // Event arrives before its span — must be buffered, not dropped.
+    service.addSpanEvent('trace', 'cc-span', timedEvent('llm_request'))
+    expect(service['store'].getSpan('cc-span')).toBeUndefined()
+
+    // The span lands via /v1/traces (saveEntity); the buffered event is attached to it.
+    service.saveEntity(span({ id: 'cc-span', traceId: 'trace', topicId: 'topic' }))
+
+    expect(service['store'].getSpan('cc-span')?.events?.map((e) => e.name)).toEqual(['llm_request'])
+    expect(service['pendingEvents'].size).toBe(0)
+  })
+
+  it('drains buffered events when the span arrives via the createSpan path', async () => {
+    await service._doInit()
+
+    service.addSpanEvent('trace-live', 'live', timedEvent('e'))
+    service.createSpan(readableSpan({ spanId: 'live', traceId: 'trace-live', ended: false }))
+
+    expect(service['store'].getSpan('live')?.events?.map((e) => e.name)).toEqual(['e'])
+    expect(service['pendingEvents'].size).toBe(0)
+  })
+
+  it('appends a span event directly when the span is already stored', async () => {
+    await service._doInit()
+    service.saveEntity(span({ id: 's', traceId: 'trace', topicId: 'topic', events: [timedEvent('first')] }))
+
+    service.addSpanEvent('trace', 's', timedEvent('second'))
+
+    expect(service['store'].getSpan('s')?.events?.map((e) => e.name)).toEqual(['first', 'second'])
+    expect(service['pendingEvents'].size).toBe(0)
   })
 })
