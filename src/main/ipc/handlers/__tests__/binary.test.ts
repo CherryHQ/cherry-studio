@@ -64,10 +64,10 @@ describe('binaryHandlers', () => {
     expect(result).toEqual({ uv: '1.0.0', bun: null })
   })
 
-  it('latest_versions returns the manager latest-version map', async () => {
+  it('latest_versions forwards force and returns the manager latest-version map', async () => {
     binaryManager.getLatestVersions.mockResolvedValue({ fd: '10.1.0', rg: '15.1.0' })
-    const result = await binaryHandlers['binary.latest_versions'](undefined, ctx)
-    expect(binaryManager.getLatestVersions).toHaveBeenCalledWith()
+    const result = await binaryHandlers['binary.latest_versions'](false, ctx)
+    expect(binaryManager.getLatestVersions).toHaveBeenCalledWith(false)
     expect(result).toEqual({ fd: '10.1.0', rg: '15.1.0' })
   })
 })
