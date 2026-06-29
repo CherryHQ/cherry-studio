@@ -6793,6 +6793,11 @@
           "name": "Local Embedding",
           "subtitle": "Qwen3 Embedding 0.6B · ~614 MB"
         },
+        "notice": {
+          "downloadFailed": "Download failed. Check your connection and try again.",
+          "inUse": "Still used by a knowledge base; the weights were kept.",
+          "removeFailed": "Remove failed. Check the logs for details."
+        },
         "ocr": {
           "name": "Local OCR",
           "subtitle": "PaddleOCR PP-OCRv6 · ~31 MB"
@@ -6800,7 +6805,6 @@
         "remove": "Remove",
         "status": {
           "downloading": "Downloading…",
-          "notDownloaded": "Not downloaded",
           "ready": "Ready"
         },
         "title": "Local Models"

@@ -6793,6 +6793,11 @@
           "name": "本機嵌入模型",
           "subtitle": "Qwen3 Embedding 0.6B · 約 614 MB"
         },
+        "notice": {
+          "downloadFailed": "下載失敗，請檢查網路後重試。",
+          "inUse": "該模型仍被知識庫使用，已保留權重。",
+          "removeFailed": "刪除失敗，請查看日誌。"
+        },
         "ocr": {
           "name": "本機 OCR 模型",
           "subtitle": "PaddleOCR PP-OCRv6 · 約 31 MB"
@@ -6800,7 +6805,6 @@
         "remove": "刪除",
         "status": {
           "downloading": "下載中…",
-          "notDownloaded": "未下載",
           "ready": "已就緒"
         },
         "title": "本機模型"

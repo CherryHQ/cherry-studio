@@ -6793,6 +6793,11 @@
           "name": "本地嵌入模型",
           "subtitle": "Qwen3 Embedding 0.6B · 约 614 MB"
         },
+        "notice": {
+          "downloadFailed": "下载失败，请检查网络后重试。",
+          "inUse": "该模型仍被知识库使用，已保留权重。",
+          "removeFailed": "删除失败，请查看日志。"
+        },
         "ocr": {
           "name": "本地 OCR 模型",
           "subtitle": "PaddleOCR PP-OCRv6 · 约 31 MB"
@@ -6800,7 +6805,6 @@
         "remove": "删除",
         "status": {
           "downloading": "下载中…",
-          "notDownloaded": "未下载",
           "ready": "已就绪"
         },
         "title": "本地模型"

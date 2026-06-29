@@ -8,6 +8,9 @@ import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+/** A transient message shown on the card; the value is also the i18n leaf key. */
+type CardNotice = 'downloadFailed' | 'removeFailed' | 'inUse'
+
 /**
  * Shared wiring for a downloadable local model: tracks status/percent, streams
  * progress, and exposes download/cancel/remove. One IPC route family
@@ -17,6 +20,7 @@ import { useTranslation } from 'react-i18next'
 function useLocalModelCard(model: LocalModelKind) {
   const [status, setStatus] = useState<LocalModelStatus>('not_downloaded')
   const [percent, setPercent] = useState(0)
+  const [notice, setNotice] = useState<CardNotice | null>(null)
   const mountedRef = useRef(true)
 
   useEffect(() => {
@@ -47,12 +51,15 @@ function useLocalModelCard(model: LocalModelKind) {
   })
 
   const download = async () => {
+    setNotice(null)
     setStatus('downloading')
     setPercent(0)
     try {
       await ipcApi.request('local_model.download', { model })
       if (mountedRef.current) setStatus('ready')
     } catch {
+      // Surface the failure instead of silently reverting to the download button.
+      if (mountedRef.current) setNotice('downloadFailed')
       await refresh()
     }
   }
@@ -69,14 +76,19 @@ function useLocalModelCard(model: LocalModelKind) {
   }
 
   const remove = async () => {
+    setNotice(null)
     try {
-      await ipcApi.request('local_model.remove', { model })
-    } finally {
-      if (mountedRef.current) setStatus('not_downloaded')
+      const { removed } = await ipcApi.request('local_model.remove', { model })
+      if (!mountedRef.current) return
+      // `removed: false` → kept because a knowledge base still uses it (weights intact).
+      if (removed) setStatus('not_downloaded')
+      else setNotice('inUse')
+    } catch {
+      if (mountedRef.current) setNotice('removeFailed')
     }
   }
 
-  return { status, percent, download, cancel, remove }
+  return { status, percent, notice, download, cancel, remove }
 }
 
 interface ModelCardProps {
@@ -85,12 +97,23 @@ interface ModelCardProps {
   subtitle: string
   status: LocalModelStatus
   percent: number
+  notice: CardNotice | null
   onDownload: () => void
   onCancel: () => void
   onRemove: () => void
 }
 
-const ModelCard: FC<ModelCardProps> = ({ icon, name, subtitle, status, percent, onDownload, onCancel, onRemove }) => {
+const ModelCard: FC<ModelCardProps> = ({
+  icon,
+  name,
+  subtitle,
+  status,
+  percent,
+  notice,
+  onDownload,
+  onCancel,
+  onRemove
+}) => {
   const { t } = useTranslation()
   const ready = status === 'ready'
   const downloading = status === 'downloading'
@@ -119,11 +142,21 @@ const ModelCard: FC<ModelCardProps> = ({ icon, name, subtitle, status, percent, 
           <p className="mt-0.5 truncate text-muted-foreground text-xs">{subtitle}</p>
         </div>
         {ready && (
-          <Button variant="ghost" size="icon-sm" onClick={onRemove}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onRemove}
+            aria-label={t('settings.plugins.localModels.remove')}>
             <Trash2 className="size-3.5" />
           </Button>
         )}
       </div>
+
+      {notice && (
+        <p className={cn('mt-2 text-xs leading-4', notice === 'inUse' ? 'text-muted-foreground' : 'text-destructive')}>
+          {t(`settings.plugins.localModels.notice.${notice}`)}
+        </p>
+      )}
 
       {downloading && (
         <div className="mt-3 space-y-1.5">
@@ -180,6 +213,7 @@ const LocalModelsSection: FC = () => {
           subtitle={t('settings.plugins.localModels.embedding.subtitle')}
           status={embedding.status}
           percent={embedding.percent}
+          notice={embedding.notice}
           onDownload={embedding.download}
           onCancel={embedding.cancel}
           onRemove={embedding.remove}
@@ -190,6 +224,7 @@ const LocalModelsSection: FC = () => {
           subtitle={t('settings.plugins.localModels.ocr.subtitle')}
           status={ocr.status}
           percent={ocr.percent}
+          notice={ocr.notice}
           onDownload={ocr.download}
           onCancel={ocr.cancel}
           onRemove={ocr.remove}
