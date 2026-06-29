@@ -83,8 +83,13 @@ function getFilePreviewTitle(filePath: string): string {
   return segments.at(-1) ?? filePath
 }
 
-function isFramedFilePreview(filePath: string): boolean {
-  return /\.(html?|pdf)$/i.test(filePath) || isOfficePreviewFile(filePath)
+function normalizePreviewWorkspacePath(workspacePath: string | undefined): string {
+  const normalized = (workspacePath ?? '').trim().replace(/\\/g, '/').replace(/\/+$/, '')
+  return normalized || (workspacePath?.startsWith('/') ? '/' : normalized)
+}
+
+function isFramedFilePreview(filePath: string, inlineOfficePreview = true): boolean {
+  return /\.(html?|pdf)$/i.test(filePath) || (inlineOfficePreview && isOfficePreviewFile(filePath))
 }
 
 interface AgentFlowTab {
@@ -97,6 +102,7 @@ interface AgentFilePreviewTab {
   workspacePath: string
   filePath: string
   title: string
+  inlineOfficePreview: boolean
 }
 
 interface AgentRightPaneMeta {
@@ -212,9 +218,13 @@ function AgentRightPaneStateProvider({
     (path: string) => {
       const selection = resolveArtifactPaneFileSelection(workspacePath, resolveInlineFilePath(path))
       if (!selection) return
+      const inlineOfficePreview =
+        !isOfficePreviewFile(selection.filePath) ||
+        normalizePreviewWorkspacePath(selection.workspacePath) === normalizePreviewWorkspacePath(workspacePath)
       setFilePreview({
         ...selection,
-        title: getFilePreviewTitle(selection.filePath)
+        title: getFilePreviewTitle(selection.filePath),
+        inlineOfficePreview
       })
       openTab(FILE_PREVIEW_TAB)
     },
@@ -329,6 +339,7 @@ function AgentRightPaneFilesPanel() {
 function AgentFilePreviewPanel({ preview }: { preview: AgentFilePreviewTab }) {
   const shellState = useShellState()
   const isOfficeDocumentPreview = isOfficeDocumentFile(preview.filePath)
+  const inlineOfficePreview = preview.inlineOfficePreview
   const shouldSniffFile = !isOfficeDocumentPreview && !/\.pdf$/i.test(preview.filePath)
   const sniffedIsText = useIsTextFile(preview.workspacePath, preview.filePath, { enabled: shouldSniffFile })
   const isText = shouldSniffFile ? sniffedIsText : 'binary'
@@ -338,13 +349,14 @@ function AgentFilePreviewPanel({ preview }: { preview: AgentFilePreviewTab }) {
     <div
       className={cn(
         'h-full min-h-0 bg-card text-card-foreground',
-        isFramedFilePreview(preview.filePath) ? 'overflow-hidden' : 'overflow-auto'
+        isFramedFilePreview(preview.filePath, inlineOfficePreview) ? 'overflow-hidden' : 'overflow-auto'
       )}>
       <ArtifactFilePreview
         workspacePath={preview.workspacePath}
         filePath={preview.filePath}
         isText={isText}
         fileSize={fileSize}
+        disableOfficePreview={!inlineOfficePreview}
         officeActions={
           isOfficeDocumentPreview ? (
             <OpenExternalAppButton workdir={preview.workspacePath} filePath={preview.filePath} />

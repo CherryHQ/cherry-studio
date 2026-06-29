@@ -71,6 +71,7 @@ interface ArtifactFilePreviewProps {
   filePath?: string | null
   isText: IsTextState
   fileSize: FileSizeState
+  disableOfficePreview?: boolean
   officeActions?: ReactNode
   pdfLayoutPending?: boolean
   pdfLayoutRefreshKey?: number
@@ -403,6 +404,7 @@ export function ArtifactFilePreview({
   filePath,
   isText,
   fileSize,
+  disableOfficePreview = false,
   officeActions,
   pdfLayoutPending = false,
   pdfLayoutRefreshKey = 0,
@@ -417,7 +419,7 @@ export function ArtifactFilePreview({
   const [readError, setReadError] = useState<Error | null>(null)
   const [loadingContent, setLoadingContent] = useState(false)
   const isPdfPreview = filePath ? isPdfFile(filePath) : false
-  const isOfficePreview = filePath ? isOfficePreviewFile(filePath) : false
+  const isOfficePreview = filePath && !disableOfficePreview ? isOfficePreviewFile(filePath) : false
   const isOfficeDocumentPreview = filePath ? isOfficeDocumentFile(filePath) : false
   const oversizedForPreview =
     !isPdfPreview &&
@@ -526,7 +528,7 @@ export function ArtifactFilePreview({
     return () => {
       cancelled = true
     }
-  }, [OfficePreviewPanel, isOfficePreview])
+  }, [OfficePreviewPanel, contentRefreshKey, filePath, isOfficePreview])
 
   if (!workspacePath) {
     return (

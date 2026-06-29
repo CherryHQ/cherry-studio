@@ -399,10 +399,14 @@ class FileStorage {
           return extracted.getBody()
         }
 
-        if (!OFFICE_CONVERTER_DOCUMENT_EXTS.has(fileExtension)) return ''
+        if (!OFFICE_CONVERTER_DOCUMENT_EXTS.has(fileExtension)) {
+          throw new Error(`Unsupported document format: ${fileExtension}`)
+        }
 
         const data = await OfficeConverter.convert(filePath, 'text', {
           generatorConfig: {
+            includeImages: false,
+            includeCharts: false,
             textConfig: {
               newlineDelimiter: '\n',
               preserveLayout: true

@@ -6,19 +6,6 @@ import { defineRoute } from '../define'
 export const OfficePreviewExtensionSchema = z.enum(['docx', 'xlsx', 'pptx'])
 export type OfficePreviewExtension = z.infer<typeof OfficePreviewExtensionSchema>
 
-export const OfficePreviewTypeSchema = z.enum(['html', 'excel'])
-export type OfficePreviewType = z.infer<typeof OfficePreviewTypeSchema>
-
-export const OfficePreviewErrorCodeSchema = z.enum([
-  'invalid_request',
-  'unsupported_extension',
-  'file_unavailable',
-  'file_too_large',
-  'parse_timeout',
-  'parse_failed'
-])
-export type OfficePreviewErrorCode = z.infer<typeof OfficePreviewErrorCodeSchema>
-
 const OfficePreviewRenderInputSchema = z
   .object({
     workspacePath: AbsolutePathSchema,
@@ -30,24 +17,7 @@ const OfficePreviewRenderInputSchema = z
   })
   .strict()
 
-const OfficePreviewRenderResultSchema = z.discriminatedUnion('status', [
-  z
-    .object({
-      status: z.literal('ready'),
-      extension: OfficePreviewExtensionSchema,
-      type: OfficePreviewTypeSchema,
-      html: z.string()
-    })
-    .strict(),
-  z
-    .object({
-      status: z.literal('error'),
-      code: OfficePreviewErrorCodeSchema,
-      extension: OfficePreviewExtensionSchema.optional(),
-      type: OfficePreviewTypeSchema.optional()
-    })
-    .strict()
-])
+const OfficePreviewRenderResultSchema = z.object({ html: z.string() }).strict()
 
 export const officePreviewRequestSchemas = {
   'office_preview.render': defineRoute({

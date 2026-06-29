@@ -4,12 +4,14 @@ import path from 'node:path'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { loggerService } from '@logger'
 import { normalizeWorkspacePath } from '@main/utils/agentWorkspacePath'
+import { IpcError } from '@shared/ipc/errors'
+import { officePreviewErrorCodes } from '@shared/ipc/errors/officePreview'
 import type {
   OfficePreviewExtension,
   OfficePreviewRenderInput,
-  OfficePreviewRenderResult,
-  OfficePreviewType
+  OfficePreviewRenderResult
 } from '@shared/ipc/schemas/officePreview'
+import { JSDOM } from 'jsdom'
 import { OfficeConverter, type OfficeConverterConfig, OfficeErrorType } from 'officeparser'
 
 const logger = loggerService.withContext('OfficePreviewService')
@@ -18,6 +20,20 @@ const OFFICE_PREVIEW_EXTENSIONS = new Set<OfficePreviewExtension>(['docx', 'xlsx
 const OFFICE_PREVIEW_MAX_SIZE_BYTES = 20 * 1024 * 1024
 const OFFICE_PREVIEW_MAX_HTML_BYTES = 5 * 1024 * 1024
 const OFFICE_PREVIEW_TIMEOUT_MS = 15_000
+const OFFICE_PREVIEW_CSP = [
+  "default-src 'none'",
+  'img-src data: blob:',
+  "style-src 'unsafe-inline'",
+  "script-src 'unsafe-inline'",
+  "connect-src 'none'",
+  'font-src data:',
+  'media-src data: blob:',
+  "object-src 'none'",
+  "frame-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "navigate-to 'none'"
+].join('; ')
 const OFFICIAL_HTML_PREVIEW_BOOTSTRAP = `<script>
 (() => {
   const store = new Map();
@@ -57,9 +73,6 @@ const getOfficePreviewExtension = (filePath: string): OfficePreviewExtension | n
   return OFFICE_PREVIEW_EXTENSIONS.has(ext as OfficePreviewExtension) ? (ext as OfficePreviewExtension) : null
 }
 
-const getOfficePreviewType = (extension: OfficePreviewExtension): OfficePreviewType =>
-  extension === 'xlsx' ? 'excel' : 'html'
-
 const isPathInside = (root: string, target: string): boolean => {
   const relative = path.relative(root, target)
   return relative === '' || (!!relative && !relative.startsWith('..') && !path.isAbsolute(relative))
@@ -88,6 +101,58 @@ const buildTextFallbackHtml = (text: string): string => `<!DOCTYPE html>
 <body><pre class="office-preview-text-fallback">${escapeHtml(text)}</pre></body>
 </html>`
 
+const isUnsafeUrl = (value: string): boolean => {
+  const normalized = Array.from(value)
+    .filter((char) => {
+      const code = char.charCodeAt(0)
+      return code > 0x1f && code !== 0x7f && !/\s/.test(char)
+    })
+    .join('')
+    .toLowerCase()
+  return (
+    normalized.startsWith('javascript:') ||
+    normalized.startsWith('vbscript:') ||
+    normalized.startsWith('data:text/html')
+  )
+}
+
+function hardenOfficePreviewHtml(html: string): string {
+  const dom = new JSDOM(html)
+  const { document } = dom.window
+
+  const removableElements = Array.from(
+    document.querySelectorAll('script[src], link[href], iframe, object, embed')
+  ) as Element[]
+  removableElements.forEach((element) => element.remove())
+
+  const elements = Array.from(document.querySelectorAll('*')) as Element[]
+  for (const element of elements) {
+    for (const attribute of Array.from(element.attributes)) {
+      const name = attribute.name.toLowerCase()
+      const value = attribute.value
+
+      if (name.startsWith('on')) {
+        element.removeAttribute(attribute.name)
+        continue
+      }
+      if ((name === 'href' || name === 'src' || name === 'xlink:href') && isUnsafeUrl(value)) {
+        element.removeAttribute(attribute.name)
+        continue
+      }
+      if (name === 'style' && /url\s*\(/i.test(value)) {
+        element.removeAttribute(attribute.name)
+      }
+    }
+  }
+
+  const csp = document.createElement('meta')
+  csp.setAttribute('http-equiv', 'Content-Security-Policy')
+  csp.setAttribute('content', OFFICE_PREVIEW_CSP)
+  document.head.prepend(csp)
+
+  return dom.serialize()
+}
+
 function buildConverterConfig(
   extension: OfficePreviewExtension,
   abortSignal: AbortSignal
@@ -100,7 +165,7 @@ function buildConverterConfig(
     generatorConfig: {
       includeFormatting: true,
       includeImages: true,
-      includeCharts: true,
+      includeCharts: false,
       abortSignal,
       htmlConfig: {
         standalone: true,
@@ -145,17 +210,15 @@ class OfficePreviewService {
     const extension = getOfficePreviewExtension(input.filePath)
 
     if (!extension) {
-      return { status: 'error', code: 'unsupported_extension' }
+      throw new IpcError(officePreviewErrorCodes.UNSUPPORTED_EXTENSION)
     }
 
-    const type = getOfficePreviewType(extension)
-
     if (input.filePath.includes('\0') || isAbsoluteInputPath(input.filePath)) {
-      return { status: 'error', code: 'invalid_request', extension, type }
+      throw new IpcError(officePreviewErrorCodes.INVALID_REQUEST)
     }
 
     if (!(await isRegisteredAgentWorkspace(input.workspacePath))) {
-      return { status: 'error', code: 'invalid_request', extension, type }
+      throw new IpcError(officePreviewErrorCodes.INVALID_REQUEST)
     }
 
     let targetRealPath: string
@@ -165,19 +228,20 @@ class OfficePreviewService {
       targetRealPath = await realpath(targetPath)
 
       if (!isPathInside(workspaceRealPath, targetRealPath)) {
-        return { status: 'error', code: 'invalid_request', extension, type }
+        throw new IpcError(officePreviewErrorCodes.INVALID_REQUEST)
       }
 
       const fileStat = await stat(targetRealPath)
       if (!fileStat.isFile()) {
-        return { status: 'error', code: 'file_unavailable', extension, type }
+        throw new IpcError(officePreviewErrorCodes.FILE_UNAVAILABLE)
       }
       if (fileStat.size > OFFICE_PREVIEW_MAX_SIZE_BYTES) {
-        return { status: 'error', code: 'file_too_large', extension, type }
+        throw new IpcError(officePreviewErrorCodes.FILE_TOO_LARGE)
       }
     } catch (error) {
+      if (error instanceof IpcError) throw error
       logger.warn('Office preview file unavailable', error instanceof Error ? error : new Error(String(error)))
-      return { status: 'error', code: 'file_unavailable', extension, type }
+      throw new IpcError(officePreviewErrorCodes.FILE_UNAVAILABLE)
     }
 
     const abortController = new AbortController()
@@ -193,10 +257,11 @@ class OfficePreviewService {
       const html = String(htmlResult.value).trim()
 
       if (html) {
-        if (!htmlFitsPreviewLimit(html)) {
-          return { status: 'error', code: 'file_too_large', extension, type }
+        const hardenedHtml = hardenOfficePreviewHtml(html)
+        if (!htmlFitsPreviewLimit(hardenedHtml)) {
+          throw new IpcError(officePreviewErrorCodes.FILE_TOO_LARGE)
         }
-        return { status: 'ready', extension, type, html }
+        return { html: hardenedHtml }
       }
 
       const textResult = await OfficeConverter.convert(targetRealPath, 'text', {
@@ -205,6 +270,8 @@ class OfficePreviewService {
           abortSignal: abortController.signal
         },
         generatorConfig: {
+          includeImages: false,
+          includeCharts: false,
           textConfig: {
             newlineDelimiter: '\n',
             preserveLayout: true
@@ -213,18 +280,19 @@ class OfficePreviewService {
         onWarning: undefined
       })
 
-      const fallbackHtml = buildTextFallbackHtml(String(textResult.value))
+      const fallbackHtml = hardenOfficePreviewHtml(buildTextFallbackHtml(String(textResult.value)))
       if (!htmlFitsPreviewLimit(fallbackHtml)) {
-        return { status: 'error', code: 'file_too_large', extension, type }
+        throw new IpcError(officePreviewErrorCodes.FILE_TOO_LARGE)
       }
-      return { status: 'ready', extension, type, html: fallbackHtml }
+      return { html: fallbackHtml }
     } catch (error) {
+      if (error instanceof IpcError) throw error
       if (isAbortError(error)) {
-        return { status: 'error', code: 'parse_timeout', extension, type }
+        throw new IpcError(officePreviewErrorCodes.PARSE_TIMEOUT)
       }
 
       logger.error('Failed to render Office preview', error as Error)
-      return { status: 'error', code: 'parse_failed', extension, type }
+      throw new IpcError(officePreviewErrorCodes.PARSE_FAILED)
     } finally {
       clearTimeout(timeout)
     }

@@ -1,3 +1,4 @@
+import { IpcError } from '@shared/ipc/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -67,12 +68,8 @@ describe('OfficePreviewService', () => {
 
     const result = await officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.docx' })
 
-    expect(result).toEqual({
-      status: 'ready',
-      extension: 'docx',
-      type: 'html',
-      html: '<p>Hello</p>'
-    })
+    expect(result.html).toContain('Content-Security-Policy')
+    expect(result.html).toContain('<p>Hello</p>')
     expect(mocks.convert).toHaveBeenCalledWith('/tmp/workspace/report.docx', 'html', expect.any(Object))
   })
 
@@ -84,15 +81,12 @@ describe('OfficePreviewService', () => {
     const result = await officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.docx' })
 
     expect(result).toMatchObject({
-      status: 'ready',
-      extension: 'docx',
-      type: 'html',
       html: expect.stringContaining('<pre class="office-preview-text-fallback">plain &lt;text&gt;</pre>')
     })
     expect(mocks.convert).toHaveBeenNthCalledWith(2, '/tmp/workspace/report.docx', 'text', expect.any(Object))
   })
 
-  it('uses the official standalone HTML generator with spreadsheet scripts available', async () => {
+  it('uses the standalone HTML generator without remote chart scripts', async () => {
     mocks.convert.mockResolvedValueOnce({
       value: '<!DOCTYPE html><html><body><div class="spreadsheet-tabs"></div></body></html>',
       messages: []
@@ -104,7 +98,7 @@ describe('OfficePreviewService', () => {
     expect(config.generatorConfig).toMatchObject({
       includeFormatting: true,
       includeImages: true,
-      includeCharts: true,
+      includeCharts: false,
       htmlConfig: {
         standalone: true,
         containerWidth: '100%'
@@ -118,28 +112,49 @@ describe('OfficePreviewService', () => {
     expect(config.parseConfig).not.toHaveProperty('ignoreComments', true)
   })
 
-  it('rejects unsupported extensions before touching the file system', async () => {
-    const result = await officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.xlsm' })
+  it('hardens generated HTML before returning it to the renderer', async () => {
+    mocks.convert.mockResolvedValueOnce({
+      value:
+        '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/chart.js"></script></head><body><a href="javascript:alert(1)" onclick="alert(2)">link</a></body></html>',
+      messages: []
+    })
 
-    expect(result).toEqual({ status: 'error', code: 'unsupported_extension' })
+    const result = await officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.docx' })
+
+    expect(result.html).toContain('Content-Security-Policy')
+    expect(result.html).not.toContain('cdn.jsdelivr.net')
+    expect(result.html).not.toContain('javascript:alert')
+    expect(result.html).not.toContain('onclick=')
+  })
+
+  it('rejects unsupported extensions before touching the file system', async () => {
+    await expect(
+      officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.xlsm' })
+    ).rejects.toMatchObject({
+      code: 'OFFICE_PREVIEW_UNSUPPORTED_EXTENSION'
+    })
     expect(mocks.realpath).not.toHaveBeenCalled()
     expect(mocks.stat).not.toHaveBeenCalled()
     expect(mocks.convert).not.toHaveBeenCalled()
   })
 
   it('rejects absolute file paths from renderer input', async () => {
-    const result = await officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: '/tmp/report.docx' })
-
-    expect(result).toEqual({ status: 'error', code: 'invalid_request', extension: 'docx', type: 'html' })
+    await expect(
+      officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: '/tmp/report.docx' })
+    ).rejects.toMatchObject({
+      code: 'OFFICE_PREVIEW_INVALID_REQUEST'
+    })
     expect(mocks.realpath).not.toHaveBeenCalled()
   })
 
   it('rejects workspace paths that are not registered agent workspaces', async () => {
     mocks.listWorkspaces.mockResolvedValueOnce([{ path: '/tmp/workspace' }])
 
-    const result = await officePreviewService.render({ workspacePath: '/', filePath: 'tmp/report.docx' })
-
-    expect(result).toEqual({ status: 'error', code: 'invalid_request', extension: 'docx', type: 'html' })
+    await expect(
+      officePreviewService.render({ workspacePath: '/', filePath: 'tmp/report.docx' })
+    ).rejects.toMatchObject({
+      code: 'OFFICE_PREVIEW_INVALID_REQUEST'
+    })
     expect(mocks.realpath).not.toHaveBeenCalled()
     expect(mocks.convert).not.toHaveBeenCalled()
   })
@@ -151,9 +166,11 @@ describe('OfficePreviewService', () => {
       return input
     })
 
-    const result = await officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.docx' })
-
-    expect(result).toEqual({ status: 'error', code: 'invalid_request', extension: 'docx', type: 'html' })
+    await expect(
+      officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.docx' })
+    ).rejects.toMatchObject({
+      code: 'OFFICE_PREVIEW_INVALID_REQUEST'
+    })
     expect(mocks.stat).not.toHaveBeenCalled()
     expect(mocks.convert).not.toHaveBeenCalled()
   })
@@ -164,9 +181,11 @@ describe('OfficePreviewService', () => {
       size: 21 * 1024 * 1024
     })
 
-    const result = await officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.docx' })
-
-    expect(result).toEqual({ status: 'error', code: 'file_too_large', extension: 'docx', type: 'html' })
+    await expect(
+      officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.docx' })
+    ).rejects.toMatchObject({
+      code: 'OFFICE_PREVIEW_FILE_TOO_LARGE'
+    })
     expect(mocks.convert).not.toHaveBeenCalled()
   })
 
@@ -176,17 +195,21 @@ describe('OfficePreviewService', () => {
       messages: []
     })
 
-    const result = await officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.docx' })
-
-    expect(result).toEqual({ status: 'error', code: 'file_too_large', extension: 'docx', type: 'html' })
+    await expect(
+      officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.docx' })
+    ).rejects.toMatchObject({
+      code: 'OFFICE_PREVIEW_FILE_TOO_LARGE'
+    })
   })
 
   it('maps conversion failures to parse_failed', async () => {
     mocks.convert.mockRejectedValueOnce(new Error('bad zip'))
 
-    const result = await officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.docx' })
-
-    expect(result).toEqual({ status: 'error', code: 'parse_failed', extension: 'docx', type: 'html' })
+    await expect(
+      officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.docx' })
+    ).rejects.toMatchObject({
+      code: 'OFFICE_PREVIEW_PARSE_FAILED'
+    })
     expect(mocks.loggerError).toHaveBeenCalledWith('Failed to render Office preview', expect.any(Error))
   })
 
@@ -195,12 +218,14 @@ describe('OfficePreviewService', () => {
     error.name = 'AbortError'
     mocks.convert.mockRejectedValueOnce(error)
 
-    const result = await officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.docx' })
-
-    expect(result).toEqual({ status: 'error', code: 'parse_timeout', extension: 'docx', type: 'html' })
+    await expect(
+      officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.docx' })
+    ).rejects.toMatchObject({
+      code: 'OFFICE_PREVIEW_PARSE_TIMEOUT'
+    })
   })
 
-  it('marks xlsx previews as excel', async () => {
+  it('renders xlsx previews through the Office HTML pipeline', async () => {
     mockFilePath('/tmp/workspace/report.xlsx')
     mocks.convert.mockResolvedValueOnce({
       value: '<table><tr><td>A1</td></tr></table>',
@@ -209,11 +234,13 @@ describe('OfficePreviewService', () => {
 
     const result = await officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.xlsx' })
 
-    expect(result).toMatchObject({
-      status: 'ready',
-      extension: 'xlsx',
-      type: 'excel',
-      html: '<table><tr><td>A1</td></tr></table>'
-    })
+    expect(result.html).toContain('Content-Security-Policy')
+    expect(result.html).toContain('<td>A1</td>')
+  })
+
+  it('throws IpcError instances for branchable domain failures', async () => {
+    await expect(
+      officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.xlsm' })
+    ).rejects.toBeInstanceOf(IpcError)
   })
 })

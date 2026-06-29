@@ -1,3 +1,4 @@
+import { IpcError } from '@shared/ipc/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { renderMock } = vi.hoisted(() => ({
@@ -23,18 +24,23 @@ describe('officePreviewHandlers', () => {
   })
 
   it('rejects calls from unmanaged senders before touching the file system', async () => {
-    await expect(officePreviewHandlers['office_preview.render'](input, { senderId: null })).resolves.toEqual({
-      status: 'error',
-      code: 'invalid_request'
+    await expect(officePreviewHandlers['office_preview.render'](input, { senderId: null })).rejects.toMatchObject({
+      code: 'OFFICE_PREVIEW_INVALID_REQUEST'
     })
     expect(renderMock).not.toHaveBeenCalled()
   })
 
   it('delegates managed window calls to the preview service', async () => {
-    const output = { status: 'ready', extension: 'docx', type: 'html', html: '<p>Hello</p>' }
+    const output = { html: '<p>Hello</p>' }
     renderMock.mockResolvedValueOnce(output)
 
     await expect(officePreviewHandlers['office_preview.render'](input, { senderId: 'w1' })).resolves.toBe(output)
     expect(renderMock).toHaveBeenCalledWith(input)
+  })
+
+  it('throws IpcError for unmanaged senders', async () => {
+    await expect(officePreviewHandlers['office_preview.render'](input, { senderId: null })).rejects.toBeInstanceOf(
+      IpcError
+    )
   })
 })

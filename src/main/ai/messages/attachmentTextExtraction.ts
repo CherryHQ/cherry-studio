@@ -45,6 +45,8 @@ async function extract(entryId: FileEntryId, ext: string): Promise<string> {
         fileType: ext as SupportedFileType
       },
       generatorConfig: {
+        includeImages: false,
+        includeCharts: false,
         textConfig: {
           newlineDelimiter: '\n',
           preserveLayout: true

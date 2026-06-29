@@ -86,6 +86,8 @@ describe('extractDocumentText — dispatch on entry ext, bytes via FileManager.r
       expect.objectContaining({
         parseConfig: expect.objectContaining({ fileType: 'docx' }),
         generatorConfig: expect.objectContaining({
+          includeImages: false,
+          includeCharts: false,
           textConfig: expect.objectContaining({
             newlineDelimiter: '\n',
             preserveLayout: true

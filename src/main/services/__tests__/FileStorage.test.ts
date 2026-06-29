@@ -1,9 +1,17 @@
 import { dialog } from 'electron'
+import * as fs from 'fs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // `t` pulls in i18n + preference machinery that isn't initialized under test; the
 // dialog title it produces is irrelevant to these contracts, so stub it to the key.
 vi.mock('@main/utils/language', () => ({ t: (key: string) => key }))
+
+const { officeConvertMock } = vi.hoisted(() => ({ officeConvertMock: vi.fn() }))
+vi.mock('officeparser', () => ({
+  OfficeConverter: {
+    convert: officeConvertMock
+  }
+}))
 
 import { fileStorage } from '../FileStorage'
 
@@ -37,6 +45,41 @@ describe('FileStorage', () => {
 
     it('leaves a path without the ~/ prefix unchanged', async () => {
       await expect(fileStorage.showInFolder(event, '/no/such/path/x.txt')).rejects.toThrow('/no/such/path/x.txt')
+    })
+  })
+
+  describe('readExternalFile', () => {
+    it('disables image and chart extraction for Office text reads', async () => {
+      const existsSpy = vi.spyOn(fs, 'existsSync').mockReturnValueOnce(true)
+      officeConvertMock.mockResolvedValueOnce({ value: ' office body ' })
+
+      await expect(fileStorage.readExternalFile(event, '/tmp/report.docx')).resolves.toBe(' office body ')
+
+      expect(officeConvertMock).toHaveBeenCalledWith(
+        '/tmp/report.docx',
+        'text',
+        expect.objectContaining({
+          generatorConfig: expect.objectContaining({
+            includeImages: false,
+            includeCharts: false,
+            textConfig: expect.objectContaining({
+              newlineDelimiter: '\n',
+              preserveLayout: true
+            })
+          })
+        })
+      )
+      existsSpy.mockRestore()
+    })
+
+    it('rejects unsupported legacy Excel files instead of returning empty content', async () => {
+      const existsSpy = vi.spyOn(fs, 'existsSync').mockReturnValueOnce(true)
+
+      await expect(fileStorage.readExternalFile(event, '/tmp/report.xls')).rejects.toThrow(
+        'Unsupported document format: .xls'
+      )
+      expect(officeConvertMock).not.toHaveBeenCalled()
+      existsSpy.mockRestore()
     })
   })
 })
