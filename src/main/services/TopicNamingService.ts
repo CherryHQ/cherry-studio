@@ -92,7 +92,13 @@ function removeSpecialCharactersForTopicName(name: string): string {
 function truncateText(text: string, maxLength = 50): string {
   const normalized = text.trim().replace(/\s+/g, ' ')
   if (normalized.length <= maxLength) return normalized
-  return normalized.slice(0, maxLength).trim()
+  // Don't cut through a surrogate pair: if maxLength lands between an emoji's
+  // high and low halves, dropping the low half would persist a lone surrogate
+  // that renders as the replacement glyph. Step back one unit in that case.
+  const high = normalized.charCodeAt(maxLength - 1)
+  const low = normalized.charCodeAt(maxLength)
+  const cutsSurrogatePair = high >= 0xd800 && high <= 0xdbff && low >= 0xdc00 && low <= 0xdfff
+  return normalized.slice(0, cutsSurrogatePair ? maxLength - 1 : maxLength).trim()
 }
 
 function buildStructuredConversation(messages: StructuredMessage[]): string {
