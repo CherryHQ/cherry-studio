@@ -6784,9 +6784,8 @@
           "subtitle": "Qwen3 Embedding 0.6B · ~614 MB"
         },
         "ocr": {
-          "comingSoon": "Coming soon",
           "name": "Local OCR",
-          "subtitle": "PaddleOCR"
+          "subtitle": "PaddleOCR PP-OCRv6 · ~31 MB"
         },
         "remove": "Remove",
         "status": {
@@ -7360,6 +7359,13 @@
           "doc2x": {
             "description": "Advanced file restoration engine.",
             "name": "Doc2x"
+          },
+          "local_paddleocr": {
+            "description": "PaddleOCR (PP-OCRv6 small) running in-process — fully offline, no API key, with recognition on a background thread so the UI stays responsive. Download the model (~31MB) in Environment Dependencies before first use.",
+            "name": "Local PaddleOCR",
+            "status": {
+              "local": "Runs fully on your device"
+            }
           },
           "mineru": {
             "description": "OpenDataLab's open-source high-quality PDF extraction tool.",

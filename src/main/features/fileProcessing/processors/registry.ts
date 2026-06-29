@@ -1,6 +1,8 @@
 import { isMac, isWin } from '@main/core/platform'
 
 import { doc2xDocumentToMarkdownHandler } from './doc2x/document-to-markdown/handler'
+import { localPaddleocrImageToTextHandler } from './local-paddleocr/image-to-text/handler'
+import { isOcrModelDownloaded } from './local-paddleocr/modelAssets'
 import { mineruDocumentToMarkdownHandler } from './mineru/document-to-markdown/handler'
 import { mistralDocumentToMarkdownHandler } from './mistral/document-to-markdown/handler'
 import { mistralImageToTextHandler } from './mistral/image-to-text/handler'
@@ -31,6 +33,13 @@ export const processorRegistry = {
     capabilities: {
       image_to_text: paddleImageToTextHandler,
       document_to_markdown: paddleDocumentToMarkdownHandler
+    }
+  },
+  'local-paddleocr': {
+    // Only usable once the model files are on disk (downloaded via the settings card).
+    isAvailable: isOcrModelDownloaded,
+    capabilities: {
+      image_to_text: localPaddleocrImageToTextHandler
     }
   },
   ovocr: {

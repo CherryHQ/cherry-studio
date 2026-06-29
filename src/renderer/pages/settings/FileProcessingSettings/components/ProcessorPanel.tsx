@@ -11,6 +11,7 @@ import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingRow, Setti
 import {
   type FileProcessingMenuEntry,
   getProcessorApiKeyWebsite,
+  getProcessorDescriptionKey,
   getProcessorNameKey,
   getTesseractLanguageCode,
   shouldShowLanguageOptions,
@@ -255,6 +256,20 @@ export function ProcessorPanel({
       ) : null}
 
       {processor.id === 'paddleocr' ? <PaddleOcrDeploymentInfo /> : null}
+
+      {processor.id === 'local-paddleocr' ? (
+        <div className="flex flex-col gap-3 border-border-muted border-t pt-4">
+          <SettingRow className="items-start justify-start gap-2 py-1">
+            <SquareCheckBig size={13} className="mt-0.5 shrink-0 text-emerald-500" />
+            <div className="min-w-0 flex-1">
+              <SettingRowTitle className="font-medium text-emerald-600 text-xs dark:text-emerald-400">
+                {t('settings.tool.file_processing.processors.local_paddleocr.status.local')}
+              </SettingRowTitle>
+              <SettingHelpText className="mt-1 text-xs">{t(getProcessorDescriptionKey(processor.id))}</SettingHelpText>
+            </div>
+          </SettingRow>
+        </div>
+      ) : null}
 
       {processor.id === 'system' ? (
         <div className="flex flex-col gap-3 border-border-muted border-t pt-4">

@@ -6,6 +6,7 @@ import { fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
 import { knowledgeRequestSchemas } from './knowledge'
 import { type LocalEmbeddingEventSchemas, localEmbeddingRequestSchemas } from './localEmbedding'
+import { type LocalOcrEventSchemas, localOcrRequestSchemas } from './localOcr'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
 import { webSearchRequestSchemas } from './webSearch'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
@@ -25,6 +26,7 @@ export const ipcRequestSchemas = {
   ...fileProcessingRequestSchemas,
   ...knowledgeRequestSchemas,
   ...localEmbeddingRequestSchemas,
+  ...localOcrRequestSchemas,
   ...selectionRequestSchemas,
   ...webSearchRequestSchemas,
   ...windowRequestSchemas
@@ -42,6 +44,7 @@ export type IpcRoute = keyof IpcRequestSchemas
 export type IpcEventSchemas = AiEventSchemas &
   BinaryEventSchemas &
   LocalEmbeddingEventSchemas &
+  LocalOcrEventSchemas &
   SelectionEventSchemas &
   WindowEventSchemas
 /** Union of all declared event names (`never` until a domain is migrated). */

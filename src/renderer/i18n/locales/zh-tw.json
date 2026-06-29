@@ -6784,9 +6784,8 @@
           "subtitle": "Qwen3 Embedding 0.6B · 約 614 MB"
         },
         "ocr": {
-          "comingSoon": "即將支援",
           "name": "本機 OCR 模型",
-          "subtitle": "PaddleOCR"
+          "subtitle": "PaddleOCR PP-OCRv6 · 約 31 MB"
         },
         "remove": "刪除",
         "status": {
@@ -7360,6 +7359,13 @@
           "doc2x": {
             "description": "高級檔案還原引擎。",
             "name": "Doc2x"
+          },
+          "local_paddleocr": {
+            "description": "在本機行程內執行的 PaddleOCR（PP-OCRv6 小模型），完全離線、無需 API Key，辨識在背景執行緒進行不阻塞介面。首次使用請先在「環境相依」中下載模型（約 31MB）。",
+            "name": "本機 PaddleOCR",
+            "status": {
+              "local": "完全本機離線執行"
+            }
           },
           "mineru": {
             "description": "OpenDataLab 開源的高品質 PDF 擷取工具。",

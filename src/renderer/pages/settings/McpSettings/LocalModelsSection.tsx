@@ -3,10 +3,93 @@ import { ipcApi } from '@renderer/ipc'
 import { useIpcOn } from '@renderer/ipc/useIpcOn'
 import { cn } from '@renderer/utils/style'
 import type { LocalModelStatus } from '@shared/data/presets/localEmbedding'
+import type { IpcEventName } from '@shared/ipc/schemas'
 import { Boxes, Download, ScanText, Trash2, X } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+/** The four request thunks + progress event that drive one local-model card. */
+interface LocalModelApi {
+  getStatus: () => Promise<{ status: LocalModelStatus }>
+  download: () => Promise<void>
+  cancel: () => Promise<void>
+  remove: () => Promise<void>
+  progressEvent: Extract<IpcEventName, `${string}.download_progress`>
+}
+
+/**
+ * Shared wiring for a downloadable local model: tracks status/percent, streams
+ * progress, and exposes download/cancel/remove. The IPC routes differ per model
+ * (embedding vs OCR), so callers pass pre-bound thunks; `apiRef` keeps `refresh`
+ * stable while still reading the latest thunks.
+ */
+function useLocalModelCard(api: LocalModelApi) {
+  const apiRef = useRef(api)
+  apiRef.current = api
+  const [status, setStatus] = useState<LocalModelStatus>('not_downloaded')
+  const [percent, setPercent] = useState(0)
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  const refresh = useCallback(async () => {
+    try {
+      const res = await apiRef.current.getStatus()
+      if (mountedRef.current) setStatus(res.status)
+    } catch {
+      // status probe is best-effort; leave the last known state
+    }
+  }, [])
+
+  useEffect(() => {
+    void refresh()
+  }, [refresh])
+
+  useIpcOn(api.progressEvent, (p) => {
+    if (!mountedRef.current) return
+    setPercent(p.percent)
+    if (p.status === 'ready') setStatus('ready')
+    else if (p.status === 'error') setStatus('error')
+  })
+
+  const download = async () => {
+    setStatus('downloading')
+    setPercent(0)
+    try {
+      await apiRef.current.download()
+      if (mountedRef.current) setStatus('ready')
+    } catch {
+      await refresh()
+    }
+  }
+
+  const cancel = async () => {
+    try {
+      await apiRef.current.cancel()
+    } finally {
+      if (mountedRef.current) {
+        setStatus('not_downloaded')
+        setPercent(0)
+      }
+    }
+  }
+
+  const remove = async () => {
+    try {
+      await apiRef.current.remove()
+    } finally {
+      if (mountedRef.current) setStatus('not_downloaded')
+    }
+  }
+
+  return { status, percent, download, cancel, remove }
+}
 
 interface ModelCardProps {
   icon: ReactNode
@@ -14,26 +97,12 @@ interface ModelCardProps {
   subtitle: string
   status: LocalModelStatus
   percent: number
-  /** Renders as a disabled placeholder (e.g. OCR before its backend lands). */
-  comingSoon?: boolean
-  comingSoonLabel?: string
-  onDownload?: () => void
-  onCancel?: () => void
-  onRemove?: () => void
+  onDownload: () => void
+  onCancel: () => void
+  onRemove: () => void
 }
 
-const ModelCard: FC<ModelCardProps> = ({
-  icon,
-  name,
-  subtitle,
-  status,
-  percent,
-  comingSoon,
-  comingSoonLabel,
-  onDownload,
-  onCancel,
-  onRemove
-}) => {
+const ModelCard: FC<ModelCardProps> = ({ icon, name, subtitle, status, percent, onDownload, onCancel, onRemove }) => {
   const { t } = useTranslation()
   const ready = status === 'ready'
   const downloading = status === 'downloading'
@@ -58,15 +127,10 @@ const ModelCard: FC<ModelCardProps> = ({
                 {t('settings.plugins.localModels.status.ready')}
               </Badge>
             )}
-            {comingSoon && (
-              <Badge variant="outline" className="px-1.5 py-0 text-[11px] leading-4">
-                {comingSoonLabel}
-              </Badge>
-            )}
           </div>
           <p className="mt-0.5 truncate text-muted-foreground text-xs">{subtitle}</p>
         </div>
-        {ready && !comingSoon && (
+        {ready && (
           <Button variant="ghost" size="icon-sm" onClick={onRemove}>
             <Trash2 className="size-3.5" />
           </Button>
@@ -85,7 +149,7 @@ const ModelCard: FC<ModelCardProps> = ({
         </div>
       )}
 
-      {!comingSoon && !ready && (
+      {!ready && (
         <div className="mt-3 border-border border-t pt-3">
           {downloading ? (
             <Button variant="outline" size="sm" className="h-7 w-full gap-1 font-medium text-xs" onClick={onCancel}>
@@ -105,73 +169,28 @@ const ModelCard: FC<ModelCardProps> = ({
 }
 
 /**
- * Local model download cards in the Environment Dependencies settings. The
- * embedding card is wired to the inference worker (download/progress/cancel/
- * remove via IpcApi); the OCR card is a disabled placeholder until its backend
- * lands.
+ * Local model download cards in the Environment Dependencies settings — embedding
+ * (transformers.js) and OCR (PaddleOCR), each wired to its inference/download
+ * backend over IpcApi.
  */
 const LocalModelsSection: FC = () => {
   const { t } = useTranslation()
-  const [status, setStatus] = useState<LocalModelStatus>('not_downloaded')
-  const [percent, setPercent] = useState(0)
-  const mountedRef = useRef(true)
 
-  useEffect(() => {
-    mountedRef.current = true
-    return () => {
-      mountedRef.current = false
-    }
-  }, [])
-
-  const refresh = useCallback(async () => {
-    try {
-      const res = await ipcApi.request('local_embedding.get_status')
-      if (mountedRef.current) setStatus(res.status)
-    } catch {
-      // status probe is best-effort; leave the last known state
-    }
-  }, [])
-
-  useEffect(() => {
-    void refresh()
-  }, [refresh])
-
-  useIpcOn('local_embedding.download_progress', (p) => {
-    if (!mountedRef.current) return
-    setPercent(p.percent)
-    if (p.status === 'ready') setStatus('ready')
-    else if (p.status === 'error') setStatus('error')
+  const embedding = useLocalModelCard({
+    getStatus: () => ipcApi.request('local_embedding.get_status'),
+    download: () => ipcApi.request('local_embedding.download'),
+    cancel: () => ipcApi.request('local_embedding.cancel'),
+    remove: () => ipcApi.request('local_embedding.remove'),
+    progressEvent: 'local_embedding.download_progress'
   })
 
-  const download = async () => {
-    setStatus('downloading')
-    setPercent(0)
-    try {
-      await ipcApi.request('local_embedding.download')
-      if (mountedRef.current) setStatus('ready')
-    } catch {
-      await refresh()
-    }
-  }
-
-  const cancel = async () => {
-    try {
-      await ipcApi.request('local_embedding.cancel')
-    } finally {
-      if (mountedRef.current) {
-        setStatus('not_downloaded')
-        setPercent(0)
-      }
-    }
-  }
-
-  const remove = async () => {
-    try {
-      await ipcApi.request('local_embedding.remove')
-    } finally {
-      if (mountedRef.current) setStatus('not_downloaded')
-    }
-  }
+  const ocr = useLocalModelCard({
+    getStatus: () => ipcApi.request('local_ocr.get_status'),
+    download: () => ipcApi.request('local_ocr.download'),
+    cancel: () => ipcApi.request('local_ocr.cancel'),
+    remove: () => ipcApi.request('local_ocr.remove'),
+    progressEvent: 'local_ocr.download_progress'
+  })
 
   return (
     <div className="min-w-0">
@@ -184,20 +203,21 @@ const LocalModelsSection: FC = () => {
           icon={<Boxes className="size-5" />}
           name={t('settings.plugins.localModels.embedding.name')}
           subtitle={t('settings.plugins.localModels.embedding.subtitle')}
-          status={status}
-          percent={percent}
-          onDownload={download}
-          onCancel={cancel}
-          onRemove={remove}
+          status={embedding.status}
+          percent={embedding.percent}
+          onDownload={embedding.download}
+          onCancel={embedding.cancel}
+          onRemove={embedding.remove}
         />
         <ModelCard
           icon={<ScanText className="size-5" />}
           name={t('settings.plugins.localModels.ocr.name')}
           subtitle={t('settings.plugins.localModels.ocr.subtitle')}
-          status="not_downloaded"
-          percent={0}
-          comingSoon
-          comingSoonLabel={t('settings.plugins.localModels.ocr.comingSoon')}
+          status={ocr.status}
+          percent={ocr.percent}
+          onDownload={ocr.download}
+          onCancel={ocr.cancel}
+          onRemove={ocr.remove}
         />
       </div>
     </div>

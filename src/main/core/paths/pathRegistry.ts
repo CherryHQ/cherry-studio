@@ -89,6 +89,9 @@ export function buildPathRegistry() {
     // Local embedding model cache (transformers.js / onnxruntime-node, downloaded on first use)
     'feature.models.transformers': path.join(appUserDataData, 'Models', 'transformers'),
 
+    // Local OCR model files (PaddleOCR / ppu-paddle-ocr, downloaded on demand)
+    'feature.models.paddleocr': path.join(appUserDataData, 'Models', 'paddleocr'),
+
     // BinaryManager (tool manager)
     'feature.binary.data': path.join(CHERRY_HOME, 'binary-manager'),
     'feature.binary.state_file': path.join(CHERRY_HOME, 'binary-manager', 'state.json'),
