@@ -310,7 +310,7 @@ All operations that can act on any file (FileEntry or arbitrary path) **accept a
 
 **How to obtain dangling state / absolute path / live size**: these are FS-IO or main-side computation, so they live in File IPC — never DataApi. Dangling state via `getDanglingState` / `batchGetDanglingStates`, path via `getPhysicalPath` / `batchGetPhysicalPaths`, live `size` / `mtime` via `getMetadata` / `batchGetMetadata`. Any flow iterating over >1 file MUST reach for the batch form to avoid N+1 IPC. DataApi's SQL-only boundary is documented in §4.1.1.
 
-**How to obtain a `file://` URL for rendering**: compose it in-process from the `FilePath` returned by `getPhysicalPath`, using the shared pure helper `toSafeFileUrl(path, ext)` in `@shared/utils/file/urlUtil` — no dedicated IPC needed. The helper applies the danger-file wrap (`.sh` / `.bat` / `.ps1` / `.exe` / `.app` etc. → containing directory URL) and does cross-platform `file://` encoding.
+**How to obtain a `file://` URL for rendering**: compose it in-process from the `FilePath` returned by `getPhysicalPath`, using the shared pure helper `toSafeFileUrl(path, ext)` in `@shared/utils/file/url` — no dedicated IPC needed. The helper applies the danger-file wrap (`.sh` / `.bat` / `.ps1` / `.exe` / `.app` etc. → containing directory URL) and does cross-platform `file://` encoding.
 
 **Operations accepting only FilePath**:
 
@@ -517,7 +517,7 @@ The only allowed "derivation" inside DataApi is **SQL aggregation** (JOIN / GROU
 | Ref counts per entry                         | DataApi `GET /files/entries/ref-counts?entryIds=...` — dedicated endpoint | Pure SQL aggregation (JOIN + GROUP BY)                  |
 | Dangling / presence state                    | File IPC `getDanglingState` / `batchGetDanglingStates`                  | FS-backed (DanglingCache + cold-path `fs.stat`)         |
 | Absolute physical path                       | File IPC `getPhysicalPath` / `batchGetPhysicalPaths`                    | Main-side path resolution                               |
-| `file://` URL for HTML rendering             | Shared pure helper `toSafeFileUrl(path, ext)` (`@shared/utils/file/urlUtil`), composed in-process from the `FilePath` returned by `getPhysicalPath` | Pure formatting + danger-file wrap (no IPC of its own)  |
+| `file://` URL for HTML rendering             | Shared pure helper `toSafeFileUrl(path, ext)` (`@shared/utils/file/url`), composed in-process from the `FilePath` returned by `getPhysicalPath` | Pure formatting + danger-file wrap (no IPC of its own)  |
 | Live `size` / `mtime` for external           | File IPC `getMetadata(handle)` (single) / `batchGetMetadata({ items })` (list-page flows) | FS-backed (`fs.stat`) — external rows have `size: null` in DB by design; batch variant is mandatory when iterating (§3.3) |
 
 **Why this split**: DataApi's value is a predictable, cache-friendly, SQL-level surface. Once a handler can reach past the DB, every consumer inherits hidden IO costs whether they asked for them or not, and React Query cache keys stop being a reliable freshness boundary. Keeping FS / compute side effects on File IPC makes the cost visible at the call site and keeps DataApi endpoints cache-safe.
@@ -541,7 +541,7 @@ The only allowed "derivation" inside DataApi is **SQL aggregation** (JOIN / GROU
 
 The spread of **locality** (a path string arriving in the renderer via IPC) is not the spread of **authority** (ownership of the resolution rule). The former is a natural consumption relationship; only the latter would actually tear the SoT apart.
 
-Pure **formatting** helpers built on top of an already-resolved path — `toFileUrl` (cross-platform `file://` encoding), `isDangerExt` (HTML-render danger policy), `toSafeFileUrl` (the composition used for `<img src>`) — live in the shared `@shared/utils/file/urlUtil` module and run in whichever process needs them. They consume Main's authoritative path string but carry no authority themselves; storage-layout changes in Main still don't affect them.
+Pure **formatting** helpers built on top of an already-resolved path — `toFileUrl` (cross-platform `file://` encoding), `isDangerExt` (HTML-render danger policy), `toSafeFileUrl` (the composition used for `<img src>`) — live in the shared `@shared/utils/file/url` module and run in whichever process needs them. They consume Main's authoritative path string but carry no authority themselves; storage-layout changes in Main still don't affect them.
 
 ### 4.1.2 Typical Renderer Call Flows
 

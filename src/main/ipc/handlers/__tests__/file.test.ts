@@ -1,10 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, getMetadataByPathMock } = vi.hoisted(() => ({
+const { appGetMock, getMetadataByPathMock, safeOpenMock, showPathInFolderMock } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
-  getMetadataByPathMock: vi.fn()
+  getMetadataByPathMock: vi.fn(),
+  safeOpenMock: vi.fn(),
+  showPathInFolderMock: vi.fn()
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
+vi.mock('@main/services/file', () => ({
+  safeOpen: safeOpenMock,
+  showInFolder: showPathInFolderMock
+}))
 vi.mock('@main/services/file/utils/metadata', () => ({ getMetadataByPath: getMetadataByPathMock }))
 
 import { fileHandlers } from '../file'
@@ -104,12 +110,22 @@ describe('fileHandlers', () => {
     fileManager.rename.mockResolvedValue(renamed)
 
     await expect(fileHandlers['file.rename']({ id: ids[0], newName: 'renamed' }, ctx)).resolves.toBe(renamed)
-    await fileHandlers['file.open']({ id: ids[0] }, ctx)
-    await fileHandlers['file.show_in_folder']({ id: ids[0] }, ctx)
+    await fileHandlers['file.open']({ kind: 'entry', entryId: ids[0] }, ctx)
+    await fileHandlers['file.show_in_folder']({ kind: 'entry', entryId: ids[0] }, ctx)
 
     expect(fileManager.rename).toHaveBeenCalledWith(ids[0], 'renamed')
     expect(fileManager.open).toHaveBeenCalledWith(ids[0])
     expect(fileManager.showInFolder).toHaveBeenCalledWith(ids[0])
+  })
+
+  it('dispatches path system commands without FileManager entry lookup', async () => {
+    await fileHandlers['file.open']({ kind: 'path', path: '/tmp/report.md' }, ctx)
+    await fileHandlers['file.show_in_folder']({ kind: 'path', path: '/tmp/report.md' }, ctx)
+
+    expect(safeOpenMock).toHaveBeenCalledWith('/tmp/report.md')
+    expect(showPathInFolderMock).toHaveBeenCalledWith('/tmp/report.md')
+    expect(fileManager.open).not.toHaveBeenCalled()
+    expect(fileManager.showInFolder).not.toHaveBeenCalled()
   })
 
   it('delegates internal-entry batch create items to FileManager', async () => {

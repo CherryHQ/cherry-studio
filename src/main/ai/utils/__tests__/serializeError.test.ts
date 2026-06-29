@@ -1,12 +1,7 @@
 import { NoSuchToolError, RetryError } from 'ai'
 import { describe, expect, it } from 'vitest'
 
-import {
-  isSerializedAiSdkAPICallError,
-  isSerializedAiSdkNoSuchToolError,
-  isSerializedAiSdkRetryError,
-  serializeError
-} from '../error'
+import { serializeError } from '../serializeError'
 
 describe('serializeError', () => {
   describe('null preservation (FIX error-1)', () => {
@@ -47,7 +42,10 @@ describe('serializeError', () => {
       const result = serializeError(err)
 
       expect(result.responseBody).toBe('{"error":"bad"}')
-      expect(isSerializedAiSdkAPICallError(result)).toBe(true)
+      // APICallError discriminant fields are carried through.
+      expect(result.url).toBe('https://example.com')
+      expect(result.statusCode).toBe(500)
+      expect(result.isRetryable).toBe(true)
     })
 
     it('serializes a present responseBody of null to real null', () => {
@@ -69,7 +67,7 @@ describe('serializeError', () => {
   })
 
   describe('discriminant field extraction (FIX error-2)', () => {
-    it('serializes a RetryError with its discriminant fields so the type guard matches', () => {
+    it('serializes a RetryError with its discriminant fields', () => {
       const retryError = new RetryError({
         message: 'retry failed',
         reason: 'maxRetriesExceeded',
@@ -78,7 +76,6 @@ describe('serializeError', () => {
 
       const result = serializeError(retryError)
 
-      expect(isSerializedAiSdkRetryError(result)).toBe(true)
       expect(result.reason).toBe('maxRetriesExceeded')
       expect(Array.isArray(result.errors)).toBe(true)
       expect((result.errors as unknown[]).length).toBe(2)
@@ -86,7 +83,7 @@ describe('serializeError', () => {
       expect('lastError' in result).toBe(true)
     })
 
-    it('serializes a NoSuchToolError with its discriminant fields so the type guard matches', () => {
+    it('serializes a NoSuchToolError with its discriminant fields', () => {
       const noSuchTool = new NoSuchToolError({
         toolName: 'missing_tool',
         availableTools: ['alpha', 'beta']
@@ -94,7 +91,6 @@ describe('serializeError', () => {
 
       const result = serializeError(noSuchTool)
 
-      expect(isSerializedAiSdkNoSuchToolError(result)).toBe(true)
       expect(result.toolName).toBe('missing_tool')
       expect(result.availableTools).toEqual(['alpha', 'beta'])
     })

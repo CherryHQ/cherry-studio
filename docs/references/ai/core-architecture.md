@@ -175,7 +175,7 @@ src/main/ai/
 ├── types/                        ← AppProviderId, merged types, request types
 └── utils/                        ← reasoning / model parameters / options / websearch
 
-src/renderer/transport/           ← IpcChatTransport, dispatch coordinator
+src/renderer/services/aiTransport/ ← IpcChatTransport, dispatch coordinator
 src/renderer/hooks/               ← useChatWithHistory, useToolApprovalBridge, useTopicStreamStatus
 packages/aiCore/                  ← @cherrystudio/ai-core (Agent + plugins + provider extensions)
 packages/provider-registry/       ← provider catalog, registry-utils (adapterFamily inference)

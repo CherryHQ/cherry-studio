@@ -1,5 +1,3 @@
-import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
-import { isImageFileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import {
   type BuiltinOcrProvider,
   type BuiltinOcrProviderId,
@@ -15,7 +13,9 @@ import {
   type OcrSystemProvider,
   type OcrTesseractProvider,
   type SupportedOcrFile
-} from '@shared/types/ocr'
+} from '@renderer/types/ocr'
+import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
+import { isImageFileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 
 export const isBuiltinOcrProviderId = (id: string): id is BuiltinOcrProviderId => {
   return Object.hasOwn(BuiltinOcrProviderIds, id)

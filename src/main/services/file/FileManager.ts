@@ -136,7 +136,7 @@ import { orphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry
 import { remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
-import { SafeExtSchema, SafeNameSchema } from '@shared/data/types/file/essential'
+import { SafeNameSchema } from '@shared/data/types/file/essential'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
   BatchCreateResult,
@@ -144,9 +144,10 @@ import type {
   CreateInternalEntryIpcParams,
   EnsureExternalEntryIpcParams,
   FilePath,
-  FileURLString,
+  FileUrlString,
   PhysicalFileMetadata
 } from '@shared/types/file'
+import { SafeExtSchema } from '@shared/types/file/common'
 import type { FileHandle } from '@shared/types/file/handle'
 import { FileHandleSchema } from '@shared/types/file/handle'
 import mime from 'mime'
@@ -185,9 +186,9 @@ import {
   runDbSweep,
   runFileSweep
 } from './internal/orphanSweep'
-import { assertSafeForDefaultOpen } from './internal/system/openGuard'
-import { open as internalShellOpen, showInFolder as internalShellShowInFolder } from './internal/system/shell'
+import { showInFolder as internalShellShowInFolder } from './internal/system/shell'
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
+import { safeOpen } from './system'
 import { getMetadataByPath } from './utils/metadata'
 import { canonicalizeExternalPath, resolvePhysicalPath } from './utils/pathResolver'
 import { createVersionCacheImpl, type VersionCache } from './versionCache'
@@ -571,7 +572,7 @@ export interface IFileManager {
   // ─── Path / URL resolution ───
 
   /** Resolve an entry to its `file://` URL with the danger-file safety wrap. */
-  getUrl(id: FileEntryId): Promise<FileURLString>
+  getUrl(id: FileEntryId): Promise<FileUrlString>
 
   /** Resolve an entry to its absolute filesystem path. */
   getPhysicalPath(id: FileEntryId): Promise<FilePath>
@@ -885,10 +886,10 @@ export class FileManager extends BaseService implements IFileManager {
     return internalHash(this.deps, id)
   }
 
-  async getUrl(id: FileEntryId): Promise<FileURLString> {
+  async getUrl(id: FileEntryId): Promise<FileUrlString> {
     const entry = await this.deps.fileEntryService.getById(id)
     const physicalPath = resolvePhysicalPath(entry)
-    return pathToFileURL(physicalPath).toString() as FileURLString
+    return pathToFileURL(physicalPath).toString() as FileUrlString
   }
 
   async getPhysicalPath(id: FileEntryId): Promise<FilePath> {
@@ -1026,9 +1027,7 @@ export class FileManager extends BaseService implements IFileManager {
 
   async open(id: FileEntryId): Promise<void> {
     const entry = await this.deps.fileEntryService.getById(id)
-    const physicalPath = resolvePhysicalPath(entry)
-    assertSafeForDefaultOpen(entry, physicalPath)
-    return internalShellOpen(physicalPath)
+    return safeOpen(resolvePhysicalPath(entry))
   }
 
   async showInFolder(id: FileEntryId): Promise<void> {

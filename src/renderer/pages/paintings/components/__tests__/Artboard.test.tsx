@@ -8,12 +8,6 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('@renderer/services/FileManager', () => ({
-  default: {
-    getFileUrl: (file: FileMetadata) => `https://files.test/${file.id}.png`
-  }
-}))
-
 const { default: Artboard } = await import('../Artboard')
 
 const makeFile = (id: string): FileMetadata =>
@@ -69,7 +63,7 @@ describe('Artboard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'preview.next' }))
 
-    expect(image).toHaveAttribute('src', 'https://files.test/image-2.png')
+    expect(image).toHaveAttribute('src', 'file:///tmp/image-2.png')
     expect(image.style.transform).toBe('translate(0px, 0px) scale(1) rotate(0deg)')
   })
 

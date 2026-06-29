@@ -6976,7 +6976,6 @@
       "cherryin": {
         "api_host": {
           "acceleration": "加速網域",
-          "backup": "備用網域",
           "international": "國際網域"
         }
       },
