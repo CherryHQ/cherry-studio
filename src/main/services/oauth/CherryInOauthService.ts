@@ -1,25 +1,14 @@
 import { application } from '@application'
-import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { type Activatable, BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { PkceOAuthClient } from '@main/utils/oauth/PkceOAuthClient'
-import type { OAuthAuthConfig } from '@shared/data/types/provider'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
 import { net } from 'electron'
 import * as z from 'zod'
 
+import { CHERRYIN_PROVIDER_ID, CherryInOauthServiceError, validateCherryInApiHost } from './CherryInOAuthConfig'
+
 const logger = loggerService.withContext('CherryInOauthService')
 
-// CherryIN OAuth configuration
-const CHERRYIN_CONFIG = {
-  CLIENT_ID: '2a348c87-bae1-4756-a62f-b2e97200fd6d',
-  ALLOWED_HOSTS: ['https://open.cherryin.ai', 'https://open.cherryin.dev'],
-  REDIRECT_URI: 'cherrystudio://oauth/callback',
-  SCOPES: 'openid profile email offline_access balance:read usage:read tokens:read tokens:write'
-}
-const CHERRYIN_PROVIDER_ID = 'cherryin'
-
-// Zod schemas for API response validation
 const BalanceDataSchema = z.object({
   quota: z.number(),
   used_quota: z.number()
@@ -29,20 +18,6 @@ const BalanceResponseSchema = z.object({
   success: z.boolean(),
   data: BalanceDataSchema
 })
-
-// API key can be either a string or an object with key/token property, transform to string
-const ApiKeyItemSchema = z
-  .union([z.string(), z.object({ key: z.string() }), z.object({ token: z.string() })])
-  .transform((item): string => {
-    if (typeof item === 'string') return item
-    if ('key' in item) return item.key
-    return item.token
-  })
-
-// Response can be array or object with data array, transform to string array
-const ApiKeysResponseSchema = z
-  .union([z.array(ApiKeyItemSchema), z.object({ data: z.array(ApiKeyItemSchema) })])
-  .transform((data): string[] => (Array.isArray(data) ? data : data.data))
 
 const UserSelfProfileSchema = z.object({
   display_name: z.string().optional().nullable(),
@@ -74,7 +49,6 @@ const UserSelfResponseSchema = z
     }
   })
 
-// Export types for use in other modules
 export interface BalanceResponse {
   balance: number
   profile: CherryINProfile | null
@@ -94,71 +68,11 @@ export interface OauthFlowParams {
   state: string
 }
 
-const OAUTH_FLOW_TTL_MS = 10 * 60 * 1000
-const OAUTH_FLOW_CLEANUP_INTERVAL_MS = 60 * 1000
-
-class CherryInOauthServiceError extends Error {
-  constructor(
-    message: string,
-    public readonly cause?: unknown,
-    public readonly code?: string
-  ) {
-    super(message)
-    this.name = 'CherryInOauthServiceError'
-  }
-}
-
-// Store pending OAuth flows with PKCE verifiers (keyed by state parameter).
-// initiatorWindowId is the WindowManager UUID of the renderer that started the
-// flow, captured at startOAuthFlow time so the protocol callback can be
-// delivered point-to-point to the originating window instead of being broadcast
-// to every window.
-interface PendingOauthFlow {
-  codeVerifier: string
-  oauthServer: string
-  apiHost: string
-  timestamp: number
-  initiatorWindowId: string
-}
-
-interface TokenRefreshResult {
-  accessToken: string | null
-  attempted: boolean
-}
-
 @Injectable('CherryInOauthService')
 @ServicePhase(Phase.Background)
-export class CherryInOauthService extends BaseService implements Activatable {
-  private readonly pendingOAuthFlows = new Map<string, PendingOauthFlow>()
-  private refreshAccessTokenPromise: Promise<TokenRefreshResult> | null = null
-  private cleanupTimerDisposable: Disposable | null = null
-
+export class CherryInOauthService extends BaseService {
   protected onInit(): void {
     this.registerIpcHandlers()
-  }
-
-  protected onStop(): void {
-    this.pendingOAuthFlows.clear()
-    this.refreshAccessTokenPromise = null
-  }
-
-  onActivate(): void {
-    this.cleanupTimerDisposable = this.registerInterval(
-      () => this.cleanupExpiredFlows(),
-      OAUTH_FLOW_CLEANUP_INTERVAL_MS
-    )
-  }
-
-  onDeactivate(): void {
-    if (this.cleanupTimerDisposable) {
-      this.cleanupTimerDisposable.dispose()
-      this.cleanupTimerDisposable = null
-    }
-  }
-
-  protected onDestroy(): void {
-    this.pendingOAuthFlows.clear()
-    this.refreshAccessTokenPromise = null
   }
 
   private registerIpcHandlers(): void {
@@ -169,332 +83,50 @@ export class CherryInOauthService extends BaseService implements Activatable {
     this.ipcHandle(IpcChannel.CherryIN_StartOAuthFlow, this.startOAuthFlow)
   }
 
-  // Clean up expired flows (older than 10 minutes).
-  private cleanupExpiredFlows(): void {
-    const now = Date.now()
-    for (const [state, flow] of this.pendingOAuthFlows.entries()) {
-      if (now - flow.timestamp > OAUTH_FLOW_TTL_MS) {
-        this.pendingOAuthFlows.delete(state)
-      }
-    }
-
-    this.deactivateIfIdle()
-  }
-
-  private deactivateIfIdle(): void {
-    if (this.pendingOAuthFlows.size > 0) {
-      return
-    }
-
-    void this.deactivate()
-  }
-
-  private getOAuthAuthConfig = async (): Promise<OAuthAuthConfig | null> => {
-    const authConfig = await providerService.getAuthConfig(CHERRYIN_PROVIDER_ID)
-    return authConfig?.type === 'oauth' ? authConfig : null
-  }
-
-  /**
-   * Validate API host against allowlist to prevent SSRF attacks
-   */
   private validateApiHost(apiHost: string): void {
-    if (!CHERRYIN_CONFIG.ALLOWED_HOSTS.includes(apiHost)) {
-      throw new CherryInOauthServiceError(`Unauthorized API host: ${apiHost}`)
-    }
+    validateCherryInApiHost(apiHost)
   }
 
-  /**
-   * Build a PKCE OAuth client for a CherryIN host. `tokenHost` drives the token
-   * endpoint (code exchange uses the oauth server, refresh uses the api host —
-   * they coincide unless a separate api host was supplied); `authorizeHost`
-   * defaults to it for the authorize URL.
-   */
-  private buildOAuthClient(tokenHost: string, authorizeHost?: string): PkceOAuthClient {
-    return new PkceOAuthClient({
-      clientId: CHERRYIN_CONFIG.CLIENT_ID,
-      authorizeUrl: `${authorizeHost ?? tokenHost}/oauth2/auth`,
-      tokenUrl: `${tokenHost}/oauth2/token`,
-      redirectUri: CHERRYIN_CONFIG.REDIRECT_URI,
-      scope: CHERRYIN_CONFIG.SCOPES
-    })
-  }
-
-  /**
-   * Start OAuth flow - generates PKCE params and returns auth URL
-   * @param oauthServer - OAuth server URL (e.g., https://open.cherryin.ai)
-   * @param apiHost - API host URL (defaults to oauthServer)
-   * @returns authUrl to open in browser and state for later verification
-   */
   public startOAuthFlow = async (
     event: Electron.IpcMainInvokeEvent,
     oauthServer: string,
     apiHost?: string
   ): Promise<OauthFlowParams> => {
-    this.cleanupExpiredFlows()
     this.validateApiHost(oauthServer)
+    if (apiHost) this.validateApiHost(apiHost)
 
-    const resolvedApiHost = apiHost ?? oauthServer
-    if (apiHost) {
-      this.validateApiHost(apiHost)
-    }
-
-    const initiatorWindowId = application.get('WindowManager').getWindowIdByWebContents(event.sender)
-    if (!initiatorWindowId) {
-      throw new CherryInOauthServiceError('OAuth flow initiator is not a managed window')
-    }
-
-    // Generate PKCE parameters + authorization URL via the shared client.
-    const { authUrl, state, codeVerifier } = this.buildOAuthClient(oauthServer).createAuthorizationRequest()
-
-    // Store verifier and config for later use (keyed by state for CSRF protection)
-    this.pendingOAuthFlows.set(state, {
-      codeVerifier,
+    return application.get('OAuthRuntimeService').startDeepLinkFlow(event, CHERRYIN_PROVIDER_ID, {
       oauthServer,
-      apiHost: resolvedApiHost,
-      timestamp: Date.now(),
-      initiatorWindowId
+      apiHost: apiHost ?? oauthServer
     })
-    await this.activate()
-
-    logger.debug('Started OAuth flow')
-
-    return { authUrl, state }
   }
 
-  /**
-   * Handle the OAuth deep-link callback (cherrystudio://oauth/callback?...).
-   * Routed here from `ProtocolService` for the `oauth` host. Performs the PKCE
-   * token exchange in the main process and pushes the result back to the
-   * webContents that originally invoked `startOAuthFlow` — never broadcast.
-   *
-   * Failure modes (each terminates the flow, removes the pending entry, and
-   * notifies the initiator if still alive):
-   *   - missing/expired `state`     → silently dropped (CSRF / replay defense)
-   *   - `error=...` in the URL      → propagated as `{ state, error }`
-   *   - missing `code`              → propagated as `{ state, error }`
-   *   - token exchange failure      → propagated as `{ state, error: message }`
-   */
-  public handleOAuthCallback = async (url: URL): Promise<void> => {
-    const state = url.searchParams.get('state')
-    const errorParam = url.searchParams.get('error')
-    const code = url.searchParams.get('code')
-
-    if (!state) {
-      logger.warn('OAuth callback missing state parameter, ignoring')
-      return
-    }
-
-    const flow = this.pendingOAuthFlows.get(state)
-    if (!flow) {
-      logger.warn('OAuth callback for unknown or expired state, ignoring')
-      return
-    }
-    this.pendingOAuthFlows.delete(state)
-
-    try {
-      const initiator = this.resolveInitiatorWebContents(flow.initiatorWindowId)
-      if (!initiator) {
-        logger.warn('OAuth initiator window no longer available; dropping callback')
-        return
-      }
-
-      if (errorParam) {
-        const description = url.searchParams.get('error_description') || errorParam
-        logger.error(`OAuth provider returned error: ${description}`)
-        initiator.send(IpcChannel.CherryIN_OAuthResult, { state, error: description })
-        return
-      }
-
-      if (!code) {
-        initiator.send(IpcChannel.CherryIN_OAuthResult, { state, error: 'No authorization code received' })
-        return
-      }
-
-      const apiKeys = await this.performTokenExchange(code, flow)
-      initiator.send(IpcChannel.CherryIN_OAuthResult, { state, apiKeys })
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      logger.error('Token exchange failed during OAuth callback', error as Error)
-      const initiator = this.resolveInitiatorWebContents(flow.initiatorWindowId)
-      if (initiator) {
-        initiator.send(IpcChannel.CherryIN_OAuthResult, { state, error: message })
-      }
-    } finally {
-      this.deactivateIfIdle()
-    }
-  }
-
-  private resolveInitiatorWebContents(windowId: string): Electron.WebContents | null {
-    const window = application.get('WindowManager').getWindow(windowId)
-    if (!window || window.isDestroyed()) return null
-    return window.webContents
-  }
-
-  /**
-   * Exchange an authorization code for tokens and fetch the user's API keys.
-   * Internal helper for `handleOAuthCallback` — renderer no longer drives this
-   * step, so this is no longer an IPC entry point.
-   */
-  private performTokenExchange = async (code: string, flow: PendingOauthFlow): Promise<string> => {
-    const { codeVerifier, oauthServer, apiHost } = flow
-
-    logger.debug('Exchanging code for token')
-
-    try {
-      const { access_token: accessToken, refresh_token: refreshToken } = await this.buildOAuthClient(
-        oauthServer
-      ).exchangeCode(code, codeVerifier)
-      logger.debug('Successfully obtained access token, fetching API keys')
-
-      // Persist the token only after the api-keys fetch + validation succeeds.
-      // Otherwise a downstream failure leaves the token in SQLite (hasToken()
-      // returns true) while the user-visible flow throws — the UI then thinks
-      // it is logged in but every subsequent call fails.
-      const apiKeysResponse = await net.fetch(`${apiHost}/api/v1/oauth/tokens`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`
-        }
-      })
-
-      if (!apiKeysResponse.ok) {
-        const errorText = await apiKeysResponse.text()
-        logger.error('Failed to fetch API keys', {
-          status: apiKeysResponse.status,
-          body: this.redactDiagnosticValue(errorText)
-        })
-        throw new CherryInOauthServiceError(`Failed to fetch API keys: ${apiKeysResponse.status}`)
-      }
-
-      const apiKeysJson = await apiKeysResponse.json()
-      const keysArray = ApiKeysResponseSchema.parse(apiKeysJson)
-      const apiKeys = keysArray.filter(Boolean).join(',')
-
-      if (!apiKeys) {
-        throw new CherryInOauthServiceError('No API keys received')
-      }
-
-      await this.saveTokenInternal(accessToken, refreshToken)
-      logger.debug('Successfully obtained API keys')
-      return apiKeys
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        logger.error('Invalid response format:', error.issues)
-        throw new CherryInOauthServiceError('Invalid response format from server', error)
-      }
-      throw error
-    }
-  }
-
-  /**
-   * Reset CherryIN provider authConfig back to api-key mode so hasToken() returns
-   * false and the UI stops treating the session as live after refresh fails.
-   */
-  private clearOAuthSession = async (): Promise<void> => {
-    await providerService.update(CHERRYIN_PROVIDER_ID, { authConfig: { type: 'api-key' } })
-  }
-
-  /**
-   * Internal method to save OAuth tokens to the v2 provider auth config.
-   */
-  private saveTokenInternal = async (accessToken: string, refreshToken?: string): Promise<void> => {
-    const currentConfig = await this.getOAuthAuthConfig()
-    const nextRefreshToken = refreshToken || currentConfig?.refreshToken
-
-    await providerService.update(CHERRYIN_PROVIDER_ID, {
-      authConfig: {
-        type: 'oauth',
-        clientId: currentConfig?.clientId || CHERRYIN_CONFIG.CLIENT_ID,
-        accessToken,
-        ...(nextRefreshToken ? { refreshToken: nextRefreshToken } : {})
-      }
-    })
-    logger.debug('Successfully saved CherryIN OAuth tokens to auth config')
-  }
-
-  /**
-   * Save OAuth tokens to provider auth config (IPC handler)
-   * @param accessToken - The access token to save
-   * @param refreshToken - The refresh token to save (only updates if provided and non-empty)
-   */
   public saveToken = async (
     _: Electron.IpcMainInvokeEvent,
     accessToken: string,
     refreshToken?: string
   ): Promise<void> => {
     try {
-      await this.saveTokenInternal(accessToken, refreshToken)
+      await application.get('OAuthRuntimeService').saveTokens(CHERRYIN_PROVIDER_ID, {
+        accessToken,
+        ...(refreshToken ? { refreshToken } : {})
+      })
     } catch (error) {
       logger.error('Failed to save token:', error as Error)
       throw new CherryInOauthServiceError('Failed to save OAuth token', error)
     }
   }
 
-  /**
-   * Read OAuth access token from provider auth config
-   */
-  public getToken = async (): Promise<string | null> => {
-    const authConfig = await this.getOAuthAuthConfig()
-    return authConfig?.accessToken || null
+  public getToken = async (apiHost = 'https://open.cherryin.ai'): Promise<string | null> => {
+    this.validateApiHost(apiHost)
+    const credentials = await application
+      .get('OAuthRuntimeService')
+      .getValidAccessToken(CHERRYIN_PROVIDER_ID, { apiHost })
+    return credentials?.accessToken ?? null
   }
 
-  /**
-   * Read OAuth refresh token from provider auth config
-   */
-  private getRefreshToken = async (): Promise<string | null> => {
-    const authConfig = await this.getOAuthAuthConfig()
-    return authConfig?.refreshToken || null
-  }
-
-  /**
-   * Check if OAuth token exists
-   */
   public hasToken = async (): Promise<boolean> => {
-    const token = await this.getToken()
-    return !!token
-  }
-
-  /**
-   * Refresh access token using refresh token
-   */
-  private doRefreshAccessToken = async (apiHost: string): Promise<TokenRefreshResult> => {
-    try {
-      const refreshToken = await this.getRefreshToken()
-      if (!refreshToken) {
-        logger.warn('No refresh token available')
-        return { accessToken: null, attempted: false }
-      }
-
-      logger.info('Attempting to refresh access token')
-
-      const { access_token: newAccessToken, refresh_token: newRefreshToken } =
-        await this.buildOAuthClient(apiHost).refresh(refreshToken)
-
-      // Save new tokens using internal method
-      await this.saveTokenInternal(newAccessToken, newRefreshToken)
-      logger.info('Successfully refreshed access token')
-      return { accessToken: newAccessToken, attempted: true }
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        logger.error('Invalid token refresh response format:', error.issues)
-        return { accessToken: null, attempted: true }
-      }
-      logger.error('Failed to refresh token:', error as Error)
-      return { accessToken: null, attempted: true }
-    }
-  }
-
-  private refreshAccessToken = async (apiHost: string): Promise<TokenRefreshResult> => {
-    if (this.refreshAccessTokenPromise) {
-      logger.debug('Joining in-flight CherryIN OAuth token refresh')
-      return this.refreshAccessTokenPromise
-    }
-
-    this.refreshAccessTokenPromise = this.doRefreshAccessToken(apiHost).finally(() => {
-      this.refreshAccessTokenPromise = null
-    })
-
-    return this.refreshAccessTokenPromise
+    return application.get('OAuthRuntimeService').hasToken(CHERRYIN_PROVIDER_ID)
   }
 
   private redactDiagnosticValue = (value: unknown): unknown => {
@@ -568,17 +200,16 @@ export class CherryInOauthService extends BaseService implements Activatable {
     })
   }
 
-  /**
-   * Make authenticated API request with automatic token refresh on 401
-   */
   private authenticatedFetch = async (
     apiHost: string,
     endpoint: string,
     options: RequestInit = {}
   ): Promise<Response> => {
-    const token = await this.getToken()
-    if (!token) {
-      throw new CherryInOauthServiceError('No OAuth token found')
+    const getCredentials = async (forceRefresh = false): Promise<{ accessToken: string } | null> => {
+      const credentials = await application
+        .get('OAuthRuntimeService')
+        .getValidAccessToken(CHERRYIN_PROVIDER_ID, { apiHost, forceRefresh })
+      return credentials?.accessToken ? { accessToken: credentials.accessToken } : null
     }
 
     const makeRequest = async (accessToken: string): Promise<Response> => {
@@ -594,30 +225,25 @@ export class CherryInOauthService extends BaseService implements Activatable {
       return net.fetch(`${apiHost}${endpoint}`, requestOptions)
     }
 
-    let response = await makeRequest(token)
+    const credentials = await getCredentials()
+    if (!credentials) {
+      throw new CherryInOauthServiceError(
+        'OAuth session expired: failed to refresh access token',
+        undefined,
+        'OAuthSessionExpired'
+      )
+    }
 
-    // If 401, try to refresh token and retry once
+    let response = await makeRequest(credentials.accessToken)
+
     if (response.status === 401) {
-      logger.info('Got 401, attempting token refresh')
-      const refreshResult = await this.refreshAccessToken(apiHost)
-      if (refreshResult.accessToken) {
-        response = await makeRequest(refreshResult.accessToken)
+      logger.info('Got 401, forcing CherryIN OAuth token refresh')
+      const refreshedCredentials = await getCredentials(true)
+      if (refreshedCredentials) {
+        response = await makeRequest(refreshedCredentials.accessToken)
       } else {
-        // No usable access token after refresh — clear the OAuth session so the
-        // UI stops reporting "logged in" and surface a typed error for the caller.
-        // Guard the clear: if providerService.update rejects (DB write failure,
-        // schema validation), we still need OAuthSessionExpired to surface so
-        // the caller doesn't see a raw DB error and the UI keeps thinking it's
-        // logged in. The clear-failure is logged for diagnostics.
-        try {
-          await this.clearOAuthSession()
-        } catch (clearError) {
-          logger.error('Failed to clear OAuth session after refresh failure', clearError as Error)
-        }
         throw new CherryInOauthServiceError(
-          refreshResult.attempted
-            ? 'OAuth session expired: failed to refresh access token'
-            : 'OAuth session expired: no refresh token available',
+          'OAuth session expired: failed to refresh access token',
           undefined,
           'OAuthSessionExpired'
         )
@@ -643,9 +269,6 @@ export class CherryInOauthService extends BaseService implements Activatable {
       const response = await this.authenticatedFetch(apiHost, '/api/user/self')
 
       if (!response.ok) {
-        // Enrich the diagnostic payload so a misconfigured backend is not
-        // reduced to a stringless warn — caller (getBalance) silently goes on
-        // with profile: null, so this log is the only signal.
         logger.warn('Failed to fetch CherryIN profile', {
           status: response.status,
           statusText: response.statusText,
@@ -666,9 +289,6 @@ export class CherryInOauthService extends BaseService implements Activatable {
     }
   }
 
-  /**
-   * Get user balance from CherryIN API
-   */
   public getBalance = async (_: Electron.IpcMainInvokeEvent, apiHost: string): Promise<BalanceResponse> => {
     this.validateApiHost(apiHost)
 
@@ -689,8 +309,6 @@ export class CherryInOauthService extends BaseService implements Activatable {
 
       const { quota, used_quota: usedQuota } = parsed.data
       const profile = await this.getProfile(apiHost)
-      // quota = remaining balance
-      // Convert to USD: 500000 units = 1 USD
       const balance = quota / 500000
       const monthlySpend = usedQuota / 500000
       logger.info('Balance fetched successfully', { balance, usedQuota, monthlySpend })
@@ -711,16 +329,12 @@ export class CherryInOauthService extends BaseService implements Activatable {
     }
   }
 
-  /**
-   * Revoke OAuth token and clear it from provider auth config
-   */
   public logout = async (_: Electron.IpcMainInvokeEvent, apiHost: string): Promise<void> => {
     this.validateApiHost(apiHost)
 
     try {
-      const token = await this.getToken()
+      const token = await this.getToken(apiHost)
 
-      // Try to revoke token on server (best effort, RFC 7009)
       if (token) {
         try {
           await net.fetch(`${apiHost}/oauth2/revoke`, {
@@ -729,23 +343,17 @@ export class CherryInOauthService extends BaseService implements Activatable {
               'Content-Type': 'application/x-www-form-urlencoded'
             },
             body: new URLSearchParams({
-              token: token,
+              token,
               token_type_hint: 'access_token'
             }).toString()
           })
           logger.debug('Successfully revoked token on server')
         } catch (revokeError) {
-          // Log but don't fail - we still want to clear local token
           logger.warn('Failed to revoke token on server:', revokeError as Error)
         }
       }
 
-      // Reset to API-key mode so v2 runtime/UI stop treating this provider as OAuth-backed.
-      await providerService.update(CHERRYIN_PROVIDER_ID, {
-        authConfig: {
-          type: 'api-key'
-        }
-      })
+      await application.get('OAuthRuntimeService').logout(CHERRYIN_PROVIDER_ID)
       logger.debug('Successfully cleared CherryIN OAuth tokens from auth config')
     } catch (error) {
       logger.error('Failed to logout:', error as Error)

@@ -34,8 +34,7 @@ import { DirectoryTreeManager } from '@main/services/file/tree/DirectoryTreeMana
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MainWindowService } from '@main/services/MainWindowService'
 import { CherryInOauthService } from '@main/services/oauth/CherryInOauthService'
-import { CodexOauthService } from '@main/services/oauth/CodexOauthService'
-import { GrokCliOauthService } from '@main/services/oauth/GrokCliOauthService'
+import { OAuthRuntimeService } from '@main/services/oauth/runtime/OAuthRuntimeService'
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
 import { ProtocolService } from '@main/services/protocol/ProtocolService'
@@ -112,8 +111,7 @@ export const services = {
   WebSearchService,
   WebviewService,
   CherryInOauthService,
-  CodexOauthService,
-  GrokCliOauthService,
+  OAuthRuntimeService,
   MainWindowService,
   QuickAssistantService,
   McpPackageService,
