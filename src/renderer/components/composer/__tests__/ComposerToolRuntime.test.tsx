@@ -5,28 +5,39 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ComposerToolLauncher } from '../toolLauncher'
 import type { ToolRenderContext } from '../tools/types'
 
-const { mockDropdownMenuSelectEvents, mockGetToolsForScope, mockQuickPanelValue, mockUseQuickPanel } = vi.hoisted(
-  () => {
-    const mockQuickPanelValue = {
-      close: vi.fn(),
-      isVisible: false,
-      open: vi.fn(),
-      symbol: '',
-      updateList: vi.fn()
-    }
+interface MockDropdownMenuContentProps {
+  onCloseAutoFocus?: (event: { preventDefault: () => void }) => void
+}
 
-    return {
-      mockDropdownMenuSelectEvents: [] as Array<{
-        ariaLabel: string | undefined
-        preventDefault: ReturnType<typeof vi.fn>
-        stopPropagation: ReturnType<typeof vi.fn>
-      }>,
-      mockGetToolsForScope: vi.fn(),
-      mockQuickPanelValue,
-      mockUseQuickPanel: vi.fn(() => mockQuickPanelValue)
-    }
+const {
+  mockDropdownMenuContentProps,
+  mockDropdownMenuSelectEvents,
+  mockGetToolsForScope,
+  mockQuickPanelValue,
+  mockUseQuickPanel
+} = vi.hoisted(() => {
+  const mockDropdownMenuContentProps: MockDropdownMenuContentProps[] = []
+  const mockDropdownMenuSelectEvents: Array<{
+    ariaLabel: string | undefined
+    preventDefault: ReturnType<typeof vi.fn>
+    stopPropagation: ReturnType<typeof vi.fn>
+  }> = []
+  const mockQuickPanelValue = {
+    close: vi.fn(),
+    isVisible: false,
+    open: vi.fn(),
+    symbol: '',
+    updateList: vi.fn()
   }
-)
+
+  return {
+    mockDropdownMenuContentProps,
+    mockDropdownMenuSelectEvents,
+    mockGetToolsForScope: vi.fn(),
+    mockQuickPanelValue,
+    mockUseQuickPanel: vi.fn(() => mockQuickPanelValue)
+  }
+})
 
 vi.mock('@renderer/components/composer/tools', () => ({}))
 
@@ -75,11 +86,15 @@ vi.mock('@cherrystudio/ui', () => ({
       </div>
     )
   },
-  DropdownMenuContent: ({ children, className, sideOffset }: any) => (
-    <div className={className} data-side-offset={sideOffset} data-testid="composer-tool-dropdown-content">
-      {children}
-    </div>
-  ),
+  DropdownMenuContent: ({ children, className, onCloseAutoFocus, sideOffset }: any) => {
+    mockDropdownMenuContentProps.push({ onCloseAutoFocus })
+
+    return (
+      <div className={className} data-side-offset={sideOffset} data-testid="composer-tool-dropdown-content">
+        {children}
+      </div>
+    )
+  },
   DropdownMenuItem: ({ 'aria-label': ariaLabel, className, disabled, onSelect, ...props }: any) => (
     <div
       aria-disabled={disabled ? 'true' : undefined}
@@ -217,6 +232,7 @@ const FileStateWriter = ({ nextFiles }: { nextFiles: any[] }) => {
 }
 
 beforeEach(() => {
+  mockDropdownMenuContentProps.length = 0
   mockDropdownMenuSelectEvents.length = 0
   mockGetToolsForScope.mockReset()
   mockUseQuickPanel.mockClear()
@@ -619,6 +635,54 @@ describe('ComposerToolMenu', () => {
     expect(await screen.findByText('PanelTool')).toBeInTheDocument()
     expect(screen.queryByText('›')).not.toBeInTheDocument()
     expect(screen.getByTestId(getMenuItemTestId('PanelTool')).querySelector('svg')).toBeInTheDocument()
+  })
+
+  it('prevents dropdown focus restore when a panel launcher opens from the plus menu', async () => {
+    const panelAction = vi.fn()
+    const inputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getText: () => '',
+      insertText: vi.fn()
+    }
+
+    renderRuntime(
+      [
+        {
+          key: 'fake-menu-tool',
+          label: 'Fake menu tool',
+          composer: {
+            menuItems: {
+              createItems: vi.fn(() => [
+                {
+                  id: 'knowledge-base',
+                  kind: 'panel',
+                  label: 'Knowledge Base',
+                  icon: 'fake',
+                  sources: ['popover'],
+                  action: panelAction
+                }
+              ])
+            }
+          }
+        }
+      ],
+      <ComposerToolMenu inputAdapter={inputAdapter} />
+    )
+
+    expect(await screen.findByText('Knowledge Base')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId(getMenuItemTestId('Knowledge Base')))
+
+    expect(panelAction).toHaveBeenCalledTimes(1)
+    const closeAutoFocus = mockDropdownMenuContentProps.at(-1)?.onCloseAutoFocus
+    expect(closeAutoFocus).toEqual(expect.any(Function))
+
+    const closeAutoFocusEvent = { preventDefault: vi.fn() }
+    closeAutoFocus?.(closeAutoFocusEvent)
+
+    expect(closeAutoFocusEvent.preventDefault).toHaveBeenCalledTimes(1)
+    expect(inputAdapter.focus).toHaveBeenCalledTimes(1)
   })
 
   it('renders only popover submenu items with shadcn dropdown sub components', async () => {
