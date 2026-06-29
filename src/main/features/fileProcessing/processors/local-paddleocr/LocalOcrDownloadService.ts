@@ -8,7 +8,7 @@ import { loggerService } from '@logger'
 import type { LocalModelStatus } from '@shared/data/presets/localEmbedding'
 import { net } from 'electron'
 
-import { isOcrModelDownloaded, OCR_MODEL_FILES, ocrModelDir, ocrModelPaths } from './modelAssets'
+import { isLocalPaddleocrModelDownloaded, OCR_MODEL_FILES, ocrModelDir, ocrModelPaths } from './modelAssets'
 
 const logger = loggerService.withContext('LocalOcrDownloadService')
 
@@ -25,7 +25,7 @@ class LocalOcrDownloadService {
 
   getStatus(): LocalModelStatus {
     if (this.downloading) return 'downloading'
-    return isOcrModelDownloaded() ? 'ready' : 'not_downloaded'
+    return isLocalPaddleocrModelDownloaded() ? 'ready' : 'not_downloaded'
   }
 
   async download(): Promise<void> {

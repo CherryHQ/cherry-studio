@@ -2,9 +2,9 @@ import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { type FileInfo, FileInfoSchema } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { recognizeMock, isOcrModelDownloadedMock, ocrModelPathsMock } = vi.hoisted(() => ({
+const { recognizeMock, isLocalPaddleocrModelDownloadedMock, ocrModelPathsMock } = vi.hoisted(() => ({
   recognizeMock: vi.fn(),
-  isOcrModelDownloadedMock: vi.fn(),
+  isLocalPaddleocrModelDownloadedMock: vi.fn(),
   ocrModelPathsMock: vi.fn()
 }))
 
@@ -13,7 +13,7 @@ vi.mock('@main/ai/inference/InferenceHost', () => ({
 }))
 
 vi.mock('../modelAssets', () => ({
-  isOcrModelDownloaded: isOcrModelDownloadedMock,
+  isLocalPaddleocrModelDownloaded: isLocalPaddleocrModelDownloadedMock,
   ocrModelPaths: ocrModelPathsMock
 }))
 
@@ -52,7 +52,7 @@ const config = { id: 'local-paddleocr', type: 'builtin', capabilities: [] } as u
 describe('localPaddleocrImageToTextHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    isOcrModelDownloadedMock.mockReturnValue(true)
+    isLocalPaddleocrModelDownloadedMock.mockReturnValue(true)
     ocrModelPathsMock.mockReturnValue(MODEL_PATHS)
   })
 
@@ -79,7 +79,7 @@ describe('localPaddleocrImageToTextHandler', () => {
   })
 
   it('rejects when the model has not been downloaded', () => {
-    isOcrModelDownloadedMock.mockReturnValue(false)
+    isLocalPaddleocrModelDownloadedMock.mockReturnValue(false)
 
     expect(() => localPaddleocrImageToTextHandler.prepare(imageFile, config)).toThrow(
       'Local PaddleOCR model is not downloaded'

@@ -67,8 +67,8 @@ export function ocrModelPaths(): OcrModelPaths {
   }
 }
 
-/** Whether all three model files are present on disk. */
-export function isOcrModelDownloaded(): boolean {
+/** Whether all three local PaddleOCR model files are present on disk. */
+export function isLocalPaddleocrModelDownloaded(): boolean {
   const paths = ocrModelPaths()
   return existsSync(paths.detection) && existsSync(paths.recognition) && existsSync(paths.charactersDictionary)
 }

@@ -2,7 +2,7 @@ import { inferenceHost } from '@main/ai/inference/InferenceHost'
 import { FILE_TYPE } from '@shared/types/file'
 
 import type { FileProcessingCapabilityHandler } from '../../types'
-import { isOcrModelDownloaded, ocrModelPaths } from '../modelAssets'
+import { isLocalPaddleocrModelDownloaded, ocrModelPaths } from '../modelAssets'
 
 /**
  * In-process OCR via PaddleOCR (ppu-paddle-ocr). Recognition runs in the
@@ -16,7 +16,7 @@ export const localPaddleocrImageToTextHandler: FileProcessingCapabilityHandler<'
     if (file.type !== FILE_TYPE.IMAGE) {
       throw new Error('Local PaddleOCR only supports image files')
     }
-    if (!isOcrModelDownloaded()) {
+    if (!isLocalPaddleocrModelDownloaded()) {
       throw new Error('Local PaddleOCR model is not downloaded')
     }
     const modelPaths = ocrModelPaths()
