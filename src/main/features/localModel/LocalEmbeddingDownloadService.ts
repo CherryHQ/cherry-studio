@@ -9,6 +9,10 @@ import {
   MODEL_DTYPE,
   MODEL_REPO
 } from '@main/ai/provider/custom/localEmbedding/localEmbeddingRuntime'
+import {
+  registerLocalEmbeddingModel,
+  unregisterLocalEmbeddingModelIfUnused
+} from '@main/features/localModel/localEmbeddingRegistration'
 import type { LocalModelStatus } from '@shared/data/presets/localModel'
 
 const logger = loggerService.withContext('LocalEmbeddingDownloadService')
@@ -66,6 +70,9 @@ class LocalEmbeddingDownloadService {
         (p) => this.broadcastProgress(p),
         this.abortController.signal
       )
+      // Now that the weights are on disk, register the provider/model so the KB
+      // embedding picker lists it (lazy equivalent of the old boot seeder).
+      await registerLocalEmbeddingModel()
       this.broadcast({ status: 'ready', percent: 100 })
     } catch (error) {
       logger.error('local embedding download failed', error as Error)
@@ -84,6 +91,8 @@ class LocalEmbeddingDownloadService {
   }
 
   async remove(): Promise<void> {
+    // Unregister first (no-op if a knowledge base still uses it — see the helper).
+    await unregisterLocalEmbeddingModelIfUnused()
     // Unload the worker first so the weights file isn't held open while we delete it.
     inferenceHost.terminate()
     await fs.promises.rm(this.modelDir(), { recursive: true, force: true })
