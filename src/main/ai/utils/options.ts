@@ -30,7 +30,7 @@ import {
 import { isSupportServiceTierProvider, isSupportVerbosityProvider } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import type { JSONValue } from 'ai'
-import { merge } from 'lodash'
+import { merge } from 'es-toolkit/compat'
 import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 
 import { getAiSdkProviderId } from '../provider/factory'

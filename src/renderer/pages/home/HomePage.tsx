@@ -18,7 +18,7 @@ import type { ResourceListRevealRequest } from '@renderer/components/chat/resour
 import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { AssistantResourceList } from '@renderer/components/chat/resources/variants/AssistantResourceList'
 import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
-import { ChatPlacementComposer } from '@renderer/components/composer/variants/ChatComposer'
+import { ChatHomePlacementComposer } from '@renderer/components/composer/variants/ChatComposer'
 import {
   createRecentTopicEntryFromTopic,
   upsertGlobalSearchRecentEntry
@@ -819,8 +819,7 @@ function DraftWelcomeChat({
   const resourcePane = useResourcePane()
 
   const composer = (
-    <ChatPlacementComposer
-      isHome
+    <ChatHomePlacementComposer
       scopeKey={scopeKey}
       assistantId={assistantId}
       onSend={onSend}

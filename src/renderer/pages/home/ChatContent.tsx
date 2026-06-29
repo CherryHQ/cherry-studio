@@ -193,9 +193,17 @@ const ChatContentInner: FC<InnerProps> = ({
       openCitationsPanel={onOpenCitationsPanel}
     />
   )
-  const composer = (
+  const composer = runtime.shouldRenderHomeComposer ? (
     <ChatComposerSlot
-      isHome={runtime.shouldRenderHomeComposer}
+      placement="home"
+      topic={topic}
+      onSend={runtime.sendMessage}
+      onNewTopic={onNewTopic}
+      composerContext={runtime.composerContext}
+    />
+  ) : (
+    <ChatComposerSlot
+      placement="docked"
       topic={topic}
       onSend={runtime.sendMessage}
       onNewTopic={onNewTopic}

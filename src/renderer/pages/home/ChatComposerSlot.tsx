@@ -7,8 +7,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 
 import type { AddNewTopicPayload } from './types'
 
-interface ChatComposerSlotProps {
-  isHome: boolean
+interface ChatComposerSlotBaseProps {
   topic: Topic
   onSend: (
     text: string,
@@ -20,12 +19,15 @@ interface ChatComposerSlotProps {
   ) => Promise<void>
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
-  sendDisabled?: boolean
   composerContext?: ComposerContextValue
 }
 
+type ChatComposerSlotProps =
+  | (ChatComposerSlotBaseProps & { placement: 'home'; sendDisabled?: never })
+  | (ChatComposerSlotBaseProps & { placement: 'docked'; sendDisabled?: boolean })
+
 export default function ChatComposerSlot({
-  isHome,
+  placement,
   topic,
   onSend,
   onNewTopic,
@@ -33,18 +35,29 @@ export default function ChatComposerSlot({
   sendDisabled,
   composerContext
 }: ChatComposerSlotProps) {
-  const fallback = (
-    <ChatPlacementComposer
-      isHome={isHome}
-      scopeKey={topic.id}
-      topicId={topic.id}
-      assistantId={topic.assistantId}
-      onSend={onSend}
-      onNewTopic={onNewTopic}
-      onCreateEmptyTopic={onCreateEmptyTopic}
-      sendDisabled={isHome ? undefined : sendDisabled}
-    />
-  )
+  const fallback =
+    placement === 'home' ? (
+      <ChatPlacementComposer
+        placement="home"
+        scopeKey={topic.id}
+        topicId={topic.id}
+        assistantId={topic.assistantId}
+        onSend={onSend}
+        onNewTopic={onNewTopic}
+        onCreateEmptyTopic={onCreateEmptyTopic}
+      />
+    ) : (
+      <ChatPlacementComposer
+        placement="docked"
+        scopeKey={topic.id}
+        topicId={topic.id}
+        assistantId={topic.assistantId}
+        onSend={onSend}
+        onNewTopic={onNewTopic}
+        onCreateEmptyTopic={onCreateEmptyTopic}
+        sendDisabled={sendDisabled}
+      />
+    )
 
   return <ConversationComposerSlot composerContext={composerContext} fallback={fallback} />
 }
