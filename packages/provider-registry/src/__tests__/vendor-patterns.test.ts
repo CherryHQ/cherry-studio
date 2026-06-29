@@ -28,8 +28,13 @@ describe('matchVendor — hunyuan `hy-` is anchored (#6)', () => {
     expect(matchVendor('hy-role')).toBe('hunyuan')
   })
 
+  it('matches the versioned `hyN` namespace (hy3-preview)', () => {
+    expect(matchVendor('hy3-preview')).toBe('hunyuan')
+  })
+
   it('no longer false-positives on a mid-string `hy`', () => {
     expect(matchVendor('why-model')).toBeUndefined()
+    expect(matchVendor('hybrid-model')).toBeUndefined()
   })
 })
 

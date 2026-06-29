@@ -23,7 +23,8 @@ export default defineLab({
       id: 'gemini-2-5-flash-image',
       name: 'gemini-2.5-flash-image',
       family: 'gemini-flash',
-      capabilities: ['reasoning', 'image-recognition', 'image-generation', 'file-input', 'web-search'],
+      // No web-search: only gemini-3 image models (Nano Banana Pro) ground on Google Search; 2.5 does not.
+      capabilities: ['reasoning', 'image-recognition', 'image-generation', 'file-input'],
       inputModalities: ['text', 'image'],
       outputModalities: ['text', 'image'],
       imageGeneration: {

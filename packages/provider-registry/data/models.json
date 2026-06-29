@@ -5767,7 +5767,7 @@
       "ownedBy": "elevenlabs"
     },
     {
-      "capabilities": ["reasoning", "image-recognition", "image-generation", "file-input", "web-search"],
+      "capabilities": ["reasoning", "image-recognition", "image-generation", "file-input"],
       "contextWindow": 32768,
       "family": "gemini-flash",
       "id": "gemini-2-5-flash-image",

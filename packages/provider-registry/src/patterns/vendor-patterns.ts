@@ -54,8 +54,8 @@ export const VENDOR_PATTERNS = {
   /** ByteDance Doubao family. */
   doubao: /^(?:doubao|skylark|seed|seedance|seedream|ep-)/i,
 
-  /** Tencent Hunyuan family. */
-  hunyuan: /^(?:hunyuan|hy-)/i,
+  /** Tencent Hunyuan family — `hunyuan-*`, the `hy-*` SKUs, and the versioned `hyN` namespace (`hy3-preview`). */
+  hunyuan: /^(?:hunyuan|hy-|hy\d)/i,
 
   /** Moonshot / Kimi family. */
   kimi: /^(?:kimi|moonshot)/i,

@@ -22,6 +22,7 @@ const models = modelsRaw.models as Array<{
   id: string
   contextWindow?: number
   maxOutputTokens?: number
+  capabilities?: string[]
 }>
 const overrides = providerModelsRaw.overrides as Array<{
   providerId: string
@@ -55,6 +56,19 @@ describe('catalog invariants (data/*.json)', () => {
       .filter((o) => !baseIds.has(o.modelId) && !o.name)
       .map((o) => `${o.providerId}/${o.modelId}`)
     expect(broken).toEqual([])
+  })
+
+  // Image-generation models must not advertise web-search — it leaks a text capability onto image rows.
+  // The sole exception is gemini-3 image (Nano Banana Pro), which genuinely grounds on Google Search;
+  // every other image model (e.g. gemini-2.5-flash-image) must not carry it. The generator already strips
+  // PREFIX-inherited web-search from image rows; this catches a HAND-LISTED `web-search` slipping back in.
+  it('no image-generation model carries web-search except allowlisted gemini-3 image models', () => {
+    const WEB_SEARCH_IMAGE_ALLOWLIST = new Set(['gemini-3-pro-image', 'gemini-3-pro-image-preview'])
+    const offenders = models
+      .filter((m) => m.capabilities?.includes('image-generation') && m.capabilities?.includes('web-search'))
+      .map((m) => m.id)
+      .filter((id) => !WEB_SEARCH_IMAGE_ALLOWLIST.has(id))
+    expect(offenders).toEqual([])
   })
 
   it('maxOutputTokens never exceeds contextWindow', () => {
