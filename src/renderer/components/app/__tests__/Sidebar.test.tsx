@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import type { SidebarFavorite, SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
+import type { SidebarFavorite } from '@shared/data/preference/preferenceTypes'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -38,8 +38,8 @@ const mocks = vi.hoisted(() => ({
   showUserPopup: vi.fn(),
   sidebarWidth: 50,
   tabs: [] as FakeTab[],
-  sidebarFavorites: [{ type: 'app', id: 'assistants' }] as SidebarFavoriteItem[],
-  miniApps: [] as FakeMiniApp[]
+  sidebarFavorites: ['assistants'] as string[],
+  allApps: [] as FakeMiniApp[]
 }))
 
 vi.mock('@data/hooks/useCache', () => ({
@@ -65,7 +65,7 @@ vi.mock('@renderer/hooks/useAvatar', () => ({
 }))
 
 vi.mock('@renderer/hooks/useMiniApps', () => ({
-  useMiniApps: () => ({ miniApps: mocks.miniApps })
+  useMiniApps: () => ({ allApps: mocks.allApps })
 }))
 vi.mock('@renderer/i18n/label', () => ({
   getSidebarIconLabelKey: (icon: string) =>
@@ -221,8 +221,8 @@ import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
 
 import Sidebar from '../Sidebar'
 
-const appFavorite = (id: SidebarFavorite): SidebarFavoriteItem => ({ type: 'app', id })
-const miniAppFavorite = (id: string): SidebarFavoriteItem => ({ type: 'mini_app', id })
+const appFavorite = (id: SidebarFavorite): string => id
+const miniAppFavorite = (id: string): string => id
 
 afterEach(() => {
   cleanup()
@@ -235,7 +235,7 @@ afterEach(() => {
     title: 'Chat'
   }
   mocks.tabs = []
-  mocks.miniApps = []
+  mocks.allApps = []
   mocks.sidebarWidth = 50
   vi.useRealTimers()
   document.documentElement.style.removeProperty('--sidebar-width')
@@ -305,7 +305,7 @@ describe('app Sidebar', () => {
       miniAppFavorite('calculator'),
       miniAppFavorite('weather')
     ]
-    mocks.miniApps = [
+    mocks.allApps = [
       { appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' },
       { appId: 'weather', name: 'Weather', logo: 'weather-logo', url: 'https://weather.example' }
     ]
@@ -333,7 +333,7 @@ describe('app Sidebar', () => {
 
   it('does not render mini apps unless they are sidebar favorites', () => {
     mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app')]
-    mocks.miniApps = [{ appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }]
+    mocks.allApps = [{ appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }]
 
     render(<Sidebar />)
 
@@ -347,7 +347,7 @@ describe('app Sidebar', () => {
       miniAppFavorite('calculator'),
       miniAppFavorite('stale')
     ]
-    mocks.miniApps = [{ appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }]
+    mocks.allApps = [{ appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }]
 
     render(<Sidebar />)
 
@@ -357,7 +357,7 @@ describe('app Sidebar', () => {
 
   it('opens a mini app tab from the sidebar mini app section', () => {
     mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app'), miniAppFavorite('calculator')]
-    mocks.miniApps = [{ appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }]
+    mocks.allApps = [{ appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }]
 
     render(<Sidebar />)
     fireEvent.click(screen.getByTestId('sidebar-mini-app-calculator'))

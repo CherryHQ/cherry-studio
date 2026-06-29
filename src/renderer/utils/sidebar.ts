@@ -5,7 +5,7 @@ import {
   hasTabInstanceMetadataForApp
 } from '@renderer/utils/tabInstanceMetadata'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import type { SidebarFavorite, SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
+import type { SidebarFavorite } from '@shared/data/preference/preferenceTypes'
 
 /**
  * Context passed to sidebar navigation handlers. Carries per-call state the
@@ -205,69 +205,47 @@ export function isSidebarFavorite(value: string): value is SidebarFavorite {
   return sidebarFavoriteSet.has(value as SidebarFavorite)
 }
 
-export function createSidebarAppFavorite(id: SidebarFavorite): SidebarFavoriteItem {
-  return { type: 'app', id }
+export function createSidebarAppFavorite(id: SidebarFavorite): SidebarFavorite {
+  return id
 }
 
-export function createSidebarMiniAppFavorite(id: string): SidebarFavoriteItem {
-  return { type: 'mini_app', id }
+export function createSidebarMiniAppFavorite(id: string): string {
+  return id
 }
 
-function getSidebarFavoriteKey(favorite: SidebarFavoriteItem): string {
-  return `${favorite.type}:${favorite.id}`
-}
-
-function normalizeSidebarFavoriteItem(favorite: SidebarFavoriteItem): SidebarFavoriteItem | undefined {
-  if (favorite.type === 'app') {
-    return isSidebarFavorite(favorite.id) ? createSidebarAppFavorite(favorite.id) : undefined
-  }
-
-  if (favorite.type === 'mini_app') {
-    return favorite.id ? createSidebarMiniAppFavorite(favorite.id) : undefined
-  }
-
-  return undefined
-}
-
-export function getSidebarFavoriteItems(favorites: readonly SidebarFavoriteItem[] | undefined): SidebarFavoriteItem[] {
+export function getSidebarFavoriteIds(favorites: readonly string[] | undefined): string[] {
   const seen = new Set<string>()
-  const items: SidebarFavoriteItem[] = []
+  const ids: string[] = []
 
   for (const favorite of favorites ?? []) {
-    const item = normalizeSidebarFavoriteItem(favorite)
-    if (!item) continue
+    if (!favorite || seen.has(favorite)) continue
 
-    const key = getSidebarFavoriteKey(item)
-    if (seen.has(key)) continue
-
-    seen.add(key)
-    items.push(item)
+    seen.add(favorite)
+    ids.push(favorite)
   }
 
-  return items
+  return ids
 }
 
-function sanitizeSidebarFavorites(favorites: readonly SidebarFavoriteItem[] | undefined): SidebarFavorite[] {
+function sanitizeSidebarFavorites(favorites: readonly string[] | undefined): SidebarFavorite[] {
   const seen = new Set<SidebarFavorite>()
   const sidebarFavorites: SidebarFavorite[] = []
 
-  for (const item of getSidebarFavoriteItems(favorites)) {
-    if (item.type !== 'app' || seen.has(item.id)) continue
+  for (const id of getSidebarFavoriteIds(favorites)) {
+    if (!isSidebarFavorite(id) || seen.has(id)) continue
 
-    seen.add(item.id)
-    sidebarFavorites.push(item.id)
+    seen.add(id)
+    sidebarFavorites.push(id)
   }
 
   return sidebarFavorites
 }
 
-export function getSidebarMiniAppFavoriteIds(favorites: readonly SidebarFavoriteItem[] | undefined): string[] {
-  return getSidebarFavoriteItems(favorites).flatMap((favorite) => (favorite.type === 'mini_app' ? [favorite.id] : []))
+export function getSidebarMiniAppFavoriteIds(favorites: readonly string[] | undefined): string[] {
+  return getSidebarFavoriteIds(favorites).filter((id) => !isSidebarFavorite(id))
 }
 
-export function getOrderedVisibleSidebarFavorites(
-  favorites: readonly SidebarFavoriteItem[] | undefined
-): SidebarFavorite[] {
+export function getOrderedVisibleSidebarFavorites(favorites: readonly string[] | undefined): SidebarFavorite[] {
   const visible = sanitizeSidebarFavorites(favorites)
 
   for (const favorite of REQUIRED_SIDEBAR_FAVORITES) {

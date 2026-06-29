@@ -1,19 +1,16 @@
 import { SIDEBAR_ICON_COMPONENTS } from '@renderer/components/app/sidebarIcons'
-import type { SidebarFavorite, SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
+import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
 import { Library } from 'lucide-react'
 import { describe, expect, it } from 'vitest'
 
 import {
   getOrderedVisibleSidebarFavorites,
-  getSidebarFavoriteItems,
+  getSidebarFavoriteIds,
   getSidebarMenuPath,
   getSidebarMiniAppFavoriteIds,
   resolveSidebarActiveItem,
   SIDEBAR_FAVORITE_ORDER
 } from '../sidebar'
-
-const appFavorite = (id: SidebarFavorite): SidebarFavoriteItem => ({ type: 'app', id })
-const miniAppFavorite = (id: string): SidebarFavoriteItem => ({ type: 'mini_app', id })
 
 describe('sidebar config helpers', () => {
   it('keeps the fixed sidebar app order available', () => {
@@ -28,55 +25,50 @@ describe('sidebar config helpers', () => {
   })
 
   it('preserves the preference order when reading ordered visible sidebar favorites', () => {
-    expect(
-      getOrderedVisibleSidebarFavorites([appFavorite('translate'), appFavorite('assistants'), appFavorite('agents')])
-    ).toEqual(['translate', 'assistants', 'agents'])
+    expect(getOrderedVisibleSidebarFavorites(['translate', 'assistants', 'agents'])).toEqual([
+      'translate',
+      'assistants',
+      'agents'
+    ])
   })
 
   it('sanitizes ordered visible sidebar favorites and keeps required favorites visible', () => {
-    expect(
-      getOrderedVisibleSidebarFavorites([
-        appFavorite('translate'),
-        { type: 'app', id: 'unknown' } as never,
-        appFavorite('translate'),
-        appFavorite('agents')
-      ])
-    ).toEqual(['assistants', 'translate', 'agents'])
+    expect(getOrderedVisibleSidebarFavorites(['translate', 'unknown', 'translate', 'agents'])).toEqual([
+      'assistants',
+      'translate',
+      'agents'
+    ])
   })
 
   it('ignores mini app favorites when reading system sidebar favorites', () => {
-    expect(
-      getOrderedVisibleSidebarFavorites([
-        appFavorite('translate'),
-        miniAppFavorite('calculator'),
-        appFavorite('assistants'),
-        appFavorite('agents')
-      ])
-    ).toEqual(['translate', 'assistants', 'agents'])
+    expect(getOrderedVisibleSidebarFavorites(['translate', 'calculator', 'assistants', 'agents'])).toEqual([
+      'translate',
+      'assistants',
+      'agents'
+    ])
   })
 
-  it('reads mini app favorite ids from typed sidebar favorites', () => {
-    expect(
-      getSidebarMiniAppFavoriteIds([
-        appFavorite('translate'),
-        miniAppFavorite('calculator'),
-        appFavorite('assistants'),
-        miniAppFavorite('calculator'),
-        miniAppFavorite('weather')
-      ])
-    ).toEqual(['calculator', 'weather'])
+  it('reads mini app favorite ids from sidebar favorite ids', () => {
+    expect(getSidebarMiniAppFavoriteIds(['translate', 'calculator', 'assistants', 'calculator', 'weather'])).toEqual([
+      'calculator',
+      'weather'
+    ])
   })
 
-  it('dedupes favorites and drops unknown app favorites', () => {
-    expect(
-      getSidebarFavoriteItems([
-        appFavorite('translate'),
-        miniAppFavorite('calculator'),
-        appFavorite('assistants'),
-        miniAppFavorite('calculator'),
-        { type: 'app', id: 'unknown' } as never
-      ])
-    ).toEqual([appFavorite('translate'), miniAppFavorite('calculator'), appFavorite('assistants')])
+  it('dedupes favorite ids and preserves mini app ids', () => {
+    expect(getSidebarFavoriteIds(['translate', 'calculator', 'assistants', 'calculator', 'weather'])).toEqual([
+      'translate',
+      'calculator',
+      'assistants',
+      'weather'
+    ])
+  })
+
+  it('keeps preset mini app ids out of the system sidebar id namespace', () => {
+    const sidebarFavoriteSet = new Set<string>(SIDEBAR_FAVORITE_ORDER)
+    const conflictingPresetIds = PRESETS_MINI_APPS.flatMap((app) => (sidebarFavoriteSet.has(app.id) ? [app.id] : []))
+
+    expect(conflictingPresetIds).toEqual([])
   })
 
   it('resolves menu paths and active items with the paintings provider route', () => {

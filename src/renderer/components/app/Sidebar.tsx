@@ -47,7 +47,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const [userName] = usePreference('app.user.name')
   const [sidebarFavorites] = usePreference('ui.sidebar.favorites')
   const { activeTab, updateTab, openTab } = useTabs()
-  const { miniApps } = useMiniApps()
+  const { allApps } = useMiniApps()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
 
   // Sidebar width — persisted across restarts. Dragging through the
@@ -109,7 +109,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const sidebarMiniAppFavoriteIds = useMemo(() => getSidebarMiniAppFavoriteIds(sidebarFavorites), [sidebarFavorites])
 
   const sidebarMiniAppTabs = useMemo<SidebarMiniAppTab[]>(() => {
-    const appById = new Map(miniApps.map((app) => [app.appId, app]))
+    const appById = new Map(allApps.map((app) => [app.appId, app]))
 
     return sidebarMiniAppFavoriteIds.flatMap((appId) => {
       const app = appById.get(appId)
@@ -128,7 +128,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         }
       ]
     })
-  }, [miniApps, sidebarMiniAppFavoriteIds, t])
+  }, [allApps, sidebarMiniAppFavoriteIds, t])
 
   const items = useMemo<SidebarMenuItem[]>(
     () =>
@@ -194,7 +194,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const handleOpenMiniAppTab = useCallback(
     (appId: string) => {
-      const app = miniApps.find((item) => item.appId === appId)
+      const app = allApps.find((item) => item.appId === appId)
       if (!app) return
 
       openTab(`${MINI_APP_ROUTE_PREFIX}${app.appId}`, {
@@ -202,7 +202,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         icon: app.logo
       })
     },
-    [miniApps, openTab, t]
+    [allApps, openTab, t]
   )
 
   // Common props shared between normal and floating sidebar

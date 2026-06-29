@@ -172,8 +172,8 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     transform: (sources) => {
       const rewrite = (arr: unknown): unknown[] | undefined =>
         Array.isArray(arr) ? arr.map((v) => (v === 'minapp' ? 'mini_app' : v)) : undefined
-      const toAppFavorites = (arr: unknown[] | undefined): Array<{ type: 'app'; id: string }> | undefined =>
-        arr?.filter((item): item is string => typeof item === 'string').map((id) => ({ type: 'app', id }))
+      const toSidebarFavorites = (arr: unknown[] | undefined): string[] | undefined =>
+        arr?.filter((item): item is string => typeof item === 'string')
       const addAgents = (visible: unknown[] | undefined, invisible: unknown[] | undefined): unknown[] | undefined => {
         if (!visible || visible.includes('agents')) {
           return visible
@@ -192,7 +192,7 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
       const invisible = rewrite(sources.disabled)
       const visibleWithAgents = dedup(addAgents(visible, invisible))
       return {
-        'ui.sidebar.favorites': toAppFavorites(visibleWithAgents)
+        'ui.sidebar.favorites': toSidebarFavorites(visibleWithAgents)
       }
     }
   },

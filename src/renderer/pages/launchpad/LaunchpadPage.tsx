@@ -9,12 +9,13 @@ import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import {
   createSidebarAppFavorite,
   getOrderedVisibleSidebarFavorites,
-  getSidebarFavoriteItems,
+  getSidebarFavoriteIds,
   getSidebarMenuPath,
+  getSidebarMiniAppFavoriteIds,
   REQUIRED_SIDEBAR_FAVORITES,
   SIDEBAR_FAVORITE_ORDER
 } from '@renderer/utils/sidebar'
-import type { SidebarFavorite, SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
+import type { SidebarFavorite } from '@shared/data/preference/preferenceTypes'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useMemo, useRef } from 'react'
@@ -53,15 +54,15 @@ function getSidebarFavoritesWithPinnedState({
   favorite,
   pinned
 }: {
-  favorites: readonly SidebarFavoriteItem[] | undefined
+  favorites: readonly string[] | undefined
   favorite: SidebarFavorite
   pinned: boolean
-}): SidebarFavoriteItem[] {
-  const items = getSidebarFavoriteItems(favorites)
+}): string[] {
+  const items = getSidebarFavoriteIds(favorites)
   const nextFavorites = items
-    .flatMap((item) => (item.type === 'app' ? [item.id] : []))
+    .filter((item): item is SidebarFavorite => SIDEBAR_FAVORITE_ORDER.includes(item as SidebarFavorite))
     .filter((existing) => existing !== favorite)
-  const nonAppFavorites = items.filter((item) => item.type !== 'app')
+  const miniAppFavorites = getSidebarMiniAppFavoriteIds(items)
 
   for (const requiredFavorite of REQUIRED_SIDEBAR_FAVORITES) {
     if (!nextFavorites.includes(requiredFavorite)) {
@@ -73,7 +74,7 @@ function getSidebarFavoritesWithPinnedState({
     nextFavorites.push(favorite)
   }
 
-  return [...nextFavorites.map(createSidebarAppFavorite), ...nonAppFavorites]
+  return [...nextFavorites.map(createSidebarAppFavorite), ...miniAppFavorites]
 }
 
 function reorderByIndex<T>(items: readonly T[], oldIndex: number, newIndex: number): T[] {
@@ -244,11 +245,11 @@ export default function LaunchpadPage() {
   const handleSidebarAppsSortEnd = useCallback(
     ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
       const nextItems = reorderByIndex(pinnedAppMenuItems, oldIndex, newIndex)
-      const nonAppFavorites = getSidebarFavoriteItems(sidebarFavorites).filter((item) => item.type !== 'app')
+      const miniAppFavorites = getSidebarMiniAppFavoriteIds(sidebarFavorites)
 
       void setSidebarFavorites([
         ...nextItems.map((item) => createSidebarAppFavorite(item.id)),
-        ...nonAppFavorites
+        ...miniAppFavorites
       ]).catch(() => {
         window.toast?.error(t('common.error'))
       })
