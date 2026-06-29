@@ -14,5 +14,7 @@
 !gh-pr-review/**
 !prepare-release/
 !prepare-release/**
+!skill-creator/
+!skill-creator/**
 !vercel-react-best-practices/
 !vercel-react-best-practices/**

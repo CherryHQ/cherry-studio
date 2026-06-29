@@ -5,4 +5,5 @@ prepare-release
 create-skill
 gh-create-issue
 gh-pr-review
+skill-creator
 vercel-react-best-practices
