@@ -135,9 +135,28 @@ exports.default = async function (context) {
     .filter((p) => p !== currentPlatformKey)
     .map((p) => '!resources/binaries/' + p + '/**')
 
+  // onnxruntime-node ships every platform's native runtime inside a single package
+  // (bin/napi-v6/<os>/<arch>, ~210MB total), so unlike the per-arch npm packages above
+  // it can't be excluded wholesale — every platform needs the package, just not the
+  // other platforms' leaves. Trim it to the build target's leaf so each installer
+  // carries only its own runtime. (linuxmusl shares the `linux` leaf; darwin only
+  // ships arm64 upstream — excluding a non-target leaf that doesn't exist is a no-op.)
+  const onnxTargetOs = platform === 'linuxmusl' ? 'linux' : platform
+  const onnxRuntimeLeaves = [
+    ['darwin', 'arm64'],
+    ['darwin', 'x64'],
+    ['linux', 'arm64'],
+    ['linux', 'x64'],
+    ['win32', 'arm64'],
+    ['win32', 'x64']
+  ]
+  const onnxRuntimeExcludeFilters = onnxRuntimeLeaves
+    .filter(([os, cpu]) => !(os === onnxTargetOs && cpu === arch))
+    .map(([os, cpu]) => `!node_modules/onnxruntime-node/bin/napi-v6/${os}/${cpu}/**`)
+
   if (context.arch === Arch.arm64) {
-    await excludePackages([...arm64ExcludePackages, ...excludeBundledBinaryFilters])
+    await excludePackages([...arm64ExcludePackages, ...excludeBundledBinaryFilters, ...onnxRuntimeExcludeFilters])
   } else {
-    await excludePackages([...x64ExcludePackages, ...excludeBundledBinaryFilters])
+    await excludePackages([...x64ExcludePackages, ...excludeBundledBinaryFilters, ...onnxRuntimeExcludeFilters])
   }
 }
