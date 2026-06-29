@@ -6775,6 +6775,27 @@
       "installError": "工具安装失败",
       "installing": "安装中...",
       "invalidTool": "工具名称或标识无效",
+      "localModels": {
+        "cancel": "取消",
+        "description": "在本地运行的模型，下载后即可离线使用，无需 API Key。",
+        "download": "下载",
+        "embedding": {
+          "name": "本地嵌入模型",
+          "subtitle": "Qwen3 Embedding 0.6B · 约 614 MB"
+        },
+        "ocr": {
+          "comingSoon": "即将支持",
+          "name": "本地 OCR 模型",
+          "subtitle": "PaddleOCR"
+        },
+        "remove": "删除",
+        "status": {
+          "downloading": "下载中…",
+          "notDownloaded": "未下载",
+          "ready": "已就绪"
+        },
+        "title": "本地模型"
+      },
       "notInstalled": "未安装",
       "openBinariesDir": "打开二进制文件目录",
       "remove": "移除工具",

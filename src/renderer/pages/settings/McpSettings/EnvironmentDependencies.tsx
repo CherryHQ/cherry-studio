@@ -36,6 +36,8 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import LocalModelsSection from './LocalModelsSection'
+
 const logger = loggerService.withContext('EnvironmentDependencies')
 
 const ToolIcon: FC<{ icon?: string; className?: string }> = ({ icon, className }) => {
@@ -241,6 +243,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
           {t('settings.plugins.customToolsEmpty')}
         </div>
       )}
+
+      {!mini && <LocalModelsSection />}
 
       <AddToolDialog open={showAddDialog} onOpenChange={setShowAddDialog} onAdd={handleAddCustomTool} />
 

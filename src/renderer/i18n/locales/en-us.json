@@ -6775,6 +6775,27 @@
       "installError": "Failed to install tool",
       "installing": "Installing...",
       "invalidTool": "Invalid tool name or key",
+      "localModels": {
+        "cancel": "Cancel",
+        "description": "Models that run locally on your device — download once, then use offline with no API key.",
+        "download": "Download",
+        "embedding": {
+          "name": "Local Embedding",
+          "subtitle": "Qwen3 Embedding 0.6B · ~614 MB"
+        },
+        "ocr": {
+          "comingSoon": "Coming soon",
+          "name": "Local OCR",
+          "subtitle": "PaddleOCR"
+        },
+        "remove": "Remove",
+        "status": {
+          "downloading": "Downloading…",
+          "notDownloaded": "Not downloaded",
+          "ready": "Ready"
+        },
+        "title": "Local Models"
+      },
       "notInstalled": "Not installed",
       "openBinariesDir": "Open binaries directory",
       "remove": "Remove tool",

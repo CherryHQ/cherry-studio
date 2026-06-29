@@ -31,3 +31,7 @@ export const LOCAL_EMBEDDING_UNIQUE_MODEL_ID = createUniqueModelId(
 export function isLocalEmbeddingProviderId(providerId: string): boolean {
   return providerId === LOCAL_EMBEDDING_PROVIDER_ID
 }
+
+/** Download/availability state of a local model, shared by the settings model cards. */
+export const LOCAL_MODEL_STATUSES = ['not_downloaded', 'downloading', 'ready', 'error'] as const
+export type LocalModelStatus = (typeof LOCAL_MODEL_STATUSES)[number]
