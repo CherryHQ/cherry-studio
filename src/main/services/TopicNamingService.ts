@@ -38,6 +38,8 @@ const agentSessionRenameLocks = new Set<string>()
 //      topic releases its entry naturally.
 const SUMMARY_NAMED_KEY_PREFIX = 'topic.summary_named:'
 const SUMMARY_NAMED_TTL_MS = 60 * 60 * 1000
+// Keep this list in sync with localized `common.unnamed` values until agent
+// sessions store a stable sentinel/key instead of translated display text.
 const DEFAULT_AGENT_SESSION_NAMES = new Set([
   '',
   'common.unnamed',
@@ -213,10 +215,8 @@ export class TopicNamingService {
       if (!latestSession || !canAutoRenameAgentSessionName(latestSession.name, userText)) return
       if (nextName === (latestSession.name ?? '').trim()) return
 
-      const updated = await agentSessionService.update(sessionId, { name: nextName, isNameManuallyEdited: false })
-      if (updated) {
-        this.notifyAgentSessionAutoRenamed(sessionId)
-      }
+      await agentSessionService.update(sessionId, { name: nextName, isNameManuallyEdited: false })
+      this.notifyAgentSessionAutoRenamed(sessionId)
     } catch (error) {
       logger.warn('Failed to auto-rename agent session from first user message', error as Error)
     }
@@ -226,8 +226,9 @@ export class TopicNamingService {
    * Rename an agent session's name based on the first user+assistant exchange.
    *
    * Mirrors {@link maybeRenameFromConversationSummary} but targets the agents
-   * DB (`session.name`) rather than `topics.name` and uses the configured
-   * topic naming model for summarization.
+   * DB (`session.name`) rather than `topics.name`. Uses the shared topic
+   * naming model preference (`topic.naming.model_id`) for summarization,
+   * matching normal chat topic naming behavior.
    *
    * @param sessionId  Cherry Studio session id.
    * @param userText   Plain text of the user turn (already in memory —
@@ -271,10 +272,8 @@ export class TopicNamingService {
       if (!latestSession || !canAutoRenameAgentSessionName(latestSession.name, userText)) return
       if (!nextName || nextName === (latestSession.name ?? '').trim()) return
 
-      const updated = await agentSessionService.update(sessionId, { name: nextName, isNameManuallyEdited: false })
-      if (updated) {
-        this.notifyAgentSessionAutoRenamed(sessionId)
-      }
+      await agentSessionService.update(sessionId, { name: nextName, isNameManuallyEdited: false })
+      this.notifyAgentSessionAutoRenamed(sessionId)
     } catch (error) {
       logger.warn('Failed to auto-rename agent session', error as Error)
     } finally {

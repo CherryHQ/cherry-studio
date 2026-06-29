@@ -1,6 +1,7 @@
 // Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
 import '@data/services/MessageService'
 
+import { application } from '@application'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { groupTable } from '@data/db/schemas/group'
@@ -14,7 +15,7 @@ import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { chatMessageSourceType, type FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { and, asc, eq, isNotNull, isNull } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, type Mock } from 'vitest'
 
 describe('TopicService', () => {
   const dbh = setupTestDatabase()
@@ -103,6 +104,29 @@ describe('TopicService', () => {
       id: 'topic-name-only',
       name: 'Manual topic name',
       isNameManuallyEdited: true
+    })
+  })
+
+  it('routes topic updates through serialized write transactions', async () => {
+    await dbh.db.insert(topicTable).values({
+      id: 'topic-serialized-update',
+      name: 'Before serialized update',
+      orderKey: 'a0'
+    })
+
+    const withWriteTx = application.get('DbService').withWriteTx as Mock
+    withWriteTx.mockClear()
+
+    const updated = await topicService.update('topic-serialized-update', {
+      name: 'After serialized update',
+      isNameManuallyEdited: false
+    })
+
+    expect(withWriteTx).toHaveBeenCalledTimes(1)
+    expect(updated).toMatchObject({
+      id: 'topic-serialized-update',
+      name: 'After serialized update',
+      isNameManuallyEdited: false
     })
   })
 

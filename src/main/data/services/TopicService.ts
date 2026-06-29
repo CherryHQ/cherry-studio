@@ -247,9 +247,9 @@ export class TopicService {
 
   /** Pin state and ordering go through `/pins` and `/topics/:id/order` — not this DTO. */
   async update(id: string, dto: UpdateTopicDto): Promise<Topic> {
-    const db = application.get('DbService').getDb()
+    const dbService = application.get('DbService')
 
-    const topic = await db.transaction(async (tx) => {
+    const topic = await dbService.withWriteTx(async (tx) => {
       const [existing] = await tx
         .select({ id: topicTable.id })
         .from(topicTable)
