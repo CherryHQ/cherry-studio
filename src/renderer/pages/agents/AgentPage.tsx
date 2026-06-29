@@ -425,13 +425,9 @@ const AgentPage = () => {
         // still-unnamed session with messages would also be treated as reusable — acceptable, since
         // reuse just reopens it (no data loss, no duplicate). A precise check would need a backend
         // `messageCount` on the session list; swap the name test for it if that lands.
-        let latestSession: (typeof oldViewSessions)[number] | undefined
-        for (const candidate of oldViewSessions) {
-          if (candidate.agentId !== agentId) continue
-          if (!latestSession || Date.parse(candidate.updatedAt) > Date.parse(latestSession.updatedAt)) {
-            latestSession = candidate
-          }
-        }
+        const latestSession = findLatestUpdatedSession(
+          oldViewSessions.filter((candidate) => candidate.agentId === agentId)
+        )
         const reusableSession =
           latestSession && latestSession.name.trim() === t('common.unnamed') ? latestSession : undefined
 

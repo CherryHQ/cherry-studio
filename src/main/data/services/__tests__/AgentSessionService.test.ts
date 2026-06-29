@@ -52,6 +52,17 @@ describe('AgentSessionService', () => {
     })
   }
 
+  async function insertSessionMessage(sessionId: string, id: string) {
+    await dbh.db.insert(agentSessionMessageTable).values({
+      id,
+      sessionId,
+      role: 'user',
+      data: { parts: [{ type: 'text', text: 'hello' }] },
+      searchableText: 'hello',
+      status: 'success'
+    })
+  }
+
   it('searches sessions as lean navigation items with agent names resolved inline', async () => {
     const workspace = await createWorkspace('search')
     await dbh.db.insert(agentSessionTable).values([
@@ -308,14 +319,7 @@ describe('AgentSessionService', () => {
     const firstWorkspace = await createWorkspace('before-locked-switch')
     const secondWorkspace = await createWorkspace('after-locked-switch')
     const session = await createSession('Locked workspace switch', firstWorkspace.id)
-    await dbh.db.insert(agentSessionMessageTable).values({
-      id: 'message-locks-workspace',
-      sessionId: session.id,
-      role: 'user',
-      data: { parts: [{ type: 'text', text: 'hello' }] },
-      searchableText: 'hello',
-      status: 'success'
-    })
+    await insertSessionMessage(session.id, 'message-locks-workspace')
 
     await expect(
       agentSessionService.update(session.id, {
@@ -326,6 +330,57 @@ describe('AgentSessionService', () => {
     await expect(agentSessionService.getById(session.id)).resolves.toMatchObject({
       workspaceId: firstWorkspace.id
     })
+  })
+
+  it('rejects switching a messaged system workspace session to a user workspace', async () => {
+    const userWorkspace = await createWorkspace('locked-system-to-user')
+    const session = await agentSessionService.create({
+      agentId: 'agent-session-test',
+      name: 'Locked system workspace',
+      workspace: { type: 'system' }
+    })
+    await insertSessionMessage(session.id, 'message-locks-system-to-user')
+
+    await expect(
+      agentSessionService.update(session.id, {
+        workspace: { type: 'user', workspaceId: userWorkspace.id }
+      })
+    ).rejects.toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+
+    await expect(agentSessionService.getById(session.id)).resolves.toMatchObject({
+      workspaceId: session.workspaceId,
+      workspace: { type: 'system' }
+    })
+    const [systemWorkspaceRow] = await dbh.db
+      .select()
+      .from(agentWorkspaceTable)
+      .where(eq(agentWorkspaceTable.id, session.workspaceId))
+    expect(systemWorkspaceRow).toMatchObject({
+      id: session.workspaceId,
+      type: 'system'
+    })
+  })
+
+  it('rejects switching a messaged user workspace session to a system workspace', async () => {
+    const userWorkspace = await createWorkspace('locked-user-to-system')
+    const session = await createSession('Locked user workspace', userWorkspace.id)
+    await insertSessionMessage(session.id, 'message-locks-user-to-system')
+
+    await expect(
+      agentSessionService.update(session.id, {
+        workspace: { type: 'system' }
+      })
+    ).rejects.toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+
+    await expect(agentSessionService.getById(session.id)).resolves.toMatchObject({
+      workspaceId: userWorkspace.id,
+      workspace: { type: 'user' }
+    })
+    const systemWorkspaceRows = await dbh.db
+      .select()
+      .from(agentWorkspaceTable)
+      .where(eq(agentWorkspaceTable.type, 'system'))
+    expect(systemWorkspaceRows).toHaveLength(0)
   })
 
   it('deletes a session', async () => {

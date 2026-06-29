@@ -698,6 +698,22 @@ describe('HomePage', () => {
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })
 
+  it('reuses the latest empty topic when an older candidate has an invalid timestamp', async () => {
+    homeMocks.preferenceValues.set('chat.conversation_view', 'old')
+    homeMocks.oldViewTopics = [
+      { id: 'topic-empty-invalid', assistantId: 'assistant-2', name: '   ', updatedAt: 'not-a-date' },
+      { id: 'topic-empty-latest', assistantId: 'assistant-2', name: '   ', updatedAt: '2026-01-03T00:00:00.000Z' }
+    ]
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open assistant picker' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select my assistant' }))
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-empty-latest'))
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
   it('reuses the current assistant empty topic from the old-view composer button', async () => {
     homeMocks.preferenceValues.set('chat.conversation_view', 'old')
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]

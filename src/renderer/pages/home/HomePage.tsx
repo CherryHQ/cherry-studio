@@ -494,13 +494,9 @@ const HomePage: FC = () => {
         // messages but isn't titled yet would also be treated as reusable — acceptable, since reuse
         // just reopens it (no data loss, no duplicate). A precise check would need a backend
         // `messageCount` on the topic list; swap the name test for it if that lands.
-        let latestTopic: (typeof oldViewTopics)[number] | undefined
-        for (const candidate of oldViewTopics) {
-          if (candidate.assistantId !== assistantId) continue
-          if (!latestTopic || Date.parse(candidate.updatedAt) > Date.parse(latestTopic.updatedAt)) {
-            latestTopic = candidate
-          }
-        }
+        const latestTopic = findLatestUpdatedTopic(
+          oldViewTopics.filter((candidate) => candidate.assistantId === assistantId)
+        )
         const reusableTopic = latestTopic && latestTopic.name.trim() === '' ? latestTopic : undefined
 
         const topic = reusableTopic ?? (await createTopic({ assistantId }))

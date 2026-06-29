@@ -710,6 +710,39 @@ describe('AgentPage', () => {
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
   })
 
+  it('reuses the latest empty session when an older candidate has an invalid timestamp', async () => {
+    agentPageMocks.workView = 'old'
+    agentPageMocks.routeSearch = {}
+    agentPageMocks.agents = [
+      { id: 'agent-a', model: 'model-a', name: 'Agent A' },
+      { id: 'agent-b', model: 'model-b', name: 'Agent B' }
+    ]
+    agentPageMocks.oldViewSessions = [
+      {
+        id: 'session-empty-invalid',
+        agentId: 'agent-b',
+        name: 'common.unnamed',
+        updatedAt: 'not-a-date',
+        workspace: { type: 'system' }
+      },
+      {
+        id: 'session-empty-latest',
+        agentId: 'agent-b',
+        name: 'common.unnamed',
+        updatedAt: '2026-01-03T00:00:00.000Z',
+        workspace: { type: 'system' }
+      }
+    ]
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select resource agent' }))
+
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-empty-latest'))
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+  })
+
   it('reuses the current agent empty session from the old-view composer button', async () => {
     agentPageMocks.workView = 'old'
     activeSessionMocks.session = {
