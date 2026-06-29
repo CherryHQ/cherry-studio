@@ -26,8 +26,8 @@ vi.mock('@renderer/components/resource', () => ({
   }
 }))
 
-vi.mock('@renderer/components/resource/dialogs/ResourceCreateDialog', () => ({
-  ResourceCreateDialog: (props: any) => (
+vi.mock('@renderer/components/resource/dialogs', () => ({
+  ResourceCreateWizard: (props: any) => (
     <div data-testid="create-dialog" data-open={String(props.open)} data-kind={props.kind}>
       <button
         type="button"

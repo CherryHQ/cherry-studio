@@ -1,10 +1,7 @@
 import { loggerService } from '@logger'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ConversationPickerDialog, type ConversationPickerItem } from '@renderer/components/resource'
-import {
-  ResourceCreateDialog,
-  type ResourceCreateDialogValues
-} from '@renderer/components/resource/dialogs/ResourceCreateDialog'
+import { ResourceCreateWizard, type ResourceCreateWizardValues } from '@renderer/components/resource/dialogs'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
@@ -71,7 +68,7 @@ export function AgentConversationPickerDialog({
   }, [onOpenChange])
 
   const handleSubmitCreate = useCallback(
-    async (values: ResourceCreateDialogValues) => {
+    async (values: ResourceCreateWizardValues) => {
       try {
         const created = await createAgent({
           body: {
@@ -118,7 +115,7 @@ export function AgentConversationPickerDialog({
         showCloseButton={false}
         onSelect={handleSelect}
       />
-      <ResourceCreateDialog
+      <ResourceCreateWizard
         kind="agent"
         open={createDialogOpen}
         isSubmitting={isCreatingAgent}

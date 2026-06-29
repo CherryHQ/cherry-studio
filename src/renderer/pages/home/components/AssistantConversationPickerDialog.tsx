@@ -2,11 +2,8 @@ import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@ch
 import { loggerService } from '@logger'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ConversationPickerDialog, type ConversationPickerItem } from '@renderer/components/resource'
+import { ResourceCreateWizard, type ResourceCreateWizardValues } from '@renderer/components/resource/dialogs'
 import { isSelectableAssistantModel } from '@renderer/components/resource/dialogs/form/assistantModelFilter'
-import {
-  ResourceCreateDialog,
-  type ResourceCreateDialogValues
-} from '@renderer/components/resource/dialogs/ResourceCreateDialog'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { type AssistantCatalogPreset, useAssistantCatalogPresets } from '@renderer/hooks/useAssistantCatalogPresets'
 import type { Assistant } from '@renderer/types/assistant'
@@ -104,7 +101,7 @@ export function AssistantConversationPickerDialog({
   }, [onOpenChange])
 
   const handleSubmitCreate = useCallback(
-    async (values: ResourceCreateDialogValues) => {
+    async (values: ResourceCreateWizardValues) => {
       try {
         const created = await createAssistant({
           body: {
@@ -198,7 +195,7 @@ export function AssistantConversationPickerDialog({
         showCloseButton={false}
         onSelect={handleSelect}
       />
-      <ResourceCreateDialog
+      <ResourceCreateWizard
         kind="assistant"
         open={createDialogOpen}
         isSubmitting={isCreatingAssistant}
