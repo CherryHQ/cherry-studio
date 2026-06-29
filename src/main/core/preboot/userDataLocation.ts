@@ -76,19 +76,12 @@ export function getNormalizedExecutablePath(): string {
  * Persist a chosen userData location to BootConfig, keyed by the normalized
  * executable path so resolveUserDataLocation() applies it on the next launch.
  *
- * This is the write-side counterpart to resolveUserDataLocation(). The v2
- * model changes the app data path ONLY via boot-config + relaunch — never via
- * a live app.setPath('userData'), which would diverge from the path registry
- * frozen by Application.bootstrap(). The caller (the App_SetAppDataPath IPC
- * handler) is responsible for triggering the relaunch.
- *
- * For the copy-data flow the renderer has already copied the userData tree
- * before calling this (see BasicDataSettings.tsx startMigration), so unlike
- * executePendingRelocation() no copy happens here — we only commit the path.
+ * Commits the path only — no copy. The caller must copy first (copy-data flow,
+ * see BasicDataSettings.tsx startMigration) and trigger the relaunch.
  */
 export function commitUserDataPath(targetPath: string): void {
   const exe = getNormalizedExecutablePath()
-  const current = bootConfigService.get('app.user_data_path') ?? {}
+  const current = bootConfigService.get('app.user_data_path')
   bootConfigService.set('app.user_data_path', { ...current, [exe]: targetPath })
   bootConfigService.flush()
   logger.info('userData path committed to BootConfig; relaunch required', { exe, targetPath })

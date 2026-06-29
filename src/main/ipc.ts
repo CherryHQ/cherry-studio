@@ -216,13 +216,8 @@ export async function registerIpc() {
     return isPathInside(childPath, parentPath)
   })
 
-  // Set app data path — persist to BootConfig only. The live
-  // app.setPath('userData') happens in preboot resolveUserDataLocation() on
-  // the next launch. Changing the path ONLY via boot-config + relaunch keeps a
-  // single source of truth and avoids diverging from the path registry frozen
-  // by Application.bootstrap() (the renderer always relaunches after this —
-  // see BasicDataSettings.tsx). BootConfig lives under ~/.cherrystudio/,
-  // outside userData, so the commit survives the relocation itself.
+  // Persist to BootConfig; the live app.setPath('userData') happens in preboot
+  // on the next launch (see commitUserDataPath).
   ipcMain.handle(IpcChannel.App_SetAppDataPath, async (_, filePath: string) => {
     commitUserDataPath(filePath)
     return filePath
