@@ -4,9 +4,12 @@ import path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { inferenceHost, type InferenceProgress } from '@main/ai/inference/InferenceHost'
+import {
+  currentModelSource,
+  MODEL_DTYPE,
+  MODEL_REPO
+} from '@main/ai/provider/custom/localEmbedding/localEmbeddingRuntime'
 import type { LocalModelStatus } from '@shared/data/presets/localEmbedding'
-
-import { currentModelSource, MODEL_DTYPE, MODEL_REPO } from './embeddingRuntime'
 
 const logger = loggerService.withContext('LocalEmbeddingDownloadService')
 

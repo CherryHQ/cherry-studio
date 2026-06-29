@@ -1,5 +1,5 @@
-import { localEmbeddingDownloadService } from '@main/ai/provider/custom/localEmbedding/LocalEmbeddingDownloadService'
-import { localOcrDownloadService } from '@main/features/fileProcessing/processors/local-paddleocr/LocalOcrDownloadService'
+import { localEmbeddingDownloadService } from '@main/features/localModel/LocalEmbeddingDownloadService'
+import { localOcrDownloadService } from '@main/features/localModel/LocalOcrDownloadService'
 import type { LocalModelKind } from '@shared/data/presets/localEmbedding'
 import type { localModelRequestSchemas } from '@shared/ipc/schemas/localModel'
 import type { IpcHandlersFor } from '@shared/ipc/types'

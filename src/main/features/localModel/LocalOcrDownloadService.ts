@@ -5,10 +5,14 @@ import type { ReadableStream as NodeWebReadableStream } from 'node:stream/web'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import {
+  isLocalPaddleocrModelDownloaded,
+  OCR_MODEL_FILES,
+  ocrModelDir,
+  ocrModelPaths
+} from '@main/features/fileProcessing/processors/local-paddleocr/modelAssets'
 import type { LocalModelStatus } from '@shared/data/presets/localEmbedding'
 import { net } from 'electron'
-
-import { isLocalPaddleocrModelDownloaded, OCR_MODEL_FILES, ocrModelDir, ocrModelPaths } from './modelAssets'
 
 const logger = loggerService.withContext('LocalOcrDownloadService')
 

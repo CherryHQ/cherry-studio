@@ -2,11 +2,11 @@ import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 
-import { embedTexts } from './embeddingRuntime'
+import { embedTexts } from './localEmbeddingRuntime'
 
 /**
  * `EmbeddingModelV3` backed by the in-process transformers.js runtime. Pooling
- * and normalization live in `embeddingRuntime`; this is a thin AI SDK adapter.
+ * and normalization live in `localEmbeddingRuntime`; this is a thin AI SDK adapter.
  */
 class LocalEmbeddingModel implements EmbeddingModelV3 {
   readonly specificationVersion = 'v3'
