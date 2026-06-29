@@ -426,13 +426,17 @@ export const ComposerToolMenu = ({ inputAdapter }: ComposerToolMenuProps) => {
   const triggers = useComposerToolProviderLaunchers()
   const [open, setOpen] = useState(false)
   const [activeTooltipId, setActiveTooltipId] = useState<string | null>(null)
+  const keepComposerFocusAfterMenuCloseRef = useRef(false)
   const entries = useMemo(() => getToolMenuEntries(triggers), [triggers])
 
   const visibleEntries = useMemo(() => entries.filter(({ launcher }) => !launcher.hidden), [entries])
 
   const handleOpenChange = useCallback((nextOpen: boolean) => {
     setOpen(nextOpen)
-    if (nextOpen) return
+    if (nextOpen) {
+      keepComposerFocusAfterMenuCloseRef.current = false
+      return
+    }
     setActiveTooltipId(null)
   }, [])
 
@@ -440,6 +444,23 @@ export const ComposerToolMenu = ({ inputAdapter }: ComposerToolMenuProps) => {
     setActiveTooltipId(null)
     setOpen(false)
   }, [])
+
+  const prepareToolMenuCloseAutoFocus = useCallback((launcher: ComposerToolLauncher) => {
+    keepComposerFocusAfterMenuCloseRef.current = launcher.kind === 'panel'
+  }, [])
+
+  const handleToolMenuCloseAutoFocus = useCallback(
+    (event: Event) => {
+      if (!keepComposerFocusAfterMenuCloseRef.current) return
+
+      keepComposerFocusAfterMenuCloseRef.current = false
+      if (!inputAdapter) return
+
+      event.preventDefault()
+      inputAdapter.focus()
+    },
+    [inputAdapter]
+  )
 
   if (visibleEntries.length === 0) return null
 
@@ -453,7 +474,12 @@ export const ComposerToolMenu = ({ inputAdapter }: ComposerToolMenuProps) => {
           <Plus size={18} />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" side="top" sideOffset={4} className={TOOL_MENU_CONTENT_CLASS}>
+      <DropdownMenuContent
+        align="start"
+        side="top"
+        sideOffset={4}
+        className={TOOL_MENU_CONTENT_CLASS}
+        onCloseAutoFocus={handleToolMenuCloseAutoFocus}>
         {visibleEntries.map(({ launcher, source }) => {
           const tooltipContent = launcher.disabled
             ? (launcher.disabledReason ?? launcher.tooltip ?? launcher.description)
@@ -505,6 +531,7 @@ export const ComposerToolMenu = ({ inputAdapter }: ComposerToolMenuProps) => {
                         onSelect={(event) => {
                           event.preventDefault()
                           event.stopPropagation()
+                          prepareToolMenuCloseAutoFocus(item)
                           closeToolMenu()
                           dispatchLauncher(item, { source: 'popover', inputAdapter, quickPanel })
                         }}>
@@ -550,6 +577,7 @@ export const ComposerToolMenu = ({ inputAdapter }: ComposerToolMenuProps) => {
               onSelect={(event) => {
                 event.preventDefault()
                 event.stopPropagation()
+                prepareToolMenuCloseAutoFocus(launcher)
                 closeToolMenu()
                 dispatchLauncher(launcher, { source, inputAdapter, quickPanel })
               }}>

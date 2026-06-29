@@ -39,7 +39,7 @@ Template keys share one default value across all instances — all `web_search.p
 
 Non-obvious rules the code enforces; assume them when designing consumers.
 
-1. **Same-value write is a no-op.** Equality via `lodash.isEqual`. No broadcast, no subscriber fire, no hook re-render. (`src/main/data/CacheService.ts` `isEqual` guards before `broadcastSync` / notifier)
+1. **Same-value write is a no-op.** Equality via `isEqual` (es-toolkit/compat). No broadcast, no subscriber fire, no hook re-render. (`src/main/data/CacheService.ts` `isEqual` guards before `broadcastSync` / notifier)
 2. **TTL-only refresh does not fire subscribers.** Updating `expireAt` on the same value is silent.
 3. **Subscribers fire only on explicit writes.** Lazy TTL cleanup, the 10-min GC sweep, and `onStop` do not fire.
 4. **Hooks + TTL is discouraged.** `useCache` / `useSharedCache` log a warn when the key has TTL (`src/renderer/data/hooks/useCache.ts:186-192,289-295`) — values can expire between renders.

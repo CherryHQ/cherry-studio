@@ -7,7 +7,7 @@ import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { getModelHealthCheckSkipReason } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
 import { splitApiKeyString } from '@renderer/utils/api'
-import { isEmpty } from 'lodash'
+import { isEmpty } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from '../hooks/providerSetting/constants'
