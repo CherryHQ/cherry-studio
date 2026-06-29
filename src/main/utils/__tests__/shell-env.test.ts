@@ -25,7 +25,7 @@ vi.mock('@application', () => ({
 vi.mock('child_process')
 
 // Import AFTER mocks are registered so the module binds to mocked values.
-import { refreshShellEnv } from '../shell-env'
+import getShellEnv, { refreshShellEnv } from '../shell-env'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -200,5 +200,21 @@ describe('shell-env – Windows registry PATH', () => {
     await refreshShellEnv()
 
     expect(spawn).not.toHaveBeenCalled()
+  })
+
+  // -- concurrent dedup -----------------------------------------------------
+
+  it('should collapse overlapping fetches onto a single env resolution', async () => {
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const keyPath = (args as string[])[1]
+      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows')
+      throw new Error('not found')
+    })
+
+    // getWindowsEnvironment() reads HKLM + HKCU, i.e. two execFileSync calls
+    // per resolution. Overlapping callers must share one resolution → 2 calls.
+    await Promise.all([refreshShellEnv(), refreshShellEnv(), getShellEnv()])
+
+    expect(execFileSync).toHaveBeenCalledTimes(2)
   })
 })

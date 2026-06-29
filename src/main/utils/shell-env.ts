@@ -309,6 +309,7 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
 }
 
 let cachedEnv: Record<string, string> | null = null
+let inflight: Promise<Record<string, string>> | null = null
 
 async function fetchShellEnv(): Promise<Record<string, string>> {
   try {
@@ -327,14 +328,38 @@ async function fetchShellEnv(): Promise<Record<string, string>> {
 }
 
 /**
+ * Fetch the shell env, collapsing concurrent callers onto a single spawn.
+ *
+ * Resolving the login shell can be slow or hang (misconfigured profiles), so
+ * letting overlapping callers each spawn their own shell multiplies a 15s
+ * timeout into several. Sharing the in-flight promise keeps it to one spawn.
+ */
+function loadShellEnv(): Promise<Record<string, string>> {
+  if (inflight) {
+    return inflight
+  }
+  // fetchShellEnv never rejects (it falls back to process.env), so the cache
+  // is always populated and `inflight` always cleared.
+  inflight = fetchShellEnv()
+    .then((env) => {
+      cachedEnv = env
+      return env
+    })
+    .finally(() => {
+      inflight = null
+    })
+  return inflight
+}
+
+/**
  * Get the cached shell environment. If no cache exists yet, fetches it once.
  * This is a pure query -- it never invalidates the cache.
  */
 async function getShellEnv(): Promise<Record<string, string>> {
-  if (!cachedEnv) {
-    cachedEnv = await fetchShellEnv()
+  if (cachedEnv) {
+    return cachedEnv
   }
-  return cachedEnv
+  return loadShellEnv()
 }
 
 export default getShellEnv
@@ -346,10 +371,17 @@ export default getShellEnv
  *
  * Returns the fresh environment so callers can use it directly without a
  * separate getShellEnv() call, avoiding stale-read race conditions.
+ *
+ * If a fetch is already in flight, that one is reused instead of spawning a
+ * second shell -- it is already fresh enough, and a duplicate spawn just
+ * multiplies the cost when the user's profile is slow.
  */
 export async function refreshShellEnv(): Promise<Record<string, string>> {
-  cachedEnv = await fetchShellEnv()
-  return cachedEnv
+  if (inflight) {
+    return inflight
+  }
+  cachedEnv = null
+  return loadShellEnv()
 }
 
 /**
