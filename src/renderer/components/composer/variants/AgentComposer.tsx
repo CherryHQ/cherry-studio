@@ -557,6 +557,9 @@ const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => {
       <ComposerToolbarControls
         inputAdapter={inputAdapter}
         newConversationAction={props.newConversationAction}
+        // Old view hides the agent trigger (switching lives in the left rail), freeing the toolbar's
+        // leading slot — so the tool menu sits before the context controls. New view keeps the
+        // trigger, so the menu stays after.
         toolMenuPlacement={props.showAgentTrigger === false ? 'afterContext' : 'beforeContext'}
         renderContextControls={({ side, iconOnly }) => (
           <>

@@ -295,6 +295,9 @@ const renderChatToolbarControls: ChatComposerControlsRenderer = (props) => ({
     <ComposerToolbarControls
       inputAdapter={inputAdapter}
       newConversationAction={props.newConversationAction}
+      // Old view hides the assistant trigger (switching lives in the left rail), freeing the
+      // toolbar's leading slot — so the tool menu sits before the context controls. New view keeps
+      // the trigger, so the menu stays after.
       toolMenuPlacement={props.showAssistantTrigger === false ? 'afterContext' : 'beforeContext'}
       renderContextControls={({ side, iconOnly }) => (
         <ChatComposerContextControls {...props} side={side} iconOnly={iconOnly} />
