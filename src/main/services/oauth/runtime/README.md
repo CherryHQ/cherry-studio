@@ -45,8 +45,9 @@ Three pieces, all keyed by `providerId`:
     pushes the result point-to-point to the initiator window via
     `IpcApiService.send('cherryin.oauth_result', …)` (CherryIN). The OAuth token
     never crosses to the renderer — only the side-effect API keys do.
-- **`providerDefinitions.ts`** — the registry: one entry per provider declaring
-  client/urls/scope/transport plus optional behavior hooks.
+- **`providers/<id>.ts`** — one file per login provider: its client/urls/scope/
+  transport plus optional behavior hooks. **`providerDefinitions.ts`** is the
+  registry that wires each definition onto its provider id.
 
 Token storage sits behind the `OAuthTokenStore` interface
 (`OAuthTokenStore.ts`). Today only `ProviderAuthConfigOAuthTokenStore` exists.
@@ -55,8 +56,9 @@ different backend — see "Extending" below.
 
 ## Adding a provider
 
-Adding the **OAuth flow** is one entry in `providerDefinitions.ts`. The variation
-points are covered by the entry's fields and hooks:
+Adding the **OAuth flow** is one file in `providers/<id>.ts`, registered in
+`providerDefinitions.ts`. The variation points are covered by the definition's
+fields and hooks:
 
 - declarative: `clientId`, `transport` (loopback ports / deep-link redirect),
   client urls, `scope`, `clearDisablesProvider`, `extraAuthParams`.
@@ -71,11 +73,11 @@ But a provider is more than its OAuth flow. End-to-end, a new login-based
 provider also touches:
 
 1. **Identity** — `src/shared/data/presets/<provider>.ts` (id + `is…ProviderId`).
-2. **Auth-kind flag** — tag the provider in the shipped registry
-   (`packages/provider-registry/data/providers.json`) so login-based UI gating
-   (`isLoginBasedProviderId`, the generic api-key panel suppression) treats it
-   correctly. Today that gating is a hand-maintained id list in
-   `src/shared/utils/provider.ts` — see "Extending".
+2. **Auth-kind flag** — tag the provider's `authMethods` in the shipped registry
+   (`packages/provider-registry/data/providers.json`); login-based UI gating
+   (`isLoginBasedProvider`, the generic api-key panel suppression) derives from
+   it — `['oauth']` / `['external-cli']` are login-based, anything including
+   `'api-key'` is not.
 3. **Settings UI** — an entry in `providerSpecificSettingsRegistry.tsx`. Loopback
    providers reuse the shared `LoginOauthPanel` (pass `i18nNs`, `showAccountId`);
    deep-link providers currently need a bespoke panel (`CherryInOauth.tsx`).
@@ -91,20 +93,12 @@ provider also touches:
 The runtime's seams are already the right shape for two future moves; neither is
 worth doing until a real second consumer appears (YAGNI):
 
-- **Config over code.** Most of each `providerDefinitions` entry is data; the
+- **Config over code.** Most of each `providers/<id>.ts` definition is data; the
   inline functions reduce to a few declarative fields plus a generic core:
   `extractAccountId` → `accountIdClaim: { jwtPath, field }`; Grok discovery →
   `discovery: { url, allowedHostSuffix }`; the nonce → a `requiresNonce` flag.
   After that a vanilla loopback PKCE provider is a pure-data entry with zero
   OAuth code; only exotic behavior (CherryIN's side effect) stays a hook.
-
-- **Derive auth-kind from the registry, not a hardcoded list.** The registry
-  already carries `credentialSource: 'external-cli'` (claude-code) end-to-end
-  (seeded onto the live provider object, read in renderer + main). Extending it
-  with an `'app-oauth'` kind lets `isLoginBasedProviderId` and the panel gating
-  derive from provider data instead of the hand-maintained id list in
-  `src/shared/utils/provider.ts` — one less place to forget when adding a
-  provider.
 
 - **General OAuth (don't, yet).** The flow engine (transports + `PkceOAuthClient`
   + orchestration) is entity-agnostic; only the token store is provider-tied.
