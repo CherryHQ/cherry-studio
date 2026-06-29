@@ -214,7 +214,7 @@ interface ResourceCardProps {
   onDuplicate: (resource: ResourceItem) => void
   onEdit: (resource: ResourceItem) => void
   onExport: (resource: ResourceItem) => void
-  onUpdateResourceTags: (resourceId: string, tags: string[]) => void
+  onUpdateResourceTag: (resourceId: string, tagName: string | null) => void
 }
 
 function hasOverflowActions(resource: ResourceItem) {
@@ -228,7 +228,7 @@ export function ResourceCard({
   onDuplicate,
   onEdit,
   onExport,
-  onUpdateResourceTags
+  onUpdateResourceTag
 }: ResourceCardProps) {
   const { t } = useTranslation()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -237,8 +237,7 @@ export function ResourceCard({
   // other resources keep their own avatar on the neutral accent block.
   const useTypedAvatarBg = r.type === 'skill'
   const showOverflowMenu = hasOverflowActions(r)
-  const visibleTags = r.type === 'assistant' ? r.tags.slice(0, 2) : []
-  const extraTagCount = r.type === 'assistant' ? r.tags.length - visibleTags.length : 0
+  const visibleTag = r.type === 'assistant' ? r.tag : undefined
 
   return (
     <div
@@ -259,17 +258,13 @@ export function ResourceCard({
           <div className="min-w-0 flex-1">
             <h4 className="truncate font-medium text-foreground text-sm leading-5">{r.name}</h4>
             <p className="mt-0.5 truncate text-foreground-secondary text-xs leading-4">{r.description}</p>
-            {visibleTags.length > 0 && (
+            {visibleTag && (
               <div className="mt-1.5 flex min-w-0 items-center gap-1">
-                {visibleTags.map((tag, i) => (
-                  <Badge
-                    key={`${tag}-${i}`}
-                    variant="secondary"
-                    className="max-w-24 truncate border-0 bg-secondary px-1.5 py-px text-foreground-secondary text-xs">
-                    {tag}
-                  </Badge>
-                ))}
-                {extraTagCount > 0 && <span className="shrink-0 text-foreground-muted text-xs">+{extraTagCount}</span>}
+                <Badge
+                  variant="secondary"
+                  className="max-w-24 truncate border-0 bg-secondary px-1.5 py-px text-foreground-secondary text-xs">
+                  {visibleTag}
+                </Badge>
               </div>
             )}
           </div>
@@ -299,7 +294,7 @@ export function ResourceCard({
                       onDuplicate={onDuplicate}
                       onDelete={onDelete}
                       onExport={onExport}
-                      onUpdateResourceTags={onUpdateResourceTags}
+                      onUpdateResourceTag={onUpdateResourceTag}
                       allTagNames={allTagNames}
                     />
                   </PopoverContent>

@@ -32,7 +32,7 @@ interface ResourceCardMenuProps {
   onDuplicate: (r: ResourceItem) => void
   onDelete: (r: ResourceItem) => void
   onExport: (r: ResourceItem) => void
-  onUpdateResourceTags: (resourceId: string, tags: string[]) => void
+  onUpdateResourceTag: (resourceId: string, tagName: string | null) => void
   allTagNames: string[]
 }
 
@@ -42,12 +42,14 @@ export function ResourceCardMenu({
   onDuplicate,
   onDelete,
   onExport,
-  onUpdateResourceTags,
+  onUpdateResourceTag,
   allTagNames
 }: ResourceCardMenuProps) {
   const { t } = useTranslation()
   const [showTagPicker, setShowTagPicker] = useState(false)
-  const [localTags, setLocalTags] = useState<string[]>(resource.tags)
+  const [localTag, setLocalTag] = useState<string | null>(() =>
+    resource.type === 'assistant' ? (resource.tag ?? null) : null
+  )
   const [tagInput, setTagInput] = useState('')
   const [bindingError, setBindingError] = useState<string | null>(null)
   const [bindingPending, setBindingPending] = useState(false)
@@ -65,22 +67,23 @@ export function ResourceCardMenu({
   const tagList = useTagList()
   const colorFor = (name: string): string => tagList.tags.find((tag) => tag.name === name)?.color ?? DEFAULT_TAG_COLOR
 
-  const persistTags = useCallback(
-    async (nextNames: string[], previousNames: string[]) => {
+  const persistTag = useCallback(
+    async (nextName: string | null, previousName: string | null) => {
       if (!canBindTags) return
       if (bindingPendingRef.current) return
       bindingPendingRef.current = true
       setBindingPending(true)
       try {
+        const nextNames = nextName ? [nextName] : []
         const tags = await ensureTags(nextNames)
         const tagIds = tags.map((tag) => tag.id)
         if (resource.type === 'assistant') {
           await updateAssistant({ tagIds })
         }
-        onUpdateResourceTags(resource.id, nextNames)
+        onUpdateResourceTag(resource.id, nextName)
       } catch (e) {
         // Roll back optimistic state on failure.
-        setLocalTags(previousNames)
+        setLocalTag(previousName)
         const message = e instanceof Error ? e.message : t('library.tag_sync_failed')
         setBindingError(message)
         // The inline error text only renders while the popup is open. Toast +
@@ -96,31 +99,31 @@ export function ResourceCardMenu({
         setBindingPending(false)
       }
     },
-    [canBindTags, ensureTags, updateAssistant, onUpdateResourceTags, resource.id, resource.type, t]
+    [canBindTags, ensureTags, updateAssistant, onUpdateResourceTag, resource.id, resource.type, t]
   )
 
   const toggleTag = (tag: string) => {
     if (bindingPendingRef.current) return
-    const prev = localTags
-    const next = prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag]
-    setLocalTags(next)
+    const prev = localTag
+    const next = prev === tag ? null : tag
+    setLocalTag(next)
     setBindingError(null)
-    void persistTags(next, prev)
+    void persistTag(next, prev)
   }
 
   const addNewTag = () => {
     if (bindingPendingRef.current) return
     const tag = tagInput.trim()
-    if (!tag || localTags.includes(tag)) {
+    if (!tag || localTag === tag) {
       setTagInput('')
       return
     }
-    const prev = localTags
-    const next = [...prev, tag]
-    setLocalTags(next)
+    const prev = localTag
+    const next = tag
+    setLocalTag(next)
     setTagInput('')
     setBindingError(null)
-    void persistTags(next, prev)
+    void persistTag(next, prev)
   }
 
   return (
@@ -137,9 +140,7 @@ export function ResourceCardMenu({
                 label={t('library.action.manage_tags')}
                 suffix={
                   <>
-                    {localTags.length > 0 && (
-                      <span className="text-foreground-muted text-xs tabular-nums">{localTags.length}</span>
-                    )}
+                    {localTag && <span className="text-foreground-muted text-xs tabular-nums">1</span>}
                     <ChevronDown size={8} className={`transition-transform ${showTagPicker ? 'rotate-180' : ''}`} />
                   </>
                 }
@@ -181,7 +182,7 @@ export function ResourceCardMenu({
                   </p>
                 )}
                 {allTagNames.map((tag) => {
-                  const checked = localTags.includes(tag)
+                  const checked = localTag === tag
                   return (
                     <div
                       key={tag}

@@ -636,7 +636,7 @@ describe('ResourceSelectorShell', () => {
 
   describe('edit button', () => {
     it('places edit and pin together in the row action area', () => {
-      const taggedItems: Item[] = [{ ...ITEMS[0], tags: ['Cherry', 'DEV'] }, ...ITEMS.slice(1)]
+      const taggedItems: Item[] = [{ ...ITEMS[0], tag: 'Cherry' }, ...ITEMS.slice(1)]
 
       render(
         <ResourceSelectorShell

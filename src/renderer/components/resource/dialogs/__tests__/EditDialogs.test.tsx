@@ -559,8 +559,8 @@ async function expectVariablesHelpOnHover() {
 }
 
 function openTagCombobox() {
-  const removeTagButton = screen.getByRole('button', { name: 'Remove work' })
-  const combobox = removeTagButton.closest('[role="combobox"]')
+  // Single-select trigger renders the bound tag name as its display value.
+  const combobox = screen.getByText('work').closest('button')
   if (!combobox) {
     throw new Error('Tag combobox trigger not found')
   }
@@ -616,29 +616,23 @@ describe('edit dialogs', () => {
   })
 
   it('submits assistant tag changes through ensureTags', async () => {
-    ensureTagsMock.mockResolvedValueOnce([
-      { id: 'tag-work', name: 'work', color: '#8b5cf6' },
-      { id: 'tag-personal', name: 'personal', color: '#10b981' }
-    ])
+    ensureTagsMock.mockResolvedValueOnce([{ id: 'tag-personal', name: 'personal', color: '#10b981' }])
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
     openTagCombobox()
     fireEvent.click(await screen.findByText('personal'))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-    await waitFor(() => expect(ensureTagsMock).toHaveBeenCalledWith(['work', 'personal']))
+    await waitFor(() => expect(ensureTagsMock).toHaveBeenCalledWith(['personal']))
     expect(updateAssistantMock).toHaveBeenCalledWith({
       body: expect.objectContaining({
-        tagIds: ['tag-work', 'tag-personal']
+        tagIds: ['tag-personal']
       })
     })
   })
 
   it('creates and binds a new tag typed in assistant editing', async () => {
-    ensureTagsMock.mockResolvedValueOnce([
-      { id: 'tag-work', name: 'work', color: '#8b5cf6' },
-      { id: 'tag-new', name: 'new-tag', color: '#10b981' }
-    ])
+    ensureTagsMock.mockResolvedValueOnce([{ id: 'tag-new', name: 'new-tag', color: '#10b981' }])
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
     openTagCombobox()
@@ -646,10 +640,10 @@ describe('edit dialogs', () => {
     fireEvent.click(await screen.findByText('new-tag'))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-    await waitFor(() => expect(ensureTagsMock).toHaveBeenCalledWith(['work', 'new-tag']))
+    await waitFor(() => expect(ensureTagsMock).toHaveBeenCalledWith(['new-tag']))
     expect(updateAssistantMock).toHaveBeenCalledWith({
       body: expect.objectContaining({
-        tagIds: ['tag-work', 'tag-new']
+        tagIds: ['tag-new']
       })
     })
   })

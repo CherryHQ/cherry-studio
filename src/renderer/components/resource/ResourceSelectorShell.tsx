@@ -30,7 +30,7 @@ export type ResourceSelectorShellItem = {
   name: string
   emoji?: string
   description?: string
-  tags?: string[]
+  tag?: string
   disabled?: boolean
 }
 
@@ -322,7 +322,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     let filtered = items
     if (selectedTagIds.length > 0) {
       const wanted = new Set(selectedTagIds)
-      filtered = filtered.filter((item) => item.tags?.some((tag) => wanted.has(tag)))
+      filtered = filtered.filter((item) => item.tag && wanted.has(item.tag))
     }
 
     const query = searchValue.trim().toLowerCase()
@@ -607,16 +607,13 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       <span className="flex size-5 shrink-0 items-center justify-center">{fallbackIcon}</span>
     ) : null
 
-    const trailing =
-      item.tags && item.tags.length > 0 ? (
-        <div
-          className="ml-2 flex h-4 max-w-[48%] shrink-0 items-center justify-end gap-1 overflow-hidden"
-          data-resource-selector-tags={item.id}>
-          {item.tags.map((tag) => (
-            <ResourceTagChip key={`${item.id}-${tag}`} tag={tag} color={tagColorByName.get(tag)} />
-          ))}
-        </div>
-      ) : null
+    const trailing = item.tag ? (
+      <div
+        className="ml-2 flex h-4 max-w-[48%] shrink-0 items-center justify-end gap-1 overflow-hidden"
+        data-resource-selector-tags={item.id}>
+        <ResourceTagChip tag={item.tag} color={tagColorByName.get(item.tag)} />
+      </div>
+    ) : null
 
     return (
       <div key={item.id} className="py-0.5">
