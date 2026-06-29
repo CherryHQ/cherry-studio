@@ -1,6 +1,5 @@
 import {
   Button,
-  Checkbox,
   Input,
   MenuDivider,
   MenuItem,
@@ -12,7 +11,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
-import { ChevronDown, Copy, Download, Plus, Tag, Trash2 } from 'lucide-react'
+import { Check, ChevronDown, Copy, Download, Plus, Tag, Trash2 } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -186,7 +185,8 @@ export function ResourceCardMenu({
                   return (
                     <div
                       key={tag}
-                      role="button"
+                      role="menuitemradio"
+                      aria-checked={checked}
                       tabIndex={bindingPending ? -1 : 0}
                       aria-disabled={bindingPending || undefined}
                       onClick={() => toggleTag(tag)}
@@ -202,16 +202,9 @@ export function ResourceCardMenu({
                           ? 'cursor-not-allowed opacity-60'
                           : 'cursor-pointer hover:bg-accent hover:text-foreground'
                       }`}>
-                      <span onClick={(e) => e.stopPropagation()}>
-                        <Checkbox
-                          size="sm"
-                          checked={checked}
-                          disabled={bindingPending}
-                          onCheckedChange={() => toggleTag(tag)}
-                        />
-                      </span>
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: colorFor(tag) }} />
                       <span className="flex-1 truncate text-left">{tag}</span>
+                      {checked && <Check size={12} className="shrink-0 text-success" />}
                     </div>
                   )
                 })}

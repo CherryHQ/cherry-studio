@@ -75,27 +75,6 @@ vi.mock('@cherrystudio/ui', async () => {
         </button>
       )
     },
-    Checkbox: ({
-      checked = false,
-      onCheckedChange,
-      size,
-      ...props
-    }: Omit<ComponentProps<'button'>, 'onChange'> & {
-      checked?: boolean
-      onCheckedChange?: (checked: boolean) => void
-      size?: string
-    }) => {
-      void size
-      return (
-        <button
-          type="button"
-          role="checkbox"
-          aria-checked={checked}
-          onClick={() => onCheckedChange?.(!checked)}
-          {...props}
-        />
-      )
-    },
     ConfirmDialog: ({
       cancelText,
       confirmText,
@@ -630,11 +609,12 @@ describe('ResourceCardMenu tag binding', () => {
     )
 
     await user.click(screen.getByRole('button', { name: /library.action.manage_tags/ }))
-    const checkboxes = screen.getAllByRole('checkbox')
-    await user.click(checkboxes[0])
+    await user.click(screen.getByRole('menuitemradio', { name: 'alpha' }))
 
-    await waitFor(() => expect(checkboxes[1]).toBeDisabled())
-    await user.click(checkboxes[1])
+    await waitFor(() =>
+      expect(screen.getByRole('menuitemradio', { name: 'beta' })).toHaveAttribute('aria-disabled', 'true')
+    )
+    await user.click(screen.getByRole('menuitemradio', { name: 'beta' }))
     expect(ensureTagsMock).toHaveBeenCalledTimes(1)
 
     pendingTags.resolve([{ id: 'tag-alpha', name: 'alpha' }])
@@ -665,7 +645,7 @@ describe('ResourceCardMenu tag binding', () => {
     )
 
     await user.click(screen.getByRole('button', { name: /library.action.manage_tags/ }))
-    await user.click(screen.getAllByRole('checkbox')[1])
+    await user.click(screen.getByRole('menuitemradio', { name: 'beta' }))
 
     await waitFor(() => expect(ensureTagsMock).toHaveBeenCalledWith(['beta']))
     expect(updateAssistantMock).toHaveBeenCalledWith({ tagIds: ['tag-beta'] })
