@@ -45,7 +45,7 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
     setLaunching(true)
     try {
       const { homePath } = await window.api.getAppInfo()
-      const result = await window.api.codeCli.run(CodeCli.CLAUDE_CODE, '', homePath, {})
+      const result = await window.api.codeCli.run(CodeCli.CLAUDE_CODE, '', homePath, { extraArgs: '/login' })
       if (!result.success) {
         logger.error('Failed to launch Claude login terminal', { message: result.message })
         window.toast.error(t('settings.provider.claude_code.launch_failed'))

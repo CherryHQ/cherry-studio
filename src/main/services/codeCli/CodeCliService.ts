@@ -83,7 +83,7 @@ export class CodeCliService extends BaseService {
         model: string,
         directory: string,
         env: Record<string, string>,
-        options?: { autoUpdateToLatest?: boolean; terminal?: string }
+        options?: { autoUpdateToLatest?: boolean; terminal?: string; extraArgs?: string }
       ) => this.run(event, cliTool, model, directory, env, options)
     )
     this.ipcHandle(IpcChannel.CodeCli_GetAvailableTerminals, () => this.getAvailableTerminalsForPlatform())
@@ -891,7 +891,7 @@ export class CodeCliService extends BaseService {
     _model: string,
     directory: string,
     env: Record<string, string>,
-    options: { autoUpdateToLatest?: boolean; terminal?: string } = {}
+    options: { autoUpdateToLatest?: boolean; terminal?: string; extraArgs?: string } = {}
   ): Promise<CodeToolsRunResult> {
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
     env = { ...getBinaryExecutionEnv(), ...env }
@@ -1062,6 +1062,13 @@ export class CodeCliService extends BaseService {
 
       // Add --model flag with dynamic provider prefix to avoid race conditions
       baseCommand = `${baseCommand} --model Cherry-${providerName}/${modelId}`
+    }
+
+    // Caller-supplied trailing args (e.g. the Claude Code settings panel passes
+    // `/login` so its terminal lands on the login flow, not a bare REPL). Kept
+    // generic so a plain launch from the CLI page stays unaffected.
+    if (options.extraArgs) {
+      baseCommand = `${baseCommand} ${options.extraArgs}`
     }
 
     switch (platform) {
