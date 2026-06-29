@@ -229,7 +229,7 @@ const OpenRouterExtension = ProviderExtension.create({
 
 const RequestyExtension = ProviderExtension.create({
   name: 'requesty',
-  create: createRequesty
+  create: (settings?: RequestyProviderSettings) => createRequesty(settings) as unknown as ProviderV3
 } as const satisfies ProviderExtensionConfig<RequestyProviderSettings, ProviderV3, 'requesty'>)
 
 const XaiExtension = ProviderExtension.create({
