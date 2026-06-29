@@ -385,6 +385,28 @@ describe('KnowledgeBaseService', () => {
       expect(row.error).toBeNull()
     })
 
+    it('creates a BM25-only base when no embedding model is provided', async () => {
+      const result = await service.create({ name: 'Lexical Base' })
+
+      expect(result.embeddingModelId).toBeNull()
+      expect(result.dimensions).toBeNull()
+      expect(result.searchMode).toBe('bm25')
+      expect(result.status).toBe('completed')
+      expect(result.error).toBeNull()
+
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, result.id))
+      expect(row.embeddingModelId).toBeNull()
+      expect(row.dimensions).toBeNull()
+      expect(row.searchMode).toBe('bm25')
+    })
+
+    it('forces BM25 search mode without an embedding model even when another mode is requested', async () => {
+      const result = await service.create({ name: 'Lexical Base', searchMode: 'hybrid' })
+
+      expect(result.embeddingModelId).toBeNull()
+      expect(result.searchMode).toBe('bm25')
+    })
+
     it('should persist a per-base hybridAlpha when provided', async () => {
       const result = await service.create({
         name: 'Hybrid Tuned',
@@ -508,11 +530,41 @@ describe('KnowledgeBaseService', () => {
       })
     })
 
-    it('rejects invalid persisted knowledge base status combinations', async () => {
+    it('allows a completed BM25-only base with null embedding model and dimensions', async () => {
       await expect(
         seedKnowledgeBase({
           embeddingModelId: null,
           dimensions: null,
+          status: 'completed',
+          error: null,
+          searchMode: 'bm25'
+        })
+      ).resolves.toBeDefined()
+
+      await expect(service.getById(KNOWLEDGE_BASE_ID)).resolves.toMatchObject({
+        embeddingModelId: null,
+        dimensions: null,
+        status: 'completed',
+        searchMode: 'bm25'
+      })
+    })
+
+    it('rejects invalid persisted knowledge base status combinations', async () => {
+      // A completed base's embedding model and dimensions must be set together; a
+      // half-set pair is rejected (only both-set or both-null are legal).
+      await expect(
+        seedKnowledgeBase({
+          embeddingModelId: createUniqueModelId('openai', 'embed-model'),
+          dimensions: null,
+          status: 'completed',
+          error: null
+        })
+      ).rejects.toThrow()
+
+      await expect(
+        seedKnowledgeBase({
+          embeddingModelId: null,
+          dimensions: 1536,
           status: 'completed',
           error: null
         })
@@ -618,6 +670,23 @@ describe('KnowledgeBaseService', () => {
       expect(row.chunkSize).toBe(256)
       expect(row.chunkOverlap).toBe(120)
       expect(row.hybridAlpha).toBeNull()
+    })
+
+    it('rejects switching a BM25-only base (no embedding model) to a non-bm25 search mode', async () => {
+      await seedKnowledgeBase({ embeddingModelId: null, dimensions: null, searchMode: 'bm25' })
+
+      await expect(service.update(KNOWLEDGE_BASE_ID, { searchMode: 'vector' })).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            searchMode: ['A knowledge base without an embedding model can only use bm25 search']
+          }
+        }
+      })
+
+      // A no-op bm25 update on the same base is still accepted.
+      const result = await service.update(KNOWLEDGE_BASE_ID, { searchMode: 'bm25' })
+      expect(result.searchMode).toBe('bm25')
     })
 
     it('should reject shrinking chunkSize when the existing chunkOverlap no longer fits', async () => {

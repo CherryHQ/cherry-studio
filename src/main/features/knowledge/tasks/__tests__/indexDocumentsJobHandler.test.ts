@@ -6,6 +6,7 @@ import {
   captureNoteSnapshotFileMock,
   captureUrlSnapshotFileMock,
   createAbortedCtx,
+  createBase,
   createCtx,
   createFileItem,
   createIndexDocumentsJobHandler,
@@ -125,6 +126,32 @@ describe('index-documents job handler', () => {
     expect(embedKnowledgeTextsMock.mock.calls[0][1]).toEqual([])
     expect(lastRebuildInput().embeddings).toEqual([])
     expect(lastRebuildInput().units).toHaveLength(DISTINCT_DOCS.length)
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
+  })
+
+  it('skips embedding entirely for a BM25-only base and writes only lexical text', async () => {
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
+    // A base without an embedding model is BM25-only: no dimensions, lexical search.
+    knowledgeBaseGetByIdMock.mockResolvedValue({
+      ...createBase(),
+      embeddingModelId: null,
+      dimensions: null,
+      searchMode: 'bm25'
+    })
+    knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
+    knowledgeItemUpdateStatusMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
+    loadKnowledgeItemDocumentsMock.mockResolvedValueOnce(distinctDocuments())
+
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
+
+    // No paid embed round-trip and no existing-hash lookup for a lexical base.
+    expect(embedKnowledgeTextsMock).not.toHaveBeenCalled()
+    expect(listExistingEmbeddingHashesMock).not.toHaveBeenCalled()
+
+    const input = lastRebuildInput()
+    expect(input.usesEmbeddings).toBe(false)
+    expect(input.embeddings).toEqual([])
+    expect(input.units).toHaveLength(DISTINCT_DOCS.length)
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
   })
 

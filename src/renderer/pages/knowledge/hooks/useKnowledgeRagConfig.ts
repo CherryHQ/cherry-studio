@@ -32,14 +32,19 @@ export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
     }))
   }, [t])
 
-  const searchModeOptions = useMemo<KnowledgeSelectOption[]>(
-    () => [
+  const searchModeOptions = useMemo<KnowledgeSelectOption[]>(() => {
+    const bm25Option = { value: 'bm25', label: t('knowledge.rag.search_mode.bm25') }
+    // Vector/hybrid retrieval needs an embedding model; a BM25-only base searches lexically only.
+    if (base.embeddingModelId === null) {
+      return [bm25Option]
+    }
+
+    return [
       { value: 'hybrid', label: t('knowledge.rag.search_mode.hybrid') },
       { value: 'vector', label: t('knowledge.rag.search_mode.vector') },
-      { value: 'bm25', label: t('knowledge.rag.search_mode.bm25') }
-    ],
-    [t]
-  )
+      bm25Option
+    ]
+  }, [t, base.embeddingModelId])
 
   const save = async (values: KnowledgeRagConfigFormValues) => {
     const patch = buildKnowledgeRagConfigPatch(initialValues, values)

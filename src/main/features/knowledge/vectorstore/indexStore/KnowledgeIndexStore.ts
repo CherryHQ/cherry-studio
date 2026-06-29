@@ -136,8 +136,9 @@ export class KnowledgeIndexStore {
         )
       }
 
-      // 6b. Coverage check: every unit's re-derived embedding hash must resolve to a
-      //     vector, or roll the rebuild back. This catches two failure modes:
+      // 6b. Coverage check (vector bases only): every unit's re-derived embedding
+      //     hash must resolve to a vector, or roll the rebuild back. This catches two
+      //     failure modes:
       //     (a) the caller hashes its chunk text while this store hashes the re-sliced
       //         body, so an offset/hash mismatch would leave a unit silently absent
       //         from vector search; and
@@ -146,7 +147,10 @@ export class KnowledgeIndexStore {
       //         drop a hash it reported present before this rebuild writes, and the job
       //         then skips re-embedding it. Failing loud rolls back; the job's retry
       //         re-reads (the hash is now absent), re-embeds it, and converges.
-      await this.assertEmbeddingCoverage(tx, materialId, [...new Set(units.map((unit) => unit.embeddingTextHash))])
+      //     A BM25-only base stores no vectors, so the check does not apply.
+      if (input.usesEmbeddings) {
+        await this.assertEmbeddingCoverage(tx, materialId, [...new Set(units.map((unit) => unit.embeddingTextHash))])
+      }
 
       // 7. Mark the material's current content (failure/lifecycle state is the
       //    authority of knowledge_item, not this derived index).

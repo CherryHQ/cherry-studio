@@ -19,14 +19,12 @@ import type { FormEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useEmbeddingDimensions } from '../hooks/useEmbeddingDimensions'
 import {
   KnowledgeDialogBody,
   KnowledgeDialogField,
   KnowledgeDialogFooter,
   KnowledgeDialogHeader
 } from './KnowledgeDialogLayout'
-import { isEmbeddingModel, KnowledgeModelSelect } from './KnowledgeModelSelect'
 
 interface CreateKnowledgeBaseDialogProps {
   open: boolean
@@ -38,18 +36,17 @@ interface CreateKnowledgeBaseDialogProps {
   onCreated: (base: KnowledgeBase) => void
 }
 
-type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId' | 'embeddingModelId' | 'dimensions'>
-type CreateKnowledgeBaseFormValues = Omit<CreateKnowledgeBaseInput, 'dimensions' | 'embeddingModelId'> & {
-  embeddingModelId: string | null
-}
+// The embedding model is no longer chosen here — a base is created BM25-only and
+// gets its model later from the RAG settings — so creation only needs name + group.
+type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId'>
+type CreateKnowledgeBaseFormValues = CreateKnowledgeBaseInput
 
 // Radix Select forbids an empty option value, so represent the default (ungrouped) group with a sentinel.
 const DEFAULT_GROUP_OPTION_VALUE = '__default__'
 
 const createInitialInput = (groupId?: string): CreateKnowledgeBaseFormValues => ({
   name: '',
-  groupId,
-  embeddingModelId: null
+  groupId
 })
 
 const CreateKnowledgeBaseDialogHeader = ({ title }: { title: string }) => {
@@ -110,7 +107,6 @@ const CreateKnowledgeBaseDialogRoot = ({
   )
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const { fetchDimensions, isFetchingDimensions } = useEmbeddingDimensions()
 
   useEffect(() => {
     if (!open) {
@@ -130,33 +126,17 @@ const CreateKnowledgeBaseDialogRoot = ({
     })
   }, [groupIds])
 
-  const handleEmbeddingModelChange = (embeddingModelId: string | null) => {
-    setValues((currentValues) => ({ ...currentValues, embeddingModelId }))
-    setSubmitError(null)
-  }
-
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setHasAttemptedSubmit(true)
     setSubmitError(null)
 
-    if (!values.name.trim() || !values.embeddingModelId) {
-      return
-    }
-
-    let dimensions: number
-
-    try {
-      dimensions = await fetchDimensions(values.embeddingModelId)
-    } catch (error) {
-      setSubmitError(formatErrorMessageWithPrefix(error, t('message.error.get_embedding_dimensions')))
+    if (!values.name.trim()) {
       return
     }
 
     const createInput: CreateKnowledgeBaseInput = {
-      name: values.name,
-      embeddingModelId: values.embeddingModelId,
-      dimensions
+      name: values.name
     }
 
     if (values.groupId && groupIds.has(values.groupId)) {
@@ -223,26 +203,11 @@ const CreateKnowledgeBaseDialogRoot = ({
               </KnowledgeDialogField>
             ) : null}
 
-            <KnowledgeDialogField>
-              <Label>{t('knowledge.embedding_model')}</Label>
-              <KnowledgeModelSelect
-                aria-label={t('knowledge.embedding_model')}
-                value={values.embeddingModelId}
-                placeholder={t('knowledge.not_set')}
-                filter={isEmbeddingModel}
-                invalid={hasAttemptedSubmit && !values.embeddingModelId}
-                onChange={handleEmbeddingModelChange}
-              />
-              {hasAttemptedSubmit && !values.embeddingModelId ? (
-                <FieldError>{t('knowledge.embedding_model_required')}</FieldError>
-              ) : null}
-            </KnowledgeDialogField>
-
             {submitError ? <FieldError>{submitError}</FieldError> : null}
           </KnowledgeDialogBody>
 
           <CreateKnowledgeBaseDialog.Actions
-            isCreating={isCreating || isFetchingDimensions}
+            isCreating={isCreating}
             onCancel={() => onOpenChange(false)}
             cancelLabel={t('common.cancel')}
             submitLabel={t('knowledge.add.submit')}

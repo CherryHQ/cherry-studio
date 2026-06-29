@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { isCompletedKnowledgeBase } from '@shared/data/types/knowledge'
+import { isVectorKnowledgeBase } from '@shared/data/types/knowledge'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 
 export async function embedKnowledgeQuery(base: KnowledgeBase, query: string): Promise<number[]> {
@@ -42,7 +42,7 @@ function parseEmbeddingModelId(base: KnowledgeBase) {
 }
 
 function assertEmbeddingVectors(base: KnowledgeBase, expectedCount: number, embeddings: number[][]): number[][] {
-  if (!isCompletedKnowledgeBase(base)) {
+  if (!isVectorKnowledgeBase(base)) {
     throw DataApiErrorFactory.invalidOperation(
       'embed knowledge content',
       `Knowledge base '${base.id}' has no embedding dimensions configured`

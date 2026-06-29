@@ -6,6 +6,7 @@ import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
   isCompletedKnowledgeBase,
+  isVectorKnowledgeBase,
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   KnowledgeAddItemInputSchema,
   type KnowledgeBase,
@@ -48,6 +49,54 @@ describe('Knowledge base schemas', () => {
     if (result.success) {
       expect(result.data.groupId).toBe(GROUP_ID)
     }
+  })
+
+  it('accepts a create request without an embedding model or dimensions (BM25-only)', () => {
+    const result = CreateKnowledgeBaseSchema.safeParse({
+      name: 'KB',
+      groupId: GROUP_ID
+    })
+
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects a half-set embedding model / dimensions pair', () => {
+    expect(
+      CreateKnowledgeBaseSchema.safeParse({
+        name: 'KB',
+        embeddingModelId: 'embed-model'
+      }).success
+    ).toBe(false)
+
+    expect(
+      CreateKnowledgeBaseSchema.safeParse({
+        name: 'KB',
+        dimensions: 1024
+      }).success
+    ).toBe(false)
+  })
+
+  it('rejects a non-bm25 search mode without an embedding model', () => {
+    expect(
+      CreateKnowledgeBaseSchema.safeParse({
+        name: 'KB',
+        searchMode: 'hybrid'
+      }).success
+    ).toBe(false)
+
+    expect(
+      CreateKnowledgeBaseSchema.safeParse({
+        name: 'KB',
+        searchMode: 'vector'
+      }).success
+    ).toBe(false)
+
+    expect(
+      CreateKnowledgeBaseSchema.safeParse({
+        name: 'KB',
+        searchMode: 'bm25'
+      }).success
+    ).toBe(true)
   })
 
   it('rejects blank create group ids', () => {
@@ -323,6 +372,28 @@ describe('Knowledge base schemas', () => {
     expect(KnowledgeBaseSchema.safeParse({ ...failedBase, dimensions: null }).success).toBe(true)
     expect(KnowledgeBaseSchema.safeParse({ ...failedBase, dimensions: 0 }).success).toBe(false)
     expect(KnowledgeBaseSchema.safeParse({ ...failedBase, dimensions: 768 }).success).toBe(true)
+  })
+
+  it('forces a completed base without an embedding model to use bm25 search mode', () => {
+    const bm25Base = {
+      id: KNOWLEDGE_BASE_ID,
+      name: 'KB',
+      embeddingModelId: null,
+      dimensions: null,
+      groupId: null,
+      status: 'completed',
+      error: null,
+      chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+      chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+      chunkStrategy: 'structured',
+      chunkSeparator: '\\n\\n',
+      createdAt: '2026-04-10T00:00:00.000Z',
+      updatedAt: '2026-04-10T00:00:00.000Z'
+    }
+
+    expect(KnowledgeBaseSchema.safeParse({ ...bm25Base, searchMode: 'bm25' }).success).toBe(true)
+    expect(KnowledgeBaseSchema.safeParse({ ...bm25Base, searchMode: 'hybrid' }).success).toBe(false)
+    expect(KnowledgeBaseSchema.safeParse({ ...bm25Base, searchMode: 'vector' }).success).toBe(false)
   })
 
   it('requires persisted config to be present in entity schema', () => {
@@ -634,11 +705,22 @@ describe('isCompletedKnowledgeBase', () => {
     updatedAt: '2026-04-10T00:00:00.000Z'
   })
 
-  it('accepts a completed base with positive integer dimensions', () => {
+  it('accepts a completed vector base', () => {
     expect(isCompletedKnowledgeBase(completedBase)).toBe(true)
   })
 
-  it('rejects a failed base with unknown dimensions', () => {
+  it('accepts a completed BM25-only base without an embedding model or dimensions', () => {
+    const bm25Base = KnowledgeBaseSchema.parse({
+      ...completedBase,
+      embeddingModelId: null,
+      dimensions: null,
+      searchMode: 'bm25'
+    })
+
+    expect(isCompletedKnowledgeBase(bm25Base)).toBe(true)
+  })
+
+  it('rejects a failed base', () => {
     const failedBase = KnowledgeBaseSchema.parse({
       ...completedBase,
       status: 'failed',
@@ -650,16 +732,65 @@ describe('isCompletedKnowledgeBase', () => {
     expect(isCompletedKnowledgeBase(failedBase)).toBe(false)
   })
 
-  it('rejects illegal completed states the schema would never produce', () => {
-    expect(isCompletedKnowledgeBase({ ...completedBase, dimensions: null } as KnowledgeBase)).toBe(false)
-    expect(isCompletedKnowledgeBase({ ...completedBase, dimensions: 0 } as KnowledgeBase)).toBe(false)
-    expect(isCompletedKnowledgeBase({ ...completedBase, embeddingModelId: null } as KnowledgeBase)).toBe(false)
+  it('rejects a completed base that still carries an error', () => {
     expect(
       isCompletedKnowledgeBase({
         ...completedBase,
         error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
       } as KnowledgeBase)
     ).toBe(false)
+  })
+})
+
+describe('isVectorKnowledgeBase', () => {
+  const vectorBase = KnowledgeBaseSchema.parse({
+    id: KNOWLEDGE_BASE_ID,
+    name: 'KB',
+    groupId: null,
+    dimensions: 768,
+    embeddingModelId: 'embed-model',
+    status: 'completed',
+    error: null,
+    chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+    chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+    chunkStrategy: 'structured',
+    chunkSeparator: '\\n\\n',
+    searchMode: 'hybrid',
+    createdAt: '2026-04-10T00:00:00.000Z',
+    updatedAt: '2026-04-10T00:00:00.000Z'
+  })
+
+  it('accepts a completed base with an embedding model and positive integer dimensions', () => {
+    expect(isVectorKnowledgeBase(vectorBase)).toBe(true)
+  })
+
+  it('rejects a completed BM25-only base with no embedding model or dimensions', () => {
+    const bm25Base = KnowledgeBaseSchema.parse({
+      ...vectorBase,
+      embeddingModelId: null,
+      dimensions: null,
+      searchMode: 'bm25'
+    })
+
+    expect(isVectorKnowledgeBase(bm25Base)).toBe(false)
+  })
+
+  it('rejects illegal vector states the schema would never produce', () => {
+    expect(isVectorKnowledgeBase({ ...vectorBase, dimensions: null } as KnowledgeBase)).toBe(false)
+    expect(isVectorKnowledgeBase({ ...vectorBase, dimensions: 0 } as KnowledgeBase)).toBe(false)
+    expect(isVectorKnowledgeBase({ ...vectorBase, embeddingModelId: null } as KnowledgeBase)).toBe(false)
+  })
+
+  it('rejects a failed base', () => {
+    const failedBase = KnowledgeBaseSchema.parse({
+      ...vectorBase,
+      status: 'failed',
+      embeddingModelId: null,
+      dimensions: null,
+      error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
+    })
+
+    expect(isVectorKnowledgeBase(failedBase)).toBe(false)
   })
 })
 

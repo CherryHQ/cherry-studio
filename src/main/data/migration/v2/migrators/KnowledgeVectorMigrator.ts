@@ -238,6 +238,8 @@ function buildMigratedRebuildInput(
       text: joinMigratedChunkText(chunks)
     },
     units,
+    // v1 bases always carried embeddings, so a migrated base is a vector base.
+    usesEmbeddings: true,
     embeddings: [...embeddingByHash.entries()].map(([embeddingTextHash, vector]) => ({ embeddingTextHash, vector }))
   }
 

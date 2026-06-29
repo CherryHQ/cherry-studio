@@ -1657,6 +1657,24 @@ describe('KnowledgeService', () => {
     expect(results.map((result) => result.chunkId)).toEqual(['c1', 'c2'])
   })
 
+  it('forces BM25 for a base without an embedding model even if its stored mode is not bm25', async () => {
+    const service = new KnowledgeService()
+    // A BM25-only base has no embedding model/dimensions; a lingering non-bm25 mode
+    // must not trigger an embedding round-trip the base can't satisfy.
+    knowledgeBaseGetByIdMock.mockResolvedValue(
+      createBase({ embeddingModelId: null, dimensions: null, searchMode: 'hybrid' })
+    )
+    knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
+    storeSearchMock.mockResolvedValueOnce([
+      { unitId: 'c1', materialId: NOTE_ITEM_ID, unitIndex: 0, text: 'hit', score: 3.2 }
+    ])
+
+    await service.search('kb-1', 'hello')
+
+    expect(aiEmbedManyMock).not.toHaveBeenCalled()
+    expect(storeSearchMock).toHaveBeenCalledWith(expect.objectContaining({ mode: 'bm25', queryEmbedding: undefined }))
+  })
+
   it('hybrid mode embeds the query and passes the per-base hybridAlpha through to the store', async () => {
     const service = new KnowledgeService()
     knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ searchMode: 'hybrid', hybridAlpha: 0.7, threshold: 0.5 }))

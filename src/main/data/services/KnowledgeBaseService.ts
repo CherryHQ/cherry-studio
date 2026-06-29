@@ -44,6 +44,7 @@ function validateKnowledgeBaseConfig(config: {
   chunkSeparator?: string | null
   searchMode?: string | null
   hybridAlpha?: number | null
+  embeddingModelId?: string | null
 }): Record<string, string[]> {
   const fieldErrors: Record<string, string[]> = {}
 
@@ -57,6 +58,12 @@ function validateKnowledgeBaseConfig(config: {
 
   if (config.hybridAlpha != null && config.searchMode !== 'hybrid') {
     fieldErrors.hybridAlpha = ['Hybrid alpha requires hybrid search mode']
+  }
+
+  // Vector and hybrid retrieval need an embedding model; without one the base is
+  // BM25-only and cannot be switched to a non-bm25 search mode.
+  if (config.embeddingModelId == null && config.searchMode != null && config.searchMode !== 'bm25') {
+    fieldErrors.searchMode = ['A knowledge base without an embedding model can only use bm25 search']
   }
 
   return fieldErrors
@@ -177,15 +184,19 @@ export class KnowledgeBaseService {
   }
 
   async create(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
+    // An embedding model is optional. Without one the base is BM25-only: it stores
+    // no dimensions and is forced to lexical search regardless of any requested mode.
+    const embeddingModelId = dto.embeddingModelId?.trim() || null
+    const usesEmbeddings = embeddingModelId !== null
     const createConfig = {
       chunkSize: dto.chunkSize ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
       chunkOverlap: dto.chunkOverlap ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
       chunkStrategy: dto.chunkStrategy ?? DEFAULT_KNOWLEDGE_CHUNK_STRATEGY,
       chunkSeparator: dto.chunkSeparator ?? DEFAULT_KNOWLEDGE_CHUNK_SEPARATOR,
-      searchMode: dto.searchMode ?? DEFAULT_KNOWLEDGE_SEARCH_MODE,
-      hybridAlpha: dto.hybridAlpha
+      searchMode: usesEmbeddings ? (dto.searchMode ?? DEFAULT_KNOWLEDGE_SEARCH_MODE) : 'bm25',
+      hybridAlpha: usesEmbeddings ? dto.hybridAlpha : undefined
     }
-    const createFieldErrors = validateKnowledgeBaseConfig(createConfig)
+    const createFieldErrors = validateKnowledgeBaseConfig({ ...createConfig, embeddingModelId })
     if (Object.keys(createFieldErrors).length > 0) {
       throw DataApiErrorFactory.validation(createFieldErrors)
     }
@@ -193,8 +204,8 @@ export class KnowledgeBaseService {
     const createValues: Omit<typeof knowledgeBaseTable.$inferInsert, 'id' | 'createdAt' | 'updatedAt'> = {
       name: dto.name.trim(),
       groupId: dto.groupId ?? null,
-      dimensions: dto.dimensions,
-      embeddingModelId: dto.embeddingModelId.trim(),
+      dimensions: usesEmbeddings ? (dto.dimensions ?? null) : null,
+      embeddingModelId,
       status: DEFAULT_KNOWLEDGE_BASE_STATUS,
       error: null,
       rerankModelId: dto.rerankModelId ?? null,
@@ -242,7 +253,10 @@ export class KnowledgeBaseService {
       nextConfig.hybridAlpha = null
     }
 
-    const updateFieldErrors = validateKnowledgeBaseConfig(nextConfig)
+    const updateFieldErrors = validateKnowledgeBaseConfig({
+      ...nextConfig,
+      embeddingModelId: existing.embeddingModelId
+    })
     if (Object.keys(updateFieldErrors).length > 0) {
       throw DataApiErrorFactory.validation(updateFieldErrors)
     }

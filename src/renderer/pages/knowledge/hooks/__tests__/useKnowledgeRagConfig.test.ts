@@ -136,6 +136,13 @@ describe('useKnowledgeRagConfig', () => {
     })
   })
 
+  it('offers only BM25 search mode for a base without an embedding model', () => {
+    const base = createKnowledgeBase({ embeddingModelId: null, dimensions: null, searchMode: 'bm25' })
+    const { result } = renderHook(() => useKnowledgeRagConfig(base))
+
+    expect(result.current.searchModeOptions).toEqual([{ value: 'bm25', label: '全文检索' }])
+  })
+
   it('propagates save failures to the caller', async () => {
     const saveError = new Error('save failed')
     mockTrigger.mockRejectedValueOnce(saveError)

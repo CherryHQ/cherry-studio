@@ -21,10 +21,7 @@ const normalizeError = (error: unknown): Error => {
   return new Error(String(error))
 }
 
-export type CreateKnowledgeBaseInput = Pick<
-  CreateKnowledgeBaseDto,
-  'name' | 'groupId' | 'embeddingModelId' | 'dimensions'
->
+export type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId'>
 export type RestoreKnowledgeBaseInput = Pick<
   RestoreKnowledgeBaseDto,
   'sourceBaseId' | 'name' | 'embeddingModelId' | 'dimensions'
@@ -56,30 +53,18 @@ export const useCreateKnowledgeBase = () => {
 
       const name = input.name.trim()
       const groupId = input.groupId?.trim()
-      const embeddingModelId = input.embeddingModelId?.trim()
-      const dimensions = input.dimensions
 
       if (!name) {
         throw new Error('Knowledge base name is required')
       }
 
-      if (!embeddingModelId) {
-        throw new Error('Knowledge base embedding model is required')
-      }
-
-      if (!Number.isInteger(dimensions) || dimensions <= 0) {
-        throw new Error(`Knowledge base dimensions must be a positive integer, received "${input.dimensions}"`)
-      }
-
+      // The embedding model is optional: a base created without one is BM25-only
+      // and gets its model later from the RAG settings. Configure it there, not here.
       const body: {
         name: string
-        embeddingModelId: string
-        dimensions: number
         groupId?: string
       } = {
-        name,
-        embeddingModelId,
-        dimensions
+        name
       }
 
       if (groupId) {
@@ -105,8 +90,7 @@ export const useCreateKnowledgeBase = () => {
         const normalizedError = normalizeError(error)
         logger.error('Failed to create knowledge base', normalizedError, {
           name,
-          groupId,
-          embeddingModelId
+          groupId
         })
         setCreateError(normalizedError)
         setIsCreating(false)

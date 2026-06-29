@@ -154,14 +154,6 @@ export const KnowledgeBaseEntitySchema = z.strictObject({
 
 export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine((value, ctx) => {
   if (value.status === 'completed') {
-    if (value.embeddingModelId === null) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['embeddingModelId'],
-        message: 'Completed knowledge base requires an embedding model'
-      })
-    }
-
     if (value.error !== null) {
       ctx.addIssue({
         code: 'custom',
@@ -170,11 +162,23 @@ export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine((value,
       })
     }
 
-    if (value.dimensions === null) {
+    // Embedding model and dimensions are paired: a vector base has both, a
+    // BM25-only base has neither. A half-set pair is invalid either way.
+    if ((value.embeddingModelId === null) !== (value.dimensions === null)) {
       ctx.addIssue({
         code: 'custom',
         path: ['dimensions'],
-        message: 'Completed knowledge base requires positive dimensions'
+        message: 'Embedding model and dimensions must be set together'
+      })
+    }
+
+    // Vector and hybrid retrieval both need an embedding model. A BM25-only base
+    // (no embedding model) can only search lexically.
+    if (value.embeddingModelId === null && value.searchMode !== 'bm25') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['searchMode'],
+        message: 'A knowledge base without an embedding model must use bm25 search mode'
       })
     }
   }
@@ -206,27 +210,39 @@ export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine((value,
 export type KnowledgeBase = z.infer<typeof KnowledgeBaseSchema>
 
 /**
- * A knowledge base that has finished embedding and is ready for vector-store
- * operations. Narrows away the states `KnowledgeBaseSchema.superRefine` already
- * rejects for `status === 'completed'` (null dimensions / embedding model, or a
- * lingering error), so consumers can read `dimensions` as a plain `number`
- * instead of re-asserting at each call site.
+ * A knowledge base that has finished setup and is ready for runtime operations
+ * (opening its index store, BM25 search, indexing). Covers both a vector base
+ * (embedding model + dimensions) and a BM25-only base (neither) — both are valid
+ * `completed` states. Use {@link isVectorKnowledgeBase} when you specifically
+ * need embeddings/dimensions.
  */
 export type CompletedKnowledgeBase = KnowledgeBase & {
   status: 'completed'
-  dimensions: number
-  embeddingModelId: string
   error: null
 }
 
 export function isCompletedKnowledgeBase(base: KnowledgeBase): base is CompletedKnowledgeBase {
+  return base.status === 'completed' && base.error === null
+}
+
+/**
+ * A completed base that uses embeddings: it has a resolved embedding model and a
+ * positive vector width, so vector/hybrid retrieval and the embedding pipeline
+ * can read `dimensions`/`embeddingModelId` as plain non-null values. A base
+ * without an embedding model is BM25-only and is intentionally excluded.
+ */
+export type VectorKnowledgeBase = CompletedKnowledgeBase & {
+  dimensions: number
+  embeddingModelId: string
+}
+
+export function isVectorKnowledgeBase(base: KnowledgeBase): base is VectorKnowledgeBase {
   return (
-    base.status === 'completed' &&
+    isCompletedKnowledgeBase(base) &&
     typeof base.dimensions === 'number' &&
     Number.isInteger(base.dimensions) &&
     base.dimensions > 0 &&
-    base.embeddingModelId !== null &&
-    base.error === null
+    base.embeddingModelId !== null
   )
 }
 
@@ -533,8 +549,9 @@ export type KnowledgeItemChunk = z.infer<typeof KnowledgeItemChunkSchema>
 // ============================================================================
 
 const KnowledgeBaseRuntimeConfigSchema = z.strictObject({
-  dimensions: z.number().int().positive(),
-  embeddingModelId: z.string().trim().min(1),
+  // Optional and paired: a vector base supplies both, a BM25-only base omits both.
+  dimensions: z.number().int().positive().nullable().optional(),
+  embeddingModelId: z.string().trim().min(1).nullable().optional(),
   rerankModelId: z.string().nullable().optional(),
   fileProcessorId: z.string().nullable().optional(),
   chunkSize: KnowledgeChunkSizeSchema.optional(),
@@ -548,6 +565,26 @@ const KnowledgeBaseRuntimeConfigSchema = z.strictObject({
 })
 
 const refineRuntimeConfig = (value: z.infer<typeof KnowledgeBaseRuntimeConfigSchema>, ctx: z.RefinementCtx): void => {
+  // Vector/hybrid retrieval needs an embedding model, and a model is useless
+  // without its vector width — require both or neither.
+  if ((value.embeddingModelId == null) !== (value.dimensions == null)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['dimensions'],
+      message: 'Embedding model and dimensions must be provided together'
+    })
+  }
+
+  // A non-bm25 mode requested without an embedding model is invalid: vector and
+  // hybrid retrieval both need embeddings, so a BM25-only base must search lexically.
+  if (value.embeddingModelId == null && value.searchMode != null && value.searchMode !== 'bm25') {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['searchMode'],
+      message: 'A knowledge base without an embedding model must use bm25 search mode'
+    })
+  }
+
   if (value.chunkOverlap != null && value.chunkSize == null) {
     ctx.addIssue({
       code: 'custom',

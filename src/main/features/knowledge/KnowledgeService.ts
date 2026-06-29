@@ -21,6 +21,7 @@ import {
   type RestoreKnowledgeBaseDto,
   type RestoreKnowledgeBaseResult
 } from '@shared/data/types/knowledge'
+import { isVectorKnowledgeBase } from '@shared/data/types/knowledge'
 import { estimateTokenCount } from 'tokenx'
 
 import { KnowledgeLockManager } from './KnowledgeLockManager'
@@ -288,7 +289,9 @@ export class KnowledgeService extends BaseService {
 
     const base = await knowledgeBaseService.getById(baseId)
     // Stored search mode and the index store's mode are the same enum now, so no mapping.
-    const mode = base.searchMode
+    // Vector/hybrid retrieval needs an embedding model; a base without one is BM25-only
+    // regardless of its stored preference.
+    const mode = isVectorKnowledgeBase(base) ? base.searchMode : 'bm25'
     // BM25 is lexical only; skip the embedding round-trip when the query won't use it.
     const queryEmbedding = mode === 'bm25' ? undefined : await embedKnowledgeQuery(base, query)
 

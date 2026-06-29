@@ -29,6 +29,7 @@ function buildInput(
     material: { relativePath },
     content: { text },
     units,
+    usesEmbeddings: true,
     embeddings: hashes.map((embeddingTextHash) => ({ embeddingTextHash, vector }))
   }
 }
@@ -177,6 +178,7 @@ describe('KnowledgeIndexStore', () => {
         { unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: 6 },
         { unitType: 'chunk', unitIndex: 0, charStart: 7, charEnd: 12 }
       ],
+      usesEmbeddings: true,
       embeddings: [{ embeddingTextHash: hashEmbeddingText('broken'), vector: [0.1, 0.2, 0.3] }]
     }
     await expect(store.rebuildMaterial('m1', broken)).rejects.toThrow()
@@ -229,6 +231,7 @@ describe('KnowledgeIndexStore', () => {
       material: { relativePath: 'doc.md' },
       content: { text: 'drifted body text' },
       units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: 7 }],
+      usesEmbeddings: true,
       embeddings: [{ embeddingTextHash: hashEmbeddingText('not the sliced body'), vector: [0.1, 0.2, 0.3] }]
     }
     await expect(store.rebuildMaterial('m1', drifted)).rejects.toThrow('without a vector')

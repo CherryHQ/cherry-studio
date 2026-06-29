@@ -6,6 +6,7 @@ import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { JobContext, JobHandler } from '@main/core/job/types'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import { isVectorKnowledgeBase } from '@shared/data/types/knowledge'
 
 import type { KnowledgeLockManager } from '../KnowledgeLockManager'
 import { loadKnowledgeItemDocuments } from '../readers/KnowledgeReader'
@@ -20,7 +21,7 @@ import { fetchKnowledgeWebPage } from '../utils/sources/url'
 import { captureUrlSnapshotFile } from '../utils/sources/urlSnapshot'
 import { collectKnowledgeReservedRelativePaths } from '../utils/storage/pathStorage'
 import { hashEmbeddingText } from '../vectorstore/indexStore/hashing'
-import type { RebuildMaterialInput } from '../vectorstore/indexStore/model'
+import type { RebuildMaterialEmbeddingInput, RebuildMaterialInput } from '../vectorstore/indexStore/model'
 import type { KnowledgeIndexDocumentsPayload } from './jobTypes'
 import { isDataApiNotFoundError, markKnowledgeItemFailedOnSettled } from './utils/settled'
 
@@ -261,19 +262,25 @@ async function buildRebuildMaterialInput(
     bodyByHash.set(hashEmbeddingText(chunk.text), chunk.text)
   }
 
-  // Decision A4: reuse vectors already stored for unchanged chunks — only embed
-  // the hashes the index does not have yet, so reindexing unchanged content does
-  // not re-spend the paid embedding API. Existing hashes resolve to their stored
-  // vector at query time; rebuildMaterial keeps them.
-  const vectorStoreService = application.get('KnowledgeVectorStoreService')
-  const store = await vectorStoreService.getIndexStore(base)
-  const existingHashes = await store.listExistingEmbeddingHashes([...bodyByHash.keys()])
-  const missing = [...bodyByHash.entries()].filter(([hash]) => !existingHashes.has(hash))
-  const vectors = await embedKnowledgeTexts(
-    base,
-    missing.map(([, body]) => body),
-    ctx.signal
-  )
+  // A BM25-only base (no embedding model) indexes lexically: store the FTS text
+  // and skip embedding entirely. A vector base embeds only the chunk bodies the
+  // index does not already have (decision A4: reuse vectors stored for unchanged
+  // chunks so reindexing does not re-spend the paid embedding API; existing hashes
+  // resolve to their stored vector at query time and rebuildMaterial keeps them).
+  const usesEmbeddings = isVectorKnowledgeBase(base)
+  let embeddings: RebuildMaterialEmbeddingInput[] = []
+  if (usesEmbeddings) {
+    const vectorStoreService = application.get('KnowledgeVectorStoreService')
+    const store = await vectorStoreService.getIndexStore(base)
+    const existingHashes = await store.listExistingEmbeddingHashes([...bodyByHash.keys()])
+    const missing = [...bodyByHash.entries()].filter(([hash]) => !existingHashes.has(hash))
+    const vectors = await embedKnowledgeTexts(
+      base,
+      missing.map(([, body]) => body),
+      ctx.signal
+    )
+    embeddings = missing.map(([embeddingTextHash], index) => ({ embeddingTextHash, vector: vectors[index] }))
+  }
 
   return {
     material: {
@@ -288,7 +295,8 @@ async function buildRebuildMaterialInput(
       charStart: chunk.charStart,
       charEnd: chunk.charEnd
     })),
-    embeddings: missing.map(([embeddingTextHash], index) => ({ embeddingTextHash, vector: vectors[index] }))
+    usesEmbeddings,
+    embeddings
   }
 }
 

@@ -37,6 +37,12 @@ export interface RebuildMaterialInput {
     text: string
   }
   units: RebuildMaterialUnitInput[]
+  /**
+   * Whether this base embeds its content. A vector base supplies `embeddings` and
+   * its per-unit vector coverage is verified; a BM25-only base (no embedding
+   * model) supplies none and skips that check — it is searched lexically.
+   */
+  usesEmbeddings: boolean
   embeddings: RebuildMaterialEmbeddingInput[]
 }
 

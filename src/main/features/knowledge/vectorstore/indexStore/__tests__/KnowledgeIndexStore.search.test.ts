@@ -34,6 +34,7 @@ describe('KnowledgeIndexStore.search', () => {
       material: { relativePath },
       content: { text },
       units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: text.length }],
+      usesEmbeddings: true,
       embeddings: [{ embeddingTextHash: hashEmbeddingText(text), vector }]
     })
 
