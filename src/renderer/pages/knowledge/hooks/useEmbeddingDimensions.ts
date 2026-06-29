@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
+import { LOCAL_EMBEDDING_DIMENSIONS, LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 import { useCallback, useState } from 'react'
 
@@ -23,6 +24,13 @@ const getEmbeddingDimensions = (embeddings: number[][]): number => {
 const fetchEmbeddingDimensions = async (uniqueModelId: string): Promise<number> => {
   try {
     const parsedModelId = UniqueModelIdSchema.parse(uniqueModelId)
+
+    // The local embedding model runs in-process with a fixed output dimension —
+    // return it directly instead of loading the 600MB model just to count dims.
+    if (parsedModelId === LOCAL_EMBEDDING_UNIQUE_MODEL_ID) {
+      return LOCAL_EMBEDDING_DIMENSIONS
+    }
+
     const { embeddings } = await ipcApi.request('ai.embed_many', {
       uniqueModelId: parsedModelId,
       values: [EMBEDDING_DIMENSION_PROBE_TEXT]
