@@ -219,14 +219,17 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
   })
 
-  it('whitelists enabled managed skill names plus workspace skills, excludes disabled, never paths', async () => {
+  it('whitelists by directory name only, excludes disabled, never lets a shared SKILL.md name leak through', async () => {
     mocks.listSkills.mockResolvedValue([
-      { id: 'skill-1', folderName: 'pdf', name: 'pdf', isEnabled: true },
-      { id: 'skill-2', folderName: 'docx', name: 'docx', isEnabled: false }
+      // Enabled and disabled skills deliberately share a SKILL.md `name` ('pdf').
+      // The whitelist must key on the unique folderName so the disabled skill
+      // is not un-hidden by the enabled one's name.
+      { id: 'skill-1', folderName: 'pdf-tools', name: 'pdf', isEnabled: true },
+      { id: 'skill-2', folderName: 'pdf-legacy', name: 'pdf', isEnabled: false }
     ])
     // Workspace project skill under cwd/.claude/skills — must be in the whitelist or the
-    // SDK filters the user's own project skill out.
-    mocks.listLocalSkills.mockResolvedValue([{ name: 'my-project-skill', filename: 'my-project-skill' }])
+    // SDK filters the user's own project skill out. Keyed by its directory name (filename).
+    mocks.listLocalSkills.mockResolvedValue([{ name: 'Project Skill', filename: 'my-project-skill' }])
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
@@ -235,8 +238,9 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    expect(settings.skills).toEqual(['pdf', 'my-project-skill'])
-    expect(settings.skills).not.toContain('docx')
+    expect(settings.skills).toEqual(['pdf-tools', 'my-project-skill'])
+    expect(settings.skills).not.toContain('pdf') // shared SKILL.md name never whitelisted
+    expect(settings.skills).not.toContain('pdf-legacy') // disabled skill excluded
     expect(settings.skills?.some((skill) => path.isAbsolute(skill))).toBe(false)
   })
 
