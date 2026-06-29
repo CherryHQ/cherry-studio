@@ -5,7 +5,7 @@ import { trim } from 'lodash'
 export {
   formatApiHost,
   formatApiKeys,
-  hasAPIVersion,
+  hasApiVersion,
   isWithTrailingSharp,
   splitApiKeyString,
   withoutTrailingSharp,

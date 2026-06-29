@@ -1,7 +1,7 @@
 import { PortalContainerProvider } from '@cherrystudio/ui'
 import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
-import { isMac } from '@renderer/config/constant'
 import { routeTree } from '@renderer/routeTree.gen'
+import { isMac } from '@renderer/utils/platform'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
 import { Activity } from 'react'

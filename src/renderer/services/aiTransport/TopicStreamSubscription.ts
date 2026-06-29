@@ -1,0 +1,257 @@
+import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
+import type { StreamChunkPayload } from '@shared/ai/transport'
+import type { UniqueModelId } from '@shared/data/types/model'
+import type { UIMessageChunk } from 'ai'
+
+const logger = loggerService.withContext('TopicStreamSubscription')
+
+export interface ExecutionTerminal {
+  anchorMessageId?: string
+  isAbort: boolean
+  isError: boolean
+}
+
+type TerminalListener = (executionId: UniqueModelId, terminal: ExecutionTerminal) => void
+
+interface Branch {
+  executionId: UniqueModelId
+  anchorMessageId?: string
+  stream: ReadableStream<UIMessageChunk>
+  controller: ReadableStreamDefaultController<UIMessageChunk> | null
+  closed: boolean
+}
+
+function branchKey(executionId: UniqueModelId, anchorMessageId?: string): string {
+  // One model execution can roll into another assistant row during steer continuation.
+  // The branch identity must include the row anchor, not only the model id.
+  return JSON.stringify([executionId, anchorMessageId ?? null])
+}
+
+function createBranch(executionId: UniqueModelId, anchorMessageId?: string): Branch {
+  const branch: Branch = { executionId, anchorMessageId, stream: undefined as never, controller: null, closed: false }
+  branch.stream = new ReadableStream<UIMessageChunk>({
+    start(controller) {
+      branch.controller = controller
+    },
+    cancel() {
+      branch.closed = true
+    }
+  })
+  return branch
+}
+
+export class TopicStreamSubscription {
+  readonly #topicId: string
+  readonly #branches = new Map<string, Branch>()
+  readonly #terminalByBranchKey = new Map<string, { executionId: UniqueModelId; terminal: ExecutionTerminal }>()
+  readonly #terminalListeners = new Set<TerminalListener>()
+  #ipcUnsubs: Array<() => void> = []
+  #attached = false
+  #attachInFlight: Promise<void> | null = null
+  #disposed = false
+
+  constructor(topicId: string) {
+    this.#topicId = topicId
+  }
+
+  listen(): void {
+    if (this.#disposed) return
+    this.#setupIpcListeners()
+  }
+
+  register(executionId: UniqueModelId, anchorMessageId?: string): ReadableStream<UIMessageChunk> {
+    // The branch controller is created synchronously inside `createBranch`,
+    // so chunks arriving before this call are already queued — late readers
+    // never lose replay/early chunks.
+    const branch = this.#getOrCreateBranch(executionId, anchorMessageId)
+    void this.#ensureAttached()
+    return branch.stream
+  }
+
+  unregister(executionId: UniqueModelId, anchorMessageId?: string): void {
+    const key = branchKey(executionId, anchorMessageId)
+    const branch = this.#branches.get(key)
+    if (!branch) return
+    this.#closeBranch(branch)
+    this.#branches.delete(key)
+    this.#terminalByBranchKey.delete(key)
+    if (anchorMessageId) this.#terminalByBranchKey.delete(branchKey(executionId))
+    if (this.#branches.size === 0 && this.#attached && !this.#disposed) {
+      // Defer one tick: a transient `activeExecutions` flicker would otherwise
+      // detach→reattach and momentarily drop Main's last listener.
+      queueMicrotask(() => {
+        if (this.#branches.size === 0 && this.#attached && !this.#disposed) this.#detach()
+      })
+    }
+  }
+
+  onExecutionTerminal(listener: TerminalListener): () => void {
+    this.#terminalListeners.add(listener)
+    for (const { executionId, terminal } of this.#terminalByBranchKey.values()) {
+      try {
+        listener(executionId, terminal)
+      } catch (err) {
+        logger.warn('terminal listener threw during replay', { topicId: this.#topicId, err })
+      }
+    }
+    return () => this.#terminalListeners.delete(listener)
+  }
+
+  dispose(): void {
+    if (this.#disposed) return
+    this.#disposed = true
+    for (const branch of this.#branches.values()) this.#closeBranch(branch)
+    this.#branches.clear()
+    this.#terminalByBranchKey.clear()
+    this.#terminalListeners.clear()
+    if (this.#attached) void ipcApi.request('ai.stream_detach', { topicId: this.#topicId }).catch(() => {})
+    this.#attached = false
+    this.#attachInFlight = null
+    for (const unsub of this.#ipcUnsubs) unsub()
+    this.#ipcUnsubs = []
+  }
+
+  // ── internals ──────────────────────────────────────────────────────
+
+  #getOrCreateBranch(executionId: UniqueModelId, anchorMessageId?: string): Branch {
+    const key = branchKey(executionId, anchorMessageId)
+    let branch = this.#branches.get(key)
+    if (!branch) {
+      branch = createBranch(executionId, anchorMessageId)
+      if (this.#terminalFor(executionId, anchorMessageId)) this.#closeBranch(branch)
+      this.#branches.set(key, branch)
+    }
+    return branch
+  }
+
+  #terminalFor(executionId: UniqueModelId, anchorMessageId?: string): ExecutionTerminal | undefined {
+    const exact = this.#terminalByBranchKey.get(branchKey(executionId, anchorMessageId))?.terminal
+    if (exact) return exact
+    if (anchorMessageId) return this.#terminalByBranchKey.get(branchKey(executionId))?.terminal
+    return undefined
+  }
+
+  #closeBranch(branch: Branch): void {
+    if (branch.closed) return
+    branch.closed = true
+    try {
+      branch.controller?.close()
+    } catch {
+      // already closed/errored — fine
+    }
+  }
+
+  #routeChunk(payload: StreamChunkPayload): void {
+    if (payload.topicId !== this.#topicId) return
+    const executionId = payload.executionId
+    if (!executionId) {
+      // Defensive: chat chunks are always tagged by Main. If a single branch
+      // is open, route to it; otherwise drop.
+      if (this.#branches.size === 1) {
+        const only = this.#branches.values().next().value as Branch
+        if (!only.closed) only.controller?.enqueue(payload.chunk)
+      } else {
+        logger.warn('chunk without executionId dropped', { topicId: this.#topicId })
+      }
+      return
+    }
+    const branch = this.#getOrCreateBranch(executionId, payload.anchorMessageId)
+    if (!branch.closed) branch.controller?.enqueue(payload.chunk)
+  }
+
+  #emitTerminal(executionId: UniqueModelId, terminal: ExecutionTerminal, anchorMessageId?: string): void {
+    const keys =
+      anchorMessageId !== undefined
+        ? [branchKey(executionId, anchorMessageId)]
+        : [...this.#branches].filter(([, branch]) => branch.executionId === executionId).map(([key]) => key)
+
+    if (keys.length === 0) keys.push(branchKey(executionId))
+
+    for (const key of keys) {
+      const branch = this.#branches.get(key)
+      if (branch) this.#closeBranch(branch)
+      const resolvedAnchorMessageId = anchorMessageId ?? branch?.anchorMessageId
+      const terminalForBranch: ExecutionTerminal =
+        resolvedAnchorMessageId === undefined ? terminal : { ...terminal, anchorMessageId: resolvedAnchorMessageId }
+      this.#terminalByBranchKey.set(key, { executionId, terminal: terminalForBranch })
+      for (const listener of this.#terminalListeners) {
+        try {
+          listener(executionId, terminalForBranch)
+        } catch (err) {
+          logger.warn('terminal listener threw', { topicId: this.#topicId, err })
+        }
+      }
+    }
+  }
+
+  #terminateAll(terminal: ExecutionTerminal): void {
+    for (const branch of [...this.#branches.values()]) {
+      this.#emitTerminal(branch.executionId, terminal, branch.anchorMessageId)
+    }
+  }
+
+  #setupIpcListeners(): void {
+    if (this.#ipcUnsubs.length > 0) return
+    this.#ipcUnsubs.push(
+      ipcApi.on('ai.stream_chunk', (data) => this.#routeChunk(data)),
+      ipcApi.on('ai.stream_done', (data) => {
+        if (data.topicId !== this.#topicId) return
+        const terminal: ExecutionTerminal = { isAbort: data.status === 'paused', isError: false }
+        if (data.executionId) this.#emitTerminal(data.executionId, terminal, data.anchorMessageId)
+        if (data.isTopicDone || !data.executionId) this.#terminateAll(terminal)
+      }),
+      ipcApi.on('ai.stream_error', (data) => {
+        if (data.topicId !== this.#topicId) return
+        const terminal: ExecutionTerminal = { isAbort: false, isError: true }
+        if (data.executionId) this.#emitTerminal(data.executionId, terminal, data.anchorMessageId)
+        if (data.isTopicDone || !data.executionId) this.#terminateAll(terminal)
+      })
+    )
+  }
+
+  async #ensureAttached(): Promise<void> {
+    if (this.#attached || this.#attachInFlight || this.#disposed) return this.#attachInFlight ?? undefined
+    // Register IPC listeners BEFORE attaching so live chunks Main emits the
+    // instant its listener registers are not missed.
+    this.#setupIpcListeners()
+    this.#attachInFlight = (async () => {
+      try {
+        const res = await ipcApi.request('ai.stream_attach', { topicId: this.#topicId })
+        if (this.#disposed) return
+        this.#attached = true
+        switch (res.status) {
+          case 'attached':
+            for (const payload of res.bufferedChunks) this.#routeChunk(payload)
+            break
+          case 'not-found':
+          case 'done':
+            this.#terminateAll({ isAbort: false, isError: false })
+            break
+          case 'paused':
+            this.#terminateAll({ isAbort: true, isError: false })
+            break
+          case 'error':
+            this.#terminateAll({ isAbort: false, isError: true })
+            break
+        }
+        // If every execution unregistered while this attach was in flight, the
+        // deferred-detach guard in `unregister` saw `#attached === false` and skipped,
+        // so nothing else will release Main's listener. Detach now that attach resolved.
+        if (this.#branches.size === 0 && !this.#disposed) this.#detach()
+      } catch (err) {
+        logger.warn('streamAttach failed', { topicId: this.#topicId, err })
+      } finally {
+        this.#attachInFlight = null
+      }
+    })()
+    return this.#attachInFlight
+  }
+
+  #detach(): void {
+    if (!this.#attached) return
+    void ipcApi.request('ai.stream_detach', { topicId: this.#topicId }).catch(() => {})
+    this.#attached = false
+    this.#attachInFlight = null
+  }
+}

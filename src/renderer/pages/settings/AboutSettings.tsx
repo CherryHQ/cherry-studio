@@ -1,9 +1,9 @@
 import { Badge, Button, CircularProgress, Divider, SegmentedControl, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import AppLogo from '@renderer/assets/images/logo.png'
 import LogoAvatar from '@renderer/components/Icons/LogoAvatar'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
-import { APP_NAME, AppLogo } from '@renderer/config/env'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -64,7 +64,7 @@ const AboutSettings: FC = () => {
 
   const mailto = async () => {
     const email = 'support@cherry-ai.com'
-    const subject = `${APP_NAME} Feedback`
+    const subject = 'Cherry Studio Feedback'
     const version = (await window.api.getAppInfo()).version
     const platform = window.electron.process.platform
     const url = `mailto:${email}?subject=${subject}&body=%0A%0AVersion: ${version} | Platform: ${platform}`
@@ -200,7 +200,7 @@ const AboutSettings: FC = () => {
             </button>
 
             <div className="flex min-h-18 flex-col items-start justify-center">
-              <div className="mb-1 font-bold text-foreground text-lg">{APP_NAME}</div>
+              <div className="mb-1 font-bold text-foreground text-lg">Cherry Studio</div>
               <div className="text-foreground-secondary text-sm">{t('settings.about.description')}</div>
               <button
                 type="button"
