@@ -519,6 +519,16 @@ function SessionsForTest({
 }: SessionsForTestProps) {
   return <Sessions activeSessionId={activeSessionId ?? null} setActiveSessionId={setActiveSessionId} {...props} />
 }
+
+function getHeaderNewTaskButton() {
+  const button = screen
+    .getAllByRole('button', { name: 'New task' })
+    .find((candidate) => candidate.textContent?.includes('New task'))
+
+  expect(button).toBeDefined()
+  return button as HTMLButtonElement
+}
+
 type SessionGroupCollapseFixture = {
   time: string[]
   agent: string[]
@@ -765,10 +775,10 @@ describe('Sessions', () => {
       <SessionsForTest onStartDraftSession={onStartDraftSession} onStartMissingAgentDraft={onStartMissingAgentDraft} />
     )
 
-    const newConversationButton = screen.getByRole('button', { name: 'Add task' })
-    expect(newConversationButton).not.toBeDisabled()
+    const newTaskButton = getHeaderNewTaskButton()
+    expect(newTaskButton).not.toBeDisabled()
 
-    fireEvent.click(newConversationButton)
+    fireEvent.click(newTaskButton)
 
     expect(onStartMissingAgentDraft).toHaveBeenCalledTimes(1)
     expect(onStartDraftSession).not.toHaveBeenCalled()
@@ -779,7 +789,7 @@ describe('Sessions', () => {
 
     render(<SessionsForTest agentIdFilter="agent-a" presentation="right-panel" />)
 
-    expect(screen.queryByRole('button', { name: 'Add task' })).not.toBeInTheDocument()
+    expect(screen.queryByText('New task')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Display mode')).not.toBeInTheDocument()
 
     const searchInput = screen.getByPlaceholderText('Search tasks')
@@ -795,7 +805,7 @@ describe('Sessions', () => {
       <SessionsForTest onStartDraftSession={onStartDraftSession} onStartMissingAgentDraft={onStartMissingAgentDraft} />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add task' }))
+    fireEvent.click(getHeaderNewTaskButton())
 
     await vi.waitFor(() =>
       expect(onStartDraftSession).toHaveBeenCalledWith({
@@ -814,7 +824,7 @@ describe('Sessions', () => {
 
     expect(screen.getByText('No tasks yet')).toBeInTheDocument()
     expect(screen.getByText('Tasks will appear here after you start one.')).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: 'Add task' })).toHaveLength(1)
+    expect(getHeaderNewTaskButton()).toBeInTheDocument()
     expect(onStartDraftSession).not.toHaveBeenCalled()
   })
 
@@ -1289,7 +1299,7 @@ describe('Sessions', () => {
 
     render(<SessionsForTest onStartDraftSession={onStartDraftSession} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add task' }))
+    fireEvent.click(getHeaderNewTaskButton())
 
     expect(sessionDataMocks.createSession).not.toHaveBeenCalled()
     expect(onStartDraftSession).toHaveBeenCalledWith({

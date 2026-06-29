@@ -1499,10 +1499,10 @@ const Sessions = ({
           <ResourceList.HeaderItem
             type="button"
             command="topic.create"
-            aria-label={t('agent.session.add.title')}
+            aria-label={t('agent.session.new')}
             disabled={creatingSession || (!headerCreateSessionSeed && !onStartMissingAgentDraft)}
             icon={<SquarePen />}
-            label={t('agent.session.add.title')}
+            label={t('agent.session.new')}
             onClick={handleHeaderCreateSession}
             actions={
               <SessionListOptionsMenu
