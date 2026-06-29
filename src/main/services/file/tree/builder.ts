@@ -256,9 +256,12 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     const watcherIgnore = predicate
       ? (((p: FilePath) => predicate(normalizePath(p))) as (path: FilePath) => boolean)
       : undefined
+    const watcherMaxDepth =
+      this.options.maxDepth === Number.MAX_SAFE_INTEGER ? undefined : Math.max(0, this.options.maxDepth)
 
     const watcher = createDirectoryWatcher(this.rootPath as FilePath, {
       recursive: true,
+      maxDepth: watcherMaxDepth,
       stabilityThresholdMs: 200,
       ignore: watcherIgnore
     })

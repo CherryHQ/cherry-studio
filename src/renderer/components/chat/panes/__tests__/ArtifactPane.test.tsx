@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   fsRead: vi.fn(),
   fsReadText: vi.fn(),
   isTextFile: vi.fn(),
+  isDirectory: vi.fn(),
+  listDirectory: vi.fn(),
   getMetadata: vi.fn(),
   createObjectURL: vi.fn(),
   revokeObjectURL: vi.fn(),
@@ -215,11 +217,15 @@ vi.mock('@renderer/components/chat', () => ({
 vi.mock('@renderer/components/FileTree', () => ({
   FileTree: ({
     nodes,
+    expandedIds,
+    onExpandedChange,
     selectedId,
     onSelectedChange,
     ...props
   }: {
     nodes: MockFileTreeNode[]
+    expandedIds?: ReadonlySet<string>
+    onExpandedChange?: (ids: ReadonlySet<string>) => void
     selectedId?: string | null
     onSelectedChange?: (id: string | null) => void
     truncateLabels?: boolean
@@ -230,8 +236,18 @@ vi.mock('@renderer/components/FileTree', () => ({
           type="button"
           data-testid={`tree-node-${node.id}`}
           data-kind={node.kind}
+          data-expanded={String(expandedIds?.has(node.id) ?? false)}
           data-selected={String(selectedId === node.id)}
-          onClick={() => onSelectedChange?.(node.id)}>
+          onClick={() => {
+            if (node.kind === 'folder') {
+              const next = new Set(expandedIds ?? [])
+              if (next.has(node.id)) next.delete(node.id)
+              else next.add(node.id)
+              onExpandedChange?.(next)
+            } else {
+              onSelectedChange?.(node.id)
+            }
+          }}>
           {node.name}
         </button>
         {node.children?.map(renderNode)}
@@ -330,6 +346,8 @@ describe('ArtifactPane', () => {
     // `dispose(...).catch(...)`).
     mocks.treeDispose.mockImplementation(() => Promise.resolve())
     mocks.treeOnMutation.mockImplementation(() => () => {})
+    mocks.listDirectory.mockResolvedValue([])
+    mocks.isDirectory.mockResolvedValue(false)
     // Default: tests select text files; override per-test for binary cases.
     mocks.isTextFile.mockResolvedValue(true)
     // Default: tests use tiny files; override per-test to exercise the size gate.
@@ -341,6 +359,8 @@ describe('ArtifactPane', () => {
         file: {
           openPath: vi.fn(),
           isTextFile: mocks.isTextFile,
+          isDirectory: mocks.isDirectory,
+          listDirectory: mocks.listDirectory,
           getMetadata: mocks.getMetadata
         },
         fs: {
@@ -426,7 +446,143 @@ describe('ArtifactPane', () => {
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
-    await waitFor(() => expect(mocks.treeCreate).toHaveBeenCalledWith('/tmp/workspace', expect.any(Object)))
+    expect(mocks.treeCreate).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+
+    await waitFor(() =>
+      expect(mocks.treeCreate).toHaveBeenCalledWith('/tmp/workspace', expect.objectContaining({ maxDepth: 3 }))
+    )
+  })
+
+  it('loads deeper directory children when folders are expanded', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
+    mocks.listDirectory
+      .mockResolvedValueOnce(['/tmp/workspace/src/deep', '/tmp/workspace/src/notes.md'])
+      .mockResolvedValueOnce(['/tmp/workspace/src/deep/file.ts'])
+    mocks.isDirectory.mockImplementation((path: string) => Promise.resolve(path.endsWith('/deep')))
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-src'))
+
+    await waitFor(() =>
+      expect(mocks.listDirectory).toHaveBeenCalledWith(
+        '/tmp/workspace/src',
+        expect.objectContaining({ recursive: false, includeFiles: true, includeDirectories: true })
+      )
+    )
+    await waitFor(() => expect(screen.getByTestId('tree-node-src/deep')).toBeInTheDocument())
+    expect(screen.getByTestId('tree-node-src/notes.md')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('tree-node-src/deep'))
+
+    await waitFor(() =>
+      expect(mocks.listDirectory).toHaveBeenCalledWith(
+        '/tmp/workspace/src/deep',
+        expect.objectContaining({ recursive: false, includeFiles: true, includeDirectories: true })
+      )
+    )
+    await waitFor(() => expect(screen.getByTestId('tree-node-src/deep/file.ts')).toBeInTheDocument())
+  })
+
+  it('ignores stale lazy directory results after the workspace changes', async () => {
+    let resolveListDirectory: (paths: string[]) => void = () => undefined
+    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
+    mockWorkspaceTree('/tmp/other-workspace', ['src/other.ts'])
+    mocks.listDirectory.mockReturnValueOnce(
+      new Promise<string[]>((resolve) => {
+        resolveListDirectory = resolve
+      })
+    )
+    mocks.isDirectory.mockResolvedValue(false)
+
+    const { rerender } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-src'))
+    await waitFor(() =>
+      expect(mocks.listDirectory).toHaveBeenCalledWith(
+        '/tmp/workspace/src',
+        expect.objectContaining({ recursive: false, includeFiles: true, includeDirectories: true })
+      )
+    )
+
+    rerender(<ArtifactPane workspacePath="/tmp/other-workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-src/other.ts')).toBeInTheDocument())
+
+    await act(async () => {
+      resolveListDirectory(['/tmp/workspace/src/stale.ts'])
+    })
+
+    expect(screen.queryByTestId('tree-node-src/stale.ts')).not.toBeInTheDocument()
+  })
+
+  it('reloads lazy directory children when the file tree is refreshed', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
+    mocks.listDirectory
+      .mockResolvedValueOnce(['/tmp/workspace/src/old.md'])
+      .mockResolvedValueOnce(['/tmp/workspace/src/new.md'])
+    mocks.isDirectory.mockResolvedValue(false)
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-src'))
+    await waitFor(() => expect(screen.getByTestId('tree-node-src/old.md')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.refresh' }))
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-src/new.md')).toBeInTheDocument())
+    expect(screen.queryByTestId('tree-node-src/old.md')).not.toBeInTheDocument()
+  })
+
+  it('drops pending lazy directory results when the file tree closes', async () => {
+    let resolveListDirectory: (paths: string[]) => void = () => undefined
+    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
+    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
+    mocks.listDirectory
+      .mockReturnValueOnce(
+        new Promise<string[]>((resolve) => {
+          resolveListDirectory = resolve
+        })
+      )
+      .mockResolvedValueOnce(['/tmp/workspace/src/fresh.ts'])
+    mocks.isDirectory.mockResolvedValue(false)
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    const fileTreeButton = screen.getByRole('button', { name: 'agent.preview_pane.file_tree' })
+    fireEvent.click(fileTreeButton)
+    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-src'))
+    await waitFor(() =>
+      expect(mocks.listDirectory).toHaveBeenCalledWith(
+        '/tmp/workspace/src',
+        expect.objectContaining({ recursive: false, includeFiles: true, includeDirectories: true })
+      )
+    )
+
+    fireEvent.click(fileTreeButton)
+    await waitFor(() => expect(screen.queryByTestId('file-tree')).not.toBeInTheDocument())
+
+    await act(async () => {
+      resolveListDirectory(['/tmp/workspace/src/stale.ts'])
+    })
+
+    fireEvent.click(fileTreeButton)
+    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-src/fresh.ts')).toBeInTheDocument())
+    expect(screen.queryByTestId('tree-node-src/stale.ts')).not.toBeInTheDocument()
   })
 
   it('logs and displays directory listing errors', async () => {
@@ -435,6 +591,8 @@ describe('ArtifactPane', () => {
     mocks.treeCreate.mockRejectedValueOnce(error)
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
 
     await waitFor(() => expect(screen.getByText('Permission denied')).toBeInTheDocument())
     expect(screen.getByTestId('empty-state')).toHaveTextContent('common.error')
@@ -469,10 +627,8 @@ describe('ArtifactPane', () => {
     expect(onToggleMaximized).toHaveBeenCalledTimes(1)
   })
 
-  it('renders the workspace opener between refresh and maximize when a workspace path exists', async () => {
+  it('renders the workspace opener between refresh and maximize when a workspace path exists', () => {
     render(<ArtifactPane workspacePath="/tmp/workspace" onToggleMaximized={vi.fn()} />)
-
-    await waitFor(() => expect(mocks.treeCreate).toHaveBeenCalledWith('/tmp/workspace', expect.any(Object)))
 
     const refreshButton = screen.getByRole('button', { name: 'agent.preview_pane.refresh' })
     const openButton = screen.getByRole('button', { name: 'Open in Finder' })
@@ -490,10 +646,11 @@ describe('ArtifactPane', () => {
   })
 
   it('starts with the file tree collapsed', () => {
-    render(<ArtifactPane />)
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
     const folderButton = screen.getByRole('button', { name: 'agent.preview_pane.file_tree' })
 
+    expect(mocks.treeCreate).not.toHaveBeenCalled()
     expect(folderButton).toHaveAttribute('aria-pressed', 'false')
     expect(folderButton.querySelector('.lucide-folder')).toBeInTheDocument()
     expect(folderButton.querySelector('.lucide-folder-open')).not.toBeInTheDocument()
