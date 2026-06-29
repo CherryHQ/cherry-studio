@@ -1,4 +1,4 @@
-import { trim } from 'lodash'
+import { trim } from 'es-toolkit/compat'
 
 /**
  * Matches an API version at the end of a URL (with optional trailing slash).
@@ -69,6 +69,13 @@ export function maskApiKey(key: string): string {
 export function maskApiKeyForSnapshot(key: string): string {
   const masked = maskApiKey(key)
   return masked === key ? '****' : masked
+}
+
+/**
+ * Joins API keys into the comma-separated input format accepted by splitApiKeyString.
+ */
+export function joinApiKeyString(apiKeys: readonly string[]): string {
+  return apiKeys.map((key) => key.replaceAll(',', '\\,')).join(', ')
 }
 
 /**

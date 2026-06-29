@@ -16,7 +16,7 @@ import { formatApiHost, formatOllamaApiHost, isWithTrailingSharp } from '@shared
 import { isGenerateImageModel } from '@shared/utils/model'
 import { isAzureOpenAIProvider, isGeminiProvider, isOllamaProvider } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
-import { isEmpty } from 'lodash'
+import { isEmpty } from 'es-toolkit/compat'
 
 import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'

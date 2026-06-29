@@ -1,5 +1,5 @@
 import { formatApiHost, withoutTrailingSlash } from '@shared/utils/api'
-import { trim } from 'lodash'
+import { trim } from 'es-toolkit/compat'
 
 // Re-export from shared, for backward compatibility
 export {
@@ -7,6 +7,7 @@ export {
   formatApiKeys,
   hasApiVersion,
   isWithTrailingSharp,
+  joinApiKeyString,
   maskApiKey,
   splitApiKeyString,
   withoutTrailingSharp,
