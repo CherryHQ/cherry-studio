@@ -107,11 +107,11 @@ export async function registerLocalEmbeddingModel(): Promise<void> {
 /**
  * Remove the local embedding provider + model rows — but only when no knowledge
  * base still references the model. `knowledge_base.embeddingModelId` is the one
- * RESTRICT FK onto `user_model` (every other reference is ON DELETE SET NULL),
- * so a base using it would both block the delete and lose its embeddings. In
- * that case we leave the rows in place (harmless — the row simply outlives the
- * weights, exactly as the seeded row used to). Deleting the provider row
- * cascades to the model row.
+ * blocking FK onto `user_model` (default ON DELETE NO ACTION; every other
+ * reference is ON DELETE SET NULL), so a base using it would both block the
+ * delete and lose its embeddings. In that case we leave the rows in place
+ * (harmless — the row simply outlives the weights, exactly as the seeded row
+ * used to). Deleting the provider row cascades to the model row.
  *
  * @returns whether the rows were removed.
  */

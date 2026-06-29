@@ -90,12 +90,18 @@ class LocalEmbeddingDownloadService {
     inferenceHost.terminate()
   }
 
-  async remove(): Promise<void> {
-    // Unregister first (no-op if a knowledge base still uses it — see the helper).
-    await unregisterLocalEmbeddingModelIfUnused()
+  async remove(): Promise<{ removed: boolean }> {
+    const { removed } = await unregisterLocalEmbeddingModelIfUnused()
+    if (!removed) {
+      // A knowledge base still references the model. Keep the weights too — deleting
+      // them would leave that base pointing at a model whose files are gone, breaking
+      // re-index / add-document (or forcing a surprise 600MB re-download).
+      return { removed: false }
+    }
     // Unload the worker first so the weights file isn't held open while we delete it.
     inferenceHost.terminate()
     await fs.promises.rm(this.modelDir(), { recursive: true, force: true })
+    return { removed: true }
   }
 
   private broadcastProgress(p: InferenceProgress): void {

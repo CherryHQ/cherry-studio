@@ -27,7 +27,9 @@ export const localModelRequestSchemas = {
   // Resolves only when the download completes (or rejects on failure/cancel).
   'local_model.download': defineRoute({ input: modelInput, output: z.void() }),
   'local_model.cancel': defineRoute({ input: modelInput, output: z.void() }),
-  'local_model.remove': defineRoute({ input: modelInput, output: z.void() })
+  // `removed: false` means the model was kept because something still depends on it
+  // (an embedding model still wired to a knowledge base); the weights are not deleted.
+  'local_model.remove': defineRoute({ input: modelInput, output: z.object({ removed: z.boolean() }) })
 }
 
 // ── Event: main→renderer pushes (pure types, never parsed) ──

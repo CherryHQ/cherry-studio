@@ -71,8 +71,14 @@ class LocalOcrDownloadService {
     this.abortController?.abort(new Error('download cancelled'))
   }
 
-  async remove(): Promise<void> {
+  async remove(): Promise<{ removed: boolean }> {
+    // Reset the default first: leaving `default_image_to_text` pinned to
+    // local-paddleocr after deleting the weights makes resolveProcessorConfigByFeature
+    // throw for every OCR consumer (translation / chat attachments / read_file), with
+    // no self-heal. Clearing it lets the platform default take over again.
+    await this.demoteFromDefault()
     await this.cleanup()
+    return { removed: true }
   }
 
   /** Try each mirror URL in order; the first that yields a valid file wins. */
@@ -141,6 +147,19 @@ class LocalOcrDownloadService {
       await application.get('PreferenceService').set('feature.file_processing.default_image_to_text', 'local-paddleocr')
     } catch (error) {
       logger.warn('failed to set local OCR as default image-to-text processor', { error: String(error) })
+    }
+  }
+
+  /** Inverse of {@link promoteToDefault}: only resets when we are still the default. */
+  private async demoteFromDefault(): Promise<void> {
+    try {
+      const preference = application.get('PreferenceService')
+      if (preference.get('feature.file_processing.default_image_to_text') === 'local-paddleocr') {
+        // null → resolveProcessorConfigByFeature falls back to the platform default.
+        await preference.set('feature.file_processing.default_image_to_text', null)
+      }
+    } catch (error) {
+      logger.warn('failed to reset default image-to-text processor on OCR model removal', { error: String(error) })
     }
   }
 
