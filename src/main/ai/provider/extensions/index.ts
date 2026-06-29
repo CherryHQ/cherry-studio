@@ -6,7 +6,7 @@ import {
   createAmazonBedrock
 } from '@ai-sdk/amazon-bedrock'
 import { type CerebrasProviderSettings, createCerebras } from '@ai-sdk/cerebras'
-import { createGateway, type GatewayProviderSettings } from '@ai-sdk/gateway'
+import type { GatewayProviderSettings } from '@ai-sdk/gateway'
 import { createVertexAnthropic, type GoogleVertexAnthropicProvider } from '@ai-sdk/google-vertex/anthropic/edge'
 import { createVertex, type GoogleVertexProvider, type GoogleVertexProviderSettings } from '@ai-sdk/google-vertex/edge'
 import { createGroq, type GroqProviderSettings } from '@ai-sdk/groq'
@@ -29,6 +29,7 @@ import { createVoyage, type VoyageProviderSettings } from 'voyage-ai-provider'
 import { type AihubmixProviderSettings, createAihubmix } from '../custom/aihubmix/aihubmixProvider'
 import { createDashScopeProvider, type DashScopeProviderSettings } from '../custom/dashscope/dashscopeProvider'
 import { createDmxapiProvider, type DmxapiProviderSettings } from '../custom/dmxapi/dmxapiProvider'
+import { createGatewayWithImageModel } from '../custom/gateway/gatewayProvider'
 import {
   createLocalEmbeddingProvider,
   type LocalEmbeddingProviderSettings
@@ -134,7 +135,7 @@ export const GatewayExtension = ProviderExtension.create({
   name: 'gateway',
   aliases: ['ai-gateway'] as const,
   supportsImageGeneration: true,
-  create: createGateway
+  create: createGatewayWithImageModel
 } as const satisfies ProviderExtensionConfig<GatewayProviderSettings, ProviderV3, 'gateway'>)
 
 export const CerebrasExtension = ProviderExtension.create({
