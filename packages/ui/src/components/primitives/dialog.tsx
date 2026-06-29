@@ -38,12 +38,13 @@ function DialogOverlay({ className, onPointerDown, ...props }: React.ComponentPr
   )
 }
 
-type DialogContentSize = 'sm' | 'default' | 'lg'
+type DialogContentSize = 'sm' | 'default' | 'lg' | 'xl'
 
 const dialogContentSizeClass: Record<DialogContentSize, string> = {
   sm: 'sm:max-w-sm',
   default: 'sm:max-w-lg',
-  lg: 'sm:max-w-xl'
+  lg: 'sm:max-w-xl',
+  xl: 'sm:max-w-[720px]'
 }
 
 type DialogContentProps = React.ComponentProps<typeof DialogPrimitive.Content> & {
