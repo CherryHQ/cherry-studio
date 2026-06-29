@@ -171,12 +171,17 @@ const AgentComposerRoot = ({
   const { model: sessionModel } = useModelById((agent?.model ?? '') as UniqueModelId)
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
   const handleNewSessionShortcut = useCallback(() => {
+    if (onCreateEmptySession) {
+      void onCreateEmptySession()
+      return
+    }
+
     void onNewSessionDraft?.()
-  }, [onNewSessionDraft])
+  }, [onCreateEmptySession, onNewSessionDraft])
 
   const isActiveTab = useIsActiveTab()
   useCommandHandler('topic.create', handleNewSessionShortcut, {
-    enabled: isActiveTab && Boolean(session && agent && onNewSessionDraft)
+    enabled: isActiveTab && Boolean(session && agent && (onNewSessionDraft || onCreateEmptySession))
   })
 
   const sessionData = useMemo(() => {
@@ -994,7 +999,7 @@ const AgentComposerInner = ({
     newConversationAction:
       onCreateEmptySession && agentBase
         ? {
-            label: t('chat.conversation.new'),
+            label: t('agent.session.new'),
             onClick: handleCreateEmptySession
           }
         : undefined,

@@ -582,6 +582,29 @@ describe('AgentComposer', () => {
     expect(onNewSessionDraft).toHaveBeenCalledTimes(1)
   })
 
+  it('routes old-view new session shortcuts through the empty session action', () => {
+    mocks.workView = 'old'
+    const onNewSessionDraft = vi.fn()
+    const onCreateEmptySession = vi.fn()
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        onNewSessionDraft={onNewSessionDraft}
+        onCreateEmptySession={onCreateEmptySession}
+        isStreaming={false}
+      />
+    )
+
+    mocks.shortcutHandlers.get('topic.create')?.()
+
+    expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
+    expect(onNewSessionDraft).not.toHaveBeenCalled()
+  })
+
   it('renders the empty session action before the tool menu and calls the explicit handler', () => {
     mocks.workView = 'old'
     const onCreateEmptySession = vi.fn()
@@ -598,7 +621,7 @@ describe('AgentComposer', () => {
     )
 
     const leftControls = screen.getByTestId('composer-left-controls')
-    const newSessionButton = within(leftControls).getByRole('button', { name: 'chat.conversation.new' })
+    const newSessionButton = within(leftControls).getByRole('button', { name: 'agent.session.new' })
     const modelButton = within(leftControls).getByRole('button', { name: /Claude Sonnet 4.5/ })
     const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
     expect(newSessionButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
@@ -625,7 +648,7 @@ describe('AgentComposer', () => {
     )
 
     const leftControls = screen.getByTestId('composer-left-controls')
-    const newSessionButton = within(leftControls).getByRole('button', { name: 'chat.conversation.new' })
+    const newSessionButton = within(leftControls).getByRole('button', { name: 'agent.session.new' })
     const agentButton = within(leftControls).getByRole('button', { name: /Agent/ })
     const modelButton = within(leftControls).getByRole('button', { name: /Claude Sonnet 4.5/ })
     const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
@@ -647,7 +670,7 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'agent.session.new' })).not.toBeInTheDocument()
   })
 
   it('passes attachment capabilities through the provider without effect mirroring', () => {

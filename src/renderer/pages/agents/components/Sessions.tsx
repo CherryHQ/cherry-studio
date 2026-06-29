@@ -1239,10 +1239,10 @@ const Sessions = ({
             </Tooltip>
           )}
           {canCreateSession && (
-            <Tooltip title={t('chat.conversation.new')} delay={500}>
+            <Tooltip title={t('agent.session.new')} delay={500}>
               <ResourceList.GroupHeaderActionButton
                 type="button"
-                aria-label={t('chat.conversation.new')}
+                aria-label={t('agent.session.new')}
                 disabled={creatingSession}
                 onClick={(event) => {
                   event.stopPropagation()
@@ -1287,10 +1287,10 @@ const Sessions = ({
       if (!canCreateSession) return null
 
       return (
-        <Tooltip title={t('chat.conversation.new')} delay={500}>
+        <Tooltip title={t('agent.session.new')} delay={500}>
           <ResourceList.GroupHeaderActionButton
             type="button"
-            aria-label={t('chat.conversation.new')}
+            aria-label={t('agent.session.new')}
             disabled={creatingSession}
             onClick={(event) => {
               event.stopPropagation()

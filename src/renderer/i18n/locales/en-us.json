@@ -556,6 +556,7 @@
       "list": {
         "title": "Tasks"
       },
+      "new": "New task",
       "pin": {
         "title": "Pin task"
       },

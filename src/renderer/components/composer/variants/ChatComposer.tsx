@@ -669,6 +669,23 @@ const ChatComposerInner = ({
     void onCreateEmptyTopic?.(selectedAssistantId ? { assistantId: selectedAssistantId } : undefined)
   }, [onCreateEmptyTopic, selectedAssistantId])
 
+  const handleNewTopicShortcut = useCallback(() => {
+    if (conversationView === 'old' && onCreateEmptyTopic) {
+      if (isAssistantLoading || hasMissingPersistedAssistant) return
+      handleCreateEmptyTopic()
+      return
+    }
+
+    addNewTopic()
+  }, [
+    addNewTopic,
+    conversationView,
+    handleCreateEmptyTopic,
+    hasMissingPersistedAssistant,
+    isAssistantLoading,
+    onCreateEmptyTopic
+  ])
+
   const handleSurfaceActionsChange = useCallback(
     (actions: ComposerSurfaceActions) => {
       Object.assign(actionsRef.current, actions)
@@ -691,13 +708,7 @@ const ChatComposerInner = ({
   useComposerQuoteInsertion(actionsRef)
 
   const isActiveTab = useIsActiveTab()
-  useCommandHandler(
-    'topic.create',
-    () => {
-      addNewTopic()
-    },
-    { enabled: isActiveTab }
-  )
+  useCommandHandler('topic.create', handleNewTopicShortcut, { enabled: isActiveTab })
 
   const buildQueuedPayload = useCallback(
     (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null =>

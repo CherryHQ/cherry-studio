@@ -449,6 +449,7 @@ vi.mock('react-i18next', () => ({
         'agent.session.group.unknown_agent': 'Unknown agent',
         'agent.session.group.yesterday': 'Yesterday',
         'agent.session.list.title': 'Tasks',
+        'agent.session.new': 'New task',
         'agent.pin.title': 'Pin Agent',
         'agent.session.pin.title': 'Pin task',
         'agent.session.reorder.error.failed': 'Failed to reorder tasks',
@@ -855,9 +856,7 @@ describe('Sessions', () => {
 
     const noProjectSectionHeader = noProjectSection.closest('[class*="group/resource-list-section"]')
     expect(noProjectSectionHeader).not.toBeNull()
-    fireEvent.click(
-      within(noProjectSectionHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' })
-    )
+    fireEvent.click(within(noProjectSectionHeader as HTMLElement).getByRole('button', { name: 'New task' }))
 
     expect(onStartDraftSession).toHaveBeenCalledWith({
       agentId: 'agent-a',
@@ -1139,7 +1138,7 @@ describe('Sessions', () => {
 
     const betaGroup = screen.getByRole('button', { name: 'Beta agent' }).closest('div')
     expect(betaGroup).not.toBeNull()
-    fireEvent.click(within(betaGroup as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
+    fireEvent.click(within(betaGroup as HTMLElement).getByRole('button', { name: 'New task' }))
 
     await vi.waitFor(() =>
       expect(onStartDraftSession).toHaveBeenCalledWith({
@@ -1250,9 +1249,7 @@ describe('Sessions', () => {
 
     const todayHeader = screen.getByRole('button', { name: 'Today' }).closest('div')
     expect(todayHeader).toBeInTheDocument()
-    expect(
-      within(todayHeader as HTMLElement).queryByRole('button', { name: 'chat.conversation.new' })
-    ).not.toBeInTheDocument()
+    expect(within(todayHeader as HTMLElement).queryByRole('button', { name: 'New task' })).not.toBeInTheDocument()
   })
 
   it('starts a draft session from the header without creating inline', async () => {
@@ -2022,7 +2019,7 @@ describe('Sessions', () => {
 
     const workdirGroup = screen.getByRole('button', { name: 'Project A Workspace' }).closest('div')
     expect(workdirGroup).not.toBeNull()
-    fireEvent.click(within(workdirGroup as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
+    fireEvent.click(within(workdirGroup as HTMLElement).getByRole('button', { name: 'New task' }))
 
     await vi.waitFor(() =>
       expect(onStartDraftSession).toHaveBeenCalledWith({
@@ -2063,7 +2060,7 @@ describe('Sessions', () => {
     expect(agentGroup).not.toBeNull()
     expect(agentGroup).toHaveClass('border', 'border-transparent')
     expect(agentGroup).toHaveAttribute('title', 'Drag to reorder. Drag tasks to adjust display and hidden groups.')
-    expect(within(agentGroup as HTMLElement).getByRole('button', { name: 'chat.conversation.new' })).toBeInTheDocument()
+    expect(within(agentGroup as HTMLElement).getByRole('button', { name: 'New task' })).toBeInTheDocument()
 
     const moreButton = within(agentGroup as HTMLElement).getByRole('button', { name: 'More' })
     fireEvent.pointerDown(moreButton)

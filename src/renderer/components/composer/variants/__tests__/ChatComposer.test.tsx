@@ -1365,6 +1365,21 @@ describe('ChatComposer', () => {
     expect(mocks.createTopic).not.toHaveBeenCalled()
   })
 
+  it('routes old-view new topic shortcuts through the empty topic action', () => {
+    mocks.conversationView = 'old'
+    const onNewTopic = vi.fn()
+    const onCreateEmptyTopic = vi.fn()
+
+    render(
+      <ChatComposer topic={topic} onSend={vi.fn()} onNewTopic={onNewTopic} onCreateEmptyTopic={onCreateEmptyTopic} />
+    )
+
+    mocks.commandHandlers.get('topic.create')?.()
+
+    expect(onCreateEmptyTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
+    expect(onNewTopic).not.toHaveBeenCalled()
+  })
+
   it('renders selectors below the surface in draft home mode', () => {
     render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
 
