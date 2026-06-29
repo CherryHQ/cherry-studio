@@ -226,8 +226,8 @@ export class TopicNamingService {
    * Rename an agent session's name based on the first user+assistant exchange.
    *
    * Mirrors {@link maybeRenameFromConversationSummary} but targets the agents
-   * DB (`session.name`) rather than `topics.name` and uses the session's own
-   * model for summarization.
+   * DB (`session.name`) rather than `topics.name` and uses the configured
+   * topic naming model for summarization.
    *
    * @param sessionId  Cherry Studio session id.
    * @param userText   Plain text of the user turn (already in memory —
