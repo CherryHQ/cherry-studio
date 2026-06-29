@@ -7,7 +7,7 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { loggerService } from '@logger'
-import { findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
+import { parseSkillMetadata } from '@main/utils/markdownParser'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -508,7 +508,7 @@ describe('SkillService', () => {
       expect(unlinkSpy).toHaveBeenCalledWith('skill-one')
     })
 
-    it('reconcileSkills heals mirrors, adopts user-dropped skills, ignores non-skills, prunes orphans', async () => {
+    it('reconcileSkills heals mirrors, prunes managed orphans, leaves user-dropped skills untouched', async () => {
       // DB skill with files → mirrored. DB skill without files → warned, not mirrored.
       await writeLibrarySkill('skill-one')
       await dbh.db.insert(agentGlobalSkillTable).values([
@@ -527,25 +527,11 @@ describe('SkillService', () => {
       await writeLibrarySkill('orphan')
       await fs.promises.symlink(path.join(dataSkillsRoot, 'orphan'), path.join(mirrorRoot, 'orphan'), 'dir')
 
-      // User-dropped real skill (has SKILL.md) → adopted.
+      // User-dropped real skill (has SKILL.md) → left untouched, never adopted.
       const dropped = path.join(mirrorRoot, 'dropped')
       await fs.promises.mkdir(dropped, { recursive: true })
       await fs.promises.writeFile(path.join(dropped, 'SKILL.md'), '# dropped')
 
-      // Non-skill config entry (no SKILL.md) → ignored.
-      await fs.promises.mkdir(path.join(mirrorRoot, 'notaskill'), { recursive: true })
-
-      vi.mocked(parseSkillMetadata).mockResolvedValue({
-        name: 'dropped',
-        description: 'd',
-        author: null,
-        tags: [],
-        filename: 'dropped',
-        command: '',
-        version: '1.0.0'
-      } as never)
-      // `computeContentHash` resolves SKILL.md via `findSkillMdPath` (module-mocked).
-      vi.mocked(findSkillMdPath).mockImplementation(async (dir: string) => path.join(dir, 'SKILL.md'))
       const warnSpy = vi.spyOn(loggerService.withContext('SkillService'), 'warn').mockImplementation(() => undefined)
 
       try {
@@ -558,22 +544,14 @@ describe('SkillService', () => {
           'Skill source files missing; skipping mirror',
           expect.objectContaining({ folderName: 'gone' })
         )
-        // adopt: DB row (source 'local') + Data/Skills copy + managed mirror
-        const adopted = await dbh.db
+        // user-dropped: no DB row created, files left in place
+        const droppedRow = await dbh.db
           .select()
           .from(agentGlobalSkillTable)
           .where(eq(agentGlobalSkillTable.folderName, 'dropped'))
-        expect(adopted).toHaveLength(1)
-        expect(adopted[0]?.source).toBe('local')
-        await expect(fs.promises.access(path.join(dataSkillsRoot, 'dropped', 'SKILL.md'))).resolves.toBeUndefined()
+        expect(droppedRow).toHaveLength(0)
         await expect(fs.promises.access(path.join(mirrorRoot, 'dropped', 'SKILL.md'))).resolves.toBeUndefined()
-        // ignore: non-skill entry left untouched, no DB row
-        const notRow = await dbh.db
-          .select()
-          .from(agentGlobalSkillTable)
-          .where(eq(agentGlobalSkillTable.folderName, 'notaskill'))
-        expect(notRow).toHaveLength(0)
-        await expect(fs.promises.access(path.join(mirrorRoot, 'notaskill'))).resolves.toBeUndefined()
+        await expect(fs.promises.access(path.join(dataSkillsRoot, 'dropped'))).rejects.toThrow()
         // prune: managed-orphan mirror entry removed
         await expect(fs.promises.access(path.join(mirrorRoot, 'orphan'))).rejects.toThrow()
       } finally {

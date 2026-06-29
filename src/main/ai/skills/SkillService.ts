@@ -653,43 +653,14 @@ export class SkillService {
   }
 
   /**
-   * Register a skill the user dropped into CLAUDE_CONFIG_DIR/skills that we do
-   * not manage yet: copy its files into the owned `Data/Skills` library, insert
-   * a DB row, and replace the entry with a managed mirror — so it shows in the
-   * UI and is per-agent toggleable like any other skill.
-   */
-  private async adoptUnmanagedSkill(folderName: string, configEntryPath: string): Promise<void> {
-    const metadata = await parseSkillMetadata(configEntryPath, folderName, 'skills')
-    const realSource = await fs.promises.realpath(configEntryPath)
-    const destPath = this.getSkillStoragePath(folderName)
-    const contentHash = await this.installer.computeContentHash(realSource)
-
-    await fs.promises.mkdir(path.dirname(destPath), { recursive: true })
-    await this.installer.install(realSource, destPath)
-
-    await agentGlobalSkillService.insert({
-      name: metadata.name,
-      description: metadata.description ?? null,
-      folderName,
-      source: 'local',
-      sourceUrl: null,
-      namespace: null,
-      author: metadata.author ?? null,
-      tags: metadata.tags ?? [],
-      contentHash,
-      isEnabled: false
-    })
-
-    await this.linkMirror(folderName)
-    logger.info('Adopted unmanaged skill from Claude config', { folderName })
-  }
-
-  /**
    * Reconcile the CLAUDE_CONFIG_DIR/skills mirror with the owned library.
    *
    * 1. DB → mirror: every library skill is mirrored (warns if its files are missing).
-   * 2. mirror → DB (adopt): user-dropped skills become managed + toggleable.
-   * 3. prune: managed mirror entries whose DB row is gone are removed.
+   * 2. prune: managed mirror entries whose DB row is gone are removed.
+   *
+   * User-dropped skills under the config dir are left untouched — they are never
+   * whitelisted into a session, so their files stay inert rather than being
+   * adopted into the managed library.
    *
    * Idempotent; runs once at startup. Mutations never happen at session build,
    * so concurrent session builds only read this directory.
@@ -716,27 +687,9 @@ export class SkillService {
       if (known.has(folderName)) continue
 
       const entryPath = path.join(root, folderName)
-
+      // Managed mirror left behind by an uninstalled skill — drop it.
       if (await this.isManagedSkillSymlinkTarget(entryPath)) {
-        // Mirror left behind by an uninstalled skill — drop it.
         await this.unlinkMirror(folderName)
-        continue
-      }
-
-      // ponytail: adopt = entry with a top-level SKILL.md only; ignores
-      // settings.json, plugins/, projects/, etc. — never swallows non-skill config.
-      try {
-        await fs.promises.access(path.join(entryPath, 'SKILL.md'), fs.constants.R_OK)
-      } catch {
-        continue
-      }
-      try {
-        await this.adoptUnmanagedSkill(folderName, entryPath)
-      } catch (error) {
-        logger.warn('Failed to adopt unmanaged skill', {
-          folderName,
-          error: error instanceof Error ? error.message : String(error)
-        })
       }
     }
   }
