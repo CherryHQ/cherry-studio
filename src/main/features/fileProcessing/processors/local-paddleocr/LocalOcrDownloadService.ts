@@ -145,7 +145,7 @@ class LocalOcrDownloadService {
   }
 
   private broadcast(payload: { status: string; percent: number }): void {
-    application.get('IpcApiService').broadcast('local_ocr.download_progress', payload)
+    application.get('IpcApiService').broadcast('local_model.download_progress', { model: 'ocr', ...payload })
   }
 }
 

@@ -7,8 +7,7 @@ import { binaryHandlers } from './binary'
 import { fileHandlers } from './file'
 import { fileProcessingHandlers } from './fileProcessing'
 import { knowledgeHandlers } from './knowledge'
-import { localEmbeddingHandlers } from './localEmbedding'
-import { localOcrHandlers } from './localOcr'
+import { localModelHandlers } from './localModel'
 import { selectionHandlers } from './selection'
 import { webSearchHandlers } from './webSearch'
 import { windowHandlers } from './window'
@@ -29,8 +28,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...fileHandlers,
   ...fileProcessingHandlers,
   ...knowledgeHandlers,
-  ...localEmbeddingHandlers,
-  ...localOcrHandlers,
+  ...localModelHandlers,
   ...selectionHandlers,
   ...webSearchHandlers,
   ...windowHandlers

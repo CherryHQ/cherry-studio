@@ -109,7 +109,7 @@ class LocalEmbeddingDownloadService {
     total?: number
     file?: string
   }): void {
-    application.get('IpcApiService').broadcast('local_embedding.download_progress', payload)
+    application.get('IpcApiService').broadcast('local_model.download_progress', { model: 'embedding', ...payload })
   }
 }
 

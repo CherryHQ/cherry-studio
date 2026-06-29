@@ -2,31 +2,19 @@ import { Badge, Button } from '@cherrystudio/ui'
 import { ipcApi } from '@renderer/ipc'
 import { useIpcOn } from '@renderer/ipc/useIpcOn'
 import { cn } from '@renderer/utils/style'
-import type { LocalModelStatus } from '@shared/data/presets/localEmbedding'
-import type { IpcEventName } from '@shared/ipc/schemas'
+import type { LocalModelKind, LocalModelStatus } from '@shared/data/presets/localEmbedding'
 import { Boxes, Download, ScanText, Trash2, X } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-/** The four request thunks + progress event that drive one local-model card. */
-interface LocalModelApi {
-  getStatus: () => Promise<{ status: LocalModelStatus }>
-  download: () => Promise<void>
-  cancel: () => Promise<void>
-  remove: () => Promise<void>
-  progressEvent: Extract<IpcEventName, `${string}.download_progress`>
-}
-
 /**
  * Shared wiring for a downloadable local model: tracks status/percent, streams
- * progress, and exposes download/cancel/remove. The IPC routes differ per model
- * (embedding vs OCR), so callers pass pre-bound thunks; `apiRef` keeps `refresh`
- * stable while still reading the latest thunks.
+ * progress, and exposes download/cancel/remove. One IPC route family
+ * (`local_model.*`) serves both models; `model` selects which one and filters
+ * the shared `download_progress` event.
  */
-function useLocalModelCard(api: LocalModelApi) {
-  const apiRef = useRef(api)
-  apiRef.current = api
+function useLocalModelCard(model: LocalModelKind) {
   const [status, setStatus] = useState<LocalModelStatus>('not_downloaded')
   const [percent, setPercent] = useState(0)
   const mountedRef = useRef(true)
@@ -40,19 +28,19 @@ function useLocalModelCard(api: LocalModelApi) {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await apiRef.current.getStatus()
+      const res = await ipcApi.request('local_model.get_status', { model })
       if (mountedRef.current) setStatus(res.status)
     } catch {
       // status probe is best-effort; leave the last known state
     }
-  }, [])
+  }, [model])
 
   useEffect(() => {
     void refresh()
   }, [refresh])
 
-  useIpcOn(api.progressEvent, (p) => {
-    if (!mountedRef.current) return
+  useIpcOn('local_model.download_progress', (p) => {
+    if (!mountedRef.current || p.model !== model) return
     setPercent(p.percent)
     if (p.status === 'ready') setStatus('ready')
     else if (p.status === 'error') setStatus('error')
@@ -62,7 +50,7 @@ function useLocalModelCard(api: LocalModelApi) {
     setStatus('downloading')
     setPercent(0)
     try {
-      await apiRef.current.download()
+      await ipcApi.request('local_model.download', { model })
       if (mountedRef.current) setStatus('ready')
     } catch {
       await refresh()
@@ -71,7 +59,7 @@ function useLocalModelCard(api: LocalModelApi) {
 
   const cancel = async () => {
     try {
-      await apiRef.current.cancel()
+      await ipcApi.request('local_model.cancel', { model })
     } finally {
       if (mountedRef.current) {
         setStatus('not_downloaded')
@@ -82,7 +70,7 @@ function useLocalModelCard(api: LocalModelApi) {
 
   const remove = async () => {
     try {
-      await apiRef.current.remove()
+      await ipcApi.request('local_model.remove', { model })
     } finally {
       if (mountedRef.current) setStatus('not_downloaded')
     }
@@ -176,21 +164,8 @@ const ModelCard: FC<ModelCardProps> = ({ icon, name, subtitle, status, percent, 
 const LocalModelsSection: FC = () => {
   const { t } = useTranslation()
 
-  const embedding = useLocalModelCard({
-    getStatus: () => ipcApi.request('local_embedding.get_status'),
-    download: () => ipcApi.request('local_embedding.download'),
-    cancel: () => ipcApi.request('local_embedding.cancel'),
-    remove: () => ipcApi.request('local_embedding.remove'),
-    progressEvent: 'local_embedding.download_progress'
-  })
-
-  const ocr = useLocalModelCard({
-    getStatus: () => ipcApi.request('local_ocr.get_status'),
-    download: () => ipcApi.request('local_ocr.download'),
-    cancel: () => ipcApi.request('local_ocr.cancel'),
-    remove: () => ipcApi.request('local_ocr.remove'),
-    progressEvent: 'local_ocr.download_progress'
-  })
+  const embedding = useLocalModelCard('embedding')
+  const ocr = useLocalModelCard('ocr')
 
   return (
     <div className="min-w-0">
