@@ -260,8 +260,10 @@ export class TopicService {
       const updates: Partial<typeof topicTable.$inferInsert> = {}
       if (dto.name !== undefined) {
         updates.name = dto.name
+        // Name-only patches are user/manual renames. Auto-namers must opt out explicitly.
         updates.isNameManuallyEdited = dto.isNameManuallyEdited ?? true
       } else if (dto.isNameManuallyEdited !== undefined) {
+        // Keep flag-only patches for repair/migration paths that need to adjust metadata.
         updates.isNameManuallyEdited = dto.isNameManuallyEdited
       }
       if (dto.assistantId !== undefined) updates.assistantId = dto.assistantId

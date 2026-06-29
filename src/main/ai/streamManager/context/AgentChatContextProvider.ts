@@ -108,6 +108,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
           data: { parts: userMessageParts }
         }
       })
+      // Fire-and-forget is safe: the naming service isolates errors and rechecks state before writing.
       void topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(sessionId, savedUserMessage.data)
 
       application.get('AgentSessionRuntimeService').enqueueUserMessage(sessionId, userMessage)
@@ -163,6 +164,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         }
       ]
     })
+    // Fire-and-forget is safe: the naming service isolates errors and rechecks state before writing.
     void topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(sessionId, savedMessages[0]?.data)
 
     // Author the turn span's input/identity here (where the agent + user message live).

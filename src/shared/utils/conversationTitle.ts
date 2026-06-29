@@ -1,16 +1,13 @@
-export const FIRST_USER_MESSAGE_TITLE_MAX_LENGTH = 50
+const FIRST_USER_MESSAGE_TITLE_MAX_LENGTH = 50
 
 export function sanitizeConversationTitle(title: string): string {
   return title.replace(/["'\r\n]+/g, ' ').trim()
 }
 
-export function truncateFirstUserMessageTitleSource(
-  text: string,
-  maxLength = FIRST_USER_MESSAGE_TITLE_MAX_LENGTH
-): string {
+export function truncateFirstUserMessageTitleSource(text: string): string {
   const normalized = text.trim().replace(/\s+/g, ' ')
-  if (normalized.length <= maxLength) return normalized
-  return normalized.slice(0, maxLength).trim()
+  if (normalized.length <= FIRST_USER_MESSAGE_TITLE_MAX_LENGTH) return normalized
+  return normalized.slice(0, FIRST_USER_MESSAGE_TITLE_MAX_LENGTH).trim()
 }
 
 export function buildFirstUserMessageTitle(userText: string): string {

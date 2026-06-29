@@ -10,6 +10,7 @@ export const agentSessionTable = sqliteTable(
     id: uuidPrimaryKey(),
     agentId: text().references(() => agentTable.id, { onDelete: 'set null' }),
     name: text().notNull(),
+    // Whether the name was manually edited by user.
     isNameManuallyEdited: integer({ mode: 'boolean' }).notNull().default(false),
     description: text().notNull().default(''),
     workspaceId: text()

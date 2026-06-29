@@ -214,8 +214,10 @@ export class AgentSessionService {
     const patch: UpdateAgentSessionDto = {}
     if (dto.name !== undefined) {
       patch.name = dto.name
+      // Name-only patches are user/manual renames. Auto-namers must opt out explicitly.
       patch.isNameManuallyEdited = dto.isNameManuallyEdited ?? true
     } else if (dto.isNameManuallyEdited !== undefined) {
+      // Keep flag-only patches for repair/migration paths that need to adjust metadata.
       patch.isNameManuallyEdited = dto.isNameManuallyEdited
     }
     if (dto.description !== undefined) patch.description = dto.description

@@ -230,6 +230,17 @@ describe('AgentChatContextProvider', () => {
     })
   })
 
+  it('triggers first-user-message session rename after busy submit-message persists the user row', async () => {
+    const subscriber = makeSubscriber()
+    mocks.runtimeIsSessionBusy.mockReturnValue(true)
+
+    await provider.prepareDispatch(subscriber, openReq({ userMessageParts: [{ type: 'text', text: 'busy hello' }] }))
+
+    expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).toHaveBeenCalledWith('session-1', {
+      parts: [{ type: 'text', text: 'busy hello' }]
+    })
+  })
+
   it('rejects agent sessions without a registered runtime driver', async () => {
     runtimeDriverRegistry.clearForTest()
     mocks.getAgent.mockResolvedValue({ id: 'agent-1', type: 'custom-runtime', model: 'anthropic::claude-sonnet' })
