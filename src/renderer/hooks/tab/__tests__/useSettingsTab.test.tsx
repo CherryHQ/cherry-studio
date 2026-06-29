@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   setActiveTab: vi.fn(),
   updateTab: vi.fn(),
   tabs: [] as Array<{ id: string; type: 'route' | 'miniapp'; url: string; title: string }>,
-  ipcHandlers: new Map<string, (payload: { path: string }) => void>()
+  initData: null as { kind: 'settings-navigation'; path: string; requestId: number } | null
 }))
 
 vi.mock('@renderer/i18n', () => ({
@@ -16,10 +16,8 @@ vi.mock('@renderer/i18n', () => ({
   }
 }))
 
-vi.mock('@renderer/ipc/useIpcOn', () => ({
-  useIpcOn: (event: string, handler: (payload: { path: string }) => void) => {
-    mocks.ipcHandlers.set(event, handler)
-  }
+vi.mock('@renderer/hooks/useWindowInitData', () => ({
+  useWindowInitData: () => mocks.initData
 }))
 
 vi.mock('../useTabs', () => ({
@@ -44,7 +42,7 @@ afterEach(() => {
   cleanup()
   vi.clearAllMocks()
   mocks.tabs = []
-  mocks.ipcHandlers.clear()
+  mocks.initData = null
 })
 
 describe('useMainSettingsTab', () => {
@@ -112,12 +110,29 @@ describe('useMainSettingsTab', () => {
     expect(mocks.setActiveTab).toHaveBeenCalledWith('settings-1')
   })
 
-  it('subscribes main-window settings navigation to the IpcApi event', () => {
+  it('opens settings from main-window init data', () => {
+    mocks.initData = { kind: 'settings-navigation', path: '/settings/about', requestId: 1 }
     render(<MainSettingsTabBridgeHarness />)
 
-    mocks.ipcHandlers.get('navigation.open_settings')?.({ path: '/settings/about' })
-
     expect(mocks.openTab).toHaveBeenCalledWith('/settings/about', { title: 'settings.title' })
+  })
+
+  it('opens settings again when init data request id changes', () => {
+    const { rerender } = render(<MainSettingsTabBridgeHarness />)
+
+    mocks.initData = { kind: 'settings-navigation', path: '/settings/provider', requestId: 1 }
+    rerender(<MainSettingsTabBridgeHarness />)
+
+    mocks.tabs = [{ id: 'settings-1', type: 'route', url: '/settings/provider', title: 'settings.title' }]
+    mocks.initData = { kind: 'settings-navigation', path: '/settings/about', requestId: 2 }
+    rerender(<MainSettingsTabBridgeHarness />)
+
+    expect(mocks.openTab).toHaveBeenCalledWith('/settings/provider', { title: 'settings.title' })
+    expect(mocks.updateTab).toHaveBeenCalledWith('settings-1', {
+      url: '/settings/about',
+      title: 'settings.title',
+      lastAccessTime: expect.any(Number)
+    })
   })
 
   it('normalizes invalid event paths before opening the tab', () => {

@@ -25,6 +25,7 @@ const { platformState, prefValues, applicationMock, windowManagerMock, loggerMoc
     onWindowCreatedByType: vi.fn(() => vi.fn()),
     onWindowDestroyedByType: vi.fn(() => vi.fn()),
     open: vi.fn(() => 'mock-window-id'),
+    pushInitDataToType: vi.fn(),
     // Bounds are restored declaratively by WindowManager; setupMainWindow reads
     // the saved maximized flag back through this to re-apply maximize itself.
     peekWindowBounds: vi.fn()
@@ -187,6 +188,8 @@ describe('MainWindowService', () => {
     applicationMock.quit.mockReset()
     applicationMock.forceExit.mockReset()
     windowManagerMock.behavior.setMacShowInDockByType.mockReset()
+    windowManagerMock.open.mockClear()
+    windowManagerMock.pushInitDataToType.mockClear()
     loggerMock.error.mockReset()
 
     svc = new MainWindowService()
@@ -365,6 +368,32 @@ describe('MainWindowService', () => {
 
       expect(windowManagerMock.behavior.setMacShowInDockByType).toHaveBeenCalledWith('main', false)
       expect(win.hide).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('showMainWindow init data', () => {
+    it('pushes init data to an existing main window', () => {
+      const initData = { kind: 'settings-navigation' as const, path: '/settings/about' as const, requestId: 1 }
+      ;(svc as any).mainWindow = win
+
+      svc.showMainWindow(initData)
+
+      expect(windowManagerMock.pushInitDataToType).toHaveBeenCalledWith(WindowType.Main, initData)
+      expect(windowManagerMock.open).not.toHaveBeenCalled()
+    })
+
+    it('passes init data into WindowManager when creating the main window', () => {
+      const initData = { kind: 'settings-navigation' as const, path: '/settings/provider' as const, requestId: 1 }
+
+      svc.showMainWindow(initData)
+
+      expect(windowManagerMock.open).toHaveBeenCalledWith(
+        WindowType.Main,
+        expect.objectContaining({
+          initData
+        })
+      )
+      expect(windowManagerMock.pushInitDataToType).not.toHaveBeenCalled()
     })
   })
 

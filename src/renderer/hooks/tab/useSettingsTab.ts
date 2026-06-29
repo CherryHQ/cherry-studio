@@ -1,7 +1,8 @@
+import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import i18n from '@renderer/i18n'
-import { useIpcOn } from '@renderer/ipc/useIpcOn'
 import { OPEN_SETTINGS_TAB_EVENT, type OpenSettingsTabEvent } from '@renderer/services/settingsNavigation'
 import { normalizeSettingsPath, type SettingsPath } from '@shared/data/types/settingsPath'
+import type { MainWindowInitData } from '@shared/types/mainWindow'
 import { useCallback, useEffect, useRef } from 'react'
 
 import { useTabs } from './useTabs'
@@ -83,9 +84,13 @@ function useSettingsTabEventBridge(openSettingsRoute: (path: SettingsPath) => vo
 
 export function useMainSettingsTab() {
   const openSettingsRoute = useOpenSettingsRoute()
+  const initData = useWindowInitData<MainWindowInitData>()
 
-  useIpcOn('navigation.open_settings', ({ path }) => {
-    openSettingsRoute(path)
-  })
+  useEffect(() => {
+    if (initData?.kind === 'settings-navigation') {
+      openSettingsRoute(initData.path)
+    }
+  }, [initData, openSettingsRoute])
+
   useSettingsTabEventBridge(openSettingsRoute)
 }

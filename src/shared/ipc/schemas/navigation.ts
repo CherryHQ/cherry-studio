@@ -1,4 +1,3 @@
-import type { SettingsPath } from '@shared/data/types/settingsPath'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -10,10 +9,4 @@ export const navigationRequestSchemas = {
     }),
     output: z.void()
   })
-}
-
-export type NavigationEventSchemas = {
-  'navigation.open_settings': {
-    path: SettingsPath
-  }
 }

@@ -5,7 +5,7 @@ import { type BinaryEventSchemas, binaryRequestSchemas } from './binary'
 import { fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
 import { knowledgeRequestSchemas } from './knowledge'
-import { type NavigationEventSchemas, navigationRequestSchemas } from './navigation'
+import { navigationRequestSchemas } from './navigation'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
 import { webSearchRequestSchemas } from './webSearch'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
@@ -39,10 +39,6 @@ export type IpcRoute = keyof IpcRequestSchemas
  * the renderer trusts them and never re-parses). Each migrated domain intersects
  * its own `*EventSchemas` type here.
  */
-export type IpcEventSchemas = AiEventSchemas &
-  BinaryEventSchemas &
-  NavigationEventSchemas &
-  SelectionEventSchemas &
-  WindowEventSchemas
+export type IpcEventSchemas = AiEventSchemas & BinaryEventSchemas & SelectionEventSchemas & WindowEventSchemas
 /** Union of all declared event names (`never` until a domain is migrated). */
 export type IpcEventName = keyof IpcEventSchemas
