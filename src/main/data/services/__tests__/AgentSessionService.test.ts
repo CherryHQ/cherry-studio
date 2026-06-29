@@ -260,8 +260,9 @@ describe('AgentSessionService', () => {
     const secondWorkspace = await createWorkspace('after-switch')
     const session = await createSession('Workspace switch', firstWorkspace.id)
 
-    const updated = await agentSessionService.update(session.id, {
-      workspace: { type: 'user', workspaceId: secondWorkspace.id }
+    const updated = await agentSessionService.setWorkspace(session.id, {
+      type: 'user',
+      workspaceId: secondWorkspace.id
     })
 
     expect(updated.workspaceId).toBe(secondWorkspace.id)
@@ -277,8 +278,9 @@ describe('AgentSessionService', () => {
     })
     const previousSystemWorkspaceId = session.workspaceId
 
-    const updated = await agentSessionService.update(session.id, {
-      workspace: { type: 'user', workspaceId: userWorkspace.id }
+    const updated = await agentSessionService.setWorkspace(session.id, {
+      type: 'user',
+      workspaceId: userWorkspace.id
     })
 
     expect(updated.workspaceId).toBe(userWorkspace.id)
@@ -294,9 +296,7 @@ describe('AgentSessionService', () => {
     const userWorkspace = await createWorkspace('user-to-system')
     const session = await createSession('User to system', userWorkspace.id)
 
-    const updated = await agentSessionService.update(session.id, {
-      workspace: { type: 'system' }
-    })
+    const updated = await agentSessionService.setWorkspace(session.id, { type: 'system' })
 
     expect(updated.workspaceId).not.toBe(userWorkspace.id)
     expect(updated.workspace.type).toBe('system')
@@ -322,8 +322,9 @@ describe('AgentSessionService', () => {
     await insertSessionMessage(session.id, 'message-locks-workspace')
 
     await expect(
-      agentSessionService.update(session.id, {
-        workspace: { type: 'user', workspaceId: secondWorkspace.id }
+      agentSessionService.setWorkspace(session.id, {
+        type: 'user',
+        workspaceId: secondWorkspace.id
       })
     ).rejects.toMatchObject({ code: ErrorCode.INVALID_OPERATION })
 
@@ -342,8 +343,9 @@ describe('AgentSessionService', () => {
     await insertSessionMessage(session.id, 'message-locks-system-to-user')
 
     await expect(
-      agentSessionService.update(session.id, {
-        workspace: { type: 'user', workspaceId: userWorkspace.id }
+      agentSessionService.setWorkspace(session.id, {
+        type: 'user',
+        workspaceId: userWorkspace.id
       })
     ).rejects.toMatchObject({ code: ErrorCode.INVALID_OPERATION })
 
@@ -366,11 +368,9 @@ describe('AgentSessionService', () => {
     const session = await createSession('Locked user workspace', userWorkspace.id)
     await insertSessionMessage(session.id, 'message-locks-user-to-system')
 
-    await expect(
-      agentSessionService.update(session.id, {
-        workspace: { type: 'system' }
-      })
-    ).rejects.toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+    await expect(agentSessionService.setWorkspace(session.id, { type: 'system' })).rejects.toMatchObject({
+      code: ErrorCode.INVALID_OPERATION
+    })
 
     await expect(agentSessionService.getById(session.id)).resolves.toMatchObject({
       workspaceId: userWorkspace.id,

@@ -67,6 +67,7 @@ const agentPageMocks = vi.hoisted(() => ({
   dataApiGet: vi.fn(),
   dataApiPost: vi.fn(),
   updateSession: vi.fn(),
+  setSessionWorkspace: vi.fn(),
   invalidateCache: vi.fn(),
   oldViewSessions: [] as Array<{
     id: string
@@ -192,7 +193,8 @@ vi.mock('@renderer/hooks/agent/useSession', () => ({
     isLoading: false
   }),
   useUpdateSession: () => ({
-    updateSession: agentPageMocks.updateSession
+    updateSession: agentPageMocks.updateSession,
+    setSessionWorkspace: agentPageMocks.setSessionWorkspace
   }),
   useActiveSession: (options: {
     activeSessionId: string | null
@@ -521,6 +523,7 @@ describe('AgentPage', () => {
     })
     agentPageMocks.dataApiPost.mockResolvedValue(agentPageMocks.persistedSession)
     agentPageMocks.updateSession.mockResolvedValue(agentPageMocks.persistedSession)
+    agentPageMocks.setSessionWorkspace.mockResolvedValue(agentPageMocks.persistedSession)
     agentPageMocks.invalidateCache.mockResolvedValue(undefined)
     activeSessionMocks.session = null
     activeSessionMocks.isLoading = false
@@ -879,7 +882,7 @@ describe('AgentPage', () => {
       workspace: agentPageMocks.workspace
     }
     activeSessionMocks.sessionSource = 'query'
-    agentPageMocks.updateSession.mockResolvedValue({
+    agentPageMocks.setSessionWorkspace.mockResolvedValue({
       ...agentPageMocks.persistedSession,
       id: 'session-active',
       workspaceId: 'workspace-next',
@@ -891,13 +894,10 @@ describe('AgentPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Select session workspace' }))
 
     await waitFor(() =>
-      expect(agentPageMocks.updateSession).toHaveBeenCalledWith(
-        {
-          id: 'session-active',
-          workspace: { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: 'workspace-next' }
-        },
-        { showSuccessToast: false }
-      )
+      expect(agentPageMocks.setSessionWorkspace).toHaveBeenCalledWith('session-active', {
+        type: AGENT_WORKSPACE_TYPE.USER,
+        workspaceId: 'workspace-next'
+      })
     )
     expect(agentPageMocks.setLastUsedWorkspaceId).toHaveBeenCalledWith('workspace-next')
   })

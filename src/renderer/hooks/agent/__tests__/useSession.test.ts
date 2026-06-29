@@ -482,7 +482,7 @@ describe('useUpdateSession', () => {
     expect(mockToast.success).toHaveBeenCalledWith('common.update_success')
   })
 
-  it('refreshes workspaces only when the session workspace changes', () => {
+  it('keeps the session PATCH refresh scoped to session caches', () => {
     renderHook(() => useUpdateSession())
 
     const updateMutationCall = mockUseMutation.mock.calls.find(
@@ -499,12 +499,35 @@ describe('useUpdateSession', () => {
         result: createSession()
       })
     ).toEqual(['/agent-sessions', '/agent-sessions/session-1'])
-    expect(
-      refresh({
-        args: { params: { sessionId: 'session-1' }, body: { workspace: { type: 'system' } } },
-        result: createSession()
-      })
-    ).toEqual(['/agent-sessions', '/agent-sessions/session-1', '/agent-workspaces'])
+  })
+
+  it('refreshes workspaces through the dedicated workspace mutation', async () => {
+    const mockResult = createSession()
+    const setWorkspaceTrigger = vi.fn().mockResolvedValue(mockResult)
+    MockUseDataApiUtils.mockMutationWithTrigger('PUT', '/agent-sessions/:sessionId/workspace', setWorkspaceTrigger)
+
+    const { result } = renderHook(() => useUpdateSession())
+    const updated = await act(async () =>
+      result.current.setSessionWorkspace('session-1', { type: 'user', workspaceId: 'workspace-1' })
+    )
+
+    expect(setWorkspaceTrigger).toHaveBeenCalledWith({
+      params: { sessionId: 'session-1' },
+      body: { type: 'user', workspaceId: 'workspace-1' }
+    })
+    expect(updated).toBe(mockResult)
+
+    const workspaceMutationCall = mockUseMutation.mock.calls.find(
+      ([method, path]) => method === 'PUT' && path === '/agent-sessions/:sessionId/workspace'
+    )
+    const refresh = workspaceMutationCall?.[2]?.refresh as (context: {
+      args: { params: { sessionId: string } }
+    }) => string[]
+    expect(refresh({ args: { params: { sessionId: 'session-1' } } })).toEqual([
+      '/agent-sessions',
+      '/agent-sessions/session-1',
+      '/agent-workspaces'
+    ])
   })
 
   it('does not show success toast when showSuccessToast is false', async () => {

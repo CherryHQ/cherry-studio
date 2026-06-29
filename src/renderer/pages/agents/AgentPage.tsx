@@ -145,7 +145,7 @@ const AgentPage = () => {
   const [agentPickerOpen, setAgentPickerOpen] = useState(false)
   const { t } = useTranslation()
   const invalidateCache = useInvalidateCache()
-  const { updateSession } = useUpdateSession()
+  const { updateSession, setSessionWorkspace } = useUpdateSession()
   const pendingSelectedSession =
     pendingSelectedSessionRef.current?.id === activeSessionId ? pendingSelectedSessionRef.current : null
   const {
@@ -770,13 +770,7 @@ const AgentPage = () => {
         const workspaceSource: AgentSessionWorkspaceSource = workspaceId
           ? { type: AGENT_WORKSPACE_TYPE.USER, workspaceId }
           : { type: AGENT_WORKSPACE_TYPE.SYSTEM }
-        const updated = await updateSession(
-          {
-            id: current.id,
-            workspace: workspaceSource
-          },
-          { showSuccessToast: false }
-        )
+        const updated = await setSessionWorkspace(current.id, workspaceSource)
         if (!updated) return
 
         pendingSelectedSessionRef.current = updated
@@ -788,7 +782,14 @@ const AgentPage = () => {
         setReplacingSessionWorkspace(false)
       }
     },
-    [isOldView, replacingSessionWorkspace, setActiveSessionId, setLastUsedWorkspaceId, updateSession, visibleSession]
+    [
+      isOldView,
+      replacingSessionWorkspace,
+      setActiveSessionId,
+      setLastUsedWorkspaceId,
+      setSessionWorkspace,
+      visibleSession
+    ]
   )
   const handleLocateMessageHandled = useCallback(() => {
     setPendingLocateMessageId(undefined)

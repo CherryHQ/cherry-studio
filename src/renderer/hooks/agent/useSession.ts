@@ -23,6 +23,7 @@ import type {
   AgentSessionEntity,
   CreateAgentSessionDto,
   DeleteAgentSessionsResult,
+  SetAgentSessionWorkspaceDto,
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
 import { useCallback, useEffect, useMemo } from 'react'
@@ -277,9 +278,10 @@ export const useSessions = (
 }
 
 /**
- * Patch session-level fields (`name`, `description`, `agentId`, `workspace`). Config fields
+ * Patch session-level fields (`name`, `description`, `agentId`). Config fields
  * (model, instructions, configuration, ...) live on the parent agent — use
- * {@link import('./useAgent').useUpdateAgent} for those.
+ * {@link import('./useAgent').useUpdateAgent} for those. The workspace binding
+ * is changed separately via {@link setSessionWorkspace} (only while empty).
  */
 export const useUpdateSession = () => {
   const { t } = useTranslation()
@@ -288,14 +290,16 @@ export const useUpdateSession = () => {
     // The non-null assertion mirrors useTopic.ts and crashes loud
     // if the contract is ever broken instead of silently producing
     // '/agent-sessions/undefined' (which would miss every cache entry).
-    refresh: ({ args }) => {
-      const keys: ConcreteApiPaths[] = [
-        '/agent-sessions',
-        `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths
-      ]
-      if (args!.body?.workspace !== undefined) keys.push('/agent-workspaces')
-      return keys
-    }
+    refresh: ({ args }) => ['/agent-sessions', `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths]
+  })
+  const { trigger: setWorkspaceTrigger } = useMutation('PUT', '/agent-sessions/:sessionId/workspace', {
+    // Switching workspace creates/deletes a backing system workspace row, so
+    // refresh the workspace list alongside the session caches.
+    refresh: ({ args }) => [
+      '/agent-sessions',
+      `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths,
+      '/agent-workspaces'
+    ]
   })
 
   const updateSession = useCallback(
@@ -315,7 +319,24 @@ export const useUpdateSession = () => {
     [updateTrigger, t]
   )
 
-  return { updateSession }
+  /**
+   * Replace a session's workspace. Backend rejects this once the session has
+   * any message (only empty sessions may rebind), so callers should gate on an
+   * untouched session.
+   */
+  const setSessionWorkspace = useCallback(
+    async (id: string, workspace: SetAgentSessionWorkspaceDto): Promise<AgentSessionEntity | undefined> => {
+      try {
+        return await setWorkspaceTrigger({ params: { sessionId: id }, body: workspace })
+      } catch (error) {
+        window.toast.error({ title: t('agent.session.update.error.failed'), description: getErrorMessage(error) })
+        return undefined
+      }
+    },
+    [setWorkspaceTrigger, t]
+  )
+
+  return { updateSession, setSessionWorkspace }
 }
 
 /**

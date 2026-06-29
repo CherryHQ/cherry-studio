@@ -8,6 +8,7 @@ import {
   CreateAgentSessionMessagesSchema,
   CreateAgentSessionSchema,
   DeleteAgentSessionsQuerySchema,
+  SetAgentSessionWorkspaceSchema,
   UpdateAgentSessionSchema
 } from '../agentSessions'
 
@@ -61,17 +62,18 @@ describe('AgentSessionMessage schemas', () => {
 })
 
 describe('AgentSession schemas', () => {
-  it('accepts workspace updates through the normalized workspace source', () => {
+  it('accepts workspace changes through the dedicated workspace source body', () => {
+    expect(SetAgentSessionWorkspaceSchema.safeParse({ type: 'user', workspaceId: 'workspace-1' }).success).toBe(true)
+    expect(SetAgentSessionWorkspaceSchema.safeParse({ type: 'system' }).success).toBe(true)
+    expect(SetAgentSessionWorkspaceSchema.safeParse({ type: 'user' }).success).toBe(false)
+  })
+
+  it('rejects workspace fields on the generic session PATCH body', () => {
     expect(
       UpdateAgentSessionSchema.safeParse({
         workspace: { type: 'user', workspaceId: 'workspace-1' }
       }).success
-    ).toBe(true)
-    expect(
-      UpdateAgentSessionSchema.safeParse({
-        workspace: { type: 'system' }
-      }).success
-    ).toBe(true)
+    ).toBe(false)
     expect(
       UpdateAgentSessionSchema.safeParse({
         workspaceId: 'workspace-1'

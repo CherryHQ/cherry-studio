@@ -14,7 +14,11 @@ import * as z from 'zod'
 
 import type { CursorPaginationResponse } from '../apiTypes'
 import type { OrderEndpoints } from './_endpointHelpers'
-import { AgentSessionWorkspaceSourceSchema, AgentWorkspaceEntitySchema } from './agentWorkspaces'
+import {
+  type AgentSessionWorkspaceSource,
+  AgentSessionWorkspaceSourceSchema,
+  AgentWorkspaceEntitySchema
+} from './agentWorkspaces'
 
 /** Cursor-paginated query for `/agent-sessions/:sessionId/messages`. Walks history
  *  newest-first; an absent `cursor` returns the most recent page unless
@@ -110,11 +114,20 @@ export const UpdateAgentSessionSchema = z.strictObject({
   name: z.string().optional(),
   isNameManuallyEdited: z.boolean().optional(),
   description: z.string().optional(),
-  agentId: z.string().min(1).optional(),
-  workspace: AgentSessionWorkspaceSourceSchema.optional()
+  agentId: z.string().min(1).optional()
 })
 
 export type UpdateAgentSessionDto = z.infer<typeof UpdateAgentSessionSchema>
+
+/**
+ * Body for `PUT /agent-sessions/:sessionId/workspace`. Replacing a session's
+ * workspace creates/deletes the backing system workspace row and is only
+ * allowed before any message exists, so it lives on a dedicated sub-resource
+ * rather than the generic PATCH (see api-design-guidelines: complex
+ * side-effects / resource creation → dedicated endpoint).
+ */
+export const SetAgentSessionWorkspaceSchema = AgentSessionWorkspaceSourceSchema
+export type SetAgentSessionWorkspaceDto = AgentSessionWorkspaceSource
 
 /** Query for `GET /agent-sessions` (cursor pagination + optional agent filter). */
 export const ListAgentSessionsQuerySchema = z.strictObject({
@@ -193,6 +206,23 @@ export type AgentSessionSchemas = {
     DELETE: {
       params: { sessionId: string }
       response: void
+    }
+  }
+
+  '/agent-sessions/:sessionId/workspace': {
+    /**
+     * Replace the session's workspace. Only permitted while the session has no
+     * messages — once a conversation has started the binding is permanent
+     * (NOT_FOUND if the session is missing, INVALID_OPERATION if it already has
+     * messages).
+     *
+     * Side effects: switching away from a system workspace deletes that backing
+     * row; switching to `{ type: 'system' }` creates a fresh system workspace.
+     */
+    PUT: {
+      params: { sessionId: string }
+      body: SetAgentSessionWorkspaceDto
+      response: AgentSessionEntity
     }
   }
 

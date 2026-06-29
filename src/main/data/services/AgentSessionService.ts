@@ -40,11 +40,6 @@ type JoinedSessionRow = {
   workspace: AgentWorkspaceRow
 }
 
-type WorkspaceUpdate = {
-  workspaceId: string
-  oldSystemWorkspaceId?: string
-}
-
 function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
   const clean = nullsToUndefined(row.session)
   return {
@@ -228,7 +223,6 @@ export class AgentSessionService {
     }
     if (dto.description !== undefined) patch.description = dto.description
     if (dto.agentId !== undefined) patch.agentId = dto.agentId
-    if (dto.workspace !== undefined) patch.workspace = dto.workspace
     if (Object.keys(patch).length === 0) return this.getById(id)
 
     const row = await withSqliteErrors(
@@ -240,61 +234,44 @@ export class AgentSessionService {
   }
 
   async updateTx(tx: DbOrTx, id: string, patch: UpdateAgentSessionDto): Promise<SessionRow | undefined> {
-    const sessionPatch: Partial<SessionRow> = {}
-    if (patch.name !== undefined) sessionPatch.name = patch.name
-    if (patch.isNameManuallyEdited !== undefined) sessionPatch.isNameManuallyEdited = patch.isNameManuallyEdited
-    if (patch.description !== undefined) sessionPatch.description = patch.description
-    if (patch.agentId !== undefined) sessionPatch.agentId = patch.agentId
-
-    let oldSystemWorkspaceId: string | undefined
-    if (patch.workspace !== undefined) {
-      const workspaceUpdate = await this.prepareWorkspaceUpdateTx(tx, id, patch.workspace)
-      if (workspaceUpdate) {
-        sessionPatch.workspaceId = workspaceUpdate.workspaceId
-        oldSystemWorkspaceId = workspaceUpdate.oldSystemWorkspaceId
-      }
-    }
-
-    if (Object.keys(sessionPatch).length === 0) {
-      const [row] = await tx.select().from(sessionsTable).where(eq(sessionsTable.id, id)).limit(1)
-      return row
-    }
-
-    const [row] = await tx.update(sessionsTable).set(sessionPatch).where(eq(sessionsTable.id, id)).returning()
-    if (row && oldSystemWorkspaceId) {
-      await agentWorkspaceService.deleteByIdTx(tx, oldSystemWorkspaceId)
-    }
+    const [row] = await tx.update(sessionsTable).set(patch).where(eq(sessionsTable.id, id)).returning()
     return row
   }
 
-  private async prepareWorkspaceUpdateTx(
-    tx: DbOrTx,
-    id: string,
-    workspaceSource: AgentSessionWorkspaceSource
-  ): Promise<WorkspaceUpdate | undefined> {
+  /**
+   * Replace a session's workspace. Only an empty session (no messages) may
+   * change its workspace; once a conversation has started the binding is
+   * permanent. Lives on `PUT /agent-sessions/:id/workspace` rather than the
+   * generic PATCH because it creates/deletes the backing system workspace row.
+   */
+  async setWorkspace(id: string, source: AgentSessionWorkspaceSource): Promise<AgentSessionEntity> {
+    await withSqliteErrors(
+      () => application.get('DbService').withWriteTx((tx) => this.setWorkspaceTx(tx, id, source)),
+      defaultHandlersFor('Session', id)
+    )
+    return await this.getById(id)
+  }
+
+  async setWorkspaceTx(tx: DbOrTx, id: string, source: AgentSessionWorkspaceSource): Promise<void> {
     const current = await this.getJoinedSessionRowTx(tx, id)
-
-    if (
-      workspaceSource.type === AGENT_WORKSPACE_TYPE.SYSTEM &&
-      current.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM
-    ) {
-      return undefined
-    }
-
-    if (workspaceSource.type === AGENT_WORKSPACE_TYPE.USER) {
-      const workspace = await agentWorkspaceService.getRowByIdTx(tx, workspaceSource.workspaceId)
-      if (workspace.id === current.session.workspaceId) return undefined
-      await this.assertSessionHasNoMessagesTx(tx, id)
-      return {
-        workspaceId: workspace.id,
-        oldSystemWorkspaceId:
-          current.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM ? current.session.workspaceId : undefined
-      }
-    }
-
+    // The workspace binding is locked the moment a session has any message.
     await this.assertSessionHasNoMessagesTx(tx, id)
+
+    if (source.type === AGENT_WORKSPACE_TYPE.USER) {
+      const workspace = await agentWorkspaceService.getRowByIdTx(tx, source.workspaceId)
+      if (workspace.id === current.session.workspaceId) return
+      // Repoint first, then drop the old system workspace so the session FK never dangles.
+      await tx.update(sessionsTable).set({ workspaceId: workspace.id }).where(eq(sessionsTable.id, id))
+      if (current.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) {
+        await agentWorkspaceService.deleteByIdTx(tx, current.session.workspaceId)
+      }
+      return
+    }
+
+    // Target is a system workspace; an existing system workspace is already correct.
+    if (current.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) return
     const workspace = await agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: id })
-    return { workspaceId: workspace.id }
+    await tx.update(sessionsTable).set({ workspaceId: workspace.id }).where(eq(sessionsTable.id, id))
   }
 
   private async getJoinedSessionRowTx(tx: DbOrTx, id: string): Promise<JoinedSessionRow> {
