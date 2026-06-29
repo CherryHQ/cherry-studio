@@ -20,7 +20,7 @@ const SIGN_IN_TIMEOUT_MS = 10 * 60 * 1000
 const TOKEN_EXPIRY_BUFFER_MS = 60 * 1000
 
 @Injectable('OAuthRuntimeService')
-@ServicePhase(Phase.Background)
+@ServicePhase(Phase.WhenReady)
 export class OAuthRuntimeService extends BaseService {
   private readonly logger = loggerService.withContext('OAuthRuntimeService')
   private readonly tokenStore: OAuthTokenStore = new ProviderAuthConfigOAuthTokenStore()

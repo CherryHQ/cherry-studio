@@ -93,6 +93,11 @@ export class DeepLinkCallbackTransport {
       throw new OAuthServiceError('OAuth callback for unknown or expired state')
     }
 
+    if (Date.now() - flow.timestamp > FLOW_TTL_MS) {
+      this.pendingFlows.delete(state)
+      throw new OAuthServiceError('OAuth callback for unknown or expired state')
+    }
+
     if (error) {
       this.pendingFlows.delete(state)
       throw new OAuthServiceError(url.searchParams.get('error_description') || error)

@@ -50,7 +50,9 @@ export interface OAuthTokenExchangeSideEffectResult {
 export interface OAuthRuntimeProviderDefinition {
   providerId: string
   clientId: string
-  transport: { type: 'loopback'; config: LoopbackCallbackConfig } | { type: 'deep-link'; config: DeepLinkCallbackConfig }
+  transport:
+    | { type: 'loopback'; config: LoopbackCallbackConfig }
+    | { type: 'deep-link'; config: DeepLinkCallbackConfig }
   createClient(context?: OAuthRuntimeProviderContext): PkceOAuthClient | Promise<PkceOAuthClient>
   extractAccountId?(accessToken: string): string | null
   beforePersistTokens?(

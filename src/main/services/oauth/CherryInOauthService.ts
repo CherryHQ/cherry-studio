@@ -5,11 +5,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { net } from 'electron'
 import * as z from 'zod'
 
-import {
-  CHERRYIN_PROVIDER_ID,
-  CherryInOauthServiceError,
-  validateCherryInApiHost
-} from './CherryInOAuthConfig'
+import { CHERRYIN_PROVIDER_ID, CherryInOauthServiceError, validateCherryInApiHost } from './CherryInOAuthConfig'
 
 const logger = loggerService.withContext('CherryInOauthService')
 
@@ -123,7 +119,9 @@ export class CherryInOauthService extends BaseService {
 
   public getToken = async (apiHost = 'https://open.cherryin.ai'): Promise<string | null> => {
     this.validateApiHost(apiHost)
-    const credentials = await application.get('OAuthRuntimeService').getValidAccessToken(CHERRYIN_PROVIDER_ID, { apiHost })
+    const credentials = await application
+      .get('OAuthRuntimeService')
+      .getValidAccessToken(CHERRYIN_PROVIDER_ID, { apiHost })
     return credentials?.accessToken ?? null
   }
 

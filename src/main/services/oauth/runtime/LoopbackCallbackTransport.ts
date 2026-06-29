@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 
-import type { LoopbackCallbackConfig } from './types'
 import { OAuthServiceError } from '../errors'
+import type { LoopbackCallbackConfig } from './types'
 
 export class LoopbackCallbackTransport {
   private activeServers: Server[] = []

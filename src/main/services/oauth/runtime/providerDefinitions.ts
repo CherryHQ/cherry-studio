@@ -7,9 +7,9 @@ import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { net } from 'electron'
 import * as z from 'zod'
 
-import { OAuthServiceError } from '../errors'
 import { ApiKeysResponseSchema, CHERRYIN_CONFIG, validateCherryInApiHost } from '../CherryInOAuthConfig'
-import type { OAuthRuntimeProviderDefinition, OAuthRuntimeProviderContext } from './types'
+import { OAuthServiceError } from '../errors'
+import type { OAuthRuntimeProviderContext, OAuthRuntimeProviderDefinition } from './types'
 
 const CODEX_CONFIG = {
   CLIENT_ID: 'app_EMoamEEZ73f0CkXaXp7hrann',
@@ -45,7 +45,7 @@ function extractCodexAccountId(accessToken: string): string | null {
   try {
     const parts = accessToken.split('.')
     if (parts.length !== 3) return null
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf-8'))
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8'))
     const accountId = payload?.[CODEX_CONFIG.JWT_CLAIM_PATH]?.chatgpt_account_id
     return typeof accountId === 'string' && accountId.length > 0 ? accountId : null
   } catch {

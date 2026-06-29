@@ -67,7 +67,10 @@ describe('CherryInOauthService', () => {
   })
 
   it('delegates CherryIN OAuth start to OAuthRuntimeService deep-link flow', async () => {
-    runtimeMocks.startDeepLinkFlow.mockResolvedValue({ authUrl: 'https://open.cherryin.ai/oauth2/auth', state: 'state' })
+    runtimeMocks.startDeepLinkFlow.mockResolvedValue({
+      authUrl: 'https://open.cherryin.ai/oauth2/auth',
+      state: 'state'
+    })
     const event = { sender: { id: 7 } } as Electron.IpcMainInvokeEvent
 
     await expect(cherryInOauthService.startOAuthFlow(event, 'https://open.cherryin.ai')).resolves.toEqual({
