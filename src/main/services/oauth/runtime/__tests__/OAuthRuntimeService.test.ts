@@ -213,7 +213,7 @@ describe('OAuthRuntimeService', () => {
   })
 
   it('handleDeepLinkCallback exchanges, persists, and notifies the initiator', async () => {
-    await service.startDeepLinkFlow({ sender: {} } as unknown as Electron.IpcMainInvokeEvent, 'cherryin', {})
+    await service.startDeepLinkFlow('win-1', 'cherryin', {})
     h.deepLinkTransportMock.consumeCallback.mockReturnValue({
       code: 'c',
       codeVerifier: 'v',
@@ -230,7 +230,7 @@ describe('OAuthRuntimeService', () => {
   })
 
   it('handleDeepLinkCallback reports an exchange failure to the initiator', async () => {
-    await service.startDeepLinkFlow({ sender: {} } as unknown as Electron.IpcMainInvokeEvent, 'cherryin', {})
+    await service.startDeepLinkFlow('win-1', 'cherryin', {})
     h.deepLinkTransportMock.consumeCallback.mockReturnValue({
       code: 'c',
       codeVerifier: 'v',

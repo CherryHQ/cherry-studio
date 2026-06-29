@@ -2,6 +2,7 @@ import { Button, Skeleton } from '@cherrystudio/ui'
 import { Cherryin } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { useProvider, useProviderAuthConfig } from '@renderer/hooks/useProvider'
+import { ipcApi } from '@renderer/ipc'
 import { oauthCardClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { oauthWithCherryIn } from '@renderer/utils/oauth'
 import { hasApiKeys } from '@shared/utils/provider'
@@ -69,7 +70,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
   const fetchData = useCallback(async () => {
     setIsLoadingData(true)
     try {
-      const balance = await window.api.cherryin.getBalance(CHERRYIN_OAUTH_SERVER)
+      const balance = await ipcApi.request('cherryin.get_balance', { apiHost: CHERRYIN_OAUTH_SERVER })
       setBalanceInfo(balance)
     } catch (error) {
       logger.warn('Failed to fetch balance:', error as Error)
@@ -130,7 +131,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
         setIsLoggingOut(true)
 
         try {
-          await window.api.cherryin.logout(CHERRYIN_OAUTH_SERVER)
+          await ipcApi.request('cherryin.logout', { apiHost: CHERRYIN_OAUTH_SERVER })
           setOauthTokenOverride(false)
           setBalanceInfo(null)
 

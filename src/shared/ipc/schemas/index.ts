@@ -2,6 +2,7 @@ import type { RouteDef } from '../define'
 import { type AiEventSchemas, aiRequestSchemas } from './ai'
 import { appRequestSchemas } from './app'
 import { type BinaryEventSchemas, binaryRequestSchemas } from './binary'
+import { type CherryinEventSchemas, cherryinRequestSchemas } from './cherryin'
 import { fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
 import { knowledgeRequestSchemas } from './knowledge'
@@ -21,6 +22,7 @@ export const ipcRequestSchemas = {
   ...aiRequestSchemas,
   ...appRequestSchemas,
   ...binaryRequestSchemas,
+  ...cherryinRequestSchemas,
   ...fileRequestSchemas,
   ...fileProcessingRequestSchemas,
   ...knowledgeRequestSchemas,
@@ -39,6 +41,10 @@ export type IpcRoute = keyof IpcRequestSchemas
  * the renderer trusts them and never re-parses). Each migrated domain intersects
  * its own `*EventSchemas` type here.
  */
-export type IpcEventSchemas = AiEventSchemas & BinaryEventSchemas & SelectionEventSchemas & WindowEventSchemas
+export type IpcEventSchemas = AiEventSchemas &
+  BinaryEventSchemas &
+  CherryinEventSchemas &
+  SelectionEventSchemas &
+  WindowEventSchemas
 /** Union of all declared event names (`never` until a domain is migrated). */
 export type IpcEventName = keyof IpcEventSchemas

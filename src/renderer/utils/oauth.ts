@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import i18n, { getLanguageCode } from '@renderer/i18n'
+import { ipcApi } from '@renderer/ipc'
 
 const logger = loggerService.withContext('Utils:oauth')
 
@@ -216,7 +217,7 @@ export const oauthWithCherryIn = async (
 ): Promise<string> => {
   const { oauthServer, apiHost } = config
 
-  const { authUrl, state } = await window.api.cherryin.startOAuthFlow(oauthServer, apiHost)
+  const { authUrl, state } = await ipcApi.request('cherryin.start_oauth_flow', { oauthServer, apiHost })
 
   logger.debug('Opening authorization URL')
 
@@ -229,7 +230,7 @@ export const oauthWithCherryIn = async (
   return new Promise<string>((resolve, reject) => {
     let timeoutId: ReturnType<typeof setTimeout> | null = null
 
-    const removeListener = window.api.cherryin.onOAuthResult(async (result) => {
+    const removeListener = ipcApi.on('cherryin.oauth_result', async (result) => {
       // Defensive: another concurrent CherryIN flow on the same window would
       // hit the same listener; main only ever pushes for our state, but filter
       // anyway to keep the contract explicit.

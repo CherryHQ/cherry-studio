@@ -2,9 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const runtimeMocks = vi.hoisted(() => ({
   startDeepLinkFlow: vi.fn(),
-  hasToken: vi.fn(),
   getValidAccessToken: vi.fn(),
-  saveTokens: vi.fn(),
   logout: vi.fn()
 }))
 
@@ -30,9 +28,7 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('@main/core/lifecycle', () => {
-  class MockBaseService {
-    public ipcHandle = vi.fn().mockImplementation(() => ({ dispose: vi.fn() }))
-  }
+  class MockBaseService {}
 
   return {
     BaseService: MockBaseService,
@@ -53,45 +49,21 @@ describe('CherryInOauthService', () => {
     cherryInOauthService = new CherryInOauthService()
   })
 
-  it('registers CherryIN IPC handlers through the lifecycle init hook', async () => {
-    await (cherryInOauthService as any).onInit()
-
-    const ipcHandle = (cherryInOauthService as any).ipcHandle as ReturnType<typeof vi.fn>
-    expect(ipcHandle.mock.calls.map(([channel]) => channel)).toEqual([
-      'cherryin:save-token',
-      'cherryin:has-token',
-      'cherryin:get-balance',
-      'cherryin:logout',
-      'cherryin:start-oauth-flow'
-    ])
-  })
-
   it('delegates CherryIN OAuth start to OAuthRuntimeService deep-link flow', async () => {
     runtimeMocks.startDeepLinkFlow.mockResolvedValue({
       authUrl: 'https://open.cherryin.ai/oauth2/auth',
       state: 'state'
     })
-    const event = { sender: { id: 7 } } as Electron.IpcMainInvokeEvent
 
-    await expect(cherryInOauthService.startOAuthFlow(event, 'https://open.cherryin.ai')).resolves.toEqual({
+    await expect(cherryInOauthService.startOAuthFlow('settings-window', 'https://open.cherryin.ai')).resolves.toEqual({
       authUrl: 'https://open.cherryin.ai/oauth2/auth',
       state: 'state'
     })
 
-    expect(runtimeMocks.startDeepLinkFlow).toHaveBeenCalledWith(event, 'cherryin', {
+    expect(runtimeMocks.startDeepLinkFlow).toHaveBeenCalledWith('settings-window', 'cherryin', {
       oauthServer: 'https://open.cherryin.ai',
       apiHost: 'https://open.cherryin.ai'
     })
-  })
-
-  it('delegates token save and hasToken to OAuthRuntimeService', async () => {
-    runtimeMocks.hasToken.mockResolvedValue(true)
-
-    await cherryInOauthService.saveToken({} as Electron.IpcMainInvokeEvent, 'access', 'refresh')
-    await expect(cherryInOauthService.hasToken()).resolves.toBe(true)
-
-    expect(runtimeMocks.saveTokens).toHaveBeenCalledWith('cherryin', { accessToken: 'access', refreshToken: 'refresh' })
-    expect(runtimeMocks.hasToken).toHaveBeenCalledWith('cherryin')
   })
 
   it('maps balance/profile data using runtime-provided OAuth credentials', async () => {
@@ -121,7 +93,7 @@ describe('CherryInOauthService', () => {
         })
       } as Response)
 
-    const result = await cherryInOauthService.getBalance({} as Electron.IpcMainInvokeEvent, 'https://open.cherryin.ai')
+    const result = await cherryInOauthService.getBalance('https://open.cherryin.ai')
 
     expect(result).toEqual({
       balance: 128.5,
@@ -157,9 +129,9 @@ describe('CherryInOauthService', () => {
         }) as Response
     } as Response)
 
-    await expect(
-      cherryInOauthService.getBalance({} as Electron.IpcMainInvokeEvent, 'https://open.cherryin.ai')
-    ).rejects.toThrow('Failed to get balance: HTTP 401 Unauthorized from /api/v1/oauth/balance')
+    await expect(cherryInOauthService.getBalance('https://open.cherryin.ai')).rejects.toThrow(
+      'Failed to get balance: HTTP 401 Unauthorized from /api/v1/oauth/balance'
+    )
 
     expect(errorSpy).toHaveBeenCalledWith(
       'CherryIN request returned 401 Unauthorized',
@@ -174,24 +146,20 @@ describe('CherryInOauthService', () => {
   it('rejects api hosts outside the allowlist on every IPC entry point', async () => {
     const forgedHost = 'https://attacker.example.com'
 
-    await expect(
-      cherryInOauthService.startOAuthFlow({ sender: { id: 1 } } as Electron.IpcMainInvokeEvent, forgedHost)
-    ).rejects.toThrow(/Unauthorized API host/)
-
-    await expect(cherryInOauthService.getBalance({} as Electron.IpcMainInvokeEvent, forgedHost)).rejects.toThrow(
+    await expect(cherryInOauthService.startOAuthFlow('settings-window', forgedHost)).rejects.toThrow(
       /Unauthorized API host/
     )
 
-    await expect(cherryInOauthService.logout({} as Electron.IpcMainInvokeEvent, forgedHost)).rejects.toThrow(
-      /Unauthorized API host/
-    )
+    await expect(cherryInOauthService.getBalance(forgedHost)).rejects.toThrow(/Unauthorized API host/)
+
+    await expect(cherryInOauthService.logout(forgedHost)).rejects.toThrow(/Unauthorized API host/)
   })
 
   it('revokes remotely and delegates local token clearing to OAuthRuntimeService on logout', async () => {
     runtimeMocks.getValidAccessToken.mockResolvedValue({ accessToken: 'oauth-access' })
     netMocks.fetch.mockResolvedValue({ ok: true, status: 200, statusText: 'OK' } as Response)
 
-    await cherryInOauthService.logout({} as Electron.IpcMainInvokeEvent, 'https://open.cherryin.ai')
+    await cherryInOauthService.logout('https://open.cherryin.ai')
 
     expect(netMocks.fetch).toHaveBeenCalledWith(
       'https://open.cherryin.ai/oauth2/revoke',

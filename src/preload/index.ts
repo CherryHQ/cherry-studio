@@ -419,28 +419,8 @@ const api = {
     logout: () => ipcRenderer.invoke(IpcChannel.Copilot_Logout),
     getUser: (token: string) => ipcRenderer.invoke(IpcChannel.Copilot_GetUser, token)
   },
-  cherryin: {
-    saveToken: (accessToken: string, refreshToken?: string) =>
-      ipcRenderer.invoke(IpcChannel.CherryIN_SaveToken, accessToken, refreshToken),
-    hasToken: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.CherryIN_HasToken),
-    getBalance: (apiHost: string) => ipcRenderer.invoke(IpcChannel.CherryIN_GetBalance, apiHost),
-    logout: (apiHost: string) => ipcRenderer.invoke(IpcChannel.CherryIN_Logout, apiHost),
-    startOAuthFlow: (oauthServer: string, apiHost?: string) =>
-      ipcRenderer.invoke(IpcChannel.CherryIN_StartOAuthFlow, oauthServer, apiHost),
-    onOAuthResult: (
-      callback: (result: { state: string; apiKeys: string } | { state: string; error: string }) => void
-    ) => {
-      const listener = (
-        _event: Electron.IpcRendererEvent,
-        result: { state: string; apiKeys: string } | { state: string; error: string }
-      ) => callback(result)
-      ipcRenderer.on(IpcChannel.CherryIN_OAuthResult, listener)
-      return () => {
-        ipcRenderer.off(IpcChannel.CherryIN_OAuthResult, listener)
-      }
-    }
-  },
-  // Codex / Grok CLI OAuth migrated to IpcApi — see `ipcApi.request('oauth.*')`.
+  // CherryIN OAuth + Codex / Grok CLI OAuth migrated to IpcApi — see
+  // `ipcApi.request('cherryin.*' | 'oauth.*')` and `ipcApi.on('cherryin.oauth_result')`.
   // Binary related APIs
   isBinaryExist: (name: string) => ipcRenderer.invoke(IpcChannel.App_IsBinaryExist, name),
   getBinaryPath: (name: string) => ipcRenderer.invoke(IpcChannel.App_GetBinaryPath, name),

@@ -2,6 +2,7 @@ import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { OAuthHttpError } from '@main/utils/oauth/PkceOAuthClient'
+import type { WindowId } from '@shared/ipc/types'
 import { shell } from 'electron'
 
 import { describeOAuthError, OAuthServiceError } from '../errors'
@@ -160,15 +161,18 @@ export class OAuthRuntimeService extends BaseService {
   }
 
   public startDeepLinkFlow = async (
-    event: Electron.IpcMainInvokeEvent,
+    initiatorWindowId: WindowId | null,
     providerId: string,
     context: OAuthRuntimeProviderContext = {}
   ): Promise<{ authUrl: string; state: string }> => {
+    if (!initiatorWindowId) {
+      throw new OAuthServiceError('OAuth flow initiator is not a managed window')
+    }
     const definition = this.getDefinition(providerId)
     const transport = this.getDeepLinkTransport(definition)
     const client = await definition.createClient(context)
     const { authUrl, state, codeVerifier } = client.createAuthorizationRequest()
-    return transport.registerAuthorizationRequest(authUrl, state, codeVerifier, event, context)
+    return transport.registerAuthorizationRequest(authUrl, state, codeVerifier, initiatorWindowId, context)
   }
 
   public handleDeepLinkCallback = async (url: URL): Promise<void> => {

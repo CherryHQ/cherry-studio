@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { IpcChannel } from '@shared/IpcChannel'
+import type { WindowId } from '@shared/ipc/types'
 import { net } from 'electron'
 import * as z from 'zod'
 
@@ -71,50 +71,22 @@ export interface OauthFlowParams {
 @Injectable('CherryInOauthService')
 @ServicePhase(Phase.Background)
 export class CherryInOauthService extends BaseService {
-  protected onInit(): void {
-    this.registerIpcHandlers()
-  }
-
-  private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.CherryIN_SaveToken, this.saveToken)
-    this.ipcHandle(IpcChannel.CherryIN_HasToken, this.hasToken)
-    this.ipcHandle(IpcChannel.CherryIN_GetBalance, this.getBalance)
-    this.ipcHandle(IpcChannel.CherryIN_Logout, this.logout)
-    this.ipcHandle(IpcChannel.CherryIN_StartOAuthFlow, this.startOAuthFlow)
-  }
-
   private validateApiHost(apiHost: string): void {
     validateCherryInApiHost(apiHost)
   }
 
   public startOAuthFlow = async (
-    event: Electron.IpcMainInvokeEvent,
+    initiatorWindowId: WindowId | null,
     oauthServer: string,
     apiHost?: string
   ): Promise<OauthFlowParams> => {
     this.validateApiHost(oauthServer)
     if (apiHost) this.validateApiHost(apiHost)
 
-    return application.get('OAuthRuntimeService').startDeepLinkFlow(event, CHERRYIN_PROVIDER_ID, {
+    return application.get('OAuthRuntimeService').startDeepLinkFlow(initiatorWindowId, CHERRYIN_PROVIDER_ID, {
       oauthServer,
       apiHost: apiHost ?? oauthServer
     })
-  }
-
-  public saveToken = async (
-    _: Electron.IpcMainInvokeEvent,
-    accessToken: string,
-    refreshToken?: string
-  ): Promise<void> => {
-    try {
-      await application.get('OAuthRuntimeService').saveTokens(CHERRYIN_PROVIDER_ID, {
-        accessToken,
-        ...(refreshToken ? { refreshToken } : {})
-      })
-    } catch (error) {
-      logger.error('Failed to save token:', error as Error)
-      throw new CherryInOauthServiceError('Failed to save OAuth token', error)
-    }
   }
 
   public getToken = async (apiHost = 'https://open.cherryin.ai'): Promise<string | null> => {
@@ -123,10 +95,6 @@ export class CherryInOauthService extends BaseService {
       .get('OAuthRuntimeService')
       .getValidAccessToken(CHERRYIN_PROVIDER_ID, { apiHost })
     return credentials?.accessToken ?? null
-  }
-
-  public hasToken = async (): Promise<boolean> => {
-    return application.get('OAuthRuntimeService').hasToken(CHERRYIN_PROVIDER_ID)
   }
 
   private redactDiagnosticValue = (value: unknown): unknown => {
@@ -289,7 +257,7 @@ export class CherryInOauthService extends BaseService {
     }
   }
 
-  public getBalance = async (_: Electron.IpcMainInvokeEvent, apiHost: string): Promise<BalanceResponse> => {
+  public getBalance = async (apiHost: string): Promise<BalanceResponse> => {
     this.validateApiHost(apiHost)
 
     try {
@@ -329,7 +297,7 @@ export class CherryInOauthService extends BaseService {
     }
   }
 
-  public logout = async (_: Electron.IpcMainInvokeEvent, apiHost: string): Promise<void> => {
+  public logout = async (apiHost: string): Promise<void> => {
     this.validateApiHost(apiHost)
 
     try {

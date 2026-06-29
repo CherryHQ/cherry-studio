@@ -1,12 +1,12 @@
 import { application } from '@application'
-import { IpcChannel } from '@shared/IpcChannel'
+import type { WindowId } from '@shared/ipc/types'
 
 import { OAuthServiceError } from '../errors'
 import type { DeepLinkCallbackConfig } from './types'
 
 interface PendingDeepLinkFlow {
   codeVerifier: string
-  initiatorWindowId: string
+  initiatorWindowId: WindowId
   context: {
     oauthServer?: string
     apiHost?: string
@@ -23,7 +23,7 @@ export interface DeepLinkAuthorizationCallback {
   state: string
   code: string
   codeVerifier: string
-  initiatorWindowId: string
+  initiatorWindowId: WindowId
   context: PendingDeepLinkFlow['context']
 }
 
@@ -55,15 +55,10 @@ export class DeepLinkCallbackTransport {
     authUrl: string,
     state: string,
     codeVerifier: string,
-    event: Electron.IpcMainInvokeEvent,
+    initiatorWindowId: WindowId,
     context: PendingDeepLinkFlow['context'] = {}
   ): DeepLinkAuthorizationRequest {
     this.cleanupExpiredFlows()
-
-    const initiatorWindowId = application.get('WindowManager').getWindowIdByWebContents(event.sender)
-    if (!initiatorWindowId) {
-      throw new OAuthServiceError('OAuth flow initiator is not a managed window')
-    }
 
     this.pendingFlows.set(state, {
       codeVerifier,
@@ -121,17 +116,22 @@ export class DeepLinkCallbackTransport {
     }
   }
 
-  sendConsumedResult(state: string, initiatorWindowId: string, result: { apiKeys?: string; error?: string }): void {
+  sendConsumedResult(state: string, initiatorWindowId: WindowId, result: { apiKeys?: string; error?: string }): void {
     this.sendToInitiator(initiatorWindowId, state, result)
   }
 
-  private sendToInitiator(windowId: string, state: string, result: { apiKeys?: string; error?: string }): void {
-    const window = application.get('WindowManager').getWindow(windowId)
-    if (!window || window.isDestroyed()) return
-    window.webContents.send(IpcChannel.CherryIN_OAuthResult, { state, ...result })
+  // Point-to-point to the flow's initiator only — the result carries the user's
+  // API keys, so it must never broadcast. `IpcApiService.send` no-ops if the
+  // window is gone/destroyed.
+  private sendToInitiator(windowId: WindowId, state: string, result: { apiKeys?: string; error?: string }): void {
+    const payload =
+      'error' in result && result.error !== undefined
+        ? { state, error: result.error }
+        : { state, apiKeys: result.apiKeys ?? '' }
+    application.get('IpcApiService').send(windowId, 'cherryin.oauth_result', payload)
   }
 
-  getInitiatorWindowId(state: string): string | null {
+  getInitiatorWindowId(state: string): WindowId | null {
     return this.pendingFlows.get(state)?.initiatorWindowId ?? null
   }
 }

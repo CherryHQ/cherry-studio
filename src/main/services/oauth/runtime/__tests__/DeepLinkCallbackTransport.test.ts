@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const windowManagerMock = vi.hoisted(() => ({
-  getWindowIdByWebContents: vi.fn()
+const ipcApiServiceMock = vi.hoisted(() => ({
+  send: vi.fn()
 }))
 
 vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
-      if (name === 'WindowManager') return windowManagerMock
+      if (name === 'IpcApiService') return ipcApiServiceMock
       throw new Error(`unexpected service: ${name}`)
     }
   }
@@ -19,10 +19,7 @@ const REDIRECT_URI = 'cherrystudio://oauth/callback'
 const FLOW_TTL_MS = 10 * 60 * 1000
 
 function registerFlow(transport: DeepLinkCallbackTransport, state = 'state') {
-  windowManagerMock.getWindowIdByWebContents.mockReturnValue('settings-window')
-  transport.registerAuthorizationRequest('https://open.cherryin.ai/oauth2/auth', state, 'verifier', {
-    sender: { id: 1 }
-  } as Electron.IpcMainInvokeEvent)
+  transport.registerAuthorizationRequest('https://open.cherryin.ai/oauth2/auth', state, 'verifier', 'settings-window')
 }
 
 describe('DeepLinkCallbackTransport', () => {
@@ -66,5 +63,18 @@ describe('DeepLinkCallbackTransport', () => {
     expect(transport.consumeCallback(new URL(`${REDIRECT_URI}?code=code`))).toBeNull()
     // The genuine flow is untouched by the forged probes.
     expect(transport.consumeCallback(new URL(`${REDIRECT_URI}?state=known-state&code=code`))).not.toBeNull()
+  })
+
+  // The result carries the user's API keys, so it must reach exactly the flow's
+  // initiator via point-to-point IpcApi send — never a broadcast.
+  it('sends the consumed result point-to-point to the initiator window', () => {
+    const transport = new DeepLinkCallbackTransport({ redirectUri: REDIRECT_URI })
+
+    transport.sendConsumedResult('state', 'settings-window', { apiKeys: 'k1,k2' })
+
+    expect(ipcApiServiceMock.send).toHaveBeenCalledWith('settings-window', 'cherryin.oauth_result', {
+      state: 'state',
+      apiKeys: 'k1,k2'
+    })
   })
 })
