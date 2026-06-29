@@ -34,7 +34,6 @@ export const AgentConfigurationSchema = z
     permission_mode: AgentPermissionModeSchema.optional(),
     max_turns: z.number().optional(),
     env_vars: z.record(z.string(), z.string()).optional(),
-    soul_enabled: z.boolean().optional(),
     bootstrap_completed: z.boolean().optional(),
     scheduler_enabled: z.boolean().optional(),
     scheduler_type: AgentSchedulerTypeSchema.optional(),
@@ -144,6 +143,8 @@ export const ScheduledTaskEntitySchema = z.strictObject({
   trigger: TriggerSchema,
   timeoutMinutes: z.number(),
   workspace: AgentSessionWorkspaceSourceSchema,
+  /** Permission mode applied for this task's (autonomous) runs; defaults to bypassPermissions. */
+  permissionMode: AgentPermissionModeSchema.optional(),
   channelIds: z.array(z.string()).optional(),
   nextRun: z.string().nullable().optional(),
   lastRun: z.string().nullable().optional(),
@@ -190,6 +191,8 @@ export const CreateTaskSchema = z.strictObject({
   trigger: TriggerSchema,
   workspace: AgentSessionWorkspaceSourceSchema,
   timeoutMinutes: TimeoutMinutesAtomSchema,
+  /** Permission mode for this task's unattended runs; defaults to bypassPermissions when omitted. */
+  permissionMode: AgentPermissionModeSchema.optional(),
   channelIds: z.array(z.string()).optional()
 })
 export type CreateTaskDto = z.infer<typeof CreateTaskSchema>

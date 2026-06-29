@@ -114,7 +114,6 @@
           "title": "スラック",
           "whoamiTip": "💡ヒント：チャンネルIDを取得するには、ボットに /whoami を送信してください。"
         },
-        "soulModeRequired": "このエージェントは自律モードが有効になっていません。チャンネル機能は動作しません。エージェント設定で有効にしてください。",
         "tab": "チャンネル",
         "telegram": {
           "botToken": "Bot Token",
@@ -340,8 +339,7 @@
       "welcome_title": "今日は何について話しましょうか？"
     },
     "input": {
-      "placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択",
-      "soul_placeholder": "Telegramに接続するのを手伝ってください"
+      "placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択"
     },
     "list": {
       "error": {
@@ -3031,10 +3029,6 @@
           "small_model": {
             "hint": "軽量なチェックとフォーマット",
             "label": "小型モデル（オプション）"
-          },
-          "soul_enabled": {
-            "help": "有効にすると、bypassPermissions を自動的に付与します",
-            "label": "ソウルモード"
           }
         },
         "model_config": "モデル構成",

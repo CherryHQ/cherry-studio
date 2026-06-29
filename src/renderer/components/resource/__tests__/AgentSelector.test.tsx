@@ -134,8 +134,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.field.plan_model.label': 'Plan model',
           'library.config.agent.field.small_model.hint': 'Small model.',
           'library.config.agent.field.small_model.label': 'Small model',
-          'library.config.agent.field.soul_enabled.help': 'Use soul.md.',
-          'library.config.agent.field.soul_enabled.label': 'Soul',
           'library.config.basic.model_clear': 'Clear',
           'library.config.basic.model_not_found': 'Model {{id}} is unavailable.',
           'library.config.basic.model_pick': 'Pick model',
@@ -189,7 +187,6 @@ const AGENTS_RESPONSE = {
       allowedTools: [],
       configuration: {
         avatar: '🤖',
-        soul_enabled: false,
         heartbeat_enabled: true,
         heartbeat_interval: 30
       },
@@ -211,7 +208,6 @@ const AGENTS_RESPONSE = {
       allowedTools: [],
       configuration: {
         avatar: '🤖',
-        soul_enabled: false,
         heartbeat_enabled: true,
         heartbeat_interval: 30
       },
@@ -467,8 +463,7 @@ describe('AgentSelector', () => {
           description: 'Created from selector',
           configuration: {
             avatar: '🤖',
-            permission_mode: 'bypassPermissions',
-            soul_enabled: true
+            permission_mode: 'bypassPermissions'
           }
         }
       })

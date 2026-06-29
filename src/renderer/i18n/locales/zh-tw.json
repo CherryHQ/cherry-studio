@@ -114,7 +114,6 @@
           "title": "Slack",
           "whoamiTip": "💡 提示：發送 /whoami 給機器人即可取得頻道 ID。"
         },
-        "soulModeRequired": "此代理未啟用自主模式，頻道功能將無法運作。請在代理設定中啟用。",
         "tab": "頻道",
         "telegram": {
           "botToken": "Bot Token",
@@ -340,8 +339,7 @@
       "welcome_title": "今天我們該談些什麼？"
     },
     "input": {
-      "placeholder": "在這裡輸入您的訊息，使用 {{key}} 傳送 - @ 選擇路徑，/ 選擇命令",
-      "soul_placeholder": "幫我連接微信"
+      "placeholder": "在這裡輸入您的訊息，使用 {{key}} 傳送 - @ 選擇路徑，/ 選擇命令"
     },
     "list": {
       "error": {
@@ -3031,10 +3029,6 @@
           "small_model": {
             "hint": "輕量級檢查與格式化",
             "label": "小型模型"
-          },
-          "soul_enabled": {
-            "help": "啟用後，將自動授予 bypassPermissions",
-            "label": "靈魂模式"
           }
         },
         "model_config": "模型配置",

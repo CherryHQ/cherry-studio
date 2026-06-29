@@ -76,7 +76,16 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
 }))
 
 vi.mock('@main/ai/agents/cherryclaw/prompt', () => ({
-  PromptBuilder: vi.fn(() => ({ buildSystemPrompt: vi.fn(async () => 'soul prompt') }))
+  PromptBuilder: vi.fn(() => ({ buildPersonalityAppend: vi.fn(async () => 'personality append') }))
+}))
+
+vi.mock('@main/ai/agents/cherryclaw/seedWorkspace', () => ({
+  seedIdentityTemplates: vi.fn(async () => undefined)
+}))
+
+vi.mock('@main/utils/agentRoot', () => ({
+  agentRootPath: (base: string, id: string) => `${base}/${id}`,
+  ensureAgentRoot: vi.fn(async () => undefined)
 }))
 
 vi.mock('@main/ai/mcp/servers/assistant', () => ({
@@ -84,6 +93,10 @@ vi.mock('@main/ai/mcp/servers/assistant', () => ({
 }))
 
 vi.mock('@main/ai/mcp/servers/claw', () => ({
+  default: vi.fn(() => ({ mcpServer: {} }))
+}))
+
+vi.mock('@main/ai/mcp/servers/workspaceMemory', () => ({
   default: vi.fn(() => ({ mcpServer: {} }))
 }))
 
@@ -318,7 +331,10 @@ describe('buildClaudeCodeSessionSettings', () => {
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
     expect(settings.disallowedTools).toEqual(expect.arrayContaining(['Bash', 'Read']))
-    expect(settings.allowedTools).toBeUndefined()
+    // The built-in MCP allowlist (cherry-tools + claw + agent-memory) is now always present.
+    expect(settings.allowedTools).toEqual(
+      expect.arrayContaining(['mcp__cherry-tools__*', 'mcp__claw__*', 'mcp__agent-memory__*'])
+    )
   })
 
   it('composes disallowedTools: globals + EnterWorktree (no .git cwd) + dedup, no AskUserQuestion for a plain agent', async () => {
@@ -348,7 +364,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(new Set(disallowed).size).toBe(disallowed.length)
   })
 
-  it('soul mode adds SOUL_MODE_DISALLOWED_TOOLS to disallowedTools', async () => {
+  it('an autonomous run adds AUTONOMOUS_RUN_DISABLED_TOOLS to disallowedTools', async () => {
     mocks.getAgent.mockResolvedValue({
       id: 'agent-1',
       type: 'claude-code',
@@ -356,7 +372,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       mcps: [],
       allowedTools: [],
       disabledTools: [],
-      configuration: { soul_enabled: true }
+      configuration: {}
     })
     const session = {
       id: 'session-1',
@@ -364,7 +380,16 @@ describe('buildClaudeCodeSessionSettings', () => {
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
-    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    // Autonomous (scheduled-task / heartbeat) runs disable interactive tools per-run.
+    // AskUserQuestion is the autonomous-only addition (the "composes disallowedTools"
+    // test confirms a non-autonomous run does NOT block it).
+    const settings = await buildClaudeCodeSessionSettings(
+      session as never,
+      {} as never,
+      {
+        runPolicy: { autonomous: true }
+      } as never
+    )
     const disallowed = settings.disallowedTools ?? []
 
     expect(disallowed).toEqual(

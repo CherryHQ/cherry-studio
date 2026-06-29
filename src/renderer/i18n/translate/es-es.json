@@ -114,7 +114,6 @@
           "title": "Slack",
           "whoamiTip": "💡 Consejo: Envía /whoami al bot para obtener el ID del canal."
         },
-        "soulModeRequired": "Este agente no tiene el Modo Autónomo habilitado. Las funciones del canal no funcionarán. Por favor, habilítalo en la configuración del agente.",
         "tab": "Canales",
         "telegram": {
           "botToken": "Token del bot",
@@ -340,8 +339,7 @@
       "welcome_title": "¿De qué hablaremos hoy?"
     },
     "input": {
-      "placeholder": "Introduce tu mensaje aquí, envía con {{key}} - @ seleccionar ruta, / seleccionar comando",
-      "soul_placeholder": "Ayúdame a conectarme a Telegram"
+      "placeholder": "Introduce tu mensaje aquí, envía con {{key}} - @ seleccionar ruta, / seleccionar comando"
     },
     "list": {
       "error": {
@@ -3031,10 +3029,6 @@
           "small_model": {
             "hint": "Verificaciones ligeras y formato",
             "label": "Modelo pequeño (opcional)"
-          },
-          "soul_enabled": {
-            "help": "Cuando está habilitado, otorga automáticamente bypassPermissions",
-            "label": "Modo alma"
           }
         },
         "model_config": "Configuración del modelo",

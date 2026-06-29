@@ -246,8 +246,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.field.plan_model.label': 'Plan model',
           'library.config.agent.field.small_model.hint': 'Small model.',
           'library.config.agent.field.small_model.label': 'Small model',
-          'library.config.agent.field.soul_enabled.help': 'Use workspace soul files and autonomous tools.',
-          'library.config.agent.field.soul_enabled.label': 'Autonomous mode',
           'library.config.agent.field.instructions.label': 'Instructions',
           'library.config.agent.field.instructions.placeholder': 'Tell this agent how to work',
           'library.config.agent.field.env_vars.help': 'One KEY=VALUE per line',
@@ -425,7 +423,6 @@ const AGENT: AgentDetail = {
   mcps: [],
   configuration: {
     avatar: '🤖',
-    soul_enabled: false,
     heartbeat_enabled: true,
     heartbeat_interval: 30
   },
@@ -870,27 +867,12 @@ describe('edit dialogs', () => {
     )
   })
 
-  it('hides permission mode while autonomous mode is enabled', async () => {
+  it('keeps the permission mode control visible (no autonomous toggle gating)', async () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
+    // PermissionModeField always renders now — there is no soul/autonomous toggle to hide it.
     expect(screen.getByRole('combobox', { name: 'Permission mode' })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('switch', { name: 'Autonomous mode' }))
-
-    expect(screen.queryByRole('combobox', { name: 'Permission mode' })).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-
-    await waitFor(() =>
-      expect(updateAgentMock).toHaveBeenCalledWith({
-        body: expect.objectContaining({
-          configuration: expect.objectContaining({
-            permission_mode: 'bypassPermissions',
-            soul_enabled: true
-          })
-        })
-      })
-    )
+    expect(screen.queryByRole('switch', { name: 'Autonomous mode' })).not.toBeInTheDocument()
   })
 
   it('uses the left tools submenu to switch agent tool categories', async () => {

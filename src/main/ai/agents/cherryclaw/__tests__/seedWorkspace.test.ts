@@ -14,25 +14,25 @@ vi.mock('node:fs/promises', () => ({
 
 import { mkdir, stat, writeFile } from 'node:fs/promises'
 
-import { seedWorkspaceTemplates } from '../seedWorkspace'
+import { seedIdentityTemplates } from '../seedWorkspace'
 
 const mockedMkdir = vi.mocked(mkdir)
 const mockedStat = vi.mocked(stat)
 const mockedWriteFile = vi.mocked(writeFile)
 
-describe('seedWorkspaceTemplates', () => {
+describe('seedIdentityTemplates', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockedMkdir.mockResolvedValue(undefined)
     mockedWriteFile.mockResolvedValue(undefined)
   })
 
-  it('creates directories and seeds templates when files do not exist', async () => {
+  it('creates the memory dir and seeds templates when files do not exist', async () => {
     mockedStat.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
 
-    await seedWorkspaceTemplates('/workspace')
+    await seedIdentityTemplates('/workspace')
 
-    expect(mockedMkdir).toHaveBeenCalledWith('/workspace', { recursive: true })
+    // ensureAgentRoot creates the agent root's memory/ subdir recursively.
     expect(mockedMkdir).toHaveBeenCalledWith('/workspace/memory', { recursive: true })
 
     expect(mockedWriteFile).toHaveBeenCalledTimes(2)
@@ -53,7 +53,7 @@ describe('seedWorkspaceTemplates', () => {
   it('skips writing files that already exist (idempotent)', async () => {
     mockedStat.mockResolvedValue({ mtimeMs: 1000 } as any)
 
-    await seedWorkspaceTemplates('/workspace')
+    await seedIdentityTemplates('/workspace')
 
     expect(mockedWriteFile).not.toHaveBeenCalled()
   })
@@ -67,7 +67,7 @@ describe('seedWorkspaceTemplates', () => {
       throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
     })
 
-    await seedWorkspaceTemplates('/workspace')
+    await seedIdentityTemplates('/workspace')
 
     expect(mockedWriteFile).toHaveBeenCalledTimes(1)
     expect(mockedWriteFile.mock.calls[0][0]).toBe('/workspace/USER.md')

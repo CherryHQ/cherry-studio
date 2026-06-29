@@ -19,11 +19,13 @@ import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import { readHeartbeat } from '@main/ai/agents/cherryclaw/heartbeat'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
+import { clearAgentRunPolicy, setAgentRunPolicy } from '@main/ai/runtime/claudeCode/agentRunPolicy'
 import { ChannelAdapterListener, type StreamListener } from '@main/ai/streamManager'
 import { startAgentSessionRun } from '@main/ai/streamManager/api/startAgentSessionRun'
 import { application } from '@main/core/application'
 import type { JobContext } from '@main/core/job/types'
 import { ErrorCode, isDataApiError } from '@shared/data/api'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 const logger = loggerService.withContext('runAgentTask')
@@ -36,6 +38,8 @@ export type AgentTaskInput = {
   prompt: string
   timeoutMinutes: number
   workspace: AgentSessionWorkspaceSource
+  /** Permission mode for this unattended run; defaults to bypassPermissions. */
+  permissionMode?: AgentPermissionMode
 }
 
 export type AgentTaskOutput = {
@@ -66,7 +70,7 @@ function makeRunSignal(
 }
 
 export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<AgentTaskOutput> {
-  const { agentId, prompt, timeoutMinutes, workspace } = ctx.input
+  const { agentId, prompt, timeoutMinutes, workspace, permissionMode } = ctx.input
 
   // schedule-fired jobs carry `scheduleId` on the row; manual ad-hoc enqueues
   // (no schedule) degrade gracefully: skip channel notification.
@@ -143,6 +147,10 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     name: taskName ?? 'Scheduled task',
     workspace
   })
+
+  // Mark this as an autonomous run so settings building disables interactive tools
+  // and applies the task's permission choice. Cleared in `finally`.
+  setAgentRunPolicy(session.id, { autonomous: true, permissionMode })
 
   const subscribedChannels = scheduleId ? await agentChannelService.getSubscribedChannels(scheduleId) : []
 
@@ -235,6 +243,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     }
     throw runError
   } finally {
+    clearAgentRunPolicy(session.id)
     runSignal.removeEventListener('abort', onRunAbort)
     dispose()
   }

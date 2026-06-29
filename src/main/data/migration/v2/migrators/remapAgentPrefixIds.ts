@@ -39,7 +39,10 @@ export const AGENT_TABLES: SQLiteTable[] = [
  * not toggle FK itself; AgentsMigrator asserts agent-domain FK integrity via
  * `assertOwnedForeignKeys(AGENT_TABLES)` after this returns. Idempotent.
  */
-export async function remapAgentPrefixIds(db: MigrationContext['db']): Promise<void> {
+export async function remapAgentPrefixIds(db: MigrationContext['db']): Promise<Map<string, string>> {
+  // oldId → newId for every remapped agent. Returned so downstream steps (e.g. the
+  // soul/memory file copy) can resolve a legacy agent's old id to its final v2 id.
+  const agentIdMap = new Map<string, string>()
   let committed = false
   try {
     await db.run(sql.raw('BEGIN'))
@@ -53,6 +56,7 @@ export async function remapAgentPrefixIds(db: MigrationContext['db']): Promise<v
 
     for (const { id: oldId } of oldAgents) {
       const newId = uuidv4()
+      agentIdMap.set(oldId, newId)
       await db.update(agentTable).set({ id: newId }).where(eq(agentTable.id, oldId))
       await db.update(agentSessionTable).set({ agentId: newId }).where(eq(agentSessionTable.agentId, oldId))
       await db.update(agentSkillTable).set({ agentId: newId }).where(eq(agentSkillTable.agentId, oldId))
@@ -103,4 +107,6 @@ export async function remapAgentPrefixIds(db: MigrationContext['db']): Promise<v
     }
     throw error
   }
+
+  return agentIdMap
 }

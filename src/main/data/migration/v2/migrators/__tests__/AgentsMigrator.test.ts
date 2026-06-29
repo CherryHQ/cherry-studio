@@ -57,7 +57,8 @@ function createSchemaInfo() {
 function createMigrationContext(overrides: Record<string, unknown> = {}) {
   return {
     paths: {
-      legacyAgentDbFile: '/mock/Data/agents.db'
+      legacyAgentDbFile: '/mock/Data/agents.db',
+      agentRootsDir: '/mock/Data/Agents/Roots'
     },
     sharedData: new Map(),
     ...overrides

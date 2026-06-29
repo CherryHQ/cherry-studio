@@ -36,10 +36,6 @@ type CacheEntry = {
   content: string
 }
 
-const DEFAULT_BASIC_PROMPT = `You are CherryClaw, a personal assistant running inside CherryStudio.
-
-`
-
 const SKILLS_GUIDANCE = `## Skills
 
 You can manage Claude skills via the \`mcp__skills__skills\` tool — search the marketplace, install / remove existing skills, and author new ones via the \`init\` and \`register\` actions. Discovery and runtime activation of installed skills is handled automatically by the agent SDK; this tool is just the management surface.
@@ -105,10 +101,10 @@ function composeToolGuidance(opts: { hasClaw: boolean }): string {
   return parts.join('\n\n')
 }
 
-function memoriesTemplate(workspacePath: string, sections: string): string {
+function memoriesTemplate(rootDir: string, sections: string): string {
   return `## Memories
 
-Persistent files in \`${workspacePath}/\` carry your state across sessions. Update them autonomously — never ask for approval.
+Persistent files in \`${rootDir}/\` carry your state across sessions. Update them autonomously — never ask for approval.
 
 | File | Purpose | How to update |
 |---|---|---|
@@ -126,99 +122,59 @@ ${sections}`
 }
 
 /**
- * PromptBuilder assembles the system prompt for CherryStudio agents.
+ * PromptBuilder assembles the personality layer that is APPENDED to the SDK's
+ * `claude_code` preset for every agent (v2 has no soul-mode distinction).
  *
- * Two entry points:
+ * {@link buildPersonalityAppend} reads the agent root's identity + memory and
+ * returns the block to append: optional `system.md`, cross-tool strategy
+ * guidance ({@link buildToolGuidance}), bootstrap onboarding (when not yet
+ * completed), and the loaded memory files (SOUL.md / USER.md / FACT.md).
  *
- * 1. {@link buildSystemPrompt} — full custom prompt for Soul Mode agents that
- *    REPLACES the SDK preset entirely. Includes the basic identity, the full
- *    tool guidance (claw + skills + memory + web), bootstrap instructions when
- *    needed, and the workspace memory files (SOUL.md / USER.md / FACT.md).
- *
- * 2. {@link buildToolGuidance} — lightweight tool-strategy suffix for
- *    non-Soul agents. Does not touch workspace files; intended to be APPENDED
- *    to the SDK's `claude_code` preset so the model gets cross-tool strategy
- *    guidance (skills + memory + web) on top of the standard Claude Code
- *    instructions. Returns a synchronous string — no I/O.
- *
- * Memory files layout (Soul Mode only):
- *   {workspace}/SOUL.md          — personality, tone, communication style
- *   {workspace}/USER.md          — user profile, preferences, context
- *   {workspace}/memory/FACT.md   — durable project knowledge, technical decisions
- *   {workspace}/memory/JOURNAL.jsonl — timestamped event log (managed by memory tool)
+ * Agent root layout (per-agent, separate from the working dir / cwd):
+ *   {root}/SOUL.md          — personality, tone, communication style
+ *   {root}/USER.md          — user profile, preferences, context
+ *   {root}/memory/FACT.md   — durable project knowledge, technical decisions
+ *   {root}/memory/JOURNAL.jsonl — timestamped event log (managed by memory tool)
  */
 export class PromptBuilder {
   private cache = new Map<string, CacheEntry>()
 
-  async buildSystemPrompt(workspacePath: string, config?: AgentConfiguration): Promise<string> {
+  /**
+   * Build the personality block to APPEND to the `claude_code` preset for an
+   * agent. Reads from the agent root: optional `system.md`, the full tool
+   * guidance (claw + skills + memory + web), bootstrap onboarding when not yet
+   * completed, and the loaded identity/memory files (SOUL.md / USER.md / FACT.md).
+   */
+  async buildPersonalityAppend(rootDir: string, config?: AgentConfiguration): Promise<string> {
     const parts: string[] = []
 
-    // Basic prompt: workspace system.md (case-insensitive) > embedded default
-    const systemPath = await resolveFile(workspacePath, 'system.md')
-    const basicPrompt = systemPath ? await this.readCachedFile(systemPath) : undefined
-    parts.push(basicPrompt ?? DEFAULT_BASIC_PROMPT)
+    // Optional system.md (case-insensitive) — an extra identity/instructions layer.
+    const systemPath = await resolveFile(rootDir, 'system.md')
+    const systemContent = systemPath ? await this.readCachedFile(systemPath) : undefined
+    if (systemContent) parts.push(systemContent)
 
-    // Tool guidance — Soul Mode gets the full set including claw (cron / notify / config)
-    parts.push(composeToolGuidance({ hasClaw: true }))
+    // Tool guidance — every agent gets the full set including claw (cron / notify / config).
+    parts.push(this.buildToolGuidance({ hasClaw: true }))
 
-    // Bootstrap detection: inject bootstrap instructions if not completed
-    const needsBootstrap = await this.shouldRunBootstrap(workspacePath, config)
-    if (needsBootstrap) {
+    // Bootstrap onboarding: inject when not yet completed.
+    if (await this.shouldRunBootstrap(rootDir, config)) {
       parts.push(BOOTSTRAP_INSTRUCTIONS)
       logger.info('Bootstrap mode active — injecting onboarding instructions')
     }
 
-    // Memories section (always included so the agent knows file locations)
-    const memoriesContent = await this.buildMemoriesSection(workspacePath)
-    if (memoriesContent) {
-      parts.push(memoriesContent)
-    }
+    // Memory files (SOUL.md / USER.md / FACT.md) loaded into context.
+    const memoriesContent = await this.buildMemoriesSection(rootDir)
+    if (memoriesContent) parts.push(memoriesContent)
 
     return parts.join('\n\n')
   }
 
   /**
-   * Build the cross-tool strategy guidance string for a non-Soul agent. The
-   * returned text is meant to be APPENDED to the Claude Code SDK preset so
-   * the model gets explicit "when to use which tool" guidance on top of the
-   * SDK's built-in instructions. The skills + memory + web sections are
-   * always included (those MCP servers are injected for every agent); the
-   * claw section is excluded by default (non-Soul agents do not get cron /
-   * notify / config).
+   * Cross-tool strategy guidance appended to the preset. `hasClaw` includes the
+   * claw (cron / notify / config) section.
    */
   buildToolGuidance(opts: { hasClaw?: boolean } = {}): string {
     return composeToolGuidance({ hasClaw: opts.hasClaw ?? false })
-  }
-
-  /**
-   * Build a "## Workspace Knowledge" section for non-Soul agents that loads
-   * just the workspace's `memory/FACT.md` content. This is the recall side of
-   * the cross-session learning loop — agents write durable knowledge to
-   * FACT.md via \`mcp__agent-memory__memory\` action="update", and this method
-   * loads it back into the system prompt at the start of the next session so
-   * the agent remembers what it learned (e.g. parameter shapes that previously
-   * failed, project conventions, user corrections).
-   *
-   * Distinct from {@link buildSystemPrompt}'s memories section which is Soul
-   * Mode only and also includes the SOUL.md / USER.md persona files. Returns
-   * undefined when no FACT.md exists, so callers can omit the section
-   * entirely rather than emitting an empty wrapper.
-   */
-  async buildFactsSection(workspacePath: string): Promise<string | undefined> {
-    const memoryDir = path.join(workspacePath, 'memory')
-    const factPath = await resolveFile(memoryDir, 'FACT.md')
-    if (!factPath) return undefined
-
-    const content = await this.readCachedFile(factPath)
-    if (!content) return undefined
-
-    return `## Workspace Knowledge
-
-These are durable facts and lessons accumulated across past sessions in this workspace. Trust them as ground truth unless you have direct evidence they're wrong — in which case update \`memory/FACT.md\` via \`mcp__agent-memory__memory\` action="update" so the next session also benefits.
-
-<facts>
-${content}
-</facts>`
   }
 
   /**
@@ -227,13 +183,13 @@ ${content}
    * - If SOUL.md has substantial non-template content, skip (legacy agent migration).
    * - Otherwise, run bootstrap.
    */
-  private async shouldRunBootstrap(workspacePath: string, config?: AgentConfiguration): Promise<boolean> {
+  private async shouldRunBootstrap(rootDir: string, config?: AgentConfiguration): Promise<boolean> {
     if (config?.bootstrap_completed === true) {
       return false
     }
 
     // Legacy migration: if SOUL.md already has real content, treat as completed
-    const soulPath = await resolveFile(workspacePath, 'SOUL.md')
+    const soulPath = await resolveFile(rootDir, 'SOUL.md')
     if (soulPath) {
       const content = await this.readCachedFile(soulPath)
       if (content && content.length > SOUL_CONTENT_THRESHOLD) {
@@ -248,12 +204,12 @@ ${content}
     return true
   }
 
-  private async buildMemoriesSection(workspacePath: string): Promise<string | undefined> {
-    const memoryDir = path.join(workspacePath, 'memory')
+  private async buildMemoriesSection(rootDir: string): Promise<string | undefined> {
+    const memoryDir = path.join(rootDir, 'memory')
 
     const [soulPath, userPath, factPath] = await Promise.all([
-      resolveFile(workspacePath, 'SOUL.md'),
-      resolveFile(workspacePath, 'USER.md'),
+      resolveFile(rootDir, 'SOUL.md'),
+      resolveFile(rootDir, 'USER.md'),
       resolveFile(memoryDir, 'FACT.md')
     ])
 
@@ -275,7 +231,7 @@ ${content}
       .filter(Boolean)
       .join('\n\n')
 
-    return memoriesTemplate(workspacePath, sections)
+    return memoriesTemplate(rootDir, sections)
   }
 
   /**

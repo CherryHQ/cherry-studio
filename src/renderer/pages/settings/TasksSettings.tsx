@@ -937,15 +937,9 @@ const TasksSettings: FC = () => {
         })
       )
       setTasks(tasksPerAgent.flat())
-      setAgents(
-        agentList
-          .filter(
-            (a: AgentEntity) =>
-              (a.configuration as any)?.soul_enabled === true ||
-              (a.configuration as any)?.permission_mode === 'bypassPermissions'
-          )
-          .map((a: AgentEntity) => ({ id: a.id, name: a.name ?? a.id }))
-      )
+      // Every agent can be scheduled now — tasks carry their own permission mode
+      // (default bypassPermissions), so there's no autonomy gate on the agent.
+      setAgents(agentList.map((a: AgentEntity) => ({ id: a.id, name: a.name ?? a.id })))
     } catch (error) {
       logger.error('Failed to load tasks settings', error as Error)
       window.toast.error(t('agent.cherryClaw.tasks.error.loadFailed'))

@@ -18,7 +18,6 @@ import type { QuickPanelInputAdapter, QuickPanelListItem } from '@renderer/compo
 import { AgentSelector, WorkspaceSelector } from '@renderer/components/resource'
 import { ModelSelector } from '@renderer/components/Selector'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { isSoulModeEnabled } from '@renderer/hooks/agent/agentConfiguration'
 import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
@@ -737,11 +736,10 @@ const AgentComposerInner = ({
   )
 
   const placeholderText = useMemo(() => {
-    if (isSoulModeEnabled(agentBase?.configuration)) return t('agent.input.soul_placeholder')
     return t('agent.input.placeholder', {
       key: getSendMessageShortcutLabel(sendMessageShortcut)
     })
-  }, [agentBase?.configuration, sendMessageShortcut, t])
+  }, [sendMessageShortcut, t])
 
   const buildQueuedPayload = useCallback(
     (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null =>

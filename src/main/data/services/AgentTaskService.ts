@@ -6,7 +6,6 @@
  */
 
 import { application } from '@application'
-import { agentTable as agentsTable } from '@data/db/schemas/agent'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
@@ -14,28 +13,33 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { ListOptions } from '@shared/data/api/apiTypes'
 import type {
+  AgentPermissionMode,
   CreateTaskDto,
   ScheduledTaskEntity,
   TaskRunLogEntity,
   UpdateTaskDto
 } from '@shared/data/api/schemas/agents'
+import { AgentPermissionModeSchema } from '@shared/data/api/schemas/agents'
 import {
   type AgentSessionWorkspaceSource,
   AgentSessionWorkspaceSourceSchema
 } from '@shared/data/api/schemas/agentWorkspaces'
 import type { JobScheduleSnapshot, JobSnapshot, UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
-import { eq } from 'drizzle-orm'
 
 const logger = loggerService.withContext('AgentTaskService')
 
 const AGENT_TASK_TYPE = 'agent.task' as const
 const HEARTBEAT_TASK_NAME = 'heartbeat'
 
+/** Scheduled tasks run unattended, so default to bypassing approval prompts. */
+const DEFAULT_TASK_PERMISSION_MODE: AgentPermissionMode = 'bypassPermissions'
+
 type AgentTaskJobInputTemplate = {
   agentId: string
   prompt: string
   timeoutMinutes: number
   workspace: AgentSessionWorkspaceSource
+  permissionMode: AgentPermissionMode
 }
 
 function normalizeAgentTaskTemplate(value: unknown): AgentTaskJobInputTemplate | null {
@@ -45,11 +49,13 @@ function normalizeAgentTaskTemplate(value: unknown): AgentTaskJobInputTemplate |
   if (typeof template.agentId !== 'string' || typeof template.prompt !== 'string') return null
 
   const parsedWorkspace = AgentSessionWorkspaceSourceSchema.safeParse(template.workspace)
+  const parsedPermission = AgentPermissionModeSchema.safeParse(template.permissionMode)
   return {
     agentId: template.agentId,
     prompt: template.prompt,
     timeoutMinutes: typeof template.timeoutMinutes === 'number' ? template.timeoutMinutes : 2,
-    workspace: parsedWorkspace.success ? parsedWorkspace.data : { type: 'system' }
+    workspace: parsedWorkspace.success ? parsedWorkspace.data : { type: 'system' },
+    permissionMode: parsedPermission.success ? parsedPermission.data : DEFAULT_TASK_PERMISSION_MODE
   }
 }
 
@@ -60,43 +66,17 @@ function deriveStatus(snapshot: JobScheduleSnapshot): 'active' | 'paused' | 'com
 }
 
 export class AgentTaskService {
-  /**
-   * Scheduled tasks require an autonomous agent — either Soul Mode
-   * (soul_enabled) or bypassPermissions permission mode — otherwise
-   * tool calls during task execution will fail with permission errors.
-   */
-  private async assertAutonomous(agentId: string): Promise<void> {
-    const database = application.get('DbService').getDb()
-    const [row] = await database
-      .select({ configuration: agentsTable.configuration })
-      .from(agentsTable)
-      .where(eq(agentsTable.id, agentId))
-      .limit(1)
-
-    if (!row) {
-      throw DataApiErrorFactory.notFound('Agent', agentId)
-    }
-
-    const config: Record<string, unknown> = row.configuration ?? {}
-
-    if (config.soul_enabled === true || config.permission_mode === 'bypassPermissions') {
-      return
-    }
-
-    throw DataApiErrorFactory.invalidOperation(
-      'Scheduled tasks require Soul Mode or Bypass Permissions mode. Update the agent settings first.'
-    )
-  }
-
   async createTask(agentId: string, dto: CreateTaskDto): Promise<ScheduledTaskEntity> {
-    await this.assertAutonomous(agentId)
-
     const timeoutMinutes = dto.timeoutMinutes ?? 2
+    // Tasks run unattended — they carry their own permission mode (defaulting to
+    // bypassPermissions) so tool calls don't stall on approval. No agent-level
+    // autonomy gate: every agent can be scheduled.
     const jobInputTemplate: AgentTaskJobInputTemplate = {
       agentId,
       prompt: dto.prompt,
       timeoutMinutes,
-      workspace: dto.workspace
+      workspace: dto.workspace,
+      permissionMode: dto.permissionMode ?? DEFAULT_TASK_PERMISSION_MODE
     }
 
     const { id } = await application.get('JobManager').registerJobSchedule({
@@ -176,14 +156,16 @@ export class AgentTaskService {
     const existingTemplate = existingSnapshot ? normalizeAgentTaskTemplate(existingSnapshot.jobInputTemplate) : null
     if (!existingSnapshot || !existingTemplate) return null
 
-    // Build the updated jobInputTemplate when prompt/timeoutMinutes changed.
+    // Build the updated jobInputTemplate when prompt/timeoutMinutes/workspace/permissionMode changed.
     const nextPrompt = patch.prompt ?? existingTemplate.prompt
     const nextTimeoutMinutes = patch.timeoutMinutes ?? existingTemplate.timeoutMinutes
     const nextWorkspace = patch.workspace ?? existingTemplate.workspace
+    const nextPermissionMode = patch.permissionMode ?? existingTemplate.permissionMode
     const templateChanged =
       (patch.prompt !== undefined && patch.prompt !== existingTemplate.prompt) ||
       (patch.timeoutMinutes !== undefined && patch.timeoutMinutes !== existingTemplate.timeoutMinutes) ||
-      patch.workspace !== undefined
+      patch.workspace !== undefined ||
+      (patch.permissionMode !== undefined && patch.permissionMode !== existingTemplate.permissionMode)
 
     const updatePatch: UpdateJobScheduleDto = {}
     if (patch.name !== undefined) updatePatch.name = patch.name
@@ -194,7 +176,8 @@ export class AgentTaskService {
         agentId: existingTemplate.agentId,
         prompt: nextPrompt,
         timeoutMinutes: nextTimeoutMinutes,
-        workspace: nextWorkspace
+        workspace: nextWorkspace,
+        permissionMode: nextPermissionMode
       }
     }
 
@@ -258,6 +241,7 @@ export class AgentTaskService {
       trigger: snapshot.trigger,
       timeoutMinutes: tmpl.timeoutMinutes,
       workspace: tmpl.workspace,
+      permissionMode: tmpl.permissionMode,
       channelIds: channelRows.map((c) => c.id),
       nextRun: snapshot.nextRun,
       lastRun: snapshot.lastRun,

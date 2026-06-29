@@ -114,7 +114,6 @@
           "title": "Slack",
           "whoamiTip": "💡 Mẹo: Gửi /whoami cho bot để lấy ID kênh."
         },
-        "soulModeRequired": "Tác nhân này chưa được bật Chế độ Tự chủ. Các tính năng kênh sẽ không hoạt động. Vui lòng bật trong cài đặt tác nhân.",
         "tab": "Kênh",
         "telegram": {
           "botToken": "Mã thông báo Bot",
@@ -340,8 +339,7 @@
       "welcome_title": "Hôm nay chúng ta sẽ nói về điều gì?"
     },
     "input": {
-      "placeholder": "Nhập tin nhắn của bạn ở đây, gửi bằng {{key}} - @ chọn đường dẫn, / chọn lệnh",
-      "soul_placeholder": "Giúp tôi kết nối với Telegram"
+      "placeholder": "Nhập tin nhắn của bạn ở đây, gửi bằng {{key}} - @ chọn đường dẫn, / chọn lệnh"
     },
     "list": {
       "error": {
@@ -3031,10 +3029,6 @@
           "small_model": {
             "hint": "Kiểm tra nhẹ và định dạng",
             "label": "Mô hình nhỏ (tùy chọn)"
-          },
-          "soul_enabled": {
-            "help": "Khi được bật, tự động cấp quyền bypassPermissions",
-            "label": "Chế độ linh hồn"
           }
         },
         "model_config": "Cấu hình mô hình",

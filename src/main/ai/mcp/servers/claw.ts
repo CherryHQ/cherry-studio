@@ -449,7 +449,6 @@ class ClawServer {
         optional_fields: schema.optional
       })),
       channels: channelSummary,
-      soul_enabled: config?.soul_enabled ?? false,
       heartbeat_enabled: config?.heartbeat_enabled ?? false
     }
 

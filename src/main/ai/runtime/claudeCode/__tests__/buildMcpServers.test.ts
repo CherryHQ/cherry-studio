@@ -99,36 +99,36 @@ function makeSession(path: string, type: 'user' | 'system' = 'user'): AgentSessi
 }
 
 describe('adjustAllowedToolsForMcp', () => {
-  it('adds the cherry-tools + claw + agent-memory wildcards in Soul Mode', () => {
-    expect(adjustAllowedToolsForMcp(true, false)).toEqual(
+  it('adds the cherry-tools + claw + agent-memory wildcards for every agent', () => {
+    expect(adjustAllowedToolsForMcp(false)).toEqual(
       expect.arrayContaining(['mcp__cherry-tools__*', 'mcp__claw__*', 'mcp__agent-memory__*'])
     )
   })
 
-  it('adds the cherry-tools + assistant wildcards for the Cherry Assistant', () => {
-    expect(adjustAllowedToolsForMcp(false, true)).toEqual(
-      expect.arrayContaining(['mcp__cherry-tools__*', 'mcp__assistant__*'])
+  it('adds the assistant wildcard for the Cherry Assistant on top of the always-present set', () => {
+    expect(adjustAllowedToolsForMcp(true)).toEqual(
+      expect.arrayContaining(['mcp__cherry-tools__*', 'mcp__claw__*', 'mcp__agent-memory__*', 'mcp__assistant__*'])
     )
   })
 
-  it('leaves the allowlist undefined for a plain agent (all tools permitted)', () => {
-    expect(adjustAllowedToolsForMcp(false, false)).toBeUndefined()
+  it('omits the assistant wildcard for a plain agent', () => {
+    expect(adjustAllowedToolsForMcp(false)).not.toContain('mcp__assistant__*')
   })
 })
 
 describe('buildMcpServers', () => {
-  it('injects the agent-memory server in Soul Mode (REGRESSION agents-jobs-3)', async () => {
-    const result = await buildMcpServers(session, agent, true, false)
+  it('injects claw + agent-memory for every agent (REGRESSION agents-jobs-3)', async () => {
+    const result = await buildMcpServers(session, agent, false, '/agent-root')
     expect(Object.keys(result ?? {})).toEqual(expect.arrayContaining(['claw', 'agent-memory']))
   })
 
-  it('does not inject agent-memory when Soul Mode is off', async () => {
-    const result = await buildMcpServers(session, agent, false, false)
-    expect(result?.['agent-memory']).toBeUndefined()
+  it('still injects agent-memory for the Cherry Assistant', async () => {
+    const result = await buildMcpServers(session, agent, true, '/agent-root')
+    expect(result?.['agent-memory']).toBeDefined()
   })
 
   it('injects cherry-tools for every session and no longer injects exa', async () => {
-    const result = await buildMcpServers(session, agent, false, false)
+    const result = await buildMcpServers(session, agent, false, '/agent-root')
     expect(result?.['cherry-tools']).toBeDefined()
     expect(result?.exa).toBeUndefined()
   })

@@ -395,7 +395,6 @@ describe('ClawServer', () => {
           'discord',
           'slack'
         ])
-        expect(parsed.soul_enabled).toBe(true)
       })
 
       it('should return empty channels when none configured', async () => {

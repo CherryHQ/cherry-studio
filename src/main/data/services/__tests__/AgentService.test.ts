@@ -35,9 +35,9 @@ vi.mock('@main/ai/skills/SkillService', () => ({
   }
 }))
 
-// Mock workspace seeding — filesystem ops not needed in unit tests
+// Mock identity seeding — filesystem ops not needed in unit tests
 vi.mock('@main/ai/agents/cherryclaw/seedWorkspace', () => ({
-  seedWorkspaceTemplates: vi.fn()
+  seedIdentityTemplates: vi.fn()
 }))
 
 describe('AgentService', () => {

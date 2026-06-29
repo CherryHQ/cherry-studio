@@ -356,8 +356,7 @@ vi.mock('@renderer/components/resource', () => ({
 }))
 
 vi.mock('@renderer/pages/agents/AgentSettings/shared', () => ({
-  AgentLabel: ({ agent }: any) => <span>{agent.name}</span>,
-  isSoulModeEnabled: () => false
+  AgentLabel: ({ agent }: any) => <span>{agent.name}</span>
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({

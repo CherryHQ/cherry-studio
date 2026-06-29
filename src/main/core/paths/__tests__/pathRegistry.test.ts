@@ -61,6 +61,12 @@ describe('pathRegistry.shouldAutoEnsure', () => {
       expect(shouldAutoEnsure('feature.agents.workspaces')).toBe(true)
     })
 
+    it('returns true for feature.agents.roots', () => {
+      // Per-agent identity/memory root parent (`userData/Data/Agents/Roots`).
+      // Cherry-owned, writable, not opted out.
+      expect(shouldAutoEnsure('feature.agents.roots')).toBe(true)
+    })
+
     it('returns true for feature.agents.skills (now that its value is fixed)', () => {
       // Value was corrected from CHERRY_HOME/skills (the old orphan value)
       // to appUserDataData/Skills. The shouldAutoEnsure rule itself is

@@ -4,6 +4,7 @@ import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { jobScheduleTable } from '@data/db/schemas/job'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
+import { agentRootPath, importIdentityAndMemory } from '@main/utils/agentRoot'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import type { MessageData, MessageRole, MessageStatus } from '@shared/data/types/message'
@@ -177,8 +178,14 @@ export class AgentsMigrator extends BaseMigrator {
 
       // Prefix-id remap runs AFTER the outer COMMIT because it opens its own
       // BEGIN/COMMIT (nested SQLite transactions are not supported). It is
-      // idempotent, so a retry after a partial failure is safe.
-      await remapAgentPrefixIds(ctx.db)
+      // idempotent, so a retry after a partial failure is safe. Returns the
+      // oldId→newId map so the soul/memory copy can resolve final v2 agent ids.
+      const agentIdMap = await remapAgentPrefixIds(ctx.db)
+
+      // Copy each v1 soul agent's on-disk SOUL/USER/memory from its old workspace
+      // (accessible_paths[0]) into the new per-agent root. Reads agents_legacy, so
+      // runs while ATTACH is live and AFTER remap (needs final ids). Best-effort.
+      await migrateAgentSoulFiles(ctx.db, agentIdMap, ctx.paths)
 
       // Self-check agent-domain referential integrity after import + remap. FK is OFF for
       // the whole migration, so violations only surface here (and at the engine's final
@@ -933,6 +940,43 @@ export async function importLegacySessionMessages(
 
   logger.info('Imported legacy agent session messages with UUID ids', { imported })
   return imported
+}
+
+/**
+ * Copy each v1 agent's on-disk identity + memory (SOUL.md / USER.md / memory/)
+ * from its legacy working dir (`accessible_paths[0]`) into the new per-agent root
+ * (`{agentRootsDir}/{newId}`). v1 conflated identity/memory with the working dir;
+ * v2 separates them, so without this copy the data would be stranded.
+ *
+ * Reads `agents_legacy.agents`, so MUST run while that DB is ATTACHed, and AFTER
+ * `remapAgentPrefixIds` (the root path is keyed by the final v2 agent id, resolved
+ * via `agentIdMap`). Only v1 soul agents have these files on disk, so the copy is a
+ * natural no-op for the rest. Best-effort: a per-agent failure is logged and skipped
+ * so a stray file never aborts the migration.
+ */
+async function migrateAgentSoulFiles(
+  db: DbType,
+  agentIdMap: Map<string, string>,
+  paths: MigrationContext['paths']
+): Promise<void> {
+  const rows = await db.all<{ id: string; accessible_paths: string | null }>(
+    sql.raw('SELECT id, accessible_paths FROM agents_legacy.agents')
+  )
+
+  let migratedAgents = 0
+  for (const row of rows) {
+    try {
+      const srcDir = extractPrimaryWorkspacePath(row.accessible_paths, 'agent')
+      if (!srcDir) continue
+      const newId = agentIdMap.get(row.id) ?? row.id
+      const copied = await importIdentityAndMemory(srcDir, agentRootPath(paths.agentRootsDir, newId))
+      if (copied.length > 0) migratedAgents++
+    } catch (error) {
+      logger.warn('Failed to migrate soul/memory files for agent', { legacyId: row.id, error })
+    }
+  }
+
+  logger.info('Migrated agent soul/memory files into roots', { migratedAgents, scanned: rows.length })
 }
 
 /**

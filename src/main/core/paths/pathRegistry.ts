@@ -116,7 +116,8 @@ export function buildPathRegistry() {
     'feature.agents.claude.root': path.join(appUserData, '.claude'), // Claude Code config (relocated from ~/.claude for Windows compat)
     'feature.agents.claude.skills': path.join(appUserData, '.claude', 'skills'), // symlinks → feature.agents.skills
     'feature.agents.channels': path.join(appUserDataData, 'Channels'),
-    'feature.agents.workspaces': path.join(appUserDataData, 'Agents'), // per-agent workspace parent
+    'feature.agents.workspaces': path.join(appUserDataData, 'Agents'), // per-session system workspace parent (cwd)
+    'feature.agents.roots': path.join(appUserDataData, 'Agents', 'Roots'), // per-agent identity/memory root parent
     'feature.agents.builtin': path.join(appRootResources, 'builtin-agents'), // bundled agent templates (read-only)
 
     // Files / Notes / Knowledgebase

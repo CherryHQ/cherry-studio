@@ -55,10 +55,16 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
 }))
 
 vi.mock('@main/ai/agents/cherryclaw/prompt', () => ({
-  PromptBuilder: vi.fn(() => ({ buildSystemPrompt: vi.fn().mockResolvedValue('SOUL_PROMPT') }))
+  PromptBuilder: vi.fn(() => ({ buildPersonalityAppend: vi.fn().mockResolvedValue('PERSONALITY') }))
+}))
+
+vi.mock('@main/ai/agents/cherryclaw/seedWorkspace', () => ({
+  seedIdentityTemplates: vi.fn().mockResolvedValue(undefined)
 }))
 
 const { buildSystemPrompt } = await import('../settingsBuilder')
+
+const AGENT_ROOT = '/tmp/agent-roots/agent-1'
 
 const ARTIFACTS_MARKER = '## Reporting deliverables'
 
@@ -75,16 +81,21 @@ describe('buildSystemPrompt — report_artifacts prompt', () => {
     mockFindBySessionId.mockResolvedValue(null)
   })
 
-  it('appends the report_artifacts prompt in standard mode with user instructions', async () => {
-    const result = await buildSystemPrompt(makeSession(), makeAgent({ instructions: 'Do the task.' }), '/tmp/cwd')
+  it('appends the report_artifacts prompt with user instructions', async () => {
+    const result = await buildSystemPrompt(
+      makeSession(),
+      makeAgent({ instructions: 'Do the task.' }),
+      '/tmp/cwd',
+      AGENT_ROOT
+    )
     expect(result).toMatchObject({ type: 'preset', preset: 'claude_code' })
     const append = (result as { append: string }).append
     expect(append).toContain('Do the task.')
     expect(append).toContain(ARTIFACTS_MARKER)
   })
 
-  it('appends the report_artifacts prompt in standard mode without user instructions', async () => {
-    const result = await buildSystemPrompt(makeSession(), makeAgent(), '/tmp/cwd')
+  it('appends the report_artifacts prompt without user instructions', async () => {
+    const result = await buildSystemPrompt(makeSession(), makeAgent(), '/tmp/cwd', AGENT_ROOT)
     const append = (result as { append: string }).append
     expect(append).toContain(ARTIFACTS_MARKER)
   })
@@ -94,18 +105,19 @@ describe('buildSystemPrompt — report_artifacts prompt', () => {
       instructions: 'Assistant instructions.',
       configuration: { builtin_role: 'assistant' } as never
     })
-    const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
+    const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd', AGENT_ROOT)
     expect(JSON.stringify(result)).not.toContain(ARTIFACTS_MARKER)
   })
 
-  it('appends the report_artifacts prompt in soul mode (raw-string path)', async () => {
-    const agent = makeAgent({ instructions: 'Soul task.', configuration: { soul_enabled: true } as never })
-    const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
-    // Soul mode returns a raw string (not the standard `{ type: 'preset', append }` object), so it's a
-    // distinct path that must still carry the soul prompt + user instructions + the artifacts block.
-    expect(typeof result).toBe('string')
-    expect(result as string).toContain('SOUL_PROMPT')
-    expect(result as string).toContain('Soul task.')
-    expect(result as string).toContain(ARTIFACTS_MARKER)
+  it('layers the personality append onto the claude_code preset for every agent', async () => {
+    const agent = makeAgent({ instructions: 'Personal task.' })
+    const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd', AGENT_ROOT)
+    // v2 has no soul-mode distinction — every non-assistant agent keeps the preset
+    // and gets the personality block + instructions + artifacts appended.
+    expect(result).toMatchObject({ type: 'preset', preset: 'claude_code' })
+    const append = (result as { append: string }).append
+    expect(append).toContain('PERSONALITY')
+    expect(append).toContain('Personal task.')
+    expect(append).toContain(ARTIFACTS_MARKER)
   })
 })

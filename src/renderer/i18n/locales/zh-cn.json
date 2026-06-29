@@ -114,7 +114,6 @@
           "title": "Slack",
           "whoamiTip": "💡 提示：发送 /whoami 给机器人即可获取频道 ID。"
         },
-        "soulModeRequired": "该智能体尚未开启自主模式，频道功能将无法使用。请在智能体设置中开启自主模式。",
         "tab": "频道",
         "telegram": {
           "botToken": "Bot Token",
@@ -340,8 +339,7 @@
       "welcome_title": "今天想聊点什么？"
     },
     "input": {
-      "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择路径， / 选择命令",
-      "soul_placeholder": "帮我连接微信"
+      "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择路径， / 选择命令"
     },
     "list": {
       "error": {
@@ -3031,10 +3029,6 @@
           "small_model": {
             "hint": "负责简单判断和格式化",
             "label": "Small 模型"
-          },
-          "soul_enabled": {
-            "help": "启用后自动授予 bypassPermissions 权限",
-            "label": "Soul 模式"
           }
         },
         "model_config": "模型配置",

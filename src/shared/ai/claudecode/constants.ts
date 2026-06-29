@@ -36,8 +36,14 @@ export const REPORT_ARTIFACTS_PROMPT = `## Reporting deliverables
 
 When you finish producing the file(s) the user asked for, call the \`report_artifacts\` tool once with the final file path(s) and a one-line summary. List only the final deliverables — never intermediate, scratch, or temporary files. Skip the call entirely if the task produced no files.`
 
-/** Tools disabled when Soul Mode is active (not suited for autonomous operation) */
-export const SOUL_MODE_DISALLOWED_TOOLS = [
+/**
+ * Tools disabled for autonomous (scheduled-task / heartbeat) runs — they cannot
+ * block on a human (AskUserQuestion / plan mode) or are superseded by Cherry's
+ * own scheduling (`mcp__claw__cron` replaces the SDK Cron* tools; TodoWrite is
+ * deprecated). Interactive sessions keep all of these; the restriction is applied
+ * per-run, not per-agent.
+ */
+export const AUTONOMOUS_RUN_DISABLED_TOOLS = [
   'CronCreate',
   'CronDelete',
   'CronList',

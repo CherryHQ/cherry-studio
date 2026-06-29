@@ -25,6 +25,8 @@ declare module '@main/core/job/jobRegistry' {
       /** Per-task timeout in minutes. Enforced inside `runAgentTask`; handler-level
        *  `defaultTimeoutMs` is intentionally unset so each task may set its own value. */
       timeoutMinutes: number
+      /** Permission mode applied for this unattended run; defaults to bypassPermissions. */
+      permissionMode?: AgentTaskInput['permissionMode']
     }
   }
 }

@@ -114,7 +114,6 @@
           "title": "Slack",
           "whoamiTip": "💡 Sfat: Trimite /whoami către bot pentru a obține ID-ul canalului."
         },
-        "soulModeRequired": "Acest agent nu are Activat Modul Autonom. Funcționalitățile canalului nu vor funcționa. Vă rugăm să-l activați în setările agentului.",
         "tab": "Canale",
         "telegram": {
           "botToken": "Token Bot",
@@ -340,8 +339,7 @@
       "welcome_title": "Despre ce să vorbim astăzi?"
     },
     "input": {
-      "placeholder": "Introdu mesajul aici, trimite cu {{key}} - @ selectează calea, / selectează comanda",
-      "soul_placeholder": "Ajută-mă să mă conectez la Telegram"
+      "placeholder": "Introdu mesajul aici, trimite cu {{key}} - @ selectează calea, / selectează comanda"
     },
     "list": {
       "error": {
@@ -3031,10 +3029,6 @@
           "small_model": {
             "hint": "Verificări ușoare și formatare",
             "label": "Model mic (opțional)"
-          },
-          "soul_enabled": {
-            "help": "Când este activată, acordă automat bypassPermissions",
-            "label": "Mod suflet"
           }
         },
         "model_config": "Configurație model",

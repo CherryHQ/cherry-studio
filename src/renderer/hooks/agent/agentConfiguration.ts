@@ -9,6 +9,3 @@ export const defaultConfiguration: AgentConfigurationState = {
   max_turns: DEFAULT_MAX_TURNS,
   env_vars: {}
 }
-
-export const isSoulModeEnabled = (configuration: AgentConfiguration | undefined | null): boolean =>
-  configuration?.soul_enabled === true

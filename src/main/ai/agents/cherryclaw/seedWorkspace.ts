@@ -1,7 +1,8 @@
-import { mkdir, stat, writeFile } from 'node:fs/promises'
+import { stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { ensureAgentRoot } from '@main/utils/agentRoot'
 
 const logger = loggerService.withContext('SeedWorkspace')
 
@@ -82,15 +83,14 @@ export const SOUL_CONTENT_THRESHOLD = 50
  * Seed workspace with template files for soul mode.
  * Idempotent: only writes files that don't already exist.
  */
-export async function seedWorkspaceTemplates(workspacePath: string): Promise<void> {
+export async function seedIdentityTemplates(rootDir: string): Promise<void> {
   try {
-    // Ensure workspace and memory directories exist
-    await mkdir(workspacePath, { recursive: true })
-    await mkdir(path.join(workspacePath, 'memory'), { recursive: true })
+    // Ensure the agent root and its memory/ subdirectory exist.
+    await ensureAgentRoot(rootDir)
 
     const seeds: Array<{ filePath: string; content: string }> = [
-      { filePath: path.join(workspacePath, 'SOUL.md'), content: SOUL_TEMPLATE },
-      { filePath: path.join(workspacePath, 'USER.md'), content: USER_TEMPLATE }
+      { filePath: path.join(rootDir, 'SOUL.md'), content: SOUL_TEMPLATE },
+      { filePath: path.join(rootDir, 'USER.md'), content: USER_TEMPLATE }
     ]
 
     for (const { filePath, content } of seeds) {
@@ -101,7 +101,7 @@ export async function seedWorkspaceTemplates(workspacePath: string): Promise<voi
       }
     }
   } catch (error) {
-    logger.error('Failed to seed workspace templates', error as Error)
+    logger.error('Failed to seed identity templates', error as Error)
   }
 }
 

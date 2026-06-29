@@ -21,8 +21,7 @@ import { PromptBuilder } from '../prompt'
 const baseConfig: AgentConfiguration = {
   permission_mode: 'bypassPermissions',
   max_turns: 100,
-  env_vars: {},
-  soul_enabled: true
+  env_vars: {}
 }
 
 const mockedStat = vi.mocked(stat)
@@ -67,25 +66,23 @@ describe('PromptBuilder', () => {
     vi.clearAllMocks()
   })
 
-  it('returns default basic prompt when no workspace files exist', async () => {
+  it('returns tool guidance without memories when no files exist', async () => {
     setupFiles({})
 
-    const result = await builder.buildSystemPrompt('/workspace')
+    const result = await builder.buildPersonalityAppend('/workspace')
 
-    expect(result).toContain('You are CherryClaw')
     expect(result).toContain('## CherryClaw Tools')
     expect(result).not.toContain('## Memories')
   })
 
-  it('overrides basic prompt with system.md from workspace', async () => {
+  it('prepends system.md content from the agent root', async () => {
     setupFiles({
       '/workspace/system.md': 'You are CustomBot, a specialized assistant.'
     })
 
-    const result = await builder.buildSystemPrompt('/workspace')
+    const result = await builder.buildPersonalityAppend('/workspace')
 
     expect(result).toContain('You are CustomBot')
-    expect(result).not.toContain('You are CherryClaw')
   })
 
   it('includes soul.md in memories section', async () => {
@@ -93,7 +90,7 @@ describe('PromptBuilder', () => {
       '/workspace/soul.md': 'Warm but direct. Lead with answers.'
     })
 
-    const result = await builder.buildSystemPrompt('/workspace')
+    const result = await builder.buildPersonalityAppend('/workspace')
 
     expect(result).toContain('## Memories')
     expect(result).toContain('<soul>')
@@ -107,7 +104,7 @@ describe('PromptBuilder', () => {
       '/workspace/user.md': 'Name: V\nTimezone: UTC+8'
     })
 
-    const result = await builder.buildSystemPrompt('/workspace')
+    const result = await builder.buildPersonalityAppend('/workspace')
 
     expect(result).toContain('<user>')
     expect(result).toContain('Name: V')
@@ -120,7 +117,7 @@ describe('PromptBuilder', () => {
       '/workspace/memory/FACT.md': '# Active Projects\n\n- Cherry Studio'
     })
 
-    const result = await builder.buildSystemPrompt('/workspace')
+    const result = await builder.buildPersonalityAppend('/workspace')
 
     expect(result).toContain('<facts>')
     expect(result).toContain('Cherry Studio')
@@ -135,7 +132,7 @@ describe('PromptBuilder', () => {
       '/workspace/memory/FACT.md': 'Project: CherryClaw'
     })
 
-    const result = await builder.buildSystemPrompt('/workspace')
+    const result = await builder.buildPersonalityAppend('/workspace')
 
     expect(result).toContain('<soul>')
     expect(result).toContain('<user>')
@@ -144,13 +141,13 @@ describe('PromptBuilder', () => {
     expect(result).toContain('exclusive scope')
   })
 
-  it('combines system.md override with memories', async () => {
+  it('combines system.md content with memories', async () => {
     setupFiles({
       '/workspace/system.md': 'You are CustomBot.',
       '/workspace/soul.md': 'Sharp and efficient.'
     })
 
-    const result = await builder.buildSystemPrompt('/workspace')
+    const result = await builder.buildPersonalityAppend('/workspace')
 
     expect(result).toContain('You are CustomBot.')
     expect(result).toContain('<soul>')
@@ -165,7 +162,7 @@ describe('PromptBuilder', () => {
       '/workspace/memory/fact.md': 'Lowercase facts'
     })
 
-    const result = await builder.buildSystemPrompt('/workspace')
+    const result = await builder.buildPersonalityAppend('/workspace')
 
     expect(result).toContain('<soul>')
     expect(result).toContain('Uppercase soul')
@@ -180,8 +177,8 @@ describe('PromptBuilder', () => {
       '/workspace/soul.md': 'Cached soul'
     })
 
-    await builder.buildSystemPrompt('/workspace')
-    await builder.buildSystemPrompt('/workspace')
+    await builder.buildPersonalityAppend('/workspace')
+    await builder.buildPersonalityAppend('/workspace')
 
     // readFile should only be called once per unique file due to caching
     const soulReadCalls = mockedReadFile.mock.calls.filter(
@@ -194,7 +191,7 @@ describe('PromptBuilder', () => {
     it('injects bootstrap instructions when no config is provided and SOUL.md is empty', async () => {
       setupFiles({})
 
-      const result = await builder.buildSystemPrompt('/workspace')
+      const result = await builder.buildPersonalityAppend('/workspace')
 
       expect(result).toContain('## Bootstrap Mode')
       expect(result).toContain('complete_bootstrap')
@@ -203,7 +200,7 @@ describe('PromptBuilder', () => {
     it('injects bootstrap instructions when bootstrap_completed is false', async () => {
       setupFiles({})
 
-      const result = await builder.buildSystemPrompt('/workspace', { ...baseConfig, bootstrap_completed: false })
+      const result = await builder.buildPersonalityAppend('/workspace', { ...baseConfig, bootstrap_completed: false })
 
       expect(result).toContain('## Bootstrap Mode')
     })
@@ -211,7 +208,7 @@ describe('PromptBuilder', () => {
     it('skips bootstrap when bootstrap_completed is true', async () => {
       setupFiles({})
 
-      const result = await builder.buildSystemPrompt('/workspace', { ...baseConfig, bootstrap_completed: true })
+      const result = await builder.buildPersonalityAppend('/workspace', { ...baseConfig, bootstrap_completed: true })
 
       expect(result).not.toContain('## Bootstrap Mode')
     })
@@ -223,7 +220,7 @@ describe('PromptBuilder', () => {
         '/workspace/SOUL.md': `# Soul\n\n> Template header\n\n${realContent}`
       })
 
-      const result = await builder.buildSystemPrompt('/workspace')
+      const result = await builder.buildPersonalityAppend('/workspace')
 
       expect(result).not.toContain('## Bootstrap Mode')
     })
@@ -234,7 +231,7 @@ describe('PromptBuilder', () => {
           '# Soul\n\n> This file defines who you are. Update it as your personality evolves.\n\n## Personality\n\n\n## Tone\n\n'
       })
 
-      const result = await builder.buildSystemPrompt('/workspace')
+      const result = await builder.buildPersonalityAppend('/workspace')
 
       expect(result).toContain('## Bootstrap Mode')
     })
@@ -245,7 +242,7 @@ describe('PromptBuilder', () => {
         '/workspace/user.md': 'Name: V'
       })
 
-      const result = await builder.buildSystemPrompt('/workspace')
+      const result = await builder.buildPersonalityAppend('/workspace')
 
       expect(result).toContain('## Bootstrap Mode')
       expect(result).toContain('## Memories')
@@ -315,84 +312,18 @@ describe('PromptBuilder', () => {
       expect(result).toMatch(/6 months|durable/i)
     })
 
-    it('returns the same content soul-mode buildSystemPrompt embeds (with claw)', async () => {
+    it('embeds the with-claw guidance verbatim in buildPersonalityAppend', async () => {
       setupFiles({})
-      const soulPrompt = await builder.buildSystemPrompt('/workspace')
+      const personalityAppend = await builder.buildPersonalityAppend('/workspace')
       const guidance = builder.buildToolGuidance({ hasClaw: true })
 
-      // The Soul prompt should embed every section the with-claw guidance has.
-      expect(soulPrompt).toContain('## CherryClaw Tools')
-      expect(soulPrompt).toContain('## Skills')
-      expect(soulPrompt).toContain('## Workspace Memory')
-      expect(soulPrompt).toContain('## Web Search Strategy')
-      // And the guidance string is a contiguous substring of the soul prompt.
-      expect(soulPrompt).toContain(guidance)
-    })
-  })
-
-  describe('buildFactsSection', () => {
-    it('returns undefined when no FACT.md exists', async () => {
-      setupFiles({})
-
-      const result = await builder.buildFactsSection('/workspace')
-
-      expect(result).toBeUndefined()
-    })
-
-    it('wraps memory/FACT.md content in a Workspace Knowledge block', async () => {
-      setupFiles({
-        '/workspace/memory/FACT.md': '- Project: cherry-studio\n- Build tool: pnpm + electron-vite'
-      })
-
-      const result = await builder.buildFactsSection('/workspace')
-
-      expect(result).toBeDefined()
-      expect(result).toContain('## Workspace Knowledge')
-      expect(result).toContain('<facts>')
-      expect(result).toContain('Project: cherry-studio')
-      expect(result).toContain('Build tool: pnpm + electron-vite')
-      expect(result).toContain('</facts>')
-      // The agent should also be told to keep updating FACT.md
-      expect(result).toContain('mcp__agent-memory__memory')
-      expect(result).toContain('action="update"')
-    })
-
-    it('resolves FACT.md case-insensitively', async () => {
-      setupFiles({
-        '/workspace/memory/fact.md': '- lowercase filename'
-      })
-
-      const result = await builder.buildFactsSection('/workspace')
-
-      expect(result).toBeDefined()
-      expect(result).toContain('lowercase filename')
-    })
-
-    it('returns undefined when FACT.md exists but is empty', async () => {
-      setupFiles({
-        '/workspace/memory/FACT.md': ''
-      })
-
-      const result = await builder.buildFactsSection('/workspace')
-
-      expect(result).toBeUndefined()
-    })
-
-    it('does not include SOUL.md or USER.md content (those are Soul-only)', async () => {
-      setupFiles({
-        '/workspace/SOUL.md': 'Warm but direct.',
-        '/workspace/user.md': 'Name: V',
-        '/workspace/memory/FACT.md': 'Build tool: pnpm'
-      })
-
-      const result = await builder.buildFactsSection('/workspace')
-
-      expect(result).toBeDefined()
-      expect(result).toContain('Build tool: pnpm')
-      expect(result).not.toContain('Warm but direct')
-      expect(result).not.toContain('Name: V')
-      expect(result).not.toContain('<soul>')
-      expect(result).not.toContain('<user>')
+      // The personality append should embed every section the with-claw guidance has.
+      expect(personalityAppend).toContain('## CherryClaw Tools')
+      expect(personalityAppend).toContain('## Skills')
+      expect(personalityAppend).toContain('## Workspace Memory')
+      expect(personalityAppend).toContain('## Web Search Strategy')
+      // And the guidance string is a contiguous substring of the append.
+      expect(personalityAppend).toContain(guidance)
     })
   })
 })

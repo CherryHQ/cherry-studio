@@ -101,16 +101,9 @@ const registerJobScheduleMock = vi.fn()
 const updateJobScheduleMock = vi.fn()
 const unregisterJobScheduleByIdMock = vi.fn()
 
-function setupApplicationMocks(opts: { configuration?: Record<string, unknown> | null } = {}) {
-  const { configuration = { soul_enabled: true } } = opts
-  const fakeQueryChain = {
-    from: () => ({
-      where: () => ({
-        limit: () => Promise.resolve(configuration === null ? [] : [{ configuration }])
-      })
-    })
-  }
-  dbSelectMock.mockReturnValue(fakeQueryChain)
+function setupApplicationMocks() {
+  // AgentTaskService no longer reads agent config (no autonomy gate) — DbService is
+  // unused by the facade now, but keep a stub so an unexpected lookup doesn't throw.
   dbInsertMock.mockReturnValue({
     values: () => ({ onConflictDoNothing: () => Promise.resolve() })
   })
@@ -158,47 +151,43 @@ describe('AgentTaskService (thin facade)', () => {
   })
 
   describe('createTask', () => {
-    it('registers a schedule with agent.task type when the agent is autonomous', async () => {
+    it('registers a schedule with agent.task type for any agent (no autonomy gate)', async () => {
       setupApplicationMocks()
       registerJobScheduleMock.mockResolvedValueOnce({ id: TASK_ID })
       vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSnapshot())
 
       const result = await agentTaskService.createTask(AGENT_ID, validDto)
 
+      // The template carries a default permissionMode of bypassPermissions so the
+      // unattended run doesn't stall on tool approval.
       expect(registerJobScheduleMock).toHaveBeenCalledWith({
         type: 'agent.task',
         name: validDto.name,
         trigger: validTrigger,
-        jobInputTemplate: { agentId: AGENT_ID, prompt: validDto.prompt, timeoutMinutes: 5, workspace: taskWorkspace },
+        jobInputTemplate: {
+          agentId: AGENT_ID,
+          prompt: validDto.prompt,
+          timeoutMinutes: 5,
+          workspace: taskWorkspace,
+          permissionMode: 'bypassPermissions'
+        },
         catchUpPolicy: { kind: 'skip-missed' }
       })
       expect(result).toMatchObject({ id: TASK_ID, agentId: AGENT_ID, name: validDto.name, enabled: true })
     })
 
-    it('throws notFound when the agent does not exist', async () => {
-      setupApplicationMocks({ configuration: null })
-
-      await expect(agentTaskService.createTask(AGENT_ID, validDto)).rejects.toMatchObject({
-        message: expect.stringContaining('Agent')
-      })
-      expect(registerJobScheduleMock).not.toHaveBeenCalled()
-    })
-
-    it('throws invalidOperation when the agent is not autonomous', async () => {
-      setupApplicationMocks({ configuration: { soul_enabled: false } })
-
-      await expect(agentTaskService.createTask(AGENT_ID, validDto)).rejects.toMatchObject({
-        message: expect.stringContaining('Soul Mode')
-      })
-      expect(registerJobScheduleMock).not.toHaveBeenCalled()
-    })
-
-    it('accepts bypassPermissions as a valid autonomous configuration', async () => {
-      setupApplicationMocks({ configuration: { permission_mode: 'bypassPermissions' } })
+    it('honors an explicit permissionMode from the dto', async () => {
+      setupApplicationMocks()
       registerJobScheduleMock.mockResolvedValueOnce({ id: TASK_ID })
       vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSnapshot())
 
-      await expect(agentTaskService.createTask(AGENT_ID, validDto)).resolves.toMatchObject({ id: TASK_ID })
+      await agentTaskService.createTask(AGENT_ID, { ...validDto, permissionMode: 'plan' })
+
+      expect(registerJobScheduleMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          jobInputTemplate: expect.objectContaining({ permissionMode: 'plan' })
+        })
+      )
     })
 
     it('delegates task channel subscriptions to AgentChannelService', async () => {
@@ -352,7 +341,14 @@ describe('AgentTaskService (thin facade)', () => {
         expect.objectContaining({
           name: 'new-name',
           enabled: false,
-          jobInputTemplate: { agentId: AGENT_ID, prompt: 'new prompt', timeoutMinutes: 5, workspace: taskWorkspace }
+          // permissionMode defaults to bypassPermissions when the legacy snapshot omits it.
+          jobInputTemplate: {
+            agentId: AGENT_ID,
+            prompt: 'new prompt',
+            timeoutMinutes: 5,
+            workspace: taskWorkspace,
+            permissionMode: 'bypassPermissions'
+          }
         })
       )
     })
