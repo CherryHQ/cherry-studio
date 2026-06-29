@@ -32,8 +32,12 @@ codebase runs as the user's self-hosted instance or as our managed service.
   of it.
 - **Remote tool approval is supported** — and is the highest-stakes capability
   (see [Security model](#security-model)).
+- **Application-layer end-to-end encryption is in scope** — agent content is
+  encrypted between the mobile client and the desktop so that no relay/tunnel can
+  read or tamper with it. See [End-to-end encryption](#end-to-end-encryption-application-layer).
 - **Non-goals (v1):** arbitrary TCP/UDP/RDP/VNC, full VPN, P2P, multi-user
-  collaboration, an E2E-encryption guarantee on the relay path.
+  collaboration, hiding traffic **metadata** from the relay (E2E protects content
+  and integrity, not which-desktop/when/how-big).
 
 ## Architecture
 
@@ -108,14 +112,16 @@ and the token are handled locally: the **desktop is its own control plane** (it
 runs the pairing endpoints and self-signs the token). The relay control protocol
 is not used.
 
-> **cloudflared / BYO tunnel is convenience, not privacy.** Such tunnels terminate
-> TLS at a third-party edge, putting a third party in the **plaintext and
-> tamper** path (including tool-approval messages — the token authenticates the
-> channel, not each message). Same trust profile as our hosted relay, with the
-> trusted party being Cloudflare. The privacy answer remains **Tailscale/WireGuard
-> (true E2E)**. Do not advertise cloudflared mode as E2E. A one-click cloudflared
-> launcher (binary via `BinaryManager` + a quick tunnel) is a reasonable demo
-> affordance, but additive — it does not replace our relay on the hosted path.
+> **cloudflared / BYO tunnel — content is protected by app-layer E2E; metadata is
+> not.** Such tunnels terminate TLS at a third-party edge, but
+> [application-layer E2E](#end-to-end-encryption-application-layer) means that edge
+> (and our own relay) sees only **ciphertext plus routing metadata** — it cannot
+> read or tamper with agent content or tool-approval messages. It *does* see
+> metadata (which desktop/session, timing, sizes). A one-click cloudflared launcher
+> (binary via `BinaryManager` + a quick tunnel) is a reasonable demo affordance,
+> additive to — not a replacement for — our relay on the hosted path. A mesh
+> (Tailscale/WireGuard) encrypts the transport end-to-end too, so there E2E is
+> defense-in-depth.
 
 ### ② Relay (reverse tunnel)
 
@@ -131,10 +137,16 @@ See [Control-layer contract](#control-layer-contract).
 
 New routes on `apiGateway`. **Two auth domains on one server:** the existing
 OpenAI/Anthropic routes keep the global `cs-sk` key; the new `/v1/agent/*` and
-`/v1/pair/*` routes use the **capability token** (a JWT — `Authorization: Bearer`
-or `?access_token=`, both already supported by `@elysia/bearer`; the query form is
-used for the WS handshake). Each route additionally checks the token's `cap` bits
-and `session_id` binding.
+`/v1/pair/*` routes use the **capability token** (a JWT), whose `cap` bits and
+`session_id` binding the **desktop** verifies.
+
+> **With E2E on (default for the relay/cloudflared modes):** the capability token
+> is presented as the **first message inside the E2E channel** (§
+> [End-to-end encryption](#end-to-end-encryption-application-layer)), never in a
+> URL/header the relay can read. The WS upgrade itself carries only a **coarse
+> relay-session credential** used for routing. The `@elysia/bearer` header/query
+> form is used only in direct (no-relay) modes where there is no third party to
+> hide the token from.
 
 ### A. Live channel (WebSocket — the core)
 
@@ -278,6 +290,14 @@ and keep the TTL short. Stronger: **proof-of-possession** — the phone generate
 keypair at claim time and the token binds to its public key, so a stolen token is
 useless without the phone's private key.
 
+**Pairing also bootstraps E2E.** The same QR + approve flow carries the
+*authenticated* key exchange for [end-to-end encryption](#end-to-end-encryption-application-layer):
+the phone binds its ephemeral X25519 public key into `/claim` (alongside the PoP
+key above), the desktop returns its ephemeral key **signed by the desktop identity
+key the phone pinned from the QR**, and the user's `/approve` authenticates the
+phone's key out-of-band. This is what stops the relay from MITM-ing the key
+exchange — see that section for why an unanchored ECDH through the relay is unsafe.
+
 ## Capability token
 
 Short-lived, scoped, **verified offline by the desktop** without trusting the relay.
@@ -300,24 +320,76 @@ Short-lived, scoped, **verified offline by the desktop** without trusting the re
   60–300 s, one-time. Short TTL is the primary revocation; an optional `jti`
   deny-list (entry TTL = token's remaining life) gives surgical revocation when the
   desktop is online.
+- **Transport.** Presented to the desktop **inside the E2E channel** (not a
+  URL/header), so the relay never reads it; the relay routes on a separate, coarse
+  relay-session credential (two tokens — see [End-to-end encryption](#end-to-end-encryption-application-layer)).
+
+## End-to-end encryption (application layer)
+
+Agent content is encrypted **end-to-end between the mobile client and the desktop**,
+above the WS transport, so **no relay or tunnel — ours, Cloudflare's, or any
+intermediary — can read or tamper with it**, whether or not it terminates TLS. The
+relay stays not just agent-agnostic but **content-agnostic**: it forwards opaque
+ciphertext. This matters precisely because **remote tool approval** is supported —
+with E2E a relay cannot forge or alter an approval, only observe that an encrypted
+message passed (or drop it).
+
+- **Cipher suite.** X25519 ECDH → HKDF-SHA256 → an AEAD (XChaCha20-Poly1305, or
+  AES-256-GCM if the RN crypto library favours it); per-message nonce + monotonic
+  sequence number (replay/reorder protection).
+- **Authenticated key exchange — the load-bearing part.** A bare ECDH *through the
+  relay* is trivially MITM'd (the relay substitutes its own keys to each side), so
+  the exchange MUST be anchored to things the relay cannot forge — the out-of-band
+  QR and the desktop identity key:
+  - **Desktop side.** The desktop signs its ephemeral X25519 public key with its
+    long-term identity key (the same key whose public half the phone pins from the
+    QR during pairing). The phone verifies that signature → the desktop's ephemeral
+    key is authentic.
+  - **Mobile side.** The phone binds its ephemeral public key into the `/claim`
+    that proves possession of the one-time QR secret; the desktop user then
+    **approves that specific claim** (matching code confirms phone↔desktop). So the
+    phone's key is authenticated by *QR-secret possession + human approval*, which
+    the relay cannot fabricate.
+  - Both derive `K = HKDF(X25519(eph_d, eph_m), transcript)`. The relay holds no
+    private key and cannot compute `K`.
+- **Where it sits.** A thin wrapper at the WS edge: outbound `@shared/ai/transport`
+  payloads are serialized → AEAD-sealed → sent as opaque binary WS frames; inbound
+  frames are opened → parsed. **`@shared/ai/transport` is unchanged** (E2E wraps
+  it) and **the relay/tunnel needs no change** — it already forwards opaque WS
+  frames, now ciphertext.
+- **What rides inside the channel.** The live stream, all control
+  (`open`/`abort`/`approve`), replayed history, and the capability token (so the
+  relay never sees the token).
+- **What E2E does NOT hide — metadata.** The relay still sees which desktop UUID /
+  session a connection targets and message timing/sizes.
+- **Honest limit.** The guarantee is only as strong as the **Expo/RN client's**
+  crypto implementation, which is built by a separate team and out of scope here —
+  we specify the protocol; a faithful implementation is required. Forward secrecy
+  comes from fresh ephemeral keys per pairing + rekey-on-reconnect.
+- **Across modes — uniform.** E2E makes the hosted relay and cloudflared/BYO
+  tunnels content-private; over a mesh (Tailscale/WireGuard, which already encrypts
+  the transport end-to-end) it is defense-in-depth.
 
 ## Security model
 
-- **The relay sees plaintext.** It terminates/forwards the WS; it can read content
-  and, within an authenticated session, could tamper with messages — **including
-  tool-approval messages** (the token authenticates the channel, not each frame).
-  **Do not claim E2E** on any relay/tunnel path.
-- **Remote tool approval raises the stakes.** Approving remotely = authorizing an
-  action on the user's machine. Therefore: `approve` is a **separate capability
-  bit** (a view-only share cannot approve); the desktop **independently verifies**
-  the token's scope on every privileged action (the relay's word is never trusted);
-  the desktop shows what is being approved, keeps an audit trail, and retains a
-  kill switch.
-- **Scope is enforced at the desktop, not the relay.** The relay is agent-agnostic
-  and cannot parse the protocol to gate `approve`; the desktop is the authority.
-- **True E2E is the self-host/mesh answer.** Tailscale/WireGuard give real
-  end-to-end encryption (the mesh's own relays cannot decrypt). Hosted/cloudflared
-  do not — route privacy-critical users to self-host/mesh.
+- **Content is end-to-end encrypted; the relay sees only ciphertext + metadata.**
+  See [End-to-end encryption](#end-to-end-encryption-application-layer). A relay
+  (ours, Cloudflare's, or any intermediary) **cannot read or tamper** with agent
+  content or tool-approval messages. It can still affect **availability** (drop /
+  delay traffic) and observe **metadata** (which desktop/session, timing, sizes) —
+  it cannot forge.
+- **Remote tool approval raises the stakes — defended in depth.** Approving
+  remotely = authorizing an action on the user's machine. E2E ensures a relay
+  cannot forge/alter an approval; *additionally*: `approve` is a **separate
+  capability bit** (a view-only share cannot approve); the desktop **independently
+  verifies** the token's scope on every privileged action; the desktop shows what
+  is being approved, keeps an audit trail, and retains a kill switch.
+- **Scope is enforced at the desktop, not the relay.** The relay is agent- and
+  content-agnostic and cannot gate `approve`; the desktop is the authority.
+- **Key exchange is the crux of the E2E guarantee.** It must be anchored to the QR
+  out-of-band channel + the desktop identity key (above), or the relay can MITM and
+  the E2E guarantee is hollow. A mesh (Tailscale/WireGuard) adds transport-level
+  E2E as defense-in-depth.
 - **Visible state + revoke.** The desktop always surfaces which device is
   connected to which session, for how long, with one-tap disconnect.
 
@@ -349,11 +421,15 @@ The first real demo needs **no relay** — it retires the core risk locally.
    **Verify with `wscat` on localhost**: attach → replay, `open`, `approve`. Zero
    networking.
 2. **Direct demo** — reach Stage 1 over LAN/Tailscale; validate the end-to-end
-   product feel (and the Expo client) at near-zero cost.
-3. **Relay + Passport (hosted)** — the growth path; validates the seam and the
-   relay control contract.
-4. **Tailscale self-host** — nearly free once Stage 1 exists.
-5. **Relay + deploy token (self-host)** — reuse the relay, swap the auth adapter.
+   product feel (and the Expo client) at near-zero cost. (Trusted transport, so
+   E2E is optional here.)
+3. **E2E channel** — add the authenticated X25519 handshake (anchored to the QR +
+   desktop identity key) and the AEAD payload wrapper. **Required before any
+   relay/cloudflared mode is content-private.**
+4. **Relay + Passport (hosted)** — the growth path; validates the seam and the
+   relay control contract (carrying the now-encrypted payload).
+5. **Tailscale self-host** — nearly free once Stage 1 exists.
+6. **Relay + deploy token (self-host)** — reuse the relay, swap the auth adapter.
 
 ## To confirm during implementation
 
@@ -363,9 +439,16 @@ The first real demo needs **no relay** — it retires the core risk locally.
   `blocked: 'agent-session-workspace'` variant confirms `open` supports agent
   sessions; the key relationship needs checking).
 - JWT vs PASETO for the capability token.
-- One token (mobile presents it to both relay-for-routing and desktop-for-auth)
-  vs. two tokens (a relay-session credential decoupled from the capability token).
-  v1 leans single-token; split if reconnect churn from the short TTL hurts.
+- ~~One vs two tokens~~ **resolved by E2E → two tokens**: a coarse relay-session
+  credential for routing (relay-visible) + the capability token presented inside
+  the E2E channel (relay-opaque).
+- E2E cipher suite: X25519 + HKDF-SHA256 + **XChaCha20-Poly1305 vs AES-256-GCM** —
+  pick per the RN crypto library's mature primitives.
+- Possible simplification: the QR-anchored authenticated handshake already
+  authenticates the phone, and `/approve` already carries the granted scope — so
+  the desktop *could* record caps against the E2E session instead of minting a
+  separate capability JWT. Evaluate after the handshake exists; keep the JWT for
+  now (it also serves the direct/no-E2E modes).
 - Mobile client native-vs-PWA — **out of scope here**, decided by the mobile team;
   the contract is `@shared/ai/transport` either way.
 
