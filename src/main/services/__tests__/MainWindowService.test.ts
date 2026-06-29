@@ -18,6 +18,7 @@ const { platformState, prefValues, applicationMock, windowManagerMock, ipcApiSer
     }
     const windowManagerMock = {
       getWindow: vi.fn(),
+      getWindowId: vi.fn(() => 'mock-window-id'),
       // Mirrors the real shape: runtime behavior setters live on `wm.behavior`
       // (see BehaviorController in src/main/core/window/behavior.ts).
       behavior: {
@@ -26,6 +27,8 @@ const { platformState, prefValues, applicationMock, windowManagerMock, ipcApiSer
       onWindowCreatedByType: vi.fn(() => vi.fn()),
       onWindowDestroyedByType: vi.fn(() => vi.fn()),
       open: vi.fn(() => 'mock-window-id'),
+      pushInitDataToType: vi.fn(() => 1),
+      setInitData: vi.fn(),
       // Bounds are restored declaratively by WindowManager; setupMainWindow reads
       // the saved maximized flag back through this to re-apply maximize itself.
       peekWindowBounds: vi.fn()
@@ -183,15 +186,6 @@ function getCrashListener(win: MockBrowserWindow): (event: unknown, details: unk
   return call[1]
 }
 
-function getCreatedByTypeListener() {
-  const calls = windowManagerMock.onWindowCreatedByType.mock.calls as unknown as Array<
-    [WindowType | string, (managed: { window: MockBrowserWindow }) => void]
-  >
-  const call = calls.find(([type]) => type === WindowType.Main)
-  if (!call) throw new Error('main window created listener not registered')
-  return call[1]
-}
-
 function makeCloseEvent() {
   return { preventDefault: vi.fn() }
 }
@@ -211,7 +205,10 @@ describe('MainWindowService', () => {
     applicationMock.quit.mockReset()
     applicationMock.forceExit.mockReset()
     windowManagerMock.behavior.setMacShowInDockByType.mockReset()
+    windowManagerMock.getWindowId.mockClear()
     windowManagerMock.open.mockClear()
+    windowManagerMock.pushInitDataToType.mockClear()
+    windowManagerMock.setInitData.mockClear()
     ipcApiServiceMock.broadcast.mockReset()
     loggerMock.error.mockReset()
 
@@ -396,57 +393,38 @@ describe('MainWindowService', () => {
   })
 
   describe('openSettingsTab', () => {
-    it('shows the existing main window and broadcasts a settings-tab request', () => {
+    it('shows the existing main window and pushes a settings-tab init-data update', () => {
       ;(svc as any).mainWindow = win
 
       svc.openSettingsTab()
 
       expect(win.show).toHaveBeenCalledTimes(1)
       expect(win.focus).toHaveBeenCalledTimes(1)
-      expect(ipcApiServiceMock.broadcast).toHaveBeenCalledWith('app.open_settings_tab', {})
+      expect(windowManagerMock.pushInitDataToType).toHaveBeenCalledWith(WindowType.Main, { openSettingsTab: true })
+      expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
     })
 
-    it('waits for the created main window to finish loading before broadcasting', () => {
+    it('stores settings-tab init data even if an existing main window is still loading', () => {
       win.webContents.isLoadingMainFrame.mockReturnValue(true)
-      vi.spyOn(svc as any, 'setupMainWindow').mockImplementation(() => {})
-      const createdByTypeListener = getCreatedByTypeListener()
-      windowManagerMock.open.mockImplementationOnce(() => {
-        createdByTypeListener({ window: win })
-        return 'mock-window-id'
-      })
+      ;(svc as any).mainWindow = win
 
       svc.openSettingsTab()
 
-      expect(windowManagerMock.open).toHaveBeenCalledWith(WindowType.Main, expect.any(Object))
+      expect(windowManagerMock.getWindowId).toHaveBeenCalledWith(win)
+      expect(windowManagerMock.setInitData).toHaveBeenCalledWith('mock-window-id', { openSettingsTab: true })
+      expect(windowManagerMock.pushInitDataToType).not.toHaveBeenCalled()
       expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
-
-      win.webContents.isLoadingMainFrame.mockReturnValue(false)
-      win.webContents.emit('did-finish-load')
-
-      expect(ipcApiServiceMock.broadcast).toHaveBeenCalledWith('app.open_settings_tab', {})
     })
 
-    it('coalesces repeated settings-tab requests while a newly created main window is loading', () => {
-      win.webContents.isLoadingMainFrame.mockReturnValue(true)
-      vi.spyOn(svc as any, 'setupMainWindow').mockImplementation(() => {})
-      const didFinishLoadListenerCount = () => win.webContents.listenerCount('did-finish-load')
-      const createdByTypeListener = getCreatedByTypeListener()
-      windowManagerMock.open.mockImplementationOnce(() => {
-        createdByTypeListener({ window: win })
-        return 'mock-window-id'
-      })
-
-      svc.openSettingsTab()
+    it('opens a missing main window with settings-tab init data for renderer pull', () => {
       svc.openSettingsTab()
 
-      expect(windowManagerMock.open).toHaveBeenCalledTimes(1)
-      expect(didFinishLoadListenerCount()).toBe(1)
+      expect(windowManagerMock.open).toHaveBeenCalledWith(
+        WindowType.Main,
+        expect.objectContaining({ initData: { openSettingsTab: true } })
+      )
+      expect(windowManagerMock.pushInitDataToType).not.toHaveBeenCalled()
       expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
-
-      win.webContents.isLoadingMainFrame.mockReturnValue(false)
-      win.webContents.emit('did-finish-load')
-
-      expect(ipcApiServiceMock.broadcast).toHaveBeenCalledTimes(1)
     })
   })
 

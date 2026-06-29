@@ -7,6 +7,7 @@ import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
+import type { MainWindowInitData } from '@shared/types/mainWindow'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import type { BrowserWindow } from 'electron'
 import { app, nativeImage, nativeTheme, shell } from 'electron'
@@ -26,8 +27,6 @@ const linuxIcon = isLinux ? nativeImage.createFromPath(iconPath) : undefined
 export class MainWindowService extends BaseService {
   private readonly _onMainWindowCreated: Emitter<BrowserWindow>
   public readonly onMainWindowCreated: Event<BrowserWindow>
-  private pendingSettingsTabOpen = false
-  private settingsTabOpenWaitWindow: BrowserWindow | null = null
 
   // Direct BrowserWindow reference, kept in sync with WindowManager's lifecycle
   // events (onWindowCreatedByType / onWindowDestroyedByType). External callers
@@ -177,10 +176,11 @@ export class MainWindowService extends BaseService {
    * otherwise constructs a fresh one. Dynamic options (theme-driven
    * backgroundColor / titleBarOverlay / backgroundMaterial / Linux frame and
    * icon, zoom factor) are injected here at the call site, since the registry
-   * only carries static defaults. Position/size are restored by WindowManager
-   * (rememberBounds), not injected here.
+   * only carries static defaults. Optional init data is written through
+   * WindowManager so fresh renderers can pull it after mount. Position/size are
+   * restored by WindowManager (rememberBounds), not injected here.
    */
-  private openMainWindow(): void {
+  private openMainWindow(initData?: MainWindowInitData): void {
     const preferenceService = application.get('PreferenceService')
     const windowManager = application.get('WindowManager')
 
@@ -193,6 +193,7 @@ export class MainWindowService extends BaseService {
     // onWindowCreatedByType fires synchronously during open() on fresh-create,
     // and does nothing on singleton reuse (where this.mainWindow is already set).
     windowManager.open(WindowType.Main, {
+      initData,
       options: {
         darkTheme: nativeTheme.shouldUseDarkColors,
         ...(isLinux && {
@@ -452,7 +453,7 @@ export class MainWindowService extends BaseService {
     // No 'closed' handler — WM emits onWindowDestroyedByType which clears this.mainWindow.
   }
 
-  public showMainWindow() {
+  public showMainWindow(initData?: MainWindowInitData) {
     // Lift any close-to-tray override so the Dock icon reappears as the user
     // brings the main window back. Idempotent when the app is not currently
     // in tray mode — WM deduplicates via its dockShouldBeVisible flag.
@@ -519,63 +520,30 @@ export class MainWindowService extends BaseService {
     } else {
       // Singleton: WM creates a fresh window when none exists; openMainWindow re-injects
       // the dynamic options (windowState bounds, theme, zoom) since the registry only carries statics.
-      this.openMainWindow()
+      this.openMainWindow(initData)
     }
   }
 
   public openSettingsTab(): void {
+    const initData: MainWindowInitData = { openSettingsTab: true }
     const mainWindow = this.mainWindow
     if (mainWindow && !mainWindow.isDestroyed()) {
-      this.showMainWindow()
-      this.emitOpenSettingsTabWhenReady(mainWindow)
-      return
-    }
-
-    if (this.pendingSettingsTabOpen) {
-      this.showMainWindow()
-      return
-    }
-
-    this.pendingSettingsTabOpen = true
-    const disposable = this.onMainWindowCreated((window) => {
-      disposable.dispose()
-      if (!window.isDestroyed()) {
-        this.emitOpenSettingsTabWhenReady(window, { waitForNextLoad: true })
+      const windowManager = application.get('WindowManager')
+      if (mainWindow.webContents.isLoadingMainFrame()) {
+        const windowId = windowManager.getWindowId(mainWindow)
+        if (windowId) {
+          windowManager.setInitData(windowId, initData)
+        }
+        this.showMainWindow()
+        return
       }
-    })
-    this.showMainWindow()
-  }
 
-  private emitOpenSettingsTabWhenReady(mainWindow: BrowserWindow, options: { waitForNextLoad?: boolean } = {}): void {
-    if (!options.waitForNextLoad && !mainWindow.webContents.isLoadingMainFrame()) {
-      this.pendingSettingsTabOpen = false
-      this.settingsTabOpenWaitWindow = null
-      this.emitOpenSettingsTab()
+      this.showMainWindow()
+      windowManager.pushInitDataToType(WindowType.Main, initData)
       return
     }
 
-    if (this.settingsTabOpenWaitWindow === mainWindow) return
-    this.pendingSettingsTabOpen = true
-    this.settingsTabOpenWaitWindow = mainWindow
-
-    const clearPending = () => {
-      if (this.settingsTabOpenWaitWindow !== mainWindow) return
-      this.settingsTabOpenWaitWindow = null
-      this.pendingSettingsTabOpen = false
-    }
-
-    mainWindow.webContents.once('did-finish-load', () => {
-      mainWindow.off('closed', clearPending)
-      if (!this.pendingSettingsTabOpen || mainWindow.isDestroyed()) return
-      this.pendingSettingsTabOpen = false
-      this.settingsTabOpenWaitWindow = null
-      this.emitOpenSettingsTab()
-    })
-    mainWindow.once('closed', clearPending)
-  }
-
-  private emitOpenSettingsTab(): void {
-    application.get('IpcApiService').broadcast('app.open_settings_tab', {})
+    this.showMainWindow(initData)
   }
 
   public toggleMainWindow() {

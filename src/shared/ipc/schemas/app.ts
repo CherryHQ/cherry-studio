@@ -25,8 +25,3 @@ export const appRequestSchemas = {
   // Fire-and-forget: quits and installs, so no result the caller reads.
   'app.updater.quit_and_install': defineRoute({ input: z.void(), output: z.void() })
 }
-
-// ── Event: main→renderer pushes (pure types, never parsed) ──
-export type AppEventSchemas = {
-  'app.open_settings_tab': Record<string, never>
-}

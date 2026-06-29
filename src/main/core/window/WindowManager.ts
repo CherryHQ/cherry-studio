@@ -676,6 +676,11 @@ export class WindowManager extends BaseService {
     return this.initDataStore.get(windowId) ?? null
   }
 
+  /** Clear initialization data for a window after the renderer consumes it. */
+  public clearInitData(windowId: string): void {
+    this.initDataStore.delete(windowId)
+  }
+
   /**
    * Push fresh init data to a single already-open window and notify its
    * renderer in-place, reusing the same IpcApi event (`window.reused`)

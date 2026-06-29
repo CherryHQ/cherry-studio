@@ -7,7 +7,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   isMac: false,
   commandHandlers: new Map<string, () => void>(),
-  ipcHandlers: new Map<string, (payload: any) => void>(),
+  initData: null as { openSettingsTab: true } | null,
+  ipcRequest: vi.fn(),
   openTab: vi.fn(),
   showSearchPopup: vi.fn()
 }))
@@ -24,9 +25,13 @@ vi.mock('@renderer/hooks/command', () => ({
   }
 }))
 
-vi.mock('@renderer/ipc/useIpcOn', () => ({
-  useIpcOn: (event: string, handler: (payload: any) => void) => {
-    mocks.ipcHandlers.set(event, handler)
+vi.mock('@renderer/hooks/useWindowInitData', () => ({
+  useWindowInitData: () => mocks.initData
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: mocks.ipcRequest
   }
 }))
 
@@ -85,6 +90,8 @@ vi.mock('../TabRouter', () => ({
   )
 }))
 
+import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
+
 import { AppShell } from '../AppShell'
 
 afterEach(() => {
@@ -92,7 +99,7 @@ afterEach(() => {
   vi.clearAllMocks()
   mocks.isMac = false
   mocks.commandHandlers.clear()
-  mocks.ipcHandlers.clear()
+  mocks.initData = null
 })
 
 describe('AppShell page side panel root', () => {
@@ -129,14 +136,19 @@ describe('AppShell', () => {
 
     mocks.commandHandlers.get('app.settings.open')?.()
 
-    expect(mocks.openTab).toHaveBeenCalledWith('/settings/provider', { title: expect.any(String) })
+    expect(mocks.openTab).toHaveBeenCalledWith('/settings/provider', {
+      title: getDefaultRouteTitle('/settings/provider')
+    })
   })
 
-  it('opens settings in a tab when main requests the settings tab', () => {
+  it('opens settings in a tab from main-window init data', () => {
+    mocks.initData = { openSettingsTab: true }
+
     render(<AppShell />)
 
-    mocks.ipcHandlers.get('app.open_settings_tab')?.({})
-
-    expect(mocks.openTab).toHaveBeenCalledWith('/settings/provider', { title: expect.any(String) })
+    expect(mocks.openTab).toHaveBeenCalledWith('/settings/provider', {
+      title: getDefaultRouteTitle('/settings/provider')
+    })
+    expect(mocks.ipcRequest).toHaveBeenCalledWith('window.clear_init_data')
   })
 })

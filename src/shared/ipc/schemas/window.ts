@@ -34,7 +34,8 @@ export const windowRequestSchemas = {
   'window.is_full_screen': defineRoute({ input: z.void(), output: z.boolean() }),
   // The init data WindowManager stored for the caller window; its shape varies per
   // window type, so it is opaque (unknown) and the consumer casts (see useWindowInitData).
-  'window.get_init_data': defineRoute({ input: z.void(), output: z.unknown() })
+  'window.get_init_data': defineRoute({ input: z.void(), output: z.unknown() }),
+  'window.clear_init_data': defineRoute({ input: z.void(), output: z.void() })
 }
 
 // ── Event: main→renderer pushes (pure types, never parsed) ──

@@ -13,7 +13,8 @@ const windowManager = {
   setFullScreen: vi.fn(() => true),
   isMaximized: vi.fn(() => true),
   isFullScreen: vi.fn(() => false),
-  getInitData: vi.fn(() => ({ path: '/settings/provider' }))
+  getInitData: vi.fn(() => ({ path: '/settings/provider' })),
+  clearInitData: vi.fn()
 }
 
 beforeEach(() => {
@@ -56,13 +57,20 @@ describe('windowHandlers', () => {
     expect(result).toEqual({ path: '/settings/provider' })
   })
 
+  it('clear_init_data clears the stored init data for the caller window', async () => {
+    await windowHandlers['window.clear_init_data'](undefined, ctx('w1'))
+    expect(windowManager.clearInitData).toHaveBeenCalledWith('w1')
+  })
+
   it('void controls are a no-op when the caller is not a tracked window (senderId null)', async () => {
     await windowHandlers['window.close'](undefined, ctx(null))
     await windowHandlers['window.minimize'](undefined, ctx(null))
     await windowHandlers['window.set_full_screen'](true, ctx(null))
+    await windowHandlers['window.clear_init_data'](undefined, ctx(null))
     expect(windowManager.close).not.toHaveBeenCalled()
     expect(windowManager.minimize).not.toHaveBeenCalled()
     expect(windowManager.setFullScreen).not.toHaveBeenCalled()
+    expect(windowManager.clearInitData).not.toHaveBeenCalled()
   })
 
   it('queries fall back to the legacy "no window" defaults when senderId is null', async () => {

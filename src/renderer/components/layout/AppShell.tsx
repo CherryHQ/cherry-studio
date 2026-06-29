@@ -2,10 +2,12 @@ import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import { useIpcOn } from '@renderer/ipc/useIpcOn'
+import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
+import { ipcApi } from '@renderer/ipc'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
+import type { MainWindowInitData } from '@shared/types/mainWindow'
 import { useCallback, useEffect, useMemo } from 'react'
 
 import Sidebar from '../app/Sidebar'
@@ -21,6 +23,7 @@ export const AppShell = () => {
     useTabs()
   const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
+  const initData = useWindowInitData<MainWindowInitData>()
 
   const handleOpenGlobalSearch = useCallback(() => {
     void SearchPopup.show()
@@ -33,9 +36,12 @@ export const AppShell = () => {
   useCommandHandler('app.search', handleOpenGlobalSearch)
   useCommandHandler('app.settings.open', handleOpenSettingsTab)
 
-  useIpcOn('app.open_settings_tab', () => {
-    handleOpenSettingsTab()
-  })
+  useEffect(() => {
+    if (initData?.openSettingsTab) {
+      handleOpenSettingsTab()
+      void ipcApi.request('window.clear_init_data')
+    }
+  }, [handleOpenSettingsTab, initData])
 
   const recordRouteVisit = useCallback(
     (tab: typeof activeTab, lastAccessTime = tab?.lastAccessTime) => {
