@@ -1,3 +1,4 @@
+import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
@@ -11,7 +12,6 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 // data-service registry, which createAgent resolves lazily for skill validation/join.
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { agentService } from '@data/services/AgentService'
-import { agentSessionService } from '@data/services/AgentSessionService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { pinService } from '@data/services/PinService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
@@ -19,7 +19,7 @@ import { ErrorCode } from '@shared/data/api'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 vi.mock('@main/apiServer/services/mcp', () => ({
   mcpApiService: {
@@ -425,20 +425,43 @@ describe('AgentService', () => {
       expect(sessionRows.map((row) => row.id)).toEqual(['session-keep-with-other-agent'])
     })
 
-    it('rolls back agent delete when session deletion fails', async () => {
+    it('rolls back the already-deleted sessions when a later delete step fails', async () => {
       const { id } = await insertAgent({ id: 'agent_delete_rollback_001' })
-      const deleteSessionsSpy = vi
-        .spyOn(agentSessionService, 'deleteByAgentIdTx')
-        .mockRejectedValueOnce(new Error('session delete failed'))
+      await dbh.db
+        .insert(agentWorkspaceTable)
+        .values({ id: 'workspace-rollback-1', name: 'Workspace', path: '/tmp/agent-rollback-1', orderKey: 'a0' })
+      await dbh.db.insert(agentSessionTable).values({
+        id: 'session-rollback-1',
+        agentId: id,
+        name: '',
+        workspaceId: 'workspace-rollback-1',
+        orderKey: 'a0'
+      })
+
+      // Run the delete inside a real transaction so a mid-transaction failure rolls back;
+      // the default DbService mock just passes the callback through without one.
+      ;(application.get('DbService').withWriteTx as Mock).mockImplementationOnce(async (fn) =>
+        dbh.db.transaction(fn as never)
+      )
+      // Fail *after* deleteByAgentIdTx has already removed the session rows, so the assertions
+      // below can only pass if that earlier delete is rolled back with the agent delete.
+      const deleteAgentSpy = vi
+        .spyOn(agentService, 'deleteAgentTx')
+        .mockRejectedValueOnce(new Error('agent delete failed'))
 
       try {
-        await expect(agentService.deleteAgent(id, { deleteSessions: true })).rejects.toThrow('session delete failed')
+        await expect(agentService.deleteAgent(id, { deleteSessions: true })).rejects.toThrow('agent delete failed')
       } finally {
-        deleteSessionsSpy.mockRestore()
+        deleteAgentSpy.mockRestore()
       }
 
       const agentRows = await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))
       expect(agentRows).toHaveLength(1)
+      const sessionRows = await dbh.db
+        .select()
+        .from(agentSessionTable)
+        .where(eq(agentSessionTable.id, 'session-rollback-1'))
+      expect(sessionRows).toHaveLength(1)
     })
   })
 
