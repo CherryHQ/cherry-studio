@@ -5,10 +5,11 @@ import {
   STREAMING_DISABLED_BUTTON_IDS
 } from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
 import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/components/Icons'
+import { messageToMarkdown } from '@renderer/services/ExportService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { messageToMarkdown, messageToPlainText } from '@renderer/utils/export'
+import { messageToPlainText } from '@renderer/utils/export'
 import { captureScrollableAsBlob, captureScrollableAsDataURL } from '@renderer/utils/image'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'

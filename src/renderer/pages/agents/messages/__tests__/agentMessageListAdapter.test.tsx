@@ -143,7 +143,7 @@ vi.mock('@renderer/services/EventService', () => ({
   EventEmitter: eventMocks
 }))
 
-vi.mock('@renderer/utils/export', () => ({
+vi.mock('@renderer/services/ExportService', () => ({
   messagesToMarkdown: vi.fn(async () => 'markdown')
 }))
 
