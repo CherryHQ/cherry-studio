@@ -27680,7 +27680,32 @@
       },
       "modelId": "qwen-image",
       "providerId": "dmxapi"
+    },
+    {
+      "apiModelId": "mimo-v2-flash",
+      "modelId": "mimo-v2-flash",
+      "providerId": "mimo"
+    },
+    {
+      "apiModelId": "mimo-v2-omni",
+      "modelId": "mimo-v2-omni",
+      "providerId": "mimo"
+    },
+    {
+      "apiModelId": "mimo-v2-pro",
+      "modelId": "mimo-v2-pro",
+      "providerId": "mimo"
+    },
+    {
+      "apiModelId": "mimo-v2.5",
+      "modelId": "mimo-v2-5",
+      "providerId": "mimo"
+    },
+    {
+      "apiModelId": "mimo-v2.5-pro",
+      "modelId": "mimo-v2-5-pro",
+      "providerId": "mimo"
     }
   ],
-  "version": "2026.05.28"
+  "version": "2026.06.29"
 }
