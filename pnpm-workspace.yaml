@@ -34,7 +34,7 @@ overrides:
   '@langchain/core': '1.0.2'
   '@napi-rs/canvas': '0.1.97'
   # officeparser depends on Tesseract only for optional OCR. Cherry Studio owns OCR
-  # separately and patches tesseract.js@6.0.1, while office preview keeps OCR off.
+  # separately and patches tesseract.js@6.0.1, while Office text extraction keeps OCR off.
   # NOTE: this pin couples officeparser's transitive tesseract.js to our OCR patch —
   # recheck both when upgrading officeparser or tesseract.js.
   tesseract.js: '6.0.1'

@@ -383,17 +383,6 @@
       "no_search_results": "No files match your search",
       "office": {
         "description": "This file type needs to be opened with the system default app.",
-        "error_title": "Unable to preview Office file",
-        "errors": {
-          "cancelled": "Office preview was cancelled.",
-          "file_too_large": "This Office file exceeds the preview size limit.",
-          "file_unavailable": "This file couldn't be opened; it may have been moved or deleted.",
-          "invalid_request": "The Office preview request is invalid.",
-          "parse_failed": "Unable to read this Office file.",
-          "parse_timeout": "Office file parsing timed out.",
-          "unsupported_extension": "Only .docx, .xlsx, and .pptx files can be previewed."
-        },
-        "loading": "Generating Office preview",
         "title": "Opening {{extension}} files here is not supported yet"
       },
       "preview": "Preview",

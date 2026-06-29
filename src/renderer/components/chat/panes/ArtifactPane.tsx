@@ -71,7 +71,6 @@ interface ArtifactFilePreviewProps {
   filePath?: string | null
   isText: IsTextState
   fileSize: FileSizeState
-  disableOfficePreview?: boolean
   officeActions?: ReactNode
   pdfLayoutPending?: boolean
   pdfLayoutRefreshKey?: number
@@ -88,7 +87,6 @@ const MARKDOWN_EXT = new Set(['.md', '.mdx', '.markdown'])
 const HTML_EXT = new Set(['.html', '.htm'])
 const PDF_EXT = new Set(['.pdf'])
 const OFFICE_DOCUMENT_EXT = new Set(['.doc', '.docx', '.xls', '.xlsx', '.xlsm', '.ppt', '.pptx'])
-const OFFICE_PREVIEW_EXT = new Set(['.docx', '.xlsx', '.pptx'])
 
 const extOf = (name: string): string => {
   const dot = name.lastIndexOf('.')
@@ -99,7 +97,6 @@ const isMarkdownFile = (name: string) => MARKDOWN_EXT.has(extOf(name))
 const isHtmlFile = (name: string) => HTML_EXT.has(extOf(name))
 const isPdfFile = (name: string) => PDF_EXT.has(extOf(name))
 export const isOfficeDocumentFile = (name: string) => OFFICE_DOCUMENT_EXT.has(extOf(name))
-export const isOfficePreviewFile = (name: string) => OFFICE_PREVIEW_EXT.has(extOf(name))
 
 const stripWorkspaceRootId = (ids: ReadonlySet<string>): ReadonlySet<string> => {
   if (!ids.has(WORKSPACE_ROOT_ID)) return ids
@@ -253,15 +250,7 @@ type PdfPreviewPanelComponent = ComponentType<{
   refreshKey: number
 }>
 
-type OfficePreviewPanelComponent = ComponentType<{
-  workspacePath: string
-  filePath: string
-  refreshKey: number
-  actions?: ReactNode
-}>
-
 let pdfPreviewPanelPromise: Promise<PdfPreviewPanelComponent> | null = null
-let officePreviewPanelPromise: Promise<OfficePreviewPanelComponent> | null = null
 
 const loadPdfPreviewPanel = () => {
   pdfPreviewPanelPromise ??= import('./PdfPreviewPanel')
@@ -271,16 +260,6 @@ const loadPdfPreviewPanel = () => {
       throw err
     })
   return pdfPreviewPanelPromise
-}
-
-const loadOfficePreviewPanel = () => {
-  officePreviewPanelPromise ??= import('./OfficePreviewPanel')
-    .then((module) => module.default)
-    .catch((err: unknown) => {
-      officePreviewPanelPromise = null
-      throw err
-    })
-  return officePreviewPanelPromise
 }
 
 function getArtifactFileTreeWidthBounds(artifactPaneWidth: number) {
@@ -404,7 +383,6 @@ export function ArtifactFilePreview({
   filePath,
   isText,
   fileSize,
-  disableOfficePreview = false,
   officeActions,
   pdfLayoutPending = false,
   pdfLayoutRefreshKey = 0,
@@ -413,13 +391,10 @@ export function ArtifactFilePreview({
   const { t } = useTranslation()
   const [fileContent, setFileContent] = useState<string | null>(null)
   const [PdfPreviewPanel, setPdfPreviewPanel] = useState<PdfPreviewPanelComponent | null>(null)
-  const [OfficePreviewPanel, setOfficePreviewPanel] = useState<OfficePreviewPanelComponent | null>(null)
   const [pdfPreviewLoadError, setPdfPreviewLoadError] = useState<Error | null>(null)
-  const [officePreviewLoadError, setOfficePreviewLoadError] = useState<Error | null>(null)
   const [readError, setReadError] = useState<Error | null>(null)
   const [loadingContent, setLoadingContent] = useState(false)
   const isPdfPreview = filePath ? isPdfFile(filePath) : false
-  const isOfficePreview = filePath && !disableOfficePreview ? isOfficePreviewFile(filePath) : false
   const isOfficeDocumentPreview = filePath ? isOfficeDocumentFile(filePath) : false
   const oversizedForPreview =
     !isPdfPreview &&
@@ -504,32 +479,6 @@ export function ArtifactFilePreview({
     }
   }, [PdfPreviewPanel, filePath, isPdfPreview, pdfLayoutPending])
 
-  useEffect(() => {
-    if (!isOfficePreview) {
-      setOfficePreviewLoadError(null)
-      return
-    }
-    if (OfficePreviewPanel) return
-
-    let cancelled = false
-    setOfficePreviewLoadError(null)
-
-    loadOfficePreviewPanel()
-      .then((component) => {
-        if (!cancelled) setOfficePreviewPanel(() => component)
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return
-        const normalized = err instanceof Error ? err : new Error(String(err))
-        logger.error('Failed to load Office preview panel', normalized)
-        setOfficePreviewLoadError(normalized)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [OfficePreviewPanel, contentRefreshKey, filePath, isOfficePreview])
-
   if (!workspacePath) {
     return (
       <EmptyState
@@ -592,28 +541,6 @@ export function ArtifactFilePreview({
     )
   }
   if (isOfficeDocumentPreview) {
-    if (isOfficePreview) {
-      if (officePreviewLoadError) {
-        return <EmptyState icon={AlertCircle} title={t('common.error')} description={officePreviewLoadError.message} />
-      }
-      if (!OfficePreviewPanel) {
-        return (
-          <div className="flex h-full w-full items-center justify-center">
-            <LoadingState label={t('common.loading')} />
-          </div>
-        )
-      }
-      return (
-        <OfficePreviewPanel
-          key={`office-${filePath}-${contentRefreshKey}`}
-          workspacePath={workspacePath}
-          filePath={filePath}
-          refreshKey={contentRefreshKey}
-          actions={officeActions}
-        />
-      )
-    }
-
     const extension = extOf(filePath).replace(/^\./, '')
     return (
       <EmptyState
@@ -854,7 +781,6 @@ const ArtifactPane = ({
   )
 
   const isPdfSelection = selectedFile ? isPdfFile(selectedFile) : false
-  const isOfficePreviewSelection = selectedFile ? isOfficePreviewFile(selectedFile) : false
   const isOfficeDocumentSelection = selectedFile ? isOfficeDocumentFile(selectedFile) : false
   const shouldSniffSelectedFile = !isPdfSelection && !isOfficeDocumentSelection
   const sniffedIsText = useIsTextFile(workspacePath, selectedFile, { enabled: shouldSniffSelectedFile })
@@ -863,7 +789,7 @@ const ArtifactPane = ({
 
   const handleRefresh = useCallback(() => {
     refresh()
-    if (workspacePath && selectedFile && (isText === 'text' || isOfficePreviewFile(selectedFile))) {
+    if (workspacePath && selectedFile && isText === 'text') {
       setContentRefreshToken((v) => v + 1)
     }
   }, [refresh, selectedFile, workspacePath, isText])
@@ -1026,9 +952,7 @@ const ArtifactPane = ({
             data-artifact-right-pane
             className={cn(
               'min-h-0 min-w-0 flex-1',
-              isSelectedHtmlPreview || isSelectedPdfPreview || isOfficePreviewSelection
-                ? 'overflow-hidden'
-                : 'overflow-auto',
+              isSelectedHtmlPreview || isSelectedPdfPreview ? 'overflow-hidden' : 'overflow-auto',
               isFileTreeResizing && 'pointer-events-none'
             )}>
             {renderRight()}
