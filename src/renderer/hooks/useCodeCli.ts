@@ -2,12 +2,12 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { CodeCliId, CodeCliOverride, CodeCliOverrides } from '@shared/data/preference/preferenceTypes'
 import { CODE_CLI_PRESET_MAP } from '@shared/data/presets/codeCli'
-import { codeCLI } from '@shared/types/codeCli'
+import { CodeCli } from '@shared/types/codeCli'
 import { useCallback, useMemo } from 'react'
 
 const logger = loggerService.withContext('useCodeCli')
 
-const DEFAULT_TOOL = codeCLI.qwenCode as CodeCliId
+const DEFAULT_TOOL = CodeCli.QWEN_CODE as CodeCliId
 
 function getEffectiveToolConfig(toolId: CodeCliId, overrides: CodeCliOverrides): Required<CodeCliOverride> {
   const preset = CODE_CLI_PRESET_MAP[toolId]
@@ -28,10 +28,10 @@ export const useCodeCli = () => {
   const selectedCliTool = useMemo(() => {
     for (const [toolId, override] of Object.entries(overrides)) {
       if (override?.enabled) {
-        return toolId as codeCLI
+        return toolId as CodeCli
       }
     }
-    return DEFAULT_TOOL as codeCLI
+    return DEFAULT_TOOL as CodeCli
   }, [overrides])
 
   const currentConfig = useMemo(
@@ -48,7 +48,7 @@ export const useCodeCli = () => {
   const canLaunch = Boolean(
     selectedCliTool &&
       currentDirectory &&
-      (selectedCliTool === codeCLI.githubCopilotCli || selectedCliTool === codeCLI.qoderCli || selectedModel)
+      (selectedCliTool === CodeCli.GITHUB_COPILOT_CLI || selectedCliTool === CodeCli.QODER_CLI || selectedModel)
   )
 
   const updateCurrentTool = useCallback(
@@ -64,7 +64,7 @@ export const useCodeCli = () => {
   )
 
   const setCliTool = useCallback(
-    async (tool: codeCLI) => {
+    async (tool: CodeCli) => {
       const newOverrides = { ...overrides }
       const currentId = selectedCliTool as CodeCliId
       if (newOverrides[currentId]) {
