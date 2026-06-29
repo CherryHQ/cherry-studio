@@ -24,6 +24,7 @@ import { cn } from '@renderer/utils/style'
 import { getTabInstanceKey } from '@renderer/utils/tabInstanceMetadata'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
+import { buildFirstUserMessageTitle } from '@shared/utils/conversationTitle'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { useSearch } from '@tanstack/react-router'
 import type { PropsWithChildren } from 'react'
@@ -108,7 +109,7 @@ const AgentPage = () => {
   const [, setLastUsedSessionId] = usePersistCache('ui.agent.last_used_session_id')
   const [lastUsedAgentId, setLastUsedAgentId] = usePersistCache('ui.agent.last_used_agent_id')
   const [lastUsedWorkspaceId, setLastUsedWorkspaceId] = usePersistCache('ui.agent.last_used_workspace_id')
-  const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
+  const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const lastRecordedRecentSessionRef = useRef<string | undefined>(undefined)
   const [sessionRevealRequest, setSessionRevealRequest] = useState<ResourceListRevealRequest>()
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
@@ -228,16 +229,11 @@ const AgentPage = () => {
     const signature = `${activeSession.id}:${activeSession.name}`
     if (lastRecordedRecentSessionRef.current === signature) return
 
-    const currentRecentItems = recentItems ?? []
-    const nextItems = upsertGlobalSearchRecentEntry(
-      currentRecentItems,
-      createRecentSessionEntryFromSession(activeSession)
-    )
     lastRecordedRecentSessionRef.current = signature
-    if (nextItems !== currentRecentItems) {
-      setRecentItems(nextItems)
-    }
-  }, [activeSession, isMessageOnlyView, recentItems, setRecentItems])
+    setRecentItems((prev) =>
+      upsertGlobalSearchRecentEntry(prev ?? [], createRecentSessionEntryFromSession(activeSession))
+    )
+  }, [activeSession, isMessageOnlyView, setRecentItems])
 
   useEffect(() => {
     if (activeSession) lastVisibleSessionRef.current = activeSession
@@ -576,7 +572,7 @@ const AgentPage = () => {
       if (!current) {
         throw new Error('Draft session handoff failed: no active draft session')
       }
-      const trimmed = initialName?.trim()
+      const temporaryTitle = buildFirstUserMessageTitle(initialName ?? '')
 
       // Adopt the eagerly-reserved + prewarmed session for this draft, if any. Rename it from the
       // sent text to preserve the "session named after first message" behavior of the create path.
@@ -585,7 +581,7 @@ const AgentPage = () => {
         reservedSessionRef.current = null
         const reservedPersisted = await reserved.promise
         if (reservedPersisted) {
-          const name = trimmed ? trimmed.slice(0, 30) : reservedPersisted.name
+          const name = temporaryTitle || reservedPersisted.name
           const persisted =
             name === reservedPersisted.name
               ? reservedPersisted
@@ -604,7 +600,7 @@ const AgentPage = () => {
       const session = await dataApiService.post('/agent-sessions', {
         body: {
           agentId: current.agentId,
-          name: trimmed ? trimmed.slice(0, 30) : t('common.unnamed'),
+          name: temporaryTitle || t('common.unnamed'),
           workspace: current.workspaceSource
         }
       })

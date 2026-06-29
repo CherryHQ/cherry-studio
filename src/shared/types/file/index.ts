@@ -9,6 +9,7 @@ export {
   type FileUrlString,
   type PhysicalFileMetadata,
   PhysicalFileMetadataSchema,
+  SafeExtSchema,
   type UrlString
 } from './common'
 export {

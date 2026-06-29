@@ -147,7 +147,7 @@ vi.mock('../list/ImportAssistantDialog', () => ({
   ImportAssistantDialog: () => null
 }))
 
-vi.mock('../list/ImportSkillDialog', () => ({
+vi.mock('@renderer/components/resource/dialogs/ImportSkillDialog', () => ({
   ImportSkillDialog: () => null
 }))
 
@@ -212,7 +212,7 @@ vi.mock('@renderer/components/resource/dialogs/PromptEditDialog', () => ({
 }))
 
 vi.mock('@renderer/components/resource/dialogs', () => ({
-  ResourceCreateDialog: ({
+  ResourceCreateWizard: ({
     kind,
     open,
     onSubmit,
@@ -220,7 +220,15 @@ vi.mock('@renderer/components/resource/dialogs', () => ({
   }: {
     kind: 'assistant' | 'agent'
     open: boolean
-    onSubmit: (values: { avatar: string; name: string; modelId: string; description: string }) => Promise<void>
+    onSubmit: (values: {
+      avatar: string
+      name: string
+      modelId: string
+      description: string
+      prompt: string
+      knowledgeBaseIds: string[]
+      skillIds: string[]
+    }) => Promise<void>
     onOpenChange: (open: boolean) => void
   }) =>
     open ? (
@@ -232,7 +240,10 @@ vi.mock('@renderer/components/resource/dialogs', () => ({
               avatar: kind === 'assistant' ? '💬' : '🤖',
               name: `${kind} name`,
               modelId: 'provider::model',
-              description: `${kind} description`
+              description: `${kind} description`,
+              prompt: `${kind} prompt`,
+              knowledgeBaseIds: [],
+              skillIds: []
             })
           }>
           finish {kind} create
@@ -439,7 +450,9 @@ describe('LibraryPage create flow', () => {
       name: 'assistant name',
       emoji: '💬',
       modelId: 'provider::model',
-      description: 'assistant description'
+      description: 'assistant description',
+      prompt: 'assistant prompt',
+      knowledgeBaseIds: []
     })
     expect(refetchSpy).toHaveBeenCalledTimes(1)
   })
@@ -465,6 +478,8 @@ describe('LibraryPage create flow', () => {
       planModel: 'provider::model',
       smallModel: 'provider::model',
       description: 'agent description',
+      instructions: 'agent prompt',
+      skillIds: [],
       configuration: {
         avatar: '🤖',
         permission_mode: 'bypassPermissions',

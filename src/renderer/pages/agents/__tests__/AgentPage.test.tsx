@@ -322,6 +322,15 @@ vi.mock('../AgentChat', () => ({
       <button type="button" onClick={() => void onEnsurePersistentSession?.('hello')}>
         Persist draft session
       </button>
+      <button
+        type="button"
+        onClick={() =>
+          void onEnsurePersistentSession?.(
+            'Please inspect the renderer startup path and suggest fixes for the auto naming regression'
+          )
+        }>
+        Persist long draft session
+      </button>
       {onPaneCollapse && (
         <button type="button" onClick={onPaneCollapse}>
           Collapse pane
@@ -791,6 +800,25 @@ describe('AgentPage', () => {
     )
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-created'))
     expect(screen.getByTestId('active-session')).toHaveTextContent('session-created')
+  })
+
+  it('uses the shared first-message temporary title when persisting a draft session', async () => {
+    agentPageMocks.routeSearch = {}
+
+    render(<AgentPage />)
+
+    await waitFor(() => expect(screen.getByTestId('draft-session')).toHaveTextContent('agent-a'))
+    fireEvent.click(screen.getByRole('button', { name: 'Persist long draft session' }))
+
+    await waitFor(() =>
+      expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
+        body: {
+          agentId: 'agent-a',
+          name: 'Please inspect the renderer startup path and sugge',
+          workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+        }
+      })
+    )
   })
 
   it('records the visible agent reported by the chat body', async () => {
