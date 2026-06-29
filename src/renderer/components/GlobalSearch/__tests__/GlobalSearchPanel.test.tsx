@@ -30,7 +30,11 @@ const mocks = vi.hoisted(() => ({
   tabs: [] as Tab[],
   preferenceValues: {
     'app.user.name': 'JD',
-    'ui.sidebar.favorites': ['assistants', 'agents', 'translate'],
+    'ui.sidebar.favorites': [
+      { type: 'app', id: 'assistants' },
+      { type: 'app', id: 'agents' },
+      { type: 'app', id: 'translate' }
+    ],
     'feature.paintings.default_provider': 'zhipu'
   } as Record<string, unknown>,
   persistCacheValues: {
@@ -563,7 +567,11 @@ describe('GlobalSearchPanel', () => {
     mocks.sessionMessageQueryResult = undefined
     mocks.preferenceValues = {
       'app.user.name': 'JD',
-      'ui.sidebar.favorites': ['assistants', 'agents', 'translate'],
+      'ui.sidebar.favorites': [
+        { type: 'app', id: 'assistants' },
+        { type: 'app', id: 'agents' },
+        { type: 'app', id: 'translate' }
+      ],
       'feature.paintings.default_provider': 'zhipu'
     }
     mocks.persistCacheValues = {

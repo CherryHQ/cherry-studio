@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
+import type { SidebarFavorite, SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -37,7 +38,7 @@ const mocks = vi.hoisted(() => ({
   showUserPopup: vi.fn(),
   sidebarWidth: 50,
   tabs: [] as FakeTab[],
-  sidebarFavorites: ['assistants'] as string[],
+  sidebarFavorites: [{ type: 'app', id: 'assistants' }] as SidebarFavoriteItem[],
   miniApps: [] as FakeMiniApp[]
 }))
 
@@ -220,10 +221,13 @@ import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
 
 import Sidebar from '../Sidebar'
 
+const appFavorite = (id: SidebarFavorite): SidebarFavoriteItem => ({ type: 'app', id })
+const miniAppFavorite = (id: string): SidebarFavoriteItem => ({ type: 'mini_app', id })
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
-  mocks.sidebarFavorites = ['assistants']
+  mocks.sidebarFavorites = [appFavorite('assistants')]
   mocks.activeTab = {
     id: 'chat',
     type: 'route',
@@ -284,7 +288,7 @@ describe('app Sidebar', () => {
   })
 
   it('renders sidebar menu items in visible preference order', () => {
-    mocks.sidebarFavorites = ['translate', 'assistants', 'agents']
+    mocks.sidebarFavorites = [appFavorite('translate'), appFavorite('assistants'), appFavorite('agents')]
 
     render(<Sidebar />)
 
@@ -295,7 +299,12 @@ describe('app Sidebar', () => {
   })
 
   it('renders favorite mini apps directly in the sidebar mini app section', () => {
-    mocks.sidebarFavorites = ['assistants', 'mini_app', 'calculator', 'weather']
+    mocks.sidebarFavorites = [
+      appFavorite('assistants'),
+      appFavorite('mini_app'),
+      miniAppFavorite('calculator'),
+      miniAppFavorite('weather')
+    ]
     mocks.miniApps = [
       { appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' },
       { appId: 'weather', name: 'Weather', logo: 'weather-logo', url: 'https://weather.example' }
@@ -323,7 +332,7 @@ describe('app Sidebar', () => {
   })
 
   it('does not render mini apps unless they are sidebar favorites', () => {
-    mocks.sidebarFavorites = ['assistants', 'mini_app']
+    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app')]
     mocks.miniApps = [{ appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }]
 
     render(<Sidebar />)
@@ -332,7 +341,12 @@ describe('app Sidebar', () => {
   })
 
   it('drops stale mini app ids from sidebar favorites', () => {
-    mocks.sidebarFavorites = ['assistants', 'mini_app', 'calculator', 'stale']
+    mocks.sidebarFavorites = [
+      appFavorite('assistants'),
+      appFavorite('mini_app'),
+      miniAppFavorite('calculator'),
+      miniAppFavorite('stale')
+    ]
     mocks.miniApps = [{ appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }]
 
     render(<Sidebar />)
@@ -342,7 +356,7 @@ describe('app Sidebar', () => {
   })
 
   it('opens a mini app tab from the sidebar mini app section', () => {
-    mocks.sidebarFavorites = ['assistants', 'mini_app', 'calculator']
+    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app'), miniAppFavorite('calculator')]
     mocks.miniApps = [{ appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }]
 
     render(<Sidebar />)
@@ -355,7 +369,7 @@ describe('app Sidebar', () => {
   })
 
   it('does nothing when the active tab is already on the target route', () => {
-    mocks.sidebarFavorites = ['agents']
+    mocks.sidebarFavorites = [appFavorite('agents')]
     mocks.activeTab = {
       id: 'agents',
       type: 'route',
@@ -372,7 +386,7 @@ describe('app Sidebar', () => {
   })
 
   it('reuses the active tab even when another sidebar app tab exists', () => {
-    mocks.sidebarFavorites = ['agents']
+    mocks.sidebarFavorites = [appFavorite('agents')]
     mocks.activeTab = {
       id: 'chat',
       type: 'route',
@@ -396,7 +410,7 @@ describe('app Sidebar', () => {
   })
 
   it('clears stale instance metadata when reusing the active tab', () => {
-    mocks.sidebarFavorites = ['translate']
+    mocks.sidebarFavorites = [appFavorite('translate')]
     mocks.activeTab = {
       id: 'chat',
       type: 'route',
@@ -420,7 +434,7 @@ describe('app Sidebar', () => {
   })
 
   it('reuses the active tab for single-policy routes too', () => {
-    mocks.sidebarFavorites = ['translate']
+    mocks.sidebarFavorites = [appFavorite('translate')]
     mocks.activeTab = {
       id: 'chat',
       type: 'route',
@@ -441,7 +455,7 @@ describe('app Sidebar', () => {
   })
 
   it('opens a forced tab when the active tab is pinned', () => {
-    mocks.sidebarFavorites = ['agents']
+    mocks.sidebarFavorites = [appFavorite('agents')]
     mocks.activeTab = {
       id: 'chat',
       type: 'route',
@@ -461,7 +475,7 @@ describe('app Sidebar', () => {
   })
 
   it('opens a forced tab when there is no active tab', () => {
-    mocks.sidebarFavorites = ['files']
+    mocks.sidebarFavorites = [appFavorite('files')]
     mocks.activeTab = null
     mocks.openTab.mockReturnValue('files-new')
 

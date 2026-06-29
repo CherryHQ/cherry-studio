@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import type { SidebarFavorite } from '@shared/data/preference/preferenceTypes'
+import type { SidebarFavorite, SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
   openedMiniApps: [] as any[],
   reorderMiniAppsByStatus: vi.fn(() => Promise.resolve()),
   setSidebarFavorites: vi.fn(() => Promise.resolve()),
-  sidebarFavorites: ['assistants'] as string[],
+  sidebarFavorites: [{ type: 'app', id: 'assistants' }] as SidebarFavoriteItem[],
   sortableCalls: [] as any[]
 }))
 
@@ -144,6 +144,9 @@ vi.mock('react-i18next', () => ({
 
 import LaunchpadPage from '../LaunchpadPage'
 
+const appFavorite = (id: SidebarFavorite): SidebarFavoriteItem => ({ type: 'app', id })
+const miniAppFavorite = (id: string): SidebarFavoriteItem => ({ type: 'mini_app', id })
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
@@ -154,7 +157,7 @@ describe('LaunchpadPage', () => {
   beforeEach(() => {
     mocks.pinnedMiniApps = []
     mocks.openedMiniApps = []
-    mocks.sidebarFavorites = ['assistants']
+    mocks.sidebarFavorites = [appFavorite('assistants')]
     mocks.sortableCalls.length = 0
     mocks.setSidebarFavorites.mockResolvedValue(undefined)
     mocks.reorderMiniAppsByStatus.mockResolvedValue(undefined)
@@ -171,7 +174,7 @@ describe('LaunchpadPage', () => {
   })
 
   it('renders fixed sidebar apps first and unpinned apps in default order', () => {
-    mocks.sidebarFavorites = ['translate', 'assistants', 'agents']
+    mocks.sidebarFavorites = [appFavorite('translate'), appFavorite('assistants'), appFavorite('agents')]
 
     render(<LaunchpadPage />)
 
@@ -198,7 +201,12 @@ describe('LaunchpadPage', () => {
   })
 
   it('sorts only fixed sidebar apps and preserves mini app favorite ids', () => {
-    mocks.sidebarFavorites = ['translate', 'assistants', 'agents', 'calculator']
+    mocks.sidebarFavorites = [
+      appFavorite('translate'),
+      appFavorite('assistants'),
+      appFavorite('agents'),
+      miniAppFavorite('calculator')
+    ]
 
     render(<LaunchpadPage />)
 
@@ -208,7 +216,12 @@ describe('LaunchpadPage', () => {
 
     systemSortable.onSortEnd({ oldIndex: 0, newIndex: 2 })
 
-    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith(['assistants', 'agents', 'translate', 'calculator'])
+    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([
+      appFavorite('assistants'),
+      appFavorite('agents'),
+      appFavorite('translate'),
+      miniAppFavorite('calculator')
+    ])
   })
 
   it('navigates apps inside the current launchpad tab', async () => {
@@ -274,7 +287,7 @@ describe('LaunchpadPage', () => {
       orderKey: 'b'
     }
     mocks.pinnedMiniApps = [calculator, docs]
-    mocks.sidebarFavorites = ['assistants', 'mini_app']
+    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app')]
 
     render(<LaunchpadPage />)
 
@@ -329,12 +342,12 @@ describe('LaunchpadPage', () => {
 
     await user.click(screen.getByTestId('menu-launchpad.pin-to-sidebar.knowledge'))
 
-    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith(['assistants', 'knowledge'])
+    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants'), appFavorite('knowledge')])
   })
 
   it('unpins an existing sidebar app icon from the context menu', async () => {
     const user = userEvent.setup()
-    mocks.sidebarFavorites = ['assistants', 'knowledge']
+    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('knowledge')]
 
     render(<LaunchpadPage />)
 
@@ -342,6 +355,6 @@ describe('LaunchpadPage', () => {
 
     await user.click(screen.getByTestId('menu-launchpad.unpin-from-sidebar.knowledge'))
 
-    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith(['assistants'])
+    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants')])
   })
 })
