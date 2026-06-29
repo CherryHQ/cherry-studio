@@ -75,6 +75,21 @@ function findLatestUpdatedSession<T extends { updatedAt?: string }>(sessions: re
   return latestSession
 }
 
+// Reuse the agent's latest *empty* placeholder session (matched by `isMatch`) instead of stacking a
+// new one. The empty session only exists to surface the agent in the old-view rail, so on repeated
+// adds we reopen the existing placeholder rather than pile up blanks.
+//
+// "Empty" is approximated by a blank name: the list API exposes no message count, and a session is
+// auto-titled once it gets content. A still-untitled session that already has messages would also be
+// treated as reusable — acceptable, since reuse just reopens it (no data loss, no duplicate). Swap
+// the name test for a backend `messageCount` on the session list if that ever lands.
+function findReusableEmptySession<T extends { name: string; updatedAt?: string }>(
+  sessions: readonly T[],
+  isMatch: (session: T) => boolean
+): T | undefined {
+  return findLatestUpdatedSession(sessions.filter((session) => session.name.trim() === '' && isMatch(session)))
+}
+
 const AgentPage = () => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [workView] = usePreference('chat.work_view')
@@ -416,19 +431,9 @@ const AgentPage = () => {
       // still visible (which reads as a black/white flash + the dialog reopening).
       setAgentPickerOpen(false)
       try {
-        // The empty session only exists to surface the agent in the old-view rail. To avoid stacking
-        // another empty one on repeated adds, reuse the agent's latest session when it is still an
-        // unused placeholder.
-        //
-        // Tradeoff: the list API exposes no message count / "has messages" flag, so "unused" is
-        // approximated by a blank name (a session is auto-titled once it gets content). A session
-        // that has messages but is still untitled would also be treated as reusable — acceptable,
-        // since reuse just reopens it (no data loss, no duplicate). A precise check would need a
-        // backend `messageCount` on the session list; swap the name test for it if that lands.
-        const latestSession = findLatestUpdatedSession(
-          oldViewSessions.filter((candidate) => candidate.agentId === agentId)
-        )
-        const reusableSession = latestSession && latestSession.name.trim() === '' ? latestSession : undefined
+        // Reuse the agent's latest empty placeholder regardless of workspace — the picker resolves a
+        // fresh workspace below only when it has to create one. See findReusableEmptySession.
+        const reusableSession = findReusableEmptySession(oldViewSessions, (candidate) => candidate.agentId === agentId)
 
         let session = reusableSession
         if (!session) {
@@ -827,13 +832,11 @@ const AgentPage = () => {
           : { type: AGENT_WORKSPACE_TYPE.SYSTEM }
 
     try {
-      const reusableSession = findLatestUpdatedSession(
-        oldViewSessions.filter(
-          (candidate) =>
-            candidate.agentId === agentId &&
-            candidate.name.trim() === '' &&
-            sessionMatchesWorkspaceSource(candidate, workspaceSource)
-        )
+      // Composer "new session" stays in the current workspace, so only reuse a placeholder that
+      // matches it. See findReusableEmptySession.
+      const reusableSession = findReusableEmptySession(
+        oldViewSessions,
+        (candidate) => candidate.agentId === agentId && sessionMatchesWorkspaceSource(candidate, workspaceSource)
       )
       const session =
         reusableSession ??

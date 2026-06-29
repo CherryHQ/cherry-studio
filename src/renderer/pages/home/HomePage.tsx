@@ -90,6 +90,22 @@ function findLatestUpdatedTopic<T extends { updatedAt?: string }>(topics: readon
   return latestTopic
 }
 
+// Reuse the assistant's latest *empty* placeholder topic instead of stacking a new one. The empty
+// topic only exists to surface the assistant in the old-view rail, so on repeated adds we reopen the
+// existing placeholder rather than pile up blanks.
+//
+// "Empty" is approximated by a blank name: the list API exposes no message count, and a topic is
+// auto-titled once it gets messages. A still-untitled topic that already has messages would also be
+// treated as reusable — acceptable, since reuse just reopens it (no data loss, no duplicate). Swap
+// the name test for a backend `messageCount` on the topic list if that ever lands.
+function findReusableEmptyTopic<T extends { name: string; assistantId?: string; updatedAt?: string }>(
+  topics: readonly T[],
+  assistantId: string | undefined
+): T | undefined {
+  if (!assistantId) return undefined
+  return findLatestUpdatedTopic(topics.filter((topic) => topic.assistantId === assistantId && topic.name.trim() === ''))
+}
+
 type DraftChatSendOptions = {
   files?: FileMetadata[]
   mentionedModels?: UniqueModelId[]
@@ -485,19 +501,8 @@ const HomePage: FC = () => {
       try {
         const assistantId = await resolveAssistantIdForSelection(selection)
 
-        // The empty conversation only exists to surface the assistant in the old-view rail. To avoid
-        // stacking another empty one on repeated adds, reuse the assistant's latest topic when it is
-        // still an unused placeholder.
-        //
-        // Tradeoff: the list API exposes no message count / "has messages" flag, so "unused" is
-        // approximated by a blank name (a topic is auto-titled once it gets messages). A topic that has
-        // messages but isn't titled yet would also be treated as reusable — acceptable, since reuse
-        // just reopens it (no data loss, no duplicate). A precise check would need a backend
-        // `messageCount` on the topic list; swap the name test for it if that lands.
-        const latestTopic = findLatestUpdatedTopic(
-          oldViewTopics.filter((candidate) => candidate.assistantId === assistantId)
-        )
-        const reusableTopic = latestTopic && latestTopic.name.trim() === '' ? latestTopic : undefined
+        // Reuse the assistant's latest empty placeholder topic (see findReusableEmptyTopic).
+        const reusableTopic = findReusableEmptyTopic(oldViewTopics, assistantId)
 
         const topic = reusableTopic ?? (await createTopic({ assistantId }))
         const rendererTopic = mapApiTopicToRendererTopic(topic)
@@ -529,13 +534,7 @@ const HomePage: FC = () => {
     async (payload?: AddNewTopicPayload) => {
       try {
         const selection = resolveDraftAssistantTarget(payload?.assistantId)
-        const reusableTopic = selection.assistantId
-          ? findLatestUpdatedTopic(
-              oldViewTopics.filter(
-                (candidate) => candidate.assistantId === selection.assistantId && candidate.name.trim() === ''
-              )
-            )
-          : undefined
+        const reusableTopic = findReusableEmptyTopic(oldViewTopics, selection.assistantId)
         const topic =
           reusableTopic ??
           (await createTopic({
