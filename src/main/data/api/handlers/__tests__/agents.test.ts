@@ -224,7 +224,20 @@ describe('agentHandlers', () => {
         agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)
       ).resolves.toBeUndefined()
 
-      expect(deleteAgentMock).toHaveBeenCalledWith(AGENT_ID)
+      expect(deleteAgentMock).toHaveBeenCalledWith(AGENT_ID, { deleteSessions: false })
+    })
+
+    it('delegates DELETE with session cleanup when requested', async () => {
+      deleteAgentMock.mockResolvedValueOnce(true)
+
+      await expect(
+        agentHandlers['/agents/:agentId'].DELETE({
+          params: { agentId: AGENT_ID },
+          query: { deleteSessions: true }
+        } as never)
+      ).resolves.toBeUndefined()
+
+      expect(deleteAgentMock).toHaveBeenCalledWith(AGENT_ID, { deleteSessions: true })
     })
 
     it('throws notFound when agent does not exist on DELETE', async () => {
