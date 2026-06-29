@@ -44,9 +44,14 @@ export function createGatewayGeminiImageModel(languageModel: LanguageModelV3, mo
     // Gemini returns a single image per generateContent call.
     maxImagesPerCall: 1,
     async doGenerate(options: ImageModelV3CallOptions) {
-      const { prompt, n, size, aspectRatio, seed, files, providerOptions, headers, abortSignal } = options
+      const { prompt, n, size, aspectRatio, seed, files, mask, providerOptions, headers, abortSignal } = options
       const warnings: Awaited<ReturnType<ImageModelV3['doGenerate']>>['warnings'] = []
 
+      if (mask != null) {
+        // Gemini edits via full-image prompts, not masks. Match @ai-sdk/google,
+        // which rejects mask-based editing outright rather than ignoring it.
+        throw new Error('Gemini image models do not support mask-based image editing.')
+      }
       if (n != null && n > 1) {
         warnings.push({
           type: 'unsupported',
@@ -83,11 +88,19 @@ export function createGatewayGeminiImageModel(languageModel: LanguageModelV3, mo
         }
       }
 
+      // Augment only the `google` namespace; keep every other caller option
+      // (e.g. `gateway` routing: order/only/BYOK) intact, and deep-merge
+      // imageConfig so an existing imageSize survives an added aspectRatio.
       const existingGoogle = (providerOptions?.google ?? {}) as Record<string, JSONValue>
+      const existingImageConfig = (existingGoogle.imageConfig ?? {}) as Record<string, JSONValue>
+      const imageConfig: Record<string, JSONValue> = {
+        ...existingImageConfig,
+        ...(aspectRatio ? { aspectRatio } : {})
+      }
       const google: Record<string, JSONValue> = {
         ...existingGoogle,
         responseModalities: ['IMAGE'],
-        ...(aspectRatio ? { imageConfig: { aspectRatio } } : {})
+        ...(Object.keys(imageConfig).length > 0 ? { imageConfig } : {})
       }
 
       const result = await languageModel.doGenerate({
@@ -95,7 +108,7 @@ export function createGatewayGeminiImageModel(languageModel: LanguageModelV3, mo
         ...(seed != null ? { seed } : {}),
         ...(headers ? { headers } : {}),
         ...(abortSignal ? { abortSignal } : {}),
-        providerOptions: { google }
+        providerOptions: { ...providerOptions, google }
       })
 
       const images: string[] = []

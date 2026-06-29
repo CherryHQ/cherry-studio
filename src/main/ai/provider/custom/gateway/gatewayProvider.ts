@@ -13,10 +13,16 @@ export function createGatewayWithImageModel(settings: GatewayProviderSettings = 
   const provider = createGateway(settings)
   const baseImageModel = provider.imageModel.bind(provider)
 
-  provider.imageModel = (modelId: string) =>
+  const imageModel = (modelId: string) =>
     isGatewayGeminiImageModel(modelId)
       ? createGatewayGeminiImageModel(provider.languageModel(modelId), modelId)
       : baseImageModel(modelId)
+
+  // `@ai-sdk/gateway` aliases `provider.image = provider.imageModel` at
+  // creation, so both must be overridden or `.image()` keeps hitting the
+  // original `/image-model` route and reproduces the failure.
+  provider.imageModel = imageModel
+  provider.image = imageModel
 
   return provider
 }
