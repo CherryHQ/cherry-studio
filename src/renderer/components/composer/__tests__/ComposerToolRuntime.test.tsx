@@ -685,6 +685,54 @@ describe('ComposerToolMenu', () => {
     expect(inputAdapter.focus).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps default dropdown focus restore for non-panel launchers from the plus menu', async () => {
+    const commandAction = vi.fn()
+    const inputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getText: () => '',
+      insertText: vi.fn()
+    }
+
+    renderRuntime(
+      [
+        {
+          key: 'fake-menu-tool',
+          label: 'Fake menu tool',
+          composer: {
+            menuItems: {
+              createItems: vi.fn(() => [
+                {
+                  id: 'quick-command',
+                  kind: 'command',
+                  label: 'Quick Command',
+                  icon: 'fake',
+                  sources: ['popover'],
+                  action: commandAction
+                }
+              ])
+            }
+          }
+        }
+      ],
+      <ComposerToolMenu inputAdapter={inputAdapter} />
+    )
+
+    expect(await screen.findByText('Quick Command')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId(getMenuItemTestId('Quick Command')))
+
+    expect(commandAction).toHaveBeenCalledTimes(1)
+    const closeAutoFocus = mockDropdownMenuContentProps.at(-1)?.onCloseAutoFocus
+    expect(closeAutoFocus).toEqual(expect.any(Function))
+
+    const closeAutoFocusEvent = { preventDefault: vi.fn() }
+    closeAutoFocus?.(closeAutoFocusEvent)
+
+    expect(closeAutoFocusEvent.preventDefault).not.toHaveBeenCalled()
+    expect(inputAdapter.focus).not.toHaveBeenCalled()
+  })
+
   it('renders only popover submenu items with shadcn dropdown sub components', async () => {
     const popoverModeAction = vi.fn()
 

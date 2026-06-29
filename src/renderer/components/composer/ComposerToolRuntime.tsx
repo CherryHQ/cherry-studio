@@ -454,8 +454,10 @@ export const ComposerToolMenu = ({ inputAdapter }: ComposerToolMenuProps) => {
       if (!keepComposerFocusAfterMenuCloseRef.current) return
 
       keepComposerFocusAfterMenuCloseRef.current = false
+      if (!inputAdapter) return
+
       event.preventDefault()
-      inputAdapter?.focus()
+      inputAdapter.focus()
     },
     [inputAdapter]
   )
