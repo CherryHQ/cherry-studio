@@ -1,6 +1,32 @@
 import { describe, expect, it } from 'vitest'
 
-import { getEffectiveMaxToolCalls } from '../parameterBuilder'
+import { getEffectiveMaxToolCalls, usesOpenAIResponsesApi } from '../parameterBuilder'
+
+describe('usesOpenAIResponsesApi', () => {
+  it('maps the native OpenAI Responses provider', () => {
+    expect(usesOpenAIResponsesApi('openai', undefined)).toBe(true)
+  })
+
+  it('maps Azure Responses', () => {
+    expect(usesOpenAIResponsesApi('azure-responses', undefined)).toBe(true)
+  })
+
+  it('maps proxy providers tagged with the openai-response endpoint type', () => {
+    expect(usesOpenAIResponsesApi('cherryin', 'openai-response')).toBe(true)
+    expect(usesOpenAIResponsesApi('newapi', 'openai-response')).toBe(true)
+  })
+
+  it('does not map Chat Completions variants', () => {
+    expect(usesOpenAIResponsesApi('openai-chat', undefined)).toBe(false)
+    expect(usesOpenAIResponsesApi('azure', undefined)).toBe(false)
+    expect(usesOpenAIResponsesApi('huggingface', undefined)).toBe(false)
+  })
+
+  it('does not map unrelated providers', () => {
+    expect(usesOpenAIResponsesApi('anthropic', undefined)).toBe(false)
+    expect(usesOpenAIResponsesApi('google', 'gemini')).toBe(false)
+  })
+})
 
 describe('getEffectiveMaxToolCalls', () => {
   it('uses the default cap when settings are missing', () => {
