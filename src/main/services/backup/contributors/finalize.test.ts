@@ -16,6 +16,7 @@ import type {
   RowScope
 } from '@main/data/db/backup/contributor-types'
 import {
+  BACKUP_REFS_META,
   DB_PRIMARY_KEYS,
   type DbColumnName,
   type DbTableName,
@@ -29,7 +30,9 @@ import { ContributorManager } from './ContributorManager'
 import { finalize } from './finalize'
 import { READONLY_REGISTRY, ReadonlyBackupRegistryImpl } from './ReadonlyBackupRegistryImpl'
 
-const META = { finalizedAt: '2026-06-27T00:00:00.000Z', schemaCommit: '420187b831' }
+// schemaCommit stays in sync with the codegen product so the test never drifts
+// when dbSchemaRefs.ts is regenerated (the finalizedAt is fixed for determinism).
+const META = { finalizedAt: '2026-06-27T00:00:00.000Z', schemaCommit: BACKUP_REFS_META.schemaCommit }
 
 // ─── Fixture builders ─────────────────────────────────────────────────────────
 
@@ -298,6 +301,12 @@ describe('finalize invariants', () => {
     expectInvariant(patchSchema(buildFixture(), 'PROMPTS', { aggregates: [{ root: 'prompt', renamable: true }] }), 16)
   })
 
+  // NOTE: #19's restrict direction and #20's two branches (junction + non-cascade FK;
+  // optional + NOT NULL column without override) have no violation tests. The current
+  // schema has zero `restrict` FKs and every optional-FK column is nullable, so neither
+  // branch is reachable through the real codegen facts. Mocking DB_FOREIGN_KEYS would be
+  // brittle; these are exercised once the schema grows a restrict / NOT-NULL optional FK
+  // (TODO B track). The branches are guarded correctly — see finalize.ts #19/#20.
   it('#19 rejects an owning kind on a set-null FK', () => {
     // assistant.modelId onDelete=set null → expected optional; declaring owning → #19.
     const list = patchSchema(buildFixture(), 'ASSISTANTS', {
@@ -314,6 +323,15 @@ describe('finalize invariants', () => {
       }),
       21
     )
+  })
+
+  it('#21 allows SKIP for a PREFERENCES natural-key aggregate (settings exception)', () => {
+    // preference PK is composite (natural) → natural-key; PREFERENCES is the settings
+    // exception, so SKIP is permitted (registry.md #21).
+    const list = patchSchema(buildFixture(), 'PREFERENCES', {
+      aggregates: [{ root: 'preference', renamable: false, conflictDefault: 'SKIP' }]
+    })
+    expect(() => finalize(list, META)).not.toThrow()
   })
 
   it('#22 rejects an autoincrement primary key', () => {
