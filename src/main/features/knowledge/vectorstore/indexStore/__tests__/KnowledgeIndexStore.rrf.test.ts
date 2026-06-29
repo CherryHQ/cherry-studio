@@ -61,8 +61,8 @@ describe('KnowledgeIndexStore hybrid RRF fusion', () => {
 
     await store.search({ queryText: 'query', queryEmbedding: [1, 0], mode: 'hybrid', topK: 4 })
 
-    expect(limits.vector).toBe(20)
-    expect(limits.bm25).toBe(20)
+    expect(limits.vector).toBe(40)
+    expect(limits.bm25).toBe(40)
   })
 
   it('fuses lanes with reciprocal rank fusion (1-indexed rank, RRF_K) weighted by alpha', async () => {

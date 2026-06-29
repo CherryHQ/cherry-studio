@@ -316,6 +316,7 @@ describe('KnowledgeService', () => {
     // Reindex source-existence gate: default every source readable so existing reindex tests are
     // unaffected; the missing/unverifiable-source tests override these per case.
     probeKnowledgeFileMock.mockResolvedValue('readable')
+    // Default mock store so search tests need not re-mock getIndexStore every time
     probeKnowledgeSourcePathMock.mockResolvedValue('readable')
     copyFileIntoKnowledgeBaseAtMock.mockImplementation(
       async (_baseId: string, _sourcePath: string, relativePath: string) => relativePath
@@ -358,8 +359,10 @@ describe('KnowledgeService', () => {
     getJobMock.mockResolvedValue(null)
     listMock.mockResolvedValue([])
     getIndexStoreMock.mockResolvedValue({
+      backfillMissingTitleRows: vi.fn().mockResolvedValue(0),
       search: storeSearchMock,
-      listMaterialUnits: listMaterialUnitsMock
+      listMaterialUnits: listMaterialUnitsMock,
+      isClosed: vi.fn().mockReturnValue(false)
     })
     listMaterialUnitsMock.mockResolvedValue([])
     storeSearchMock.mockResolvedValue([])
@@ -1793,7 +1796,8 @@ describe('KnowledgeService', () => {
     getIndexStoreMock.mockResolvedValueOnce({
       search: vi.fn().mockRejectedValue(new Error('Knowledge index store driver is closed')),
       listMaterialUnits: listMaterialUnitsMock,
-      isClosed: () => true
+      isClosed: () => true,
+      backfillMissingTitleRows: vi.fn().mockResolvedValue(0)
     })
 
     await expect(service.search('kb-1', 'hello')).rejects.toMatchObject({
@@ -1808,7 +1812,8 @@ describe('KnowledgeService', () => {
     getIndexStoreMock.mockResolvedValueOnce({
       search: vi.fn().mockRejectedValue(queryError),
       listMaterialUnits: listMaterialUnitsMock,
-      isClosed: () => false
+      isClosed: () => false,
+      backfillMissingTitleRows: vi.fn().mockResolvedValue(0)
     })
 
     await expect(service.search('kb-1', 'hello')).rejects.toBe(queryError)

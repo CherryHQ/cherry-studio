@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { type MaterialFieldSource, toMaterialRelativePath } from '../materialFields'
+import { extractTitleFromRelativePath, type MaterialFieldSource, toMaterialRelativePath } from '../materialFields'
 
 describe('toMaterialRelativePath', () => {
   it('uses a file’s stored relativePath when there is no processed artifact', () => {
@@ -55,5 +55,35 @@ describe('toMaterialRelativePath', () => {
       data: { source: 'My note', content: 'hello' }
     }
     expect(() => toMaterialRelativePath(note)).toThrow('has no captured snapshot relativePath')
+  })
+})
+
+describe('extractTitleFromRelativePath', () => {
+  it('strips the file extension from a simple filename', () => {
+    expect(extractTitleFromRelativePath('report.pdf')).toBe('report')
+  })
+
+  it('strips the extension from a path with directories', () => {
+    expect(extractTitleFromRelativePath('raw/chapter 1.pdf')).toBe('chapter 1')
+  })
+
+  it('handles filenames with multiple dots', () => {
+    expect(extractTitleFromRelativePath('my.document.v2.pdf')).toBe('my.document.v2')
+  })
+
+  it('handles markdown files', () => {
+    expect(extractTitleFromRelativePath('notes.md')).toBe('notes')
+  })
+
+  it('handles filenames without extensions', () => {
+    expect(extractTitleFromRelativePath('readme')).toBe('readme')
+  })
+
+  it('handles CJK filenames', () => {
+    expect(extractTitleFromRelativePath('测试文件.pdf')).toBe('测试文件')
+  })
+
+  it('handles Chinese chapter names', () => {
+    expect(extractTitleFromRelativePath('第一章.pdf')).toBe('第一章')
   })
 })

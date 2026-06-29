@@ -13,7 +13,7 @@ import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId } from '
 import type { IndexableKnowledgeItem } from '../types/items'
 import { type ChunkedKnowledgeContent, chunkKnowledgeDocuments } from '../utils/indexing/chunk'
 import { embedKnowledgeTexts } from '../utils/indexing/embed'
-import { toMaterialRelativePath } from '../utils/indexing/materialFields'
+import { extractTitleFromRelativePath, toMaterialRelativePath } from '../utils/indexing/materialFields'
 import { isIndexableKnowledgeItem } from '../utils/items'
 import { captureNoteSnapshotFile } from '../utils/sources/noteSnapshot'
 import { fetchKnowledgeWebPage } from '../utils/sources/url'
@@ -256,6 +256,9 @@ async function buildRebuildMaterialInput(
 ): Promise<RebuildMaterialInput> {
   ctx.signal.throwIfAborted()
 
+  const relativePath = toMaterialRelativePath(item)
+  const title = extractTitleFromRelativePath(relativePath)
+
   const bodyByHash = new Map<string, string>()
   for (const chunk of chunked.chunks) {
     bodyByHash.set(hashEmbeddingText(chunk.text), chunk.text)
@@ -269,26 +272,49 @@ async function buildRebuildMaterialInput(
   const store = await vectorStoreService.getIndexStore(base)
   const existingHashes = await store.listExistingEmbeddingHashes([...bodyByHash.keys()])
   const missing = [...bodyByHash.entries()].filter(([hash]) => !existingHashes.has(hash))
-  const vectors = await embedKnowledgeTexts(
+  const bodyVectors = await embedKnowledgeTexts(
     base,
     missing.map(([, body]) => body),
     ctx.signal
   )
 
+  // Embed the title for file-name vector search, reusing any existing stored vector.
+  let titleEmbedding: number[] | undefined
+  if (title) {
+    const titleHash = hashEmbeddingText(title)
+    if (!existingHashes.has(titleHash)) {
+      const [vec] = await embedKnowledgeTexts(base, [title], ctx.signal)
+      titleEmbedding = vec
+    }
+  }
+
+  const embeddings: RebuildMaterialInput['embeddings'] = missing.map(([embeddingTextHash], index) => ({
+    embeddingTextHash,
+    vector: bodyVectors[index]
+  }))
+
+  if (title && titleEmbedding) {
+    embeddings.push({
+      embeddingTextHash: hashEmbeddingText(title),
+      vector: titleEmbedding
+    })
+  }
+
   return {
     material: {
-      relativePath: toMaterialRelativePath(item)
+      relativePath
     },
     content: {
       text: chunked.contentText
     },
+    title,
     units: chunked.chunks.map((chunk) => ({
       unitType: 'chunk',
       unitIndex: chunk.unitIndex,
       charStart: chunk.charStart,
       charEnd: chunk.charEnd
     })),
-    embeddings: missing.map(([embeddingTextHash], index) => ({ embeddingTextHash, vector: vectors[index] }))
+    embeddings
   }
 }
 

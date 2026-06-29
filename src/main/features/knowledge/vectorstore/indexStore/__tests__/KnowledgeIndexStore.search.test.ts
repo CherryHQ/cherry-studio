@@ -29,12 +29,16 @@ describe('KnowledgeIndexStore.search', () => {
   })
 
   /** Index a single-unit material whose body spans the whole text, with one explicit embedding. */
-  const indexMaterial = (materialId: string, relativePath: string, text: string, vector: number[]) =>
+  const indexMaterial = (materialId: string, relativePath: string, text: string, vector: number[], title = '') =>
     store.rebuildMaterial(materialId, {
       material: { relativePath },
       content: { text },
+      title,
       units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: text.length }],
-      embeddings: [{ embeddingTextHash: hashEmbeddingText(text), vector }]
+      embeddings: [
+        { embeddingTextHash: hashEmbeddingText(text), vector },
+        ...(title ? [{ embeddingTextHash: hashEmbeddingText(title), vector }] : [])
+      ]
     })
 
   it('vector mode ranks units by cosine similarity to the query embedding', async () => {
@@ -157,5 +161,95 @@ describe('KnowledgeIndexStore.search', () => {
 
     await expect(store.search({ queryText: 'apple', mode: 'vector', topK: 5 })).rejects.toThrow(/query embedding/)
     await expect(store.search({ queryText: 'apple', mode: 'hybrid', topK: 5 })).rejects.toThrow(/query embedding/)
+  })
+
+  describe('title (file-name) search', () => {
+    it('bm25 mode finds a material by its file name even when the body does not contain the query', async () => {
+      // Body text is unrelated to the file name — searching for the file name should still work.
+      await indexMaterial('m1', 'chapter 1.pdf', 'The quick brown fox jumps over the lazy dog', [1, 0, 0], 'chapter 1')
+      await indexMaterial('m2', 'chapter 2.pdf', 'Lorem ipsum dolor sit amet consectetur', [0, 1, 0], 'chapter 2')
+
+      const matches = await store.search({ queryText: 'chapter 1', mode: 'bm25', topK: 10 })
+
+      expect(matches.map((m) => m.materialId)).toEqual(['m1'])
+    })
+
+    it('vector mode finds a material by its file name embedding', async () => {
+      // Title embedding is close to the query embedding; body is unrelated.
+      await indexMaterial('m1', 'report.pdf', 'Some unrelated content', [1, 0, 0], 'report')
+      await indexMaterial('m2', 'notes.md', 'Other unrelated content', [0, 1, 0], 'notes')
+
+      // Query embedding close to 'report' title embedding
+      const matches = await store.search({ queryText: '', queryEmbedding: [0.9, 0.1, 0], mode: 'vector', topK: 10 })
+
+      // m1 should rank first (body + title embeddings); m2 may appear lower
+      expect(matches[0].materialId).toBe('m1')
+    })
+
+    it('hybrid mode ranks a file-name match above a body-only competitor', async () => {
+      // m2's body exactly matches 'chapter 1' but m1's file name matches.
+      // The title boost should lift m1 above m2.
+      await indexMaterial('m1', 'chapter 1.pdf', 'completely unrelated text', [0, 1, 0], 'chapter 1')
+      await indexMaterial('m2', 'other.pdf', 'chapter 1 is mentioned here', [1, 0, 0])
+
+      const matches = await store.search({
+        queryText: 'chapter 1',
+        queryEmbedding: [0, 1, 0],
+        mode: 'hybrid',
+        topK: 10
+      })
+
+      // m1 should rank first due to the title boost
+      expect(matches[0].materialId).toBe('m1')
+    })
+
+    it('LIKE fallback for short CJK finds by file name', async () => {
+      // '天气' is 2 chars → LIKE fallback. File name contains it but body does not.
+      await indexMaterial('m1', '天气报告.pdf', 'unrelated content', [1, 0, 0], '天气报告')
+      await indexMaterial('m2', 'other.pdf', 'also unrelated', [0, 1, 0], '其他文件')
+
+      const matches = await store.search({ queryText: '天气', mode: 'bm25', topK: 10 })
+
+      expect(matches.map((m) => m.materialId)).toEqual(['m1'])
+    })
+
+    it('backfillMissingTitleRows adds title rows for materials without them', async () => {
+      // Index materials without titles (simulating pre-title-feature items)
+      await store.rebuildMaterial('m1', {
+        material: { relativePath: 'chapter 1.pdf' },
+        content: { text: 'some content' },
+        title: '',
+        units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: 12 }],
+        embeddings: [{ embeddingTextHash: hashEmbeddingText('some content'), vector: [1, 0, 0] }]
+      })
+
+      // Before backfill, searching by file name should not find it
+      const before = await store.search({ queryText: 'chapter 1', mode: 'bm25', topK: 10 })
+      expect(before).toHaveLength(0)
+
+      // Run backfill
+      const backfilled = await store.backfillMissingTitleRows()
+      expect(backfilled).toBe(1)
+
+      // After backfill, searching by file name should find it
+      const after = await store.search({ queryText: 'chapter 1', mode: 'bm25', topK: 10 })
+      expect(after.map((m) => m.materialId)).toEqual(['m1'])
+    })
+
+    it('backfillMissingTitleRows is idempotent', async () => {
+      await store.rebuildMaterial('m1', {
+        material: { relativePath: 'test.pdf' },
+        content: { text: 'content' },
+        title: '',
+        units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: 7 }],
+        embeddings: [{ embeddingTextHash: hashEmbeddingText('content'), vector: [1, 0, 0] }]
+      })
+
+      const first = await store.backfillMissingTitleRows()
+      const second = await store.backfillMissingTitleRows()
+
+      expect(first).toBe(1)
+      expect(second).toBe(0) // Already backfilled
+    })
   })
 })

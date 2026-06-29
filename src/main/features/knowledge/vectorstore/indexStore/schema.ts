@@ -149,7 +149,7 @@ export const KNOWLEDGE_INDEX_SCHEMA_STATEMENTS: readonly string[] = [
     search_text_id TEXT PRIMARY KEY,
     target_type TEXT NOT NULL CHECK (target_type IN ('search_unit')),
     target_id TEXT NOT NULL,
-    kind TEXT NOT NULL CHECK (kind IN ('body')),
+    kind TEXT NOT NULL CHECK (kind IN ('body', 'title')),
     text TEXT NOT NULL,
     embedding_text_hash TEXT NOT NULL,
     fts_rowid INTEGER,
@@ -255,4 +255,88 @@ export async function resetKnowledgeIndexSchema(executor: SqliteExecutor): Promi
     await executor.execute(statement)
   }
   await createKnowledgeIndexSchema(executor)
+}
+
+/**
+ * Migrate the per-base index from schema version 1 to version 2.
+ *
+ * Version 2 widens the `search_text.kind` CHECK from `IN ('body')` to
+ * `IN ('body', 'title')` to support file-name search indexing (issue #16396).
+ * SQLite cannot ALTER a CHECK constraint, so the migration drops and recreates
+ * the `search_text` table, the FTS5 virtual table, and the sync triggers.
+ * Existing body rows are preserved via INSERT...SELECT.
+ *
+ * Safe to call multiple times — idempotent (the version check guards entry).
+ */
+export async function migrateV1ToV2(executor: SqliteExecutor): Promise<void> {
+  const versionRow = await executor.execute(`SELECT schema_version FROM meta WHERE id = 1`)
+  const storedVersion = (versionRow.rows[0]?.schema_version as number) ?? 0
+  if (storedVersion >= 2) {
+    return
+  }
+
+  // Drop triggers first (they reference search_text_fts and search_text).
+  await executor.execute(`DROP TRIGGER IF EXISTS search_text_ai`)
+  await executor.execute(`DROP TRIGGER IF EXISTS search_text_ad`)
+  await executor.execute(`DROP TRIGGER IF EXISTS search_text_au`)
+
+  // Drop the FTS virtual table (references search_text).
+  await executor.execute(`DROP TABLE IF EXISTS search_text_fts`)
+
+  // Recreate search_text with the widened CHECK constraint using the
+  // rename pattern to preserve existing body rows.
+  await executor.execute(`
+    CREATE TABLE search_text_new (
+      search_text_id TEXT PRIMARY KEY,
+      target_type TEXT NOT NULL CHECK (target_type IN ('search_unit')),
+      target_id TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('body', 'title')),
+      text TEXT NOT NULL,
+      embedding_text_hash TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    )
+  `)
+  await executor.execute(`INSERT INTO search_text_new SELECT * FROM search_text`)
+  await executor.execute(`DROP TABLE search_text`)
+  await executor.execute(`ALTER TABLE search_text_new RENAME TO search_text`)
+
+  // Re-create the indexes on the renamed table.
+  await executor.execute(
+    `CREATE UNIQUE INDEX IF NOT EXISTS search_text_target_kind_idx ON search_text(target_type, target_id, kind)`
+  )
+  await executor.execute(
+    `CREATE INDEX IF NOT EXISTS search_text_embedding_hash_idx ON search_text(embedding_text_hash)`
+  )
+  await executor.execute(`CREATE INDEX IF NOT EXISTS search_text_kind_idx ON search_text(kind)`)
+
+  // Re-create the FTS5 virtual table.
+  await executor.execute(`
+    CREATE VIRTUAL TABLE search_text_fts USING fts5(
+      text,
+      content='search_text',
+      content_rowid='rowid',
+      tokenize='trigram'
+    )
+  `)
+
+  // Re-create the sync triggers.
+  await executor.execute(`
+    CREATE TRIGGER search_text_ai AFTER INSERT ON search_text BEGIN
+      INSERT INTO search_text_fts(rowid, text) VALUES (NEW.rowid, NEW.text);
+    END
+  `)
+  await executor.execute(`
+    CREATE TRIGGER search_text_ad AFTER DELETE ON search_text BEGIN
+      INSERT INTO search_text_fts(search_text_fts, rowid, text) VALUES ('delete', OLD.rowid, OLD.text);
+    END
+  `)
+  await executor.execute(`
+    CREATE TRIGGER search_text_au AFTER UPDATE OF text ON search_text BEGIN
+      INSERT INTO search_text_fts(search_text_fts, rowid, text) VALUES ('delete', OLD.rowid, OLD.text);
+      INSERT INTO search_text_fts(rowid, text) VALUES (NEW.rowid, NEW.text);
+    END
+  `)
+
+  // Update the schema version in meta.
+  await executor.execute(`UPDATE meta SET schema_version = 2, updated_at = ? WHERE id = 1`, [Date.now()])
 }

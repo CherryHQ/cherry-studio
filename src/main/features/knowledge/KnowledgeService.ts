@@ -297,6 +297,12 @@ export class KnowledgeService extends BaseService {
 
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
     const store = await vectorStoreService.getIndexStore(base)
+
+    // Lazily backfill title rows for materials indexed before the title feature
+    // (issue #16396). This enables file-name search for existing items. The
+    // backfill is idempotent and fast (no embedding cost).
+    await this.runStoreOperation(store, baseId, 'backfillTitles', () => store.backfillMissingTitleRows())
+
     const matches = await this.runStoreOperation(store, baseId, 'search', () =>
       store.search({
         queryText: query,
