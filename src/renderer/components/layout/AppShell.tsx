@@ -2,6 +2,7 @@ import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import { useIpcOn } from '@renderer/ipc/useIpcOn'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
@@ -25,7 +26,16 @@ export const AppShell = () => {
     void SearchPopup.show()
   }, [])
 
+  const handleOpenSettingsTab = useCallback(() => {
+    openTab('/settings/provider', { title: getDefaultRouteTitle('/settings/provider') })
+  }, [openTab])
+
   useCommandHandler('app.search', handleOpenGlobalSearch)
+  useCommandHandler('app.settings.open', handleOpenSettingsTab)
+
+  useIpcOn('app.open_settings_tab', () => {
+    handleOpenSettingsTab()
+  })
 
   const recordRouteVisit = useCallback(
     (tab: typeof activeTab, lastAccessTime = tab?.lastAccessTime) => {

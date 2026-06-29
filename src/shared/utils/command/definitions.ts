@@ -43,7 +43,7 @@ export const COMMAND_DEFINITIONS = [
     id: 'app.settings.open',
     titleKey: 'settings.shortcuts.show_settings',
     categoryKey: 'settings.shortcuts.general',
-    scope: 'main',
+    scope: 'both',
     keybinding: {
       defaultBinding: ['CommandOrControl', ','],
       editable: false

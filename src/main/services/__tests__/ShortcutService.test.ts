@@ -206,7 +206,7 @@ describe('ShortcutService', () => {
     expect(commandServiceMock.execute).toHaveBeenCalledWith('app.window.show', mainWindow)
   })
 
-  it('opens the settings window through SettingsWindowService', async () => {
+  it('executes the settings command through CommandService', async () => {
     await (service as any).onInit()
 
     const handler = (service as any).handlers.get('app.settings.open') as (() => void) | undefined

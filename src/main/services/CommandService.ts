@@ -80,7 +80,7 @@ export class CommandService extends BaseService {
     })
 
     this.registerHandler('app.settings.open', () => {
-      application.get('SettingsWindowService').open('/settings/provider')
+      application.get('MainWindowService').openSettingsTab()
     })
 
     this.registerHandler('quick_assistant.toggle', () => {

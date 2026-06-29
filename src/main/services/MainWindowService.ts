@@ -26,6 +26,8 @@ const linuxIcon = isLinux ? nativeImage.createFromPath(iconPath) : undefined
 export class MainWindowService extends BaseService {
   private readonly _onMainWindowCreated: Emitter<BrowserWindow>
   public readonly onMainWindowCreated: Event<BrowserWindow>
+  private pendingSettingsTabOpen = false
+  private settingsTabOpenWaitWindow: BrowserWindow | null = null
 
   // Direct BrowserWindow reference, kept in sync with WindowManager's lifecycle
   // events (onWindowCreatedByType / onWindowDestroyedByType). External callers
@@ -519,6 +521,61 @@ export class MainWindowService extends BaseService {
       // the dynamic options (windowState bounds, theme, zoom) since the registry only carries statics.
       this.openMainWindow()
     }
+  }
+
+  public openSettingsTab(): void {
+    const mainWindow = this.mainWindow
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      this.showMainWindow()
+      this.emitOpenSettingsTabWhenReady(mainWindow)
+      return
+    }
+
+    if (this.pendingSettingsTabOpen) {
+      this.showMainWindow()
+      return
+    }
+
+    this.pendingSettingsTabOpen = true
+    const disposable = this.onMainWindowCreated((window) => {
+      disposable.dispose()
+      if (!window.isDestroyed()) {
+        this.emitOpenSettingsTabWhenReady(window, { waitForNextLoad: true })
+      }
+    })
+    this.showMainWindow()
+  }
+
+  private emitOpenSettingsTabWhenReady(mainWindow: BrowserWindow, options: { waitForNextLoad?: boolean } = {}): void {
+    if (!options.waitForNextLoad && !mainWindow.webContents.isLoadingMainFrame()) {
+      this.pendingSettingsTabOpen = false
+      this.settingsTabOpenWaitWindow = null
+      this.emitOpenSettingsTab()
+      return
+    }
+
+    if (this.settingsTabOpenWaitWindow === mainWindow) return
+    this.pendingSettingsTabOpen = true
+    this.settingsTabOpenWaitWindow = mainWindow
+
+    const clearPending = () => {
+      if (this.settingsTabOpenWaitWindow !== mainWindow) return
+      this.settingsTabOpenWaitWindow = null
+      this.pendingSettingsTabOpen = false
+    }
+
+    mainWindow.webContents.once('did-finish-load', () => {
+      mainWindow.off('closed', clearPending)
+      if (!this.pendingSettingsTabOpen || mainWindow.isDestroyed()) return
+      this.pendingSettingsTabOpen = false
+      this.settingsTabOpenWaitWindow = null
+      this.emitOpenSettingsTab()
+    })
+    mainWindow.once('closed', clearPending)
+  }
+
+  private emitOpenSettingsTab(): void {
+    application.get('IpcApiService').broadcast('app.open_settings_tab', {})
   }
 
   public toggleMainWindow() {

@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   isMac: false,
   commandHandlers: new Map<string, () => void>(),
+  ipcHandlers: new Map<string, (payload: any) => void>(),
+  openTab: vi.fn(),
   showSearchPopup: vi.fn()
 }))
 
@@ -22,6 +24,12 @@ vi.mock('@renderer/hooks/command', () => ({
   }
 }))
 
+vi.mock('@renderer/ipc/useIpcOn', () => ({
+  useIpcOn: (event: string, handler: (payload: any) => void) => {
+    mocks.ipcHandlers.set(event, handler)
+  }
+}))
+
 vi.mock('@renderer/components/Popups/SearchPopup', () => ({
   default: {
     show: mocks.showSearchPopup
@@ -32,7 +40,7 @@ vi.mock('../../../hooks/tab', () => ({
   useTabs: () => ({
     activeTabId: 'home',
     closeTab: vi.fn(),
-    openTab: vi.fn(),
+    openTab: mocks.openTab,
     pinTab: vi.fn(),
     reorderTabs: vi.fn(),
     setActiveTab: vi.fn(),
@@ -84,6 +92,7 @@ afterEach(() => {
   vi.clearAllMocks()
   mocks.isMac = false
   mocks.commandHandlers.clear()
+  mocks.ipcHandlers.clear()
 })
 
 describe('AppShell page side panel root', () => {
@@ -113,5 +122,21 @@ describe('AppShell', () => {
     mocks.commandHandlers.get('app.search')?.()
 
     expect(mocks.showSearchPopup).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens settings in a tab from the shell-level settings command', () => {
+    render(<AppShell />)
+
+    mocks.commandHandlers.get('app.settings.open')?.()
+
+    expect(mocks.openTab).toHaveBeenCalledWith('/settings/provider', { title: expect.any(String) })
+  })
+
+  it('opens settings in a tab when main requests the settings tab', () => {
+    render(<AppShell />)
+
+    mocks.ipcHandlers.get('app.open_settings_tab')?.({})
+
+    expect(mocks.openTab).toHaveBeenCalledWith('/settings/provider', { title: expect.any(String) })
   })
 })

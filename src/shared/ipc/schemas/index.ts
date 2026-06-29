@@ -1,6 +1,6 @@
 import type { RouteDef } from '../define'
 import { type AiEventSchemas, aiRequestSchemas } from './ai'
-import { appRequestSchemas } from './app'
+import { type AppEventSchemas, appRequestSchemas } from './app'
 import { type BinaryEventSchemas, binaryRequestSchemas } from './binary'
 import { fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
@@ -37,6 +37,10 @@ export type IpcRoute = keyof IpcRequestSchemas
  * the renderer trusts them and never re-parses). Each migrated domain intersects
  * its own `*EventSchemas` type here.
  */
-export type IpcEventSchemas = AiEventSchemas & BinaryEventSchemas & SelectionEventSchemas & WindowEventSchemas
+export type IpcEventSchemas = AiEventSchemas &
+  AppEventSchemas &
+  BinaryEventSchemas &
+  SelectionEventSchemas &
+  WindowEventSchemas
 /** Union of all declared event names (`never` until a domain is migrated). */
 export type IpcEventName = keyof IpcEventSchemas

@@ -19,11 +19,14 @@ const {
   settingsWindowServiceMock,
   quickAssistantServiceMock,
   selectionServiceMock,
+  ipcApiServiceMock,
   windowManagerMock,
   handleZoomFactorMock,
   showNativePopupMenuMock
 } = vi.hoisted(() => ({
   windowServiceMock: {
+    openSettingsTab: vi.fn(),
+    showMainWindow: vi.fn(),
     toggleMainWindow: vi.fn()
   },
   settingsWindowServiceMock: {
@@ -35,6 +38,9 @@ const {
   selectionServiceMock: {
     toggleEnabled: vi.fn(),
     processSelectTextByShortcut: vi.fn()
+  },
+  ipcApiServiceMock: {
+    broadcast: vi.fn()
   },
   windowManagerMock: {
     getWindowsByType: vi.fn((): any[] => [])
@@ -50,6 +56,7 @@ vi.mock('@application', async () => {
     SettingsWindowService: settingsWindowServiceMock,
     QuickAssistantService: quickAssistantServiceMock,
     SelectionService: selectionServiceMock,
+    IpcApiService: ipcApiServiceMock,
     WindowManager: windowManagerMock
   } as any)
 })
@@ -101,6 +108,14 @@ describe('CommandService', () => {
     service.execute('app.window.show')
 
     expect(windowServiceMock.toggleMainWindow).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens settings in a main-window tab through the app command', () => {
+    service.execute('app.settings.open')
+
+    expect(windowServiceMock.openSettingsTab).toHaveBeenCalledTimes(1)
+    expect(ipcApiServiceMock.broadcast).not.toHaveBeenCalled()
+    expect(settingsWindowServiceMock.open).not.toHaveBeenCalled()
   })
 
   it('blocks commands when enablement is not satisfied', () => {
