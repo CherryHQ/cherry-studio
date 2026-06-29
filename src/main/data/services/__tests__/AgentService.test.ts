@@ -1,6 +1,8 @@
 import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -9,6 +11,7 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 // data-service registry, which createAgent resolves lazily for skill validation/join.
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { agentService } from '@data/services/AgentService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { pinService } from '@data/services/PinService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
@@ -387,6 +390,55 @@ describe('AgentService', () => {
 
       const remaining = await pinService.listByEntityType('agent')
       expect(remaining.map((p) => p.entityId)).toEqual([otherPin.entityId])
+    })
+
+    it('deletes agent sessions atomically when requested', async () => {
+      const { id } = await insertAgent({ id: 'agent_with_sessions_001' })
+      const otherAgent = await insertAgent({ id: 'agent_with_sessions_002' })
+      await dbh.db.insert(agentWorkspaceTable).values([
+        { id: 'workspace-agent-delete-1', name: 'Workspace 1', path: '/tmp/agent-delete-1', orderKey: 'a0' },
+        { id: 'workspace-agent-delete-2', name: 'Workspace 2', path: '/tmp/agent-delete-2', orderKey: 'a1' }
+      ])
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'session-delete-with-agent',
+          agentId: id,
+          name: '',
+          workspaceId: 'workspace-agent-delete-1',
+          orderKey: 'a0'
+        },
+        {
+          id: 'session-keep-with-other-agent',
+          agentId: otherAgent.id,
+          name: '',
+          workspaceId: 'workspace-agent-delete-2',
+          orderKey: 'a1'
+        }
+      ])
+
+      const deleted = await agentService.deleteAgent(id, { deleteSessions: true })
+
+      expect(deleted).toBe(true)
+      const agentRows = await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))
+      expect(agentRows).toHaveLength(0)
+      const sessionRows = await dbh.db.select().from(agentSessionTable)
+      expect(sessionRows.map((row) => row.id)).toEqual(['session-keep-with-other-agent'])
+    })
+
+    it('rolls back agent delete when session deletion fails', async () => {
+      const { id } = await insertAgent({ id: 'agent_delete_rollback_001' })
+      const deleteSessionsSpy = vi
+        .spyOn(agentSessionService, 'deleteByAgentIdTx')
+        .mockRejectedValueOnce(new Error('session delete failed'))
+
+      try {
+        await expect(agentService.deleteAgent(id, { deleteSessions: true })).rejects.toThrow('session delete failed')
+      } finally {
+        deleteSessionsSpy.mockRestore()
+      }
+
+      const agentRows = await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))
+      expect(agentRows).toHaveLength(1)
     })
   })
 

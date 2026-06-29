@@ -14,7 +14,6 @@ import * as z from 'zod'
 
 import type { CursorPaginationResponse } from '../apiTypes'
 import type { OrderEndpoints } from './_endpointHelpers'
-import { AgentNameAtomSchema } from './agents'
 import { AgentSessionWorkspaceSourceSchema, AgentWorkspaceEntitySchema } from './agentWorkspaces'
 
 /** Cursor-paginated query for `/agent-sessions/:sessionId/messages`. Walks history
@@ -84,7 +83,8 @@ export type CreateAgentSessionMessagesDto = z.infer<typeof CreateAgentSessionMes
 export const AgentSessionEntitySchema = z.strictObject({
   id: z.string(),
   agentId: z.string().nullable(),
-  name: AgentNameAtomSchema,
+  /** May be empty for an untitled placeholder session, matching topic.name semantics. */
+  name: z.string(),
   isNameManuallyEdited: z.boolean(),
   description: z.string().optional(),
   workspaceId: z.string(),
@@ -100,14 +100,14 @@ export type AgentSessionEntity = z.infer<typeof AgentSessionEntitySchema>
 // Create requires a real `agentId` — orphans only happen via cascade, never on insert.
 export const CreateAgentSessionSchema = z.strictObject({
   agentId: z.string().min(1),
-  name: AgentNameAtomSchema,
+  name: z.string(),
   description: z.string().optional(),
   workspace: AgentSessionWorkspaceSourceSchema
 })
 export type CreateAgentSessionDto = z.infer<typeof CreateAgentSessionSchema>
 
 export const UpdateAgentSessionSchema = z.strictObject({
-  name: AgentNameAtomSchema.optional(),
+  name: z.string().optional(),
   isNameManuallyEdited: z.boolean().optional(),
   description: z.string().optional(),
   agentId: z.string().min(1).optional(),

@@ -633,7 +633,7 @@ describe('AgentPage', () => {
       expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
         body: {
           agentId: 'agent-b',
-          name: 'common.unnamed',
+          name: '',
           workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
         }
       })
@@ -670,7 +670,7 @@ describe('AgentPage', () => {
     expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
       body: {
         agentId: 'agent-b',
-        name: 'common.unnamed',
+        name: '',
         workspace: { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: 'workspace-remembered' }
       }
     })
@@ -688,7 +688,7 @@ describe('AgentPage', () => {
       {
         id: 'session-empty-latest',
         agentId: 'agent-b',
-        name: 'common.unnamed',
+        name: '',
         updatedAt: '2026-01-03T00:00:00.000Z',
         workspace: { type: 'system' }
       },
@@ -721,14 +721,14 @@ describe('AgentPage', () => {
       {
         id: 'session-empty-invalid',
         agentId: 'agent-b',
-        name: 'common.unnamed',
+        name: '',
         updatedAt: 'not-a-date',
         workspace: { type: 'system' }
       },
       {
         id: 'session-empty-latest',
         agentId: 'agent-b',
-        name: 'common.unnamed',
+        name: '',
         updatedAt: '2026-01-03T00:00:00.000Z',
         workspace: { type: 'system' }
       }
@@ -757,7 +757,7 @@ describe('AgentPage', () => {
       {
         id: 'session-empty-latest',
         agentId: 'agent-a',
-        name: 'common.unnamed',
+        name: '',
         updatedAt: '2026-01-03T00:00:00.000Z',
         workspaceId: 'workspace-a',
         workspace: { type: 'user' }
@@ -787,7 +787,7 @@ describe('AgentPage', () => {
       {
         id: 'session-empty-other-workspace',
         agentId: 'agent-a',
-        name: 'common.unnamed',
+        name: '',
         updatedAt: '2026-01-03T00:00:00.000Z',
         workspaceId: 'workspace-b',
         workspace: { type: 'user' }
@@ -797,7 +797,7 @@ describe('AgentPage', () => {
       ...agentPageMocks.persistedSession,
       id: 'session-composer-empty',
       agentId: 'agent-a',
-      name: 'common.unnamed',
+      name: '',
       workspaceId: 'workspace-a',
       workspace: agentPageMocks.workspace
     })
@@ -810,7 +810,7 @@ describe('AgentPage', () => {
       expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
         body: {
           agentId: 'agent-a',
-          name: 'common.unnamed',
+          name: '',
           workspace: { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: 'workspace-a' }
         }
       })
@@ -842,7 +842,7 @@ describe('AgentPage', () => {
       ...agentPageMocks.persistedSession,
       id: 'session-composer-empty',
       agentId: 'agent-a',
-      name: 'common.unnamed',
+      name: '',
       workspaceId: 'workspace-a',
       workspace: agentPageMocks.workspace
     })
@@ -855,7 +855,7 @@ describe('AgentPage', () => {
       expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
         body: {
           agentId: 'agent-a',
-          name: 'common.unnamed',
+          name: '',
           workspace: { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: 'workspace-a' }
         }
       })

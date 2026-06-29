@@ -388,25 +388,29 @@ export class AgentSessionService {
   }
 
   async deleteByAgentId(agentId: string): Promise<DeleteAgentSessionsResult> {
-    const deletedIds = await application.get('DbService').withWriteTx(async (tx) => {
+    const deletedIds = await application.get('DbService').withWriteTx((tx) => this.deleteByAgentIdTx(tx, agentId))
+
+    logger.info('Deleted agent sessions', { agentId, count: deletedIds.length })
+    return { deletedIds }
+  }
+
+  async deleteByAgentIdTx(tx: DbOrTx, agentId: string, options: { validateAgent?: boolean } = {}): Promise<string[]> {
+    if (options.validateAgent ?? true) {
       const [agent] = await tx
         .select({ id: agentsTable.id })
         .from(agentsTable)
         .where(and(eq(agentsTable.id, agentId), isNull(agentsTable.deletedAt)))
         .limit(1)
       if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
+    }
 
-      const rows = await tx
-        .select({ session: sessionsTable, workspace: agentWorkspaceTable })
-        .from(sessionsTable)
-        .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-        .where(eq(sessionsTable.agentId, agentId))
+    const rows = await tx
+      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .from(sessionsTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .where(eq(sessionsTable.agentId, agentId))
 
-      return await this.cascadeDeleteSessionRowsTx(tx, rows)
-    })
-
-    logger.info('Deleted agent sessions', { agentId, count: deletedIds.length })
-    return { deletedIds }
+    return await this.cascadeDeleteSessionRowsTx(tx, rows)
   }
 
   private async cascadeDeleteSessionRowsTx(tx: DbOrTx, rows: JoinedSessionRow[]): Promise<string[]> {

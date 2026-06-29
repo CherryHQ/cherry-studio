@@ -421,15 +421,14 @@ const AgentPage = () => {
         // unused placeholder.
         //
         // Tradeoff: the list API exposes no message count / "has messages" flag, so "unused" is
-        // approximated by the default unnamed name (a session is renamed once it gets content). A
-        // still-unnamed session with messages would also be treated as reusable — acceptable, since
-        // reuse just reopens it (no data loss, no duplicate). A precise check would need a backend
-        // `messageCount` on the session list; swap the name test for it if that lands.
+        // approximated by a blank name (a session is auto-titled once it gets content). A session
+        // that has messages but is still untitled would also be treated as reusable — acceptable,
+        // since reuse just reopens it (no data loss, no duplicate). A precise check would need a
+        // backend `messageCount` on the session list; swap the name test for it if that lands.
         const latestSession = findLatestUpdatedSession(
           oldViewSessions.filter((candidate) => candidate.agentId === agentId)
         )
-        const reusableSession =
-          latestSession && latestSession.name.trim() === t('common.unnamed') ? latestSession : undefined
+        const reusableSession = latestSession && latestSession.name.trim() === '' ? latestSession : undefined
 
         let session = reusableSession
         if (!session) {
@@ -441,7 +440,7 @@ const AgentPage = () => {
           session = await dataApiService.post('/agent-sessions', {
             body: {
               agentId: started.agentId,
-              name: t('common.unnamed'),
+              name: '',
               workspace: started.workspaceSource
             }
           })
@@ -674,7 +673,7 @@ const AgentPage = () => {
       const session = await dataApiService.post('/agent-sessions', {
         body: {
           agentId: current.agentId,
-          name: temporaryTitle || t('common.unnamed'),
+          name: temporaryTitle || '',
           workspace: current.workspaceSource
         }
       })
@@ -697,7 +696,7 @@ const AgentPage = () => {
       })
       return persisted
     },
-    [invalidateCache, setActiveSessionId, setDraftSessionState, setLastUsedAgentId, setLastUsedWorkspaceId, t]
+    [invalidateCache, setActiveSessionId, setDraftSessionState, setLastUsedAgentId, setLastUsedWorkspaceId]
   )
   const replaceDraftAgent = useCallback(
     async (agentId: string | null) => {
@@ -832,7 +831,7 @@ const AgentPage = () => {
         oldViewSessions.filter(
           (candidate) =>
             candidate.agentId === agentId &&
-            candidate.name.trim() === t('common.unnamed') &&
+            candidate.name.trim() === '' &&
             sessionMatchesWorkspaceSource(candidate, workspaceSource)
         )
       )
@@ -841,7 +840,7 @@ const AgentPage = () => {
         (await dataApiService.post('/agent-sessions', {
           body: {
             agentId,
-            name: t('common.unnamed'),
+            name: '',
             workspace: workspaceSource
           }
         }))

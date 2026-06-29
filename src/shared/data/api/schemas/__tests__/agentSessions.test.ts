@@ -6,6 +6,7 @@ import {
   AgentSessionMessagesListQuerySchema,
   CreateAgentSessionMessageSchema,
   CreateAgentSessionMessagesSchema,
+  CreateAgentSessionSchema,
   DeleteAgentSessionsQuerySchema,
   UpdateAgentSessionSchema
 } from '../agentSessions'
@@ -88,6 +89,17 @@ describe('AgentSession schemas', () => {
       name: 'Renamed session',
       isNameManuallyEdited: true
     })
+  })
+
+  it('allows blank names for untitled placeholder sessions', () => {
+    expect(
+      CreateAgentSessionSchema.safeParse({
+        agentId: 'agent-1',
+        name: '',
+        workspace: { type: 'system' }
+      }).success
+    ).toBe(true)
+    expect(UpdateAgentSessionSchema.parse({ name: '' })).toEqual({ name: '' })
   })
 
   it('caps bulk delete ids', () => {

@@ -127,15 +127,18 @@ level instead of prop-threaded).
 - Switching assistant/agent clears the right-list search; switching topic/session
   within the same entity does not.
 
-## Composer triggers (old view)
+## Composer entity controls (old view)
 
-In old view the left rail owns entity switching, so the composer's entity trigger is
-repurposed for **edit-in-place** instead of opening a switcher:
+In old view the left rail owns entity switching, so the composer's assistant/agent
+switcher is hidden rather than repurposed:
 
-- `ChatComposer` / `AgentComposer` take an `assistantTriggerMode` / `agentTriggerMode`
-  prop (`'selector'` | `'edit'`). Old view passes `'edit'`; Home/draft and new view
-  keep `'selector'`. In `'edit'` mode the trigger opens the resource edit dialog
-  (`ResourceEditDialogHost`) for the current entity.
+- `ChatComposer` passes `showAssistantTrigger: conversationView !== 'old'`.
+- `AgentComposer` passes `showAgentTrigger: workView !== 'old'`. The
+  `agentTriggerMode="edit"` code path still exists for toolbar-bound contexts, but
+  it is not the old-view entry point because the trigger is hidden by
+  `showAgentTrigger`.
+- Old view adds a new conversation/work action to the composer controls when
+  `onCreateEmptyTopic` / `onCreateEmptySession` is available.
 - The agent composer's inline model selector remains available for changing the
   active agent model. The agent switcher is hidden inside active sessions (an
   active session is bound to its agent).
@@ -207,7 +210,8 @@ site, so the open state survives the remount. This is scoped to old view
   picker; wrapped by `pages/home/components/AssistantConversationPickerDialog.tsx`
   and `pages/agents/components/AgentConversationPickerDialog.tsx`.
 - `components/composer/variants/ChatComposer.tsx`,
-  `AgentComposer.tsx` — `assistantTriggerMode` / `agentTriggerMode` edit-in-place.
+  `AgentComposer.tsx` — old-view entity trigger visibility and new conversation/work
+  composer actions.
 - `hooks/useAssistantCatalogPresets.ts` — preset catalog feeding the assistant picker.
 - `hooks/resourceViewSources.ts` — shared full-list sources.
 - `pages/home/HomePage.tsx`, `pages/agents/AgentPage.tsx`,

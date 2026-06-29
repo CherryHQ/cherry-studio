@@ -70,10 +70,7 @@ export function AgentResourceList({
     togglePin: toggleAgentPin
   } = usePins('agent')
   const { trigger: deleteAgent } = useMutation('DELETE', '/agents/:agentId', {
-    refresh: ['/agents', '/agent-sessions']
-  })
-  const { trigger: deleteAgentSessions } = useMutation('DELETE', '/agents/:agentId/sessions', {
-    refresh: ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
+    refresh: ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
   })
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
@@ -179,8 +176,7 @@ export function AgentResourceList({
         })
         if (!confirmed) return
 
-        await deleteAgentSessions({ params: { agentId } })
-        await deleteAgent({ params: { agentId } })
+        await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
         if (activeAgentId === agentId) {
           await onStartMissingAgentDraft?.()
         }
@@ -195,16 +191,7 @@ export function AgentResourceList({
         setDeletingAgentId(null)
       }
     },
-    [
-      activeAgentId,
-      deleteAgent,
-      deleteAgentSessions,
-      deletingAgentId,
-      onStartMissingAgentDraft,
-      refetchAgents,
-      reload,
-      t
-    ]
+    [activeAgentId, deleteAgent, deletingAgentId, onStartMissingAgentDraft, refetchAgents, reload, t]
   )
 
   const getContextMenuActions = useCallback(

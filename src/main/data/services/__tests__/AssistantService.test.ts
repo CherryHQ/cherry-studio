@@ -1,13 +1,18 @@
+// Load the sibling so TopicService can purge topic messages through the data-service registry.
+import '@data/services/MessageService'
+
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { pinTable } from '@data/db/schemas/pin'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
+import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { AssistantDataService, assistantDataService } from '@data/services/AssistantService'
 import { pinService } from '@data/services/PinService'
+import { topicService } from '@data/services/TopicService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api'
 import { type ListAssistantsQuery, ListAssistantsQuerySchema } from '@shared/data/api/schemas/assistants'
@@ -1210,6 +1215,42 @@ describe('AssistantDataService', () => {
 
       const pinRows = await dbh.db.select().from(pinTable)
       expect(pinRows).toHaveLength(0)
+    })
+
+    it('should delete assistant topics atomically when requested', async () => {
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'delete with topics' },
+        { id: 'ast-2', name: 'keep topics' }
+      ])
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-1', name: '', assistantId: 'ast-1', orderKey: 'a0' },
+        { id: 'topic-2', name: 'kept', assistantId: 'ast-2', orderKey: 'a1' }
+      ])
+
+      await assistantDataService.delete('ast-1', { deleteTopics: true })
+
+      const assistantRows = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'ast-1'))
+      expect(assistantRows[0].deletedAt).toBeTruthy()
+      const topicRows = await dbh.db.select().from(topicTable)
+      expect(topicRows.map((row) => row.id)).toEqual(['topic-2'])
+    })
+
+    it('should roll back assistant delete when topic deletion fails', async () => {
+      await seedAssistantRow({ id: 'ast-1', name: 'rollback' })
+      const deleteTopicsSpy = vi
+        .spyOn(topicService, 'deleteByAssistantIdTx')
+        .mockRejectedValueOnce(new Error('topic delete failed'))
+
+      try {
+        await expect(assistantDataService.delete('ast-1', { deleteTopics: true })).rejects.toThrow(
+          'topic delete failed'
+        )
+      } finally {
+        deleteTopicsSpy.mockRestore()
+      }
+
+      const [row] = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'ast-1'))
+      expect(row.deletedAt).toBeNull()
     })
 
     it('should throw NOT_FOUND when deleting non-existent assistant', async () => {

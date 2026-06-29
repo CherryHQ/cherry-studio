@@ -43,7 +43,7 @@ This PR also changes the **default grouping** of the classic (New view) sidebar 
 - `topic.tab.display_mode`: `assistant` → `time`
 - `agent.session.display_mode`: `agent` → `workdir`
 
-Neither key has a v1 migration mapping, so the new default applies to fresh installs **and** users migrating from v1. This is **not** a breaking change — the feature is still in alpha, both display modes remain fully supported, and any user can switch grouping back from the list's display-mode menu. Documented here only for completeness.
+Neither key has a v1 migration mapping, so the new default applies to fresh installs **and** users migrating from v1. This is **not** a breaking change — the feature is still in alpha, and existing stored grouping values still render. The current UI does not expose a full display-mode switcher, though: conversation topics have no display-mode menu in the classic sidebar, and agent sessions expose only **Time** / **Workdir** choices. Documented here only for completeness.
 
 ## Notes for release manager
 

@@ -14,6 +14,7 @@ import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/sc
 import type { AssistantSchemas } from '@shared/data/api/schemas/assistants'
 import {
   CreateAssistantSchema,
+  DeleteAssistantQuerySchema,
   ListAssistantsQuerySchema,
   UpdateAssistantSchema
 } from '@shared/data/api/schemas/assistants'
@@ -47,8 +48,9 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
       return await assistantDataService.update(params.id, patch)
     },
 
-    DELETE: async ({ params }) => {
-      await assistantDataService.delete(params.id)
+    DELETE: async ({ params, query }) => {
+      const parsed = DeleteAssistantQuerySchema.parse(query ?? {})
+      await assistantDataService.delete(params.id, { deleteTopics: parsed.deleteTopics === true })
       return undefined
     }
   },

@@ -8,14 +8,12 @@ import { AssistantResourceList } from '../AssistantResourceList'
 
 const assistantDataMocks = vi.hoisted(() => ({
   deleteAssistant: vi.fn(),
-  deleteTopicsByAssistantId: vi.fn(),
   refreshTopics: vi.fn(),
   refetchAssistants: vi.fn()
 }))
 
 const agentDataMocks = vi.hoisted(() => ({
   deleteAgent: vi.fn(),
-  deleteAgentSessions: vi.fn(),
   refetchAgents: vi.fn()
 }))
 
@@ -191,19 +189,13 @@ vi.mock('@renderer/hooks/usePins', () => ({
 vi.mock('@renderer/hooks/useTopic', () => ({
   mapApiTopicToRendererTopic: (topic: unknown) => topic,
   useTopicMutations: () => ({
-    deleteTopicsByAssistantId: assistantDataMocks.deleteTopicsByAssistantId,
     refreshTopics: assistantDataMocks.refreshTopics
   })
 }))
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useMutation: (_method: string, path: string) => ({
-    trigger:
-      path === '/agents/:agentId'
-        ? agentDataMocks.deleteAgent
-        : path === '/agents/:agentId/sessions'
-          ? agentDataMocks.deleteAgentSessions
-          : vi.fn()
+    trigger: path === '/agents/:agentId' ? agentDataMocks.deleteAgent : vi.fn()
   })
 }))
 
@@ -227,11 +219,9 @@ describe('old layout entity resource list actions', () => {
   beforeEach(() => {
     shellActionMocks.close.mockClear()
     assistantDataMocks.deleteAssistant.mockResolvedValue(undefined)
-    assistantDataMocks.deleteTopicsByAssistantId.mockResolvedValue({ deletedCount: 1, deletedIds: ['topic-1'] })
     assistantDataMocks.refreshTopics.mockResolvedValue(undefined)
     assistantDataMocks.refetchAssistants.mockResolvedValue(undefined)
     agentDataMocks.deleteAgent.mockResolvedValue(undefined)
-    agentDataMocks.deleteAgentSessions.mockResolvedValue({ deletedIds: ['session-1'] })
     agentDataMocks.refetchAgents.mockResolvedValue(undefined)
 
     window.modal = {
@@ -265,10 +255,8 @@ describe('old layout entity resource list actions', () => {
     await waitFor(() =>
       expect(window.modal.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'assistants.delete.title' }))
     )
-    await waitFor(() => expect(assistantDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1'))
-    await waitFor(() => expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledWith('assistant-1'))
-    expect(assistantDataMocks.deleteTopicsByAssistantId.mock.invocationCallOrder[0]).toBeLessThan(
-      assistantDataMocks.deleteAssistant.mock.invocationCallOrder[0]
+    await waitFor(() =>
+      expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledWith('assistant-1', { deleteTopics: true })
     )
     expect(onStartDraftAssistant).toHaveBeenCalledWith(null)
     expect(shellActionMocks.close).not.toHaveBeenCalled()
@@ -298,11 +286,10 @@ describe('old layout entity resource list actions', () => {
       expect(window.modal.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'agent.delete.title' }))
     )
     await waitFor(() =>
-      expect(agentDataMocks.deleteAgentSessions).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
-    )
-    await waitFor(() => expect(agentDataMocks.deleteAgent).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } }))
-    expect(agentDataMocks.deleteAgentSessions.mock.invocationCallOrder[0]).toBeLessThan(
-      agentDataMocks.deleteAgent.mock.invocationCallOrder[0]
+      expect(agentDataMocks.deleteAgent).toHaveBeenCalledWith({
+        params: { agentId: 'agent-1' },
+        query: { deleteSessions: true }
+      })
     )
     expect(onStartMissingAgentDraft).toHaveBeenCalled()
     expect(shellActionMocks.close).not.toHaveBeenCalled()

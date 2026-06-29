@@ -66,7 +66,7 @@ export function AssistantResourceList({
     togglePin: toggleAssistantPin
   } = usePins('assistant')
   const { deleteAssistant } = useAssistantMutations()
-  const { deleteTopicsByAssistantId, refreshTopics } = useTopicMutations()
+  const { refreshTopics } = useTopicMutations()
   const topicPinnedIdSet = useMemo(() => new Set(topicPinnedIds), [topicPinnedIds])
   const [deletingAssistantId, setDeletingAssistantId] = useState<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
@@ -167,8 +167,7 @@ export function AssistantResourceList({
         })
         if (!confirmed) return
 
-        await deleteTopicsByAssistantId(assistantId)
-        await deleteAssistant(assistantId)
+        await deleteAssistant(assistantId, { deleteTopics: true })
         if (activeAssistantId === assistantId) {
           await onStartDraftAssistant(null)
         }
@@ -186,7 +185,6 @@ export function AssistantResourceList({
     [
       activeAssistantId,
       deleteAssistant,
-      deleteTopicsByAssistantId,
       deletingAssistantId,
       onStartDraftAssistant,
       refreshAssistants,

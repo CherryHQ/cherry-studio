@@ -38,10 +38,10 @@ const agentSessionRenameLocks = new Set<string>()
 //      topic releases its entry naturally.
 const SUMMARY_NAMED_KEY_PREFIX = 'topic.summary_named:'
 const SUMMARY_NAMED_TTL_MS = 60 * 60 * 1000
-// Keep this list in sync with localized `common.unnamed` values until agent
-// sessions store a stable sentinel/key instead of translated display text.
+// New placeholder agent sessions store `''`, matching topic names. Keep the
+// localized values so legacy sessions created before that change still auto-rename.
 // The locale-sync test in TopicNamingService.test.ts should fail when a new
-// language or translation is added without updating this set.
+// language or translation is added without updating this legacy set.
 const DEFAULT_AGENT_SESSION_NAMES = new Set([
   '',
   'common.unnamed',
