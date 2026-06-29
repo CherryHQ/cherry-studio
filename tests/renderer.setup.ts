@@ -423,8 +423,11 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('div', { ...props, 'data-testid': 'dialog-header' }, children),
     DialogTitle: ({ children, ...props }) =>
       React.createElement('h2', { ...props, 'data-testid': 'dialog-title' }, children),
+    DialogDescription: ({ children, ...props }) =>
+      React.createElement('p', { ...props, 'data-testid': 'dialog-description' }, children),
     DialogFooter: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-footer' }, children),
+    Form: ({ children }) => React.createElement(React.Fragment, null, children),
     Label: ({ children, ...props }) => React.createElement('label', props, children),
     FieldError: ({ children, errors, ...props }) => {
       const errorMessage = children ?? errors?.find((error) => error?.message)?.message
@@ -476,6 +479,9 @@ vi.mock('@cherrystudio/ui', () => {
     Separator: (props) => React.createElement('hr', { ...props, 'data-testid': 'separator' }),
     Scrollbar: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'scrollbar' }, children),
+    Dropzone: ({ children, getFilesFromEvent: _getFilesFromEvent, onDrop: _onDrop, maxFiles: _maxFiles, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'dropzone' }, children),
+    DropzoneEmptyState: ({ children }) => React.createElement(React.Fragment, null, children),
     Kbd: ({ children, ...props }) => React.createElement('kbd', { ...props }, children),
     Checkbox: ({ checked, onCheckedChange, ...props }) =>
       React.createElement('input', {
