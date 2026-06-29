@@ -1,7 +1,9 @@
+import * as z from 'zod'
 import { describe, expect, it } from 'vitest'
 
 import {
   KB_LIST_TOOL_NAME,
+  kbListInputSchema,
   KB_SEARCH_TOOL_NAME,
   kbSearchInputSchema,
   REPORT_ARTIFACTS_DESCRIPTION,
@@ -33,6 +35,19 @@ describe('builtin tool contracts', () => {
 
     expect(description).toContain(WEB_SEARCH_TOOL_NAME)
     expect(description).not.toContain('web__search')
+  })
+
+  it('keeps kb_list filters in `required` so strict providers accept the schema', () => {
+    // Regression: kb_list's filters are both optional in intent, but an all-optional object serializes
+    // away `required` entirely, and a strict OpenAI-compatible provider then rejects the whole request
+    // ("Tool ... has invalid 'parameters' schema: None is not of type 'array'"), killing every tool call.
+    // Making the fields `.nullable()` (null = no filter) keeps them in `required` with a null option.
+    const json = z.toJSONSchema(kbListInputSchema) as { required?: unknown }
+
+    expect(Array.isArray(json.required)).toBe(true)
+    expect(json.required).toEqual(expect.arrayContaining(['query', 'groupId']))
+    // null is the "no filter" signal; an explicit null must still parse.
+    expect(kbListInputSchema.safeParse({ query: null, groupId: null }).success).toBe(true)
   })
 
   it('validates final report artifacts', () => {

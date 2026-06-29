@@ -13,15 +13,24 @@ import * as z from 'zod'
 
 export const KB_LIST_TOOL_NAME = 'kb_list'
 
+// Both filters are `.nullable()` rather than `.optional()` so the strict JSON schema lists them in
+// `required` (with a null option) instead of emitting no `required` at all — an all-optional object
+// serializes `required` away, which strict OpenAI-compatible providers reject ("None is not of type
+// 'array'"). Pass null to skip a filter. See listKnowledgeBases, which treats null as "no filter".
 export const kbListInputSchema = z.object({
   query: z
     .string()
     .trim()
     .min(1)
     .max(200)
-    .optional()
-    .describe('Case-insensitive substring filter against base name and sample sources. Omit to list all.'),
-  groupId: z.string().trim().min(1).optional().describe('Restrict the result to a single knowledge base group.')
+    .nullable()
+    .describe('Case-insensitive substring filter against base name and sample sources. Pass null to list all.'),
+  groupId: z
+    .string()
+    .trim()
+    .min(1)
+    .nullable()
+    .describe('Restrict the result to a single knowledge base group. Pass null to span all groups.')
 })
 
 export const kbListOutputItemSchema = z.object({

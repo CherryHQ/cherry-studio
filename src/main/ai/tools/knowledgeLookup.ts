@@ -506,8 +506,8 @@ function deriveNoteSource(content: string, title?: string): string {
 }
 
 export async function listKnowledgeBases(
-  query: string | undefined,
-  groupId: string | undefined,
+  query: string | null | undefined,
+  groupId: string | null | undefined,
   allowedIds: string[]
 ): Promise<KnowledgeListResultOrError> {
   try {
@@ -515,7 +515,8 @@ export async function listKnowledgeBases(
     const allBases = await knowledgeService.listBases()
     const scopedBases = allowedIds.length > 0 ? allBases.filter((base) => allowedIds.includes(base.id)) : allBases
 
-    const groupFiltered = groupId !== undefined ? scopedBases.filter((base) => base.groupId === groupId) : scopedBases
+    // null and undefined both mean "no group filter" — kb_list's nullable input passes null for that.
+    const groupFiltered = groupId != null ? scopedBases.filter((base) => base.groupId === groupId) : scopedBases
 
     // Cap concurrency: a user with 50+ KBs would otherwise fire 50 concurrent listRootItems queries on
     // every kb_list call. listRootItems is a pure Drizzle/SQLite read (no vector store), so 8 in-flight
@@ -538,7 +539,7 @@ export async function listKnowledgeBases(
 
 export function knowledgeListModelOutput(
   output: KnowledgeListResultOrError,
-  input: { query?: string; groupId?: string }
+  input: { query?: string | null; groupId?: string | null }
 ): { type: 'text'; value: string } | { type: 'json'; value: KbListOutput } {
   if (isKnowledgeLookupError(output)) {
     return { type: 'text', value: KNOWLEDGE_LIST_ERROR_NOTE }

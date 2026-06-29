@@ -149,11 +149,11 @@ function makeProcessingFileItem(id: string): KnowledgeItem {
 }
 
 function callExecute(
-  args: { query?: string; groupId?: string },
+  args: { query?: string | null; groupId?: string | null },
   ctx: { assistant?: Assistant } = {}
 ): Promise<unknown> {
   const execute = entry.tool.execute as (
-    args: { query?: string; groupId?: string },
+    args: { query?: string | null; groupId?: string | null },
     options: ToolExecutionOptions
   ) => Promise<unknown>
   return execute(args, {
@@ -216,6 +216,21 @@ describe('kb_list', () => {
       { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1', 'kb-2'] }) }
     )) as Array<{ id: string }>
     expect(result.map((b) => b.id)).toEqual(['kb-1'])
+  })
+
+  it('treats explicit null filters as no filter (kb_list passes null, not undefined, under strict schema)', async () => {
+    knowledgeServiceListBases.mockResolvedValue([
+      makeBase({ id: 'kb-1', groupId: 'g1' }),
+      makeBase({ id: 'kb-2', groupId: null })
+    ])
+    knowledgeServiceListRootItems.mockResolvedValue([])
+
+    const result = (await callExecute(
+      { query: null, groupId: null },
+      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1', 'kb-2'] }) }
+    )) as Array<{ id: string }>
+    // null groupId must NOT collapse to `base.groupId === null`; both bases come back.
+    expect(result.map((b) => b.id).sort()).toEqual(['kb-1', 'kb-2'])
   })
 
   it('filters by case-insensitive query against name and sampleSources', async () => {
@@ -316,7 +331,7 @@ describe('kb_list', () => {
   describe('toModelOutput', () => {
     type ToModelOutputFn = (opts: {
       toolCallId: string
-      input: { query?: string; groupId?: string }
+      input: { query?: string | null; groupId?: string | null }
       output: Array<{ id: string }>
     }) => { type: string; value: unknown }
 
