@@ -24,8 +24,11 @@ vi.mock('@renderer/utils/style', () => ({
   classNames: (...values: unknown[]) => values.filter(Boolean).join(' ')
 }))
 
+vi.mock('@renderer/services/ExportService', () => ({
+  messageToMarkdown: vi.fn()
+}))
+
 vi.mock('@renderer/utils/export', () => ({
-  messageToMarkdown: vi.fn(),
   messageToPlainText: vi.fn()
 }))
 
