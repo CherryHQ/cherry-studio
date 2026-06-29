@@ -48,10 +48,23 @@ export interface EmbeddingEmbedMessage {
   texts: string[]
 }
 
-// OCR request types will be added here when the OCR backend lands; the host,
-// protocol envelope, and worker dispatch are already shaped to carry them.
+/** Absolute paths to the PaddleOCR model files (downloaded by the main process). */
+export interface OcrModelPaths {
+  detection: string
+  recognition: string
+  charactersDictionary: string
+}
 
-export type InferenceRequest = EmbeddingLoadMessage | EmbeddingEmbedMessage
+/** Recognize text in an image file; loads the PaddleOCR pipeline first if needed. */
+export interface OcrRecognizeMessage {
+  type: 'ocr.recognize'
+  id: string
+  modelPaths: OcrModelPaths
+  /** Absolute path to the image file; the worker reads it into a buffer. */
+  imagePath: string
+}
+
+export type InferenceRequest = EmbeddingLoadMessage | EmbeddingEmbedMessage | OcrRecognizeMessage
 
 // -- worker → main --------------------------------------------------------
 
@@ -75,11 +88,14 @@ export interface InferenceLogMessage {
   message: string
 }
 
-/** Successful completion. `embeddings` is null for a pure load. */
+/** Successful completion. Only the field for the request kind is set. */
 export interface InferenceResultMessage {
   type: 'result'
   id: string
+  /** Embedding vectors (`embedding.embed`); null for a pure `embedding.load`. */
   embeddings?: number[][] | null
+  /** Recognized text (`ocr.recognize`). */
+  text?: string | null
 }
 
 export interface InferenceErrorMessage {

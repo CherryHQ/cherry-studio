@@ -3,7 +3,7 @@ import { Worker } from 'node:worker_threads'
 import { application } from '@application'
 import { loggerService } from '@logger'
 
-import type { InferenceModelSource, InferenceRequest, InferenceResponse } from './inferenceProtocol'
+import type { InferenceModelSource, InferenceRequest, InferenceResponse, OcrModelPaths } from './inferenceProtocol'
 import { inferenceWorkerSource } from './inferenceWorkerSource'
 
 const logger = loggerService.withContext('InferenceHost')
@@ -20,8 +20,14 @@ export interface InferenceProgress {
   progress?: number
 }
 
+/** One worker `result` message, narrowed to the field the caller cares about. */
+interface InferenceResult {
+  embeddings?: number[][] | null
+  text?: string | null
+}
+
 interface Pending {
-  resolve: (embeddings: number[][] | null) => void
+  resolve: (result: InferenceResult) => void
   reject: (err: Error) => void
   onProgress?: (p: InferenceProgress) => void
 }
@@ -79,7 +85,7 @@ class InferenceHost {
         const pending = this.pending.get(msg.id)
         if (!pending) return
         this.pending.delete(msg.id)
-        pending.resolve(msg.embeddings ?? null)
+        pending.resolve({ embeddings: msg.embeddings ?? null, text: msg.text ?? null })
         return
       }
       case 'error': {
@@ -101,7 +107,7 @@ class InferenceHost {
   private send(
     request: DistributiveOmit<InferenceRequest, 'id'>,
     opts: { onProgress?: (p: InferenceProgress) => void; signal?: AbortSignal } = {}
-  ): Promise<number[][] | null> {
+  ): Promise<InferenceResult> {
     const worker = this.ensureWorker()
     const id = String(++this.idSeq)
     return new Promise((resolve, reject) => {
@@ -132,7 +138,7 @@ class InferenceHost {
     signal?: AbortSignal
   ): Promise<number[][]> {
     const result = await this.send({ type: 'embedding.embed', modelRepo, dtype, source, texts }, { signal })
-    return result ?? []
+    return result.embeddings ?? []
   }
 
   /** Download/load the embedding model, reporting progress (used by the model card). */
@@ -144,6 +150,12 @@ class InferenceHost {
     signal?: AbortSignal
   ): Promise<void> {
     await this.send({ type: 'embedding.load', modelRepo, dtype, source }, { onProgress, signal })
+  }
+
+  /** OCR an image off the main thread; loads the PaddleOCR model first if not cached. */
+  async recognize(modelPaths: OcrModelPaths, imagePath: string, signal?: AbortSignal): Promise<string> {
+    const result = await this.send({ type: 'ocr.recognize', modelPaths, imagePath }, { signal })
+    return result.text ?? ''
   }
 
   /** Kill the worker (cancels any in-flight download and frees the model). */

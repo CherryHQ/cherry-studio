@@ -13,9 +13,9 @@
  * never imports project modules, so the pooling math is inlined here and kept in
  * sync with `pooling.ts` (which unit-tests the same algorithm).
  *
- * TODO(packaged): in dev the worker resolves `@huggingface/transformers` from the
- * project `node_modules` via cwd; verify (or pass an absolute require path) once
- * the packaged-app build is exercised, alongside the onnxruntime-node asarUnpack.
+ * TODO(packaged): the worker resolves `@huggingface/transformers` and
+ * `ppu-paddle-ocr` off `app.root`; verify both resolve once the packaged-app build
+ * is exercised, alongside the onnxruntime-node asarUnpack.
  */
 export const inferenceWorkerSource = `
 const { parentPort } = require('node:worker_threads')
@@ -23,7 +23,9 @@ const { parentPort } = require('node:worker_threads')
 let cacheDir = null
 let appPath = null
 let transformers = null
+let ppu = null
 const pipelines = new Map() // key: repo|dtype|host -> Promise<extractor>
+const paddleServices = new Map() // key: det|rec|dict -> Promise<PaddleOcrService>
 
 function l2normalize(vector) {
   let sum = 0
@@ -41,6 +43,20 @@ function getTransformers() {
     transformers = projectRequire('@huggingface/transformers')
   }
   return transformers
+}
+
+async function getPpu() {
+  if (!ppu) {
+    // ppu-paddle-ocr is pure ESM. Resolve its entry off app.root (dev + packaged),
+    // then load it with a dynamic import so this works regardless of the host
+    // Node's require(esm) support.
+    const { createRequire } = require('node:module')
+    const { pathToFileURL } = require('node:url')
+    const projectRequire = createRequire((appPath || process.cwd()) + '/')
+    const entry = projectRequire.resolve('ppu-paddle-ocr')
+    ppu = await import(pathToFileURL(entry).href)
+  }
+  return ppu
 }
 
 function pipelineKey(repo, dtype, source) {
@@ -98,6 +114,43 @@ async function handleLoad(msg) {
   parentPort.postMessage({ type: 'result', id: msg.id, embeddings: null })
 }
 
+function ocrKey(paths) {
+  return paths.detection + '|' + paths.recognition + '|' + paths.charactersDictionary
+}
+
+function getPaddleService(modelPaths) {
+  const key = ocrKey(modelPaths)
+  let promise = paddleServices.get(key)
+  if (!promise) {
+    promise = (async () => {
+      const { PaddleOcrService } = await getPpu()
+      const service = new PaddleOcrService({
+        model: {
+          detection: modelPaths.detection,
+          recognition: modelPaths.recognition,
+          charactersDictionary: modelPaths.charactersDictionary
+        },
+        session: { executionProviders: ['cpu'] }
+      })
+      await service.initialize()
+      return service
+    })()
+    paddleServices.set(key, promise)
+    // Drop the cached promise on failure so a later request can retry.
+    promise.catch(() => paddleServices.delete(key))
+  }
+  return promise
+}
+
+async function handleOcr(msg) {
+  const fs = require('node:fs')
+  const service = await getPaddleService(msg.modelPaths)
+  const buffer = fs.readFileSync(msg.imagePath)
+  const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+  const result = await service.recognize(arrayBuffer)
+  parentPort.postMessage({ type: 'result', id: msg.id, text: result.text })
+}
+
 parentPort.on('message', (msg) => {
   if (!msg || typeof msg !== 'object') return
   if (msg.type === 'init') {
@@ -106,7 +159,13 @@ parentPort.on('message', (msg) => {
     return
   }
   const run =
-    msg.type === 'embedding.embed' ? handleEmbed : msg.type === 'embedding.load' ? handleLoad : null
+    msg.type === 'embedding.embed'
+      ? handleEmbed
+      : msg.type === 'embedding.load'
+        ? handleLoad
+        : msg.type === 'ocr.recognize'
+          ? handleOcr
+          : null
   if (!run) {
     parentPort.postMessage({ type: 'error', id: msg.id, message: 'unknown message type: ' + msg.type })
     return

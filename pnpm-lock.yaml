@@ -128,6 +128,9 @@ importers:
       pdfjs-dist:
         specifier: 5.4.296
         version: 5.4.296
+      ppu-paddle-ocr:
+        specifier: 6.0.0
+        version: 6.0.0
       selection-hook:
         specifier: 2.0.1
         version: 2.0.1
@@ -6357,6 +6360,9 @@ packages:
     engines: {node: '>=20.19'}
     hasBin: true
 
+  '@techstark/opencv-js@4.10.0-release.1':
+    resolution: {integrity: sha512-S4XELidRiQeA0q1s9VQLo540wCxUo24r1O4C+LqZ6llX+sPCXvZCPv3Ice8dEIr0uavyZ8YZeKXSBdDgMXSXjw==}
+
   '@testing-library/dom@10.4.1':
     resolution: {integrity: sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg==}
     engines: {node: '>=18'}
@@ -11623,6 +11629,29 @@ packages:
     resolution: {integrity: sha512-b9Eb8h2eVqNE8edvKdwqkrY6O7kAwmI8kcnBv1NScolYJbo59XUF0noFq+lxbC1yN20bmC0WBEbDC5H/7ASb0A==}
     engines: {node: '>=14.0.0'}
     hasBin: true
+
+  ppu-ocv@3.3.0:
+    resolution: {integrity: sha512-JCuw4LgejJ0APAvekR2JxWKmm2u9r3LFtI/5cJvJk6OscH1ygXet4JUY/u436FIWYP+PDtMJguZxdgYcoq1bxA==}
+    peerDependencies:
+      '@shopify/react-native-skia': '>=1.0.0'
+    peerDependenciesMeta:
+      '@shopify/react-native-skia':
+        optional: true
+
+  ppu-paddle-ocr@6.0.0:
+    resolution: {integrity: sha512-PM4CAppV+58RQVfs5Rj0fD3+VEfUz1I6gq8DbHaAW7BG1P4sv6Xb3AQm/s2y5LZnaaJTAFQdHWlE8BjxeUzj9w==}
+    hasBin: true
+    peerDependencies:
+      '@shopify/react-native-skia': '>=1.0.0'
+      onnxruntime-react-native: ^1.23.2
+      onnxruntime-web: ^1.23.2
+    peerDependenciesMeta:
+      '@shopify/react-native-skia':
+        optional: true
+      onnxruntime-react-native:
+        optional: true
+      onnxruntime-web:
+        optional: true
 
   prebuild-install@5.3.6:
     resolution: {integrity: sha512-s8Aai8++QQGi4sSbs/M1Qku62PFK49Jm1CbgXklGz4nmHveDq0wzJkg7Na5QbnO1uNH8K7iqx2EQ/mV0MZEmOg==}
@@ -19072,6 +19101,8 @@ snapshots:
 
   '@tanstack/virtual-file-routes@1.161.7': {}
 
+  '@techstark/opencv-js@4.10.0-release.1': {}
+
   '@testing-library/dom@10.4.1':
     dependencies:
       '@babel/code-frame': 7.27.1
@@ -25511,6 +25542,17 @@ snapshots:
     dependencies:
       commander: 9.5.0
     optional: true
+
+  ppu-ocv@3.3.0:
+    dependencies:
+      '@napi-rs/canvas': 0.1.97
+      '@techstark/opencv-js': 4.10.0-release.1
+
+  ppu-paddle-ocr@6.0.0:
+    dependencies:
+      ppu-ocv: 3.3.0
+    optionalDependencies:
+      onnxruntime-node: 1.24.3
 
   prebuild-install@5.3.6:
     dependencies:

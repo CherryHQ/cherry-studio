@@ -114,6 +114,7 @@
     "os-proxy-config": "1.1.2",
     "pdf-parse": "^2.4.5",
     "pdfjs-dist": "5.4.296",
+    "ppu-paddle-ocr": "6.0.0",
     "selection-hook": "2.0.1",
     "sharp": "0.34.5",
     "tesseract.js": "6.0.1",
