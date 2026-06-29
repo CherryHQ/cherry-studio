@@ -6,7 +6,7 @@ import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
-import type { MessageData, MessageRole, MessageStatus } from '@shared/data/types/message'
+import type { MessageData, MessageRole, MessageStats, MessageStatus, ModelSnapshot } from '@shared/data/types/message'
 import { sql } from 'drizzle-orm'
 import path from 'path'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
@@ -24,8 +24,9 @@ import {
   getTotalAgentsRowCount,
   quoteSqlitePath
 } from './mappings/AgentsDbMappings'
-import { type ChatMappingDeps, normalizeStatus, transformBlocksToParts } from './mappings/ChatMappings'
+import { type ChatMappingDeps, mergeStats, normalizeStatus, transformBlocksToParts } from './mappings/ChatMappings'
 import { AGENT_TABLES, remapAgentPrefixIds } from './remapAgentPrefixIds'
+import { type LegacyModelRef, legacyModelToUniqueId } from './transformers/ModelTransformers'
 
 type V1ScheduledTaskRow = {
   id: string
@@ -610,6 +611,8 @@ type NormalizedLegacySessionMessage = {
   data: MessageData
   status: MessageStatus
   modelId: string | null
+  modelSnapshot: ModelSnapshot | null
+  stats: MessageStats | null
 }
 
 function selectLegacySessionColumn(
@@ -808,6 +811,29 @@ function normalizeLegacyRole(value: string | null): MessageRole {
   return value === 'user' || value === 'assistant' || value === 'system' ? value : 'assistant'
 }
 
+function asLegacyModelRef(value: unknown): LegacyModelRef | null {
+  if (!value || typeof value !== 'object') return null
+  const model = value as { id?: unknown; provider?: unknown }
+
+  return {
+    id: typeof model.id === 'string' ? model.id : undefined,
+    provider: typeof model.provider === 'string' ? model.provider : undefined
+  }
+}
+
+function buildModelSnapshot(value: unknown): ModelSnapshot | null {
+  const model = asLegacyModelRef(value)
+  if (!model?.id?.trim() || !model.provider?.trim()) return null
+
+  const source = value as { name?: unknown; group?: unknown }
+  return {
+    id: model.id,
+    name: typeof source.name === 'string' && source.name.trim() ? source.name : model.id,
+    provider: model.provider,
+    group: typeof source.group === 'string' ? source.group : undefined
+  }
+}
+
 async function normalizeLegacySessionMessage(
   content: unknown,
   fallbackRole: string | null,
@@ -820,7 +846,9 @@ async function normalizeLegacySessionMessage(
       role: normalizeLegacyRole(fallbackRole),
       data: { parts: directParts },
       status: 'success',
-      modelId: null
+      modelId: null,
+      modelSnapshot: null,
+      stats: null
     }
   }
 
@@ -831,17 +859,23 @@ async function normalizeLegacySessionMessage(
       role: normalizeLegacyRole(fallbackRole),
       data: { parts: [] },
       status: 'success',
-      modelId: null
+      modelId: null,
+      modelSnapshot: null,
+      stats: null
     }
   }
 
   const transformed = blocks.length > 0 ? await transformBlocksToParts(blocks, deps) : null
   const parts = transformed?.parts ?? (Array.isArray(message.data?.parts) ? message.data.parts : [])
+  const rawModelId = typeof message.modelId === 'string' && message.modelId.length > 0 ? message.modelId : null
+  const modelRef = asLegacyModelRef(message.model)
   return {
     role: normalizeLegacyRole(typeof message.role === 'string' ? message.role : fallbackRole),
     data: { parts },
     status: normalizeStatus(message.status),
-    modelId: typeof message.modelId === 'string' && message.modelId.length > 0 ? message.modelId : null
+    modelId: legacyModelToUniqueId(modelRef, rawModelId) ?? rawModelId,
+    modelSnapshot: buildModelSnapshot(message.model),
+    stats: mergeStats(message.usage, message.metrics)
   }
 }
 
@@ -905,7 +939,9 @@ export async function importLegacySessionMessages(
         role: normalizeLegacyRole(row.role),
         data: { parts: [] },
         status: 'error',
-        modelId: null
+        modelId: null,
+        modelSnapshot: null,
+        stats: null
       }
       logger.warn('Failed to normalize legacy agent session message', {
         legacyId: row.legacyId,
@@ -924,6 +960,8 @@ export async function importLegacySessionMessages(
       data: normalized.data,
       status: normalized.status,
       modelId: await resolveUserModelId(db, modelCache, normalized.modelId),
+      modelSnapshot: normalized.modelSnapshot ?? undefined,
+      stats: normalized.stats ?? undefined,
       runtimeResumeToken: row.agentSessionId,
       createdAt,
       updatedAt

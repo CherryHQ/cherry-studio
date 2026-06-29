@@ -16,7 +16,6 @@ import type {
   SDKTaskProgressMessage,
   SDKTaskStartedMessage,
   SDKTaskUpdatedMessage,
-  SDKThinkingTokensMessage,
   SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
 import type {
@@ -32,7 +31,7 @@ import type {
 } from '@anthropic-ai/sdk/resources/beta/messages'
 import { loggerService } from '@logger'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
-import type { CherryUIMessageChunk, CherryUIMessageMetadata } from '@shared/data/types/message'
+import type { CherryUIMessageChunk, CherryUIMessageMetadata, MessageStats } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 
 import type { McpToolDisplayMetadata } from './types'
@@ -54,6 +53,24 @@ type SDKTaskSystemMessage =
   | SDKTaskProgressMessage
   | SDKTaskStartedMessage
   | SDKTaskUpdatedMessage
+type SDKThinkingTokensMessage = {
+  type: 'system'
+  subtype: 'thinking_tokens'
+  estimated_tokens: number
+  estimated_tokens_delta?: number
+  uuid: string
+  session_id: string
+}
+type SDKCommandsChangedMessage = {
+  type: 'system'
+  subtype: 'commands_changed'
+  uuid: string
+  session_id: string
+}
+type SDKRuntimeSystemMessage =
+  | Extract<SDKMessage, { type: 'system' }>
+  | SDKThinkingTokensMessage
+  | SDKCommandsChangedMessage
 type SDKTaskStatus = SDKTaskNotificationMessage['status'] | SDKTaskUpdatedMessage['patch']['status'] | undefined
 type ClaudeToolUseBlock = BetaToolUseBlock | BetaServerToolUseBlock | BetaMCPToolUseBlock
 type ClaudeToolResultBlock = Extract<BetaContentBlock | BetaContentBlockParam, { tool_use_id: string }>
@@ -158,6 +175,42 @@ export function convertClaudeCodeUsage(usage: BetaUsage): LanguageModelV3Usage {
     },
     outputTokens: { total: outputTokens, text: undefined, reasoning: undefined },
     raw: JSON.parse(JSON.stringify(usage)) as JSONObject
+  }
+}
+
+/** Drop `undefined`-valued keys; return `undefined` when nothing is left. */
+function compactDetails<T extends Record<string, number | undefined>>(obj: T): { [K in keyof T]?: number } | undefined {
+  const out: Record<string, number> = {}
+  for (const [key, value] of Object.entries(obj)) {
+    if (typeof value === 'number') out[key] = value
+  }
+  return Object.keys(out).length > 0 ? (out as { [K in keyof T]?: number }) : undefined
+}
+
+/**
+ * Project a `LanguageModelV3Usage` into the persisted `MessageStats` token
+ * shape (AI SDK v6 names). Top-level `inputTokens` follows the v6 semantic of
+ * NON-cache input (`noCache`); cache buckets live in `inputTokenDetails`, and
+ * `totalTokens` is the all-in figure. Cost is added later at persistence time.
+ */
+export function v3UsageToStats(usage: LanguageModelV3Usage): MessageStats {
+  const inputTotal = usage.inputTokens.total ?? 0
+  const outputTotal = usage.outputTokens.total ?? 0
+  const inputTokenDetails = compactDetails({
+    noCacheTokens: usage.inputTokens.noCache,
+    cacheReadTokens: usage.inputTokens.cacheRead,
+    cacheWriteTokens: usage.inputTokens.cacheWrite
+  })
+  const outputTokenDetails = compactDetails({
+    textTokens: usage.outputTokens.text,
+    reasoningTokens: usage.outputTokens.reasoning
+  })
+  return {
+    inputTokens: usage.inputTokens.noCache ?? inputTotal,
+    outputTokens: outputTotal,
+    totalTokens: inputTotal + outputTotal,
+    ...(inputTokenDetails ? { inputTokenDetails } : {}),
+    ...(outputTokenDetails ? { outputTokenDetails } : {})
   }
 }
 
@@ -778,7 +831,7 @@ export class ClaudeCodeStreamAdapter {
     })
   }
 
-  private handleSystemMessage(message: Extract<SDKMessage, { type: 'system' }>, ctx: StreamContext): void {
+  private handleSystemMessage(message: SDKRuntimeSystemMessage, ctx: StreamContext): void {
     switch (message.subtype) {
       case 'init':
         this.handleInitSystemMessage(message, ctx)
@@ -853,7 +906,11 @@ export class ClaudeCodeStreamAdapter {
     ctx.sink.enqueue({
       type: 'message-metadata',
       messageMetadata: {
-        thoughtsTokens: message.estimated_tokens
+        stats: {
+          outputTokenDetails: {
+            reasoningTokens: message.estimated_tokens
+          }
+        }
       }
     })
   }
@@ -1254,15 +1311,13 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private buildMessageMetadata(usage: LanguageModelV3Usage): CherryUIMessageMetadata {
-    const promptTokens = usage.inputTokens.total ?? 0
-    const completionTokens = usage.outputTokens.total ?? 0
-    const thoughtsTokens = usage.outputTokens.reasoning
+    // Full cumulative snapshot (Claude Code reports final usage once). Provider
+    // cost (`total_cost_usd`) is deliberately NOT used here — it is unreliable
+    // (session-cumulative / subscription-equivalent); cost is computed from
+    // pricing at persistence time. See `enrichStatsWithCost`.
     return {
       modelId: this.modelId,
-      totalTokens: promptTokens + completionTokens,
-      promptTokens,
-      completionTokens,
-      ...(thoughtsTokens !== undefined ? { thoughtsTokens } : {})
+      stats: v3UsageToStats(usage)
     }
   }
 }

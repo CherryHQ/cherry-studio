@@ -167,7 +167,7 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(parts).toEqual([
       {
         type: 'message-metadata',
-        messageMetadata: { thoughtsTokens: 100 }
+        messageMetadata: { stats: { outputTokenDetails: { reasoningTokens: 100 } } }
       }
     ])
   })
@@ -631,11 +631,16 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect.objectContaining({
         type: 'finish',
         finishReason: 'stop',
+        // v6 semantic: stats.inputTokens = NON-cache (3); cache lives in the
+        // breakdown; totalTokens is the all-in figure (3 + 7 + 11 + 5 = 26).
         messageMetadata: expect.objectContaining({
           modelId: 'sonnet',
-          totalTokens: 26,
-          promptTokens: 21,
-          completionTokens: 5
+          stats: expect.objectContaining({
+            inputTokens: 3,
+            outputTokens: 5,
+            totalTokens: 26,
+            inputTokenDetails: { noCacheTokens: 3, cacheReadTokens: 11, cacheWriteTokens: 7 }
+          })
         })
       })
     ])

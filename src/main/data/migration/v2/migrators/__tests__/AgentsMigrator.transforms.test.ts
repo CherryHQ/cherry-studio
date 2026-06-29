@@ -2,6 +2,8 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq, sql } from 'drizzle-orm'
 import { validate as isUuid } from 'uuid'
@@ -169,6 +171,91 @@ describe('importLegacySessionMessages', () => {
     expect(row.data.parts?.[0]).toMatchObject({ type: 'text', text: 'hello world', state: 'done' })
     expect(JSON.stringify(row.data)).not.toContain('"blocks"')
     expect(JSON.stringify(row.data)).not.toContain('"message"')
+  })
+
+  it('preserves legacy token usage as agent session message stats', async () => {
+    await seedSession('s-stats')
+    await dbh.db
+      .insert(userProviderTable)
+      .values({
+        providerId: 'cherryin',
+        name: 'CherryIN',
+        orderKey: 'a0'
+      })
+      .onConflictDoNothing()
+    await dbh.db
+      .insert(userModelTable)
+      .values({
+        id: 'cherryin::anthropic/claude-sonnet-4.5',
+        providerId: 'cherryin',
+        modelId: 'anthropic/claude-sonnet-4.5',
+        presetModelId: 'anthropic/claude-sonnet-4.5',
+        name: 'Claude Sonnet 4.5',
+        isEnabled: true,
+        isHidden: false,
+        orderKey: 'a0'
+      })
+      .onConflictDoNothing()
+
+    await importLegacyRows([
+      {
+        id: 4,
+        sessionId: 's-stats',
+        role: 'assistant',
+        content: {
+          message: {
+            id: '4',
+            role: 'assistant',
+            status: 'success',
+            model: {
+              id: 'anthropic/claude-sonnet-4.5',
+              name: 'Claude Sonnet 4.5',
+              provider: 'cherryin',
+              group: 'anthropic'
+            },
+            modelId: 'anthropic/claude-sonnet-4.5',
+            usage: {
+              prompt_tokens: 8,
+              completion_tokens: 13,
+              total_tokens: 21,
+              thoughts_tokens: 5,
+              cost: 0.012
+            },
+            metrics: {
+              time_first_token_millsec: 100,
+              time_completion_millsec: 200,
+              time_thinking_millsec: 50
+            },
+            data: { parts: [{ type: 'text', text: 'stats' }] }
+          },
+          blocks: []
+        }
+      }
+    ])
+
+    const [row] = await dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.sessionId, 's-stats'))
+    expect(row.modelId).toBe('cherryin::anthropic/claude-sonnet-4.5')
+    expect(row.modelSnapshot).toEqual({
+      id: 'anthropic/claude-sonnet-4.5',
+      name: 'Claude Sonnet 4.5',
+      provider: 'cherryin',
+      group: 'anthropic'
+    })
+    expect(row.stats).toEqual({
+      inputTokens: 8,
+      outputTokens: 13,
+      totalTokens: 21,
+      outputTokenDetails: { reasoningTokens: 5 },
+      cost: 0.012,
+      costSource: 'provider',
+      costCurrency: 'USD',
+      timeFirstTokenMs: 100,
+      timeCompletionMs: 200,
+      timeThinkingMs: 50
+    })
   })
 
   it('keeps already-modern parts payloads during import', async () => {

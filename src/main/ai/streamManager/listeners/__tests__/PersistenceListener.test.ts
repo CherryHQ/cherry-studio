@@ -104,12 +104,14 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
       id: 'msg-x',
       role: 'assistant',
       parts: [{ type: 'text', text: 'hi' }],
-      // agentLoop.messageMetadata projects AI SDK usage onto these legacy names.
+      // Usage writers emit a full nested `stats` snapshot — the single carrier.
       metadata: {
-        totalTokens: 42,
-        promptTokens: 30,
-        completionTokens: 12,
-        thoughtsTokens: 3
+        stats: {
+          totalTokens: 42,
+          inputTokens: 30,
+          outputTokens: 12,
+          outputTokenDetails: { reasoningTokens: 3 }
+        }
       }
     } as unknown as CherryUIMessage
 
@@ -117,13 +119,12 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
 
     expect(appendMessageMock).toHaveBeenCalledTimes(1)
     const payload = appendMessageMock.mock.calls[0][1]
-    // statsFromTerminal projects 1:1 from UIMessage.metadata to MessageStats.
-    // Cache/breakdown fields are tracked in the MessageStats redesign TODO.
+    // statsFromTerminal copies metadata.stats 1:1 (plus timings).
     expect(payload.stats).toEqual({
       totalTokens: 42,
-      promptTokens: 30,
-      completionTokens: 12,
-      thoughtsTokens: 3
+      inputTokens: 30,
+      outputTokens: 12,
+      outputTokenDetails: { reasoningTokens: 3 }
     })
   })
 
@@ -180,7 +181,7 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
       id: 'msg-w',
       role: 'assistant',
       parts: [{ type: 'text', text: 'hi' }],
-      metadata: { totalTokens: 7, promptTokens: 5, completionTokens: 2 }
+      metadata: { stats: { totalTokens: 7, inputTokens: 5, outputTokens: 2 } }
     } as unknown as CherryUIMessage
 
     await listener.onDone({
@@ -192,8 +193,8 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     const payload = appendMessageMock.mock.calls[0][1]
     expect(payload.stats).toEqual({
       totalTokens: 7,
-      promptTokens: 5,
-      completionTokens: 2,
+      inputTokens: 5,
+      outputTokens: 2,
       timeFirstTokenMs: 100,
       timeCompletionMs: 500
     })

@@ -3,6 +3,7 @@ import '@data/services/TopicService'
 
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
+import { usageLedgerTable } from '@data/db/schemas/usageLedger'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { messageService } from '@data/services/MessageService'
@@ -14,7 +15,7 @@ import { createUniqueModelId } from '@shared/data/types/model'
 import { rootRow, setupTestDatabase, withRoot } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { and, eq, isNull } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 function mainText(content: string): MessageData {
   return { parts: [{ type: 'text', text: content }] }
@@ -2019,6 +2020,62 @@ describe('MessageService', () => {
     it('throws NOT_FOUND when nodeId belongs to a different topic', async () => {
       await seedPathTree()
       await expect(messageService.getPathThrough('topic-2', 'm-a1')).rejects.toThrow(DataApiError)
+    })
+  })
+
+  describe('update — usage ledger hook', () => {
+    async function seedAssistantMessage(role: 'user' | 'assistant' = 'assistant') {
+      await dbh.db.insert(topicTable).values({ id: 'topic-l', activeNodeId: null, orderKey: 'c0' })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-l', [
+          {
+            id: 'm-ledger',
+            parentId: null,
+            topicId: 'topic-l',
+            role,
+            data: mainText('hi'),
+            status: 'pending',
+            modelId: createUniqueModelId('provider-a', 'model-A')
+          }
+        ])
+      )
+    }
+
+    it('records a ledger entry when an assistant message lands stats', async () => {
+      await seedAssistantMessage()
+
+      await messageService.update('m-ledger', {
+        status: 'success',
+        stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15, cost: 0.001, costCurrency: 'USD' }
+      })
+
+      // The hook is fire-and-forget — wait for the async write to settle.
+      await vi.waitFor(async () => {
+        const rows = await dbh.db.select().from(usageLedgerTable)
+        expect(rows).toHaveLength(1)
+        expect(rows[0]).toMatchObject({
+          messageId: 'm-ledger',
+          topicId: 'topic-l',
+          providerId: 'provider-a',
+          inputTokens: 10,
+          outputTokens: 5,
+          totalTokens: 15,
+          cost: 0.001
+        })
+      })
+    })
+
+    it('does not record for updates without stats or for non-assistant roles', async () => {
+      await seedAssistantMessage('user')
+
+      await messageService.update('m-ledger', {
+        stats: { inputTokens: 10, outputTokens: 5 }
+      })
+      await messageService.update('m-ledger', { status: 'success' })
+
+      // Give any (erroneous) async hook a tick to run before asserting.
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(await dbh.db.select().from(usageLedgerTable)).toHaveLength(0)
     })
   })
 

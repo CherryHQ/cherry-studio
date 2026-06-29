@@ -1,10 +1,13 @@
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
+import { usageLedgerTable } from '@data/db/schemas/usageLedger'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { TemporaryChatService } from '@data/services/TemporaryChatService'
 import type { MessageData } from '@shared/data/types/message'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 function fieldsOf(err: unknown): Record<string, string[]> {
   const details = (err as { details?: { fieldErrors?: Record<string, string[]> } }).details
@@ -188,6 +191,46 @@ describe('TemporaryChatService', () => {
 
     it('unknown topicId → notFound', async () => {
       await expect(service.persist('no-such-id')).rejects.toThrow(/not found/i)
+    })
+
+    it('records usage ledger entries for stats-bearing assistant messages on persist', async () => {
+      // message.modelId is an FK to user_model — seed the chain.
+      await dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI', orderKey: 'a0' })
+      await dbh.db.insert(userModelTable).values({
+        id: 'openai::gpt-4o',
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        presetModelId: 'gpt-4o',
+        name: 'gpt-4o',
+        isEnabled: true,
+        isHidden: false,
+        orderKey: 'a0'
+      })
+
+      const topic = await service.createTopic({ name: 'billed' })
+      await service.appendMessage(topic.id, { role: 'user', data: mainText('hi') })
+      const assistant = await service.appendMessage(topic.id, {
+        role: 'assistant',
+        data: mainText('yo'),
+        modelId: 'openai::gpt-4o',
+        stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
+      })
+
+      await service.persist(topic.id)
+
+      // The ledger write is post-commit fire-and-forget.
+      await vi.waitFor(async () => {
+        const rows = await dbh.db.select().from(usageLedgerTable)
+        expect(rows).toHaveLength(1)
+        expect(rows[0]).toMatchObject({
+          messageId: assistant.id,
+          topicId: topic.id,
+          providerId: 'openai',
+          inputTokens: 10,
+          outputTokens: 5,
+          totalTokens: 15
+        })
+      })
     })
 
     it('persisted topic has a non-empty fractional-indexing orderKey', async () => {

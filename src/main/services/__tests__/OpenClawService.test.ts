@@ -113,7 +113,8 @@ function createProvider(overrides: Partial<DataProvider> = {}): DataProvider {
       streamOptions: true,
       developerRole: false,
       serviceTier: false,
-      verbosity: false
+      verbosity: false,
+      reportsActualCost: false
     },
     settings: {},
     isEnabled: true,

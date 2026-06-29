@@ -267,8 +267,10 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Interval",
+          "label": "Tip program",
           "once": "O singură dată"
         },
+        "scheduleValue": "Valoare program",
         "status": {
           "active": "Activă",
           "completed": "Finalizată",
@@ -1974,6 +1976,7 @@
       "claude_code": "Asistentul oficial de programare cu linie de comandă al companiei Anthropic",
       "gemini_cli": "Asistentul oficial de linie de comandă Gemini al Google",
       "github_copilot_cli": "Companion oficial de linie de comandă Copilot al GitHub",
+      "iflow_cli": "asistentul în linie de comandă multi-model al iFlow",
       "kimi_cli": "Asistentul de linie de comandă Kimi de la Moonshot",
       "openai_codex": "CLI-ul oficial de generare de cod al OpenAI",
       "opencode": "Agent de codare multi-model cu sursă deschisă",
@@ -2114,6 +2117,7 @@
     "open_in": "Deschide în {{name}}",
     "open_in_new_tab": "Deschide în filă nouă",
     "open_sidebar": "Deschide bara laterală",
+    "other": "[to be translated]:Other",
     "paste": "Lipește",
     "placeholders": {
       "select": {
@@ -2652,7 +2656,13 @@
           "replace": "Înlocuiește",
           "title": "Sursele există deja"
         },
+        "directory": {
+          "description": "Importă recursiv fișierele acceptate dintr-un dosar",
+          "title": "Faceți clic pentru a selecta un dosar"
+        },
         "footer": {
+          "selected_directories": "{{count}} directoare selectate",
+          "selected_files": "{{count}} fișiere selectate",
           "selected_notes": "{{count}} notițe selectate"
         },
         "note": {
@@ -2687,6 +2697,7 @@
         }
       },
       "bulk": {
+        "cancel": "Anulează",
         "delete": "Șterge",
         "delete_confirm_description": "Ștergeți cele {{count}} surse de date selectate? Această acțiune nu poate fi anulată.",
         "delete_confirm_title": "Șterge sursele de date selectate?",
@@ -2728,6 +2739,7 @@
         "failed": "Nu s-a reușit previzualizarea sursei",
         "unavailable": "Această sursă de date nu are nicio sursă pentru previzualizare."
       },
+      "ready_summary": "{{ready}}/{{total}} gata",
       "reindex_failed": "Nu s-a putut reindexa sursa de date",
       "status": {
         "chunking": "Segmentare",
@@ -2750,11 +2762,14 @@
         "view_chunks_row": "Vezi fragmente pentru {{title}}"
       },
       "toolbar": {
-        "add": "Adaugă sursă de date"
+        "add": "Adaugă sursă de date",
+        "no_search_results": "Nu există surse de date corespunzătoare",
+        "search_placeholder": "Căutați surse de date"
       }
     },
     "dimensions_auto_set": "Setează automat dimensiunile embedding",
     "dimensions_size_placeholder": "Lasă gol pentru a nu transmite dimensiuni",
+    "drag_file": "Trage fișierul aici",
     "embedding_model": "Model de încorporare",
     "embedding_model_required": "Este necesar un model de încorporare a bazei de cunoștințe",
     "empty": "Nicio bază de cunoștințe",
@@ -2770,6 +2785,7 @@
       "missing_vector_store": "Magazinul vectorial al acestei baze de cunoștințe nu a putut fi citit în timpul migrării (lipsește, este gol sau blocat). Baza de cunoștințe a fost păstrată; reindexați-o pentru recuperare.",
       "model_invalid": "Niciun model selectat"
     },
+    "file_hint": "Acceptă {{file_types}}",
     "groups": {
       "add": "Grup nou",
       "create_base_here": "Creează aici",
@@ -3876,6 +3892,64 @@
       "partial_failure": "{{count}} rezultat(e) căutare, unele căutări au eșuat"
     }
   },
+  "minapp": {
+    "add_to_launchpad": "Adaugă în Launchpad",
+    "add_to_sidebar": "Adaugă în bara laterală",
+    "popup": {
+      "close": "Închide MinApp",
+      "devtools": "Instrumente pentru dezvoltatori",
+      "goBack": "Înapoi",
+      "goForward": "Mergeți înainte",
+      "minimize": "Minimizează MinApp",
+      "openExternal": "Deschide în browser",
+      "open_link_external_off": "Curent: Deschide linkurile în fereastra implicită",
+      "open_link_external_on": "Curent: Deschide linkurile în browser",
+      "refresh": "Reîmprospătare",
+      "rightclick_copyurl": "Click dreapta pentru a copia adresa URL"
+    },
+    "remove_from_launchpad": "Elimină din Launchpad",
+    "remove_from_sidebar": "Elimină din bara laterală",
+    "sidebar": {
+      "close": {
+        "title": "Închide"
+      },
+      "closeall": {
+        "title": "Închide tot"
+      },
+      "hide": {
+        "title": "Ascunde"
+      },
+      "remove_custom": {
+        "title": "Șterge aplicația personalizată"
+      }
+    },
+    "title": "MinApp"
+  },
+  "minapps": {
+    "ant-ling": "Ant Ling",
+    "baichuan": "Baichuan",
+    "baidu-ai-search": "Căutare AI Baidu",
+    "chatglm": "ChatGLM",
+    "dangbei": "Dangbei",
+    "doubao": "Doubao",
+    "hailuo": "Hailuo",
+    "ima": "ima",
+    "metaso": "Metaso",
+    "minimax-agent": "Agent Minimax CN",
+    "minimax-global": "Agent Minimax",
+    "nami-ai": "Nami AI",
+    "nami-ai-search": "Căutare Nami AI",
+    "qwen": "Qwen",
+    "sensechat": "SenseChat",
+    "stepfun": "Stepfun",
+    "tencent-yuanbao": "Yuanbao",
+    "tiangong-ai": "Skywork",
+    "wanzhi": "Wanzhi",
+    "wenxin": "ERNIE",
+    "wps-copilot": "WPS Copilot",
+    "xiaoyi": "Xiaoyi",
+    "zhihu": "Zhihu"
+  },
   "miniApp": {
     "add_to_launchpad": "Adaugă în Launchpad",
     "add_to_sidebar": "Adaugă în bara laterală",
@@ -3886,13 +3960,15 @@
     "hide_failed": "Failed to hide mini-app",
     "pin_failed": "Nu s-a reușit fixarea mini-aplicației",
     "popup": {
+      "close": "Închide MiniApp",
       "devtools": "Instrumente dezvoltator",
       "goBack": "Mergi înapoi",
       "goForward": "Mergi înainte",
       "openExternal": "Deschide în browser",
       "open_link_external_off": "Curent: Deschide linkurile în fereastra implicită",
       "open_link_external_on": "Curent: Deschide linkurile în browser",
-      "refresh": "Reîmprospătează"
+      "refresh": "Reîmprospătează",
+      "rightclick_copyurl": "Clic dreapta pentru a copia URL-ul"
     },
     "remove_from_launchpad": "Elimină din Launchpad",
     "remove_from_sidebar": "Elimină din bara laterală",
@@ -3904,8 +3980,17 @@
     },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
+      "close": {
+        "title": "Închide"
+      },
+      "closeall": {
+        "title": "Închide tot"
+      },
       "hide": {
         "title": "Ascunde"
+      },
+      "remove_custom": {
+        "title": "Șterge aplicația personalizată"
       }
     },
     "title": "MiniApp",
@@ -3925,6 +4010,7 @@
     "minimax-agent": "Agent Minimax CN",
     "minimax-global": "Agent Minimax",
     "nami-ai": "Nami AI",
+    "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
     "sensechat": "SenseChat",
     "stepfun": "Stepfun",
@@ -3980,6 +4066,7 @@
     },
     "pinned": "Fixat",
     "price": {
+      "cache_read": "[to be translated]:Cache Read Price",
       "cost": "Cost",
       "currency": "Monedă",
       "custom": "Personalizat",
@@ -4176,7 +4263,28 @@
     "tip": "Dacă răspunsul este de succes, atunci doar mesajele care depășesc 30 de secunde vor declanșa un memento"
   },
   "ocr": {
-    "processing": "Procesare OCR..."
+    "builtin": {
+      "system": "OCR de sistem"
+    },
+    "error": {
+      "provider": {
+        "cannot_remove_builtin": "Nu se poate șterge furnizorul integrat",
+        "existing": "Furnizorul există deja",
+        "get_providers": "Nu s-au putut obține furnizorii disponibili",
+        "not_found": "Furnizorul OCR nu există",
+        "update_failed": "Nu s-a putut actualiza configurația"
+      },
+      "unknown": "A apărut o eroare în timpul procesului OCR"
+    },
+    "file": {
+      "not_supported": "Tip de fișier neacceptat {{type}}"
+    },
+    "processing": "Procesare OCR...",
+    "warning": {
+      "provider": {
+        "fallback": "S-a recurs la {{name}}, ceea ce poate cauza probleme"
+      }
+    }
   },
   "ollama": {
     "keep_alive_time": {
@@ -5350,6 +5458,117 @@
       "description": "Conectați agenți la platforme de mesagerie precum Telegram, Feishu, Discord și altele.",
       "title": "Canale"
     },
+    "componentLab": {
+      "agentSelector": {
+        "clearSelection": "Clar",
+        "configDescription": "Comută proprietățile pentru a previzualiza comportamentul componentei",
+        "configTitle": "Configurare",
+        "currentProps": "Proprietăți curente",
+        "description": "AgentSelector citește acum date reale din DataApi /agents pentru a verifica selecția id/item, fixarea, sortarea și comportamentul căutării.",
+        "emptyShellNotice": "Această previzualizare utilizează lista reală de agenți returnată de DataApi /agents.",
+        "lastOnChange": "Cel mai recent onChange",
+        "previewDescription": "Faceți clic pe declanșator pentru a deschide selectorul",
+        "previewTitle": "Previzualizare",
+        "title": "Selector Agent",
+        "triggerPlaceholder": "Selectați un agent",
+        "valueProp": "Valoare curentă"
+      },
+      "agentTodoList": {
+        "title": "Lista de sarcini a agentului"
+      },
+      "assistantSelector": {
+        "clearSelection": "Clar",
+        "configDescription": "Comută proprietățile pentru a previzualiza comportamentul componentei",
+        "configTitle": "Configurare",
+        "currentProps": "Proprietățile curente",
+        "description": "Montează componenta business AssistantSelector direct pentru a verifica comportamentul multi/single, id/item, pin, sortare și căutare.",
+        "lastOnChange": "Cel mai recent onChange",
+        "previewDescription": "Faceți clic pe declanșator pentru a deschide selectorul",
+        "previewTitle": "Previzualizare",
+        "title": "Selector de asistent",
+        "triggerPlaceholder": "Selectați un asistent",
+        "triggerSelectedCount": "{{count}} asistenți selectați",
+        "valueProp": "Valoare curentă"
+      },
+      "description": "Vizibil doar în dezvoltare pentru testarea noului selector de model direct în aplicație.",
+      "fileProcessing": {
+        "artifact": {
+          "file": "Fișier Markdown",
+          "text": "Rezultat text"
+        },
+        "description": "Rulează fiecare procesor de fișiere configurat prin IPC-ul real de procesare a fișierelor și compară rezultatele.",
+        "duration": "{{seconds}}s",
+        "jobId": "ID job",
+        "markdown": {
+          "description": "Selectați un document și executați toți procesorii de conversie document-to-markdown.",
+          "fileFilterName": "Documente",
+          "noFile": "Niciun document selectat",
+          "select": "Selectați documentul",
+          "start": "Test markdown",
+          "title": "Markdown"
+        },
+        "noProcessors": "Niciun procesor nu acceptă această caracteristică.",
+        "ocr": {
+          "description": "Selectați o imagine și executați toți procesorii OCR.",
+          "fileFilterName": "Imagini",
+          "noFile": "Nicio imagine selectată",
+          "select": "Selectează imagine",
+          "start": "Test OCR",
+          "title": "OCR"
+        },
+        "processorCount": "{{count}} procesoare",
+        "status": {
+          "cancelled": "Anulat",
+          "completed": "Finalizat",
+          "delayed": "Întârziat",
+          "failed": "Eșuat",
+          "idle": "Inactiv",
+          "pending": "În așteptare",
+          "processing": "Procesare",
+          "running": "Alergare",
+          "starting": "Pornind"
+        },
+        "title": "Analiza documentelor"
+      },
+      "label": "Laborator de Componente",
+      "modelSelector": {
+        "behaviorConfig": "Configurare comportament și afișare",
+        "callbackEmpty": "Niciun apel de întoarcere al componentei nu a fost încă primit",
+        "clearSelection": "Șterge selecția",
+        "configDescription": "Comută proprietățile cheie ale selectorului de model de mai sus și inspectează valoarea de intrare plus încărcăturile de apel invers de mai jos.",
+        "configTitle": "Teren de joacă pentru recuzită",
+        "controlMultiSelectMode": "Mod multiSelect controlat",
+        "currentProps": "Proprietăți actuale",
+        "defaultMultiSelectMode": "modImplicitSelectareMultiplă",
+        "description": "Această pagină montează direct componenta de business ModelSelector curentă, astfel încât să putem verifica comportamentul de selecție, filtrare, căutare și fixare.",
+        "empty": "Niciun model nu este disponibil în prezent, așa că selectorul nu poate fi încă afișat.",
+        "lastModeChangeReturn": "Ultimul Return privind schimbarea modului de selecție multiplă",
+        "lastSelectReturn": "Cel mai recent Return onSelect",
+        "loading": "Se încarcă modelele...",
+        "modelId": "ID model",
+        "multiSelectMode": "modSelectareMultiplă",
+        "multiple": "multiple",
+        "normalizedIds": "ID-uri selectate normalizate",
+        "outputEmpty": "Nu există încă date de afișat",
+        "provider": "Furnizor",
+        "resetOutputs": "Resetare ieșiri",
+        "resultsDescription": "Acesta arată propoziția de valoare curentă, ID-urile selectate normalizate și cea mai recentă ieșire de callback de la componentă.",
+        "resultsTitle": "Ieșiri și Stare",
+        "selected": "Selecție curentă",
+        "selectedEmpty": "Niciun model selectat încă",
+        "selectionConfig": "Configurare Valoare Selecție",
+        "selectionType": "tipSelecție",
+        "selectionTypeId": "Returnează ID-urile modelului",
+        "selectionTypeModel": "Returnează Obiectele Modelului",
+        "showPinnedModels": "aratăModeleFixate",
+        "showTagFilter": "aratăFiltrulEtichete",
+        "title": "Selector de modele",
+        "triggerPlaceholder": "Selectați un model",
+        "triggerSelectedCount": "{{count}} modele selectate",
+        "valueProp": "Propunerea de valoare actuală"
+      },
+      "title": "Componenta Laborator Dezvoltare"
+    },
     "data": {
       "app_data": {
         "copy_data_option": "Copiază datele, va reporni automat după copierea datelor din directorul original în noul director",
@@ -6419,6 +6638,7 @@
       "system": "Sistem"
     },
     "messages": {
+      "cache_read_tokens": "[to be translated]:Cached input tokens read",
       "divider": {
         "label": "Afișează divizor între mesaje",
         "tooltip": "Nu se aplică mesajelor stil bulă"
@@ -6433,6 +6653,8 @@
         "confirm_delete_message": "Confirmă înainte de ștergerea mesajelor",
         "confirm_regenerate_message": "Confirmă înainte de regenerarea mesajelor",
         "enable_quick_triggers": "Activează declanșatoarele / și @",
+        "paste_long_text_as_file": "Lipește text lung ca fișier",
+        "paste_long_text_threshold": "Lungime lipire text lung",
         "send_shortcuts": "Comenzi rapide trimitere",
         "show_estimated_tokens": "Afișează numărul estimat de tokeni",
         "title": "Setări intrare"
@@ -6448,6 +6670,8 @@
         "label": "Bară navigare",
         "none": "Niciunul"
       },
+      "prompt": "Afișează prompt",
+      "reasoning_tokens": "[to be translated]:Reasoning tokens",
       "show_message_outline": "Afișează conturul mesajului",
       "title": "Setări mesaje",
       "use_serif_font": "Folosește font serif",
@@ -6456,23 +6680,40 @@
     "miniApps": {
       "cache_change_notice": "Modificările vor intra în vigoare când numărul de mini-aplicații deschise atinge valoarea setată",
       "cache_description": "Setează numărul maxim de mini-aplicații active de păstrat în memorie",
+      "cache_settings": "Setări cache",
       "cache_title": "Limită cache mini-aplicații",
       "custom": {
+        "conflicting_ids": "ID-uri conflictuale cu aplicațiile implicite: {{ids}}",
         "create_title": "Creează miniaplicație personalizată",
+        "duplicate_ids": "ID-uri duplicate găsite: {{ids}}",
+        "edit_description": "Editează configurația mini-aplicației personalizate aici. Fiecare aplicație ar trebui să includă câmpurile id, name, url și logo.",
         "edit_title": "Editează mini-aplicație personalizată",
+        "id": "ID",
+        "id_error": "ID-ul este obligatoriu.",
+        "id_placeholder": "Introdu ID",
+        "logo": "Logo",
         "logo_file": "Încarcă fișier logo",
+        "logo_upload_button": "Încarcă",
         "logo_upload_error": "Încărcarea logo-ului a eșuat.",
         "logo_upload_label": "Încarcă logo",
+        "logo_upload_success": "Logo încărcat cu succes.",
+        "logo_url": "URL logo",
+        "logo_url_label": "URL logo",
+        "logo_url_placeholder": "Introdu URL logo",
         "name": "Nume",
+        "name_error": "Numele este obligatoriu.",
         "name_placeholder": "Introdu nume",
+        "placeholder": "Introdu configurația mini-aplicației personalizate (format JSON)",
         "remove_confirm_description": "Ștergi mini-aplicația personalizată \"{{name}}\"? Această acțiune nu poate fi anulată.",
         "remove_confirm_title": "Ștergi miniaplicația personalizată?",
         "remove_error": "Eliminarea mini-aplicației personalizate a eșuat.",
         "remove_success": "Mini-aplicația personalizată a fost eliminată cu succes.",
+        "save": "Salvează",
         "save_error": "Salvarea mini-aplicației personalizate a eșuat.",
         "save_success": "Mini-aplicația personalizată a fost salvată cu succes.",
         "title": "Personalizat",
         "url": "URL",
+        "url_error": "URL-ul este obligatoriu.",
         "url_invalid": "Introduceți un URL http, https sau file valid.",
         "url_placeholder": "Introdu URL"
       },
@@ -6497,6 +6738,61 @@
       "reset_tooltip": "Resetează la implicit",
       "title": "Setări Mini Apps",
       "visible": "Mini-aplicații vizibile"
+    },
+    "miniapps": {
+      "cache_change_notice": "Modificările vor intra în vigoare când numărul de mini-aplicații deschise va atinge valoarea stabilită",
+      "cache_description": "Setează numărul maxim de mini-aplicații active de păstrat în memorie",
+      "cache_settings": "Setări Cache",
+      "cache_title": "Limita Cache Mini App",
+      "custom": {
+        "conflicting_ids": "ID-uri în conflict cu aplicațiile implicite: {{ids}}",
+        "duplicate_ids": "ID-uri duplicate găsite: {{ids}}",
+        "edit_description": "Editează aici configurația miniaplicației personalizate. Fiecare aplicație ar trebui să includă câmpurile id, name, url și logo.",
+        "edit_title": "Editează Mini App personalizat",
+        "id": "ID",
+        "id_error": "ID este obligatoriu.",
+        "id_placeholder": "Introduceți ID",
+        "logo": "Siglă",
+        "logo_file": "Încarcă fișierul logo",
+        "logo_upload_button": "Încărcare",
+        "logo_upload_error": "Încărcarea logo-ului a eșuat.",
+        "logo_upload_label": "Încarcă sigla",
+        "logo_upload_success": "Logo încărcat cu succes.",
+        "logo_url": "URL logo",
+        "logo_url_label": "URL logo",
+        "logo_url_placeholder": "Introduceți URL-ul logo-ului",
+        "name": "Nume",
+        "name_error": "Numele este obligatoriu.",
+        "name_placeholder": "Introduceți numele",
+        "placeholder": "Introduceți configurația personalizată pentru mini-aplicație (format JSON)",
+        "remove_error": "Nu s-a reușit eliminarea miniaplicației personalizate.",
+        "remove_success": "Mini-aplicația personalizată a fost eliminată cu succes.",
+        "save": "Salvează",
+        "save_error": "Nu s-a reușit salvarea mini-aplicației personalizate.",
+        "save_success": "Mini-aplicația personalizată a fost salvată cu succes.",
+        "title": "Personalizat",
+        "url": "URL",
+        "url_error": "Este necesar un URL.",
+        "url_placeholder": "Introduceți URL"
+      },
+      "disabled": "Mini Aplicații Ascunse",
+      "display_title": "Setări de afișare Mini App",
+      "empty": "Apasă pictograma de ascundere pe o aplicație din stânga și aceasta va fi mutată aici",
+      "open_link_external": {
+        "title": "Deschide linkurile în fereastră nouă în browser"
+      },
+      "region": {
+        "auto": "Detectare automată",
+        "cn": "China",
+        "description": "Filtrarea mini-programelor nesuportate în funcție de regiune",
+        "global": "Global",
+        "title": "Filtru Mini Program"
+      },
+      "reset_tooltip": "Resetare la valorile implicite",
+      "sidebar_description": "Afișează miniaplicațiile active în bara laterală",
+      "sidebar_title": "Afișare Mini Aplicații Active în Bara Laterală",
+      "title": "Setări Mini Apps",
+      "visible": "Mini Aplicații Vizibile"
     },
     "model": "Model implicit",
     "models": {
@@ -6765,6 +7061,7 @@
     "plugins": {
       "addTool": "Add Tool",
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "bunDescription": "Runtime JavaScript folosit de serviciile MCP și de toolchain-urile aferente.",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
       "customToolsEmpty": "Nu există încă instrumente personalizate. Adaugă unul pentru a începe.",
@@ -6802,7 +7099,8 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
-      "update": "Update to latest version"
+      "update": "Update to latest version",
+      "uvDescription": "Manager de pachete Python pentru serviciile MCP și instalarea dependențelor."
     },
     "power": {
       "prevent_sleep_when_busy": "Menține sistemul activ cât timp rulează sarcinile"
@@ -6969,6 +7267,7 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Domeniu de accelerație",
+          "backup": "Domeniu de rezervă",
           "international": "Domeniu internațional"
         }
       },
@@ -7527,6 +7826,134 @@
       "onclose": "Minimizează în zona de notificare la închidere",
       "show": "Afișează pictograma în zona de notificare",
       "title": "Zonă de notificare"
+    },
+    "usage": {
+      "cards": {
+        "activeDays": "[to be translated]:Active days",
+        "cacheHitRate": "[to be translated]:Cache hit rate",
+        "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
+        "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
+        "costHint": "[to be translated]:Cost is grouped by currency.",
+        "dailyAverage": "[to be translated]:Daily average",
+        "lastPeriod": "[to be translated]:vs last period",
+        "mixedCurrency": "[to be translated]:Multiple currencies are shown separately.",
+        "none": "[to be translated]:N/A",
+        "peakDay": "[to be translated]:Peak day",
+        "providerAuth": "[to be translated]:Provider auth",
+        "streak": "[to be translated]:Longest streak: {{days}} days",
+        "topModel": "[to be translated]:Top model",
+        "totalCost": "[to be translated]:Total cost",
+        "totalRequests": "[to be translated]:Requests",
+        "totalTokens": "[to be translated]:Total tokens",
+        "unattributedApiKey": "[to be translated]:Unattributed request",
+        "unattributedSource": "[to be translated]:Unattributed source"
+      },
+      "chart": {
+        "bar": "[to be translated]:Bar",
+        "line": "[to be translated]:Line",
+        "pie": "[to be translated]:Pie",
+        "stack": "[to be translated]:Stack"
+      },
+      "costBackfill": {
+        "action": "[to be translated]:Backfill historical cost",
+        "available": "[to be translated]:{{count}} historical usage records are missing cost and can be calculated with current pricing.",
+        "confirm": "[to be translated]:Will update {{count}} records. Estimated cost: {{cost}}.",
+        "noPricing": "[to be translated]:Set model pricing before backfilling historical cost.",
+        "success": "[to be translated]:Backfilled {{count}} historical cost records."
+      },
+      "empty": {
+        "description": "[to be translated]:Usage appears after AI requests create ledger entries.",
+        "title": "[to be translated]:No usage yet"
+      },
+      "explore": {
+        "activity": "[to be translated]:Activity",
+        "allProviders": "[to be translated]:All providers",
+        "analysis": "[to be translated]:Analysis",
+        "breakdown": "[to be translated]:Breakdown",
+        "breakdownTab": "[to be translated]:Breakdown",
+        "cacheUsage": "[to be translated]:Cache usage",
+        "chart": "[to be translated]:Chart",
+        "clearDate": "[to be translated]:Clear date filter",
+        "costDrivers": "[to be translated]:Cost drivers",
+        "drilldownTitle": "[to be translated]:{{date}} drilldown",
+        "entries": "[to be translated]:Requests",
+        "groupBy": "[to be translated]:Group by",
+        "loadMore": "[to be translated]:Load more",
+        "loading": "[to be translated]:Loading...",
+        "metric": "[to be translated]:Metric",
+        "noBreakdown": "[to be translated]:No breakdown data",
+        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
+        "noEntries": "[to be translated]:No entries",
+        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
+        "provider": "[to be translated]:Provider",
+        "requestsTab": "[to be translated]:Requests",
+        "selectedDate": "[to be translated]:Selected date: {{date}}",
+        "share": "[to be translated]:Share {{value}}",
+        "shareLabel": "[to be translated]:Share",
+        "title": "[to be translated]:Explore",
+        "topApiKeys": "[to be translated]:Top API keys",
+        "topModels": "[to be translated]:Top models",
+        "topProviders": "[to be translated]:Top providers",
+        "topSources": "[to be translated]:Top assistants / agents",
+        "totalEntries": "[to be translated]:{{count}} entries"
+      },
+      "groupBy": {
+        "apiKey": "[to be translated]:API key",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
+        "source": "[to be translated]:Assistant / Agent"
+      },
+      "heatmap": {
+        "ariaDate": "[to be translated]:Usage on {{date}}",
+        "costDisabled": "[to be translated]:Cost view is available only when this window has one currency.",
+        "title": "[to be translated]:Daily activity"
+      },
+      "metric": {
+        "cost": "[to be translated]:Cost",
+        "requests": "[to be translated]:Requests",
+        "tokens": "[to be translated]:Tokens"
+      },
+      "modality": {
+        "embedding": "[to be translated]:Embedding",
+        "image": "[to be translated]:Image",
+        "language": "[to be translated]:Language"
+      },
+      "overview": {
+        "title": "[to be translated]:Overview"
+      },
+      "source": {
+        "agent": "[to be translated]:Agent",
+        "assistant": "[to be translated]:Assistant",
+        "unknown": "[to be translated]:Unattributed"
+      },
+      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{requests}} requests",
+      "table": {
+        "apiKey": "[to be translated]:API key",
+        "cost": "[to be translated]:Cost",
+        "date": "[to be translated]:Date",
+        "modality": "[to be translated]:Type",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
+        "request": "[to be translated]:Request",
+        "source": "[to be translated]:Source",
+        "tokens": "[to be translated]:Tokens",
+        "tps": "[to be translated]:TPS",
+        "tpsValue": "[to be translated]:{{value}} tok/s",
+        "ttft": "[to be translated]:TTFT"
+      },
+      "title": "[to be translated]:Usage Analytics",
+      "tooltip": {
+        "cost": "[to be translated]:Cost {{value}}",
+        "metric": "[to be translated]:{{value}}",
+        "requests": "[to be translated]:{{count}} requests",
+        "tokens": "[to be translated]:{{value}} tokens"
+      },
+      "window": {
+        "30d": "[to be translated]:Last 30 days",
+        "365d": "[to be translated]:Last year",
+        "90d": "[to be translated]:Last 90 days",
+        "all": "[to be translated]:All time"
+      }
     },
     "use_system_title_bar": {
       "confirm": {

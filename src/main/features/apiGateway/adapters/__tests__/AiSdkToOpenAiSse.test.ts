@@ -20,10 +20,11 @@ const createFinish = (finishReason: FinishReason | undefined = 'stop', usage?: G
   const messageMetadata =
     usage !== undefined
       ? {
-          totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
-          promptTokens: usage.inputTokens ?? 0,
-          completionTokens: usage.outputTokens ?? 0,
-          thoughtsTokens: undefined
+          stats: {
+            totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
+            inputTokens: usage.inputTokens ?? 0,
+            outputTokens: usage.outputTokens ?? 0
+          }
         }
       : undefined
   return { type: 'finish', finishReason: finishReason || 'stop', ...(messageMetadata ? { messageMetadata } : {}) }

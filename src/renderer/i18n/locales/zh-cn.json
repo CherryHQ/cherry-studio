@@ -267,8 +267,10 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "间隔",
+          "label": "调度类型",
           "once": "一次性"
         },
+        "scheduleValue": "调度值",
         "status": {
           "active": "活跃",
           "completed": "已完成",
@@ -1974,6 +1976,7 @@
       "claude_code": "Anthropic 官方 CLI 编程助手",
       "gemini_cli": "Google Gemini 命令行助手",
       "github_copilot_cli": "GitHub Copilot 命令行版本",
+      "iflow_cli": "iFlow 推出的多模型 CLI 助手",
       "kimi_cli": "Moonshot Kimi 命令行助手",
       "openai_codex": "OpenAI 官方代码生成 CLI",
       "opencode": "开源社区的多模型代码 Agent",
@@ -2114,6 +2117,7 @@
     "open_in": "在 {{name}} 中打开",
     "open_in_new_tab": "在新标签页打开",
     "open_sidebar": "打开侧边栏",
+    "other": "其他",
     "paste": "粘贴",
     "placeholders": {
       "select": {
@@ -2652,7 +2656,13 @@
           "replace": "替换",
           "title": "存在同名数据源"
         },
+        "directory": {
+          "description": "将递归导入文件夹中的支持文件",
+          "title": "点击选择文件夹"
+        },
         "footer": {
+          "selected_directories": "已选 {{count}} 个目录",
+          "selected_files": "已选 {{count}} 个文件",
           "selected_notes": "已选 {{count}} 个笔记"
         },
         "note": {
@@ -2687,6 +2697,7 @@
         }
       },
       "bulk": {
+        "cancel": "取消",
         "delete": "删除",
         "delete_confirm_description": "确认删除选中的 {{count}} 个数据源？删除后无法恢复。",
         "delete_confirm_title": "确认批量删除",
@@ -2728,6 +2739,7 @@
         "failed": "预览原文失败",
         "unavailable": "当前数据源没有可预览的原文"
       },
+      "ready_summary": "{{ready}}/{{total}} 就绪",
       "reindex_failed": "数据源重新索引失败",
       "status": {
         "chunking": "分块中",
@@ -2750,11 +2762,14 @@
         "view_chunks_row": "查看「{{title}}」的 Chunks"
       },
       "toolbar": {
-        "add": "添加数据源"
+        "add": "添加数据源",
+        "no_search_results": "未找到匹配的数据源",
+        "search_placeholder": "搜索数据源"
       }
     },
     "dimensions_auto_set": "自动设置嵌入维度",
     "dimensions_size_placeholder": "留空表示不设置",
+    "drag_file": "拖拽文件到这里",
     "embedding_model": "嵌入模型",
     "embedding_model_required": "知识库嵌入模型是必需的",
     "empty": "暂无知识库",
@@ -2770,6 +2785,7 @@
       "missing_vector_store": "迁移时未能读取该知识库的向量库（缺失、为空或被占用），知识库已保留，请重新索引以恢复。",
       "model_invalid": "未选择模型"
     },
+    "file_hint": "支持 {{file_types}} 格式",
     "groups": {
       "add": "新建分组",
       "create_base_here": "在此分组新建",
@@ -3876,6 +3892,64 @@
       "partial_failure": "{{count}} 个搜索结果，部分搜索失败"
     }
   },
+  "minapp": {
+    "add_to_launchpad": "添加到启动台",
+    "add_to_sidebar": "添加到侧边栏",
+    "popup": {
+      "close": "关闭小程序",
+      "devtools": "开发者工具",
+      "goBack": "后退",
+      "goForward": "前进",
+      "minimize": "最小化小程序",
+      "openExternal": "在浏览器中打开",
+      "open_link_external_off": "当前：使用默认窗口打开链接",
+      "open_link_external_on": "当前：在浏览器中打开链接",
+      "refresh": "刷新",
+      "rightclick_copyurl": "右键复制 URL"
+    },
+    "remove_from_launchpad": "从启动台移除",
+    "remove_from_sidebar": "从侧边栏移除",
+    "sidebar": {
+      "close": {
+        "title": "关闭"
+      },
+      "closeall": {
+        "title": "关闭所有"
+      },
+      "hide": {
+        "title": "隐藏"
+      },
+      "remove_custom": {
+        "title": "删除自定义应用"
+      }
+    },
+    "title": "小程序"
+  },
+  "minapps": {
+    "ant-ling": "蚂蚁百灵",
+    "baichuan": "百小应",
+    "baidu-ai-search": "百度AI搜索",
+    "chatglm": "智谱清言",
+    "dangbei": "当贝AI",
+    "doubao": "豆包",
+    "hailuo": "海螺",
+    "ima": "ima",
+    "metaso": "秘塔AI搜索",
+    "minimax-agent": "MiniMax Agent",
+    "minimax-global": "MiniMax Agent 海外版",
+    "nami-ai": "纳米AI",
+    "nami-ai-search": "纳米AI搜索",
+    "qwen": "通义千问",
+    "sensechat": "商量",
+    "stepfun": "阶跃AI",
+    "tencent-yuanbao": "腾讯元宝",
+    "tiangong-ai": "天工AI",
+    "wanzhi": "万知",
+    "wenxin": "文心一言",
+    "wps-copilot": "WPS灵犀",
+    "xiaoyi": "小艺",
+    "zhihu": "知乎直答"
+  },
   "miniApp": {
     "add_to_launchpad": "添加到启动台",
     "add_to_sidebar": "添加到侧边栏",
@@ -3886,13 +3960,15 @@
     "hide_failed": "隐藏小程序失败",
     "pin_failed": "固定小程序失败",
     "popup": {
+      "close": "关闭小程序",
       "devtools": "开发者工具",
       "goBack": "后退",
       "goForward": "前进",
       "openExternal": "在浏览器中打开",
       "open_link_external_off": "当前：使用默认窗口打开链接",
       "open_link_external_on": "当前：在浏览器中打开链接",
-      "refresh": "刷新"
+      "refresh": "刷新",
+      "rightclick_copyurl": "右键复制 URL"
     },
     "remove_from_launchpad": "从启动台移除",
     "remove_from_sidebar": "从侧边栏移除",
@@ -3904,8 +3980,17 @@
     },
     "show_failed": "显示小程序失败",
     "sidebar": {
+      "close": {
+        "title": "关闭"
+      },
+      "closeall": {
+        "title": "关闭所有"
+      },
       "hide": {
         "title": "隐藏"
+      },
+      "remove_custom": {
+        "title": "删除自定义应用"
       }
     },
     "title": "小程序",
@@ -3925,6 +4010,7 @@
     "minimax-agent": "MiniMax Agent",
     "minimax-global": "MiniMax Agent 海外版",
     "nami-ai": "纳米AI",
+    "nami-ai-search": "纳米AI搜索",
     "qwen": "通义千问",
     "sensechat": "商量",
     "stepfun": "阶跃AI",
@@ -3980,6 +4066,7 @@
     },
     "pinned": "已固定",
     "price": {
+      "cache_read": "缓存读取价格",
       "cost": "花费",
       "currency": "币种",
       "custom": "自定义",
@@ -4176,7 +4263,28 @@
     "tip": "如果响应成功，则只针对超过30秒的消息进行提醒"
   },
   "ocr": {
-    "processing": "OCR 处理中..."
+    "builtin": {
+      "system": "系统 OCR"
+    },
+    "error": {
+      "provider": {
+        "cannot_remove_builtin": "不能删除内置提供商",
+        "existing": "提供商已存在",
+        "get_providers": "获取可用提供商失败",
+        "not_found": "OCR 提供商不存在",
+        "update_failed": "更新配置失败"
+      },
+      "unknown": "OCR 过程发生错误"
+    },
+    "file": {
+      "not_supported": "不支持的文件类型 {{type}}"
+    },
+    "processing": "OCR 处理中...",
+    "warning": {
+      "provider": {
+        "fallback": "已回退到 {{name}}，这可能导致问题"
+      }
+    }
   },
   "ollama": {
     "keep_alive_time": {
@@ -5350,6 +5458,117 @@
       "description": "将 Agent 连接到 Telegram、飞书、Discord 等消息平台。",
       "title": "频道"
     },
+    "componentLab": {
+      "agentSelector": {
+        "clearSelection": "清空",
+        "configDescription": "调整 props 预览组件行为",
+        "configTitle": "配置",
+        "currentProps": "当前 props",
+        "description": "AgentSelector 现在会读取真实 /agents DataApi 数据，用于验证 id/item 选择、pin、排序与搜索行为。",
+        "emptyShellNotice": "当前预览使用 /agents DataApi 返回的真实智能体列表。",
+        "lastOnChange": "最近一次 onChange",
+        "previewDescription": "点击 trigger 打开选择器",
+        "previewTitle": "预览",
+        "title": "智能体选择器",
+        "triggerPlaceholder": "选择智能体",
+        "valueProp": "当前 value"
+      },
+      "agentTodoList": {
+        "title": "Agent 任务列表"
+      },
+      "assistantSelector": {
+        "clearSelection": "清空",
+        "configDescription": "调整 props 预览组件行为",
+        "configTitle": "配置",
+        "currentProps": "当前 props",
+        "description": "直接挂载 AssistantSelector 业务组件，验证 multi/single、id/item、pin、排序与搜索行为。",
+        "lastOnChange": "最近一次 onChange",
+        "previewDescription": "点击 trigger 打开选择器",
+        "previewTitle": "预览",
+        "title": "助手选择器",
+        "triggerPlaceholder": "选择助手",
+        "triggerSelectedCount": "已选 {{count}} 个助手",
+        "valueProp": "当前 value"
+      },
+      "description": "仅在开发环境显示，用于在应用内直接联调 v2 选择器等新组件。",
+      "fileProcessing": {
+        "artifact": {
+          "file": "Markdown 文件",
+          "text": "文本结果"
+        },
+        "description": "通过真实 file processing IPC 运行所有已配置的文件处理器，并对比结果。",
+        "duration": "{{seconds}} 秒",
+        "jobId": "Job ID",
+        "markdown": {
+          "description": "选择文档，并运行所有文档转 Markdown 处理器。",
+          "fileFilterName": "文档",
+          "noFile": "未选择文档",
+          "select": "选择文档",
+          "start": "测试 Markdown",
+          "title": "Markdown"
+        },
+        "noProcessors": "没有处理器支持这个能力。",
+        "ocr": {
+          "description": "选择图片，并运行所有 OCR 处理器。",
+          "fileFilterName": "图片",
+          "noFile": "未选择图片",
+          "select": "选择图片",
+          "start": "测试 OCR",
+          "title": "OCR"
+        },
+        "processorCount": "{{count}} 个处理器",
+        "status": {
+          "cancelled": "已取消",
+          "completed": "已完成",
+          "delayed": "已延迟",
+          "failed": "失败",
+          "idle": "空闲",
+          "pending": "等待中",
+          "processing": "处理中",
+          "running": "运行中",
+          "starting": "启动中"
+        },
+        "title": "文档解析"
+      },
+      "label": "组件测试",
+      "modelSelector": {
+        "behaviorConfig": "交互与展示配置",
+        "callbackEmpty": "还没有收到组件回调",
+        "clearSelection": "清空选择",
+        "configDescription": "上方切换 ModelSelector 的关键 props，下方直接查看传入值与回调返回值。",
+        "configTitle": "Props Playground",
+        "controlMultiSelectMode": "受控 multiSelectMode",
+        "currentProps": "当前 props",
+        "defaultMultiSelectMode": "defaultMultiSelectMode",
+        "description": "这里直接挂载当前的 ModelSelector 业务组件，方便验证选择、筛选、搜索和置顶能力。",
+        "empty": "当前没有可用模型，暂时无法展示选择器。",
+        "lastModeChangeReturn": "最近一次 onMultiSelectModeChange 返回",
+        "lastSelectReturn": "最近一次 onSelect 返回",
+        "loading": "正在加载模型...",
+        "modelId": "模型 ID",
+        "multiSelectMode": "multiSelectMode",
+        "multiple": "multiple",
+        "normalizedIds": "归一化选中 ID",
+        "outputEmpty": "当前没有可展示的数据",
+        "provider": "服务商",
+        "resetOutputs": "重置输出",
+        "resultsDescription": "这里会显示组件当前接收的 value、内部归一化后的选中状态，以及最新一次回调输出。",
+        "resultsTitle": "返回数据与状态",
+        "selected": "当前选择",
+        "selectedEmpty": "尚未选择模型",
+        "selectionConfig": "选择值配置",
+        "selectionType": "selectionType",
+        "selectionTypeId": "返回模型 ID",
+        "selectionTypeModel": "返回模型对象",
+        "showPinnedModels": "showPinnedModels",
+        "showTagFilter": "showTagFilter",
+        "title": "模型选择组件",
+        "triggerPlaceholder": "选择一个模型",
+        "triggerSelectedCount": "已选 {{count}} 个模型",
+        "valueProp": "当前传入 value"
+      },
+      "title": "开发环境组件测试"
+    },
     "data": {
       "app_data": {
         "copy_data_option": "复制数据，会自动重启后将原始目录数据复制到新目录",
@@ -6419,6 +6638,7 @@
       "system": "系统"
     },
     "messages": {
+      "cache_read_tokens": "缓存命中的输入 tokens",
       "divider": {
         "label": "消息分割线",
         "tooltip": "不适用于气泡样式消息"
@@ -6433,6 +6653,8 @@
         "confirm_delete_message": "删除消息前确认",
         "confirm_regenerate_message": "重新生成消息前确认",
         "enable_quick_triggers": "启用 / 和 @ 触发快捷菜单",
+        "paste_long_text_as_file": "长文本粘贴为文件",
+        "paste_long_text_threshold": "长文本长度",
         "send_shortcuts": "发送快捷键",
         "show_estimated_tokens": "显示预估 Token 数",
         "title": "输入设置"
@@ -6448,6 +6670,8 @@
         "label": "对话导航按钮",
         "none": "不显示"
       },
+      "prompt": "显示提示词",
+      "reasoning_tokens": "推理 tokens",
       "show_message_outline": "显示消息大纲",
       "title": "消息设置",
       "use_serif_font": "使用衬线字体",
@@ -6456,23 +6680,40 @@
     "miniApps": {
       "cache_change_notice": "更改将在打开的小程序增减至设定值后生效",
       "cache_description": "设置同时保持活跃状态的小程序最大数量",
+      "cache_settings": "缓存设置",
       "cache_title": "小程序缓存数量",
       "custom": {
+        "conflicting_ids": "与默认应用 ID 冲突: {{ids}}",
         "create_title": "创建自定义小程序",
+        "duplicate_ids": "发现重复的 ID: {{ids}}",
+        "edit_description": "在这里编辑自定义小应用的配置。每个应用需要包含 id、name、url 和 logo 字段",
         "edit_title": "编辑自定义小程序",
+        "id": "ID",
+        "id_error": "ID 是必填项",
+        "id_placeholder": "请输入 ID",
+        "logo": "Logo",
         "logo_file": "上传 Logo 文件",
+        "logo_upload_button": "上传",
         "logo_upload_error": "Logo 上传失败",
         "logo_upload_label": "上传 Logo",
+        "logo_upload_success": "Logo 上传成功",
+        "logo_url": "Logo URL",
+        "logo_url_label": "Logo URL",
+        "logo_url_placeholder": "请输入 Logo URL",
         "name": "名称",
+        "name_error": "名称是必填项",
         "name_placeholder": "请输入名称",
+        "placeholder": "请输入自定义小程序配置（JSON 格式）",
         "remove_confirm_description": "确定要删除自定义小程序「{{name}}」吗？此操作无法撤销。",
         "remove_confirm_title": "删除自定义小程序？",
         "remove_error": "自定义小程序删除失败",
         "remove_success": "自定义小程序删除成功",
+        "save": "保存",
         "save_error": "自定义小程序保存失败",
         "save_success": "自定义小程序保存成功",
         "title": "自定义",
         "url": "URL",
+        "url_error": "URL 是必填项",
         "url_invalid": "请输入有效的 http、https 或 file URL",
         "url_placeholder": "请输入 URL"
       },
@@ -6495,6 +6736,61 @@
         "title": "小程序区域筛选"
       },
       "reset_tooltip": "重置为默认值",
+      "title": "小程序设置",
+      "visible": "显示的小程序"
+    },
+    "miniapps": {
+      "cache_change_notice": "更改将在打开的小程序增减至设定值后生效",
+      "cache_description": "设置同时保持活跃状态的小程序最大数量",
+      "cache_settings": "缓存设置",
+      "cache_title": "小程序缓存数量",
+      "custom": {
+        "conflicting_ids": "与默认应用 ID 冲突: {{ids}}",
+        "duplicate_ids": "发现重复的 ID: {{ids}}",
+        "edit_description": "在这里编辑自定义小应用的配置。每个应用需要包含 id、name、url 和 logo 字段",
+        "edit_title": "编辑自定义小程序",
+        "id": "ID",
+        "id_error": "ID 是必填项",
+        "id_placeholder": "请输入 ID",
+        "logo": "Logo",
+        "logo_file": "上传 Logo 文件",
+        "logo_upload_button": "上传",
+        "logo_upload_error": "Logo 上传失败",
+        "logo_upload_label": "上传 Logo",
+        "logo_upload_success": "Logo 上传成功",
+        "logo_url": "Logo URL",
+        "logo_url_label": "Logo URL",
+        "logo_url_placeholder": "请输入 Logo URL",
+        "name": "名称",
+        "name_error": "名称是必填项",
+        "name_placeholder": "请输入名称",
+        "placeholder": "请输入自定义小程序配置（JSON 格式）",
+        "remove_error": "自定义小程序删除失败",
+        "remove_success": "自定义小程序删除成功",
+        "save": "保存",
+        "save_error": "自定义小程序保存失败",
+        "save_success": "自定义小程序保存成功",
+        "title": "自定义",
+        "url": "URL",
+        "url_error": "URL 是必填项",
+        "url_placeholder": "请输入 URL"
+      },
+      "disabled": "隐藏的小程序",
+      "display_title": "小程序显示设置",
+      "empty": "在左侧列表点击隐藏图标，小程序会移到这里",
+      "open_link_external": {
+        "title": "在浏览器中打开新窗口链接"
+      },
+      "region": {
+        "auto": "自动检测",
+        "cn": "中国",
+        "description": "根据所在地区过滤不支持的小程序",
+        "global": "全球",
+        "title": "小程序区域筛选"
+      },
+      "reset_tooltip": "重置为默认值",
+      "sidebar_description": "设置侧边栏是否显示活跃的小程序",
+      "sidebar_title": "侧边栏活跃小程序显示设置",
       "title": "小程序设置",
       "visible": "显示的小程序"
     },
@@ -6765,6 +7061,7 @@
     "plugins": {
       "addTool": "添加工具",
       "addToolDescription": "使用 mise 工具键添加工具（例如 github:sharkdp/fd、uv、bun）。",
+      "bunDescription": "用于 MCP 服务和相关工具链的 JavaScript 运行时。",
       "coreDepsMissing": "核心依赖未安装",
       "customTools": "自定义工具",
       "customToolsEmpty": "暂无自定义工具，点击上方添加。",
@@ -6802,7 +7099,8 @@
         "rtk": "CLI 代理工具，通过压缩终端输出来减少 LLM token 消耗。",
         "uv": "用于 MCP 服务与依赖安装的 Python 包管理工具。"
       },
-      "update": "更新到最新版本"
+      "update": "更新到最新版本",
+      "uvDescription": "用于 MCP 服务与依赖安装的 Python 包管理工具。"
     },
     "power": {
       "prevent_sleep_when_busy": "运行任务时保持系统唤醒"
@@ -6969,6 +7267,7 @@
       "cherryin": {
         "api_host": {
           "acceleration": "加速域名",
+          "backup": "备用域名",
           "international": "国际域名"
         }
       },
@@ -7527,6 +7826,134 @@
       "onclose": "关闭时最小化到托盘",
       "show": "显示托盘图标",
       "title": "托盘"
+    },
+    "usage": {
+      "cards": {
+        "activeDays": "活跃天数",
+        "cacheHitRate": "缓存命中率",
+        "cacheObservedTokens": "可观测输入：{{tokens}}",
+        "cacheStartsWithNewRequests": "发送新请求后开始统计",
+        "costHint": "按币种分别统计",
+        "dailyAverage": "日均",
+        "lastPeriod": "较上期",
+        "mixedCurrency": "多种货币会分开显示",
+        "none": "N/A",
+        "peakDay": "高峰日",
+        "providerAuth": "供应商认证",
+        "streak": "最长连续天数：{{days}} 天",
+        "topModel": "用量最高模型",
+        "totalCost": "总成本",
+        "totalRequests": "请求数",
+        "totalTokens": "总 Token 数",
+        "unattributedApiKey": "未归因请求",
+        "unattributedSource": "未归因来源"
+      },
+      "chart": {
+        "bar": "柱状图",
+        "line": "折线图",
+        "pie": "饼图",
+        "stack": "分段"
+      },
+      "costBackfill": {
+        "action": "补算历史成本",
+        "available": "有 {{count}} 条历史用量缺少成本，可按当前价格补算。",
+        "confirm": "将写入 {{count}} 条记录，预计成本：{{cost}}。",
+        "noPricing": "设置模型价格后才能补算历史成本。",
+        "success": "已补算 {{count}} 条历史成本。"
+      },
+      "empty": {
+        "description": "有 AI 请求产生用量后，这里会显示记录。",
+        "title": "暂无使用"
+      },
+      "explore": {
+        "activity": "活动",
+        "allProviders": "所有提供商",
+        "analysis": "分析",
+        "breakdown": "用量分布",
+        "breakdownTab": "分布",
+        "cacheUsage": "缓存使用",
+        "chart": "图表",
+        "clearDate": "清除日期筛选",
+        "costDrivers": "成本驱动",
+        "drilldownTitle": "{{date}} 明细",
+        "entries": "请求",
+        "groupBy": "分组",
+        "loadMore": "加载更多",
+        "loading": "加载中...",
+        "metric": "指标",
+        "noBreakdown": "暂无用量分布",
+        "noBreakdownDescription": "尝试扩大时间范围或更换提供商。",
+        "noEntries": "暂无记录",
+        "noEntriesDescription": "尝试扩大时间范围或更换提供商。",
+        "provider": "提供商",
+        "requestsTab": "请求",
+        "selectedDate": "选定日期：{{date}}",
+        "share": "占比 {{value}}",
+        "shareLabel": "占比",
+        "title": "探索",
+        "topApiKeys": "API 密钥最高",
+        "topModels": "模型最高",
+        "topProviders": "提供商最高",
+        "topSources": "助手 / Agent 最高",
+        "totalEntries": "{{count}} 条记录"
+      },
+      "groupBy": {
+        "apiKey": "API 密钥",
+        "model": "模型",
+        "provider": "提供商",
+        "source": "助手 / Agent"
+      },
+      "heatmap": {
+        "ariaDate": "使用于 {{date}}",
+        "costDisabled": "成本视图仅在此窗口仅有一种货币时可用。",
+        "title": "日常活动"
+      },
+      "metric": {
+        "cost": "成本",
+        "requests": "请求数",
+        "tokens": "Token"
+      },
+      "modality": {
+        "embedding": "嵌入",
+        "image": "图像",
+        "language": "语言"
+      },
+      "overview": {
+        "title": "概述"
+      },
+      "source": {
+        "agent": "Agent",
+        "assistant": "助手",
+        "unknown": "未归因"
+      },
+      "summary": "{{window}} / {{tokens}} Token / {{requests}} 个请求",
+      "table": {
+        "apiKey": "API密钥",
+        "cost": "成本",
+        "date": "日期",
+        "modality": "类型",
+        "model": "模型",
+        "provider": "提供商",
+        "request": "请求",
+        "source": "来源",
+        "tokens": "代币",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
+      },
+      "title": "用量统计",
+      "tooltip": {
+        "cost": "成本 {{value}}",
+        "metric": "{{value}}",
+        "requests": "{{count}} 个请求",
+        "tokens": "{{value}} 个令牌"
+      },
+      "window": {
+        "30d": "最近 30 天",
+        "365d": "去年",
+        "90d": "最近 90 天",
+        "all": "所有时间"
+      }
     },
     "use_system_title_bar": {
       "confirm": {

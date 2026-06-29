@@ -267,8 +267,10 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Διάστημα",
+          "label": "Τύπος χρονοδιαγράμματος",
           "once": "Μία φορά"
         },
+        "scheduleValue": "Τιμή χρονοδιαγράμματος",
         "status": {
           "active": "Ενεργή",
           "completed": "Ολοκληρώθηκε",
@@ -1974,6 +1976,7 @@
       "claude_code": "Το επίσημο εργαλείο γραμμής εντολών κώδικα AI της Anthropic",
       "gemini_cli": "Επίσημη γραμμή εντολών βοηθού Gemini της Google",
       "github_copilot_cli": "Το επίσημο συνοδευτικό εργαλείο γραμμής εντολών του GitHub Copilot",
+      "iflow_cli": "ο πολυμοντέλος βηχανικός βοηθός γραμμής εντολών του iFlow",
       "kimi_cli": "Ο βοηθός γραμμής εντολών Kimi της Moonshot",
       "openai_codex": "Το επίσημο CLI δημιουργίας κώδικα της OpenAI",
       "opencode": "Ανοιχτού κώδικα πολυμοντέλος πράκτορας κωδικοποίησης",
@@ -2114,6 +2117,7 @@
     "open_in": "Άνοιγμα στο {{name}}",
     "open_in_new_tab": "Άνοιγμα σε νέα καρτέλα",
     "open_sidebar": "Άνοιγμα πλαϊνής γραμμής",
+    "other": "[to be translated]:Other",
     "paste": "Επικόλληση",
     "placeholders": {
       "select": {
@@ -2652,7 +2656,13 @@
           "replace": "Αντικατάσταση",
           "title": "Οι πηγές υπάρχουν ήδη"
         },
+        "directory": {
+          "description": "Εισαγωγή υποστηριζόμενων αρχείων αναδρομικά από έναν φάκελο",
+          "title": "Κάντε κλικ για να επιλέξετε ένα φάκελο"
+        },
         "footer": {
+          "selected_directories": "{{count}} κατάλογοι επιλέχθηκαν",
+          "selected_files": "{{count}} αρχεία επιλέχθηκαν",
           "selected_notes": "{{count}} σημειώσεις επιλέχθηκαν"
         },
         "note": {
@@ -2687,6 +2697,7 @@
         }
       },
       "bulk": {
+        "cancel": "Ακύρωση",
         "delete": "Διαγραφή",
         "delete_confirm_description": "Διαγραφή {{count}} επιλεγμένων πηγών δεδομένων; Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.",
         "delete_confirm_title": "Διαγραφή επιλεγμένων πηγών δεδομένων;",
@@ -2728,6 +2739,7 @@
         "failed": "Αποτυχία προεπισκόπησης πηγής",
         "unavailable": "Αυτή η πηγή δεδομένων δεν έχει πηγή για προεπισκόπηση"
       },
+      "ready_summary": "{{ready}}/{{total}} έτοιμα",
       "reindex_failed": "Αποτυχία επανευρετηρίασης της πηγής δεδομένων",
       "status": {
         "chunking": "Κατάτμηση",
@@ -2750,11 +2762,14 @@
         "view_chunks_row": "Προβολή τμημάτων για {{title}}"
       },
       "toolbar": {
-        "add": "Προσθήκη Πηγής Δεδομένων"
+        "add": "Προσθήκη Πηγής Δεδομένων",
+        "no_search_results": "Δεν υπάρχουν αντίστοιχες πηγές δεδομένων",
+        "search_placeholder": "Αναζήτηση πηγών δεδομένων"
       }
     },
     "dimensions_auto_set": "Αυτόματη ρύθμιση διαστάσεων ενσωμάτωσης",
     "dimensions_size_placeholder": " Μέγεθος διαστάσεων ενσωμάτωσης, π.χ. 1024",
+    "drag_file": "Βάλτε το αρχείο εδώ",
     "embedding_model": "Μοντέλο Ενσωμάτωσης",
     "embedding_model_required": "Απαιτείται μοντέλο ενσωμάτωσης βάσης γνώσης",
     "empty": "Καμία βάση γνώσεων",
@@ -2770,6 +2785,7 @@
       "missing_vector_store": "Η αποθήκη διανυσμάτων αυτής της βάσης γνώσης δεν μπόρεσε να διαβαστεί κατά τη μετεγκατάσταση (λείπει, είναι άδεια ή κλειδωμένη). Η βάση γνώσης διατηρήθηκε· επανευρετηριάστε την για ανάκτηση.",
       "model_invalid": "Δεν έχει επιλεγεί μοντέλο ή έχει διαγραφεί"
     },
+    "file_hint": "Υποστηρίζεται το {{file_types}} μορφάττων",
     "groups": {
       "add": "Νέα Ομάδα",
       "create_base_here": "Δημιούργησε εδώ",
@@ -3876,6 +3892,64 @@
       "partial_failure": "{{count}} αποτελέσματα αναζήτησης, ορισμένες αναζητήσεις απέτυχαν"
     }
   },
+  "minapp": {
+    "add_to_launchpad": "Προσθήκη στο Launchpad",
+    "add_to_sidebar": "Προσθήκη στην πλαϊνή μπάρα",
+    "popup": {
+      "close": "Κλείσιμο MinApp",
+      "devtools": "Εργαλεία Προγραμματιστών",
+      "goBack": "Πίσω",
+      "goForward": "Προχώρα",
+      "minimize": "Ελαχιστοποίηση MinApp",
+      "openExternal": "Άνοιγμα στον περιηγητή",
+      "open_link_external_off": "Τρέχον: Άνοιγμα συνδέσμων στο προεπιλεγμένο παράθυρο",
+      "open_link_external_on": "Τρέχον: Άνοιγμα συνδέσμων στον περιηγητή",
+      "refresh": "Ανανέωση",
+      "rightclick_copyurl": "Κάντε δεξί κλικ για να αντιγράψετε τη διεύθυνση URL"
+    },
+    "remove_from_launchpad": "Αφαίρεση από το Launchpad",
+    "remove_from_sidebar": "Αφαίρεση από την πλαϊνή μπάρα",
+    "sidebar": {
+      "close": {
+        "title": "Κλείσιμο"
+      },
+      "closeall": {
+        "title": "Κλείσιμο Όλων"
+      },
+      "hide": {
+        "title": "Κρύψε"
+      },
+      "remove_custom": {
+        "title": "Διαγραφή Προσαρμοσμένης Εφαρμογής"
+      }
+    },
+    "title": "MinApp"
+  },
+  "minapps": {
+    "ant-ling": "Μυρμηγκίδα",
+    "baichuan": "Μπάιτσουαν",
+    "baidu-ai-search": "Baidu AI Αναζήτηση",
+    "chatglm": "ChatGLM",
+    "dangbei": "Ντάγκμπεϊ",
+    "doubao": "Ντάουμπαο",
+    "hailuo": "Χαίλουο",
+    "ima": "εικόνα",
+    "metaso": "Μέτασο",
+    "minimax-agent": "Υπολογιστής Minimax CN",
+    "minimax-global": "Πράκτορας Minimax",
+    "nami-ai": "Nami AI",
+    "nami-ai-search": "Nami AI Αναζήτηση",
+    "qwen": "Qwen",
+    "sensechat": "SenseChat",
+    "stepfun": "Stepfun",
+    "tencent-yuanbao": "Γιουάνμπαο",
+    "tiangong-ai": "Skywork",
+    "wanzhi": "Γουάνζι",
+    "wenxin": "ERNIE",
+    "wps-copilot": "WPS Copilot",
+    "xiaoyi": "Ξιαογι",
+    "zhihu": "Ζίχου"
+  },
   "miniApp": {
     "add_to_launchpad": "Προσθήκη στο Launchpad",
     "add_to_sidebar": "Προσθήκη στην πλευρική μπάρα",
@@ -3886,13 +3960,15 @@
     "hide_failed": "Failed to hide mini-app",
     "pin_failed": "Αποτυχία καρφιτσώματος μίνι εφαρμογής",
     "popup": {
+      "close": "Κλείσιμο της εφαρμογής",
       "devtools": "Εργαλεία προγραμματιστή",
       "goBack": "Πίσω",
       "goForward": "Μπροστά",
       "openExternal": "Άνοιγμα στον περιηγητή",
       "open_link_external_off": "Τρέχον: Άνοιγμα συνδέσμου χρησιμοποιώντας το προεπιλεγμένο παράθυρο",
       "open_link_external_on": "Τρέχον: Άνοιγμα συνδέσμου στον περιηγητή",
-      "refresh": "Ανανέωση"
+      "refresh": "Ανανέωση",
+      "rightclick_copyurl": "Αντιγραφή URL με δεξί κλικ"
     },
     "remove_from_launchpad": "Κατάργηση από το Launchpad",
     "remove_from_sidebar": "Κατάργηση από την πλευρική μπάρα",
@@ -3904,8 +3980,17 @@
     },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
+      "close": {
+        "title": "Κλείσιμο"
+      },
+      "closeall": {
+        "title": "Κλείσιμο όλων"
+      },
       "hide": {
         "title": "Απόκρυψη"
+      },
+      "remove_custom": {
+        "title": "Διαγραφή προσαρμοσμένης εφαρμογής"
       }
     },
     "title": "Μικρόπρογραμμα",
@@ -3925,6 +4010,7 @@
     "minimax-agent": "MiniMax Agent CN",
     "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
+    "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
     "sensechat": "SenseChat",
     "stepfun": "Stepfun",
@@ -3980,6 +4066,7 @@
     },
     "pinned": "Κατακερματισμένο",
     "price": {
+      "cache_read": "[to be translated]:Cache Read Price",
       "cost": "Κόστος",
       "currency": "Νόμισμα",
       "custom": "Προσαρμογή",
@@ -4176,7 +4263,28 @@
     "tip": "Εάν η απάντηση είναι επιτυχής, η ειδοποίηση εμφανίζεται μόνο για μηνύματα που υπερβαίνουν τα 30 δευτερόλεπτα"
   },
   "ocr": {
-    "processing": "Η επεξεργασία OCR βρίσκεται σε εξέλιξη..."
+    "builtin": {
+      "system": "σύστημα OCR"
+    },
+    "error": {
+      "provider": {
+        "cannot_remove_builtin": "Δεν είναι δυνατή η διαγραφή του ενσωματωμένου παρόχου",
+        "existing": "Ο πάροχος υπηρεσιών υπάρχει ήδη",
+        "get_providers": "Αποτυχία λήψης διαθέσιμων παρόχων",
+        "not_found": "Ο πάροχος OCR δεν υπάρχει",
+        "update_failed": "Αποτυχία ενημέρωσης της διαμόρφωσης"
+      },
+      "unknown": "Η διαδικασία OCR εμφάνισε σφάλμα"
+    },
+    "file": {
+      "not_supported": "Μη υποστηριζόμενος τύπος αρχείου {{type}}"
+    },
+    "processing": "Η επεξεργασία OCR βρίσκεται σε εξέλιξη...",
+    "warning": {
+      "provider": {
+        "fallback": "Επαναφέρθηκε στο {{name}}, το οποίο μπορεί να προκαλέσει προβλήματα"
+      }
+    }
   },
   "ollama": {
     "keep_alive_time": {
@@ -5350,6 +5458,117 @@
       "description": "Συνδέστε πράκτορες με πλατφόρμες μηνυμάτων όπως το Telegram, το Feishu, το Discord και άλλες.",
       "title": "Κανάλια"
     },
+    "componentLab": {
+      "agentSelector": {
+        "clearSelection": "Καθαρό",
+        "configDescription": "Εναλλαγή ιδιοτήτων για προεπισκόπηση της συμπεριφοράς του στοιχείου",
+        "configTitle": "Διαμόρφωση",
+        "currentProps": "Τρέχοντα props",
+        "description": "Το AgentSelector διαβάζει πλέον πραγματικά δεδομένα από το /agents του DataApi για να επαληθεύει τη συμπεριφορά επιλογής id/item, καρφιτσώματος, ταξινόμησης και αναζήτησης.",
+        "emptyShellNotice": "Αυτή η προεπισκόπηση χρησιμοποιει την πραγματική λίστα πρακτόρων που επιστρέφεται από το /agents DataApi.",
+        "lastOnChange": "Τελευταίο onChange",
+        "previewDescription": "Κάντε κλικ στον διακόπτη για να ανοίξετε τον επιλογέα",
+        "previewTitle": "Προεπισκόπηση",
+        "title": "Επιλογέας Πράκτορα",
+        "triggerPlaceholder": "Επιλέξτε έναν πράκτορα",
+        "valueProp": "Τρέχουσα τιμή"
+      },
+      "agentTodoList": {
+        "title": "Λίστα Εργασιών Πράκτορα"
+      },
+      "assistantSelector": {
+        "clearSelection": "Καθαρό",
+        "configDescription": "Εναλλαγή ιδιοτήτων για προεπισκόπηση της συμπεριφοράς του στοιχείου",
+        "configTitle": "Διαμόρφωση",
+        "currentProps": "Τρέχοντα props",
+        "description": "Τοποθετεί το επιχειρησιακό στοιχείο AssistantSelector απευθείας για να επαληθεύσει τη συμπεριφορά πολλαπλού/μονού, αναγνωριστικού/αντικειμένου, καρφίτσας, ταξινόμησης και αναζήτησης.",
+        "lastOnChange": "Τελευταίο onChange",
+        "previewDescription": "Κάντε κλικ στον διακόπτη για να ανοίξετε τον επιλογέα",
+        "previewTitle": "Προεπισκόπηση",
+        "title": "Επιλογέας Βοηθού",
+        "triggerPlaceholder": "Επιλέξτε βοηθό",
+        "triggerSelectedCount": "{{count}} βοηθοί επιλέχθηκαν",
+        "valueProp": "Τρέχουσα τιμή"
+      },
+      "description": "Ορατό μόνο κατά την ανάπτυξη για τη δοκιμή του νέου επιλογέα μοντέλου απευθείας μέσα στην εφαρμογή.",
+      "fileProcessing": {
+        "artifact": {
+          "file": "Αρχείο Markdown",
+          "text": "Αποτέλεσμα κειμένου"
+        },
+        "description": "Εκτελέστε κάθε διαμορφωμένο επεξεργαστή αρχείων μέσω του πραγματικού IPC επεξεργασίας αρχείων και συγκρίνετε τα αποτελέσματα.",
+        "duration": "{{seconds}}δ",
+        "jobId": "Αναγνωριστικό Εργασίας",
+        "markdown": {
+          "description": "Επιλέξτε ένα έγγραφο και εκτελέστε όλους τους επεξεργαστές μετατροπής εγγράφων σε markdown.",
+          "fileFilterName": "Έγγραφα",
+          "noFile": "Δεν έχει επιλεγεί κανένα έγγραφο",
+          "select": "Επιλέξτε έγγραφο",
+          "start": "Test markdown",
+          "title": "Markdown"
+        },
+        "noProcessors": "Κανένας επεξεργαστής δεν υποστηρίζει αυτή τη λειτουργία.",
+        "ocr": {
+          "description": "Επιλέξτε μια εικόνα και εκτελέστε όλους τους επεξεργαστές OCR.",
+          "fileFilterName": "Εικόνες",
+          "noFile": "Δεν έχει επιλεγεί εικόνα",
+          "select": "Επιλέξτε εικόνα",
+          "start": "Δοκιμή OCR",
+          "title": "OCR"
+        },
+        "processorCount": "{{count}} επεξεργαστές",
+        "status": {
+          "cancelled": "Ακυρώθηκε",
+          "completed": "Ολοκληρώθηκε",
+          "delayed": "Καθυστερημένη",
+          "failed": "Απέτυχε",
+          "idle": "Αδρανής",
+          "pending": "Εκκρεμεί",
+          "processing": "Επεξεργασία",
+          "running": "Τρέξιμο",
+          "starting": "Έναρξη"
+        },
+        "title": "Ανάλυση Εγγράφων"
+      },
+      "label": "Εργαστήριο Συστατικών",
+      "modelSelector": {
+        "behaviorConfig": "Ρύθμιση Συμπεριφοράς και Εμφάνισης",
+        "callbackEmpty": "Δεν έχει ληφθεί ακόμη κλήση συστατικού",
+        "clearSelection": "Καθαρισμός Επιλογής",
+        "configDescription": "Εναλλάξτε τα βασικά props του ModelSelector παραπάνω και επιθεωρήστε την τιμή εισόδου καθώς και τα payloads των callbacks παρακάτω.",
+        "configTitle": "Παιχνίδι με Αξεσουάρ",
+        "controlMultiSelectMode": "Ελεγχόμενη λειτουργία πολλαπλής επιλογής",
+        "currentProps": "Τρέχοντα Props",
+        "defaultMultiSelectMode": "προεπιλεγμένηΛειτουργίαΠολλαπλήςΕπιλογής",
+        "description": "Αυτή η σελίδα τοποθετεί απευθείας το τρέχον επιχειρησιακό στοιχείο ModelSelector, ώστε να μπορούμε να επαληθεύσουμε τη συμπεριφορά επιλογής, φιλτραρίσματος, αναζήτησης και καρφιτσώματος.",
+        "empty": "Δεν είναι διαθέσιμα μοντέλα αυτή τη στιγμή, επομένως ο επιλογέας δεν μπορεί ακόμα να εμφανιστεί.",
+        "lastModeChangeReturn": "Τελευταία επιστροφή onMultiSelectModeChange",
+        "lastSelectReturn": "Τελευταίο onSelect Return",
+        "loading": "Φόρτωση μοντέλων...",
+        "modelId": "Αναγνωριστικό μοντέλου",
+        "multiSelectMode": "πολλαπλήΛειτουργίαΕπιλογής",
+        "multiple": "πολλαπλές",
+        "normalizedIds": "Κανονικοποιημένα Επιλεγμένα Αναγνωριστικά",
+        "outputEmpty": "Δεν υπάρχουν ακόμα δεδομένα για εμφάνιση",
+        "provider": "Πάροχος",
+        "resetOutputs": "Επαναφορά Εξόδων",
+        "resultsDescription": "Αυτό δείχνει την τρέχουσα πρόταση αξίας, τα κανονικοποιημένα επιλεγμένα αναγνωριστικά και το τελευταίο αποτέλεσμα callback από το στοιχείο.",
+        "resultsTitle": "Έξοδοι & Κατάσταση",
+        "selected": "Τρέχουσα Επιλογή",
+        "selectedEmpty": "Δεν έχει επιλεγεί ακόμα μοντέλο",
+        "selectionConfig": "Διαμόρφωση τιμής επιλογής",
+        "selectionType": "τύπος επιλογής",
+        "selectionTypeId": "Επιστροφή Αναγνωριστικών Μοντέλου",
+        "selectionTypeModel": "Επιστροφή Αντικειμένων Μοντέλου",
+        "showPinnedModels": "εμφάνιση καρφιτσωμένων μοντέλων",
+        "showTagFilter": "showTagFilter",
+        "title": "Επιλογέας Μοντέλου",
+        "triggerPlaceholder": "Επιλέξτε ένα μοντέλο",
+        "triggerSelectedCount": "{{count}} μοντέλα επιλέχθηκαν",
+        "valueProp": "Τρέχουσα Πρόταση Αξίας"
+      },
+      "title": "Εργαστήριο Ανάπτυξης Συστατικών"
+    },
     "data": {
       "app_data": {
         "copy_data_option": "Αντιγραφή δεδομένων, θα γίνει αυτόματα επανεκκίνηση και τα δεδομένα από τον αρχικό κατάλογο θα αντιγραφούν στο νέο κατάλογο",
@@ -6419,6 +6638,7 @@
       "system": "Σύστημα"
     },
     "messages": {
+      "cache_read_tokens": "[to be translated]:Cached input tokens read",
       "divider": {
         "label": "Διαχωριστική γραμμή μηνυμάτων",
         "tooltip": "Δεν ισχύει για μηνύματα με στυλ φυσαλίδας"
@@ -6433,6 +6653,8 @@
         "confirm_delete_message": "Επιβεβαίωση πριν τη διαγραφή μηνύματος",
         "confirm_regenerate_message": "Επιβεβαίωση πριν από την επαναδημιουργία του μηνύματος",
         "enable_quick_triggers": "Ενεργοποίηση των '/' και '@' για γρήγορη πρόσβαση σε μενού",
+        "paste_long_text_as_file": "Επικόλληση μεγάλου κειμένου ως αρχείο",
+        "paste_long_text_threshold": "Όριο μεγάλου κειμένου",
         "send_shortcuts": "Συντάγματα αποστολής",
         "show_estimated_tokens": "Εμφάνιση εκτιμώμενου αριθμού token",
         "title": "Ρυθμίσεις εισαγωγής"
@@ -6448,6 +6670,8 @@
         "label": "Κουμπιά πλοήγησης συζητήσεων",
         "none": "Χωρίς εμφάνιση"
       },
+      "prompt": "Λήμμα προτροπής",
+      "reasoning_tokens": "[to be translated]:Reasoning tokens",
       "show_message_outline": "Εμφάνιση πλαισίου μηνύματος",
       "title": "Ρυθμίσεις μηνυμάτων",
       "use_serif_font": "Χρήση μορφής Serif",
@@ -6456,23 +6680,40 @@
     "miniApps": {
       "cache_change_notice": "Η αλλαγή θα τεθεί σε ισχύ αφού το πλήθος των ανοιχτών μικροπρογραμμάτων φτάσει τη ρυθμισμένη τιμή",
       "cache_description": "Ορίστε τον μέγιστο αριθμό των μικροπρογραμμάτων που μπορούν να είναι ενεργά ταυτόχρονα",
+      "cache_settings": "Ρυθμίσεις Προσωρινής Μνήμης",
       "cache_title": "Ποσότητα Προσωρινής Μνήμης Μικροπρογράμματος",
       "custom": {
+        "conflicting_ids": "Υπάρχει σύγκρουση με τα προεπιλεγμένα ID της εφαρμογής: {{ids}}",
         "create_title": "Δημιουργία προσαρμοσμένης μικροεφαρμογής",
+        "duplicate_ids": "Εντοπίστηκαν διπλότυπα ID: {{ids}}",
+        "edit_description": "Επεξεργαστείτε τη διαμόρφωση της προσαρμοσμένης σας εφαρμογής εδώ. Κάθε εφαρμογή πρέπει να περιλαμβάνει τα πεδία id, name, url και logo.",
         "edit_title": "Επεξεργασία Προσαρμοσμένης Εφαρμογής",
+        "id": "ID",
+        "id_error": "Το ID είναι υποχρεωτικό πεδίο.",
+        "id_placeholder": "Παρακαλώ εισάγετε το ID",
+        "logo": "Logo",
         "logo_file": "Μεταφόρτωση Logo Αρχείου",
+        "logo_upload_button": "Μεταφόρτωση",
         "logo_upload_error": "Αποτυχία μεταφόρτωσης του Logo.",
         "logo_upload_label": "Μεταφόρτωση Logo",
+        "logo_upload_success": "Το Logo μεταφορτώθηκε επιτυχώς.",
+        "logo_url": "Logo URL",
+        "logo_url_label": "Logo URL",
+        "logo_url_placeholder": "Παρακαλώ εισάγετε το Logo URL",
         "name": "Όνομα",
+        "name_error": "Το Όνομα είναι υποχρεωτικό πεδίο.",
         "name_placeholder": "Παρακαλώ εισάγετε το όνομα",
+        "placeholder": "Παρακαλώ εισάγετε τη διαμόρφωση της προσαρμοσμένης εφαρμογής (Μορφή JSON)",
         "remove_confirm_description": "Διαγραφή προσαρμοσμένης μίνι εφαρμογής \"{{name}}\"; Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.",
         "remove_confirm_title": "Διαγραφή προσαρμοσμένης μίνι εφαρμογής;",
         "remove_error": "Αποτυχία διαγραφής της προσαρμοσμένης εφαρμογής.",
         "remove_success": "Η προσαρμοσμένη εφαρμογή διαγράφηκε επιτυχώς.",
+        "save": "Αποθήκευση",
         "save_error": "Αποτυχία αποθήκευσης της προσαρμοσμένης εφαρμογής.",
         "save_success": "Η προσαρμοσμένη εφαρμογή αποθηκεύτηκε επιτυχώς.",
         "title": "Προσαρμοσμένη Εφαρμογή",
         "url": "URL",
+        "url_error": "Το URL είναι υποχρεωτικό πεδίο.",
         "url_invalid": "Εισαγάγετε μια έγκυρη διεύθυνση URL http, https ή file.",
         "url_placeholder": "Παρακαλώ εισάγετε το URL"
       },
@@ -6497,6 +6738,61 @@
       "reset_tooltip": "Επαναφορά στις προεπιλεγμένες τιμές",
       "title": "Ρυθμίσεις Mini Apps",
       "visible": "Εμφανιζόμενα μικροπρογράμματα"
+    },
+    "miniapps": {
+      "cache_change_notice": "Οι αλλαγές θα τεθούν σε ισχύ όταν ο αριθμός των ανοιχτών μίνι εφαρμογών φτάσει την ορισμένη τιμή",
+      "cache_description": "Ορίστε τον μέγιστο αριθμό ενεργών μίνι εφαρμογών που θα διατηρούνται στη μνήμη",
+      "cache_settings": "Ρυθμίσεις Cache",
+      "cache_title": "Όριο Κρυφής Μνήμης Mini App",
+      "custom": {
+        "conflicting_ids": "Αντιφατικά αναγνωριστικά με τις προεπιλεγμένες εφαρμογές: {{ids}}",
+        "duplicate_ids": "Βρέθηκαν διπλότυπα αναγνωριστικά: {{ids}}",
+        "edit_description": "Επεξεργαστείτε εδώ τη ρύθμιση προσαρμοσμένου mini app. Κάθε εφαρμογή πρέπει να περιλαμβάνει τα πεδία id, name, url και logo.",
+        "edit_title": "Επεξεργασία Προσαρμοσμένης Mini Εφαρμογής",
+        "id": "Ταυτότητα",
+        "id_error": "Απαιτείται ταυτότητα.",
+        "id_placeholder": "Εισαγωγή ID",
+        "logo": "Λογότυπο",
+        "logo_file": "Ανέβασμα Αρχείου Λογότυπου",
+        "logo_upload_button": "Μεταφόρτωση",
+        "logo_upload_error": "Αποτυχία μεταφόρτωσης λογότυπου.",
+        "logo_upload_label": "Ανέβασμα Λογότυπου",
+        "logo_upload_success": "Το λογότυπο μεταφορτώθηκε με επιτυχία.",
+        "logo_url": "Διεύθυνση URL λογότυπου",
+        "logo_url_label": "Διεύθυνση URL λογότυπου",
+        "logo_url_placeholder": "Εισάγετε τη διεύθυνση URL του λογότυπου",
+        "name": "Όνομα",
+        "name_error": "Το όνομα είναι υποχρεωτικό.",
+        "name_placeholder": "Εισαγωγή ονόματος",
+        "placeholder": "Εισαγωγή προσαρμοσμένης διαμόρφωσης mini εφαρμογής (μορφή JSON)",
+        "remove_error": "Αποτυχία αφαίρεσης προσαρμοσμένης μικρής εφαρμογής.",
+        "remove_success": "Η προσαρμοσμένη μίνι εφαρμογή αφαιρέθηκε με επιτυχία.",
+        "save": "Αποθήκευση",
+        "save_error": "Αποτυχία αποθήκευσης προσαρμοσμένης μίνι εφαρμογής.",
+        "save_success": "Η προσαρμοσμένη μίνι εφαρμογή αποθηκεύτηκε με επιτυχία.",
+        "title": "Προσαρμοσμένο",
+        "url": "URL",
+        "url_error": "Απαιτείται URL.",
+        "url_placeholder": "Εισαγάγετε URL"
+      },
+      "disabled": "Κρυμμένα Μίνι Εφαρμογές",
+      "display_title": "Ρυθμίσεις Εμφάνισης Mini App",
+      "empty": "Κάντε κλικ στο εικονίδιο απόκρυψης σε μια εφαρμογή στα αριστερά και θα μετακινηθεί εδώ",
+      "open_link_external": {
+        "title": "Άνοιγμα συνδέσμων νέου παραθύρου στον περιηγητή"
+      },
+      "region": {
+        "auto": "Αυτόματη ανίχνευση",
+        "cn": "Κίνα",
+        "description": "Φιλτράρισμα μη υποστηριζόμενων μίνι προγραμμάτων με βάση την περιοχή",
+        "global": "Παγκόσμιος",
+        "title": "Φίλτρο Mini Program"
+      },
+      "reset_tooltip": "Επαναφορά στις προεπιλογές",
+      "sidebar_description": "Εμφάνιση ενεργών μίνι εφαρμογών στην πλαϊνή στήλη",
+      "sidebar_title": "Εμφάνιση Ενεργών Mini Εφαρμογών στην Πλαϊνή Στήλη",
+      "title": "Ρυθμίσεις Mini Apps",
+      "visible": "Ορατές Μικρές Εφαρμογές"
     },
     "model": "Πρόεδρος Υπηρεσίας",
     "models": {
@@ -6765,6 +7061,7 @@
     "plugins": {
       "addTool": "Add Tool",
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "bunDescription": "JavaScript runtime που χρησιμοποιείται από υπηρεσίες MCP και σχετικά εργαλειοθέματα.",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
       "customToolsEmpty": "Δεν υπάρχουν ακόμα προσαρμοσμένα εργαλεία. Προσθέστε ένα για να ξεκινήσετε.",
@@ -6802,7 +7099,8 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
-      "update": "Update to latest version"
+      "update": "Update to latest version",
+      "uvDescription": "Διαχειριστής πακέτων Python για υπηρεσίες MCP και εγκατάσταση εξαρτήσεων."
     },
     "power": {
       "prevent_sleep_when_busy": "Διατήρησε το σύστημα σε εγρήγορση ενώ εκτελούνται εργασίες"
@@ -6969,6 +7267,7 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Τομέας επιτάχυνσης",
+          "backup": "Τομέας αντιγράφων ασφαλείας",
           "international": "Διεθνής τομέας"
         }
       },
@@ -7527,6 +7826,134 @@
       "onclose": "Μειωμένο στη συνδρομή κατά την κλεισιά",
       "show": "Εμφάνιση εικονιδίου συνδρομής",
       "title": "Συνδρομή"
+    },
+    "usage": {
+      "cards": {
+        "activeDays": "[to be translated]:Active days",
+        "cacheHitRate": "[to be translated]:Cache hit rate",
+        "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
+        "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
+        "costHint": "[to be translated]:Cost is grouped by currency.",
+        "dailyAverage": "[to be translated]:Daily average",
+        "lastPeriod": "[to be translated]:vs last period",
+        "mixedCurrency": "[to be translated]:Multiple currencies are shown separately.",
+        "none": "[to be translated]:N/A",
+        "peakDay": "[to be translated]:Peak day",
+        "providerAuth": "[to be translated]:Provider auth",
+        "streak": "[to be translated]:Longest streak: {{days}} days",
+        "topModel": "[to be translated]:Top model",
+        "totalCost": "[to be translated]:Total cost",
+        "totalRequests": "[to be translated]:Requests",
+        "totalTokens": "[to be translated]:Total tokens",
+        "unattributedApiKey": "[to be translated]:Unattributed request",
+        "unattributedSource": "[to be translated]:Unattributed source"
+      },
+      "chart": {
+        "bar": "[to be translated]:Bar",
+        "line": "[to be translated]:Line",
+        "pie": "[to be translated]:Pie",
+        "stack": "[to be translated]:Stack"
+      },
+      "costBackfill": {
+        "action": "[to be translated]:Backfill historical cost",
+        "available": "[to be translated]:{{count}} historical usage records are missing cost and can be calculated with current pricing.",
+        "confirm": "[to be translated]:Will update {{count}} records. Estimated cost: {{cost}}.",
+        "noPricing": "[to be translated]:Set model pricing before backfilling historical cost.",
+        "success": "[to be translated]:Backfilled {{count}} historical cost records."
+      },
+      "empty": {
+        "description": "[to be translated]:Usage appears after AI requests create ledger entries.",
+        "title": "[to be translated]:No usage yet"
+      },
+      "explore": {
+        "activity": "[to be translated]:Activity",
+        "allProviders": "[to be translated]:All providers",
+        "analysis": "[to be translated]:Analysis",
+        "breakdown": "[to be translated]:Breakdown",
+        "breakdownTab": "[to be translated]:Breakdown",
+        "cacheUsage": "[to be translated]:Cache usage",
+        "chart": "[to be translated]:Chart",
+        "clearDate": "[to be translated]:Clear date filter",
+        "costDrivers": "[to be translated]:Cost drivers",
+        "drilldownTitle": "[to be translated]:{{date}} drilldown",
+        "entries": "[to be translated]:Requests",
+        "groupBy": "[to be translated]:Group by",
+        "loadMore": "[to be translated]:Load more",
+        "loading": "[to be translated]:Loading...",
+        "metric": "[to be translated]:Metric",
+        "noBreakdown": "[to be translated]:No breakdown data",
+        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
+        "noEntries": "[to be translated]:No entries",
+        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
+        "provider": "[to be translated]:Provider",
+        "requestsTab": "[to be translated]:Requests",
+        "selectedDate": "[to be translated]:Selected date: {{date}}",
+        "share": "[to be translated]:Share {{value}}",
+        "shareLabel": "[to be translated]:Share",
+        "title": "[to be translated]:Explore",
+        "topApiKeys": "[to be translated]:Top API keys",
+        "topModels": "[to be translated]:Top models",
+        "topProviders": "[to be translated]:Top providers",
+        "topSources": "[to be translated]:Top assistants / agents",
+        "totalEntries": "[to be translated]:{{count}} entries"
+      },
+      "groupBy": {
+        "apiKey": "[to be translated]:API key",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
+        "source": "[to be translated]:Assistant / Agent"
+      },
+      "heatmap": {
+        "ariaDate": "[to be translated]:Usage on {{date}}",
+        "costDisabled": "[to be translated]:Cost view is available only when this window has one currency.",
+        "title": "[to be translated]:Daily activity"
+      },
+      "metric": {
+        "cost": "[to be translated]:Cost",
+        "requests": "[to be translated]:Requests",
+        "tokens": "[to be translated]:Tokens"
+      },
+      "modality": {
+        "embedding": "[to be translated]:Embedding",
+        "image": "[to be translated]:Image",
+        "language": "[to be translated]:Language"
+      },
+      "overview": {
+        "title": "[to be translated]:Overview"
+      },
+      "source": {
+        "agent": "[to be translated]:Agent",
+        "assistant": "[to be translated]:Assistant",
+        "unknown": "[to be translated]:Unattributed"
+      },
+      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{requests}} requests",
+      "table": {
+        "apiKey": "[to be translated]:API key",
+        "cost": "[to be translated]:Cost",
+        "date": "[to be translated]:Date",
+        "modality": "[to be translated]:Type",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
+        "request": "[to be translated]:Request",
+        "source": "[to be translated]:Source",
+        "tokens": "[to be translated]:Tokens",
+        "tps": "[to be translated]:TPS",
+        "tpsValue": "[to be translated]:{{value}} tok/s",
+        "ttft": "[to be translated]:TTFT"
+      },
+      "title": "[to be translated]:Usage Analytics",
+      "tooltip": {
+        "cost": "[to be translated]:Cost {{value}}",
+        "metric": "[to be translated]:{{value}}",
+        "requests": "[to be translated]:{{count}} requests",
+        "tokens": "[to be translated]:{{value}} tokens"
+      },
+      "window": {
+        "30d": "[to be translated]:Last 30 days",
+        "365d": "[to be translated]:Last year",
+        "90d": "[to be translated]:Last 90 days",
+        "all": "[to be translated]:All time"
+      }
     },
     "use_system_title_bar": {
       "confirm": {

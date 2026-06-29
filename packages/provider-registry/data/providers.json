@@ -439,6 +439,9 @@
           "adapterFamily": "openrouter"
         }
       },
+      "apiFeatures": {
+        "reportsActualCost": true
+      },
       "metadata": {
         "website": {
           "official": "https://openrouter.ai/",

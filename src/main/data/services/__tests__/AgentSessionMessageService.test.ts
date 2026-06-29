@@ -2,6 +2,9 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { usageLedgerTable } from '@data/db/schemas/usageLedger'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -729,6 +732,81 @@ describe('AgentSessionMessageService', () => {
       agentSessionMessageService.search({ q: 'needle', cursor: 'abc:018f6ed6-73b8-7f40-8d0d-9bb2f8f1d206' })
     ).rejects.toMatchObject({
       code: 'VALIDATION_ERROR'
+    })
+  })
+
+  describe('saveMessage — usage ledger hook', () => {
+    const LEDGER_MSG = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d301'
+
+    async function seedModel() {
+      await dbh.db.insert(userProviderTable).values({ providerId: 'anthropic', name: 'Anthropic', orderKey: 'p0' })
+      await dbh.db.insert(userModelTable).values({
+        id: 'anthropic::claude-sonnet',
+        providerId: 'anthropic',
+        modelId: 'claude-sonnet',
+        presetModelId: 'claude-sonnet',
+        name: 'claude-sonnet',
+        isEnabled: true,
+        isHidden: false,
+        orderKey: 'm0'
+      })
+    }
+
+    it('records assistant session messages with stats into the usage ledger', async () => {
+      await seedModel()
+
+      await agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: LEDGER_MSG,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [] },
+          modelId: 'anthropic::claude-sonnet',
+          stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
+        }
+      })
+
+      // The hook is fire-and-forget — wait for the async write to settle.
+      await vi.waitFor(async () => {
+        const rows = await dbh.db.select().from(usageLedgerTable)
+        expect(rows).toHaveLength(1)
+        expect(rows[0]).toMatchObject({
+          messageId: LEDGER_MSG,
+          providerId: 'anthropic',
+          modelId: 'anthropic::claude-sonnet',
+          totalTokens: 15,
+          topicId: null
+        })
+      })
+    })
+
+    it('does not record user messages or stats-less assistant messages', async () => {
+      await seedModel()
+
+      await agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d302',
+          role: 'user',
+          status: 'success',
+          data: { parts: [] },
+          stats: { inputTokens: 1, outputTokens: 1 }
+        }
+      })
+      await agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: {
+          id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d303',
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [] },
+          modelId: 'anthropic::claude-sonnet'
+        }
+      })
+
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(await dbh.db.select().from(usageLedgerTable)).toHaveLength(0)
     })
   })
 })

@@ -793,7 +793,7 @@ describe('MessagePartsRenderer', () => {
   it('passes message reasoning token estimates to reasoning blocks', () => {
     renderParts(
       [{ type: 'reasoning', text: 'live thought', state: 'streaming' } as unknown as CherryMessagePart],
-      msg({ status: 'pending', stats: { thoughtsTokens: 1234 } })
+      msg({ status: 'pending', stats: { outputTokenDetails: { reasoningTokens: 1234 } } })
     )
 
     expect(screen.getByTestId('mock-thinking-block')).toHaveAttribute('data-thoughts-tokens', '1234')

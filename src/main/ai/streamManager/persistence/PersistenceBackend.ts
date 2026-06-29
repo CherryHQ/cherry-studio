@@ -108,28 +108,23 @@ export interface PersistenceBackend {
 }
 
 /**
- * Token counts come from `finalMessage.metadata` (populated by
- * agentLoop's `messageMetadata` on the `finish` chunk). Durations come
- * from the merged `StatsTimings`, rounded to integer ms.
+ * Token counts come from the nested `finalMessage.metadata.stats` snapshot
+ * (populated by the usage writers' `message-metadata` chunks — the single
+ * carrier; there are no flat metadata mirrors). Durations come from the
+ * merged `StatsTimings`, rounded to integer ms. Cost is NOT set here — it
+ * requires a DB pricing read and is added in the async
+ * `MessageServiceBackend.enrichStatsWithCost`.
  *
  * `timeThinkingMs` is deliberately not projected: the
- * `reasoningStartedAt → reasoningEndedAt` wall-clock can include
- * interleaved tool execution. The subtraction path lands with the
- * `TODO(message-stats-redesign)` rework in `src/shared/data/types/message.ts`.
+ * `reasoningStartedAt → reasoningEndedAt` wall-clock can include interleaved
+ * tool execution.
  */
 export function statsFromTerminal(
   finalMessage: CherryUIMessage | undefined,
   timings: StatsTimings | undefined
 ): MessageStats | undefined {
-  const stats: MessageStats = {}
-
-  const meta = finalMessage?.metadata
-  if (meta && typeof meta === 'object') {
-    if (typeof meta.totalTokens === 'number') stats.totalTokens = meta.totalTokens
-    if (typeof meta.promptTokens === 'number') stats.promptTokens = meta.promptTokens
-    if (typeof meta.completionTokens === 'number') stats.completionTokens = meta.completionTokens
-    if (typeof meta.thoughtsTokens === 'number') stats.thoughtsTokens = meta.thoughtsTokens
-  }
+  const metaStats = finalMessage?.metadata?.stats
+  const stats: MessageStats = metaStats ? structuredClone(metaStats) : {}
 
   if (timings) {
     if (timings.firstTextAt != null) {

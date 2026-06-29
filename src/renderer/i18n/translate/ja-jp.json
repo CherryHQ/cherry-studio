@@ -267,8 +267,10 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "間隔",
+          "label": "スケジュールタイプ",
           "once": "一回限り"
         },
+        "scheduleValue": "スケジュール値",
         "status": {
           "active": "アクティブ",
           "completed": "完了",
@@ -1974,6 +1976,7 @@
       "claude_code": "Anthropicの公式コマンドラインAIコーディングアシスタント",
       "gemini_cli": "Googleの公式Geminiコマンドラインアシスタント",
       "github_copilot_cli": "GitHubの公式Copilotコマンドラインコンパニオン",
+      "iflow_cli": "iFlowのマルチモデルコマンドラインアシスタント",
       "kimi_cli": "MoonshotのKimiコマンドラインアシスタント",
       "openai_codex": "OpenAIの公式コード生成CLI",
       "opencode": "オープンソースのマルチモデルコーディングエージェント",
@@ -2114,6 +2117,7 @@
     "open_in": "{{name}}で開く",
     "open_in_new_tab": "新しいタブで開く",
     "open_sidebar": "サイドバーを開く",
+    "other": "[to be translated]:Other",
     "paste": "貼り付け",
     "placeholders": {
       "select": {
@@ -2652,7 +2656,13 @@
           "replace": "置換",
           "title": "ソースは既に存在します"
         },
+        "directory": {
+          "description": "フォルダからサポートされているファイルを再帰的にインポート",
+          "title": "フォルダを選択するにはクリックしてください"
+        },
         "footer": {
+          "selected_directories": "{{count}}個のディレクトリが選択されています",
+          "selected_files": "{{count}}個のファイルが選択されています",
           "selected_notes": "{{count}} 個のノートが選択されています"
         },
         "note": {
@@ -2687,6 +2697,7 @@
         }
       },
       "bulk": {
+        "cancel": "キャンセル",
         "delete": "削除",
         "delete_confirm_description": "{{count}}件の選択したデータソースを削除しますか？この操作は取り消せません。",
         "delete_confirm_title": "選択したデータソースを削除しますか？",
@@ -2728,6 +2739,7 @@
         "failed": "ソースのプレビューに失敗しました",
         "unavailable": "このデータソースにはプレビューできるソースがありません"
       },
+      "ready_summary": "{{ready}}/{{total}} 準備完了",
       "reindex_failed": "データソースの再インデックスに失敗しました",
       "status": {
         "chunking": "チャンキング",
@@ -2750,11 +2762,14 @@
         "view_chunks_row": "{{title}}のチャンクを表示"
       },
       "toolbar": {
-        "add": "データソースを追加"
+        "add": "データソースを追加",
+        "no_search_results": "一致するデータソースがありません",
+        "search_placeholder": "データソースを検索"
       }
     },
     "dimensions_auto_set": "埋め込み次元を自動設定",
     "dimensions_size_placeholder": "次元数を設定しない場合は空欄のままにしてください",
+    "drag_file": "ファイルをここにドラッグ",
     "embedding_model": "埋め込みモデル",
     "embedding_model_required": "ナレッジベース埋め込みモデルが必要です",
     "empty": "ナレッジベースなし",
@@ -2770,6 +2785,7 @@
       "missing_vector_store": "このナレッジベースのベクターストアは移行中に読み取れませんでした（存在しない、空、またはロックされています）。ナレッジベースは保持されました。再インデックスを実行して復旧してください。",
       "model_invalid": "モデルが選択されていません"
     },
+    "file_hint": "{{file_types}} 形式をサポート",
     "groups": {
       "add": "新しいグループ",
       "create_base_here": "ここに作成",
@@ -3876,6 +3892,64 @@
       "partial_failure": "{{count}}件の検索結果、一部の検索に失敗しました"
     }
   },
+  "minapp": {
+    "add_to_launchpad": "Launchpadに追加",
+    "add_to_sidebar": "サイドバーに追加",
+    "popup": {
+      "close": "ミニアプリを閉じる",
+      "devtools": "開発者ツール",
+      "goBack": "戻る",
+      "goForward": "前進",
+      "minimize": "最小化 MinApp",
+      "openExternal": "ブラウザで開く",
+      "open_link_external_off": "現在: デフォルトウィンドウでリンクを開く",
+      "open_link_external_on": "現在: ブラウザでリンクを開く",
+      "refresh": "更新",
+      "rightclick_copyurl": "右クリックしてURLをコピー"
+    },
+    "remove_from_launchpad": "Launchpadから削除",
+    "remove_from_sidebar": "サイドバーから削除",
+    "sidebar": {
+      "close": {
+        "title": "閉じる"
+      },
+      "closeall": {
+        "title": "すべて閉じる"
+      },
+      "hide": {
+        "title": "隠す"
+      },
+      "remove_custom": {
+        "title": "カスタムアプリを削除"
+      }
+    },
+    "title": "MinApp"
+  },
+  "minapps": {
+    "ant-ling": "アント・リン",
+    "baichuan": "バイチュアン",
+    "baidu-ai-search": "百度 AI 検索",
+    "chatglm": "チャットGLM",
+    "dangbei": "ダンベイ",
+    "doubao": "豆包",
+    "hailuo": "ハイルオ",
+    "ima": "今",
+    "metaso": "メタソ",
+    "minimax-agent": "ミニマックスエージェント CN",
+    "minimax-global": "ミニマックスエージェント",
+    "nami-ai": "ナミ AI",
+    "nami-ai-search": "ナミ AI サーチ",
+    "qwen": "クウェン",
+    "sensechat": "センスチャット",
+    "stepfun": "ステップファン",
+    "tencent-yuanbao": "元宝",
+    "tiangong-ai": "スカイワーク",
+    "wanzhi": "ワンジ",
+    "wenxin": "ERNIE",
+    "wps-copilot": "WPS Copilot",
+    "xiaoyi": "シャオイ",
+    "zhihu": "知乎"
+  },
   "miniApp": {
     "add_to_launchpad": "スタート画面に追加",
     "add_to_sidebar": "サイドバーに追加",
@@ -3886,13 +3960,15 @@
     "hide_failed": "Failed to hide mini-app",
     "pin_failed": "ミニアプリをピン留めできませんでした",
     "popup": {
+      "close": "ミニアプリを閉じる",
       "devtools": "開発者ツール",
       "goBack": "戻る",
       "goForward": "進む",
       "openExternal": "ブラウザで開く",
       "open_link_external_off": "現在：デフォルトのウィンドウで開く",
       "open_link_external_on": "現在：ブラウザで開く",
-      "refresh": "更新"
+      "refresh": "更新",
+      "rightclick_copyurl": "右クリックでURLをコピー"
     },
     "remove_from_launchpad": "スタート画面から削除",
     "remove_from_sidebar": "サイドバーから削除",
@@ -3904,8 +3980,17 @@
     },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
+      "close": {
+        "title": "閉じる"
+      },
+      "closeall": {
+        "title": "すべて閉じる"
+      },
       "hide": {
         "title": "非表示"
+      },
+      "remove_custom": {
+        "title": "カスタムアプリを削除"
       }
     },
     "title": "ミニアプリ",
@@ -3925,6 +4010,7 @@
     "minimax-agent": "MiniMax Agent CN",
     "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
+    "nami-ai-search": "Nami AI Search",
     "qwen": "通義千問",
     "sensechat": "SenseChat",
     "stepfun": "Stepfun",
@@ -3980,6 +4066,7 @@
     },
     "pinned": "固定済み",
     "price": {
+      "cache_read": "[to be translated]:Cache Read Price",
       "cost": "コスト",
       "currency": "通貨",
       "custom": "カスタム",
@@ -4176,7 +4263,28 @@
     "tip": "応答が成功した場合、30秒を超えるメッセージのみに通知を行います"
   },
   "ocr": {
-    "processing": "OCR処理中..."
+    "builtin": {
+      "system": "システム OCR"
+    },
+    "error": {
+      "provider": {
+        "cannot_remove_builtin": "組み込みプロバイダーは削除できません",
+        "existing": "プロバイダーはすでに存在します",
+        "get_providers": "利用可能なプロバイダーの取得に失敗しました",
+        "not_found": "OCRプロバイダーが存在しません",
+        "update_failed": "更新構成に失敗しました"
+      },
+      "unknown": "OCR処理中にエラーが発生しました"
+    },
+    "file": {
+      "not_supported": "サポートされていないファイルタイプ {{type}}"
+    },
+    "processing": "OCR処理中...",
+    "warning": {
+      "provider": {
+        "fallback": "{{name}} に戻されました。これにより問題が発生する可能性があります。"
+      }
+    }
   },
   "ollama": {
     "keep_alive_time": {
@@ -5350,6 +5458,117 @@
       "description": "エージェントをTelegram、Feishu、Discordなどのメッセージングプラットフォームに接続します。",
       "title": "チャンネル"
     },
+    "componentLab": {
+      "agentSelector": {
+        "clearSelection": "クリア",
+        "configDescription": "プロップを切り替えてコンポーネントの動作をプレビューする",
+        "configTitle": "設定",
+        "currentProps": "現在のプロップ",
+        "description": "AgentSelectorは、ID/アイテムの選択、ピン留め、ソート、検索動作を検証するために、リアルな/agents DataApiデータを読み込むようになりました。",
+        "emptyShellNotice": "このプレビューは、/agents DataApi から返される実際のエージェントリストを使用しています。",
+        "lastOnChange": "最新のonChange",
+        "previewDescription": "トリガーをクリックしてセレクタを開きます",
+        "previewTitle": "プレビュー",
+        "title": "エージェントセレクター",
+        "triggerPlaceholder": "エージェントを選択してください",
+        "valueProp": "現在値"
+      },
+      "agentTodoList": {
+        "title": "エージェントのToDoリスト"
+      },
+      "assistantSelector": {
+        "clearSelection": "クリア",
+        "configDescription": "プロパティを切り替えてコンポーネントの動作をプレビューする",
+        "configTitle": "設定",
+        "currentProps": "現在のプロップ",
+        "description": "AssistantSelectorのビジネスコンポーネントを直接マウントし、複数/単一、ID/項目、ピン留め、ソート、検索の動作を検証します。",
+        "lastOnChange": "最新のonChange",
+        "previewDescription": "トリガーをクリックしてセレクターを開きます",
+        "previewTitle": "プレビュー",
+        "title": "アシスタントセレクター",
+        "triggerPlaceholder": "アシスタントを選択してください",
+        "triggerSelectedCount": "{{count}}人のアシスタントが選択されました",
+        "valueProp": "現在の値"
+      },
+      "description": "開発環境でのみ表示され、アプリ内で直接新しいモデルセレクタをテストするためのものです。",
+      "fileProcessing": {
+        "artifact": {
+          "file": "Markdownファイル",
+          "text": "テキスト結果"
+        },
+        "description": "設定済みのすべてのファイルプロセッサーを実際のファイル処理 IPC を通じて実行し、結果を比較します。",
+        "duration": "{{seconds}}秒",
+        "jobId": "ジョブID",
+        "markdown": {
+          "description": "ドキュメントを選択し、すべてのドキュメント→マークダウンプロセッサーを実行します。",
+          "fileFilterName": "文書",
+          "noFile": "文書が選択されていません",
+          "select": "ドキュメントを選択",
+          "start": "Test markdown",
+          "title": "Markdown"
+        },
+        "noProcessors": "この機能をサポートするプロセッサはありません。",
+        "ocr": {
+          "description": "画像を選択して、すべてのOCRプロセッサを実行します。",
+          "fileFilterName": "画像",
+          "noFile": "画像が選択されていません",
+          "select": "画像を選択",
+          "start": "テストOCR",
+          "title": "OCR"
+        },
+        "processorCount": "{{count}} プロセッサ",
+        "status": {
+          "cancelled": "キャンセル",
+          "completed": "完了",
+          "delayed": "遅延",
+          "failed": "失敗",
+          "idle": "アイドル",
+          "pending": "保留中",
+          "processing": "処理",
+          "running": "走っている",
+          "starting": "開始"
+        },
+        "title": "ドキュメント解析"
+      },
+      "label": "コンポーネントラボ",
+      "modelSelector": {
+        "behaviorConfig": "動作と表示設定",
+        "callbackEmpty": "まだコンポーネントコールバックを受信していません",
+        "clearSelection": "選択をクリア",
+        "configDescription": "上記のキー ModelSelector プロパティを切り替え、下記の入力値とコールバックのペイロードを確認してください。",
+        "configTitle": "プロップス プレイグラウンド",
+        "controlMultiSelectMode": "制御された複数選択モード",
+        "currentProps": "現在のプロップ",
+        "defaultMultiSelectMode": "デフォルトマルチセレクトモード",
+        "description": "このページでは、現在の ModelSelector ビジネスコンポーネントを直接マウントして、選択、フィルタリング、検索、ピン留めの動作を確認できます。",
+        "empty": "現在利用可能なモデルがないため、セレクターはまだ表示できません。",
+        "lastModeChangeReturn": "最新の onMultiSelectModeChange 戻り値",
+        "lastSelectReturn": "最新のonSelect戻り値",
+        "loading": "モデルを読み込んでいます...",
+        "modelId": "モデルID",
+        "multiSelectMode": "マルチセレクトモード",
+        "multiple": "複数",
+        "normalizedIds": "正規化された選択されたID",
+        "outputEmpty": "まだ表示するデータがありません",
+        "provider": "プロバイダー",
+        "resetOutputs": "出力をリセット",
+        "resultsDescription": "これは現在の値のプロップ、正規化された選択されたID、およびコンポーネントからの最新のコールバック出力を示しています。",
+        "resultsTitle": "出力と状態",
+        "selected": "現在の選択",
+        "selectedEmpty": "モデルがまだ選択されていません",
+        "selectionConfig": "選択値設定",
+        "selectionType": "選択タイプ",
+        "selectionTypeId": "モデルIDを返す",
+        "selectionTypeModel": "モデルオブジェクトを返す",
+        "showPinnedModels": "固定されたモデルを表示",
+        "showTagFilter": "タグフィルターを表示",
+        "title": "モデルセレクター",
+        "triggerPlaceholder": "モデルを選択してください",
+        "triggerSelectedCount": "{{count}}件のモデルが選択されています",
+        "valueProp": "現在のバリュープロポジション"
+      },
+      "title": "開発コンポーネントラボ"
+    },
     "data": {
       "app_data": {
         "copy_data_option": "データをコピーする, 開くと元のディレクトリのデータが新しいディレクトリにコピーされます。",
@@ -6419,6 +6638,7 @@
       "system": "システム"
     },
     "messages": {
+      "cache_read_tokens": "[to be translated]:Cached input tokens read",
       "divider": {
         "label": "メッセージ間に区切り線を表示",
         "tooltip": "バブルスタイルのメッセージには適用されません"
@@ -6433,6 +6653,8 @@
         "confirm_delete_message": "メッセージ削除前に確認",
         "confirm_regenerate_message": "メッセージ再生成前に確認",
         "enable_quick_triggers": "/ と @ を有効にしてクイックメニューを表示します。",
+        "paste_long_text_as_file": "長いテキストをファイルとして貼り付け",
+        "paste_long_text_threshold": "長いテキストの長さ",
         "send_shortcuts": "送信ショートカット",
         "show_estimated_tokens": "推定トークン数を表示",
         "title": "入力設定"
@@ -6448,6 +6670,8 @@
         "label": "メッセージナビゲーション",
         "none": "表示しない"
       },
+      "prompt": "プロンプト表示",
+      "reasoning_tokens": "[to be translated]:Reasoning tokens",
       "show_message_outline": "メッセージの概要を表示します",
       "title": "メッセージ設定",
       "use_serif_font": "セリフフォントを使用",
@@ -6456,23 +6680,40 @@
     "miniApps": {
       "cache_change_notice": "設定値に達するまでミニアプリの開閉が行われた後に変更が適用されます",
       "cache_description": "メモリに保持するアクティブなミニアプリの最大数を設定します",
+      "cache_settings": "キャッシュ設定",
       "cache_title": "ミニアプリのキャッシュ数",
       "custom": {
+        "conflicting_ids": "デフォルトアプリとIDが競合しています: {{ids}}",
         "create_title": "カスタムミニアプリを作成",
+        "duplicate_ids": "重複するIDが見つかりました: {{ids}}",
+        "edit_description": "ここでカスタムミニアプリの設定を編集します。各アプリにはid、name、url、logoフィールドが必要です。",
         "edit_title": "カスタムミニアプリの編集",
+        "id": "ID",
+        "id_error": "IDは必須項目です。",
+        "id_placeholder": "IDを入力してください",
+        "logo": "ロゴ",
         "logo_file": "ロゴファイルをアップロード",
+        "logo_upload_button": "アップロード",
         "logo_upload_error": "ロゴのアップロードに失敗しました。",
         "logo_upload_label": "ロゴをアップロード",
+        "logo_upload_success": "ロゴのアップロードに成功しました。",
+        "logo_url": "ロゴURL",
+        "logo_url_label": "ロゴURL",
+        "logo_url_placeholder": "ロゴURLを入力してください",
         "name": "名前",
+        "name_error": "名前は必須項目です。",
         "name_placeholder": "名前を入力してください",
+        "placeholder": "カスタムミニアプリの設定を入力してください（JSON形式）",
         "remove_confirm_description": "カスタムミニアプリ「{{name}}」を削除しますか？この操作は取り消せません。",
         "remove_confirm_title": "カスタムミニアプリを削除しますか？",
         "remove_error": "カスタムミニアプリの削除に失敗しました。",
         "remove_success": "カスタムミニアプリの削除に成功しました。",
+        "save": "保存",
         "save_error": "カスタムミニアプリの保存に失敗しました。",
         "save_success": "カスタムミニアプリの保存に成功しました。",
         "title": "カスタムミニアプリ",
         "url": "URL",
+        "url_error": "URLは必須項目です。",
         "url_invalid": "有効な http、https、または file URL を入力してください。",
         "url_placeholder": "URLを入力してください"
       },
@@ -6497,6 +6738,61 @@
       "reset_tooltip": "デフォルト値にリセット",
       "title": "ミニアプリ設定",
       "visible": "表示するミニアプリ"
+    },
+    "miniapps": {
+      "cache_change_notice": "変更は、開いているミニアプリの数が設定値に達した時点で有効になります",
+      "cache_description": "メモリに保持するアクティブなミニアプリの最大数を設定します",
+      "cache_settings": "キャッシュ設定",
+      "cache_title": "ミニアプリキャッシュ制限",
+      "custom": {
+        "conflicting_ids": "デフォルトアプリとのID競合: {{ids}}",
+        "duplicate_ids": "重複したIDが見つかりました: {{ids}}",
+        "edit_description": "ここでカスタムミニアプリの設定を編集します。各アプリには id、name、url、および logo フィールドを含める必要があります。",
+        "edit_title": "カスタムミニアプリを編集",
+        "id": "ID",
+        "id_error": "IDが必要です。",
+        "id_placeholder": "IDを入力してください",
+        "logo": "ロゴ",
+        "logo_file": "ロゴファイルをアップロード",
+        "logo_upload_button": "アップロード",
+        "logo_upload_error": "ロゴのアップロードに失敗しました。",
+        "logo_upload_label": "ロゴをアップロード",
+        "logo_upload_success": "ロゴが正常にアップロードされました。",
+        "logo_url": "ロゴURL",
+        "logo_url_label": "ロゴURL",
+        "logo_url_placeholder": "ロゴのURLを入力してください",
+        "name": "名前",
+        "name_error": "名前は必須です。",
+        "name_placeholder": "名前を入力してください",
+        "placeholder": "カスタムミニアプリ設定を入力（JSON形式）",
+        "remove_error": "カスタムミニアプリの削除に失敗しました。",
+        "remove_success": "カスタムミニアプリが正常に削除されました。",
+        "save": "保存",
+        "save_error": "カスタムミニアプリの保存に失敗しました。",
+        "save_success": "カスタムミニアプリが正常に保存されました。",
+        "title": "カスタム",
+        "url": "URL",
+        "url_error": "URLが必要です。",
+        "url_placeholder": "URLを入力してください"
+      },
+      "disabled": "隠しミニアプリ",
+      "display_title": "ミニアプリ表示設定",
+      "empty": "左側のアプリの非表示アイコンをクリックすると、ここに移動します",
+      "open_link_external": {
+        "title": "ブラウザで新しいウィンドウのリンクを開く"
+      },
+      "region": {
+        "auto": "自動検出",
+        "cn": "中国",
+        "description": "地域に基づいてサポートされていないミニプログラムをフィルタリング",
+        "global": "グローバル",
+        "title": "ミニプログラムフィルター"
+      },
+      "reset_tooltip": "デフォルトにリセット",
+      "sidebar_description": "サイドバーにアクティブなミニアプリを表示",
+      "sidebar_title": "サイドバー アクティブ ミニアプリ表示",
+      "title": "ミニアプリの設定",
+      "visible": "見えるミニアプリ"
     },
     "model": "デフォルトモデル",
     "models": {
@@ -6765,6 +7061,7 @@
     "plugins": {
       "addTool": "Add Tool",
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "bunDescription": "MCPサービスおよび関連ツールチェーンで使用されるJavaScriptランタイム。",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
       "customToolsEmpty": "カスタムツールはまだありません。始めるには、1つ追加してください。",
@@ -6802,7 +7099,8 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
-      "update": "Update to latest version"
+      "update": "Update to latest version",
+      "uvDescription": "MCPサービスおよび依存関係インストール用のPythonパッケージマネージャー。"
     },
     "power": {
       "prevent_sleep_when_busy": "タスクが実行されている間はシステムをスリープさせない"
@@ -6969,6 +7267,7 @@
       "cherryin": {
         "api_host": {
           "acceleration": "加速度領域",
+          "backup": "バックアップドメイン",
           "international": "国際ドメイン"
         }
       },
@@ -7527,6 +7826,134 @@
       "onclose": "閉じるときにトレイに最小化",
       "show": "トレイアイコンを表示",
       "title": "トレイ"
+    },
+    "usage": {
+      "cards": {
+        "activeDays": "[to be translated]:Active days",
+        "cacheHitRate": "[to be translated]:Cache hit rate",
+        "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
+        "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
+        "costHint": "[to be translated]:Cost is grouped by currency.",
+        "dailyAverage": "[to be translated]:Daily average",
+        "lastPeriod": "[to be translated]:vs last period",
+        "mixedCurrency": "[to be translated]:Multiple currencies are shown separately.",
+        "none": "[to be translated]:N/A",
+        "peakDay": "[to be translated]:Peak day",
+        "providerAuth": "[to be translated]:Provider auth",
+        "streak": "[to be translated]:Longest streak: {{days}} days",
+        "topModel": "[to be translated]:Top model",
+        "totalCost": "[to be translated]:Total cost",
+        "totalRequests": "[to be translated]:Requests",
+        "totalTokens": "[to be translated]:Total tokens",
+        "unattributedApiKey": "[to be translated]:Unattributed request",
+        "unattributedSource": "[to be translated]:Unattributed source"
+      },
+      "chart": {
+        "bar": "[to be translated]:Bar",
+        "line": "[to be translated]:Line",
+        "pie": "[to be translated]:Pie",
+        "stack": "[to be translated]:Stack"
+      },
+      "costBackfill": {
+        "action": "[to be translated]:Backfill historical cost",
+        "available": "[to be translated]:{{count}} historical usage records are missing cost and can be calculated with current pricing.",
+        "confirm": "[to be translated]:Will update {{count}} records. Estimated cost: {{cost}}.",
+        "noPricing": "[to be translated]:Set model pricing before backfilling historical cost.",
+        "success": "[to be translated]:Backfilled {{count}} historical cost records."
+      },
+      "empty": {
+        "description": "[to be translated]:Usage appears after AI requests create ledger entries.",
+        "title": "[to be translated]:No usage yet"
+      },
+      "explore": {
+        "activity": "[to be translated]:Activity",
+        "allProviders": "[to be translated]:All providers",
+        "analysis": "[to be translated]:Analysis",
+        "breakdown": "[to be translated]:Breakdown",
+        "breakdownTab": "[to be translated]:Breakdown",
+        "cacheUsage": "[to be translated]:Cache usage",
+        "chart": "[to be translated]:Chart",
+        "clearDate": "[to be translated]:Clear date filter",
+        "costDrivers": "[to be translated]:Cost drivers",
+        "drilldownTitle": "[to be translated]:{{date}} drilldown",
+        "entries": "[to be translated]:Requests",
+        "groupBy": "[to be translated]:Group by",
+        "loadMore": "[to be translated]:Load more",
+        "loading": "[to be translated]:Loading...",
+        "metric": "[to be translated]:Metric",
+        "noBreakdown": "[to be translated]:No breakdown data",
+        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
+        "noEntries": "[to be translated]:No entries",
+        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
+        "provider": "[to be translated]:Provider",
+        "requestsTab": "[to be translated]:Requests",
+        "selectedDate": "[to be translated]:Selected date: {{date}}",
+        "share": "[to be translated]:Share {{value}}",
+        "shareLabel": "[to be translated]:Share",
+        "title": "[to be translated]:Explore",
+        "topApiKeys": "[to be translated]:Top API keys",
+        "topModels": "[to be translated]:Top models",
+        "topProviders": "[to be translated]:Top providers",
+        "topSources": "[to be translated]:Top assistants / agents",
+        "totalEntries": "[to be translated]:{{count}} entries"
+      },
+      "groupBy": {
+        "apiKey": "[to be translated]:API key",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
+        "source": "[to be translated]:Assistant / Agent"
+      },
+      "heatmap": {
+        "ariaDate": "[to be translated]:Usage on {{date}}",
+        "costDisabled": "[to be translated]:Cost view is available only when this window has one currency.",
+        "title": "[to be translated]:Daily activity"
+      },
+      "metric": {
+        "cost": "[to be translated]:Cost",
+        "requests": "[to be translated]:Requests",
+        "tokens": "[to be translated]:Tokens"
+      },
+      "modality": {
+        "embedding": "[to be translated]:Embedding",
+        "image": "[to be translated]:Image",
+        "language": "[to be translated]:Language"
+      },
+      "overview": {
+        "title": "[to be translated]:Overview"
+      },
+      "source": {
+        "agent": "[to be translated]:Agent",
+        "assistant": "[to be translated]:Assistant",
+        "unknown": "[to be translated]:Unattributed"
+      },
+      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{requests}} requests",
+      "table": {
+        "apiKey": "[to be translated]:API key",
+        "cost": "[to be translated]:Cost",
+        "date": "[to be translated]:Date",
+        "modality": "[to be translated]:Type",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
+        "request": "[to be translated]:Request",
+        "source": "[to be translated]:Source",
+        "tokens": "[to be translated]:Tokens",
+        "tps": "[to be translated]:TPS",
+        "tpsValue": "[to be translated]:{{value}} tok/s",
+        "ttft": "[to be translated]:TTFT"
+      },
+      "title": "[to be translated]:Usage Analytics",
+      "tooltip": {
+        "cost": "[to be translated]:Cost {{value}}",
+        "metric": "[to be translated]:{{value}}",
+        "requests": "[to be translated]:{{count}} requests",
+        "tokens": "[to be translated]:{{value}} tokens"
+      },
+      "window": {
+        "30d": "[to be translated]:Last 30 days",
+        "365d": "[to be translated]:Last year",
+        "90d": "[to be translated]:Last 90 days",
+        "all": "[to be translated]:All time"
+      }
     },
     "use_system_title_bar": {
       "confirm": {

@@ -26,13 +26,14 @@ const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
   const model = useMemo(() => getMessageListItemModel(message), [message])
 
   const getPrice = () => {
-    const inputTokens = usage?.prompt_tokens ?? 0
-    const outputTokens = usage?.completion_tokens ?? 0
-
-    // For OpenRouter, use the cost directly from usage if available
-    if (model?.provider === 'openrouter' && usage?.cost !== undefined) {
+    // Prefer the cost persisted on the message (provider-reported or computed
+    // from pricing at completion time); fall back to legacy pricing math.
+    if (usage?.cost !== undefined) {
       return usage.cost
     }
+
+    const inputTokens = usage?.prompt_tokens ?? 0
+    const outputTokens = usage?.completion_tokens ?? 0
 
     if (!model) {
       return 0
@@ -51,12 +52,7 @@ const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
     if (price === 0) {
       return ''
     }
-    // For OpenRouter, always show cost even without pricing config
-    const shouldShowCost = model?.provider === 'openrouter' || price > 0
-    if (!shouldShowCost) {
-      return ''
-    }
-    const currencySymbol = model?.pricing?.currencySymbol || '$'
+    const currencySymbol = usage?.cost_currency === 'CNY' ? '¥' : model?.pricing?.currencySymbol || '$'
     return `| ${t('models.price.cost')}: ${currencySymbol}${price.toFixed(6)}`
   }
 
@@ -89,12 +85,25 @@ const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
       })
     }
 
+    const cacheReadTokens = usage.cache_read_tokens
+    const reasoningTokens = usage.thoughts_tokens
+
     const tokensInfo = (
       <span className="tokens inline-flex items-center">
         Tokens:
         <span className="px-0.5">{formatTokenCountK(usage.total_tokens)}</span>
         <span className="px-0.5">↑{formatTokenCountK(usage.prompt_tokens)}</span>
         <span className="px-0.5">↓{formatTokenCountK(usage.completion_tokens)}</span>
+        {cacheReadTokens ? (
+          <Tooltip content={t('settings.messages.cache_read_tokens')} placement="top">
+            <span className="px-0.5">⚡{cacheReadTokens}</span>
+          </Tooltip>
+        ) : null}
+        {reasoningTokens ? (
+          <Tooltip content={t('settings.messages.reasoning_tokens')} placement="top">
+            <span className="px-0.5">🧠{reasoningTokens}</span>
+          </Tooltip>
+        ) : null}
         <span className="px-0.5">{getPriceString()}</span>
       </span>
     )

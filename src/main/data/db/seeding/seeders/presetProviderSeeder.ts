@@ -59,7 +59,8 @@ function toDbRow(p: ProtoProviderConfig) {
         streamOptions: p.apiFeatures.streamOptions,
         developerRole: p.apiFeatures.developerRole,
         serviceTier: p.apiFeatures.serviceTier,
-        verbosity: p.apiFeatures.verbosity
+        verbosity: p.apiFeatures.verbosity,
+        reportsActualCost: p.apiFeatures.reportsActualCost
       }
     : null
 

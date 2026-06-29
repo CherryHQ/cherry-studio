@@ -25,7 +25,9 @@ const CatalogApiFeaturesSchema = z.object({
   streamOptions: z.boolean().optional(),
   developerRole: z.boolean().optional(),
   serviceTier: z.boolean().optional(),
-  verbosity: z.boolean().optional()
+  verbosity: z.boolean().optional(),
+  /** Provider returns actual billed cost in its usage response (e.g. OpenRouter `usage.cost`). */
+  reportsActualCost: z.boolean().optional()
 })
 
 /** Provider website schema (type used for catalog ProviderWebsite type) */
@@ -283,7 +285,8 @@ export const DEFAULT_API_FEATURES: RuntimeApiFeatures = {
   streamOptions: true,
   developerRole: false,
   serviceTier: false,
-  verbosity: false
+  verbosity: false,
+  reportsActualCost: false
 }
 
 export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {}

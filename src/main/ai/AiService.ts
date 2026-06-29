@@ -12,6 +12,7 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
+import { usageLedgerService } from '@main/data/services/UsageLedgerService'
 import { type TranslateOpenRequest, translateService } from '@main/services/translate/translateService'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
@@ -21,6 +22,7 @@ import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Base64String, UrlString } from '@shared/types/file/common'
+import { computeImageCost, extractProviderCost } from '@shared/utils/cost'
 import { isEmbeddingModel, isFunctionCallingModel, isRerankModel } from '@shared/utils/model'
 import {
   type EmbeddingModelUsage,
@@ -39,7 +41,7 @@ import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './prov
 import { listModels as listModelsFromProvider } from './provider/listModels'
 import { Agent } from './runtime/aiSdk/Agent'
 import type { AgentLoopHooks } from './runtime/aiSdk/loop'
-import { mergeUsage, ZERO_USAGE } from './runtime/aiSdk/observers/usage'
+import { mergeUsage, usageToStats, ZERO_USAGE } from './runtime/aiSdk/observers/usage'
 import { buildAgentParams } from './runtime/aiSdk/params/buildAgentParams'
 import type { RequestFeature } from './runtime/aiSdk/params/feature'
 import { WebContentsListener } from './streamManager/listeners/WebContentsListener'
@@ -370,7 +372,7 @@ export class AiService extends BaseService {
       tools,
       system,
       options,
-      hookParts: [this.analyticsHookPart(model), ...hookParts],
+      hookParts: [this.analyticsHookPart(model), this.billingHookPart(model, request.messageId), ...hookParts],
       mediaCapabilities: resolveMediaCapabilities(model)
     })
 
@@ -384,6 +386,41 @@ export class AiService extends BaseService {
         if (step.usage) total = mergeUsage(total, step.usage)
       },
       onFinish: () => this.trackUsage(model, total)
+    }
+  }
+
+  /**
+   * Billing funnel — the single per-request capture point for the usage
+   * ledger, deliberately separate from {@link analyticsHookPart} (telemetry
+   * and billing are different concerns with different lifecycles).
+   *
+   * Every aiSdk request (chat, API gateway, translate, rename, …) flows
+   * through `streamText`/`generateText`, so this one hook covers them all.
+   * For chat, `requestMessageId` is the assistant message id — the ledger
+   * write converges with the message-persistence hook on the same row;
+   * stateless requests get a per-request id.
+   */
+  private billingHookPart(model: Model, requestMessageId?: string): Partial<AgentLoopHooks> {
+    let total: LanguageModelUsage = ZERO_USAGE
+    const id = requestMessageId ?? crypto.randomUUID()
+    return {
+      onStepFinish: (step) => {
+        if (step.usage) total = mergeUsage(total, step.usage)
+      },
+      onFinish: () => {
+        const stats = usageToStats(total)
+        if (!total.inputTokens && !total.outputTokens && !total.totalTokens) return
+        void usageLedgerService
+          .recordRequest({
+            id,
+            modelId: model.id,
+            stats,
+            providerCostUsd: extractProviderCost(total.raw)
+          })
+          .catch((err) => {
+            logger.warn('usage ledger record failed', { id, modelId: model.id, err })
+          })
+      }
     }
   }
 
@@ -410,7 +447,7 @@ export class AiService extends BaseService {
       tools,
       system: request.system ?? system,
       options,
-      hookParts: [this.analyticsHookPart(model), ...hookParts]
+      hookParts: [this.analyticsHookPart(model), this.billingHookPart(model), ...hookParts]
     })
 
     // prompt and messages are mutually exclusive in AI SDK; preserve that.
@@ -446,7 +483,7 @@ export class AiService extends BaseService {
     logger.info('generateImage started', { assistantId: request.assistantId, uniqueModelId: request.uniqueModelId })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig } = await this.buildAgentParamsFor(request, signal)
+    const { sdkConfig, model } = await this.buildAgentParamsFor(request, signal)
 
     const promptParam = request.inputImages
       ? { text: request.prompt, images: request.inputImages, ...(request.mask && { mask: request.mask }) }
@@ -543,6 +580,30 @@ export class AiService extends BaseService {
     }
     const fileManager = application.get('FileManager')
     const files = await Promise.all(dataUrls.map((data) => fileManager.createInternalEntry({ source: 'base64', data })))
+
+    // Usage ledger: image generation is priced per image (`pricing.perImage`),
+    // not tokens — cost is computed here where the resolved model is in scope.
+    if (files.length > 0) {
+      const imageCost = model.pricing ? computeImageCost(files.length, model.pricing) : undefined
+      void usageLedgerService
+        .recordRequest({
+          id: crypto.randomUUID(),
+          modelId: model.id,
+          modality: 'image',
+          imageCount: files.length,
+          stats: imageCost
+            ? {
+                cost: imageCost.cost,
+                costSource: 'computed',
+                costCurrency: imageCost.currency,
+                costBreakdown: { image: imageCost.cost }
+              }
+            : {}
+        })
+        .catch((err) => {
+          logger.warn('usage ledger record failed', { modelId: model.id, err })
+        })
+    }
 
     return { files }
   }
@@ -644,6 +705,23 @@ export class AiService extends BaseService {
     })
 
     this.trackUsage(model, { inputTokens: result.usage?.tokens ?? 0, outputTokens: 0 })
+
+    // Usage ledger: embeddings are token-priced (input rate only); cost is
+    // enriched inside recordRequest from the model's pricing.
+    if (result.usage?.tokens) {
+      const tokens = result.usage.tokens
+      void usageLedgerService
+        .recordRequest({
+          id: crypto.randomUUID(),
+          modelId: model.id,
+          modality: 'embedding',
+          stats: { inputTokens: tokens, totalTokens: tokens }
+        })
+        .catch((err) => {
+          logger.warn('usage ledger record failed', { modelId: model.id, err })
+        })
+    }
+
     return { embeddings: result.embeddings, usage: result.usage }
   }
 

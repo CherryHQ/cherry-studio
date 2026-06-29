@@ -78,8 +78,8 @@ describe('MessageTokens', () => {
   it('formats assistant message token usage in K units', () => {
     const { container } = renderWithProvider(
       createMessage('assistant', {
-        promptTokens: 1234,
-        completionTokens: 2048,
+        inputTokens: 1234,
+        outputTokens: 2048,
         totalTokens: 3282
       })
     )

@@ -267,8 +267,10 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "間隔",
+          "label": "排程類型",
           "once": "一次性"
         },
+        "scheduleValue": "排程值",
         "status": {
           "active": "活躍",
           "completed": "已完成",
@@ -1974,6 +1976,7 @@
       "claude_code": "Anthropic 官方 CLI 程式助理",
       "gemini_cli": "Google Gemini 命令列助理",
       "github_copilot_cli": "GitHub Copilot 命令列版本",
+      "iflow_cli": "iFlow 推出的多模型 CLI 助理",
       "kimi_cli": "Moonshot Kimi 命令列助理",
       "openai_codex": "OpenAI 官方程式碼產生 CLI",
       "opencode": "開源社群的多模型程式碼 Agent",
@@ -2114,6 +2117,7 @@
     "open_in": "在 {{name}} 中開啟",
     "open_in_new_tab": "在新分頁中開啟",
     "open_sidebar": "開啟側邊欄",
+    "other": "其他",
     "paste": "貼上",
     "placeholders": {
       "select": {
@@ -2652,7 +2656,13 @@
           "replace": "替換",
           "title": "來源已存在"
         },
+        "directory": {
+          "description": "将递归导入文件夹中的支持文件",
+          "title": "点击选择文件夹"
+        },
         "footer": {
+          "selected_directories": "已选 {{count}} 个目录",
+          "selected_files": "已选 {{count}} 个文件",
           "selected_notes": "已选 {{count}} 个笔记"
         },
         "note": {
@@ -2687,6 +2697,7 @@
         }
       },
       "bulk": {
+        "cancel": "取消",
         "delete": "刪除",
         "delete_confirm_description": "確認刪除選中的 {{count}} 個資料來源？刪除後無法復原。",
         "delete_confirm_title": "確認批次刪除",
@@ -2728,6 +2739,7 @@
         "failed": "預覽原文失敗",
         "unavailable": "目前資料來源沒有可預覽的原文"
       },
+      "ready_summary": "{{ready}}/{{total}} 就绪",
       "reindex_failed": "資料來源重新索引失敗",
       "status": {
         "chunking": "分块中",
@@ -2750,11 +2762,14 @@
         "view_chunks_row": "查看「{{title}}」的 Chunks"
       },
       "toolbar": {
-        "add": "新增資料來源"
+        "add": "新增資料來源",
+        "no_search_results": "未找到符合的資料來源",
+        "search_placeholder": "搜尋資料來源"
       }
     },
     "dimensions_auto_set": "自動設定嵌入維度",
     "dimensions_size_placeholder": "留空表示不設定",
+    "drag_file": "拖曳檔案到這裡",
     "embedding_model": "嵌入模型",
     "embedding_model_required": "知识库嵌入模型是必需的",
     "empty": "暂无知识库",
@@ -2770,6 +2785,7 @@
       "missing_vector_store": "遷移時未能讀取該知識庫的向量庫（缺失、為空或被占用），知識庫已保留，請重新索引以恢復。",
       "model_invalid": "未選擇模型"
     },
+    "file_hint": "支援 {{file_types}} 格式",
     "groups": {
       "add": "新建分组",
       "create_base_here": "在此分组新建",
@@ -3876,6 +3892,64 @@
       "partial_failure": "{{count}} 個搜尋結果，部分搜尋失敗"
     }
   },
+  "minapp": {
+    "add_to_launchpad": "新增到啟動台",
+    "add_to_sidebar": "新增到側邊欄",
+    "popup": {
+      "close": "關閉小工具",
+      "devtools": "開發者工具",
+      "goBack": "上一頁",
+      "goForward": "下一頁",
+      "minimize": "最小化小工具",
+      "openExternal": "在瀏覽器中開啟",
+      "open_link_external_off": "目前：使用預設視窗開啟連結",
+      "open_link_external_on": "目前：在瀏覽器中開啟連結",
+      "refresh": "重新整理",
+      "rightclick_copyurl": "右鍵複製 URL"
+    },
+    "remove_from_launchpad": "從啟動台移除",
+    "remove_from_sidebar": "從側邊欄移除",
+    "sidebar": {
+      "close": {
+        "title": "關閉"
+      },
+      "closeall": {
+        "title": "關閉所有"
+      },
+      "hide": {
+        "title": "隱藏"
+      },
+      "remove_custom": {
+        "title": "刪除自訂小工具"
+      }
+    },
+    "title": "小工具"
+  },
+  "minapps": {
+    "ant-ling": "Ant Ling",
+    "baichuan": "百小應",
+    "baidu-ai-search": "百度 AI 搜尋",
+    "chatglm": "智譜清言",
+    "dangbei": "當貝 AI",
+    "doubao": "豆包",
+    "hailuo": "海螺",
+    "ima": "ima",
+    "metaso": "秘塔 AI 搜尋",
+    "minimax-agent": "MiniMax Agent CN",
+    "minimax-global": "MiniMax Agent",
+    "nami-ai": "奈米 AI",
+    "nami-ai-search": "奈米 AI 搜尋",
+    "qwen": "通義千問",
+    "sensechat": "商量",
+    "stepfun": "階躍 AI",
+    "tencent-yuanbao": "騰訊元寶",
+    "tiangong-ai": "天工 AI",
+    "wanzhi": "萬知",
+    "wenxin": "文心一言",
+    "wps-copilot": "WPS 靈犀",
+    "xiaoyi": "小藝",
+    "zhihu": "知乎直答"
+  },
   "miniApp": {
     "add_to_launchpad": "新增到啟動台",
     "add_to_sidebar": "新增到側邊欄",
@@ -3886,13 +3960,15 @@
     "hide_failed": "隱藏小程式失敗",
     "pin_failed": "固定小程式失敗",
     "popup": {
+      "close": "關閉小工具",
       "devtools": "開發者工具",
       "goBack": "上一頁",
       "goForward": "下一頁",
       "openExternal": "在瀏覽器中開啟",
       "open_link_external_off": "目前：使用預設視窗開啟連結",
       "open_link_external_on": "目前：在瀏覽器中開啟連結",
-      "refresh": "重新整理"
+      "refresh": "重新整理",
+      "rightclick_copyurl": "右鍵複製 URL"
     },
     "remove_from_launchpad": "從啟動台移除",
     "remove_from_sidebar": "從側邊欄移除",
@@ -3904,8 +3980,17 @@
     },
     "show_failed": "顯示小程式失敗",
     "sidebar": {
+      "close": {
+        "title": "關閉"
+      },
+      "closeall": {
+        "title": "關閉所有"
+      },
       "hide": {
         "title": "隱藏"
+      },
+      "remove_custom": {
+        "title": "刪除自訂小工具"
       }
     },
     "title": "小工具",
@@ -3925,6 +4010,7 @@
     "minimax-agent": "MiniMax Agent CN",
     "minimax-global": "MiniMax Agent",
     "nami-ai": "奈米 AI",
+    "nami-ai-search": "奈米 AI 搜尋",
     "qwen": "通義千問",
     "sensechat": "商量",
     "stepfun": "階躍 AI",
@@ -3980,6 +4066,7 @@
     },
     "pinned": "已固定",
     "price": {
+      "cache_read": "快取讀取價格",
       "cost": "花費",
       "currency": "幣種",
       "custom": "自訂",
@@ -4176,7 +4263,28 @@
     "tip": "如果回應成功，則只針對超過 30 秒的訊息發出提醒"
   },
   "ocr": {
-    "processing": "OCR 處理中..."
+    "builtin": {
+      "system": "系統 OCR"
+    },
+    "error": {
+      "provider": {
+        "cannot_remove_builtin": "不能刪除內建提供者",
+        "existing": "提供者已存在",
+        "get_providers": "取得可用提供者失敗",
+        "not_found": "OCR 提供者不存在",
+        "update_failed": "更新設定失敗"
+      },
+      "unknown": "OCR 過程發生錯誤"
+    },
+    "file": {
+      "not_supported": "不支援的檔案類型 {{type}}"
+    },
+    "processing": "OCR 處理中...",
+    "warning": {
+      "provider": {
+        "fallback": "已改用 {{name}}，這可能導致問題"
+      }
+    }
   },
   "ollama": {
     "keep_alive_time": {
@@ -5350,6 +5458,117 @@
       "description": "將代理連接到 Telegram、飛書、Discord 等訊息平台。",
       "title": "頻道"
     },
+    "componentLab": {
+      "agentSelector": {
+        "clearSelection": "清空",
+        "configDescription": "切換 props 預覽元件行為",
+        "configTitle": "設定",
+        "currentProps": "目前 props",
+        "description": "AgentSelector 現在會讀取真實 /agents DataApi 資料，用於驗證 id/item 選擇、pin、排序與搜尋行為。",
+        "emptyShellNotice": "目前預覽使用 /agents DataApi 回傳的真實智能體列表。",
+        "lastOnChange": "最近一次 onChange",
+        "previewDescription": "點擊 trigger 開啟選擇器",
+        "previewTitle": "預覽",
+        "title": "智能體選擇器",
+        "triggerPlaceholder": "選擇智能體",
+        "valueProp": "目前 value"
+      },
+      "agentTodoList": {
+        "title": "Agent 任務列表"
+      },
+      "assistantSelector": {
+        "clearSelection": "清空",
+        "configDescription": "切換 props 預覽元件行為",
+        "configTitle": "設定",
+        "currentProps": "目前 props",
+        "description": "直接掛載 AssistantSelector 業務元件，驗證 multi/single、id/item、pin、排序與搜尋行為。",
+        "lastOnChange": "最近一次 onChange",
+        "previewDescription": "點擊 trigger 開啟選擇器",
+        "previewTitle": "預覽",
+        "title": "助手選擇器",
+        "triggerPlaceholder": "選擇助手",
+        "triggerSelectedCount": "已選 {{count}} 個助手",
+        "valueProp": "目前 value"
+      },
+      "description": "僅在開發環境顯示，用於直接在應用內聯調 v2 選擇器等新元件。",
+      "fileProcessing": {
+        "artifact": {
+          "file": "Markdown 檔案",
+          "text": "文字結果"
+        },
+        "description": "透過真實 file processing IPC 執行所有已設定的檔案處理器，並比較結果。",
+        "duration": "{{seconds}} 秒",
+        "jobId": "Job ID",
+        "markdown": {
+          "description": "選擇文件，並執行所有文件轉 Markdown 處理器。",
+          "fileFilterName": "文件",
+          "noFile": "未選擇文件",
+          "select": "選擇文件",
+          "start": "測試 Markdown",
+          "title": "Markdown"
+        },
+        "noProcessors": "沒有處理器支援這個能力。",
+        "ocr": {
+          "description": "選擇圖片，並執行所有 OCR 處理器。",
+          "fileFilterName": "圖片",
+          "noFile": "未選擇圖片",
+          "select": "選擇圖片",
+          "start": "測試 OCR",
+          "title": "OCR"
+        },
+        "processorCount": "{{count}} 個處理器",
+        "status": {
+          "cancelled": "已取消",
+          "completed": "已完成",
+          "delayed": "已延遲",
+          "failed": "失敗",
+          "idle": "閒置",
+          "pending": "等待中",
+          "processing": "處理中",
+          "running": "執行中",
+          "starting": "啟動中"
+        },
+        "title": "文件解析"
+      },
+      "label": "元件測試",
+      "modelSelector": {
+        "behaviorConfig": "互動與顯示設定",
+        "callbackEmpty": "尚未收到元件回呼",
+        "clearSelection": "清空選擇",
+        "configDescription": "在上方切換 ModelSelector 的關鍵 props，並在下方直接查看傳入值與回呼返回值。",
+        "configTitle": "Props Playground",
+        "controlMultiSelectMode": "受控 multiSelectMode",
+        "currentProps": "目前 props",
+        "defaultMultiSelectMode": "defaultMultiSelectMode",
+        "description": "這裡直接掛載目前的 ModelSelector 業務元件，方便驗證選擇、篩選、搜尋與置頂能力。",
+        "empty": "目前沒有可用模型，暫時無法顯示選擇器。",
+        "lastModeChangeReturn": "最近一次 onMultiSelectModeChange 返回",
+        "lastSelectReturn": "最近一次 onSelect 返回",
+        "loading": "正在載入模型...",
+        "modelId": "模型 ID",
+        "multiSelectMode": "multiSelectMode",
+        "multiple": "multiple",
+        "normalizedIds": "正規化選中 ID",
+        "outputEmpty": "目前沒有可顯示的資料",
+        "provider": "服務商",
+        "resetOutputs": "重設輸出",
+        "resultsDescription": "這裡會顯示元件目前接收的 value、正規化後的選中狀態，以及最新一次回呼輸出。",
+        "resultsTitle": "返回資料與狀態",
+        "selected": "目前選擇",
+        "selectedEmpty": "尚未選擇模型",
+        "selectionConfig": "選擇值設定",
+        "selectionType": "selectionType",
+        "selectionTypeId": "返回模型 ID",
+        "selectionTypeModel": "返回模型物件",
+        "showPinnedModels": "showPinnedModels",
+        "showTagFilter": "showTagFilter",
+        "title": "模型選擇元件",
+        "triggerPlaceholder": "選擇一個模型",
+        "triggerSelectedCount": "已選 {{count}} 個模型",
+        "valueProp": "目前傳入 value"
+      },
+      "title": "開發環境元件測試"
+    },
     "data": {
       "app_data": {
         "copy_data_option": "複製資料，會在重新啟動後將原始目錄的資料複製到新目錄",
@@ -6419,6 +6638,7 @@
       "system": "系統"
     },
     "messages": {
+      "cache_read_tokens": "快取命中的輸入 tokens",
       "divider": {
         "label": "訊息間顯示分隔線",
         "tooltip": "不適用於氣泡樣式訊息"
@@ -6433,6 +6653,8 @@
         "confirm_delete_message": "刪除訊息前確認",
         "confirm_regenerate_message": "重新產生訊息前確認",
         "enable_quick_triggers": "啟用 / 和 @ 觸發快捷選單",
+        "paste_long_text_as_file": "將長文字貼上為檔案",
+        "paste_long_text_threshold": "長文字長度",
         "send_shortcuts": "傳送快捷鍵",
         "show_estimated_tokens": "顯示預估 Token 數",
         "title": "輸入設定"
@@ -6448,6 +6670,8 @@
         "label": "訊息導覽",
         "none": "不顯示"
       },
+      "prompt": "提示詞顯示",
+      "reasoning_tokens": "推理 tokens",
       "show_message_outline": "顯示訊息大綱",
       "title": "訊息設定",
       "use_serif_font": "使用襯線字型",
@@ -6456,23 +6680,40 @@
     "miniApps": {
       "cache_change_notice": "變更會在開啟的小程式數量調整至設定值後生效",
       "cache_description": "設定同時保持活躍狀態的小程式最大數量",
+      "cache_settings": "快取設定",
       "cache_title": "小程式快取數量",
       "custom": {
+        "conflicting_ids": "與預設應用 ID 衝突：{{ids}}",
         "create_title": "建立自訂小程式",
+        "duplicate_ids": "發現重複的 ID: {{ids}}",
+        "edit_description": "編輯自訂小程式設定",
         "edit_title": "編輯自訂小程式",
+        "id": "ID",
+        "id_error": "ID 是必填項",
+        "id_placeholder": "請輸入 ID",
+        "logo": "Logo",
         "logo_file": "上傳 Logo 檔案",
+        "logo_upload_button": "上傳",
         "logo_upload_error": "Logo 上傳失敗",
         "logo_upload_label": "上傳 Logo",
+        "logo_upload_success": "Logo 上傳成功",
+        "logo_url": "Logo URL",
+        "logo_url_label": "Logo URL",
+        "logo_url_placeholder": "請輸入 Logo URL",
         "name": "名稱",
+        "name_error": "名稱為必填欄位",
         "name_placeholder": "請輸入名稱",
+        "placeholder": "請輸入自訂小程式設定（JSON 格式）",
         "remove_confirm_description": "確定要刪除自訂小程式「{{name}}」嗎？此操作無法復原。",
         "remove_confirm_title": "刪除自訂小程式？",
         "remove_error": "自訂小程式刪除失敗",
         "remove_success": "自訂小程式刪除成功",
+        "save": "儲存",
         "save_error": "自訂小程式儲存失敗",
         "save_success": "自訂小程式儲存成功",
         "title": "自訂",
         "url": "URL",
+        "url_error": "URL 是必填項",
         "url_invalid": "請輸入有效的 http、https 或 file URL",
         "url_placeholder": "請輸入 URL"
       },
@@ -6495,6 +6736,61 @@
         "title": "小程式區域篩選"
       },
       "reset_tooltip": "重設為預設值",
+      "title": "小程式設定",
+      "visible": "顯示的小程式"
+    },
+    "miniapps": {
+      "cache_change_notice": "變更會在開啟的小程式數量調整至設定值後生效",
+      "cache_description": "設定同時保持活躍狀態的小程式最大數量",
+      "cache_settings": "快取設定",
+      "cache_title": "小程式快取數量",
+      "custom": {
+        "conflicting_ids": "與預設應用 ID 衝突：{{ids}}",
+        "duplicate_ids": "發現重複的 ID: {{ids}}",
+        "edit_description": "編輯自訂小程式設定",
+        "edit_title": "編輯自訂小程式",
+        "id": "ID",
+        "id_error": "ID 是必填項",
+        "id_placeholder": "請輸入 ID",
+        "logo": "Logo",
+        "logo_file": "上傳 Logo 檔案",
+        "logo_upload_button": "上傳",
+        "logo_upload_error": "Logo 上傳失敗",
+        "logo_upload_label": "上傳 Logo",
+        "logo_upload_success": "Logo 上傳成功",
+        "logo_url": "Logo URL",
+        "logo_url_label": "Logo URL",
+        "logo_url_placeholder": "請輸入 Logo URL",
+        "name": "名稱",
+        "name_error": "名稱為必填欄位",
+        "name_placeholder": "請輸入名稱",
+        "placeholder": "請輸入自訂小程式設定（JSON 格式）",
+        "remove_error": "自訂小程式刪除失敗",
+        "remove_success": "自訂小程式刪除成功",
+        "save": "儲存",
+        "save_error": "自訂小程式儲存失敗",
+        "save_success": "自訂小程式儲存成功",
+        "title": "自訂",
+        "url": "URL",
+        "url_error": "URL 是必填項",
+        "url_placeholder": "請輸入 URL"
+      },
+      "disabled": "隱藏的小程式",
+      "display_title": "小程式顯示設定",
+      "empty": "在左側清單點擊隱藏圖示，小程式會移到這裡",
+      "open_link_external": {
+        "title": "在瀏覽器中開啟新視窗連結"
+      },
+      "region": {
+        "auto": "自動檢測",
+        "cn": "中國",
+        "description": "根據所在地區篩選不支援的小程式",
+        "global": "全球",
+        "title": "小程式區域篩選"
+      },
+      "reset_tooltip": "重設為預設值",
+      "sidebar_description": "設定側邊欄是否顯示活躍的小程式",
+      "sidebar_title": "側邊欄活躍小程式顯示設定",
       "title": "小程式設定",
       "visible": "顯示的小程式"
     },
@@ -6765,6 +7061,7 @@
     "plugins": {
       "addTool": "新增工具",
       "addToolDescription": "使用 mise 工具鍵新增工具（例如 github:sharkdp/fd、uv、bun）。",
+      "bunDescription": "用於 MCP 服務和相關工具鏈的 JavaScript 執行階段。",
       "coreDepsMissing": "核心依賴未安裝",
       "customTools": "自訂工具",
       "customToolsEmpty": "尚無自訂工具。請新增一個以開始使用。",
@@ -6802,7 +7099,8 @@
         "rtk": "CLI 代理工具，透過壓縮終端輸出來減少 LLM token 消耗。",
         "uv": "用於 MCP 服務與依賴安裝的 Python 套件管理工具。"
       },
-      "update": "更新到最新版本"
+      "update": "更新到最新版本",
+      "uvDescription": "用於 MCP 服務與依賴安裝的 Python 套件管理工具。"
     },
     "power": {
       "prevent_sleep_when_busy": "執行任務時保持系統喚醒"
@@ -6969,6 +7267,7 @@
       "cherryin": {
         "api_host": {
           "acceleration": "加速網域",
+          "backup": "備用網域",
           "international": "國際網域"
         }
       },
@@ -7527,6 +7826,134 @@
       "onclose": "關閉時最小化到系統匣",
       "show": "顯示系統匣圖示",
       "title": "系統匣"
+    },
+    "usage": {
+      "cards": {
+        "activeDays": "活躍天數",
+        "cacheHitRate": "[to be translated]:Cache hit rate",
+        "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
+        "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
+        "costHint": "成本按幣別分組。",
+        "dailyAverage": "每日平均",
+        "lastPeriod": "較上期",
+        "mixedCurrency": "多種貨幣會分開顯示。",
+        "none": "N/A",
+        "peakDay": "高峰日",
+        "providerAuth": "提供者認證",
+        "streak": "最長連續天數：{{days}} 天",
+        "topModel": "熱門模型",
+        "totalCost": "總成本",
+        "totalRequests": "請求數",
+        "totalTokens": "總權杖數",
+        "unattributedApiKey": "未歸因請求",
+        "unattributedSource": "[to be translated]:Unattributed source"
+      },
+      "chart": {
+        "bar": "[to be translated]:Bar",
+        "line": "[to be translated]:Line",
+        "pie": "[to be translated]:Pie",
+        "stack": "[to be translated]:Stack"
+      },
+      "costBackfill": {
+        "action": "補算歷史成本",
+        "available": "有 {{count}} 筆歷史用量缺少成本，可按目前價格補算。",
+        "confirm": "將寫入 {{count}} 筆記錄，預估成本：{{cost}}。",
+        "noPricing": "設定模型價格後才能補算歷史成本。",
+        "success": "已補算 {{count}} 筆歷史成本。"
+      },
+      "empty": {
+        "description": "使用記錄會在 AI 請求建立帳本項目後出現。",
+        "title": "尚無使用記錄"
+      },
+      "explore": {
+        "activity": "[to be translated]:Activity",
+        "allProviders": "所有提供者",
+        "analysis": "[to be translated]:Analysis",
+        "breakdown": "細分",
+        "breakdownTab": "[to be translated]:Breakdown",
+        "cacheUsage": "[to be translated]:Cache usage",
+        "chart": "[to be translated]:Chart",
+        "clearDate": "清除日期篩選",
+        "costDrivers": "[to be translated]:Cost drivers",
+        "drilldownTitle": "[to be translated]:{{date}} drilldown",
+        "entries": "項目",
+        "groupBy": "[to be translated]:Group by",
+        "loadMore": "載入更多",
+        "loading": "載入中...",
+        "metric": "[to be translated]:Metric",
+        "noBreakdown": "無細分資料",
+        "noBreakdownDescription": "請嘗試更大的時間範圍或其他提供者。",
+        "noEntries": "無項目",
+        "noEntriesDescription": "請嘗試更大的時間範圍或其他提供者。",
+        "provider": "提供者",
+        "requestsTab": "[to be translated]:Requests",
+        "selectedDate": "已選日期：{{date}}",
+        "share": "[to be translated]:Share {{value}}",
+        "shareLabel": "占比",
+        "title": "探索",
+        "topApiKeys": "[to be translated]:Top API keys",
+        "topModels": "[to be translated]:Top models",
+        "topProviders": "[to be translated]:Top providers",
+        "topSources": "[to be translated]:Top assistants / agents",
+        "totalEntries": "{{count}} 個項目"
+      },
+      "groupBy": {
+        "apiKey": "API 金鑰",
+        "model": "模型",
+        "provider": "提供者",
+        "source": "[to be translated]:Assistant / Agent"
+      },
+      "heatmap": {
+        "ariaDate": "{{date}} 的使用情況",
+        "costDisabled": "成本檢視僅在此時間範圍只有一種貨幣時可用。",
+        "title": "每日活動"
+      },
+      "metric": {
+        "cost": "成本",
+        "requests": "[to be translated]:Requests",
+        "tokens": "權杖"
+      },
+      "modality": {
+        "embedding": "嵌入",
+        "image": "圖片",
+        "language": "語言"
+      },
+      "overview": {
+        "title": "[to be translated]:Overview"
+      },
+      "source": {
+        "agent": "[to be translated]:Agent",
+        "assistant": "[to be translated]:Assistant",
+        "unknown": "[to be translated]:Unattributed"
+      },
+      "summary": "{{window}} / {{tokens}} Token / {{requests}} 個請求 / {{activeDays}} 個活躍日",
+      "table": {
+        "apiKey": "API 金鑰",
+        "cost": "成本",
+        "date": "日期",
+        "modality": "類型",
+        "model": "模型",
+        "provider": "提供者",
+        "request": "[to be translated]:Request",
+        "source": "[to be translated]:Source",
+        "tokens": "權杖",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
+      },
+      "title": "使用足跡",
+      "tooltip": {
+        "cost": "成本 {{value}}",
+        "metric": "{{value}}",
+        "requests": "{{count}} 個請求",
+        "tokens": "{{value}} 個權杖"
+      },
+      "window": {
+        "30d": "最近 30 天",
+        "365d": "去年",
+        "90d": "最近 90 天",
+        "all": "全部時間"
+      }
     },
     "use_system_title_bar": {
       "confirm": {

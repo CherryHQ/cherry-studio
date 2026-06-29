@@ -267,8 +267,10 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Interval",
+          "label": "Tipo de Horario",
           "once": "Một khi"
         },
+        "scheduleValue": "Giá trị theo lịch trình",
         "status": {
           "active": "Hoạt động",
           "completed": "Hoàn thành",
@@ -1974,6 +1976,7 @@
       "claude_code": "Trợ lý lập trình AI dòng lệnh chính thức của Anthropic",
       "gemini_cli": "Trợ lý dòng lệnh chính thức Gemini của Google",
       "github_copilot_cli": "Trình đồng hành dòng lệnh chính thức của GitHub Copilot",
+      "iflow_cli": "Trợ lý dòng lệnh đa mô hình của iFlow",
       "kimi_cli": "Trợ lý dòng lệnh Kimi của Moonshot",
       "openai_codex": "CLI chính thức tạo mã của OpenAI",
       "opencode": "Đại lý lập trình đa mô hình mã nguồn mở",
@@ -2114,6 +2117,7 @@
     "open_in": "Mở trong {{name}}",
     "open_in_new_tab": "Mở trong tab mới",
     "open_sidebar": "Mở thanh bên",
+    "other": "[to be translated]:Other",
     "paste": "Pasta",
     "placeholders": {
       "select": {
@@ -2652,7 +2656,13 @@
           "replace": "Thay thế",
           "title": "Nguồn đã tồn tại"
         },
+        "directory": {
+          "description": "Nhập đệ quy các tệp được hỗ trợ từ một thư mục",
+          "title": "Nhấp để chọn một thư mục"
+        },
         "footer": {
+          "selected_directories": "{{count}} thư mục đã được chọn",
+          "selected_files": "{{count}} tệp đã được chọn",
           "selected_notes": "{{count}} ghi chú được chọn"
         },
         "note": {
@@ -2687,6 +2697,7 @@
         }
       },
       "bulk": {
+        "cancel": "Hủy",
         "delete": "Xóa",
         "delete_confirm_description": "Xóa {{count}} nguồn dữ liệu đã chọn? Thao tác này không thể hoàn tác.",
         "delete_confirm_title": "Xóa các Nguồn Dữ liệu Đã Chọn?",
@@ -2728,6 +2739,7 @@
         "failed": "Không thể xem trước nguồn",
         "unavailable": "Nguồn dữ liệu này không có nguồn để xem trước"
       },
+      "ready_summary": "{{ready}}/{{total}} sẵn sàng",
       "reindex_failed": "Không thể lập chỉ mục lại nguồn dữ liệu",
       "status": {
         "chunking": "Chia nhỏ",
@@ -2750,11 +2762,14 @@
         "view_chunks_row": "Xem các phần cho {{title}}"
       },
       "toolbar": {
-        "add": "Thêm Nguồn Dữ Liệu"
+        "add": "Thêm Nguồn Dữ Liệu",
+        "no_search_results": "Không có nguồn dữ liệu phù hợp",
+        "search_placeholder": "Tìm kiếm nguồn dữ liệu"
       }
     },
     "dimensions_auto_set": "Tự động thiết lập kích thước embedding",
     "dimensions_size_placeholder": "Để trống để không truyền kích thước",
+    "drag_file": "Kéo tệp vào đây",
     "embedding_model": "Mô hình Nhúng",
     "embedding_model_required": "Mô hình nhúng cơ sở tri thức là bắt buộc",
     "empty": "Không có cơ sở kiến thức",
@@ -2770,6 +2785,7 @@
       "missing_vector_store": "Kho kiến thức này không thể đọc được cửa hàng vector trong quá trình di chuyển (thiếu, trống hoặc bị khóa). Kho kiến thức đã được giữ lại; hãy lập chỉ mục lại để khôi phục.",
       "model_invalid": "Chưa chọn mô hình"
     },
+    "file_hint": "Hỗ trợ {{file_types}}",
     "groups": {
       "add": "Nhóm Mới",
       "create_base_here": "Tạo ở đây",
@@ -3876,6 +3892,64 @@
       "partial_failure": "{{count}} kết quả tìm kiếm, một số tìm kiếm thất bại"
     }
   },
+  "minapp": {
+    "add_to_launchpad": "Thêm vào Launchpad",
+    "add_to_sidebar": "Thêm vào Thanh bên",
+    "popup": {
+      "close": "Đóng MinApp",
+      "devtools": "Công cụ dành cho nhà phát triển",
+      "goBack": "Quay lại",
+      "goForward": "Tiến về phía trước",
+      "minimize": "Thu nhỏ MinApp",
+      "openExternal": "Mở trong trình duyệt",
+      "open_link_external_off": "Hiện tại: Mở liên kết trong cửa sổ mặc định",
+      "open_link_external_on": "Hiện tại: Mở liên kết trong trình duyệt",
+      "refresh": "Làm mới",
+      "rightclick_copyurl": "Nhấp chuột phải để sao chép URL"
+    },
+    "remove_from_launchpad": "Gỡ khỏi Launchpad",
+    "remove_from_sidebar": "Xóa khỏi thanh bên",
+    "sidebar": {
+      "close": {
+        "title": "Đóng"
+      },
+      "closeall": {
+        "title": "Đóng Tất Cả"
+      },
+      "hide": {
+        "title": "Ẩn"
+      },
+      "remove_custom": {
+        "title": "Xóa Ứng dụng Tùy chỉnh"
+      }
+    },
+    "title": "MinApp"
+  },
+  "minapps": {
+    "ant-ling": "Ant Ling",
+    "baichuan": "Baichuan",
+    "baidu-ai-search": "Tìm kiếm AI Baidu",
+    "chatglm": "ChatGLM",
+    "dangbei": "Dangbei",
+    "doubao": "Doubao",
+    "hailuo": "Hailuo",
+    "ima": "ima",
+    "metaso": "Metaso",
+    "minimax-agent": "Đại lý Minimax CN",
+    "minimax-global": "Đại lý Minimax",
+    "nami-ai": "Nami AI",
+    "nami-ai-search": "Nami AI Search",
+    "qwen": "Qwen",
+    "sensechat": "SenseChat",
+    "stepfun": "Stepfun",
+    "tencent-yuanbao": "Nguyên bảo",
+    "tiangong-ai": "Skywork",
+    "wanzhi": "Wanzhi",
+    "wenxin": "ERNIE",
+    "wps-copilot": "WPS Copilot",
+    "xiaoyi": "Tiểu Nghi",
+    "zhihu": "Zhihu"
+  },
   "miniApp": {
     "add_to_launchpad": "Thêm vào Launchpad",
     "add_to_sidebar": "Thêm vào Thanh bên",
@@ -3886,13 +3960,15 @@
     "hide_failed": "Failed to hide mini-app",
     "pin_failed": "Không thể ghim ứng dụng nhỏ",
     "popup": {
+      "close": "Đóng MiniApp",
       "devtools": "Công cụ dành cho nhà phát triển",
       "goBack": "Quay lại",
       "goForward": "Tiến về phía trước",
       "openExternal": "Mở trong trình duyệt",
       "open_link_external_off": "Hiện tại: Mở liên kết trong cửa sổ mặc định",
       "open_link_external_on": "Hiện tại: Mở liên kết trong trình duyệt",
-      "refresh": "Làm mới"
+      "refresh": "Làm mới",
+      "rightclick_copyurl": "Nhấp chuột phải để sao chép URL"
     },
     "remove_from_launchpad": "Xóa khỏi Launchpad",
     "remove_from_sidebar": "Gỡ khỏi Thanh bên",
@@ -3904,8 +3980,17 @@
     },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
+      "close": {
+        "title": "Đóng"
+      },
+      "closeall": {
+        "title": "Đóng tất cả"
+      },
       "hide": {
         "title": "Ẩn"
+      },
+      "remove_custom": {
+        "title": "Xóa ứng dụng tùy chỉnh"
       }
     },
     "title": "MiniApp",
@@ -3925,6 +4010,7 @@
     "minimax-agent": "Đại lý Minimax CN",
     "minimax-global": "Đại lý Minimax",
     "nami-ai": "Nami AI",
+    "nami-ai-search": "Tìm kiếm AI Nami",
     "qwen": "Qwen",
     "sensechat": "SenseChat",
     "stepfun": "Stepfun",
@@ -3980,6 +4066,7 @@
     },
     "pinned": "Đã ghim",
     "price": {
+      "cache_read": "[to be translated]:Cache Read Price",
       "cost": "Chi phí",
       "currency": "Tiền tệ",
       "custom": "Tùy chỉnh",
@@ -4176,7 +4263,28 @@
     "tip": "Nếu phản hồi thành công, chỉ những tin nhắn vượt quá 30 giây mới kích hoạt lời nhắc"
   },
   "ocr": {
-    "processing": "Đang xử lý OCR..."
+    "builtin": {
+      "system": "Hệ thống OCR"
+    },
+    "error": {
+      "provider": {
+        "cannot_remove_builtin": "Không thể xóa nhà cung cấp tích hợp sẵn",
+        "existing": "Nhà cung cấp đã tồn tại",
+        "get_providers": "Không lấy được các nhà cung cấp khả dụng",
+        "not_found": "Nhà cung cấp OCR không tồn tại",
+        "update_failed": "Không thể cập nhật cấu hình"
+      },
+      "unknown": "Đã xảy ra lỗi trong quá trình OCR"
+    },
+    "file": {
+      "not_supported": "Loại tệp không được hỗ trợ {{type}}"
+    },
+    "processing": "Đang xử lý OCR...",
+    "warning": {
+      "provider": {
+        "fallback": "Đã hoàn nguyên về {{name}}, điều này có thể gây ra sự cố"
+      }
+    }
   },
   "ollama": {
     "keep_alive_time": {
@@ -5350,6 +5458,117 @@
       "description": "Kết nối các tác nhân với các nền tảng nhắn tin như Telegram, Feishu, Discord và nhiều hơn nữa.",
       "title": "Kênh"
     },
+    "componentLab": {
+      "agentSelector": {
+        "clearSelection": "Rõ ràng",
+        "configDescription": "Chuyển đổi props để xem trước hành vi của thành phần",
+        "configTitle": "Cấu hình",
+        "currentProps": "Props hiện tại",
+        "description": "AgentSelector hiện đọc dữ liệu DataApi /agents thực tế để xác minh hành vi chọn id/mục, ghim, sắp xếp và tìm kiếm.",
+        "emptyShellNotice": "Bản xem trước này sử dụng danh sách tác nhân thực được trả về bởi /agents DataApi.",
+        "lastOnChange": "Cập nhật mới nhất về onChange",
+        "previewDescription": "Nhấp vào công tắc để mở bộ chọn",
+        "previewTitle": "Xem trước",
+        "title": "Bộ chọn tác nhân",
+        "triggerPlaceholder": "Chọn một đại lý",
+        "valueProp": "Giá trị hiện tại"
+      },
+      "agentTodoList": {
+        "title": "Danh sách việc cần làm của đại lý"
+      },
+      "assistantSelector": {
+        "clearSelection": "Rõ ràng",
+        "configDescription": "Chuyển đổi props để xem trước hành vi của component",
+        "configTitle": "Cấu hình",
+        "currentProps": "Props hiện tại",
+        "description": "Gắn trực tiếp thành phần kinh doanh AssistantSelector để xác minh hành vi đa/đơn, id/mục, ghim, sắp xếp và tìm kiếm.",
+        "lastOnChange": "Cập nhật mới nhất về onChange",
+        "previewDescription": "Nhấp vào kích hoạt để mở bộ chọn",
+        "previewTitle": "Xem trước",
+        "title": "Trình chọn Trợ lý",
+        "triggerPlaceholder": "Chọn một trợ lý",
+        "triggerSelectedCount": "{{count}} trợ lý đã được chọn",
+        "valueProp": "Giá trị hiện tại"
+      },
+      "description": "Chỉ hiển thị trong quá trình phát triển để thử nghiệm trình chọn mô hình mới trực tiếp trong ứng dụng.",
+      "fileProcessing": {
+        "artifact": {
+          "file": "Tệp Markdown",
+          "text": "Kết quả văn bản"
+        },
+        "description": "Chạy mọi trình xử lý tệp đã cấu hình qua IPC xử lý tệp thực và so sánh kết quả.",
+        "duration": "{{seconds}} giây",
+        "jobId": "ID công việc",
+        "markdown": {
+          "description": "Chọn một tài liệu và chạy tất cả các bộ xử lý chuyển đổi tài liệu sang markdown.",
+          "fileFilterName": "Tài liệu",
+          "noFile": "Không có tài liệu nào được chọn",
+          "select": "Chọn tài liệu",
+          "start": "Kiểm tra đánh dấu",
+          "title": "Markdown"
+        },
+        "noProcessors": "Không có bộ xử lý nào hỗ trợ tính năng này.",
+        "ocr": {
+          "description": "Chọn một hình ảnh và chạy tất cả các bộ xử lý OCR.",
+          "fileFilterName": "Hình ảnh",
+          "noFile": "Chưa chọn hình ảnh",
+          "select": "Chọn hình ảnh",
+          "start": "Kiểm tra OCR",
+          "title": "OCR"
+        },
+        "processorCount": "{{count}} bộ xử lý",
+        "status": {
+          "cancelled": "Đã hủy",
+          "completed": "Hoàn thành",
+          "delayed": "Trì hoãn",
+          "failed": "Thất bại",
+          "idle": "Nhàn rỗi",
+          "pending": "Đang chờ",
+          "processing": "Đang xử lý",
+          "running": "Chạy",
+          "starting": "Bắt đầu"
+        },
+        "title": "Phân tích tài liệu"
+      },
+      "label": "Phòng thí nghiệm linh kiện",
+      "modelSelector": {
+        "behaviorConfig": "Cấu hình Hành vi & Hiển thị",
+        "callbackEmpty": "Chưa nhận được bất kỳ callback thành phần nào",
+        "clearSelection": "Xóa lựa chọn",
+        "configDescription": "Chuyển đổi các thuộc tính ModelSelector chính ở trên và kiểm tra giá trị đầu vào cùng với các payload callback bên dưới.",
+        "configTitle": "Sân chơi Đạo cụ",
+        "controlMultiSelectMode": "Chế độ chọn nhiều được kiểm soát",
+        "currentProps": "Props Hiện Tại",
+        "defaultMultiSelectMode": "chế độ chọn nhiều mặc định",
+        "description": "Trang này gắn trực tiếp thành phần kinh doanh ModelSelector hiện tại để chúng ta có thể xác minh hành vi lựa chọn, lọc, tìm kiếm và ghim.",
+        "empty": "Hiện không có mô hình nào khả dụng nên bộ chọn chưa thể hiển thị.",
+        "lastModeChangeReturn": "Cập nhật mới nhất về Return onMultiSelectModeChange",
+        "lastSelectReturn": "Mới nhất vềSelect Return",
+        "loading": "Đang tải mô hình...",
+        "modelId": "ID mô hình",
+        "multiSelectMode": "chế độ chọn nhiều",
+        "multiple": "nhiều",
+        "normalizedIds": "ID Đã Chọn Được Chuẩn Hóa",
+        "outputEmpty": "Chưa có dữ liệu để hiển thị",
+        "provider": "Nhà cung cấp",
+        "resetOutputs": "Đặt lại đầu ra",
+        "resultsDescription": "Điều này hiển thị giá trị đề xuất hiện tại, các id đã chọn được chuẩn hóa và đầu ra gọi lại mới nhất từ thành phần.",
+        "resultsTitle": "Đầu ra & Trạng thái",
+        "selected": "Lựa chọn hiện tại",
+        "selectedEmpty": "Chưa chọn mô hình nào",
+        "selectionConfig": "Cấu hình Giá trị Lựa chọn",
+        "selectionType": "loại lựa chọn",
+        "selectionTypeId": "Trả về ID mô hình",
+        "selectionTypeModel": "Trả về các đối tượng mô hình",
+        "showPinnedModels": "hiển thị các mô hình được ghim",
+        "showTagFilter": "hiển thịBộLọcThẻ",
+        "title": "Bộ chọn mô hình",
+        "triggerPlaceholder": "Chọn một mô hình",
+        "triggerSelectedCount": "{{count}} mô hình đã được chọn",
+        "valueProp": "Giá trị đề xuất hiện tại"
+      },
+      "title": "Phòng thí nghiệm Thành phần Phát triển"
+    },
     "data": {
       "app_data": {
         "copy_data_option": "Sao chép dữ liệu, sẽ tự động khởi động lại sau khi sao chép dữ liệu thư mục gốc vào thư mục mới",
@@ -6419,6 +6638,7 @@
       "system": "Hệ thống"
     },
     "messages": {
+      "cache_read_tokens": "[to be translated]:Cached input tokens read",
       "divider": {
         "label": "Hiển thị đường phân cách giữa các tin nhắn",
         "tooltip": "Không áp dụng cho tin nhắn kiểu bong bóng"
@@ -6433,6 +6653,8 @@
         "confirm_delete_message": "Xác nhận trước khi xóa tin nhắn",
         "confirm_regenerate_message": "Xác nhận trước khi tạo lại tin nhắn",
         "enable_quick_triggers": "Kích hoạt các kích hoạt / và @",
+        "paste_long_text_as_file": "Dán văn bản dài dưới dạng tệp",
+        "paste_long_text_threshold": "I’m ready—please provide the long text you’d like translated.",
         "send_shortcuts": "Gửi phím tắt",
         "show_estimated_tokens": "Hiển thị số token ước tính",
         "title": "Cài đặt đầu vào"
@@ -6448,6 +6670,8 @@
         "label": "Thanh điều hướng",
         "none": ""
       },
+      "prompt": "Mostrar indicación",
+      "reasoning_tokens": "[to be translated]:Reasoning tokens",
       "show_message_outline": "Hiển thị dàn bộ tin nhắn",
       "title": "Cài đặt tin nhắn",
       "use_serif_font": "Dùng phông chữ có chân",
@@ -6456,23 +6680,40 @@
     "miniApps": {
       "cache_change_notice": "Các thay đổi sẽ có hiệu lực khi số lượng ứng dụng mini đang mở đạt đến giá trị đã đặt",
       "cache_description": "Đặt số lượng tối đa các ứng dụng mini đang hoạt động cần giữ trong bộ nhớ",
+      "cache_settings": "Cài đặt bộ nhớ đệm",
       "cache_title": "Giới hạn bộ nhớ cache của Mini App",
       "custom": {
+        "conflicting_ids": "IDs conflictivos con aplicaciones predeterminadas: {{ids}}",
         "create_title": "Tạo mini app tùy chỉnh",
+        "duplicate_ids": "ID duplicados encontrados: {{ids}}",
+        "edit_description": "Chỉnh sửa cấu hình mini app tùy chỉnh tại đây. Mỗi app cần bao gồm các trường id, name, url và logo.",
         "edit_title": "Chỉnh sửa Ứng dụng Nhỏ Tùy chỉnh",
+        "id": "ID",
+        "id_error": "ID diperlukan.",
+        "id_placeholder": "Nhập ID",
+        "logo": "Biểu tượng",
         "logo_file": "Subir archivo de logotipo",
+        "logo_upload_button": "Subir",
         "logo_upload_error": "Không thể tải lên logo.",
         "logo_upload_label": "Tải lên Logo",
+        "logo_upload_success": "Logo cargado correctamente.",
+        "logo_url": "URL biểu tượng",
+        "logo_url_label": "URL biểu tượng",
+        "logo_url_placeholder": "Nhập URL logo",
         "name": "Tên",
+        "name_error": "Name ist erforderlich.",
         "name_placeholder": "Nhập tên",
+        "placeholder": "Nhập cấu hình mini app tùy chỉnh (định dạng JSON)",
         "remove_confirm_description": "Xóa ứng dụng nhỏ tùy chỉnh \"{{name}}\"? Hành động này không thể hoàn tác.",
         "remove_confirm_title": "Xóa ứng dụng mini tùy chỉnh?",
         "remove_error": "Không thể xóa ứng dụng nhỏ tùy chỉnh.",
         "remove_success": "Ứng dụng mini tùy chỉnh đã được gỡ bỏ thành công.",
+        "save": "Lưu",
         "save_error": "Không lưu được ứng dụng nhỏ tùy chỉnh.",
         "save_success": "Ứng dụng tùy chỉnh đã được lưu thành công.",
         "title": "Tùy chỉnh",
         "url": "URL",
+        "url_error": "URL là bắt buộc.",
         "url_invalid": "Nhập URL http, https hoặc file hợp lệ.",
         "url_placeholder": "Nhập URL"
       },
@@ -6497,6 +6738,61 @@
       "reset_tooltip": "Redefinir para o padrão",
       "title": "Cài đặt Ứng dụng Mini",
       "visible": "Mini aplicaciones visibles"
+    },
+    "miniapps": {
+      "cache_change_notice": "Những thay đổi sẽ có hiệu lực khi số lượng ứng dụng mini đang mở đạt đến giá trị đã đặt",
+      "cache_description": "Đặt số lượng tối đa các mini app đang hoạt động để giữ trong bộ nhớ",
+      "cache_settings": "Cài đặt bộ nhớ đệm",
+      "cache_title": "Giới hạn bộ nhớ đệm Mini App",
+      "custom": {
+        "conflicting_ids": "ID xung đột với ứng dụng mặc định: {{ids}}",
+        "duplicate_ids": "Phát hiện ID trùng lặp: {{ids}}",
+        "edit_description": "Chỉnh sửa cấu hình mini app tùy chỉnh tại đây. Mỗi app nên bao gồm các trường id, name, url và logo.",
+        "edit_title": "Chỉnh sửa Mini App Tùy chỉnh",
+        "id": "ID",
+        "id_error": "ID là bắt buộc.",
+        "id_placeholder": "Nhập ID",
+        "logo": "Logo",
+        "logo_file": "Tải lên Tệp Logo",
+        "logo_upload_button": "Tải lên",
+        "logo_upload_error": "Không thể tải lên logo.",
+        "logo_upload_label": "Tải lên Logo",
+        "logo_upload_success": "Logo đã được tải lên thành công.",
+        "logo_url": "URL Logo",
+        "logo_url_label": "URL Logo",
+        "logo_url_placeholder": "Nhập URL logo",
+        "name": "Tên",
+        "name_error": "Tên là bắt buộc.",
+        "name_placeholder": "Nhập tên",
+        "placeholder": "Nhập cấu hình ứng dụng nhỏ tùy chỉnh (định dạng JSON)",
+        "remove_error": "Không thể gỡ ứng dụng nhỏ tùy chỉnh.",
+        "remove_success": "Ứng dụng tùy chỉnh đã được gỡ bỏ thành công.",
+        "save": "Lưu",
+        "save_error": "Không thể lưu mini app tùy chỉnh.",
+        "save_success": "Ứng dụng mini tùy chỉnh đã được lưu thành công.",
+        "title": "Tùy chỉnh",
+        "url": "URL",
+        "url_error": "URL là bắt buộc.",
+        "url_placeholder": "Nhập URL"
+      },
+      "disabled": "Ứng dụng mini ẩn",
+      "display_title": "Cài đặt hiển thị Mini App",
+      "empty": "Nhấp vào biểu tượng ẩn của một ứng dụng bên trái và nó sẽ chuyển đến đây",
+      "open_link_external": {
+        "title": "Mở liên kết cửa sổ mới trong trình duyệt"
+      },
+      "region": {
+        "auto": "Tự động phát hiện",
+        "cn": "Trung Quốc",
+        "description": "Lọc các chương trình mini không được hỗ trợ dựa trên khu vực",
+        "global": "Toàn cầu",
+        "title": "Bộ lọc Mini Program"
+      },
+      "reset_tooltip": "Đặt lại về mặc định",
+      "sidebar_description": "Hiển thị các mini app đang hoạt động trong thanh bên",
+      "sidebar_title": "Hiển thị Ứng dụng Nhỏ Hoạt động trong Thanh bên",
+      "title": "Cài đặt Mini Apps",
+      "visible": "Mini Ứng dụng Hiển thị"
     },
     "model": "Mô hình Mặc định",
     "models": {
@@ -6765,6 +7061,7 @@
     "plugins": {
       "addTool": "Add Tool",
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "bunDescription": "Trình thực thi JavaScript được sử dụng bởi các dịch vụ MCP và các công cụ liên quan.",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
       "customToolsEmpty": "Chưa có công cụ tùy chỉnh nào. Thêm một công cụ để bắt đầu.",
@@ -6802,7 +7099,8 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
-      "update": "Update to latest version"
+      "update": "Update to latest version",
+      "uvDescription": "Trình quản lý gói Python cho các dịch vụ MCP và cài đặt phụ thuộc."
     },
     "power": {
       "prevent_sleep_when_busy": "Giữ hệ thống luôn hoạt động trong khi các tác vụ đang chạy"
@@ -6969,6 +7267,7 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Miền gia tốc",
+          "backup": "Miền dự phòng",
           "international": "Tên miền quốc tế"
         }
       },
@@ -7527,6 +7826,134 @@
       "onclose": "Thu nhỏ vào khay hệ thống khi đóng",
       "show": "Hiển thị biểu tượng khay",
       "title": "Bandeja"
+    },
+    "usage": {
+      "cards": {
+        "activeDays": "[to be translated]:Active days",
+        "cacheHitRate": "[to be translated]:Cache hit rate",
+        "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
+        "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
+        "costHint": "[to be translated]:Cost is grouped by currency.",
+        "dailyAverage": "[to be translated]:Daily average",
+        "lastPeriod": "[to be translated]:vs last period",
+        "mixedCurrency": "[to be translated]:Multiple currencies are shown separately.",
+        "none": "[to be translated]:N/A",
+        "peakDay": "[to be translated]:Peak day",
+        "providerAuth": "[to be translated]:Provider auth",
+        "streak": "[to be translated]:Longest streak: {{days}} days",
+        "topModel": "[to be translated]:Top model",
+        "totalCost": "[to be translated]:Total cost",
+        "totalRequests": "[to be translated]:Requests",
+        "totalTokens": "[to be translated]:Total tokens",
+        "unattributedApiKey": "[to be translated]:Unattributed request",
+        "unattributedSource": "[to be translated]:Unattributed source"
+      },
+      "chart": {
+        "bar": "[to be translated]:Bar",
+        "line": "[to be translated]:Line",
+        "pie": "[to be translated]:Pie",
+        "stack": "[to be translated]:Stack"
+      },
+      "costBackfill": {
+        "action": "[to be translated]:Backfill historical cost",
+        "available": "[to be translated]:{{count}} historical usage records are missing cost and can be calculated with current pricing.",
+        "confirm": "[to be translated]:Will update {{count}} records. Estimated cost: {{cost}}.",
+        "noPricing": "[to be translated]:Set model pricing before backfilling historical cost.",
+        "success": "[to be translated]:Backfilled {{count}} historical cost records."
+      },
+      "empty": {
+        "description": "[to be translated]:Usage appears after AI requests create ledger entries.",
+        "title": "[to be translated]:No usage yet"
+      },
+      "explore": {
+        "activity": "[to be translated]:Activity",
+        "allProviders": "[to be translated]:All providers",
+        "analysis": "[to be translated]:Analysis",
+        "breakdown": "[to be translated]:Breakdown",
+        "breakdownTab": "[to be translated]:Breakdown",
+        "cacheUsage": "[to be translated]:Cache usage",
+        "chart": "[to be translated]:Chart",
+        "clearDate": "[to be translated]:Clear date filter",
+        "costDrivers": "[to be translated]:Cost drivers",
+        "drilldownTitle": "[to be translated]:{{date}} drilldown",
+        "entries": "[to be translated]:Requests",
+        "groupBy": "[to be translated]:Group by",
+        "loadMore": "[to be translated]:Load more",
+        "loading": "[to be translated]:Loading...",
+        "metric": "[to be translated]:Metric",
+        "noBreakdown": "[to be translated]:No breakdown data",
+        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
+        "noEntries": "[to be translated]:No entries",
+        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
+        "provider": "[to be translated]:Provider",
+        "requestsTab": "[to be translated]:Requests",
+        "selectedDate": "[to be translated]:Selected date: {{date}}",
+        "share": "[to be translated]:Share {{value}}",
+        "shareLabel": "[to be translated]:Share",
+        "title": "[to be translated]:Explore",
+        "topApiKeys": "[to be translated]:Top API keys",
+        "topModels": "[to be translated]:Top models",
+        "topProviders": "[to be translated]:Top providers",
+        "topSources": "[to be translated]:Top assistants / agents",
+        "totalEntries": "[to be translated]:{{count}} entries"
+      },
+      "groupBy": {
+        "apiKey": "[to be translated]:API key",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
+        "source": "[to be translated]:Assistant / Agent"
+      },
+      "heatmap": {
+        "ariaDate": "[to be translated]:Usage on {{date}}",
+        "costDisabled": "[to be translated]:Cost view is available only when this window has one currency.",
+        "title": "[to be translated]:Daily activity"
+      },
+      "metric": {
+        "cost": "[to be translated]:Cost",
+        "requests": "[to be translated]:Requests",
+        "tokens": "[to be translated]:Tokens"
+      },
+      "modality": {
+        "embedding": "[to be translated]:Embedding",
+        "image": "[to be translated]:Image",
+        "language": "[to be translated]:Language"
+      },
+      "overview": {
+        "title": "[to be translated]:Overview"
+      },
+      "source": {
+        "agent": "[to be translated]:Agent",
+        "assistant": "[to be translated]:Assistant",
+        "unknown": "[to be translated]:Unattributed"
+      },
+      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{requests}} requests",
+      "table": {
+        "apiKey": "[to be translated]:API key",
+        "cost": "[to be translated]:Cost",
+        "date": "[to be translated]:Date",
+        "modality": "[to be translated]:Type",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
+        "request": "[to be translated]:Request",
+        "source": "[to be translated]:Source",
+        "tokens": "[to be translated]:Tokens",
+        "tps": "[to be translated]:TPS",
+        "tpsValue": "[to be translated]:{{value}} tok/s",
+        "ttft": "[to be translated]:TTFT"
+      },
+      "title": "[to be translated]:Usage Analytics",
+      "tooltip": {
+        "cost": "[to be translated]:Cost {{value}}",
+        "metric": "[to be translated]:{{value}}",
+        "requests": "[to be translated]:{{count}} requests",
+        "tokens": "[to be translated]:{{value}} tokens"
+      },
+      "window": {
+        "30d": "[to be translated]:Last 30 days",
+        "365d": "[to be translated]:Last year",
+        "90d": "[to be translated]:Last 90 days",
+        "all": "[to be translated]:All time"
+      }
     },
     "use_system_title_bar": {
       "confirm": {

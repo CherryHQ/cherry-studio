@@ -267,8 +267,10 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Интервал",
+          "label": "Тип расписания",
           "once": "Однократно"
         },
+        "scheduleValue": "Значение расписания",
         "status": {
           "active": "Активна",
           "completed": "Завершена",
@@ -1974,6 +1976,7 @@
       "claude_code": "Официальный командный ИИ-ассистент для программирования от Anthropic",
       "gemini_cli": "Официальный командный помощник Gemini от Google",
       "github_copilot_cli": "Официальный спутник командной строки GitHub Copilot",
+      "iflow_cli": "многофункциональный командный помощник iFlow",
       "kimi_cli": "Командная строка помощника Kimi от Moonshot",
       "openai_codex": "Официальный CLI для генерации кода от OpenAI",
       "opencode": "Многофункциональный агент для программирования с открытым исходным кодом",
@@ -2114,6 +2117,7 @@
     "open_in": "Открыть в {{name}}",
     "open_in_new_tab": "Открыть в новой вкладке",
     "open_sidebar": "Открыть боковую панель",
+    "other": "[to be translated]:Other",
     "paste": "Вставить",
     "placeholders": {
       "select": {
@@ -2652,7 +2656,13 @@
           "replace": "Заменить",
           "title": "Источники уже существуют"
         },
+        "directory": {
+          "description": "Рекурсивно импортировать поддерживаемые файлы из папки",
+          "title": "Щёлкните, чтобы выбрать папку"
+        },
         "footer": {
+          "selected_directories": "{{count}} каталогов выбрано",
+          "selected_files": "{{count}} файлов выбрано",
           "selected_notes": "{{count}} заметок выбрано"
         },
         "note": {
@@ -2687,6 +2697,7 @@
         }
       },
       "bulk": {
+        "cancel": "Отмена",
         "delete": "Удалить",
         "delete_confirm_description": "Удалить {{count}} выбранных источников данных? Это действие нельзя отменить.",
         "delete_confirm_title": "Удалить выбранные источники данных?",
@@ -2728,6 +2739,7 @@
         "failed": "Не удалось предварительно просмотреть источник",
         "unavailable": "У этого источника данных нет источника для предварительного просмотра"
       },
+      "ready_summary": "{{ready}}/{{total}} готовы",
       "reindex_failed": "Не удалось переиндексировать источник данных",
       "status": {
         "chunking": "Сегментация",
@@ -2750,11 +2762,14 @@
         "view_chunks_row": "Просмотр фрагментов для {{title}}"
       },
       "toolbar": {
-        "add": "Добавить источник данных"
+        "add": "Добавить источник данных",
+        "no_search_results": "Нет совпадающих источников данных",
+        "search_placeholder": "Поиск источников данных"
       }
     },
     "dimensions_auto_set": "Автоматическая установка размерности эмбеддинга",
     "dimensions_size_placeholder": "Оставьте пустым, чтобы не устанавливать",
+    "drag_file": "Перетащите файл сюда",
     "embedding_model": "Модель встраивания",
     "embedding_model_required": "Требуется модель встраивания базы знаний",
     "empty": "Нет баз знаний",
@@ -2770,6 +2785,7 @@
       "missing_vector_store": "Векторное хранилище этой базы знаний не удалось прочитать во время миграции (отсутствует, пусто или заблокировано). База знаний сохранена; выполните переиндексацию для восстановления.",
       "model_invalid": "Модель не выбрана"
     },
+    "file_hint": "Поддерживаются {{file_types}}",
     "groups": {
       "add": "Новая группа",
       "create_base_here": "Создайте здесь",
@@ -3876,6 +3892,64 @@
       "partial_failure": "{{count}} результатов поиска, некоторые поиски завершились ошибкой"
     }
   },
+  "minapp": {
+    "add_to_launchpad": "Добавить в Launchpad",
+    "add_to_sidebar": "Добавить на боковую панель",
+    "popup": {
+      "close": "Закрыть MinApp",
+      "devtools": "Инструменты разработчика",
+      "goBack": "Вернуться",
+      "goForward": "Идти вперёд",
+      "minimize": "Минимизировать MinApp",
+      "openExternal": "Открыть в браузере",
+      "open_link_external_off": "Текущее: открывать ссылки в стандартном окне",
+      "open_link_external_on": "Текущее: Открывать ссылки в браузере",
+      "refresh": "Обновить",
+      "rightclick_copyurl": "Щелкните правой кнопкой мыши, чтобы скопировать URL"
+    },
+    "remove_from_launchpad": "Удалить из Launchpad",
+    "remove_from_sidebar": "Убрать из боковой панели",
+    "sidebar": {
+      "close": {
+        "title": "Закрыть"
+      },
+      "closeall": {
+        "title": "Закрыть все"
+      },
+      "hide": {
+        "title": "Скрыть"
+      },
+      "remove_custom": {
+        "title": "Удалить пользовательское приложение"
+      }
+    },
+    "title": "MinApp"
+  },
+  "minapps": {
+    "ant-ling": "Муравьиный Линг",
+    "baichuan": "Байчуань",
+    "baidu-ai-search": "Поиск Baidu AI",
+    "chatglm": "ChatGLM",
+    "dangbei": "Dangbei",
+    "doubao": "Doubao",
+    "hailuo": "Hailuo",
+    "ima": "има",
+    "metaso": "Метасо",
+    "minimax-agent": "Агент Минимакс CN",
+    "minimax-global": "Агент Минимакс",
+    "nami-ai": "Nami AI",
+    "nami-ai-search": "Nami AI Поиск",
+    "qwen": "Квен",
+    "sensechat": "SenseChat",
+    "stepfun": "Stepfun",
+    "tencent-yuanbao": "Юаньбао",
+    "tiangong-ai": "Skywork",
+    "wanzhi": "Ваньчжи",
+    "wenxin": "ЭРНИ",
+    "wps-copilot": "WPS Copilot",
+    "xiaoyi": "Сяои",
+    "zhihu": "Zhihu"
+  },
   "miniApp": {
     "add_to_launchpad": "Добавить в стартовый экран",
     "add_to_sidebar": "Добавить в боковую панель",
@@ -3886,13 +3960,15 @@
     "hide_failed": "Failed to hide mini-app",
     "pin_failed": "Не удалось закрепить мини-приложение",
     "popup": {
+      "close": "Закрыть встроенное приложение",
       "devtools": "Инструменты разработчика",
       "goBack": "Назад",
       "goForward": "Вперед",
       "openExternal": "Открыть в браузере",
       "open_link_external_off": "Текущий: Открыть ссылки в окне по умолчанию",
       "open_link_external_on": "Текущий: Открыть ссылки в браузере",
-      "refresh": "Обновить"
+      "refresh": "Обновить",
+      "rightclick_copyurl": "ПКМ → Копировать URL"
     },
     "remove_from_launchpad": "Удалить из стартового экрана",
     "remove_from_sidebar": "Удалить из боковой панели",
@@ -3904,8 +3980,17 @@
     },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
+      "close": {
+        "title": "Закрыть"
+      },
+      "closeall": {
+        "title": "Закрыть все"
+      },
       "hide": {
         "title": "Скрыть"
+      },
+      "remove_custom": {
+        "title": "Удалить пользовательское приложение"
       }
     },
     "title": "Встроенные приложения",
@@ -3925,6 +4010,7 @@
     "minimax-agent": "MiniMax Agent CN",
     "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
+    "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
     "sensechat": "SenseChat",
     "stepfun": "Stepfun",
@@ -3980,6 +4066,7 @@
     },
     "pinned": "Закреплено",
     "price": {
+      "cache_read": "[to be translated]:Cache Read Price",
       "cost": "Стоимость",
       "currency": "Валюта",
       "custom": "Пользовательский",
@@ -4176,7 +4263,28 @@
     "tip": "Если ответ успешен, уведомление выдается только по сообщениям, превышающим 30 секунд"
   },
   "ocr": {
-    "processing": "Обработка OCR..."
+    "builtin": {
+      "system": "Системное распознавание текста"
+    },
+    "error": {
+      "provider": {
+        "cannot_remove_builtin": "Не удается удалить встроенного поставщика",
+        "existing": "Поставщик уже существует",
+        "get_providers": "Не удалось получить доступных поставщиков",
+        "not_found": "Поставщик OCR отсутствует",
+        "update_failed": "Обновление конфигурации не удалось"
+      },
+      "unknown": "Произошла ошибка в процессе распознавания текста"
+    },
+    "file": {
+      "not_supported": "Неподдерживаемый тип файла {{type}}"
+    },
+    "processing": "Обработка OCR...",
+    "warning": {
+      "provider": {
+        "fallback": "Возвращено к {{name}}, это может вызвать проблемы"
+      }
+    }
   },
   "ollama": {
     "keep_alive_time": {
@@ -5350,6 +5458,117 @@
       "description": "Подключайте агентов к платформам обмена сообщениями, таким как Telegram, Feishu, Discord и другим.",
       "title": "Каналы"
     },
+    "componentLab": {
+      "agentSelector": {
+        "clearSelection": "Прозрачный",
+        "configDescription": "Переключите props, чтобы предварительно просмотреть поведение компонента",
+        "configTitle": "Конфиг",
+        "currentProps": "Текущие реквизиты",
+        "description": "AgentSelector теперь считывает реальные данные DataApi из /agents, чтобы проверять выбор id/элемента, закрепление, сортировку и поведение поиска.",
+        "emptyShellNotice": "Этот предварительный просмотр использует реальный список агентов, возвращаемый DataApi /agents.",
+        "lastOnChange": "Последнее onChange",
+        "previewDescription": "Нажмите на триггер, чтобы открыть селектор",
+        "previewTitle": "Предварительный просмотр",
+        "title": "Селектор агентов",
+        "triggerPlaceholder": "Выберите агента",
+        "valueProp": "Текущее значение"
+      },
+      "agentTodoList": {
+        "title": "Список задач агента"
+      },
+      "assistantSelector": {
+        "clearSelection": "Прозрачный",
+        "configDescription": "Переключайте свойства, чтобы просмотреть поведение компонента",
+        "configTitle": "Конфиг",
+        "currentProps": "Текущие реквизиты",
+        "description": "Монтирует бизнес-компонент AssistantSelector напрямую для проверки поведения множественного/одиночного выбора, идентификатора/элемента, закрепления, сортировки и поиска.",
+        "lastOnChange": "Последнее onChange",
+        "previewDescription": "Нажмите на триггер, чтобы открыть селектор",
+        "previewTitle": "Предварительный просмотр",
+        "title": "Селектор ассистента",
+        "triggerPlaceholder": "Выберите ассистента",
+        "triggerSelectedCount": "{{count}} ассистентов выбрано",
+        "valueProp": "Текущее значение"
+      },
+      "description": "Видно только в режиме разработки для тестирования нового селектора моделей прямо в приложении.",
+      "fileProcessing": {
+        "artifact": {
+          "file": "Файл Markdown",
+          "text": "Результат текста"
+        },
+        "description": "Запустите каждый настроенный процессор файлов через реальный IPC обработки файлов и сравните результаты.",
+        "duration": "{{seconds}}с",
+        "jobId": "ID задания",
+        "markdown": {
+          "description": "Выберите документ и запустите все процессоры преобразования документов в Markdown.",
+          "fileFilterName": "Документы",
+          "noFile": "Документ не выбран",
+          "select": "Выберите документ",
+          "start": "Тест markdown",
+          "title": "Markdown"
+        },
+        "noProcessors": "Ни один процессор не поддерживает эту функцию.",
+        "ocr": {
+          "description": "Выберите изображение и запустите все процессоры OCR.",
+          "fileFilterName": "Изображения",
+          "noFile": "Изображение не выбрано",
+          "select": "Выберите изображение",
+          "start": "Тест OCR",
+          "title": "OCR"
+        },
+        "processorCount": "{{count}} процессоров",
+        "status": {
+          "cancelled": "Отменено",
+          "completed": "Завершено",
+          "delayed": "Задержан",
+          "failed": "Не удалось",
+          "idle": "Бездействие",
+          "pending": "В ожидании",
+          "processing": "Обработка",
+          "running": "Бег",
+          "starting": "Начало"
+        },
+        "title": "Разбор документов"
+      },
+      "label": "Компонентная лаборатория",
+      "modelSelector": {
+        "behaviorConfig": "Конфигурация поведения и отображения",
+        "callbackEmpty": "Компонентный обратный вызов еще не получен",
+        "clearSelection": "Очистить выбор",
+        "configDescription": "Переключите ключевые свойства ModelSelector выше и изучите значение поля ввода и полезные нагрузки обратного вызова ниже.",
+        "configTitle": "Площадка реквизита",
+        "controlMultiSelectMode": "Контролируемый multiSelectMode",
+        "currentProps": "Текущие реквизиты",
+        "defaultMultiSelectMode": "режимМножественногоВыбораПоУмолчанию",
+        "description": "Эта страница напрямую монтирует текущий бизнес-компонент ModelSelector, чтобы мы могли проверить поведение выбора, фильтрации, поиска и закрепления.",
+        "empty": "В настоящее время модели недоступны, поэтому селектор пока не может быть отображён.",
+        "lastModeChangeReturn": "Последний onMultiSelectModeChange Return",
+        "lastSelectReturn": "Последний onSelect Return",
+        "loading": "Загрузка моделей...",
+        "modelId": "Идентификатор модели",
+        "multiSelectMode": "множественныйРежимВыбора",
+        "multiple": "множественный",
+        "normalizedIds": "Нормализованные выбранные идентификаторы",
+        "outputEmpty": "Нет данных для отображения",
+        "provider": "Поставщик",
+        "resetOutputs": "Сбросить выходы",
+        "resultsDescription": "Это показывает текущее значение prop, нормализованные выбранные идентификаторы и последний вывод обратного вызова из компонента.",
+        "resultsTitle": "Выходные данные и состояние",
+        "selected": "Текущий выбор",
+        "selectedEmpty": "Модель ещё не выбрана",
+        "selectionConfig": "Конфигурация значения выбора",
+        "selectionType": "типВыбора",
+        "selectionTypeId": "Вернуть идентификаторы моделей",
+        "selectionTypeModel": "Вернуть объекты модели",
+        "showPinnedModels": "показать закреплённые модели",
+        "showTagFilter": "показатьФильтрТегов",
+        "title": "Селектор моделей",
+        "triggerPlaceholder": "Выберите модель",
+        "triggerSelectedCount": "{{count}} моделей выбрано",
+        "valueProp": "Текущее ценностное предложение"
+      },
+      "title": "Лаборатория компонентов разработки"
+    },
     "data": {
       "app_data": {
         "copy_data_option": "Копировать данные, будет автоматически перезапущено после копирования данных из исходной директории в новую директорию",
@@ -6419,6 +6638,7 @@
       "system": "Система"
     },
     "messages": {
+      "cache_read_tokens": "[to be translated]:Cached input tokens read",
       "divider": {
         "label": "Показывать разделитель между сообщениями",
         "tooltip": "Не применимо к сообщениям в стиле пузырей"
@@ -6433,6 +6653,8 @@
         "confirm_delete_message": "Подтверждать перед удалением сообщений",
         "confirm_regenerate_message": "Подтверждать перед пересозданием сообщений",
         "enable_quick_triggers": "Включите / и @, чтобы вызвать быстрое меню.",
+        "paste_long_text_as_file": "Вставлять длинный текст как файл",
+        "paste_long_text_threshold": "Длина вставки длинного текста",
         "send_shortcuts": "Горячие клавиши для отправки",
         "show_estimated_tokens": "Показывать затраты токенов",
         "title": "Настройки ввода"
@@ -6448,6 +6670,8 @@
         "label": "Навигация сообщений",
         "none": "Не показывать"
       },
+      "prompt": "Показывать подсказки",
+      "reasoning_tokens": "[to be translated]:Reasoning tokens",
       "show_message_outline": "Показать наброски сообщения",
       "title": "Настройки сообщений",
       "use_serif_font": "Использовать serif шрифт",
@@ -6456,23 +6680,40 @@
     "miniApps": {
       "cache_change_notice": "Изменения вступят в силу, когда количество открытых мини-приложений достигнет установленного значения",
       "cache_description": "Установить максимальное количество активных мини-приложений в памяти",
+      "cache_settings": "Настройки кэша",
       "cache_title": "Количество кэшируемых мини-приложений",
       "custom": {
+        "conflicting_ids": "Конфликт ID с приложениями по умолчанию: {{ids}}",
         "create_title": "Создать пользовательское мини-приложение",
+        "duplicate_ids": "Найдены повторяющиеся ID: {{ids}}",
+        "edit_description": "Здесь вы можете редактировать конфигурации пользовательских мини-приложений. Каждое приложение должно содержать поля id, name, url и logo.",
         "edit_title": "Редактировать пользовательское мини-приложение",
+        "id": "ID",
+        "id_error": "ID обязателен.",
+        "id_placeholder": "Введите ID",
+        "logo": "Логотип",
         "logo_file": "Загрузить файл логотипа",
+        "logo_upload_button": "Загрузить",
         "logo_upload_error": "Не удалось загрузить логотип.",
         "logo_upload_label": "Загрузить логотип",
+        "logo_upload_success": "Логотип успешно загружен.",
+        "logo_url": "URL логотипа",
+        "logo_url_label": "URL логотипа",
+        "logo_url_placeholder": "Введите URL логотипа",
         "name": "Имя",
+        "name_error": "Имя обязательно.",
         "name_placeholder": "Введите имя",
+        "placeholder": "Введите конфигурацию мини-приложения (формат JSON)",
         "remove_confirm_description": "Удалить пользовательское мини-приложение \"{{name}}\"? Это действие нельзя отменить.",
         "remove_confirm_title": "Удалить пользовательский мини-приложение?",
         "remove_error": "Не удалось удалить мини-приложение.",
         "remove_success": "Мини-приложение успешно удалено.",
+        "save": "Сохранить",
         "save_error": "Не удалось сохранить пользовательское мини-приложение.",
         "save_success": "Пользовательское мини-приложение успешно сохранено.",
         "title": "Пользовательские мини-приложения",
         "url": "URL",
+        "url_error": "URL обязателен.",
         "url_invalid": "Введите действительный URL с протоколом http, https или file.",
         "url_placeholder": "Введите URL"
       },
@@ -6497,6 +6738,61 @@
       "reset_tooltip": "Сбросить до значения по умолчанию",
       "title": "Настройки Mini Apps",
       "visible": "Отображаемые мини-приложения"
+    },
+    "miniapps": {
+      "cache_change_notice": "Изменения вступят в силу, когда количество открытых мини-приложений достигнет заданного значения",
+      "cache_description": "Установить максимальное количество активных мини-приложений, которые нужно хранить в памяти",
+      "cache_settings": "Настройки кэша",
+      "cache_title": "Лимит кэша мини-приложения",
+      "custom": {
+        "conflicting_ids": "Конфликтующие идентификаторы со стандартными приложениями: {{ids}}",
+        "duplicate_ids": "Обнаружены дублирующиеся идентификаторы: {{ids}}",
+        "edit_description": "Редактируйте конфигурацию пользовательского мини-приложения здесь. Каждое приложение должно включать поля id, name, url и logo.",
+        "edit_title": "Редактировать пользовательское мини-приложение",
+        "id": "ID",
+        "id_error": "Требуется ID.",
+        "id_placeholder": "Введите ID",
+        "logo": "Логотип",
+        "logo_file": "Загрузить файл логотипа",
+        "logo_upload_button": "Загрузить",
+        "logo_upload_error": "Не удалось загрузить логотип.",
+        "logo_upload_label": "Загрузить логотип",
+        "logo_upload_success": "Логотип успешно загружен.",
+        "logo_url": "URL логотипа",
+        "logo_url_label": "URL логотипа",
+        "logo_url_placeholder": "Введите URL логотипа",
+        "name": "Имя",
+        "name_error": "Имя обязательно.",
+        "name_placeholder": "Введите имя",
+        "placeholder": "Введите пользовательскую конфигурацию мини-приложения (в формате JSON)",
+        "remove_error": "Не удалось удалить пользовательское мини-приложение.",
+        "remove_success": "Пользовательское мини-приложение успешно удалено.",
+        "save": "Сохранить",
+        "save_error": "Не удалось сохранить пользовательский мини-приложение.",
+        "save_success": "Пользовательское мини-приложение успешно сохранено.",
+        "title": "Пользовательский",
+        "url": "URL",
+        "url_error": "URL обязателен.",
+        "url_placeholder": "Введите URL"
+      },
+      "disabled": "Скрытые мини-приложения",
+      "display_title": "Настройки отображения мини-приложения",
+      "empty": "Нажмите значок скрытия у приложения слева, и оно переместится сюда",
+      "open_link_external": {
+        "title": "Открывать ссылки в новом окне браузера"
+      },
+      "region": {
+        "auto": "Автоопределение",
+        "cn": "Китай",
+        "description": "Фильтрация неподдерживаемых мини-программ на основе региона",
+        "global": "Глобальный",
+        "title": "Фильтр мини-программ"
+      },
+      "reset_tooltip": "Сбросить по умолчанию",
+      "sidebar_description": "Показать активные мини-приложения в боковой панели",
+      "sidebar_title": "Отображение активных мини-приложений на боковой панели",
+      "title": "Настройки мини-приложений",
+      "visible": "Видимые мини-приложения"
     },
     "model": "Модель по умолчанию",
     "models": {
@@ -6765,6 +7061,7 @@
     "plugins": {
       "addTool": "Add Tool",
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "bunDescription": "Среда выполнения JavaScript, используемая службами MCP и связанными с ними инструментальными цепочками.",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
       "customToolsEmpty": "Пользовательских инструментов пока нет. Добавьте один, чтобы начать.",
@@ -6802,7 +7099,8 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
-      "update": "Update to latest version"
+      "update": "Update to latest version",
+      "uvDescription": "Менеджер пакетов Python для сервисов MCP и установки зависимостей."
     },
     "power": {
       "prevent_sleep_when_busy": "Не давайте системе переходить в спящий режим, пока выполняются задачи."
@@ -6969,6 +7267,7 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Домен ускорения",
+          "backup": "Резервный домен",
           "international": "Международный домен"
         }
       },
@@ -7527,6 +7826,134 @@
       "onclose": "Свернуть в трей при закрытии",
       "show": "Показать значок в трее",
       "title": "Трей"
+    },
+    "usage": {
+      "cards": {
+        "activeDays": "[to be translated]:Active days",
+        "cacheHitRate": "[to be translated]:Cache hit rate",
+        "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
+        "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
+        "costHint": "[to be translated]:Cost is grouped by currency.",
+        "dailyAverage": "[to be translated]:Daily average",
+        "lastPeriod": "[to be translated]:vs last period",
+        "mixedCurrency": "[to be translated]:Multiple currencies are shown separately.",
+        "none": "[to be translated]:N/A",
+        "peakDay": "[to be translated]:Peak day",
+        "providerAuth": "[to be translated]:Provider auth",
+        "streak": "[to be translated]:Longest streak: {{days}} days",
+        "topModel": "[to be translated]:Top model",
+        "totalCost": "[to be translated]:Total cost",
+        "totalRequests": "[to be translated]:Requests",
+        "totalTokens": "[to be translated]:Total tokens",
+        "unattributedApiKey": "[to be translated]:Unattributed request",
+        "unattributedSource": "[to be translated]:Unattributed source"
+      },
+      "chart": {
+        "bar": "[to be translated]:Bar",
+        "line": "[to be translated]:Line",
+        "pie": "[to be translated]:Pie",
+        "stack": "[to be translated]:Stack"
+      },
+      "costBackfill": {
+        "action": "[to be translated]:Backfill historical cost",
+        "available": "[to be translated]:{{count}} historical usage records are missing cost and can be calculated with current pricing.",
+        "confirm": "[to be translated]:Will update {{count}} records. Estimated cost: {{cost}}.",
+        "noPricing": "[to be translated]:Set model pricing before backfilling historical cost.",
+        "success": "[to be translated]:Backfilled {{count}} historical cost records."
+      },
+      "empty": {
+        "description": "[to be translated]:Usage appears after AI requests create ledger entries.",
+        "title": "[to be translated]:No usage yet"
+      },
+      "explore": {
+        "activity": "[to be translated]:Activity",
+        "allProviders": "[to be translated]:All providers",
+        "analysis": "[to be translated]:Analysis",
+        "breakdown": "[to be translated]:Breakdown",
+        "breakdownTab": "[to be translated]:Breakdown",
+        "cacheUsage": "[to be translated]:Cache usage",
+        "chart": "[to be translated]:Chart",
+        "clearDate": "[to be translated]:Clear date filter",
+        "costDrivers": "[to be translated]:Cost drivers",
+        "drilldownTitle": "[to be translated]:{{date}} drilldown",
+        "entries": "[to be translated]:Requests",
+        "groupBy": "[to be translated]:Group by",
+        "loadMore": "[to be translated]:Load more",
+        "loading": "[to be translated]:Loading...",
+        "metric": "[to be translated]:Metric",
+        "noBreakdown": "[to be translated]:No breakdown data",
+        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
+        "noEntries": "[to be translated]:No entries",
+        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
+        "provider": "[to be translated]:Provider",
+        "requestsTab": "[to be translated]:Requests",
+        "selectedDate": "[to be translated]:Selected date: {{date}}",
+        "share": "[to be translated]:Share {{value}}",
+        "shareLabel": "[to be translated]:Share",
+        "title": "[to be translated]:Explore",
+        "topApiKeys": "[to be translated]:Top API keys",
+        "topModels": "[to be translated]:Top models",
+        "topProviders": "[to be translated]:Top providers",
+        "topSources": "[to be translated]:Top assistants / agents",
+        "totalEntries": "[to be translated]:{{count}} entries"
+      },
+      "groupBy": {
+        "apiKey": "[to be translated]:API key",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
+        "source": "[to be translated]:Assistant / Agent"
+      },
+      "heatmap": {
+        "ariaDate": "[to be translated]:Usage on {{date}}",
+        "costDisabled": "[to be translated]:Cost view is available only when this window has one currency.",
+        "title": "[to be translated]:Daily activity"
+      },
+      "metric": {
+        "cost": "[to be translated]:Cost",
+        "requests": "[to be translated]:Requests",
+        "tokens": "[to be translated]:Tokens"
+      },
+      "modality": {
+        "embedding": "[to be translated]:Embedding",
+        "image": "[to be translated]:Image",
+        "language": "[to be translated]:Language"
+      },
+      "overview": {
+        "title": "[to be translated]:Overview"
+      },
+      "source": {
+        "agent": "[to be translated]:Agent",
+        "assistant": "[to be translated]:Assistant",
+        "unknown": "[to be translated]:Unattributed"
+      },
+      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{requests}} requests",
+      "table": {
+        "apiKey": "[to be translated]:API key",
+        "cost": "[to be translated]:Cost",
+        "date": "[to be translated]:Date",
+        "modality": "[to be translated]:Type",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
+        "request": "[to be translated]:Request",
+        "source": "[to be translated]:Source",
+        "tokens": "[to be translated]:Tokens",
+        "tps": "[to be translated]:TPS",
+        "tpsValue": "[to be translated]:{{value}} tok/s",
+        "ttft": "[to be translated]:TTFT"
+      },
+      "title": "[to be translated]:Usage Analytics",
+      "tooltip": {
+        "cost": "[to be translated]:Cost {{value}}",
+        "metric": "[to be translated]:{{value}}",
+        "requests": "[to be translated]:{{count}} requests",
+        "tokens": "[to be translated]:{{value}} tokens"
+      },
+      "window": {
+        "30d": "[to be translated]:Last 30 days",
+        "365d": "[to be translated]:Last year",
+        "90d": "[to be translated]:Last 90 days",
+        "all": "[to be translated]:All time"
+      }
     },
     "use_system_title_bar": {
       "confirm": {

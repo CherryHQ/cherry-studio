@@ -25,6 +25,7 @@ translate, summarisation) and the renderer-side transport that connects to it.
 | [Chat Attachments](./chat-attachments.md) | How attached files reach the model: native file parts when supported, capped extracted text otherwise, `read_file` for overflow paging |
 | [Provider Resolution](./provider-resolution.md) | `Provider.endpointConfigs` schema, endpoint resolution chain, variant suffixes, custom provider extensions (aihubmix, newapi) |
 | [Observability (trace / telemetry)](./observability.md) | `AiSdkSpanAdapter`, root span propagation, OTel attribute shape, local span projection, sinks |
+| [Usage Ledger](./usage-ledger.md) | Durable per-request usage/cost records: motivation (stateless requests invisible to message stats), key attribution, reconciliation, query API |
 
 ### Renderer-side glue
 

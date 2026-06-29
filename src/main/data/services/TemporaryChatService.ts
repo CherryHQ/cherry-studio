@@ -25,6 +25,7 @@ import { eq, isNull } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
 import { messageService } from './MessageService'
+import { usageLedgerService } from './UsageLedgerService'
 import { insertWithOrderKey } from './utils/orderKey'
 
 const logger = loggerService.withContext('DataApi:TemporaryChatService')
@@ -230,6 +231,19 @@ export class TemporaryChatService {
       this.topics.set(topicId, topic)
       this.messages.set(topicId, msgs)
       throw err
+    }
+
+    // Usage ledger: the raw inserts above bypass `MessageService.update`, so
+    // record promoted assistant usage here (post-commit, fire-and-forget) —
+    // otherwise a kept temp chat would show per-message stats but contribute
+    // nothing to the billing ledger.
+    for (const m of msgs) {
+      if (m.role !== 'assistant' || !m.stats) continue
+      void usageLedgerService
+        .recordFromMessage({ id: m.id, topicId: topic.id, role: m.role, modelId: m.modelId ?? null, stats: m.stats })
+        .catch((err) => {
+          logger.warn('usage ledger record failed for persisted temporary message', { messageId: m.id, err })
+        })
     }
 
     logger.info('Persisted temporary topic', { topicId, messageCount: msgs.length })

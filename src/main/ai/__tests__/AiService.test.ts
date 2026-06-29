@@ -140,6 +140,12 @@ describe('AiService', () => {
         providerId: 'test-provider',
         providerSettings: {},
         modelId: 'test-model'
+      },
+      model: {
+        id: 'test-provider::test-model',
+        providerId: 'test-provider',
+        modelId: 'test-model',
+        pricing: { input: { perMillionTokens: null }, output: { perMillionTokens: null }, perImage: { price: 0.05 } }
       }
     } as never)
 
