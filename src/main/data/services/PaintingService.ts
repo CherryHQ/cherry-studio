@@ -30,15 +30,14 @@ import { paintingSourceType } from '@shared/data/types/file/ref'
 import { createUniqueModelId, isUniqueModelId } from '@shared/data/types/model'
 import type { Painting, PaintingFiles } from '@shared/data/types/painting'
 import type { SQL } from 'drizzle-orm'
-import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 
 import { fileRefService } from './FileRefService'
+import { asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:PaintingService')
-
-type PaintingCursor = string | null
 
 const EMPTY_FILES: PaintingFiles = { output: [], input: [] }
 
@@ -67,20 +66,6 @@ function rowToPainting(row: PaintingRow, files: PaintingFiles): Painting {
 function normalizeModelId(providerId: string, modelId: string | null | undefined): string | null {
   if (!modelId) return null
   return isUniqueModelId(modelId) ? modelId : createUniqueModelId(providerId, modelId)
-}
-
-function decodeCursor(raw: string | undefined): PaintingCursor {
-  if (!raw) return null
-  return raw
-}
-
-function encodeCursor(row: PaintingRow): string {
-  return row.orderKey
-}
-
-function cursorPredicate(cursor: PaintingCursor): SQL | undefined {
-  if (!cursor) return undefined
-  return gt(paintingTable.orderKey, cursor)
 }
 
 /**
@@ -119,7 +104,8 @@ class PaintingService {
     const conditions: SQL[] = []
     const filterConditions: SQL[] = []
     const limit = Math.min(query.limit ?? PAINTINGS_DEFAULT_LIMIT, PAINTINGS_MAX_LIMIT)
-    const cursor = decodeCursor(query.cursor)
+    const ordering = keysetOrdering(paintingTable.orderKey, paintingTable.id, { major: 'asc', tie: 'asc' })
+    const cursor = decodeListCursor(query.cursor, asStringKey, 'painting')
 
     if (query.providerId) {
       filterConditions.push(eq(paintingTable.providerId, query.providerId))
@@ -127,9 +113,8 @@ class PaintingService {
 
     conditions.push(...filterConditions)
 
-    const afterCursor = cursorPredicate(cursor)
-    if (afterCursor) {
-      conditions.push(afterCursor)
+    if (cursor) {
+      conditions.push(ordering.where(cursor))
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
@@ -139,7 +124,7 @@ class PaintingService {
         .select()
         .from(paintingTable)
         .where(whereClause)
-        .orderBy(asc(paintingTable.orderKey))
+        .orderBy(...ordering.orderBy)
         .limit(limit + 1),
       db
         .select({ count: sql<number>`count(*)` })
@@ -152,7 +137,10 @@ class PaintingService {
     return {
       items: pageRows.map((row) => rowToPainting(row, filesByPainting.get(row.id) ?? EMPTY_FILES)),
       total: countResult[0]?.count ?? 0,
-      nextCursor: rows.length > limit ? encodeCursor(pageRows[pageRows.length - 1]) : undefined
+      nextCursor:
+        rows.length > limit
+          ? encodeCursor(pageRows[pageRows.length - 1].orderKey, pageRows[pageRows.length - 1].id)
+          : undefined
     }
   }
 

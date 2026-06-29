@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
-import type { Topic } from '@renderer/types'
 import {
   AssistantMessageStatus,
   type MainTextMessageBlock,
@@ -9,7 +8,8 @@ import {
   MessageBlockType,
   UserMessageStatus
 } from '@renderer/types/newMessage'
-import { uuid } from '@renderer/utils'
+import type { Topic } from '@renderer/types/topic'
+import { uuid } from '@renderer/utils/uuid'
 
 import type { ConversationImporter, ImportResult } from '../types'
 

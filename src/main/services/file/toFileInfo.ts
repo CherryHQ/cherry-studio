@@ -20,13 +20,14 @@
  *   which wraps this function.
  * - Internal entry missing on disk → a bug. The error propagates for visibility.
  *
- * @see FileInfo (src/shared/file/types/info.ts) for the data shape.
+ * @see FileInfo (src/shared/types/file/info.ts) for the data shape.
  * @see architecture.md §2 for the reference-vs-data-shape design.
  */
 
 import { stat as fsStat } from '@main/utils/file/fs'
 import type { FileEntry } from '@shared/data/types/file'
-import { type FileInfo, FileInfoSchema, getFileTypeByExt } from '@shared/file/types'
+import { type FileInfo, FileInfoSchema } from '@shared/types/file'
+import { getFileTypeByExt } from '@shared/utils/file'
 import mime from 'mime'
 
 import { resolvePhysicalPath } from './utils/pathResolver'

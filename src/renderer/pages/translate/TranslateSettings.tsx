@@ -23,16 +23,16 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useLanguages, useTranslateLanguages } from '@renderer/hooks/translate'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
-import { TRANSLATE_PROMPT } from '@shared/config/prompts'
+import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import type {
   AutoDetectionMethod,
   PersistedLangCode,
   TranslateBidirectionalPair
 } from '@shared/data/preference/preferenceTypes'
 import { parsePersistedLangCode, PersistedLangCodeSchema } from '@shared/data/preference/preferenceTypes'
-import { BUILTIN_TRANSLATE_LANGUAGES } from '@shared/data/presets/translate-languages'
+import { BUILTIN_TRANSLATE_LANGUAGES } from '@shared/data/presets/translateLanguages'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { ArrowLeftRight, ChevronDown, PenLine, Plus, X } from 'lucide-react'
 import type { FC, KeyboardEvent as ReactKeyboardEvent } from 'react'

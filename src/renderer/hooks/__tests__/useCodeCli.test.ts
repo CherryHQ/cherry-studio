@@ -1,4 +1,4 @@
-import { codeCLI, terminalApps } from '@shared/config/constant'
+import { CodeCli, TerminalApp } from '@shared/types/codeCli'
 import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -29,13 +29,13 @@ describe('useCodeCli', () => {
     it('should return default tool when no tool is enabled', () => {
       setupOverridesMock({})
       const { result } = renderHook(() => useCodeCli())
-      expect(result.current.selectedCliTool).toBe(codeCLI.qwenCode)
+      expect(result.current.selectedCliTool).toBe(CodeCli.QWEN_CODE)
     })
 
     it('should return the enabled tool', () => {
       setupOverridesMock({ 'claude-code': { enabled: true } })
       const { result } = renderHook(() => useCodeCli())
-      expect(result.current.selectedCliTool).toBe(codeCLI.claudeCode)
+      expect(result.current.selectedCliTool).toBe(CodeCli.CLAUDE_CODE)
     })
   })
 
@@ -49,7 +49,7 @@ describe('useCodeCli', () => {
     it('should return default terminal when none set', () => {
       setupOverridesMock({})
       const { result } = renderHook(() => useCodeCli())
-      expect(result.current.selectedTerminal).toBe(terminalApps.systemDefault)
+      expect(result.current.selectedTerminal).toBe(TerminalApp.SYSTEM_DEFAULT)
     })
   })
 
@@ -59,7 +59,7 @@ describe('useCodeCli', () => {
       const { result } = renderHook(() => useCodeCli())
 
       await act(async () => {
-        await result.current.setCliTool(codeCLI.claudeCode)
+        await result.current.setCliTool(CodeCli.CLAUDE_CODE)
       })
 
       expect(mockSetter).toHaveBeenCalledWith(
@@ -100,6 +100,14 @@ describe('useCodeCli', () => {
     it('should be true for github-copilot-cli without model', () => {
       setupOverridesMock({
         'github-copilot-cli': { enabled: true, currentDirectory: '/tmp/project' }
+      })
+      const { result } = renderHook(() => useCodeCli())
+      expect(result.current.canLaunch).toBe(true)
+    })
+
+    it('should be true for qoder-cli without model', () => {
+      setupOverridesMock({
+        'qoder-cli': { enabled: true, currentDirectory: '/tmp/project' }
       })
       const { result } = renderHook(() => useCodeCli())
       expect(result.current.canLaunch).toBe(true)

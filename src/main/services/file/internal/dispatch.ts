@@ -1,15 +1,21 @@
 /**
  * `dispatchHandle` — uniform `FileHandle` → `entry-fn` / `path-fn` switch.
  *
- * FileManager IPC handlers accept `FileHandle` and dispatch to either the
- * entry-aware (FileManager.read, hash, …) or the path-only (`readByPath`,
- * `hashByPath`, …) branch based on `handle.kind`. Centralising the switch
- * keeps every handler symmetrical and makes adding a future `kind` (rare)
- * a single-file change.
+ * File IPC handlers accept `FileHandle` and dispatch to either the entry-aware
+ * (FileManager.read, hash, …) or the path-only (`readByPath`, `hashByPath`, …)
+ * branch based on `handle.kind`. Centralising the switch keeps every handler
+ * symmetrical and makes adding a future `kind` (rare) a single-file change.
+ *
+ * TODO(file-ipc): Temporary location. This helper currently lives under
+ * `services/file/internal` because legacy FileManager-owned IPC handlers still
+ * use it. Once FileManager no longer registers any IPC handlers, move this
+ * helper to the IPC adapter layer (for example under `src/main/ipc/handlers/`
+ * or a nearby IPC utility) so FileHandle dispatch ownership matches the
+ * renderer-transport boundary.
  */
 
 import type { FileEntryId } from '@shared/data/types/file'
-import type { FileHandle, FilePath } from '@shared/file/types'
+import type { FileHandle, FilePath } from '@shared/types/file'
 
 export async function dispatchHandle<T>(
   handle: FileHandle,

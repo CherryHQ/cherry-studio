@@ -1,32 +1,14 @@
 import type { SerializedError } from '@renderer/types/error'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Mock fetchGenerate and fetchModels
 vi.mock('../ApiService', () => ({
-  fetchGenerate: vi.fn(),
-  fetchModels: vi.fn().mockResolvedValue([])
+  fetchGenerate: vi.fn()
 }))
 
 // `readDefaultModel` now reads from preferenceService + dataApiService, not Redux.
 // Mock the boundary directly so tests can stage the value without rewiring v2 data.
 vi.mock('../ModelService', () => ({
   readDefaultModel: vi.fn().mockResolvedValue(undefined)
-}))
-
-// Mock CHERRYAI_PROVIDER
-vi.mock('@renderer/config/providers', () => ({
-  CHERRYAI_PROVIDER: { id: 'cherryai', type: 'openai', apiHost: 'https://api.cherry-ai.com', models: [] }
-}))
-
-// Mock store
-vi.mock('@renderer/store', () => ({
-  default: {
-    getState: vi.fn(() => ({
-      llm: { defaultModel: null }
-    })),
-    dispatch: vi.fn()
-  },
-  useAppSelector: vi.fn()
 }))
 
 // Mock LoggerService
@@ -41,40 +23,26 @@ vi.mock('@renderer/services/LoggerService', () => ({
   }
 }))
 
-import store from '@renderer/store'
-
-import { fetchGenerate, fetchModels } from '../ApiService'
+import { fetchGenerate } from '../ApiService'
 import { diagnoseError } from '../ErrorDiagnosisService'
 import { readDefaultModel } from '../ModelService'
 
 const mockFetchGenerate = vi.mocked(fetchGenerate)
-const mockFetchModels = vi.mocked(fetchModels)
-const mockGetState = vi.mocked(store.getState)
 const mockReadDefaultModel = vi.mocked(readDefaultModel)
 
 function makeError(overrides: Partial<SerializedError> = {}): SerializedError {
   return { name: 'Error', message: 'test error', stack: null, ...overrides }
 }
 
-const mockListModels = vi.fn()
-Object.assign(window, {
-  api: {
-    ...(window as any).api,
-    ai: {
-      ...(window as any).api?.ai,
-      listModels: (...args: any[]) => mockListModels(...args)
-    }
-  }
-})
+// listModels goes through ipcApi.request('ai.list_models', …) now (Main IPC).
+const { mockListModels } = vi.hoisted(() => ({ mockListModels: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: (_route: string, input: unknown) => mockListModels(input) }
+}))
 
 describe('ErrorDiagnosisService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetState.mockReturnValue({
-      llm: { defaultModel: null }
-    } as any)
-    // Default: CherryAI returns a free model as fallback
-    mockFetchModels.mockResolvedValue([{ id: 'qwen', name: 'Qwen', provider: 'cherryai' }] as any)
     mockListModels.mockResolvedValue([{ id: 'qwen', name: 'Qwen', provider: 'cherryai' }])
   })
 
@@ -123,9 +91,6 @@ describe('ErrorDiagnosisService', () => {
     })
 
     it('uses CherryAI free model as primary', async () => {
-      const customModel = { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
-      mockGetState.mockReturnValue({ llm: { defaultModel: customModel } } as any)
-
       const mockResult = {
         summary: 'Error',
         category: 'unknown',
@@ -142,7 +107,6 @@ describe('ErrorDiagnosisService', () => {
     })
 
     it('falls back to defaultModel when CherryAI is unavailable', async () => {
-      mockFetchModels.mockResolvedValue([])
       mockListModels.mockResolvedValue([])
       const customModel = { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
       mockReadDefaultModel.mockResolvedValueOnce(customModel as any)
@@ -160,8 +124,6 @@ describe('ErrorDiagnosisService', () => {
     })
 
     it('uses only CherryAI when no default model', async () => {
-      mockGetState.mockReturnValue({ llm: { defaultModel: null } } as any)
-
       const mockResult = {
         summary: 'Error',
         category: 'unknown',

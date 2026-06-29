@@ -1,13 +1,10 @@
-import '@renderer/databases'
-
 import { usePreference } from '@data/hooks/usePreference'
+import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import { getToastUtilities, useToasts } from '@renderer/components/TopView/toast'
 import { useEffect } from 'react'
 
-import AntdProvider from '../../context/AntdProvider'
-import { CodeStyleProvider } from '../../context/CodeStyleProvider'
-import { ThemeProvider } from '../../context/ThemeProvider'
 import HomeWindow from './home/HomeWindow'
 
 // Initialise toast utilities once at module import (advanced-init-once). The
@@ -41,10 +38,10 @@ function QuickAssistantContent(): React.ReactElement {
 }
 
 /**
- * No react-redux `<Provider>` — the quick-assistant window intentionally stays
+ * No Redux `<Provider>` — the quick-assistant window intentionally stays
  * Redux-Provider-free (continuation of b5343606a). Downstream assistant/model
  * data now comes from the v2 Preference + DataApi layer (`usePreference`,
- * `useQuery('/models/:id')` via `useDefaultAssistant` / `useDefaultModel`), so
+ * `useQuery('/models/:id')` via assistant hooks / `useDefaultModel`), so
  * there is no dependency on Redux rehydration and no `<PersistGate>` is needed.
  *
  * Why not migrate further to DataApi `useQuery('/assistants/:id')`: see the
@@ -53,13 +50,11 @@ function QuickAssistantContent(): React.ReactElement {
 function QuickAssistantApp(): React.ReactElement {
   return (
     <ThemeProvider>
-      <AntdProvider>
-        <CodeStyleProvider>
-          <ErrorBoundary>
-            <QuickAssistantContent />
-          </ErrorBoundary>
-        </CodeStyleProvider>
-      </AntdProvider>
+      <CodeStyleProvider>
+        <ErrorBoundary>
+          <QuickAssistantContent />
+        </ErrorBoundary>
+      </CodeStyleProvider>
     </ThemeProvider>
   )
 }

@@ -29,6 +29,8 @@ import type { ImageGenerationSupport, Model, RuntimeModelPricing, RuntimeReasoni
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { EndpointConfig, ProviderWebsites, ReasoningFormatType } from '@shared/data/types/provider'
 
+import { getDataService, registerDataService } from './dataServiceRegistry'
+
 const logger = loggerService.withContext('DataApi:ProviderRegistryService')
 
 export interface ProviderDisplayMetadata {
@@ -483,7 +485,7 @@ class ProviderRegistryService {
     const registryConfig = this.getRegistryReasoningConfig(providerId)
 
     try {
-      const { providerService } = await import('./ProviderService')
+      const providerService = getDataService('ProviderService')
       const provider = await providerService.getByProviderId(providerId)
       const defaultChatEndpoint = provider.defaultChatEndpoint ?? registryConfig.defaultChatEndpoint
       const reasoningFormatTypes =
@@ -637,14 +639,6 @@ class ProviderRegistryService {
     return results
   }
 
-  async isActiveProviderRegistryModel(providerId: string, modelId: string): Promise<boolean> {
-    const loader = this.getLoader()
-    const override = loader.findOverride(providerId, modelId)
-    // Vendor-exclusive override-only models (no models.json entry) are also
-    // active — the override carries the full model definition itself.
-    return override !== null && !(override.disabled ?? false)
-  }
-
   /**
    * Read the painting-page metadata block the registry exposes for a
    * (provider, model) pair. Drives the generic painting form: providers
@@ -671,3 +665,5 @@ class ProviderRegistryService {
 }
 
 export const providerRegistryService = new ProviderRegistryService()
+
+registerDataService('ProviderRegistryService', providerRegistryService)

@@ -234,6 +234,8 @@ is **closed by default**. Adding one is a structural commitment.
 
 If either is in doubt, place the files inside an existing bucket. Subdirectories under existing buckets are unrestricted.
 
+For the per-root applications of this rule, see [Main Process Architecture §4](./main-process-architecture.md) (`/src/main/`), [Renderer Architecture §6](./renderer-architecture.md) (`/src/renderer/`), and [Shared Layer Architecture §2](./shared-layer-architecture.md) (`/src/shared/`).
+
 ### 4.9 Singular vs Plural
 
 Choose number based on what the directory **conceptually contains**, not on which sounds nicer.
@@ -246,6 +248,8 @@ Choose number based on what the directory **conceptually contains**, not on whic
 | **Component directory** (dir = component) | follows the **component name** | `Avatar/`, `CodeEditor/` (singular component); `SearchResults/` (component representing a group) |
 
 Decision rule: ask "does this directory hold **many of X**?" — yes → plural; no → singular. When two readings both make sense, pick the one that matches the directory's **default import name** (e.g. `import { ... } from './config'` reads naturally with `config/` singular).
+
+**Same stem, different number — decide by role, not by the word.** A name like `agent` is not inherently singular or plural; its number follows the role the directory plays. The `agents/` listed above is the **collection-bucket** reading — e.g. `src/main/ai/agents/`, which holds many agent implementations (`builtin/`, `cherryclaw/`, …). The same stem is **singular** when the directory is a feature **namespace** that groups one feature's code rather than many agents — `src/renderer/hooks/agent/` (holds the agent feature's hooks, not agents) and `src/renderer/components/chat/agent/` are singular, matching their sibling namespaces (`hooks/chat/`, `hooks/tab/`, `hooks/translate/`). Reading the `agents/` entry as "the word *agent* is always plural" is the trap: apply the decision rule to the directory's actual contents.
 
 ### 4.10 Feature Modules — `features/` vs Type Buckets
 
@@ -262,7 +266,7 @@ A **feature module** is a self-contained domain directory under a process root's
 
 This is the §4.4 promotion rule applied at the top level: a domain graduates from "a file (plus maybe one util) in a bucket" to "its own `features/` module" only once the additional files actually arrive and span more than one concern.
 Do not pre-create a `features/<domain>/` for an anticipated module.
-`features/` holds high-cohesion domain code; the sibling type-buckets (`services/` + `utils/` in main; `components/` + `hooks/` + `utils/` in the renderer) stay reserved for small, independent, cross-domain pieces.
+`features/` holds high-cohesion domain code; the sibling type-buckets (`services/` + `utils/` in main; `components/` + `hooks/` + `services/` + `utils/` in the renderer) stay reserved for small, independent, cross-domain pieces.
 A large, multi-file domain left scattered across the `services/` and `utils/` buckets instead of gathered into one `features/<domain>/` is the §6.7 scattered/impure anti-pattern.
 
 **Canonical example** — `src/main/features/apiGateway/`:
@@ -275,6 +279,8 @@ features/apiGateway/
 ├── routes/
 └── utils/                 # domain-local utils, not the global src/main/utils/ bucket
 ```
+
+For the main process, [Main Process Architecture](./main-process-architecture.md) covers `features/` vs the type-buckets (`services/` / `utils/`) and the dependency direction; for the renderer, [Renderer Architecture](./renderer-architecture.md) places `features/` within the full layering (windows → pages → features → components → packages/ui), with per-directory responsibilities and dependency rules.
 
 ---
 

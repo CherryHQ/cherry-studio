@@ -23,7 +23,7 @@ vi.mock('@main/utils/file/fs', () => ({
   atomicWriteFile: atomicWriteFileMock
 }))
 
-import type { FilePath } from '@shared/file/types'
+import type { FilePath } from '@shared/types/file'
 
 import { markdownResultStore } from '../MarkdownResultStore'
 

@@ -17,23 +17,24 @@ import {
 import { Flex } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import ChatPreferenceSections from '@renderer/components/chat/settings/ChatPreferenceSections'
 import { ResetIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import Selector from '@renderer/components/Selector'
-import { isLinux, isMac, THEME_COLOR_PRESETS } from '@renderer/config/constant'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import i18n from '@renderer/i18n'
 import type { NotificationSource } from '@renderer/types/notification'
-import { isValidProxyUrl } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
+import { isLinux, isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
-import { defaultByPassRules, defaultLanguage } from '@shared/config/constant'
-import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
+import { isValidProxyUrl } from '@renderer/utils/url'
+import type { LanguageVarious, MenuPresentationMode } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Code, Minus, Monitor, Moon, Palette, Plus, Shield, Sun } from 'lucide-react'
+import { defaultLanguage } from '@shared/utils/languages'
+import { Code, MessageSquare, Minus, Monitor, Moon, Palette, Plus, Shield, Sun } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -55,8 +56,27 @@ import {
 } from '..'
 import ThemeColorPicker from './components/ThemeColorPicker'
 
+const DEFAULT_COLOR_PRIMARY = '#00b96b'
+const THEME_COLOR_PRESETS = [
+  DEFAULT_COLOR_PRIMARY,
+  '#EF4444', // Red
+  '#F59E0B', // Amber
+  '#3B82F6', // Blue
+  '#8B5CF6' // Purple
+]
+
+const defaultByPassRules = 'localhost,127.0.0.1,::1'
+
 type SpellCheckOption = { readonly value: string; readonly label: string; readonly flag: string }
-type CommonSettingsSection = 'display-language' | 'system-startup' | 'privacy-advanced' | 'custom-css'
+type CommonSettingsSection = 'display-language' | 'chat-settings' | 'system-startup' | 'privacy-advanced' | 'custom-css'
+type TFunction = (key: string) => string
+type MenuPresentationModeChangeOptions = {
+  currentMode: MenuPresentationMode
+  mode: MenuPresentationMode
+  setMenuPresentationMode: (mode: MenuPresentationMode) => Promise<unknown> | unknown
+  setTimeoutTimer: (key: string, callback: () => void, delay: number) => void
+  t: TFunction
+}
 
 const defaultFontPreviewFamily = 'Ubuntu, -apple-system, system-ui, Arial, sans-serif'
 const logger = loggerService.withContext('CommonSettings')
@@ -75,6 +95,54 @@ const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
   { value: 'el', label: 'Ελληνικά', flag: '🇬🇷' }
 ]
 
+const languagesOptions: { value: LanguageVarious; label: string; flag: string }[] = [
+  { value: 'zh-CN', label: '中文', flag: '🇨🇳' },
+  { value: 'zh-TW', label: '中文（繁体）', flag: '🇭🇰' },
+  { value: 'en-US', label: 'English', flag: '🇺🇸' },
+  { value: 'de-DE', label: 'Deutsch', flag: '🇩🇪' },
+  { value: 'ja-JP', label: '日本語', flag: '🇯🇵' },
+  { value: 'ru-RU', label: 'Русский', flag: '🇷🇺' },
+  { value: 'el-GR', label: 'Ελληνικά', flag: '🇬🇷' },
+  { value: 'es-ES', label: 'Español', flag: '🇪🇸' },
+  { value: 'fr-FR', label: 'Français', flag: '🇫🇷' },
+  { value: 'pt-PT', label: 'Português', flag: '🇵🇹' },
+  { value: 'ro-RO', label: 'Română', flag: '🇷🇴' },
+  { value: 'vi-VN', label: 'Tiếng Việt', flag: '🇻🇳' }
+]
+export function confirmMenuPresentationModeChange({
+  currentMode,
+  mode,
+  setMenuPresentationMode,
+  setTimeoutTimer,
+  t
+}: MenuPresentationModeChangeOptions): void {
+  if (mode === currentMode) return
+
+  void window.modal.confirm({
+    title: t('settings.general.common.menu.presentation_mode.restart.title'),
+    content: t('settings.general.common.menu.presentation_mode.restart.content'),
+    okText: t('common.confirm'),
+    cancelText: t('common.cancel'),
+    centered: true,
+    async onOk() {
+      try {
+        await setMenuPresentationMode(mode)
+      } catch (error) {
+        window.toast.error(formatErrorMessage(error))
+        throw error
+      }
+
+      setTimeoutTimer(
+        'handleMenuPresentationModeChange',
+        () => {
+          void window.api.application.relaunch()
+        },
+        500
+      )
+    }
+  })
+}
+
 const CommonSettings: FC = () => {
   const { t } = useTranslation()
   const { theme, settedTheme, setTheme } = useTheme()
@@ -92,6 +160,7 @@ const CommonSettings: FC = () => {
   const [launchToTray, setLaunchToTray] = usePreference('app.tray.on_launch')
   const [trayOnClose, setTrayOnClose] = usePreference('app.tray.on_close')
   const [tray, setTray] = usePreference('app.tray.enabled')
+  const [preventSleepWhenBusy, setPreventSleepWhenBusy] = usePreference('app.power.prevent_sleep_when_busy')
   const [enableDataCollection, setEnableDataCollection] = usePreference('app.privacy.data_collection.enabled')
   const [storeProxyMode, setProxyMode] = usePreference('app.proxy.mode')
   const [storeProxyBypassRules, _setProxyBypassRules] = usePreference('app.proxy.bypass_rules')
@@ -99,11 +168,8 @@ const CommonSettings: FC = () => {
   const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
   const [spellCheckLanguages, setSpellCheckLanguages] = usePreference('app.spell_check.languages')
   const [windowStyle, setWindowStyle] = usePreference('ui.window_style')
+  const [menuPresentationMode, setMenuPresentationMode] = usePreference('menu.presentation_mode')
   const [customCss, setCustomCss] = usePreference('ui.custom_css')
-  const [topicPosition, setTopicPosition] = usePreference('topic.position')
-  const [clickAssistantToShowTopic, setClickAssistantToShowTopic] = usePreference('assistant.click_to_show_topic')
-  const [pinTopicsToTop, setPinTopicsToTop] = usePreference('topic.tab.pin_to_top')
-  const [showTopicTime, setShowTopicTime] = usePreference('topic.tab.show_time')
   const [fontSize] = usePreference('chat.message.font_size')
   const [useSystemTitleBar, setUseSystemTitleBar] = usePreference('app.use_system_title_bar')
   const [notificationSettings, setNotificationSettings] = useMultiplePreferences({
@@ -125,6 +191,11 @@ const CommonSettings: FC = () => {
         icon: <Palette />
       },
       {
+        key: 'chat-settings' as const,
+        label: t('settings.general.common.sections.chat_settings'),
+        icon: <MessageSquare />
+      },
+      {
         key: 'system-startup' as const,
         label: t('settings.general.common.sections.system_startup'),
         icon: <Monitor />
@@ -143,20 +214,18 @@ const CommonSettings: FC = () => {
     [t]
   )
 
-  const languagesOptions: { value: LanguageVarious; label: string; flag: string }[] = [
-    { value: 'zh-CN', label: '中文', flag: '🇨🇳' },
-    { value: 'zh-TW', label: '中文（繁体）', flag: '🇭🇰' },
-    { value: 'en-US', label: 'English', flag: '🇺🇸' },
-    { value: 'de-DE', label: 'Deutsch', flag: '🇩🇪' },
-    { value: 'ja-JP', label: '日本語', flag: '🇯🇵' },
-    { value: 'ru-RU', label: 'Русский', flag: '🇷🇺' },
-    { value: 'el-GR', label: 'Ελληνικά', flag: '🇬🇷' },
-    { value: 'es-ES', label: 'Español', flag: '🇪🇸' },
-    { value: 'fr-FR', label: 'Français', flag: '🇫🇷' },
-    { value: 'pt-PT', label: 'Português', flag: '🇵🇹' },
-    { value: 'ro-RO', label: 'Română', flag: '🇷🇴' },
-    { value: 'vi-VN', label: 'Tiếng Việt', flag: '🇻🇳' }
-  ]
+  const displayLanguage = useMemo(() => {
+    if (language && languagesOptions.some((opt) => opt.value === language)) {
+      return language
+    }
+
+    const resolved = i18n.resolvedLanguage ?? i18n.language
+    if (resolved && languagesOptions.some((opt) => opt.value === resolved)) {
+      return resolved as LanguageVarious
+    }
+
+    return defaultLanguage
+  }, [language, i18n.resolvedLanguage, i18n.language])
 
   const proxyModeOptions: { value: 'system' | 'custom' | 'none'; label: string }[] = [
     { value: 'system', label: t('settings.proxy.mode.system') },
@@ -253,6 +322,27 @@ const CommonSettings: FC = () => {
       void setWindowStyle(checked ? 'transparent' : 'opaque')
     },
     [setWindowStyle]
+  )
+
+  const menuPresentationModeOptions = useMemo(
+    () => [
+      { value: 'cherry' as const, label: t('settings.general.common.menu.presentation_mode.cherry') },
+      { value: 'native' as const, label: t('settings.general.common.menu.presentation_mode.native') }
+    ],
+    [t]
+  )
+
+  const handleMenuPresentationModeChange = useCallback(
+    (mode: MenuPresentationMode) => {
+      confirmMenuPresentationModeChange({
+        currentMode: menuPresentationMode,
+        mode,
+        setMenuPresentationMode,
+        setTimeoutTimer,
+        t
+      })
+    },
+    [menuPresentationMode, setMenuPresentationMode, setTimeoutTimer, t]
   )
 
   const handleUseSystemTitleBarChange = (checked: boolean) => {
@@ -429,7 +519,7 @@ const CommonSettings: FC = () => {
             <Selector
               size={14}
               style={{ width: '100%' }}
-              value={language || defaultLanguage}
+              value={displayLanguage}
               onChange={onSelectLanguage}
               options={languagesOptions.map((lang) => ({
                 label: (
@@ -444,6 +534,33 @@ const CommonSettings: FC = () => {
               }))}
             />
           </SelectorRow>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <RowFlex className="mr-4 flex-1 items-center justify-between">
+            <SettingRowTitle>{t('settings.general.spell_check.label')}</SettingRowTitle>
+            {enableSpellCheck && !isMac && (
+              <Selector<string>
+                size={14}
+                multiple
+                value={spellCheckLanguages}
+                placeholder={t('settings.general.spell_check.languages')}
+                onChange={handleSpellCheckLanguagesChange}
+                options={spellCheckLanguageOptions.map((lang) => ({
+                  value: lang.value,
+                  label: (
+                    <Flex className="items-center gap-2">
+                      <span role="img" aria-label={lang.flag}>
+                        {lang.flag}
+                      </span>
+                      {lang.label}
+                    </Flex>
+                  )
+                }))}
+              />
+            )}
+          </RowFlex>
+          <Switch checked={enableSpellCheck} onCheckedChange={handleSpellCheckChange} />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
@@ -505,6 +622,16 @@ const CommonSettings: FC = () => {
             </Button>
           </ZoomButtonGroup>
         </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.general.common.menu.presentation_mode.title')}</SettingRowTitle>
+          <SegmentedControl<MenuPresentationMode>
+            value={menuPresentationMode}
+            onValueChange={handleMenuPresentationModeChange}
+            options={menuPresentationModeOptions}
+            size="sm"
+          />
+        </SettingRow>
       </SettingGroup>
 
       <SettingGroup theme={theme}>
@@ -556,48 +683,6 @@ const CommonSettings: FC = () => {
           </SelectRow>
         </SettingRow>
       </SettingGroup>
-
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.display.topic.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.topic.position.label')}</SettingRowTitle>
-          <SelectorRow>
-            <SegmentedControl
-              value={topicPosition || 'right'}
-              onValueChange={setTopicPosition}
-              options={[
-                { value: 'left', label: t('settings.topic.position.left') },
-                { value: 'right', label: t('settings.topic.position.right') }
-              ]}
-              className="max-w-full"
-              size="sm"
-            />
-          </SelectorRow>
-        </SettingRow>
-        {topicPosition === 'left' && (
-          <>
-            <SettingDivider />
-            <SettingRow>
-              <SettingRowTitle>{t('settings.advanced.auto_switch_to_topics')}</SettingRowTitle>
-              <Switch
-                checked={clickAssistantToShowTopic}
-                onCheckedChange={(checked) => setClickAssistantToShowTopic(checked)}
-              />
-            </SettingRow>
-          </>
-        )}
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.topic.show.time')}</SettingRowTitle>
-          <Switch checked={showTopicTime} onCheckedChange={(checked) => setShowTopicTime(checked)} />
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.topic.pin_to_top')}</SettingRowTitle>
-          <Switch checked={pinTopicsToTop} onCheckedChange={(checked) => setPinTopicsToTop(checked)} />
-        </SettingRow>
-      </SettingGroup>
     </>
   )
 
@@ -624,6 +709,11 @@ const CommonSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.tray.onclose')}</SettingRowTitle>
           <Switch checked={trayOnClose} onCheckedChange={(checked) => updateTrayOnClose(checked)} />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.power.prevent_sleep_when_busy')}</SettingRowTitle>
+          <Switch checked={preventSleepWhenBusy} onCheckedChange={(checked) => void setPreventSleepWhenBusy(checked)} />
         </SettingRow>
       </SettingGroup>
 
@@ -676,39 +766,10 @@ const CommonSettings: FC = () => {
           <Switch checked={disableHardwareAcceleration} onCheckedChange={handleHardwareAccelerationChange} />
         </SettingRow>
       </SettingGroup>
-
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.general.spell_check.label')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <RowFlex className="mr-4 flex-1 items-center justify-between">
-            <SettingRowTitle>{t('settings.general.spell_check.label')}</SettingRowTitle>
-            {enableSpellCheck && !isMac && (
-              <Selector<string>
-                size={14}
-                multiple
-                value={spellCheckLanguages}
-                placeholder={t('settings.general.spell_check.languages')}
-                onChange={handleSpellCheckLanguagesChange}
-                options={spellCheckLanguageOptions.map((lang) => ({
-                  value: lang.value,
-                  label: (
-                    <Flex className="items-center gap-2">
-                      <span role="img" aria-label={lang.flag}>
-                        {lang.flag}
-                      </span>
-                      {lang.label}
-                    </Flex>
-                  )
-                }))}
-              />
-            )}
-          </RowFlex>
-          <Switch checked={enableSpellCheck} onCheckedChange={handleSpellCheckChange} />
-        </SettingRow>
-      </SettingGroup>
     </>
   )
+
+  const renderChatSettingsSection = () => <ChatPreferenceSections />
 
   const renderPrivacyAdvancedSection = () => (
     <>
@@ -813,6 +874,8 @@ const CommonSettings: FC = () => {
     switch (activeSection) {
       case 'display-language':
         return renderDisplayLanguageSection()
+      case 'chat-settings':
+        return renderChatSettingsSection()
       case 'system-startup':
         return renderSystemStartupSection()
       case 'privacy-advanced':

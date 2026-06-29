@@ -3,8 +3,6 @@ import { startup } from '@anthropic-ai/claude-agent-sdk'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { AiAgentSessionWarmCloseRequest, AiAgentSessionWarmRequest } from '@shared/ai/transport'
-import { IpcChannel } from '@shared/IpcChannel'
 
 import { buildClaudeCodeWarmQueryRequestForAgentSession } from './agentSessionWarmup'
 
@@ -21,10 +19,6 @@ export interface WarmQueryRequest {
   key: string
   options: Options
   initializeTimeoutMs?: number
-}
-
-function isValidSessionId(sessionId: unknown): sessionId is string {
-  return typeof sessionId === 'string' && sessionId.length > 0
 }
 
 export function stripWarmQueryOptions(options: Options): Options {
@@ -91,27 +85,8 @@ export function createClaudeCodeWarmQuerySignature(options: Options): string {
 export class ClaudeCodeWarmQueryManager extends BaseService {
   private readonly entries = new Map<string, WarmQueryEntry>()
 
-  protected onInit(): void {
-    this.registerIpcHandlers()
-  }
-
-  private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.Ai_AgentSession_Prewarm, async (_, req: AiAgentSessionWarmRequest) => {
-      if (!isValidSessionId(req?.sessionId)) {
-        logger.warn('Ignoring prewarm request with invalid sessionId', { sessionId: req?.sessionId })
-        return
-      }
-      await this.prewarmAgentSession(req.sessionId)
-    })
-
-    this.ipcHandle(IpcChannel.Ai_AgentSession_CloseWarm, (_, req: AiAgentSessionWarmCloseRequest) => {
-      if (!isValidSessionId(req?.sessionId)) {
-        logger.warn('Ignoring close-warm request with invalid sessionId', { sessionId: req?.sessionId })
-        return
-      }
-      this.closeAgentSessionWarm(req.sessionId)
-    })
-  }
+  // `ai.prewarm_agent_session` / `ai.close_agent_session_warm` (IpcApi, validated by the router)
+  // delegate to the public methods below; this service registers no IPC of its own.
 
   async prewarmAgentSession(sessionId: string): Promise<void> {
     if (application.get('ClaudeCodeTraceBridgeService').isTraceModeEnabled()) {

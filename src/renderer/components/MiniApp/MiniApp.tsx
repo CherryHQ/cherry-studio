@@ -1,20 +1,23 @@
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@cherrystudio/ui'
+import { ConfirmDialog } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import MiniAppIcon from '@renderer/components/Icons/MiniAppIcon'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import MarqueeText from '@renderer/components/MarqueeText'
+import { useTabs } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { useNavbarPosition } from '@renderer/hooks/useNavbar'
-import { useTabs } from '@renderer/hooks/useTabs'
 import { ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { FC, KeyboardEvent } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
   app: MiniApp
   onClick?: () => void
+  onOpen?: (app: MiniApp, displayName: string) => void
+  onEditCustom?: (app: MiniApp) => void
   size?: number
   isLast?: boolean
   variant?: 'default' | 'launchpad'
@@ -22,7 +25,7 @@ interface Props {
 
 const logger = loggerService.withContext('App')
 
-const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast, variant = 'default' }) => {
+const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isLast, variant = 'default' }) => {
   const { t } = useTranslation()
   const {
     miniApps,
@@ -35,19 +38,24 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast, variant = 'defaul
     removeCustomMiniApp
   } = useMiniApps()
   const { openTab } = useTabs()
+  const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false)
+  const [removingCustom, setRemovingCustom] = useState(false)
   const isPinned = pinned.some((p) => p.appId === app.appId)
   const isVisible = miniApps.some((m) => m.appId === app.appId)
   // Pinned apps should always be visible regardless of region/locale filtering
   const shouldShow = isVisible || isPinned
   const isActive = miniAppShow && currentMiniAppId === app.appId
   const isOpened = openedKeepAliveMiniApps.some((item) => item.appId === app.appId)
-  const { isTopNavbar } = useNavbarPosition()
 
   // Calculate display name
   const displayName = isLast ? t('settings.miniApps.custom.title') : app.nameKey ? t(app.nameKey) : app.name
 
   const handleClick = () => {
-    openTab(`/app/mini-app/${app.appId}`, { title: displayName, icon: app.logo })
+    if (onOpen) {
+      onOpen(app, displayName)
+    } else {
+      openTab(`/app/mini-app/${app.appId}`, { title: displayName, icon: app.logo })
+    }
     onClick?.()
   }
 
@@ -77,13 +85,7 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast, variant = 'defaul
     }
   }
 
-  const togglePinLabel = isPinned
-    ? isTopNavbar
-      ? t('miniApp.remove_from_launchpad')
-      : t('miniApp.remove_from_sidebar')
-    : isTopNavbar
-      ? t('miniApp.add_to_launchpad')
-      : t('miniApp.add_to_sidebar')
+  const togglePinLabel = isPinned ? t('miniApp.remove_from_launchpad') : t('miniApp.add_to_launchpad')
 
   const handleTogglePin = () => {
     const nextStatus = isPinned ? 'enabled' : 'pinned'
@@ -101,6 +103,7 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast, variant = 'defaul
   }
 
   const handleRemoveCustom = async () => {
+    setRemovingCustom(true)
     try {
       await removeCustomMiniApp(app.appId)
       window.toast.success(t('settings.miniApps.custom.remove_success'))
@@ -111,6 +114,8 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast, variant = 'defaul
         window.toast.error(t('settings.miniApps.custom.remove_error'))
       }
       logger.error('Failed to remove custom mini app:', error as Error)
+    } finally {
+      setRemovingCustom(false)
     }
   }
 
@@ -120,9 +125,39 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast, variant = 'defaul
 
   const isLaunchpad = variant === 'launchpad'
 
+  const contextMenuItems: CommandContextMenuExtraItem[] = [
+    { type: 'item', id: 'mini-app.toggle-pin', label: togglePinLabel, onSelect: handleTogglePin },
+    ...(!isPinned
+      ? ([
+          { type: 'item', id: 'mini-app.hide', label: t('miniApp.sidebar.hide.title'), onSelect: handleHide }
+        ] satisfies CommandContextMenuExtraItem[])
+      : []),
+    ...(app.presetMiniAppId == null
+      ? ([
+          ...(onEditCustom
+            ? ([
+                {
+                  type: 'item',
+                  id: 'mini-app.edit-custom',
+                  label: t('common.edit'),
+                  onSelect: () => onEditCustom(app)
+                }
+              ] satisfies CommandContextMenuExtraItem[])
+            : []),
+          {
+            type: 'item',
+            id: 'mini-app.remove-custom',
+            label: t('common.delete'),
+            destructive: true,
+            onSelect: () => setRemoveConfirmOpen(true)
+          }
+        ] satisfies CommandContextMenuExtraItem[])
+      : [])
+  ]
+
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
+    <>
+      <CommandContextMenu location="webcontents.context" extraItems={contextMenuItems}>
         <div
           className={cn(
             'flex cursor-pointer flex-col items-center justify-center overflow-hidden outline-none',
@@ -161,17 +196,19 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast, variant = 'defaul
             {isLaunchpad ? displayName : <MarqueeText>{displayName}</MarqueeText>}
           </div>
         </div>
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem onSelect={handleTogglePin}>{togglePinLabel}</ContextMenuItem>
-        {!isPinned && <ContextMenuItem onSelect={handleHide}>{t('miniApp.sidebar.hide.title')}</ContextMenuItem>}
-        {app.presetMiniAppId == null && (
-          <ContextMenuItem variant="destructive" onSelect={handleRemoveCustom}>
-            {t('miniApp.sidebar.remove_custom.title')}
-          </ContextMenuItem>
-        )}
-      </ContextMenuContent>
-    </ContextMenu>
+      </CommandContextMenu>
+      <ConfirmDialog
+        open={removeConfirmOpen}
+        onOpenChange={setRemoveConfirmOpen}
+        title={t('settings.miniApps.custom.remove_confirm_title')}
+        description={t('settings.miniApps.custom.remove_confirm_description', { name: displayName })}
+        confirmText={t('common.delete')}
+        cancelText={t('common.cancel')}
+        destructive
+        confirmLoading={removingCustom}
+        onConfirm={handleRemoveCustom}
+      />
+    </>
   )
 }
 

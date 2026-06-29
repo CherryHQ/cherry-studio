@@ -6,6 +6,11 @@ import { describe, expect, it, vi } from 'vitest'
 
 import KnowledgeBaseRow from '../navigator/KnowledgeBaseRow'
 
+vi.mock('@renderer/components/command', () => ({
+  CommandContextMenu: ({ children }: { children: ReactNode }) => <>{children}</>,
+  CommandPopupMenu: ({ children }: { children: ReactNode }) => <>{children}</>
+}))
+
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({
     children,
@@ -21,6 +26,19 @@ vi.mock('@cherrystudio/ui', () => ({
     </button>
   ),
   ConfirmDialog: () => null,
+  DropdownMenu: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuItem: ({ children, onSelect, ...props }: { children: ReactNode; onSelect?: () => void }) => (
+    <button type="button" onClick={onSelect} {...props}>
+      {children}
+    </button>
+  ),
+  DropdownMenuLabel: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuSeparator: () => <hr />,
+  DropdownMenuSub: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuSubContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  DropdownMenuSubTrigger: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
+  DropdownMenuTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
   MenuDivider: () => <hr />,
   MenuItem: ({ icon, label, ...props }: { icon?: ReactNode; label: string; [key: string]: unknown }) => (
     <button type="button" {...props}>
@@ -66,6 +84,8 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBaseListItem> = {}): Kn
   fileProcessorId: undefined,
   chunkSize: 1024,
   chunkOverlap: 200,
+  chunkStrategy: 'structured',
+  chunkSeparator: '\\n\\n',
   threshold: undefined,
   documentCount: undefined,
   status: 'completed',
@@ -103,7 +123,9 @@ describe('KnowledgeBaseRow', () => {
     expect(screen.getByText('Base 1')).toBeInTheDocument()
     expect(screen.queryByText('2小时前')).not.toBeInTheDocument()
     expect(screen.getByText('0 文档')).toBeInTheDocument()
-    expect(container.querySelector('[aria-label="就绪"]')).toBeInTheDocument()
+    const statusDot = container.querySelector('[aria-label="就绪"]')
+    expect(statusDot).toBeInTheDocument()
+    expect(statusDot).not.toHaveAttribute('title')
   })
 
   it('renders the failed status dot from the base status', () => {

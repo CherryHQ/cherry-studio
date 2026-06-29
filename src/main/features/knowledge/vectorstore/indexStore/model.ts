@@ -13,8 +13,6 @@ export interface RebuildMaterialUnitInput {
   unitIndex: number
   charStart: number
   charEnd: number
-  title?: string
-  locator?: unknown
 }
 
 export interface RebuildMaterialEmbeddingInput {

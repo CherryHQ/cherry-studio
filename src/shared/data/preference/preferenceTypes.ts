@@ -1,5 +1,5 @@
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
-import type { ShortcutBinding } from '@shared/shortcuts/tokens'
+import type { ShortcutBinding } from '@shared/utils/shortcut'
 import * as z from 'zod'
 
 import type { PreferenceSchemas } from './preferenceSchemas'
@@ -82,7 +82,11 @@ export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Comm
 
 export type AssistantTabSortType = 'tags' | 'list'
 
-export type SidebarIcon =
+export type TopicDisplayMode = 'time' | 'assistant'
+
+export type AgentSessionDisplayMode = 'time' | 'agent' | 'workdir'
+
+export type SidebarFavorite =
   | 'assistants'
   | 'agents'
   | 'store'
@@ -100,8 +104,6 @@ export type AssistantIconType = 'model' | 'emoji' | 'none'
 export type ProxyMode = 'system' | 'custom' | 'none'
 
 export type MultiModelFoldDisplayMode = 'expanded' | 'compact'
-
-export type MathEngine = 'KaTeX' | 'MathJax' | 'none'
 
 export enum UpgradeChannel {
   LATEST = 'latest', // 最新稳定版本
@@ -235,14 +237,14 @@ export interface WebSearchProvider {
 // CodeCLI Types
 // ============================================================================
 
-import { codeCLI } from '@shared/config/constant'
+import { CodeCli } from '@shared/types/codeCli'
 
-export const CODE_CLI_IDS = Object.values(codeCLI) as unknown as readonly [
+export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
   'qwen-code',
   'claude-code',
   'gemini-cli',
   'openai-codex',
-  'iflow-cli',
+  'qoder-cli',
   'github-copilot-cli',
   'kimi-cli',
   'opencode'
@@ -254,7 +256,7 @@ export type CodeCliOverride = {
   enabled?: boolean
   modelId?: string | null
   envVars?: string
-  /** Terminal app name — should match `terminalApps` enum values */
+  /** Terminal app name — should match `TerminalApp` enum values */
   terminal?: string
   currentDirectory?: string
   directories?: string[]
@@ -320,3 +322,18 @@ export type FileProcessorOverrides = Partial<Record<FileProcessorId, FileProcess
 export type MiniAppRegion = 'CN' | 'Global'
 
 export type MiniAppRegionFilter = 'auto' | MiniAppRegion
+
+export type ManagedBinary = {
+  name: string
+  tool: string
+  version?: string
+}
+
+export interface ToolInstallState {
+  tool: string
+  version: string
+}
+
+export interface BinaryState {
+  tools: Record<string, ToolInstallState>
+}

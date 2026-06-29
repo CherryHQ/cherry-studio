@@ -1,7 +1,15 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ProviderEditorDrawer from '../ProviderEditorDrawer'
+
+const mocks = vi.hoisted(() => ({
+  fileToAvatarDataUrl: vi.fn(),
+  imageStorageGet: vi.fn(),
+  imageStorageRemove: vi.fn(),
+  imageStorageSet: vi.fn(),
+  providerAvatarPrimitive: vi.fn()
+}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -30,25 +38,62 @@ vi.mock('@cherrystudio/ui', () => ({
       {...props}
     />
   ),
+  Field: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+  FieldLabel: ({ children, required, ...props }: any) => (
+    <label {...props}>
+      {children}
+      {required ? <span aria-hidden="true">*</span> : null}
+    </label>
+  ),
+  FieldError: ({ errors, children, ...props }: any) => {
+    const content = children ?? errors?.[0]?.message
+    if (!content) return null
+    return (
+      <div role="alert" {...props}>
+        {content}
+      </div>
+    )
+  },
   Popover: ({ children }: any) => <div>{children}</div>,
   PopoverContent: ({ children }: any) => <div>{children}</div>,
   PopoverTrigger: ({ children }: any) => <div>{children}</div>
 }))
 
 vi.mock('@renderer/components/ProviderAvatar', () => ({
-  ProviderAvatarPrimitive: () => <div>avatar</div>
+  ProviderAvatarPrimitive: (props: any) => {
+    mocks.providerAvatarPrimitive(props)
+    return <div data-testid="provider-avatar-preview" data-logo={props.logo ?? ''} />
+  }
 }))
 
 vi.mock('@renderer/components/ProviderLogoPicker', () => ({
-  default: () => <div>logo-picker</div>
+  default: ({ onProviderClick }: { onProviderClick: (providerId: string) => void }) => (
+    <button type="button" onClick={() => onProviderClick('openai')}>
+      pick-openai
+    </button>
+  )
 }))
 
-vi.mock('@renderer/utils', () => ({
-  compressImage: vi.fn(),
-  convertToBase64: vi.fn(),
+vi.mock('@renderer/services/ImageStorage', () => ({
+  default: {
+    get: (...args: any[]) => mocks.imageStorageGet(...args),
+    remove: (...args: any[]) => mocks.imageStorageRemove(...args),
+    set: (...args: any[]) => mocks.imageStorageSet(...args)
+  }
+}))
+
+vi.mock('@renderer/utils/image', () => ({
+  fileToAvatarDataUrl: (...args: any[]) => mocks.fileToAvatarDataUrl(...args)
+}))
+
+vi.mock('@renderer/utils/style', () => ({
   generateColorFromChar: vi.fn(),
   getForegroundColor: vi.fn(),
   cn: (...args: any[]) => args.filter(Boolean).join(' ')
+}))
+
+vi.mock('@renderer/utils/uuid', () => ({
+  uuid: () => 'api-key-id'
 }))
 
 vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
@@ -65,9 +110,144 @@ vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
 describe('ProviderEditorDrawer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.fileToAvatarDataUrl.mockResolvedValue('data:image/png;base64,stored-provider-logo')
+    mocks.imageStorageGet.mockResolvedValue('data:image/png;base64,stored')
+    mocks.imageStorageRemove.mockResolvedValue(undefined)
+    mocks.imageStorageSet.mockResolvedValue(undefined)
     window.toast = {
       error: vi.fn()
     } as unknown as typeof window.toast
+  })
+
+  it('encodes an uploaded logo via fileToAvatarDataUrl and previews the result', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    const file = new File(['png'], 'avatar.png', { type: 'image/png' })
+    mocks.fileToAvatarDataUrl.mockResolvedValue('data:image/png;base64,stored-provider-logo')
+
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [file] }
+    })
+
+    await waitFor(() => {
+      expect(mocks.fileToAvatarDataUrl).toHaveBeenCalledWith(file)
+      expect(screen.getByTestId('provider-avatar-preview')).toHaveAttribute(
+        'data-logo',
+        'data:image/png;base64,stored-provider-logo'
+      )
+    })
+  })
+
+  it('surfaces a toast when encoding the uploaded logo fails', async () => {
+    const file = new File(['png'], 'avatar.png', { type: 'image/png' })
+    mocks.fileToAvatarDataUrl.mockRejectedValue(new Error('decode failed'))
+
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [file] }
+    })
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith('settings.provider.logo_upload_failed')
+    })
+  })
+
+  it('submits null when an uploaded logo is reset before saving', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    const file = new File(['png'], 'avatar.png', { type: 'image/png' })
+
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{
+          kind: 'edit',
+          provider: {
+            id: 'custom-provider',
+            name: 'Custom Provider',
+            defaultChatEndpoint: 'openai-chat-completions'
+          } as any
+        }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [file] }
+    })
+    await waitFor(() => expect(screen.getByTestId('provider-avatar-preview')).toHaveAttribute('data-logo'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.general.avatar.reset' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          logo: null,
+          mode: 'edit',
+          name: 'Custom Provider'
+        })
+      )
+    })
+  })
+
+  it('submits the built-in icon reference when selected after uploading a logo', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    const file = new File(['png'], 'avatar.png', { type: 'image/png' })
+
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{
+          kind: 'edit',
+          provider: {
+            id: 'custom-provider',
+            name: 'Custom Provider',
+            defaultChatEndpoint: 'openai-chat-completions'
+          } as any
+        }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [file] }
+    })
+    await waitFor(() => expect(screen.getByTestId('provider-avatar-preview')).toHaveAttribute('data-logo'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'pick-openai' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          logo: 'icon:openai',
+          mode: 'edit',
+          name: 'Custom Provider'
+        })
+      )
+    })
   })
 
   it('submits a create-custom payload with api-key auth and OPENAI_CHAT_COMPLETIONS as the default endpoint', () => {
@@ -274,5 +454,200 @@ describe('ProviderEditorDrawer', () => {
     const payload = onSubmit.mock.calls[0]?.[0] as { presetProviderId?: string; authConfig?: unknown } | undefined
     expect(payload?.presetProviderId).toBeUndefined()
     expect(payload?.authConfig).toBeUndefined()
+  })
+
+  it('shows a required error and does not submit when the name is empty on create-custom', () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    // Fill the base URL so the button is enabled, but leave the name empty.
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.base_url.placeholder'), {
+      target: { value: 'https://api.example.com' }
+    })
+    expect(screen.queryByText('settings.provider.add.name.required')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'button.add' }))
+
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByText('settings.provider.add.name.required')).toBeInTheDocument()
+  })
+
+  it('shows the required error after the name input is blurred while empty', () => {
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    fireEvent.blur(screen.getByPlaceholderText('settings.provider.add.name.placeholder'))
+
+    expect(screen.getByText('settings.provider.add.name.required')).toBeInTheDocument()
+  })
+
+  it('clears the required error once a valid name is entered', () => {
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    const nameInput = screen.getByPlaceholderText('settings.provider.add.name.placeholder')
+    fireEvent.blur(nameInput)
+    expect(screen.getByText('settings.provider.add.name.required')).toBeInTheDocument()
+
+    fireEvent.change(nameInput, { target: { value: 'My Custom' } })
+    expect(screen.queryByText('settings.provider.add.name.required')).not.toBeInTheDocument()
+  })
+
+  it('shows a base URL required error and does not submit when the base URL is empty on create-custom', () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    // Fill the name so the only thing missing is the base URL.
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
+      target: { value: 'My Custom' }
+    })
+    expect(screen.queryByText('settings.provider.base_url.required')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'button.add' }))
+
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(screen.getByText('settings.provider.base_url.required')).toBeInTheDocument()
+  })
+
+  it('shows the base URL required error after the base URL input is blurred while empty', () => {
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    fireEvent.blur(screen.getByPlaceholderText('settings.provider.base_url.placeholder'))
+
+    expect(screen.getByText('settings.provider.base_url.required')).toBeInTheDocument()
+  })
+
+  it('clears the base URL required error once a valid base URL is entered', () => {
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    const baseUrlInput = screen.getByPlaceholderText('settings.provider.base_url.placeholder')
+    fireEvent.blur(baseUrlInput)
+    expect(screen.getByText('settings.provider.base_url.required')).toBeInTheDocument()
+
+    fireEvent.change(baseUrlInput, { target: { value: 'https://api.example.com' } })
+    expect(screen.queryByText('settings.provider.base_url.required')).not.toBeInTheDocument()
+  })
+
+  it('name input: label is bound via htmlFor and aria-describedby links to the error node when error is visible', () => {
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    const nameInput = screen.getByPlaceholderText('settings.provider.add.name.placeholder')
+
+    expect(nameInput).not.toHaveAttribute('aria-describedby')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(document.querySelector(`label[for="${nameInput.id}"]`)).toBeInTheDocument()
+
+    fireEvent.blur(nameInput)
+
+    const errorId = nameInput.getAttribute('aria-describedby')
+    expect(errorId).toBeTruthy()
+    const errorNode = document.getElementById(errorId!)
+    expect(errorNode).toHaveAttribute('role', 'alert')
+    expect(errorNode).toHaveTextContent('settings.provider.add.name.required')
+  })
+
+  it('base URL input: label is bound via htmlFor and aria-describedby links to the error node when error is visible', () => {
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    const baseUrlInput = screen.getByPlaceholderText('settings.provider.base_url.placeholder')
+
+    expect(baseUrlInput).not.toHaveAttribute('aria-describedby')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(document.querySelector(`label[for="${baseUrlInput.id}"]`)).toBeInTheDocument()
+
+    fireEvent.blur(baseUrlInput)
+
+    const errorId = baseUrlInput.getAttribute('aria-describedby')
+    expect(errorId).toBeTruthy()
+    const errorNode = document.getElementById(errorId!)
+    expect(errorNode).toHaveAttribute('role', 'alert')
+    expect(errorNode).toHaveTextContent('settings.provider.base_url.required')
+  })
+
+  it('does not require the base URL in duplicate mode (optional, no error on blur)', () => {
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{
+          kind: 'duplicate',
+          source: {
+            id: 'openai-2',
+            name: 'OpenAI Personal',
+            presetProviderId: 'openai',
+            defaultChatEndpoint: 'openai-chat-completions',
+            authType: 'api-key'
+          } as any
+        }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    fireEvent.blur(screen.getByPlaceholderText('settings.provider.base_url.placeholder'))
+
+    expect(screen.queryByText('settings.provider.base_url.required')).not.toBeInTheDocument()
   })
 })

@@ -4,17 +4,11 @@ import type { EnqueueOptions } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
-import { FILE_PROCESSOR_FEATURES, FILE_PROCESSOR_IDS } from '@shared/data/preference/preferenceTypes'
-import {
-  FileProcessingOutputTargetSchema,
-  ListAvailableFileProcessorsResultSchema
-} from '@shared/data/types/fileProcessing'
-import type { FileHandle } from '@shared/file/types'
-import { FileHandleSchema } from '@shared/file/types'
-import { IpcChannel } from '@shared/IpcChannel'
-import * as z from 'zod'
+import { ListAvailableFileProcessorsResultSchema } from '@shared/data/types/fileProcessing'
+import type { FileHandle } from '@shared/types/file'
 
 import { resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
+import { ocrImageToText } from './ocrImageToText'
 import { processorRegistry } from './processors/registry'
 import { backgroundJobHandler } from './tasks/backgroundJobHandler'
 import { assertFileTypeSupported, getCapabilityHandler, resolveFileProcessingFileInfo } from './tasks/jobExecution'
@@ -23,24 +17,6 @@ import type { FileProcessingJobPayload } from './tasks/shared'
 import type { ListAvailableFileProcessorsResult, StartFileProcessingJobInput } from './types'
 
 const logger = loggerService.withContext('FileProcessingService')
-
-const FileProcessorFeatureSchema = z.enum(FILE_PROCESSOR_FEATURES)
-const FileProcessorIdSchema = z.enum(FILE_PROCESSOR_IDS)
-
-const StartJobPayloadSchema = z
-  .object({
-    feature: FileProcessorFeatureSchema,
-    file: FileHandleSchema,
-    output: FileProcessingOutputTargetSchema.optional(),
-    context: z
-      .object({
-        dataId: z.string().trim().min(1).optional()
-      })
-      .strict()
-      .optional(),
-    processorId: FileProcessorIdSchema.optional()
-  })
-  .strict()
 
 @Injectable('FileProcessingService')
 @ServicePhase(Phase.WhenReady)
@@ -52,7 +28,6 @@ export class FileProcessingService extends BaseService {
     const jobManager = application.get('JobManager')
     jobManager.registerHandler('file-processing.background', backgroundJobHandler)
     jobManager.registerHandler('file-processing.remote-poll', remotePollJobHandler)
-    this.registerIpcHandlers()
     logger.info('File processing service initialized')
   }
 
@@ -109,20 +84,22 @@ export class FileProcessingService extends BaseService {
     return handle.snapshot
   }
 
+  /**
+   * OCR an image into plain text using the user's configured `image_to_text`
+   * processor — the synchronous, content-version-cached path used by the AI chat
+   * attachment flow (`attachmentRouting` / `read_file`). Keeps OCR processor /
+   * handler internals owned by this domain instead of being deep-imported from
+   * `ai/`. Throws on failure / no configured processor; callers turn that into a
+   * model-facing note.
+   */
+  ocrImage(file: FileHandle, signal?: AbortSignal): Promise<string> {
+    return ocrImageToText(file, signal)
+  }
+
   listAvailableProcessors(): ListAvailableFileProcessorsResult {
     const processorIds = Object.entries(processorRegistry)
       .filter(([, processor]) => processor.isAvailable())
       .map(([processorId]) => processorId as FileProcessorId)
     return ListAvailableFileProcessorsResultSchema.parse({ processorIds })
-  }
-
-  private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.FileProcessing_StartJob, async (_, payload: unknown) => {
-      const parsed = StartJobPayloadSchema.parse(payload)
-      return await this.startJob({ ...parsed, file: parsed.file as FileHandle })
-    })
-    this.ipcHandle(IpcChannel.FileProcessing_ListAvailableProcessors, () => {
-      return this.listAvailableProcessors()
-    })
   }
 }

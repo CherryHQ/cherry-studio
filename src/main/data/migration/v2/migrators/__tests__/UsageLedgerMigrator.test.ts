@@ -10,7 +10,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { maskApiKeyForSnapshot } from '@shared/utils/api'
-import { setupTestDatabase } from '@test-helpers/db'
+import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
@@ -97,27 +97,31 @@ describe('UsageLedgerMigrator', () => {
   })
 
   it('backfills usage ledger rows from migrated chat and agent session messages', async () => {
-    await dbh.db.insert(messageTable).values({
-      id: 'chat-message-ledger',
-      topicId: 'topic-ledger',
-      parentId: null,
-      role: 'assistant',
-      data: { parts: [] },
-      status: 'success',
-      modelId: 'openai::gpt-4o',
-      stats: {
-        inputTokens: 10,
-        outputTokens: 5,
-        totalTokens: 15,
-        inputTokenDetails: { noCacheTokens: 5, cacheReadTokens: 3, cacheWriteTokens: 2 },
-        outputTokenDetails: { reasoningTokens: 4 },
-        cost: 0.01,
-        costCurrency: 'USD',
-        costSource: 'provider'
-      },
-      createdAt: 1000,
-      updatedAt: 1000
-    })
+    await dbh.db.insert(messageTable).values(
+      withRoot('topic-ledger', [
+        {
+          id: 'chat-message-ledger',
+          topicId: 'topic-ledger',
+          parentId: null,
+          role: 'assistant',
+          data: { parts: [] },
+          status: 'success',
+          modelId: 'openai::gpt-4o',
+          stats: {
+            inputTokens: 10,
+            outputTokens: 5,
+            totalTokens: 15,
+            inputTokenDetails: { noCacheTokens: 5, cacheReadTokens: 3, cacheWriteTokens: 2 },
+            outputTokenDetails: { reasoningTokens: 4 },
+            cost: 0.01,
+            costCurrency: 'USD',
+            costSource: 'provider'
+          },
+          createdAt: 1000,
+          updatedAt: 1000
+        }
+      ])
+    )
     await dbh.db.insert(agentSessionMessageTable).values({
       id: 'agent-message-ledger',
       sessionId: 'agent-session-ledger',
@@ -195,32 +199,34 @@ describe('UsageLedgerMigrator', () => {
       isHidden: false,
       orderKey: 'a1'
     })
-    await dbh.db.insert(messageTable).values([
-      {
-        id: 'timing-only',
-        topicId: 'topic-ledger',
-        parentId: null,
-        role: 'assistant',
-        data: { parts: [] },
-        status: 'success',
-        modelId: 'openai::gpt-4o',
-        stats: { timeCompletionMs: 10 },
-        createdAt: 1000,
-        updatedAt: 1000
-      },
-      {
-        id: 'invalid-model',
-        topicId: 'topic-ledger',
-        parentId: null,
-        role: 'assistant',
-        data: { parts: [] },
-        status: 'success',
-        modelId: 'not-a-unique-model-id',
-        stats: { totalTokens: 3 },
-        createdAt: 2000,
-        updatedAt: 2000
-      }
-    ])
+    await dbh.db.insert(messageTable).values(
+      withRoot('topic-ledger', [
+        {
+          id: 'timing-only',
+          topicId: 'topic-ledger',
+          parentId: null,
+          role: 'assistant',
+          data: { parts: [] },
+          status: 'success',
+          modelId: 'openai::gpt-4o',
+          stats: { timeCompletionMs: 10 },
+          createdAt: 1000,
+          updatedAt: 1000
+        },
+        {
+          id: 'invalid-model',
+          topicId: 'topic-ledger',
+          parentId: null,
+          role: 'assistant',
+          data: { parts: [] },
+          status: 'success',
+          modelId: 'not-a-unique-model-id',
+          stats: { totalTokens: 3 },
+          createdAt: 2000,
+          updatedAt: 2000
+        }
+      ])
+    )
 
     const migrator = new UsageLedgerMigrator()
     expect(await migrator.prepare(ctxOf())).toMatchObject({ success: true, itemCount: 2 })
@@ -244,22 +250,26 @@ describe('UsageLedgerMigrator', () => {
         }
       })
       .where(eq(userModelTable.id, 'openai::gpt-4o'))
-    await dbh.db.insert(messageTable).values({
-      id: 'chat-message-computed-ledger',
-      topicId: 'topic-ledger',
-      parentId: null,
-      role: 'assistant',
-      data: { parts: [] },
-      status: 'success',
-      modelId: 'openai::gpt-4o',
-      stats: {
-        inputTokens: 1_000_000,
-        outputTokens: 1_000_000,
-        totalTokens: 2_000_000
-      },
-      createdAt: 1000,
-      updatedAt: 1000
-    })
+    await dbh.db.insert(messageTable).values(
+      withRoot('topic-ledger', [
+        {
+          id: 'chat-message-computed-ledger',
+          topicId: 'topic-ledger',
+          parentId: null,
+          role: 'assistant',
+          data: { parts: [] },
+          status: 'success',
+          modelId: 'openai::gpt-4o',
+          stats: {
+            inputTokens: 1_000_000,
+            outputTokens: 1_000_000,
+            totalTokens: 2_000_000
+          },
+          createdAt: 1000,
+          updatedAt: 1000
+        }
+      ])
+    )
 
     const migrator = new UsageLedgerMigrator()
     expect(await migrator.execute(ctxOf())).toMatchObject({ success: true, processedCount: 1 })
@@ -278,22 +288,26 @@ describe('UsageLedgerMigrator', () => {
   })
 
   it('keeps migrated usage cost null when model pricing is unavailable', async () => {
-    await dbh.db.insert(messageTable).values({
-      id: 'chat-message-unpriced-ledger',
-      topicId: 'topic-ledger',
-      parentId: null,
-      role: 'assistant',
-      data: { parts: [] },
-      status: 'success',
-      modelId: 'openai::gpt-4o',
-      stats: {
-        inputTokens: 1_000_000,
-        outputTokens: 1_000_000,
-        totalTokens: 2_000_000
-      },
-      createdAt: 1000,
-      updatedAt: 1000
-    })
+    await dbh.db.insert(messageTable).values(
+      withRoot('topic-ledger', [
+        {
+          id: 'chat-message-unpriced-ledger',
+          topicId: 'topic-ledger',
+          parentId: null,
+          role: 'assistant',
+          data: { parts: [] },
+          status: 'success',
+          modelId: 'openai::gpt-4o',
+          stats: {
+            inputTokens: 1_000_000,
+            outputTokens: 1_000_000,
+            totalTokens: 2_000_000
+          },
+          createdAt: 1000,
+          updatedAt: 1000
+        }
+      ])
+    )
 
     const migrator = new UsageLedgerMigrator()
     expect(await migrator.execute(ctxOf())).toMatchObject({ success: true, processedCount: 1 })

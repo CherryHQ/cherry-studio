@@ -1,8 +1,8 @@
 import type { IconComponent } from '@cherrystudio/ui/icons'
-import type { codeCLI } from '@shared/config/constant'
+import type { CodeCli } from '@shared/types/codeCli'
 
 export interface CodeToolMeta {
-  id: codeCLI
+  id: CodeCli
   label: string
   icon: IconComponent | null | undefined
 }

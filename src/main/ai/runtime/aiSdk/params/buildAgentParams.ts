@@ -1,13 +1,15 @@
-import type { FetchFunction, ProviderOptions } from '@ai-sdk/provider-utils'
+import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
-import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/config/constant'
+import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@main/ai/constants'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
-import { stepCountIs, type StopCondition, type ToolSet } from 'ai'
+import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
+import { collectFileAttachments } from '../../../messages/attachmentRouting'
+import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
 import { createHttpTraceFetch } from '../../../observability'
 import { providerToAiSdkConfig } from '../../../provider/config'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../../provider/endpoint'
@@ -33,12 +35,14 @@ import { resolveCapabilities } from './capabilities'
 import { collectFromFeatures } from './collectFromFeatures'
 import type { RequestFeature } from './feature'
 import { INTERNAL_FEATURES } from './features'
+import { type NativeFileSupport, resolveNativeFileSupport } from './nativeFileSupport'
 import type { RequestScope, SdkConfig } from './scope'
 
 export interface BuildAgentParamsInput {
   request: AiBaseRequest & {
     chatId?: string
     messageId?: string
+    messages?: UIMessage[]
   }
   signal: AbortSignal | undefined
   provider: Provider
@@ -56,6 +60,9 @@ export interface BuiltAgentParams {
   options: AgentOptions
   /** Hook contributions from features — caller composes with its own internal hooks. */
   hookParts: ReadonlyArray<Partial<AgentLoopHooks>>
+  /** Attachment routing inputs for `prepareChatMessages` (chat path). */
+  nativeFileSupport: NativeFileSupport
+  fileAttachments: FileAttachmentRef[]
 }
 
 export async function buildAgentParams(input: BuildAgentParamsInput): Promise<BuiltAgentParams> {
@@ -63,19 +70,23 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
 
   const sdkConfig = await resolveSdkConfig(provider, model)
   applyHttpTrace(sdkConfig, request.chatId, model)
+  const fileAttachments = collectFileAttachments(request.messages)
+  const hasFileAttachments = fileAttachments.length > 0
   const { tools, deferredEntries, mcpToolIds } = canModelConsumeTools(model)
-    ? await resolveTools(request, assistant, model)
+    ? await resolveTools(request, assistant, model, hasFileAttachments)
     : { tools: undefined, deferredEntries: [] as ToolEntry[], mcpToolIds: new Set<string>() }
   const capabilities = assistant ? resolveCapabilities(model, provider, assistant) : undefined
 
   const { endpointType } = resolveEffectiveEndpoint(provider, model)
   const aiSdkProviderId = resolveAiSdkProviderId(provider, endpointType)
+  const nativeFileSupport = resolveNativeFileSupport(provider, model, aiSdkProviderId)
 
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),
     topicId: request.chatId,
     assistant,
-    abortSignal: signal
+    abortSignal: signal,
+    fileAttachments
   }
 
   const scope: RequestScope = {
@@ -90,7 +101,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     endpointType,
     aiSdkProviderId,
     requestContext,
-    mcpToolIds
+    mcpToolIds,
+    hasFileAttachments
   }
 
   const features = extraFeatures?.length ? [...INTERNAL_FEATURES, ...extraFeatures] : INTERNAL_FEATURES
@@ -105,7 +117,9 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     plugins: contributions.modelAdapters,
     system,
     options,
-    hookParts: contributions.hookParts
+    hookParts: contributions.hookParts,
+    nativeFileSupport,
+    fileAttachments
   }
 }
 
@@ -118,7 +132,7 @@ async function resolveSdkConfig(provider: Provider, model: Model): Promise<SdkCo
 
 export function applyHttpTrace(sdkConfig: SdkConfig, topicId: string | undefined, model: Model): void {
   if (!application.get('PreferenceService').get('app.developer_mode.enabled')) return
-  const settings = sdkConfig.providerSettings as { fetch?: FetchFunction }
+  const settings = sdkConfig.providerSettings
   settings.fetch = createHttpTraceFetch(settings.fetch ?? globalThis.fetch, {
     topicId,
     modelName: model.name ?? model.id
@@ -147,7 +161,8 @@ function canModelConsumeTools(model: Model): boolean {
 async function resolveTools(
   request: BuildAgentParamsInput['request'],
   assistant: Assistant | undefined,
-  model: Model
+  model: Model,
+  hasFileAttachments: boolean
 ): Promise<{
   tools: ToolSet | undefined
   deferredEntries: ToolEntry[]
@@ -165,7 +180,7 @@ async function resolveTools(
     await syncMcpToolsToRegistry(undefined, { selectedToolIds: mcpToolIds })
   }
 
-  const activeEntries = registry.selectActive({ assistant, mcpToolIds })
+  const activeEntries = registry.selectActive({ assistant, mcpToolIds, hasFileAttachments })
   let tools: ToolSet | undefined
   if (activeEntries.length > 0) {
     tools = {}

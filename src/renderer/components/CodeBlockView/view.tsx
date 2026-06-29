@@ -17,8 +17,7 @@ import {
 import CodeViewer from '@renderer/components/CodeViewer'
 import ImageViewer from '@renderer/components/ImageViewer'
 import type { BasicPreviewHandles } from '@renderer/components/Preview'
-import { MAX_COLLAPSED_CODE_HEIGHT } from '@renderer/config/constant'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { pyodideService } from '@renderer/services/PyodideService'
 import { getExtensionByLanguage } from '@renderer/utils/codeLanguage'
 import { getFileIconName } from '@renderer/utils/fileIconName'
@@ -28,7 +27,7 @@ import dayjs from 'dayjs'
 import React, { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
+import { MAX_COLLAPSED_CODE_HEIGHT, SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
 import StatusBar from './StatusBar'
 import type { ViewMode } from './types'
 
@@ -38,6 +37,7 @@ interface Props {
   children: string
   language: string
   onSave?: (newContent: string) => void
+  editable?: boolean
 }
 
 /**
@@ -56,7 +56,7 @@ interface Props {
  * - quick 工具
  * - core 工具
  */
-export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave }) => {
+export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave, editable = true }) => {
   const { t } = useTranslation()
 
   const [codeExecutionEnabled] = usePreference('chat.code.execution.enabled')
@@ -106,6 +106,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   const [executionResult, setExecutionResult] = useState<{ text: string; image?: string } | null>(null)
 
   const [tools, setTools] = useState<ActionTool[]>([])
+  const codeEditorEnabled = codeEditor.enabled && editable
 
   const isExecutable = useMemo(() => {
     return codeExecutionEnabled && language === 'python'
@@ -223,7 +224,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   // 特殊视图的编辑/查看源码按钮，在分屏模式下不可用
   useViewSourceTool({
     enabled: hasSpecialView,
-    editable: codeEditor.enabled,
+    editable: codeEditorEnabled,
     viewMode,
     onViewModeChange: setViewMode,
     setTools
@@ -265,7 +266,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
 
   // 代码编辑器的保存按钮
   useSaveTool({
-    enabled: codeEditor.enabled && !isInSpecialView,
+    enabled: codeEditorEnabled && !isInSpecialView,
     sourceViewRef,
     setTools
   })
@@ -273,7 +274,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   // 源代码视图组件
   const sourceView = useMemo(
     () =>
-      codeEditor.enabled ? (
+      codeEditorEnabled ? (
         <CodeEditor
           className="source-view"
           ref={sourceViewRef}
@@ -305,6 +306,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
       children,
       codeCollapsible,
       codeEditor,
+      codeEditorEnabled,
       codeShowLineNumbers,
       fontSize,
       handleHeightChange,
@@ -337,9 +339,9 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
     const ext = getExtensionByLanguage(language)
     const iconName = getFileIconName(`file${ext}`)
     return (
-      <div className="flex h-[34px] items-center rounded-t-lg bg-muted px-2.5 font-bold text-foreground text-sm leading-none">
+      <div className="flex h-8 items-center rounded-t-lg bg-muted px-2.5 font-bold text-foreground text-sm leading-none">
         <Icon icon={`material-icon-theme:${iconName}`} style={{ fontSize: '1.1em', marginRight: 6 }} />
-        {language.charAt(0).toUpperCase() + language.slice(1)}
+        {language.toUpperCase()}
       </div>
     )
   }, [isInSpecialView, language])
@@ -352,7 +354,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
     return (
       <div
         className={cn(
-          'split-view-wrapper flex [&>*]:w-full [&>*]:flex-[1_1_auto]',
+          'split-view-wrapper flex *:w-full *:flex-[1_1_auto]',
           !hasStatusBar && (showSpecialView && !showSourceView ? 'rounded-lg' : 'rounded-b-lg'),
           !hasStatusBar && '[&_.code-viewer]:rounded-[inherit]',
           showSpecialView &&

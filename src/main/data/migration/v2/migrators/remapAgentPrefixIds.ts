@@ -3,6 +3,7 @@ import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agent
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
+import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { loggerService } from '@logger'
 import { eq, sql } from 'drizzle-orm'
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
@@ -24,7 +25,8 @@ export const AGENT_TABLES: SQLiteTable[] = [
   agentSkillTable,
   agentChannelTable,
   agentSessionMessageTable,
-  agentChannelTaskTable
+  agentChannelTaskTable,
+  agentMcpServerTable
 ]
 
 /**
@@ -55,6 +57,7 @@ export async function remapAgentPrefixIds(db: MigrationContext['db']): Promise<v
       await db.update(agentSessionTable).set({ agentId: newId }).where(eq(agentSessionTable.agentId, oldId))
       await db.update(agentSkillTable).set({ agentId: newId }).where(eq(agentSkillTable.agentId, oldId))
       await db.update(agentChannelTable).set({ agentId: newId }).where(eq(agentChannelTable.agentId, oldId))
+      await db.update(agentMcpServerTable).set({ agentId: newId }).where(eq(agentMcpServerTable.agentId, oldId))
       // job_schedule.jobInputTemplate is a JSON column carrying the same agent_id
       // for migrated agent.task schedules. json_set rewrites it atomically so
       // post-remap reads see the new id consistently with agent.id above.

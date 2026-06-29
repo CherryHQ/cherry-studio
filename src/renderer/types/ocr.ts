@@ -1,8 +1,6 @@
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import type { ImageFileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import type Tesseract from 'tesseract.js'
-
-import type { FileMetadata, ImageFileMetadata } from '.'
-import { isImageFileMetadata } from '.'
 
 export const BuiltinOcrProviderIds = {
   tesseract: 'tesseract',
@@ -13,10 +11,6 @@ export const BuiltinOcrProviderIds = {
 
 export type BuiltinOcrProviderId = keyof typeof BuiltinOcrProviderIds
 
-export const isBuiltinOcrProviderId = (id: string): id is BuiltinOcrProviderId => {
-  return Object.hasOwn(BuiltinOcrProviderIds, id)
-}
-
 // extensible
 export const OcrProviderCapabilities = {
   image: 'image'
@@ -24,10 +18,6 @@ export const OcrProviderCapabilities = {
 } as const
 
 export type OcrProviderCapability = keyof typeof OcrProviderCapabilities
-
-export const isOcrProviderCapability = (cap: string): cap is OcrProviderCapability => {
-  return Object.hasOwn(OcrProviderCapabilities, cap)
-}
 
 export type OcrProviderCapabilityRecord = Partial<Record<OcrProviderCapability, boolean>>
 
@@ -50,18 +40,6 @@ export type OcrProviderApiConfig = {
   apiKey: string
   apiHost: string
   apiVersion?: string
-}
-
-export const isOcrProviderApiConfig = (config: unknown): config is OcrProviderApiConfig => {
-  return (
-    typeof config === 'object' &&
-    config !== null &&
-    'apiKey' in config &&
-    typeof config.apiKey === 'string' &&
-    'apiHost' in config &&
-    typeof config.apiHost === 'string' &&
-    (!('apiVersion' in config) || typeof config.apiVersion === 'string')
-  )
 }
 
 /**
@@ -95,16 +73,8 @@ export type OcrApiProvider = OcrProvider & {
   config: OcrApiProviderConfig
 }
 
-export const isOcrApiProvider = (p: OcrProvider): p is OcrApiProvider => {
-  return !!(p.config && p.config.api && isOcrProviderApiConfig(p.config.api))
-}
-
 export type BuiltinOcrProvider = OcrProvider & {
   id: BuiltinOcrProviderId
-}
-
-export const isBuiltinOcrProvider = (p: OcrProvider): p is BuiltinOcrProvider => {
-  return isBuiltinOcrProviderId(p.id)
 }
 
 // Not sure compatible api endpoint exists. May not support custom ocr provider
@@ -124,15 +94,7 @@ export type ImageOcrProvider = OcrProvider & {
 //   }
 // }
 
-export const isImageOcrProvider = (p: OcrProvider): p is ImageOcrProvider => {
-  return p.capabilities.image === true
-}
-
 export type SupportedOcrFile = ImageFileMetadata
-
-export const isSupportedOcrFile = (file: FileMetadata): file is SupportedOcrFile => {
-  return isImageFileMetadata(file)
-}
 
 export type OcrResult = {
   text: string
@@ -153,10 +115,6 @@ export type OcrTesseractProvider = {
 } & ImageOcrProvider &
   BuiltinOcrProvider
 
-export const isOcrTesseractProvider = (p: OcrProvider): p is OcrTesseractProvider => {
-  return p.id === BuiltinOcrProviderIds.tesseract
-}
-
 export type TesseractLangCode = Tesseract.LanguageCode
 
 // System Types
@@ -171,10 +129,6 @@ export type OcrSystemProvider = {
   // PdfOcrProvider &
   BuiltinOcrProvider
 
-export const isOcrSystemProvider = (p: OcrProvider): p is OcrSystemProvider => {
-  return p.id === BuiltinOcrProviderIds.system
-}
-
 // PaddleOCR Types
 export type OcrPpocrConfig = OcrProviderBaseConfig & {
   apiUrl?: string
@@ -188,10 +142,6 @@ export type OcrPpocrProvider = {
   // PdfOcrProvider &
   BuiltinOcrProvider
 
-export const isOcrPpocrProvider = (p: OcrProvider): p is OcrPpocrProvider => {
-  return p.id === BuiltinOcrProviderIds.paddleocr
-}
-
 // OV OCR Types
 export type OcrOvConfig = OcrProviderBaseConfig & {
   langs?: TranslateLangCode[]
@@ -203,7 +153,3 @@ export type OcrOvProvider = {
 } & ImageOcrProvider &
   // PdfOcrProvider &
   BuiltinOcrProvider
-
-export const isOcrOVProvider = (p: OcrProvider): p is OcrOvProvider => {
-  return p.id === BuiltinOcrProviderIds.ovocr
-}

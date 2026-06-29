@@ -1,7 +1,13 @@
 import { Button, ButtonGroup, Flex, InfoTooltip, Input, Label, Tooltip } from '@cherrystudio/ui'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
 import type { WebSearchBasicAuthPatch } from '@renderer/hooks/useWebSearch'
 import { formatApiKeys, splitApiKeyString, withoutTrailingSlash } from '@renderer/utils/api'
+import {
+  getWebSearchProviderApiKeyWebsite,
+  getWebSearchProviderDescriptionKey,
+  getWebSearchProviderOfficialWebsite,
+  type WebSearchProviderMenuEntry
+} from '@renderer/utils/webSearchProviderMeta'
 import type {
   WebSearchCapability,
   WebSearchProvider,
@@ -29,12 +35,6 @@ import {
 } from '../..'
 import { useWebSearchPersist } from '../hooks/useWebSearchPersist'
 import { useWebSearchProviderCheck } from '../hooks/useWebSearchProviderCheck'
-import {
-  getWebSearchProviderApiKeyWebsite,
-  getWebSearchProviderDescriptionKey,
-  getWebSearchProviderOfficialWebsite,
-  type WebSearchProviderMenuEntry
-} from '../utils/webSearchProviderMeta'
 import { WebSearchApiKeyListPopup } from './WebSearchApiKeyList'
 
 const providerFormClassName = 'flex w-full flex-col gap-4'

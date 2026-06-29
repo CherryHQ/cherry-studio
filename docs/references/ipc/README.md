@@ -8,10 +8,10 @@ IpcApi is the **fifth parallel subsystem** alongside BootConfig / Cache / Prefer
 
 ## Quick Navigation
 
-- [IpcApi Overview](./ipc-overview.md) — paradigm split (RPC vs REST), layering, the two orthogonal axes, trust boundary, `IpcContext`, error model, security
+- [IpcApi Overview](./ipc-overview.md) — paradigm split (RPC vs REST), surface narrowing + direction cheat sheet, no one-way R→M, layering, the two orthogonal axes, trust boundary, `IpcContext`, error model, security
 - [IpcApi Usage](./ipc-usage.md) — add a request (schema + handler), add an event (type + `broadcast`/`send` + `useIpcOn`), three-process end-to-end examples
 - [IpcApi Schema Guide](./ipc-schema-guide.md) — route/event naming, `*RequestSchemas`/`*EventSchemas`, `IpcRoute`/`IpcEventName`, ESLint key validation
-- [IpcApi Migration Guide](./ipc-migration-guide.md) — collecting scattered `ipcMain.handle`/`this.ipcHandle`/hand-written preload per domain, the `send` work-list, exposure-surface audit
+- [IpcApi Migration Guide](./ipc-migration-guide.md) — collecting scattered `ipcMain.handle`/`this.ipcHandle`/hand-written preload per domain, the `send` work-list, escape hatch (when a channel stays out), exposure-surface audit
 
 ## Boundary — When To Use Which Subsystem
 
@@ -47,7 +47,8 @@ Decision rule: SQLite data → DataApi; user setting → Preference; losable/sha
 | `src/shared/ipc/define.ts` | `defineRoute` + `RouteDef` |
 | `src/shared/ipc/schemas/index.ts` | `ipcRequestSchemas` / `IpcRoute` / `IpcEventSchemas` / `IpcEventName` |
 | `src/shared/ipc/types.ts` | `InputFor` / `OutputFor` / `EventPayload` / `IpcHandlersFor` / `IpcContext` / `WindowId` |
-| `src/shared/ipc/errors.ts` | `IpcError` + `SerializedIpcError` |
+| `src/shared/ipc/errors/index.ts` | framework core: `IpcError` / `IpcErrorCode` (framework codes, single source of truth) / `SerializedIpcError` / `IpcResult` |
+| `src/shared/ipc/errors/<domain>.ts` | per-domain error-code maps (`as const`), imported directly by handler + renderer — **not** aggregated through `errors/index.ts` |
 | `src/main/ipc/IpcRouter.ts` | request router (key lookup + zod parse + dispatch) |
 | `src/main/ipc/IpcApiService.ts` | `BeforeReady` coordinator: handler registration + `broadcast`/`send` |
 | `src/main/ipc/validateSender.ts` | source-trust gate (`validateSender` / `isTrustedSenderUrl`) |

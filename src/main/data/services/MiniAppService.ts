@@ -12,53 +12,68 @@
  */
 
 import { application } from '@application'
-import {
-  type InsertMiniAppRow,
-  type MiniAppRegion,
-  type MiniAppRow,
-  type MiniAppStatus,
-  miniAppTable
-} from '@data/db/schemas/miniApp'
+import { type InsertMiniAppRow, type MiniAppRow, type MiniAppStatus, miniAppTable } from '@data/db/schemas/miniApp'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
-import { PRESETS_MINI_APPS } from '@shared/data/presets/mini-apps'
+import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
-import { and, asc, desc, eq, ne } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, lt, ne } from 'drizzle-orm'
 
-import { applyScopedMoves, generateOrderKeyBetween, insertWithOrderKey } from './utils/orderKey'
+import { applyMoves, generateOrderKeyBetween, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MiniAppService')
 
 /** Preset id set, used for write-time collision rejection. */
 const presetMiniAppIdSet: ReadonlySet<string> = new Set(PRESETS_MINI_APPS.map((p) => p.id))
+const customMutableFields = ['name', 'url', 'logo'] as const
+const visibleStatusValues = ['enabled', 'pinned'] satisfies MiniAppStatus[]
+const visibleStatuses: ReadonlySet<MiniAppStatus> = new Set(visibleStatusValues)
 
 function brandId(raw: string): MiniAppId {
   return raw as MiniAppId
 }
 
+function hasOwnDefined<T extends object>(object: T, key: keyof T): boolean {
+  return Object.prototype.hasOwnProperty.call(object, key) && object[key] !== undefined
+}
+
+function isVisibleStatus(status: MiniAppStatus): boolean {
+  return visibleStatuses.has(status)
+}
+
+function orderScopeForStatus(status: MiniAppStatus) {
+  return isVisibleStatus(status) ? inArray(miniAppTable.status, visibleStatusValues) : eq(miniAppTable.status, status)
+}
+
 /** Convert a DB row to the public MiniApp DTO. */
 function rowToMiniApp(row: MiniAppRow): MiniApp {
   const clean = nullsToUndefined(row)
-  return {
+  const presetMiniAppId = clean.presetMiniAppId ?? null
+  const app: MiniApp = {
     appId: brandId(clean.appId),
-    presetMiniAppId: clean.presetMiniAppId ?? null,
+    presetMiniAppId,
     name: clean.name,
     url: clean.url,
     logo: clean.logo,
-    bordered: clean.bordered,
-    background: clean.background,
-    supportedRegions: clean.supportedRegions as ('CN' | 'Global')[] | undefined,
-    configuration: clean.configuration,
-    nameKey: clean.nameKey,
     status: clean.status,
     orderKey: clean.orderKey,
     createdAt: timestampToISO(clean.createdAt),
     updatedAt: timestampToISO(clean.updatedAt)
   }
+
+  if (presetMiniAppId !== null) {
+    app.bordered = clean.bordered
+    app.background = clean.background
+    app.supportedRegions = clean.supportedRegions
+    app.configuration = clean.configuration
+    app.nameKey = clean.nameKey
+  }
+
+  return app
 }
 
 export class MiniAppService {
@@ -93,7 +108,7 @@ export class MiniAppService {
 
   /**
    * Create a custom miniapp. Rejects collisions with preset ids.
-   * Auto-assigns orderKey at the end of the status='enabled' partition.
+   * Auto-assigns orderKey at the end of the visible miniapp list.
    */
   async create(dto: CreateMiniAppDto): Promise<MiniApp> {
     if (presetMiniAppIdSet.has(dto.appId)) {
@@ -103,7 +118,7 @@ export class MiniAppService {
     const status: MiniAppStatus = 'enabled'
     const row = await withSqliteErrors(
       () =>
-        this.db.transaction(async (tx) => {
+        application.get('DbService').withWriteTx(async (tx) => {
           const inserted = await insertWithOrderKey(
             tx,
             miniAppTable,
@@ -113,16 +128,12 @@ export class MiniAppService {
               name: dto.name,
               url: dto.url,
               logo: dto.logo,
-              status,
-              bordered: dto.bordered,
-              background: dto.background ?? null,
-              supportedRegions: dto.supportedRegions as MiniAppRegion[] | undefined,
-              configuration: dto.configuration
+              status
             },
             {
               pkColumn: miniAppTable.appId,
               position: 'last',
-              scope: eq(miniAppTable.status, status)
+              scope: orderScopeForStatus(status)
             }
           )
           return inserted as MiniAppRow | undefined
@@ -137,47 +148,99 @@ export class MiniAppService {
   }
 
   /**
-   * Update an existing miniapp. Currently only `status` is mutable — preset
-   * display fields (name/url/logo/...) are owned by {@link MiniAppSeeder} and
-   * have no edit UI; reordering within a partition goes through the dedicated
-   * `/order` endpoints.
+   * Update an existing miniapp. Preset rows only accept `status` changes because
+   * their display fields are refreshed by {@link MiniAppSeeder}. Custom rows can
+   * also edit the user-facing fields exposed by the custom miniapp form.
    *
-   * On status transitions the row also receives a fresh `orderKey` placed at
-   * the tail of the target partition. `orderKey` is scoped to `status`, so
-   * letting a row carry its old key into a new partition risks duplicates and
-   * leaves ordering unstable across enabled / disabled / pinned.
+   * On status transitions the row receives an `orderKey` in the target list.
+   * `enabled` and `pinned` share the visible MiniApp list, so transitions
+   * between them keep the same relative position among visible rows, generating
+   * a fresh key between the same neighbors when needed. Moving into visible
+   * status lands at the visible tail; moving into `disabled` lands at the
+   * disabled tail.
    */
   async update(appId: string, dto: UpdateMiniAppDto): Promise<MiniApp> {
-    if (dto.status === undefined) {
+    const hasStatusUpdate = dto.status !== undefined
+    const hasCustomUpdate = customMutableFields.some((field) => hasOwnDefined(dto, field))
+
+    if (!hasStatusUpdate && !hasCustomUpdate) {
       throw DataApiErrorFactory.validation(
         { _root: [`No updatable fields provided for "${appId}"`] },
         'No applicable fields to update'
       )
     }
 
-    const targetStatus = dto.status
-
     const row = await withSqliteErrors(
       () =>
-        this.db.transaction(async (tx) => {
+        application.get('DbService').withWriteTx(async (tx) => {
           const [existing] = await tx
-            .select({ status: miniAppTable.status })
+            .select({
+              presetMiniAppId: miniAppTable.presetMiniAppId,
+              status: miniAppTable.status,
+              orderKey: miniAppTable.orderKey
+            })
             .from(miniAppTable)
             .where(eq(miniAppTable.appId, appId))
             .limit(1)
           if (!existing) throw DataApiErrorFactory.notFound('MiniApp', appId)
 
-          const updates: Partial<InsertMiniAppRow> = { status: targetStatus }
+          if (hasCustomUpdate && existing.presetMiniAppId !== null) {
+            throw DataApiErrorFactory.invalidOperation(
+              `update miniapp ${appId}`,
+              'preset-derived miniapp user-facing fields cannot be edited'
+            )
+          }
 
-          if (existing.status !== targetStatus) {
-            // Transitioning partitions: place at tail of the target partition.
-            const [tail] = await tx
-              .select({ orderKey: miniAppTable.orderKey })
-              .from(miniAppTable)
-              .where(and(eq(miniAppTable.status, targetStatus), ne(miniAppTable.appId, appId)))
-              .orderBy(desc(miniAppTable.orderKey))
-              .limit(1)
-            updates.orderKey = generateOrderKeyBetween(tail?.orderKey ?? null, null)
+          const updates: Partial<InsertMiniAppRow> = {}
+
+          if (dto.name !== undefined) updates.name = dto.name
+          if (dto.url !== undefined) updates.url = dto.url
+          if (dto.logo !== undefined) updates.logo = dto.logo
+
+          if (hasStatusUpdate) {
+            const targetStatus = dto.status as MiniAppStatus
+            updates.status = targetStatus
+            if (existing.status !== targetStatus) {
+              if (isVisibleStatus(existing.status) && isVisibleStatus(targetStatus)) {
+                const visibleScope = and(orderScopeForStatus(targetStatus), ne(miniAppTable.appId, appId))
+                const [before] = await tx
+                  .select({ orderKey: miniAppTable.orderKey })
+                  .from(miniAppTable)
+                  .where(and(visibleScope, lt(miniAppTable.orderKey, existing.orderKey)))
+                  .orderBy(desc(miniAppTable.orderKey))
+                  .limit(1)
+                const [same] = await tx
+                  .select({ orderKey: miniAppTable.orderKey })
+                  .from(miniAppTable)
+                  .where(and(visibleScope, eq(miniAppTable.orderKey, existing.orderKey)))
+                  .limit(1)
+                const [after] = await tx
+                  .select({ orderKey: miniAppTable.orderKey })
+                  .from(miniAppTable)
+                  .where(and(visibleScope, gt(miniAppTable.orderKey, existing.orderKey)))
+                  .orderBy(asc(miniAppTable.orderKey))
+                  .limit(1)
+
+                if (same) {
+                  updates.orderKey =
+                    existing.status === 'enabled'
+                      ? generateOrderKeyBetween(before?.orderKey ?? null, same.orderKey)
+                      : generateOrderKeyBetween(same.orderKey, after?.orderKey ?? null)
+                } else if (before || after) {
+                  updates.orderKey = generateOrderKeyBetween(before?.orderKey ?? null, after?.orderKey ?? null)
+                } else {
+                  updates.orderKey = existing.orderKey
+                }
+              } else {
+                const [tail] = await tx
+                  .select({ orderKey: miniAppTable.orderKey })
+                  .from(miniAppTable)
+                  .where(and(orderScopeForStatus(targetStatus), ne(miniAppTable.appId, appId)))
+                  .orderBy(desc(miniAppTable.orderKey))
+                  .limit(1)
+                updates.orderKey = generateOrderKeyBetween(tail?.orderKey ?? null, null)
+              }
+            }
           }
 
           const [updated] = await tx.update(miniAppTable).set(updates).where(eq(miniAppTable.appId, appId)).returning()
@@ -186,7 +249,7 @@ export class MiniAppService {
       defaultHandlersFor('MiniApp', appId)
     )
     if (!row) throw DataApiErrorFactory.notFound('MiniApp', appId)
-    logger.info('Updated miniapp', { appId, status: targetStatus })
+    logger.info('Updated miniapp', { appId, changes: Object.keys(dto) })
     return rowToMiniApp(row)
   }
 
@@ -195,45 +258,64 @@ export class MiniAppService {
    * Mirrors {@link ProviderService.delete}'s preset guard.
    */
   async delete(appId: string): Promise<void> {
-    const [existing] = await this.db
-      .select({ presetMiniAppId: miniAppTable.presetMiniAppId })
-      .from(miniAppTable)
-      .where(eq(miniAppTable.appId, appId))
-      .limit(1)
-    if (!existing) throw DataApiErrorFactory.notFound('MiniApp', appId)
-
-    if (existing.presetMiniAppId !== null) {
-      throw DataApiErrorFactory.invalidOperation(
-        `delete miniapp ${appId}`,
-        'preset-derived miniapp cannot be deleted; use PATCH with status="disabled" to hide'
-      )
-    }
-
     await withSqliteErrors(
-      () => this.db.delete(miniAppTable).where(eq(miniAppTable.appId, appId)),
+      async () =>
+        application.get('DbService').withWriteTx(async (tx) => {
+          const [existing] = await tx
+            .select({ presetMiniAppId: miniAppTable.presetMiniAppId })
+            .from(miniAppTable)
+            .where(eq(miniAppTable.appId, appId))
+            .limit(1)
+          if (!existing) throw DataApiErrorFactory.notFound('MiniApp', appId)
+
+          if (existing.presetMiniAppId !== null) {
+            throw DataApiErrorFactory.invalidOperation(
+              `delete miniapp ${appId}`,
+              'preset-derived miniapp cannot be deleted; use PATCH with status="disabled" to hide'
+            )
+          }
+
+          await tx.delete(miniAppTable).where(eq(miniAppTable.appId, appId))
+        }),
       defaultHandlersFor('MiniApp', appId)
     )
     logger.info('Deleted miniapp', { appId })
   }
 
   /**
-   * Reorder miniApps via fractional-indexing. The `mini_app.status` column is
-   * the reorder scope: a single batch must stay inside one status partition
-   * (`enabled` | `disabled` | `pinned`). Cross-partition batches are rejected
-   * with `VALIDATION_ERROR` per the DataApi scoped-reorder contract — moving
-   * a row between partitions goes through PATCH, not POST /order:batch.
+   * Reorder miniApps via fractional-indexing. Visible rows (`enabled` +
+   * `pinned`) share one list; hidden rows (`disabled`) remain separate.
+   * Cross visible/hidden batches are rejected — moving a row between visible
+   * and hidden still goes through single-row PATCH, not PATCH /order:batch.
    */
   async reorder(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
     if (moves.length === 0) return
 
     await withSqliteErrors(
       () =>
-        this.db.transaction(async (tx) =>
-          applyScopedMoves(tx, miniAppTable, moves, {
+        application.get('DbService').withWriteTx(async (tx) => {
+          const ids = moves.map((move) => move.id)
+          const rows = await tx
+            .select({ appId: miniAppTable.appId, status: miniAppTable.status })
+            .from(miniAppTable)
+            .where(inArray(miniAppTable.appId, ids))
+
+          if (rows.length === 0) {
+            throw DataApiErrorFactory.notFound('MiniApp', ids[0])
+          }
+
+          const hasVisible = rows.some((row) => isVisibleStatus(row.status))
+          const hasHidden = rows.some((row) => !isVisibleStatus(row.status))
+          if (hasVisible && hasHidden) {
+            const message = 'MiniApp reorder batch cannot span visible and hidden lists'
+            throw DataApiErrorFactory.validation({ _root: [message] }, message)
+          }
+
+          await applyMoves(tx, miniAppTable, moves, {
             pkColumn: miniAppTable.appId,
-            scopeColumn: miniAppTable.status
+            scope: hasVisible ? orderScopeForStatus('enabled') : eq(miniAppTable.status, 'disabled')
           })
-        ),
+        }),
       defaultHandlersFor('MiniApp', 'multiple')
     )
     logger.info('Reordered miniApps', { count: moves.length })

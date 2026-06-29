@@ -1,16 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
-import { isJSON, parseJSON } from '../index'
-
-vi.mock('@renderer/store', () => ({
-  default: {
-    getState: () => ({
-      llm: {
-        settings: {}
-      }
-    })
-  }
-}))
+import { isJSON, parseJSON } from '../json'
 
 describe('json', () => {
   describe('isJSON', () => {

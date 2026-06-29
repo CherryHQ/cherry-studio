@@ -1,0 +1,70 @@
+import { Button } from '@cherrystudio/ui'
+import type { FileMetadata } from '@renderer/types/file'
+import { formatFileSize } from '@renderer/utils/file'
+import { Paperclip } from 'lucide-react'
+import type { FC } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { useOptionalMessageListActions, useOptionalMessageListUi } from '../MessageListProvider'
+
+interface Props {
+  file: FileMetadata
+}
+
+const MessageAttachments: FC<Props> = ({ file }) => {
+  const { t } = useTranslation()
+  const actions = useOptionalMessageListActions()
+  const messageUi = useOptionalMessageListUi()
+
+  if (!file) {
+    return null
+  }
+
+  const fileView = messageUi?.getFileView?.(file)
+  const fileName = fileView?.displayName || file.origin_name || file.name || file.path || ''
+  const fileSuffix = file.ext ? file.ext.replace('.', '').toUpperCase() : file.type.toUpperCase()
+  const openFile = actions?.openFile
+  const previewFile = actions?.previewFile
+
+  const handleOpen = () => {
+    if (!openFile) return
+    void Promise.resolve(openFile(file)).catch(() => {
+      window.modal.error({ content: t('files.preview.error'), centered: true })
+    })
+  }
+
+  const handlePreview = () => {
+    void previewFile?.(file)
+  }
+
+  return (
+    <div className="message-attachments mt-0.5 mb-2">
+      <div className="flex max-w-130 items-center gap-3 rounded-lg border border-border bg-muted px-3 py-2">
+        <div className="shrink-0 text-foreground-secondary">
+          <Paperclip size={16} />
+        </div>
+        <button
+          type="button"
+          className="min-w-0 flex-1 text-left"
+          onClick={previewFile ? handlePreview : undefined}
+          title={fileName}
+          aria-label={fileName}>
+          <div className="truncate text-foreground text-sm">{fileName}</div>
+          <div className="text-foreground-secondary text-xs">
+            {formatFileSize(file.size)} · {fileSuffix}
+          </div>
+        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button size="sm" variant="secondary" disabled={!previewFile} onClick={handlePreview}>
+            {t('common.preview')}
+          </Button>
+          <Button size="sm" variant="outline" disabled={!openFile} onClick={handleOpen}>
+            {t('files.open')}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default MessageAttachments

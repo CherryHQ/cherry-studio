@@ -1,16 +1,12 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
-import type { GitBashPathInfo, GitBashPathSource } from '@shared/config/constant'
-import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import chardet from 'chardet'
 import { type ChildProcess, execFileSync, spawn, type SpawnOptions } from 'child_process'
 import fs from 'fs'
 import iconv from 'iconv-lite'
-import os from 'os'
 import path from 'path'
 
-import { ConfigKeys, configManager } from '../services/ConfigManager'
 import getShellEnv, { refreshShellEnv } from './shell-env'
 
 const logger = loggerService.withContext('Utils:Process')
@@ -51,15 +47,85 @@ export async function getBinaryName(name: string): Promise<string> {
   return name
 }
 
+/**
+ * Directories that hold Cherry-managed binaries, in resolution order:
+ * mise shims first (user-installed wins), then `cherry.bin` (bundled fallback).
+ *
+ * Single source of truth for the binary path layout — both `getBinaryPath()`
+ * and the PATH-appending logic in `shell-env.ts` consume this. Do not hand-join
+ * `cherry.bin` / `feature.binary.data` elsewhere.
+ */
+export function getBinarySearchDirs(): string[] {
+  return [path.join(application.getPath('feature.binary.data'), 'shims'), application.getPath('cherry.bin')]
+}
+
+/**
+ * Env injected into every process that *runs* a managed binary (the CLIs, the
+ * mise shims, ripgrep, …). Carries only `MISE_*` so the shims resolve against
+ * Cherry's isolated mise data dir.
+ *
+ * Deliberately does NOT relocate `HOME`/`XDG_*`: the tools we launch
+ * (claude/codex/gemini/qwen, the OpenClaw gateway) must read the user's real
+ * home for their config and credentials. HOME/XDG isolation belongs only to the
+ * mise *install* subprocess — see `getBinaryIsolatedHomeEnv()`.
+ */
+export function getBinaryExecutionEnv(): Record<string, string> {
+  const dataDir = application.getPath('feature.binary.data')
+  return {
+    MISE_DATA_DIR: dataDir,
+    MISE_CONFIG_DIR: path.join(dataDir, 'config'),
+    MISE_CACHE_DIR: path.join(dataDir, 'cache'),
+    MISE_STATE_DIR: path.join(dataDir, 'state'),
+    MISE_SHIMS_DIR: path.join(dataDir, 'shims'),
+    MISE_YES: '1',
+    MISE_NO_ANALYTICS: '1',
+    MISE_EXPERIMENTAL: '1'
+  }
+}
+
+/**
+ * `HOME`/`XDG_*` relocated into Cherry's isolated binary data dir. Used ONLY by
+ * the mise install subprocess (`BinaryManager.buildIsolatedEnv`) so mise and the
+ * package managers it drives cannot read user-level config/creds
+ * (`~/.npmrc`, `~/.netrc`, …). Never fold this into the shared execution env, or
+ * the launched CLIs read their config/creds from the isolated dir and appear
+ * logged-out on every run.
+ */
+export function getBinaryIsolatedHomeEnv(): Record<string, string> {
+  const dataDir = application.getPath('feature.binary.data')
+  return {
+    HOME: path.join(dataDir, 'home'),
+    XDG_CONFIG_HOME: path.join(dataDir, 'xdg', 'config'),
+    XDG_CACHE_HOME: path.join(dataDir, 'xdg', 'cache'),
+    XDG_STATE_HOME: path.join(dataDir, 'xdg', 'state')
+  }
+}
+
+export function mergeBinaryExecutionEnv(env: Record<string, string>): Record<string, string> {
+  const binaryEnv = getBinaryExecutionEnv()
+  const pathKey = Object.keys(env).find((key) => key.toLowerCase() === 'path') || (isWin ? 'Path' : 'PATH')
+  const pathSeparator = isWin ? ';' : path.delimiter
+  const pathValue = [binaryEnv.MISE_SHIMS_DIR, env[pathKey] || env.PATH || ''].filter(Boolean).join(pathSeparator)
+  const merged = { ...env, ...binaryEnv, [pathKey]: pathValue }
+  if (!isWin) merged.PATH = pathValue
+  return merged
+}
+
 export async function getBinaryPath(name?: string): Promise<string> {
+  const searchDirs = getBinarySearchDirs()
   if (!name) {
-    return path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
+    // Legacy: no-arg returns the cherry.bin directory (extract target).
+    return application.getPath('cherry.bin')
   }
 
   const binaryName = await getBinaryName(name)
-  const binariesDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
-  const binariesDirExists = fs.existsSync(binariesDir)
-  return binariesDirExists ? path.join(binariesDir, binaryName) : binaryName
+  for (const dir of searchDirs) {
+    const candidate = path.join(dir, binaryName)
+    if (fs.existsSync(candidate)) {
+      return candidate
+    }
+  }
+  return binaryName
 }
 
 export async function isBinaryExists(name: string): Promise<boolean> {
@@ -627,13 +693,13 @@ export function validateGitBashPath(customPath?: string | null): string | null {
 }
 
 /**
- * Auto-discover and persist Git Bash path if not already configured
- * Only called when Git Bash is actually needed
+ * Resolve the Git Bash (bash.exe) path for the Claude Code runtime on Windows.
+ * Pure in-process discovery — not persisted (Git Bash has no UI/IPC surface, so
+ * there is no user-configured value to store; the env var is the manual override).
  *
  * Precedence order:
- * 1. CLAUDE_CODE_GIT_BASH_PATH environment variable (highest - runtime override)
- * 2. Configured path from settings (manual or auto)
- * 3. Auto-discovery via findGitBash (only if no valid config exists)
+ * 1. CLAUDE_CODE_GIT_BASH_PATH environment variable (runtime override)
+ * 2. Auto-discovery via findGitBash
  */
 export function autoDiscoverGitBash(): string | null {
   if (!isWin) {
@@ -651,51 +717,10 @@ export function autoDiscoverGitBash(): string | null {
     logger.warn('CLAUDE_CODE_GIT_BASH_PATH provided but path is invalid', { path: envOverride })
   }
 
-  // 2. Check if a path is already configured
-  const existingPath = configManager.get<string | undefined>(ConfigKeys.GitBashPath)
-  const existingSource = configManager.get<GitBashPathSource | undefined>(ConfigKeys.GitBashPathSource)
-
-  if (existingPath) {
-    const validated = validateGitBashPath(existingPath)
-    if (validated) {
-      return validated
-    }
-    // Existing path is invalid, try to auto-discover
-    logger.warn('Existing Git Bash path is invalid, attempting auto-discovery', {
-      path: existingPath,
-      source: existingSource
-    })
-  }
-
-  // 3. Try to find Git Bash via auto-discovery
+  // 2. Auto-discovery
   const discoveredPath = findGitBash()
   if (discoveredPath) {
-    // Persist the discovered path with 'auto' source
-    configManager.set(ConfigKeys.GitBashPath, discoveredPath)
-    configManager.set(ConfigKeys.GitBashPathSource, 'auto')
-    logger.info('Auto-discovered Git Bash path', { path: discoveredPath })
+    logger.debug('Auto-discovered Git Bash path', { path: discoveredPath })
   }
-
   return discoveredPath
-}
-
-/**
- * Get Git Bash path info including source
- * If no path is configured, triggers auto-discovery first
- */
-export function getGitBashPathInfo(): GitBashPathInfo {
-  if (!isWin) {
-    return { path: null, source: null }
-  }
-
-  let path = configManager.get<string | null>(ConfigKeys.GitBashPath) ?? null
-  let source = configManager.get<GitBashPathSource | null>(ConfigKeys.GitBashPathSource) ?? null
-
-  // If no path configured, trigger auto-discovery (handles upgrade from old versions)
-  if (!path) {
-    path = autoDiscoverGitBash()
-    source = path ? 'auto' : null
-  }
-
-  return { path, source }
 }

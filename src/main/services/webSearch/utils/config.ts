@@ -9,7 +9,7 @@ import {
   PRESETS_WEB_SEARCH_PROVIDERS,
   WEB_SEARCH_PROVIDER_PRESET_MAP,
   type WebSearchProviderPreset
-} from '@shared/data/presets/web-search-providers'
+} from '@shared/data/presets/webSearchProviders'
 import type { WebSearchExecutionConfig, WebSearchResolvedConfig } from '@shared/data/types/webSearch'
 import { normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
 

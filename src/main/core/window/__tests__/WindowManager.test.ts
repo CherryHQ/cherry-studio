@@ -32,6 +32,7 @@ vi.mock('@main/core/platform', () => ({
 
 interface MockBrowserWindow {
   id: number
+  constructorOptions?: Record<string, unknown>
   show: ReturnType<typeof vi.fn>
   hide: ReturnType<typeof vi.fn>
   focus: ReturnType<typeof vi.fn>
@@ -47,6 +48,8 @@ interface MockBrowserWindow {
   isFullScreen: ReturnType<typeof vi.fn>
   isVisible: ReturnType<typeof vi.fn>
   isFocused: ReturnType<typeof vi.fn>
+  getNormalBounds: ReturnType<typeof vi.fn>
+  getBounds: ReturnType<typeof vi.fn>
   setFullScreen: ReturnType<typeof vi.fn>
   setBounds: ReturnType<typeof vi.fn>
   setContentBounds: ReturnType<typeof vi.fn>
@@ -89,6 +92,8 @@ function createMockBrowserWindow(): MockBrowserWindow {
     isFullScreen: vi.fn(() => false),
     isVisible: vi.fn(() => true),
     isFocused: vi.fn(() => false),
+    getNormalBounds: vi.fn(() => ({ x: 0, y: 0, width: 1100, height: 720 })),
+    getBounds: vi.fn(() => ({ x: 0, y: 0, width: 1100, height: 720 })),
     setFullScreen: vi.fn(),
     setBounds: vi.fn(),
     setContentBounds: vi.fn(),
@@ -140,8 +145,9 @@ const createdWindows: MockBrowserWindow[] = []
 
 vi.mock('electron', () => {
   class BrowserWindowMock {
-    constructor() {
+    constructor(opts?: Record<string, unknown>) {
       const win = createMockBrowserWindow()
+      win.constructorOptions = opts
       createdWindows.push(win)
       return win as never
     }
@@ -157,6 +163,10 @@ vi.mock('electron', () => {
     screen: {
       getCursorScreenPoint: vi.fn(() => ({ x: 0, y: 0 })),
       getDisplayNearestPoint: vi.fn(() => ({
+        bounds: { x: 0, y: 0, width: 1920, height: 1080 },
+        workArea: { x: 0, y: 0, width: 1920, height: 1040 }
+      })),
+      getDisplayMatching: vi.fn(() => ({
         bounds: { x: 0, y: 0, width: 1920, height: 1080 },
         workArea: { x: 0, y: 0, width: 1920, height: 1040 }
       }))
@@ -251,6 +261,21 @@ vi.mock('../windowRegistry', () => {
       showMode: 'manual',
       htmlPath: 'windows/singletonHidden/index.html',
       windowOptions: {}
+    },
+    singletonRemember: {
+      type: 'singletonRemember',
+      lifecycle: 'singleton',
+      showMode: 'manual',
+      rememberBounds: true,
+      htmlPath: 'windows/singletonRemember/index.html',
+      windowOptions: { width: 1100, height: 720 }
+    },
+    nonSingletonRemember: {
+      type: 'nonSingletonRemember',
+      lifecycle: 'default',
+      rememberBounds: true,
+      htmlPath: 'windows/nonSingletonRemember/index.html',
+      windowOptions: { width: 1100, height: 720 }
     },
     singletonEagerWarmup: {
       type: 'singletonEagerWarmup',
@@ -1672,6 +1697,153 @@ describe('WindowManager', () => {
       expect(createdWindows[0].destroy).toHaveBeenCalled()
       expect(createdWindows[1].destroy).toHaveBeenCalled()
       expect(createdWindows[2].destroy).toHaveBeenCalled()
+    })
+  })
+
+  // ─── Bounds persistence (rememberBounds) ───────────────
+  //
+  // The unified @application mock backs getPersist/setPersist with a module-level
+  // map that survives across tests, so reset window.bounds before each case.
+  describe('bounds persistence (rememberBounds)', () => {
+    const cache = () => application.get('CacheService')
+
+    const savedRect = (overrides: Record<string, unknown> = {}) => ({
+      x: 200,
+      y: 150,
+      width: 1000,
+      height: 700,
+      isMaximized: false,
+      displayBounds: { x: 0, y: 0, width: 1920, height: 1080 },
+      ...overrides
+    })
+
+    beforeEach(() => {
+      cache().setPersist('window.bounds', {})
+    })
+
+    it('injects saved bounds into the constructor options on open (singleton + rememberBounds)', () => {
+      cache().setPersist('window.bounds', { singletonRemember: savedRect() })
+
+      wm.open('singletonRemember' as never)
+
+      expect(createdWindows[0].constructorOptions).toMatchObject({ x: 200, y: 150, width: 1000, height: 700 })
+    })
+
+    it('does not inject for a non-singleton type that declares rememberBounds', () => {
+      cache().setPersist('window.bounds', { nonSingletonRemember: savedRect() })
+
+      wm.open('nonSingletonRemember' as never)
+
+      // The gate ignores the flag for non-singletons. The dev-warn branch is NOT
+      // exercised here because this suite mocks `isDev: false` (see top of file),
+      // which suppresses the warning; this asserts only the behavioral outcome.
+      expect(createdWindows[0].constructorOptions?.x).toBeUndefined()
+      expect(createdWindows[0].constructorOptions?.y).toBeUndefined()
+    })
+
+    it('persists bounds on native close while the window is still alive', () => {
+      wm.open('singletonRemember' as never)
+      const win = createdWindows[0]
+      win.getNormalBounds.mockReturnValue({ x: 300, y: 250, width: 900, height: 650 })
+      vi.mocked(cache().setPersist).mockClear()
+
+      win.emit('close')
+
+      expect(cache().setPersist).toHaveBeenCalledWith(
+        'window.bounds',
+        expect.objectContaining({
+          singletonRemember: expect.objectContaining({ x: 300, y: 250, width: 900, height: 650, isMaximized: false })
+        })
+      )
+    })
+
+    it('persists bounds on programmatic destroy via wm.close (the close event is skipped)', () => {
+      const id = wm.open('singletonRemember' as never)
+      const win = createdWindows[0]
+      win.getNormalBounds.mockReturnValue({ x: 111, y: 222, width: 800, height: 600 })
+      // destroy() flips isDestroyed so the capture-BEFORE-destroy ordering is actually
+      // guarded: persistNow early-returns on a destroyed window, so this assertion would
+      // fail if destroyWindow ever persisted after window.destroy().
+      win.destroy.mockImplementation(() => win.isDestroyed.mockReturnValue(true))
+      vi.mocked(cache().setPersist).mockClear()
+
+      wm.close(id)
+
+      expect(win.destroy).toHaveBeenCalled()
+      expect(cache().setPersist).toHaveBeenCalledWith(
+        'window.bounds',
+        expect.objectContaining({
+          singletonRemember: expect.objectContaining({ x: 111, y: 222, width: 800, height: 600 })
+        })
+      )
+    })
+
+    it('persists bounds for still-alive windows on service stop (before CacheService teardown)', async () => {
+      wm.open('singletonRemember' as never)
+      const win = createdWindows[0]
+      win.getNormalBounds.mockReturnValue({ x: 1, y: 2, width: 1280, height: 800 })
+      vi.mocked(cache().setPersist).mockClear()
+
+      await wm._doStop()
+
+      expect(cache().setPersist).toHaveBeenCalledWith(
+        'window.bounds',
+        expect.objectContaining({
+          singletonRemember: expect.objectContaining({ x: 1, y: 2, width: 1280, height: 800 })
+        })
+      )
+    })
+
+    it('does not persist on close for a singleton without rememberBounds', () => {
+      wm.open('singletonHidden' as never)
+      const win = createdWindows[0]
+      vi.mocked(cache().setPersist).mockClear()
+
+      win.emit('close')
+
+      expect(cache().setPersist).not.toHaveBeenCalled()
+    })
+
+    describe('setRememberBounds runtime toggle', () => {
+      it('OFF drops the saved record (keeping other types) and stops persisting', () => {
+        cache().setPersist('window.bounds', { singletonRemember: savedRect(), singletonHidden: savedRect() })
+        vi.mocked(cache().setPersist).mockClear()
+
+        wm.setRememberBounds('singletonRemember' as never, false)
+
+        expect(cache().setPersist).toHaveBeenCalledWith('window.bounds', { singletonHidden: savedRect() })
+
+        // A subsequent open + close must not re-persist.
+        wm.open('singletonRemember' as never)
+        const win = createdWindows[0]
+        vi.mocked(cache().setPersist).mockClear()
+        win.emit('close')
+        expect(cache().setPersist).not.toHaveBeenCalled()
+      })
+
+      it('ON enables persistence for a singleton that has no registry flag', () => {
+        wm.setRememberBounds('singletonHidden' as never, true)
+        wm.open('singletonHidden' as never)
+        const win = createdWindows[0]
+        win.getNormalBounds.mockReturnValue({ x: 7, y: 8, width: 640, height: 480 })
+        vi.mocked(cache().setPersist).mockClear()
+
+        win.emit('close')
+
+        expect(cache().setPersist).toHaveBeenCalledWith(
+          'window.bounds',
+          expect.objectContaining({
+            singletonHidden: expect.objectContaining({ x: 7, y: 8, width: 640, height: 480 })
+          })
+        )
+      })
+
+      it('peekWindowBounds returns the saved record without restoring it', () => {
+        const saved = savedRect({ isMaximized: true })
+        cache().setPersist('window.bounds', { singletonRemember: saved })
+
+        expect(wm.peekWindowBounds('singletonRemember' as never)).toEqual(saved)
+      })
     })
   })
 })

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d7e247c8-e8fc-45a8-a389-e6015910e0b1",
+  "id": "0b8a1676-4dcb-4ed4-bb30-ed057de9a39a",
   "prevId": "f0f0edbf-6464-4f08-914c-43c662a6c066",
   "tables": {
     "agent": {
@@ -2409,6 +2409,12 @@
           "name": "message_status_idx",
           "columns": ["status"],
           "isUnique": false
+        },
+        "message_topic_root_uniq": {
+          "name": "message_topic_root_uniq",
+          "columns": ["topic_id"],
+          "isUnique": true,
+          "where": "\"message\".\"parent_id\" is null and \"message\".\"deleted_at\" is null"
         }
       },
       "foreignKeys": {
@@ -2436,7 +2442,7 @@
           "tableTo": "message",
           "columnsFrom": ["parent_id"],
           "columnsTo": ["id"],
-          "onDelete": "set null",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -2445,11 +2451,15 @@
       "checkConstraints": {
         "message_role_check": {
           "name": "message_role_check",
-          "value": "\"message\".\"role\" IN ('user', 'assistant', 'system')"
+          "value": "\"message\".\"role\" IN ('user', 'assistant', 'system', 'root')"
         },
         "message_status_check": {
           "name": "message_status_check",
           "value": "\"message\".\"status\" IN ('pending', 'success', 'error', 'paused')"
+        },
+        "message_root_parent_check": {
+          "name": "message_root_parent_check",
+          "value": "(\"message\".\"role\" = 'root') = (\"message\".\"parent_id\" is null)"
         }
       }
     },
@@ -3275,288 +3285,6 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
-    },
-    "usage_ledger": {
-      "name": "usage_ledger",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "message_id": {
-          "name": "message_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "topic_id": {
-          "name": "topic_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "provider_id": {
-          "name": "provider_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "provider_name": {
-          "name": "provider_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "source_type": {
-          "name": "source_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "source_id": {
-          "name": "source_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "source_name": {
-          "name": "source_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "source_icon": {
-          "name": "source_icon",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "model_id": {
-          "name": "model_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "modality": {
-          "name": "modality",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'language'"
-        },
-        "api_key_id": {
-          "name": "api_key_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "api_key_label": {
-          "name": "api_key_label",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "api_key_masked": {
-          "name": "api_key_masked",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "api_key_attribution": {
-          "name": "api_key_attribution",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'none'"
-        },
-        "input_tokens": {
-          "name": "input_tokens",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "output_tokens": {
-          "name": "output_tokens",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "total_tokens": {
-          "name": "total_tokens",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "reasoning_tokens": {
-          "name": "reasoning_tokens",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "no_cache_tokens": {
-          "name": "no_cache_tokens",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "cache_read_tokens": {
-          "name": "cache_read_tokens",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "cache_write_tokens": {
-          "name": "cache_write_tokens",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "image_count": {
-          "name": "image_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "cost": {
-          "name": "cost",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "cost_currency": {
-          "name": "cost_currency",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "cost_source": {
-          "name": "cost_source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "cost_breakdown": {
-          "name": "cost_breakdown",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "pricing_snapshot": {
-          "name": "pricing_snapshot",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "time_first_token_ms": {
-          "name": "time_first_token_ms",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "time_completion_ms": {
-          "name": "time_completion_ms",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "time_thinking_ms": {
-          "name": "time_thinking_ms",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "usage_ledger_message_id_idx": {
-          "name": "usage_ledger_message_id_idx",
-          "columns": ["message_id"],
-          "isUnique": true
-        },
-        "usage_ledger_provider_created_idx": {
-          "name": "usage_ledger_provider_created_idx",
-          "columns": ["provider_id", "created_at"],
-          "isUnique": false
-        },
-        "usage_ledger_api_key_created_idx": {
-          "name": "usage_ledger_api_key_created_idx",
-          "columns": ["api_key_id", "created_at"],
-          "isUnique": false
-        },
-        "usage_ledger_source_created_idx": {
-          "name": "usage_ledger_source_created_idx",
-          "columns": ["source_type", "source_id", "created_at"],
-          "isUnique": false
-        },
-        "usage_ledger_created_at_idx": {
-          "name": "usage_ledger_created_at_idx",
-          "columns": ["created_at"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "usage_ledger_attribution_check": {
-          "name": "usage_ledger_attribution_check",
-          "value": "\"usage_ledger\".\"api_key_attribution\" IN ('exact', 'rotation', 'backfill', 'auth', 'none')"
-        },
-        "usage_ledger_cost_source_check": {
-          "name": "usage_ledger_cost_source_check",
-          "value": "\"usage_ledger\".\"cost_source\" IN ('provider', 'computed')"
-        },
-        "usage_ledger_modality_check": {
-          "name": "usage_ledger_modality_check",
-          "value": "\"usage_ledger\".\"modality\" IN ('language', 'embedding', 'image')"
-        }
-      }
     },
     "user_model": {
       "name": "user_model",

@@ -47,8 +47,8 @@ vi.mock('@main/core/platform', () => ({
   isWin: false
 }))
 
-vi.mock('@main/utils/ipService', () => ({
-  getIpCountry: vi.fn(() => 'US')
+vi.mock('@main/services/RegionService', () => ({
+  regionService: { getCountry: vi.fn(() => 'US') }
 }))
 
 vi.mock('@main/utils/language', () => ({
@@ -102,18 +102,10 @@ vi.mock('electron-updater', () => ({
 
 // Import after mocks
 import { application } from '@application'
-import { UpdateMirror } from '@shared/config/constant'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { app, net } from 'electron'
 
-import { AppUpdaterService } from '../AppUpdaterService'
-
-// Mock clientId for ConfigManager since it's not migrated yet
-vi.mock('../ConfigManager', () => ({
-  configManager: {
-    getClientId: vi.fn(() => 'test-client-id')
-  }
-}))
+import { AppUpdaterService, UpdateMirror } from '../AppUpdaterService'
 
 describe('AppUpdaterService', () => {
   let appUpdater: AppUpdaterService

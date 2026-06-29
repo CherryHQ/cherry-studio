@@ -1,5 +1,6 @@
 import { NormalTooltip, SegmentedControl, Skeleton } from '@cherrystudio/ui'
-import { cn, formatCompactNumber } from '@renderer/utils'
+import { formatCompactNumber } from '@renderer/utils/number'
+import { cn } from '@renderer/utils/style'
 import type { UsageLedgerTimelineBucket } from '@shared/data/api/schemas/usageLedger'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'

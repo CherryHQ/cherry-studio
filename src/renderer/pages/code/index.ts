@@ -3,22 +3,22 @@ import {
   ClaudeCode,
   GeminiCli,
   GithubCopilotCli,
-  IflowCli,
   KimiCli,
   OpenaiCodex,
   OpenCode,
+  QoderCli,
   QwenCode
 } from '@cherrystudio/ui/icons'
+import { CLAUDE_SUPPORTED_PROVIDERS } from '@renderer/pages/code/codeProviders'
 import { formatApiHost } from '@renderer/utils/api'
 import { sanitizeProviderName } from '@renderer/utils/naming'
-import { codeCLI } from '@shared/config/constant'
-import { CLAUDE_SUPPORTED_PROVIDERS } from '@shared/config/providers'
 import type { EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { CodeCli } from '@shared/types/codeCli'
 import {
-  isAIGatewayProvider,
   isAnthropicProvider,
   isGeminiProvider,
+  isNewApiProvider,
   isOpenAICompatibleProvider,
   isOpenAIProvider
 } from '@shared/utils/provider'
@@ -34,7 +34,7 @@ export interface LaunchValidationResult {
  * module no longer depends on the v1 Provider/Model shape.
  */
 export interface ToolEnvironmentConfig {
-  tool: codeCLI
+  tool: CodeCli
   /** Raw provider model id (e.g. `claude-sonnet-4`), NOT the `providerId::modelId` unique id. */
   rawModelId: string
   /** Human-facing model name (v2 `model.name`). */
@@ -60,15 +60,15 @@ export interface ToolEnvironmentConfig {
 
 // CLI 工具选项
 export const CLI_TOOLS = [
-  { value: codeCLI.claudeCode, label: 'Claude Code', icon: ClaudeCode },
-  { value: codeCLI.qwenCode, label: 'Qwen Code', icon: QwenCode },
-  { value: codeCLI.geminiCli, label: 'Gemini CLI', icon: GeminiCli },
-  { value: codeCLI.openaiCodex, label: 'OpenAI Codex', icon: OpenaiCodex },
-  { value: codeCLI.iFlowCli, label: 'iFlow CLI', icon: IflowCli },
-  { value: codeCLI.githubCopilotCli, label: 'GitHub Copilot CLI', icon: GithubCopilotCli },
-  { value: codeCLI.kimiCli, label: 'Kimi Code', icon: KimiCli },
-  { value: codeCLI.openCode, label: 'OpenCode', icon: OpenCode }
-] as const satisfies ReadonlyArray<{ value: codeCLI; label: string; icon: IconComponent }>
+  { value: CodeCli.CLAUDE_CODE, label: 'Claude Code', icon: ClaudeCode },
+  { value: CodeCli.QWEN_CODE, label: 'Qwen Code', icon: QwenCode },
+  { value: CodeCli.GEMINI_CLI, label: 'Gemini CLI', icon: GeminiCli },
+  { value: CodeCli.OPENAI_CODEX, label: 'OpenAI Codex', icon: OpenaiCodex },
+  { value: CodeCli.QODER_CLI, label: 'Qoder CLI', icon: QoderCli },
+  { value: CodeCli.GITHUB_COPILOT_CLI, label: 'GitHub Copilot CLI', icon: GithubCopilotCli },
+  { value: CodeCli.KIMI_CLI, label: 'Kimi Code', icon: KimiCli },
+  { value: CodeCli.OPEN_CODE, label: 'OpenCode', icon: OpenCode }
+] as const satisfies ReadonlyArray<{ value: CodeCli; label: string; icon: IconComponent }>
 
 export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api', 'cherryin']
 
@@ -79,22 +79,23 @@ const ANTHROPIC_MESSAGES_ENDPOINT = 'anthropic-messages'
 const hasAnthropicEndpoint = (p: Provider): boolean =>
   Boolean(p.endpointConfigs?.[ANTHROPIC_MESSAGES_ENDPOINT]?.baseUrl)
 const isOpenAILikeProvider = (p: Provider): boolean => isOpenAICompatibleProvider(p) || isOpenAIProvider(p)
+export const isOpenCodeProvider = (p: Provider): boolean =>
+  isOpenAILikeProvider(p) || isAnthropicProvider(p) || isNewApiProvider(p)
 
 export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Provider[]> = {
-  [codeCLI.claudeCode]: (providers) =>
+  [CodeCli.CLAUDE_CODE]: (providers) =>
     providers.filter(
       (p) => isAnthropicProvider(p) || CLAUDE_SUPPORTED_PROVIDERS.includes(p.id) || hasAnthropicEndpoint(p)
     ),
-  [codeCLI.geminiCli]: (providers) =>
+  [CodeCli.GEMINI_CLI]: (providers) =>
     providers.filter((p) => isGeminiProvider(p) || GEMINI_SUPPORTED_PROVIDERS.includes(p.id)),
-  [codeCLI.qwenCode]: (providers) => providers.filter(isOpenAILikeProvider),
-  [codeCLI.openaiCodex]: (providers) =>
+  [CodeCli.QWEN_CODE]: (providers) => providers.filter(isOpenAILikeProvider),
+  [CodeCli.OPENAI_CODEX]: (providers) =>
     providers.filter((p) => isOpenAIProvider(p) || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(p.id)),
-  [codeCLI.iFlowCli]: (providers) => providers.filter(isOpenAILikeProvider),
-  [codeCLI.githubCopilotCli]: () => [],
-  [codeCLI.kimiCli]: (providers) => providers.filter(isOpenAILikeProvider),
-  [codeCLI.openCode]: (providers) =>
-    providers.filter((p) => isOpenAILikeProvider(p) || isAnthropicProvider(p) || isAIGatewayProvider(p))
+  [CodeCli.QODER_CLI]: () => [],
+  [CodeCli.GITHUB_COPILOT_CLI]: () => [],
+  [CodeCli.KIMI_CLI]: (providers) => providers.filter(isOpenAILikeProvider),
+  [CodeCli.OPEN_CODE]: (providers) => providers.filter(isOpenCodeProvider)
 }
 
 export const getCodeCliApiBaseUrl = (providerId: string, type: 'anthropic' | 'gemini') => {
@@ -188,7 +189,7 @@ export const generateToolEnvironment = ({
   const formattedBaseUrl = formatApiHost(baseUrl)
 
   switch (tool) {
-    case codeCLI.claudeCode: {
+    case CodeCli.CLAUDE_CODE: {
       // https://code.claude.com/docs/en/env-vars — mark provider env as
       // host-managed so Claude Code ignores ANTHROPIC_* from the user's
       // ~/.claude/settings.json (avoids auth-token/api-key conflict). #15089
@@ -203,7 +204,7 @@ export const generateToolEnvironment = ({
       break
     }
 
-    case codeCLI.geminiCli: {
+    case CodeCli.GEMINI_CLI: {
       const apiBaseUrl = getCodeCliApiBaseUrl(providerId, 'gemini') || baseUrl
       env.GEMINI_API_KEY = apiKey
       env.GEMINI_BASE_URL = apiBaseUrl
@@ -212,12 +213,12 @@ export const generateToolEnvironment = ({
       break
     }
 
-    case codeCLI.qwenCode:
+    case CodeCli.QWEN_CODE:
       env.OPENAI_API_KEY = apiKey
       env.OPENAI_BASE_URL = formattedBaseUrl
       env.OPENAI_MODEL = rawModelId
       break
-    case codeCLI.openaiCodex:
+    case CodeCli.OPENAI_CODEX:
       // Codex CLI rejects model_providers keys colliding with its reserved
       // built-in IDs (openai/ollama/lmstudio). Hand the provider through
       // Cherry-namespaced vars; CodeToolsService maps them to a sanitized
@@ -228,24 +229,22 @@ export const generateToolEnvironment = ({
       env.CHERRY_CODEX_PROVIDER_NAME = sanitizeProviderName(fancyProviderName)
       break
 
-    case codeCLI.iFlowCli:
-      env.IFLOW_API_KEY = apiKey
-      env.IFLOW_BASE_URL = formattedBaseUrl
-      env.IFLOW_MODEL_NAME = rawModelId
+    case CodeCli.QODER_CLI:
+      env.QODERCN_PERSONAL_ACCESS_TOKEN = apiKey || ''
       break
 
-    case codeCLI.githubCopilotCli:
+    case CodeCli.GITHUB_COPILOT_CLI:
       env.GITHUB_TOKEN = apiKey || ''
       break
 
-    case codeCLI.kimiCli:
+    case CodeCli.KIMI_CLI:
       env.KIMI_MODEL_NAME = rawModelId
       env.KIMI_MODEL_API_KEY = apiKey
       env.KIMI_MODEL_BASE_URL = formattedBaseUrl
       env.KIMI_MODEL_PROVIDER_TYPE = 'openai'
       break
 
-    case codeCLI.openCode:
+    case CodeCli.OPEN_CODE:
       // Set environment variable with provider-specific suffix for security
       {
         // Determine base URL format based on model's endpoint type and provider type

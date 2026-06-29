@@ -19,10 +19,11 @@ import {
   TableRow
 } from '@cherrystudio/ui'
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import { getModelLogo } from '@renderer/config/models'
 import { usePaginatedQuery, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { cn, formatCompactNumber } from '@renderer/utils'
+import { getModelLogo } from '@renderer/utils/model'
+import { formatCompactNumber } from '@renderer/utils/number'
+import { cn } from '@renderer/utils/style'
 import type {
   UsageLedgerListSortBy,
   UsageLedgerSortDirection,

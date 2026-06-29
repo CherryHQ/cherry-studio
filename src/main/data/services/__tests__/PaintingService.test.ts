@@ -138,8 +138,29 @@ describe('PaintingService', () => {
     })
 
     expect(page1.items.map((item) => item.id)).toEqual([third.id, second.id])
-    expect(page1.nextCursor).toBe(second.orderKey)
+    expect(page1.nextCursor).toBe(`${second.orderKey}:${second.id}`)
     expect(page2.items.map((item) => item.id)).toEqual([first.id])
+    expect(page2.nextCursor).toBeUndefined()
+  })
+
+  it('keysets across an order_key collision without skipping or repeating', async () => {
+    // order_key is NOT unique at the DB level. Two paintings sharing one
+    // order_key exercise the defensive (orderKey, id) tuple tiebreaker: a
+    // single-key cursor (`gt(orderKey)`) would skip the second row at the page
+    // boundary, whereas the tuple keysets deterministically. This test fails
+    // under the old single-key cursor and passes under the tuple — proving the
+    // tuple is collision-proof by construction.
+    await dbh.db.insert(paintingTable).values([
+      { id: 'collide-1', providerId: 'aihubmix', prompt: 'first', orderKey: 'a0' },
+      { id: 'collide-2', providerId: 'aihubmix', prompt: 'second', orderKey: 'a0' }
+    ])
+
+    const page1 = await paintingService.list({ providerId: 'aihubmix', limit: 1 })
+    expect(page1.items.map((item) => item.id)).toEqual(['collide-1'])
+    expect(page1.nextCursor).toBe('a0:collide-1')
+
+    const page2 = await paintingService.list({ providerId: 'aihubmix', limit: 1, cursor: page1.nextCursor })
+    expect(page2.items.map((item) => item.id)).toEqual(['collide-2'])
     expect(page2.nextCursor).toBeUndefined()
   })
 

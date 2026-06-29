@@ -16,6 +16,8 @@ function createBase(fileProcessorId: string | null = 'doc2x'): KnowledgeBase {
     error: null,
     chunkSize: 1024,
     chunkOverlap: 200,
+    chunkStrategy: 'structured',
+    chunkSeparator: '\\n\\n',
     threshold: undefined,
     documentCount: 10,
     searchMode: 'vector',
@@ -39,7 +41,7 @@ function createFileItem(source: string): KnowledgeItemOf<'file'> {
 }
 
 describe('planKnowledgeItemSource', () => {
-  it.each(['pdf', 'doc', 'docx', 'pptx', 'xlsx', 'odt', 'odp', 'ods'])(
+  it.each(['pdf', 'doc', 'docx', 'pptx', 'xlsx', 'xls'])(
     'routes supported document .%s files to file processing when a processor is configured',
     (ext) => {
       expect(planKnowledgeItemSource(createBase(), createFileItem(`/docs/source.${ext}`))).toEqual({

@@ -1,10 +1,9 @@
-import type { Tab } from '@renderer/hooks/useTabs'
+import type { Tab } from '@renderer/hooks/tab'
 import {
   Code,
   FileSearch,
   Folder,
   Globe,
-  Home,
   Languages,
   LayoutGrid,
   Library,
@@ -22,8 +21,6 @@ export type IconComponent = React.FC<{ size?: number; strokeWidth?: number; clas
 // ─── Route → Icon mapping ─────────────────────────────────────────────────────
 
 export const ROUTE_ICONS: Record<string, IconComponent> = {
-  '/': Home,
-  '/home': Home,
   '/app/chat': MessageCircle,
   '/app/agents': MousePointerClick,
   '/app/paintings': Palette,

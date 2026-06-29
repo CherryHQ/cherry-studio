@@ -62,6 +62,44 @@ const info = await ipcApi.request('app.get_info') // void input → no second ar
 
 `route` is completed/checked against `IpcRoute`; input/output types follow from it. On failure the call rejects with an `IpcError` (its `code` lets you branch).
 
+### 4. Surface a typed error (optional)
+
+To signal a failure the renderer must branch on, throw an `IpcError` with a **domain code** — `IpcApiService` serializes it into `{ ok: false, error }` and the renderer facade rebuilds the `IpcError` and rejects. Do **not** throw the framework codes (`VALIDATION_FAILED` / `ROUTE_NOT_FOUND` / `FORBIDDEN_SENDER` / `INTERNAL`) by hand — the router owns those, and any uncaught non-`IpcError` throw is normalized to `INTERNAL` for you. See the [error model](./ipc-overview.md#error-codes--ipcerrorcode) for the framework-vs-domain-code rule and why codes live under `errors/`, not `schemas/`.
+
+Put the domain's codes in `@shared/ipc/errors/<domain>.ts` as an `as const` map, and import it **directly** on both sides (no barrel — there is no aggregated `errors/index.ts` export of domain codes):
+
+```ts
+// src/shared/ipc/errors/file.ts — the domain's code map (zod-free, value-importable by both processes)
+export const fileErrorCodes = { FILE_NOT_FOUND: 'FILE_NOT_FOUND' } as const
+```
+
+```ts
+// main handler (src/main/ipc/handlers/file.ts)
+import { IpcError } from '@shared/ipc/errors'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
+
+'file.read_doc': async ({ path }) => {
+  if (!(await exists(path))) {
+    // reference the constant, not a literal; machine-readable detail rides in `data`
+    throw new IpcError(fileErrorCodes.FILE_NOT_FOUND, `No file at ${path}`, { path })
+  }
+  return read(path)
+}
+```
+
+```ts
+// renderer — branch on the rebuilt IpcError's `code` using the same constant
+import { IpcError } from '@shared/ipc/errors'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
+
+try {
+  await ipcApi.request('file.read_doc', { path })
+} catch (e) {
+  if (e instanceof IpcError && e.code === fileErrorCodes.FILE_NOT_FOUND) showMissing((e.data as { path: string }).path)
+  else throw e
+}
+```
+
 ## Add an Event
 
 ### 1. Declare the contract (Event block of `schemas/<domain>.ts`)
@@ -123,3 +161,8 @@ So unit-test the handler (`src/main/ipc/handlers/__tests__/<domain>.test.ts`) fo
 ## High-Frequency / Topic Streams
 
 Token streams and file-tree mutations do **not** go through `broadcast`. The owning service keeps a listener registry (preserving its batching) and directs `send(windowId, …)` per topic to attached windows — avoiding the O(windows × frequency) fan-out of broadcasting a hot event. See the migration guide (class B).
+
+The two directions diverge under load:
+
+- **M→R high-frequency** stays in IpcApi — its transport is already one-way `webContents.send`, so frequency costs no extra round-trip; just use directed `send` + batching (above).
+- **R→M high-frequency** (per-frame, e.g. tab-drag window moves) gets no such luck — R→M is `invoke`/`handle`, so the rare per-frame channel may leave IpcApi via the escape hatch. See the [migration guide](./ipc-migration-guide.md#escape-hatch--when-a-channel-may-stay-out).

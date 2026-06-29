@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
 import { preferenceService } from '@renderer/data/PreferenceService'
-import store from '@renderer/store'
-import { defaultLanguage } from '@shared/config/constant'
+import { defaultLanguage } from '@shared/utils/languages'
 
 const logger = loggerService.withContext('Utils:Prompt')
 
@@ -95,14 +94,8 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
     }
   }
 
-  if (userSystemPrompt.includes('{{model_name}}')) {
-    try {
-      const name = modelName || store.getState().llm.defaultModel?.name
-      userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, name)
-    } catch (error) {
-      logger.error('Failed to get model name:', error as Error)
-      userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, 'Unknown Model')
-    }
+  if (modelName && userSystemPrompt.includes('{{model_name}}')) {
+    userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, modelName)
   }
 
   return userSystemPrompt

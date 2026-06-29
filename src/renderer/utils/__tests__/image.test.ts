@@ -1,3 +1,5 @@
+import imageCompression from 'browser-image-compression'
+import * as htmlToImage from 'html-to-image'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -7,6 +9,7 @@ import {
   captureScrollableAsDataURL,
   compressImage,
   convertToBase64,
+  fileToAvatarDataUrl,
   makeSvgSizeAdaptive
 } from '../image'
 
@@ -25,6 +28,14 @@ vi.mock('html-to-image', () => ({
 
 // mock window.toast
 beforeEach(() => {
+  vi.mocked(htmlToImage.toCanvas).mockReset()
+  vi.mocked(htmlToImage.toCanvas).mockImplementation(() =>
+    Promise.resolve({
+      toDataURL: vi.fn(() => 'data:image/png;base64,xxx'),
+      toBlob: vi.fn((cb) => cb(new Blob(['blob'], { type: 'image/png' })))
+    } as unknown as HTMLCanvasElement)
+  )
+
   window.toast = {
     error: vi.fn()
   } as any
@@ -46,6 +57,37 @@ describe('utils/image', () => {
       const result = await compressImage(file)
       expect(result).toBeInstanceOf(File)
       expect(result.name).toBe('compressed.png')
+    })
+
+    it('should pass custom compression options', async () => {
+      const file = new File(['img'], 'img.png', { type: 'image/png' })
+
+      await compressImage(file, { maxSizeMB: 0.25, maxWidthOrHeight: 256 })
+
+      expect(imageCompression).toHaveBeenLastCalledWith(
+        file,
+        expect.objectContaining({
+          maxSizeMB: 0.25,
+          maxWidthOrHeight: 256,
+          useWebWorker: false
+        })
+      )
+    })
+  })
+
+  describe('fileToAvatarDataUrl', () => {
+    it('should encode a compressed non-GIF image as a base64 data URL', async () => {
+      const png = new File(['hello'], 'a.png', { type: 'image/png' })
+      const dataUrl = await fileToAvatarDataUrl(png)
+      // The mocked compressor yields a PNG, so the encoded result is a PNG data URL.
+      expect(dataUrl).toMatch(/^data:image\/png;base64,/)
+    })
+
+    it('should encode a GIF without compressing it', async () => {
+      const gif = new File(['gif-bytes'], 'a.gif', { type: 'image/gif' })
+      const dataUrl = await fileToAvatarDataUrl(gif)
+      // Untouched GIF bytes encode to a gif data URL (not the compressor's png).
+      expect(dataUrl).toMatch(/^data:image\/gif;base64,/)
     })
   })
 
@@ -72,6 +114,43 @@ describe('utils/image', () => {
       const result = await captureScrollable(ref)
       expect(result).toBeTruthy()
       expect(typeof (result as HTMLCanvasElement).toDataURL).toBe('function')
+    })
+
+    it('should warm up html-to-image before returning the final canvas', async () => {
+      const warmupCanvas = { toDataURL: vi.fn(() => 'warmup') } as unknown as HTMLCanvasElement
+      const finalCanvas = { toDataURL: vi.fn(() => 'final') } as unknown as HTMLCanvasElement
+      vi.mocked(htmlToImage.toCanvas).mockResolvedValueOnce(warmupCanvas).mockResolvedValueOnce(finalCanvas)
+
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+
+      const result = await captureScrollable(ref)
+
+      expect(htmlToImage.toCanvas).toHaveBeenCalledTimes(2)
+      expect(result).toBe(finalCanvas)
+    })
+
+    it('should release the warm-up canvas before the final capture', async () => {
+      const warmupCanvas = { width: 100, height: 100 } as HTMLCanvasElement
+      const finalCanvas = { toDataURL: vi.fn(() => 'final') } as unknown as HTMLCanvasElement
+      vi.mocked(htmlToImage.toCanvas)
+        .mockResolvedValueOnce(warmupCanvas)
+        .mockImplementationOnce(() => {
+          expect(warmupCanvas.width).toBe(0)
+          expect(warmupCanvas.height).toBe(0)
+          return Promise.resolve(finalCanvas)
+        })
+
+      const div = document.createElement('div')
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+
+      const result = await captureScrollable(ref)
+
+      expect(result).toBe(finalCanvas)
     })
 
     it('should return undefined when elRef.current is null', async () => {

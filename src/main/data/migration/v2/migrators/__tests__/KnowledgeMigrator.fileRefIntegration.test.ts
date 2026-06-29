@@ -11,15 +11,23 @@
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable } from '@data/db/schemas/assistantRelations'
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
-import { knowledgeItemTable } from '@data/db/schemas/knowledge'
+import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
 import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
 
+import { AssistantMigrator } from '../AssistantMigrator'
 import { FileMigrator } from '../FileMigrator'
-import { KNOWLEDGE_ITEM_ID_REMAP_SHARED_DATA_KEY, KnowledgeMigrator } from '../KnowledgeMigrator'
+import {
+  KNOWLEDGE_BASE_ID_REMAP_SHARED_DATA_KEY,
+  KNOWLEDGE_ITEM_ID_REMAP_SHARED_DATA_KEY,
+  KnowledgeMigrator
+} from '../KnowledgeMigrator'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -182,6 +190,91 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
     expect(rows).toHaveLength(0)
   })
 
+  it('preserves assistant↔KB associations across the production migrator order (KnowledgeMigrator → AssistantMigrator)', async () => {
+    // Production order: KnowledgeMigrator runs at order 1.8 BEFORE AssistantMigrator at order 2.
+    // v1 stores assistant.knowledge_bases[] with the legacy Redux base id; AssistantMigrator must
+    // translate each junction row legacy→new (via the remap KnowledgeMigrator publishes to
+    // sharedData) before inserting. Without that translation the junction row carries a legacy id
+    // that never matches the new-uuid base set, so the association is silently dropped (F2).
+    // This drives BOTH real migrators against one shared context — the white-box test above only
+    // exercises KnowledgeMigrator's own remap UPDATE, which is dead in this order.
+    const legacyBaseId = 'legacy-kb-prod-order'
+    const sharedData = new Map<string, unknown>()
+
+    const reduxKnowledge = {
+      bases: [
+        {
+          id: legacyBaseId,
+          name: 'KB One',
+          // A dangling embedding model (no user_model row) migrates the base as a restorable
+          // `failed` row under a fresh uuid with no vector DB access — enough to drive the
+          // junction remap end to end without seeding a legacy vector store.
+          model: { id: 'emb', name: 'emb', provider: 'openai' },
+          items: []
+        }
+      ]
+    }
+    const reduxAssistants = {
+      assistants: [
+        {
+          id: 'ast-prod-order',
+          name: 'Assistant',
+          knowledge_bases: [{ id: legacyBaseId }]
+        }
+      ]
+    }
+
+    const ctx = {
+      sources: {
+        dexieExport: {
+          tableExists: vi.fn(async () => false),
+          createStreamReader: vi.fn(() => ({ readInBatches: vi.fn(async () => {}) }))
+        },
+        reduxState: {
+          getCategory: vi.fn((category: string) =>
+            category === 'knowledge' ? reduxKnowledge : category === 'assistants' ? reduxAssistants : undefined
+          )
+        }
+      },
+      db: dbh.db,
+      sharedData,
+      logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      paths: {
+        userData: MOCK_USER_DATA,
+        knowledgeBaseDir: `${MOCK_USER_DATA}/Data/KnowledgeBase`,
+        filesDataDir: `${MOCK_USER_DATA}/Data/Files`
+      }
+    } as never
+
+    const knowledgeMigrator = new KnowledgeMigrator()
+    expect((await knowledgeMigrator.prepare(ctx)).success).toBe(true)
+    expect((await knowledgeMigrator.execute(ctx)).success).toBe(true)
+
+    const migratedBaseId = (sharedData.get(KNOWLEDGE_BASE_ID_REMAP_SHARED_DATA_KEY) as Map<string, string>).get(
+      legacyBaseId
+    )
+    expect(migratedBaseId).toBeDefined()
+    // KnowledgeMigrator mints a fresh uuid — the legacy id must not survive verbatim.
+    expect(migratedBaseId).not.toBe(legacyBaseId)
+
+    const assistantMigrator = new AssistantMigrator()
+    assistantMigrator.setProgressCallback(vi.fn())
+    expect((await assistantMigrator.prepare(ctx)).success).toBe(true)
+    expect((await assistantMigrator.execute(ctx)).success).toBe(true)
+
+    const rows = await dbh.db
+      .select({
+        assistantId: assistantKnowledgeBaseTable.assistantId,
+        knowledgeBaseId: assistantKnowledgeBaseTable.knowledgeBaseId
+      })
+      .from(assistantKnowledgeBaseTable)
+
+    // The association survives and points at the migrated base id, not the dropped legacy id.
+    expect(rows).toEqual([{ assistantId: 'ast-prod-order', knowledgeBaseId: migratedBaseId }])
+    const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
+    expect(fkCheck.rows).toHaveLength(0)
+  })
+
   it('migrates legacy file items to relative paths without creating file_refs', async () => {
     const dexieFiles: FileMetadata[] = [
       dexieFileRow({ id: FILE_SURVIVOR_ID }),
@@ -298,6 +391,107 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
 
     const refRows = await dbh.db.select({ fileEntryId: fileRefTable.fileEntryId }).from(fileRefTable)
     expect(refRows).toHaveLength(0)
+
+    const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
+    expect(fkCheck.rows).toHaveLength(0)
+  })
+
+  it('re-creates an orphan embedding model whose provider survived so the base migrates without a re-index', async () => {
+    // The user removed this embedding model from the provider's model list but kept the provider
+    // (and its credentials), so v2 has the provider plus a sibling model — just not this one.
+    await dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI', orderKey: 'a0' })
+    await dbh.db
+      .insert(userModelTable)
+      .values({ id: 'openai::gpt-4o', providerId: 'openai', modelId: 'gpt-4o', name: 'GPT-4o', orderKey: 'a0' })
+
+    const reduxKnowledge = {
+      bases: [
+        {
+          id: 'legacy-kb-orphan-embed',
+          name: 'KB orphan embed',
+          dimensions: 1024,
+          model: { id: 'text-embedding-3-small', name: 'Text Embedding 3 Small', provider: 'openai', group: 'Embed' },
+          items: []
+        }
+      ]
+    }
+
+    const ctx = makeCtx(dbh, [], reduxKnowledge)
+    const migrator = new KnowledgeMigrator() as any
+    // No legacy vector store on disk in this harness; a resolved model would otherwise read it and
+    // fall into a missing-vector-store `failed` row. Stub dimensions so the resolved base stays
+    // `completed`, isolating the resurrection + FK behavior under test.
+    vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({ dimensions: 1024, reason: 'ok' })
+
+    expect((await migrator.prepare(ctx)).success).toBe(true)
+    expect((await migrator.execute(ctx)).success).toBe(true)
+
+    const resurrected = await dbh.db
+      .select({
+        id: userModelTable.id,
+        providerId: userModelTable.providerId,
+        modelId: userModelTable.modelId,
+        name: userModelTable.name,
+        group: userModelTable.group
+      })
+      .from(userModelTable)
+      .where(eq(userModelTable.id, 'openai::text-embedding-3-small'))
+    expect(resurrected).toEqual([
+      {
+        id: 'openai::text-embedding-3-small',
+        providerId: 'openai',
+        modelId: 'text-embedding-3-small',
+        name: 'Text Embedding 3 Small',
+        group: 'Embed'
+      }
+    ])
+
+    const baseRows = await dbh.db
+      .select({
+        embeddingModelId: knowledgeBaseTable.embeddingModelId,
+        status: knowledgeBaseTable.status,
+        error: knowledgeBaseTable.error
+      })
+      .from(knowledgeBaseTable)
+    expect(baseRows).toEqual([{ embeddingModelId: 'openai::text-embedding-3-small', status: 'completed', error: null }])
+
+    const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
+    expect(fkCheck.rows).toHaveLength(0)
+  })
+
+  it('keeps a base failed when its orphan embedding model provider did not survive', async () => {
+    // No matching user_provider row: re-adding the model would need a fabricated provider with no
+    // credentials, turning a clear restore prompt into a silent runtime failure — so stay failed.
+    const reduxKnowledge = {
+      bases: [
+        {
+          id: 'legacy-kb-ghost-provider',
+          name: 'KB ghost provider',
+          dimensions: 1024,
+          model: { id: 'mystery-embed', name: 'Mystery Embed', provider: 'ghost-provider' },
+          items: []
+        }
+      ]
+    }
+
+    const ctx = makeCtx(dbh, [], reduxKnowledge)
+    const migrator = new KnowledgeMigrator()
+    expect((await migrator.prepare(ctx)).success).toBe(true)
+    expect((await migrator.execute(ctx)).success).toBe(true)
+
+    const modelRows = await dbh.db.select({ id: userModelTable.id }).from(userModelTable)
+    expect(modelRows).toHaveLength(0)
+
+    const baseRows = await dbh.db
+      .select({
+        embeddingModelId: knowledgeBaseTable.embeddingModelId,
+        status: knowledgeBaseTable.status,
+        error: knowledgeBaseTable.error
+      })
+      .from(knowledgeBaseTable)
+    expect(baseRows).toEqual([
+      { embeddingModelId: null, status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL }
+    ])
 
     const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
     expect(fkCheck.rows).toHaveLength(0)

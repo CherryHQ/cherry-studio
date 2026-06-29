@@ -1,15 +1,15 @@
 import type { ObsidianProcessingMethod } from '@renderer/components/ObsidianExportDialog'
 import { PopupContainer } from '@renderer/components/ObsidianExportDialog'
 import { TopView } from '@renderer/components/TopView'
-import type { Topic } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
+import type { ExportableMessage } from '@renderer/types/messageExport'
+import type { Topic } from '@renderer/types/topic'
 
 interface ObsidianExportOptions {
   title: string
   processingMethod: (typeof ObsidianProcessingMethod)[keyof typeof ObsidianProcessingMethod]
   topic?: Topic
-  message?: Message
-  messages?: Message[]
+  message?: ExportableMessage
+  messages?: ExportableMessage[]
   rawContent?: string
 }
 

@@ -1,11 +1,10 @@
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useTheme } from '@renderer/context/ThemeProvider'
 import { useProvider } from '@renderer/hooks/useProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
 
 import ProviderHeader from './components/ProviderHeader'
 import AuthenticationSection from './ConnectionSettings/AuthenticationSection'
 import { useProviderAutoModelSync } from './hooks/providerSetting/useProviderAutoModelSync'
-import { useProviderLegacyWebSearchSync } from './hooks/providerSetting/useProviderLegacyWebSearchSync'
 import { useProviderOnboardingAutoEnable } from './hooks/providerSetting/useProviderOnboardingAutoEnable'
 import { ModelList } from './ModelList'
 import { ModelListHealthProvider, useModelListHealth } from './ModelList/modelListHealthContext'
@@ -38,7 +37,6 @@ export default function ProviderSetting({ providerId, isOnboarding = false }: Pr
     providerId,
     isOnboarding
   })
-  useProviderLegacyWebSearchSync(providerId)
 
   if (!provider) {
     return null
@@ -47,10 +45,7 @@ export default function ProviderSetting({ providerId, isOnboarding = false }: Pr
   return (
     <ProviderSettingsContainer theme={theme}>
       <div className="flex h-full min-h-0 w-full flex-col">
-        {/* Scoped mock alignment: tokens in `provider-settings-scoped-theme.css`, compositions in ProviderSettingsPrimitives. */}
-        <div
-          data-testid="provider-detail-shell"
-          className="provider-settings-default-scope flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div data-testid="provider-detail-shell" className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className={providerDetailColumnClasses.headerPad}>
             <div className={providerDetailColumnClasses.headerContentMaxWidth}>
               <ProviderHeader providerId={providerId} />

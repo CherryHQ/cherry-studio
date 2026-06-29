@@ -1,14 +1,15 @@
 import { Avatar, AvatarFallback, Button, InfoTooltip, PageSidePanel, Tooltip } from '@cherrystudio/ui'
 import { resolveIcon } from '@cherrystudio/ui/icons'
 import { usePreference } from '@data/hooks/usePreference'
-import { ModelSelector } from '@renderer/components/ModelSelector'
-import { getProviderDisplayName } from '@renderer/components/ModelSelector/utils'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { loggerService } from '@logger'
+import { ModelSelector } from '@renderer/components/Selector/model'
+import { getProviderDisplayName } from '@renderer/components/Selector/model/utils'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { TranslateSettingsPanelContent } from '@renderer/pages/translate/TranslateSettings'
-import { cn } from '@renderer/utils'
-import { TRANSLATE_PROMPT } from '@shared/config/prompts'
+import { cn } from '@renderer/utils/style'
+import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNonChatModel } from '@shared/utils/model'
@@ -28,6 +29,8 @@ import {
   SettingTitle
 } from '..'
 import { TopicNamingSettings } from './QuickModelPopup'
+
+const logger = loggerService.withContext('ModelSettings')
 
 interface ModelSettingsProps {
   showSettingsButton?: boolean
@@ -75,7 +78,6 @@ type ModelSettingsPanel = 'quick-model' | 'translate' | null
 const MODEL_SETTINGS_DRAWER_WIDTH_CLASS = '!w-[min(31.25rem,calc(100%-1rem))]'
 const TRANSLATE_DRAWER_WIDTH_CLASS = '!w-[min(31.25rem,calc(100%-1rem))]'
 const SETTINGS_DRAWER_BODY_CLASS = 'space-y-0 px-6 py-5'
-const MODEL_SELECTOR_VISIBLE_COUNT = 8
 
 const drawerTitleClassName = 'truncate font-semibold text-foreground text-sm leading-4'
 
@@ -123,7 +125,6 @@ const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
     value={model}
     onSelect={onSelect}
     filter={filter}
-    listVisibleCount={MODEL_SELECTOR_VISIBLE_COUNT}
     trigger={renderModelSelectorTrigger({ model, providers, placeholder, compact })}
   />
 )
@@ -147,9 +148,12 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const onSelectDefault = useCallback(
     (selected: Model | undefined) => {
       if (!selected) return
-      void setDefaultModel(selected)
+      void setDefaultModel(selected).catch((error) => {
+        logger.error('Failed to set default model', { modelId: selected.id, error })
+        window.toast.error(t('settings.models.manage.operation_failed'))
+      })
     },
-    [setDefaultModel]
+    [setDefaultModel, t]
   )
 
   const onSelectQuick = useCallback(

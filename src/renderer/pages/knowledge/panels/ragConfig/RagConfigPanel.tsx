@@ -48,15 +48,7 @@ const FailedRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
 
 const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
   const { t } = useTranslation()
-  const {
-    initialValues,
-    fileProcessorOptions,
-    embeddingModelOptions,
-    rerankModelOptions,
-    searchModeOptions,
-    save,
-    isLoading
-  } = useKnowledgeRagConfig(base)
+  const { initialValues, fileProcessorOptions, searchModeOptions, save, isLoading } = useKnowledgeRagConfig(base)
   const [values, setValues] = useState(initialValues)
 
   useEffect(() => {
@@ -88,7 +80,7 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
     }
   }
 
-  const handleEmbeddingModelChange = (embeddingModelId: string) => {
+  const handleEmbeddingModelChange = (embeddingModelId: string | null) => {
     setValues((currentValues) => ({ ...currentValues, embeddingModelId }))
   }
 
@@ -105,10 +97,19 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
           />
 
           <ChunkingSection
+            chunkStrategy={values.chunkStrategy}
+            chunkSeparator={values.chunkSeparator}
             chunkSize={values.chunkSize}
             chunkOverlap={values.chunkOverlap}
             chunkSizeErrorCode={validationErrorCodes.chunkSize}
             chunkOverlapErrorCode={validationErrorCodes.chunkOverlap}
+            chunkSeparatorErrorCode={validationErrorCodes.chunkSeparator}
+            onChunkStrategyChange={(chunkStrategy) =>
+              setValues((currentValues) => ({ ...currentValues, chunkStrategy }))
+            }
+            onChunkSeparatorChange={(chunkSeparator) =>
+              setValues((currentValues) => ({ ...currentValues, chunkSeparator }))
+            }
             onChunkSizeChange={(chunkSize) =>
               setValues((currentValues) => ({ ...currentValues, chunkSize: chunkSize.replace(/\D/g, '') }))
             }
@@ -119,13 +120,11 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
 
           <EmbeddingSection
             embeddingModelId={values.embeddingModelId}
-            embeddingModelOptions={embeddingModelOptions}
             onEmbeddingModelChange={handleEmbeddingModelChange}
           />
 
           <RetrievalSection
             searchModeOptions={searchModeOptions}
-            rerankModelOptions={rerankModelOptions}
             documentCount={values.documentCount}
             threshold={values.threshold}
             searchMode={values.searchMode}

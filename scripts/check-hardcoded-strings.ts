@@ -306,9 +306,7 @@ class HardcodedStringDetector {
 
       if (parent && Node.isCallExpression(parent)) {
         const callText = parent.getExpression().getText()
-        if (
-          /^(window\.toast|message|antdMessage|Modal|notification)\.(success|error|warning|info|confirm)/.test(callText)
-        ) {
+        if (/^(window\.toast|message|Modal|notification)\.(success|error|warning|info|confirm)/.test(callText)) {
           if (hasCJK(value)) {
             findings.push(createFinding(node, sourceFile, 'chinese', source, 'CallExpression'))
           }

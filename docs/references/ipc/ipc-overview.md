@@ -22,6 +22,24 @@ DataApi deliberately rejects RPC semantics and side effects to keep "swap in a r
 
 **Independent implementation, not a shared kernel.** IpcApi borrows DataApi's *ideas* (single-point schema, compile-time exhaustiveness, one channel, Disposable cleanup) but shares no code: DataApi's `ApiServer` (path matching + HTTP-status inference + middleware) and `DataApiError` (HTTP mapping) are REST-shaped and unneeded. IpcApi is a flat `route → { input, output }` map with pure key routing — `IpcRouter.dispatch` (~12 lines), `IpcHandlersFor` (~5-line mapped type), `IpcError` (~40 lines). Same idea, different implementation.
 
+## Why Narrow the Surface — Fewer Channels, Full Types
+
+IpcApi deliberately **narrows** what renderer→main IPC can be: only routes declared in `ipcRequestSchemas` exist, instead of any channel a service adds ad-hoc. The narrowing is the feature, not a restriction.
+
+| | Before (legacy IPC) | After (IpcApi) |
+|---|---|---|
+| Channel source | any service hand-adds `ipcMain.handle`/`ipcOn` + hand-written preload | only what's declared in `ipcRequestSchemas` |
+| Types | loose, hand-aligned across three files | one schema drives route + input + output, end to end |
+| Enumerability | scattered across services, no single list | `handlers/index.ts` — one auditable capability list |
+
+In practice this is a net convenience, not a constraint:
+
+- **Full type-checking** — routes autocomplete; a wrong route, input, or output is a compile error; schema drift fails the build.
+- **One cheat sheet** — `IpcRoute` / `handlers/index.ts` is the discoverable list of everything the renderer can call (see [Direction Cheat Sheet](#direction-cheat-sheet)).
+- **Auditable** — one place to confirm the exposure surface was neither widened nor dropped (see the migration guide's exposure audit).
+
+The trade is deliberate: give up the freedom to add arbitrary channels, gain full types, single-point discoverability, and auditability. Narrowing is the norm; the rare channel that may stay out is a single-digit, controlled exception (see [escape hatch](./ipc-migration-guide.md)).
+
 ## Layering
 
 ```
@@ -57,6 +75,26 @@ A renderer-received event payload is constructed by main (the TCB) itself; valid
 
 **Caveat — types ≠ semantic validity.** "No `parse`" settles *security*, not *correctness*. A type-correct payload can still be business-invalid: a number out of range, a string that isn't a real enum member, two fields that break an invariant. The same gap applies to a request's `output`, which the router never `parse`s either (only `input` is). Outbound validity is the **emitter's** responsibility at the construction site — build payloads from statically-typed values, and validate-at-ingestion when data originates from an untrusted upstream (e.g. a MiniApp reply laundered through main) — not the transport layer's. This is deliberate, so read "no `parse`" as "no validity risk *owned by transport*", not "no validity risk".
 
+## Direction Cheat Sheet
+
+The two directions are two independent registries — look them up by direction:
+
+| Direction | Lookup | Holds |
+|---|---|---|
+| **R→M** (renderer calls main) | `IpcRoute` (`keyof IpcRequestSchemas`) + `handlers/index.ts` | every request route |
+| **M→R** (main pushes renderer) | `IpcEventName` (`keyof IpcEventSchemas`) | every event name |
+| **Outside IpcApi** | migration guide's [Not In Scope](./ipc-migration-guide.md) table + Preference / Cache / DataApi subsystems | escape-hatch carve-outs (`Tab_MoveWindow`), `Preference_Changed`, `Cache_Sync`, DataApi subscribe |
+
+Point at the unions — never hand-copy a route list into docs, it drifts. Both unions are `never` until a domain is migrated, and grow per migration.
+
+## No One-Way R→M Primitive
+
+IpcApi provides **no** one-way renderer→main primitive (no `ipcMain.on` equivalent). Every R→M call is `invoke`/`handle` (request/response), because R→M must validate the sender and return a structured error — both need the reply leg.
+
+A void route still rides `invoke`: `output: z.void()` drops the return *value*, not the round-trip. To issue an R→M command without reading the result, call `ipcApi.request(...)` and don't await it — the reply is still produced and discarded.
+
+The rare channel that genuinely needs true fire-and-forget (high-frequency, per-frame R→M) gets no primitive — it leaves IpcApi via the [escape hatch](./ipc-migration-guide.md). Today exactly one channel qualifies.
+
 ## Caller Identity — `IpcContext`
 
 `dispatch` passes a handler a second argument beyond `input`: a controlled `IpcContext` exposing **only** the caller window id, never the raw `WebContents`/`event`.
@@ -79,6 +117,30 @@ Caller identity **must** be derived by main from the real `event.sender` (`Windo
 Lightweight `IpcError` (`code: string` + `message` + optional `data`), serialized across IPC. **Not** `DataApiError` (HTTP semantics belong to the remotable data layer). The main side returns a **structured result** — `{ ok: true, data }` or `{ ok: false, error: ipcError.toJSON() }` — and **never throws to `ipcMain.handle`**, because Electron's `invoke` reject keeps only `message` and drops `code`/`data`. The renderer facade unwraps: on `ok: false` it rebuilds an `IpcError` and throws.
 
 The router maps invalid input to `VALIDATION_FAILED` and unknown routes to `ROUTE_NOT_FOUND`; an untrusted sender yields `FORBIDDEN_SENDER`; anything else normalizes to `INTERNAL`.
+
+### Error Codes — `IpcErrorCode`
+
+`IpcErrorCode` (`src/shared/ipc/errors/index.ts`) is the **single source of truth for the framework's own codes** — `ROUTE_NOT_FOUND`, `VALIDATION_FAILED`, `FORBIDDEN_SENDER`, `INTERNAL`. Throw sites reference the const (`IpcErrorCode.VALIDATION_FAILED`), never a bare string literal, so a typo is a compile error rather than a silently miscategorized code.
+
+The `IpcErrorCode` **type** is deliberately open — `(the four literals) | (string & {})`:
+
+- the literals give IDE completion and let `code` narrow when you branch on a known framework code;
+- the `(string & {})` tail keeps the set open on purpose: codes are rebuilt verbatim by `IpcError.fromJSON` across the boundary, `IpcError.from` normalizes any unknown throw to `INTERNAL`, and **a migrated domain may mint its own codes**. A closed union would be a lie at the deserialization boundary.
+
+**Producing errors from a handler.** A handler signals a failure the renderer must branch on by `throw`ing an `IpcError` — `IpcApiService` catches it, serializes via `toJSON`, and returns `{ ok: false, error }` (it never reaches `ipcMain.handle`). The four framework codes are **produced by the framework**, not thrown by a handler by hand; a handler that wants to signal a business failure throws a **domain code** instead. Any non-`IpcError` throw (an uncaught bug) is normalized to `INTERNAL` by `IpcError.from`, so it never leaks an arbitrary string as a `code`.
+
+| Situation | What to throw |
+|---|---|
+| Bad input / unknown route / untrusted sender / unexpected | nothing by hand — the router/service produce `VALIDATION_FAILED` / `ROUTE_NOT_FOUND` / `FORBIDDEN_SENDER` / `INTERNAL` |
+| A business failure the renderer must branch on (`FILE_NOT_FOUND`, `MCP_NOT_CONNECTED`, …) | a **domain code** — a `SCREAMING_SNAKE_CASE` string the domain owns; machine-readable detail rides in `data`, human text in `message` |
+| Any other unexpected throw | leave it — `IpcError.from` maps it to `INTERNAL` |
+
+**Domain codes — where they live.** A domain that throws its own codes puts them in `@shared/ipc/errors/<domain>.ts` as a `SCREAMING_SNAKE_CASE` `as const` map mirroring `IpcErrorCode`. Both the handler (throw) and the renderer (branch) import that map and reference the constant — never a bare literal — so a typo is a compile error on the side that actually branches. The codes must be stable (the renderer matches on `code` by equality). Two rules pin the placement:
+
+- **Not in `schemas/<domain>.ts`.** The map is a runtime *value* the renderer must read to branch (`e.code === fileErrorCodes.FILE_NOT_FOUND`), but the renderer may only `import type` from `@shared/ipc/schemas` (an ESLint rule keeps zod out of the renderer bundle) — a type-only import yields no runtime value to compare against. So the map lives beside the framework codes under `errors/`, which is value-importable and zod-free. This mirrors why `IpcError`/`IpcErrorCode` live in `errors/`, not `schemas/`.
+- **No barrel aggregation.** Unlike `ipcRequestSchemas` / `ipcHandlers` — which the framework consumes as a whole set and checks for exhaustiveness — *nothing* consumes "all error codes at once": `code` is the open `(string & {})`, never dispatched against. Import each domain's map directly from `@shared/ipc/errors/<domain>`; do **not** re-export domain codes through `errors/index.ts`. `errors/index.ts` holds only the framework core (`IpcError`, `IpcErrorCode`, `SerializedIpcError`, `IpcResult`); aggregating domain codes there would re-couple every domain into one shared file and tempt a closed union that fights the open-tail design.
+
+Carry machine-readable detail in `data` (typed, structured-clone-safe), human text in `message` — never string-parse `message`. See [usage](./ipc-usage.md#4-surface-a-typed-error-optional) for a handler-throws + renderer-branches example.
 
 ## Lifecycle & Timing
 

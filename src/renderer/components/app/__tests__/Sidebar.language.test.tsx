@@ -61,13 +61,7 @@ vi.mock('@renderer/hooks/useModel', () => ({
   modelGenerating: vi.fn().mockResolvedValue(undefined)
 }))
 
-vi.mock('@renderer/hooks/useSettings', () => ({
-  useSettings: () => ({
-    defaultPaintingProvider: 'zhipu'
-  })
-}))
-
-vi.mock('@renderer/hooks/useTabs', () => ({
+vi.mock('@renderer/hooks/tab', () => ({
   useTabs: () => ({
     activeTab: {
       id: 'home',
@@ -79,16 +73,14 @@ vi.mock('@renderer/hooks/useTabs', () => ({
   })
 }))
 
-vi.mock('@renderer/config/env', () => ({
-  AppLogo: 'app-logo.png',
-  UserAvatar: 'user-avatar.png',
-  isLocalAi: false
-}))
-
 vi.mock('../../Popups/UserPopup', () => ({
   default: {
     show: vi.fn()
   }
+}))
+
+vi.mock('../../layout/ShellTabBarActions', () => ({
+  SidebarShellActions: () => null
 }))
 
 import Sidebar from '../Sidebar'
@@ -98,7 +90,8 @@ describe('Sidebar language refresh', () => {
     languageState.language = 'en-US'
     MockUsePreferenceUtils.resetMocks()
     MockUseCacheUtils.resetMocks()
-    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.icons.visible', ['assistants'])
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', ['assistants'])
+    MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_provider', 'zhipu')
     MockUseCacheUtils.setPersistCacheValue('ui.sidebar.width', 170)
   })
 

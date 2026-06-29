@@ -1,6 +1,6 @@
-import { Badge, MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
+import { Badge, InfoTooltip, MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
 import type { FC } from 'react'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -24,6 +24,7 @@ import {
   flattenFeatureSections,
   getFeatureSections,
   getFileProcessingFeatureTitleKey,
+  getFileProcessingFeatureTooltipKey,
   getProcessorNameKey
 } from './utils/fileProcessingMeta'
 
@@ -73,8 +74,13 @@ const FileProcessingSettings: FC = () => {
               {featureSections.map((section, index) => (
                 <Fragment key={section.feature}>
                   {index > 0 ? <MenuDivider className={settingsSubmenuDividerClassName} /> : null}
-                  <div className={settingsSubmenuSectionTitleClassName}>
-                    {t(getFileProcessingFeatureTitleKey(section.feature))}
+                  <div className={`${settingsSubmenuSectionTitleClassName} flex items-center gap-1.5`}>
+                    <span>{t(getFileProcessingFeatureTitleKey(section.feature))}</span>
+                    <InfoTooltip
+                      content={t(getFileProcessingFeatureTooltipKey(section.feature))}
+                      placement="right"
+                      iconProps={{ size: 13, color: 'currentColor', className: 'opacity-80' }}
+                    />
                   </div>
                   {section.entries.map((entry) => (
                     <MenuItem

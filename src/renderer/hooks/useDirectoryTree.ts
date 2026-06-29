@@ -9,7 +9,7 @@ import {
   type TreeMutationEvent,
   type TreeMutationPushPayload,
   type TreeNode
-} from '@shared/file/types'
+} from '@shared/utils/file'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useDirectoryTree')

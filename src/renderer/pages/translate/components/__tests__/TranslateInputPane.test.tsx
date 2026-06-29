@@ -19,11 +19,16 @@ vi.mock('@renderer/hooks/useDrag', () => ({
   })
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/style', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Button: ({ children, ...props }: React.ComponentProps<'button'>) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
   NormalTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>
 }))
 
@@ -36,7 +41,9 @@ const baseProps = () => ({
   onDrop: vi.fn(),
   onSelectFile: vi.fn(),
   onCopy: vi.fn(),
+  onCancelOcr: vi.fn(),
   disabled: false,
+  ocrProcessing: false,
   selecting: false
 })
 
@@ -64,12 +71,6 @@ describe('TranslateInputPane', () => {
     expect(screen.queryByRole('button', { name: 'translate.files.upload' })).not.toBeInTheDocument()
   })
 
-  it('uses a subtle hover background on the upload area', () => {
-    render(<TranslateInputPane {...baseProps()} />)
-
-    expect(screen.getByRole('button', { name: 'translate.files.upload' }).className).toContain('hover:bg-muted/30')
-  })
-
   it('clears the input when the clear button is clicked', () => {
     const props = baseProps()
     props.text = 'hello'
@@ -93,5 +94,32 @@ describe('TranslateInputPane', () => {
     render(<TranslateInputPane {...baseProps()} />)
 
     expect(screen.getByText('translate.files.drag_text')).toBeInTheDocument()
+  })
+
+  it('does not show the OCR processing overlay by default', () => {
+    render(<TranslateInputPane {...baseProps()} />)
+
+    expect(screen.queryByText('ocr.processing')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.cancel' })).not.toBeInTheDocument()
+  })
+
+  it('shows the OCR processing overlay while OCR is running', () => {
+    const props = { ...baseProps(), ocrProcessing: true }
+
+    render(<TranslateInputPane {...props} />)
+
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent('ocr.processing')
+    expect(status.querySelector('svg')).toBeInTheDocument()
+  })
+
+  it('calls the OCR cancel handler from the processing overlay', () => {
+    const props = { ...baseProps(), ocrProcessing: true }
+
+    render(<TranslateInputPane {...props} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+
+    expect(props.onCancelOcr).toHaveBeenCalledTimes(1)
   })
 })

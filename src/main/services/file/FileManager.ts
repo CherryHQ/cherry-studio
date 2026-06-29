@@ -43,11 +43,10 @@
  * `internal/dispatch.ts` and is wired by exactly one IPC handler today —
  * `File_PermanentDelete`, which accepts a `FileHandle` and routes
  * `{ kind: 'entry' }` to `FileManager.permanentDelete` and `{ kind: 'path' }`
- * to `@main/utils/file/fs.remove`. The Phase 1 dangling channels
- * (`File_GetDanglingState` / `File_BatchGetDanglingStates`) and the Phase 2
- * entry-shaped channels (`File_CreateInternalEntry`, `File_EnsureExternalEntry`,
- * `File_GetPhysicalPath`) take typed params directly and bypass the dispatcher
- * because their semantics are entry-only by design. When `FileHandle`-accepting
+ * to `@main/utils/file/fs.remove`. Phase 2 entry-shaped channels
+ * (`File_CreateInternalEntry`, `File_EnsureExternalEntry`, `File_GetPhysicalPath`)
+ * take typed params directly and bypass the dispatcher because their semantics
+ * are entry-only by design. When `FileHandle`-accepting
  * read/write/metadata channels land in later batches, they will follow the
  * same pattern as `File_PermanentDelete`:
  *
@@ -137,19 +136,20 @@ import { orphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry
 import { remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
-import { SafeExtSchema, SafeNameSchema } from '@shared/data/types/file/essential'
+import { SafeNameSchema } from '@shared/data/types/file/essential'
+import { IpcChannel } from '@shared/IpcChannel'
 import type {
   BatchCreateResult,
   BatchMutationResult,
   CreateInternalEntryIpcParams,
   EnsureExternalEntryIpcParams,
   FilePath,
-  FileURLString,
+  FileUrlString,
   PhysicalFileMetadata
-} from '@shared/file/types'
-import type { FileHandle } from '@shared/file/types/handle'
-import { FileHandleSchema } from '@shared/file/types/handle'
-import { IpcChannel } from '@shared/IpcChannel'
+} from '@shared/types/file'
+import { SafeExtSchema } from '@shared/types/file/common'
+import type { FileHandle } from '@shared/types/file/handle'
+import { FileHandleSchema } from '@shared/types/file/handle'
 import mime from 'mime'
 import * as z from 'zod'
 
@@ -185,8 +185,10 @@ import {
   runDbSweep,
   runFileSweep
 } from './internal/orphanSweep'
-import { open as internalShellOpen, showInFolder as internalShellShowInFolder } from './internal/system/shell'
+import { showInFolder as internalShellShowInFolder } from './internal/system/shell'
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
+import { safeOpen } from './system'
+import { getMetadataByPath } from './utils/metadata'
 import { canonicalizeExternalPath, resolvePhysicalPath } from './utils/pathResolver'
 import { createVersionCacheImpl, type VersionCache } from './versionCache'
 
@@ -223,19 +225,6 @@ export type CreateInternalEntryParams = CreateInternalEntryIpcParams
 export type EnsureExternalEntryParams = EnsureExternalEntryIpcParams
 
 // ─── File IPC input schemas ───
-
-/**
- * Maximum number of entry ids a single `File_BatchGetDanglingStates` call may
- * carry. Mirrors `REF_COUNTS_MAX_ENTRY_IDS` from the DataApi side — the batch
- * still fans out one `findById` per id, so the renderer-side cap protects the
- * event loop and connection pool from runaway requests.
- */
-export const FILE_BATCH_DANGLING_MAX_IDS = 500
-
-export const GetDanglingStateIpcSchema = z.strictObject({ id: FileEntryIdSchema })
-export const BatchGetDanglingStatesIpcSchema = z.strictObject({
-  ids: z.array(FileEntryIdSchema).max(FILE_BATCH_DANGLING_MAX_IDS)
-})
 
 // Phase 2 schemas — reuse the canonical essential.ts validators so the IPC
 // boundary is the gate (path-traversal / null bytes / whitespace-only names
@@ -411,7 +400,7 @@ export interface IFileManager {
    * that type-gates which of `name`/`ext` each content source may supply —
    * fields derivable from the source are **absent** from the branch; only
    * non-derivable fields (e.g. `name` for base64 / bytes, `ext` for bytes) are
-   * exposed. See `@shared/file/types/ipc.ts` for the full matrix.
+   * exposed. See `@shared/types/file/ipc.ts` for the full matrix.
    *
    * FileManager resolves the derived fields, writes bytes to
    * `{userData}/Data/Files/{newUuid}.{ext}`, and inserts a fresh DB row. No
@@ -581,7 +570,7 @@ export interface IFileManager {
   // ─── Path / URL resolution ───
 
   /** Resolve an entry to its `file://` URL with the danger-file safety wrap. */
-  getUrl(id: FileEntryId): Promise<FileURLString>
+  getUrl(id: FileEntryId): Promise<FileUrlString>
 
   /** Resolve an entry to its absolute filesystem path. */
   getPhysicalPath(id: FileEntryId): Promise<FilePath>
@@ -627,7 +616,7 @@ export interface IFileManager {
 
   // ─── System ───
 
-  /** Open with the system default application. */
+  /** Open with the system default application. Unsafe executable/script types are blocked. */
   open(id: FileEntryId): Promise<void>
 
   /** Reveal in the system file manager. */
@@ -671,25 +660,17 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   /**
-   * Register all File_* IPC handlers (Phase 1 dangling-state + Phase 2
-   * entry CRUD / sweep). Kept as a dedicated helper so `onInit` stays a
-   * narrow two-step sequence (init → register).
+   * Register legacy File_* IPC handlers that are still consumed through
+   * `window.api.file.*`. Files-page batch operations have moved to IpcApi
+   * (`src/main/ipc/handlers/file.ts`) and must not be re-registered here.
    *
    * Every handler Zod-parses its `params` before delegating, matching the
-   * DataApi handler discipline (`b8709c964` / `2437c1104`). Without this the
-   * batch fan-out is unbounded: a 100k-id `Promise.all` over `findById`
-   * would saturate the event loop and the DB connection pool.
+   * DataApi handler discipline (`b8709c964` / `2437c1104`).
    */
   private registerIpcHandlers(): void {
     // Handlers are async so a synchronous `Schema.parse` throw becomes a
     // Promise rejection at the IPC boundary (matching Electron's contract
     // for `ipcMain.handle` listeners).
-    this.ipcHandle(IpcChannel.File_GetDanglingState, async (_e, params: unknown) =>
-      this.getDanglingState(GetDanglingStateIpcSchema.parse(params))
-    )
-    this.ipcHandle(IpcChannel.File_BatchGetDanglingStates, async (_e, params: unknown) =>
-      this.batchGetDanglingStates(BatchGetDanglingStatesIpcSchema.parse(params))
-    )
     this.ipcHandle(IpcChannel.File_GetMetadata, async (_e, params: unknown) => {
       const handle = FileHandleSchema.parse(params) as FileHandle
       return dispatchHandle(
@@ -697,7 +678,7 @@ export class FileManager extends BaseService implements IFileManager {
         async () => {
           throw new Error('getMetadata(FileEntryHandle) is not yet wired (@phase 2)')
         },
-        (path) => this.getMetadataByPath(path)
+        getMetadataByPath
       )
     })
     // Phase 2 channels.
@@ -903,25 +884,10 @@ export class FileManager extends BaseService implements IFileManager {
     return internalHash(this.deps, id)
   }
 
-  async getUrl(id: FileEntryId): Promise<FileURLString> {
+  async getUrl(id: FileEntryId): Promise<FileUrlString> {
     const entry = await this.deps.fileEntryService.getById(id)
     const physicalPath = resolvePhysicalPath(entry)
-    return pathToFileURL(physicalPath).toString() as FileURLString
-  }
-
-  private async getMetadataByPath(path: FilePath): Promise<PhysicalFileMetadata> {
-    const s = await fsStat(path)
-    if (s.isDirectory) {
-      return { kind: 'directory', size: s.size, createdAt: s.createdAt || s.modifiedAt, modifiedAt: s.modifiedAt }
-    }
-    return {
-      kind: 'file',
-      type: 'other',
-      size: s.size,
-      createdAt: s.createdAt || s.modifiedAt,
-      modifiedAt: s.modifiedAt,
-      mime: mime.getType(path) ?? 'application/octet-stream'
-    }
+    return pathToFileURL(physicalPath).toString() as FileUrlString
   }
 
   async getPhysicalPath(id: FileEntryId): Promise<FilePath> {
@@ -1055,7 +1021,7 @@ export class FileManager extends BaseService implements IFileManager {
 
   async open(id: FileEntryId): Promise<void> {
     const entry = await this.deps.fileEntryService.getById(id)
-    return internalShellOpen(resolvePhysicalPath(entry))
+    return safeOpen(resolvePhysicalPath(entry))
   }
 
   async showInFolder(id: FileEntryId): Promise<void> {
