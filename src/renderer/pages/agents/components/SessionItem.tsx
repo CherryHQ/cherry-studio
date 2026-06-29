@@ -53,10 +53,7 @@ const SessionItem = ({
   const { isFulfilled: isStreamFulfilled, isPending: isStreamPending, markSeen } = useTopicStreamStatus(topicId)
   const channelIcon = getChannelTypeIcon(channelType)
   const isActive = rowState.selected
-  const sessionName =
-    !session.isNameManuallyEdited && (!session.name.trim() || session.name.trim() === t('common.unnamed'))
-      ? t('agent.session.new')
-      : session.name
+  const sessionName = !session.isNameManuallyEdited && !session.name.trim() ? t('agent.session.new') : session.name
   const isRenaming = renamingTopics?.includes(topicId) === true
   const isNewlyRenamed = newlyRenamedTopics?.includes(topicId) === true
   const nameAnimationClassName = isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''
