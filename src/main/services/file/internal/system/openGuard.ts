@@ -1,23 +1,28 @@
 import path from 'node:path'
 
-import type { FileEntry } from '@shared/data/types/file'
 import { IpcError } from '@shared/ipc/errors'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import type { FilePath } from '@shared/types/file'
-import { isDangerExt } from '@shared/utils/file/url'
+import { isDangerExt, normalizeExt } from '@shared/utils/file/url'
 
-function getEffectiveExt(entry: FileEntry, physicalPath: FilePath): string | null {
+function getEffectivePathExt(physicalPath: FilePath): string | null {
   const fallbackPath = physicalPath.replace(/[\s.]+$/, '')
-  const raw = entry.ext ?? path.extname(fallbackPath).replace(/^\./, '')
-  const normalized = raw.replace(/[\s.]+$/, '').toLowerCase()
-  return normalized || null
+  return normalizeExt(path.extname(fallbackPath))
 }
 
-export function assertSafeForDefaultOpen(entry: FileEntry, physicalPath: FilePath): void {
-  const ext = getEffectiveExt(entry, physicalPath)
+function assertSafeExtForDefaultOpen(ext: string | null): void {
   if (!isDangerExt(ext)) return
 
-  throw new IpcError(fileErrorCodes.OPEN_BLOCKED_UNSAFE_TYPE, `Refusing to open .${ext} with the system default app`, {
-    ext
-  })
+  const displayExt = ext ? `.${ext}` : 'unknown'
+  throw new IpcError(
+    fileErrorCodes.OPEN_BLOCKED_UNSAFE_TYPE,
+    `Refusing to open ${displayExt} with the system default app`,
+    {
+      ext
+    }
+  )
+}
+
+export function assertSafePathForDefaultOpen(physicalPath: FilePath): void {
+  assertSafeExtForDefaultOpen(getEffectivePathExt(physicalPath))
 }
