@@ -3,19 +3,14 @@ import type { InferenceModelSource } from './inferenceProtocol'
 /**
  * Download sources for the local ONNX models. ModelScope mirrors the HuggingFace
  * repos under a `models/` path prefix and defaults its branch to `master` (HF
- * uses `main`); all three expose the HF-compatible `/resolve/{revision}/` route,
+ * uses `main`); both expose the HF-compatible `/resolve/{revision}/` route,
  * so switching source is just three transformers.js env values.
  */
-export type ModelSourceId = 'huggingface' | 'hf-mirror' | 'modelscope'
+export type ModelSourceId = 'huggingface' | 'modelscope'
 
 const SOURCES: Record<ModelSourceId, InferenceModelSource> = {
   huggingface: {
     remoteHost: 'https://huggingface.co',
-    remotePathTemplate: '{model}/resolve/{revision}',
-    revision: 'main'
-  },
-  'hf-mirror': {
-    remoteHost: 'https://hf-mirror.com',
     remotePathTemplate: '{model}/resolve/{revision}',
     revision: 'main'
   },
