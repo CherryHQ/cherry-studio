@@ -1,4 +1,4 @@
-import { MessageSquareText } from 'lucide-react'
+import { List } from 'lucide-react'
 import { createContext, type ReactNode, use } from 'react'
 
 import { Shell } from './Shell'
@@ -36,7 +36,7 @@ export function ResourcePaneTab() {
   if (!config) return null
 
   return (
-    <Shell.Tab value={RESOURCE_PANE_TAB} icon={<MessageSquareText className="size-3.5" />}>
+    <Shell.Tab value={RESOURCE_PANE_TAB} icon={<List className="size-3.5" />}>
       {config.label}
     </Shell.Tab>
   )

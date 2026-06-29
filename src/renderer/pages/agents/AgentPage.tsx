@@ -901,7 +901,7 @@ const AgentPage = () => {
   // config is threaded into each branch rather than lifted to this page.
   const resourcePane: ResourcePaneConfig | null = isOldView
     ? {
-        label: t('title.work'),
+        label: t('agent.session.list.title'),
         node: (
           <Sessions
             presentation="right-panel"

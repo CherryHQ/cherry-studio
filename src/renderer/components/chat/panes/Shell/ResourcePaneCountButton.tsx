@@ -1,6 +1,6 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
-import { MessageCircle } from 'lucide-react'
+import { List } from 'lucide-react'
 import { useCallback } from 'react'
 
 import { RESOURCE_PANE_TAB } from './resourcePane'
@@ -35,7 +35,7 @@ export function ResourcePaneCountButton({ label, count, className }: ResourcePan
           className
         )}
         onClick={handleClick}>
-        <MessageCircle />
+        <List />
         <span>{label}</span>
         <span className="text-foreground-muted group-hover:text-foreground-secondary">{count}</span>
       </Button>
