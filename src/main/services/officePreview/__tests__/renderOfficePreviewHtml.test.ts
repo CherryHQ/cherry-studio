@@ -1,3 +1,4 @@
+import { JSDOM } from 'jsdom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { convertMock } = vi.hoisted(() => ({
@@ -82,6 +83,48 @@ describe('renderOfficePreviewHtml', () => {
     const nonceMatch = html.match(/<script nonce="([^"]+)">/)
     expect(nonceMatch).not.toBeNull()
     expect(html).toContain(`script-src 'nonce-${nonceMatch?.[1]}'`)
+  })
+
+  it('keeps spreadsheet sheet tabs interactive after stripping converter scripts', async () => {
+    convertMock.mockResolvedValueOnce({
+      value: `<!DOCTYPE html>
+<html>
+<body>
+  <div class="spreadsheet-container">
+    <article>
+      <div id="sheet-0" class="spreadsheet-sheet active"><table><tbody><tr><td>A1</td></tr></tbody></table></div>
+      <div id="sheet-1" class="spreadsheet-sheet"><table><tbody><tr><td>B1</td></tr></tbody></table></div>
+    </article>
+    <div class="spreadsheet-tabs">
+      <a href="#sheet-0" class="spreadsheet-tab active">Sheet1</a>
+      <a href="#sheet-1" class="spreadsheet-tab">Sheet2</a>
+    </div>
+  </div>
+  <script>window.__converterSheetSwitch = true</script>
+</body>
+</html>`,
+      messages: []
+    })
+
+    const html = await renderOfficePreviewHtml('/tmp/workspace/report.xlsx', 'xlsx')
+    expect(html).not.toContain('__converterSheetSwitch')
+
+    const dom = new JSDOM(html, {
+      runScripts: 'dangerously',
+      url: 'https://office-preview.local/report.xlsx'
+    })
+    const { document, MouseEvent } = dom.window
+    const sheet0 = document.getElementById('sheet-0')
+    const sheet1 = document.getElementById('sheet-1')
+    const tab0 = document.querySelector<HTMLAnchorElement>('a[href="#sheet-0"]')
+    const tab1 = document.querySelector<HTMLAnchorElement>('a[href="#sheet-1"]')
+
+    tab1?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+
+    expect(sheet0?.classList.contains('active')).toBe(false)
+    expect(sheet1?.classList.contains('active')).toBe(true)
+    expect(tab0?.classList.contains('active')).toBe(false)
+    expect(tab1?.classList.contains('active')).toBe(true)
   })
 
   it('strips inline scripts the document carried', async () => {

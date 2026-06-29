@@ -39,6 +39,35 @@ const OFFICE_PREVIEW_HTML_BOOTSTRAP = `(() => {
     Object.defineProperty(window, 'localStorage', { configurable: true, value: storage });
   } catch {}
 
+  const getSpreadsheetHash = () => {
+    const hash = window.location.hash;
+    return hash && hash.startsWith('#sheet-') ? hash : '#sheet-0';
+  };
+
+  const switchSpreadsheetSheet = (nextHash = getSpreadsheetHash()) => {
+    const sheets = Array.from(document.querySelectorAll('.spreadsheet-sheet'));
+    const tabs = Array.from(document.querySelectorAll('a.spreadsheet-tab[href^="#sheet-"]'));
+    if (sheets.length === 0) return;
+
+    const requestedSheet = document.getElementById(nextHash.slice(1));
+    const activeSheet = requestedSheet && requestedSheet.classList.contains('spreadsheet-sheet')
+      ? requestedSheet
+      : sheets[0];
+    const activeHash = activeSheet.id ? '#' + activeSheet.id : '#sheet-0';
+
+    sheets.forEach((sheet) => {
+      sheet.classList.toggle('active', sheet === activeSheet);
+    });
+    tabs.forEach((tab) => {
+      tab.classList.toggle('active', tab.getAttribute('href') === activeHash);
+    });
+
+    if (window.location.hash !== activeHash) {
+      window.location.hash = activeHash;
+    }
+    window.dispatchEvent(new Event('resize'));
+  };
+
   document.addEventListener('click', (event) => {
     const target = event.target instanceof Element
       ? event.target.closest('a.spreadsheet-tab[href^="#sheet-"]')
@@ -50,8 +79,15 @@ const OFFICE_PREVIEW_HTML_BOOTSTRAP = `(() => {
     if (window.location.hash !== hash) {
       window.location.hash = hash;
     }
-    window.dispatchEvent(new Event('hashchange'));
+    switchSpreadsheetSheet(hash);
   }, true);
+
+  window.addEventListener('hashchange', () => switchSpreadsheetSheet());
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => switchSpreadsheetSheet(), { once: true });
+  } else {
+    switchSpreadsheetSheet();
+  }
 })();`
 
 const htmlFitsPreviewLimit = (html: string): boolean => Buffer.byteLength(html, 'utf8') <= OFFICE_PREVIEW_MAX_HTML_BYTES
