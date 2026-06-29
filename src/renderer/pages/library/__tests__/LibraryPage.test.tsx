@@ -227,8 +227,6 @@ vi.mock('@renderer/components/resource/dialogs', () => ({
       description: string
       prompt: string
       knowledgeBaseIds: string[]
-      mcps: string[]
-      disabledTools: string[]
       skillIds: string[]
     }) => Promise<void>
     onOpenChange: (open: boolean) => void
@@ -245,8 +243,6 @@ vi.mock('@renderer/components/resource/dialogs', () => ({
               description: `${kind} description`,
               prompt: `${kind} prompt`,
               knowledgeBaseIds: [],
-              mcps: [],
-              disabledTools: [],
               skillIds: []
             })
           }>
@@ -483,8 +479,6 @@ describe('LibraryPage create flow', () => {
       smallModel: 'provider::model',
       description: 'agent description',
       instructions: 'agent prompt',
-      mcps: [],
-      disabledTools: [],
       skillIds: [],
       configuration: {
         avatar: '🤖',

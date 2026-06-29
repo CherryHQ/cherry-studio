@@ -22,6 +22,7 @@ export const AgentNameAtomSchema = z.string().min(1)
 export const ModelIdAtomSchema = z.string().min(1)
 export const TimeoutMinutesAtomSchema = z.number().min(1).nullable().optional()
 export const AgentToolNameSetSchema = z.array(z.string()).transform((items) => Array.from(new Set(items)))
+export const AgentSkillIdSetSchema = z.array(z.string().min(1)).transform((items) => Array.from(new Set(items)))
 
 export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan'])
 export type AgentPermissionMode = z.infer<typeof AgentPermissionModeSchema>
@@ -181,11 +182,11 @@ export const CreateAgentSchema = AgentEntitySchema.pick({ type: true, ...AGENT_M
    * workspace symlinks), NOT PATCH /agents — so this is intentionally absent from
    * AGENT_MUTABLE_FIELDS / UpdateAgentSchema to avoid a dual-write path.
    */
-  skillIds: z.array(z.string()).optional()
+  skillIds: AgentSkillIdSetSchema.optional()
 })
 export type CreateAgentDto = z.infer<typeof CreateAgentSchema>
 
-// Update picks directly from the entity (not from Create) to avoid .default([]) bleeding into partial updates.
+// Update picks directly from the entity (not from Create) so create-only fields never bleed into partial updates.
 export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).partial()
 export type UpdateAgentDto = z.infer<typeof UpdateAgentSchema>
 

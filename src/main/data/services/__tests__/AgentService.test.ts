@@ -1,7 +1,3 @@
-// Side-effect import: loads AgentGlobalSkillService so it self-registers in the data-service
-// registry, which createAgent resolves lazily for create-time skill validation/join.
-import '@data/services/AgentGlobalSkillService'
-
 import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
@@ -9,6 +5,9 @@ import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+// Importing the singleton loads AgentGlobalSkillService so it self-registers in the
+// data-service registry, which createAgent resolves lazily for skill validation/join.
+import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { agentService } from '@data/services/AgentService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { pinService } from '@data/services/PinService'
@@ -317,6 +316,35 @@ describe('AgentService', () => {
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
 
       const agents = await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Bad Skill'))
+      expect(agents).toHaveLength(0)
+    })
+
+    it('reports a stale selected skill if the FK races after pre-validation', async () => {
+      await insertGlobalSkill('skill_race')
+      const originalGetById = agentGlobalSkillService.getById.bind(agentGlobalSkillService)
+      const getByIdSpy = vi.spyOn(agentGlobalSkillService, 'getById').mockImplementationOnce(async (skillId) => {
+        const skill = await originalGetById(skillId)
+        await dbh.db.delete(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, skillId))
+        return skill
+      })
+
+      try {
+        await expect(
+          agentService.createAgent({
+            type: 'claude-code',
+            name: 'Raced Skill',
+            model: TEST_MODEL_ID,
+            skillIds: ['skill_race']
+          })
+        ).rejects.toMatchObject({
+          code: ErrorCode.INVALID_OPERATION,
+          message: expect.stringContaining('selected skill no longer exists')
+        })
+      } finally {
+        getByIdSpy.mockRestore()
+      }
+
+      const agents = await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Raced Skill'))
       expect(agents).toHaveLength(0)
     })
   })

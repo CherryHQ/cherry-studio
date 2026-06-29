@@ -22,14 +22,16 @@ import {
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { ModelSelector } from '@renderer/components/Selector/model'
+import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import { ChevronDown, HelpCircle, X } from 'lucide-react'
-import { type ComponentProps, type ReactNode, useEffect, useRef, useState } from 'react'
-import type { FieldValues, UseFormReturn } from 'react-hook-form'
+import { ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
+import { type ComponentProps, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import type { FieldValues, Path, UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
+import { AddCatalogPopover, type CatalogItem } from '../components/CatalogPicker'
 import { DialogModelFrame, DialogModelTrigger, EmojiAvatarPicker } from '../components/DialogFormFields'
 
 export type ModelLabelKey = 'modelId' | 'planModelId' | 'smallModelId'
@@ -151,6 +153,125 @@ export function FieldLabelWithHelp({
           </NormalTooltip>
         ) : null)}
     </div>
+  )
+}
+
+export function KnowledgeBaseAvatar({
+  className = 'flex size-6 shrink-0 items-center justify-center rounded-md text-xs'
+}: {
+  className?: string
+}) {
+  return (
+    <span className={className} style={{ background: 'rgba(139, 92, 246, 0.125)' }}>
+      <Database size={14} strokeWidth={1.4} />
+    </span>
+  )
+}
+
+type KnowledgeBaseFieldValues = FieldValues & {
+  knowledgeBaseIds: string[]
+}
+
+export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
+  form,
+  portalContainer,
+  formLabel = true
+}: {
+  form: UseFormReturn<TValues>
+  portalContainer: HTMLElement | null
+  formLabel?: boolean
+}) {
+  const { t } = useTranslation()
+  const { data, isLoading } = useQuery('/knowledge-bases', { query: { limit: 100 } })
+  const bases = useMemo(() => data?.items ?? [], [data])
+  const fieldName = 'knowledgeBaseIds' as Path<TValues>
+  const value = (form.watch(fieldName) ?? []) as string[]
+
+  const { catalog, linkedItems } = useMemo(() => {
+    const byId = new Map(bases.map((base) => [base.id, base]))
+    const linked = value.map(
+      (id) =>
+        byId.get(id) ?? {
+          id,
+          name: `${id.slice(0, 8)}${t('library.config.knowledge.invalid_suffix')}`,
+          itemCount: 0
+        }
+    )
+    const items: CatalogItem[] = bases.map((base) => ({
+      id: base.id,
+      name: base.name,
+      description: t('library.config.knowledge.doc_count', { count: base.itemCount ?? 0 }),
+      icon: <KnowledgeBaseAvatar />
+    }))
+    return { catalog: items, linkedItems: linked }
+  }, [bases, t, value])
+
+  const setKnowledgeBaseIds = (nextValue: string[]) =>
+    form.setValue(fieldName, nextValue as never, { shouldDirty: true })
+  const remove = (id: string) => setKnowledgeBaseIds(value.filter((itemId) => itemId !== id))
+  const add = (id: string) => setKnowledgeBaseIds([...value, id])
+
+  return (
+    <FormField
+      control={form.control}
+      name={fieldName}
+      render={() => (
+        <FormItem>
+          <FieldLabelWithHelp
+            label={t('library.config.knowledge.linked')}
+            help={t('library.config.knowledge.linked_hint')}
+            formLabel={formLabel}
+          />
+          {linkedItems.length === 0 ? (
+            <div className="mt-2 flex flex-col items-center rounded-md border border-border/20 border-dashed p-6">
+              <Database size={20} strokeWidth={1.2} className="mb-2 text-muted-foreground/80" />
+              <p className="mb-1 text-muted-foreground/80 text-xs">{t('library.config.knowledge.empty_title')}</p>
+              <p className="text-muted-foreground/80 text-xs">{t('library.config.knowledge.empty_desc')}</p>
+            </div>
+          ) : (
+            <div className="mt-2 space-y-1.5">
+              {linkedItems.map((kb) => (
+                <div
+                  key={kb.id}
+                  className="group flex items-center gap-3 rounded-md border border-border/35 bg-accent/15 px-3 py-2.5 transition-colors hover:border-border/50 hover:bg-accent/20">
+                  <KnowledgeBaseAvatar className="flex size-8 shrink-0 items-center justify-center rounded-md text-base leading-none" />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-foreground text-sm">{kb.name}</div>
+                    <div className="text-muted-foreground/80 text-xs">
+                      {t('library.config.knowledge.doc_count', { count: kb.itemCount ?? 0 })}
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => remove(kb.id)}
+                    aria-label={t('library.config.knowledge.remove_aria')}
+                    className="flex h-6 min-h-0 w-6 items-center justify-center rounded-md font-normal text-muted-foreground/80 opacity-0 shadow-none transition-all hover:bg-destructive/10 hover:text-destructive focus-visible:ring-0 group-hover:opacity-100">
+                    <Trash2 size={10} />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <AddCatalogPopover
+            items={catalog}
+            enabledIds={new Set(value)}
+            onAdd={add}
+            triggerLabel={t('library.config.knowledge.add')}
+            searchPlaceholder={t('library.config.knowledge.search')}
+            emptyLabel={t('library.config.knowledge.no_more')}
+            disabled={isLoading}
+            align="start"
+            triggerPosition="start"
+            triggerClassName="mt-2"
+            portalContainer={portalContainer}
+          />
+          <FormMessage />
+        </FormItem>
+      )}
+    />
   )
 }
 

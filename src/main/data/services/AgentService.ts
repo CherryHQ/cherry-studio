@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
+import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -114,7 +115,7 @@ export class AgentService {
   async createAgent(req: CreateAgentDto): Promise<AgentEntity> {
     const id = uuidv4()
     const mcps = req.mcps ?? []
-    const skillIds = req.skillIds ? [...new Set(req.skillIds)] : []
+    const skillIds = Array.from(new Set(req.skillIds ?? []))
 
     // Omit fields that are undefined so DB DEFAULTs (e.g. '', '[]', '{}') apply.
     // instructions has no DB DEFAULT — service supplies the product-strategic default.
@@ -132,9 +133,10 @@ export class AgentService {
       configuration: req.configuration
     }
 
-    // Validate referenced skills before opening the write tx: a late FK violation
-    // inside the tx throws but does not reliably roll back the already-inserted
-    // agent row, so guard up front to keep create atomic and yield a clean error.
+    // Validate referenced skills before opening the write tx so the main path
+    // reports the missing resource as Skill, not as the Agent FK fallback. The
+    // write tx rechecks the same IDs before inserting the agent to close the
+    // delete-after-prevalidation race.
     // AgentGlobalSkillService is resolved through the registry (not a direct import)
     // to keep this service↔service edge out of the static import graph — see
     // dataServiceRegistry.
@@ -147,6 +149,15 @@ export class AgentService {
     const row = await withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx(async (tx) => {
+          if (skillIds.length > 0) {
+            const rows = await tx
+              .select({ id: agentGlobalSkillTable.id })
+              .from(agentGlobalSkillTable)
+              .where(inArray(agentGlobalSkillTable.id, skillIds))
+            if (rows.length !== skillIds.length) {
+              throw DataApiErrorFactory.invalidOperation('create agent', 'a selected skill no longer exists')
+            }
+          }
           const result = await this.createAgentTx(tx, id, insertData)
           // Insert junction rows for MCP associations
           if (mcps.length > 0) {
@@ -160,7 +171,10 @@ export class AgentService {
           }
           return result
         }),
-      defaultHandlersFor('Agent', id)
+      {
+        ...defaultHandlersFor('Agent', id),
+        foreignKey: () => DataApiErrorFactory.invalidOperation('create agent', 'a selected skill no longer exists')
+      }
     )
     if (!row) {
       throw DataApiErrorFactory.invalidOperation('create agent', 'insert succeeded but select returned no row')

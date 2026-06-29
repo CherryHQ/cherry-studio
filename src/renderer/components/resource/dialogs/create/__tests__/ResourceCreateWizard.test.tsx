@@ -39,6 +39,7 @@ import { ResourceCreateWizard } from '../ResourceCreateWizard'
 
 const NEXT = 'library.config.dialogs.create.next'
 const CREATE = 'library.config.dialogs.create.submit'
+const CANCEL = 'common.cancel'
 
 afterEach(cleanup)
 
@@ -70,10 +71,28 @@ describe('ResourceCreateWizard', () => {
       description: '',
       prompt: 'be helpful',
       knowledgeBaseIds: [],
-      mcps: [],
-      disabledTools: [],
       skillIds: []
     })
+  })
+
+  it('surfaces the actionable submit error and leaves the dialog closable after failure', async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    const onSubmit = vi.fn().mockRejectedValue(new Error('Selected skill no longer exists'))
+
+    render(<ResourceCreateWizard kind="assistant" open onOpenChange={onOpenChange} onSubmit={onSubmit} />)
+
+    await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    expect(await screen.findByText('Selected skill no longer exists')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'library.config.dialogs.create.assistant_title' })).toBeInTheDocument()
+    expect(onOpenChange).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: CANCEL }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
   it('shows the capability step (not knowledge) for the agent kind', async () => {

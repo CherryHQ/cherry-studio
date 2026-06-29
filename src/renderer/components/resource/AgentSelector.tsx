@@ -136,8 +136,6 @@ export function AgentSelector(props: AgentSelectorProps) {
             smallModel: values.modelId,
             description: values.description,
             instructions: values.prompt,
-            mcps: values.mcps,
-            disabledTools: values.disabledTools,
             skillIds: values.skillIds,
             configuration: {
               avatar: values.avatar,

@@ -46,8 +46,6 @@ function getDefaultValues(kind: ResourceCreateWizardKind): ResourceCreateWizardF
     modelId: null,
     prompt: '',
     knowledgeBaseIds: [],
-    mcps: [],
-    disabledTools: [],
     skillIds: []
   }
 }
@@ -128,8 +126,8 @@ function WizardFooter({
  * payload to `onSubmit`. Replaces the former single-page ResourceCreateDialog.
  *
  * The shell intentionally does NOT subscribe to form values — avatar/footer
- * watching lives in leaf components — so field edits never re-render
- * DialogContent (whose composed ref would otherwise thrash into an update loop).
+ * watching lives in leaf components — so ordinary field edits do not re-render
+ * DialogContent. This preserves the ref stability required by the dialog body.
  */
 export function ResourceCreateWizard({
   kind,
@@ -191,12 +189,12 @@ export function ResourceCreateWizard({
         description: values.description.trim(),
         prompt: values.prompt.trim(),
         knowledgeBaseIds: values.knowledgeBaseIds,
-        mcps: values.mcps,
-        disabledTools: values.disabledTools,
         skillIds: values.skillIds
       })
-    } catch {
-      form.setError('root', { message: t('library.config.dialogs.create.submit_failed') })
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message ? error.message : t('library.config.dialogs.create.submit_failed')
+      form.setError('root', { message })
     }
   })
 

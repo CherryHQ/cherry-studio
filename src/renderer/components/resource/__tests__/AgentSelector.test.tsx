@@ -476,8 +476,6 @@ describe('AgentSelector', () => {
           smallModel: MODEL.id,
           description: 'Created from selector',
           instructions: '',
-          mcps: [],
-          disabledTools: [],
           skillIds: [],
           configuration: {
             avatar: '🤖',

@@ -13,14 +13,18 @@
  *
  * Scope: only the services that participate in such a cycle are listed in
  * `DataServiceMap` and self-register here — every other data service stays a plain
- * direct-import singleton and never touches this registry. A participating service
- * registers itself at the bottom of its module via `registerDataService(...)`.
+ * direct-import singleton and never touches this registry. Breaking a cycle only
+ * requires one direction to resolve lazily; the opposite edge may remain a direct
+ * import if that keeps the graph acyclic. A participating service registers itself
+ * at the bottom of its module via `registerDataService(...)`.
  * Registration therefore happens when the service module is first loaded. In
  * production every participating service is loaded by its own DataApi handler during
  * route registration, so all are registered before any business call runs. In tests,
  * ensure the sibling module is imported (a bare side-effect import is enough) so its
  * registration runs.
  */
+import { DataApiErrorFactory } from '@shared/data/api'
+
 import type { agentGlobalSkillService } from './AgentGlobalSkillService'
 import type { messageService } from './MessageService'
 import type { providerRegistryService } from './ProviderRegistryService'
@@ -44,7 +48,10 @@ export function registerDataService<K extends keyof DataServiceMap>(name: K, ins
 export function getDataService<K extends keyof DataServiceMap>(name: K): DataServiceMap[K] {
   const instance = registry.get(name)
   if (!instance) {
-    throw new Error(`Data service "${name}" is not registered yet`)
+    throw DataApiErrorFactory.internal(
+      new Error(`Data service "${name}" is not registered yet`),
+      'data service registry'
+    )
   }
   return instance as DataServiceMap[K]
 }

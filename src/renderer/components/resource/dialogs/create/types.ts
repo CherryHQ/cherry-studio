@@ -8,8 +8,8 @@ export type ResourceCreateWizardKind = 'assistant' | 'agent'
  * Field names are deliberately aligned with the shared edit-dialog field
  * components (`avatar`, `name`, `description`, `modelId`) so those components
  * can be reused as-is. The remaining fields are the per-kind step payloads:
- * `knowledgeBaseIds` (assistant) and `mcps` / `disabledTools` / `skillIds`
- * (agent). Steps not shown for a given kind keep their default empty value.
+ * `knowledgeBaseIds` (assistant) and `skillIds` (agent). Steps not shown for
+ * a given kind keep their default empty value.
  */
 export type ResourceCreateWizardFormValues = {
   avatar: string
@@ -20,9 +20,6 @@ export type ResourceCreateWizardFormValues = {
   // assistant step 3
   knowledgeBaseIds: string[]
   // agent step 3
-  mcps: string[]
-  /** Opt-out list of disabled builtin tool keys (empty = all enabled). */
-  disabledTools: string[]
   skillIds: string[]
 }
 
@@ -37,7 +34,5 @@ export type ResourceCreateWizardValues = {
   description: string
   prompt: string
   knowledgeBaseIds: string[]
-  mcps: string[]
-  disabledTools: string[]
   skillIds: string[]
 }

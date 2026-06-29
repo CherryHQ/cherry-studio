@@ -24,8 +24,8 @@ const AUTO_CLOSE_DELAY_MS = 1200
  * library entry intentionally keeps a tighter surface.
  *
  * Drop-zone + explicit picker buttons share the same pipeline through
- * `useSkillMutations.installFromZip` / `installFromDirectory`. Cache
- * invalidation for `/skills` is handled inside the adapter, so the library
+ * `useSkillInstall.installFromZip` / `installFromDirectory`. Cache
+ * invalidation for `/skills` is handled inside the hook, so the library
  * grid refreshes automatically after each successful install.
  */
 export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
@@ -76,14 +76,14 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
 
   const handleZipPick = async () => {
     if (installing) return
-    const selected = await window.api.file.select({
-      filters: [{ name: 'ZIP', extensions: ['zip'] }],
-      properties: ['openFile']
-    })
-    if (!selected || selected.length === 0) return
-    setInstalling('zip')
-    setStatus({ kind: 'idle' })
     try {
+      const selected = await window.api.file.select({
+        filters: [{ name: 'ZIP', extensions: ['zip'] }],
+        properties: ['openFile']
+      })
+      if (!selected || selected.length === 0) return
+      setInstalling('zip')
+      setStatus({ kind: 'idle' })
       const skill = await installFromZip(selected[0].path)
       if (skill) finishInstall(skill)
     } catch (e) {
@@ -95,13 +95,13 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
 
   const handleDirPick = async () => {
     if (installing) return
-    const selected = await window.api.file.select({
-      properties: ['openDirectory']
-    })
-    if (!selected || selected.length === 0) return
-    setInstalling('directory')
-    setStatus({ kind: 'idle' })
     try {
+      const selected = await window.api.file.select({
+        properties: ['openDirectory']
+      })
+      if (!selected || selected.length === 0) return
+      setInstalling('directory')
+      setStatus({ kind: 'idle' })
       const skill = await installFromDirectory(selected[0].path)
       if (skill) finishInstall(skill)
     } catch (e) {
@@ -120,39 +120,33 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
     if (installing) return
     if (!file) return
 
-    const filePath = window.api.file.getPathForFile(file)
-    if (!filePath) return
+    try {
+      const filePath = window.api.file.getPathForFile(file)
+      if (!filePath) return
 
-    const isDirectory = await window.api.file.isDirectory(filePath)
-    setStatus({ kind: 'idle' })
+      const isDirectory = await window.api.file.isDirectory(filePath)
+      setStatus({ kind: 'idle' })
 
-    if (isDirectory) {
-      setInstalling('directory')
-      try {
+      if (isDirectory) {
+        setInstalling('directory')
         const skill = await installFromDirectory(filePath)
         if (skill) finishInstall(skill)
-      } catch (e) {
-        failInstall(e, file.name)
-      } finally {
-        setInstalling(null)
+        return
       }
-      return
-    }
 
-    if (file.name.toLowerCase().endsWith('.zip')) {
-      setInstalling('zip')
-      try {
+      if (file.name.toLowerCase().endsWith('.zip')) {
+        setInstalling('zip')
         const skill = await installFromZip(filePath)
         if (skill) finishInstall(skill)
-      } catch (e) {
-        failInstall(e, file.name)
-      } finally {
-        setInstalling(null)
+        return
       }
-      return
-    }
 
-    setStatus({ kind: 'error', message: t('settings.skills.invalidFormat') })
+      setStatus({ kind: 'error', message: t('settings.skills.invalidFormat') })
+    } catch (e) {
+      failInstall(e, file.name)
+    } finally {
+      setInstalling(null)
+    }
   }
 
   return (
