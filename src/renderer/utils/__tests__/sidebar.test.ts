@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest'
 
 import {
   getOrderedVisibleSidebarFavorites,
-  getRequiredSidebarFavoritesVisible,
   getSidebarMenuPath,
   getSidebarMiniAppFavoriteIds,
   resolveSidebarActiveItem,
@@ -21,10 +20,6 @@ describe('sidebar config helpers', () => {
       'store',
       'mini_app'
     ])
-  })
-
-  it('adds required sidebar favorites back in fixed order when reading visible preferences', () => {
-    expect(getRequiredSidebarFavoritesVisible(['translate'])).toEqual(['assistants', 'translate'])
   })
 
   it('preserves the preference order when reading ordered visible sidebar favorites', () => {

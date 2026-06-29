@@ -231,16 +231,6 @@ export function getSidebarMiniAppFavoriteIds(favorites: readonly string[] | unde
   })
 }
 
-export function getRequiredSidebarFavoritesVisible(favorites: readonly string[] | undefined): SidebarFavorite[] {
-  const visible = new Set(sanitizeSidebarFavorites(favorites))
-
-  for (const favorite of REQUIRED_SIDEBAR_FAVORITES) {
-    visible.add(favorite)
-  }
-
-  return SIDEBAR_FAVORITE_ORDER.filter((favorite) => visible.has(favorite))
-}
-
 export function getOrderedVisibleSidebarFavorites(favorites: readonly string[] | undefined): SidebarFavorite[] {
   const visible = sanitizeSidebarFavorites(favorites)
 
