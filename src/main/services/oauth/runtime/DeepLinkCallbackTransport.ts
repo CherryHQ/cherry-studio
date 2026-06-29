@@ -121,13 +121,6 @@ export class DeepLinkCallbackTransport {
     }
   }
 
-  sendResult(state: string, result: { apiKeys?: string; error?: string }): void {
-    const flow = this.pendingFlows.get(state)
-    if (!flow) return
-    this.pendingFlows.delete(state)
-    this.sendToInitiator(flow.initiatorWindowId, state, result)
-  }
-
   sendConsumedResult(state: string, initiatorWindowId: string, result: { apiKeys?: string; error?: string }): void {
     this.sendToInitiator(initiatorWindowId, state, result)
   }

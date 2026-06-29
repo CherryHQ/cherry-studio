@@ -37,7 +37,20 @@ export class LoopbackCallbackTransport {
 
   waitForAuthorizationCode(expectedState: string, signal: AbortSignal): Promise<string> {
     return new Promise<string>((resolve, reject) => {
+      // `AbortSignal.timeout` has no cancel: its internal timer fires ~10 min
+      // later no matter what. Without this latch the stale abort would
+      // `close()` the *shared* transport, tearing down a later sign-in's servers
+      // mid-flight. Settle exactly once so a fired timer (or any late callback)
+      // is a no-op.
+      let settled = false
+      const settleResolve = (code: string) => {
+        if (settled) return
+        settled = true
+        resolve(code)
+      }
       const settleReject = (error: unknown) => {
+        if (settled) return
+        settled = true
         this.close()
         reject(error)
       }
@@ -78,7 +91,7 @@ export class LoopbackCallbackTransport {
         }
 
         respond('Signed in successfully')
-        resolve(code)
+        settleResolve(code)
       }
 
       const listen = (host: string) =>

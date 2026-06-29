@@ -51,4 +51,11 @@ describe('oauthHandlers', () => {
     expect(appGetMock).toHaveBeenCalledWith('CodeCliService')
     expect(codeCliService.checkClaudeLogin).toHaveBeenCalledTimes(1)
   })
+
+  it('rejects check_external_login for a non-external-cli provider', () => {
+    expect(() => oauthHandlers['oauth.check_external_login']({ providerId: 'codex' }, ctx)).toThrow(
+      /Unsupported external-cli/
+    )
+    expect(codeCliService.checkClaudeLogin).not.toHaveBeenCalled()
+  })
 })

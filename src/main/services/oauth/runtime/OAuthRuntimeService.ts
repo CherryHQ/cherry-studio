@@ -28,9 +28,16 @@ const TOKEN_EXPIRY_BUFFER_MS = 60 * 1000
  */
 type RefreshResult = { status: 'ok'; accessToken: string } | { status: 'terminal' } | { status: 'retriable' }
 
-/** A 4xx (except 429) from the token endpoint means the refresh token is dead. */
+/**
+ * A 4xx from the token endpoint means the refresh token is dead — except the
+ * transient ones: 429 (rate limit), 408 (request timeout) and 425 (too early)
+ * are retriable, so they must NOT clear the session and log the user out.
+ */
+const TRANSIENT_4XX = new Set([408, 425, 429])
 function isTerminalRefreshError(error: unknown): boolean {
-  return error instanceof OAuthHttpError && error.status >= 400 && error.status < 500 && error.status !== 429
+  return (
+    error instanceof OAuthHttpError && error.status >= 400 && error.status < 500 && !TRANSIENT_4XX.has(error.status)
+  )
 }
 
 @Injectable('OAuthRuntimeService')
@@ -294,6 +301,10 @@ export class OAuthRuntimeService extends BaseService {
     const first = buildRequest(creds)
     const response = await doFetch(first.input, first.init)
     if (response.status !== 401) return response
+
+    // Drain the discarded 401 body before retrying so the underlying (undici)
+    // connection is released instead of leaking one per forced refresh.
+    void response.body?.cancel?.()
 
     const refreshed = await this.getValidAccessToken(providerId, { forceRefresh: true })
     if (!refreshed?.accessToken) return response
