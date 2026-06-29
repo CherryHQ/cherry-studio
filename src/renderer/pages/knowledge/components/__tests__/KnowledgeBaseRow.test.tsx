@@ -58,16 +58,13 @@ vi.mock('react-i18next', () => ({
     i18n: {
       language: 'zh-CN'
     },
-    t: (key: string, options?: { count?: number }) =>
+    t: (key: string) =>
       (
         ({
           'common.more': '更多',
           'knowledge.context.delete': '删除知识库',
           'knowledge.context.move_to': '移动到',
-          'knowledge.context.rename': '重命名',
-          'knowledge.meta.documents_count': `${options?.count ?? 0} 文档`,
-          'knowledge.status.completed': '就绪',
-          'knowledge.status.failed': '失败'
+          'knowledge.context.rename': '重命名'
         }) as Record<string, string>
       )[key] ?? key
   })
@@ -107,10 +104,10 @@ const createGroup = (overrides: Partial<Group> = {}): Group => ({
 })
 
 describe('KnowledgeBaseRow', () => {
-  it('renders the base name and completed status dot without updated time', () => {
+  it('renders only the base name, without the document count or status dot', () => {
     const { container } = render(
       <KnowledgeBaseRow
-        base={createKnowledgeBase()}
+        base={createKnowledgeBase({ itemCount: 3 })}
         groups={[createGroup()]}
         selected={false}
         onSelectBase={vi.fn()}
@@ -121,33 +118,14 @@ describe('KnowledgeBaseRow', () => {
     )
 
     expect(screen.getByText('Base 1')).toBeInTheDocument()
-    expect(screen.queryByText('2小时前')).not.toBeInTheDocument()
-    expect(screen.getByText('0 文档')).toBeInTheDocument()
-    const statusDot = container.querySelector('[aria-label="就绪"]')
-    expect(statusDot).toBeInTheDocument()
-    expect(statusDot).not.toHaveAttribute('title')
+    expect(screen.queryByText('3 文档')).not.toBeInTheDocument()
+    expect(container.querySelector('span[aria-label]')).not.toBeInTheDocument()
   })
 
-  it('renders the failed status dot from the base status', () => {
-    const { container } = render(
+  it('renders the selected row with the large rounded highlight', () => {
+    render(
       <KnowledgeBaseRow
-        base={createKnowledgeBase({ status: 'failed', error: 'missing_embedding_model' })}
-        groups={[createGroup()]}
-        selected={false}
-        onSelectBase={vi.fn()}
-        onMoveBase={vi.fn()}
-        onRenameBase={vi.fn()}
-        onDeleteBase={vi.fn()}
-      />
-    )
-
-    expect(container.querySelector('.bg-destructive')).toHaveAttribute('aria-label', '失败')
-  })
-
-  it('uses the reference two-line layout with a large selected row', () => {
-    const { container } = render(
-      <KnowledgeBaseRow
-        base={createKnowledgeBase({ itemCount: 10 })}
+        base={createKnowledgeBase()}
         groups={[createGroup()]}
         selected
         onSelectBase={vi.fn()}
@@ -157,14 +135,8 @@ describe('KnowledgeBaseRow', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: /Base 1/ }).parentElement).toHaveClass(
-      'min-h-11',
-      'rounded-xl',
-      'bg-secondary'
-    )
+    expect(screen.getByRole('button', { name: /Base 1/ }).parentElement).toHaveClass('rounded-xl', 'bg-secondary')
     expect(screen.getByText('Base 1')).toHaveClass('text-sm', 'font-medium')
-    expect(screen.getByText('10 文档').parentElement).toHaveClass('text-xs', 'text-foreground-muted')
-    expect(container.querySelector('img')).toBeInTheDocument()
   })
 
   it('reserves trailing action space so long names cannot overlap the more button', () => {

@@ -164,7 +164,7 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
 
 describe('DetailHeader', () => {
   it('renders the base name and completed status', () => {
-    const { container } = render(
+    render(
       <DetailHeader
         base={createKnowledgeBase()}
         onOpenRagConfig={vi.fn()}
@@ -178,10 +178,6 @@ describe('DetailHeader', () => {
     expect(screen.getByText('就绪')).toBeInTheDocument()
     expect(screen.getByText('就绪')).toHaveClass('bg-success/10', 'text-success')
     expect(screen.getByText('就绪')).toHaveAttribute('aria-label', '就绪')
-
-    const detailIcon = container.querySelector('img')
-    expect(detailIcon).toBeInTheDocument()
-    expect(detailIcon).toHaveClass('size-6')
   })
 
   it('renders the failed status as a clickable rebuild trigger', () => {
