@@ -171,10 +171,7 @@ export class AgentService {
           }
           return result
         }),
-      {
-        ...defaultHandlersFor('Agent', id),
-        foreignKey: () => DataApiErrorFactory.invalidOperation('create agent', 'a selected skill no longer exists')
-      }
+      defaultHandlersFor('Agent', id)
     )
     if (!row) {
       throw DataApiErrorFactory.invalidOperation('create agent', 'insert succeeded but select returned no row')

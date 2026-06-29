@@ -157,6 +157,23 @@ describe('AgentService', () => {
       })
     })
 
+    it('does not mislabel non-skill FK failures as stale selected skills', async () => {
+      await expect(
+        agentService.createAgent({
+          type: 'claude-code',
+          name: 'Missing Model',
+          model: 'anthropic::missing-model'
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'Agent' },
+        message: expect.not.stringContaining('selected skill no longer exists')
+      })
+
+      const agents = await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Missing Model'))
+      expect(agents).toHaveLength(0)
+    })
+
     it('places newly created agents by default orderKey sort', async () => {
       await insertAgent({ id: 'agent_existing_a' })
       await insertAgent({ id: 'agent_existing_b' })
