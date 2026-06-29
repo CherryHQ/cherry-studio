@@ -17,6 +17,7 @@ import {
 import { useReorder } from '@renderer/data/hooks/useReorder'
 import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
 import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
+import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
   AgentSessionEntity,
@@ -287,7 +288,14 @@ export const useUpdateSession = () => {
     // The non-null assertion mirrors useTopic.ts and crashes loud
     // if the contract is ever broken instead of silently producing
     // '/agent-sessions/undefined' (which would miss every cache entry).
-    refresh: ({ args }) => ['/agent-sessions', '/agent-workspaces', `/agent-sessions/${args!.params.sessionId}`]
+    refresh: ({ args }) => {
+      const keys: ConcreteApiPaths[] = [
+        '/agent-sessions',
+        `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths
+      ]
+      if (args!.body?.workspace !== undefined) keys.push('/agent-workspaces')
+      return keys
+    }
   })
 
   const updateSession = useCallback(

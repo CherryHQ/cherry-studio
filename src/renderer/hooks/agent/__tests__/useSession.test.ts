@@ -1,6 +1,6 @@
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { MockUseDataApiUtils, mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
+import { MockUseDataApiUtils, mockUseInfiniteQuery, mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -474,6 +474,31 @@ describe('useUpdateSession', () => {
     })
     expect(updated).toBeDefined()
     expect(mockToast.success).toHaveBeenCalledWith('common.update_success')
+  })
+
+  it('refreshes workspaces only when the session workspace changes', () => {
+    renderHook(() => useUpdateSession())
+
+    const updateMutationCall = mockUseMutation.mock.calls.find(
+      ([method, path]) => method === 'PATCH' && path === '/agent-sessions/:sessionId'
+    )
+    const refresh = updateMutationCall?.[2]?.refresh as (context: {
+      args: { params: { sessionId: string }; body?: Record<string, unknown> }
+      result: AgentSessionEntity
+    }) => string[]
+
+    expect(
+      refresh({
+        args: { params: { sessionId: 'session-1' }, body: { name: 'Renamed session' } },
+        result: createSession()
+      })
+    ).toEqual(['/agent-sessions', '/agent-sessions/session-1'])
+    expect(
+      refresh({
+        args: { params: { sessionId: 'session-1' }, body: { workspace: { type: 'system' } } },
+        result: createSession()
+      })
+    ).toEqual(['/agent-sessions', '/agent-sessions/session-1', '/agent-workspaces'])
   })
 
   it('does not show success toast when showSuccessToast is false', async () => {

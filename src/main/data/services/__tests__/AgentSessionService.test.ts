@@ -225,6 +225,53 @@ describe('AgentSessionService', () => {
     expect(updated.workspace.path).toBe(secondWorkspace.path)
   })
 
+  it('deletes the previous system workspace row when switching to a user workspace', async () => {
+    const userWorkspace = await createWorkspace('system-to-user')
+    const session = await agentSessionService.create({
+      agentId: 'agent-session-test',
+      name: 'System to user',
+      workspace: { type: 'system' }
+    })
+    const previousSystemWorkspaceId = session.workspaceId
+
+    const updated = await agentSessionService.update(session.id, {
+      workspace: { type: 'user', workspaceId: userWorkspace.id }
+    })
+
+    expect(updated.workspaceId).toBe(userWorkspace.id)
+    expect(updated.workspace.type).toBe('user')
+    const previousSystemRows = await dbh.db
+      .select()
+      .from(agentWorkspaceTable)
+      .where(eq(agentWorkspaceTable.id, previousSystemWorkspaceId))
+    expect(previousSystemRows).toHaveLength(0)
+  })
+
+  it('creates a new system workspace row when switching from a user workspace', async () => {
+    const userWorkspace = await createWorkspace('user-to-system')
+    const session = await createSession('User to system', userWorkspace.id)
+
+    const updated = await agentSessionService.update(session.id, {
+      workspace: { type: 'system' }
+    })
+
+    expect(updated.workspaceId).not.toBe(userWorkspace.id)
+    expect(updated.workspace.type).toBe('system')
+    expect(updated.workspace.path).toBe(path.join(application.getPath('feature.agents.workspaces'), session.id))
+    const [systemWorkspaceRow] = await dbh.db
+      .select()
+      .from(agentWorkspaceTable)
+      .where(eq(agentWorkspaceTable.id, updated.workspaceId))
+    expect(systemWorkspaceRow).toMatchObject({
+      id: updated.workspaceId,
+      type: 'system'
+    })
+    await expect(agentWorkspaceService.getById(userWorkspace.id)).resolves.toMatchObject({
+      id: userWorkspace.id,
+      type: 'user'
+    })
+  })
+
   it('rejects workspace updates after messages are sent', async () => {
     const firstWorkspace = await createWorkspace('before-locked-switch')
     const secondWorkspace = await createWorkspace('after-locked-switch')
