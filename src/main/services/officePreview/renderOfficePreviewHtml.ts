@@ -1,26 +1,31 @@
+import { randomBytes } from 'node:crypto'
+
+import { convertOfficeToText } from '@main/utils/officeText'
 import { IpcError } from '@shared/ipc/errors'
 import { officePreviewErrorCodes } from '@shared/ipc/errors/officePreview'
 import type { OfficePreviewExtension } from '@shared/ipc/schemas/officePreview'
 import { JSDOM } from 'jsdom'
-import { OfficeConverter, type OfficeConverterConfig, OfficeErrorType } from 'officeparser'
+import { OfficeConverter, type OfficeConverterConfig } from 'officeparser'
 
 const OFFICE_PREVIEW_MAX_HTML_BYTES = 5 * 1024 * 1024
-const OFFICE_PREVIEW_CSP = [
-  "default-src 'none'",
-  'img-src data: blob:',
-  "style-src 'unsafe-inline'",
-  "script-src 'unsafe-inline'",
-  "connect-src 'none'",
-  'font-src data:',
-  'media-src data: blob:',
-  "object-src 'none'",
-  "frame-src 'none'",
-  "base-uri 'none'",
-  "form-action 'none'",
-  "navigate-to 'none'"
-].join('; ')
-const OFFICIAL_HTML_PREVIEW_BOOTSTRAP = `<script>
-(() => {
+const buildOfficePreviewCsp = (scriptNonce: string): string =>
+  [
+    "default-src 'none'",
+    'img-src data: blob:',
+    "style-src 'unsafe-inline'",
+    `script-src 'nonce-${scriptNonce}'`,
+    "connect-src 'none'",
+    'font-src data:',
+    'media-src data: blob:',
+    "object-src 'none'",
+    "frame-src 'none'",
+    "base-uri 'none'",
+    "form-action 'none'",
+    "navigate-to 'none'"
+  ].join('; ')
+// Injected by us AFTER hardening strips every document-supplied <script>, and
+// run via a per-render CSP nonce — so only this trusted bootstrap executes.
+const OFFICE_PREVIEW_HTML_BOOTSTRAP = `(() => {
   const store = new Map();
   const storage = {
     get length() { return store.size; },
@@ -47,8 +52,7 @@ const OFFICIAL_HTML_PREVIEW_BOOTSTRAP = `<script>
     }
     window.dispatchEvent(new Event('hashchange'));
   }, true);
-})();
-</script>`
+})();`
 
 const htmlFitsPreviewLimit = (html: string): boolean => Buffer.byteLength(html, 'utf8') <= OFFICE_PREVIEW_MAX_HTML_BYTES
 
@@ -92,8 +96,10 @@ function hardenOfficePreviewHtml(html: string): string {
   const dom = new JSDOM(html)
   const { document } = dom.window
 
+  // Remove every document-supplied <script> (inline included) and other remote
+  // loaders. Our own bootstrap is injected below with a nonce after this point.
   const removableElements = Array.from(
-    document.querySelectorAll('script[src], link[href], iframe, object, embed')
+    document.querySelectorAll('script, link[href], iframe, object, embed')
   ) as Element[]
   removableElements.forEach((element) => element.remove())
 
@@ -103,7 +109,8 @@ function hardenOfficePreviewHtml(html: string): string {
       const name = attribute.name.toLowerCase()
       const value = attribute.value
 
-      if (name.startsWith('on')) {
+      // Strip event handlers and any author nonce so only our injected nonce is valid.
+      if (name.startsWith('on') || name === 'nonce') {
         element.removeAttribute(attribute.name)
         continue
       }
@@ -117,9 +124,16 @@ function hardenOfficePreviewHtml(html: string): string {
     }
   }
 
+  const scriptNonce = randomBytes(16).toString('base64')
+
+  const bootstrap = document.createElement('script')
+  bootstrap.setAttribute('nonce', scriptNonce)
+  bootstrap.textContent = OFFICE_PREVIEW_HTML_BOOTSTRAP
+  document.head.prepend(bootstrap)
+
   const csp = document.createElement('meta')
   csp.setAttribute('http-equiv', 'Content-Security-Policy')
-  csp.setAttribute('content', OFFICE_PREVIEW_CSP)
+  csp.setAttribute('content', buildOfficePreviewCsp(scriptNonce))
   document.head.prepend(csp)
 
   return dom.serialize()
@@ -138,22 +152,10 @@ function buildConverterConfig(
       includeCharts: false,
       htmlConfig: {
         standalone: true,
-        containerWidth: '100%',
-        injections: {
-          headStart: OFFICIAL_HTML_PREVIEW_BOOTSTRAP
-        }
+        containerWidth: '100%'
       }
     }
   }
-}
-
-function isAbortError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false
-  return (
-    error.name === 'AbortError' ||
-    error.message.toLowerCase().includes('abort') ||
-    ('code' in error && error.code === OfficeErrorType.OPERATION_ABORTED)
-  )
 }
 
 export async function renderOfficePreviewHtml(
@@ -177,21 +179,7 @@ export async function renderOfficePreviewHtml(
       return hardenedHtml
     }
 
-    const textResult = await OfficeConverter.convert(targetRealPath, 'text', {
-      parseConfig: {
-        fileType: extension
-      },
-      generatorConfig: {
-        includeImages: false,
-        includeCharts: false,
-        textConfig: {
-          newlineDelimiter: '\n',
-          preserveLayout: true
-        }
-      }
-    })
-
-    const fallbackSource = buildTextFallbackHtml(String(textResult.value))
+    const fallbackSource = buildTextFallbackHtml(await convertOfficeToText(targetRealPath, extension))
     if (!htmlFitsPreviewLimit(fallbackSource)) {
       throw new IpcError(officePreviewErrorCodes.FILE_TOO_LARGE)
     }
@@ -202,9 +190,8 @@ export async function renderOfficePreviewHtml(
     return fallbackHtml
   } catch (error) {
     if (error instanceof IpcError) throw error
-    if (isAbortError(error)) {
-      throw new IpcError(officePreviewErrorCodes.PARSE_TIMEOUT)
-    }
-    throw new IpcError(officePreviewErrorCodes.PARSE_FAILED)
+    // Preserve the underlying reason: the worker has stdio:'ignore', so this
+    // message is the only diagnostic the parent process can log.
+    throw new IpcError(officePreviewErrorCodes.PARSE_FAILED, error instanceof Error ? error.message : String(error))
   }
 }
