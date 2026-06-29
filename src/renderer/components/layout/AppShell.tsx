@@ -18,7 +18,7 @@ export const AppShell = () => {
   const isMacTransparentWindow = useMacTransparentWindow()
   const { tabs, activeTabId, setActiveTab, closeTab, updateTab, reorderTabs, pinTab, unpinTab, detachTab, openTab } =
     useTabs()
-  const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
+  const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
 
   const handleOpenGlobalSearch = useCallback(() => {
@@ -34,12 +34,12 @@ export const AppShell = () => {
       const entry = createRecentRouteEntryFromTab(tab, lastAccessTime)
       if (!entry) return
 
-      const nextItems = upsertGlobalSearchRecentEntry(recentItems, entry)
-      if (nextItems !== recentItems) {
-        setRecentItems(nextItems)
-      }
+      // Functional update resolves against the latest persisted value; upsert
+      // returns the same reference when nothing changes, so the CacheService
+      // isEqual short-circuit drops the no-op write.
+      setRecentItems((prev) => upsertGlobalSearchRecentEntry(prev, entry))
     },
-    [recentItems, setRecentItems]
+    [setRecentItems]
   )
 
   useEffect(() => {

@@ -18,7 +18,7 @@ export const useDownloadTool = ({ showPreviewTools, previewRef, onDownloadSource
   const { registerTool, removeTool } = useToolManager(setTools)
 
   useEffect(() => {
-    const includePreviewTools = showPreviewTools && previewRef.current !== null
+    const includePreviewTools = showPreviewTools === true
 
     const baseTool = {
       ...TOOL_SPECS.download,

@@ -85,6 +85,10 @@ const CodeEditor = ({
     return true
   }, [])
 
+  const focus = useCallback(() => {
+    editorViewRef.current?.focus()
+  }, [])
+
   // Calculate changes during streaming response to update EditorView
   // Cannot handle user editing code during streaming response (and probably doesn't need to)
   useEffect(() => {
@@ -125,7 +129,8 @@ const CodeEditor = ({
     save: handleSave,
     getContent: () => editorViewRef.current?.state.doc.toString() ?? '',
     scrollToLine,
-    insertText
+    insertText,
+    focus
   }))
 
   return (

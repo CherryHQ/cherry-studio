@@ -114,6 +114,7 @@ describe('AgentSessionService', () => {
 
     expect(session.workspaceId).toBe(workspace.id)
     expect(session.workspace.path).toBe(workspace.path)
+    expect(session.isNameManuallyEdited).toBe(false)
   })
 
   it('rejects a user workspace source that points at a system workspace row', async () => {
@@ -201,13 +202,44 @@ describe('AgentSessionService', () => {
 
     const updated = await agentSessionService.update(session.id, {
       name: 'After update',
-      description: 'Updated description'
+      description: 'Updated description',
+      isNameManuallyEdited: true
     })
 
     expect(updated).toMatchObject({
       id: session.id,
       name: 'After update',
-      description: 'Updated description'
+      description: 'Updated description',
+      isNameManuallyEdited: true
+    })
+  })
+
+  it('treats name-only updates as manual session renames', async () => {
+    const session = await createSession('Before name-only update')
+
+    const updated = await agentSessionService.update(session.id, {
+      name: 'Manual name'
+    })
+
+    expect(updated).toMatchObject({
+      id: session.id,
+      name: 'Manual name',
+      isNameManuallyEdited: true
+    })
+  })
+
+  it('preserves explicit automatic session renames', async () => {
+    const session = await createSession('Before automatic update')
+
+    const updated = await agentSessionService.update(session.id, {
+      name: 'Automatic name',
+      isNameManuallyEdited: false
+    })
+
+    expect(updated).toMatchObject({
+      id: session.id,
+      name: 'Automatic name',
+      isNameManuallyEdited: false
     })
   })
 
