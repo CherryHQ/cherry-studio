@@ -22,7 +22,9 @@ const BaseNavigatorContent = ({
   const { t } = useTranslation()
 
   return (
-    <Scrollbar className="min-h-0 flex-1 overflow-x-hidden px-3 pb-3 [scrollbar-gutter:stable_both-edges]">
+    // px-0: the list's horizontal inset comes only from the both-edges scrollbar gutter, which keeps
+    // the left/right spacing symmetric and lines the rows up with the search box above.
+    <Scrollbar className="min-h-0 flex-1 overflow-x-hidden px-0 pb-3 [scrollbar-gutter:stable_both-edges]">
       {sections.length === 0 ? (
         <EmptyState preset="no-knowledge" title={t('knowledge.empty')} compact className="h-full" />
       ) : (

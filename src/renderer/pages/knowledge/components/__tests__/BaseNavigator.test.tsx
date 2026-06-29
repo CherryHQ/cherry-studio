@@ -532,7 +532,9 @@ describe('BaseNavigator', () => {
 
     expect(container.querySelector('.min-h-0.flex-1')).toHaveClass(
       'overflow-x-hidden',
-      'px-3',
+      // px-0: the list's only horizontal inset is the both-edges scrollbar gutter, which lines the
+      // rows up with the search box above.
+      'px-0',
       'pb-3',
       // Reserve the scrollbar gutter on both edges so the list keeps symmetric left/right padding
       // whether or not the scrollbar is showing.
