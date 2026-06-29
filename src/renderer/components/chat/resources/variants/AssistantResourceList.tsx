@@ -1,7 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import { useOptionalShellActions } from '@renderer/components/chat/panes/Shell'
 import {
   ResourceEntityRail,
   type ResourceEntityRailItem
@@ -46,7 +45,6 @@ export function AssistantResourceList({
   onStartDraftAssistant
 }: AssistantResourceListProps) {
   const { t } = useTranslation()
-  const closeRightPane = useOptionalShellActions()?.close
   const {
     assistants,
     isLoading: isAssistantsLoading,
@@ -172,7 +170,6 @@ export function AssistantResourceList({
         await deleteTopicsByAssistantId(assistantId)
         await deleteAssistant(assistantId)
         if (activeAssistantId === assistantId) {
-          closeRightPane?.()
           await onStartDraftAssistant(null)
         }
 
@@ -188,7 +185,6 @@ export function AssistantResourceList({
     },
     [
       activeAssistantId,
-      closeRightPane,
       deleteAssistant,
       deleteTopicsByAssistantId,
       deletingAssistantId,

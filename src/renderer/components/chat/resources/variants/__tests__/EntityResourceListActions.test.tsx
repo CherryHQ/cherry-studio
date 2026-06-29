@@ -19,6 +19,10 @@ const agentDataMocks = vi.hoisted(() => ({
   refetchAgents: vi.fn()
 }))
 
+const shellActionMocks = vi.hoisted(() => ({
+  close: vi.fn()
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key
@@ -43,7 +47,7 @@ vi.mock('@data/DataApiService', () => ({
 
 vi.mock('@renderer/components/chat/panes/Shell', () => ({
   useOptionalShellActions: () => ({
-    close: vi.fn()
+    close: shellActionMocks.close
   })
 }))
 
@@ -221,6 +225,7 @@ vi.mock('@renderer/utils/error', () => ({
 
 describe('old layout entity resource list actions', () => {
   beforeEach(() => {
+    shellActionMocks.close.mockClear()
     assistantDataMocks.deleteAssistant.mockResolvedValue(undefined)
     assistantDataMocks.deleteTopicsByAssistantId.mockResolvedValue({ deletedCount: 1, deletedIds: ['topic-1'] })
     assistantDataMocks.refreshTopics.mockResolvedValue(undefined)
@@ -239,8 +244,14 @@ describe('old layout entity resource list actions', () => {
   })
 
   it('uses delete-assistant actions for the old layout assistant context and more menus', async () => {
+    const onStartDraftAssistant = vi.fn()
+
     render(
-      <AssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onStartDraftAssistant={vi.fn()} />
+      <AssistantResourceList
+        activeAssistantId="assistant-1"
+        onSelectTopic={vi.fn()}
+        onStartDraftAssistant={onStartDraftAssistant}
+      />
     )
 
     expect(screen.getByTestId('assistant-1-context-menu')).toHaveTextContent('assistants.delete.title')
@@ -259,10 +270,21 @@ describe('old layout entity resource list actions', () => {
     expect(assistantDataMocks.deleteTopicsByAssistantId.mock.invocationCallOrder[0]).toBeLessThan(
       assistantDataMocks.deleteAssistant.mock.invocationCallOrder[0]
     )
+    expect(onStartDraftAssistant).toHaveBeenCalledWith(null)
+    expect(shellActionMocks.close).not.toHaveBeenCalled()
   })
 
   it('uses delete-agent actions for the old layout agent context and more menus', async () => {
-    render(<AgentResourceList activeAgentId="agent-1" onSelectSession={vi.fn()} onStartDraftAgent={vi.fn()} />)
+    const onStartMissingAgentDraft = vi.fn()
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        onSelectSession={vi.fn()}
+        onStartDraftAgent={vi.fn()}
+        onStartMissingAgentDraft={onStartMissingAgentDraft}
+      />
+    )
 
     expect(screen.getByTestId('agent-1-context-menu')).toHaveTextContent('agent.delete.title')
     expect(screen.getByTestId('agent-1-more-menu')).toHaveTextContent('agent.delete.title')
@@ -282,5 +304,7 @@ describe('old layout entity resource list actions', () => {
     expect(agentDataMocks.deleteAgentSessions.mock.invocationCallOrder[0]).toBeLessThan(
       agentDataMocks.deleteAgent.mock.invocationCallOrder[0]
     )
+    expect(onStartMissingAgentDraft).toHaveBeenCalled()
+    expect(shellActionMocks.close).not.toHaveBeenCalled()
   })
 })

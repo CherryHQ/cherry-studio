@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import { useOptionalShellActions } from '@renderer/components/chat/panes/Shell'
 import {
   ResourceEntityRail,
   type ResourceEntityRailItem
@@ -52,7 +51,6 @@ export function AgentResourceList({
   onStartMissingAgentDraft
 }: AgentResourceListProps) {
   const { t } = useTranslation()
-  const closeRightPane = useOptionalShellActions()?.close
   const { agents, isLoading: isAgentsLoading, error: agentsError, refetch: refetchAgents } = useAgents()
   const {
     sessions,
@@ -184,7 +182,6 @@ export function AgentResourceList({
         await deleteAgentSessions({ params: { agentId } })
         await deleteAgent({ params: { agentId } })
         if (activeAgentId === agentId) {
-          closeRightPane?.()
           await onStartMissingAgentDraft?.()
         }
 
@@ -200,7 +197,6 @@ export function AgentResourceList({
     },
     [
       activeAgentId,
-      closeRightPane,
       deleteAgent,
       deleteAgentSessions,
       deletingAgentId,
