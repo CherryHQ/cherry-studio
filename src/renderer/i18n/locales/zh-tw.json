@@ -3169,12 +3169,8 @@
             "search": "搜尋技能"
           },
           "description_placeholder": "描述它的用途...",
-          "dialog_description": "建立一個輕量級的助理或代理程式。",
           "guided_progress": "引導式建立 · 第 {{current}} / {{total}} 步",
-          "model_placeholder": "選擇模型",
-          "model_required": "請選擇一個模型",
           "name_placeholder": "輸入名稱",
-          "name_required": "請輸入名稱",
           "next": "下一步",
           "step": {
             "basic": "基本資訊",

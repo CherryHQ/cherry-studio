@@ -3169,12 +3169,8 @@
             "search": "搜索技能"
           },
           "description_placeholder": "描述它的用途...",
-          "dialog_description": "轻量新建助手或智能体。",
           "guided_progress": "引导式创建 · 第 {{current}} / {{total}} 步",
-          "model_placeholder": "选择模型",
-          "model_required": "请选择模型",
           "name_placeholder": "输入名称",
-          "name_required": "请输入名称",
           "next": "下一步",
           "step": {
             "basic": "基础信息",
