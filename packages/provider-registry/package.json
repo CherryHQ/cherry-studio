@@ -2,6 +2,7 @@
   "name": "@cherrystudio/provider-registry",
   "version": "0.0.1-alpha.1",
   "description": "Provider and Model Registry",
+  "private": true,
   "main": "dist/index.cjs",
   "module": "dist/index.mjs",
   "types": "dist/index.d.cts",
