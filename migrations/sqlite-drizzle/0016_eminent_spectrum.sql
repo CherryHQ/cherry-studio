@@ -38,6 +38,7 @@ CREATE TABLE `__new_knowledge_base` (
             OR (
               "__new_knowledge_base"."embedding_model_id" IS NULL
               AND "__new_knowledge_base"."dimensions" IS NULL
+              AND "__new_knowledge_base"."search_mode" = 'bm25'
             )
           )
         )

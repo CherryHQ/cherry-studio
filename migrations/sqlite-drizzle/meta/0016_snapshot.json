@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "8610c9cb-5707-4414-8788-d88a88e412bc",
+  "id": "476199db-8eff-4a75-91dc-c63a28aaf810",
   "prevId": "105b4da9-7d69-4d03-9ccf-b099bb352292",
   "tables": {
     "agent": {
@@ -1994,7 +1994,7 @@
         },
         "knowledge_base_status_error_check": {
           "name": "knowledge_base_status_error_check",
-          "value": "\n        (\n          \"knowledge_base\".\"status\" = 'completed'\n          AND \"knowledge_base\".\"error\" IS NULL\n          AND (\n            (\n              \"knowledge_base\".\"embedding_model_id\" IS NOT NULL\n              AND \"knowledge_base\".\"dimensions\" IS NOT NULL\n              AND \"knowledge_base\".\"dimensions\" > 0\n            )\n            OR (\n              \"knowledge_base\".\"embedding_model_id\" IS NULL\n              AND \"knowledge_base\".\"dimensions\" IS NULL\n            )\n          )\n        )\n        OR (\n          \"knowledge_base\".\"status\" = 'failed'\n          AND \"knowledge_base\".\"error\" IS NOT NULL\n          AND length(trim(\"knowledge_base\".\"error\")) > 0\n        )\n      "
+          "value": "\n        (\n          \"knowledge_base\".\"status\" = 'completed'\n          AND \"knowledge_base\".\"error\" IS NULL\n          AND (\n            (\n              \"knowledge_base\".\"embedding_model_id\" IS NOT NULL\n              AND \"knowledge_base\".\"dimensions\" IS NOT NULL\n              AND \"knowledge_base\".\"dimensions\" > 0\n            )\n            OR (\n              \"knowledge_base\".\"embedding_model_id\" IS NULL\n              AND \"knowledge_base\".\"dimensions\" IS NULL\n              AND \"knowledge_base\".\"search_mode\" = 'bm25'\n            )\n          )\n        )\n        OR (\n          \"knowledge_base\".\"status\" = 'failed'\n          AND \"knowledge_base\".\"error\" IS NOT NULL\n          AND length(trim(\"knowledge_base\".\"error\")) > 0\n        )\n      "
         }
       }
     },

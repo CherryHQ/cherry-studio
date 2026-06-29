@@ -63,6 +63,7 @@ export const knowledgeBaseTable = sqliteTable(
             OR (
               ${t.embeddingModelId} IS NULL
               AND ${t.dimensions} IS NULL
+              AND ${t.searchMode} = 'bm25'
             )
           )
         )
