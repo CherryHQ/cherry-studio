@@ -366,7 +366,7 @@
           "invalid_request": "The Excel preview request is invalid.",
           "parse_failed": "Unable to read this Excel file.",
           "too_complex": "This Excel file is too complex to preview.",
-          "unsupported_extension": "Only .xlsx and .xlsm files can be previewed.",
+          "unsupported_extension": "Only .xlsx files can be previewed.",
           "unsupported_xls": "Legacy .xls files are not supported by Excel preview."
         },
         "warnings": {

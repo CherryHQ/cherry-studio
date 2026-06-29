@@ -366,7 +366,7 @@
           "invalid_request": "Excel 预览请求无效。",
           "parse_failed": "无法读取这个 Excel 文件。",
           "too_complex": "这个 Excel 文件内容过于复杂，暂时无法预览。",
-          "unsupported_extension": "只支持预览 .xlsx 和 .xlsm 文件。",
+          "unsupported_extension": "只支持预览 .xlsx 文件。",
           "unsupported_xls": "暂时不支持旧版 .xls 文件预览。"
         },
         "warnings": {

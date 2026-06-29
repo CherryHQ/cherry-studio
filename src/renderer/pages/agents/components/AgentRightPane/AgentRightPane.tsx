@@ -7,6 +7,7 @@ import { resolveInlineFilePath } from '@renderer/components/chat/messages/utils/
 import ArtifactPane, {
   ArtifactFilePreview,
   isOfficeDocumentFile,
+  isOfficePreviewFile,
   resolveArtifactPaneFileSelection
 } from '@renderer/components/chat/panes/ArtifactPane'
 import OpenExternalAppButton from '@renderer/components/chat/panes/OpenExternalAppButton'
@@ -83,7 +84,7 @@ function getFilePreviewTitle(filePath: string): string {
 }
 
 function isFramedFilePreview(filePath: string): boolean {
-  return /\.(html?|pdf)$/i.test(filePath)
+  return /\.(html?|pdf)$/i.test(filePath) || isOfficePreviewFile(filePath)
 }
 
 interface AgentFlowTab {

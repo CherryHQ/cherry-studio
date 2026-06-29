@@ -366,7 +366,7 @@
           "invalid_request": "Excel 預覽請求無效。",
           "parse_failed": "無法讀取此 Excel 檔案。",
           "too_complex": "這個 Excel 檔案過於複雜，無法預覽。",
-          "unsupported_extension": "僅支援預覽 .xlsx 與 .xlsm 檔案。",
+          "unsupported_extension": "僅支援預覽 .xlsx 檔案。",
           "unsupported_xls": "舊版 .xls 檔案不受 Excel 預覽支援。"
         },
         "warnings": {
