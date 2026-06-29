@@ -44,14 +44,14 @@
     "@ai-sdk/provider-utils": "^4.0.23",
     "@ai-sdk/xai": "^3.0.83",
     "@cherrystudio/ai-sdk-provider": "workspace:*",
-    "@openrouter/ai-sdk-provider": "^2.3.3",
+    "@openrouter/ai-sdk-provider": "^2.10.0",
     "@requesty/ai-sdk": "^3.4.0",
     "quick-lru": "^5.1.1",
     "zod": "^4.1.5"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.2.4",
     "@cherrystudio/ai-sdk-provider": "workspace:*",
-    "biome": "^0.3.3",
     "oxlint": "^1.36.0",
     "tsdown": "^0.20.3",
     "typescript": "^5.0.0",
