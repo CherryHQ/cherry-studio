@@ -58,10 +58,14 @@ describe('OfficePreviewPanel', () => {
     )
 
     await waitFor(() => expect(screen.queryByTestId('loading-state')).not.toBeInTheDocument())
-    expect(mocks.request).toHaveBeenCalledWith('office_preview.render', {
-      workspacePath: '/tmp/workspace',
-      filePath: 'report.xlsx'
-    })
+    expect(mocks.request).toHaveBeenCalledWith(
+      'office_preview.render',
+      expect.objectContaining({
+        workspacePath: '/tmp/workspace',
+        filePath: 'report.xlsx',
+        requestId: expect.any(String)
+      })
+    )
 
     const iframe = container.querySelector('iframe')
     expect(iframe).not.toBeNull()
@@ -92,5 +96,31 @@ describe('OfficePreviewPanel', () => {
 
     await waitFor(() => expect(screen.queryByTestId('loading-state')).not.toBeInTheDocument())
     expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.office.errors.file_too_large')
+  })
+
+  it('cancels the in-flight render request when unmounted', async () => {
+    let resolveRender!: (value: { html: string }) => void
+    mocks.request.mockImplementation((route: string) => {
+      if (route === 'office_preview.cancel') return Promise.resolve({ cancelled: true })
+      return new Promise((resolve) => {
+        resolveRender = resolve
+      })
+    })
+
+    const { unmount } = render(
+      <OfficePreviewPanel workspacePath="/tmp/workspace" filePath="report.pptx" refreshKey={0} />
+    )
+
+    await waitFor(() => expect(mocks.request).toHaveBeenCalledWith('office_preview.render', expect.any(Object)))
+    const renderInput = mocks.request.mock.calls.find(([route]) => route === 'office_preview.render')?.[1]
+    const requestId = renderInput.requestId
+
+    unmount()
+
+    await waitFor(() => {
+      expect(mocks.request).toHaveBeenCalledWith('office_preview.cancel', { requestId })
+    })
+
+    resolveRender({ html: '<p>late</p>' })
   })
 })

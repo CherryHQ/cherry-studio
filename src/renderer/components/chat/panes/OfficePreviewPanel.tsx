@@ -23,6 +23,8 @@ interface OfficePreviewPanelProps {
 
 function getOfficePreviewErrorMessageKey(code: OfficePreviewErrorCode): string {
   switch (code) {
+    case officePreviewErrorCodes.CANCELLED:
+      return 'agent.preview_pane.office.errors.cancelled'
     case officePreviewErrorCodes.FILE_TOO_LARGE:
       return 'agent.preview_pane.office.errors.file_too_large'
     case officePreviewErrorCodes.FILE_UNAVAILABLE:
@@ -38,6 +40,10 @@ function getOfficePreviewErrorMessageKey(code: OfficePreviewErrorCode): string {
   }
 }
 
+function createOfficePreviewRequestId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
 export default function OfficePreviewPanel({ workspacePath, filePath, refreshKey, actions }: OfficePreviewPanelProps) {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(true)
@@ -47,6 +53,7 @@ export default function OfficePreviewPanel({ workspacePath, filePath, refreshKey
 
   useEffect(() => {
     let cancelled = false
+    const requestId = createOfficePreviewRequestId()
     setLoading(true)
     setResult(null)
     setErrorCode(null)
@@ -54,7 +61,7 @@ export default function OfficePreviewPanel({ workspacePath, filePath, refreshKey
 
     void (async () => {
       try {
-        const preview = await ipcApi.request('office_preview.render', { workspacePath, filePath })
+        const preview = await ipcApi.request('office_preview.render', { workspacePath, filePath, requestId })
         if (!cancelled) setResult(preview)
       } catch (error) {
         if (cancelled) return
@@ -72,6 +79,7 @@ export default function OfficePreviewPanel({ workspacePath, filePath, refreshKey
 
     return () => {
       cancelled = true
+      void Promise.resolve(ipcApi.request('office_preview.cancel', { requestId })).catch(() => {})
     }
   }, [filePath, refreshKey, workspacePath])
 

@@ -385,6 +385,7 @@
         "description": "此类型文件需要使用系统默认应用打开。",
         "error_title": "无法预览 Office 文件",
         "errors": {
+          "cancelled": "Office 预览已取消。",
           "file_too_large": "这个 Office 文件超出预览大小上限。",
           "file_unavailable": "无法打开此文件，它可能已被移动或删除。",
           "invalid_request": "Office 预览请求无效。",

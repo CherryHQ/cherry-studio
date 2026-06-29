@@ -1,4 +1,4 @@
-import { officePreviewService } from '@main/services/OfficePreviewService'
+import { officePreviewService } from '@main/services/officePreview'
 import { IpcError } from '@shared/ipc/errors'
 import { officePreviewErrorCodes } from '@shared/ipc/errors/officePreview'
 import type { officePreviewRequestSchemas } from '@shared/ipc/schemas/officePreview'
@@ -9,6 +9,12 @@ export const officePreviewHandlers: IpcHandlersFor<typeof officePreviewRequestSc
     if (!senderId) {
       throw new IpcError(officePreviewErrorCodes.INVALID_REQUEST)
     }
-    return officePreviewService.render(input)
+    return officePreviewService.render(input, senderId)
+  },
+  'office_preview.cancel': async (input, { senderId }) => {
+    if (!senderId) {
+      throw new IpcError(officePreviewErrorCodes.INVALID_REQUEST)
+    }
+    return officePreviewService.cancel(input.requestId, senderId)
   }
 }

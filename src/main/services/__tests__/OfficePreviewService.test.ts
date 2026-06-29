@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   realpath: vi.fn(),
   stat: vi.fn(),
-  convert: vi.fn(),
+  fork: vi.fn(),
   listWorkspaces: vi.fn(),
   loggerWarn: vi.fn(),
   loggerError: vi.fn()
@@ -15,13 +15,14 @@ vi.mock('node:fs/promises', () => ({
   stat: mocks.stat
 }))
 
-vi.mock('officeparser', () => ({
-  OfficeConverter: {
-    convert: mocks.convert
-  },
-  OfficeErrorType: {
-    OPERATION_ABORTED: 'OPERATION_ABORTED'
+vi.mock('electron', () => ({
+  utilityProcess: {
+    fork: mocks.fork
   }
+}))
+
+vi.mock('../officePreview/officePreviewWorker?modulePath', () => ({
+  default: '/mock/officePreviewWorker.js'
 }))
 
 vi.mock('@data/services/AgentWorkspaceService', () => ({
@@ -39,7 +40,33 @@ vi.mock('@logger', () => ({
   }
 }))
 
-import { officePreviewService } from '../OfficePreviewService'
+import { officePreviewService } from '../officePreview'
+
+type ChildListener = (payload?: unknown) => void
+
+function createUtilityChild() {
+  const listeners = new Map<string, ChildListener[]>()
+  const child = {
+    on: vi.fn((event: string, listener: ChildListener) => {
+      listeners.set(event, [...(listeners.get(event) ?? []), listener])
+      return child
+    }),
+    postMessage: vi.fn(),
+    kill: vi.fn(() => true),
+    emit: (event: string, payload?: unknown) => {
+      for (const listener of listeners.get(event) ?? []) {
+        listener(payload)
+      }
+    }
+  }
+  return child
+}
+
+function mockNextUtilityChild() {
+  const child = createUtilityChild()
+  mocks.fork.mockReturnValueOnce(child)
+  return child
+}
 
 function mockFilePath(filePath = '/tmp/workspace/report.docx') {
   mocks.realpath.mockImplementation(async (input: string) => {
@@ -55,92 +82,59 @@ function mockFilePath(filePath = '/tmp/workspace/report.docx') {
 
 describe('OfficePreviewService', () => {
   beforeEach(() => {
+    vi.useRealTimers()
     vi.clearAllMocks()
     mockFilePath()
     mocks.listWorkspaces.mockResolvedValue([{ path: '/tmp/workspace' }])
   })
 
-  it('renders supported Office files to HTML', async () => {
-    mocks.convert.mockResolvedValueOnce({
-      value: '<p>Hello</p>',
-      messages: [{ code: 'notice', message: 'partial support' }]
+  it('renders supported Office files in a utility process', async () => {
+    const child = mockNextUtilityChild()
+
+    const resultPromise = officePreviewService.render(
+      { workspacePath: '/tmp/workspace', filePath: 'report.docx', requestId: 'preview-1' },
+      'w1'
+    )
+
+    await vi.waitFor(() => expect(mocks.fork).toHaveBeenCalled())
+    expect(mocks.fork).toHaveBeenCalledWith(
+      '/mock/officePreviewWorker.js',
+      [],
+      expect.objectContaining({
+        serviceName: 'Cherry Studio Office Preview'
+      })
+    )
+    expect(child.postMessage).toHaveBeenCalledWith({
+      targetRealPath: '/tmp/workspace/report.docx',
+      extension: 'docx'
     })
 
-    const result = await officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.docx' })
+    child.emit('message', { ok: true, html: '<p>Hello</p>' })
 
-    expect(result.html).toContain('Content-Security-Policy')
-    expect(result.html).toContain('<p>Hello</p>')
-    expect(mocks.convert).toHaveBeenCalledWith('/tmp/workspace/report.docx', 'html', expect.any(Object))
-  })
-
-  it('falls back to escaped text when HTML conversion returns empty output', async () => {
-    mocks.convert
-      .mockResolvedValueOnce({ value: '  ', messages: [] })
-      .mockResolvedValueOnce({ value: 'plain <text>', messages: [] })
-
-    const result = await officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.docx' })
-
-    expect(result).toMatchObject({
-      html: expect.stringContaining('<pre class="office-preview-text-fallback">plain &lt;text&gt;</pre>')
-    })
-    expect(mocks.convert).toHaveBeenNthCalledWith(2, '/tmp/workspace/report.docx', 'text', expect.any(Object))
-  })
-
-  it('uses the standalone HTML generator without remote chart scripts', async () => {
-    mocks.convert.mockResolvedValueOnce({
-      value: '<!DOCTYPE html><html><body><div class="spreadsheet-tabs"></div></body></html>',
-      messages: []
-    })
-
-    await officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.xlsx' })
-
-    const config = mocks.convert.mock.calls[0][2]
-    expect(config.generatorConfig).toMatchObject({
-      includeFormatting: true,
-      includeImages: true,
-      includeCharts: false,
-      htmlConfig: {
-        standalone: true,
-        containerWidth: '100%'
-      }
-    })
-    expect(config.generatorConfig.htmlConfig.injections.headStart).toContain('Object.defineProperty(window')
-    expect(config.generatorConfig.htmlConfig.injections.headStart).toContain('a.spreadsheet-tab[href^="#sheet-"]')
-    expect(config.generatorConfig.htmlConfig.injections.headStart).toContain('event.preventDefault()')
-    expect(config.parseConfig).not.toHaveProperty('extractAttachments', false)
-    expect(config.parseConfig).not.toHaveProperty('ignoreNotes', true)
-    expect(config.parseConfig).not.toHaveProperty('ignoreComments', true)
-  })
-
-  it('hardens generated HTML before returning it to the renderer', async () => {
-    mocks.convert.mockResolvedValueOnce({
-      value:
-        '<!DOCTYPE html><html><head><script src="https://cdn.jsdelivr.net/npm/chart.js"></script></head><body><a href="javascript:alert(1)" onclick="alert(2)">link</a></body></html>',
-      messages: []
-    })
-
-    const result = await officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.docx' })
-
-    expect(result.html).toContain('Content-Security-Policy')
-    expect(result.html).not.toContain('cdn.jsdelivr.net')
-    expect(result.html).not.toContain('javascript:alert')
-    expect(result.html).not.toContain('onclick=')
+    await expect(resultPromise).resolves.toEqual({ html: '<p>Hello</p>' })
+    expect(child.kill).toHaveBeenCalled()
   })
 
   it('rejects unsupported extensions before touching the file system', async () => {
     await expect(
-      officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.xlsm' })
+      officePreviewService.render(
+        { workspacePath: '/tmp/workspace', filePath: 'report.xlsm', requestId: 'preview-1' },
+        'w1'
+      )
     ).rejects.toMatchObject({
       code: 'OFFICE_PREVIEW_UNSUPPORTED_EXTENSION'
     })
     expect(mocks.realpath).not.toHaveBeenCalled()
     expect(mocks.stat).not.toHaveBeenCalled()
-    expect(mocks.convert).not.toHaveBeenCalled()
+    expect(mocks.fork).not.toHaveBeenCalled()
   })
 
   it('rejects absolute file paths from renderer input', async () => {
     await expect(
-      officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: '/tmp/report.docx' })
+      officePreviewService.render(
+        { workspacePath: '/tmp/workspace', filePath: '/tmp/report.docx', requestId: 'preview-1' },
+        'w1'
+      )
     ).rejects.toMatchObject({
       code: 'OFFICE_PREVIEW_INVALID_REQUEST'
     })
@@ -151,12 +145,12 @@ describe('OfficePreviewService', () => {
     mocks.listWorkspaces.mockResolvedValueOnce([{ path: '/tmp/workspace' }])
 
     await expect(
-      officePreviewService.render({ workspacePath: '/', filePath: 'tmp/report.docx' })
+      officePreviewService.render({ workspacePath: '/', filePath: 'tmp/report.docx', requestId: 'preview-1' }, 'w1')
     ).rejects.toMatchObject({
       code: 'OFFICE_PREVIEW_INVALID_REQUEST'
     })
     expect(mocks.realpath).not.toHaveBeenCalled()
-    expect(mocks.convert).not.toHaveBeenCalled()
+    expect(mocks.fork).not.toHaveBeenCalled()
   })
 
   it('rejects symlinks that resolve outside the workspace', async () => {
@@ -167,80 +161,116 @@ describe('OfficePreviewService', () => {
     })
 
     await expect(
-      officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.docx' })
+      officePreviewService.render(
+        { workspacePath: '/tmp/workspace', filePath: 'report.docx', requestId: 'preview-1' },
+        'w1'
+      )
     ).rejects.toMatchObject({
       code: 'OFFICE_PREVIEW_INVALID_REQUEST'
     })
     expect(mocks.stat).not.toHaveBeenCalled()
-    expect(mocks.convert).not.toHaveBeenCalled()
+    expect(mocks.fork).not.toHaveBeenCalled()
   })
 
-  it('returns file_too_large before conversion', async () => {
+  it('returns file_too_large before starting the utility process', async () => {
     mocks.stat.mockResolvedValueOnce({
       isFile: () => true,
       size: 21 * 1024 * 1024
     })
 
     await expect(
-      officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.docx' })
+      officePreviewService.render(
+        { workspacePath: '/tmp/workspace', filePath: 'report.docx', requestId: 'preview-1' },
+        'w1'
+      )
     ).rejects.toMatchObject({
       code: 'OFFICE_PREVIEW_FILE_TOO_LARGE'
     })
-    expect(mocks.convert).not.toHaveBeenCalled()
+    expect(mocks.fork).not.toHaveBeenCalled()
   })
 
-  it('returns file_too_large when generated HTML is too large for IPC preview', async () => {
-    mocks.convert.mockResolvedValueOnce({
-      value: 'x'.repeat(6 * 1024 * 1024),
-      messages: []
-    })
+  it('maps worker domain failures to IpcError instances', async () => {
+    const child = mockNextUtilityChild()
 
-    await expect(
-      officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.docx' })
-    ).rejects.toMatchObject({
+    const resultPromise = officePreviewService.render(
+      { workspacePath: '/tmp/workspace', filePath: 'report.docx', requestId: 'preview-1' },
+      'w1'
+    )
+
+    await vi.waitFor(() => expect(mocks.fork).toHaveBeenCalled())
+    child.emit('message', { ok: false, code: 'OFFICE_PREVIEW_FILE_TOO_LARGE' })
+
+    await expect(resultPromise).rejects.toMatchObject({
       code: 'OFFICE_PREVIEW_FILE_TOO_LARGE'
     })
+    await expect(resultPromise).rejects.toBeInstanceOf(IpcError)
   })
 
-  it('maps conversion failures to parse_failed', async () => {
-    mocks.convert.mockRejectedValueOnce(new Error('bad zip'))
+  it('maps worker crashes to parse_failed', async () => {
+    const child = mockNextUtilityChild()
 
-    await expect(
-      officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.docx' })
-    ).rejects.toMatchObject({
+    const resultPromise = officePreviewService.render(
+      { workspacePath: '/tmp/workspace', filePath: 'report.docx', requestId: 'preview-1' },
+      'w1'
+    )
+
+    await vi.waitFor(() => expect(mocks.fork).toHaveBeenCalled())
+    child.emit('exit', 1)
+
+    await expect(resultPromise).rejects.toMatchObject({
       code: 'OFFICE_PREVIEW_PARSE_FAILED'
     })
-    expect(mocks.loggerError).toHaveBeenCalledWith('Failed to render Office preview', expect.any(Error))
   })
 
-  it('maps aborted conversion to parse_timeout', async () => {
-    const error = new Error('The operation was aborted')
-    error.name = 'AbortError'
-    mocks.convert.mockRejectedValueOnce(error)
+  it('kills the utility process and rejects the render when cancelled', async () => {
+    const child = mockNextUtilityChild()
 
-    await expect(
-      officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.docx' })
-    ).rejects.toMatchObject({
+    const resultPromise = officePreviewService.render(
+      { workspacePath: '/tmp/workspace', filePath: 'report.docx', requestId: 'preview-1' },
+      'w1'
+    )
+
+    await vi.waitFor(() => expect(mocks.fork).toHaveBeenCalled())
+
+    expect(officePreviewService.cancel('preview-1', 'w1')).toEqual({ cancelled: true })
+    await expect(resultPromise).rejects.toMatchObject({
+      code: 'OFFICE_PREVIEW_CANCELLED'
+    })
+    expect(child.kill).toHaveBeenCalled()
+  })
+
+  it('kills the utility process and maps timeouts to parse_timeout', async () => {
+    vi.useFakeTimers()
+    const child = mockNextUtilityChild()
+
+    const resultPromise = officePreviewService.render(
+      { workspacePath: '/tmp/workspace', filePath: 'report.docx', requestId: 'preview-1' },
+      'w1'
+    )
+
+    await vi.waitFor(() => expect(mocks.fork).toHaveBeenCalled())
+    const timeoutExpectation = expect(resultPromise).rejects.toMatchObject({
       code: 'OFFICE_PREVIEW_PARSE_TIMEOUT'
     })
+    await vi.advanceTimersByTimeAsync(15_000)
+
+    await timeoutExpectation
+    expect(child.kill).toHaveBeenCalled()
   })
 
-  it('renders xlsx previews through the Office HTML pipeline', async () => {
-    mockFilePath('/tmp/workspace/report.xlsx')
-    mocks.convert.mockResolvedValueOnce({
-      value: '<table><tr><td>A1</td></tr></table>',
-      messages: []
-    })
+  it('does not cancel another sender scope with the same request id', async () => {
+    const child = mockNextUtilityChild()
 
-    const result = await officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.xlsx' })
+    const resultPromise = officePreviewService.render(
+      { workspacePath: '/tmp/workspace', filePath: 'report.docx', requestId: 'preview-1' },
+      'w1'
+    )
 
-    expect(result.html).toContain('Content-Security-Policy')
-    expect(result.html).toContain('<td>A1</td>')
-  })
+    await vi.waitFor(() => expect(mocks.fork).toHaveBeenCalled())
+    expect(officePreviewService.cancel('preview-1', 'w2')).toEqual({ cancelled: false })
 
-  it('throws IpcError instances for branchable domain failures', async () => {
-    await expect(
-      officePreviewService.render({ workspacePath: '/tmp/workspace', filePath: 'report.xlsm' })
-    ).rejects.toBeInstanceOf(IpcError)
+    child.emit('message', { ok: true, html: '<p>Hello</p>' })
+
+    await expect(resultPromise).resolves.toEqual({ html: '<p>Hello</p>' })
   })
 })
