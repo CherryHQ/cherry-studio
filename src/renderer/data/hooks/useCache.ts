@@ -16,6 +16,38 @@ import { useCallback, useEffect, useSyncExternalStore } from 'react'
 const logger = loggerService.withContext('useCache')
 
 // ============================================================================
+// Functional Updater Types
+// ============================================================================
+
+/**
+ * Shallow-readonly view of a cache value, used for the `prev` argument of a
+ * functional updater. Containers (objects/arrays) become `Readonly<T>` so the
+ * most common footgun — mutating `prev` in place and returning it — fails to
+ * compile; primitives pass through unchanged so `prev => !prev` / `prev => prev + 1`
+ * still work.
+ *
+ * Shallow only: nested mutation (e.g. `prev.items[0].x = ...`) is NOT caught by
+ * the type — keep updaters pure (see {@link CacheSetStateAction}).
+ */
+type ReadonlyValue<T> = T extends object ? Readonly<T> : T
+
+/**
+ * Setter input for cache hooks, mirroring React's `SetStateAction<T>`: either a
+ * concrete value or an updater `(prev) => next`.
+ *
+ * The updater is resolved against the **latest stored value** at write time (not
+ * the render-time snapshot), which is what makes read-modify-write safe across an
+ * `await`. It MUST be pure and return a new value: mutating `prev` in place and
+ * returning the same reference makes `CacheService` short-circuit on
+ * `isEqual(stored, value)` and silently skip the subscriber notification.
+ *
+ * Caveat (same as React's `SetStateAction`): for keys whose value type is itself
+ * a function (only the `any`-typed keys in practice), a function argument is
+ * always treated as an updater, never stored verbatim.
+ */
+type CacheSetStateAction<T> = T | ((prev: ReadonlyValue<T>) => T)
+
+// ============================================================================
 // Template Matching Utilities
 // ============================================================================
 
@@ -135,12 +167,21 @@ function getSharedCacheDefaultValue<K extends SharedCacheKey>(key: K): InferShar
  *
  * // Update the value
  * setAvatar('new-avatar-url')
+ *
+ * // Functional update — resolved against the latest stored value (safe across awaits)
+ * setOpened((prev) => prev.filter((item) => item.id !== id))
  * ```
+ *
+ * @remarks
+ * The setter accepts a value or an updater `(prev) => next`, like React's
+ * `useState`. The updater MUST be pure: it runs against the latest stored value
+ * and must return a new value — mutating `prev` in place and returning the same
+ * reference is short-circuited by `isEqual` and silently skips the re-render.
  */
 export function useCache<K extends UseCacheKey>(
   key: K,
   initValue?: InferUseCacheValue<K>
-): [InferUseCacheValue<K>, (value: InferUseCacheValue<K>) => void] {
+): [InferUseCacheValue<K>, (value: CacheSetStateAction<InferUseCacheValue<K>>) => void] {
   // Get the default value for this key (works with both fixed and template keys)
   const defaultValue = getUseCacheDefaultValue(key)
 
@@ -192,14 +233,23 @@ export function useCache<K extends UseCacheKey>(
   }, [key])
 
   /**
-   * Memoized setter function for updating the cache value
-   * @param newValue - New value to store in cache
+   * Memoized setter function for updating the cache value.
+   * Accepts a concrete value or a functional updater `(prev) => next`. The
+   * updater is resolved against the latest stored value via the same default
+   * fallback chain as the hook return (`get ?? initValue ?? schema default`),
+   * so it stays correct across an `await`.
+   * @param newValue - New value, or an updater computing it from the latest value
    */
   const setValue = useCallback(
-    (newValue: InferUseCacheValue<K>) => {
-      cacheService.set(key, newValue)
+    (newValue: CacheSetStateAction<InferUseCacheValue<K>>) => {
+      if (typeof newValue === 'function') {
+        const prev = (cacheService.get(key) ?? initValue ?? defaultValue) as ReadonlyValue<InferUseCacheValue<K>>
+        cacheService.set(key, newValue(prev))
+      } else {
+        cacheService.set(key, newValue)
+      }
     },
-    [key]
+    [key, initValue, defaultValue]
   )
 
   return [value ?? initValue ?? defaultValue!, setValue]
@@ -233,12 +283,22 @@ export function useCache<K extends UseCacheKey>(
  *
  * // Changes automatically sync to all open windows
  * setLastKey('api-key-1')
+ *
+ * // Functional update — resolved against this window's latest local value
+ * setActive((prev) => ({ ...prev, [id]: state }))
  * ```
+ *
+ * @remarks
+ * The setter accepts a value or an updater `(prev) => next`. The updater resolves
+ * against THIS window's latest local value — it fixes read-modify-write races
+ * within a window across awaits, but does NOT guarantee cross-window atomicity
+ * (concurrent writes from another window can still be last-write-wins). Keep the
+ * updater pure and return a new value (see `useCache`).
  */
 export function useSharedCache<K extends SharedCacheKey>(
   key: K,
   initValue?: InferSharedCacheValue<K>
-): [InferSharedCacheValue<K>, (value: InferSharedCacheValue<K>) => void] {
+): [InferSharedCacheValue<K>, (value: CacheSetStateAction<InferSharedCacheValue<K>>) => void] {
   /**
    * Subscribe to shared cache changes using React's useSyncExternalStore
    * This ensures the component re-renders when the shared cache value changes
@@ -295,15 +355,24 @@ export function useSharedCache<K extends SharedCacheKey>(
   }, [key])
 
   /**
-   * Memoized setter function for updating the shared cache value
-   * Changes will be synchronized across all renderer windows
-   * @param newValue - New value to store in shared cache
+   * Memoized setter function for updating the shared cache value.
+   * Changes will be synchronized across all renderer windows. Accepts a concrete
+   * value or a functional updater `(prev) => next` resolved against this window's
+   * latest local value (same default fallback chain as the hook return).
+   * @param newValue - New value, or an updater computing it from the latest value
    */
   const setValue = useCallback(
-    (newValue: InferSharedCacheValue<K>) => {
-      cacheService.setShared(key, newValue)
+    (newValue: CacheSetStateAction<InferSharedCacheValue<K>>) => {
+      if (typeof newValue === 'function') {
+        const prev = (cacheService.getShared(key) ?? initValue ?? getSharedCacheDefaultValue(key)) as ReadonlyValue<
+          InferSharedCacheValue<K>
+        >
+        cacheService.setShared(key, newValue(prev))
+      } else {
+        cacheService.setShared(key, newValue)
+      }
     },
-    [key]
+    [key, initValue]
   )
 
   return [value ?? initValue ?? (getSharedCacheDefaultValue(key) as InferSharedCacheValue<K>), setValue]
@@ -328,11 +397,19 @@ export function useSharedCache<K extends SharedCacheKey>(
  *
  * // Changes are automatically saved
  * setUserPrefs({ theme: 'dark', language: 'en' })
+ *
+ * // Functional update — resolved against the latest persisted value
+ * setPinned((prev) => [tab, ...prev.filter((t) => t.id !== tab.id)].slice(0, 10))
  * ```
+ *
+ * @remarks
+ * The setter accepts a value or an updater `(prev) => next`, resolved against the
+ * latest persisted value (`getPersist`, which always returns the stored value or
+ * the schema default). Keep the updater pure and return a new value (see `useCache`).
  */
 export function usePersistCache<K extends RendererPersistCacheKey>(
   key: K
-): [RendererPersistCacheSchema[K], (value: RendererPersistCacheSchema[K]) => void] {
+): [RendererPersistCacheSchema[K], (value: CacheSetStateAction<RendererPersistCacheSchema[K]>) => void] {
   /**
    * Subscribe to persist cache changes using React's useSyncExternalStore
    * This ensures the component re-renders when the persist cache value changes
@@ -354,13 +431,20 @@ export function usePersistCache<K extends RendererPersistCacheKey>(
   }, [key])
 
   /**
-   * Memoized setter function for updating the persist cache value
-   * Changes will be synchronized across all windows and persisted to localStorage
-   * @param newValue - New value to store in persist cache (must match schema type)
+   * Memoized setter function for updating the persist cache value.
+   * Changes will be synchronized across all windows and persisted to localStorage.
+   * Accepts a concrete value or a functional updater `(prev) => next` resolved
+   * against the latest persisted value (`getPersist` never returns undefined).
+   * @param newValue - New value, or an updater computing it from the latest value
    */
   const setValue = useCallback(
-    (newValue: RendererPersistCacheSchema[K]) => {
-      cacheService.setPersist(key, newValue)
+    (newValue: CacheSetStateAction<RendererPersistCacheSchema[K]>) => {
+      if (typeof newValue === 'function') {
+        const prev = cacheService.getPersist(key) as ReadonlyValue<RendererPersistCacheSchema[K]>
+        cacheService.setPersist(key, newValue(prev))
+      } else {
+        cacheService.setPersist(key, newValue)
+      }
     },
     [key]
   )
