@@ -1,5 +1,11 @@
 # @cherrystudio/extension-table-plus
 
+## 3.0.13
+
+### Patch Changes
+
+- [#16118](https://github.com/CherryHQ/cherry-studio/pull/16118) [`22ffb62`](https://github.com/CherryHQ/cherry-studio/commit/22ffb62f628a1932b71b893134068418e28c0245) Thanks [@DeJeune](https://github.com/DeJeune)! - Align the `@tiptap/core` and `@tiptap/pm` devDependencies to 3.26.1 to match the editor's Tiptap upgrade. No public API change.
+
 ## 3.0.12
 
 ### Patch Changes

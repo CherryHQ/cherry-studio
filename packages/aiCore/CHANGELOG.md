@@ -1,5 +1,71 @@
 # @cherrystudio/ai-core
 
+## 2.0.2
+
+### Patch Changes
+
+- [#15830](https://github.com/CherryHQ/cherry-studio/pull/15830) [`cdeaf05`](https://github.com/CherryHQ/cherry-studio/commit/cdeaf05af086f630d40b0e88f2c0c3e910a5f825) Thanks [@xianzuyang9-blip](https://github.com/xianzuyang9-blip)! - Align published package entrypoints with the files emitted by the tsdown build.
+
+- [#16207](https://github.com/CherryHQ/cherry-studio/pull/16207) [`16ebe24`](https://github.com/CherryHQ/cherry-studio/commit/16ebe2443c5486d88d5b5a3b6314efb0f95141e0) Thanks [@DeJeune](https://github.com/DeJeune)! - Forward the caller-injected `fetch` in the `azure-anthropic` provider variant. The variant rebuilds the Anthropic provider via `createAnthropic(...)` from a curated subset of settings and previously dropped `fetch`, so a custom fetch (e.g. a proxy-aware implementation) injected at the provider-config layer was silently lost for Azure Claude requests.
+
+- [#14032](https://github.com/CherryHQ/cherry-studio/pull/14032) [`fe502e8`](https://github.com/CherryHQ/cherry-studio/commit/fe502e850486f143130d43c7efd227f6ecc591de) Thanks [@DeJeune](https://github.com/DeJeune)! - Add `createAgent` factory and `PluginEngine.resolveModel` for ToolLoopAgent with plugin pipeline support
+
+- [#16528](https://github.com/CherryHQ/cherry-studio/pull/16528) [`6119445`](https://github.com/CherryHQ/cherry-studio/commit/611944599f5567fe1a909ee8407d1fcd4e5cda78) Thanks [@DeJeune](https://github.com/DeJeune)! - Replace the misdeclared `biome@^0.3.3` devDependency — an unrelated legacy BDD test framework that dragged `lodash` 3.x/4.x (via `inquirer`/`request-promise`) into the dependency tree — with the intended `@biomejs/biome` CLI that the package's `format` scripts actually invoke.
+
+- [#14911](https://github.com/CherryHQ/cherry-studio/pull/14911) [`5706307`](https://github.com/CherryHQ/cherry-studio/commit/5706307451648bd3a169bff04e27bdcd45e98c78) Thanks [@DeJeune](https://github.com/DeJeune)! - Remove the prompt-based tool-use plugin end-to-end. Tool use now relies solely on native provider tool calling, so `promptToolUsePlugin` (with its `StreamEventManager`, `ToolExecutor`, and tag-extraction helpers) and the public exports `ToolUseRequestContext` and `AiRequestMetadata.isPromptToolUse` are gone. Also switch the provider cache from `lru-cache` to `quick-lru`.
+
+- [#15542](https://github.com/CherryHQ/cherry-studio/pull/15542) [`67554c5`](https://github.com/CherryHQ/cherry-studio/commit/67554c5703e9aa23628a425550d506ee40fdceaa) Thanks [@eeee0717](https://github.com/eeee0717)! - Add rerank runtime support. Exposes a `rerank` runtime helper (plus `RerankParams` / `RerankResult` types and `RuntimeExecutor.rerank`) and an `OpenAICompatibleRerankingModel` provider model (with `createOpenAICompatibleRerankingModel` and its config/settings types) so OpenAI-compatible providers can serve reranking through the standard runtime.
+
+- [#14718](https://github.com/CherryHQ/cherry-studio/pull/14718) [`06f93a0`](https://github.com/CherryHQ/cherry-studio/commit/06f93a0d2f0c4e3de5011f40b81dbcdd48a25864) Thanks [@DeJeune](https://github.com/DeJeune)! - Bump `@ai-sdk/deepseek` from 2.0.29 to 2.0.30 to pick up upstream fix preserving `reasoning_content` for `deepseek-v4` in multi-turn requests. Local patch adding the `reasoning_effort` option re-applies cleanly.
+
+- [#14488](https://github.com/CherryHQ/cherry-studio/pull/14488) [`c0b3c88`](https://github.com/CherryHQ/cherry-studio/commit/c0b3c880e3b3846cf457648f3ed826b5e0f4e508) Thanks [@DeJeune](https://github.com/DeJeune)! - Support OpenAI `gpt-image-2`:
+
+  - Bump `@ai-sdk/openai` peer/dependency range to `^3.0.53` and refresh all other first-party `@ai-sdk/*` packages to their current `latest` (anthropic `^3.0.71`, azure `^3.0.54`, amazon-bedrock `^4.0.96`, cerebras `^2.0.45`, cohere `^3.0.30`, gateway `^3.0.104`, google `^3.0.64`, google-vertex `^4.0.112`, groq `^3.0.35`, huggingface `^1.0.43`, mistral `^3.0.30`, perplexity `^3.0.29`, togetherai `^2.0.45`, xai `^3.0.83`). Re-port `@ai-sdk/google` patch (`getModelPath`) to 3.0.64; keep `@ai-sdk/openai-compatible` on its currently-patched version. Narrow `getAnthropicReasoningParams` return so the new `xhigh` effort from `@ai-sdk/anthropic@3.0.71` does not leak into `AgentSessionContext.effort`.
+  - Pin `@ai-sdk/provider-utils` to `4.0.23` via `pnpm.overrides` so the rest of the `@ai-sdk/*` tree resolves a single provider-utils, avoiding a TS2742 portability error in `coreExtensions`' declaration emit.
+  - Patch `@ai-sdk/openai@3.0.53` to add `gpt-image-2` to `modelMaxImagesPerCall` and `defaultResponseFormatPrefixes`, mirroring vercel/ai#14680 / #14682 (backport to `release-v6.0`). Without the patch the provider sends `response_format: 'b64_json'` to `gpt-image-2`, which OpenAI rejects with `400 Unknown parameter: 'response_format'`. Drop the patch once `@ai-sdk/openai@3.0.54+` publishes.
+  - Widen `ToolFactoryPatch.tools` from `ToolSet` to `Record<string, any>`. The tightened `Tool<INPUT, OUTPUT>` generics in `@ai-sdk/openai@3.0.53` (e.g. `webSearch` / `webSearchPreview`) no longer collapse to the `ToolSet` union. Runtime is a shallow copy into `params.tools`, so the shape is equivalent.
+
+- [#14578](https://github.com/CherryHQ/cherry-studio/pull/14578) [`26d877e`](https://github.com/CherryHQ/cherry-studio/commit/26d877e0fadc38a08da5ae888f4c9661038556c5) Thanks [@DeJeune](https://github.com/DeJeune)! - Fix `Unknown parameter: 'response_format'` when generating images with `gpt-image-2`, `gpt-image-1.5`, `gpt-image-1`, `gpt-image-1-mini`, or `chatgpt-image-*` through any provider that routes the image model via `OpenAICompatibleImageModel` (e.g. `openai-compatible` typed providers and the AiHubMix / NewAPI / CherryIN gateways in this repo).
+
+  `OpenAICompatibleImageModel.doGenerate` unconditionally added `response_format: "b64_json"` to `/images/generations` bodies. The previous `@ai-sdk/openai@3.0.53` patch only covered `OpenAIImageModel` (direct OpenAI + Azure via `@ai-sdk/azure`), so users on the compatible route (AiHubMix, NewAPI, CherryIN, generic openai-compatible) kept hitting this 400 on newer gpt-image models. Extended `patches/@ai-sdk__openai-compatible@2.0.37.patch` with the same `hasDefaultResponseFormat` guard used upstream by `@ai-sdk/openai`. Drop the addition once `@ai-sdk/openai-compatible` ships the equivalent check.
+
+- [#16467](https://github.com/CherryHQ/cherry-studio/pull/16467) [`65c54e5`](https://github.com/CherryHQ/cherry-studio/commit/65c54e5ce56e26ce9533f9b1cd497d130e329caf) Thanks [@Robinnnnn](https://github.com/Robinnnnn)! - Bump `@openrouter/ai-sdk-provider` to `^2.10.0` to pick up OpenRouter's dedicated images endpoint and refresh the local `strictJsonSchema` patch against the v2.10.0 dist files.
+
+- [#14349](https://github.com/CherryHQ/cherry-studio/pull/14349) [`1f86774`](https://github.com/CherryHQ/cherry-studio/commit/1f867749b8b2a3325813b6fac4dbc0d77f93516b) Thanks [@DeJeune](https://github.com/DeJeune)! - Support Claude Opus 4.7:
+
+  - Bump `@ai-sdk/anthropic` peer/dependency range to `^3.0.71`, which adds the `claude-opus-4-7` model id, native `xhigh` reasoning effort, `display` on adaptive thinking, and `taskBudget`.
+  - Widen `ToolFactoryPatch.tools` from `ToolSet` to `Record<string, any>`. The tightened `Tool<INPUT, OUTPUT>` generics in `@ai-sdk/anthropic@3.0.71` (e.g. `webSearch_20260209` returns `Tool<{ query: string }, { type: 'web_search_result', ... }[]>`) are no longer assignable to `ToolSet`'s `Tool<any,any>|Tool<any,never>|Tool<never,any>|Tool<never,never>` union-with-`Pick` intersection. Runtime is a shallow copy into `params.tools`, so the shape is equivalent.
+
+- [#15154](https://github.com/CherryHQ/cherry-studio/pull/15154) [`2650859`](https://github.com/CherryHQ/cherry-studio/commit/26508591f86f36dbc8b0f5acf44b838db766390f) Thanks [@kangfenmao](https://github.com/kangfenmao)! - Wire the v2 paintings image-generation path through patched AI SDK image models:
+
+  - Activate the `ai@6.0.143` patch (adds the `experimental_download` option to
+    `generateImage`) so HTTP(S) image outputs are classified and downloaded by
+    the SDK while data-URL outputs pass through untouched.
+  - Extend the `@ai-sdk/openai-compatible` patch to support `url`-field image
+    responses and skip the `response_format` parameter for `gpt-image-*` models.
+  - Extend the `@ai-sdk/google` patch with model-path / `isGeminiModel` prefix
+    handling for Gemini/Imagen image models.
+
+  These are targeted shims for the OpenAI-compatible / Google image gateways used
+  by the painting providers; non-image OpenAI-compatible calls are unaffected.
+
+- [#15154](https://github.com/CherryHQ/cherry-studio/pull/15154) [`2650859`](https://github.com/CherryHQ/cherry-studio/commit/26508591f86f36dbc8b0f5acf44b838db766390f) Thanks [@kangfenmao](https://github.com/kangfenmao)! - Drop the stale `'tokenflux'` alias from `OpenRouterExtension` in
+  `packages/aiCore/src/core/providers/core/initialization.ts`. The alias was a
+  temporary `// TODO: 实现注册后修改拓展配置` placeholder while TokenFlux did
+  not yet have its own provider extension; `TokenFluxExtension` is now
+  registered separately (in this repo's renderer-side `extensions/index.ts`),
+  so the alias would otherwise collide with the real `'tokenflux'` provider id.
+
+  `createOpenRouter` is no longer reachable via the `'tokenflux'` provider id;
+  chat resolution for TokenFlux now goes through the dedicated extension. If
+  a downstream consumer was relying on the OpenRouter SDK's features
+  (transforms / plugins / fallback_models / OpenRouter-style web-search) when
+  addressing TokenFlux, route it explicitly through `name: 'openrouter'`
+  instead.
+
+- Updated dependencies [[`26d877e`](https://github.com/CherryHQ/cherry-studio/commit/26d877e0fadc38a08da5ae888f4c9661038556c5), [`c0b3c88`](https://github.com/CherryHQ/cherry-studio/commit/c0b3c880e3b3846cf457648f3ed826b5e0f4e508), [`26d877e`](https://github.com/CherryHQ/cherry-studio/commit/26d877e0fadc38a08da5ae888f4c9661038556c5), [`1f86774`](https://github.com/CherryHQ/cherry-studio/commit/1f867749b8b2a3325813b6fac4dbc0d77f93516b), [`2650859`](https://github.com/CherryHQ/cherry-studio/commit/26508591f86f36dbc8b0f5acf44b838db766390f)]:
+  - @cherrystudio/ai-sdk-provider@0.1.7
+
 ## 2.0.1
 
 ### Patch Changes
