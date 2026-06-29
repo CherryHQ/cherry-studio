@@ -352,7 +352,7 @@
     "mermaid": "^11.13.0",
     "mime": "^4.0.4",
     "mime-types": "^3.0.1",
-    "motion": "^12.10.5",
+    "motion": "^12.42.0",
     "nanoid": "3.3.11",
     "notion-helper": "^1.3.22",
     "npx-scope-finder": "^1.2.0",
