@@ -107,6 +107,26 @@ async function resolveClaudeCodeRuntimeRoute(
     throw new Error(`Gemini provider models are not supported by Claude Code agents: ${geminiRef.providerId}`)
   }
 
+  // External-cli (e.g. claude-code) authenticates only through the SDK's
+  // subscription login, which can serve *only* this provider's own models. A
+  // plan/small model pointing at another provider can't run on that login — and
+  // must not fall through to the gateway branch below, which would inject an API
+  // key (abandoning the login) and ship an unresolvable `claude-code:*` id to
+  // the gateway, bricking the agent. Pin every sub-model back onto the primary
+  // so the agent still runs on the subscription login.
+  if (primaryProvider.authMethods?.includes('external-cli')) {
+    const pinToPrimary = (ref: RuntimeModelRef) =>
+      ref.providerId === primaryProvider.id ? ref.apiModelId : primaryRef.apiModelId
+    return {
+      modelIds: {
+        primary: primaryRef.apiModelId,
+        opus: pinToPrimary(opusRef),
+        sonnet: pinToPrimary(sonnetRef),
+        haiku: pinToPrimary(haikuRef)
+      }
+    }
+  }
+
   const shouldUseGateway = modelRefs.some(
     (ref) => ref.providerId !== primaryProvider.id || !ref.provider || !supportsAnthropicMessages(ref.provider)
   )
@@ -121,17 +141,6 @@ async function resolveClaudeCodeRuntimeRoute(
         opus: toGatewayModelId(opusRef),
         sonnet: toGatewayModelId(sonnetRef),
         haiku: toGatewayModelId(haikuRef)
-      }
-    }
-  }
-
-  if (primaryProvider.authMethods?.includes('external-cli')) {
-    return {
-      modelIds: {
-        primary: primaryRef.apiModelId,
-        opus: opusRef.apiModelId,
-        sonnet: sonnetRef.apiModelId,
-        haiku: haikuRef.apiModelId
       }
     }
   }

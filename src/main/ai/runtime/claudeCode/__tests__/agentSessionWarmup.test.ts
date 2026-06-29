@@ -168,6 +168,48 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
   })
 
+  it('pins cross-provider plan/small models onto the primary for an external-cli (claude-code) agent instead of routing through the gateway', async () => {
+    mocks.getAgent.mockResolvedValue({
+      id: 'agent-1',
+      model: 'claude-code::sonnet',
+      planModel: 'openai::gpt-plan',
+      smallModel: 'other::small'
+    })
+    mocks.getProviderByProviderId.mockImplementation(async (providerId: string) =>
+      providerId === 'claude-code'
+        ? {
+            id: 'claude-code',
+            authMethods: ['external-cli'],
+            endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
+          }
+        : {
+            id: providerId,
+            endpointConfigs: { 'openai-chat-completions': { baseUrl: `https://${providerId}.example.com` } }
+          }
+    )
+    mocks.getModelByKey.mockImplementation(async (_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`
+    }))
+    mocks.getLastRuntimeResumeToken.mockResolvedValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    // Stays on the subscription login: no gateway, no injected API key, and the
+    // off-provider plan/small models collapse to the primary claude-code model.
+    expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
+    expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
+    expect(request?.sdkModelId).toBe('sonnet-api')
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_MODEL: 'sonnet-api',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'sonnet-api',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'sonnet-api',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'sonnet-api'
+    })
+    expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_API_KEY')
+    expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_BASE_URL')
+  })
+
   it('rejects Gemini provider models instead of routing them through the API gateway', async () => {
     mocks.getAgent.mockResolvedValue({
       id: 'agent-1',
