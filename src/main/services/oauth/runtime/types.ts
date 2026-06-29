@@ -20,7 +20,13 @@ export interface OAuthTokenStoreData {
 export interface OAuthTokenStore {
   get(providerId: string): Promise<OAuthTokenStoreData | null>
   set(providerId: string, data: OAuthTokenStoreData, clientId: string): Promise<void>
-  clear(providerId: string): Promise<void>
+  /**
+   * Drop the stored OAuth tokens. `disableProvider` also flips the provider to
+   * disabled — correct for providers whose only credential is the OAuth session
+   * (Codex, Grok), but wrong for one that can also hold a manual API key
+   * (CherryIN), where disabling would take the manual key down with it.
+   */
+  clear(providerId: string, options?: { disableProvider?: boolean }): Promise<void>
 }
 
 export interface LoopbackCallbackConfig {
@@ -50,6 +56,13 @@ export interface OAuthTokenExchangeSideEffectResult {
 export interface OAuthRuntimeProviderDefinition {
   providerId: string
   clientId: string
+  /**
+   * Whether clearing the OAuth session (logout / unrecoverable token loss) also
+   * disables the provider. `true` for OAuth-only providers (Codex, Grok) where
+   * no credential remains; `false`/omitted for providers that can fall back to a
+   * manual API key (CherryIN), so logout never strips that key's enablement.
+   */
+  clearDisablesProvider?: boolean
   transport:
     | { type: 'loopback'; config: LoopbackCallbackConfig }
     | { type: 'deep-link'; config: DeepLinkCallbackConfig }

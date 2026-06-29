@@ -45,14 +45,26 @@ describe('DeepLinkCallbackTransport', () => {
     })
   })
 
-  it('rejects and removes callbacks whose state has expired', () => {
+  it('ignores and removes callbacks whose state has expired', () => {
     const transport = new DeepLinkCallbackTransport({ redirectUri: REDIRECT_URI })
     registerFlow(transport)
     vi.setSystemTime(Date.now() + FLOW_TTL_MS + 1)
 
     const callbackUrl = new URL(`${REDIRECT_URI}?state=state&code=code`)
 
-    expect(() => transport.consumeCallback(callbackUrl)).toThrow('OAuth callback for unknown or expired state')
-    expect(() => transport.consumeCallback(callbackUrl)).toThrow('OAuth callback for unknown or expired state')
+    // Returns null (not throw) so the dispatcher treats it as a non-event and
+    // keeps trying other transports; the expired flow is dropped on first read.
+    expect(transport.consumeCallback(callbackUrl)).toBeNull()
+    expect(transport.consumeCallback(callbackUrl)).toBeNull()
+  })
+
+  it('ignores callbacks with an unknown or missing state', () => {
+    const transport = new DeepLinkCallbackTransport({ redirectUri: REDIRECT_URI })
+    registerFlow(transport, 'known-state')
+
+    expect(transport.consumeCallback(new URL(`${REDIRECT_URI}?state=forged&code=code`))).toBeNull()
+    expect(transport.consumeCallback(new URL(`${REDIRECT_URI}?code=code`))).toBeNull()
+    // The genuine flow is untouched by the forged probes.
+    expect(transport.consumeCallback(new URL(`${REDIRECT_URI}?state=known-state&code=code`))).not.toBeNull()
   })
 })

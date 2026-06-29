@@ -226,20 +226,26 @@ function buildCodexConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
 }
 
 function buildCodexFetch() {
-  return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const creds = await application.get('OAuthRuntimeService').getValidAccessToken(OPENAI_CODEX_PROVIDER_ID)
-    if (!creds?.accessToken) {
-      throw new Error('Not signed in to OpenAI Codex. Open the provider settings and sign in again.')
-    }
-
-    const headers = buildCodexRequestHeaders(init?.headers, {
-      accessToken: creds.accessToken,
-      accountId: creds.accountId ?? null
-    })
-    const body = coerceCodexRequestBody(init?.body)
-
-    return customFetch(input, { ...init, headers, body })
-  }
+  // Token fetch + not-signed-in guard + 401 force-refresh retry live in
+  // OAuthRuntimeService.authenticatedFetch; this wrapper only shapes the codex
+  // request (headers + body coercion), re-applied with the fresh token on retry.
+  return (input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
+    application.get('OAuthRuntimeService').authenticatedFetch(
+      OPENAI_CODEX_PROVIDER_ID,
+      (creds) => ({
+        input,
+        init: {
+          ...init,
+          headers: buildCodexRequestHeaders(init?.headers, {
+            accessToken: creds.accessToken,
+            accountId: creds.accountId ?? null
+          }),
+          body: coerceCodexRequestBody(init?.body)
+        }
+      }),
+      customFetch,
+      'Not signed in to OpenAI Codex. Open the provider settings and sign in again.'
+    )
 }
 
 /**
@@ -273,13 +279,9 @@ function buildGrokCliConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
 }
 
 function buildGrokCliFetch() {
-  return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const credentials = await application.get('OAuthRuntimeService').getValidAccessToken(GROK_CLI_PROVIDER_ID)
-    const accessToken = credentials?.accessToken
-    if (!accessToken) {
-      throw new Error('Not signed in to Grok CLI. Open the provider settings and sign in again.')
-    }
-
+  // See buildCodexFetch: shared token/refresh/401-retry lives in
+  // OAuthRuntimeService.authenticatedFetch; this only shapes the Grok request.
+  return (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     let modelId = ''
     let body = init?.body
     if (typeof body === 'string') {
@@ -292,8 +294,19 @@ function buildGrokCliFetch() {
       }
     }
 
-    const headers = buildGrokCliRequestHeaders(init?.headers, { accessToken, modelId })
-    return customFetch(input, { ...init, headers, body })
+    return application.get('OAuthRuntimeService').authenticatedFetch(
+      GROK_CLI_PROVIDER_ID,
+      (creds) => ({
+        input,
+        init: {
+          ...init,
+          headers: buildGrokCliRequestHeaders(init?.headers, { accessToken: creds.accessToken, modelId }),
+          body
+        }
+      }),
+      customFetch,
+      'Not signed in to Grok CLI. Open the provider settings and sign in again.'
+    )
   }
 }
 

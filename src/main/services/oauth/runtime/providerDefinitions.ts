@@ -107,6 +107,8 @@ export const oauthProviderDefinitions = {
   [OPENAI_CODEX_PROVIDER_ID]: {
     providerId: OPENAI_CODEX_PROVIDER_ID,
     clientId: CODEX_CONFIG.CLIENT_ID,
+    // OAuth is the only credential; logout/token loss disables the provider.
+    clearDisablesProvider: true,
     transport: {
       type: 'loopback',
       config: {
@@ -133,6 +135,8 @@ export const oauthProviderDefinitions = {
   [GROK_CLI_PROVIDER_ID]: {
     providerId: GROK_CLI_PROVIDER_ID,
     clientId: GROK_CONFIG.CLIENT_ID,
+    // OAuth is the only credential; logout/token loss disables the provider.
+    clearDisablesProvider: true,
     transport: {
       type: 'loopback',
       config: {

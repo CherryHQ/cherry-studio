@@ -5,11 +5,26 @@ import type { LoopbackCallbackConfig } from './types'
 
 export class LoopbackCallbackTransport {
   private activeServers: Server[] = []
+  private busy = false
 
   constructor(private readonly config: LoopbackCallbackConfig) {}
 
   get isActive(): boolean {
-    return this.activeServers.length > 0
+    return this.busy
+  }
+
+  /**
+   * Atomically reserve this transport for one sign-in. Returns `false` if a
+   * flow is already in progress. Must be called *synchronously* before any
+   * `await` in the caller — checking `isActive` and then awaiting `createClient`
+   * leaves a window where a second sign-in slips through, binds the same port,
+   * hits `EADDRINUSE`, and its error handler `close()`s the shared servers,
+   * killing the first flow mid-callback.
+   */
+  tryAcquire(): boolean {
+    if (this.busy) return false
+    this.busy = true
+    return true
   }
 
   close(): void {
@@ -17,6 +32,7 @@ export class LoopbackCallbackTransport {
       server.close()
     }
     this.activeServers = []
+    this.busy = false
   }
 
   waitForAuthorizationCode(expectedState: string, signal: AbortSignal): Promise<string> {

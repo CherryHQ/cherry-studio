@@ -31,7 +31,14 @@ export class ProviderAuthConfigOAuthTokenStore implements OAuthTokenStore {
     await providerService.update(providerId, { authConfig })
   }
 
-  async clear(providerId: string): Promise<void> {
-    await providerService.update(providerId, { authConfig: { type: 'api-key' }, isEnabled: false })
+  async clear(providerId: string, options?: { disableProvider?: boolean }): Promise<void> {
+    // Reset auth back to api-key mode (drops the OAuth tokens). Only flip
+    // `isEnabled` when the caller owns the provider's enablement — see the
+    // interface doc: disabling a provider that also holds a manual API key would
+    // silently kill that key too.
+    await providerService.update(providerId, {
+      authConfig: { type: 'api-key' },
+      ...(options?.disableProvider ? { isEnabled: false } : {})
+    })
   }
 }

@@ -84,18 +84,22 @@ export class DeepLinkCallbackTransport {
     const error = url.searchParams.get('error')
     const code = url.searchParams.get('code')
 
+    // A missing/unknown/expired state is not this transport's flow (or a forged
+    // CSRF probe). Return null so the dispatcher keeps trying other transports
+    // and treats it as a non-event — do NOT throw, which would abort the whole
+    // callback dispatch and log a routine rejected probe at error level.
     if (!state) {
-      throw new OAuthServiceError('OAuth callback missing state parameter')
+      return null
     }
 
     const flow = this.pendingFlows.get(state)
     if (!flow) {
-      throw new OAuthServiceError('OAuth callback for unknown or expired state')
+      return null
     }
 
     if (Date.now() - flow.timestamp > FLOW_TTL_MS) {
       this.pendingFlows.delete(state)
-      throw new OAuthServiceError('OAuth callback for unknown or expired state')
+      return null
     }
 
     if (error) {
