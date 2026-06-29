@@ -54,23 +54,19 @@ describe('package files contract', () => {
   })
 })
 
-describe('npm pack ships the catalog', () => {
-  const tarballFiles = (): string[] => {
+// Builds `dist` if missing so this never silently skips — a publish must ship BOTH the export targets and
+// the data, not just whatever happens to be on disk. CI runs `test:provider-registry` without a prior
+// build, so the test owns that guarantee; the release path builds it too (root `packages:build` includes
+// `@cherrystudio/provider-registry build`).
+describe('npm pack ships the published contract', () => {
+  it('packs every export target and all data files', () => {
+    if (!existsSync(join(packageRoot, 'dist'))) {
+      execFileSync('npm', ['run', 'build'], { cwd: packageRoot, stdio: 'ignore' })
+    }
     const out = execFileSync('npm', ['pack', '--dry-run', '--json'], { cwd: packageRoot, encoding: 'utf8' })
-    return (JSON.parse(out)[0].files as Array<{ path: string }>).map((f) => f.path)
-  }
-
-  it('includes all three data/*.json files in the tarball', () => {
-    const files = tarballFiles()
-    for (const f of DATA_FILES) {
-      expect(files, `${f} missing from npm pack output — check "files" in package.json`).toContain(f)
+    const files = (JSON.parse(out)[0].files as Array<{ path: string }>).map((f) => f.path)
+    for (const expected of [...exportTargets, ...DATA_FILES]) {
+      expect(files, `${expected} missing from npm pack output — check "files" in package.json`).toContain(expected)
     }
-  })
-
-  it.runIf(existsSync(join(packageRoot, 'dist')))('includes every export target once dist is built', () => {
-    const files = tarballFiles()
-    for (const t of exportTargets) {
-      expect(files, `${t} missing from npm pack output — build dist and check "files"`).toContain(t)
-    }
-  })
+  }, 120_000)
 })

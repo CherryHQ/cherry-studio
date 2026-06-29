@@ -198,11 +198,17 @@ export class RegistryLoader {
   findOverride(providerId: string, modelId: string): ProviderModelOverride | null {
     this.loadProviderModels()
     const key = `${providerId}::${modelId}`
+    const normKey = `${providerId}::${normalizeModelId(modelId)}`
+    // BOTH exact lookups (canonical modelId, then provider apiModelId) must precede BOTH normalized
+    // fallbacks. `normalizeModelId` strips size/date suffixes, so several distinct rows collapse to one
+    // normalized key (`google.gemma-3-27b-it` and `gemma-3-12b-it` both → `gemma-3-it`). If the normalized
+    // canonical fallback ran before the exact apiModelId map, an exact SDK id like `google.gemma-3-27b-it`
+    // would resolve through whichever same-family row was indexed first instead of its own row.
     return (
       this.overrideByKey!.get(key) ??
-      this.overrideByNormKey!.get(`${providerId}::${normalizeModelId(modelId)}`) ??
       this.overrideByApiKey!.get(key) ??
-      this.overrideByNormApiKey!.get(`${providerId}::${normalizeModelId(modelId)}`) ??
+      this.overrideByNormKey!.get(normKey) ??
+      this.overrideByNormApiKey!.get(normKey) ??
       null
     )
   }

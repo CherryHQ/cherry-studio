@@ -2,10 +2,15 @@
  * Source ↔ data sync guard — fails when `src/labs` or `src/provider` changed but `data/*.json` was
  * NOT regenerated. CI's `catalog-hand-edit-check` only catches the OTHER direction (data edited with no
  * source change); generation reads live upstream, so a full generate-and-diff would be flaky. This test
- * is deterministic instead: it re-derives only the facts the generator controls from SOURCE ALONE
- * (provider connection config, hand-listed lab models + their `ownedBy`/`name`, provider overrides) and
- * asserts the committed JSON reflects them. Upstream-enriched fields (pricing, inferred metadata) are
- * out of scope here. Runs in the network-free `provider-registry` test project (CI: test:provider-registry).
+ * is deterministic instead: it re-derives the facts the generator controls from SOURCE ALONE and asserts
+ * the committed JSON reflects them. Coverage is full-payload where the generator output is fully
+ * source-derived — the entire provider object (buildProviders strips gen-only fields + templates
+ * `description`) and the entire override row (`{ providerId, ...ov }`) — so stale `defaultChatEndpoint`,
+ * `apiFeatures`, `metadata`, override `pricing`/`imageGeneration`, etc. are caught. Lab models stay at
+ * presence/`ownedBy`/`name`: their other fields (capabilities, modalities, limits) are unioned with
+ * upstream-inferred metadata, so a full compare would be non-deterministic. Upstream-enriched fields
+ * (pricing on md-derived rows, inferred metadata) remain out of scope. Runs in the network-free
+ * `provider-registry` test project (CI: test:provider-registry).
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -20,13 +25,10 @@ import { PROVIDERS } from '../provider'
 const dataDir = join(fileURLToPath(import.meta.url), '..', '..', '..', 'data')
 const read = (f: string) => JSON.parse(readFileSync(join(dataDir, f), 'utf8'))
 const models = read('models.json').models as Array<{ id: string; name?: string; ownedBy: string }>
-const providers = read('providers.json').providers as Array<{ id: string; endpointConfigs: unknown }>
-const overrides = read('provider-models.json').overrides as Array<{
-  providerId: string
-  modelId: string
-  apiModelId?: string
-  modelVariants?: string[]
-}>
+const providers = read('providers.json').providers as Array<Record<string, unknown> & { id: string }>
+const overrides = read('provider-models.json').overrides as Array<
+  Record<string, unknown> & { providerId: string; modelId: string; apiModelId?: string; modelVariants?: string[] }
+>
 
 const modelById = new Map(models.map((m) => [m.id, m]))
 const providerById = new Map(providers.map((p) => [p.id, p]))
@@ -39,8 +41,22 @@ const stable = (v: unknown): string =>
       : val
   )
 
+// Mirror buildProviders: drop the generation-only fields, template `description` (always overrides any
+// source `description`). The result is the exact source-derived provider payload the generator emits.
+const GEN_ONLY_PROVIDER_FIELDS = ['modelsDevProvider', 'fetchModels', 'overrides']
+const expectedProviderPayload = (p: Record<string, unknown>) => {
+  const conn = { ...p }
+  for (const k of GEN_ONLY_PROVIDER_FIELDS) delete conn[k]
+  return { ...conn, description: `${String(p.name)} - AI model provider` }
+}
+
+// Mirror buildProviders' generator identity for overrides: providerId + modelId + apiModelId + sorted
+// modelVariants. Used to pair each source override with its committed row.
+const overrideIdentity = (o: { providerId: string; modelId: string; apiModelId?: string; modelVariants?: string[] }) =>
+  `${o.providerId}|${o.modelId}|${o.apiModelId ?? ''}|${(o.modelVariants ?? []).slice().sort().join(',')}`
+
 describe('catalog ↔ source sync (regenerate guard)', () => {
-  it('every src/provider has a providers.json row with matching endpointConfigs (and no extra rows)', () => {
+  it('every src/provider has a providers.json row with the full source-derived payload (and no extra rows)', () => {
     const missing = PROVIDERS.filter((p) => !providerById.has(p.id)).map((p) => p.id)
     expect(missing).toEqual([]) // src has a provider data/ doesn't → run `pnpm generate`
 
@@ -49,9 +65,9 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
 
     const mismatched = PROVIDERS.filter((p) => {
       const row = providerById.get(p.id)
-      return row && stable(row.endpointConfigs) !== stable(p.endpointConfigs)
+      return row && stable(row) !== stable(expectedProviderPayload(p as unknown as Record<string, unknown>))
     }).map((p) => p.id)
-    expect(mismatched).toEqual([]) // connection config edited in src but not regenerated
+    expect(mismatched).toEqual([]) // a provider field changed in src but data/ wasn't regenerated
   })
 
   it('every hand-listed lab model is present with the right ownedBy + name', () => {
@@ -71,24 +87,21 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
     expect(problems).toEqual([])
   })
 
-  it('every provider override resolves to a row in provider-models.json (full generator identity)', () => {
-    // Mirror the generator's dedup identity exactly — providerId + modelId + apiModelId + sorted
-    // modelVariants (see generate-catalog.ts `addOverride`). A provider may serve the same canonical
-    // modelId under several apiModelIds (tokenhub's dated 原厂直供 variants); keying on less than the full
-    // identity would let a dropped variant — or a stale row with wrong/missing modelVariants — slip through.
-    const key = (o: { providerId: string; modelId: string; apiModelId?: string; modelVariants?: string[] }) =>
-      `${o.providerId}|${o.modelId}|${o.apiModelId ?? ''}|${(o.modelVariants ?? []).slice().sort().join(',')}`
-    const seen = new Set(overrides.map(key))
+  it('every provider override is present with its full source-derived payload', () => {
+    // The generator emits `{ providerId, ...ov }` per override and dedups on the full identity (providerId
+    // + modelId + apiModelId + sorted modelVariants). Pair each source override with its committed row by
+    // identity, then compare the WHOLE payload — so a dropped variant (missing row) AND a stale field
+    // (pricing/imageGeneration/disabled/… not regenerated) both fail.
+    const rowByIdentity = new Map(overrides.map((o) => [overrideIdentity(o), o]))
     const problems: string[] = []
     for (const p of PROVIDERS)
-      for (const ov of p.overrides ?? [])
-        if (
-          ov.modelId &&
-          !seen.has(
-            key({ providerId: p.id, modelId: ov.modelId, apiModelId: ov.apiModelId, modelVariants: ov.modelVariants })
-          )
-        )
-          problems.push(`${p.id}/${ov.modelId}/${ov.apiModelId ?? ''}`)
+      for (const ov of p.overrides ?? []) {
+        if (!ov.modelId) continue
+        const expected = { providerId: p.id, ...ov }
+        const row = rowByIdentity.get(overrideIdentity(expected as Parameters<typeof overrideIdentity>[0]))
+        if (!row) problems.push(`missing ${p.id}/${ov.modelId}/${ov.apiModelId ?? ''}`)
+        else if (stable(row) !== stable(expected)) problems.push(`stale ${p.id}/${ov.modelId}/${ov.apiModelId ?? ''}`)
+      }
     expect(problems).toEqual([])
   })
 })

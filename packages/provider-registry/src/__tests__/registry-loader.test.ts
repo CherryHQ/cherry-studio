@@ -62,3 +62,26 @@ describe('RegistryLoader override index — duplicate canonical modelId', () => 
     expect(loader.getOverridesForProvider('tokenhub')).toHaveLength(2)
   })
 })
+
+describe('RegistryLoader override index — exact apiModelId vs normalized collision', () => {
+  // normalizeModelId strips the size suffix, so every size collapses to one normalized key
+  // (`google.gemma-3-27b-it` and `gemma-3-12b-it` both → `gemma-3-it`). An exact provider SDK id must
+  // resolve to its OWN row, never to a same-family sibling that happens to share the normalized key.
+  const rows = [
+    { providerId: 'aws-bedrock', modelId: 'gemma-3-12b-it', apiModelId: 'google.gemma-3-12b-it' },
+    { providerId: 'aws-bedrock', modelId: 'gemma-3-27b-it', apiModelId: 'google.gemma-3-27b-it' },
+    { providerId: 'aws-bedrock', modelId: 'llama3-1-8b-instruct', apiModelId: 'meta.llama3-1-8b-instruct-v1:0' },
+    { providerId: 'aws-bedrock', modelId: 'llama3-1-70b-instruct', apiModelId: 'meta.llama3-1-70b-instruct-v1:0' }
+  ]
+
+  it('exact apiModelId resolves to its own row, not a normalized same-family sibling', () => {
+    const loader = newLoader(rows)
+    expect(loader.findOverride('aws-bedrock', 'google.gemma-3-27b-it')?.modelId).toBe('gemma-3-27b-it')
+    expect(loader.findOverride('aws-bedrock', 'meta.llama3-1-8b-instruct-v1:0')?.modelId).toBe('llama3-1-8b-instruct')
+  })
+
+  it('exact canonical modelId still resolves directly', () => {
+    const loader = newLoader(rows)
+    expect(loader.findOverride('aws-bedrock', 'gemma-3-12b-it')?.apiModelId).toBe('google.gemma-3-12b-it')
+  })
+})
