@@ -138,6 +138,9 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   // Always create a fresh session per fire. Scheduled tasks are discrete
   // invocations; cross-fire session reuse would only carry stale model
   // context. Persistent state lives in workspace files (heartbeat.md, etc.).
+  // The session inherits the workspace bound on the task at creation time —
+  // system for regular tasks (the picker defaults there), the validated user
+  // workspace for heartbeats.
   const session = await agentSessionService.create({
     agentId,
     name: taskName ?? 'Scheduled task',
