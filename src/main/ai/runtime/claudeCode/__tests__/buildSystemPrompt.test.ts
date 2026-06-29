@@ -61,6 +61,7 @@ vi.mock('@main/ai/agents/cherryclaw/prompt', () => ({
 const { buildSystemPrompt } = await import('../settingsBuilder')
 
 const ARTIFACTS_MARKER = '## Reporting deliverables'
+const RUNTIME_MARKER = '## Available Runtimes'
 
 function makeSession(): AgentSessionEntity {
   return { id: 'sess-1', agentId: 'agent-1' } as unknown as AgentSessionEntity
@@ -107,5 +108,41 @@ describe('buildSystemPrompt — report_artifacts prompt', () => {
     expect(result as string).toContain('SOUL_PROMPT')
     expect(result as string).toContain('Soul task.')
     expect(result as string).toContain(ARTIFACTS_MARKER)
+  })
+})
+
+describe('buildSystemPrompt — bundled-runtime guidance', () => {
+  beforeEach(() => {
+    mockFindBySessionId.mockResolvedValue(null)
+  })
+
+  it('steers the agent to bun/uv in standard mode with user instructions', async () => {
+    const result = await buildSystemPrompt(makeSession(), makeAgent({ instructions: 'Do the task.' }), '/tmp/cwd')
+    const append = (result as { append: string }).append
+    expect(append).toContain(RUNTIME_MARKER)
+    // The model is told to use bun / uv explicitly, not node/npm/pip.
+    expect(append).toContain('bun')
+    expect(append).toContain('uv run python')
+  })
+
+  it('steers the agent to bun/uv in standard mode without user instructions', async () => {
+    const result = await buildSystemPrompt(makeSession(), makeAgent(), '/tmp/cwd')
+    const append = (result as { append: string }).append
+    expect(append).toContain(RUNTIME_MARKER)
+  })
+
+  it('steers the agent to bun/uv in soul mode', async () => {
+    const agent = makeAgent({ instructions: 'Soul task.', configuration: { soul_enabled: true } as never })
+    const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
+    expect(result as string).toContain(RUNTIME_MARKER)
+  })
+
+  it('does not inject the runtime block for the Cherry Assistant (it carries its own environment)', async () => {
+    const agent = makeAgent({
+      instructions: 'Assistant instructions.',
+      configuration: { builtin_role: 'assistant' } as never
+    })
+    const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
+    expect(JSON.stringify(result)).not.toContain(RUNTIME_MARKER)
   })
 })
