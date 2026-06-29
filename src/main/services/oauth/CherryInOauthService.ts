@@ -2,10 +2,11 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { WindowId } from '@shared/ipc/types'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { net } from 'electron'
 import * as z from 'zod'
 
-import { CHERRYIN_PROVIDER_ID, CherryInOauthServiceError, validateCherryInApiHost } from './CherryInOAuthConfig'
+import { CherryInOauthServiceError, validateCherryInApiHost } from './CherryInOAuthConfig'
 
 const logger = loggerService.withContext('CherryInOauthService')
 
@@ -83,7 +84,7 @@ export class CherryInOauthService extends BaseService {
     this.validateApiHost(oauthServer)
     if (apiHost) this.validateApiHost(apiHost)
 
-    return application.get('OAuthRuntimeService').startDeepLinkFlow(initiatorWindowId, CHERRYIN_PROVIDER_ID, {
+    return application.get('OAuthRuntimeService').startDeepLinkFlow(initiatorWindowId, SystemProviderIds.cherryin, {
       oauthServer,
       apiHost: apiHost ?? oauthServer
     })
@@ -93,7 +94,7 @@ export class CherryInOauthService extends BaseService {
     this.validateApiHost(apiHost)
     const credentials = await application
       .get('OAuthRuntimeService')
-      .getValidAccessToken(CHERRYIN_PROVIDER_ID, { apiHost })
+      .getValidAccessToken(SystemProviderIds.cherryin, { apiHost })
     return credentials?.accessToken ?? null
   }
 
@@ -176,7 +177,7 @@ export class CherryInOauthService extends BaseService {
     const getCredentials = async (forceRefresh = false): Promise<{ accessToken: string } | null> => {
       const credentials = await application
         .get('OAuthRuntimeService')
-        .getValidAccessToken(CHERRYIN_PROVIDER_ID, { apiHost, forceRefresh })
+        .getValidAccessToken(SystemProviderIds.cherryin, { apiHost, forceRefresh })
       return credentials?.accessToken ? { accessToken: credentials.accessToken } : null
     }
 
@@ -321,7 +322,7 @@ export class CherryInOauthService extends BaseService {
         }
       }
 
-      await application.get('OAuthRuntimeService').logout(CHERRYIN_PROVIDER_ID)
+      await application.get('OAuthRuntimeService').logout(SystemProviderIds.cherryin)
       logger.debug('Successfully cleared CherryIN OAuth tokens from auth config')
     } catch (error) {
       logger.error('Failed to logout:', error as Error)
