@@ -1,10 +1,10 @@
-import * as z from 'zod'
 import { describe, expect, it } from 'vitest'
+import * as z from 'zod'
 
 import {
   KB_LIST_TOOL_NAME,
-  kbListInputSchema,
   KB_SEARCH_TOOL_NAME,
+  kbListInputSchema,
   kbSearchInputSchema,
   REPORT_ARTIFACTS_DESCRIPTION,
   REPORT_ARTIFACTS_TOOL_NAME,
