@@ -41,6 +41,7 @@ const clipboardWriteTextMock = vi.hoisted(() => vi.fn())
 const toastLoadingMock = vi.hoisted(() => vi.fn())
 const toastCloseToastMock = vi.hoisted(() => vi.fn())
 const modelSelectorMock = vi.hoisted(() => vi.fn())
+const exportMessageToNotesMock = vi.hoisted(() => vi.fn())
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -137,6 +138,10 @@ vi.mock('@renderer/hooks/useTemporaryValue', () => ({
 
 vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({ setTimeoutTimer: translateCoreMock.setTimeoutTimer })
+}))
+
+vi.mock('@renderer/services/ExportService', () => ({
+  exportMessageToNotes: exportMessageToNotesMock
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -251,8 +256,17 @@ vi.mock('../components/TranslateLanguageBar', () => ({
 }))
 
 vi.mock('../components/TranslateOutputPane', () => ({
-  default: ({ translating }: { translating: boolean }) => (
-    <div data-testid="translate-output-pane">{translating && <span>translate.processing</span>}</div>
+  default: ({
+    translating,
+    onExportToNotes
+  }: {
+    translating: boolean
+    onExportToNotes?: () => void | Promise<void>
+  }) => (
+    <div data-testid="translate-output-pane">
+      {translating && <span>translate.processing</span>}
+      <button type="button" aria-label="notes.save" onClick={() => void onExportToNotes?.()} />
+    </div>
   )
 }))
 
@@ -329,6 +343,8 @@ describe('TranslatePage', () => {
     clipboardWriteTextMock.mockResolvedValue(undefined)
     toastLoadingMock.mockReset()
     toastCloseToastMock.mockReset()
+    exportMessageToNotesMock.mockReset()
+    exportMessageToNotesMock.mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: {
@@ -365,6 +381,23 @@ describe('TranslatePage', () => {
     render(<TranslatePage />)
 
     expect(modelSelectorMock).toHaveBeenCalledWith(expect.objectContaining({ showTagFilter: false }))
+  })
+
+  it('exports the current translation result to notes using the first translated line as title', async () => {
+    MockUseCacheUtils.setCacheValue('translate.output', 'First translated line\nSecond translated line')
+    MockUsePreferenceUtils.setPreferenceValue('feature.notes.path', '/notes')
+
+    render(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'notes.save' }))
+
+    await waitFor(() =>
+      expect(exportMessageToNotesMock).toHaveBeenCalledWith(
+        'First translated line',
+        'First translated line\nSecond translated line',
+        '/notes'
+      )
+    )
   })
 
   it('appends selected file text to the latest input after async read completes', async () => {

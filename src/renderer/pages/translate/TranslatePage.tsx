@@ -16,10 +16,12 @@ import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
 import { useJob } from '@renderer/hooks/useJob'
 import { useModels } from '@renderer/hooks/useModel'
+import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi } from '@renderer/ipc'
+import { exportMessageToNotes } from '@renderer/services/ExportService'
 import { type FileMetadata, isImageFileMetadata } from '@renderer/types/file'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileExtension, isTextFile } from '@renderer/utils/file'
@@ -68,6 +70,11 @@ const EXCLUDED_TRANSLATE_MODEL_CAPABILITIES = new Set<string>([
 const getModelIdentifier = (model: SelectorModel) => model.apiModelId ?? parseUniqueModelId(model.id).modelId
 
 const getModelInitial = (model: SelectorModel) => model.name.trim().charAt(0) || 'M'
+
+const TRANSLATION_RESULT_NOTE_TITLE_MAX_LENGTH = 80
+
+const getTranslationResultNoteTitle = (content: string) =>
+  content.trim().split(/\r?\n/, 1)[0].slice(0, TRANSLATION_RESULT_NOTE_TITLE_MAX_LENGTH)
 
 type OcrJob = {
   jobId: string
@@ -147,6 +154,7 @@ const TranslatePage: FC = () => {
   const { models } = useModels({ enabled: true })
   const detectLanguage = useDetectLang()
   const { add: addHistory } = useTranslateHistory()
+  const { notesPath } = useNotesSettings()
   const { shikiMarkdownIt } = useCodeStyle()
   const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts, ...documentExts] })
   const { setTimeoutTimer } = useTimer()
@@ -255,6 +263,11 @@ const TranslatePage: FC = () => {
       window.toast.error(t('common.copy_failed'))
     }
   }, [copy, t, translateOutput])
+
+  const onExportOutputToNotes = useCallback(async () => {
+    if (!translateOutput.trim()) return
+    await exportMessageToNotes(getTranslationResultNoteTitle(translateOutput), translateOutput, notesPath)
+  }, [notesPath, translateOutput])
 
   const translate = useCallback(
     async (
@@ -790,6 +803,7 @@ const TranslatePage: FC = () => {
               translating={isTranslating || isDetecting}
               copied={copied}
               onCopy={onCopyOutput}
+              onExportToNotes={onExportOutputToNotes}
               onScroll={outputScrollHandler}
             />
           </section>
