@@ -17,7 +17,7 @@ import {
   resolveSidebarActiveItem
 } from '@renderer/utils/sidebar'
 import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
-import type { SidebarFavorite } from '@shared/data/preference/preferenceTypes'
+import type { SidebarBuiltinFavorite } from '@shared/data/preference/preferenceTypes'
 import type { Ref } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -31,7 +31,7 @@ import type { SidebarMenuItem, SidebarMiniAppTab, SidebarUser, SidebarVisibleLay
 
 const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
 
-function getResourceListRevealSource(menuItemId: SidebarFavorite): ResourceListRevealSource | null {
+function getResourceListRevealSource(menuItemId: SidebarBuiltinFavorite): ResourceListRevealSource | null {
   if (menuItemId === 'assistants' || menuItemId === 'agents') return menuItemId
   return null
 }
@@ -153,7 +153,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const handleNavigate = useCallback(
     (menuItemId: string) => {
-      const menuId = menuItemId as SidebarFavorite
+      const menuId = menuItemId as SidebarBuiltinFavorite
       const path = getSidebarMenuPath(menuId, defaultPaintingProvider)
       if (!path || activeTab?.url === path) return
 

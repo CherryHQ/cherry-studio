@@ -86,7 +86,7 @@ export type TopicDisplayMode = 'time' | 'assistant'
 
 export type AgentSessionDisplayMode = 'time' | 'agent' | 'workdir'
 
-export type SidebarFavorite =
+export type SidebarBuiltinFavorite =
   | 'assistants'
   | 'agents'
   | 'store'
@@ -98,6 +98,8 @@ export type SidebarFavorite =
   | 'code_tools'
   | 'notes'
   | 'openclaw'
+
+export type SidebarFavorite = SidebarBuiltinFavorite | (string & {})
 
 export type AssistantIconType = 'model' | 'emoji' | 'none'
 

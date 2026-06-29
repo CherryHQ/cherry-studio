@@ -15,7 +15,7 @@ import {
   REQUIRED_SIDEBAR_FAVORITES,
   SIDEBAR_FAVORITE_ORDER
 } from '@renderer/utils/sidebar'
-import type { SidebarFavorite } from '@shared/data/preference/preferenceTypes'
+import type { SidebarBuiltinFavorite, SidebarFavorite } from '@shared/data/preference/preferenceTypes'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useMemo, useRef } from 'react'
@@ -23,13 +23,13 @@ import { useTranslation } from 'react-i18next'
 
 const BASE_URL = 'https://www.cherry-ai.com/'
 
-const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarFavorite>(REQUIRED_SIDEBAR_FAVORITES)
+const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarBuiltinFavorite>(REQUIRED_SIDEBAR_FAVORITES)
 const LAUNCHPAD_GRID_CLASS =
   'grid grid-cols-[repeat(auto-fill,92px)] justify-start justify-items-center gap-x-14 gap-y-8 px-2'
 const LAUNCHPAD_ITEM_CLASS = 'w-[92px]'
 const SORTABLE_CONTENTS_STYLE = { display: 'contents' } as const
 
-const APP_ICON_BACKGROUNDS: Record<SidebarFavorite, string> = {
+const APP_ICON_BACKGROUNDS: Record<SidebarBuiltinFavorite, string> = {
   assistants: 'linear-gradient(135deg, #111827, #4B5563)',
   agents: 'linear-gradient(135deg, #2563EB, #38BDF8)',
   store: 'linear-gradient(135deg, #0EA5E9, #6366F1)',
@@ -43,7 +43,7 @@ const APP_ICON_BACKGROUNDS: Record<SidebarFavorite, string> = {
   openclaw: 'linear-gradient(135deg, #EF4444, #B91C1C)'
 }
 
-function insertSidebarFavoriteByCanonicalOrder(favorites: SidebarFavorite[], favorite: SidebarFavorite) {
+function insertSidebarFavoriteByCanonicalOrder(favorites: SidebarBuiltinFavorite[], favorite: SidebarBuiltinFavorite) {
   const favoriteOrder = SIDEBAR_FAVORITE_ORDER.indexOf(favorite)
   const insertIndex = favorites.findIndex((existing) => SIDEBAR_FAVORITE_ORDER.indexOf(existing) > favoriteOrder)
   favorites.splice(insertIndex === -1 ? favorites.length : insertIndex, 0, favorite)
@@ -54,13 +54,13 @@ function getSidebarFavoritesWithPinnedState({
   favorite,
   pinned
 }: {
-  favorites: readonly string[] | undefined
-  favorite: SidebarFavorite
+  favorites: readonly SidebarFavorite[] | undefined
+  favorite: SidebarBuiltinFavorite
   pinned: boolean
-}): string[] {
+}): SidebarFavorite[] {
   const items = getSidebarFavoriteIds(favorites)
   const nextFavorites = items
-    .filter((item): item is SidebarFavorite => SIDEBAR_FAVORITE_ORDER.includes(item as SidebarFavorite))
+    .filter((item): item is SidebarBuiltinFavorite => SIDEBAR_FAVORITE_ORDER.includes(item as SidebarBuiltinFavorite))
     .filter((existing) => existing !== favorite)
   const miniAppFavorites = getSidebarMiniAppFavoriteIds(items)
 
@@ -138,7 +138,7 @@ export default function LaunchpadPage() {
     [navigate]
   )
 
-  const openLaunchpadItem = (favorite: SidebarFavorite) => {
+  const openLaunchpadItem = (favorite: SidebarBuiltinFavorite) => {
     if (shouldSuppressLaunchClick(favorite)) return
 
     // Launchpad opens each app at its base entry (chat -> new conversation,
@@ -156,7 +156,7 @@ export default function LaunchpadPage() {
   }
 
   const saveSidebarFavoritePinnedState = useCallback(
-    (favorite: SidebarFavorite, pinned: boolean) => {
+    (favorite: SidebarBuiltinFavorite, pinned: boolean) => {
       void setSidebarFavorites(
         getSidebarFavoritesWithPinnedState({
           favorites: sidebarFavorites,
@@ -171,7 +171,7 @@ export default function LaunchpadPage() {
   )
 
   const pinToSidebar = useCallback(
-    (favorite: SidebarFavorite) => {
+    (favorite: SidebarBuiltinFavorite) => {
       if (visibleSidebarFavoriteSet.has(favorite)) return
       saveSidebarFavoritePinnedState(favorite, true)
     },
@@ -179,7 +179,7 @@ export default function LaunchpadPage() {
   )
 
   const unpinFromSidebar = useCallback(
-    (favorite: SidebarFavorite) => {
+    (favorite: SidebarBuiltinFavorite) => {
       if (!visibleSidebarFavoriteSet.has(favorite) || REQUIRED_SIDEBAR_FAVORITE_SET.has(favorite)) return
       saveSidebarFavoritePinnedState(favorite, false)
     },
@@ -187,7 +187,7 @@ export default function LaunchpadPage() {
   )
 
   const getAppContextMenuItems = useCallback(
-    (favorite: SidebarFavorite): CommandContextMenuExtraItem[] => {
+    (favorite: SidebarBuiltinFavorite): CommandContextMenuExtraItem[] => {
       const isPinned = visibleSidebarFavoriteSet.has(favorite)
 
       return [

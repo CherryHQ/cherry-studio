@@ -10,7 +10,7 @@ import {
   getSidebarAppTabInstanceKey,
   tabBelongsToApp
 } from '@renderer/utils/sidebar'
-import type { SidebarFavorite } from '@shared/data/preference/preferenceTypes'
+import type { SidebarBuiltinFavorite } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useMemo } from 'react'
 import { v4 as uuid } from 'uuid'
@@ -40,13 +40,13 @@ export interface ConversationNavigation {
 }
 
 // Only conversation apps that own a resource sidebar emit a reveal on focus/open.
-function resolveRevealSource(appId: SidebarFavorite): ResourceListRevealSource | null {
+function resolveRevealSource(appId: SidebarBuiltinFavorite): ResourceListRevealSource | null {
   return appId === 'assistants' || appId === 'agents' ? appId : null
 }
 
 function findConversationTabId(
   tabs: TabsContextValue | null,
-  appId: SidebarFavorite,
+  appId: SidebarBuiltinFavorite,
   key: string,
   excludeTabId?: string
 ): string | undefined {
@@ -63,7 +63,7 @@ function findConversationTabId(
 
 function focusConversationTabImpl(
   tabs: TabsContextValue | null,
-  appId: SidebarFavorite,
+  appId: SidebarBuiltinFavorite,
   key: string,
   excludeTabId?: string
 ): boolean {
@@ -77,7 +77,7 @@ function focusConversationTabImpl(
 
 function openConversationTabImpl(
   tabs: TabsContextValue | null,
-  appId: SidebarFavorite,
+  appId: SidebarBuiltinFavorite,
   key: string,
   title?: string,
   forceNew?: boolean
@@ -92,7 +92,7 @@ function openConversationTabImpl(
   return openedId
 }
 
-function openConversationWindowImpl(appId: SidebarFavorite, key: string, title?: string): void {
+function openConversationWindowImpl(appId: SidebarBuiltinFavorite, key: string, title?: string): void {
   const app = getSidebarApp(appId)
   if (!app?.instanceKey) return
   const metadata = buildSidebarAppOpenMetadata(app, key)
@@ -116,7 +116,7 @@ function openConversationWindowImpl(appId: SidebarFavorite, key: string, title?:
  * Degrades to no-ops when there is no TabsProvider (tests, detached popups) or when the
  * app has no `instanceKey`.
  */
-export function useConversationNavigation(appId: SidebarFavorite): ConversationNavigation {
+export function useConversationNavigation(appId: SidebarBuiltinFavorite): ConversationNavigation {
   const tabs = useOptionalTabsContext()
   const isDetachedWindowFrame = useWindowFrame().mode === 'window'
 

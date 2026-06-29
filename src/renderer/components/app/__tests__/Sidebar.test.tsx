@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import type { SidebarFavorite } from '@shared/data/preference/preferenceTypes'
+import type { SidebarBuiltinFavorite } from '@shared/data/preference/preferenceTypes'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -221,7 +221,7 @@ import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
 
 import Sidebar from '../Sidebar'
 
-const appFavorite = (id: SidebarFavorite): string => id
+const appFavorite = (id: SidebarBuiltinFavorite): string => id
 const miniAppFavorite = (id: string): string => id
 
 afterEach(() => {
