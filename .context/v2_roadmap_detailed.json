@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-28",
+  "generated_at": "2026-06-29",
   "repository": "CherryHQ/cherry-studio",
 
   "v2_branch_status": {
@@ -30,6 +30,35 @@
     "2026-W21": 4, "2026-W22": 9
   },
 
+  "milestones": {
+    "v2.0.0": {
+      "status": "overdue",
+      "due_on": "2026-04-30",
+      "days_overdue": 60,
+      "open_issues": 24,
+      "closed_issues": 109,
+      "completion_pct": 82
+    },
+    "v2.1.0": {
+      "status": "active",
+      "open_issues": 29,
+      "closed_issues": 4,
+      "completion_pct": 12
+    },
+    "v2.2.0": {
+      "status": "active",
+      "open_issues": 38,
+      "closed_issues": 7,
+      "completion_pct": 16
+    },
+    "v2.4.0": {
+      "status": "active",
+      "open_issues": 21,
+      "closed_issues": 3,
+      "completion_pct": 12
+    }
+  },
+
   "active_v2_workstreams_on_main": [
     {
       "name": "UI Design System v2 Overhaul (SiinXu)",
@@ -54,18 +83,21 @@
       "total_prs": 13
     },
     {
-      "name": "Lodash → es-toolkit migration",
+      "name": "Dependency Cleanup (lodash, antd, styled-components)",
       "type": "Dependency Refactor",
       "lead": "DeJeune",
-      "prs": ["#16528 — replace lodash with es-toolkit/compat"],
-      "status": "open PR"
+      "completed_2026_06_29": [
+        "#16528 — replace lodash with es-toolkit/compat and drop it (MERGED 2026-06-29)"
+      ],
+      "open_prs": [],
+      "status": "lodash migration complete; antd/styled-components previously done"
     },
     {
       "name": "Agent Runtime / SDK Integration",
       "type": "Core Feature",
       "lead": "DeJeune, vaayne",
       "prs": [
-        "#16544 — guide agents to bundled bun/uv and block global installs",
+        "#16544 — guide agents to bundled bun/uv and block global installs (MERGED 2026-06-29)",
         "#16462 — AI SDK v7 migration plan and design docs (draft)",
         "#16492 — OAuth runtime provider registry (vaayne)",
         "#16283 — login-based providers: Claude Code, OpenAI Codex, Grok"
@@ -79,23 +111,24 @@
       "prs": [
         "#16345 — agent tool surface for knowledge bases (kb_read/grep/tree)",
         "#16486 — file-name search to knowledge base index",
+        "#16407 — local embedding and PaddleOCR (draft)",
         "#16443 — e2e data-testid hooks + agent-e2e spec (draft)"
       ],
       "status": "multiple open PRs"
     },
     {
-      "name": "Dexie v1 Retirement",
-      "type": "v2 Refactor Cleanup",
-      "lead": "DeJeune",
-      "prs": ["#16440 — retire the settings table from v2 storage paths"],
-      "status": "open PR"
-    },
-    {
       "name": "IPC Migration to IpcApi",
       "type": "Architecture",
       "lead": "Pleasurecruise",
-      "prs": ["#16397 — migrate runtime IPC to IpcApi"],
-      "status": "open PR"
+      "prs": ["#16397 — migrate runtime IPC to IpcApi", "#16554 — binary.latest_versions IPC"],
+      "status": "open PRs"
+    },
+    {
+      "name": "Channels — outbound file forwarding",
+      "type": "New Feature",
+      "lead": "DeJeune (issue), vaayne (assignee)",
+      "tracking_issue": 16566,
+      "status": "filed 2026-06-29, no PR yet"
     }
   ],
 
@@ -124,7 +157,10 @@
     "migration_doc_pr": 16462
   },
 
-  "blocked_issues": [
-    { "number": "~2 issues", "label": "Blocked: v2", "note": "2 open issues still waiting on v2 completion" }
-  ]
+  "release_status": {
+    "latest_public": "v1.9.11",
+    "published_at": "2026-06-07",
+    "draft": "v1.9.12",
+    "note": "v2.0.0 not yet released; public releases still on v1.9.x branch. v2.0.0 milestone 60 days overdue."
+  }
 }

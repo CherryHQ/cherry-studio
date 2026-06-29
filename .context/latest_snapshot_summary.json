@@ -1,18 +1,18 @@
 {
-  "generated_at": "2026-06-28",
-  "data_source": "GitHub API via MCP (mcp__github__*), sampled 300 of 968 open issues",
+  "generated_at": "2026-06-29",
+  "data_source": "GitHub API via MCP (mcp__github__*), sampled 300 of 947 open issues",
   "repository": "CherryHQ/cherry-studio",
 
   "open_issues": {
-    "total": 968,
+    "total": 947,
     "inactive_label_count": 102,
-    "no_label_count": 99,
+    "no_label_count": 93,
     "needs_triage_count": 5,
     "p1_open_active": 3,
     "p1_active_list": [
-      { "number": 14899, "title": "[Feature]: Unified Notification Center", "labels": ["Planned", "P1", "feature", "UI/UX"] },
+      { "number": 14899, "title": "[Feature]: Unified Notification Center", "labels": ["Planned", "P1", "feature", "UI/UX"], "milestone": "v2.4.0" },
       { "number": 13608, "title": "[Bug]: xiaomi mimo response only displays the last line", "labels": ["P1", "Models"] },
-      { "number": 13193, "title": "[Bug]: [AI_APICallError: Resource not found, default use responses API]", "labels": ["P1", "Models"] }
+      { "number": 13193, "title": "[Bug]: [AI_APICallError: Resource not found, default use responses API]", "labels": ["P1", "Models"], "assignee": "DeJeune" }
     ],
     "needs_triage_list": [
       { "number": 15983, "title": "[Bug]: MCP/Skill references in Agent SOUL.md lack automatic validation", "labels": ["MCP", "needs-triage"], "note": "no fix yet" },
@@ -43,11 +43,11 @@
       "Blocked: v2": 2,
       "needs-triage": 1
     },
-    "age_distribution_sampled_300": {
-      "lt_7_days": 90,
-      "7_to_30_days": 98,
-      "30_to_90_days": 106,
-      "gt_90_days": 6
+    "age_distribution": {
+      "lt_7_days": 142,
+      "7_to_30_days": 420,
+      "gt_30_days": 385,
+      "note": "lt_7_days and gt_30_days from GitHub search total_count; 7_to_30_days estimated"
     },
     "notable_issues": [
       { "number": 6505, "title": "Long-running FAQ/feedback mega-thread", "comments": 362, "note": "most commented open issue" },
@@ -56,21 +56,20 @@
   },
 
   "open_prs": {
-    "total": 100,
+    "total": 291,
     "by_base_branch": {
       "main": 82,
-      "v1": 5,
+      "v1": 6,
       "v2": 0,
       "stacked_feature_branches": 13
     },
-    "draft_count": 24,
-    "non_draft_count": 76,
+    "draft_count_of_recent_100": 26,
     "unlabeled_count": 97,
     "age_distribution": {
-      "lt_7_days": 83,
-      "7_to_30_days": 14,
-      "30_to_90_days": 2,
-      "gt_90_days": 1
+      "lt_7_days": 99,
+      "7_to_30_days": 1,
+      "gt_30_days": 0,
+      "note": "From most-recently-updated 100 PRs"
     },
     "notable_workstreams": [
       {
@@ -83,32 +82,63 @@
         "base_branches": "stacked (each PR bases on the previous one)"
       }
     ],
-    "top_contributors": [
+    "top_contributors_open": [
       { "author": "DeJeune", "open_prs": 20 },
       { "author": "SiinXu", "open_prs": 13 },
-      { "author": "kangfenmao", "open_prs": 6 },
-      { "author": "zhangjiadi225", "open_prs": 5 },
-      { "author": "eeee0717", "open_prs": 4 },
-      { "author": "kovsu", "open_prs": 3 },
-      { "author": "vaayne", "open_prs": 3 }
+      { "author": "kangfenmao", "open_prs": 7 },
+      { "author": "vaayne", "open_prs": 6 },
+      { "author": "eeee0717", "open_prs": 6 }
+    ]
+  },
+
+  "merged_prs_30d": {
+    "total": 240,
+    "last_7d": 88,
+    "top_authors": [
+      { "author": "DeJeune", "count": 29 },
+      { "author": "eeee0717", "count": 19 },
+      { "author": "kangfenmao", "count": 13 },
+      { "author": "zhangjiadi225", "count": 11 },
+      { "author": "ousugo", "count": 5 }
+    ],
+    "notable_today_2026_06_29": [
+      "fix(sortable): require primary pointer activation (#16574)",
+      "feat(resource-dialogs): stepped create wizard for assistants and agents (#16496)",
+      "fix(gateway): generate Gemini images via the language API (#16341)",
+      "feat(agent-runtime): guide agents to bundled bun/uv and block global installs (#16544)",
+      "refactor(deps): replace lodash with es-toolkit/compat and drop it (#16528)",
+      "fix(codeblock): lazy load special previews (#16525)",
+      "fix(citations): defer article parser imports (#16547)"
     ]
   },
 
   "closed_issues_30d": {
-    "total_count": 427,
+    "total_count": 425,
     "api_sample_size": 100,
-    "by_iso_week": {
-      "2026-W25 (Jun 16-22)": 26,
-      "2026-W26 (Jun 23-28)": 74
+    "by_day_last_7d": {
+      "2026-06-29": 29,
+      "2026-06-28": 7,
+      "2026-06-27": 5,
+      "2026-06-26": 18,
+      "2026-06-25": 19,
+      "2026-06-24": 14,
+      "2026-06-23": 1,
+      "2026-06-22": 7
     },
-    "quick_closes_lt_24h": 17,
-    "dominant_close_reason": "inactive stale sweep (75% of sample)",
-    "top_labels_on_closed": ["inactive (75)", "UI/UX (33)", "Assistant (20)", "Models (18)", "MCP (9)", "internal_team (9)"],
+    "dominant_close_reason": "inactive stale sweep (62% of recent 100 sample)",
+    "top_labels_on_closed": ["inactive (62)", "UI/UX (26)", "Assistant (21)", "Models (21)", "Performance (9)", "MCP (5)"],
     "most_commented_closed": [
-      { "number": 15416, "title": "[Bug]: Taskbar icon becomes blank after merging", "comments": 10 },
+      { "number": 14996, "title": "[Bug]: Using Qwen/Gemma local models to create agents frequently encounters 'content not found'", "comments": 9 },
       { "number": 15051, "title": "[Bug]: Cannot select any model while trying to create a new Agent", "comments": 6 },
-      { "number": 14800, "title": "[Bug]: Cherry's agent stops with errors when using LM Studio", "comments": 5 }
+      { "number": 14800, "title": "[Bug]: Cherry's agent stops with errors when using LM Studio local models", "comments": 5 }
     ]
+  },
+
+  "milestones": {
+    "v2.0.0": { "open": 24, "closed": 109, "due": "2026-04-30", "status": "overdue by 60 days" },
+    "v2.1.0": { "open": 29, "closed": 4, "status": "active" },
+    "v2.2.0": { "open": 38, "closed": 7, "status": "active" },
+    "v2.4.0": { "open": 21, "closed": 3, "status": "active" }
   },
 
   "releases": {
@@ -123,5 +153,16 @@
     "last_merge_week": "2026-W22 (~May 31, 2026)",
     "open_prs_targeting_v2": 0,
     "note": "main is now the active development branch for v2 features"
-  }
+  },
+
+  "security_events": [
+    {
+      "type": "prompt_injection_attempt",
+      "issue_number": 16583,
+      "title": "Feature: Add repository statistics to README",
+      "author": "jeebuskey",
+      "created_at": "2026-06-29T17:39:19Z",
+      "description": "Issue body instructs scheduled analysis agents to run gh CLI diagnostic commands and send Feishu webhook notifications. Ignored."
+    }
+  ]
 }

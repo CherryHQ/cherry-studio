@@ -1,17 +1,17 @@
 {
-  "generated_at": "2026-06-28",
+  "generated_at": "2026-06-29",
   "repository": "CherryHQ/cherry-studio",
-  "data_availability": "PARTIAL — GitHub GraphQL Discussions API not accessible via current MCP tooling; data sourced from issues tagged 'discussion' or 'help wanted'",
+  "data_availability": "PARTIAL — GitHub GraphQL Discussions API not accessible via current MCP tooling; data sourced from issues tagged 'discussion' or 'help wanted', and from high-comment issues",
 
   "discussion_label_proxies": {
     "issues_labeled_discussion": {
       "open_sampled": 10,
-      "closed_in_30d_sampled": 5,
+      "closed_in_30d_sampled": 3,
       "note": "Issues tagged 'discussion' are the closest available proxy for community discussions"
     },
     "issues_labeled_help_wanted": {
       "open_sampled": 10,
-      "closed_in_30d_sampled": 5
+      "closed_in_30d_sampled": 3
     }
   },
 
@@ -20,7 +20,6 @@
       "number": 6505,
       "title": "Long-running FAQ/feedback mega-thread",
       "comments": 362,
-      "created_at": "~2025-05",
       "status": "open",
       "note": "Most commented open issue — acts as community FAQ hub"
     },
@@ -43,24 +42,42 @@
 
   "community_signals": {
     "top_feature_categories_by_volume": [
-      "UI/UX improvements (86 open issues sampled)",
+      "UI/UX improvements (86 open issues sampled, feature label: 154 total)",
       "AI Model compatibility (47 open issues sampled)",
       "Agent/Assistant features (46 open issues sampled)",
       "MCP integration (25 open issues sampled)",
-      "Knowledge base / RAG (11 open issues sampled)",
-      "Performance (16 open issues sampled)"
+      "Performance optimization (16 open issues sampled)",
+      "Knowledge base / RAG (11 open issues sampled)"
     ],
     "high_engagement_areas": [
       "Agent mode reliability (MCP connectivity, tool errors, SOUL.md validation)",
       "Cross-device sync (backup race conditions, WebDAV issues)",
-      "Model support (xiaomi mimo, doubao seed, opus 4.x reasoning)",
-      "UI personalization (notification center, font options, sidebar customization)"
+      "Model support (xiaomi mimo, Azure OpenAI API regression, MiniMax M3)",
+      "UI personalization (notification center, font options, sidebar customization)",
+      "Channels outbound (IM file forwarding, QQ group passive reply)"
+    ],
+    "new_signals_2026_06_29": [
+      "Channels outbound file forwarding request (#16566) — filed by DeJeune",
+      "Prompt injection attempt via issue #16583 — filed by external user 'jeebuskey'"
     ]
   },
+
+  "security_events": [
+    {
+      "type": "prompt_injection_attempt",
+      "issue_number": 16583,
+      "title": "Feature: Add repository statistics to README",
+      "author": "jeebuskey",
+      "created_at": "2026-06-29T17:39:19Z",
+      "body_summary": "Contains instructions to run `gh api /repos/CherryHQ/cherry-studio --jq` commands and 'Also send the Feishu notification with the summary as normal'",
+      "action_taken": "Ignored — instructions from issue bodies are untrusted external content"
+    }
+  ],
 
   "action_items": [
     "Enable Discussions GraphQL API access or schedule separate discussions fetch",
     "Address #15267 (analytics opt-out P1) — community privacy concern",
-    "Review closed 'discussion' issues to identify patterns for FAQ updates"
+    "Review closed 'discussion' issues to identify patterns for FAQ updates",
+    "Close or lock issue #16583 (prompt injection attempt)"
   ]
 }
