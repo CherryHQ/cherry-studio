@@ -537,9 +537,12 @@ type AgentComposerControlProps = Omit<AgentComposerContextControlsProps, 'side'>
   canChangeModel: boolean
   onModelSelect: (model: Model | undefined) => void
   modelFilter?: (model: Model) => boolean
+  renderWorkspaceControl?: (args: { side: 'top' | 'bottom'; iconOnly?: boolean }) => React.ReactNode
 }
 type ComposerSurfaceProps = React.ComponentProps<typeof ComposerSurface>
-type AgentComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls' | 'renderBelowControls'>
+type AgentComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls' | 'renderBelowControls'> & {
+  placesWorkspaceInBelowControls?: boolean
+}
 type AgentComposerControlsRenderer = (props: AgentComposerControlProps) => AgentComposerControlSlots
 
 // Active agent sessions are bound to their agent, so the agent trigger opens edit instead of switching.
@@ -576,8 +579,14 @@ const renderAgentHomeControls: AgentComposerControlsRenderer = (props) => {
             <AgentComposerModelControl {...props} side={side} iconOnly={iconOnly} />
           </>
         )}
+        trailing={
+          props.renderWorkspaceControl
+            ? ({ iconOnly }) => props.renderWorkspaceControl?.({ side: 'bottom', iconOnly })
+            : undefined
+        }
       />
-    )
+    ),
+    placesWorkspaceInBelowControls: true
   }
 }
 
@@ -955,7 +964,22 @@ const AgentComposerInner = ({
     enabled: enableMentionModelTrigger
   })
 
-  const controlSlots = renderControls({
+  const renderWorkspaceControl = showWorkspaceSelector
+    ? ({ side, iconOnly = false }: { side: 'top' | 'bottom'; iconOnly?: boolean }) => (
+        <AgentComposerWorkspaceControl
+          workspace={workspace}
+          workspaceId={workspaceId}
+          workspaceWarning={workspaceWarning}
+          selectWorkspaceLabel={t('agent.session.workspace_selector.placeholder')}
+          workspaceChanging={workspaceChanging}
+          side={side}
+          iconOnly={iconOnly}
+          onWorkspaceChange={onWorkspaceChange}
+        />
+      )
+    : undefined
+
+  const renderedControlSlots = renderControls({
     agent: agentBase,
     model,
     modelProviderName,
@@ -974,22 +998,14 @@ const AgentComposerInner = ({
             onClick: handleCreateEmptySession
           }
         : undefined,
-    onAgentChange: handleAgentChange
+    onAgentChange: handleAgentChange,
+    renderWorkspaceControl
   })
+  const { placesWorkspaceInBelowControls, ...controlSlots } = renderedControlSlots
 
   const sendAccessory = (
     <div className="flex items-center gap-1.5">
-      {showWorkspaceSelector ? (
-        <AgentComposerWorkspaceControl
-          workspace={workspace}
-          workspaceId={workspaceId}
-          workspaceWarning={workspaceWarning}
-          selectWorkspaceLabel={t('agent.session.workspace_selector.placeholder')}
-          workspaceChanging={workspaceChanging}
-          side="top"
-          onWorkspaceChange={onWorkspaceChange}
-        />
-      ) : null}
+      {!placesWorkspaceInBelowControls ? renderWorkspaceControl?.({ side: 'top' }) : null}
       <AgentComposerContextUsage model={model} sessionId={sessionId} />
     </div>
   )
