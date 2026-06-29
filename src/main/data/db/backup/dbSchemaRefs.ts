@@ -154,6 +154,13 @@ export const DB_COLUMNS_BY_TABLE = {
     { name: 'id', dbName: 'id', isPrimaryKey: true, isNullable: false, sqlType: 'text' },
     { name: 'agentId', dbName: 'agentId', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'name', dbName: 'name', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
+    {
+      name: 'isNameManuallyEdited',
+      dbName: 'isNameManuallyEdited',
+      isPrimaryKey: false,
+      isNullable: false,
+      sqlType: 'integer'
+    },
     { name: 'description', dbName: 'description', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'workspaceId', dbName: 'workspaceId', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'traceId', dbName: 'traceId', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
@@ -739,6 +746,6 @@ export const DB_FTS_VIRTUAL_TABLES = {
 
 // 5. Generation metadata for diagnostics. Excluded from byte-for-byte CHECK.
 export const BACKUP_REFS_META = {
-  generatedAt: '2026-06-27T12:13:59.567Z',
-  schemaCommit: '420187b831'
+  generatedAt: '2026-06-29T14:30:50.654Z',
+  schemaCommit: 'c469793ddf'
 } as const
