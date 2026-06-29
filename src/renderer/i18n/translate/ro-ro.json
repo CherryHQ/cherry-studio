@@ -6465,6 +6465,8 @@
         "logo_upload_label": "Încarcă logo",
         "name": "Nume",
         "name_placeholder": "Introdu nume",
+        "remove_confirm_description": "Ștergi mini-aplicația personalizată \"{{name}}\"? Această acțiune nu poate fi anulată.",
+        "remove_confirm_title": "Ștergi miniaplicația personalizată?",
         "remove_error": "Eliminarea mini-aplicației personalizate a eșuat.",
         "remove_success": "Mini-aplicația personalizată a fost eliminată cu succes.",
         "save_error": "Salvarea mini-aplicației personalizate a eșuat.",
@@ -6493,6 +6495,7 @@
         "title": "Filtru zonă aplicație miniatură"
       },
       "reset_tooltip": "Resetează la implicit",
+      "title": "Setări Mini Apps",
       "visible": "Mini-aplicații vizibile"
     },
     "model": "Model implicit",
@@ -6644,6 +6647,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
+        "sync_apply_default_in_use": "Unele modele sunt utilizate ca model implicit și nu pot fi eliminate.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",

@@ -526,14 +526,12 @@ export interface FileIpcApi {
 
   /**
    * Open file/directory with the system default application.
-   * @phase 2 — entry-id open is wired for Files page as IpcApi route `file.open`.
-   * The full FileHandle/path variant remains type-only.
+   * @phase 2 — wired as IpcApi route `file.open` with full `FileHandle` dispatch.
    */
   open(handle: FileHandle): Promise<void>
   /**
    * Reveal file/directory in the system file manager.
-   * @phase 2 — entry-id reveal is wired for Files page as IpcApi route `file.show_in_folder`.
-   * The full FileHandle/path variant remains type-only.
+   * @phase 2 — wired as IpcApi route `file.show_in_folder` with full `FileHandle` dispatch.
    */
   showInFolder(handle: FileHandle): Promise<void>
 

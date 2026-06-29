@@ -189,7 +189,7 @@ This file contains core Thunk Action Creators for managing message flows, handli
 - **Database Interaction**: Uses helper functions like `saveMessageAndBlocksToDB`, `throttledBlockDbUpdate`, etc. to interact with IndexedDB.
 - **State Synchronization**: Thunks coordinate data consistency between the Redux Store and IndexedDB.
 - **Queue (`getTopicQueue`)**: Uses `AsyncQueue` to ensure operations on the same topic execute sequentially, avoiding race conditions.
-- **Throttling (`throttle`)**: Uses `lodash.throttle` to optimize frequent block updates (text, thinking) during streaming, reducing Redux dispatch and DB write frequency.
+- **Throttling (`throttle`)**: Uses `throttle` from es-toolkit/compat to optimize frequent block updates (text, thinking) during streaming, reducing Redux dispatch and DB write frequency.
 - **Error Handling**: Callbacks in `fetchAndProcessAssistantResponseImpl` (especially `onError`) handle stream processing and API call errors, creating `ERROR` type blocks.
 
 ---

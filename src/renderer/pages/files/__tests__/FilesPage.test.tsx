@@ -656,7 +656,7 @@ describe('FilesPage file operations', () => {
     fireEvent.doubleClick(screen.getByText('report.md'))
 
     await waitFor(() => {
-      expect(ipcMocks.request).toHaveBeenCalledWith('file.show_in_folder', { id: entry.id })
+      expect(ipcMocks.request).toHaveBeenCalledWith('file.show_in_folder', { kind: 'entry', entryId: entry.id })
     })
   })
 

@@ -2,12 +2,15 @@ import type { Message } from '@renderer/types/newMessage'
 import type { Topic } from '@renderer/types/topic'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { copyMessageAsPlainText, copyTopicAsMarkdown, copyTopicAsPlainText } from '../copy'
+import { copyMessageAsPlainText, copyTopicAsMarkdown, copyTopicAsPlainText } from '../CopyService'
 
 // Mock dependencies
-vi.mock('@renderer/utils/export', () => ({
+vi.mock('@renderer/services/ExportService', () => ({
   topicToMarkdown: vi.fn(),
-  topicToPlainText: vi.fn(),
+  topicToPlainText: vi.fn()
+}))
+
+vi.mock('@renderer/utils/export', () => ({
   messageToPlainText: vi.fn()
 }))
 
@@ -77,7 +80,7 @@ describe('copy', () => {
       const topic = createTestTopic()
       const markdownContent = '# Test Topic\n\nContent here...'
 
-      const { topicToMarkdown } = await import('@renderer/utils/export')
+      const { topicToMarkdown } = await import('@renderer/services/ExportService')
       vi.mocked(topicToMarkdown).mockResolvedValue(markdownContent)
       mockClipboard.writeText.mockResolvedValue(undefined)
 
@@ -93,7 +96,7 @@ describe('copy', () => {
     it('should handle export function errors', async () => {
       // 测试导出函数错误
       const topic = createTestTopic()
-      const { topicToMarkdown } = await import('@renderer/utils/export')
+      const { topicToMarkdown } = await import('@renderer/services/ExportService')
       vi.mocked(topicToMarkdown).mockRejectedValue(new Error('Export error'))
 
       await expect(copyTopicAsMarkdown(topic)).rejects.toThrow('Export error')
@@ -106,7 +109,7 @@ describe('copy', () => {
       const topic = createTestTopic()
       const markdownContent = '# Test Topic'
 
-      const { topicToMarkdown } = await import('@renderer/utils/export')
+      const { topicToMarkdown } = await import('@renderer/services/ExportService')
       vi.mocked(topicToMarkdown).mockResolvedValue(markdownContent)
       mockClipboard.writeText.mockRejectedValue(new Error('Clipboard error'))
 
@@ -121,7 +124,7 @@ describe('copy', () => {
       const topic = createTestTopic()
       const plainTextContent = 'Test Topic\n\nPlain text content...'
 
-      const { topicToPlainText } = await import('@renderer/utils/export')
+      const { topicToPlainText } = await import('@renderer/services/ExportService')
       vi.mocked(topicToPlainText).mockResolvedValue(plainTextContent)
       mockClipboard.writeText.mockResolvedValue(undefined)
 
@@ -135,7 +138,7 @@ describe('copy', () => {
     it('should handle export function errors', async () => {
       // 测试导出函数错误
       const topic = createTestTopic()
-      const { topicToPlainText } = await import('@renderer/utils/export')
+      const { topicToPlainText } = await import('@renderer/services/ExportService')
       vi.mocked(topicToPlainText).mockRejectedValue(new Error('Export error'))
 
       await expect(copyTopicAsPlainText(topic)).rejects.toThrow('Export error')
@@ -178,7 +181,8 @@ describe('copy', () => {
   describe('edge cases', () => {
     it('should handle null or undefined inputs gracefully', async () => {
       // 测试null/undefined输入的错误处理
-      const { topicToMarkdown, topicToPlainText, messageToPlainText } = await import('@renderer/utils/export')
+      const { topicToMarkdown, topicToPlainText } = await import('@renderer/services/ExportService')
+      const { messageToPlainText } = await import('@renderer/utils/export')
 
       vi.mocked(topicToMarkdown).mockRejectedValue(new Error('Cannot read properties of null'))
       vi.mocked(topicToPlainText).mockRejectedValue(new Error('Cannot read properties of undefined'))
