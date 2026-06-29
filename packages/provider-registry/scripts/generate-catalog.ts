@@ -176,7 +176,10 @@ async function assignLabs(index: Index, md: ModelsDevApi): Promise<Map<string, s
     }
   }
   // pass 3 — PROVIDER LISTING (leftovers; `deepseek-v4-flash` hosted by DashScope is already deepseek's).
-  for (const lab of LABS) for (const id of labProviderIds.get(lab.id) ?? []) claim(id, lab.id)
+  // `labProviderIds` is built from the RAW models.dev listing, so it still contains ids that `buildIndex`
+  // folded away as host re-prefix duplicates (DashScope's `Moonshot-Kimi-K2-Instruct` → `kimi-k2-instruct`).
+  // Gate on the post-fold index so a host can't resurrect a folded duplicate under its own ownership.
+  for (const lab of LABS) for (const id of labProviderIds.get(lab.id) ?? []) if (index.has(id)) claim(id, lab.id)
   return claimed
 }
 

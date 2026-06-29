@@ -16628,12 +16628,6 @@
       }
     },
     {
-      "id": "moonshot-kimi-k2-instruct",
-      "metadata": {},
-      "name": "moonshot-kimi-k2-instruct",
-      "ownedBy": "alibaba"
-    },
-    {
       "id": "open-mistral-nemo",
       "metadata": {},
       "name": "open-mistral-nemo",
