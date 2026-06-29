@@ -1,3 +1,7 @@
+// Side-effect import: loads AgentGlobalSkillService so it self-registers in the data-service
+// registry, which createAgent resolves lazily for create-time skill validation/join.
+import '@data/services/AgentGlobalSkillService'
+
 import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'

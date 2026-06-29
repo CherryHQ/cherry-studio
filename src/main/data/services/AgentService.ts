@@ -5,7 +5,7 @@ import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
-import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
+import { getDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
@@ -135,8 +135,11 @@ export class AgentService {
     // Validate referenced skills before opening the write tx: a late FK violation
     // inside the tx throws but does not reliably roll back the already-inserted
     // agent row, so guard up front to keep create atomic and yield a clean error.
+    // AgentGlobalSkillService is resolved through the registry (not a direct import)
+    // to keep this service↔service edge out of the static import graph — see
+    // dataServiceRegistry.
     for (const skillId of skillIds) {
-      if (!(await agentGlobalSkillService.getById(skillId))) {
+      if (!(await getDataService('AgentGlobalSkillService').getById(skillId))) {
         throw DataApiErrorFactory.notFound('Skill', skillId)
       }
     }
@@ -153,7 +156,7 @@ export class AgentService {
           // symlinks don't exist yet (no session/workspace at create time) and get
           // reconciled later by SkillService when a workspace appears.
           for (const skillId of skillIds) {
-            await agentGlobalSkillService.upsertJoinTx(tx, id, skillId, true)
+            await getDataService('AgentGlobalSkillService').upsertJoinTx(tx, id, skillId, true)
           }
           return result
         }),
