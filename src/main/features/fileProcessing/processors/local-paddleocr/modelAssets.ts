@@ -55,7 +55,7 @@ export const OCR_MODEL_FILES: Record<keyof OcrModelPaths, OcrModelFile> = {
 }
 
 export function ocrModelDir(): string {
-  return application.getPath('feature.models.paddleocr')
+  return application.getPath('feature.ocr.paddleocr')
 }
 
 export function ocrModelPaths(): OcrModelPaths {

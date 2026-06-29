@@ -57,7 +57,7 @@ describe('localPaddleocrImageToTextHandler', () => {
   })
 
   it('recognizes text from an image off the main thread', async () => {
-    const prepared = localPaddleocrImageToTextHandler.prepare(imageFile, config)
+    const prepared = await localPaddleocrImageToTextHandler.prepare(imageFile, config)
     if (prepared.mode !== 'background') {
       throw new Error('Expected local PaddleOCR handler to prepare a background task')
     }

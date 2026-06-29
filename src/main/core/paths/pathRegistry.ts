@@ -86,11 +86,8 @@ export function buildPathRegistry() {
       ? path.join(appExtraResources, 'provider-registry')
       : path.join(__dirname, '../../packages/provider-registry/data'),
 
-    // Local embedding model cache (transformers.js / onnxruntime-node, downloaded on first use)
-    'feature.models.transformers': path.join(appUserDataData, 'Models', 'transformers'),
-
-    // Local OCR model files (PaddleOCR / ppu-paddle-ocr, downloaded on demand)
-    'feature.models.paddleocr': path.join(appUserDataData, 'Models', 'paddleocr'),
+    // Local embedding model cache (transformers.js HF cache root, downloaded on first use)
+    'feature.embedding.models': path.join(appUserDataData, 'Models', 'embedding'),
 
     // BinaryManager (tool manager)
     'feature.binary.data': path.join(CHERRY_HOME, 'binary-manager'),
@@ -132,6 +129,8 @@ export function buildPathRegistry() {
 
     // OCR
     'feature.ocr.tesseract': path.join(appUserData, 'tesseract'),
+    // Local OCR model files (PaddleOCR / ppu-paddle-ocr, downloaded on demand)
+    'feature.ocr.paddleocr': path.join(appUserDataData, 'Models', 'ocr', 'paddleocr'),
 
     // Version log
     'feature.version_log.file': path.join(appUserData, 'version.log'),

@@ -58,7 +58,7 @@ class InferenceHost {
     })
     worker.postMessage({
       type: 'init',
-      cacheDir: application.getPath('feature.models.transformers'),
+      cacheDir: application.getPath('feature.embedding.models'),
       appPath: application.getPath('app.root')
     })
     this.worker = worker

@@ -2,8 +2,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
-import { type InferenceProgress, inferenceHost } from '@main/ai/inference/InferenceHost'
 import { loggerService } from '@logger'
+import { inferenceHost, type InferenceProgress } from '@main/ai/inference/InferenceHost'
 import type { LocalModelStatus } from '@shared/data/presets/localEmbedding'
 
 import { currentModelSource, MODEL_DTYPE, MODEL_REPO } from './embeddingRuntime'
@@ -43,7 +43,7 @@ class LocalEmbeddingDownloadService {
   private abortController: AbortController | null = null
 
   private modelDir(): string {
-    return path.join(application.getPath('feature.models.transformers'), ...MODEL_REPO.split('/'))
+    return path.join(application.getPath('feature.embedding.models'), ...MODEL_REPO.split('/'))
   }
 
   getStatus(): LocalModelStatus {
