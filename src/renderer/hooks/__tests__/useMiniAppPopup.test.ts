@@ -154,6 +154,21 @@ describe('useMiniAppPopup', () => {
       expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('keep-alive-app')
     })
 
+    it('should append to the latest keep-alive cache when the callback was created before another cache update', async () => {
+      const existing = createMiniApp('existing-cache-entry')
+      const app = createMiniApp('new-cache-entry')
+      MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, [])
+      const { result } = renderHook(() => useTestMiniAppPopup())
+
+      MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, [existing])
+
+      await act(async () => {
+        result.current.openMiniApp(app, true)
+      })
+
+      expect(getKeepAlive().map((item) => item.appId)).toEqual(['existing-cache-entry', 'new-cache-entry'])
+    })
+
     it('should not duplicate an already-open app — switch and move it to the tail', async () => {
       const app = createMiniApp('existing-app')
       const other = createMiniApp('other')
@@ -309,6 +324,22 @@ describe('useMiniAppPopup', () => {
 
       expect(isInKeepAlive('to-close')).toBe(false)
       expect(mockClearWebviewState).toHaveBeenCalledWith('to-close')
+    })
+
+    it('should remove from the latest keep-alive cache when the callback was created before another cache update', async () => {
+      const app = createMiniApp('late-close')
+      MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, [])
+      MockUseCacheUtils.setCacheValue('mini_app.show', true)
+      const { result } = renderHook(() => useTestMiniAppPopup())
+
+      MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, [app])
+
+      await act(async () => {
+        result.current.closeMiniApp('late-close')
+      })
+
+      expect(isInKeepAlive('late-close')).toBe(false)
+      expect(mockClearWebviewState).toHaveBeenCalledWith('late-close')
     })
 
     it('should clear one-off miniapp when closing it', async () => {
