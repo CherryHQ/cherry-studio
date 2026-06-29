@@ -6,8 +6,14 @@ import { pathToFileURL } from 'node:url'
 import { type Client, createClient } from '@libsql/client'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { ensureIndexMeta, readIndexSchemaVersion } from '../indexMeta'
 import { LibsqlDriver } from '../LibsqlDriver'
-import { createKnowledgeIndexSchema, KNOWLEDGE_INDEX_SCHEMA_STATEMENTS } from '../schema'
+import {
+  createKnowledgeIndexSchema,
+  KNOWLEDGE_INDEX_SCHEMA_STATEMENTS,
+  KNOWLEDGE_INDEX_SCHEMA_VERSION,
+  resetKnowledgeIndexSchema
+} from '../schema'
 
 const TS = 1_700_000_000_000
 
@@ -160,7 +166,7 @@ describe('knowledge index schema', () => {
       const result = await client.execute({
         sql: `SELECT st.search_text_id AS id
               FROM search_text_fts
-              JOIN search_text st ON st.rowid = search_text_fts.rowid
+              JOIN search_text st ON st.fts_rowid = search_text_fts.rowid
               WHERE search_text_fts MATCH ?`,
         args: [term]
       })
@@ -191,6 +197,9 @@ describe('knowledge index schema', () => {
       // today; the trigger is kept defensively and this test pins its behavior.
       await insertSearchText('st1', 'u1', 'alpha knowledge base', 'eh1')
       expect(await matchBody('knowledge')).toEqual(['st1'])
+      const ftsRowidBefore = (
+        await client.execute({ sql: `SELECT fts_rowid FROM search_text WHERE search_text_id = ?`, args: ['st1'] })
+      ).rows[0].fts_rowid
 
       await client.execute({
         sql: `UPDATE search_text SET text = ? WHERE search_text_id = ?`,
@@ -199,6 +208,15 @@ describe('knowledge index schema', () => {
 
       expect(await matchBody('knowledge')).toEqual([])
       expect(await matchBody('wisdom')).toEqual(['st1'])
+      // fts_rowid is stable across a text edit (the au trigger re-keys the FTS row by NEW.fts_rowid,
+      // it does not reassign it) — so the external-content index stays aligned.
+      const ftsRowidAfter = (
+        await client.execute({ sql: `SELECT fts_rowid FROM search_text WHERE search_text_id = ?`, args: ['st1'] })
+      ).rows[0].fts_rowid
+      expect(ftsRowidAfter).toBe(ftsRowidBefore)
+      await expect(
+        client.execute(`INSERT INTO search_text_fts(search_text_fts, rank) VALUES('integrity-check', 1)`)
+      ).resolves.toBeDefined()
     })
 
     it('exposes a bm25 rank for matches', async () => {
@@ -233,6 +251,64 @@ describe('knowledge index schema', () => {
       expect(Number.isFinite(dist)).toBe(true)
       // Identical vectors → cosine distance ≈ 0.
       expect(dist).toBeLessThan(0.001)
+    })
+  })
+
+  describe('schema version & rebuild (open-time migration)', () => {
+    it('reports null until a meta row exists, then the current constant', async () => {
+      const driver = new LibsqlDriver(client)
+      // beforeEach created the schema (meta table exists) but no id=1 row yet.
+      expect(await readIndexSchemaVersion(driver)).toBeNull()
+      await ensureIndexMeta(driver, { baseId: 'base-1' })
+      expect(await readIndexSchemaVersion(driver)).toBe(KNOWLEDGE_INDEX_SCHEMA_VERSION)
+    })
+
+    it('reports null on a file with no meta table at all', async () => {
+      const fresh = createClient({ url: ':memory:' })
+      try {
+        expect(await readIndexSchemaVersion(new LibsqlDriver(fresh))).toBeNull()
+      } finally {
+        fresh.close()
+      }
+    })
+
+    it('reports null for a malformed (non-numeric) schema_version cell', async () => {
+      const driver = new LibsqlDriver(client)
+      await ensureIndexMeta(driver, { baseId: 'base-1' })
+      // A blanked/corrupt version (stored as text under the column's INTEGER affinity) must read as
+      // "unknown" → null, so the open path treats it as fresh and creates rather than silently
+      // mistaking it for a real version. Covers the `typeof === 'number'` guard.
+      await client.execute(`UPDATE meta SET schema_version = 'corrupt'`)
+      expect(await readIndexSchemaVersion(driver)).toBeNull()
+    })
+
+    it('pins the current schema version (a deliberate bump-me tripwire)', () => {
+      // KNOWLEDGE_INDEX_SCHEMA_VERSION is mirrored as MOCK_SCHEMA_VERSION in
+      // KnowledgeVectorStoreService.test.ts; bumping the real constant must fail here so the
+      // mirror is consciously updated in lockstep.
+      expect(KNOWLEDGE_INDEX_SCHEMA_VERSION).toBe(2)
+    })
+
+    it('resetKnowledgeIndexSchema wipes data, rebuilds every object, and lets meta restamp the version', async () => {
+      const driver = new LibsqlDriver(client)
+      const freshObjects = await listSchemaObjects()
+      // Seed a populated index stamped at an older layout version.
+      await ensureIndexMeta(driver, { baseId: 'base-1' })
+      await insertContent('h1', 'hello world')
+      await insertMaterial('m1', 'a.md', 'h1')
+      await client.execute(`UPDATE meta SET schema_version = 1`)
+      expect(await readIndexSchemaVersion(driver)).toBe(1)
+
+      await resetKnowledgeIndexSchema(driver)
+
+      // Same object set as a fresh schema, but the derived data is gone (rebuildable artifact).
+      expect(await listSchemaObjects()).toEqual(freshObjects)
+      expect((await client.execute(`SELECT COUNT(*) AS n FROM material`)).rows[0].n).toBe(0)
+      expect((await client.execute(`SELECT COUNT(*) AS n FROM content`)).rows[0].n).toBe(0)
+      // The reset drops meta too, so the version is null until the open path restamps it.
+      expect(await readIndexSchemaVersion(driver)).toBeNull()
+      await ensureIndexMeta(driver, { baseId: 'base-1' })
+      expect(await readIndexSchemaVersion(driver)).toBe(KNOWLEDGE_INDEX_SCHEMA_VERSION)
     })
   })
 })

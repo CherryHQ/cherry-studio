@@ -38,23 +38,20 @@ export async function ensureIndexMeta(executor: SqliteExecutor, input: IndexMeta
 }
 
 /**
- * Table name of the legacy single-table vector layout — no current code path
- * writes it. It was emitted by the removed vendored `@vectorstores/libsql`
- * package and by the pre-PR-B `KnowledgeVectorMigrator`; the migrator now writes
- * the 7-table model instead, so this table only survives in `index.sqlite` files
- * produced by those older code paths (e.g. an install that ran a pre-PR-B
- * experiment build, whose one-shot migration never re-runs to fix it). The
- * runtime store never reads it, so its presence means the file holds vectors
- * that are invisible to search.
+ * Read the stored `meta.schema_version`, or `null` when there is nothing to compare
+ * against — a brand-new/blank file has no `meta` table yet (probed via `sqlite_master`
+ * so the read never throws "no such table"), and a malformed row yields `null` too.
+ * The store-open path compares this to {@link KNOWLEDGE_INDEX_SCHEMA_VERSION}: a
+ * non-null mismatch means an old layout that must be rebuilt before the DDL is applied.
  */
-const LEGACY_VECTOR_TABLE_NAME = 'libsql_vectorstores_embedding'
-
-/** Whether the opened index database still contains the legacy single-table layout. */
-export async function hasLegacyVectorStoreTable(executor: SqliteExecutor): Promise<boolean> {
-  const result = await executor.execute(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?`, [
-    LEGACY_VECTOR_TABLE_NAME
-  ])
-  return result.rows.length > 0
+export async function readIndexSchemaVersion(executor: SqliteExecutor): Promise<number | null> {
+  const hasMeta = await executor.execute(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'meta'`)
+  if (hasMeta.rows.length === 0) {
+    return null
+  }
+  const result = await executor.execute(`SELECT schema_version FROM meta WHERE id = 1`)
+  const version = result.rows[0]?.schema_version
+  return typeof version === 'number' ? version : null
 }
 
 /** Whether the index database holds at least one material row (store-open diagnostics probe). */

@@ -33,24 +33,25 @@ import {
   toMessageListItem
 } from '@renderer/components/chat/messages/utils/messageListItem'
 import { ModelSelector } from '@renderer/components/Selector'
-import { isVisionModel } from '@renderer/config/models'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
 import { useLanguages } from '@renderer/hooks/translate'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Topic, TranslateLangCode } from '@renderer/types'
+import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import { updateCodeBlock } from '@renderer/utils/markdown'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
+import { isVisionModel } from '@renderer/utils/model'
 import { translateText } from '@renderer/utils/translate'
+import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
 import { useNavigate } from '@tanstack/react-router'
-import { last } from 'lodash'
+import { last } from 'es-toolkit/compat'
 import { use, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -312,9 +313,7 @@ export function useHomeMessageListProviderValue({
             ...resolved.part,
             text: updatedText
           } as CherryMessagePart
-          await dataApiService.patch(`/messages/${resolved.messageId}`, {
-            body: { data: { parts: allParts } }
-          })
+          await requireChatWrite('saveCodeBlock').editMessage(resolved.messageId, allParts)
           window.toast.success(t('code_block.edit.save.success'))
           return
         }
@@ -328,7 +327,7 @@ export function useHomeMessageListProviderValue({
         window.toast.error(formatErrorMessageWithPrefix(error, t('code_block.edit.save.failed.label')))
       }
     },
-    [t]
+    [requireChatWrite, t]
   )
 
   const openPath = useCallback((path: string) => {

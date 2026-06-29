@@ -2,7 +2,7 @@ import type { Serializable } from '@shared/types/serializable'
 import * as z from 'zod'
 
 /**
- * Check if a value is serializable (suitable for Redux state)
+ * Check if a value is serializable (safe to persist or pass across the IPC boundary)
  * Supports deep detection of nested objects and arrays
  */
 export function isSerializable(value: unknown): value is Serializable {

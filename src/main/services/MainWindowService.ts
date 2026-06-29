@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { optimizer } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
+import { installDevtoolsExtensions } from '@main/core/devtools'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
@@ -9,8 +10,6 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import type { BrowserWindow } from 'electron'
 import { app, nativeImage, nativeTheme, shell } from 'electron'
-import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer'
-import windowStateKeeper from 'electron-window-state'
 import path, { join } from 'path'
 
 import iconPath from '../../../build/icon.png?asset'
@@ -33,7 +32,6 @@ export class MainWindowService extends BaseService {
   // should NOT touch this field — use WindowManager.broadcastToType() / showMainWindow()
   // / getWindowsByType().
   private mainWindow: BrowserWindow | null = null
-  private stateKeeper: ReturnType<typeof windowStateKeeper> | undefined
   private lastRendererProcessCrashTime: number = 0
 
   constructor() {
@@ -96,14 +94,12 @@ export class MainWindowService extends BaseService {
       application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
     }
 
-    this.openMainWindow()
+    // Dev-only: load DevTools extensions before the main window's page loads so
+    // they attach to it. Fire-and-forget — a slow/failed install (React DevTools
+    // may download on first run) must never delay window creation. No-op in prod.
+    void installDevtoolsExtensions()
 
-    // Install React Developer Tools extension for debugging in development mode
-    if (isDev) {
-      installExtension(REACT_DEVELOPER_TOOLS)
-        .then((name) => logger.info(`Added Extension: ${name}`))
-        .catch((err) => logger.error('An error occurred: ', err))
-    }
+    this.openMainWindow()
   }
 
   private requireMainWindow(): BrowserWindow {
@@ -176,26 +172,15 @@ export class MainWindowService extends BaseService {
   /**
    * Open the main window via WindowManager.
    * Singleton lifecycle: reuses an existing main window if present (show + focus),
-   * otherwise constructs a fresh one. Dynamic options (windowStateKeeper bounds,
-   * theme-driven backgroundColor / titleBarOverlay / backgroundMaterial / Linux
-   * frame and icon, zoom factor) are injected here at the call site, since the
-   * registry only carries static defaults.
+   * otherwise constructs a fresh one. Dynamic options (theme-driven
+   * backgroundColor / titleBarOverlay / backgroundMaterial / Linux frame and
+   * icon, zoom factor) are injected here at the call site, since the registry
+   * only carries static defaults. Position/size are restored by WindowManager
+   * (rememberBounds), not injected here.
    */
   private openMainWindow(): void {
     const preferenceService = application.get('PreferenceService')
     const windowManager = application.get('WindowManager')
-
-    // stateKeeper is initialized once per service lifetime. The internal window
-    // listeners are (re)attached in setupMainWindow via stateKeeper.manage(window),
-    // and old listeners die with the previous BrowserWindow on destroy.
-    if (!this.stateKeeper) {
-      this.stateKeeper = windowStateKeeper({
-        defaultWidth: MIN_WINDOW_WIDTH,
-        defaultHeight: MIN_WINDOW_HEIGHT,
-        fullScreen: false,
-        maximize: false
-      })
-    }
 
     const windowsBackgroundMaterial = getWindowsBackgroundMaterial()
     let mainWindowBackgroundColor: string | undefined
@@ -207,10 +192,6 @@ export class MainWindowService extends BaseService {
     // and does nothing on singleton reuse (where this.mainWindow is already set).
     windowManager.open(WindowType.Main, {
       options: {
-        x: this.stateKeeper.x,
-        y: this.stateKeeper.y,
-        width: this.stateKeeper.width,
-        height: this.stateKeeper.height,
         darkTheme: nativeTheme.shouldUseDarkColors,
         ...(isLinux && {
           frame: preferenceService.get('app.use_system_title_bar'),
@@ -226,10 +207,11 @@ export class MainWindowService extends BaseService {
   }
 
   private setupMainWindow(mainWindow: BrowserWindow) {
-    if (this.stateKeeper) {
-      this.stateKeeper.manage(mainWindow)
-      this.setupMaximize(mainWindow, this.stateKeeper.isMaximized)
-    }
+    // Position/size are restored declaratively by WindowManager (rememberBounds);
+    // re-apply the saved maximized state here, on our own show schedule (tray
+    // launch defers it to first show — see setupMaximize).
+    const saved = application.get('WindowManager').peekWindowBounds(WindowType.Main)
+    this.setupMaximize(mainWindow, saved?.isMaximized ?? false)
 
     this.setupContextMenu(mainWindow)
     this.setupSpellCheck(mainWindow)
@@ -330,28 +312,6 @@ export class MainWindowService extends BaseService {
         mainWindow.webContents.setZoomFactor(application.get('PreferenceService').get('app.zoom_factor'))
       })
     }
-
-    // 添加Escape键退出全屏的支持
-    // mainWindow.webContents.on('before-input-event', (event, input) => {
-    //   // 当按下Escape键且窗口处于全屏状态时退出全屏
-    //   if (input.key === 'Escape' && !input.alt && !input.control && !input.meta && !input.shift) {
-    //     if (mainWindow.isFullScreen()) {
-    //       // 获取 shortcuts 配置
-    //       const shortcuts = configManager.getShortcuts()
-    //       const exitFullscreenShortcut = shortcuts.find((s) => s.key === 'exit_fullscreen')
-    //       if (exitFullscreenShortcut == undefined) {
-    //         mainWindow.setFullScreen(false)
-    //         return
-    //       }
-    //       if (exitFullscreenShortcut?.enabled) {
-    //         event.preventDefault()
-    //         mainWindow.setFullScreen(false)
-    //         return
-    //       }
-    //     }
-    //   }
-    //   return
-    // })
   }
 
   private setupWebContentsHandlers(mainWindow: BrowserWindow) {

@@ -1,6 +1,6 @@
 import type { NotesTreeNode } from '@renderer/types/note'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useMemo } from 'react'
+import useSWR, { useSWRConfig } from 'swr'
 
 // 查找节点的工具函数
 export const findNodeByPath = (tree: NotesTreeNode[], targetPath: string): NotesTreeNode | null => {
@@ -15,6 +15,8 @@ export const findNodeByPath = (tree: NotesTreeNode[], targetPath: string): Notes
   }
   return null
 }
+
+const fileContentKey = (filePath?: string) => (filePath ? `fileContent/${filePath}` : null)
 
 /**
  * 获取当前活动节点（基于当前笔记树和活动文件路径）
@@ -32,50 +34,39 @@ export function useActiveNode(notesTree: NotesTreeNode[], activeFilePath?: strin
 }
 
 /**
- * 文件内容同步的 hook - 用于手动失效文件内容缓存
+ * 文件内容同步的 hook - 失效文件内容缓存以触发重读。
+ *
+ * Uses the bound `mutate` (not the top-level one) so it always targets the
+ * active SWR cache. A key-only `mutate` revalidates the currently mounted
+ * `useFileContent(filePath)`, which covers the save / watcher-`change` flows.
  */
 export function useFileContentSync() {
-  const queryClient = useQueryClient()
+  const { mutate } = useSWRConfig()
 
   const invalidateFileContent = useCallback(
     (filePath: string) => {
-      void queryClient.invalidateQueries({
-        queryKey: ['fileContent', filePath],
-        exact: true
-      })
+      void mutate(fileContentKey(filePath))
     },
-    [queryClient]
-  )
-
-  const refetchFileContent = useCallback(
-    async (filePath: string) => {
-      await queryClient.refetchQueries({
-        queryKey: ['fileContent', filePath],
-        exact: true
-      })
-    },
-    [queryClient]
+    [mutate]
   )
 
   return {
-    invalidateFileContent,
-    refetchFileContent
+    invalidateFileContent
   }
 }
 
 /**
- * 读取文件内容的 hook - 使用React Query管理
+ * 读取文件内容的 hook - 使用 SWR 管理。
+ *
+ * The chokidar watcher (+ the save flow) is the source of truth for content
+ * changes, so we don't time-poll. SWR re-reads on every switch-to-file (always
+ * fresh on open) and on explicit `invalidateFileContent`. Focus/reconnect
+ * revalidation is off: focus re-reads would be redundant with the watcher.
  */
 export function useFileContent(filePath?: string) {
-  return useQuery({
-    queryKey: ['fileContent', filePath],
-    queryFn: async () => {
-      if (!filePath) return ''
-      return await window.api.file.readExternal(filePath)
-    },
-    enabled: !!filePath,
-    staleTime: 30 * 1000,
-    refetchOnWindowFocus: false,
-    retry: 1
+  return useSWR(fileContentKey(filePath), () => window.api.file.readExternal(filePath!), {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+    errorRetryCount: 1
   })
 }

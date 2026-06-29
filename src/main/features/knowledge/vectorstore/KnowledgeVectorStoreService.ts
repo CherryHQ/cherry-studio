@@ -13,11 +13,15 @@ import {
   getKnowledgeVectorStoreFilePath,
   getKnowledgeVectorStoreFilePathSync
 } from '../utils/storage/pathStorage'
-import { ensureIndexMeta, hasAnyMaterial, hasLegacyVectorStoreTable } from './indexStore/indexMeta'
+import { ensureIndexMeta, hasAnyMaterial, readIndexSchemaVersion } from './indexStore/indexMeta'
 import { KnowledgeIndexStore } from './indexStore/KnowledgeIndexStore'
 import { openLibsqlIndexDriver } from './indexStore/LibsqlDriver'
 import { libsqlVectorIndex } from './indexStore/LibsqlVectorIndex'
-import { createKnowledgeIndexSchema } from './indexStore/schema'
+import {
+  createKnowledgeIndexSchema,
+  KNOWLEDGE_INDEX_SCHEMA_VERSION,
+  resetKnowledgeIndexSchema
+} from './indexStore/schema'
 import type { SqliteDriver } from './indexStore/types'
 
 const logger = loggerService.withContext('KnowledgeVectorStoreService')
@@ -134,7 +138,26 @@ export class KnowledgeVectorStoreService extends BaseService {
     const dbPath = await getKnowledgeVectorStoreFilePath(base.id)
     const driver = await openLibsqlIndexDriver(dbPath)
     try {
-      await createKnowledgeIndexSchema(driver)
+      // An index.sqlite from an older schema layout cannot be migrated in place —
+      // `CREATE ... IF NOT EXISTS` never retrofits a new column/trigger onto an
+      // existing table. When the stored schema_version differs from the current
+      // constant, drop and recreate this rebuildable derived index so the new DDL
+      // applies cleanly; the base then re-indexes from knowledge_item. A fresh/blank
+      // file has no stored version (null) and falls through to the normal create.
+      // (A stale-version file swapped in from another base is rebuilt here rather than
+      // refused by the base_id check below — but the reset drops its rows, so no other
+      // base's data is ever served; only the explicit refusal diagnostic is skipped.)
+      const storedVersion = await readIndexSchemaVersion(driver)
+      if (storedVersion !== null && storedVersion !== KNOWLEDGE_INDEX_SCHEMA_VERSION) {
+        logger.warn('Knowledge index schema version mismatch — rebuilding the derived index', {
+          baseId: base.id,
+          storedVersion,
+          expectedVersion: KNOWLEDGE_INDEX_SCHEMA_VERSION
+        })
+        await resetKnowledgeIndexSchema(driver)
+      } else {
+        await createKnowledgeIndexSchema(driver)
+      }
       // Stamp + verify the meta identity row before handing out the store,
       // so an index.sqlite swapped in from another base is rejected here (§4.1).
       // That is the only refusal — a blank/recreated file is stamped as fresh and
@@ -152,15 +175,10 @@ export class KnowledgeVectorStoreService extends BaseService {
 
   /**
    * Loud-failure guard for an index that mounts cleanly but holds no readable
-   * vectors. The migrator now writes the final 7-table layout, so a freshly
-   * migrated base mounts populated; the legacy single-table layout only survives
-   * in `index.sqlite` files written by pre-PR-B code paths (the removed vendored
-   * store, or an install that ran a pre-PR-B experiment build whose one-shot
-   * migration never re-runs to fix it). The runtime layout mounts cleanly beside
-   * that remnant but sees none of its vectors, so search would silently return
-   * empty forever. Detect that remnant, and the broader "base has completed
-   * items but the index holds nothing" state (deleted/blanked file), and log an
-   * error so the silent-empty symptom is diagnosable.
+   * vectors. A freshly migrated or indexed base mounts populated, so an index
+   * that holds zero materials while the base still has completed items means the
+   * `index.sqlite` was deleted, blanked or replaced — log an error so the
+   * silent-empty symptom is diagnosable.
    *
    * Probe failures propagate and fail the open on purpose: swallowing them here
    * would re-silence the deleted-base race this guard exists to expose (an open
@@ -169,14 +187,6 @@ export class KnowledgeVectorStoreService extends BaseService {
    * forever-empty store).
    */
   private async reportInvisibleIndexContents(driver: SqliteDriver, baseId: string): Promise<void> {
-    if (await hasLegacyVectorStoreTable(driver)) {
-      logger.error(
-        'index.sqlite holds the legacy single-table vector layout (written by a pre-PR-B build), which the runtime store cannot read — search will return empty results until the base is reindexed',
-        { baseId }
-      )
-      return
-    }
-
     if (await hasAnyMaterial(driver)) {
       return
     }

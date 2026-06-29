@@ -224,7 +224,12 @@
           "runFailed": "無法執行任務",
           "updateFailed": "更新任務失敗"
         },
-        "intervalPlaceholder": "間隔（分鐘）",
+        "frequency": {
+          "everyPrefix": "間隔",
+          "everySuffix": "分鐘執行",
+          "label": "執行頻率"
+        },
+        "intervalPlaceholder": "至少1",
         "intervalUnit": "分鐘",
         "lastRun": "上次執行",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "間隔",
-          "label": "排程類型",
           "once": "一次性"
         },
-        "scheduleValue": "排程值",
         "status": {
           "active": "活躍",
           "completed": "已完成",
@@ -277,7 +280,7 @@
           "minutesAgo": "{{count}}分鐘前"
         },
         "timeout": {
-          "label": "逾時時間",
+          "label": "最長執行時間",
           "placeholder": "無限制"
         },
         "title": "排程任務"
@@ -2345,6 +2348,7 @@
   "files": {
     "actions": "操作",
     "all": "所有檔案",
+    "audio": "音訊",
     "batch_delete": "批次刪除",
     "batch_operation": "全選",
     "count": "個檔案",
@@ -2358,22 +2362,52 @@
       },
       "title": "刪除檔案"
     },
+    "delete_or_remove": "刪除/移除",
     "document": "文件",
+    "drag_upload": "拖曳檔案到此處上傳",
     "edit": "編輯",
+    "empty": {
+      "no_match_description": "目前篩選條件下沒有檔案",
+      "no_match_title": "找不到符合的檔案"
+    },
     "error": {
-      "open_path": "無法開啟路徑：{{path}}"
+      "delete_failed": "刪除檔案失敗",
+      "delete_partial_failed": "部分檔案刪除失敗",
+      "import_failed": "匯入檔案失敗",
+      "import_partial_failed": "部分檔案匯入失敗",
+      "open_path": "無法開啟路徑：{{path}}",
+      "rename_failed": "重新命名檔案失敗",
+      "restore_failed": "還原檔案失敗",
+      "restore_partial_failed": "部分檔案還原失敗"
     },
     "file": "檔案",
+    "footer_count": "{{count}} 個檔案",
+    "footer_selected_count": "{{count}} 個已選",
     "image": "圖片",
+    "missing": "缺失",
+    "modified_at": "修改時間",
     "name": "名稱",
     "open": "開啟",
+    "other": "其他",
+    "permanent_delete": "永久刪除",
+    "permanent_delete_confirm": {
+      "description": "將永久刪除 {{count}} 個檔案，此操作無法復原。",
+      "title": "永久刪除檔案？"
+    },
     "preview": {
       "error": "開啟檔案失敗"
     },
+    "remove_from_library": "從庫中移除",
+    "rename": "重新命名",
+    "restore": "還原",
+    "selected_count": "已選取 {{count}} 個檔案",
+    "show_in_folder": "在檔案夾中顯示",
     "size": "大小",
     "text": "文字",
     "title": "檔案",
-    "type": "類型"
+    "trash": "回收站",
+    "type": "類型",
+    "video": "影片"
   },
   "globalSearch": {
     "clear": "清除搜尋",
@@ -2767,8 +2801,10 @@
       "chunk_overlap_invalid": "分块重叠必须大于等于 0",
       "chunk_overlap_must_be_smaller": "分块重叠必须小于分块大小",
       "chunk_overlap_requires_chunk_size": "分块重叠依赖分块大小",
+      "chunk_separator": "分隔符",
+      "chunk_separator_required": "關閉智慧分段時必須填寫分隔符",
       "chunk_size": "分段大小",
-      "chunk_size_change_warning": "分段大小和重叠大小修改只针对新添加的内容有效",
+      "chunk_size_change_warning": "分塊設定的修改只針對新添加的內容有效",
       "chunk_size_invalid": "分块大小必须大于 0",
       "chunking": "Chunking",
       "default_separator": "自动（推荐）",
@@ -2779,6 +2815,7 @@
       "file_processing_hint": "文件預處理將在文件導入時自動執行，選擇合適的處理服務商可提升文件解析品質",
       "hints": {
         "chunk_overlap": "相邻文档片段之间保留的重叠 token 数，有助于减少语义截断。",
+        "chunk_separator": "切分文字所用的分隔符（跳脫形式）。開啟智慧分段時作為額外切分點；關閉後僅按此分隔符切分。",
         "chunk_size": "单个文档片段的目标 token 数，影响召回粒度和上下文长度。",
         "document_count": "每次召回返回的最大文档片段数，越大覆盖越多但消耗更多上下文。",
         "embedding_model": "用于将知识库内容转换为向量。更换模型后，通常需要重新索引已有内容。",
@@ -2786,6 +2823,7 @@
         "processor": "导入文件时使用的解析处理服务，用于提取正文、表格等内容。",
         "rerank_model": "对初步召回结果重新排序的模型，可提升最终片段相关性。",
         "search_mode": "选择召回方式：向量检索适合语义匹配，全文检索适合关键词，混合检索会结合两者。",
+        "smart_chunking": "自動沿 Markdown 結構（標題、程式碼區塊、段落）分段，且不從程式碼區塊內部切開。關閉後僅按分隔符切分。",
         "threshold": "过滤低相关片段的相似度阈值，值越高召回越严格。",
         "threshold_disabled": "该检索模式按排序返回结果，不使用相似度阈值。"
       },
@@ -2805,6 +2843,7 @@
         "vector": "向量檢索"
       },
       "separator_rule": "分隔符规则",
+      "smart_chunking": "智慧分段",
       "threshold": "相似度阈值",
       "tokens_unit": "tokens"
     },
@@ -3123,12 +3162,22 @@
           "agent_title": "新特務",
           "assistant_title": "新助理",
           "avatar_aria": "選擇頭像",
+          "back": "上一步",
+          "capability": {
+            "import": "匯入技能",
+            "no_skills": "未安裝技能",
+            "search": "搜尋技能"
+          },
           "description_placeholder": "描述它的用途...",
-          "dialog_description": "建立一個輕量級的助理或代理程式。",
-          "model_placeholder": "選擇模型",
-          "model_required": "請選擇一個模型",
+          "guided_progress": "引導式建立 · 第 {{current}} / {{total}} 步",
           "name_placeholder": "輸入名稱",
-          "name_required": "請輸入名稱",
+          "next": "下一步",
+          "step": {
+            "basic": "基本資訊",
+            "capability": "技能",
+            "knowledge": "知識庫",
+            "persona": "設定人格"
+          },
           "submit": "建立",
           "submit_failed": "建立失敗"
         },
@@ -3669,11 +3718,11 @@
         "deleting": "刪除",
         "documentFiles": "文件",
         "download": "下載",
-        "downloading": "[to be translated]:Downloading",
-        "executeCommand": "[to be translated]:Run command",
-        "executingCommand": "[to be translated]:Running command",
+        "downloading": "下載中",
+        "executeCommand": "執行命令",
+        "executingCommand": "執行命令",
         "extract": "擷取",
-        "extracting": "[to be translated]:Extracting",
+        "extracting": "提取",
         "file": "檔案",
         "fileList": "檔案清單",
         "folder": "資料夾",
@@ -3837,64 +3886,6 @@
       "partial_failure": "{{count}} 個搜尋結果，部分搜尋失敗"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "新增到啟動台",
-    "add_to_sidebar": "新增到側邊欄",
-    "popup": {
-      "close": "關閉小工具",
-      "devtools": "開發者工具",
-      "goBack": "上一頁",
-      "goForward": "下一頁",
-      "minimize": "最小化小工具",
-      "openExternal": "在瀏覽器中開啟",
-      "open_link_external_off": "目前：使用預設視窗開啟連結",
-      "open_link_external_on": "目前：在瀏覽器中開啟連結",
-      "refresh": "重新整理",
-      "rightclick_copyurl": "右鍵複製 URL"
-    },
-    "remove_from_launchpad": "從啟動台移除",
-    "remove_from_sidebar": "從側邊欄移除",
-    "sidebar": {
-      "close": {
-        "title": "關閉"
-      },
-      "closeall": {
-        "title": "關閉所有"
-      },
-      "hide": {
-        "title": "隱藏"
-      },
-      "remove_custom": {
-        "title": "刪除自訂小工具"
-      }
-    },
-    "title": "小工具"
-  },
-  "minapps": {
-    "ant-ling": "Ant Ling",
-    "baichuan": "百小應",
-    "baidu-ai-search": "百度 AI 搜尋",
-    "chatglm": "智譜清言",
-    "dangbei": "當貝 AI",
-    "doubao": "豆包",
-    "hailuo": "海螺",
-    "ima": "ima",
-    "metaso": "秘塔 AI 搜尋",
-    "minimax-agent": "MiniMax Agent CN",
-    "minimax-global": "MiniMax Agent",
-    "nami-ai": "奈米 AI",
-    "nami-ai-search": "奈米 AI 搜尋",
-    "qwen": "通義千問",
-    "sensechat": "商量",
-    "stepfun": "階躍 AI",
-    "tencent-yuanbao": "騰訊元寶",
-    "tiangong-ai": "天工 AI",
-    "wanzhi": "萬知",
-    "wenxin": "文心一言",
-    "wps-copilot": "WPS 靈犀",
-    "xiaoyi": "小藝",
-    "zhihu": "知乎直答"
-  },
   "miniApp": {
     "add_to_launchpad": "新增到啟動台",
     "add_to_sidebar": "新增到側邊欄",
@@ -3905,15 +3896,13 @@
     "hide_failed": "隱藏小程式失敗",
     "pin_failed": "固定小程式失敗",
     "popup": {
-      "close": "關閉小工具",
       "devtools": "開發者工具",
       "goBack": "上一頁",
       "goForward": "下一頁",
       "openExternal": "在瀏覽器中開啟",
       "open_link_external_off": "目前：使用預設視窗開啟連結",
       "open_link_external_on": "目前：在瀏覽器中開啟連結",
-      "refresh": "重新整理",
-      "rightclick_copyurl": "右鍵複製 URL"
+      "refresh": "重新整理"
     },
     "remove_from_launchpad": "從啟動台移除",
     "remove_from_sidebar": "從側邊欄移除",
@@ -3925,17 +3914,8 @@
     },
     "show_failed": "顯示小程式失敗",
     "sidebar": {
-      "close": {
-        "title": "關閉"
-      },
-      "closeall": {
-        "title": "關閉所有"
-      },
       "hide": {
         "title": "隱藏"
-      },
-      "remove_custom": {
-        "title": "刪除自訂小工具"
       }
     },
     "title": "小工具",
@@ -3955,7 +3935,6 @@
     "minimax-agent": "MiniMax Agent CN",
     "minimax-global": "MiniMax Agent",
     "nami-ai": "奈米 AI",
-    "nami-ai-search": "奈米 AI 搜尋",
     "qwen": "通義千問",
     "sensechat": "商量",
     "stepfun": "階躍 AI",
@@ -6464,8 +6443,6 @@
         "confirm_delete_message": "刪除訊息前確認",
         "confirm_regenerate_message": "重新產生訊息前確認",
         "enable_quick_triggers": "啟用 / 和 @ 觸發快捷選單",
-        "paste_long_text_as_file": "將長文字貼上為檔案",
-        "paste_long_text_threshold": "長文字長度",
         "send_shortcuts": "傳送快捷鍵",
         "show_estimated_tokens": "顯示預估 Token 數",
         "title": "輸入設定"
@@ -6489,37 +6466,24 @@
     "miniApps": {
       "cache_change_notice": "變更會在開啟的小程式數量調整至設定值後生效",
       "cache_description": "設定同時保持活躍狀態的小程式最大數量",
-      "cache_settings": "快取設定",
       "cache_title": "小程式快取數量",
       "custom": {
-        "conflicting_ids": "與預設應用 ID 衝突：{{ids}}",
-        "duplicate_ids": "發現重複的 ID: {{ids}}",
-        "edit_description": "編輯自訂小程式設定",
+        "create_title": "建立自訂小程式",
         "edit_title": "編輯自訂小程式",
-        "id": "ID",
-        "id_error": "ID 是必填項",
-        "id_placeholder": "請輸入 ID",
-        "logo": "Logo",
         "logo_file": "上傳 Logo 檔案",
-        "logo_upload_button": "上傳",
         "logo_upload_error": "Logo 上傳失敗",
         "logo_upload_label": "上傳 Logo",
-        "logo_upload_success": "Logo 上傳成功",
-        "logo_url": "Logo URL",
-        "logo_url_label": "Logo URL",
-        "logo_url_placeholder": "請輸入 Logo URL",
         "name": "名稱",
-        "name_error": "名稱為必填欄位",
         "name_placeholder": "請輸入名稱",
-        "placeholder": "請輸入自訂小程式設定（JSON 格式）",
+        "remove_confirm_description": "確定要刪除自訂小程式「{{name}}」嗎？此操作無法復原。",
+        "remove_confirm_title": "刪除自訂小程式？",
         "remove_error": "自訂小程式刪除失敗",
         "remove_success": "自訂小程式刪除成功",
-        "save": "儲存",
         "save_error": "自訂小程式儲存失敗",
         "save_success": "自訂小程式儲存成功",
         "title": "自訂",
         "url": "URL",
-        "url_error": "URL 是必填項",
+        "url_invalid": "請輸入有效的 http、https 或 file URL",
         "url_placeholder": "請輸入 URL"
       },
       "disabled": "隱藏的小程式",
@@ -6541,63 +6505,6 @@
         "title": "小程式區域篩選"
       },
       "reset_tooltip": "重設為預設值",
-      "title": "小程式設定",
-      "visible": "顯示的小程式"
-    },
-    "miniapps": {
-      "cache_change_notice": "變更會在開啟的小程式數量調整至設定值後生效",
-      "cache_description": "設定同時保持活躍狀態的小程式最大數量",
-      "cache_settings": "快取設定",
-      "cache_title": "小程式快取數量",
-      "custom": {
-        "conflicting_ids": "與預設應用 ID 衝突：{{ids}}",
-        "duplicate_ids": "發現重複的 ID: {{ids}}",
-        "edit_description": "編輯自訂小程式設定",
-        "edit_title": "編輯自訂小程式",
-        "id": "ID",
-        "id_error": "ID 是必填項",
-        "id_placeholder": "請輸入 ID",
-        "logo": "Logo",
-        "logo_file": "上傳 Logo 檔案",
-        "logo_upload_button": "上傳",
-        "logo_upload_error": "Logo 上傳失敗",
-        "logo_upload_label": "上傳 Logo",
-        "logo_upload_success": "Logo 上傳成功",
-        "logo_url": "Logo URL",
-        "logo_url_label": "Logo URL",
-        "logo_url_placeholder": "請輸入 Logo URL",
-        "name": "名稱",
-        "name_error": "名稱為必填欄位",
-        "name_placeholder": "請輸入名稱",
-        "placeholder": "請輸入自訂小程式設定（JSON 格式）",
-        "remove_error": "自訂小程式刪除失敗",
-        "remove_success": "自訂小程式刪除成功",
-        "save": "儲存",
-        "save_error": "自訂小程式儲存失敗",
-        "save_success": "自訂小程式儲存成功",
-        "title": "自訂",
-        "url": "URL",
-        "url_error": "URL 是必填項",
-        "url_placeholder": "請輸入 URL"
-      },
-      "disabled": "隱藏的小程式",
-      "display_title": "小程式顯示設定",
-      "empty": "在左側清單點擊隱藏圖示，小程式會移到這裡",
-      "hide_app": "隱藏 {{name}}",
-      "open_link_external": {
-        "title": "在瀏覽器中開啟新視窗連結"
-      },
-      "region": {
-        "auto": "自動檢測",
-        "cn": "中國",
-        "description": "根據所在地區篩選不支援的小程式",
-        "global": "全球",
-        "title": "小程式區域篩選"
-      },
-      "reset_tooltip": "重設為預設值",
-      "show_app": "顯示 {{name}}",
-      "sidebar_description": "設定側邊欄是否顯示活躍的小程式",
-      "sidebar_title": "側邊欄活躍小程式顯示設定",
       "title": "小程式設定",
       "visible": "顯示的小程式"
     },
@@ -6734,12 +6641,13 @@
         "filter_remove_all": "全部移除",
         "footer_done": "完成",
         "large_group_hidden": "顯示剩餘 {{count}} 個模型",
+        "model_in_use_by_knowledge_base": "該模型正在被知識庫使用，無法刪除。",
         "operation_failed": "模型操作失敗。",
         "refetch_list": "重新取得模型列表",
         "reload_catalog": "重新整理列表",
         "remove_listed": "移除列表中的模型",
-        "remove_model": "移除模型",
-        "remove_whole_group": "移除整個分組",
+        "remove_model": "刪除模型",
+        "remove_whole_group": "刪除分組",
         "search_models_placeholder": "搜尋模型…",
         "select_none": "取消全選",
         "status_all": "全部",
@@ -6749,6 +6657,7 @@
         "sync_added_metric": "{{count}} 個新增模型",
         "sync_added_section": "新增模型",
         "sync_apply_changes": "確認套用",
+        "sync_apply_default_in_use": "部分模型正被用作預設模型，無法刪除。",
         "sync_apply_result": "已新增 {{added}} 個，標記棄用 {{deprecated}} 個，刪除 {{deleted}} 個。",
         "sync_empty_added": "沒有發現新增的上游模型。",
         "sync_empty_missing": "沒有發現已失效的本機模型。",
@@ -6864,12 +6773,46 @@
     },
     "parameter_settings": "參數設定",
     "plugins": {
-      "bunDescription": "用於 MCP 服務和相關工具鏈的 JavaScript 執行階段。",
+      "addTool": "新增工具",
+      "addToolDescription": "使用 mise 工具鍵新增工具（例如 github:sharkdp/fd、uv、bun）。",
+      "coreDepsMissing": "核心依賴未安裝",
+      "customTools": "自訂工具",
+      "customToolsEmpty": "尚無自訂工具。請新增一個以開始使用。",
       "description": "管理應用程式執行所需的二進位工具和執行階段依賴。",
+      "duplicateName": "已存在相同名稱的工具",
+      "fieldVersion": "版本（選填，預設為最新）",
+      "install": "安裝",
+      "installError": "工具安裝失敗",
       "installing": "安裝中...",
+      "invalidTool": "工具名稱或識別碼無效",
       "notInstalled": "未安裝",
+      "openBinariesDir": "開啟二進位檔案目錄",
+      "remove": "移除工具",
+      "removeConfirmMessage": "確定要移除「{{name}}」嗎？二進位檔案將會被刪除。",
+      "removeConfirmTitle": "移除工具",
+      "searchFailed": "搜尋失敗，請查看日誌",
+      "searchRegistry": "搜尋 mise 工具倉庫...",
+      "source": {
+        "bundled": "內建"
+      },
       "title": "環境依賴",
-      "uvDescription": "用於 MCP 服務與依賴安裝的 Python 套件管理工具。"
+      "tools": {
+        "bun": "MCP 服務及相關工具鏈使用的 JavaScript 執行環境。",
+        "claude": "Anthropic 的終端智慧編程工具。",
+        "codex": "OpenAI 的開源編程代理，可讀取、編輯和執行本機倉庫中的程式碼。",
+        "fd": "快速檔案搜尋工具，find 的替代方案。",
+        "gh": "GitHub CLI，用於倉庫和工作流程管理。",
+        "hermes": "Nous Research 開發的自我進化 AI 編程代理，能從經驗中建立技能並跨對話持久化知識。",
+        "lark-cli": "飛書官方 CLI，涵蓋即時通訊、文件、多維表格、日曆等 200+ 指令及 AI Agent 技能。",
+        "ntn": "Notion 官方 CLI，支援身份驗證、Workers 管理和完整的 Notion API 終端存取。",
+        "openclaw": "跨平台個人 AI 助手，提供聊天、語音、畫布、攝影機和螢幕擷取等功能。",
+        "opencode": "開源 AI 編程代理，支援 75+ 模型並整合 GitHub Actions 自動化工作流程。",
+        "pi": "AI 代理工具包，包含編程代理 CLI、統一 LLM API、TUI/Web UI 和 Slack 機器人。",
+        "rg": "快速文字搜尋工具（ripgrep），grep 的替代方案。",
+        "rtk": "CLI 代理工具，透過壓縮終端輸出來減少 LLM token 消耗。",
+        "uv": "用於 MCP 服務與依賴安裝的 Python 套件管理工具。"
+      },
+      "update": "更新到最新版本"
     },
     "power": {
       "prevent_sleep_when_busy": "執行任務時保持系統喚醒"
@@ -7036,7 +6979,6 @@
       "cherryin": {
         "api_host": {
           "acceleration": "加速網域",
-          "backup": "備用網域",
           "international": "國際網域"
         }
       },

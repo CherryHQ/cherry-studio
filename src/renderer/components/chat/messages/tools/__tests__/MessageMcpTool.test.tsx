@@ -1,4 +1,4 @@
-import type { McpToolResponse } from '@renderer/types'
+import type { McpToolResponse } from '@renderer/types/mcpTool'
 import { render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,7 +22,7 @@ vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({ setTimeoutTimer: vi.fn() })
 }))
 
-vi.mock('@renderer/context/CodeStyleProvider', () => ({
+vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({ highlightCode: vi.fn(async () => '') })
 }))
 

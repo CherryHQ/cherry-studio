@@ -1,4 +1,4 @@
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import type { FC, KeyboardEventHandler } from 'react'
 import { useTranslation } from 'react-i18next'
 

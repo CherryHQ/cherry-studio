@@ -224,7 +224,12 @@
           "runFailed": "运行任务失败",
           "updateFailed": "更新任务失败"
         },
-        "intervalPlaceholder": "间隔（分钟）",
+        "frequency": {
+          "everyPrefix": "间隔",
+          "everySuffix": "分钟执行",
+          "label": "执行频率"
+        },
+        "intervalPlaceholder": "至少1",
         "intervalUnit": "分钟",
         "lastRun": "上次运行",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "间隔",
-          "label": "调度类型",
           "once": "一次性"
         },
-        "scheduleValue": "调度值",
         "status": {
           "active": "活跃",
           "completed": "已完成",
@@ -277,7 +280,7 @@
           "minutesAgo": "{{count}}分钟前"
         },
         "timeout": {
-          "label": "超时时间",
+          "label": "最长执行时间",
           "placeholder": "无限制"
         },
         "title": "定时任务"
@@ -2345,6 +2348,7 @@
   "files": {
     "actions": "操作",
     "all": "所有文件",
+    "audio": "音频",
     "batch_delete": "批量删除",
     "batch_operation": "全选",
     "count": "个文件",
@@ -2358,22 +2362,52 @@
       },
       "title": "删除文件"
     },
+    "delete_or_remove": "删除/移除",
     "document": "文档",
+    "drag_upload": "拖拽文件到此处上传",
     "edit": "编辑",
+    "empty": {
+      "no_match_description": "当前筛选条件下没有文件",
+      "no_match_title": "没有找到匹配的文件"
+    },
     "error": {
-      "open_path": "无法打开路径: {{path}}"
+      "delete_failed": "删除文件失败",
+      "delete_partial_failed": "部分文件删除失败",
+      "import_failed": "导入文件失败",
+      "import_partial_failed": "部分文件导入失败",
+      "open_path": "无法打开路径: {{path}}",
+      "rename_failed": "重命名文件失败",
+      "restore_failed": "恢复文件失败",
+      "restore_partial_failed": "部分文件恢复失败"
     },
     "file": "文件",
+    "footer_count": "{{count}} 个文件",
+    "footer_selected_count": "{{count}} 个已选",
     "image": "图片",
+    "missing": "缺失",
+    "modified_at": "修改时间",
     "name": "文件名",
     "open": "打开",
+    "other": "其他",
+    "permanent_delete": "永久删除",
+    "permanent_delete_confirm": {
+      "description": "将永久删除 {{count}} 个文件，此操作无法撤销。",
+      "title": "永久删除文件？"
+    },
     "preview": {
       "error": "打开文件失败"
     },
+    "remove_from_library": "从库中移除",
+    "rename": "重命名",
+    "restore": "恢复",
+    "selected_count": "已选择 {{count}} 个文件",
+    "show_in_folder": "打开所在文件夹",
     "size": "大小",
     "text": "文本",
     "title": "文件",
-    "type": "类型"
+    "trash": "回收站",
+    "type": "类型",
+    "video": "视频"
   },
   "globalSearch": {
     "clear": "清空搜索",
@@ -2767,8 +2801,10 @@
       "chunk_overlap_invalid": "分块重叠必须大于等于 0",
       "chunk_overlap_must_be_smaller": "分块重叠必须小于分块大小",
       "chunk_overlap_requires_chunk_size": "分块重叠依赖分块大小",
+      "chunk_separator": "分隔符",
+      "chunk_separator_required": "关闭智能分段时必须填写分隔符",
       "chunk_size": "分段大小",
-      "chunk_size_change_warning": "分段大小和重叠大小修改只针对新添加的内容有效",
+      "chunk_size_change_warning": "分块设置的修改只针对新添加的内容有效",
       "chunk_size_invalid": "分块大小必须大于 0",
       "chunking": "Chunking",
       "default_separator": "自动（推荐）",
@@ -2779,6 +2815,7 @@
       "file_processing_hint": "文档预处理将在文档导入时自动执行，选择合适的处理服务商可提升文档解析质量",
       "hints": {
         "chunk_overlap": "相邻文档片段之间保留的重叠 token 数，有助于减少语义截断。",
+        "chunk_separator": "切分文本所用的分隔符（转义形式）。开启智能分段时作为额外切分点；关闭后仅按此分隔符切分。",
         "chunk_size": "单个文档片段的目标 token 数，影响召回粒度和上下文长度。",
         "document_count": "每次召回返回的最大文档片段数，越大覆盖越多但消耗更多上下文。",
         "embedding_model": "用于将知识库内容转换为向量。更换模型后，通常需要重新索引已有内容。",
@@ -2786,6 +2823,7 @@
         "processor": "导入文件时使用的解析处理服务，用于提取正文、表格等内容。",
         "rerank_model": "对初步召回结果重新排序的模型，可提升最终片段相关性。",
         "search_mode": "选择召回方式：向量检索适合语义匹配，全文检索适合关键词，混合检索会结合两者。",
+        "smart_chunking": "自动沿 Markdown 结构（标题、代码块、段落）分段，且不从代码块内部切开。关闭后仅按分隔符切分。",
         "threshold": "过滤低相关片段的相似度阈值，值越高召回越严格。",
         "threshold_disabled": "该检索模式按排序返回结果，不使用相似度阈值。"
       },
@@ -2805,6 +2843,7 @@
         "vector": "向量检索"
       },
       "separator_rule": "分隔符规则",
+      "smart_chunking": "智能分段",
       "threshold": "相似度阈值",
       "tokens_unit": "tokens"
     },
@@ -3123,12 +3162,22 @@
           "agent_title": "新建智能体",
           "assistant_title": "新建助手",
           "avatar_aria": "选择头像",
+          "back": "上一步",
+          "capability": {
+            "import": "导入技能",
+            "no_skills": "未安装技能",
+            "search": "搜索技能"
+          },
           "description_placeholder": "描述它的用途...",
-          "dialog_description": "轻量新建助手或智能体。",
-          "model_placeholder": "选择模型",
-          "model_required": "请选择模型",
+          "guided_progress": "引导式创建 · 第 {{current}} / {{total}} 步",
           "name_placeholder": "输入名称",
-          "name_required": "请输入名称",
+          "next": "下一步",
+          "step": {
+            "basic": "基础信息",
+            "capability": "技能",
+            "knowledge": "知识库",
+            "persona": "设定人格"
+          },
           "submit": "新建",
           "submit_failed": "新建失败"
         },
@@ -3837,64 +3886,6 @@
       "partial_failure": "{{count}} 个搜索结果，部分搜索失败"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "添加到启动台",
-    "add_to_sidebar": "添加到侧边栏",
-    "popup": {
-      "close": "关闭小程序",
-      "devtools": "开发者工具",
-      "goBack": "后退",
-      "goForward": "前进",
-      "minimize": "最小化小程序",
-      "openExternal": "在浏览器中打开",
-      "open_link_external_off": "当前：使用默认窗口打开链接",
-      "open_link_external_on": "当前：在浏览器中打开链接",
-      "refresh": "刷新",
-      "rightclick_copyurl": "右键复制 URL"
-    },
-    "remove_from_launchpad": "从启动台移除",
-    "remove_from_sidebar": "从侧边栏移除",
-    "sidebar": {
-      "close": {
-        "title": "关闭"
-      },
-      "closeall": {
-        "title": "关闭所有"
-      },
-      "hide": {
-        "title": "隐藏"
-      },
-      "remove_custom": {
-        "title": "删除自定义应用"
-      }
-    },
-    "title": "小程序"
-  },
-  "minapps": {
-    "ant-ling": "蚂蚁百灵",
-    "baichuan": "百小应",
-    "baidu-ai-search": "百度AI搜索",
-    "chatglm": "智谱清言",
-    "dangbei": "当贝AI",
-    "doubao": "豆包",
-    "hailuo": "海螺",
-    "ima": "ima",
-    "metaso": "秘塔AI搜索",
-    "minimax-agent": "MiniMax Agent",
-    "minimax-global": "MiniMax Agent 海外版",
-    "nami-ai": "纳米AI",
-    "nami-ai-search": "纳米AI搜索",
-    "qwen": "通义千问",
-    "sensechat": "商量",
-    "stepfun": "阶跃AI",
-    "tencent-yuanbao": "腾讯元宝",
-    "tiangong-ai": "天工AI",
-    "wanzhi": "万知",
-    "wenxin": "文心一言",
-    "wps-copilot": "WPS灵犀",
-    "xiaoyi": "小艺",
-    "zhihu": "知乎直答"
-  },
   "miniApp": {
     "add_to_launchpad": "添加到启动台",
     "add_to_sidebar": "添加到侧边栏",
@@ -3905,15 +3896,13 @@
     "hide_failed": "隐藏小程序失败",
     "pin_failed": "固定小程序失败",
     "popup": {
-      "close": "关闭小程序",
       "devtools": "开发者工具",
       "goBack": "后退",
       "goForward": "前进",
       "openExternal": "在浏览器中打开",
       "open_link_external_off": "当前：使用默认窗口打开链接",
       "open_link_external_on": "当前：在浏览器中打开链接",
-      "refresh": "刷新",
-      "rightclick_copyurl": "右键复制 URL"
+      "refresh": "刷新"
     },
     "remove_from_launchpad": "从启动台移除",
     "remove_from_sidebar": "从侧边栏移除",
@@ -3925,17 +3914,8 @@
     },
     "show_failed": "显示小程序失败",
     "sidebar": {
-      "close": {
-        "title": "关闭"
-      },
-      "closeall": {
-        "title": "关闭所有"
-      },
       "hide": {
         "title": "隐藏"
-      },
-      "remove_custom": {
-        "title": "删除自定义应用"
       }
     },
     "title": "小程序",
@@ -3955,7 +3935,6 @@
     "minimax-agent": "MiniMax Agent",
     "minimax-global": "MiniMax Agent 海外版",
     "nami-ai": "纳米AI",
-    "nami-ai-search": "纳米AI搜索",
     "qwen": "通义千问",
     "sensechat": "商量",
     "stepfun": "阶跃AI",
@@ -6464,8 +6443,6 @@
         "confirm_delete_message": "删除消息前确认",
         "confirm_regenerate_message": "重新生成消息前确认",
         "enable_quick_triggers": "启用 / 和 @ 触发快捷菜单",
-        "paste_long_text_as_file": "长文本粘贴为文件",
-        "paste_long_text_threshold": "长文本长度",
         "send_shortcuts": "发送快捷键",
         "show_estimated_tokens": "显示预估 Token 数",
         "title": "输入设置"
@@ -6489,37 +6466,24 @@
     "miniApps": {
       "cache_change_notice": "更改将在打开的小程序增减至设定值后生效",
       "cache_description": "设置同时保持活跃状态的小程序最大数量",
-      "cache_settings": "缓存设置",
       "cache_title": "小程序缓存数量",
       "custom": {
-        "conflicting_ids": "与默认应用 ID 冲突: {{ids}}",
-        "duplicate_ids": "发现重复的 ID: {{ids}}",
-        "edit_description": "在这里编辑自定义小应用的配置。每个应用需要包含 id、name、url 和 logo 字段",
+        "create_title": "创建自定义小程序",
         "edit_title": "编辑自定义小程序",
-        "id": "ID",
-        "id_error": "ID 是必填项",
-        "id_placeholder": "请输入 ID",
-        "logo": "Logo",
         "logo_file": "上传 Logo 文件",
-        "logo_upload_button": "上传",
         "logo_upload_error": "Logo 上传失败",
         "logo_upload_label": "上传 Logo",
-        "logo_upload_success": "Logo 上传成功",
-        "logo_url": "Logo URL",
-        "logo_url_label": "Logo URL",
-        "logo_url_placeholder": "请输入 Logo URL",
         "name": "名称",
-        "name_error": "名称是必填项",
         "name_placeholder": "请输入名称",
-        "placeholder": "请输入自定义小程序配置（JSON 格式）",
+        "remove_confirm_description": "确定要删除自定义小程序「{{name}}」吗？此操作无法撤销。",
+        "remove_confirm_title": "删除自定义小程序？",
         "remove_error": "自定义小程序删除失败",
         "remove_success": "自定义小程序删除成功",
-        "save": "保存",
         "save_error": "自定义小程序保存失败",
         "save_success": "自定义小程序保存成功",
         "title": "自定义",
         "url": "URL",
-        "url_error": "URL 是必填项",
+        "url_invalid": "请输入有效的 http、https 或 file URL",
         "url_placeholder": "请输入 URL"
       },
       "disabled": "隐藏的小程序",
@@ -6541,63 +6505,6 @@
         "title": "小程序区域筛选"
       },
       "reset_tooltip": "重置为默认值",
-      "title": "小程序设置",
-      "visible": "显示的小程序"
-    },
-    "miniapps": {
-      "cache_change_notice": "更改将在打开的小程序增减至设定值后生效",
-      "cache_description": "设置同时保持活跃状态的小程序最大数量",
-      "cache_settings": "缓存设置",
-      "cache_title": "小程序缓存数量",
-      "custom": {
-        "conflicting_ids": "与默认应用 ID 冲突: {{ids}}",
-        "duplicate_ids": "发现重复的 ID: {{ids}}",
-        "edit_description": "在这里编辑自定义小应用的配置。每个应用需要包含 id、name、url 和 logo 字段",
-        "edit_title": "编辑自定义小程序",
-        "id": "ID",
-        "id_error": "ID 是必填项",
-        "id_placeholder": "请输入 ID",
-        "logo": "Logo",
-        "logo_file": "上传 Logo 文件",
-        "logo_upload_button": "上传",
-        "logo_upload_error": "Logo 上传失败",
-        "logo_upload_label": "上传 Logo",
-        "logo_upload_success": "Logo 上传成功",
-        "logo_url": "Logo URL",
-        "logo_url_label": "Logo URL",
-        "logo_url_placeholder": "请输入 Logo URL",
-        "name": "名称",
-        "name_error": "名称是必填项",
-        "name_placeholder": "请输入名称",
-        "placeholder": "请输入自定义小程序配置（JSON 格式）",
-        "remove_error": "自定义小程序删除失败",
-        "remove_success": "自定义小程序删除成功",
-        "save": "保存",
-        "save_error": "自定义小程序保存失败",
-        "save_success": "自定义小程序保存成功",
-        "title": "自定义",
-        "url": "URL",
-        "url_error": "URL 是必填项",
-        "url_placeholder": "请输入 URL"
-      },
-      "disabled": "隐藏的小程序",
-      "display_title": "小程序显示设置",
-      "empty": "在左侧列表点击隐藏图标，小程序会移到这里",
-      "hide_app": "隐藏 {{name}}",
-      "open_link_external": {
-        "title": "在浏览器中打开新窗口链接"
-      },
-      "region": {
-        "auto": "自动检测",
-        "cn": "中国",
-        "description": "根据所在地区过滤不支持的小程序",
-        "global": "全球",
-        "title": "小程序区域筛选"
-      },
-      "reset_tooltip": "重置为默认值",
-      "show_app": "显示 {{name}}",
-      "sidebar_description": "设置侧边栏是否显示活跃的小程序",
-      "sidebar_title": "侧边栏活跃小程序显示设置",
       "title": "小程序设置",
       "visible": "显示的小程序"
     },
@@ -6734,12 +6641,13 @@
         "filter_remove_all": "全部移除",
         "footer_done": "完成",
         "large_group_hidden": "显示剩余 {{count}} 个模型",
+        "model_in_use_by_knowledge_base": "该模型正在被知识库使用，无法删除。",
         "operation_failed": "模型操作失败。",
         "refetch_list": "重新拉取模型",
         "reload_catalog": "刷新列表",
         "remove_listed": "移除列表中的模型",
-        "remove_model": "移除模型",
-        "remove_whole_group": "移除整个分组",
+        "remove_model": "删除模型",
+        "remove_whole_group": "删除分组",
         "search_models_placeholder": "搜索模型…",
         "select_none": "取消全选",
         "status_all": "全部",
@@ -6749,6 +6657,7 @@
         "sync_added_metric": "{{count}} 个新增模型",
         "sync_added_section": "新增模型",
         "sync_apply_changes": "确认应用",
+        "sync_apply_default_in_use": "部分模型正被用作默认模型，无法删除。",
         "sync_apply_result": "已新增 {{added}} 个，标记弃用 {{deprecated}} 个，删除 {{deleted}} 个。",
         "sync_empty_added": "没有发现新增的上游模型。",
         "sync_empty_missing": "没有发现已失效的本地模型。",
@@ -6864,12 +6773,46 @@
     },
     "parameter_settings": "参数设置",
     "plugins": {
-      "bunDescription": "用于 MCP 服务和相关工具链的 JavaScript 运行时。",
+      "addTool": "添加工具",
+      "addToolDescription": "使用 mise 工具键添加工具（例如 github:sharkdp/fd、uv、bun）。",
+      "coreDepsMissing": "核心依赖未安装",
+      "customTools": "自定义工具",
+      "customToolsEmpty": "暂无自定义工具，点击上方添加。",
       "description": "管理应用运行所需的二进制工具和运行时依赖。",
+      "duplicateName": "已存在相同名称的工具",
+      "fieldVersion": "版本（可选，默认为最新）",
+      "install": "安装",
+      "installError": "工具安装失败",
       "installing": "安装中...",
+      "invalidTool": "工具名称或标识无效",
       "notInstalled": "未安装",
+      "openBinariesDir": "打开二进制文件目录",
+      "remove": "移除工具",
+      "removeConfirmMessage": "确定要移除 \"{{name}}\" 吗？二进制文件将被删除。",
+      "removeConfirmTitle": "移除工具",
+      "searchFailed": "搜索失败，请查看日志",
+      "searchRegistry": "搜索 mise 工具仓库...",
+      "source": {
+        "bundled": "内置"
+      },
       "title": "环境依赖",
-      "uvDescription": "用于 MCP 服务与依赖安装的 Python 包管理工具。"
+      "tools": {
+        "bun": "MCP 服务及相关工具链使用的 JavaScript 运行时。",
+        "claude": "Anthropic 的终端智能编程工具。",
+        "codex": "OpenAI 的开源编程代理，可读取、编辑和执行本地仓库中的代码。",
+        "fd": "快速文件查找工具，find 的替代品。",
+        "gh": "GitHub CLI，用于仓库和工作流管理。",
+        "hermes": "Nous Research 开发的自我进化 AI 编程代理，能从经验中创建技能并跨会话持久化知识。",
+        "lark-cli": "飞书官方 CLI，覆盖消息、文档、多维表格、日历等 200+ 命令及 AI Agent 技能。",
+        "ntn": "Notion 官方 CLI，支持身份验证、Workers 管理和完整的 Notion API 终端访问。",
+        "openclaw": "跨平台个人 AI 助手，提供聊天、语音、画布、摄像头和屏幕捕获等功能。",
+        "opencode": "开源 AI 编程代理，支持 75+ 模型并集成 GitHub Actions 自动化工作流。",
+        "pi": "AI 代理工具包，包含编程代理 CLI、统一 LLM API、TUI/Web UI 和 Slack 机器人。",
+        "rg": "快速文本搜索工具 (ripgrep)，grep 的替代品。",
+        "rtk": "CLI 代理工具，通过压缩终端输出来减少 LLM token 消耗。",
+        "uv": "用于 MCP 服务与依赖安装的 Python 包管理工具。"
+      },
+      "update": "更新到最新版本"
     },
     "power": {
       "prevent_sleep_when_busy": "运行任务时保持系统唤醒"
@@ -7036,7 +6979,6 @@
       "cherryin": {
         "api_host": {
           "acceleration": "加速域名",
-          "backup": "备用域名",
           "international": "国际域名"
         }
       },

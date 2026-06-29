@@ -8,7 +8,7 @@ import {
   EmptyState,
   Flex
 } from '@cherrystudio/ui'
-import type { McpResource } from '@renderer/types'
+import type { McpResource } from '@shared/types/mcp'
 import { useTranslation } from 'react-i18next'
 
 import { McpDetailItem, McpDetailList } from './McpDetailList'

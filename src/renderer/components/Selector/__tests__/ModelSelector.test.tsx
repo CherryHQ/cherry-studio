@@ -1,3 +1,4 @@
+import type * as ModelModule from '@renderer/utils/model'
 import { type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -17,7 +18,7 @@ import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '../shell/SelectorShell'
 
 const {
   mockUseModelSelectorData,
-  mockOpenSettingsWindow,
+  mockNavigate,
   mockScrollToIndex,
   mockLoggerError,
   mockVirtualListSizes,
@@ -25,7 +26,7 @@ const {
   mockHoverCardContentProps
 } = vi.hoisted(() => ({
   mockUseModelSelectorData: vi.fn(),
-  mockOpenSettingsWindow: vi.fn(),
+  mockNavigate: vi.fn().mockResolvedValue(undefined),
   mockScrollToIndex: vi.fn(),
   mockLoggerError: vi.fn(),
   mockVirtualListSizes: [] as number[],
@@ -47,8 +48,8 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('@renderer/services/SettingsWindowService', () => ({
-  openSettingsWindow: mockOpenSettingsWindow
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => mockNavigate
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
@@ -59,7 +60,8 @@ vi.mock('@cherrystudio/ui/icons', () => ({
   resolveIcon: () => null
 }))
 
-vi.mock('@renderer/config/models/reasoning', () => ({
+vi.mock('@renderer/utils/model', async (importOriginal) => ({
+  ...(await importOriginal<typeof ModelModule>()),
   getModelSupportedReasoningEffortOptions: () => undefined
 }))
 
@@ -348,13 +350,13 @@ function mockSelectorChromeHeight(height: number) {
 describe('ModelSelector', () => {
   beforeEach(() => {
     mockUseModelSelectorData.mockReset()
-    mockOpenSettingsWindow.mockReset()
+    mockNavigate.mockReset()
     mockScrollToIndex.mockReset()
     mockLoggerError.mockReset()
     mockVirtualListSizes.length = 0
     mockHoverCardContentProps.length = 0
     mockAvailablePopoverHeight.value = undefined
-    mockOpenSettingsWindow.mockResolvedValue(undefined)
+    mockNavigate.mockResolvedValue(undefined)
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       callback(0)
       return 1
@@ -737,7 +739,9 @@ describe('ModelSelector', () => {
 
     fireEvent.click(screen.getByLabelText('navigate.provider_settings'))
 
-    await waitFor(() => expect(mockOpenSettingsWindow).toHaveBeenCalledWith('/settings/provider?id=openai'))
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith({ to: '/settings/provider', search: { id: 'openai' } })
+    )
     expect(onSelect).not.toHaveBeenCalled()
   })
 
@@ -781,7 +785,9 @@ describe('ModelSelector', () => {
     expect(screen.queryByText('cherryin')).toBeNull()
     fireEvent.click(screen.getByLabelText('navigate.provider_settings'))
 
-    await waitFor(() => expect(mockOpenSettingsWindow).toHaveBeenCalledWith('/settings/provider?id=cherryin'))
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith({ to: '/settings/provider', search: { id: 'cherryin' } })
+    )
     expect(onSelect).not.toHaveBeenCalled()
   })
 

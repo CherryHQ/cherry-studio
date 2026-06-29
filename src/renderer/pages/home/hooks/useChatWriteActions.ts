@@ -16,7 +16,8 @@ import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import type { Topic } from '@renderer/types'
+import { ipcApi } from '@renderer/ipc'
+import type { Topic } from '@renderer/types/topic'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import { DataApiError, ErrorCode } from '@shared/data/api'
 import type { BranchMessagesResponse, CherryUIMessage, Message as DbMessage } from '@shared/data/types/message'
@@ -249,7 +250,7 @@ export function useChatWriteActions(params: Params): Result {
       // outer ChatContent hasn't re-rendered with the refreshed SWR
       // data yet), so the anchor lookup would miss the new user. We
       // already know the anchor is the new user's own id.
-      const ack = await window.api.ai.streamOpen({
+      const ack = await ipcApi.request('ai.stream_open', {
         trigger: 'regenerate-message',
         topicId: topic.id,
         parentAnchorId: newMessage.id,
@@ -280,7 +281,7 @@ export function useChatWriteActions(params: Params): Result {
       }
 
       const modelId = target?.role === 'assistant' ? (target.metadata?.modelId as UniqueModelId | undefined) : undefined
-      const ack = await window.api.ai.streamOpen({
+      const ack = await ipcApi.request('ai.stream_open', {
         trigger: 'regenerate-message',
         topicId: topic.id,
         parentAnchorId,

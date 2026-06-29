@@ -7,8 +7,8 @@
  *   registered as a lifecycle service (`@Injectable('FileManager')`,
  *   `@ServicePhase(Phase.WhenReady)`). Main runtime code resolves the
  *   singleton via `application.get('FileManager')`. This barrel exports the
- *   public contract types / errors only — the class itself is reached
- *   through the container, not by direct import.
+ *   public contract types plus narrow shared helpers — the class itself is
+ *   reached through the container, not by direct import.
  * - Implementation lives under `./internal/*` (entry / content / system ops)
  *   as pure-function modules. These are **NOT** re-exported from this barrel
  *   and MUST NOT be imported from outside the file module.
@@ -22,7 +22,7 @@
  *   DataApi handler or via FileManager side effects — not imported directly.
  *
  * If you find yourself reaching into `internal/`, the answer is almost
- * certainly "add a method to FileManager" instead.
+ * certainly "add a FileManager method or expose a narrow helper here" instead.
  */
 
 export type {
@@ -66,13 +66,6 @@ export { createDirectoryWatcher } from './watcher'
 // Projection helper: managed FileEntry → live on-disk FileInfo descriptor.
 export { toFileInfo } from './toFileInfo'
 
-// Orphan-sweep types — surfaced for the cleanup-UI consumer.
-// (`FileManager.runSweep` is the call site for `OrphanReport`; the registry
-// singleton stays inside `@main/services/file/orphanCheckerRegistry`.)
-export type {
-  DbSweepReport,
-  FileSweepReport,
-  OrphanEntryReport,
-  OrphanRefScanResult,
-  OrphanReport
-} from './internal/orphanSweep'
+// Path-level system helpers. `safeOpen` is the public default-open primitive;
+// raw Electron shell access remains internal to the file module.
+export { safeOpen, showInFolder } from './system'

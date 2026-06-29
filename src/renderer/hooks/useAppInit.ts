@@ -2,10 +2,9 @@ import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { setInlineFilePathHomePath } from '@renderer/components/chat/messages/utils/filePath'
 import db from '@renderer/databases'
-import { useAppUpdateHandler, useAppUpdateState } from '@renderer/hooks/useAppUpdate'
+import { useAppUpdateHandler } from '@renderer/hooks/useAppUpdate'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import i18n, { setDayjsLocale } from '@renderer/i18n'
-import { delay, runAsyncFunction } from '@renderer/utils'
 import { defaultLanguage } from '@shared/utils/languages'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect } from 'react'
@@ -16,10 +15,8 @@ import useNavBackgroundColor from './useNavBackgroundColor'
 export function useAppInit() {
   const [language] = usePreference('app.language')
   const [customCss] = usePreference('ui.custom_css')
-  const [autoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
   const [enableDataCollection] = usePreference('app.privacy.data_collection.enabled')
 
-  const { updateAppUpdateState } = useAppUpdateState()
   const savedAvatar = useLiveQuery(() => db.settings.get('image://avatar'))
   const navBackgroundColor = useNavBackgroundColor()
 
@@ -57,34 +54,6 @@ export function useAppInit() {
   }, [savedAvatar])
 
   useEffect(() => {
-    const checkForUpdates = async () => {
-      const { isPackaged } = await window.api.getAppInfo()
-
-      if (!isPackaged || !autoCheckUpdate) {
-        return
-      }
-
-      const { updateInfo } = await window.api.checkForUpdate()
-      updateAppUpdateState({ info: updateInfo })
-    }
-
-    // Initial check with delay
-    void runAsyncFunction(async () => {
-      const { isPackaged } = await window.api.getAppInfo()
-      if (isPackaged && autoCheckUpdate) {
-        await delay(2)
-        await checkForUpdates()
-      }
-    })
-
-    // Set up 4-hour interval check
-    const FOUR_HOURS = 4 * 60 * 60 * 1000
-    const intervalId = setInterval(checkForUpdates, FOUR_HOURS)
-
-    return () => clearInterval(intervalId)
-  }, [autoCheckUpdate, updateAppUpdateState])
-
-  useEffect(() => {
     const currentLanguage = language || navigator.language || defaultLanguage
     void i18n.changeLanguage(currentLanguage)
     setDayjsLocale(currentLanguage)
@@ -95,9 +64,8 @@ export function useAppInit() {
   }, [navBackgroundColor])
 
   useEffect(() => {
-    // set files path
+    // set app paths
     void window.api.getAppInfo().then((info) => {
-      cacheService.set('app.path.files', info.filesPath)
       setInlineFilePathHomePath(info.homePath)
       cacheService.set('app.path.resources', info.resourcesPath)
     })

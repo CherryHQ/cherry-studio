@@ -1,7 +1,8 @@
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n'
-import type { FileMetadata, Topic } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types/file'
 import type { ExportableMessage } from '@renderer/types/messageExport'
+import type { Topic } from '@renderer/types/topic'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { CodePartData, ErrorPartData, TranslationPartData } from '@shared/data/types/uiParts'
 

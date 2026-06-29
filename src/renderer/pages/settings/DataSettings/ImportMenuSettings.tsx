@@ -1,6 +1,6 @@
 import { Button, RowFlex } from '@cherrystudio/ui'
 import ImportPopup from '@renderer/components/Popups/ImportPopup'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 

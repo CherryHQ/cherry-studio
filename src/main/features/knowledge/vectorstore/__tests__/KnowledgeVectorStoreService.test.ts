@@ -13,8 +13,9 @@ const {
   loggerWarnMock,
   openDriverMock,
   createSchemaMock,
+  resetSchemaMock,
   ensureIndexMetaMock,
-  hasLegacyTableMock,
+  readIndexSchemaVersionMock,
   hasAnyMaterialMock,
   getItemsByBaseIdMock,
   indexStoreCtorMock,
@@ -29,8 +30,9 @@ const {
   loggerWarnMock: vi.fn(),
   openDriverMock: vi.fn(),
   createSchemaMock: vi.fn(),
+  resetSchemaMock: vi.fn(),
   ensureIndexMetaMock: vi.fn(),
-  hasLegacyTableMock: vi.fn(),
+  readIndexSchemaVersionMock: vi.fn(),
   hasAnyMaterialMock: vi.fn(),
   getItemsByBaseIdMock: vi.fn(),
   indexStoreCtorMock: vi.fn(),
@@ -39,6 +41,10 @@ const {
   deleteDirMock: vi.fn(),
   statMock: vi.fn()
 }))
+
+/** Mirrors KNOWLEDGE_INDEX_SCHEMA_VERSION in schema.ts; the service test pins the open-time
+ *  branching (rebuild vs create), while schema.test.ts pins the real constant's value. */
+const MOCK_SCHEMA_VERSION = 2
 
 vi.mock('node:fs', () => ({
   default: { promises: { stat: statMock } }
@@ -79,12 +85,14 @@ vi.mock('../indexStore/LibsqlVectorIndex', () => ({
 }))
 
 vi.mock('../indexStore/schema', () => ({
-  createKnowledgeIndexSchema: createSchemaMock
+  createKnowledgeIndexSchema: createSchemaMock,
+  resetKnowledgeIndexSchema: resetSchemaMock,
+  KNOWLEDGE_INDEX_SCHEMA_VERSION: MOCK_SCHEMA_VERSION
 }))
 
 vi.mock('../indexStore/indexMeta', () => ({
   ensureIndexMeta: ensureIndexMetaMock,
-  hasLegacyVectorStoreTable: hasLegacyTableMock,
+  readIndexSchemaVersion: readIndexSchemaVersionMock,
   hasAnyMaterial: hasAnyMaterialMock
 }))
 
@@ -111,6 +119,8 @@ function createBase(id = 'kb-1'): KnowledgeBase {
     error: null,
     chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
     chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+    chunkStrategy: 'structured',
+    chunkSeparator: '\\n\\n',
     searchMode: 'hybrid',
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
@@ -134,8 +144,11 @@ describe('KnowledgeVectorStoreService', () => {
       close: vi.fn().mockResolvedValue(undefined)
     }))
     createSchemaMock.mockResolvedValue(undefined)
+    resetSchemaMock.mockResolvedValue(undefined)
     ensureIndexMetaMock.mockResolvedValue(undefined)
-    hasLegacyTableMock.mockResolvedValue(false)
+    // Default: a fresh/blank file has no stored version → the open path takes the normal
+    // create branch (no rebuild). Mismatch tests override this per-case.
+    readIndexSchemaVersionMock.mockResolvedValue(null)
     // A non-empty material probe keeps the invisible-contents diagnostic quiet
     // unless a test opts in.
     hasAnyMaterialMock.mockResolvedValue(true)
@@ -196,6 +209,55 @@ describe('KnowledgeVectorStoreService', () => {
     expect(ensureIndexMetaMock).toHaveBeenCalledWith(expect.objectContaining({ kind: 'driver' }), {
       baseId: base.id
     })
+  })
+
+  it('creates the schema normally when the stored version matches (no rebuild)', async () => {
+    const service = new KnowledgeVectorStoreService()
+    const base = createBase()
+    readIndexSchemaVersionMock.mockResolvedValueOnce(MOCK_SCHEMA_VERSION)
+
+    await service.getIndexStore(base)
+
+    expect(createSchemaMock).toHaveBeenCalledTimes(1)
+    expect(resetSchemaMock).not.toHaveBeenCalled()
+  })
+
+  it('rebuilds the derived index when an existing index.sqlite is at a stale schema version', async () => {
+    const service = new KnowledgeVectorStoreService()
+    const base = createBase()
+    readIndexSchemaVersionMock.mockResolvedValueOnce(MOCK_SCHEMA_VERSION - 1)
+
+    await service.getIndexStore(base)
+
+    // Drop+recreate via resetKnowledgeIndexSchema, NOT the plain create — an old layout
+    // (e.g. pre-fts_rowid) cannot be retrofitted by CREATE ... IF NOT EXISTS.
+    expect(resetSchemaMock).toHaveBeenCalledTimes(1)
+    expect(createSchemaMock).not.toHaveBeenCalled()
+    // Warn so the wipe-and-reindex is diagnosable.
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      'Knowledge index schema version mismatch — rebuilding the derived index',
+      expect.objectContaining({
+        baseId: base.id,
+        storedVersion: MOCK_SCHEMA_VERSION - 1,
+        expectedVersion: MOCK_SCHEMA_VERSION
+      })
+    )
+    // The reset drops meta, so the open path still restamps it afterwards.
+    expect(ensureIndexMetaMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('also rebuilds when the stored version is NEWER than this build (downgrade)', async () => {
+    // The guard is `!==`, not `<` — a file written by a newer build (user downgraded the app) is
+    // just as incompatible a layout and must be rebuilt, not opened as-is. Pins that semantics so a
+    // future refactor to `<` does not silently start mounting newer files.
+    const service = new KnowledgeVectorStoreService()
+    const base = createBase()
+    readIndexSchemaVersionMock.mockResolvedValueOnce(MOCK_SCHEMA_VERSION + 1)
+
+    await service.getIndexStore(base)
+
+    expect(resetSchemaMock).toHaveBeenCalledTimes(1)
+    expect(createSchemaMock).not.toHaveBeenCalled()
   })
 
   it('closes the driver and aborts the open when meta verification fails (wrong/corrupt base)', async () => {
@@ -385,22 +447,6 @@ describe('KnowledgeVectorStoreService', () => {
     await expect(service.getIndexStoreIfExists(base)).rejects.toThrow('not ready for vector store operations')
 
     expect(indexStoreCtorMock).not.toHaveBeenCalled()
-  })
-
-  it('logs an error when the mounted index still holds the legacy single-table layout', async () => {
-    const service = new KnowledgeVectorStoreService()
-    const base = createBase()
-    hasLegacyTableMock.mockResolvedValueOnce(true)
-
-    const store = await service.getIndexStore(base)
-
-    // The base must still mount (a pre-PR-B remnant is tolerated) — but loudly.
-    expect(store).toBe(lastStore())
-    expect(loggerErrorMock).toHaveBeenCalledWith(
-      expect.stringContaining('legacy single-table vector layout'),
-      expect.objectContaining({ baseId: base.id })
-    )
-    expect(getItemsByBaseIdMock).not.toHaveBeenCalled()
   })
 
   it('logs an error when an empty index mounts under a base with completed items', async () => {

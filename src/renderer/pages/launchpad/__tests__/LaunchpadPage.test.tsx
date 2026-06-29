@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
+import type { SidebarFavorite } from '@shared/data/preference/preferenceTypes'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
@@ -12,11 +12,14 @@ const mocks = vi.hoisted(() => ({
   pinnedMiniApps: [] as any[],
   openedMiniApps: [] as any[],
   setSidebarFavorites: vi.fn(() => Promise.resolve()),
-  sidebarFavorites: ['assistants'] as SidebarIcon[]
+  sidebarFavorites: ['assistants'] as SidebarFavorite[]
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: () => [mocks.sidebarFavorites, mocks.setSidebarFavorites]
+  usePreference: (key: string) => {
+    if (key === 'feature.paintings.default_provider') return ['zhipu', vi.fn()]
+    return [mocks.sidebarFavorites, mocks.setSidebarFavorites]
+  }
 }))
 
 vi.mock('@renderer/components/Icons/SvgIcon', () => ({
@@ -63,10 +66,6 @@ vi.mock('@renderer/components/Scrollbar', () => ({
   )
 }))
 
-vi.mock('@renderer/hooks/useSettings', () => ({
-  useSettings: () => ({ defaultPaintingProvider: 'zhipu' })
-}))
-
 vi.mock('@renderer/hooks/useMiniApps', () => ({
   useMiniApps: () => ({
     openedKeepAliveMiniApps: mocks.openedMiniApps,
@@ -75,7 +74,7 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
-  getSidebarIconLabelKey: (key: SidebarIcon) =>
+  getSidebarIconLabelKey: (key: SidebarFavorite) =>
     ({
       assistants: 'Chat',
       agents: 'Agent',

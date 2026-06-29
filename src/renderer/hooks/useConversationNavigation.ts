@@ -2,14 +2,15 @@ import {
   emitResourceListReveal,
   type ResourceListRevealSource
 } from '@renderer/components/chat/resources/resourceListRevealEvents'
+import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
+import { type TabsContextValue, useOptionalTabsContext } from '@renderer/hooks/tab'
 import {
   buildSidebarAppOpenMetadata,
   getSidebarApp,
   getSidebarAppTabInstanceKey,
   tabBelongsToApp
-} from '@renderer/config/sidebar'
-import { type TabsContextValue, useOptionalTabsContext } from '@renderer/context/TabsContext'
-import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
+} from '@renderer/utils/sidebar'
+import type { SidebarFavorite } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useMemo } from 'react'
 import { v4 as uuid } from 'uuid'
@@ -27,6 +28,11 @@ export interface ConversationNavigation {
    */
   openConversationTab: (key: string, title?: string, options?: { forceNew?: boolean }) => string | undefined
   /**
+   * Open conversation `key` in the current tabs context when available; otherwise
+   * open it in a detached window. Detached host windows always open elsewhere.
+   */
+  openConversation: (key: string, title?: string) => string | undefined
+  /**
    * Open conversation `key` in a fresh detached window, leaving the current window's
    * tabs untouched. Unlike a tab detach this does not require `key` to be an open tab.
    */
@@ -34,13 +40,13 @@ export interface ConversationNavigation {
 }
 
 // Only conversation apps that own a resource sidebar emit a reveal on focus/open.
-function resolveRevealSource(appId: SidebarIcon): ResourceListRevealSource | null {
+function resolveRevealSource(appId: SidebarFavorite): ResourceListRevealSource | null {
   return appId === 'assistants' || appId === 'agents' ? appId : null
 }
 
 function findConversationTabId(
   tabs: TabsContextValue | null,
-  appId: SidebarIcon,
+  appId: SidebarFavorite,
   key: string,
   excludeTabId?: string
 ): string | undefined {
@@ -57,7 +63,7 @@ function findConversationTabId(
 
 function focusConversationTabImpl(
   tabs: TabsContextValue | null,
-  appId: SidebarIcon,
+  appId: SidebarFavorite,
   key: string,
   excludeTabId?: string
 ): boolean {
@@ -71,7 +77,7 @@ function focusConversationTabImpl(
 
 function openConversationTabImpl(
   tabs: TabsContextValue | null,
-  appId: SidebarIcon,
+  appId: SidebarFavorite,
   key: string,
   title?: string,
   forceNew?: boolean
@@ -86,7 +92,7 @@ function openConversationTabImpl(
   return openedId
 }
 
-function openConversationWindowImpl(appId: SidebarIcon, key: string, title?: string): void {
+function openConversationWindowImpl(appId: SidebarFavorite, key: string, title?: string): void {
   const app = getSidebarApp(appId)
   if (!app?.instanceKey) return
   const metadata = buildSidebarAppOpenMetadata(app, key)
@@ -110,15 +116,21 @@ function openConversationWindowImpl(appId: SidebarIcon, key: string, title?: str
  * Degrades to no-ops when there is no TabsProvider (tests, detached popups) or when the
  * app has no `instanceKey`.
  */
-export function useConversationNavigation(appId: SidebarIcon): ConversationNavigation {
+export function useConversationNavigation(appId: SidebarFavorite): ConversationNavigation {
   const tabs = useOptionalTabsContext()
+  const isDetachedWindowFrame = useWindowFrame().mode === 'window'
 
   return useMemo<ConversationNavigation>(
     () => ({
       focusExistingTab: (key, options) => focusConversationTabImpl(tabs, appId, key, options?.excludeTabId),
       openConversationTab: (key, title, options) => openConversationTabImpl(tabs, appId, key, title, options?.forceNew),
+      openConversation: (key, title) => {
+        if (tabs && !isDetachedWindowFrame) return openConversationTabImpl(tabs, appId, key, title)
+        openConversationWindowImpl(appId, key, title)
+        return undefined
+      },
       openConversationWindow: (key, title) => openConversationWindowImpl(appId, key, title)
     }),
-    [appId, tabs]
+    [appId, isDetachedWindowFrame, tabs]
   )
 }

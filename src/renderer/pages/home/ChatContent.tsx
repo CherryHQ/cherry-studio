@@ -12,7 +12,7 @@ import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { FC } from 'react'
 import { useEffect, useMemo, useRef } from 'react'
@@ -189,9 +189,17 @@ const ChatContentInner: FC<InnerProps> = ({
       openCitationsPanel={onOpenCitationsPanel}
     />
   )
-  const composer = (
+  const composer = runtime.shouldRenderHomeComposer ? (
     <ChatComposerSlot
-      isHome={runtime.shouldRenderHomeComposer}
+      placement="home"
+      topic={topic}
+      onSend={runtime.sendMessage}
+      onNewTopic={onNewTopic}
+      composerContext={runtime.composerContext}
+    />
+  ) : (
+    <ChatComposerSlot
+      placement="docked"
       topic={topic}
       onSend={runtime.sendMessage}
       onNewTopic={onNewTopic}

@@ -4,6 +4,8 @@ vi.mock('@main/core/application', () => ({
   application: { get: () => ({ search: () => [] }) }
 }))
 
+import { READ_FILE_TOOL_NAME } from '@shared/ai/builtinTools'
+
 import { ToolRegistry } from '../../registry'
 import { registerBuiltinTools } from '../index'
 import { KB_LIST_TOOL_NAME } from '../KnowledgeListTool'
@@ -16,7 +18,16 @@ describe('registerBuiltinTools', () => {
     registerBuiltinTools(reg)
     expect(reg.has(KB_LIST_TOOL_NAME)).toBe(true)
     expect(reg.has(KB_SEARCH_TOOL_NAME)).toBe(true)
+    expect(reg.has(READ_FILE_TOOL_NAME)).toBe(true)
     expect(reg.has(WEB_FETCH_TOOL_NAME)).toBe(true)
     expect(reg.has(WEB_SEARCH_TOOL_NAME)).toBe(true)
+  })
+
+  it('gates read_file on file attachments', () => {
+    const reg = new ToolRegistry()
+    registerBuiltinTools(reg)
+    const readFile = reg.getByName(READ_FILE_TOOL_NAME)
+    expect(readFile?.applies?.({ mcpToolIds: new Set(), hasFileAttachments: false })).toBe(false)
+    expect(readFile?.applies?.({ mcpToolIds: new Set(), hasFileAttachments: true })).toBe(true)
   })
 })

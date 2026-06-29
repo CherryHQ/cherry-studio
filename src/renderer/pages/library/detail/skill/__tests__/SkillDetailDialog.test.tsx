@@ -1,6 +1,6 @@
+import type { InstalledSkill } from '@shared/types/skill'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { InstalledSkill } from '@types'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

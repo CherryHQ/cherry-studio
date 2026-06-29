@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "fa599d36-5cbc-48db-83d9-faba7039b157",
+  "id": "5d72d904-e1ca-4832-a085-bbf3ee2a3a08",
   "prevId": "4ed05ba4-42c4-473c-8bd9-512726c2cffd",
   "tables": {
     "agent": {
@@ -629,8 +629,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "message_snapshot": {
-          "name": "message_snapshot",
+        "model_snapshot": {
+          "name": "model_snapshot",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -1880,6 +1880,22 @@
           "notNull": true,
           "autoincrement": false
         },
+        "chunk_strategy": {
+          "name": "chunk_strategy",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'structured'"
+        },
+        "chunk_separator": {
+          "name": "chunk_separator",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'\\n\\n'"
+        },
         "threshold": {
           "name": "threshold",
           "type": "real",
@@ -1959,6 +1975,10 @@
         "knowledge_base_search_mode_check": {
           "name": "knowledge_base_search_mode_check",
           "value": "\"knowledge_base\".\"search_mode\" IN ('vector', 'bm25', 'hybrid')"
+        },
+        "knowledge_base_chunk_strategy_check": {
+          "name": "knowledge_base_chunk_strategy_check",
+          "value": "\"knowledge_base\".\"chunk_strategy\" IN ('structured', 'delimiter')"
         },
         "knowledge_base_status_check": {
           "name": "knowledge_base_status_check",
@@ -2424,8 +2444,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "message_snapshot": {
-          "name": "message_snapshot",
+        "model_snapshot": {
+          "name": "model_snapshot",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

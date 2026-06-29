@@ -1,14 +1,18 @@
-import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import type { KnowledgeRagConfigFormValues } from '../types'
 import { parseRequiredInteger } from './validate'
 
+const DEFAULT_KNOWLEDGE_DOCUMENT_COUNT = 6
+const DEFAULT_KNOWLEDGE_THRESHOLD = 0.0
+
 export const createKnowledgeRagConfigFormValues = (base: KnowledgeBase): KnowledgeRagConfigFormValues => ({
   fileProcessorId: base.fileProcessorId ?? null,
   chunkSize: String(base.chunkSize),
   chunkOverlap: String(base.chunkOverlap),
+  chunkStrategy: base.chunkStrategy,
+  chunkSeparator: base.chunkSeparator,
   embeddingModelId: base.embeddingModelId,
   rerankModelId: base.rerankModelId ?? null,
   documentCount: base.documentCount ?? DEFAULT_KNOWLEDGE_DOCUMENT_COUNT,
@@ -33,6 +37,14 @@ export const buildKnowledgeRagConfigPatch = (
 
   if (currentValues.chunkOverlap !== initialValues.chunkOverlap) {
     patch.chunkOverlap = parseRequiredInteger(currentValues.chunkOverlap)
+  }
+
+  if (currentValues.chunkStrategy !== initialValues.chunkStrategy) {
+    patch.chunkStrategy = currentValues.chunkStrategy
+  }
+
+  if (currentValues.chunkSeparator !== initialValues.chunkSeparator) {
+    patch.chunkSeparator = currentValues.chunkSeparator
   }
 
   if (currentValues.rerankModelId !== initialValues.rerankModelId) {

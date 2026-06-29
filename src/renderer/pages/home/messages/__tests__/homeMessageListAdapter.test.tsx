@@ -1,6 +1,6 @@
 import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
-import type { Topic } from '@renderer/types'
-import { render } from '@testing-library/react'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { render, waitFor } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,6 +16,10 @@ const exportActionsMock = vi.hoisted(() => ({
 
 const leafCapabilitiesMock = vi.hoisted(() => ({
   copyImage: vi.fn()
+}))
+
+const chatWriteMock = vi.hoisted(() => ({
+  editMessage: vi.fn()
 }))
 
 vi.mock('@data/DataApiService', () => ({
@@ -58,12 +62,8 @@ vi.mock('@renderer/components/Selector', () => ({
   ModelSelector: ({ trigger }: { trigger: ReactNode }) => <>{trigger}</>
 }))
 
-vi.mock('@renderer/config/models', () => ({
+vi.mock('@renderer/utils/model', () => ({
   isVisionModel: vi.fn(() => false)
-}))
-
-vi.mock('@renderer/config/models/_bridge', () => ({
-  toSharedCompatModel: vi.fn(() => undefined)
 }))
 
 vi.mock('@renderer/components/chat/messages/editing/MessageEditingContext', () => ({
@@ -71,7 +71,7 @@ vi.mock('@renderer/components/chat/messages/editing/MessageEditingContext', () =
 }))
 
 vi.mock('@renderer/hooks/chat/ChatWriteContext', () => ({
-  useChatWrite: () => undefined
+  useChatWrite: () => chatWriteMock
 }))
 
 vi.mock('@renderer/hooks/translate', () => ({
@@ -202,6 +202,11 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+import { dataApiService } from '@data/DataApiService'
+import { resolvePartFromParts } from '@renderer/components/chat/messages/blocks'
+import type { Topic } from '@renderer/types/topic'
+import { updateCodeBlock } from '@renderer/utils/markdown'
+
 import { useHomeMessageListProviderValue } from '../homeMessageListAdapter'
 import {
   clearPendingTopicImageActionsForTest,
@@ -220,16 +225,20 @@ const createTopic = (id: string): Topic =>
   }) as Topic
 
 function MessageListAdapterHarness({
+  messages = [],
   onValue,
+  partsByMessageId = {},
   topic
 }: {
+  messages?: CherryUIMessage[]
   onValue?: (value: MessageListProviderValue) => void
+  partsByMessageId?: Record<string, CherryMessagePart[]>
   topic: Topic
 }) {
   const value = useHomeMessageListProviderValue({
     topic,
-    messages: [],
-    partsByMessageId: {}
+    messages,
+    partsByMessageId
   })
 
   useEffect(() => {
@@ -306,5 +315,96 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(eventMocks.on).not.toHaveBeenCalledWith('SEND_MESSAGE', runtime.scrollToBottom)
     expect(eventMocks.on).toHaveBeenCalledWith('COPY_TOPIC_IMAGE', expect.any(Function))
     expect(eventMocks.on).toHaveBeenCalledWith('EXPORT_TOPIC_IMAGE', expect.any(Function))
+  })
+
+  it('saves code block edits through chat write', async () => {
+    const textPart = {
+      type: 'text',
+      text: '```ts\nconst value = "old"\n```'
+    } as CherryMessagePart
+    const updatedText = '```ts\nconst value = "new"\n```'
+    const updatedPart = {
+      ...textPart,
+      text: updatedText
+    } as CherryMessagePart
+    const partsByMessageId = {
+      'message-1': [textPart]
+    }
+    let value: MessageListProviderValue | undefined
+
+    vi.mocked(resolvePartFromParts).mockReturnValue({
+      index: 0,
+      messageId: 'message-1',
+      part: textPart
+    })
+    vi.mocked(updateCodeBlock).mockReturnValue(updatedText)
+
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        partsByMessageId={partsByMessageId}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    await waitFor(() => expect(value).toBeDefined())
+    await value?.actions.saveCodeBlock?.({
+      msgBlockId: 'block-1',
+      codeBlockId: 'code-block-1',
+      newContent: 'const value = "new"'
+    })
+
+    expect(updateCodeBlock).toHaveBeenCalledWith(
+      '```ts\nconst value = "old"\n```',
+      'code-block-1',
+      'const value = "new"'
+    )
+    expect(chatWriteMock.editMessage).toHaveBeenCalledWith('message-1', [updatedPart])
+    expect(dataApiService.patch).not.toHaveBeenCalled()
+    expect(window.toast.success).toHaveBeenCalledWith('code_block.edit.save.success')
+  })
+
+  it('shows an error when saving code block edits through chat write fails', async () => {
+    const textPart = {
+      type: 'text',
+      text: '```ts\nconst value = "old"\n```'
+    } as CherryMessagePart
+    const partsByMessageId = {
+      'message-1': [textPart]
+    }
+    let value: MessageListProviderValue | undefined
+
+    vi.mocked(resolvePartFromParts).mockReturnValue({
+      index: 0,
+      messageId: 'message-1',
+      part: textPart
+    })
+    vi.mocked(updateCodeBlock).mockReturnValue('```ts\nconst value = "new"\n```')
+    chatWriteMock.editMessage.mockRejectedValueOnce(new Error('edit failed'))
+
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        partsByMessageId={partsByMessageId}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    await waitFor(() => expect(value).toBeDefined())
+    await value?.actions.saveCodeBlock?.({
+      msgBlockId: 'block-1',
+      codeBlockId: 'code-block-1',
+      newContent: 'const value = "new"'
+    })
+
+    expect(chatWriteMock.editMessage).toHaveBeenCalledWith('message-1', [
+      {
+        ...textPart,
+        text: '```ts\nconst value = "new"\n```'
+      }
+    ])
+    expect(dataApiService.patch).not.toHaveBeenCalled()
+    expect(window.toast.error).toHaveBeenCalledWith('code_block.edit.save.failed.label: Error: edit failed')
+    expect(window.toast.success).not.toHaveBeenCalled()
   })
 })
