@@ -4,7 +4,7 @@
  * Single home for "turn a non-image, non-natively-consumable file into text":
  *   - `pdf`                          → `extractPdfText` (`@main/utils/pdf`)
  *   - `doc`                          → `word-extractor`
- *   - `docx/pptx/xlsx/xls/od*`       → `officeparser`
+ *   - `docx/pptx/xlsx/od*`           → `officeparser`
  *   - everything else (text / code)  → encoding-detected decode
  *
  */
@@ -15,15 +15,12 @@ import { decodeTextWithAutoEncoding } from '@main/utils/file'
 import { extractPdfText } from '@main/utils/pdf'
 import type { FileEntryId } from '@shared/data/types/file'
 import { documentExts } from '@shared/utils/file'
-import officeParser from 'officeparser'
+import { OfficeConverter, type SupportedFileType } from 'officeparser'
 import WordExtractor from 'word-extractor'
 
 const logger = loggerService.withContext('ai:documentExtraction')
 
-/** Bare extensions officeparser handles — `documentExts` minus PDF (own parser) and `doc` (word-extractor). */
-const OFFICE_PARSER_EXTS = new Set(
-  documentExts.map((ext) => ext.replace(/^\./, '')).filter((ext) => ext !== 'pdf' && ext !== 'doc')
-)
+const OFFICE_PARSER_EXTS = new Set<SupportedFileType>(['docx', 'pptx', 'xlsx', 'odt', 'odp', 'ods'])
 
 const CACHE_TTL_MS = 30 * 60 * 1000
 
@@ -42,10 +39,21 @@ async function extract(entryId: FileEntryId, ext: string): Promise<string> {
     const extracted = await new WordExtractor().extract(buffer)
     return extracted.getBody().trim()
   }
-  if (OFFICE_PARSER_EXTS.has(ext)) {
-    const text = await officeParser.parseOfficeAsync(buffer, { tempFilesLocation: application.getPath('app.temp') })
-    return text.trim()
+  if (OFFICE_PARSER_EXTS.has(ext as SupportedFileType)) {
+    const result = await OfficeConverter.convert(buffer, 'text', {
+      parseConfig: {
+        fileType: ext as SupportedFileType
+      },
+      generatorConfig: {
+        textConfig: {
+          newlineDelimiter: '\n',
+          preserveLayout: true
+        }
+      }
+    })
+    return String(result.value).trim()
   }
+  if (documentExts.includes(`.${ext}`)) return ''
   return decodeTextWithAutoEncoding(buffer).trim()
 }
 

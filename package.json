@@ -108,7 +108,7 @@
     "gray-matter": "4.0.3",
     "jsdom": "26.1.0",
     "node-stream-zip": "1.15.0",
-    "officeparser": "4.2.0",
+    "officeparser": "7.2.1",
     "os-proxy-config": "1.1.2",
     "pdf-parse": "^2.4.5",
     "pdfjs-dist": "5.4.296",

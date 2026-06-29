@@ -22,8 +22,12 @@ vi.mock('@application', () => ({
   }
 }))
 
-const { parseOfficeAsyncMock } = vi.hoisted(() => ({ parseOfficeAsyncMock: vi.fn<() => Promise<string>>() }))
-vi.mock('officeparser', () => ({ default: { parseOfficeAsync: parseOfficeAsyncMock } }))
+const { officeConvertMock } = vi.hoisted(() => ({ officeConvertMock: vi.fn() }))
+vi.mock('officeparser', () => ({
+  OfficeConverter: {
+    convert: officeConvertMock
+  }
+}))
 
 const { wordExtractMock } = vi.hoisted(() => ({ wordExtractMock: vi.fn() }))
 vi.mock('word-extractor', () => ({
@@ -74,9 +78,29 @@ describe('extractDocumentText — dispatch on entry ext, bytes via FileManager.r
 
   it('extracts office formats via officeparser (buffer)', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'docx' })
-    parseOfficeAsyncMock.mockResolvedValueOnce(' office body ')
+    officeConvertMock.mockResolvedValueOnce({ value: ' office body ' })
     expect(await extractDocumentText('e1')).toBe('office body')
-    expect(parseOfficeAsyncMock).toHaveBeenCalledWith(expect.any(Buffer), { tempFilesLocation: '/tmp' })
+    expect(officeConvertMock).toHaveBeenCalledWith(
+      expect.any(Buffer),
+      'text',
+      expect.objectContaining({
+        parseConfig: expect.objectContaining({ fileType: 'docx' }),
+        generatorConfig: expect.objectContaining({
+          textConfig: expect.objectContaining({
+            newlineDelimiter: '\n',
+            preserveLayout: true
+          })
+        })
+      })
+    )
+  })
+
+  it('returns empty text for unsupported legacy Excel files instead of binary-decoding them', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'xls' })
+
+    expect(await extractDocumentText('e1')).toBe('')
+    expect(officeConvertMock).not.toHaveBeenCalled()
+    expect(decodeTextMock).not.toHaveBeenCalled()
   })
 
   it('decodes text/code files with auto encoding', async () => {

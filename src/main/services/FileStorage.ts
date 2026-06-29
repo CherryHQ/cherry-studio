@@ -17,13 +17,14 @@ import * as fs from 'fs'
 import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
 import { isBinaryFile } from 'isbinaryfile'
-import officeParser from 'officeparser'
+import { OfficeConverter } from 'officeparser'
 import * as path from 'path'
 import { PDFDocument } from 'pdf-lib'
 import { v4 as uuidv4 } from 'uuid'
 import WordExtractor from 'word-extractor'
 
 const logger = loggerService.withContext('FileStorage')
+const OFFICE_CONVERTER_DOCUMENT_EXTS = new Set(['.pdf', '.docx', '.pptx', '.xlsx', '.odt', '.odp', '.ods'])
 
 function resolveHomeRelativeFilePath(filePath: string): string {
   if (!filePath.startsWith('~/') && !filePath.startsWith('~\\')) return filePath
@@ -388,7 +389,7 @@ class FileStorage {
    * @throws Error if file reading fails
    */
   private async readFileCore(filePath: string, detectEncoding: boolean = false): Promise<string> {
-    const fileExtension = path.extname(filePath)
+    const fileExtension = path.extname(filePath).toLowerCase()
 
     if (documentExts.includes(fileExtension)) {
       try {
@@ -398,10 +399,17 @@ class FileStorage {
           return extracted.getBody()
         }
 
-        const data = await officeParser.parseOfficeAsync(filePath, {
-          tempFilesLocation: this.tempDir
+        if (!OFFICE_CONVERTER_DOCUMENT_EXTS.has(fileExtension)) return ''
+
+        const data = await OfficeConverter.convert(filePath, 'text', {
+          generatorConfig: {
+            textConfig: {
+              newlineDelimiter: '\n',
+              preserveLayout: true
+            }
+          }
         })
-        return data
+        return String(data.value)
       } catch (error) {
         logger.error('Failed to read document file:', error as Error)
         throw error

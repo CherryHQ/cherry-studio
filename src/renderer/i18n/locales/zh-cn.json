@@ -383,6 +383,16 @@
       "no_search_results": "没有文件符合你的搜索",
       "office": {
         "description": "此类型文件需要使用系统默认应用打开。",
+        "error_title": "无法预览 Office 文件",
+        "errors": {
+          "file_too_large": "这个 Office 文件超出预览大小上限。",
+          "file_unavailable": "无法打开此文件，它可能已被移动或删除。",
+          "invalid_request": "Office 预览请求无效。",
+          "parse_failed": "无法读取这个 Office 文件。",
+          "parse_timeout": "Office 文件解析超时。",
+          "unsupported_extension": "只支持预览 .docx、.xlsx 和 .pptx 文件。"
+        },
+        "loading": "正在生成 Office 预览",
         "title": "暂不支持在此打开 {{extension}} 文件"
       },
       "preview": "预览",

@@ -33,6 +33,9 @@ overrides:
   '@img/sharp-win32-x64': '0.34.5'
   '@langchain/core': '1.0.2'
   '@napi-rs/canvas': '0.1.97'
+  # officeparser depends on Tesseract only for optional OCR. Cherry Studio owns OCR
+  # separately and patches tesseract.js@6.0.1, while office preview keeps OCR off.
+  tesseract.js: '6.0.1'
   '@ai-sdk/provider-utils': '4.0.23'
   # Pin to the version our patch (patches/@ai-sdk__anthropic.patch) targets so every
   # instance — including the copies pulled transitively by @ai-sdk/amazon-bedrock and

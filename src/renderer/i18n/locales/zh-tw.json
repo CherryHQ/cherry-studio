@@ -383,6 +383,16 @@
       "no_search_results": "沒有任何檔案符合您的搜尋",
       "office": {
         "description": "此檔案類型需使用系統預設應用程式開啟。",
+        "error_title": "無法預覽 Office 檔案",
+        "errors": {
+          "file_too_large": "這個 Office 檔案超過預覽大小限制。",
+          "file_unavailable": "無法開啟此檔案，它可能已被移動或刪除。",
+          "invalid_request": "Office 預覽請求無效。",
+          "parse_failed": "無法讀取這個 Office 檔案。",
+          "parse_timeout": "Office 檔案解析逾時。",
+          "unsupported_extension": "僅支援預覽 .docx、.xlsx 與 .pptx 檔案。"
+        },
+        "loading": "正在產生 Office 預覽",
         "title": "在此處開啟 {{extension}} 檔案尚不支援"
       },
       "preview": "預覽",
