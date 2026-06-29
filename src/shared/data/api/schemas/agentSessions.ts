@@ -85,6 +85,7 @@ export const AgentSessionEntitySchema = z.strictObject({
   id: z.string(),
   agentId: z.string().nullable(),
   name: AgentNameAtomSchema,
+  isNameManuallyEdited: z.boolean(),
   description: z.string().optional(),
   workspaceId: z.string(),
   workspace: AgentWorkspaceEntitySchema,
@@ -107,6 +108,7 @@ export type CreateAgentSessionDto = z.infer<typeof CreateAgentSessionSchema>
 
 export const UpdateAgentSessionSchema = z.strictObject({
   name: AgentNameAtomSchema.optional(),
+  isNameManuallyEdited: z.boolean().optional(),
   description: z.string().optional(),
   agentId: z.string().min(1).optional(),
   workspace: AgentSessionWorkspaceSourceSchema.optional()

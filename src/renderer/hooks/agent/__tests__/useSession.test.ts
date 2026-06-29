@@ -1,10 +1,15 @@
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { MockUseDataApiUtils, mockUseInfiniteQuery, mockUseMutation } from '@test-mocks/renderer/useDataApi'
+import {
+  MockUseDataApiUtils,
+  mockUseInfiniteQuery,
+  mockUseInvalidateCache,
+  mockUseMutation
+} from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useActiveSession, useSessions, useUpdateSession } from '../useSession'
+import { useActiveSession, useAgentSessionAutoRenameSync, useSessions, useUpdateSession } from '../useSession'
 
 const buildInfiniteReturn = (overrides: Record<string, unknown> = {}) => ({
   pages: [] as Array<{ items: Array<{ id: string; name: string }>; nextCursor?: string }>,
@@ -62,7 +67,8 @@ const createSession = (overrides: Partial<AgentSessionEntity> = {}): AgentSessio
   orderKey: 'a0',
   createdAt: '2024-01-01T00:00:00Z',
   updatedAt: '2024-01-01T00:00:00Z',
-  ...overrides
+  ...overrides,
+  isNameManuallyEdited: overrides.isNameManuallyEdited ?? false
 })
 
 describe('useActiveSession', () => {
@@ -528,5 +534,39 @@ describe('useUpdateSession', () => {
 
     expect(updated).toBeUndefined()
     expect(mockToast.error).toHaveBeenCalled()
+  })
+})
+
+describe('useAgentSessionAutoRenameSync', () => {
+  beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    vi.clearAllMocks()
+    ;(window as unknown as { api?: unknown }).api = undefined
+  })
+
+  it('invalidates agent session list and detail caches when a session is auto-renamed', () => {
+    const unsubscribe = vi.fn()
+    let emitAutoRenamed: ((payload: { sessionId: string }) => void) | undefined
+    const onAutoRenamed = vi.fn((callback: (payload: { sessionId: string }) => void) => {
+      emitAutoRenamed = callback
+      return unsubscribe
+    })
+    const invalidate = vi.fn().mockResolvedValue(undefined)
+    mockUseInvalidateCache.mockReturnValue(invalidate)
+    ;(window as unknown as { api: { agentSession: { onAutoRenamed: typeof onAutoRenamed } } }).api = {
+      agentSession: { onAutoRenamed }
+    }
+
+    const { unmount } = renderHook(() => useAgentSessionAutoRenameSync())
+
+    expect(onAutoRenamed).toHaveBeenCalledOnce()
+    act(() => {
+      emitAutoRenamed?.({ sessionId: 'session-1' })
+    })
+
+    expect(invalidate).toHaveBeenCalledWith(['/agent-sessions', '/agent-sessions/session-1'])
+
+    unmount()
+    expect(unsubscribe).toHaveBeenCalledOnce()
   })
 })

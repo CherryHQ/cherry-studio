@@ -571,7 +571,8 @@ function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessio
     orderKey: 'a',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: CURRENT_SESSION_ISO,
-    ...overrides
+    ...overrides,
+    isNameManuallyEdited: overrides.isNameManuallyEdited ?? false
   }
 }
 
@@ -1350,7 +1351,7 @@ describe('Sessions', () => {
 
     await vi.waitFor(() =>
       expect(sessionDataMocks.updateSession).toHaveBeenCalledWith(
-        { id: 'session-a', name: 'Renamed session' },
+        { id: 'session-a', name: 'Renamed session', isNameManuallyEdited: true },
         { showSuccessToast: false }
       )
     )
@@ -1377,7 +1378,7 @@ describe('Sessions', () => {
 
     await vi.waitFor(() =>
       expect(sessionDataMocks.updateSession).toHaveBeenCalledWith(
-        { id: 'session-a', name: 'Renamed from menu' },
+        { id: 'session-a', name: 'Renamed from menu', isNameManuallyEdited: true },
         { showSuccessToast: false }
       )
     )

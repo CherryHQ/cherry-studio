@@ -78,6 +78,18 @@ describe('AgentSession schemas', () => {
     ).toBe(false)
   })
 
+  it('accepts manual-name marker updates', () => {
+    expect(
+      UpdateAgentSessionSchema.parse({
+        name: 'Renamed session',
+        isNameManuallyEdited: true
+      })
+    ).toEqual({
+      name: 'Renamed session',
+      isNameManuallyEdited: true
+    })
+  })
+
   it('caps bulk delete ids', () => {
     const validIds = Array.from({ length: AGENT_SESSION_DELETE_MAX_IDS }, (_, index) => `session-${index}`).join(',')
     const tooManyIds = `${validIds},session-overflow`

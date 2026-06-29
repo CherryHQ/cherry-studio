@@ -26,6 +26,7 @@ import { cn } from '@renderer/utils/style'
 import { getTabInstanceKey } from '@renderer/utils/tabInstanceMetadata'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
+import { buildFirstUserMessageTitle } from '@shared/utils/conversationTitle'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { useSearch } from '@tanstack/react-router'
 import type { PropsWithChildren } from 'react'
@@ -678,11 +679,11 @@ const AgentPage = () => {
         throw new Error('Draft session handoff failed: no active draft session')
       }
 
-      const trimmed = initialName?.trim()
+      const temporaryTitle = buildFirstUserMessageTitle(initialName ?? '')
       const session = await dataApiService.post('/agent-sessions', {
         body: {
           agentId: current.agentId,
-          name: trimmed ? trimmed.slice(0, 30) : t('common.unnamed'),
+          name: temporaryTitle || t('common.unnamed'),
           workspace: current.workspaceSource
         }
       })
