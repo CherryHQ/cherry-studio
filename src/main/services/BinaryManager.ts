@@ -74,6 +74,11 @@ const RUNTIME_DEPS: Record<string, string> = { npm: 'node@22', pipx: 'python@3.1
 
 const REGISTRY_CACHE_TTL_MS = 10 * 60 * 1000
 
+// `mise latest` for github: backends hits the rate-limited GitHub releases API,
+// so lookups stay off the boot path and run with a small concurrency bound.
+const LATEST_VERSIONS_CACHE_TTL_MS = 5 * 60 * 1000
+const LATEST_VERSIONS_CONCURRENCY = 4
+
 // Single source of truth for tools shipped inside the app and extracted at
 // boot. `internal` marks infrastructure (mise) excluded from the UI probe.
 // Binary names are base names; .exe is appended on Windows at use sites.
@@ -108,6 +113,8 @@ export class BinaryManager extends BaseService {
   private isolatedEnvPromise: Promise<Record<string, string>> | null = null
   private registryCache: Array<{ name: string; tool: string }> | null = null
   private registryCacheTime = 0
+  private latestVersionsCache: Record<string, string> | null = null
+  private latestVersionsCacheTime = 0
   private stateLock: Promise<unknown> = Promise.resolve()
 
   protected async onInit() {
@@ -489,6 +496,7 @@ export class BinaryManager extends BaseService {
     const tmp = statePath + '.tmp'
     fs.writeFileSync(tmp, JSON.stringify(state, null, 2))
     fs.renameSync(tmp, statePath)
+    this.latestVersionsCache = null
     this.broadcastState(state)
   }
 
@@ -616,6 +624,47 @@ export class BinaryManager extends BaseService {
     const registry = await this.loadRegistry()
     const q = query.toLowerCase()
     return registry.filter((entry) => entry.name.toLowerCase().includes(q)).slice(0, 50)
+  }
+
+  /**
+   * Latest available registry version for each mise-managed tool (name → version).
+   * On demand only — never during boot or reconcile — because `mise latest` for
+   * github: backends hits the rate-limited GitHub releases API. Runs with a
+   * small worker pool; tools whose lookup fails are omitted.
+   */
+  async getLatestVersions(): Promise<Record<string, string>> {
+    if (this.latestVersionsCache && Date.now() - this.latestVersionsCacheTime < LATEST_VERSIONS_CACHE_TTL_MS) {
+      return this.latestVersionsCache
+    }
+
+    const result: Record<string, string> = {}
+    if (!this.miseBin) {
+      return result
+    }
+
+    const entries = Object.entries(this.loadState().tools)
+    let cursor = 0
+    const workers = Array.from({ length: Math.min(LATEST_VERSIONS_CONCURRENCY, entries.length) }, async () => {
+      while (cursor < entries.length) {
+        const [name, { tool }] = entries[cursor++]
+        try {
+          const { stdout } = await this.runMise(['latest', tool], os.tmpdir())
+          const version = stdout.trim().split(/\r?\n/)[0]?.trim()
+          if (version) result[name] = version
+        } catch (err) {
+          logger.warn('Failed to query latest version', {
+            name,
+            tool,
+            error: err instanceof Error ? err.message : String(err)
+          })
+        }
+      }
+    })
+    await Promise.all(workers)
+
+    this.latestVersionsCache = result
+    this.latestVersionsCacheTime = Date.now()
+    return result
   }
 
   private broadcastReconcileFailures(failed: ReconcileResult['failed']) {

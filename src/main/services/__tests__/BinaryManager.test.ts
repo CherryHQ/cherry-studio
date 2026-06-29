@@ -421,6 +421,105 @@ describe('BinaryManager', () => {
     })
   })
 
+  describe('getLatestVersions', () => {
+    it('returns empty map when mise binary is not available', async () => {
+      const service = new BinaryManager()
+
+      const result = await service.getLatestVersions()
+
+      expect(result).toEqual({})
+      expect(mockExecFileAsync).not.toHaveBeenCalled()
+    })
+
+    it('returns empty map when no tools are managed', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockFs.readFileSync.mockImplementation(() => {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      })
+
+      const result = await service.getLatestVersions()
+
+      expect(result).toEqual({})
+      expect(mockExecFileAsync).not.toHaveBeenCalled()
+    })
+
+    it('queries the latest version for every managed tool via mise latest', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockFs.readFileSync.mockReturnValue(
+        JSON.stringify({
+          tools: {
+            fd: { tool: 'github:sharkdp/fd', version: '10.0.0' },
+            rg: { tool: 'github:BurntSushi/ripgrep', version: '15.0.0' }
+          }
+        })
+      )
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'latest')
+          return { stdout: `${args[1] === 'github:sharkdp/fd' ? '10.1.0' : '15.1.0'}\n`, stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      const result = await service.getLatestVersions()
+
+      expect(result).toEqual({ fd: '10.1.0', rg: '15.1.0' })
+      const latestCalls = mockExecFileAsync.mock.calls
+        .filter((c: any[]) => c[1]?.[0] === 'latest')
+        .map((c: any[]) => c[1])
+      expect(latestCalls).toContainEqual(['latest', 'github:sharkdp/fd'])
+      expect(latestCalls).toContainEqual(['latest', 'github:BurntSushi/ripgrep'])
+    })
+
+    it('omits tools whose latest-version lookup fails', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockFs.readFileSync.mockReturnValue(
+        JSON.stringify({
+          tools: {
+            fd: { tool: 'github:sharkdp/fd', version: '10.0.0' },
+            rg: { tool: 'github:BurntSushi/ripgrep', version: '15.0.0' }
+          }
+        })
+      )
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] !== 'latest') return { stdout: '', stderr: '' }
+        if (args[1] === 'github:BurntSushi/ripgrep') throw new Error('rate limited')
+        return { stdout: '10.1.0\n', stderr: '' }
+      })
+
+      const result = await service.getLatestVersions()
+
+      // Failed lookup is omitted, not reported as an error.
+      expect(result).toEqual({ fd: '10.1.0' })
+    })
+
+    it('serves the in-memory cache within the TTL and refetches after saveState', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockFs.readFileSync.mockReturnValue(
+        JSON.stringify({ tools: { fd: { tool: 'github:sharkdp/fd', version: '10.0.0' } } })
+      )
+      mockExecFileAsync.mockResolvedValue({ stdout: '10.1.0\n', stderr: '' })
+
+      await service.getLatestVersions()
+      const callsAfterFirst = mockExecFileAsync.mock.calls.length
+
+      // Served from cache — no extra mise latest call.
+      await service.getLatestVersions()
+      expect(mockExecFileAsync.mock.calls.length).toBe(callsAfterFirst)
+
+      // saveState (any state mutation) invalidates the cache → next call refetches.
+      ;(service as any).saveState({ tools: {} })
+      await service.getLatestVersions()
+      expect(mockExecFileAsync.mock.calls.filter((c: any[]) => c[1]?.[0] === 'latest').length).toBeGreaterThan(0)
+    })
+  })
+
   describe('validateManagedBinary', () => {
     it.each([
       ['../etc', 'fd', undefined],
