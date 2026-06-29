@@ -7,21 +7,27 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const logger = loggerService.withContext('CodexOauth')
+const logger = loggerService.withContext('LoginOauthPanel')
 
-interface CodexOauthProps {
+interface LoginOauthPanelProps {
   providerId: string
+  /** i18n namespace under `settings.provider.*` (e.g. 'codex', 'grok_cli'). */
+  i18nNs: string
+  /** Surface the provider account id (Codex's ChatGPT id) when signed in. */
+  showAccountId?: boolean
 }
 
 /**
- * Sign-in panel for the login-based OpenAI Codex provider. The whole OAuth flow
- * (PKCE + loopback callback + token exchange) runs in the main process behind a
- * single `signIn()` call, so this component just drives login state and reflects
- * the result; the access token never reaches the renderer.
+ * Shared sign-in panel for login-based providers whose entire OAuth flow (PKCE +
+ * loopback callback + token exchange) runs in the main process behind a single
+ * `oauth.sign_in` call. This component only drives login state and reflects the
+ * result — the access token never reaches the renderer. Codex and Grok CLI use it
+ * with different i18n namespaces; Codex additionally surfaces an account id.
  */
-const CodexOauth: FC<CodexOauthProps> = ({ providerId }) => {
+const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAccountId = false }) => {
   const { t } = useTranslation()
   const { updateProvider } = useProvider(providerId)
+  const ns = `settings.provider.${i18nNs}`
 
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null)
   const [accountId, setAccountId] = useState<string | null>(null)
@@ -32,12 +38,14 @@ const CodexOauth: FC<CodexOauthProps> = ({ providerId }) => {
     try {
       const hasToken = await ipcApi.request('oauth.has_token', { providerId })
       setLoggedIn(hasToken)
-      setAccountId(hasToken ? (await ipcApi.request('oauth.get_account', { providerId })).accountId : null)
+      setAccountId(
+        hasToken && showAccountId ? (await ipcApi.request('oauth.get_account', { providerId })).accountId : null
+      )
     } catch (error) {
-      logger.error('Failed to check Codex login status', error as Error)
+      logger.error(`Failed to check ${providerId} login status`, error as Error)
       setLoggedIn(false)
     }
-  }, [providerId])
+  }, [providerId, showAccountId])
 
   useEffect(() => {
     void refreshStatus()
@@ -46,19 +54,19 @@ const CodexOauth: FC<CodexOauthProps> = ({ providerId }) => {
   const handleSignIn = useCallback(async () => {
     setSigningIn(true)
     try {
-      const { accountId } = await ipcApi.request('oauth.sign_in', { providerId })
+      const account = await ipcApi.request('oauth.sign_in', { providerId })
       setLoggedIn(true)
-      setAccountId(accountId)
+      setAccountId(account.accountId)
       // The main process enabled the provider; mirror it into the renderer cache.
       await updateProvider({ isEnabled: true })
-      window.toast.success(t('settings.provider.codex.sign_in_success'))
+      window.toast.success(t(`${ns}.sign_in_success`))
     } catch (error) {
-      logger.error('Codex sign-in failed', error as Error)
-      window.toast.error(t('settings.provider.codex.sign_in_failed'))
+      logger.error(`${providerId} sign-in failed`, error as Error)
+      window.toast.error(t(`${ns}.sign_in_failed`))
     } finally {
       setSigningIn(false)
     }
-  }, [providerId, t, updateProvider])
+  }, [providerId, ns, t, updateProvider])
 
   const handleLogout = useCallback(() => {
     window.modal.confirm({
@@ -69,12 +77,14 @@ const CodexOauth: FC<CodexOauthProps> = ({ providerId }) => {
         setLoggingOut(true)
         try {
           await ipcApi.request('oauth.logout', { providerId })
+          // The main process reset auth to api-key and disabled the provider;
+          // mirror it into the renderer cache (DataApi does not auto-sync).
           await updateProvider({ authConfig: { type: 'api-key' }, isEnabled: false })
           setLoggedIn(false)
           setAccountId(null)
           window.toast.success(t('settings.provider.oauth.logout_success'))
         } catch (error) {
-          logger.error('Codex logout failed', error as Error)
+          logger.error(`${providerId} logout failed`, error as Error)
           window.toast.warning(t('settings.provider.oauth.logout_warning'))
         } finally {
           setLoggingOut(false)
@@ -98,11 +108,9 @@ const CodexOauth: FC<CodexOauthProps> = ({ providerId }) => {
         <div className="flex items-center gap-3 rounded-lg border border-success/30 bg-success/10 p-3">
           <CheckCircle2 className="size-5 shrink-0 text-success" aria-hidden />
           <div className="min-w-0 flex-1">
-            <div className="font-medium text-foreground text-sm">{t('settings.provider.codex.logged_in')}</div>
-            {accountId ? (
-              <div className="mt-1 truncate text-foreground-muted text-xs">
-                {t('settings.provider.codex.account', { accountId })}
-              </div>
+            <div className="font-medium text-foreground text-sm">{t(`${ns}.logged_in`)}</div>
+            {showAccountId && accountId ? (
+              <div className="mt-1 truncate text-foreground-muted text-xs">{t(`${ns}.account`, { accountId })}</div>
             ) : null}
           </div>
           <Button variant="ghost" size="sm" disabled={loggingOut} onClick={handleLogout}>
@@ -114,16 +122,14 @@ const CodexOauth: FC<CodexOauthProps> = ({ providerId }) => {
           <div className="flex gap-3">
             <CircleAlert className="mt-0.5 size-5 shrink-0 text-info" aria-hidden />
             <div className="min-w-0 flex-1">
-              <div className="font-medium text-foreground text-sm">{t('settings.provider.codex.description')}</div>
-              <div className="mt-1 text-foreground-muted text-xs">
-                {t('settings.provider.codex.description_detail')}
-              </div>
+              <div className="font-medium text-foreground text-sm">{t(`${ns}.description`)}</div>
+              <div className="mt-1 text-foreground-muted text-xs">{t(`${ns}.description_detail`)}</div>
             </div>
           </div>
           <div>
             <Button disabled={signingIn} onClick={() => void handleSignIn()}>
               {signingIn ? <RefreshCw className="size-4 animate-spin" /> : <LogIn className="size-4" />}
-              {signingIn ? t('settings.provider.codex.signing_in') : t('settings.provider.codex.sign_in_button')}
+              {signingIn ? t(`${ns}.signing_in`) : t(`${ns}.sign_in_button`)}
             </Button>
           </div>
         </div>
@@ -132,4 +138,4 @@ const CodexOauth: FC<CodexOauthProps> = ({ providerId }) => {
   )
 }
 
-export default CodexOauth
+export default LoginOauthPanel

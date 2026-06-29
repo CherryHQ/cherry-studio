@@ -10,12 +10,11 @@ import type { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 import AwsBedrockSettings from './AwsBedrockSettings'
 import CherryInOauth from './CherryInOauth'
 import ClaudeCodeSettings from './ClaudeCodeSettings'
-import CodexOauth from './CodexOauth'
 import DmxapiSettings from './DmxapiSettings'
 import GithubCopilotSettings from './GithubCopilotSettings'
 import GpuStackSettings from './GpuStackSettings'
-import GrokCliOauth from './GrokCliOauth'
 import LmStudioSettings from './LmStudioSettings'
+import LoginOauthPanel from './LoginOauthPanel'
 import OvmsSettings from './OvmsSettings'
 import ProviderOauth from './ProviderOauth'
 import VertexAiSettings from './VertexAiSettings'
@@ -68,12 +67,12 @@ export const PROVIDER_SPECIFIC_SETTINGS_REGISTRY: Record<ProviderSpecificPlaceme
     {
       key: 'codex-oauth',
       when: ({ provider }) => isCodexProviderId(provider.id),
-      render: (providerId) => <CodexOauth providerId={providerId} />
+      render: (providerId) => <LoginOauthPanel providerId={providerId} i18nNs="codex" showAccountId />
     },
     {
       key: 'grok-cli-oauth',
       when: ({ provider }) => isGrokCliProviderId(provider.id),
-      render: (providerId) => <GrokCliOauth providerId={providerId} />
+      render: (providerId) => <LoginOauthPanel providerId={providerId} i18nNs="grok_cli" />
     }
   ],
   afterAuth: [
