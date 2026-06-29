@@ -35,7 +35,7 @@
 
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 
-import type { Base64String, DirectoryListOptions, FilePath, PhysicalFileMetadata, URLString } from './common'
+import type { Base64String, DirectoryListOptions, FilePath, PhysicalFileMetadata, UrlString } from './common'
 import type { FileHandle } from './handle'
 import type { OrphanReport } from './sweep'
 
@@ -92,7 +92,7 @@ export type CreateInternalEntryIpcParams =
   | {
       /** Download the URL into Cherry storage. `name` / `ext` derived from URL tail, Content-Disposition, and Content-Type. */
       source: 'url'
-      url: URLString
+      url: UrlString
     }
   | {
       /** Decode `data:<mime>;base64,...` and write into Cherry storage. `ext` derived from mime; caller may override the UX display name. */
@@ -526,14 +526,12 @@ export interface FileIpcApi {
 
   /**
    * Open file/directory with the system default application.
-   * @phase 2 — entry-id open is wired for Files page as IpcApi route `file.open`.
-   * The full FileHandle/path variant remains type-only.
+   * @phase 2 — wired as IpcApi route `file.open` with full `FileHandle` dispatch.
    */
   open(handle: FileHandle): Promise<void>
   /**
    * Reveal file/directory in the system file manager.
-   * @phase 2 — entry-id reveal is wired for Files page as IpcApi route `file.show_in_folder`.
-   * The full FileHandle/path variant remains type-only.
+   * @phase 2 — wired as IpcApi route `file.show_in_folder` with full `FileHandle` dispatch.
    */
   showInFolder(handle: FileHandle): Promise<void>
 
@@ -561,7 +559,7 @@ export interface FileIpcApi {
   //
   // For the `file://` URL that used to be served via `includeUrl`, callers
   // now compose it in-process via the shared `toSafeFileUrl(path, ext)` helper
-  // in `@shared/utils/file/urlUtil` — a pure formatting layer over the `FilePath`
+  // in `@shared/utils/file/url` — a pure formatting layer over the `FilePath`
   // returned by `getPhysicalPath`, so it needs no IPC of its own.
   //
   // Each method has a single-item and a batch form. Prefer the batch form when

@@ -6465,6 +6465,8 @@
         "logo_upload_label": "Enviar Logo",
         "name": "Nome",
         "name_placeholder": "Digite o nome",
+        "remove_confirm_description": "Excluir miniaplicativo personalizado \"{{name}}\"? Esta ação não pode ser desfeita.",
+        "remove_confirm_title": "Excluir miniaplicativo personalizado?",
         "remove_error": "Falha ao excluir o aplicativo personalizado.",
         "remove_success": "Aplicativo personalizado excluído com sucesso.",
         "save_error": "Falha ao salvar o aplicativo personalizado.",
@@ -6493,6 +6495,7 @@
         "title": "Filtro de área do mini programa"
       },
       "reset_tooltip": "Redefinir para os valores padrão",
+      "title": "Configurações dos Mini Apps",
       "visible": "Mini Aplicativos Visíveis"
     },
     "model": "Modelo padrão",
@@ -6644,6 +6647,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
+        "sync_apply_default_in_use": "Alguns modelos estão em uso como modelo padrão e não podem ser removidos.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",
@@ -6965,7 +6969,6 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Domínio de aceleração",
-          "backup": "Domínio de backup",
           "international": "Domínio internacional"
         }
       },

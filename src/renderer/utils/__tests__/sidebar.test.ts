@@ -3,16 +3,16 @@ import { Library } from 'lucide-react'
 import { describe, expect, it } from 'vitest'
 
 import {
-  getOrderedVisibleSidebarIcons,
-  getRequiredSidebarIconsVisible,
+  getOrderedVisibleSidebarFavorites,
+  getRequiredSidebarFavoritesVisible,
   getSidebarMenuPath,
   resolveSidebarActiveItem,
-  SIDEBAR_ICON_ORDER
+  SIDEBAR_FAVORITE_ORDER
 } from '../sidebar'
 
 describe('sidebar config helpers', () => {
   it('keeps the fixed sidebar app order available', () => {
-    expect(SIDEBAR_ICON_ORDER.slice(0, 6)).toEqual([
+    expect(SIDEBAR_FAVORITE_ORDER.slice(0, 6)).toEqual([
       'assistants',
       'agents',
       'paintings',
@@ -22,20 +22,20 @@ describe('sidebar config helpers', () => {
     ])
   })
 
-  it('adds required sidebar icons back in fixed order when reading visible preferences', () => {
-    expect(getRequiredSidebarIconsVisible(['translate'])).toEqual(['assistants', 'translate'])
+  it('adds required sidebar favorites back in fixed order when reading visible preferences', () => {
+    expect(getRequiredSidebarFavoritesVisible(['translate'])).toEqual(['assistants', 'translate'])
   })
 
-  it('preserves the preference order when reading ordered visible sidebar icons', () => {
-    expect(getOrderedVisibleSidebarIcons(['translate', 'assistants', 'agents'])).toEqual([
+  it('preserves the preference order when reading ordered visible sidebar favorites', () => {
+    expect(getOrderedVisibleSidebarFavorites(['translate', 'assistants', 'agents'])).toEqual([
       'translate',
       'assistants',
       'agents'
     ])
   })
 
-  it('sanitizes ordered visible sidebar icons and keeps required icons visible', () => {
-    expect(getOrderedVisibleSidebarIcons(['translate', 'unknown' as never, 'translate', 'agents'])).toEqual([
+  it('sanitizes ordered visible sidebar favorites and keeps required favorites visible', () => {
+    expect(getOrderedVisibleSidebarFavorites(['translate', 'unknown' as never, 'translate', 'agents'])).toEqual([
       'assistants',
       'translate',
       'agents'

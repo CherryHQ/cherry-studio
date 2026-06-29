@@ -162,6 +162,7 @@ const ChatPreferenceSections: FC = () => {
               label={t('settings.messages.markdown_rendering_input_message')}
             />
           </SettingRow>
+          <SettingDivider />
           <SettingRow>
             <SettingSwitch
               checked={confirmDeleteMessage}

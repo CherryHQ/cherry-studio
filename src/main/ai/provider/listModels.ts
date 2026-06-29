@@ -18,8 +18,7 @@ import { defaultAppHeaders } from '@main/utils/http'
 import type { Model } from '@shared/data/types/model'
 import { createUniqueModelId, ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { formatApiHost } from '@shared/utils/api'
-import { withoutTrailingSlash } from '@shared/utils/api/utils'
+import { formatApiHost, withoutTrailingSlash } from '@shared/utils/api'
 import {
   isAIGatewayProvider,
   isGeminiProvider,

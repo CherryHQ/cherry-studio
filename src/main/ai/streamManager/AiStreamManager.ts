@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { loggerService } from '@logger'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
+import { serializeError } from '@main/ai/utils/serializeError'
 import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
@@ -15,7 +16,6 @@ import type {
 } from '@shared/ai/transport'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
-import { serializeError } from '@shared/utils/error'
 import { type UIMessageChunk } from 'ai'
 
 import { isAgentSessionTopic } from '../agentSession/topic'
