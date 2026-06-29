@@ -623,7 +623,7 @@ export class SkillService {
         const stat = await fs.promises.lstat(targetDir).catch(() => null)
         if (stat?.isSymbolicLink()) {
           const [targetRealPath, sourceRealPath] = await Promise.all([
-            fs.promises.realpath(targetDir),
+            fs.promises.realpath(targetDir).catch(() => null),
             fs.promises.realpath(sourceDir)
           ])
           if (targetRealPath === sourceRealPath) return

@@ -472,6 +472,18 @@ describe('SkillService', () => {
       await expect(fs.promises.access(path.join(mirrorRoot, 'pdf'))).rejects.toThrow()
     })
 
+    it('linkMirror replaces a broken mirror symlink', async () => {
+      await writeLibrarySkill('pdf')
+      await fs.promises.symlink(path.join(dataSkillsRoot, 'missing'), path.join(mirrorRoot, 'pdf'), 'dir')
+
+      await skillService.linkMirror('pdf')
+
+      await expect(fs.promises.access(path.join(mirrorRoot, 'pdf', 'SKILL.md'))).resolves.toBeUndefined()
+      expect(await fs.promises.realpath(path.join(mirrorRoot, 'pdf'))).toBe(
+        await fs.promises.realpath(path.join(dataSkillsRoot, 'pdf'))
+      )
+    })
+
     it('linkMirror warns and skips when the library source files are missing', async () => {
       const warnSpy = vi.spyOn(loggerService.withContext('SkillService'), 'warn').mockImplementation(() => undefined)
       try {
