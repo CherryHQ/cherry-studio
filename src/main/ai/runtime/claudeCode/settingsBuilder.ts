@@ -669,7 +669,7 @@ async function buildToolPermissions(
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
         permissionDecision: 'deny',
-        permissionDecisionReason: `Blocked to avoid cross-agent dependency pollution: ${reason}. Install into the current project instead (e.g. \`bun install <pkg>\`, or \`uv pip install <pkg>\` inside a local .venv). For one-off tools use \`bun x <tool>\` / \`uvx <tool>\` (ephemeral).`
+        permissionDecisionReason: `Blocked to avoid cross-agent dependency pollution: ${reason}. Install into the current project instead (e.g. \`bun install <pkg>\`, or \`uv run --with <pkg> python\` for Python). For one-off tools use \`bun x <tool>\` / \`uvx <tool>\` (ephemeral).`
       }
     }
   }
@@ -773,7 +773,7 @@ async function buildRuntimeContext(): Promise<string> {
     '## Available Runtimes',
     'bun and uv are bundled and always on PATH. Use them to pull libraries and write throwaway scripts to verify logic — prefer them over node/npm/npx/pip, which are not guaranteed to be installed.',
     `- JavaScript / TypeScript — run with \`bun <file>\`, add deps with \`bun install <pkg>\`, run a package with \`bun x <tool>\` (bun: ${bunPath})`,
-    `- Python — run with \`uv run python <file>\`, add deps with \`uv pip install <pkg>\`, run a tool with \`uvx <tool>\` (uv: ${uvPath})`,
+    `- Python — run with \`uv run python <file>\`, add deps inline with \`uv run --with <pkg> python <file>\` (ephemeral, no venv needed), run a tool with \`uvx <tool>\` (uv: ${uvPath})`,
     `- Search — \`rg\` for fast file/content search (ripgrep: ${rgPath})`,
     'Install dependencies INTO the project (cwd) only. Global installs (`-g`/`--global`, `uv tool install`, `pip install --user`) are blocked to keep tasks isolated — use `bun x` / `uvx` for one-off tools.'
   ].join('\n')
