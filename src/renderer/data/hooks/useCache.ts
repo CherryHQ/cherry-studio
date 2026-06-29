@@ -41,6 +41,13 @@ type ReadonlyValue<T> = T extends object ? Readonly<T> : T
  * returning the same reference makes `CacheService` short-circuit on
  * `isEqual(stored, value)` and silently skip the subscriber notification.
  *
+ * "Pure" also means no side effects inside the updater: do not smuggle a derived
+ * result out (e.g. by writing to an enclosing-scope variable) to drive post-write
+ * work, and do not assume how many times or when it runs. To react to *what
+ * changed* — e.g. dispose resources for items that were removed — derive it from
+ * the value transition in a `useEffect` that watches the value, not from inside
+ * the updater.
+ *
  * Caveat (same as React's `SetStateAction`): for keys whose value type is itself
  * a function (only the `any`-typed keys in practice), a function argument is
  * always treated as an updater, never stored verbatim.
@@ -176,7 +183,11 @@ function getSharedCacheDefaultValue<K extends SharedCacheKey>(key: K): InferShar
  * The setter accepts a value or an updater `(prev) => next`, like React's
  * `useState`. The updater MUST be pure: it runs against the latest stored value
  * and must return a new value — mutating `prev` in place and returning the same
- * reference is short-circuited by `isEqual` and silently skips the re-render.
+ * reference is short-circuited by `isEqual` and silently skips the re-render. It
+ * must also be side-effect-free: don't smuggle a derived value out of it (e.g. into
+ * an outer variable) to drive post-write work, and don't rely on how often or when
+ * it runs. To react to *what changed*, derive it in a `useEffect` that watches the
+ * value instead.
  */
 export function useCache<K extends UseCacheKey>(
   key: K,
