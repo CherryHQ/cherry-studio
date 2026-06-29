@@ -56,7 +56,7 @@ import {
 } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
 import { useNavigate } from '@tanstack/react-router'
-import { last } from 'lodash'
+import { last } from 'es-toolkit/compat'
 import { use, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 

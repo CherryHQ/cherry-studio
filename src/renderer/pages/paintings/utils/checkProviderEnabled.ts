@@ -1,6 +1,6 @@
 import { openSettingsTab } from '@renderer/services/settingsNavigation'
+import { isEmpty } from 'es-toolkit/compat'
 import i18next from 'i18next'
-import { isEmpty } from 'lodash'
 
 import type { PaintingProviderRuntime } from '../model/types/paintingProviderRuntime'
 
