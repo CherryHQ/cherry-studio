@@ -6,7 +6,21 @@ export default defineLab({
   name: 'OpenAI',
   fetchModels: openaiCompatible('openai', 'OPENAI_API_KEY'),
   modelsDevProviders: ['openai'],
-  idPrefixes: ['gpt', 'o1', 'o3', 'o4', 'chatgpt', 'codex', 'text-embedding', 'text-moderation', 'davinci', 'babbage'],
+  // `text-embedding-3` / `-ada` only — bare `text-embedding` over-claims Google's `text-embedding-00x`
+  // (gecko, served by google-vertex), mis-attributing them to OpenAI.
+  idPrefixes: [
+    'gpt',
+    'o1',
+    'o3',
+    'o4',
+    'chatgpt',
+    'codex',
+    'text-embedding-3',
+    'text-embedding-ada',
+    'text-moderation',
+    'davinci',
+    'babbage'
+  ],
   webSearch: ['gpt-4o', 'gpt-5', 'o3', 'o4'],
   models: [
     {

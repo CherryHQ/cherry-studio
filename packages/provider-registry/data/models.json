@@ -11643,7 +11643,7 @@
       "metadata": {},
       "name": "Text Embedding 005",
       "outputModalities": ["vector"],
-      "ownedBy": "openai"
+      "ownedBy": "google"
     },
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
@@ -17174,7 +17174,7 @@
       "metadata": {},
       "name": "Text Multilingual Embedding 002",
       "outputModalities": ["vector"],
-      "ownedBy": "vercel"
+      "ownedBy": "google"
     },
     {
       "capabilities": ["video-generation"],

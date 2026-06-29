@@ -7,7 +7,17 @@ export default defineLab({
   fetchModels: googleModels(),
   modelsDevProviders: ['google', 'google-vertex'],
   families: ['gemini', 'gemma'],
-  idPrefixes: ['gemini', 'gemma', 'palm', 'learnlm'],
+  // `text-embedding-004/005` + `text-multilingual-embedding-*` are Google's Vertex embeddings — claim them
+  // here so they aren't mis-attributed to OpenAI (bare `text-embedding`) or left to a gateway listing.
+  idPrefixes: [
+    'gemini',
+    'gemma',
+    'palm',
+    'learnlm',
+    'text-embedding-004',
+    'text-embedding-005',
+    'text-multilingual-embedding'
+  ],
   webSearch: [
     'gemini-2',
     'gemini-3-flash',
