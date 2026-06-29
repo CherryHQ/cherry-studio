@@ -8,11 +8,15 @@ import { useIpcOn } from '@renderer/ipc/useIpcOn'
 import { cn } from '@renderer/utils/style'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { defaultLanguage } from '@shared/utils/languages'
-import { ClipboardCheck, ClipboardCopy, ClipboardX, MessageSquareHeart } from 'lucide-react'
-import { DynamicIcon } from 'lucide-react/dynamic'
+import ClipboardCheck from 'lucide-react/dist/esm/icons/clipboard-check'
+import ClipboardCopy from 'lucide-react/dist/esm/icons/clipboard-copy'
+import ClipboardX from 'lucide-react/dist/esm/icons/clipboard-x'
+import MessageSquareHeart from 'lucide-react/dist/esm/icons/message-square-heart'
 import type { FC } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import SelectionActionIcon from '../SelectionActionIcon'
 
 const logger = loggerService.withContext('SelectionToolbar')
 
@@ -140,9 +144,8 @@ const ActionIcons: FC<{
             {action.id === 'copy' ? (
               renderCopyIcon()
             ) : (
-              <DynamicIcon
-                key={action.id}
-                name={action.icon as any}
+              <SelectionActionIcon
+                name={action.icon}
                 className="btn-icon absolute inset-0 size-full bg-transparent transition-colors duration-100"
                 fallback={() => (
                   <MessageSquareHeart className="btn-icon absolute inset-0 size-full bg-transparent transition-colors duration-100" />

@@ -66,6 +66,7 @@ import { languageEnglishNameMap } from '@shared/utils/languages'
 import { app } from 'electron'
 
 import type { AgentRuntimeUserInput } from '../types'
+import { detectGlobalInstall } from './dependencyGuard'
 import { toolApprovalRegistry } from './ToolApprovalRegistry'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
@@ -648,10 +649,35 @@ async function buildToolPermissions(
     })
   }
 
+  // Block global/shared dependency installs before they run, to prevent cross-agent dependency
+  // pollution: the runtime keeps the user's real HOME, so `-g` / `uv tool install` / `pip --user`
+  // would leak into ~/.bun, ~/.local/share/uv, … shared by every session. Fires on every Bash call
+  // regardless of permission mode (same rationale as disabledToolHook). Project-local installs and
+  // ephemeral runners (`bun x` / `uvx`) are not flagged. Deny (not rewrite) so the model adapts to a
+  // project-local install on its own — rewriting global→local semantics is fragile.
+  const dependencyIsolationHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'PreToolUse') return {}
+    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    if (toolName !== 'Bash') return {}
+    const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
+    const command = toolInput?.command
+    if (typeof command !== 'string' || !command.trim()) return {}
+    const reason = detectGlobalInstall(command)
+    if (!reason) return {}
+    logger.info('Blocked global install to prevent dependency pollution', { sessionId: session.id, reason })
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason: `Blocked to avoid cross-agent dependency pollution: ${reason}. Install into the current project instead (e.g. \`bun install <pkg>\`, or \`uv run --with <pkg> python\` for Python). For one-off tools use \`bun x <tool>\` / \`uvx <tool>\` (ephemeral).`
+      }
+    }
+  }
+
   const rtkRewriteHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
-    if (toolName !== 'Bash' && toolName !== 'builtin_Bash') return {}
+    if (toolName !== 'Bash') return {}
     const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
     const command = toolInput?.command
     if (typeof command !== 'string' || !command.trim()) return {}
@@ -716,7 +742,7 @@ async function buildToolPermissions(
 
   return {
     canUseTool,
-    hooks: { PreToolUse: [{ hooks: [disabledToolHook, rtkRewriteHook, steerHook] }] },
+    hooks: { PreToolUse: [{ hooks: [disabledToolHook, dependencyIsolationHook, rtkRewriteHook, steerHook] }] },
     // `disabled`-exposure tools (incl. WebSearch/WebFetch) come from the declarative
     // registry; soul/assistant overlays stay until they migrate to per-tool exposure (PR-7).
     disallowedTools: [
@@ -728,6 +754,29 @@ async function buildToolPermissions(
     ],
     toolPolicySnapshot
   }
+}
+
+/**
+ * Describe the runtimes the agent's Bash tool can rely on. bun and uv ship
+ * bundled and are always on PATH (extracted at boot into `cherry.bin`); node /
+ * npm / npx / pip are NOT guaranteed to exist, so the model is steered to bun and
+ * uv for running scripts and pulling libraries when it needs to verify logic.
+ *
+ * Only the `bun` binary is bundled (no `bunx` shim), so the model is told to use
+ * `bun x` rather than `bunx`; `uvx` is bundled alongside `uv`. Resolved paths are
+ * stable (fixed install location), so this block is safe inside the warm-query
+ * system-prompt signature — see {@link formatNetworkProbeLine}.
+ */
+async function buildRuntimeContext(): Promise<string> {
+  const [bunPath, uvPath, rgPath] = await Promise.all([getBinaryPath('bun'), getBinaryPath('uv'), getBinaryPath('rg')])
+  return [
+    '## Available Runtimes',
+    'bun and uv are bundled and always on PATH. Use them to pull libraries and write throwaway scripts to verify logic — prefer them over node/npm/npx/pip, which are not guaranteed to be installed.',
+    `- JavaScript / TypeScript — run with \`bun <file>\`, add deps with \`bun install <pkg>\`, run a package with \`bun x <tool>\` (bun: ${bunPath})`,
+    `- Python — run with \`uv run python <file>\`, add deps inline with \`uv run --with <pkg> python <file>\` (ephemeral, no venv needed), run a tool with \`uvx <tool>\` (uv: ${uvPath})`,
+    `- Search — \`rg\` for fast file/content search (ripgrep: ${rgPath})`,
+    'Install dependencies INTO the project (cwd) only. Global installs (`-g`/`--global`, `uv tool install`, `pip install --user`) are blocked to keep tasks isolated — use `bun x` / `uvx` for one-off tools.'
+  ].join('\n')
 }
 
 export async function buildSystemPrompt(
@@ -769,11 +818,15 @@ export async function buildSystemPrompt(
     }
   }
 
+  // Bundled-runtime guidance (bun/uv) so the agent verifies logic with tools that actually exist.
+  // Not added to the assistant path above — it injects its own environment via buildAssistantContext.
+  const runtimeBlock = `\n\n${await buildRuntimeContext()}`
+
   // Soul mode
   if (soulEnabled) {
     const soulPrompt = await promptBuilder.buildSystemPrompt(cwd, agentConfig)
     const userInstructions = instructions ? `\n\n${instructions}` : ''
-    return `${soulPrompt}${userInstructions}${channelSecurityBlock}${artifactsBlock}\n\n${langInstruction}`
+    return `${soulPrompt}${userInstructions}${channelSecurityBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
   }
 
   // Standard mode
@@ -781,13 +834,13 @@ export async function buildSystemPrompt(
     return {
       type: 'preset',
       preset: 'claude_code',
-      append: `${instructions}${channelSecurityBlock}${artifactsBlock}\n\n${langInstruction}`
+      append: `${instructions}${channelSecurityBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
     }
   }
   return {
     type: 'preset',
     preset: 'claude_code',
-    append: `${channelSecurityBlock}${artifactsBlock}\n\n${langInstruction}`
+    append: `${channelSecurityBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
   }
 }
 
