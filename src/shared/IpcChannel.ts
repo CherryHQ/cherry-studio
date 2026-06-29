@@ -341,7 +341,6 @@ export enum IpcChannel {
   CodeCli_SetCustomTerminalPath = 'code-cli:set-custom-terminal-path',
   CodeCli_GetCustomTerminalPath = 'code-cli:get-custom-terminal-path',
   CodeCli_RemoveCustomTerminalPath = 'code-cli:remove-custom-terminal-path',
-  CodeCli_CheckClaudeLogin = 'code-cli:check-claude-login',
 
   // OVMS
   Ovms_IsSupported = 'ovms:is-supported',

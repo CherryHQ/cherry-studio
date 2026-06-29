@@ -615,8 +615,7 @@ const api = {
     getCustomTerminalPath: (terminalId: string): Promise<string | undefined> =>
       ipcRenderer.invoke(IpcChannel.CodeCli_GetCustomTerminalPath, terminalId),
     removeCustomTerminalPath: (terminalId: string): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.CodeCli_RemoveCustomTerminalPath, terminalId),
-    checkClaudeLogin: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.CodeCli_CheckClaudeLogin)
+      ipcRenderer.invoke(IpcChannel.CodeCli_RemoveCustomTerminalPath, terminalId)
   },
   cherryai: {
     generateSignature: (params: { method: string; path: string; query: string; body: Record<string, any> }) =>

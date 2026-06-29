@@ -12,9 +12,13 @@ const runtimeService = {
   logout: vi.fn(() => Promise.resolve())
 }
 
+const codeCliService = {
+  checkClaudeLogin: vi.fn(() => Promise.resolve(true))
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
-  appGetMock.mockReturnValue(runtimeService)
+  appGetMock.mockImplementation((name: string) => (name === 'CodeCliService' ? codeCliService : runtimeService))
 })
 
 const ctx = { senderId: 'w1' as const }
@@ -40,5 +44,11 @@ describe('oauthHandlers', () => {
   it('dispatches logout to OAuthRuntimeService', async () => {
     await oauthHandlers['oauth.logout'](provider, ctx)
     expect(runtimeService.logout).toHaveBeenCalledWith('codex')
+  })
+
+  it('dispatches check_external_login to CodeCliService', async () => {
+    await expect(oauthHandlers['oauth.check_external_login']({ providerId: 'claude-code' }, ctx)).resolves.toBe(true)
+    expect(appGetMock).toHaveBeenCalledWith('CodeCliService')
+    expect(codeCliService.checkClaudeLogin).toHaveBeenCalledTimes(1)
   })
 })

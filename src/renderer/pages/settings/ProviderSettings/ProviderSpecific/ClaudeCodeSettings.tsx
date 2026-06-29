@@ -1,6 +1,7 @@
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { codeCLI } from '@shared/types/codeCli'
+import { ipcApi } from '@renderer/ipc'
+import { CodeCli } from '@shared/types/codeCli'
 import { CheckCircle2, CircleAlert, Copy, RefreshCw, TerminalSquare } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -18,7 +19,7 @@ interface ClaudeCodeSettingsProps {
   providerId: string
 }
 
-const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = () => {
+const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
   const { t } = useTranslation()
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null)
   const [checking, setChecking] = useState(false)
@@ -27,14 +28,14 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = () => {
   const checkLogin = useCallback(async () => {
     setChecking(true)
     try {
-      setLoggedIn(await window.api.codeCli.checkClaudeLogin())
+      setLoggedIn(await ipcApi.request('oauth.check_external_login', { providerId }))
     } catch (error) {
       logger.error('Failed to check Claude login status', error as Error)
       setLoggedIn(false)
     } finally {
       setChecking(false)
     }
-  }, [])
+  }, [providerId])
 
   useEffect(() => {
     void checkLogin()
@@ -44,7 +45,7 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = () => {
     setLaunching(true)
     try {
       const { homePath } = await window.api.getAppInfo()
-      const result = await window.api.codeCli.run(codeCLI.claudeCode, '', homePath, {})
+      const result = await window.api.codeCli.run(CodeCli.CLAUDE_CODE, '', homePath, {})
       if (!result.success) {
         logger.error('Failed to launch Claude login terminal', { message: result.message })
         window.toast.error(t('settings.provider.claude_code.launch_failed'))

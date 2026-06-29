@@ -96,7 +96,8 @@ export class CodeCliService extends BaseService {
     this.ipcHandle(IpcChannel.CodeCli_RemoveCustomTerminalPath, (_, terminalId: string) =>
       this.removeCustomTerminalPath(terminalId)
     )
-    this.ipcHandle(IpcChannel.CodeCli_CheckClaudeLogin, () => this.checkClaudeLogin())
+    // `checkClaudeLogin` is exposed through the IpcApi `oauth.check_external_login`
+    // route (see src/main/ipc/handlers/oauth.ts), not a legacy IpcChannel.
   }
 
   /**
