@@ -6,8 +6,7 @@
 > extension**: reaching a *running agent session* from a user's own mobile client,
 > over a transport that works self-hosted and cloud-hosted from one substrate.
 > Symbols marked **(exists)** are present today and reused as-is; everything else
-> is new and described in the future tense. The companion working notes live in
-> `.context/remote-agent-access-design.md`.
+> is new and described in the future tense.
 
 ## Goal
 
@@ -461,4 +460,3 @@ The first real demo needs **no relay** — it retires the core risk locally.
 - [Binary Manager](../binary-manager/README.md) — acquiring the Go tunnel-client
   binary.
 - [Lifecycle](../lifecycle/README.md) — `ApiGatewayService`, `Activatable`.
-- Working notes: `.context/remote-agent-access-design.md`.
