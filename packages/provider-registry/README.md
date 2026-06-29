@@ -4,7 +4,7 @@ Bundled AI provider and model catalog for Cherry Studio: static JSON data files 
 
 > **Internal package — not published to npm.** It's `private` and consumed only inside this monorepo (the app resolves it to `src/` directly; the main process reads `data/*.json` from the bundled resources). The imports below are for in-repo consumers via the workspace, not an external install.
 
-> **Contributing?** The `data/*.json` files are **generated** — never hand-edit them. Edit `src/labs/` / `src/provider/` and run `pnpm generate`. See [CLAUDE.md](CLAUDE.md) and [docs/architecture.md](docs/architecture.md).
+> **Contributing?** The `data/*.json` files are **generated** — never hand-edit them. Edit `src/creators/` / `src/providers/` and run `pnpm generate`. See [CLAUDE.md](CLAUDE.md) and [docs/architecture.md](docs/architecture.md).
 
 ## Data Files
 

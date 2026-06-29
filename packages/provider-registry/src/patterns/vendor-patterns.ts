@@ -49,7 +49,7 @@ export const VENDOR_PATTERNS = {
    * OpenAI (chat + reasoning + legacy + media + embeddings). GPT-n, ChatGPT, the bare o<digit> series,
    * codex/davinci/babbage, DALL·E, moderation, and OpenAI's `text-embedding-3*` / `-ada` embeddings.
    * `text-embedding` is scoped to the `-3`/`-ada` SKUs on purpose — bare `text-embedding-0xx` is Google's,
-   * and `VENDOR_PATTERNS` is a flat set with no per-lab disambiguation.
+   * and `VENDOR_PATTERNS` is a flat set with no per-creator disambiguation.
    */
   openai: /\bgpt\b|^o[134]|^chatgpt|^codex|^davinci|^babbage|^dall-e|^text-moderation|^text-embedding-(?:3|ada)/i,
 
@@ -80,7 +80,7 @@ export const VENDOR_PATTERNS = {
   /** Ant Group Ling / Ring family. */
   ling: /^(?:ling|ring)-/i,
 
-  /** MiniMax family — current `minimax-*` plus the legacy `abab-*` SKUs the lab still claims. */
+  /** MiniMax family — current `minimax-*` plus the legacy `abab-*` SKUs the creator still claims. */
   minimax: /^(?:minimax|abab)/i,
 
   /** StepFun family. */

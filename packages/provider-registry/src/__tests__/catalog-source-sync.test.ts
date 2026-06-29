@@ -1,12 +1,12 @@
 /**
- * Source ↔ data sync guard — fails when `src/labs` or `src/provider` changed but `data/*.json` was
+ * Source ↔ data sync guard — fails when `src/creators` or `src/providers` changed but `data/*.json` was
  * NOT regenerated. CI's `catalog-hand-edit-check` only catches the OTHER direction (data edited with no
  * source change); generation reads live upstream, so a full generate-and-diff would be flaky. This test
  * is deterministic instead: it re-derives the facts the generator controls from SOURCE ALONE and asserts
  * the committed JSON reflects them. Coverage is full-payload where the generator output is fully
  * source-derived — the entire provider object (buildProviders strips gen-only fields + templates
  * `description`) and the entire override row (`{ providerId, ...ov }`) — so stale `defaultChatEndpoint`,
- * `apiFeatures`, `metadata`, override `pricing`/`imageGeneration`, etc. are caught. Lab models stay at
+ * `apiFeatures`, `metadata`, override `pricing`/`imageGeneration`, etc. are caught. Creator models stay at
  * presence/`ownedBy`/`name`: their other fields (capabilities, modalities, limits) are unioned with
  * upstream-inferred metadata, so a full compare would be non-deterministic. Upstream-enriched fields
  * (pricing on md-derived rows, inferred metadata) remain out of scope. Runs in the network-free
@@ -19,8 +19,8 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 import { canonOf } from '../../scripts/canonicalize'
-import { LABS } from '../labs'
-import { PROVIDERS } from '../provider'
+import { CREATORS } from '../creators'
+import { PROVIDERS } from '../providers'
 
 const dataDir = join(fileURLToPath(import.meta.url), '..', '..', '..', 'data')
 const read = (f: string) => JSON.parse(readFileSync(join(dataDir, f), 'utf8'))
@@ -56,7 +56,7 @@ const overrideIdentity = (o: { providerId: string; modelId: string; apiModelId?:
   `${o.providerId}|${o.modelId}|${o.apiModelId ?? ''}|${(o.modelVariants ?? []).slice().sort().join(',')}`
 
 describe('catalog ↔ source sync (regenerate guard)', () => {
-  it('every src/provider has a providers.json row with the full source-derived payload (and no extra rows)', () => {
+  it('every src/providers has a providers.json row with the full source-derived payload (and no extra rows)', () => {
     const missing = PROVIDERS.filter((p) => !providerById.has(p.id)).map((p) => p.id)
     expect(missing).toEqual([]) // src has a provider data/ doesn't → run `pnpm generate`
 
@@ -70,17 +70,17 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
     expect(mismatched).toEqual([]) // a provider field changed in src but data/ wasn't regenerated
   })
 
-  it('every hand-listed lab model is present with the right ownedBy + name', () => {
+  it('every hand-listed creator model is present with the right ownedBy + name', () => {
     const problems: string[] = []
-    for (const lab of LABS) {
-      for (const lm of lab.models ?? []) {
+    for (const creator of CREATORS) {
+      for (const lm of creator.models ?? []) {
         const id = canonOf(lm.id)
         const row = modelById.get(id)
         if (!row) {
-          problems.push(`${lab.id}: missing "${id}"`)
+          problems.push(`${creator.id}: missing "${id}"`)
           continue
         }
-        if (row.ownedBy !== lab.id) problems.push(`"${id}": ownedBy ${row.ownedBy} ≠ ${lab.id}`)
+        if (row.ownedBy !== creator.id) problems.push(`"${id}": ownedBy ${row.ownedBy} ≠ ${creator.id}`)
         if (lm.name && row.name !== lm.name) problems.push(`"${id}": name "${row.name}" ≠ "${lm.name}"`)
       }
     }

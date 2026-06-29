@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 /**
  * Generate `data/models.json` + `data/provider-models.json` from the hand-maintained registries
- * (`src/labs/` + `src/provider/`), enriched with models.dev / OpenRouter metadata. Both JSON files are
+ * (`src/creators/` + `src/providers/`), enriched with models.dev / OpenRouter metadata. Both JSON files are
  * PURE ARTIFACTS — never hand-edit them.
  *
  *   MODELSDEV_CACHE=/tmp/md.json OPENROUTER_CACHE=/tmp/or.json \
@@ -15,9 +15,9 @@ import { fileURLToPath } from 'node:url'
 
 import type { ZodType } from 'zod'
 
-import { LABS } from '../src/labs'
-import { PROVIDERS } from '../src/provider'
-import type { ProviderEntry } from '../src/provider/types'
+import { CREATORS } from '../src/creators'
+import { PROVIDERS } from '../src/providers'
+import type { ProviderEntry } from '../src/providers/types'
 import { stripHostReprefix } from '../src/utils/normalize'
 import { canonOf, prefixHit } from './canonicalize'
 import {
@@ -51,11 +51,11 @@ const VERSION = new Date().toISOString().slice(0, 10).replace(/-/g, '.')
 // exception is a vendor whose bedrock ids are BARE (`deepseek.r1` → `r1`): the strip orphans them, so the
 // host (amazon) wrongly claims them and they fold over the real `deepseek-r1`. Skip ONLY those — the
 // creator supplies them via its own listing / OpenRouter instead.
-const labById = new Map(LABS.map((l) => [l.id, l]))
-const crossVendorHost = (id: string, ownerLabId: string | undefined) => {
+const creatorById = new Map(CREATORS.map((l) => [l.id, l]))
+const crossVendorHost = (id: string, ownerCreatorId: string | undefined) => {
   const vendor = id.match(/^(?:[a-z]+\.)*([a-z]+)\./)?.[1]
-  const lab = vendor && vendor !== ownerLabId ? labById.get(vendor) : undefined
-  return !!lab && !(lab.idPrefixes ?? []).some((p) => prefixHit(canonOf(id), p))
+  const creator = vendor && vendor !== ownerCreatorId ? creatorById.get(vendor) : undefined
+  return !!creator && !(creator.idPrefixes ?? []).some((p) => prefixHit(canonOf(id), p))
 }
 
 const sortKeys = (v: any): any =>
@@ -88,7 +88,7 @@ type IndexEntry = { meta: CherryMeta; providers: Set<string> }
 type Index = Map<string, IndexEntry>
 
 /**
- * Build the metadata index. models.dev is read ONLY for the creator providers a lab forward-declares
+ * Build the metadata index. models.dev is read ONLY for the creator providers a creator forward-declares
  * (clean listings); hosts/gateways are ignored — indiscriminate ingestion injected host-prefixed dup
  * ids. Open-weights breadth comes from OpenRouter (clean org/model ids), always read. Metadata is
  * unioned across sources (so one host under-reporting can't hide a capability another reports).
@@ -105,7 +105,7 @@ function buildIndex(md: ModelsDevApi, or: OpenRouterApi): Index {
     index.set(k, e)
   }
   const ownerOf = new Map<string, string>()
-  for (const l of LABS) for (const p of l.modelsDevProviders ?? []) ownerOf.set(p, l.id)
+  for (const l of CREATORS) for (const p of l.modelsDevProviders ?? []) ownerOf.set(p, l.id)
   for (const [p, v] of Object.entries(md)) {
     if (!ownerOf.has(p)) continue
     for (const [id, m] of Object.entries(v.models ?? {})) {
@@ -131,27 +131,27 @@ function buildIndex(md: ModelsDevApi, or: OpenRouterApi): Index {
   return index
 }
 
-/** Assign each canonical id to its lab (→ `ownedBy`), most-explicit signal first. */
-async function assignLabs(index: Index, md: ModelsDevApi): Promise<Map<string, string>> {
-  // each lab's models.dev provider listing (the weakest, provider-listing pass)
-  const labProviderIds = new Map<string, Set<string>>()
-  for (const lab of LABS) {
-    if (!lab.modelsDevProviders) continue
+/** Assign each canonical id to its creator (→ `ownedBy`), most-explicit signal first. */
+async function assignCreators(index: Index, md: ModelsDevApi): Promise<Map<string, string>> {
+  // each creator's models.dev provider listing (the weakest, provider-listing pass)
+  const creatorProviderIds = new Map<string, Set<string>>()
+  for (const creator of CREATORS) {
+    if (!creator.modelsDevProviders) continue
     const ids = new Set<string>()
-    for (const p of lab.modelsDevProviders)
-      for (const id of Object.keys(md[p]?.models ?? {})) if (!crossVendorHost(id, lab.id)) ids.add(canonOf(id))
-    labProviderIds.set(lab.id, ids)
+    for (const p of creator.modelsDevProviders)
+      for (const id of Object.keys(md[p]?.models ?? {})) if (!crossVendorHost(id, creator.id)) ids.add(canonOf(id))
+    creatorProviderIds.set(creator.id, ids)
   }
-  // each lab's own API list (most native; keyless → empty, falls back to the passes below)
-  const labFetched = new Map<string, Set<string>>()
-  for (const lab of LABS) {
-    if (!lab.fetchModels) continue
+  // each creator's own API list (most native; keyless → empty, falls back to the passes below)
+  const creatorFetched = new Map<string, Set<string>>()
+  for (const creator of CREATORS) {
+    if (!creator.fetchModels) continue
     try {
-      const fetched = await lab.fetchModels()
-      labFetched.set(lab.id, new Set(fetched.map((f) => canonOf(f.id))))
-      console.log(`  ${lab.id}: fetched ${fetched.length} from its own API`)
+      const fetched = await creator.fetchModels()
+      creatorFetched.set(creator.id, new Set(fetched.map((f) => canonOf(f.id))))
+      console.log(`  ${creator.id}: fetched ${fetched.length} from its own API`)
     } catch (e) {
-      console.log(`  ${lab.id}: fetchModels → models.dev fallback (${(e as Error).message})`)
+      console.log(`  ${creator.id}: fetchModels → models.dev fallback (${(e as Error).message})`)
     }
   }
 
@@ -161,61 +161,63 @@ async function assignLabs(index: Index, md: ModelsDevApi): Promise<Map<string, s
   }
   // pass 1 — EXPLICIT identity (the id names the creator): fetchModels, manual, idPrefix.
   // `deepseek-r1-distill-qwen` → deepseek (id) beats alibaba (family `qwen` = base arch).
-  for (const lab of LABS) {
-    for (const id of labFetched.get(lab.id) ?? []) claim(id, lab.id)
-    for (const lm of lab.models ?? []) claim(canonOf(lm.id), lab.id)
-    if (lab.idPrefixes)
-      for (const canonId of index.keys()) if (lab.idPrefixes.some((p) => prefixHit(canonId, p))) claim(canonId, lab.id)
+  for (const creator of CREATORS) {
+    for (const id of creatorFetched.get(creator.id) ?? []) claim(id, creator.id)
+    for (const lm of creator.models ?? []) claim(canonOf(lm.id), creator.id)
+    if (creator.idPrefixes)
+      for (const canonId of index.keys())
+        if (creator.idPrefixes.some((p) => prefixHit(canonId, p))) claim(canonId, creator.id)
   }
   // pass 2 — FAMILY (base architecture, weaker than an explicit id).
-  for (const lab of LABS) {
-    if (!lab.families) continue
+  for (const creator of CREATORS) {
+    if (!creator.families) continue
     for (const [canonId, e] of index) {
       const fam = e.meta.family
-      if (fam && lab.families.some((f) => fam === f || fam.startsWith(f))) claim(canonId, lab.id)
+      if (fam && creator.families.some((f) => fam === f || fam.startsWith(f))) claim(canonId, creator.id)
     }
   }
   // pass 3 — PROVIDER LISTING (leftovers; `deepseek-v4-flash` hosted by DashScope is already deepseek's).
-  // `labProviderIds` is built from the RAW models.dev listing, so it still contains ids that `buildIndex`
+  // `creatorProviderIds` is built from the RAW models.dev listing, so it still contains ids that `buildIndex`
   // folded away as host re-prefix duplicates (DashScope's `Moonshot-Kimi-K2-Instruct` → `kimi-k2-instruct`).
   // Gate on the post-fold index so a host can't resurrect a folded duplicate under its own ownership.
-  for (const lab of LABS) for (const id of labProviderIds.get(lab.id) ?? []) if (index.has(id)) claim(id, lab.id)
+  for (const creator of CREATORS)
+    for (const id of creatorProviderIds.get(creator.id) ?? []) if (index.has(id)) claim(id, creator.id)
   return claimed
 }
 
-/** Build the models.json rows from the claims: enrich from the index, apply manual lab models, tag kind. */
+/** Build the models.json rows from the claims: enrich from the index, apply manual creator models, tag kind. */
 function buildModels(index: Index, claimed: Map<string, string>): Map<string, any> {
   const models = new Map<string, any>()
   for (const [canonId, labId] of claimed) {
     const meta = index.has(canonId) ? finalizeMeta(index.get(canonId)!.meta) : {}
     models.set(canonId, { id: canonId, name: meta.name || canonId, ownedBy: labId, ...meta, metadata: {} })
   }
-  // manual lab models (add + override) — always win
-  for (const lab of LABS) {
-    for (const lm of lab.models ?? []) {
+  // manual creator models (add + override) — always win
+  for (const creator of CREATORS) {
+    for (const lm of creator.models ?? []) {
       const id = canonOf(lm.id)
-      const existing = models.get(id) ?? { id, ownedBy: lab.id, metadata: {} }
-      models.set(id, { ...existing, ...lm, id, ownedBy: lab.id, metadata: existing.metadata ?? {} })
+      const existing = models.get(id) ?? { id, ownedBy: creator.id, metadata: {} }
+      models.set(id, { ...existing, ...lm, id, ownedBy: creator.id, metadata: existing.metadata ?? {} })
     }
   }
   // Tag embedding/rerank — models.dev mislabels these as text. `rerank` in the id wins; else `embed` in
-  // the id, or the owning lab's declared `kind` (bge/voyage/jina/… whose ids don't say so). Embedders output `vector`.
-  const labKind = new Map(LABS.map((l) => [l.id, l.kind]))
+  // the id, or the owning creator's declared `kind` (bge/voyage/jina/… whose ids don't say so). Embedders output `vector`.
+  const creatorKind = new Map(CREATORS.map((l) => [l.id, l.kind]))
   for (const m of models.values()) {
-    const kind = /rerank/i.test(m.id) ? 'rerank' : /embed/i.test(m.id) ? 'embedding' : labKind.get(m.ownedBy)
+    const kind = /rerank/i.test(m.id) ? 'rerank' : /embed/i.test(m.id) ? 'embedding' : creatorKind.get(m.ownedBy)
     if (kind !== 'embedding' && kind !== 'rerank') continue
     m.capabilities = [...new Set([...(m.capabilities ?? []), kind])]
     if (kind === 'embedding') m.outputModalities = ['vector']
     if (!m.inputModalities?.length) m.inputModalities = ['text']
   }
-  // Tag web-search — a curated capability upstream never reports (no `inferXxx`): the owning lab declares
+  // Tag web-search — a curated capability upstream never reports (no `inferXxx`): the owning creator declares
   // which of its models carry it, as DATA, via `webSearch` id-prefixes. Union onto upstream capabilities.
-  const labWebSearch = new Map(LABS.map((l) => [l.id, l.webSearch ?? []]))
+  const creatorWebSearch = new Map(CREATORS.map((l) => [l.id, l.webSearch ?? []]))
   for (const m of models.values()) {
     // An image-generation model never inherits a text sibling's web search just for sharing its prefix
     // (`gpt-5-image*` ride the `gpt-5` prefix). web-search is a text capability — skip the image rows.
     if ((m.capabilities ?? []).includes('image-generation')) continue
-    if ((labWebSearch.get(m.ownedBy) ?? []).some((p) => prefixHit(m.id, p)))
+    if ((creatorWebSearch.get(m.ownedBy) ?? []).some((p) => prefixHit(m.id, p)))
       m.capabilities = [...new Set([...(m.capabilities ?? []), 'web-search'])]
   }
   return models
@@ -236,7 +238,7 @@ function buildProviders(): { providers: ProviderEntry[]; version: string } {
 }
 
 /**
- * Build provider-models.json PURELY from src/provider — no dependency on the previous output (generation is
+ * Build provider-models.json PURELY from src/providers — no dependency on the previous output (generation is
  * a pure function of the source). Each provider contributes its manual `overrides` (curated pricing /
  * apiModelId maps / imageGeneration — what the runtime can't derive) plus, if it declares a
  * `modelsDevProvider`, one row per served model carrying that listing's PRICING. `modelId` resolves to a
@@ -289,18 +291,18 @@ void (async () => {
   const or = await load('OPENROUTER_CACHE', 'https://openrouter.ai/api/v1/models', OpenRouterApiSchema)
 
   const index = buildIndex(md, or)
-  const claimed = await assignLabs(index, md)
+  const claimed = await assignCreators(index, md)
   const models = buildModels(index, claimed)
 
   const unassigned = [...index.keys()].filter((k) => !claimed.has(k))
-  console.log(`labs: ${LABS.length}`)
+  console.log(`creators: ${CREATORS.length}`)
   console.log(`canonical models in md∪OR: ${index.size}`)
-  console.log(`assigned to a lab: ${models.size}`)
-  console.log(`unassigned (no lab claims — dropped): ${unassigned.length}`)
+  console.log(`assigned to a creator: ${models.size}`)
+  console.log(`unassigned (no creator claims — dropped): ${unassigned.length}`)
   const byOwner: Record<string, number> = {}
   for (const m of models.values()) byOwner[m.ownedBy] = (byOwner[m.ownedBy] || 0) + 1
   console.log(
-    'per-lab:',
+    'per-creator:',
     Object.entries(byOwner)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 12)

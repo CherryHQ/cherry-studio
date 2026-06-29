@@ -9,11 +9,11 @@ The catalog of AI **models** (what exists) and **providers** (how to reach them)
 ```
   SOURCE (hand-maintained)                 GENERATOR                 OUTPUT (generated)            RUNTIME
   ────────────────────────                 ─────────                 ──────────────────            ───────
-  src/labs/<creator>.ts   ─┐
-    (defineLab)            │
-  src/provider/<prov>.ts  ─┤──►  scripts/generate-catalog.ts  ──►   data/models.json          ─┐
+  src/creators/<creator>.ts   ─┐
+    (defineCreator)            │
+  src/providers/<prov>.ts  ─┤──►  scripts/generate-catalog.ts  ──►   data/models.json          ─┐
     (defineProvider)       │       buildIndex                       data/providers.json        ├─► src/registry-loader.ts
-  models.dev    (live)    ─┤       assignLabs   → ownedBy            data/provider-models.json ─┘     + src/schemas/*
+  models.dev    (live)    ─┤       assignCreators   → ownedBy            data/provider-models.json ─┘     + src/schemas/*
   openrouter.ai (live)    ─┘       buildModels / buildProviders /                                    (app reads these)
                                    buildProviderModels
 ```
@@ -32,9 +32,9 @@ First-party / standard cases emit **no** row — the runtime resolves `apiModelI
 
 ## Source registries
 
-### `src/labs/` — model creators (`defineLab`)
+### `src/creators/` — model creators (`defineCreator`)
 
-A lab declares a creator and its models. Fields:
+A creator declares a creator and its models. Fields:
 
 - `id`, `name` — creator identity (`ownedBy` in the catalog).
 - `models[]` — **hand-listed** models with full metadata (`{ id, name, capabilities, inputModalities, outputModalities, contextWindow, maxOutputTokens, imageGeneration? }`).
@@ -45,7 +45,7 @@ A lab declares a creator and its models. Fields:
 - `webSearch[]` — id-prefixes whose models carry the `web-search` capability (a curated capability upstream never reports).
 - `fetchModels()` — optional: pull the creator's live `/models` list (most authoritative; keyless in CI → falls back to models.dev).
 
-### `src/provider/` — serving providers (`defineProvider` / `openaiCompatible`)
+### `src/providers/` — serving providers (`defineProvider` / `openaiCompatible`)
 
 A provider declares how to connect + what it serves. Fields:
 
@@ -59,13 +59,13 @@ A provider declares how to connect + what it serves. Fields:
 ## Generation pipeline (`scripts/generate-catalog.ts`)
 
 1. **`load`** — fetch the upstream catalogs live (or a local file via `MODELSDEV_CACHE` / `OPENROUTER_CACHE`), validate with zod.
-2. **`buildIndex`** — a canonical-id → metadata index, **unioned across sources**. models.dev is read only for the creator providers a lab forward-declares (clean listings); OpenRouter is always read (clean org/model ids). Host/gateway listings are ignored to avoid host-prefixed dup ids.
-3. **`assignLabs`** — assign each canonical id an owning lab (`ownedBy`), most-explicit signal first:
+2. **`buildIndex`** — a canonical-id → metadata index, **unioned across sources**. models.dev is read only for the creator providers a creator forward-declares (clean listings); OpenRouter is always read (clean org/model ids). Host/gateway listings are ignored to avoid host-prefixed dup ids.
+3. **`assignCreators`** — assign each canonical id an owning creator (`ownedBy`), most-explicit signal first:
    - **pass 1 — explicit identity**: the id names the creator (`fetchModels` list, hand-listed `models`, `idPrefixes`).
    - **pass 2 — family**: base architecture (`families`), weaker than an id.
    - **pass 3 — provider listing**: leftovers a creator's models.dev listing covers.
-   - Unclaimed ids are **dropped** (no lab owns them → not a real catalog model).
-4. **`buildModels`** — materialize `models.json` rows from claims, apply hand-listed lab models (always win), tag `embedding`/`rerank`/`web-search`.
+   - Unclaimed ids are **dropped** (no creator owns them → not a real catalog model).
+4. **`buildModels`** — materialize `models.json` rows from claims, apply hand-listed creator models (always win), tag `embedding`/`rerank`/`web-search`.
 5. **`buildProviders`** — `providers.json` from each provider's connection config (drops generation-only fields, templates `description`).
 6. **`buildProviderModels`** — `provider-models.json`: each provider's manual `overrides` + (if it declares `modelsDevProvider`) one priced row per served model. A `modelId` resolves to a base row, or is a standalone carrying `name`.
 
@@ -78,13 +78,13 @@ A provider declares how to connect + what it serves. Fields:
 
 ## Image generation (Design B)
 
-> **Lab owns metadata; provider owns parameter support.**
+> **Creator owns metadata; provider owns parameter support.**
 
 `imageGeneration` has two parts that live in different places:
 
 | part | what | where |
 | --- | --- | --- |
-| `supports` | the param vocabulary (aspectRatio, size, seed, renderingSpeed, …) | **lab** (model-level) — the provider-agnostic DEFAULT |
+| `supports` | the param vocabulary (aspectRatio, size, seed, renderingSpeed, …) | **creator** (model-level) — the provider-agnostic DEFAULT |
 | `vendorTransport` | endpoint routing (`/v3/async/…`, `/v1/models/…/predictions`) | **provider** override — differs per provider |
 
 The runtime **replaces** `imageGeneration` wholesale — it does **not** deep-merge (`getImageGenerationSupport`: `override.imageGeneration ?? model.imageGeneration`). Consequences:
@@ -107,4 +107,4 @@ Source **correctness** (as opposed to "the JSON matches the source") is covered 
 
 ## Runtime side
 
-The app does **not** import the generation pipeline. It reads the JSON via `src/registry-loader.ts` (the `@cherrystudio/provider-registry/node` entry) + the `src/schemas/*` types, and resolves a model with `normalizeModelId`. `registry-loader` / `patterns` / `schemas` are the published surface; `labs` / `provider` / `scripts` are build-time only (not in `dist`).
+The app does **not** import the generation pipeline. It reads the JSON via `src/registry-loader.ts` (the `@cherrystudio/provider-registry/node` entry) + the `src/schemas/*` types, and resolves a model with `normalizeModelId`. `registry-loader` / `patterns` / `schemas` are the published surface; `creators` / `provider` / `scripts` are build-time only (not in `dist`).

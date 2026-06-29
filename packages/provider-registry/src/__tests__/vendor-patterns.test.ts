@@ -47,7 +47,7 @@ describe('matchVendor — gemma covers the Ollama-style tags (#7)', () => {
   })
 })
 
-describe('matchVendor — lab/runtime parity for doubao + zhipu (#8, #9)', () => {
+describe('matchVendor — creator/runtime parity for doubao + zhipu (#8, #9)', () => {
   it('doubao claims skylark', () => {
     expect(matchVendor('skylark-pro')).toBe('doubao')
   })
@@ -59,7 +59,7 @@ describe('matchVendor — lab/runtime parity for doubao + zhipu (#8, #9)', () =>
   })
 })
 
-describe('matchVendor — lab/runtime parity for openai, mistral, minimax', () => {
+describe('matchVendor — creator/runtime parity for openai, mistral, minimax', () => {
   it('openai claims chatgpt, codex, davinci/babbage, dall-e, moderation, and 3/ada embeddings', () => {
     expect(matchVendor('gpt-4o')).toBe('openai')
     expect(matchVendor('chatgpt-image-latest')).toBe('openai') // no \b inside "chatgpt" — needs its own branch
@@ -72,7 +72,7 @@ describe('matchVendor — lab/runtime parity for openai, mistral, minimax', () =
     expect(matchVendor('text-embedding-ada-002')).toBe('openai')
   })
 
-  it('openai does NOT steal Google text-embedding-0xx (flat regex set, no per-lab disambiguation)', () => {
+  it('openai does NOT steal Google text-embedding-0xx (flat regex set, no per-creator disambiguation)', () => {
     expect(matchVendor('text-embedding-004')).toBeUndefined()
     expect(matchVendor('text-embedding-005')).toBeUndefined()
   })
