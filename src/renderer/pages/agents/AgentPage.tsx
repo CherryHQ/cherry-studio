@@ -15,6 +15,7 @@ import { useActiveSession, useSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
+import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -41,6 +42,16 @@ function isUserWorkspaceSession(session: AgentSessionEntity | null | undefined):
   return !!session?.workspaceId && session.workspace?.type !== 'system'
 }
 
+/**
+ * A real session created + prewarmed eagerly when the user starts typing a new-chat draft, so the
+ * first send hits a warm Claude Code subprocess instead of a cold start. `forDraft` is the draft
+ * object identity it was reserved for; once the draft changes it is discarded (deleted + warm closed).
+ */
+type ReservedSession = {
+  forDraft: DraftAgentSession
+  promise: Promise<PersistentAgentSessionConversation | null>
+}
+
 const AgentPage = () => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const routeSearch = parseAgentRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
@@ -61,6 +72,22 @@ const AgentPage = () => {
   const draftSessionRef = useRef<DraftAgentSession | null>(null)
   const [draftSession, setDraftSession] = useState<DraftAgentSession | null>(null)
   const [historyRecordsOpen, setHistoryRecordsOpen] = useState(false)
+  const reservedSessionRef = useRef<ReservedSession | null>(null)
+
+  // Drop an eagerly-reserved+prewarmed session that the user abandoned without sending: close its warm
+  // query and delete the (still message-less) row. Best-effort; the boot sweep nets force-quit leftovers.
+  const discardReservedSession = useCallback(() => {
+    const reserved = reservedSessionRef.current
+    if (!reserved) return
+    reservedSessionRef.current = null
+    void reserved.promise.then((persisted) => {
+      if (!persisted) return
+      void ipcApi.request('ai.close_agent_session_warm', { sessionId: persisted.sessionId }).catch(() => {})
+      void dataApiService.delete(`/agent-sessions/${persisted.sessionId}`).catch((error) => {
+        logger.warn('Failed to delete abandoned reserved session', error as Error)
+      })
+    })
+  }, [])
 
   useEffect(() => {
     pendingSelectedSessionRef.current = null
@@ -69,10 +96,15 @@ const AgentPage = () => {
       return
     }
 
+    discardReservedSession()
     draftSessionRef.current = null
     setDraftSession(null)
     setActiveSessionId(routeActiveSessionId)
-  }, [routeActiveSessionId])
+  }, [discardReservedSession, routeActiveSessionId])
+
+  // Tab/window close (AgentPage unmount) with a typed-but-unsent draft → drop its reservation. Keep-
+  // alive means switching tabs does NOT unmount, so this fires only on a genuine close.
+  useEffect(() => () => discardReservedSession(), [discardReservedSession])
   const [, setLastUsedSessionId] = usePersistCache('ui.agent.last_used_session_id')
   const [lastUsedAgentId, setLastUsedAgentId] = usePersistCache('ui.agent.last_used_agent_id')
   const [lastUsedWorkspaceId, setLastUsedWorkspaceId] = usePersistCache('ui.agent.last_used_workspace_id')
@@ -103,10 +135,18 @@ const AgentPage = () => {
     ? routeSession
     : (activeSession ?? (isActiveSessionLoading ? lastVisibleSessionRef.current : null))
   const visibleDraftSession = !isMessageOnlyView && !activeSessionId ? draftSession : null
-  const setDraftSessionState = useCallback((nextDraft: DraftAgentSession | null) => {
-    draftSessionRef.current = nextDraft
-    setDraftSession(nextDraft)
-  }, [])
+  const setDraftSessionState = useCallback(
+    (nextDraft: DraftAgentSession | null) => {
+      // Any draft change/clear abandons a reservation made for the previous draft (the adopt path
+      // clears the ref first, so a successful handoff never deletes the session it just adopted).
+      if (reservedSessionRef.current && reservedSessionRef.current.forDraft !== nextDraft) {
+        discardReservedSession()
+      }
+      draftSessionRef.current = nextDraft
+      setDraftSession(nextDraft)
+    },
+    [discardReservedSession]
+  )
 
   // All non-dormant tabs mount at once (Activity keep-alive), so each agent tab runs its
   // own AgentPage. `useIsActiveTab` answers "am I the globally-focused tab" (gates last_used).
@@ -474,14 +514,93 @@ const AgentPage = () => {
     [setDraftSessionState]
   )
 
+  // Shared draft→persistent handoff bookkeeping (used by both the eager-adopt and create paths).
+  const finalizeHandoff = useCallback(
+    (persisted: PersistentAgentSessionConversation) => {
+      pendingSelectedSessionRef.current = persisted.session
+      setDraftSessionState(null)
+      setLastUsedAgentId(persisted.agentId)
+      if (isUserWorkspaceSession(persisted.session)) {
+        setLastUsedWorkspaceId(persisted.session.workspaceId)
+      }
+      setActiveSessionId(persisted.sessionId)
+      void invalidateCache(['/agent-sessions', '/agent-workspaces', `/agent-sessions/${persisted.sessionId}`]).catch(
+        (err) => {
+          logger.warn('Failed to refresh session metadata after draft session handoff', err as Error)
+        }
+      )
+    },
+    [invalidateCache, setActiveSessionId, setDraftSessionState, setLastUsedAgentId, setLastUsedWorkspaceId]
+  )
+
+  // Eagerly create + prewarm the real session for the current draft when the user starts typing, so
+  // the first send reuses a warm Claude Code subprocess. Idempotent per draft; the row stays out of
+  // the session list (no cache invalidation) until the send actually adopts it.
+  const reserveDraftSession = useCallback(() => {
+    if (reservedSessionRef.current) return
+    const current = draftSessionRef.current
+    if (!current) return
+
+    const promise = (async (): Promise<PersistentAgentSessionConversation | null> => {
+      try {
+        const session = await dataApiService.post('/agent-sessions', {
+          body: { agentId: current.agentId, name: t('common.unnamed'), workspace: current.workspaceSource }
+        })
+        void ipcApi.request('ai.prewarm_agent_session', { sessionId: session.id }).catch((error) => {
+          logger.warn('Failed to prewarm reserved agent session', error as Error)
+        })
+        return {
+          agentId: session.agentId ?? current.agentId,
+          name: session.name,
+          session,
+          sessionId: session.id,
+          topicId: buildAgentSessionTopicId(session.id)
+        } satisfies PersistentAgentSessionConversation
+      } catch (error) {
+        logger.warn('Failed to reserve draft session for prewarm', error as Error)
+        return null
+      }
+    })()
+
+    const entry: ReservedSession = { forDraft: current, promise }
+    reservedSessionRef.current = entry
+    // If the create failed, clear the ref (only if it's still this entry) so a later keystroke retries.
+    void promise.then((persisted) => {
+      if (persisted === null && reservedSessionRef.current === entry) reservedSessionRef.current = null
+    })
+  }, [t])
+
   const ensurePersistentSession = useCallback(
     async (initialName?: string) => {
       const current = draftSessionRef.current
       if (!current) {
         throw new Error('Draft session handoff failed: no active draft session')
       }
-
       const trimmed = initialName?.trim()
+
+      // Adopt the eagerly-reserved + prewarmed session for this draft, if any. Rename it from the
+      // sent text to preserve the "session named after first message" behavior of the create path.
+      const reserved = reservedSessionRef.current
+      if (reserved?.forDraft === current) {
+        reservedSessionRef.current = null
+        const reservedPersisted = await reserved.promise
+        if (reservedPersisted) {
+          const name = trimmed ? trimmed.slice(0, 30) : reservedPersisted.name
+          const persisted =
+            name === reservedPersisted.name
+              ? reservedPersisted
+              : { ...reservedPersisted, name, session: { ...reservedPersisted.session, name } }
+          if (name !== reservedPersisted.name) {
+            void dataApiService.patch(`/agent-sessions/${persisted.sessionId}`, { body: { name } }).catch((error) => {
+              logger.warn('Failed to name adopted session', error as Error)
+            })
+          }
+          finalizeHandoff(persisted)
+          return persisted
+        }
+        // Reserve failed earlier — fall through to a fresh create below.
+      }
+
       const session = await dataApiService.post('/agent-sessions', {
         body: {
           agentId: current.agentId,
@@ -496,19 +615,10 @@ const AgentPage = () => {
         sessionId: session.id,
         topicId: buildAgentSessionTopicId(session.id)
       }
-      pendingSelectedSessionRef.current = session
-      setDraftSessionState(null)
-      setLastUsedAgentId(persisted.agentId)
-      if (isUserWorkspaceSession(session)) {
-        setLastUsedWorkspaceId(session.workspaceId)
-      }
-      setActiveSessionId(session.id)
-      void invalidateCache(['/agent-sessions', '/agent-workspaces', `/agent-sessions/${session.id}`]).catch((err) => {
-        logger.warn('Failed to refresh session metadata after draft session create', err as Error)
-      })
+      finalizeHandoff(persisted)
       return persisted
     },
-    [invalidateCache, setActiveSessionId, setDraftSessionState, setLastUsedAgentId, setLastUsedWorkspaceId, t]
+    [finalizeHandoff, t]
   )
   const replaceDraftAgent = useCallback(
     async (agentId: string | null) => {
@@ -610,6 +720,7 @@ const AgentPage = () => {
           onStartDraftSession={isMessageOnlyView ? undefined : startDraftSession}
           onMissingAgentDraftAgentChange={isMessageOnlyView ? undefined : startMissingAgentDraftSession}
           onEnsurePersistentSession={isMessageOnlyView ? undefined : ensurePersistentSession}
+          onDraftComposeIntent={isMessageOnlyView ? undefined : reserveDraftSession}
           onDraftAgentChange={isMessageOnlyView ? undefined : replaceDraftAgent}
           onDraftWorkspaceChange={isMessageOnlyView ? undefined : replaceDraftWorkspace}
           onVisibleAgentChange={isMessageOnlyView ? undefined : setLastUsedAgentId}

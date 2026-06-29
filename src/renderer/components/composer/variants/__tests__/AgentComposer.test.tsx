@@ -502,6 +502,33 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
   })
 
+  it('fires onComposeIntent on the first keystroke of an empty draft and on re-typing after clearing', () => {
+    const onComposeIntent = vi.fn()
+    render(
+      <AgentHomeComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        onComposeIntent={onComposeIntent}
+      />
+    )
+
+    // First non-empty keystroke → fire once.
+    act(() => mocks.surfaceProps?.onTextChange('h'))
+    expect(onComposeIntent).toHaveBeenCalledTimes(1)
+
+    // Continuing to type is not a new empty→non-empty transition → no re-fire.
+    act(() => mocks.surfaceProps?.onTextChange('he'))
+    expect(onComposeIntent).toHaveBeenCalledTimes(1)
+
+    // Clearing then typing again fires a fresh intent (the host dedupes the reservation).
+    act(() => mocks.surfaceProps?.onTextChange(''))
+    act(() => mocks.surfaceProps?.onTextChange('x'))
+    expect(onComposeIntent).toHaveBeenCalledTimes(2)
+  })
+
   it('passes the chat model shortcut to the model selector', () => {
     render(
       <AgentComposer

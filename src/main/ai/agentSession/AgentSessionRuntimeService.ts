@@ -1,5 +1,6 @@
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { application } from '@main/core/application'
@@ -166,6 +167,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // reconcile so both message tables are settled on restart (neither stays a frozen "thinking"
     // bubble); agent sessions additionally recover conversation context via the resume token.
     await this.reconcileStalePendingMessages()
+    await this.sweepEmptySessions()
 
     this.registerDisposable(
       agentService.onAgentUpdated(({ agentId, updates, agent }) => {
@@ -174,6 +176,17 @@ export class AgentSessionRuntimeService extends BaseService {
         })
       })
     )
+  }
+
+  private async sweepEmptySessions(): Promise<void> {
+    // Crash net for draft-prewarm reserves: a session is created + prewarmed when the user starts
+    // typing a new chat, and the renderer deletes it if the draft is abandoned. A force-quit can skip
+    // that cleanup, leaving a message-less orphan — sweep it here at boot (no session is live yet).
+    try {
+      await agentSessionService.deleteEmptySessions()
+    } catch (error) {
+      logger.error('Failed to sweep empty agent sessions', { error })
+    }
   }
 
   private async reconcileStalePendingMessages(): Promise<void> {

@@ -63,6 +63,9 @@ const agentPageMocks = vi.hoisted(() => ({
   routeSearch: { sessionId: 'session-initial' } as Record<string, unknown>,
   dataApiGet: vi.fn(),
   dataApiPost: vi.fn(),
+  dataApiDelete: vi.fn(),
+  dataApiPatch: vi.fn(),
+  ipcRequest: vi.fn(),
   invalidateCache: vi.fn()
 }))
 
@@ -75,8 +78,14 @@ const activeSessionMocks = vi.hoisted(() => ({
 vi.mock('@data/DataApiService', () => ({
   dataApiService: {
     get: agentPageMocks.dataApiGet,
-    post: agentPageMocks.dataApiPost
+    post: agentPageMocks.dataApiPost,
+    delete: agentPageMocks.dataApiDelete,
+    patch: agentPageMocks.dataApiPatch
   }
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: agentPageMocks.ipcRequest }
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
@@ -236,6 +245,7 @@ vi.mock('../AgentChat', () => ({
     draftConversation,
     missingAgentDraft,
     onEnsurePersistentSession,
+    onDraftComposeIntent,
     onMissingAgentDraftAgentChange,
     onStartDraftSession,
     onVisibleAgentChange,
@@ -257,6 +267,7 @@ vi.mock('../AgentChat', () => ({
     } | null
     missingAgentDraft?: boolean
     onEnsurePersistentSession?: (initialName?: string) => Promise<unknown>
+    onDraftComposeIntent?: () => void
     onMissingAgentDraftAgentChange?: (agentId: string | null) => void | Promise<void>
     onStartDraftSession?: (defaults: {
       agentId: string
@@ -304,6 +315,9 @@ vi.mock('../AgentChat', () => ({
       </button>
       <button type="button" onClick={() => void onDraftAgentChange?.('agent-created')}>
         Select newly created draft agent
+      </button>
+      <button type="button" onClick={() => onDraftComposeIntent?.()}>
+        Compose intent
       </button>
       <button type="button" onClick={() => void onEnsurePersistentSession?.('hello')}>
         Persist draft session
@@ -401,6 +415,9 @@ describe('AgentPage', () => {
       return agentPageMocks.workspace
     })
     agentPageMocks.dataApiPost.mockResolvedValue(agentPageMocks.persistedSession)
+    agentPageMocks.dataApiDelete.mockResolvedValue(undefined)
+    agentPageMocks.dataApiPatch.mockResolvedValue(agentPageMocks.persistedSession)
+    agentPageMocks.ipcRequest.mockResolvedValue(undefined)
     agentPageMocks.invalidateCache.mockResolvedValue(undefined)
     activeSessionMocks.session = null
     activeSessionMocks.isLoading = false
@@ -482,6 +499,71 @@ describe('AgentPage', () => {
 
     await waitFor(() => expect(screen.getByTestId('draft-session')).toHaveTextContent('agent-a'))
     expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBeNull()
+  })
+
+  it('reserves and prewarms a session when the user starts typing a new draft', async () => {
+    agentPageMocks.routeSearch = {}
+    render(<AgentPage />)
+    await waitFor(() => expect(screen.getByTestId('draft-session')).toHaveTextContent('agent-a'))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Compose intent' }))
+    })
+
+    await waitFor(() =>
+      expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith(
+        '/agent-sessions',
+        expect.objectContaining({ body: expect.objectContaining({ agentId: 'agent-a' }) })
+      )
+    )
+    expect(agentPageMocks.ipcRequest).toHaveBeenCalledWith('ai.prewarm_agent_session', { sessionId: 'session-created' })
+
+    // Reserve is idempotent per draft — typing more never creates a second session.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Compose intent' }))
+    })
+    expect(agentPageMocks.dataApiPost).toHaveBeenCalledTimes(1)
+  })
+
+  it('adopts the reserved session on send instead of creating a second one', async () => {
+    agentPageMocks.routeSearch = {}
+    render(<AgentPage />)
+    await waitFor(() => expect(screen.getByTestId('draft-session')).toHaveTextContent('agent-a'))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Compose intent' }))
+    })
+    await waitFor(() => expect(agentPageMocks.dataApiPost).toHaveBeenCalledTimes(1))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Persist draft session' }))
+    })
+
+    // Adopted the reserved session: no second POST, and the handoff selected it.
+    expect(agentPageMocks.dataApiPost).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-created'))
+  })
+
+  it('discards the reserved session when the draft is abandoned without sending', async () => {
+    agentPageMocks.routeSearch = {}
+    const { rerender } = render(<AgentPage />)
+    await waitFor(() => expect(screen.getByTestId('draft-session')).toHaveTextContent('agent-a'))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Compose intent' }))
+    })
+    await waitFor(() => expect(agentPageMocks.dataApiPost).toHaveBeenCalledTimes(1))
+
+    // Navigate to an existing session — abandons the draft and its (unsent) reservation.
+    agentPageMocks.routeSearch = { sessionId: 'session-other' }
+    rerender(<AgentPage />)
+
+    await waitFor(() => {
+      expect(agentPageMocks.ipcRequest).toHaveBeenCalledWith('ai.close_agent_session_warm', {
+        sessionId: 'session-created'
+      })
+      expect(agentPageMocks.dataApiDelete).toHaveBeenCalledWith('/agent-sessions/session-created')
+    })
   })
 
   it('does not mutate the current tab before focusing an already-open global-search session', () => {

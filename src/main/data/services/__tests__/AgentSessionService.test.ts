@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { pinTable } from '@data/db/schemas/pin'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -478,5 +479,22 @@ describe('AgentSessionService', () => {
 
     const rows = await dbh.db.select().from(agentWorkspaceTable)
     expect(rows).toHaveLength(0)
+  })
+
+  it('sweeps message-less sessions and keeps sessions that have messages', async () => {
+    const abandoned = await createSession('abandoned-reserve')
+    const used = await createSession('used')
+    await dbh.db.insert(agentSessionMessageTable).values({
+      sessionId: used.id,
+      role: 'user',
+      data: { parts: [] },
+      status: 'success'
+    })
+
+    const { deletedIds } = await agentSessionService.deleteEmptySessions()
+
+    expect(deletedIds).toEqual([abandoned.id])
+    await expect(agentSessionService.getById(abandoned.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    await expect(agentSessionService.getById(used.id)).resolves.toMatchObject({ id: used.id })
   })
 })

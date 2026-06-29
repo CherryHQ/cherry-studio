@@ -77,6 +77,9 @@ interface AgentChatProps {
   onStartDraftSession?: (defaults: DraftAgentSessionDefaults) => void | Promise<void>
   onMissingAgentDraftAgentChange?: (agentId: string | null) => void | Promise<void>
   onEnsurePersistentSession?: EnsurePersistentSession
+  /** Fired when the user starts typing into the draft composer — the host reserves + prewarms the
+   *  real session so the first send isn't a cold start. */
+  onDraftComposeIntent?: () => void
   onDraftAgentChange?: (agentId: string | null) => void | Promise<void>
   onDraftWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   onVisibleAgentChange?: (agentId: string) => void
@@ -105,6 +108,7 @@ const AgentChat = ({
   onStartDraftSession,
   onMissingAgentDraftAgentChange,
   onEnsurePersistentSession,
+  onDraftComposeIntent,
   onDraftAgentChange,
   onDraftWorkspaceChange,
   onVisibleAgentChange,
@@ -279,6 +283,7 @@ const AgentChat = ({
           sendMessage={sendDraftMessage}
           stop={async () => undefined}
           isStreaming={false}
+          onComposeIntent={onDraftComposeIntent}
           onAgentChange={onDraftAgentChange}
           agentChanging={replacingDraftAgent}
           workspaceId={draftWorkspaceId}

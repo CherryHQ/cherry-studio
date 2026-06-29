@@ -129,6 +129,9 @@ type Props = {
   workspaceChanging?: boolean
   isStreaming: boolean
   sendDisabled?: boolean
+  /** Fired once when the user starts typing into an empty draft — the host uses it to reserve and
+   *  prewarm the real session so the first send isn't a cold start. Only wired for the draft composer. */
+  onComposeIntent?: () => void
 }
 
 type AgentComposerRootProps = Props & {
@@ -151,6 +154,7 @@ const AgentComposerRoot = ({
   workspaceChanging,
   isStreaming,
   sendDisabled = false,
+  onComposeIntent,
   renderControls,
   forceNarrowLayout = false
 }: AgentComposerRootProps) => {
@@ -218,6 +222,7 @@ const AgentComposerRoot = ({
         workspaceChanging={workspaceChanging}
         isStreaming={isStreaming}
         sendDisabled={sendDisabled}
+        onComposeIntent={onComposeIntent}
         renderControls={renderControls}
         forceNarrowLayout={forceNarrowLayout}
       />
@@ -242,6 +247,7 @@ interface InnerProps {
   workspaceChanging?: boolean
   isStreaming: boolean
   sendDisabled: boolean
+  onComposeIntent?: () => void
   renderControls: AgentComposerControlsRenderer
   forceNarrowLayout?: boolean
 }
@@ -524,6 +530,7 @@ const AgentComposerInner = ({
   workspaceChanging,
   isStreaming,
   sendDisabled,
+  onComposeIntent,
   renderControls,
   forceNarrowLayout = false
 }: InnerProps) => {
@@ -595,11 +602,15 @@ const AgentComposerInner = ({
 
   const setText = useCallback(
     (nextText: string) => {
+      const wasEmpty = textRef.current.trim().length === 0
       textRef.current = nextText
       setTextState(nextText)
       writeAgentDraftCache(draftCacheKey, nextText, draftTokensRef.current)
+      // First keystroke of an empty draft → let the host reserve + prewarm the session so the first
+      // send overlaps (not blocks on) the Claude Code subprocess startup. Idempotent on the host side.
+      if (wasEmpty && nextText.trim().length > 0) onComposeIntent?.()
     },
-    [draftCacheKey]
+    [draftCacheKey, onComposeIntent]
   )
 
   useEffect(() => {

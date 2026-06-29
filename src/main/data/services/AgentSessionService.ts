@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto'
 import { application } from '@application'
 import { agentTable as agentsTable } from '@data/db/schemas/agent'
 import { type AgentSessionRow as SessionRow, agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
@@ -314,6 +315,28 @@ export class AgentSessionService {
     })
 
     logger.info('Deleted agent sessions', { agentId, count: deletedIds.length })
+    return { deletedIds }
+  }
+
+  /**
+   * Delete every session that has zero messages. Sessions are only ever created on send (or eagerly
+   * reserved for prewarm right before the first send), so a message-less session is an abandoned
+   * reserve / crash orphan — never one the user expects to keep. Used as a boot-time sweep
+   * (AgentSessionRuntimeService.onInit) to clean reserves the renderer couldn't delete (e.g. a
+   * force-quit). Runs at startup only, when no session is live, so it can't race an in-flight reserve.
+   */
+  async deleteEmptySessions(): Promise<DeleteAgentSessionsResult> {
+    const deletedIds = await application.get('DbService').withWriteTx(async (tx) => {
+      const rows = await tx
+        .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+        .from(sessionsTable)
+        .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+        .leftJoin(agentSessionMessageTable, eq(agentSessionMessageTable.sessionId, sessionsTable.id))
+        .where(isNull(agentSessionMessageTable.id))
+      if (rows.length === 0) return []
+      return await this.cascadeDeleteSessionRowsTx(tx, rows)
+    })
+    if (deletedIds.length > 0) logger.info('Swept empty agent sessions', { count: deletedIds.length })
     return { deletedIds }
   }
 
