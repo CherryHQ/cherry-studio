@@ -6,9 +6,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const tabs = [{ id: 'home', type: 'route', url: '/home', title: 'Home' }]
 
-async function renderSubWindowAppShell(isMac: boolean) {
+async function renderSubWindowAppShell() {
   vi.resetModules()
-  vi.doMock('@renderer/config/constant', () => ({ isMac, isWin: false, isLinux: false }))
+  vi.doMock('@renderer/config/constant', () => ({ isMac: false, isWin: false, isLinux: false }))
   vi.doMock('@renderer/databases', () => ({}))
   vi.doMock('@renderer/hooks/useWindowInitData', () => ({
     useWindowInitData: () => null
@@ -35,11 +35,7 @@ async function renderSubWindowAppShell(isMac: boolean) {
     SubWindowTitleBar: () => <header data-testid="sub-window-title-bar" />
   }))
   vi.doMock('@renderer/components/layout/TabRouter', () => ({
-    TabRouter: ({ isActive }: { isActive: boolean }) => (
-      <section data-testid="tab-router">
-        {!isMac && isActive ? <div data-page-side-panel-root="true" data-testid="scoped-root" /> : null}
-      </section>
-    )
+    TabRouter: () => <section data-testid="tab-router" />
   }))
   vi.doMock('@renderer/components/MiniApp/MiniAppTabsPool', () => ({
     default: () => <div data-testid="mini-app-pool" />
@@ -55,19 +51,11 @@ afterEach(() => {
   vi.resetModules()
 })
 
-describe('SubWindowAppShell page side panel root', () => {
-  it('scopes the page side panel root to the tab content area, excluding app chrome, outside macOS', async () => {
-    await renderSubWindowAppShell(false)
+describe('SubWindowAppShell', () => {
+  it('renders title bar and tab router in separate shell regions', async () => {
+    await renderSubWindowAppShell()
 
-    const root = document.querySelector('[data-page-side-panel-root="true"]')
-    expect(root).toBeInTheDocument()
-    expect(root).not.toContainElement(screen.getByTestId('sub-window-title-bar'))
-    expect(screen.getByTestId('tab-router')).toContainElement(root as HTMLElement)
-  })
-
-  it('does not mark a scoped page side panel root on macOS', async () => {
-    await renderSubWindowAppShell(true)
-
-    expect(document.querySelector('[data-page-side-panel-root="true"]')).not.toBeInTheDocument()
+    expect(screen.getByTestId('sub-window-title-bar')).toBeInTheDocument()
+    expect(screen.getByTestId('tab-router')).toBeInTheDocument()
   })
 })

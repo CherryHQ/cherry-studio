@@ -11,19 +11,12 @@ import * as React from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const knobs = vi.hoisted(() => ({
-  isMac: false,
   renderPage: (() => null) as (url: string) => React.ReactNode
 }))
 
 const routerMocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   subscribe: vi.fn(() => vi.fn())
-}))
-
-vi.mock('@renderer/config/constant', () => ({
-  get isMac() {
-    return knobs.isMac
-  }
 }))
 
 // The bug under test is per-tab portal ownership, so PageSidePanel must read the SAME
@@ -64,6 +57,7 @@ vi.mock('@tanstack/react-router', async () => {
       return (
         <div
           data-testid="router-provider"
+          data-router-url={router.state.location.href}
           data-has-portal-container={String(container instanceof HTMLElement)}
           data-portal-container-is-body={String(container === document.body)}>
           {knobs.renderPage(router.state.location.href)}
@@ -87,26 +81,17 @@ beforeAll(() => {
 
 afterEach(() => {
   cleanup()
-  knobs.isMac = false
   knobs.renderPage = () => null
   vi.clearAllMocks()
 })
 
-describe('TabRouter page side panel root', () => {
-  it('exposes the scoped root on the active tab subtree outside macOS', () => {
-    const { container } = render(<TabRouter tab={tab('a', '/a')} isActive onUrlChange={() => {}} />)
-    expect(container.querySelector('[data-page-side-panel-root="true"]')).toBeInTheDocument()
-  })
+describe('TabRouter portal container', () => {
+  it('provides a tab-scoped portal container', async () => {
+    render(<TabRouter tab={tab('a', '/a')} isActive onUrlChange={() => {}} />)
 
-  it('exposes the scoped root on an inactive tab too, so its own panel stays scoped to it', () => {
-    const { container } = render(<TabRouter tab={tab('a', '/a')} isActive={false} onUrlChange={() => {}} />)
-    expect(container.querySelector('[data-page-side-panel-root="true"]')).toBeInTheDocument()
-  })
-
-  it('does not expose a scoped root on macOS', () => {
-    knobs.isMac = true
-    const { container } = render(<TabRouter tab={tab('a', '/a')} isActive onUrlChange={() => {}} />)
-    expect(container.querySelector('[data-page-side-panel-root="true"]')).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(screen.getByTestId('router-provider')).toHaveAttribute('data-has-portal-container', 'true')
+    )
   })
 })
 
@@ -125,10 +110,10 @@ describe('TabRouter PageSidePanel portal isolation', () => {
     )
   }
 
-  // Core regression: the old global [data-page-side-panel-root] lookup resolved a panel
-  // into whichever tab was active/first-marked, so a background tab's panel surfaced
-  // inside the active tab. Per-tab context scoping means a tab's open panel can never
-  // land inside *another* tab's root.
+  // Core regression: the old global lookup resolved a panel into whichever tab was
+  // active/first-matched, so a background tab's panel surfaced inside the active tab.
+  // Per-tab context scoping means a tab's open panel can never land inside another
+  // tab's portal container.
   //
   // A tab that is hidden at mount cannot capture its own container yet — React Activity
   // defers the hidden subtree's ref/commit — so here `b` (background, never active) falls
@@ -140,8 +125,9 @@ describe('TabRouter PageSidePanel portal isolation', () => {
 
     render(<Shell activeId="a" />)
 
-    const [aRoot] = document.querySelectorAll<HTMLElement>('[data-page-side-panel-root="true"]')
+    const aRoot = document.querySelector<HTMLElement>('[data-router-url="/a"]')?.parentElement as HTMLElement
     const dialog = await screen.findByRole('dialog')
+    expect(aRoot).toBeInstanceOf(HTMLElement)
     expect(aRoot).not.toContainElement(dialog)
   })
 
@@ -150,7 +136,10 @@ describe('TabRouter PageSidePanel portal isolation', () => {
 
     // Open b's panel while b is active so b captures its own root, then switch to a.
     const { rerender } = render(<Shell activeId="b" />)
-    const [aRoot, bRoot] = document.querySelectorAll<HTMLElement>('[data-page-side-panel-root="true"]')
+    const aRoot = document.querySelector<HTMLElement>('[data-router-url="/a"]')?.parentElement as HTMLElement
+    const bRoot = document.querySelector<HTMLElement>('[data-router-url="/b"]')?.parentElement as HTMLElement
+    expect(aRoot).toBeInstanceOf(HTMLElement)
+    expect(bRoot).toBeInstanceOf(HTMLElement)
     await waitFor(() => expect(bRoot.querySelector('[role="dialog"]')).toBeInTheDocument())
 
     rerender(<Shell activeId="a" />)

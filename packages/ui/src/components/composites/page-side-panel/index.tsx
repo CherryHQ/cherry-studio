@@ -10,16 +10,14 @@ import { createPortal } from 'react-dom'
 import Scrollbar from '../scrollbar'
 
 /**
- * A page-owned floating side panel. It portals into its tab-scoped container — the
- * `usePortalContainer()` element marked as a page-side-panel root — when one is
- * present, otherwise to `document.body`, so the panel and backdrop are not clipped or
- * re-based by page layout, transformed ancestors, virtualized lists, or scroll
- * containers.
+ * A page-owned floating side panel. It portals into the nearest provided portal
+ * container when one is present, otherwise to `document.body`, so the panel and
+ * backdrop are not clipped or re-based by page layout, transformed ancestors,
+ * virtualized lists, or scroll containers.
  *
  * For edge-attached modal sheets, use the shadcn `Drawer` primitive instead.
  */
 type PageSidePanelPlacement = 'left' | 'right'
-const PAGE_SIDE_PANEL_ROOT_SELECTOR = '[data-page-side-panel-root="true"]'
 
 interface PageSidePanelProps {
   open: boolean
@@ -63,13 +61,8 @@ function PageSidePanel({
   const panelRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLElement | null>(null)
   const closedByPointerDownRef = useRef(false)
-  // Adopt the page's portal container from context, but only when it opts in as a
-  // *marked* page-side-panel root: this keeps a page-level panel out of dialog/popover
-  // content and lets macOS (whose tab roots stay unmarked) fall through to a full-window
-  // document.body portal.
   const defaultPortalContainer = usePortalContainer()
-  const scopedDefault = defaultPortalContainer?.matches(PAGE_SIDE_PANEL_ROOT_SELECTOR) ? defaultPortalContainer : null
-  const resolvedPortalContainer = scopedDefault ?? (typeof document === 'undefined' ? null : document.body)
+  const resolvedPortalContainer = defaultPortalContainer ?? (typeof document === 'undefined' ? null : document.body)
   const isScopedPortal =
     typeof document !== 'undefined' && resolvedPortalContainer !== null && resolvedPortalContainer !== document.body
 

@@ -218,9 +218,8 @@ describe('PageSidePanel', () => {
       expect(screen.getByRole('dialog')).toHaveClass('fixed')
     })
 
-    it('portals into the marked scoped container provided via context', () => {
+    it('portals into the container provided via context', () => {
       const scopedRoot = document.createElement('div')
-      scopedRoot.setAttribute('data-page-side-panel-root', 'true')
       document.body.appendChild(scopedRoot)
 
       render(
@@ -239,9 +238,8 @@ describe('PageSidePanel', () => {
       scopedRoot.remove()
     })
 
-    it('uses absolute positioning when portaled into a marked scoped container', () => {
+    it('uses absolute positioning when portaled into a context container', () => {
       const scopedRoot = document.createElement('div')
-      scopedRoot.setAttribute('data-page-side-panel-root', 'true')
       document.body.appendChild(scopedRoot)
 
       render(
@@ -256,24 +254,21 @@ describe('PageSidePanel', () => {
       scopedRoot.remove()
     })
 
-    it('ignores an unmarked context container and portals to document.body (full-window)', () => {
-      // A context container that is not marked as a page-side-panel root (e.g. macOS
-      // tab roots, or a Dialog content) must not capture the panel; it floats over the
-      // whole window via document.body instead.
-      const unmarkedRoot = document.createElement('div')
-      document.body.appendChild(unmarkedRoot)
+    it('falls back to document.body when the context container is null', () => {
+      const scopedRoot = document.createElement('div')
+      document.body.appendChild(scopedRoot)
 
       render(
-        <PortalContainerProvider container={unmarkedRoot}>
+        <PortalContainerProvider container={null}>
           <PageSidePanel open={true} onClose={vi.fn()} />
         </PortalContainerProvider>
       )
 
-      expect(unmarkedRoot.querySelector('[data-slot="page-side-panel"]')).not.toBeInTheDocument()
+      expect(scopedRoot.querySelector('[data-slot="page-side-panel"]')).not.toBeInTheDocument()
       expect(document.body.querySelector('[data-slot="page-side-panel"]')).toBeInTheDocument()
       expect(screen.getByRole('dialog')).toHaveClass('fixed')
 
-      unmarkedRoot.remove()
+      scopedRoot.remove()
     })
 
     it('applies design inset classes by default', () => {

@@ -1,6 +1,5 @@
 import { PortalContainerProvider } from '@cherrystudio/ui'
 import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
-import { isMac } from '@renderer/config/constant'
 import { routeTree } from '@renderer/routeTree.gen'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
@@ -56,12 +55,7 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
   return (
     <Activity mode={isActive ? 'visible' : 'hidden'}>
       <TabIdProvider tabId={tab.id}>
-        {/* Mark every non-mac tab root so each tab's PageSidePanel scopes into its own
-            container (active or background); macOS stays unmarked so panels use document.body. */}
-        <div
-          ref={captureTabPortalContainer}
-          data-page-side-panel-root={!isMac ? 'true' : undefined}
-          className="relative flex h-full min-h-0 w-full flex-1 flex-col">
+        <div ref={captureTabPortalContainer} className="relative flex h-full min-h-0 w-full flex-1 flex-col">
           <PortalContainerProvider container={tabPortalContainer}>
             <RouterProvider router={router} />
           </PortalContainerProvider>
