@@ -213,7 +213,7 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   useComposerTokenReconcile: () => mocks.reconcileTokens
 }))
 
-vi.mock('@renderer/hooks/agents/useAgent', () => ({
+vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgent: () => ({
     agent: {
       id: 'agent-1',
@@ -228,11 +228,11 @@ vi.mock('@renderer/hooks/agents/useAgent', () => ({
   useUpdateAgent: () => ({ updateModel: mocks.updateModel })
 }))
 
-vi.mock('@renderer/hooks/agents/useAgentModelFilter', () => ({
+vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelFilter: () => undefined
 }))
 
-vi.mock('@renderer/hooks/agents/useAgentSessionContextUsage', () => ({
+vi.mock('@renderer/hooks/agent/useAgentSessionContextUsage', () => ({
   useAgentSessionContextUsage: () => ({
     usage:
       mocks.contextUsagePercentage === null
@@ -255,11 +255,11 @@ vi.mock('@renderer/hooks/agents/useAgentSessionContextUsage', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/agents/useAgentSessionCompaction', () => ({
+vi.mock('@renderer/hooks/agent/useAgentSessionCompaction', () => ({
   useAgentSessionCompaction: () => ({ status: 'idle' })
 }))
 
-vi.mock('@renderer/hooks/agents/useSession', () => ({
+vi.mock('@renderer/hooks/agent/useSession', () => ({
   useSession: () => ({
     session: {
       id: 'session-1',
@@ -499,6 +499,7 @@ describe('AgentComposer', () => {
     expect(mocks.modelLookupId).toBe('anthropic::claude-sonnet-4-5')
     expect(mocks.runtimeHostProps?.model).toBe(model)
     expect(mocks.runtimeHostProps?.session?.agentId).toBe('agent-1')
+    expect(mocks.surfaceProps?.narrowMode).toBe(false)
   })
 
   it('passes the chat model shortcut to the model selector', () => {
@@ -545,8 +546,10 @@ describe('AgentComposer', () => {
       />
     )
 
+    // The agent forwards attachments to its runtime as file paths and reads them with its
+    // own tools, so every file type is attachable on any model (modality is irrelevant).
     expect(mocks.derivedToolState).toEqual({
-      couldAddImageFile: false,
+      couldAddImageFile: true,
       extensions: mocks.surfaceProps?.supportedExts
     })
   })
@@ -1436,6 +1439,7 @@ describe('AgentComposer', () => {
     )
 
     expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('Agent')
+    expect(mocks.surfaceProps?.narrowMode).toBe(true)
     const belowControls = screen.getByTestId('composer-below-controls')
     expect(belowControls).toHaveTextContent('Workspace 1')
     expect(belowControls).toHaveTextContent('Agent')
@@ -1463,6 +1467,7 @@ describe('AgentComposer', () => {
     expect(belowControls).not.toHaveTextContent('Workspace 1')
     expect(mocks.surfaceProps?.sendDisabled).toBe(true)
     expect(mocks.surfaceProps?.sendBlockedReason).toBe('chat.alerts.select_agent')
+    expect(mocks.surfaceProps?.narrowMode).toBe(true)
 
     act(() => {
       mocks.surfaceProps?.onTextChange('draft before agent')

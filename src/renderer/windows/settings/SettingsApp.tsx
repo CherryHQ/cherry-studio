@@ -1,8 +1,8 @@
 import { Alert, Button } from '@cherrystudio/ui'
+import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
+import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import TopViewContainer from '@renderer/components/TopView'
-import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
-import { ThemeProvider } from '@renderer/context/ThemeProvider'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import i18n from '@renderer/i18n'
@@ -11,18 +11,8 @@ import NavigationService from '@renderer/services/NavigationService'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import { normalizeSettingsPath } from '@shared/data/types/settingsPath'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
 import { type CSSProperties, useEffect, useMemo } from 'react'
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000,
-      refetchOnWindowFocus: false
-    }
-  }
-})
 
 export function SettingsWindowFatalError({ error }: { error: unknown }) {
   return (
@@ -89,27 +79,25 @@ function SettingsApp({ initialPath }: { initialPath: string }): React.ReactEleme
   useSettingsWindowFormControlText()
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <CodeStyleProvider>
-          <CommandContextKeyProvider>
-            <CommandProvider>
-              <TopViewContainer>
-                <div
-                  className={cn(
-                    'flex h-screen w-screen overflow-hidden text-foreground',
-                    settingsWindowFormControlTextClassName,
-                    isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
-                  )}
-                  style={shellStyle}>
-                  <SettingsWindowRouter initialPath={initialPath} />
-                </div>
-              </TopViewContainer>
-            </CommandProvider>
-          </CommandContextKeyProvider>
-        </CodeStyleProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <CodeStyleProvider>
+        <CommandContextKeyProvider>
+          <CommandProvider>
+            <TopViewContainer>
+              <div
+                className={cn(
+                  'flex h-screen w-screen overflow-hidden text-foreground',
+                  settingsWindowFormControlTextClassName,
+                  isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
+                )}
+                style={shellStyle}>
+                <SettingsWindowRouter initialPath={initialPath} />
+              </div>
+            </TopViewContainer>
+          </CommandProvider>
+        </CommandContextKeyProvider>
+      </CodeStyleProvider>
+    </ThemeProvider>
   )
 }
 

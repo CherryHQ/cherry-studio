@@ -3876,64 +3876,6 @@
       "partial_failure": "{{count}} resultados de búsqueda, algunas búsquedas fallaron"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "Añadir a Launchpad",
-    "add_to_sidebar": "Agregar a la barra lateral",
-    "popup": {
-      "close": "Cerrar MinApp",
-      "devtools": "Herramientas para desarrolladores",
-      "goBack": "Volver",
-      "goForward": "Avanzar",
-      "minimize": "Minimizar MinApp",
-      "openExternal": "Abrir en el navegador",
-      "open_link_external_off": "Actual: Abrir enlaces en la ventana predeterminada",
-      "open_link_external_on": "Actual: Abrir enlaces en el navegador",
-      "refresh": "Actualizar",
-      "rightclick_copyurl": "Haz clic derecho para copiar la URL"
-    },
-    "remove_from_launchpad": "Eliminar del Launchpad",
-    "remove_from_sidebar": "Quitar de la barra lateral",
-    "sidebar": {
-      "close": {
-        "title": "Cerrar"
-      },
-      "closeall": {
-        "title": "Cerrar todo"
-      },
-      "hide": {
-        "title": "Ocultar"
-      },
-      "remove_custom": {
-        "title": "Eliminar aplicación personalizada"
-      }
-    },
-    "title": "MinApp"
-  },
-  "minapps": {
-    "ant-ling": "Ant Ling",
-    "baichuan": "Baichuan",
-    "baidu-ai-search": "Búsqueda de IA de Baidu",
-    "chatglm": "ChatGLM",
-    "dangbei": "Dangbei",
-    "doubao": "Doubao",
-    "hailuo": "Hailuo",
-    "ima": "ima",
-    "metaso": "Metaso",
-    "minimax-agent": "Agente Minimax CN",
-    "minimax-global": "Agente Minimax",
-    "nami-ai": "Nami AI",
-    "nami-ai-search": "Búsqueda Nami AI",
-    "qwen": "Qwen",
-    "sensechat": "SenseChat",
-    "stepfun": "Stepfun",
-    "tencent-yuanbao": "Yuanbao",
-    "tiangong-ai": "Skywork",
-    "wanzhi": "Wanzhi",
-    "wenxin": "ERNIE",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "Xiaoyi",
-    "zhihu": "Zhihu"
-  },
   "miniApp": {
     "add_to_launchpad": "Agregar al panel de inicio",
     "add_to_sidebar": "Agregar a la barra lateral",
@@ -3944,15 +3886,13 @@
     "hide_failed": "Failed to hide mini-app",
     "pin_failed": "Error al fijar la miniaplicación",
     "popup": {
-      "close": "Cerrar la aplicación",
       "devtools": "Herramientas de desarrollo",
       "goBack": "Retroceder",
       "goForward": "Avanzar",
       "openExternal": "Abrir en el navegador",
       "open_link_external_off": "Actual: Abrir enlaces en ventana predeterminada",
       "open_link_external_on": "Actual: Abrir enlaces en el navegador",
-      "refresh": "Actualizar",
-      "rightclick_copyurl": "Copiar URL con clic derecho"
+      "refresh": "Actualizar"
     },
     "remove_from_launchpad": "Eliminar del panel de inicio",
     "remove_from_sidebar": "Eliminar de la barra lateral",
@@ -3964,17 +3904,8 @@
     },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
-      "close": {
-        "title": "Cerrar"
-      },
-      "closeall": {
-        "title": "Cerrar todo"
-      },
       "hide": {
         "title": "Ocultar"
-      },
-      "remove_custom": {
-        "title": "Eliminar aplicación personalizada"
       }
     },
     "title": "Mini programa",
@@ -3994,7 +3925,6 @@
     "minimax-agent": "MiniMax Agent CN",
     "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
     "sensechat": "SenseChat",
     "stepfun": "Stepfun",
@@ -6526,37 +6456,24 @@
     "miniApps": {
       "cache_change_notice": "Los cambios surtirán efecto cuando el número de miniaplicaciones abiertas aumente o disminuya hasta alcanzar el valor configurado",
       "cache_description": "Establece el número máximo de miniaplicaciones que pueden permanecer activas simultáneamente",
-      "cache_settings": "Configuración de caché",
       "cache_title": "Cantidad de miniaplicaciones en caché",
       "custom": {
-        "conflicting_ids": "Conflictos con IDs de aplicaciones predeterminadas: {{ids}}",
-        "duplicate_ids": "Se encontraron IDs duplicados: {{ids}}",
-        "edit_description": "Edite aquí la configuración de su aplicación pequeña personalizada. Cada aplicación debe incluir los campos id, name, url y logo.",
+        "create_title": "Crear mini aplicación personalizada",
         "edit_title": "Editar Aplicación Pequeña Personalizada",
-        "id": "ID",
-        "id_error": "El campo ID es obligatorio.",
-        "id_placeholder": "Por favor, introduzca el ID",
-        "logo": "Logo",
         "logo_file": "Cargar Archivo del Logo",
-        "logo_upload_button": "Cargar",
         "logo_upload_error": "No se pudo cargar el logo.",
         "logo_upload_label": "Cargar Logo",
-        "logo_upload_success": "El logo se cargó correctamente.",
-        "logo_url": "URL del Logo",
-        "logo_url_label": "URL del Logo",
-        "logo_url_placeholder": "Por favor, introduzca la URL del logo",
         "name": "Nombre",
-        "name_error": "El campo Nombre es obligatorio.",
         "name_placeholder": "Por favor, introduzca el nombre",
-        "placeholder": "Introduzca la configuración de la aplicación pequeña personalizada (en formato JSON)",
+        "remove_confirm_description": "¿Eliminar la miniaplicación personalizada \"{{name}}\"? Esta acción no se puede deshacer.",
+        "remove_confirm_title": "¿Eliminar miniaplicación personalizada?",
         "remove_error": "No se pudo eliminar la aplicación pequeña personalizada.",
         "remove_success": "La aplicación pequeña personalizada se eliminó correctamente.",
-        "save": "Guardar",
         "save_error": "No se pudo guardar la aplicación pequeña personalizada.",
         "save_success": "La aplicación pequeña personalizada se ha guardado correctamente.",
         "title": "Aplicación Pequeña Personalizada",
         "url": "URL",
-        "url_error": "El campo URL es obligatorio.",
+        "url_invalid": "Introduce una URL http, https o file válida.",
         "url_placeholder": "Por favor, introduzca la URL"
       },
       "disabled": "Miniaplicaciones ocultas",
@@ -6578,65 +6495,8 @@
         "title": "Filtro de área de la miniaplicación"
       },
       "reset_tooltip": "Restablecer a los valores predeterminados",
-      "title": "Configuración de miniaplicaciones",
-      "visible": "Miniaplicaciones visibles"
-    },
-    "miniapps": {
-      "cache_change_notice": "Los cambios surtirán efecto cuando la cantidad de miniaplicaciones abiertas alcance el valor establecido.",
-      "cache_description": "Establece el número máximo de miniaplicaciones activas para mantener en memoria",
-      "cache_settings": "Configuración de caché",
-      "cache_title": "Límite de caché de Mini App",
-      "custom": {
-        "conflicting_ids": "IDs conflictivos con aplicaciones predeterminadas: {{ids}}",
-        "duplicate_ids": "IDs duplicados encontrados: {{ids}}",
-        "edit_description": "Edita la configuración de la miniaplicación personalizada aquí. Cada aplicación debe incluir los campos id, name, url y logo.",
-        "edit_title": "Editar Mini App Personalizada",
-        "id": "ID",
-        "id_error": "Se requiere ID.",
-        "id_placeholder": "Ingresar ID",
-        "logo": "Logotipo",
-        "logo_file": "Cargar archivo de logotipo",
-        "logo_upload_button": "Cargar",
-        "logo_upload_error": "Error al cargar el logotipo.",
-        "logo_upload_label": "Cargar Logo",
-        "logo_upload_success": "Logo subido correctamente.",
-        "logo_url": "URL del logotipo",
-        "logo_url_label": "URL del logotipo",
-        "logo_url_placeholder": "Introduce la URL del logo",
-        "name": "Nombre",
-        "name_error": "El nombre es obligatorio.",
-        "name_placeholder": "Introduce nombre",
-        "placeholder": "Ingresar configuración personalizada de mini app (formato JSON)",
-        "remove_error": "Error al eliminar la mini aplicación personalizada.",
-        "remove_success": "Mini aplicación personalizada eliminada correctamente.",
-        "save": "Guardar",
-        "save_error": "Error al guardar la mini aplicación personalizada.",
-        "save_success": "Mini aplicación personalizada guardada correctamente.",
-        "title": "Personalizado",
-        "url": "URL",
-        "url_error": "Se requiere la URL.",
-        "url_placeholder": "Introducir URL"
-      },
-      "disabled": "Miniaplicaciones Ocultas",
-      "display_title": "Configuración de visualización de la Mini App",
-      "empty": "Haz clic en el icono de ocultar en una aplicación de la izquierda y se moverá aquí",
-      "hide_app": "Ocultar {{name}}",
-      "open_link_external": {
-        "title": "Abrir enlaces de nueva ventana en el navegador"
-      },
-      "region": {
-        "auto": "Detección automática",
-        "cn": "China",
-        "description": "Filtrado de mini-programas no compatibles según la región",
-        "global": "Global",
-        "title": "Filtro de Mini Programa"
-      },
-      "reset_tooltip": "Restablecer a los valores predeterminados",
-      "show_app": "Mostrar {{name}}",
-      "sidebar_description": "Mostrar miniaplicaciones activas en la barra lateral",
-      "sidebar_title": "Barra lateral: Miniaplicaciones activas en pantalla",
       "title": "Configuración de Mini Apps",
-      "visible": "Miniaplicaciones Visibles"
+      "visible": "Miniaplicaciones visibles"
     },
     "model": "Modelo predeterminado",
     "models": {
@@ -6787,6 +6647,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
+        "sync_apply_default_in_use": "Algunos modelos están en uso como modelo predeterminado y no se pueden eliminar.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",
@@ -7108,7 +6969,6 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Dominio de aceleración",
-          "backup": "Dominio de respaldo",
           "international": "Dominio internacional"
         }
       },

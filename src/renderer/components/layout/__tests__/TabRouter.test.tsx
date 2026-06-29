@@ -23,7 +23,7 @@ const routerMocks = vi.hoisted(() => ({
   subscribe: vi.fn(() => vi.fn())
 }))
 
-vi.mock('@renderer/config/constant', () => ({
+vi.mock('@renderer/utils/platform', () => ({
   get isMac() {
     return knobs.isMac
   }

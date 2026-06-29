@@ -8,6 +8,7 @@ import type { JobHandler } from '@main/core/job/types'
 import type { KnowledgeLockManager } from '../KnowledgeLockManager'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId } from '../types'
 import { cancelActiveKnowledgeSubtreeJobs, purgeKnowledgeSubtreeWithinLock } from '../utils/cleanup/subtreePurge'
+import { reclaimKnowledgeIndexSpace } from '../utils/cleanup/vectorCleanup'
 import type { KnowledgeDeleteSubtreePayload } from './jobTypes'
 
 const logger = loggerService.withContext('Knowledge:DeleteSubtreeJobHandler')
@@ -51,6 +52,9 @@ export function createDeleteSubtreeJobHandler(
           await knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true })
         ).filter((item) => item.status === 'deleting')
         await purgeKnowledgeSubtreeWithinLock(base, subtreeItems, { baseId, jobId: ctx.jobId })
+        // Return the freed pages to the OS (best-effort, large deletes only). Inside the
+        // lock so the VACUUM never races an indexer write on this base's index.
+        await reclaimKnowledgeIndexSpace(base)
       })
 
       reportKnowledgeProgress(ctx, 100, { stage: 'done' })

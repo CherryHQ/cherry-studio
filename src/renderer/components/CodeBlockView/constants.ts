@@ -15,3 +15,8 @@ export const SPECIAL_VIEW_COMPONENTS = {
   dot: GraphvizPreview,
   graphviz: GraphvizPreview
 } as const
+
+/**
+ * 折叠状态下代码块的最大高度（px）
+ */
+export const MAX_COLLAPSED_CODE_HEIGHT = 350
