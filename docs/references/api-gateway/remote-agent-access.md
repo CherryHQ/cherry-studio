@@ -1,0 +1,381 @@
+# Remote Agent Access (Design)
+
+> **Status: design proposal — not yet implemented.**
+> [`README.md`](./README.md) documents the **as-built** API Gateway (OpenAI/Anthropic
+> compatibility for local SDK clients). This document specifies a **proposed
+> extension**: reaching a *running agent session* from a user's own mobile client,
+> over a transport that works self-hosted and cloud-hosted from one substrate.
+> Symbols marked **(exists)** are present today and reused as-is; everything else
+> is new and described in the future tense. The companion working notes live in
+> `.context/remote-agent-access-design.md`.
+
+## Goal
+
+Let a user open their own mobile app and **see and drive an agent session that is
+running on their desktop** — read the live transcript, send prompts, and approve
+tool calls — without learning VPN/tunnel/networking concepts.
+
+The agent keeps running **in the Electron desktop** (main process); the cloud is
+**relay only** (it forwards bytes, it does not execute agents). The same relay
+codebase runs as the user's self-hosted instance or as our managed service.
+
+## Scope & locked decisions
+
+- **Target is the agent**, not the gateway's OpenAI/Anthropic chat endpoints.
+- **Own mobile client** (Expo / React Native). Mobile rendering is **out of scope
+  here**; the hand-off boundary is the wire contract (`@shared/ai/transport`).
+- **Cloud = relay only.** The agent runs in the Electron desktop backend, so
+  **the desktop must be online**; when it is not, the mobile client shows
+  "cannot connect". There is no architectural fallback (a "keep-awake" desktop
+  option already exists).
+- **Self-hostable.** The relay is one Go codebase; our cloud is a managed instance
+  of it.
+- **Remote tool approval is supported** — and is the highest-stakes capability
+  (see [Security model](#security-model)).
+- **Non-goals (v1):** arbitrary TCP/UDP/RDP/VNC, full VPN, P2P, multi-user
+  collaboration, an E2E-encryption guarantee on the relay path.
+
+## Architecture
+
+Two layers. The upper layer never forks; the lower layer is pluggable.
+
+```
+Expo / RN mobile client
+        │  WSS  (speaks @shared/ai/transport)
+        ▼
+  Reachability provider  ──►  { baseUrl, sessionToken, scope }
+        │
+   ┌────┴───────────────────────────────────────────────┐
+   │ ① direct / BYO-URL (no relay)                       │
+   │     LAN · Tailscale/WireGuard/ZeroTier · cloudflared │
+   │ ② relay (reverse tunnel) — one Go codebase           │
+   │     hosted (+ Passport)  ·  self-host (+ deploy token)│
+   └────┬───────────────────────────────────────────────┘
+        ▼
+  Desktop apiGateway  ── agent transport surface (WS) ──►  AiStreamManager
+        │                                                    (exists)
+        ▼
+  Headless agent loop in main process  (exists: startAgentSessionRun)
+```
+
+- **Invariant — the agent transport surface (Stage 1).** A WebSocket surface on
+  the existing `apiGateway` that carries the **already-existing**
+  `@shared/ai/transport` protocol. Every reachability mode hits the *same* WS
+  server (`ws://desktop/v1/agent/...`); only how the mobile becomes able to reach
+  it differs.
+- **Seam.** A reachability provider exposes only `{ baseUrl, sessionToken, scope }`
+  to the rest of the system. Tailscale concepts (tailnet/ACL) and Passport
+  concepts (account) never leak past it.
+
+## Reuse map
+
+The agent's I/O machinery already exists; the work is an HTTP/WS edge plus a relay.
+
+| Capability | Status | Symbol |
+|---|---|---|
+| Drive a turn | **exists** | `AiStreamOpenRequest` (submit / regenerate) |
+| Attach + replay | **exists** | `AiStreamAttachRequest` → `AiStreamAttachResponse` (`bufferedChunks` / terminal `finalMessages`) |
+| Live chunk / done / error | **exists** | `StreamChunkPayload` / `StreamDonePayload` / `StreamErrorPayload` |
+| Tool approval | **exists** | `AiToolApprovalRespondRequest` / `ApprovalDecision` |
+| Abort | **exists** | `AiStreamAbortRequest` |
+| Topic status (incl. awaiting-approval) | **exists** | `TopicStreamStatus` |
+| Non-renderer HTTP listener | **exists** | `SseListener` (an equal `AiStreamManager` subscriber) |
+| Fan-out + buffer + grace + background-continue | **exists** | `AiStreamManager` (`maxBufferChunks`, grace period, `backgroundMode:'continue'`) |
+| Open / attach / abort / approve logic | **exists** | `ai.*` IPC handlers (`src/main/ipc/handlers/ai.ts`) |
+| Headless agent execution | **exists** | `startAgentSessionRun()` |
+| Tool-approval join point | **exists** | `ToolApprovalRegistry` + `AiService.respondToolApproval()` |
+| Session list / history | **exists** | DataApi `/agent-sessions`, `/agent-sessions/:id/messages` (`src/main/data/api/handlers/agentSessions.ts`) |
+| HTTP server | **exists** | `apiGateway` (Elysia + `@elysia/node`, `127.0.0.1:23333`) |
+| **WS agent surface** | **new** | `WebSocketListener` + `/v1/agent/*` routes |
+| **QR pairing + capability token** | **new** | `/v1/pair/*` routes + token mint/verify |
+| **Relay (reverse tunnel)** | **new** | separate Go project (`frps`/`frpc`-style) |
+
+`AiStreamManager.dispatch(listener, openRequest)` is **already listener-generic**
+(the IPC handler just happens to pass a `WebContentsListener`); a `WebSocketListener`
+slots into the same call. `attach(wc, req)` is currently `WebContents`-typed and
+needs a `StreamListener`-typed variant — the one required refactor.
+
+## Reachability modes
+
+### ① Direct / BYO public URL (no relay)
+
+The mobile reaches the desktop's `apiGateway` at *some* URL the user controls:
+LAN, a mesh VPN (Tailscale / WireGuard / ZeroTier), or a BYO tunnel
+(cloudflared / ngrok / the user's own reverse proxy). The code only needs to
+support **an arbitrary `baseUrl` + a desktop-self-signed capability token** — which
+is required for Tailscale anyway, so cloudflared etc. fall out for free. Pairing
+and the token are handled locally: the **desktop is its own control plane** (it
+runs the pairing endpoints and self-signs the token). The relay control protocol
+is not used.
+
+> **cloudflared / BYO tunnel is convenience, not privacy.** Such tunnels terminate
+> TLS at a third-party edge, putting a third party in the **plaintext and
+> tamper** path (including tool-approval messages — the token authenticates the
+> channel, not each message). Same trust profile as our hosted relay, with the
+> trusted party being Cloudflare. The privacy answer remains **Tailscale/WireGuard
+> (true E2E)**. Do not advertise cloudflared mode as E2E. A one-click cloudflared
+> launcher (binary via `BinaryManager` + a quick tunnel) is a reasonable demo
+> affordance, but additive — it does not replace our relay on the hosted path.
+
+### ② Relay (reverse tunnel)
+
+For users with no shared network. One Go codebase, two operators:
+
+- **Hosted** — we operate it; identity via **Passport** (the cloud account).
+- **Self-host** — the user runs it (`docker compose up`); identity via a
+  **deploy token**.
+
+See [Control-layer contract](#control-layer-contract).
+
+## Exposed endpoints (agent transport surface)
+
+New routes on `apiGateway`. **Two auth domains on one server:** the existing
+OpenAI/Anthropic routes keep the global `cs-sk` key; the new `/v1/agent/*` and
+`/v1/pair/*` routes use the **capability token** (a JWT — `Authorization: Bearer`
+or `?access_token=`, both already supported by `@elysia/bearer`; the query form is
+used for the WS handshake). Each route additionally checks the token's `cap` bits
+and `session_id` binding.
+
+### A. Live channel (WebSocket — the core)
+
+`GET /v1/agent/sessions/:sessionId/stream` (WS upgrade, `?access_token=…`).
+One socket carries everything. Envelope is `{ type, payload }` where **`payload`
+reuses `@shared/ai/transport` types verbatim**:
+
+| Dir | `type` | `payload` | Maps to | cap |
+|---|---|---|---|---|
+| on connect | `attach` | `AiStreamAttachResponse` | `AiStreamManager.attach` (generalized) | view |
+| ↓ | `chunk` / `done` / `error` | `StreamChunkPayload` / `StreamDonePayload` / `StreamErrorPayload` | `WebSocketListener` | view |
+| ↑ send prompt | `open` | `AiStreamOpenRequest` | `dispatch(wsListener, req)` | send |
+| ↑ stop | `abort` | `AiStreamAbortRequest` | `abort(topicId)` | send |
+| ↑ approve tool | `approve` | `AiToolApprovalRespondRequest` | `respondToolApproval(payload, wsListener)` | **approve** |
+| ↕ heartbeat | `ping` / `pong` | — | app-level (required on mobile networks) | — |
+
+Connecting *is* attach; closing *is* detach. The first server frame replays
+buffered/terminal state, then live chunks flow.
+
+### B. Agent data (REST — reuse the data layer)
+
+| Endpoint | cap |
+|---|---|
+| `GET /v1/agent/sessions/:sessionId` | view |
+| `GET /v1/agent/sessions/:sessionId/messages?before=&limit=` | view |
+
+### C. QR device pairing (REST)
+
+See [QR device pairing](#qr-device-pairing) for the flow and why this is **not**
+RFC 8628 (only its safety mechanics are borrowed).
+
+| Endpoint | Caller | Purpose |
+|---|---|---|
+| `POST /v1/pair/sessions` | desktop (local) | start pairing → `pairing_code` + QR (`verification_uri_complete`) + `confirm_code` + TTL |
+| `POST /v1/pair/sessions/:code/claim` | phone | submit device info → `confirm_code` (matched on both screens) + requested scope |
+| `POST /v1/pair/sessions/:code/approve` | desktop (local, authed) | user grants scope (view/send/approve) |
+| `POST /v1/pair/sessions/:code/token` | phone (poll) | once approved → **capability token + baseUrl** |
+
+### D. Sharing control (REST — visible state + kill switch)
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /v1/agent/shares` | active phones / sessions / caps / duration |
+| `DELETE /v1/agent/shares/:id` | revoke a share |
+
+### Access control — no app-level guard, no separate listener
+
+The new routes **co-locate** on `apiGateway`. "Who may reach the endpoint" is
+delegated to the layer that owns reachability:
+
+- **direct / Tailscale** → the **tailnet ACL** (the boundary the user chose; the
+  app does not add its own guard, and the powerful `cs-sk` routes being reachable
+  on a trusted tailnet is acceptable — they still require the key).
+- **hosted relay** → the relay **forwards only `/v1/agent/*` + `/v1/pair/*`** by
+  construction, so the `cs-sk` surface never leaves.
+- **BYO tunnel** → the user scopes their own tunnel (documented, not enforced).
+
+## Control-layer contract
+
+Relevant only to reachability mode ②. **Three independent protocol surfaces;** the
+relay implements surfaces 1–2 and treats surface 3 as opaque payload. Modeled on
+**frp** (Go, the direct analogue), cross-checked against ngrok/cloudflared.
+
+```
+mobile WSS → relay (Go) → [yamux over TLS] → desktop tunnel client (Go) → localhost apiGateway WS
+```
+
+Because the desktop tunnel client is **also Go and ships in the same project**
+(`frps`/`frpc` model), surface 1 is **Go↔Go** and needs no cross-language schema.
+The Electron app only spawns the client binary (acquired via `BinaryManager`) with
+a few flags (`relay URL`, `token`, local port).
+
+### Surface 1 — tunnel control (desktop ↔ relay)
+
+- **Connection model.** Desktop dials **one** outbound TLS connection, multiplexed
+  with **yamux**. The **relay opens a stream to the desktop** per incoming mobile
+  connection (ngrok/yamux model — simpler than frp's `ReqWorkConn` dial-back); the
+  desktop client pipes it to the local `apiGateway` WS.
+- **No `NewProxy`.** There is exactly one target (the apiGateway WS); the desktop
+  registers itself and every stream maps to that one endpoint.
+- **Control stream.** One dedicated yamux stream carries JSON control messages
+  (frp-v1 framing: `1 type byte | 8-byte BE length | JSON`, or newline-delimited
+  JSON). Minimal set: `Register`/`RegisterResp` (carries tunnel-auth token +
+  `desktop_device_id` + `resume_id`; relay returns the assigned UUID),
+  `OpenSession` (relay→desktop: new mobile stream header `session_id`, then raw
+  pipe), `CloseSession`, `Ping`/`Pong`.
+- **Tunnel auth.** `HMAC-SHA256(token, timestamp)` + constant-time compare +
+  freshness window. This authenticates the **tunnel identity** and is distinct
+  from the capability token (surface 3).
+- **Routing.** Per-desktop **UUID** (cloudflared model); mobile addresses
+  `wss://relay/<desktop-uuid>`. Hosted: a UUID is routable only within its owning
+  Passport account (multi-tenant isolation); self-host collapses to one account.
+- **Reconnect.** frp's **RunID** resumption — desktop persists `resume_id`, the
+  relay atomically replaces the stale session, routing stays stable.
+- **Heartbeat.** yamux keepalive suffices on this leg (frp disables app-ping when
+  muxed).
+- **WebSocket.** yamux streams are raw byte streams, so the mobile's WS upgrade
+  passes through to `apiGateway` for a normal handshake — **avoiding cloudflared's
+  HTTP/2 `101` rewrite** (ngrok model).
+
+### Surface 2 — QR pairing (relay brokers)
+
+The relay/control-plane serves the pairing endpoints in hosted mode; the desktop's
+`apiGateway` serves the same contract in self-host mode. See
+[QR device pairing](#qr-device-pairing).
+
+### Surface 3 — capability token (opaque to relay)
+
+See [Capability token](#capability-token). The relay never holds a signing key, so
+it can broker but cannot forge or escalate.
+
+## QR device pairing
+
+This is **not** RFC 8628, though it borrows 8628's safety mechanics (one-time
+short-lived code, polling, matching-code anti-phishing). It is a **QR device
+pairing** flow — the mirror of WhatsApp Web / Discord QR login:
+
+| Role | WhatsApp Web | Here |
+|---|---|---|
+| displays QR | web (new client) | **desktop (authority + resource)** |
+| scans QR | phone (authority) | **phone (new client)** |
+| issues credential to | the displayer | **the scanner (phone)** |
+
+Issuing the token to the phone is **not an anti-pattern** — the phone is genuinely
+the client that will access the resource. The safety invariant that must hold,
+regardless of which side displays vs. scans, is:
+
+> **The authority (the side that owns the resource) explicitly approves before any
+> credential is minted; the QR carries only a one-time pairing ticket, never a
+> credential.**
+
+Our flow satisfies it: the QR carries a `pairing_code` (a one-time, 60–300 s
+ticket), the phone claims, the **desktop user approves** (with a matching code
+shown on both screens — anti-phishing), and only then is the token issued. The
+genuine anti-patterns — token-in-the-QR (scan = instant access) and
+no-authority-confirmation (whoever scans gets in) — are both avoided.
+
+**Hardening (not a v1 blocker).** Delivering the token to the phone via
+`/token` has the standard AiTM-theft surface; bind the token to `mobile_device`
+and keep the TTL short. Stronger: **proof-of-possession** — the phone generates a
+keypair at claim time and the token binds to its public key, so a stolen token is
+useless without the phone's private key.
+
+## Capability token
+
+Short-lived, scoped, **verified offline by the desktop** without trusting the relay.
+
+- **Format.** Asymmetric claims token — **JWT (EdDSA/ES256, `alg` pinned to an
+  allow-list)** for ecosystem reach (Go + TS), or **PASETO v4.public (Ed25519)** if
+  preferred. **Not** Macaroons (shared-secret breaks relay-free verification);
+  **not** default-config JWT (alg-confusion).
+- **Claims.** `sub` (user), `desktop_device`, `mobile_device`, `session_id`,
+  `cap` (view/send/approve bits), `aud`, `iss`, `iat`, `exp`, `nbf`, `jti`.
+- **Who signs.** Hosted → **Passport** signs (relay only transports). Self-host →
+  the **desktop self-signs** (it is its own root of trust; the phone learns the
+  desktop's public key during pairing).
+- **How the desktop verifies (without trusting the relay).** Verify signature
+  against an independently-trusted public key (pinned in the build / a Passport
+  JWKS endpoint — **never** the relay) → check `exp`/`nbf`/`aud`/`iss` → check the
+  `desktop_device`/`session_id` binding matches *this* desktop and session → check
+  `cap` bits → (optionally, when online) check `jti` deny-list.
+- **TTL & revocation.** Access token 5–15 min, refreshable; pairing ticket
+  60–300 s, one-time. Short TTL is the primary revocation; an optional `jti`
+  deny-list (entry TTL = token's remaining life) gives surgical revocation when the
+  desktop is online.
+
+## Security model
+
+- **The relay sees plaintext.** It terminates/forwards the WS; it can read content
+  and, within an authenticated session, could tamper with messages — **including
+  tool-approval messages** (the token authenticates the channel, not each frame).
+  **Do not claim E2E** on any relay/tunnel path.
+- **Remote tool approval raises the stakes.** Approving remotely = authorizing an
+  action on the user's machine. Therefore: `approve` is a **separate capability
+  bit** (a view-only share cannot approve); the desktop **independently verifies**
+  the token's scope on every privileged action (the relay's word is never trusted);
+  the desktop shows what is being approved, keeps an audit trail, and retains a
+  kill switch.
+- **Scope is enforced at the desktop, not the relay.** The relay is agent-agnostic
+  and cannot parse the protocol to gate `approve`; the desktop is the authority.
+- **True E2E is the self-host/mesh answer.** Tailscale/WireGuard give real
+  end-to-end encryption (the mesh's own relays cannot decrypt). Hosted/cloudflared
+  do not — route privacy-critical users to self-host/mesh.
+- **Visible state + revoke.** The desktop always surfaces which device is
+  connected to which session, for how long, with one-tap disconnect.
+
+## Schema & code generation
+
+**Single IDL = Zod 4** (repo convention); `z.toJSONSchema()` is native (no
+`zod-to-json-schema` bridge). `apiGateway` already emits OpenAPI from Zod via
+`@elysia/openapi` (`mapJsonSchema: { zod: z.toJSONSchema }`). **Protobuf is not
+used** — the control plane is small and low-frequency, the data plane is opaque
+bytes, and JSON is debuggable on the wire (frp's control messages are JSON too).
+
+| Surface | Cross-language? | Schema |
+|---|---|---|
+| Surface 1 (tunnel control) | no (Go↔Go, same project) | internal Go structs |
+| Surface 2 (pairing, HTTP) | yes (Go relay / TS apiGateway / Expo) | Zod → **OpenAPI** → Go `oapi-codegen` |
+| Surface 3 (token claims) | yes (Go/Passport or TS signs; TS verifies) | Zod → **JSON Schema** → `go-jsonschema`/quicktype |
+| Agent surface endpoints | TS serves, Expo consumes (relay opaque) | Zod → OpenAPI |
+| TS → Go binary config | a few flags | not a schema |
+
+Upgrade path (YAGNI): if a surface grows large/high-frequency, **TypeSpec** can
+emit OpenAPI + JSON Schema + protobuf from one source.
+
+## Build sequence
+
+The first real demo needs **no relay** — it retires the core risk locally.
+
+1. **Agent transport surface (Stage 1)** — add the WS `/v1/agent/*` routes +
+   `WebSocketListener`; generalize `AiStreamManager.attach` to a `StreamListener`.
+   **Verify with `wscat` on localhost**: attach → replay, `open`, `approve`. Zero
+   networking.
+2. **Direct demo** — reach Stage 1 over LAN/Tailscale; validate the end-to-end
+   product feel (and the Expo client) at near-zero cost.
+3. **Relay + Passport (hosted)** — the growth path; validates the seam and the
+   relay control contract.
+4. **Tailscale self-host** — nearly free once Stage 1 exists.
+5. **Relay + deploy token (self-host)** — reuse the relay, swap the auth adapter.
+
+## To confirm during implementation
+
+- `AiStreamManager.attach` gains a `StreamListener`-typed variant (`dispatch` is
+  already generic).
+- Agent `sessionId` → stream `topicId` mapping (the `open` response's
+  `blocked: 'agent-session-workspace'` variant confirms `open` supports agent
+  sessions; the key relationship needs checking).
+- JWT vs PASETO for the capability token.
+- One token (mobile presents it to both relay-for-routing and desktop-for-auth)
+  vs. two tokens (a relay-session credential decoupled from the capability token).
+  v1 leans single-token; split if reconnect churn from the short TTL hurts.
+- Mobile client native-vs-PWA — **out of scope here**, decided by the mobile team;
+  the contract is `@shared/ai/transport` either way.
+
+## Related references
+
+- [API Gateway Reference](./README.md) — the as-built gateway this extends;
+  `SseListener`, the two-auth model, Elysia/Zod/OpenAPI wiring.
+- [AI Reference](../ai/README.md) — `AiStreamManager`, the `StreamListener` model,
+  `@shared/ai/transport`, `ToolApprovalRegistry`, `startAgentSessionRun`.
+- [Binary Manager](../binary-manager/README.md) — acquiring the Go tunnel-client
+  binary.
+- [Lifecycle](../lifecycle/README.md) — `ApiGatewayService`, `Activatable`.
+- Working notes: `.context/remote-agent-access-design.md`.

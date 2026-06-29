@@ -301,6 +301,9 @@ streaming `buildStreamErrorFrame`.
 
 ## Related references
 
+- [Remote Agent Access](./remote-agent-access.md) — **design proposal** extending
+  this gateway to reach a running agent session from a mobile client (WS agent
+  surface, QR pairing, capability token, reverse-tunnel relay).
 - [AI Reference](../ai/README.md) — `AiStreamManager`, `streamPrompt`,
   `UIMessageChunk`, `buildAgentParams` / `CallOverrides`, the listener model
   (`SseListener`, `WebContentsListener`).
