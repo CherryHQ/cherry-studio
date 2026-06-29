@@ -570,6 +570,19 @@ describe('KnowledgeBaseService', () => {
         })
       ).rejects.toThrow()
 
+      // A completed BM25-only base (null embedding model + dimensions) must be
+      // lexical-only; a non-bm25 search mode is rejected by the DB CHECK, mirroring
+      // the entity-schema invariant.
+      await expect(
+        seedKnowledgeBase({
+          embeddingModelId: null,
+          dimensions: null,
+          status: 'completed',
+          error: null,
+          searchMode: 'hybrid'
+        })
+      ).rejects.toThrow()
+
       await expect(
         seedKnowledgeBase({
           id: FAILED_NULL_ERROR_BASE_ID,
