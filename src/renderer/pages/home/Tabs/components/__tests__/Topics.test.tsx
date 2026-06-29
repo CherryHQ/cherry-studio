@@ -1239,13 +1239,15 @@ describe('Topics', () => {
     expect(screen.queryByText(/^Prompt:/)).not.toBeInTheDocument()
   })
 
-  it('keeps inactive topic stream indicator in the action slot and opens fulfilled topics', () => {
+  it('keeps inactive topic stream indicator visible and opens fulfilled topics', () => {
     setTopicStreamCacheStatus('topic-c', 'pending')
     let view = renderTopicList()
     let setActiveTopic = view.setActiveTopic
 
     let topicRow = getTopicRow('Gamma topic')
-    let indicator = topicRow.querySelector('[data-testid="topic-stream-indicator"] .animation-pulse')
+    let indicatorRoot = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
+    let indicator = indicatorRoot?.querySelector('.animation-pulse')
+    expect(indicatorRoot).not.toHaveClass('absolute')
     expect(indicator).toHaveClass('bg-(--color-warning)')
     expect(topicRow.querySelector('[data-deleting]')).not.toBeInTheDocument()
     expect(topicStreamStatusMocks.markSeen).not.toHaveBeenCalled()
@@ -1256,7 +1258,9 @@ describe('Topics', () => {
     setActiveTopic = view.setActiveTopic
 
     topicRow = getTopicRow('Gamma topic')
-    indicator = topicRow.querySelector('[data-testid="topic-stream-indicator"] span')
+    indicatorRoot = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
+    indicator = indicatorRoot?.querySelector('span')
+    expect(indicatorRoot).not.toHaveClass('absolute')
     expect(indicator).toHaveClass('bg-(--color-success)')
     expect(indicator).not.toHaveClass('animation-pulse')
     expect(topicRow.querySelector('[data-deleting]')).not.toBeInTheDocument()
@@ -1272,6 +1276,23 @@ describe('Topics', () => {
     topicRow = getTopicRow('Gamma topic')
     expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).not.toBeInTheDocument()
     expect(topicRow.querySelector('[aria-label="Pin Conversation"]')).toBeInTheDocument()
+  })
+
+  it('positions inactive topic stream indicators at the far right in the old layout and hides them on hover', () => {
+    setTopicStreamCacheStatus('topic-c', 'pending')
+    renderTopicList({
+      activeTopic: createRendererTopic({ id: 'topic-a', assistantId: 'assistant-1', name: 'Alpha topic' }),
+      assistantIdFilter: 'assistant-2',
+      presentation: 'right-panel'
+    })
+
+    const topicRow = getTopicRow('Gamma topic')
+    const indicator = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
+
+    expect(indicator).toBeInTheDocument()
+    expect(indicator).toHaveClass('absolute', 'right-1.5', 'group-hover:opacity-0')
+    expect(indicator?.querySelector('span')).toHaveClass('animation-pulse', 'bg-(--color-warning)')
+    expect(within(topicRow).getByLabelText('Delete')).toBeInTheDocument()
   })
 
   it('marks only completed active topic streams as seen', () => {

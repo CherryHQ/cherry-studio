@@ -1223,7 +1223,7 @@ interface TopicListBodyProps {
   variant: TopicListBodyVariant
 }
 
-type TopicRowSharedProps = Omit<TopicListBodyProps, 'isRightPanel' | 'listRef' | 'variant'>
+type TopicRowSharedProps = Omit<TopicListBodyProps, 'listRef' | 'variant'>
 
 function TopicListBody(props: TopicListBodyProps) {
   const { t } = useTranslation()
@@ -1259,6 +1259,7 @@ function TopicListBody(props: TopicListBodyProps) {
       exportMenuOptions,
       isNewlyRenamed,
       isRenaming,
+      isRightPanel,
       notesPath,
       onAutoRename,
       onClearMessages,
@@ -1279,6 +1280,7 @@ function TopicListBody(props: TopicListBodyProps) {
       exportMenuOptions,
       isNewlyRenamed,
       isRenaming,
+      isRightPanel,
       notesPath,
       onAutoRename,
       onClearMessages,
@@ -1329,6 +1331,7 @@ function TopicRow({
   exportMenuOptions,
   isNewlyRenamed,
   isRenaming,
+  isRightPanel,
   notesPath,
   onAutoRename,
   onClearMessages,
@@ -1361,10 +1364,13 @@ function TopicRow({
   const showLeadingSlot = displayMode !== 'time' && !topic.pinned
   const isConfirmingDeletion = deletingTopicId === topic.id
   const canDeleteTopic = topicsLength > 1 && !topic.pinned
-  const showDeleteOrStreamAction = hasTopicStreamIndicator || canDeleteTopic
-  // Reserve right-padding for the title sized to the hover actions and stream indicator.
+  const showDetachedStreamIndicator = isRightPanel && hasTopicStreamIndicator
+  const showInlineStreamIndicator = hasTopicStreamIndicator && !showDetachedStreamIndicator
+  const showDeleteOrStreamAction = showInlineStreamIndicator || canDeleteTopic
+  // Reserve right-padding for the title sized to the resting stream indicator and hover actions.
   const trailingActionCount = (showPinAction ? 1 : 0) + (showDeleteOrStreamAction ? 1 : 0)
-  const topicTrailingActionPaddingClassName =
+  const topicTrailingActionPaddingClassName = cn(
+    showDetachedStreamIndicator && 'pr-7',
     trailingActionCount >= 3
       ? 'group-focus-within:pr-16 group-hover:pr-16 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-16'
       : trailingActionCount === 2
@@ -1372,6 +1378,7 @@ function TopicRow({
         : trailingActionCount === 1
           ? 'group-focus-within:pr-7 group-hover:pr-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-7'
           : ''
+  )
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
   const startInlineRename = useCallback(() => actions.startRename(topic.id), [actions, topic.id])
   const startMenuRename = useCallback(() => setRenameDialogOpen(true), [])
@@ -1422,7 +1429,10 @@ function TopicRow({
           {topicName}
         </ResourceList.ItemTitle>
       )}
-      <ResourceList.ItemActions active={hasTopicStreamIndicator || isConfirmingDeletion}>
+      {showDetachedStreamIndicator && (
+        <TopicStreamIndicator detached isFulfilled={isTopicStreamFulfilled} isPending={isTopicStreamPending} />
+      )}
+      <ResourceList.ItemActions active={showInlineStreamIndicator || isConfirmingDeletion}>
         {showPinAction && (
           <Tooltip title={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
             <ResourceList.ItemAction
@@ -1436,7 +1446,7 @@ function TopicRow({
             </ResourceList.ItemAction>
           </Tooltip>
         )}
-        {hasTopicStreamIndicator ? (
+        {showInlineStreamIndicator ? (
           <TopicStreamIndicator isFulfilled={isTopicStreamFulfilled} isPending={isTopicStreamPending} />
         ) : canDeleteTopic ? (
           <Tooltip title={t('common.delete')} delay={500}>
@@ -1479,33 +1489,33 @@ function TopicRow({
   )
 }
 
-const TopicStreamIndicator = ({ isFulfilled, isPending }: { isFulfilled: boolean; isPending: boolean }) => {
+const TopicStreamIndicator = ({
+  detached = false,
+  isFulfilled,
+  isPending
+}: {
+  detached?: boolean
+  isFulfilled: boolean
+  isPending: boolean
+}) => {
   const dotClassName = cn(
     'size-1.25 rounded-full',
     isPending ? 'animation-pulse bg-(--color-warning)' : 'bg-(--color-success)'
   )
 
-  if (isPending) {
-    return (
-      <span
-        aria-hidden="true"
-        className="flex size-5 shrink-0 items-center justify-center"
-        data-testid="topic-stream-indicator">
-        <span className={dotClassName} />
-      </span>
-    )
-  }
+  if (!isPending && !isFulfilled) return null
 
-  if (isFulfilled) {
-    return (
-      <span
-        aria-hidden="true"
-        className="flex size-5 shrink-0 items-center justify-center opacity-100 group-hover:opacity-100"
-        data-testid="topic-stream-indicator">
-        <span className={dotClassName} />
-      </span>
-    )
-  }
-
-  return null
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        'flex size-5 shrink-0 items-center justify-center',
+        detached &&
+          '-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 opacity-100 transition-opacity duration-150 group-focus-within:opacity-0 group-hover:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0',
+        !detached && isFulfilled && 'opacity-100 group-hover:opacity-100'
+      )}
+      data-testid="topic-stream-indicator">
+      <span className={dotClassName} />
+    </span>
+  )
 }
