@@ -132,7 +132,7 @@ const AgentPage = () => {
   const [, setLastUsedSessionId] = usePersistCache('ui.agent.last_used_session_id')
   const [lastUsedAgentId, setLastUsedAgentId] = usePersistCache('ui.agent.last_used_agent_id')
   const [lastUsedWorkspaceId, setLastUsedWorkspaceId] = usePersistCache('ui.agent.last_used_workspace_id')
-  const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
+  const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const lastRecordedRecentSessionRef = useRef<string | undefined>(undefined)
   const [sessionRevealRequest, setSessionRevealRequest] = useState<ResourceListRevealRequest>()
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
@@ -247,16 +247,11 @@ const AgentPage = () => {
     const signature = `${activeSession.id}:${activeSession.name}`
     if (lastRecordedRecentSessionRef.current === signature) return
 
-    const currentRecentItems = recentItems ?? []
-    const nextItems = upsertGlobalSearchRecentEntry(
-      currentRecentItems,
-      createRecentSessionEntryFromSession(activeSession)
-    )
     lastRecordedRecentSessionRef.current = signature
-    if (nextItems !== currentRecentItems) {
-      setRecentItems(nextItems)
-    }
-  }, [activeSession, isMessageOnlyView, recentItems, setRecentItems])
+    setRecentItems((prev) =>
+      upsertGlobalSearchRecentEntry(prev ?? [], createRecentSessionEntryFromSession(activeSession))
+    )
+  }, [activeSession, isMessageOnlyView, setRecentItems])
 
   useEffect(() => {
     if (activeSession) lastVisibleSessionRef.current = activeSession

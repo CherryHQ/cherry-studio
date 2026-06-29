@@ -110,7 +110,7 @@ const HomePage: FC = () => {
   const [oldViewTopicRightPaneOpen, setOldViewTopicRightPaneOpenCache] = usePersistCache(
     OLD_VIEW_RIGHT_PANE_OPEN_CACHE_KEY
   )
-  const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
+  const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
@@ -320,13 +320,9 @@ const HomePage: FC = () => {
     const signature = `${activeTopic.id}:${activeTopic.name}`
     if (lastRecordedRecentTopicRef.current === signature) return
 
-    const currentRecentItems = recentItems ?? []
-    const nextItems = upsertGlobalSearchRecentEntry(currentRecentItems, createRecentTopicEntryFromTopic(activeTopic))
     lastRecordedRecentTopicRef.current = signature
-    if (nextItems !== currentRecentItems) {
-      setRecentItems(nextItems)
-    }
-  }, [activeTopic, isMessageOnlyView, recentItems, setRecentItems])
+    setRecentItems((prev) => upsertGlobalSearchRecentEntry(prev ?? [], createRecentTopicEntryFromTopic(activeTopic)))
+  }, [activeTopic, isMessageOnlyView, setRecentItems])
 
   const sendDraftMessage = useCallback(
     async (text: string, options?: DraftChatSendOptions) => {
