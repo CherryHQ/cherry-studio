@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { statfs } from 'node:fs/promises'
 import { arch } from 'node:os'
 import path from 'node:path'
 
@@ -33,7 +34,6 @@ import type {
   SupportedOcrFile,
   ThemeMode
 } from '@types'
-import checkDiskSpace from 'check-disk-space'
 import type { ProxyConfig } from 'electron'
 import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
@@ -967,13 +967,11 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
 
   ipcMain.handle(IpcChannel.App_GetDiskInfo, async (_, directoryPath: string) => {
     try {
-      const diskSpace = await checkDiskSpace(directoryPath) // { free, size } in bytes
-      logger.debug('disk space', diskSpace)
-      const { free, size } = diskSpace
-      return {
-        free,
-        size
-      }
+      const stats = await statfs(directoryPath)
+      const free = stats.bsize * stats.bfree
+      const size = stats.bsize * stats.blocks
+      logger.debug('disk space', { free, size })
+      return { free, size }
     } catch (error) {
       logger.error('check disk space error', error as Error)
       return null
