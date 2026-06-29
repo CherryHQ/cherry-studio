@@ -1,4 +1,4 @@
-import { type LocalModelKind, LOCAL_MODEL_KINDS, LOCAL_MODEL_STATUSES } from '@shared/data/presets/localEmbedding'
+import { type LocalModelKind, LOCAL_MODEL_KINDS, LOCAL_MODEL_STATUSES } from '@shared/data/presets/localModel'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'

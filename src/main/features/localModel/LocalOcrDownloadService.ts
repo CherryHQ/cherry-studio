@@ -11,7 +11,7 @@ import {
   ocrModelDir,
   ocrModelPaths
 } from '@main/features/fileProcessing/processors/local-paddleocr/modelAssets'
-import type { LocalModelStatus } from '@shared/data/presets/localEmbedding'
+import type { LocalModelStatus } from '@shared/data/presets/localModel'
 import { net } from 'electron'
 
 const logger = loggerService.withContext('LocalOcrDownloadService')

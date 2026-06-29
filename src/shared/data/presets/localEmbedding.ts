@@ -8,8 +8,9 @@ import { createUniqueModelId } from '@shared/data/types/model'
  *
  * Runtime model details (HF repo, dtype, runtime device) live in the main
  * process engine (`src/main/ai/provider/custom/localEmbedding`), not here —
- * this module only holds the cross-process identity constants shared by the
- * seeder, the provider extension, and renderer predicates.
+ * this module only holds the cross-process identity constants for the local
+ * embedding provider/model, shared between the main-process registration and
+ * the renderer's embedding-dimensions hook.
  */
 export const LOCAL_EMBEDDING_PROVIDER_ID = 'local-embedding' as const
 export const LOCAL_EMBEDDING_PROVIDER_NAME = 'Local Embedding' as const
@@ -27,15 +28,3 @@ export const LOCAL_EMBEDDING_UNIQUE_MODEL_ID = createUniqueModelId(
   LOCAL_EMBEDDING_PROVIDER_ID,
   LOCAL_EMBEDDING_MODEL_ID
 )
-
-export function isLocalEmbeddingProviderId(providerId: string): boolean {
-  return providerId === LOCAL_EMBEDDING_PROVIDER_ID
-}
-
-/** Download/availability state of a local model, shared by the settings model cards. */
-export const LOCAL_MODEL_STATUSES = ['not_downloaded', 'downloading', 'ready', 'error'] as const
-export type LocalModelStatus = (typeof LOCAL_MODEL_STATUSES)[number]
-
-/** Which downloadable local model a settings card / IPC route targets. */
-export const LOCAL_MODEL_KINDS = ['embedding', 'ocr'] as const
-export type LocalModelKind = (typeof LOCAL_MODEL_KINDS)[number]

@@ -9,7 +9,7 @@ import {
   MODEL_DTYPE,
   MODEL_REPO
 } from '@main/ai/provider/custom/localEmbedding/localEmbeddingRuntime'
-import type { LocalModelStatus } from '@shared/data/presets/localEmbedding'
+import type { LocalModelStatus } from '@shared/data/presets/localModel'
 
 const logger = loggerService.withContext('LocalEmbeddingDownloadService')
 
