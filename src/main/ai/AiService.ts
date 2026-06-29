@@ -46,6 +46,7 @@ import { WebContentsListener } from './streamManager/listeners/WebContentsListen
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin'
 import type { AppProviderSettingsMap } from './types'
 import type { AiBaseRequest, AiStreamRequest, AiTransportOptions, ListModelsRequest } from './types/requests'
+import { installProviderUserAgentInterceptor } from './utils/customFetch'
 import { buildImageProviderOptions, normalizeAspectRatio } from './utils/imageOptions'
 
 const logger = loggerService.withContext('AiService')
@@ -180,6 +181,9 @@ export class AiService extends BaseService {
   protected async onInit(): Promise<void> {
     registerBuiltinTools()
     this.registerIpcHandlers()
+    // Restore provider custom `User-Agent` headers that Chromium's net.fetch stack
+    // would otherwise overwrite (see installProviderUserAgentInterceptor).
+    this.registerDisposable(installProviderUserAgentInterceptor())
     application.get('JobManager').registerHandler('image-generation.generate', imageGenerationJobHandler)
     logger.info('AiService initialized')
   }
