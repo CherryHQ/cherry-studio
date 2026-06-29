@@ -1,5 +1,5 @@
 import { dataApiService } from '@data/DataApiService'
-import type * as RendererConstantModule from '@renderer/config/constant'
+import type * as RendererConstantModule from '@renderer/utils/platform'
 import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type { BranchMessagesResponse } from '@shared/data/types/message'
 import { act, renderHook, waitFor } from '@testing-library/react'
@@ -17,7 +17,7 @@ vi.unmock('@data/hooks/useDataApi')
 // `isDev` reads `window.electron.process.env.NODE_ENV`, which isn't populated
 // in the Vitest environment. Force it to true so the dev-only pattern
 // assertions fire during these tests.
-vi.mock('@renderer/config/constant', async (importOriginal) => {
+vi.mock('@renderer/utils/platform', async (importOriginal) => {
   const actual = await importOriginal<typeof RendererConstantModule>()
   return { ...actual, isDev: true }
 })
@@ -104,7 +104,7 @@ describe('createMultiKeyMatcher', () => {
 
 describe('dev-mode pattern assertions', () => {
   // `assertValidPattern` only throws when `isDev === true`. This suite mocks
-  // `@renderer/config/constant` at the top of the file to force `isDev: true`.
+  // `@renderer/utils/platform` at the top of the file to force `isDev: true`.
   it('rejects non-segment wildcards like "/foo*" on single-key matcher', () => {
     expect(() => createKeyMatcher('/providers*')).toThrow(/wildcard must be a full path segment/)
   })

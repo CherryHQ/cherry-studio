@@ -9,9 +9,9 @@ import { Navbar } from '@renderer/components/app/Navbar'
 // resolves fine on feat's full program and via this path). Revert to the barrel
 // once main converges with feat. The `Selector` dir is byte-identical to feat.
 import { ModelSelector } from '@renderer/components/Selector/model'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTranslate, useTranslateHistory } from '@renderer/hooks/translate'
 import { useDetectLang } from '@renderer/hooks/translate/useDetectLang'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
 import { useJob } from '@renderer/hooks/useJob'
@@ -45,7 +45,7 @@ import type { FilePath } from '@shared/types/file'
 import { MB } from '@shared/utils/constants'
 import { createFilePathHandle } from '@shared/utils/file'
 import { documentExts, imageExts, textExts } from '@shared/utils/file/fileExtensions'
-import { isEmpty } from 'lodash'
+import { isEmpty } from 'es-toolkit/compat'
 import { CirclePause, History, Languages, SlidersHorizontal } from 'lucide-react'
 import type { ClipboardEvent, DragEvent, FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -185,11 +185,6 @@ const TranslatePage: FC = () => {
   const textAreaRef = useRef<HTMLTextAreaElement>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
   const isProgrammaticScroll = useRef(false)
-  const translateInputRef = useRef(translateInput)
-
-  useEffect(() => {
-    translateInputRef.current = translateInput
-  }, [translateInput])
 
   const selectedModelId = useMemo(
     () => (translateModelId && isUniqueModelId(translateModelId) ? translateModelId : undefined),
@@ -201,14 +196,6 @@ const TranslatePage: FC = () => {
   const selectedModelIcon = selectedModel
     ? resolveIcon(getModelIdentifier(selectedModel), selectedModel.providerId)
     : undefined
-
-  const setTranslateInputValue = useCallback(
-    (value: string) => {
-      translateInputRef.current = value
-      setTranslateInput(value)
-    },
-    [setTranslateInput]
-  )
 
   const safePersist = useCallback(
     async (persistPromise: Promise<unknown>, actionName: string) => {
@@ -225,21 +212,21 @@ const TranslatePage: FC = () => {
   const appendTranslateInput = useCallback(
     (text: string) => {
       if (isEmpty(text)) return
-      const next = translateInputRef.current + text
-      translateInputRef.current = next
-      setTranslateInput(next)
+      // Functional update resolves against the latest stored value, so a prior
+      // synchronous setTranslateInput(value) is reflected here without a ref.
+      setTranslateInput((prev) => prev + text)
     },
     [setTranslateInput]
   )
 
   const handleInputChange = useCallback(
     (value: string) => {
-      setTranslateInputValue(value)
+      setTranslateInput(value)
       if (isEmpty(value)) {
         setTranslateOutput('')
       }
     },
-    [setTranslateInputValue, setTranslateOutput]
+    [setTranslateInput, setTranslateOutput]
   )
 
   const copy = useCallback(
@@ -375,14 +362,14 @@ const TranslatePage: FC = () => {
     if (sourceLanguage === 'auto' || isTranslating || isDetecting) return
     void safePersist(setSourceLanguage(targetLanguage), 'translate source language')
     void safePersist(setTargetLanguage(sourceLanguage), 'translate target language')
-    setTranslateInputValue(translateOutput)
+    setTranslateInput(translateOutput)
     setTranslateOutput(translateInput)
   }, [
     isDetecting,
     safePersist,
     setSourceLanguage,
     setTargetLanguage,
-    setTranslateInputValue,
+    setTranslateInput,
     setTranslateOutput,
     sourceLanguage,
     targetLanguage,
@@ -393,13 +380,13 @@ const TranslatePage: FC = () => {
 
   const onHistoryItemClick = useCallback(
     (history: TranslateHistory) => {
-      setTranslateInputValue(history.sourceText)
+      setTranslateInput(history.sourceText)
       setTranslateOutput(history.targetText)
       void safePersist(setSourceLanguage(history.sourceLanguage ?? 'auto'), 'translate source language')
       void safePersist(setTargetLanguage(history.targetLanguage ?? UNKNOWN_LANG_CODE), 'translate target language')
       setHistoryOpen(false)
     },
-    [safePersist, setSourceLanguage, setTargetLanguage, setTranslateInputValue, setTranslateOutput]
+    [safePersist, setSourceLanguage, setTargetLanguage, setTranslateInput, setTranslateOutput]
   )
 
   const inputScrollHandler = useMemo(

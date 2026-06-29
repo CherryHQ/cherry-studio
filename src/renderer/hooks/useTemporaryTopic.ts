@@ -121,7 +121,9 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
     const trimmed = initialName?.trim()
     if (trimmed) {
       try {
-        await dataApiService.patch(`/topics/${id}`, { body: { name: trimmed.slice(0, 30) } })
+        await dataApiService.patch(`/topics/${id}`, {
+          body: { name: trimmed.slice(0, 30), isNameManuallyEdited: false }
+        })
       } catch (err) {
         logger.warn('Failed to seed placeholder topic name', err as Error)
       }

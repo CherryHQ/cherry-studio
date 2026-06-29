@@ -11,15 +11,14 @@ import {
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
-import { ChatPlacementComposer } from '@renderer/components/composer/variants/ChatComposer'
+import { ChatHomePlacementComposer } from '@renderer/components/composer/variants/ChatComposer'
 import {
   createRecentTopicEntryFromTopic,
   upsertGlobalSearchRecentEntry
 } from '@renderer/components/GlobalSearch/globalSearchGroups'
-import { getTabInstanceKey } from '@renderer/config/tabInstanceMetadata'
-import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/context/TabIdContext'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/hooks/tab'
 import { useAssistantApiById, useAssistants } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
@@ -29,6 +28,7 @@ import type { FileMetadata } from '@renderer/types/file'
 import type { Topic } from '@renderer/types/topic'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
+import { getTabInstanceKey } from '@renderer/utils/tabInstanceMetadata'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
@@ -74,7 +74,7 @@ const HomePage: FC = () => {
   const [draftAssistantSelection, setDraftAssistantSelection] = useState<DraftAssistantSelection | undefined>()
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
   const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
-  const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
+  const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
@@ -261,13 +261,9 @@ const HomePage: FC = () => {
     const signature = `${activeTopic.id}:${activeTopic.name}`
     if (lastRecordedRecentTopicRef.current === signature) return
 
-    const currentRecentItems = recentItems ?? []
-    const nextItems = upsertGlobalSearchRecentEntry(currentRecentItems, createRecentTopicEntryFromTopic(activeTopic))
     lastRecordedRecentTopicRef.current = signature
-    if (nextItems !== currentRecentItems) {
-      setRecentItems(nextItems)
-    }
-  }, [activeTopic, isMessageOnlyView, recentItems, setRecentItems])
+    setRecentItems((prev) => upsertGlobalSearchRecentEntry(prev ?? [], createRecentTopicEntryFromTopic(activeTopic)))
+  }, [activeTopic, isMessageOnlyView, setRecentItems])
 
   const sendDraftMessage = useCallback(
     async (text: string, options?: DraftChatSendOptions) => {
@@ -580,8 +576,7 @@ function DraftWelcomeChat({
   const [messageStyle] = usePreference('chat.message.style')
 
   const composer = (
-    <ChatPlacementComposer
-      isHome
+    <ChatHomePlacementComposer
       scopeKey={scopeKey}
       assistantId={assistantId}
       onSend={onSend}

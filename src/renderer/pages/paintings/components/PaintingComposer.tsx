@@ -229,7 +229,7 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
         enableDragDrop={config.enableDragDrop ?? true}
         enableSpellCheck={enableSpellCheck}
         fontSize={fontSize}
-        narrowMode={false}
+        narrowMode
         getToolLaunchers={() => getLaunchers()}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
         renderLeftControls={(inputAdapter) => (

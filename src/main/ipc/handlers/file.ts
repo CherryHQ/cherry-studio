@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { safeOpen, showInFolder as showPathInFolder } from '@main/services/file'
 import { dispatchHandle } from '@main/services/file/internal/dispatch'
 import { getMetadataByPath } from '@main/services/file/utils/metadata'
 import type { fileRequestSchemas } from '@shared/ipc/schemas/file'
@@ -49,6 +50,12 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   'file.batch_restore': async ({ ids }) => application.get('FileManager').batchRestore(ids),
   'file.batch_permanent_delete': async ({ ids }) => application.get('FileManager').batchPermanentDelete(ids),
   'file.rename': async ({ id, newName }) => application.get('FileManager').rename(id, newName),
-  'file.open': async ({ id }) => application.get('FileManager').open(id),
-  'file.show_in_folder': async ({ id }) => application.get('FileManager').showInFolder(id)
+  'file.open': async (handle) => {
+    const fileManager = application.get('FileManager')
+    return dispatchHandle(handle as FileHandle, (entryId) => fileManager.open(entryId), safeOpen)
+  },
+  'file.show_in_folder': async (handle) => {
+    const fileManager = application.get('FileManager')
+    return dispatchHandle(handle as FileHandle, (entryId) => fileManager.showInFolder(entryId), showPathInFolder)
+  }
 }

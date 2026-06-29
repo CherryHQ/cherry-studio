@@ -170,6 +170,30 @@ export function getAllFiles(dirPath: string, arrayOfFiles: FileMetadata[] = []):
 }
 
 /**
+ * Decode raw bytes to text, auto-detecting the encoding (chardet) with a UTF-8
+ * fallback. Buffer-based sibling of {@link readTextFileWithAutoEncoding} for
+ * callers that already hold the bytes (e.g. via `FileManager.read`) and have no
+ * filesystem path.
+ */
+export function decodeTextWithAutoEncoding(data: Buffer): string {
+  const sample = data.length > MB ? data.subarray(0, MB) : data
+  const detected = chardet.detect(sample) || 'UTF-8'
+
+  for (const encoding of [detected, 'UTF-8']) {
+    try {
+      const content = iconv.decode(data, encoding)
+      if (!content.includes('�')) return content
+      logger.warn(`Auto-detected ${encoding} but content has invalid characters; trying other encodings`)
+    } catch (error) {
+      logger.error(`Failed to decode buffer with encoding ${encoding}: ${error}`)
+    }
+  }
+
+  logger.error('Failed to decode buffer with all candidate encodings; falling back to UTF-8')
+  return iconv.decode(data, 'UTF-8')
+}
+
+/**
  * 读取文件内容并自动检测编码格式进行解码
  * @param filePath - 文件路径
  * @returns 解码后的文件内容

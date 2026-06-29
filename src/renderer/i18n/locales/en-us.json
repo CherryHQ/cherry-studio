@@ -224,7 +224,12 @@
           "runFailed": "Failed to run task",
           "updateFailed": "Failed to update task"
         },
-        "intervalPlaceholder": "Interval in minutes",
+        "frequency": {
+          "everyPrefix": "Every",
+          "everySuffix": "minutes",
+          "label": "Execution Frequency"
+        },
+        "intervalPlaceholder": "At least 1",
         "intervalUnit": "minutes",
         "lastRun": "Last Run",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Interval",
-          "label": "Schedule Type",
           "once": "Once"
         },
-        "scheduleValue": "Schedule Value",
         "status": {
           "active": "Active",
           "completed": "Completed",
@@ -277,7 +280,7 @@
           "minutesAgo": "{{count}}m ago"
         },
         "timeout": {
-          "label": "Timeout",
+          "label": "Maximum Execution Time",
           "placeholder": "No limit"
         },
         "title": "Scheduled Tasks"
@@ -3159,12 +3162,22 @@
           "agent_title": "New Agent",
           "assistant_title": "New Assistant",
           "avatar_aria": "Choose avatar",
+          "back": "Back",
+          "capability": {
+            "import": "Import skill",
+            "no_skills": "No skills installed",
+            "search": "Search skills"
+          },
           "description_placeholder": "Describe what it is for...",
-          "dialog_description": "Create a lightweight assistant or agent.",
-          "model_placeholder": "Select a model",
-          "model_required": "Please select a model",
+          "guided_progress": "Guided setup · Step {{current}} of {{total}}",
           "name_placeholder": "Enter a name",
-          "name_required": "Please enter a name",
+          "next": "Next",
+          "step": {
+            "basic": "Basic info",
+            "capability": "Skills",
+            "knowledge": "Knowledge",
+            "persona": "Persona"
+          },
           "submit": "Create",
           "submit_failed": "Create failed"
         },
@@ -3873,64 +3886,6 @@
       "partial_failure": "{{count}} search result(s), some searches failed"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "Add to Launchpad",
-    "add_to_sidebar": "Add to Sidebar",
-    "popup": {
-      "close": "Close MinApp",
-      "devtools": "Developer Tools",
-      "goBack": "Go Back",
-      "goForward": "Go Forward",
-      "minimize": "Minimize MinApp",
-      "openExternal": "Open in Browser",
-      "open_link_external_off": "Current: Open links in default window",
-      "open_link_external_on": "Current: Open links in browser",
-      "refresh": "Refresh",
-      "rightclick_copyurl": "Right-click to copy URL"
-    },
-    "remove_from_launchpad": "Remove from Launchpad",
-    "remove_from_sidebar": "Remove from Sidebar",
-    "sidebar": {
-      "close": {
-        "title": "Close"
-      },
-      "closeall": {
-        "title": "Close All"
-      },
-      "hide": {
-        "title": "Hide"
-      },
-      "remove_custom": {
-        "title": "Delete Custom App"
-      }
-    },
-    "title": "MinApp"
-  },
-  "minapps": {
-    "ant-ling": "Ant Ling",
-    "baichuan": "Baichuan",
-    "baidu-ai-search": "Baidu AI Search",
-    "chatglm": "ChatGLM",
-    "dangbei": "Dangbei",
-    "doubao": "Doubao",
-    "hailuo": "Hailuo",
-    "ima": "ima",
-    "metaso": "Metaso",
-    "minimax-agent": "Minimax Agent CN",
-    "minimax-global": "Minimax Agent",
-    "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI Search",
-    "qwen": "Qwen",
-    "sensechat": "SenseChat",
-    "stepfun": "Stepfun",
-    "tencent-yuanbao": "Yuanbao",
-    "tiangong-ai": "Skywork",
-    "wanzhi": "Wanzhi",
-    "wenxin": "ERNIE",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "Xiaoyi",
-    "zhihu": "Zhihu"
-  },
   "miniApp": {
     "add_to_launchpad": "Add to Launchpad",
     "add_to_sidebar": "Add to Sidebar",
@@ -3941,15 +3896,13 @@
     "hide_failed": "Failed to hide mini-app",
     "pin_failed": "Failed to pin mini-app",
     "popup": {
-      "close": "Close MiniApp",
       "devtools": "Developer Tools",
       "goBack": "Go Back",
       "goForward": "Go Forward",
       "openExternal": "Open in Browser",
       "open_link_external_off": "Current: Open links in default window",
       "open_link_external_on": "Current: Open links in browser",
-      "refresh": "Refresh",
-      "rightclick_copyurl": "Right-click to copy URL"
+      "refresh": "Refresh"
     },
     "remove_from_launchpad": "Remove from Launchpad",
     "remove_from_sidebar": "Remove from Sidebar",
@@ -3961,17 +3914,8 @@
     },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
-      "close": {
-        "title": "Close"
-      },
-      "closeall": {
-        "title": "Close All"
-      },
       "hide": {
         "title": "Hide"
-      },
-      "remove_custom": {
-        "title": "Delete Custom App"
       }
     },
     "title": "MiniApp",
@@ -3991,7 +3935,6 @@
     "minimax-agent": "Minimax Agent CN",
     "minimax-global": "Minimax Agent",
     "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
     "sensechat": "SenseChat",
     "stepfun": "Stepfun",
@@ -6523,37 +6466,24 @@
     "miniApps": {
       "cache_change_notice": "Changes will take effect when the number of open mini apps reaches the set value",
       "cache_description": "Set the maximum number of active mini apps to keep in memory",
-      "cache_settings": "Cache Settings",
       "cache_title": "Mini App Cache Limit",
       "custom": {
-        "conflicting_ids": "Conflicting IDs with default apps: {{ids}}",
-        "duplicate_ids": "Duplicate IDs found: {{ids}}",
-        "edit_description": "Edit custom mini app configuration here. Each app should include id, name, url, and logo fields.",
+        "create_title": "Create Custom Mini App",
         "edit_title": "Edit Custom Mini App",
-        "id": "ID",
-        "id_error": "ID is required.",
-        "id_placeholder": "Enter ID",
-        "logo": "Logo",
         "logo_file": "Upload Logo File",
-        "logo_upload_button": "Upload",
         "logo_upload_error": "Failed to upload logo.",
         "logo_upload_label": "Upload Logo",
-        "logo_upload_success": "Logo uploaded successfully.",
-        "logo_url": "Logo URL",
-        "logo_url_label": "Logo URL",
-        "logo_url_placeholder": "Enter logo URL",
         "name": "Name",
-        "name_error": "Name is required.",
         "name_placeholder": "Enter name",
-        "placeholder": "Enter custom mini app configuration (JSON format)",
+        "remove_confirm_description": "Delete custom mini app \"{{name}}\"? This action cannot be undone.",
+        "remove_confirm_title": "Delete custom mini app?",
         "remove_error": "Failed to remove custom mini app.",
         "remove_success": "Custom mini app removed successfully.",
-        "save": "Save",
         "save_error": "Failed to save custom mini app.",
         "save_success": "Custom mini app saved successfully.",
         "title": "Custom",
         "url": "URL",
-        "url_error": "URL is required.",
+        "url_invalid": "Enter a valid http, https, or file URL.",
         "url_placeholder": "Enter URL"
       },
       "disabled": "Hidden Mini Apps",
@@ -6575,63 +6505,6 @@
         "title": "Mini Program filter"
       },
       "reset_tooltip": "Reset to default",
-      "title": "Mini Apps Settings",
-      "visible": "Visible Mini Apps"
-    },
-    "miniapps": {
-      "cache_change_notice": "Changes will take effect when the number of open mini apps reaches the set value",
-      "cache_description": "Set the maximum number of active mini apps to keep in memory",
-      "cache_settings": "Cache Settings",
-      "cache_title": "Mini App Cache Limit",
-      "custom": {
-        "conflicting_ids": "Conflicting IDs with default apps: {{ids}}",
-        "duplicate_ids": "Duplicate IDs found: {{ids}}",
-        "edit_description": "Edit custom mini app configuration here. Each app should include id, name, url, and logo fields.",
-        "edit_title": "Edit Custom Mini App",
-        "id": "ID",
-        "id_error": "ID is required.",
-        "id_placeholder": "Enter ID",
-        "logo": "Logo",
-        "logo_file": "Upload Logo File",
-        "logo_upload_button": "Upload",
-        "logo_upload_error": "Failed to upload logo.",
-        "logo_upload_label": "Upload Logo",
-        "logo_upload_success": "Logo uploaded successfully.",
-        "logo_url": "Logo URL",
-        "logo_url_label": "Logo URL",
-        "logo_url_placeholder": "Enter logo URL",
-        "name": "Name",
-        "name_error": "Name is required.",
-        "name_placeholder": "Enter name",
-        "placeholder": "Enter custom mini app configuration (JSON format)",
-        "remove_error": "Failed to remove custom mini app.",
-        "remove_success": "Custom mini app removed successfully.",
-        "save": "Save",
-        "save_error": "Failed to save custom mini app.",
-        "save_success": "Custom mini app saved successfully.",
-        "title": "Custom",
-        "url": "URL",
-        "url_error": "URL is required.",
-        "url_placeholder": "Enter URL"
-      },
-      "disabled": "Hidden Mini Apps",
-      "display_title": "Mini App Display Settings",
-      "empty": "Click the hide icon on an app on the left and it will move here",
-      "hide_app": "Hide {{name}}",
-      "open_link_external": {
-        "title": "Open new-window links in browser"
-      },
-      "region": {
-        "auto": "Auto detect",
-        "cn": "China",
-        "description": "Filtering unsupported mini-programs based on the region",
-        "global": "Global",
-        "title": "Mini Program filter"
-      },
-      "reset_tooltip": "Reset to default",
-      "show_app": "Show {{name}}",
-      "sidebar_description": "Show active mini apps in the sidebar",
-      "sidebar_title": "Sidebar Active Mini Apps Display",
       "title": "Mini Apps Settings",
       "visible": "Visible Mini Apps"
     },
@@ -7106,7 +6979,6 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Acceleration domain",
-          "backup": "Backup domain",
           "international": "International domain"
         }
       },

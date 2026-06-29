@@ -11,7 +11,7 @@ import {
   createReindexSubtreeJobHandler,
   deleteItemsByIdsMock,
   deleteKnowledgeItemFilesBestEffortMock,
-  deleteMaterialMock,
+  deleteMaterialsMock,
   FILE_ITEM_ID,
   getJobMock,
   knowledgeItemGetSubtreeItemsMock,
@@ -41,7 +41,7 @@ describe('reindex-subtree job handler', () => {
     const ctx = createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'reindex-job')
     await handler.execute(ctx)
 
-    expect(deleteMaterialMock).toHaveBeenCalledWith('note-1')
+    expect(deleteMaterialsMock).toHaveBeenCalledWith(['note-1'])
     expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['note-1'])
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('dir-1', 'preparing')
     expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'dir-1', 'reindex-job')
@@ -86,7 +86,7 @@ describe('reindex-subtree job handler', () => {
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'deleting' })
     expect(listMock).not.toHaveBeenCalled()
     expect(cancelMock).not.toHaveBeenCalled()
-    expect(deleteMaterialMock).not.toHaveBeenCalled()
+    expect(deleteMaterialsMock).not.toHaveBeenCalled()
     expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
     expect(scheduleItemMock).not.toHaveBeenCalled()
@@ -103,7 +103,7 @@ describe('reindex-subtree job handler', () => {
     await handler.execute(ctx)
 
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'deleting', totalFiles: 0 })
-    expect(deleteMaterialMock).not.toHaveBeenCalled()
+    expect(deleteMaterialsMock).not.toHaveBeenCalled()
     expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
     expect(scheduleItemMock).not.toHaveBeenCalled()
@@ -127,7 +127,7 @@ describe('reindex-subtree job handler', () => {
 
     await handler.execute(ctx)
 
-    expect(deleteMaterialMock).not.toHaveBeenCalled()
+    expect(deleteMaterialsMock).not.toHaveBeenCalled()
     expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
     expect(scheduleItemMock).not.toHaveBeenCalled()
@@ -160,8 +160,8 @@ describe('reindex-subtree job handler', () => {
     await handler.execute(ctx)
 
     // Only the surviving root's subtree is wiped and rescheduled; the vanished root keeps its vectors.
-    expect(deleteMaterialMock).toHaveBeenCalledWith('note-1')
-    expect(deleteMaterialMock).not.toHaveBeenCalledWith('note-2')
+    expect(deleteMaterialsMock).toHaveBeenCalledWith(['note-1'])
+    expect(deleteMaterialsMock).not.toHaveBeenCalledWith(expect.arrayContaining(['note-2']))
     expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['note-1'])
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('dir-1', 'preparing')
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith('dir-2', 'preparing')

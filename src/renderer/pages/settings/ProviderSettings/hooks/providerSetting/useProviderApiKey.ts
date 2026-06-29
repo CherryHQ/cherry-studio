@@ -3,7 +3,7 @@ import { useProvider, useProviderApiKeys, useProviderMutations } from '@renderer
 import i18n from '@renderer/i18n'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
-import { debounce } from 'lodash'
+import { debounce } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 

@@ -327,8 +327,15 @@ vi.mock('@renderer/components/resource', () => ({
   )
 }))
 
-vi.mock('@renderer/config/models', () => ({
+vi.mock('@renderer/utils/model', () => ({
+  // Mirrors the real reconcile logic using the mocked predicates below:
+  // canModelUseAssistantWebSearch = isWebSearchModel || isOpenRouterBuiltInWebSearchModel || isFunctionCallingModel.
+  // The first two predicates are stubbed to false here, so it reduces to the function-call check.
+  canModelUseAssistantWebSearch: (currentModel?: Model) =>
+    currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
   getThinkModelType: () => 'default',
+  isAudioModel: () => false,
+  isAudioModels: () => false,
   isEmbeddingModel: () => false,
   isFunctionCallingModel: (currentModel?: Model) =>
     currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
@@ -338,6 +345,8 @@ vi.mock('@renderer/config/models', () => ({
   isRerankModel: () => false,
   isSupportedReasoningEffortModel: () => false,
   isSupportedThinkingTokenModel: () => false,
+  isVideoModel: () => false,
+  isVideoModels: () => false,
   isVisionModel: () => false,
   isVisionModels: () => false,
   isWebSearchModel: () => false,
@@ -545,7 +554,10 @@ describe('ChatComposer', () => {
         draftTokens.filter((token) => token.kind === 'knowledge').map((token) => token.id)
       )
       const configuredKnowledgeBaseIds = new Set(mocks.assistant?.knowledgeBaseIds ?? [])
-      const selectableKnowledgeBases = mocks.knowledgeBases.filter((base) => configuredKnowledgeBaseIds.has(base.id))
+      const selectableKnowledgeBases =
+        configuredKnowledgeBaseIds.size === 0
+          ? mocks.knowledgeBases
+          : mocks.knowledgeBases.filter((base) => configuredKnowledgeBaseIds.has(base.id))
       mocks.setSelectedKnowledgeBases((previousBases: KnowledgeBase[]) => {
         const nextBases = previousBases.filter((base) => knowledgeTokenIds.has(`knowledge:${base.id}`))
         const nextBaseIds = new Set(nextBases.map((base) => `knowledge:${base.id}`))
@@ -631,6 +643,23 @@ describe('ChatComposer', () => {
     expect(screen.getByText('tool menu')).toBeInTheDocument()
     expect(screen.getByText('Assistant 1')).toBeInTheDocument()
     expect(screen.getByText('Model A | Provider')).toBeInTheDocument()
+    expect(mocks.surfaceProps?.narrowMode).toBe(false)
+  })
+
+  it('keeps the home composer narrow even when chat wide layout is enabled', () => {
+    render(<ChatPlacementComposer placement="home" topic={topic} onSend={vi.fn()} />)
+
+    expect(mocks.surfaceProps?.narrowMode).toBe(true)
+  })
+
+  it('renders docked placement with toolbar controls and sendDisabled behavior', () => {
+    render(<ChatPlacementComposer placement="docked" topic={topic} onSend={vi.fn()} sendDisabled />)
+
+    expect(mocks.surfaceProps?.narrowMode).toBe(false)
+    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    expect(screen.getByText('tool menu')).toBeInTheDocument()
+    expect(screen.getByText('Assistant 1')).toBeInTheDocument()
+    expect(screen.getByText('Model A | Provider')).toBeInTheDocument()
   })
 
   it('does not enable skill marker paste handling', () => {
@@ -683,8 +712,10 @@ describe('ChatComposer', () => {
   it('passes attachment capabilities through the provider without effect mirroring', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
+    // Chat allows images on any model (native on a vision model, OCR text otherwise),
+    // so the capability is true even though the mocked model is non-vision.
     expect(mocks.derivedToolState).toEqual({
-      couldAddImageFile: false,
+      couldAddImageFile: true,
       extensions: mocks.surfaceProps?.supportedExts
     })
   })
@@ -2343,7 +2374,7 @@ describe('ChatComposer', () => {
 
     mocks.assistant = {
       ...mocks.assistant,
-      knowledgeBaseIds: []
+      knowledgeBaseIds: ['kb-2']
     }
     view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
 
@@ -2438,7 +2469,7 @@ describe('ChatComposer', () => {
   })
 
   it('keeps draft multi-model selection when the composer placement docks', () => {
-    const view = render(<ChatPlacementComposer isHome topic={topic} onSend={vi.fn()} />)
+    const view = render(<ChatPlacementComposer placement="home" topic={topic} onSend={vi.fn()} />)
 
     fireEvent.click(screen.getByText('toggle model multi select'))
     fireEvent.click(screen.getByText('select models 1 and 2'))
@@ -2447,7 +2478,7 @@ describe('ChatComposer', () => {
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '2')
     expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-model-count', '2')
 
-    view.rerender(<ChatPlacementComposer isHome={false} topic={topic} onSend={vi.fn()} />)
+    view.rerender(<ChatPlacementComposer placement="docked" topic={topic} onSend={vi.fn()} />)
 
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multi-select-mode', 'true')
     expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '2')
