@@ -1,0 +1,1 @@
+ALTER TABLE `agent_session` ADD `is_name_manually_edited` integer DEFAULT false NOT NULL;
