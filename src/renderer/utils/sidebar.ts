@@ -5,7 +5,7 @@ import {
   hasTabInstanceMetadataForApp
 } from '@renderer/utils/tabInstanceMetadata'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
+import type { SidebarFavorite } from '@shared/data/preference/preferenceTypes'
 
 /**
  * Context passed to sidebar navigation handlers. Carries per-call state the
@@ -35,7 +35,7 @@ export interface SidebarInstanceKey {
 }
 
 export interface SidebarApp {
-  id: SidebarIcon
+  id: SidebarFavorite
   routePrefix: string
   /** Url to open when no tab exists yet (defaults to `routePrefix`). */
   resolveUrl?: (ctx: SidebarNavContext) => string
@@ -125,15 +125,15 @@ export const SIDEBAR_APPS: readonly SidebarApp[] = [
   }
 ]
 
-const SIDEBAR_APP_BY_ID: Record<SidebarIcon, SidebarApp> = SIDEBAR_APPS.reduce(
+const SIDEBAR_APP_BY_ID: Record<SidebarFavorite, SidebarApp> = SIDEBAR_APPS.reduce(
   (acc, app) => {
     acc[app.id] = app
     return acc
   },
-  {} as Record<SidebarIcon, SidebarApp>
+  {} as Record<SidebarFavorite, SidebarApp>
 )
 
-export function getSidebarApp(id: SidebarIcon): SidebarApp | undefined {
+export function getSidebarApp(id: SidebarFavorite): SidebarApp | undefined {
   return SIDEBAR_APP_BY_ID[id]
 }
 
@@ -179,60 +179,66 @@ export function buildSidebarAppOpenMetadata(app: SidebarApp, key?: string): Tab[
  * 侧边栏支持的完整菜单顺序。
  * Preference 默认值可能不包含新菜单，管理态列表仍需要覆盖当前全部支持项。
  */
-export const SIDEBAR_ICON_ORDER: SidebarIcon[] = SIDEBAR_APPS.map((app) => app.id)
+export const SIDEBAR_FAVORITE_ORDER: SidebarFavorite[] = SIDEBAR_APPS.map((app) => app.id)
 
 /**
- * 必须显示的侧边栏图标（不能被隐藏）
- * 这些图标必须始终在侧边栏中可见
+ * 必须显示的侧边栏收藏项（不能被隐藏）
+ * 这些收藏项必须始终在侧边栏中可见
  * 抽取为参数方便未来扩展
  */
-export const REQUIRED_SIDEBAR_ICONS: SidebarIcon[] = ['assistants']
+export const REQUIRED_SIDEBAR_FAVORITES: SidebarFavorite[] = ['assistants']
 
-const sidebarIconSet = new Set<SidebarIcon>(SIDEBAR_ICON_ORDER)
+const sidebarFavoriteSet = new Set<SidebarFavorite>(SIDEBAR_FAVORITE_ORDER)
 
-export function getSidebarMenuPath(icon: SidebarIcon, defaultPaintingProvider: string): string {
-  const app = getSidebarApp(icon)
+export function getSidebarMenuPath(favorite: SidebarFavorite, defaultPaintingProvider: string): string {
+  const app = getSidebarApp(favorite)
   if (!app) return ''
   return app.resolveUrl?.({ defaultPaintingProvider }) ?? app.routePrefix
 }
 
-export function resolveSidebarActiveItem(url: string): SidebarIcon | '' {
+export function resolveSidebarActiveItem(url: string): SidebarFavorite | '' {
   const match = SIDEBAR_APPS.find((app) => tabBelongsToApp(app, url))
   return match?.id ?? ''
 }
 
-export function sanitizeSidebarIcons(icons: readonly SidebarIcon[] | undefined): SidebarIcon[] {
-  const seen = new Set<SidebarIcon>()
+export function sanitizeSidebarFavorites(favorites: readonly SidebarFavorite[] | undefined): SidebarFavorite[] {
+  const seen = new Set<SidebarFavorite>()
 
-  return (icons ?? []).filter((icon) => {
-    if (!sidebarIconSet.has(icon) || seen.has(icon)) {
+  return (favorites ?? []).filter((favorite) => {
+    if (!sidebarFavoriteSet.has(favorite) || seen.has(favorite)) {
       return false
     }
 
-    seen.add(icon)
+    seen.add(favorite)
     return true
   })
 }
 
-export function getRequiredSidebarIconsVisible(icons: readonly SidebarIcon[] | undefined): SidebarIcon[] {
-  const visible = new Set(sanitizeSidebarIcons(icons))
+export function getRequiredSidebarFavoritesVisible(
+  favorites: readonly SidebarFavorite[] | undefined
+): SidebarFavorite[] {
+  const visible = new Set(sanitizeSidebarFavorites(favorites))
 
-  for (const icon of REQUIRED_SIDEBAR_ICONS) {
-    visible.add(icon)
+  for (const favorite of REQUIRED_SIDEBAR_FAVORITES) {
+    visible.add(favorite)
   }
 
-  return SIDEBAR_ICON_ORDER.filter((icon) => visible.has(icon))
+  return SIDEBAR_FAVORITE_ORDER.filter((favorite) => visible.has(favorite))
 }
 
-export function getOrderedVisibleSidebarIcons(icons: readonly SidebarIcon[] | undefined): SidebarIcon[] {
-  const visible = sanitizeSidebarIcons(icons)
+export function getOrderedVisibleSidebarFavorites(
+  favorites: readonly SidebarFavorite[] | undefined
+): SidebarFavorite[] {
+  const visible = sanitizeSidebarFavorites(favorites)
 
-  for (const icon of REQUIRED_SIDEBAR_ICONS) {
-    if (visible.includes(icon)) continue
+  for (const favorite of REQUIRED_SIDEBAR_FAVORITES) {
+    if (visible.includes(favorite)) continue
 
-    const iconOrder = SIDEBAR_ICON_ORDER.indexOf(icon)
-    const insertIndex = visible.findIndex((visibleIcon) => SIDEBAR_ICON_ORDER.indexOf(visibleIcon) > iconOrder)
-    visible.splice(insertIndex === -1 ? visible.length : insertIndex, 0, icon)
+    const favoriteOrder = SIDEBAR_FAVORITE_ORDER.indexOf(favorite)
+    const insertIndex = visible.findIndex(
+      (visibleFavorite) => SIDEBAR_FAVORITE_ORDER.indexOf(visibleFavorite) > favoriteOrder
+    )
+    visible.splice(insertIndex === -1 ? visible.length : insertIndex, 0, favorite)
   }
 
   return visible

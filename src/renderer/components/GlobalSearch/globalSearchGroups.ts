@@ -114,7 +114,7 @@ export function getMessageSearchSources(filter: GlobalMessageSearchSourceFilter)
   }
 }
 
-function getGlobalSearchRecentEntryId(entry: GlobalSearchRecentEntry): string {
+export function getGlobalSearchRecentEntryId(entry: GlobalSearchRecentEntry): string {
   switch (entry.kind) {
     case 'route':
       return `route:${entry.url}`
@@ -125,7 +125,7 @@ function getGlobalSearchRecentEntryId(entry: GlobalSearchRecentEntry): string {
   }
 }
 
-function areGlobalSearchRecentEntriesEqual(a: GlobalSearchRecentEntry, b: GlobalSearchRecentEntry) {
+export function areGlobalSearchRecentEntriesEqual(a: GlobalSearchRecentEntry, b: GlobalSearchRecentEntry) {
   if (a.kind !== b.kind || a.title !== b.title || a.lastAccessTime !== b.lastAccessTime) return false
 
   switch (a.kind) {
@@ -161,7 +161,9 @@ export function upsertGlobalSearchRecentEntry(
   return next
 }
 
-function getDisplayGlobalSearchRecentEntries(entries: readonly GlobalSearchRecentEntry[]): GlobalSearchRecentEntry[] {
+export function getDisplayGlobalSearchRecentEntries(
+  entries: readonly GlobalSearchRecentEntry[]
+): GlobalSearchRecentEntry[] {
   return [...entries].sort((a, b) => b.lastAccessTime - a.lastAccessTime).slice(0, GLOBAL_SEARCH_DISPLAY_RECENT_LIMIT)
 }
 

@@ -9,7 +9,7 @@ import {
   isVisionModel,
   isWebSearchModel
 } from '@shared/utils/model'
-import { sortBy, toPairs } from 'lodash'
+import { sortBy, toPairs } from 'es-toolkit/compat'
 
 import { normalizeModelGroupName } from './grouping'
 import { filterProviderSettingModelsByKeywords, getDuplicateProviderSettingModelNames } from './utils'
