@@ -68,6 +68,20 @@ describe('renderOfficePreviewHtml', () => {
     expect(config.parseConfig).not.toHaveProperty('ignoreComments', true)
   })
 
+  it('removes per-slide scrollbars from PPTX preview HTML', async () => {
+    convertMock.mockResolvedValueOnce({
+      value: '<!DOCTYPE html><html><body><section class="slide">Slide 1</section></body></html>',
+      messages: []
+    })
+
+    await renderOfficePreviewHtml('/tmp/workspace/slides.pptx', 'pptx')
+
+    const config = convertMock.mock.calls[0][2]
+    expect(config.generatorConfig.htmlConfig.customCss).toContain('.slide')
+    expect(config.generatorConfig.htmlConfig.customCss).toContain('overflow: visible')
+    expect(config.generatorConfig.htmlConfig.customCss).toContain('max-height: none')
+  })
+
   it('injects the trusted bootstrap behind a per-render CSP nonce', async () => {
     convertMock.mockResolvedValueOnce({
       value: '<!DOCTYPE html><html><body><div class="spreadsheet-tabs"></div></body></html>',

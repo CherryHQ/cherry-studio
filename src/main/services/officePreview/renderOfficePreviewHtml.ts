@@ -8,6 +8,20 @@ import { JSDOM } from 'jsdom'
 import { OfficeConverter, type OfficeConverterConfig } from 'officeparser'
 
 const OFFICE_PREVIEW_MAX_HTML_BYTES = 5 * 1024 * 1024
+const PPTX_PREVIEW_CUSTOM_CSS = `
+.presentation-container .slide {
+  aspect-ratio: auto !important;
+  height: auto !important;
+  min-height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.presentation-container .slide .table-container {
+  max-height: none !important;
+  overflow: visible !important;
+}
+`
 const buildOfficePreviewCsp = (scriptNonce: string): string =>
   [
     "default-src 'none'",
@@ -188,7 +202,8 @@ function buildConverterConfig(
       includeCharts: false,
       htmlConfig: {
         standalone: true,
-        containerWidth: '100%'
+        containerWidth: '100%',
+        ...(extension === 'pptx' ? { customCss: PPTX_PREVIEW_CUSTOM_CSS } : {})
       }
     }
   }
