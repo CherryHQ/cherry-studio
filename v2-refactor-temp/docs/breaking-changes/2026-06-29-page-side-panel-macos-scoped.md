@@ -34,8 +34,13 @@ Nothing — automatic.
 
 ## Notes for release manager
 
-Intra-v2 refinement: #16074 deliberately left macOS on the old full-window
-`document.body` portal ("scope non-mac app shell portal"); this PR unifies all
-platforms onto the per-tab `PortalContainerProvider`, so the panel now matches
-the tab-scoped Radix overlays (popover / dropdown / etc.). Safe to merge with
-any other PageSidePanel notices at release.
+Intra-v2 refinement. #16074 scoped only Windows/Linux and left macOS on the old
+full-window `document.body` portal — on Win/Linux the renderer draws the OS
+min/max/close controls in the top-right corner (`useHasWindowControls()`), which
+collided with the panel's top-right close button; scoping to the content area
+avoids that. macOS uses native top-left traffic lights with no app-drawn
+top-right controls, so it never had the collision and was left as-is. This PR
+unifies all platforms onto the per-tab `PortalContainerProvider`: Win/Linux
+overlap-avoidance is unchanged, macOS never had the overlap so nothing
+regresses, and the panel now matches the tab-scoped Radix overlays (popover /
+dropdown / etc.). Safe to merge with any other PageSidePanel notices at release.
