@@ -273,6 +273,7 @@ export type SharedCacheSchema = {
   // a concrete job exists. Renderer treats null as cache miss.
   'jobs.state.${jobId}': JobSnapshot | null
   'jobs.progress.${jobId}': JobProgress
+  'binary.latest_versions': CacheValueTypes.BinaryLatestVersions
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
@@ -290,7 +291,8 @@ export const DefaultSharedCache: SharedCacheSchema = {
   // Template defaults are placeholders never consumed at runtime — concrete
   // keys are populated by JobManager when actual jobs exist.
   'jobs.state.${jobId}': null,
-  'jobs.progress.${jobId}': { progress: 0 }
+  'jobs.progress.${jobId}': { progress: 0 },
+  'binary.latest_versions': {}
 }
 
 /**

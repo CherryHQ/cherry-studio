@@ -15,5 +15,5 @@ export const binaryHandlers: IpcHandlersFor<typeof binaryRequestSchemas> = {
   'binary.search_registry': async (query) => application.get('BinaryManager').searchRegistry(query),
   'binary.get_tool_dir': async (name) => application.get('BinaryManager').getToolDir(name),
   'binary.probe_bundled': async () => application.get('BinaryManager').probeBundled(),
-  'binary.latest_versions': async () => application.get('BinaryManager').getLatestVersions()
+  'binary.latest_versions': async (force) => application.get('BinaryManager').getLatestVersions(force)
 }

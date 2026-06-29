@@ -76,7 +76,6 @@ const REGISTRY_CACHE_TTL_MS = 10 * 60 * 1000
 
 // `mise latest` for github: backends hits the rate-limited GitHub releases API,
 // so lookups stay off the boot path and run with a small concurrency bound.
-const LATEST_VERSIONS_CACHE_TTL_MS = 5 * 60 * 1000
 const LATEST_VERSIONS_CONCURRENCY = 4
 
 // Single source of truth for tools shipped inside the app and extracted at
@@ -113,8 +112,6 @@ export class BinaryManager extends BaseService {
   private isolatedEnvPromise: Promise<Record<string, string>> | null = null
   private registryCache: Array<{ name: string; tool: string }> | null = null
   private registryCacheTime = 0
-  private latestVersionsCache: Record<string, string> | null = null
-  private latestVersionsCacheTime = 0
   private stateLock: Promise<unknown> = Promise.resolve()
 
   protected async onInit() {
@@ -496,7 +493,7 @@ export class BinaryManager extends BaseService {
     const tmp = statePath + '.tmp'
     fs.writeFileSync(tmp, JSON.stringify(state, null, 2))
     fs.renameSync(tmp, statePath)
-    this.latestVersionsCache = null
+    application.get('CacheService').deleteShared('binary.latest_versions')
     this.broadcastState(state)
   }
 
@@ -631,10 +628,15 @@ export class BinaryManager extends BaseService {
    * On demand only — never during boot or reconcile — because `mise latest` for
    * github: backends hits the rate-limited GitHub releases API. Runs with a
    * small worker pool; tools whose lookup fails are omitted.
+   *
+   * Cached in sharedCache; the cached snapshot is returned unless `force`
+   * re-runs `mise latest`. The cache is dropped on managed-set mutation.
    */
-  async getLatestVersions(): Promise<Record<string, string>> {
-    if (this.latestVersionsCache && Date.now() - this.latestVersionsCacheTime < LATEST_VERSIONS_CACHE_TTL_MS) {
-      return this.latestVersionsCache
+  async getLatestVersions(force = false): Promise<Record<string, string>> {
+    const cacheService = application.get('CacheService')
+    if (!force) {
+      const cached = cacheService.getShared('binary.latest_versions')
+      if (cached && Object.keys(cached).length > 0) return cached
     }
 
     const result: Record<string, string> = {}
@@ -642,7 +644,9 @@ export class BinaryManager extends BaseService {
       return result
     }
 
+    // Drop the result if the managed set drifted mid-batch.
     const entries = Object.entries(this.loadState().tools)
+    const snapshot = entries.map(([name, { tool }]) => `${name}@${tool}`).join('|')
     let cursor = 0
     const workers = Array.from({ length: Math.min(LATEST_VERSIONS_CONCURRENCY, entries.length) }, async () => {
       while (cursor < entries.length) {
@@ -662,8 +666,12 @@ export class BinaryManager extends BaseService {
     })
     await Promise.all(workers)
 
-    this.latestVersionsCache = result
-    this.latestVersionsCacheTime = Date.now()
+    const current = Object.entries(this.loadState().tools)
+      .map(([name, { tool }]) => `${name}@${tool}`)
+      .join('|')
+    if (current === snapshot) {
+      cacheService.setShared('binary.latest_versions', result)
+    }
     return result
   }
 

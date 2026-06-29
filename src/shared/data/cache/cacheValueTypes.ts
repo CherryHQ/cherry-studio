@@ -136,6 +136,8 @@ export type CacheAgentSessionCompactionState = AgentSessionCompactionState | nul
  * maximized flag, so a maximized window restores to maximized while un-maximizing
  * returns to the saved normal size.
  */
+export type BinaryLatestVersions = Record<string, string>
+
 export type WindowBoundsState = {
   x: number
   y: number
