@@ -21,6 +21,7 @@ import { useConversationNavigation } from '@renderer/hooks/useConversationNaviga
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { findLatestUpdated } from '@renderer/utils/resourceEntity'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { getTabInstanceKey } from '@renderer/utils/tabInstanceMetadata'
@@ -59,22 +60,6 @@ function sessionMatchesWorkspaceSource(
   return session.workspace?.type === AGENT_WORKSPACE_TYPE.SYSTEM
 }
 
-function findLatestUpdatedSession<T extends { updatedAt?: string }>(sessions: readonly T[]): T | undefined {
-  let latestSession: T | undefined
-  let latestUpdatedAtMs = Number.NEGATIVE_INFINITY
-
-  for (const session of sessions) {
-    const parsedUpdatedAtMs = session.updatedAt ? Date.parse(session.updatedAt) : Number.NEGATIVE_INFINITY
-    const updatedAtMs = Number.isFinite(parsedUpdatedAtMs) ? parsedUpdatedAtMs : Number.NEGATIVE_INFINITY
-    if (!latestSession || updatedAtMs > latestUpdatedAtMs) {
-      latestSession = session
-      latestUpdatedAtMs = updatedAtMs
-    }
-  }
-
-  return latestSession
-}
-
 // Reuse the agent's latest *empty* placeholder session (matched by `isMatch`) instead of stacking a
 // new one. The empty session only exists to surface the agent in the old-view rail, so on repeated
 // adds we reopen the existing placeholder rather than pile up blanks.
@@ -87,7 +72,7 @@ function findReusableEmptySession<T extends { name: string; updatedAt?: string }
   sessions: readonly T[],
   isMatch: (session: T) => boolean
 ): T | undefined {
-  return findLatestUpdatedSession(sessions.filter((session) => session.name.trim() === '' && isMatch(session)))
+  return findLatestUpdated(sessions.filter((session) => session.name.trim() === '' && isMatch(session)))
 }
 
 const AgentPage = () => {
@@ -604,7 +589,7 @@ const AgentPage = () => {
     if (isOldView) {
       if (!isOldViewSessionHistoryReady) return
 
-      const latestSession = findLatestUpdatedSession(oldViewSessions)
+      const latestSession = findLatestUpdated(oldViewSessions)
       if (latestSession) {
         initialDraftSessionEvaluatedRef.current = true
         setPendingLocateMessageId(undefined)

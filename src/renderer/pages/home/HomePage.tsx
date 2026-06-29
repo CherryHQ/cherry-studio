@@ -36,6 +36,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { FileMetadata } from '@renderer/types/file'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { findLatestUpdated } from '@renderer/utils/resourceEntity'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { getTabInstanceKey } from '@renderer/utils/tabInstanceMetadata'
@@ -74,22 +75,6 @@ type DraftAssistantSelection = {
   assistantId?: string
 }
 
-function findLatestUpdatedTopic<T extends { updatedAt?: string }>(topics: readonly T[]): T | undefined {
-  let latestTopic: T | undefined
-  let latestUpdatedAtMs = Number.NEGATIVE_INFINITY
-
-  for (const topic of topics) {
-    const parsedUpdatedAtMs = topic.updatedAt ? Date.parse(topic.updatedAt) : Number.NEGATIVE_INFINITY
-    const updatedAtMs = Number.isFinite(parsedUpdatedAtMs) ? parsedUpdatedAtMs : Number.NEGATIVE_INFINITY
-    if (!latestTopic || updatedAtMs > latestUpdatedAtMs) {
-      latestTopic = topic
-      latestUpdatedAtMs = updatedAtMs
-    }
-  }
-
-  return latestTopic
-}
-
 // Reuse the assistant's latest *empty* placeholder topic instead of stacking a new one. The empty
 // topic only exists to surface the assistant in the old-view rail, so on repeated adds we reopen the
 // existing placeholder rather than pile up blanks.
@@ -103,7 +88,7 @@ function findReusableEmptyTopic<T extends { name: string; assistantId?: string; 
   assistantId: string | undefined
 ): T | undefined {
   if (!assistantId) return undefined
-  return findLatestUpdatedTopic(topics.filter((topic) => topic.assistantId === assistantId && topic.name.trim() === ''))
+  return findLatestUpdated(topics.filter((topic) => topic.assistantId === assistantId && topic.name.trim() === ''))
 }
 
 type DraftChatSendOptions = {
@@ -435,7 +420,7 @@ const HomePage: FC = () => {
     if (isOldView && !isOldViewTopicHistoryReady) return
 
     if (isOldView && !routeAssistantId) {
-      const latestTopic = findLatestUpdatedTopic(oldViewTopics)
+      const latestTopic = findLatestUpdated(oldViewTopics)
       if (latestTopic) {
         draftAssistantStartStateRef.current.firstLaunchStarted = true
         setDraftAssistantSelectionState(undefined)
