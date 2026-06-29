@@ -230,6 +230,7 @@ function shouldIgnoreFileShortcut(event: KeyboardEvent): boolean {
   const target = event.target
   if (!(target instanceof HTMLElement)) return false
   if (target.isContentEditable) return true
+  if (target.closest('[data-file-selection-checkbox]')) return false
 
   return Boolean(target.closest('a[href], button, input, select, textarea, [role="button"], [role="menuitem"]'))
 }

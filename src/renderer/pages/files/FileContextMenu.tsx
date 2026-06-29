@@ -59,15 +59,22 @@ function FileContextMenuContent({
   showRename: boolean
 }) {
   const { t } = useTranslation()
-  const hasPrimaryAction = showRename || file.origin === 'external'
+  const canUseFileActions = !file.isMissing
+  const canRename = canUseFileActions && showRename
+  const canShowInFolder = canUseFileActions && file.origin === 'external'
+  const hasPrimaryAction = canRename || canShowInFolder
 
   if (isTrash) {
     return (
       <ContextMenuContent className="min-w-32">
-        <ContextMenuItem onSelect={() => actions.onRestore(file.id)}>
-          <ContextMenuItemContent icon={<RotateCcw size={12} />}>{t('files.restore')}</ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuSeparator />
+        {!file.isMissing && (
+          <>
+            <ContextMenuItem onSelect={() => actions.onRestore(file.id)}>
+              <ContextMenuItemContent icon={<RotateCcw size={12} />}>{t('files.restore')}</ContextMenuItemContent>
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+          </>
+        )}
         <ContextMenuItem variant="destructive" onSelect={() => actions.onDelete(file.id)}>
           <ContextMenuItemContent icon={<Trash2 size={12} />}>{t('files.permanent_delete')}</ContextMenuItemContent>
         </ContextMenuItem>
@@ -77,12 +84,12 @@ function FileContextMenuContent({
 
   return (
     <ContextMenuContent className="min-w-32">
-      {showRename && (
+      {canRename && (
         <ContextMenuItem onSelect={() => actions.onRename(file.id)}>
           <ContextMenuItemContent icon={<Pencil size={12} />}>{t('files.rename')}</ContextMenuItemContent>
         </ContextMenuItem>
       )}
-      {file.origin === 'external' && (
+      {canShowInFolder && (
         <ContextMenuItem onSelect={() => actions.onShowInFolder(file.id)}>
           <ContextMenuItemContent icon={<FolderClosed size={12} />}>{t('files.show_in_folder')}</ContextMenuItemContent>
         </ContextMenuItem>

@@ -212,6 +212,19 @@ describe('FilesPage keyboard rename', () => {
     expect(screen.queryByDisplayValue('report.md')).not.toBeInTheDocument()
   })
 
+  it('handles file shortcuts from a focused selection checkbox', async () => {
+    renderFilesPage()
+
+    const checkbox = screen.getByRole('checkbox', { name: 'files.select_file' })
+    fireEvent.click(checkbox)
+    checkbox.focus()
+    fireEvent.keyDown(checkbox, { key: 'Delete' })
+
+    await waitFor(() => {
+      expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_trash', { ids: [entry.id] })
+    })
+  })
+
   it('uses extension sorting for the type column query', async () => {
     renderFilesPage()
 
@@ -858,8 +871,13 @@ describe('FilesPage file operations', () => {
 
     expect(await screen.findByText('external.txt')).toBeInTheDocument()
     expect(screen.getByText('files.missing')).toBeInTheDocument()
+    expect(screen.queryByLabelText('files.open')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('files.rename')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('files.show_in_folder')).not.toBeInTheDocument()
 
     fireEvent.contextMenu(screen.getByText('external.txt'))
+    expect(screen.queryByText('files.rename')).not.toBeInTheDocument()
+    expect(screen.queryByText('files.show_in_folder')).not.toBeInTheDocument()
     fireEvent.click(screen.getByText('files.remove_from_library'))
 
     await waitFor(() => {
@@ -885,6 +903,7 @@ describe('FilesPage file operations', () => {
     expect(screen.queryByLabelText('files.select_file')).not.toBeInTheDocument()
 
     fireEvent.contextMenu(screen.getByAltText('photo.png'))
-    expect(screen.queryByText('files.rename')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText('files.rename'))
+    expect(screen.getByDisplayValue('photo.png')).toBeInTheDocument()
   })
 })

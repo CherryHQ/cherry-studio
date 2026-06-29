@@ -90,7 +90,7 @@ export const FileGrid = memo(function FileGrid({
         const shapeClass = isImage ? 'aspect-square rounded-lg' : 'h-[72px] rounded-t-lg'
         const bgClass = isImage ? '' : typeBgColors[file.type]
         return (
-          <FileContextMenu key={file.id} file={file} isTrash={isTrash} actions={menuActions} showRename={!isImage}>
+          <FileContextMenu key={file.id} file={file} isTrash={isTrash} actions={menuActions}>
             <div
               onClick={() => {
                 if (isRenaming) return
@@ -139,30 +139,28 @@ export const FileGrid = memo(function FileGrid({
                       onDelete(file.id)
                     }}
                     title={file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')}
-                    className="flex h-5 w-5 items-center justify-center rounded bg-transparent p-0 text-muted-foreground/35 transition-colors hover:bg-transparent hover:text-destructive/80">
+                    className="flex h-5 w-5 items-center justify-center rounded bg-background/80 p-0 text-destructive/70 shadow-sm backdrop-blur transition-colors hover:bg-destructive/10 hover:text-destructive">
                     <Trash2 size={10} />
                   </Button>
                 </div>
               </div>
-              {!isImage && (
-                <div className="px-2 py-1.5">
-                  {isRenaming ? (
-                    <InlineRename
-                      value={file.name}
-                      onConfirm={(v) => onRenameConfirm(file.id, v)}
-                      onCancel={onRenameCancel}
-                      className="w-full px-1.5 text-center"
-                    />
-                  ) : (
-                    <p className="truncate text-foreground text-sm" title={file.name}>
-                      {file.name}
-                    </p>
-                  )}
-                  <div className="mt-0.5 flex items-center gap-1">
-                    <span className="text-muted-foreground/50 text-xs">{file.size}</span>
-                  </div>
+              <div className="px-2 py-1.5">
+                {isRenaming ? (
+                  <InlineRename
+                    value={file.name}
+                    onConfirm={(v) => onRenameConfirm(file.id, v)}
+                    onCancel={onRenameCancel}
+                    className="w-full px-1.5 text-center"
+                  />
+                ) : (
+                  <p className="truncate text-foreground text-sm" title={file.name}>
+                    {file.name}
+                  </p>
+                )}
+                <div className="mt-0.5 flex items-center gap-1">
+                  <span className="text-muted-foreground/50 text-xs">{file.size}</span>
                 </div>
-              )}
+              </div>
             </div>
           </FileContextMenu>
         )

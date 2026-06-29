@@ -131,4 +131,37 @@ describe('FileList', () => {
 
     expect(screen.getByRole('button', { name: 'files.show_in_folder' })).toBeInTheDocument()
   })
+
+  it('uses remove-from-library wording for external row deletes', () => {
+    const externalFile: FileItem = {
+      ...file,
+      id: 'external-file',
+      origin: 'external'
+    }
+
+    const { rerender } = render(<FileList {...fileListProps(null)} files={[file]} />)
+
+    expect(screen.getByRole('button', { name: 'files.delete.label' })).toBeInTheDocument()
+
+    rerender(<FileList {...fileListProps(null)} files={[externalFile]} />)
+
+    expect(screen.getByRole('button', { name: 'files.remove_from_library' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'files.delete.label' })).not.toBeInTheDocument()
+  })
+
+  it('hides invalid row actions for missing files', () => {
+    const missingExternalFile: FileItem = {
+      ...file,
+      id: 'missing-external-file',
+      origin: 'external',
+      isMissing: true
+    }
+
+    render(<FileList {...fileListProps(null)} files={[missingExternalFile]} />)
+
+    expect(screen.queryByRole('button', { name: 'files.open' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'files.rename' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'files.show_in_folder' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'files.remove_from_library' })).toBeInTheDocument()
+  })
 })

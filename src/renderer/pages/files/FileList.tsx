@@ -122,7 +122,7 @@ export const FileList = memo(function FileList({
             onSort={onSort}
           />
         </div>
-        <div className="w-[104px] text-right text-muted-foreground/40 text-xs uppercase tracking-wider">
+        <div className="w-[116px] text-right text-muted-foreground/40 text-xs uppercase tracking-wider">
           {t('files.actions')}
         </div>
       </div>
@@ -130,6 +130,18 @@ export const FileList = memo(function FileList({
         const selected = selectedIds.has(file.id)
         const Icon = typeIcons[file.type]
         const isRenaming = renamingId === file.id
+        const canUseFileActions = !file.isMissing
+        const canRestore = isTrash && canUseFileActions
+        const canOpen = !isTrash && canUseFileActions
+        const canRename = !isTrash && canUseFileActions
+        const canShowInFolder = !isTrash && canUseFileActions && file.origin === 'external'
+        const deleteLabel = isTrash
+          ? t('files.permanent_delete')
+          : file.origin === 'external'
+            ? t('files.remove_from_library')
+            : t('files.delete.label')
+        const renderActionPlaceholder = (key: string) => <div key={key} className="h-7 w-7" aria-hidden="true" />
+
         return (
           <FileContextMenu key={file.id} file={file} isTrash={isTrash} actions={menuActions}>
             <div
@@ -145,6 +157,7 @@ export const FileList = memo(function FileList({
                   checked={selected}
                   onCheckedChange={() => onSelect(file.id)}
                   onClick={(e) => e.stopPropagation()}
+                  data-file-selection-checkbox
                   aria-label={t('files.select_file', { name: file.name })}
                 />
               </div>
@@ -171,8 +184,40 @@ export const FileList = memo(function FileList({
               <span className="w-[70px] shrink-0 text-muted-foreground/50 text-xs">{file.size}</span>
               <span className="w-[55px] shrink-0 text-muted-foreground/50 text-xs">{getFormatLabel(file.format)}</span>
               <span className="w-[110px] shrink-0 text-muted-foreground/50 text-xs">{file.updatedAt}</span>
-              <div className="flex w-[104px] shrink-0 items-center justify-end gap-0.5">
-                {isTrash ? (
+              <div className="grid w-[116px] shrink-0 grid-cols-4 justify-items-center gap-0.5">
+                {canOpen ? (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t('files.open')}
+                    title={t('files.open')}
+                    className="text-muted-foreground/55 hover:text-foreground"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onOpen(file)
+                    }}>
+                    <SquareArrowOutUpRight size={12} />
+                  </Button>
+                ) : (
+                  renderActionPlaceholder('open')
+                )}
+                {canRename ? (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t('files.rename')}
+                    title={t('files.rename')}
+                    className="text-muted-foreground/55 hover:text-foreground"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onRename(file.id)
+                    }}>
+                    <Pencil size={12} />
+                  </Button>
+                ) : (
+                  renderActionPlaceholder('rename')
+                )}
+                {canRestore ? (
                   <Button
                     variant="ghost"
                     size="icon-sm"
@@ -185,55 +230,28 @@ export const FileList = memo(function FileList({
                     }}>
                     <RotateCcw size={12} />
                   </Button>
+                ) : canShowInFolder ? (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t('files.show_in_folder')}
+                    title={t('files.show_in_folder')}
+                    className="text-muted-foreground/55 hover:text-foreground"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onShowInFolder(file.id)
+                    }}>
+                    <FolderOpen size={12} />
+                  </Button>
                 ) : (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={t('files.open')}
-                      title={t('files.open')}
-                      className="text-muted-foreground/55 hover:text-foreground"
-                      disabled={file.isMissing}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onOpen(file)
-                      }}>
-                      <SquareArrowOutUpRight size={12} />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={t('files.rename')}
-                      title={t('files.rename')}
-                      className="text-muted-foreground/55 hover:text-foreground"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onRename(file.id)
-                      }}>
-                      <Pencil size={12} />
-                    </Button>
-                    {file.origin === 'external' && (
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={t('files.show_in_folder')}
-                        title={t('files.show_in_folder')}
-                        className="text-muted-foreground/55 hover:text-foreground"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onShowInFolder(file.id)
-                        }}>
-                        <FolderOpen size={12} />
-                      </Button>
-                    )}
-                  </>
+                  renderActionPlaceholder('location')
                 )}
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  aria-label={isTrash ? t('files.permanent_delete') : t('files.delete.label')}
-                  title={isTrash ? t('files.permanent_delete') : t('files.delete.label')}
-                  className="text-muted-foreground/55 hover:text-destructive"
+                  aria-label={deleteLabel}
+                  title={deleteLabel}
+                  className="text-destructive/60 hover:bg-destructive/[0.08] hover:text-destructive"
                   onClick={(e) => {
                     e.stopPropagation()
                     onDelete(file.id)
