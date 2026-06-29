@@ -164,13 +164,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         : {}),
       abortController: this.abortController
     }
-    const warmQuery = traceEnv
-      ? undefined
-      : await application.get('ClaudeCodeWarmQueryManager').consume({
-          key: request.key,
-          options,
-          initializeTimeoutMs: request.initializeTimeoutMs
-        })
+    // `options` already carries the merged trace env (above), so its signature matches the warm
+    // query prewarmed with the same session-stable trace env — reuse works even in trace mode.
+    const warmQuery = await application.get('ClaudeCodeWarmQueryManager').consume({
+      key: request.key,
+      options,
+      initializeTimeoutMs: request.initializeTimeoutMs
+    })
 
     this.query = warmQuery
       ? warmQuery.query(this.sdkInputQueue)
@@ -493,8 +493,6 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   onSessionIdle(sessionId: string): void {
-    // `prewarmAgentSession` already no-ops in trace mode (it closes any warm
-    // queries and returns), so no driver-side trace guard is needed here.
     void application.get('ClaudeCodeWarmQueryManager').prewarmAgentSession(sessionId)
   }
 }

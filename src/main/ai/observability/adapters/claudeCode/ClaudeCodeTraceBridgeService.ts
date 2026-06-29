@@ -75,36 +75,25 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
     })
 
     const endpoint = await this.ensureServer()
-    // INTENTIONAL DEV-ONLY BEHAVIOR. This whole bridge only runs when developer_mode is
-    // enabled (see onReady), and these flags ask Claude Code to emit verbose telemetry —
-    // user prompts (OTEL_LOG_USER_PROMPTS), tool details/content, and raw API request/response
-    // bodies (OTEL_LOG_RAW_API_BODIES). Those payloads land in span attributes that
-    // TraceStorageService persists as plaintext JSONL trace files on disk, so they may contain
-    // secrets (e.g. authorization headers, API keys embedded in raw bodies). We do NOT redact
-    // here: redaction would require parsing arbitrary OTLP attribute structures across the
-    // ingest path and risk dropping legitimate trace data. The accepted tradeoff (local-only,
-    // developer-gated capture) needs a threat-model decision — see docs/references/ai/observability.md.
-    return {
-      CLAUDE_CODE_ENABLE_TELEMETRY: '1',
-      CLAUDE_CODE_ENHANCED_TELEMETRY_BETA: '1',
-      ENABLE_BETA_TRACING_DETAILED: '1',
-      BETA_TRACING_ENDPOINT: endpoint,
-      OTEL_TRACES_EXPORTER: 'otlp',
-      OTEL_LOGS_EXPORTER: 'otlp',
-      OTEL_EXPORTER_OTLP_PROTOCOL: 'http/json',
-      OTEL_EXPORTER_OTLP_ENDPOINT: endpoint,
-      OTEL_EXPORTER_OTLP_TRACES_PROTOCOL: 'http/json',
-      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: `${endpoint}/v1/traces`,
-      OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: 'http/json',
-      OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: `${endpoint}/v1/logs`,
-      OTEL_TRACES_EXPORT_INTERVAL: '1000',
-      OTEL_LOGS_EXPORT_INTERVAL: '1000',
-      OTEL_LOG_USER_PROMPTS: '1',
-      OTEL_LOG_TOOL_DETAILS: '1',
-      OTEL_LOG_TOOL_CONTENT: '1',
-      OTEL_LOG_RAW_API_BODIES: '1',
-      TRACEPARENT: `00-${normalizedContext.traceId}-${normalizedContext.rootSpanId}-01`
+    return buildClaudeCodeTraceEnv(endpoint, normalizedContext.traceId, normalizedContext.rootSpanId)
+  }
+
+  /**
+   * Build the Claude Code trace env for a session-stable `(traceId, rootSpanId)` WITHOUT registering
+   * span-mapping context. Used by warm-query prewarm so the prewarmed Claude Code process spawns with
+   * the SAME trace env the live connection will inject via `prepareTrace` — otherwise the warm-query
+   * signature would never match and reuse would silently fall back to a cold start whenever trace mode
+   * is on (the env is baked into the spawned process at startup and cannot be added afterwards). The
+   * live connection still calls `prepareTrace` to register topic/model metadata for incoming spans.
+   */
+  async traceEnvForPrewarm(traceId: string, rootSpanId: string): Promise<Record<string, string> | undefined> {
+    if (!this.isActivated) return undefined
+    if (!isTraceId(traceId) || !isSpanId(rootSpanId)) {
+      logger.warn('Skipping Claude Code warm trace env for invalid trace context', { traceId, rootSpanId })
+      return undefined
     }
+    const endpoint = await this.ensureServer()
+    return buildClaudeCodeTraceEnv(endpoint, traceId.toLowerCase(), rootSpanId.toLowerCase())
   }
 
   private async ensureServer(): Promise<string> {
@@ -287,6 +276,39 @@ function isJsonContentType(req: IncomingMessage): boolean {
 function getHeaderValue(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value.join(',')
   return value ?? ''
+}
+
+// INTENTIONAL DEV-ONLY BEHAVIOR. This whole bridge only runs when developer_mode is
+// enabled (see onReady), and these flags ask Claude Code to emit verbose telemetry —
+// user prompts (OTEL_LOG_USER_PROMPTS), tool details/content, and raw API request/response
+// bodies (OTEL_LOG_RAW_API_BODIES). Those payloads land in span attributes that
+// TraceStorageService persists as plaintext JSONL trace files on disk, so they may contain
+// secrets (e.g. authorization headers, API keys embedded in raw bodies). We do NOT redact
+// here: redaction would require parsing arbitrary OTLP attribute structures across the
+// ingest path and risk dropping legitimate trace data. The accepted tradeoff (local-only,
+// developer-gated capture) needs a threat-model decision — see docs/references/ai/observability.md.
+function buildClaudeCodeTraceEnv(endpoint: string, traceId: string, rootSpanId: string): Record<string, string> {
+  return {
+    CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+    CLAUDE_CODE_ENHANCED_TELEMETRY_BETA: '1',
+    ENABLE_BETA_TRACING_DETAILED: '1',
+    BETA_TRACING_ENDPOINT: endpoint,
+    OTEL_TRACES_EXPORTER: 'otlp',
+    OTEL_LOGS_EXPORTER: 'otlp',
+    OTEL_EXPORTER_OTLP_PROTOCOL: 'http/json',
+    OTEL_EXPORTER_OTLP_ENDPOINT: endpoint,
+    OTEL_EXPORTER_OTLP_TRACES_PROTOCOL: 'http/json',
+    OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: `${endpoint}/v1/traces`,
+    OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: 'http/json',
+    OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: `${endpoint}/v1/logs`,
+    OTEL_TRACES_EXPORT_INTERVAL: '1000',
+    OTEL_LOGS_EXPORT_INTERVAL: '1000',
+    OTEL_LOG_USER_PROMPTS: '1',
+    OTEL_LOG_TOOL_DETAILS: '1',
+    OTEL_LOG_TOOL_CONTENT: '1',
+    OTEL_LOG_RAW_API_BODIES: '1',
+    TRACEPARENT: `00-${traceId}-${rootSpanId}-01`
+  }
 }
 
 function isTraceId(value: string): boolean {

@@ -9,6 +9,7 @@ import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { deriveRootSpanId } from '@shared/data/types/trace'
 import { formatApiHost } from '@shared/utils/api'
 import { isGeminiProvider } from '@shared/utils/provider'
 
@@ -217,9 +218,23 @@ export async function buildClaudeCodeWarmQueryRequestForAgentSession(
 ): Promise<WarmQueryRequest | undefined> {
   const request = await buildClaudeCodeQueryRequestForAgentSession(sessionId)
   if (!request) return undefined
+
+  // Bake the same session-stable trace env the live connection will inject (see
+  // ClaudeCodeRuntimeDriver.start). Without it, the warm-query signature wouldn't match a trace
+  // connection and reuse would silently fall back to a cold start whenever trace mode is on.
+  const traceEnv = await buildWarmTraceEnv(sessionId)
+  const options = traceEnv ? { ...request.options, env: { ...request.options.env, ...traceEnv } } : request.options
+
   return {
     key: request.key,
-    options: request.options,
+    options,
     initializeTimeoutMs: request.initializeTimeoutMs
   }
+}
+
+async function buildWarmTraceEnv(sessionId: string): Promise<Record<string, string> | undefined> {
+  const bridge = application.get('ClaudeCodeTraceBridgeService')
+  if (!bridge.isTraceModeEnabled()) return undefined
+  const traceId = await agentSessionService.ensureTraceId(sessionId)
+  return bridge.traceEnvForPrewarm(traceId, deriveRootSpanId(traceId))
 }

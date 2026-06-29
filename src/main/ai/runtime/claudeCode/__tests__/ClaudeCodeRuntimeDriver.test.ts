@@ -508,7 +508,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
-  it('injects Claude Code trace env and skips warm query for trace turns', async () => {
+  it('injects Claude Code trace env and consumes the warm query for trace turns', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     mocks.createClaudeQuery.mockReturnValue(query)
@@ -540,17 +540,24 @@ describe('ClaudeCodeRuntimeDriver', () => {
       turnId: 'turn-1',
       modelName: 'sonnet'
     })
-    expect(mocks.consumeWarmQuery).not.toHaveBeenCalled()
+    // The trace env is merged into `options` BEFORE consume, so its signature matches the warm query
+    // prewarmed with the same trace env — reuse is no longer skipped in trace mode.
+    const expectedTraceOptions = expect.objectContaining({
+      model: 'sonnet',
+      env: {
+        CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+        OTEL_EXPORTER_OTLP_ENDPOINT: 'http://127.0.0.1:4318',
+        TRACEPARENT: `00-${'0'.repeat(32)}-${'1'.repeat(16)}-01`
+      }
+    })
+    expect(mocks.consumeWarmQuery).toHaveBeenCalledWith({
+      key: 'warm-key',
+      options: expectedTraceOptions,
+      initializeTimeoutMs: 100
+    })
     expect(mocks.createClaudeQuery).toHaveBeenCalledWith({
       prompt: expect.anything(),
-      options: expect.objectContaining({
-        model: 'sonnet',
-        env: {
-          CLAUDE_CODE_ENABLE_TELEMETRY: '1',
-          OTEL_EXPORTER_OTLP_ENDPOINT: 'http://127.0.0.1:4318',
-          TRACEPARENT: `00-${'0'.repeat(32)}-${'1'.repeat(16)}-01`
-        }
-      })
+      options: expectedTraceOptions
     })
     void connection.close()
   })

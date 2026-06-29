@@ -1,8 +1,8 @@
 import type { Options, WarmQuery } from '@anthropic-ai/claude-agent-sdk'
 import { startup } from '@anthropic-ai/claude-agent-sdk'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import getShellEnv from '@main/utils/shell-env'
 
 import { buildClaudeCodeWarmQueryRequestForAgentSession } from './agentSessionWarmup'
 
@@ -88,12 +88,17 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
   // `ai.prewarm_agent_session` / `ai.close_agent_session_warm` (IpcApi, validated by the router)
   // delegate to the public methods below; this service registers no IPC of its own.
 
-  async prewarmAgentSession(sessionId: string): Promise<void> {
-    if (application.get('ClaudeCodeTraceBridgeService').isTraceModeEnabled()) {
-      this.closeAll()
-      return
-    }
+  protected onReady(): void {
+    // Warm the login-shell env cache off the request path. settingsBuilder's buildEnvironment()
+    // awaits getShellEnv(), whose first call spawns a login shell (up to 15s); prefetching here lets
+    // the first agent request read it from cache instead of blocking on that spawn. Fire-and-forget —
+    // onReady is awaited by the lifecycle, so we must not block the WhenReady phase on the spawn.
+    void getShellEnv().catch((error) => {
+      logger.warn('Failed to prewarm shell environment', { error })
+    })
+  }
 
+  async prewarmAgentSession(sessionId: string): Promise<void> {
     try {
       const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession(sessionId)
       if (!warmRequest) return
