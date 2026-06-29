@@ -5,7 +5,7 @@ import {
   hasTabInstanceMetadataForApp
 } from '@renderer/utils/tabInstanceMetadata'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import type { SidebarBuiltinFavorite, SidebarFavorite } from '@shared/data/preference/preferenceTypes'
+import type { SidebarFavorite } from '@shared/data/preference/preferenceTypes'
 
 /**
  * Context passed to sidebar navigation handlers. Carries per-call state the
@@ -34,8 +34,8 @@ export interface SidebarInstanceKey {
   urlForKey: (key: string) => string
 }
 
-export interface SidebarApp {
-  id: SidebarBuiltinFavorite
+interface SidebarAppDefinition<Id extends SidebarFavorite = SidebarFavorite> {
+  id: Id
   routePrefix: string
   /** Url to open when no tab exists yet (defaults to `routePrefix`). */
   resolveUrl?: (ctx: SidebarNavContext) => string
@@ -66,7 +66,7 @@ function isMessageOnlyConversationUrl(url: string): boolean {
  * Single source of truth for sidebar applications.
  * Order here is the canonical sidebar order and drives preference defaults.
  */
-export const SIDEBAR_APPS: readonly SidebarApp[] = [
+const SIDEBAR_APP_DEFINITIONS = [
   {
     id: 'assistants',
     routePrefix: '/app/chat',
@@ -123,17 +123,22 @@ export const SIDEBAR_APPS: readonly SidebarApp[] = [
     id: 'openclaw',
     routePrefix: '/app/openclaw'
   }
-]
+] as const satisfies readonly SidebarAppDefinition[]
 
-const SIDEBAR_APP_BY_ID: Record<SidebarBuiltinFavorite, SidebarApp> = SIDEBAR_APPS.reduce(
+export type SidebarAppId = (typeof SIDEBAR_APP_DEFINITIONS)[number]['id']
+export type SidebarApp = SidebarAppDefinition<SidebarAppId>
+
+export const SIDEBAR_APPS: readonly SidebarApp[] = SIDEBAR_APP_DEFINITIONS
+
+const SIDEBAR_APP_BY_ID: Record<SidebarAppId, SidebarApp> = SIDEBAR_APPS.reduce(
   (acc, app) => {
     acc[app.id] = app
     return acc
   },
-  {} as Record<SidebarBuiltinFavorite, SidebarApp>
+  {} as Record<SidebarAppId, SidebarApp>
 )
 
-export function getSidebarApp(id: SidebarBuiltinFavorite): SidebarApp | undefined {
+export function getSidebarApp(id: SidebarAppId): SidebarApp | undefined {
   return SIDEBAR_APP_BY_ID[id]
 }
 
@@ -179,33 +184,33 @@ export function buildSidebarAppOpenMetadata(app: SidebarApp, key?: string): Tab[
  * 侧边栏支持的完整菜单顺序。
  * Preference 默认值可能不包含新菜单，管理态列表仍需要覆盖当前全部支持项。
  */
-export const SIDEBAR_FAVORITE_ORDER: SidebarBuiltinFavorite[] = SIDEBAR_APPS.map((app) => app.id)
+export const SIDEBAR_FAVORITE_ORDER: SidebarAppId[] = SIDEBAR_APPS.map((app) => app.id)
 
 /**
  * 必须显示的侧边栏收藏项（不能被隐藏）
  * 这些收藏项必须始终在侧边栏中可见
  * 抽取为参数方便未来扩展
  */
-export const REQUIRED_SIDEBAR_FAVORITES: SidebarBuiltinFavorite[] = ['assistants']
+export const REQUIRED_SIDEBAR_FAVORITES: SidebarAppId[] = ['assistants']
 
-const sidebarFavoriteSet = new Set<SidebarBuiltinFavorite>(SIDEBAR_FAVORITE_ORDER)
+const sidebarFavoriteSet = new Set<SidebarAppId>(SIDEBAR_FAVORITE_ORDER)
 
-export function getSidebarMenuPath(favorite: SidebarBuiltinFavorite, defaultPaintingProvider: string): string {
+export function getSidebarMenuPath(favorite: SidebarAppId, defaultPaintingProvider: string): string {
   const app = getSidebarApp(favorite)
   if (!app) return ''
   return app.resolveUrl?.({ defaultPaintingProvider }) ?? app.routePrefix
 }
 
-export function resolveSidebarActiveItem(url: string): SidebarBuiltinFavorite | '' {
+export function resolveSidebarActiveItem(url: string): SidebarAppId | '' {
   const match = SIDEBAR_APPS.find((app) => (app.exactRouteFocus ? url === app.routePrefix : tabBelongsToApp(app, url)))
   return match?.id ?? ''
 }
 
-export function isSidebarBuiltinFavorite(value: string): value is SidebarBuiltinFavorite {
-  return sidebarFavoriteSet.has(value as SidebarBuiltinFavorite)
+export function isSidebarAppId(value: string): value is SidebarAppId {
+  return sidebarFavoriteSet.has(value as SidebarAppId)
 }
 
-export function createSidebarAppFavorite(id: SidebarBuiltinFavorite): SidebarFavorite {
+export function createSidebarAppFavorite(id: SidebarAppId): SidebarFavorite {
   return id
 }
 
@@ -227,12 +232,12 @@ export function getSidebarFavoriteIds(favorites: readonly SidebarFavorite[] | un
   return ids
 }
 
-function sanitizeSidebarFavorites(favorites: readonly SidebarFavorite[] | undefined): SidebarBuiltinFavorite[] {
-  const seen = new Set<SidebarBuiltinFavorite>()
-  const sidebarFavorites: SidebarBuiltinFavorite[] = []
+function sanitizeSidebarFavorites(favorites: readonly SidebarFavorite[] | undefined): SidebarAppId[] {
+  const seen = new Set<SidebarAppId>()
+  const sidebarFavorites: SidebarAppId[] = []
 
   for (const id of getSidebarFavoriteIds(favorites)) {
-    if (!isSidebarBuiltinFavorite(id) || seen.has(id)) continue
+    if (!isSidebarAppId(id) || seen.has(id)) continue
 
     seen.add(id)
     sidebarFavorites.push(id)
@@ -242,12 +247,10 @@ function sanitizeSidebarFavorites(favorites: readonly SidebarFavorite[] | undefi
 }
 
 export function getSidebarMiniAppFavoriteIds(favorites: readonly SidebarFavorite[] | undefined): string[] {
-  return getSidebarFavoriteIds(favorites).filter((id) => !isSidebarBuiltinFavorite(id))
+  return getSidebarFavoriteIds(favorites).filter((id) => !isSidebarAppId(id))
 }
 
-export function getOrderedVisibleSidebarFavorites(
-  favorites: readonly SidebarFavorite[] | undefined
-): SidebarBuiltinFavorite[] {
+export function getOrderedVisibleSidebarFavorites(favorites: readonly SidebarFavorite[] | undefined): SidebarAppId[] {
   const visible = sanitizeSidebarFavorites(favorites)
 
   for (const favorite of REQUIRED_SIDEBAR_FAVORITES) {

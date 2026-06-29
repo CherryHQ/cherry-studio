@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import type { SidebarBuiltinFavorite } from '@shared/data/preference/preferenceTypes'
+import type { SidebarAppId } from '@renderer/utils/sidebar'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
@@ -92,7 +92,7 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
-  getSidebarIconLabelKey: (key: SidebarBuiltinFavorite) =>
+  getSidebarIconLabelKey: (key: SidebarAppId) =>
     ({
       assistants: 'Chat',
       agents: 'Agent',
@@ -144,7 +144,7 @@ vi.mock('react-i18next', () => ({
 
 import LaunchpadPage from '../LaunchpadPage'
 
-const appFavorite = (id: SidebarBuiltinFavorite): string => id
+const appFavorite = (id: SidebarAppId): string => id
 const miniAppFavorite = (id: string): string => id
 
 afterEach(() => {
