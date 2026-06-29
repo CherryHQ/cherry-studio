@@ -771,9 +771,6 @@ importers:
       fractional-indexing:
         specifier: ^3.2.0
         version: 3.2.0
-      framer-motion:
-        specifier: ^12.23.12
-        version: 12.23.26(@emotion/is-prop-valid@1.4.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       franc-min:
         specifier: ^6.2.0
         version: 6.2.0
