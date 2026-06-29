@@ -261,6 +261,61 @@ describe('ResourceEntityRail', () => {
     expect(screen.getByTestId('assistant-a-icon')).toBeInTheDocument()
   })
 
+  it('groups non-pinned entities into per-tag sections while keeping pinned on top', () => {
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants list"
+        defaultGroupLabel="Assistants"
+        groupByTag
+        items={[
+          { id: 'pinned-tagged', name: 'Pinned Tagged', icon: <span />, pinned: true, tag: 'work' },
+          { id: 'work-a', name: 'Work A', icon: <span data-testid="work-a-icon" />, tag: 'work' },
+          { id: 'home-a', name: 'Home A', icon: <span />, tag: 'home' },
+          { id: 'loose', name: 'Loose', icon: <span />, tag: undefined }
+        ]}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onReorder={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    )
+
+    // Pinned section stays on top; non-pinned entities split into tag sections + an untagged section.
+    expect(screen.getByText('selector.common.pinned_title')).toBeInTheDocument()
+    expect(screen.getByText('work')).toBeInTheDocument()
+    expect(screen.getByText('home')).toBeInTheDocument()
+    expect(screen.getByText('assistants.tags.untagged')).toBeInTheDocument()
+    // A pinned entity stays under the pinned section even though it carries a tag — its tag must not
+    // spawn a second "work" header.
+    expect(screen.getAllByText('work')).toHaveLength(1)
+    // The flat default "Assistants" header never appears while grouping by tag.
+    expect(screen.queryByText('Assistants')).not.toBeInTheDocument()
+    expect(screen.getByTestId('work-a-icon')).toBeInTheDocument()
+  })
+
+  it('ignores entity tags when groupByTag is off', () => {
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants list"
+        defaultGroupLabel="Assistants"
+        items={[
+          { id: 'work-a', name: 'Work A', icon: <span />, tag: 'work' },
+          { id: 'home-a', name: 'Home A', icon: <span />, tag: 'home' }
+        ]}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onReorder={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByText('work')).not.toBeInTheDocument()
+    expect(screen.queryByText('home')).not.toBeInTheDocument()
+    expect(screen.queryByText('assistants.tags.untagged')).not.toBeInTheDocument()
+  })
+
   it('renders a flat list with no section header when nothing is pinned', () => {
     render(
       <ResourceEntityRail

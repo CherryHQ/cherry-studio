@@ -1333,12 +1333,14 @@
       "add": "Add Tag",
       "delete": "Delete Tag",
       "deleteConfirm": "Are you sure to delete this tag?",
+      "group_by": "Group by tag",
       "manage": "Tag Management",
       "modify": "Modify Tag",
       "none": "No tags",
       "settings": {
         "title": "Tag Settings"
       },
+      "ungroup": "Turn off tag grouping",
       "untagged": "Untagged"
     },
     "title": "Assistants",

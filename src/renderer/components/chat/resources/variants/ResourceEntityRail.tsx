@@ -26,6 +26,8 @@ export type ResourceEntityRailItem = {
    * It does not affect visibility — an entity with no resources stays hidden whether pinned or not.
    */
   pinned?: boolean
+  /** Single user tag name. Only consulted when the rail runs with `groupByTag`; undefined → "未分组". */
+  tag?: string
 }
 
 // Pinned entities float into a "已固定" section at the top; the rest sit under the "助手" / "智能体"
@@ -36,6 +38,11 @@ const ENTITY_RAIL_PINNED_SECTION_ID = 'resource-entity-rail:section:pinned'
 const ENTITY_RAIL_DEFAULT_SECTION_ID = 'resource-entity-rail:section:default'
 const ENTITY_RAIL_PINNED_GROUP_ID = 'resource-entity-rail:group:pinned'
 const ENTITY_RAIL_DEFAULT_GROUP_ID = 'resource-entity-rail:group:default'
+// When `groupByTag` is on, each tag name becomes its own collapsible section below the pinned one;
+// untagged entities collapse together under a single sentinel section.
+const ENTITY_RAIL_TAG_SECTION_PREFIX = 'resource-entity-rail:section:tag:'
+const ENTITY_RAIL_TAG_GROUP_PREFIX = 'resource-entity-rail:group:tag:'
+const ENTITY_RAIL_UNTAGGED_KEY = '__untagged__'
 
 export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionContext = unknown> = {
   addIcon?: ReactNode
@@ -43,6 +50,12 @@ export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionCon
   ariaLabel: string
   /** Header for the non-pinned group ("助手" for assistants, "智能体" for agents). */
   defaultGroupLabel?: string
+  /**
+   * Group the non-pinned entities by their `tag` into collapsible sections (the pinned section stays
+   * on top). Drag-reorder is disabled while on, since `orderKey` is a single flat order. Off → the
+   * flat "助手"/"智能体" section.
+   */
+  groupByTag?: boolean
   emptyFallback?: ReactNode
   getContextMenuActions?: (item: T) => readonly ResolvedAction<TActionContext>[]
   listRef?: RefObject<HTMLDivElement | null>
@@ -82,6 +95,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   addLabel,
   ariaLabel,
   defaultGroupLabel,
+  groupByTag = false,
   emptyFallback,
   getContextMenuActions,
   listRef,
@@ -96,6 +110,9 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   items
 }: ResourceEntityRailProps<T, TActionContext>) {
   const { t } = useTranslation()
+  // Tag grouping splits the flat order across sections, so dragging an item between tags would have
+  // no meaningful `orderKey` target — disable reorder entirely while grouping by tag.
+  const reorderEnabled = !!onReorder && !groupByTag
   const fallbackListRef = useRef<HTMLDivElement>(null)
   const effectiveListRef = listRef ?? fallbackListRef
   const runContextMenuAction = useCallback(
@@ -179,17 +196,28 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   // avatar and read as indented beneath. The single-section case (nothing pinned) renders the flat
   // list with no header, exactly like the modern layout.
   const sectionBy = useMemo<(item: T) => ResourceListSection>(
-    () => (item) =>
-      item.pinned
-        ? { id: ENTITY_RAIL_PINNED_SECTION_ID, label: t('selector.common.pinned_title') }
-        : { id: ENTITY_RAIL_DEFAULT_SECTION_ID, label: defaultGroupLabel ?? '' },
-    [defaultGroupLabel, t]
+    () => (item) => {
+      if (item.pinned) return { id: ENTITY_RAIL_PINNED_SECTION_ID, label: t('selector.common.pinned_title') }
+      if (groupByTag) {
+        return item.tag
+          ? { id: `${ENTITY_RAIL_TAG_SECTION_PREFIX}${item.tag}`, label: item.tag }
+          : { id: `${ENTITY_RAIL_TAG_SECTION_PREFIX}${ENTITY_RAIL_UNTAGGED_KEY}`, label: t('assistants.tags.untagged') }
+      }
+      return { id: ENTITY_RAIL_DEFAULT_SECTION_ID, label: defaultGroupLabel ?? '' }
+    },
+    [defaultGroupLabel, groupByTag, t]
   )
   // Header-less groups (one per section, distinct ids) keep entity avatars visible and stop
-  // drag-reorder from crossing the pinned/non-pinned boundary.
+  // drag-reorder from crossing the pinned/non-pinned (or per-tag) boundary.
   const groupBy = useMemo<(item: T) => ResourceListGroup>(
-    () => (item) => ({ id: item.pinned ? ENTITY_RAIL_PINNED_GROUP_ID : ENTITY_RAIL_DEFAULT_GROUP_ID, label: '' }),
-    []
+    () => (item) => {
+      if (item.pinned) return { id: ENTITY_RAIL_PINNED_GROUP_ID, label: '' }
+      if (groupByTag) {
+        return { id: `${ENTITY_RAIL_TAG_GROUP_PREFIX}${item.tag ?? ENTITY_RAIL_UNTAGGED_KEY}`, label: '' }
+      }
+      return { id: ENTITY_RAIL_DEFAULT_GROUP_ID, label: '' }
+    },
+    [groupByTag]
   )
 
   // Alias the compound provider to a local before rendering — same pattern as TopicResourceList/SessionResourceList.
@@ -208,15 +236,15 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
       defaultGroupVisibleCount={Number.POSITIVE_INFINITY}
       dragCapabilities={{
         groups: false,
-        items: !!onReorder,
-        itemSameGroup: !!onReorder,
+        items: reorderEnabled,
+        itemSameGroup: reorderEnabled,
         itemCrossGroup: false
       }}
-      canDragItem={({ item }) => !!onReorder && !item.pinned}
+      canDragItem={({ item }) => reorderEnabled && !item.pinned}
       canDropItem={({ activeItem, targetGroupId }) =>
-        !!onReorder && !activeItem.pinned && targetGroupId !== ENTITY_RAIL_PINNED_GROUP_ID
+        reorderEnabled && !activeItem.pinned && targetGroupId !== ENTITY_RAIL_PINNED_GROUP_ID
       }
-      onReorder={onReorder}>
+      onReorder={reorderEnabled ? onReorder : undefined}>
       <ResourceList.Frame className="h-full min-h-0" data-testid={`${variant}-entity-rail`}>
         <ResourceList.Header className="gap-1">
           <ResourceList.HeaderItem
@@ -241,7 +269,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
         </ResourceList.Header>
         <ResourceList.Body<T>
           listRef={effectiveListRef}
-          draggable={!!onReorder}
+          draggable={reorderEnabled}
           ariaLabel={ariaLabel}
           virtualClassName="pt-1 pb-3"
           errorFallback={<ResourceList.ErrorState message={t('error.boundary.default.message')} />}
