@@ -62,7 +62,8 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     getById: vi.fn(),
-    create: vi.fn()
+    create: vi.fn(),
+    resolveDefaultWorkspaceForAgent: vi.fn().mockResolvedValue({ type: 'system' })
   }
 }))
 
@@ -156,6 +157,7 @@ describe('ChannelMessageHandler', () => {
     } as any)
     mockPrepareClaudeCodeWorkspaceDirectory.mockReset()
     mockPrepareClaudeCodeWorkspaceDirectory.mockResolvedValue(undefined)
+    vi.mocked(agentSessionService.resolveDefaultWorkspaceForAgent).mockResolvedValue({ type: 'system' })
     // Clear session tracker to ensure clean state
     channelMessageHandler.clearSessionTracker('agent-1')
   })
@@ -354,8 +356,12 @@ describe('ChannelMessageHandler', () => {
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', longText)
   })
 
-  it('handleCommand /new creates a new session', async () => {
+  it('handleCommand /new creates a new session with the bound agent default workspace', async () => {
     const adapter = createMockAdapter()
+    vi.mocked(agentSessionService.resolveDefaultWorkspaceForAgent).mockResolvedValueOnce({
+      type: 'user',
+      workspaceId: 'workspace-default'
+    })
     vi.mocked(agentSessionService.create).mockResolvedValueOnce({ id: 'new-session' } as any)
 
     await channelMessageHandler.handleCommand(adapter, {
@@ -365,10 +371,11 @@ describe('ChannelMessageHandler', () => {
       command: 'new'
     })
 
+    expect(agentSessionService.resolveDefaultWorkspaceForAgent).toHaveBeenCalledWith('agent-1')
     expect(agentSessionService.create).toHaveBeenCalledWith({
       agentId: 'agent-1',
       name: 'Channel session',
-      workspace: { type: 'system' }
+      workspace: { type: 'user', workspaceId: 'workspace-default' }
     })
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'New session created.')
   })

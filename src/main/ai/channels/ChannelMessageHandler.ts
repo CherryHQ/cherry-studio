@@ -543,7 +543,7 @@ export class ChannelMessageHandler {
     return await agentSessionService.create({
       agentId,
       name: 'Channel session',
-      workspace: channelRow.workspace
+      workspace: await agentSessionService.resolveDefaultWorkspaceForAgent(agentId)
     })
   }
 

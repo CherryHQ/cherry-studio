@@ -166,6 +166,23 @@ export class AgentSessionService {
     return rowToSession(row)
   }
 
+  async resolveDefaultWorkspaceForAgent(agentId: string): Promise<AgentSessionWorkspaceSource> {
+    const db = application.get('DbService').getDb()
+    const [row] = await db
+      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .from(sessionsTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .where(eq(sessionsTable.agentId, agentId))
+      .orderBy(desc(sessionsTable.updatedAt), asc(sessionsTable.id))
+      .limit(1)
+
+    if (!row || row.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) {
+      return { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+    }
+
+    return { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: row.workspace.id }
+  }
+
   async ensureTraceId(sessionId: string): Promise<string> {
     return application.get('DbService').withWriteTx(async (tx) => {
       const [row] = await tx
