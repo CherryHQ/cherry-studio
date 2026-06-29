@@ -389,7 +389,6 @@ const AgentComposerModelControl = ({
   const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
   const triggerClassName = cn(baseTriggerClassName, iconOnly && model && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
   const labelClassName = cn('truncate', iconOnly && model && COMPOSER_ICON_ONLY_LABEL_CLASS)
-  const chevronClassName = cn('text-muted-foreground', iconOnly && 'hidden')
   const modelLabel = model ? `${model.name}${modelProviderName ? ` | ${modelProviderName}` : ''}` : selectModelLabel
   const trigger = (
     <Button variant="ghost" size="sm" className={triggerClassName} disabled={!canChangeModel}>
@@ -406,7 +405,6 @@ const AgentComposerModelControl = ({
         )}>
         {modelLabel}
       </span>
-      {canChangeModel ? <ChevronDown size={14} aria-hidden className={chevronClassName} /> : null}
     </Button>
   )
 

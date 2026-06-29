@@ -530,6 +530,7 @@ describe('AgentComposer', () => {
     )
 
     expect(screen.getByTestId('agent-model-selector')).toHaveAttribute('data-shortcut', 'chat.model.select')
+    expect(screen.getByTestId('agent-model-selector').querySelector('.lucide-chevron-down')).toBeNull()
     expect(screen.getByText('Claude Sonnet 4.5 | Anthropic')).toHaveClass('text-foreground/85')
 
     fireEvent.click(screen.getByText('select model 2'))
