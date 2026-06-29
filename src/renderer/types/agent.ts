@@ -7,8 +7,6 @@
  */
 import type { Tool } from '@shared/ai/tool'
 import { AgentBaseSchema, type AgentConfiguration, AgentEntitySchema } from '@shared/data/api/schemas/agents'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentBase, AgentEntity, AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 import * as z from 'zod'
@@ -72,26 +70,6 @@ export type UpdateAgentForm = Partial<Omit<BaseAgentForm, 'type'>> & {
   type?: never
 }
 
-/**
- * Session forms carry instance-level fields plus the workspace binding.
- */
-export type CreateSessionForm = {
-  agentId: string
-  name: string
-  description?: string
-  workspaceId?: string
-  id?: never
-}
-
-export type UpdateSessionForm = {
-  id: string
-  name?: string
-  description?: string
-  /** Re-point the session to a different parent agent. */
-  agentId?: string
-  workspace?: AgentSessionWorkspaceSource
-}
-
 export type UpdateAgentBaseForm = Partial<AgentBase> & { id: string }
 
 // ------------------ Hook signatures --------------------------------------
@@ -104,13 +82,6 @@ export type UpdateAgentFunction = (
   form: UpdateAgentForm,
   options?: UpdateAgentBaseOptions
 ) => Promise<AgentEntity | undefined>
-
-export type UpdateAgentSessionFunction = (
-  form: UpdateSessionForm,
-  options?: UpdateAgentBaseOptions
-) => Promise<AgentSessionEntity | undefined>
-
-export type UpdateAgentFunctionUnion = UpdateAgentFunction | UpdateAgentSessionFunction
 
 // ------------------ Renderer-side DTO aliases ----------------------------
 export type GetAgentResponse = AgentEntity & { tools?: Tool[] }
