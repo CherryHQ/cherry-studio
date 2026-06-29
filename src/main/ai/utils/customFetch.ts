@@ -17,6 +17,26 @@ import { net, session } from 'electron'
 const PROVIDER_USER_AGENT_HEADER = 'x-cherry-studio-user-agent'
 
 /**
+ * Resolve the effective `User-Agent` from a {@link HeadersInit} with
+ * case-insensitive last-writer-wins.
+ *
+ * A plain header object can hold case variants of the same name — e.g. Copilot's
+ * default `User-Agent` plus a lowercase `user-agent` from `extraHeaders` after a
+ * `{ ...defaults, ...extraHeaders }` merge. `new Headers(...).get('user-agent')`
+ * would comma-join them (`"Copilot/1.0, MyAgent/1.0"`), losing the override; here
+ * the last entry wins, matching the merge's `extraHeaders`-precedence.
+ */
+function resolveUserAgent(headers: HeadersInit): string | null {
+  if (headers instanceof Headers) return headers.get('user-agent')
+  const entries = Array.isArray(headers) ? headers : Object.entries(headers)
+  let userAgent: string | null = null
+  for (const [key, value] of entries) {
+    if (key.toLowerCase() === 'user-agent') userAgent = value
+  }
+  return userAgent
+}
+
+/**
  * Base `fetch` for AI provider HTTP calls.
  *
  * Proxy policy is applied centrally by `ProxyService`
@@ -39,7 +59,7 @@ export const customFetch: FetchFunction = (input: RequestInfo | URL, init?: Requ
   // stack, so smuggle it through PROVIDER_USER_AGENT_HEADER and let the default-session
   // interceptor restore it. Only the (string, init) call shape carries headers here;
   // the AI SDK always uses it, so the Request-input path needs no handling.
-  const userAgent = init?.headers ? new Headers(init.headers).get('user-agent') : null
+  const userAgent = init?.headers ? resolveUserAgent(init.headers) : null
   if (userAgent) {
     const headers = new Headers(init?.headers)
     headers.set(PROVIDER_USER_AGENT_HEADER, userAgent)
