@@ -45,7 +45,7 @@ export function createKbSearchToolEntry(): ToolEntry {
     description: "Search the user's private knowledge base",
     defer: 'always',
     tool: kbSearchTool,
-    applies: (scope) => (scope.assistant?.knowledgeBaseIds?.length ?? 0) > 0
+    applies: (scope) => scope.hasAnyKnowledgeBase === true && (scope.assistant?.knowledgeBaseIds?.length ?? 0) > 0
   }
 }
 

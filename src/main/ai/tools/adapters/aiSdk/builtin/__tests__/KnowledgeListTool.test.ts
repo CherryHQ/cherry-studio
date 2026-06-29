@@ -361,11 +361,25 @@ describe('kb_list', () => {
   })
 
   describe('applies', () => {
-    it('returns true only when the assistant has at least one knowledge base id', () => {
+    it('applies whenever any base exists, regardless of assistant binding', () => {
       const applies = entry.applies!
-      expect(applies({ assistant: undefined, mcpToolIds: new Set() })).toBe(false)
-      expect(applies({ assistant: makeAssistant({ knowledgeBaseIds: [] }), mcpToolIds: new Set() })).toBe(false)
-      expect(applies({ assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }), mcpToolIds: new Set() })).toBe(true)
+      // No base in the system → does not apply, even with bound ids.
+      expect(
+        applies({
+          assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }),
+          mcpToolIds: new Set(),
+          hasAnyKnowledgeBase: false
+        })
+      ).toBe(false)
+      // A base exists → applies even with no bound bases (and even with no assistant): kb_list browses all bases.
+      expect(applies({ assistant: undefined, mcpToolIds: new Set(), hasAnyKnowledgeBase: true })).toBe(true)
+      expect(
+        applies({
+          assistant: makeAssistant({ knowledgeBaseIds: [] }),
+          mcpToolIds: new Set(),
+          hasAnyKnowledgeBase: true
+        })
+      ).toBe(true)
     })
   })
 })

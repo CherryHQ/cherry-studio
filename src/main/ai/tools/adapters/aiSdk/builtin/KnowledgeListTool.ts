@@ -48,6 +48,8 @@ export function createKbListToolEntry(): ToolEntry {
     description: "List the user's available knowledge bases with sample sources",
     defer: 'never',
     tool: kbListTool,
-    applies: (scope) => (scope.assistant?.knowledgeBaseIds?.length ?? 0) > 0
+    // Discovery entry point: available whenever the user has any knowledge base, even when none are
+    // bound to this assistant — so the model can browse all bases before searching.
+    applies: (scope) => scope.hasAnyKnowledgeBase === true
   }
 }

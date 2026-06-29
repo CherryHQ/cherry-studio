@@ -51,7 +51,7 @@ export function createKbGrepToolEntry(): ToolEntry {
     description: 'Find exact text (regex) inside a knowledge base document by its Concept ID',
     defer: 'always',
     tool: kbGrepTool,
-    applies: (scope) => (scope.assistant?.knowledgeBaseIds?.length ?? 0) > 0
+    applies: (scope) => scope.hasAnyKnowledgeBase === true && (scope.assistant?.knowledgeBaseIds?.length ?? 0) > 0
   }
 }
 

@@ -190,11 +190,33 @@ describe('kb_search', () => {
   })
 
   describe('applies', () => {
-    it('returns true only when the assistant has at least one knowledge base id', () => {
+    it('returns true only when a base exists AND at least one is bound to the assistant', () => {
       const applies = entry.applies!
-      expect(applies({ assistant: undefined, mcpToolIds: new Set() })).toBe(false)
-      expect(applies({ assistant: makeAssistant({ knowledgeBaseIds: [] }), mcpToolIds: new Set() })).toBe(false)
-      expect(applies({ assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }), mcpToolIds: new Set() })).toBe(true)
+      // No base in the system → never applies, even with bound ids.
+      expect(
+        applies({
+          assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }),
+          mcpToolIds: new Set(),
+          hasAnyKnowledgeBase: false
+        })
+      ).toBe(false)
+      // A base exists but none bound to this assistant → does not apply.
+      expect(applies({ assistant: undefined, mcpToolIds: new Set(), hasAnyKnowledgeBase: true })).toBe(false)
+      expect(
+        applies({
+          assistant: makeAssistant({ knowledgeBaseIds: [] }),
+          mcpToolIds: new Set(),
+          hasAnyKnowledgeBase: true
+        })
+      ).toBe(false)
+      // A base exists AND is bound → applies.
+      expect(
+        applies({
+          assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }),
+          mcpToolIds: new Set(),
+          hasAnyKnowledgeBase: true
+        })
+      ).toBe(true)
     })
   })
 })

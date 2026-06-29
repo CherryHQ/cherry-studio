@@ -24,6 +24,7 @@ const {
   knowledgeBaseCreateMock,
   knowledgeBaseDeleteMock,
   knowledgeBaseGetByIdMock,
+  knowledgeBaseListMock,
   knowledgeItemCreateMock,
   knowledgeItemDeleteMock,
   knowledgeItemGetDeletingRootGroupsMock,
@@ -60,6 +61,7 @@ const {
   knowledgeBaseCreateMock: vi.fn(),
   knowledgeBaseDeleteMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
+  knowledgeBaseListMock: vi.fn(),
   knowledgeItemCreateMock: vi.fn(),
   knowledgeItemDeleteMock: vi.fn(),
   knowledgeItemGetDeletingRootGroupsMock: vi.fn(),
@@ -147,7 +149,8 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
   knowledgeBaseService: {
     create: knowledgeBaseCreateMock,
     delete: knowledgeBaseDeleteMock,
-    getById: knowledgeBaseGetByIdMock
+    getById: knowledgeBaseGetByIdMock,
+    list: knowledgeBaseListMock
   }
 }))
 
@@ -1738,6 +1741,21 @@ describe('KnowledgeService', () => {
     const results = await service.search('kb-1', 'hello')
 
     expect(results.map((result) => result.chunkId)).toEqual(['c1', 'c2'])
+  })
+
+  describe('hasAnyBase', () => {
+    it('reports true when the base count is non-zero and false when it is zero, via a single-row count', async () => {
+      const service = new KnowledgeService()
+
+      knowledgeBaseListMock.mockResolvedValueOnce({ items: [], total: 3 })
+      await expect(service.hasAnyBase()).resolves.toBe(true)
+
+      knowledgeBaseListMock.mockResolvedValueOnce({ items: [], total: 0 })
+      await expect(service.hasAnyBase()).resolves.toBe(false)
+
+      // Cheap existence check: asks for a single row, never the full list.
+      expect(knowledgeBaseListMock).toHaveBeenLastCalledWith({ page: 1, limit: 1 })
+    })
   })
 
   describe('readConcept', () => {

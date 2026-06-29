@@ -464,6 +464,12 @@ export class KnowledgeService extends BaseService {
     return items
   }
 
+  /** Whether the user has any knowledge base at all — a cheap count (not a full list) for tool-availability gating. */
+  async hasAnyBase(): Promise<boolean> {
+    const { total } = await knowledgeBaseService.list({ page: 1, limit: 1 })
+    return total > 0
+  }
+
   async listRootItems(baseId: string): Promise<KnowledgeItem[]> {
     return await knowledgeItemService.getRootItemsByBaseId(baseId)
   }

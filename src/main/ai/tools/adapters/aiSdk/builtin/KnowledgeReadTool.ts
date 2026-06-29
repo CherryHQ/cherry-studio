@@ -46,7 +46,7 @@ export function createKbReadToolEntry(): ToolEntry {
     description: 'Read the full text of a knowledge base document by its Concept ID',
     defer: 'always',
     tool: kbReadTool,
-    applies: (scope) => (scope.assistant?.knowledgeBaseIds?.length ?? 0) > 0
+    applies: (scope) => scope.hasAnyKnowledgeBase === true && (scope.assistant?.knowledgeBaseIds?.length ?? 0) > 0
   }
 }
 
