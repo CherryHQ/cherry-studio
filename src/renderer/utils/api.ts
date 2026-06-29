@@ -7,6 +7,7 @@ export {
   formatApiKeys,
   hasApiVersion,
   isWithTrailingSharp,
+  joinApiKeyString,
   splitApiKeyString,
   withoutTrailingSharp,
   withoutTrailingSlash

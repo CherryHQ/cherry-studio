@@ -522,11 +522,11 @@ describe('FileProcessingSettings', () => {
     })
 
     await act(async () => {
-      await topViewShowMock.mock.calls[0][0].props.onSetApiKeys('mistral', ['key-1'])
+      await topViewShowMock.mock.calls[0][0].props.onSetApiKeys('mistral', ['key,1', 'key2'])
     })
 
     expect(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder')).toHaveValue(
-      'key-1'
+      'key\\,1, key2'
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api.key.list.open' }))
@@ -534,7 +534,7 @@ describe('FileProcessingSettings', () => {
     await waitFor(() => {
       expect(topViewShowMock).toHaveBeenCalledTimes(2)
     })
-    expect(topViewShowMock.mock.calls[1][0].props.apiKeys).toEqual(['key-1'])
+    expect(topViewShowMock.mock.calls[1][0].props.apiKeys).toEqual(['key,1', 'key2'])
   })
 
   it('stores System OCR language options on Windows', async () => {

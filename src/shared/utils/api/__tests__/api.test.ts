@@ -6,6 +6,7 @@ import {
   getTrailingApiVersion,
   hasApiVersion,
   isWithTrailingSharp,
+  joinApiKeyString,
   splitApiKeyString,
   withoutTrailingApiVersion,
   withoutTrailingSharp
@@ -108,6 +109,14 @@ describe('api', () => {
 
     it('ignores empty keys', () => {
       expect(splitApiKeyString('key1,,key2, ,key3')).toEqual(['key1', 'key2', 'key3'])
+    })
+  })
+
+  describe('joinApiKeyString', () => {
+    it('escapes commas so keys round-trip through splitApiKeyString', () => {
+      const apiKeys = ['key,1', 'key2']
+
+      expect(splitApiKeyString(joinApiKeyString(apiKeys))).toEqual(apiKeys)
     })
   })
 

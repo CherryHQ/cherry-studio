@@ -37,6 +37,13 @@ export function splitApiKeyString(keyStr: string): string[] {
 }
 
 /**
+ * Joins API keys into the comma-separated input format accepted by splitApiKeyString.
+ */
+export function joinApiKeyString(apiKeys: readonly string[]): string {
+  return apiKeys.map((key) => key.replaceAll(',', '\\,')).join(', ')
+}
+
+/**
  * Determines whether a host or path string contains a version-like segment (e.g., /v1, /v2beta).
  *
  * @param host - The host or path string to check.
