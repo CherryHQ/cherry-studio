@@ -104,6 +104,21 @@ describe('ConversationPickerDialog', () => {
     expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
   })
 
+  it('closes when clicking the overlay', () => {
+    const onOpenChange = vi.fn()
+
+    render(
+      <ConversationPickerDialog open onOpenChange={onOpenChange} items={ITEMS} labels={LABELS} onSelect={vi.fn()} />
+    )
+
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
+    expect(overlay).toBeInTheDocument()
+
+    fireEvent.click(overlay!)
+
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
   it('filters by name and search text', () => {
     render(<ConversationPickerDialog open onOpenChange={vi.fn()} items={ITEMS} labels={LABELS} onSelect={vi.fn()} />)
 

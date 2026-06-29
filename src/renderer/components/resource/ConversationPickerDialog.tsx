@@ -105,6 +105,7 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="flex h-[min(520px,calc(100vh-4rem))] w-[min(520px,calc(100vw-2rem))] flex-col gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-[520px]"
+        closeOnOverlayClick
         showCloseButton={showCloseButton}>
         <DialogHeader className="sr-only">
           <DialogTitle>{labels.title}</DialogTitle>
