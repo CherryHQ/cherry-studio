@@ -23,6 +23,8 @@ For user settings use [Preference](./preference-overview.md); for business data 
 
 Persist has two **independent** stores. Each **renderer** persists to its own `localStorage`; **Main** persists to its own JSON file (`{userData}/cache.json`) exposed as `getPersist` / `setPersist` / `hasPersist` / `deletePersist` (plus `subscribePersistChange`) on the Main `CacheService`. The two never share data — Main cannot read renderer persist and vice versa. Separately, Main still **relays** renderer-origin `CacheSyncMessage { type: 'persist' }` between windows (it forwards them; it does not store the renderer's persist).
 
+> **Reach for the Main persist tier last.** It was the last tier added, for a deliberately narrow need: small, loseable, **main-process-authoritative** state that genuinely belongs nowhere else. Before choosing it, rule out the better-fitting systems first — a user setting belongs in [Preference](./preference-overview.md); cross-window or renderer-owned UI state belongs in Shared / renderer Persist; business data belongs in [DataApi](./data-api-overview.md). In the vast majority of cases one of those is the right answer, so use Main persist only when the state is owned by the main process, regenerable, and has no home in any other system. See [System Selection](./README.md) for the full decision guide.
+
 ## Key Types
 
 | Type     | Example schema                       | Call site                                 | Tiers            |
@@ -37,7 +39,7 @@ Template keys share one default value across all instances — all `web_search.p
 
 Non-obvious rules the code enforces; assume them when designing consumers.
 
-1. **Same-value write is a no-op.** Equality via `lodash.isEqual`. No broadcast, no subscriber fire, no hook re-render. (`src/main/data/CacheService.ts` `isEqual` guards before `broadcastSync` / notifier)
+1. **Same-value write is a no-op.** Equality via `isEqual` (es-toolkit/compat). No broadcast, no subscriber fire, no hook re-render. (`src/main/data/CacheService.ts` `isEqual` guards before `broadcastSync` / notifier)
 2. **TTL-only refresh does not fire subscribers.** Updating `expireAt` on the same value is silent.
 3. **Subscribers fire only on explicit writes.** Lazy TTL cleanup, the 10-min GC sweep, and `onStop` do not fire.
 4. **Hooks + TTL is discouraged.** `useCache` / `useSharedCache` log a warn when the key has TTL (`src/renderer/data/hooks/useCache.ts:186-192,289-295`) — values can expire between renders.

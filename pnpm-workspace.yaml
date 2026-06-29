@@ -31,15 +31,17 @@ overrides:
   '@img/sharp-linux-arm64': '0.34.5'
   '@img/sharp-linux-x64': '0.34.5'
   '@img/sharp-win32-x64': '0.34.5'
-  '@langchain/core': '1.0.2'
   '@napi-rs/canvas': '0.1.97'
   '@ai-sdk/provider-utils': '4.0.23'
+  # Pin to the version our patch (patches/@ai-sdk__anthropic.patch) targets so every
+  # instance — including the copies pulled transitively by @ai-sdk/amazon-bedrock and
+  # @ai-sdk/google-vertex — resolves to the single patched build. 3.0.87 backports
+  # sanitizeJsonSchema; the patch wires it into tool input_schema (see the patch).
+  '@ai-sdk/anthropic': '3.0.87'
 
 patchedDependencies:
   '@napi-rs/system-ocr@1.0.2': patches/@napi-rs-system-ocr-npm-1.0.2-59e7a78e8b.patch
   'tesseract.js@6.0.1': patches/tesseract.js-npm-6.0.1-2562a7e46d.patch
-  '@langchain/core@1.0.2': patches/@langchain-core-npm-1.0.2-183ef83fe4.patch
-  '@langchain/openai@1.0.0': patches/@langchain-openai-npm-1.0.0-474d0ad9d4.patch
   'electron-updater@6.7.0': patches/electron-updater-npm-6.7.0-47b11bb0d4.patch
   'atomically@1.7.0': patches/atomically-npm-1.7.0-e742e5293b.patch
   'file-stream-rotator@0.6.1': patches/file-stream-rotator-npm-0.6.1-eab45fb13d.patch

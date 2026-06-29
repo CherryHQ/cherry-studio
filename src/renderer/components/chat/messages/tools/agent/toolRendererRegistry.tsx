@@ -57,11 +57,12 @@ export const toolRenderers: ToolRenderersMap = {
 export function renderTool<T extends AgentToolsType>(
   toolName: T,
   input?: ToolInputMap[T],
-  output?: ToolOutputMap[T]
+  output?: ToolOutputMap[T],
+  hasError?: boolean
 ): ToolDisclosureItem {
   const renderer = toolRenderers[toolName]
   if (!renderer) return { key: toolName, label: null }
-  return renderer({ input, output })
+  return renderer({ input, output, hasError })
 }
 
 export function isValidAgentToolsType(toolName: unknown): toolName is AgentToolsType {

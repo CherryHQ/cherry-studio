@@ -2,7 +2,6 @@ import { Button, Input, Kbd, MenuItem, MenuList, PageHeader, RowFlex, Switch, To
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { isMac, platform } from '@renderer/config/constant'
 import {
   getAllShortcutDefaultPreferences,
   type ShortcutSettingsGroup,
@@ -10,6 +9,7 @@ import {
 } from '@renderer/hooks/command/useCommandShortcuts'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { isMac, platform } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import type { SupportedPlatform } from '@shared/types/command'
@@ -24,7 +24,7 @@ import {
   type ShortcutBinding,
   type ShortcutToken
 } from '@shared/utils/shortcut'
-import { isEmpty } from 'lodash'
+import { isEmpty } from 'es-toolkit/compat'
 import { Keyboard, MessageSquareText, Search, Sparkles, Tags, Undo2 } from 'lucide-react'
 import type { FC, KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'

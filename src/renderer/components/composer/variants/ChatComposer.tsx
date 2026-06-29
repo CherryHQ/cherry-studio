@@ -34,7 +34,7 @@ import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildFilePartsForAttachments } from '@renderer/utils/file/buildFileParts'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import { canModelUseAssistantWebSearch } from '@renderer/utils/modelReconcile'
+import { canModelUseAssistantWebSearch } from '@renderer/utils/model'
 import { getLeadingEmoji } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
@@ -312,7 +312,13 @@ const renderChatHomeControls: ChatComposerControlsRenderer = (props) => ({
 
 type ChatComposerRootProps = ChatComposerProps & {
   renderControls: ChatComposerControlsRenderer
+  forceNarrowLayout?: boolean
 }
+
+type ChatPlacementDockedProps = Omit<ChatComposerProps, 'onDraftAssistantChange'>
+type ChatPlacementComposerProps =
+  | (ChatComposerProps & { placement: 'home' })
+  | (ChatPlacementDockedProps & { placement: 'docked' })
 
 const ChatComposerRoot = ({
   topic,
@@ -324,7 +330,8 @@ const ChatComposerRoot = ({
   useMentionedModelSelector,
   onDraftAssistantChange,
   onNewTopic,
-  renderControls
+  renderControls,
+  forceNarrowLayout = false
 }: ChatComposerRootProps) => {
   const resolvedScopeKey = scopeKey ?? topic?.id
   const resolvedTopicId = topicId ?? topic?.id
@@ -371,6 +378,7 @@ const ChatComposerRoot = ({
             onDraftAssistantChange={onDraftAssistantChange}
             onNewTopic={onNewTopic}
             renderControls={renderControls}
+            forceNarrowLayout={forceNarrowLayout}
           />
         ) : null}
       </ComposerToolRuntimeProvider>
@@ -383,6 +391,7 @@ interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'scopeKey'> {
   initialDraft: ChatComposerDraftCache
   actionsRef: React.RefObject<ProviderActionHandlers>
   renderControls: ChatComposerControlsRenderer
+  forceNarrowLayout?: boolean
 }
 
 const ChatComposerInner = ({
@@ -396,7 +405,8 @@ const ChatComposerInner = ({
   useMentionedModelSelector,
   onDraftAssistantChange,
   onNewTopic,
-  renderControls
+  renderControls,
+  forceNarrowLayout = false
 }: ChatComposerInnerProps) => {
   const streamScopeKey = topicId ?? scopeKey
   const awaitingApproval = useTopicAwaitingApproval(streamScopeKey)
@@ -997,7 +1007,7 @@ const ChatComposerInner = ({
         enableSpellCheck={enableSpellCheck}
         editable={!searching}
         fontSize={fontSize}
-        narrowMode={narrowMode}
+        narrowMode={forceNarrowLayout || narrowMode}
         onFocus={() => setSearching(false)}
         onActionsChange={handleSurfaceActionsChange}
         getToolLaunchers={() => getLaunchers()}
@@ -1013,22 +1023,30 @@ const ChatComposer = (props: ChatComposerProps) => {
 }
 
 export const ChatHomeComposer = (props: ChatComposerProps) => {
-  return <ChatComposerRoot {...props} useMentionedModelSelector renderControls={renderChatHomeControls} />
+  return (
+    <ChatComposerRoot {...props} useMentionedModelSelector forceNarrowLayout renderControls={renderChatHomeControls} />
+  )
 }
 
-export const ChatPlacementComposer = ({
-  isHome,
-  onDraftAssistantChange,
-  ...props
-}: ChatComposerProps & { isHome: boolean }) => {
-  return (
-    <ChatComposerRoot
-      {...props}
-      onDraftAssistantChange={isHome ? onDraftAssistantChange : undefined}
-      useMentionedModelSelector
-      renderControls={isHome ? renderChatHomeControls : renderChatToolbarControls}
-    />
-  )
+export const ChatPlacementComposer = (props: ChatPlacementComposerProps) => {
+  const { placement, ...composerProps } = props
+
+  if (placement === 'home') {
+    return (
+      <ChatComposerRoot
+        {...composerProps}
+        useMentionedModelSelector
+        forceNarrowLayout
+        renderControls={renderChatHomeControls}
+      />
+    )
+  }
+
+  return <ChatComposerRoot {...composerProps} useMentionedModelSelector renderControls={renderChatToolbarControls} />
+}
+
+export const ChatHomePlacementComposer = (props: ChatComposerProps) => {
+  return <ChatPlacementComposer {...props} placement="home" />
 }
 
 export default ChatComposer
