@@ -3,9 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const h = vi.hoisted(() => {
   const providerStore = new Map<string, { authConfig?: unknown; isEnabled?: boolean }>()
   const refreshMock = vi.fn()
+  const afterPersistMock = vi.fn()
   return {
     providerStore,
     refreshMock,
+    afterPersistMock,
     // One controllable fake OAuth client shared by every provider definition.
     clientMock: {
       refresh: refreshMock,
@@ -67,7 +69,8 @@ vi.mock('../providerDefinitions', () => ({
       providerId: 'cherryin',
       clientId: 'cherryin-client',
       transport: { type: 'deep-link', config: { redirectUri: 'app://cb' } },
-      createClient: () => h.clientMock
+      createClient: () => h.clientMock,
+      afterPersistTokens: (tokenData: unknown, context: unknown) => h.afterPersistMock(tokenData, context)
     }
   }
 }))
@@ -90,6 +93,7 @@ describe('OAuthRuntimeService', () => {
     h.providerStore.clear()
     vi.clearAllMocks()
     h.refreshMock.mockReset()
+    h.afterPersistMock.mockReset()
     service = new OAuthRuntimeService()
   })
 
@@ -243,5 +247,26 @@ describe('OAuthRuntimeService', () => {
     await service.handleDeepLinkCallback(new URL('app://cb?state=st&code=c'))
 
     expect(h.deepLinkTransportMock.sendConsumedResult).toHaveBeenCalledWith('st', 'win-1', { error: 'boom' })
+  })
+
+  // M1: the post-persist side effect (CherryIN's API-key fetch) runs AFTER the
+  // token is stored, so a transient failure there keeps the minted token rather
+  // than discarding it and forcing the user through the whole flow again.
+  it('keeps the persisted token when the post-persist side effect fails', async () => {
+    await service.startDeepLinkFlow('win-1', 'cherryin', {})
+    h.deepLinkTransportMock.consumeCallback.mockReturnValue({
+      code: 'c',
+      codeVerifier: 'v',
+      state: 'st',
+      initiatorWindowId: 'win-1',
+      context: {}
+    })
+    h.clientMock.exchangeCode.mockResolvedValue({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 })
+    h.afterPersistMock.mockRejectedValue(new Error('key fetch 503'))
+
+    await service.handleDeepLinkCallback(new URL('app://cb?state=st&code=c'))
+
+    expect((h.providerStore.get('cherryin')?.authConfig as { accessToken?: string }).accessToken).toBe('at')
+    expect(h.deepLinkTransportMock.sendConsumedResult).toHaveBeenCalledWith('st', 'win-1', { error: 'key fetch 503' })
   })
 })

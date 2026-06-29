@@ -48,7 +48,7 @@ export const cherryInOAuthProvider = {
       scope: CHERRYIN_CONFIG.SCOPES
     })
   },
-  beforePersistTokens: async (tokenData, context) => {
+  afterPersistTokens: async (tokenData, context) => {
     const { apiHost } = resolveCherryInContext(context)
     return { apiKeys: await fetchCherryInApiKeys(tokenData.access_token, apiHost) }
   }

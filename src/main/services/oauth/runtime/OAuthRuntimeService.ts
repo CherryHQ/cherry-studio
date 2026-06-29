@@ -147,8 +147,11 @@ export class OAuthRuntimeService extends BaseService {
       const code = await codePromise
 
       const tokenData = await client.exchangeCode(code, codeVerifier)
-      await definition.beforePersistTokens?.(tokenData, {})
+      // Persist the freshly minted tokens before any side effect: the auth code
+      // is now spent, so a failing post-persist hook must not discard a valid
+      // token and force a full re-auth.
       await this.persistTokens(definition, tokenData)
+      await definition.afterPersistTokens?.(tokenData, {})
       await providerService.update(providerId, { isEnabled: true })
       this.logger.info(`${providerId} sign-in succeeded`)
       return this.getAccount(providerId)
@@ -189,8 +192,11 @@ export class OAuthRuntimeService extends BaseService {
 
         const client = await definition.createClient(callback.context)
         const tokenData = await client.exchangeCode(callback.code, callback.codeVerifier)
-        const sideEffectResult = await definition.beforePersistTokens?.(tokenData, callback.context)
+        // Persist before the side-effect fetch (CherryIN's API-key pull): the
+        // auth code is spent, so a transient key-fetch failure must not throw
+        // away a valid token and force the user through the whole flow again.
         await this.persistTokens(definition, tokenData)
+        const sideEffectResult = await definition.afterPersistTokens?.(tokenData, callback.context)
         await providerService.update(providerId, { isEnabled: true })
         transport.sendConsumedResult(callback.state, callback.initiatorWindowId, { apiKeys: sideEffectResult?.apiKeys })
         this.logger.info(`${providerId} deep-link sign-in succeeded`)
