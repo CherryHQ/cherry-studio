@@ -67,7 +67,7 @@ describe('kb_read', () => {
   it('builds an entry with the agreed namespace + defer policy', () => {
     expect(entry.name).toBe(KB_READ_TOOL_NAME)
     expect(entry.namespace).toBe('kb')
-    expect(entry.defer).toBe('auto')
+    expect(entry.defer).toBe('always')
   })
 
   it('returns an error and does not read when the base is outside the assistant scope', async () => {

@@ -176,7 +176,7 @@ describe('kb_list', () => {
   it('builds an entry with the agreed namespace + defer policy', () => {
     expect(entry.name).toBe(KB_LIST_TOOL_NAME)
     expect(entry.namespace).toBe('kb')
-    expect(entry.defer).toBe('auto')
+    expect(entry.defer).toBe('never')
   })
 
   it('returns only bases in the assistant scope when knowledgeBaseIds is non-empty', async () => {

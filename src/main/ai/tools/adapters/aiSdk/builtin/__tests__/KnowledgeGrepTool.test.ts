@@ -64,7 +64,7 @@ describe('kb_grep', () => {
   it('builds an entry with the agreed namespace + defer policy', () => {
     expect(entry.name).toBe(KB_GREP_TOOL_NAME)
     expect(entry.namespace).toBe('kb')
-    expect(entry.defer).toBe('auto')
+    expect(entry.defer).toBe('always')
   })
 
   it('returns an error and does not grep when the base is outside the assistant scope', async () => {

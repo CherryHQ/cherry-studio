@@ -44,7 +44,7 @@ export function createKbTreeToolEntry(): ToolEntry {
     name: KB_TREE_TOOL_NAME,
     namespace: 'kb',
     description: "Outline a knowledge base's folders and documents",
-    defer: 'auto',
+    defer: 'always',
     tool: kbTreeTool,
     applies: (scope) => (scope.assistant?.knowledgeBaseIds?.length ?? 0) > 0
   }

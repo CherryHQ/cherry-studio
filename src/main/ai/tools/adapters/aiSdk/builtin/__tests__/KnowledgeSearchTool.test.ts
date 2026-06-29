@@ -62,7 +62,7 @@ describe('kb_search', () => {
   it('builds an entry with the agreed namespace + defer policy', () => {
     expect(entry.name).toBe(KB_SEARCH_TOOL_NAME)
     expect(entry.namespace).toBe('kb')
-    expect(entry.defer).toBe('auto')
+    expect(entry.defer).toBe('always')
   })
 
   it('returns [] and does not search when every requested baseId is outside the assistant scope', async () => {

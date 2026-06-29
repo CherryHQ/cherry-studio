@@ -66,7 +66,7 @@ describe('kb_tree', () => {
   it('builds an entry with the agreed namespace + defer policy', () => {
     expect(entry.name).toBe(KB_TREE_TOOL_NAME)
     expect(entry.namespace).toBe('kb')
-    expect(entry.defer).toBe('auto')
+    expect(entry.defer).toBe('always')
   })
 
   it('returns an error and does not traverse when the base is outside the assistant scope', async () => {

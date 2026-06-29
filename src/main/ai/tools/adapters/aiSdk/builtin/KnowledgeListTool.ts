@@ -46,7 +46,7 @@ export function createKbListToolEntry(): ToolEntry {
     name: KB_LIST_TOOL_NAME,
     namespace: 'kb',
     description: "List the user's available knowledge bases with sample sources",
-    defer: 'auto',
+    defer: 'never',
     tool: kbListTool,
     applies: (scope) => (scope.assistant?.knowledgeBaseIds?.length ?? 0) > 0
   }

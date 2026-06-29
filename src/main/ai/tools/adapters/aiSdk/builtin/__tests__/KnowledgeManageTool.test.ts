@@ -69,7 +69,7 @@ describe('kb_manage', () => {
   it('builds an entry with the agreed namespace + defer policy and is approval-gated', () => {
     expect(entry.name).toBe(KB_MANAGE_TOOL_NAME)
     expect(entry.namespace).toBe('kb')
-    expect(entry.defer).toBe('auto')
+    expect(entry.defer).toBe('always')
     // Every action mutates the base, so the tool must require user approval.
     expect(entry.tool.needsApproval).toBe(true)
   })
