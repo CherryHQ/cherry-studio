@@ -257,6 +257,11 @@ class OfficePreviewService {
       const html = String(htmlResult.value).trim()
 
       if (html) {
+        // Guard before hardening: JSDOM parse/serialize is synchronous and blocks the
+        // main process, so reject oversized HTML up front instead of hardening it first.
+        if (!htmlFitsPreviewLimit(html)) {
+          throw new IpcError(officePreviewErrorCodes.FILE_TOO_LARGE)
+        }
         const hardenedHtml = hardenOfficePreviewHtml(html)
         if (!htmlFitsPreviewLimit(hardenedHtml)) {
           throw new IpcError(officePreviewErrorCodes.FILE_TOO_LARGE)
@@ -276,11 +281,14 @@ class OfficePreviewService {
             newlineDelimiter: '\n',
             preserveLayout: true
           }
-        },
-        onWarning: undefined
+        }
       })
 
-      const fallbackHtml = hardenOfficePreviewHtml(buildTextFallbackHtml(String(textResult.value)))
+      const fallbackSource = buildTextFallbackHtml(String(textResult.value))
+      if (!htmlFitsPreviewLimit(fallbackSource)) {
+        throw new IpcError(officePreviewErrorCodes.FILE_TOO_LARGE)
+      }
+      const fallbackHtml = hardenOfficePreviewHtml(fallbackSource)
       if (!htmlFitsPreviewLimit(fallbackHtml)) {
         throw new IpcError(officePreviewErrorCodes.FILE_TOO_LARGE)
       }

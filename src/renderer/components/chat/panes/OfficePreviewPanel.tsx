@@ -9,7 +9,7 @@ import {
 } from '@shared/ipc/errors/officePreview'
 import type { OfficePreviewRenderResult } from '@shared/ipc/schemas/officePreview'
 import { AlertCircle } from 'lucide-react'
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('OfficePreviewPanel')
@@ -75,9 +75,7 @@ export default function OfficePreviewPanel({ workspacePath, filePath, refreshKey
     }
   }, [filePath, refreshKey, workspacePath])
 
-  const previewDocument = useMemo(() => {
-    return result?.html ?? ''
-  }, [result])
+  const previewDocument = result?.html ?? ''
 
   if (loading) {
     return (
