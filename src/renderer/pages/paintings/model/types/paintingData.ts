@@ -1,4 +1,4 @@
-import type { FileMetadata } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types/file'
 import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import type { PaintingMode } from '@shared/data/types/painting'
 

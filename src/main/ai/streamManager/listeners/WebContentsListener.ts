@@ -1,16 +1,10 @@
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { IpcEventName } from '@shared/ipc/schemas'
+import type { EventPayload } from '@shared/ipc/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { UIMessageChunk } from 'ai'
 
-import type {
-  StreamChunkPayload,
-  StreamDonePayload,
-  StreamDoneResult,
-  StreamErrorPayload,
-  StreamErrorResult,
-  StreamListener,
-  StreamPausedResult
-} from '../types'
+import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
 
 const COALESCE_WINDOW_MS = 16
 const MAX_COALESCE_AGE_MS = 16
@@ -34,6 +28,7 @@ interface PendingDelta {
   type: 'text-delta' | 'reasoning-delta' | 'tool-input-delta'
   identifier: string
   sourceModelId: UniqueModelId | undefined
+  anchorMessageId: string | undefined
   text: string
 }
 
@@ -60,7 +55,7 @@ export class WebContentsListener implements StreamListener {
     this.wc.once('destroyed', () => this.discardPending())
   }
 
-  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId): void {
+  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string): void {
     if (this.wc.isDestroyed()) {
       this.discardPending()
       return
@@ -68,12 +63,13 @@ export class WebContentsListener implements StreamListener {
 
     const coalescable = toCoalescable(chunk)
     if (coalescable) {
-      const next = normalizePending(coalescable, sourceModelId)
+      const next = normalizePending(coalescable, sourceModelId, anchorMessageId)
       if (
         this.pending &&
         this.pending.type === next.type &&
         this.pending.identifier === next.identifier &&
-        this.pending.sourceModelId === next.sourceModelId
+        this.pending.sourceModelId === next.sourceModelId &&
+        this.pending.anchorMessageId === next.anchorMessageId
       ) {
         this.pending.text += next.text
         if (
@@ -92,7 +88,7 @@ export class WebContentsListener implements StreamListener {
     }
 
     this.flushPending()
-    this.sendChunk(chunk, sourceModelId)
+    this.sendChunk(chunk, sourceModelId, anchorMessageId)
   }
 
   onDone(result: StreamDoneResult): void {
@@ -101,12 +97,13 @@ export class WebContentsListener implements StreamListener {
       return
     }
     this.flushPending()
-    this.wc.send(IpcChannel.Ai_StreamDone, {
+    this.emit('ai.stream_done', {
       topicId: this.topicId,
       executionId: result.modelId,
+      anchorMessageId: result.anchorMessageId,
       status: result.status,
       isTopicDone: result.isTopicDone
-    } satisfies StreamDonePayload)
+    })
   }
 
   onPaused(result: StreamPausedResult): void {
@@ -115,12 +112,13 @@ export class WebContentsListener implements StreamListener {
       return
     }
     this.flushPending()
-    this.wc.send(IpcChannel.Ai_StreamDone, {
+    this.emit('ai.stream_done', {
       topicId: this.topicId,
       executionId: result.modelId,
+      anchorMessageId: result.anchorMessageId,
       status: result.status,
       isTopicDone: result.isTopicDone
-    } satisfies StreamDonePayload)
+    })
   }
 
   onError(result: StreamErrorResult): void {
@@ -130,12 +128,13 @@ export class WebContentsListener implements StreamListener {
     }
     this.flushPending()
     // `result.finalMessage` is not forwarded — the renderer keeps its own accumulated state.
-    this.wc.send(IpcChannel.Ai_StreamError, {
+    this.emit('ai.stream_error', {
       topicId: this.topicId,
       executionId: result.modelId,
+      anchorMessageId: result.anchorMessageId,
       isTopicDone: result.isTopicDone,
       error: result.error
-    } satisfies StreamErrorPayload)
+    })
   }
 
   isAlive(): boolean {
@@ -152,7 +151,7 @@ export class WebContentsListener implements StreamListener {
     const p = this.pending
     if (!p) return
     this.pending = null
-    this.sendChunk(rebuildChunk(p), p.sourceModelId)
+    this.sendChunk(rebuildChunk(p), p.sourceModelId, p.anchorMessageId)
   }
 
   private discardPending(): void {
@@ -163,13 +162,24 @@ export class WebContentsListener implements StreamListener {
     this.pending = null
   }
 
-  private sendChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId): void {
+  private sendChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string): void {
     if (this.wc.isDestroyed()) return
-    this.wc.send(IpcChannel.Ai_StreamChunk, {
+    this.emit('ai.stream_chunk', {
       topicId: this.topicId,
       executionId: sourceModelId,
+      anchorMessageId,
       chunk
-    } satisfies StreamChunkPayload)
+    })
+  }
+
+  /**
+   * Directed send of a typed AI stream event on the single IpcApi event channel — the
+   * class-B topic-stream transport: this per-(topic,window) listener `send`s straight to its
+   * own `WebContents` (preserving the coalescing/liveness above) instead of `broadcast`ing.
+   * Wire-identical to `IpcApiService.send`, but keyed by the held `WebContents`, not a WindowId.
+   */
+  private emit<E extends IpcEventName>(event: E, payload: EventPayload<E>): void {
+    this.wc.send(IpcChannel.IpcApi_Event, event, payload)
   }
 }
 
@@ -184,12 +194,17 @@ function toCoalescable(chunk: UIMessageChunk): CoalescableChunk | null {
   return null
 }
 
-function normalizePending(chunk: CoalescableChunk, sourceModelId: UniqueModelId | undefined): PendingDelta {
+function normalizePending(
+  chunk: CoalescableChunk,
+  sourceModelId: UniqueModelId | undefined,
+  anchorMessageId: string | undefined
+): PendingDelta {
   if (chunk.type === 'tool-input-delta') {
     return {
       type: 'tool-input-delta',
       identifier: chunk.toolCallId,
       sourceModelId,
+      anchorMessageId,
       text: chunk.inputTextDelta
     }
   }
@@ -197,6 +212,7 @@ function normalizePending(chunk: CoalescableChunk, sourceModelId: UniqueModelId 
     type: chunk.type,
     identifier: chunk.id,
     sourceModelId,
+    anchorMessageId,
     text: chunk.delta
   }
 }

@@ -142,22 +142,22 @@ describe('PreferenceTransformers', () => {
       expect(result['chat.web_search.default_search_keywords_provider']).toBe('tavily')
     })
 
-    it('should collapse removed local providers to null', () => {
+    it('should skip removed local providers so the schema default applies', () => {
       const result = normalizeWebSearchDefaultProvider({ defaultProvider: 'local-bing' })
 
-      expect(result['chat.web_search.default_search_keywords_provider']).toBeNull()
+      expect(result['chat.web_search.default_search_keywords_provider']).toBeUndefined()
     })
 
-    it('should collapse empty and unknown providers to null', () => {
+    it('should skip empty and unknown providers so the schema default applies', () => {
       expect(
         normalizeWebSearchDefaultProvider({ defaultProvider: '' })['chat.web_search.default_search_keywords_provider']
-      ).toBeNull()
+      ).toBeUndefined()
       expect(
         normalizeWebSearchDefaultProvider({ defaultProvider: 'custom-provider' })[
           'chat.web_search.default_search_keywords_provider'
         ]
-      ).toBeNull()
-      expect(normalizeWebSearchDefaultProvider({})['chat.web_search.default_search_keywords_provider']).toBeNull()
+      ).toBeUndefined()
+      expect(normalizeWebSearchDefaultProvider({})['chat.web_search.default_search_keywords_provider']).toBeUndefined()
     })
   })
 

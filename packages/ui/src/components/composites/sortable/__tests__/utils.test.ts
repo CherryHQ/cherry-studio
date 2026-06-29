@@ -3,14 +3,19 @@ import { describe, expect, it } from 'vitest'
 
 import { PortalSafePointerSensor } from '../utils'
 
+type NativePointerEvent = Pick<globalThis.PointerEvent, 'button' | 'isPrimary'> & { target: EventTarget }
+type ActivatorEvent = { nativeEvent: NativePointerEvent }
 type ActivatorHandler = (
-  event: { nativeEvent: Partial<PointerEvent> & { target: EventTarget } },
+  event: ActivatorEvent,
   context: { onActivation?: (event: { event: unknown }) => void }
 ) => boolean
 
-const handler = (PortalSafePointerSensor.activators[0] as { handler: ActivatorHandler }).handler
+const handler = (PortalSafePointerSensor.activators[0] as unknown as { handler: ActivatorHandler }).handler
 
-function pointerDownOn(target: EventTarget, overrides: Partial<PointerEvent> = {}) {
+function pointerDownOn(
+  target: EventTarget,
+  overrides: Partial<Omit<NativePointerEvent, 'target'>> = {}
+): ActivatorEvent {
   return { nativeEvent: { isPrimary: true, button: 0, target, ...overrides } }
 }
 
@@ -33,7 +38,7 @@ describe('PortalSafePointerSensor activator', () => {
 
   it('does not start a drag inside a no-dnd portal', () => {
     const portal = document.createElement('div')
-    portal.className = 'ant-dropdown'
+    portal.dataset.noDnd = 'true'
     const child = document.createElement('button')
     portal.appendChild(child)
 

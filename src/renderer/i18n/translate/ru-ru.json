@@ -224,7 +224,12 @@
           "runFailed": "Не удалось выполнить задачу",
           "updateFailed": "Не удалось обновить задачу"
         },
-        "intervalPlaceholder": "Интервал в минутах",
+        "frequency": {
+          "everyPrefix": "Каждые",
+          "everySuffix": "минут",
+          "label": "Частота выполнения"
+        },
+        "intervalPlaceholder": "Минимум 1",
         "intervalUnit": "минуты",
         "lastRun": "Последний запуск",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Интервал",
-          "label": "Тип расписания",
           "once": "Однократно"
         },
-        "scheduleValue": "Значение расписания",
         "status": {
           "active": "Активна",
           "completed": "Завершена",
@@ -277,7 +280,7 @@
           "minutesAgo": "{{count}} мин. назад"
         },
         "timeout": {
-          "label": "Тайм-аут",
+          "label": "Максимальное время выполнения",
           "placeholder": "Без ограничений"
         },
         "title": "Запланированные задачи"
@@ -2345,6 +2348,7 @@
   "files": {
     "actions": "Действия",
     "all": "Все файлы",
+    "audio": "Аудио",
     "batch_delete": "массовое удаление",
     "batch_operation": "Выделить всё",
     "count": "файлов",
@@ -2358,22 +2362,52 @@
       },
       "title": "Удалить файл"
     },
+    "delete_or_remove": "Удалить",
     "document": "Документ",
+    "drag_upload": "Перетащите файлы сюда для загрузки",
     "edit": "Редактировать",
+    "empty": {
+      "no_match_description": "Ни один файл не соответствует текущим фильтрам",
+      "no_match_title": "Совпадающие файлы не найдены"
+    },
     "error": {
-      "open_path": "Не удалось открыть путь: {{path}}"
+      "delete_failed": "Не удалось удалить файлы",
+      "delete_partial_failed": "Некоторые файлы не удалось удалить",
+      "import_failed": "Не удалось импортировать файлы",
+      "import_partial_failed": "Некоторые файлы не удалось импортировать",
+      "open_path": "Не удалось открыть путь: {{path}}",
+      "rename_failed": "Не удалось переименовать файл",
+      "restore_failed": "Не удалось восстановить файлы",
+      "restore_partial_failed": "Некоторые файлы не удалось восстановить"
     },
     "file": "Файл",
+    "footer_count": "{{count}} файлов",
+    "footer_selected_count": "{{count}} выбрано",
     "image": "Изображение",
+    "missing": "Отсутствует",
+    "modified_at": "Изменено",
     "name": "Имя",
     "open": "Открыть",
+    "other": "Другое",
+    "permanent_delete": "Удалить навсегда",
+    "permanent_delete_confirm": {
+      "description": "Это навсегда удалит {{count}} файл(ов). Это действие нельзя отменить.",
+      "title": "Удалить файлы навсегда?"
+    },
     "preview": {
       "error": "Не удалось открыть файл"
     },
+    "remove_from_library": "Удалить из библиотеки",
+    "rename": "Переименовать",
+    "restore": "Восстановить",
+    "selected_count": "{{count}} файлов выбрано",
+    "show_in_folder": "Показать в папке",
     "size": "Размер",
     "text": "Текст",
     "title": "Файлы",
-    "type": "Тип"
+    "trash": "Мусор",
+    "type": "Тип",
+    "video": "Видео"
   },
   "globalSearch": {
     "clear": "Очистить поиск",
@@ -2767,6 +2801,8 @@
       "chunk_overlap_invalid": "Перекрытие фрагментов должно быть больше или равно 0",
       "chunk_overlap_must_be_smaller": "Перекрытие чанков должно быть меньше размера чанка",
       "chunk_overlap_requires_chunk_size": "Размер фрагмента обязателен, если задано перекрытие фрагментов",
+      "chunk_separator": "Разделитель",
+      "chunk_separator_required": "Разделитель обязателен, когда умное разбиение отключено",
       "chunk_size": "Размер фрагмента",
       "chunk_size_change_warning": "Изменения размера и перекрытия фрагментов применяются только к вновь добавленному контенту",
       "chunk_size_invalid": "Размер фрагмента должен быть больше 0",
@@ -2779,6 +2815,7 @@
       "file_processing_hint": "Обработка файлов выполняется автоматически при импорте документа. Правильный выбор поставщика может повысить качество разбора документов.",
       "hints": {
         "chunk_overlap": "Количество перекрывающихся токенов, сохраняемых между соседними фрагментами для уменьшения семантических разрывов.",
+        "chunk_separator": "Разделитель, по которому разбивается текст, в экранированной форме. При включённом интеллектуальном разбиении он добавляет точку разрыва; при выключенном текст разбивается только по этому разделителю.",
         "chunk_size": "Целевое количество токенов для каждого фрагмента документа. Это влияет на гранулярность извлечения и длину контекста.",
         "document_count": "Максимальное количество фрагментов документа, возвращаемых для каждого поиска. Более высокие значения охватывают больше контента, но используют больше контекста.",
         "embedding_model": "Используется для преобразования содержимого базы знаний в векторы. Смена модели обычно требует переиндексации существующего содержимого.",
@@ -2786,6 +2823,7 @@
         "processor": "Парсер, используемый при импорте файлов для извлечения основного текста, таблиц и связанного контента.",
         "rerank_model": "Модель, используемая для повторного ранжирования первоначальных результатов поиска и повышения релевантности финальных фрагментов.",
         "search_mode": "Выберите режим поиска: векторный поиск для семантического соответствия, полнотекстовый поиск по ключевым словам или гибридный поиск, объединяющий оба подхода.",
+        "smart_chunking": "Автоматически разбивать по структуре Markdown (заголовки, блоки кода, абзацы) и никогда не разбивать внутри блока кода. Отключите, чтобы разбивать исключительно по разделителю.",
         "threshold": "Порог схожести для фильтрации фрагментов с низкой релевантностью. Более высокие значения делают поиск строже.",
         "threshold_disabled": "Этот режим извлечения возвращает упорядоченные результаты и не использует порог сходства."
       },
@@ -2805,6 +2843,7 @@
         "vector": "Векторный поиск"
       },
       "separator_rule": "Правило разделителя",
+      "smart_chunking": "Умное разбиение на фрагменты",
       "threshold": "Порог сходства",
       "tokens_unit": "токены"
     },
@@ -3837,64 +3876,6 @@
       "partial_failure": "{{count}} результатов поиска, некоторые поиски завершились ошибкой"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "Добавить в Launchpad",
-    "add_to_sidebar": "Добавить на боковую панель",
-    "popup": {
-      "close": "Закрыть MinApp",
-      "devtools": "Инструменты разработчика",
-      "goBack": "Вернуться",
-      "goForward": "Идти вперёд",
-      "minimize": "Минимизировать MinApp",
-      "openExternal": "Открыть в браузере",
-      "open_link_external_off": "Текущее: открывать ссылки в стандартном окне",
-      "open_link_external_on": "Текущее: Открывать ссылки в браузере",
-      "refresh": "Обновить",
-      "rightclick_copyurl": "Щелкните правой кнопкой мыши, чтобы скопировать URL"
-    },
-    "remove_from_launchpad": "Удалить из Launchpad",
-    "remove_from_sidebar": "Убрать из боковой панели",
-    "sidebar": {
-      "close": {
-        "title": "Закрыть"
-      },
-      "closeall": {
-        "title": "Закрыть все"
-      },
-      "hide": {
-        "title": "Скрыть"
-      },
-      "remove_custom": {
-        "title": "Удалить пользовательское приложение"
-      }
-    },
-    "title": "MinApp"
-  },
-  "minapps": {
-    "ant-ling": "Муравьиный Линг",
-    "baichuan": "Байчуань",
-    "baidu-ai-search": "Поиск Baidu AI",
-    "chatglm": "ChatGLM",
-    "dangbei": "Dangbei",
-    "doubao": "Doubao",
-    "hailuo": "Hailuo",
-    "ima": "има",
-    "metaso": "Метасо",
-    "minimax-agent": "Агент Минимакс CN",
-    "minimax-global": "Агент Минимакс",
-    "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI Поиск",
-    "qwen": "Квен",
-    "sensechat": "SenseChat",
-    "stepfun": "Stepfun",
-    "tencent-yuanbao": "Юаньбао",
-    "tiangong-ai": "Skywork",
-    "wanzhi": "Ваньчжи",
-    "wenxin": "ЭРНИ",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "Сяои",
-    "zhihu": "Zhihu"
-  },
   "miniApp": {
     "add_to_launchpad": "Добавить в стартовый экран",
     "add_to_sidebar": "Добавить в боковую панель",
@@ -3905,15 +3886,13 @@
     "hide_failed": "Failed to hide mini-app",
     "pin_failed": "Не удалось закрепить мини-приложение",
     "popup": {
-      "close": "Закрыть встроенное приложение",
       "devtools": "Инструменты разработчика",
       "goBack": "Назад",
       "goForward": "Вперед",
       "openExternal": "Открыть в браузере",
       "open_link_external_off": "Текущий: Открыть ссылки в окне по умолчанию",
       "open_link_external_on": "Текущий: Открыть ссылки в браузере",
-      "refresh": "Обновить",
-      "rightclick_copyurl": "ПКМ → Копировать URL"
+      "refresh": "Обновить"
     },
     "remove_from_launchpad": "Удалить из стартового экрана",
     "remove_from_sidebar": "Удалить из боковой панели",
@@ -3925,17 +3904,8 @@
     },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
-      "close": {
-        "title": "Закрыть"
-      },
-      "closeall": {
-        "title": "Закрыть все"
-      },
       "hide": {
         "title": "Скрыть"
-      },
-      "remove_custom": {
-        "title": "Удалить пользовательское приложение"
       }
     },
     "title": "Встроенные приложения",
@@ -3955,7 +3925,6 @@
     "minimax-agent": "MiniMax Agent CN",
     "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
     "sensechat": "SenseChat",
     "stepfun": "Stepfun",
@@ -5308,7 +5277,7 @@
       "refresh_failed": "Создано, но не удалось обновить список"
     },
     "edit_dialog": {
-      "refresh_failed": "[to be translated]:Saved, but failed to refresh the list"
+      "refresh_failed": "Сохранено, но не удалось обновить список"
     },
     "workspace": {
       "empty_text": "Пока нет рабочих областей",
@@ -6464,8 +6433,6 @@
         "confirm_delete_message": "Подтверждать перед удалением сообщений",
         "confirm_regenerate_message": "Подтверждать перед пересозданием сообщений",
         "enable_quick_triggers": "Включите / и @, чтобы вызвать быстрое меню.",
-        "paste_long_text_as_file": "Вставлять длинный текст как файл",
-        "paste_long_text_threshold": "Длина вставки длинного текста",
         "send_shortcuts": "Горячие клавиши для отправки",
         "show_estimated_tokens": "Показывать затраты токенов",
         "title": "Настройки ввода"
@@ -6489,37 +6456,24 @@
     "miniApps": {
       "cache_change_notice": "Изменения вступят в силу, когда количество открытых мини-приложений достигнет установленного значения",
       "cache_description": "Установить максимальное количество активных мини-приложений в памяти",
-      "cache_settings": "Настройки кэша",
       "cache_title": "Количество кэшируемых мини-приложений",
       "custom": {
-        "conflicting_ids": "Конфликт ID с приложениями по умолчанию: {{ids}}",
-        "duplicate_ids": "Найдены повторяющиеся ID: {{ids}}",
-        "edit_description": "Здесь вы можете редактировать конфигурации пользовательских мини-приложений. Каждое приложение должно содержать поля id, name, url и logo.",
+        "create_title": "Создать пользовательское мини-приложение",
         "edit_title": "Редактировать пользовательское мини-приложение",
-        "id": "ID",
-        "id_error": "ID обязателен.",
-        "id_placeholder": "Введите ID",
-        "logo": "Логотип",
         "logo_file": "Загрузить файл логотипа",
-        "logo_upload_button": "Загрузить",
         "logo_upload_error": "Не удалось загрузить логотип.",
         "logo_upload_label": "Загрузить логотип",
-        "logo_upload_success": "Логотип успешно загружен.",
-        "logo_url": "URL логотипа",
-        "logo_url_label": "URL логотипа",
-        "logo_url_placeholder": "Введите URL логотипа",
         "name": "Имя",
-        "name_error": "Имя обязательно.",
         "name_placeholder": "Введите имя",
-        "placeholder": "Введите конфигурацию мини-приложения (формат JSON)",
+        "remove_confirm_description": "Удалить пользовательское мини-приложение \"{{name}}\"? Это действие нельзя отменить.",
+        "remove_confirm_title": "Удалить пользовательский мини-приложение?",
         "remove_error": "Не удалось удалить мини-приложение.",
         "remove_success": "Мини-приложение успешно удалено.",
-        "save": "Сохранить",
         "save_error": "Не удалось сохранить пользовательское мини-приложение.",
         "save_success": "Пользовательское мини-приложение успешно сохранено.",
         "title": "Пользовательские мини-приложения",
         "url": "URL",
-        "url_error": "URL обязателен.",
+        "url_invalid": "Введите действительный URL с протоколом http, https или file.",
         "url_placeholder": "Введите URL"
       },
       "disabled": "Скрытые мини-приложения",
@@ -6541,65 +6495,8 @@
         "title": "Фильтрация по регионам в мини-программе"
       },
       "reset_tooltip": "Сбросить до значения по умолчанию",
-      "title": "Настройки мини-приложений",
+      "title": "Настройки Mini Apps",
       "visible": "Отображаемые мини-приложения"
-    },
-    "miniapps": {
-      "cache_change_notice": "Изменения вступят в силу, когда количество открытых мини-приложений достигнет заданного значения",
-      "cache_description": "Установить максимальное количество активных мини-приложений, которые нужно хранить в памяти",
-      "cache_settings": "Настройки кэша",
-      "cache_title": "Лимит кэша мини-приложения",
-      "custom": {
-        "conflicting_ids": "Конфликтующие идентификаторы со стандартными приложениями: {{ids}}",
-        "duplicate_ids": "Обнаружены дублирующиеся идентификаторы: {{ids}}",
-        "edit_description": "Редактируйте конфигурацию пользовательского мини-приложения здесь. Каждое приложение должно включать поля id, name, url и logo.",
-        "edit_title": "Редактировать пользовательское мини-приложение",
-        "id": "ID",
-        "id_error": "Требуется ID.",
-        "id_placeholder": "Введите ID",
-        "logo": "Логотип",
-        "logo_file": "Загрузить файл логотипа",
-        "logo_upload_button": "Загрузить",
-        "logo_upload_error": "Не удалось загрузить логотип.",
-        "logo_upload_label": "Загрузить логотип",
-        "logo_upload_success": "Логотип успешно загружен.",
-        "logo_url": "URL логотипа",
-        "logo_url_label": "URL логотипа",
-        "logo_url_placeholder": "Введите URL логотипа",
-        "name": "Имя",
-        "name_error": "Имя обязательно.",
-        "name_placeholder": "Введите имя",
-        "placeholder": "Введите пользовательскую конфигурацию мини-приложения (в формате JSON)",
-        "remove_error": "Не удалось удалить пользовательское мини-приложение.",
-        "remove_success": "Пользовательское мини-приложение успешно удалено.",
-        "save": "Сохранить",
-        "save_error": "Не удалось сохранить пользовательский мини-приложение.",
-        "save_success": "Пользовательское мини-приложение успешно сохранено.",
-        "title": "Пользовательский",
-        "url": "URL",
-        "url_error": "URL обязателен.",
-        "url_placeholder": "Введите URL"
-      },
-      "disabled": "Скрытые мини-приложения",
-      "display_title": "Настройки отображения мини-приложения",
-      "empty": "Нажмите значок скрытия у приложения слева, и оно переместится сюда",
-      "hide_app": "Скрыть {{name}}",
-      "open_link_external": {
-        "title": "Открывать ссылки в новом окне браузера"
-      },
-      "region": {
-        "auto": "Автоопределение",
-        "cn": "Китай",
-        "description": "Фильтрация неподдерживаемых мини-программ на основе региона",
-        "global": "Глобальный",
-        "title": "Фильтр мини-программ"
-      },
-      "reset_tooltip": "Сбросить по умолчанию",
-      "show_app": "Показать {{name}}",
-      "sidebar_description": "Показать активные мини-приложения в боковой панели",
-      "sidebar_title": "Отображение активных мини-приложений на боковой панели",
-      "title": "Настройки мини-приложений",
-      "visible": "Видимые мини-приложения"
     },
     "model": "Модель по умолчанию",
     "models": {
@@ -6734,6 +6631,7 @@
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
         "large_group_hidden": "Показать ещё {{count}} моделей",
+        "model_in_use_by_knowledge_base": "Эта модель используется базой знаний и не может быть удалена.",
         "operation_failed": "Model operation failed.",
         "refetch_list": "Повторное получение списка моделей",
         "reload_catalog": "Refresh list",
@@ -6749,6 +6647,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
+        "sync_apply_default_in_use": "Некоторые модели используются как модели по умолчанию и не могут быть удалены.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",
@@ -6862,20 +6761,20 @@
         "title": "подробность"
       }
     },
-    "parameter_settings": "[to be translated]:Parameter Settings",
+    "parameter_settings": "Параметры настройки",
     "plugins": {
       "addTool": "Add Tool",
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
-      "customToolsEmpty": "[to be translated]:No custom tools yet. Add one to get started.",
+      "customToolsEmpty": "Пользовательских инструментов пока нет. Добавьте один, чтобы начать.",
       "description": "Управляйте бинарными инструментами и зависимостями среды выполнения, необходимыми приложению.",
       "duplicateName": "A tool with the same name already exists",
       "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "[to be translated]:Install",
+      "install": "Установить",
       "installError": "Failed to install tool",
       "installing": "Установка...",
-      "invalidTool": "[to be translated]:Invalid tool name or key",
+      "invalidTool": "Неверное имя или ключ инструмента",
       "notInstalled": "Не установлено",
       "openBinariesDir": "Open binaries directory",
       "remove": "Remove tool",
@@ -7070,7 +6969,6 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Домен ускорения",
-          "backup": "Резервный домен",
           "international": "Международный домен"
         }
       },

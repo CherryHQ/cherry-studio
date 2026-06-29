@@ -1,6 +1,7 @@
 import { Chat, useChat } from '@ai-sdk/react'
 import { loggerService } from '@logger'
-import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
+import { ipcApi } from '@renderer/ipc'
+import { ipcChatTransport } from '@renderer/services/aiTransport'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { ChatRequestOptions, FileUIPart } from 'ai'
@@ -59,7 +60,7 @@ export function useChatWithHistory(
   })
 
   const stop = useCallback(async () => {
-    void window.api.ai.streamAbort({ topicId }).catch((err) => {
+    void ipcApi.request('ai.stream_abort', { topicId }).catch((err) => {
       logger.warn('streamAbort failed', { topicId, err })
     })
     await sdkStop()

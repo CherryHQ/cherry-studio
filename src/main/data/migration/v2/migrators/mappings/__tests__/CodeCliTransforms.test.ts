@@ -1,4 +1,4 @@
-import { terminalApps } from '@shared/types/codeCli'
+import { TerminalApp } from '@shared/types/codeCli'
 import { describe, expect, it } from 'vitest'
 
 import { transformCodeCli, transformCodeCliToOverrides, transformSelectedModelsToIds } from '../CodeCliTransforms'
@@ -244,7 +244,7 @@ describe('CodeCliTransforms', () => {
         directories: [],
         currentDirectory: '',
         selectedCliTool: 'claude-code',
-        selectedTerminal: terminalApps.systemDefault
+        selectedTerminal: TerminalApp.SYSTEM_DEFAULT
       })
 
       expect(result).toEqual({

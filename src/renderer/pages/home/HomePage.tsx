@@ -8,25 +8,27 @@ import {
   EmptyState,
   LoadingState
 } from '@renderer/components/chat'
-import { ChatPlacementComposer } from '@renderer/components/chat/composer/variants/ChatComposer'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
+import { ChatPlacementComposer } from '@renderer/components/composer/variants/ChatComposer'
 import {
   createRecentTopicEntryFromTopic,
   upsertGlobalSearchRecentEntry
 } from '@renderer/components/GlobalSearch/globalSearchGroups'
-import { getTabInstanceKey } from '@renderer/config/tabInstanceMetadata'
-import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/context/TabIdContext'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/hooks/tab'
 import { useAssistantApiById, useAssistants } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
+import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { FileMetadata, Topic } from '@renderer/types'
-import { cn } from '@renderer/utils'
+import type { FileMetadata } from '@renderer/types/file'
+import type { Topic } from '@renderer/types/topic'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
+import { cn } from '@renderer/utils/style'
+import { getTabInstanceKey } from '@renderer/utils/tabInstanceMetadata'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
@@ -277,7 +279,7 @@ const HomePage: FC = () => {
       const topic = await createTopic({
         ...(current.assistantId ? { assistantId: current.assistantId } : {})
       })
-      const ack = await window.api.ai.streamOpen({
+      const ack = await ipcApi.request('ai.stream_open', {
         trigger: 'submit-message',
         topicId: topic.id,
         userMessageParts: options?.userMessageParts ?? [{ type: 'text', text }],

@@ -3,7 +3,7 @@ import { ActionConfirmDialog } from '@renderer/components/chat/actions/ActionCon
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
 import { PinIcon, Trash2 } from 'lucide-react'

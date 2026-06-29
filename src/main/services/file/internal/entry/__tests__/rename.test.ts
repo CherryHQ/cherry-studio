@@ -78,6 +78,21 @@ describe('internal/entry/rename', () => {
     expect(buf.length).toBe(1)
   })
 
+  it('treats unchanged internal names as a no-op (no DB write)', async () => {
+    const created = await createInternal(deps, {
+      source: 'bytes',
+      data: new Uint8Array([0x01]),
+      name: 'same',
+      ext: 'txt'
+    })
+    const updateSpy = vi.spyOn(deps.fileEntryService, 'update')
+
+    const renamed = await rename(deps, created.id, 'same')
+
+    expect(updateSpy).not.toHaveBeenCalled()
+    expect(renamed.updatedAt).toBe(created.updatedAt)
+  })
+
   it('renames external file on disk and updates DB externalPath + name', async () => {
     const original = path.join(tmp, 'before.txt')
     await writeFile(original, 'hello')

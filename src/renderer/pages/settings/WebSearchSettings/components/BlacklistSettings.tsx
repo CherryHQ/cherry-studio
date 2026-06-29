@@ -1,5 +1,5 @@
 import { Alert, Button, Textarea } from '@cherrystudio/ui'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'

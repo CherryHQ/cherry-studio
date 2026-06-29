@@ -1,4 +1,4 @@
-import { getMiniAppsLogo } from '@renderer/config/miniApps'
+import { getMiniAppsLogo } from '@renderer/components/Icons/miniAppsLogo'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { FC } from 'react'
 
@@ -12,7 +12,7 @@ interface Props {
 }
 
 const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style, sidebar = false }) => {
-  // app prop already has merged preset fields (logo, bordered, background, style) via mergeWithPreset
+  // Preset-derived apps already include seeded display fields.
   if (app.logo) {
     const logo = getMiniAppsLogo(app.logo)
     const chromeless = appearance === 'plain' || appearance === 'bare'

@@ -1,4 +1,4 @@
-import type { FileMetadata } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types/file'
 import type { FileEntry } from '@shared/data/types/file/fileEntry'
 
 /**
@@ -7,6 +7,7 @@ import type { FileEntry } from '@shared/data/types/file/fileEntry'
  * `getPhysicalPath` IPC; call sites batch their lookups in `Promise.all`.
  *
  * Used by:
+ *   - `generatePainting` (direct generation result)
  *   - `runPainting.resolvePaintingFiles` (base64 branch)
  *   - `downloadImages` (url branch)
  *   - `recordToPaintingData` (history hydration)
@@ -14,18 +15,16 @@ import type { FileEntry } from '@shared/data/types/file/fileEntry'
  * TODO(#15353): Delete this whole module once the `cherrystudio://file/internal/{uuid}`
  * custom protocol scheme lands. Paintings should consume `FileEntry` directly
  * and the Artboard should set `<img src={`cherrystudio://file/internal/${id}.${ext}`}>`
- * — no more v1 `FileMetadata` shape, no `getPhysicalPath` round-trip, no
- * `name = ${id}${ext}` filename quirk to encode the disk path through.
+ * — no more v1 `FileMetadata` shape, no `getPhysicalPath` round-trip.
  */
 export async function fileEntryToMetadata(entry: FileEntry): Promise<FileMetadata> {
   const path = await window.api.file.getPhysicalPath({ id: entry.id })
   const dottedExt = entry.ext ? `.${entry.ext}` : ''
-  // `FileMetadata.name` is the *on-disk filename* — `FileManager.getFileUrl`
-  // builds `file://${filesPath}/${file.name}` from it. For v2 internal
-  // entries the file lives at `{id}.{ext}` under `Data/Files/`, so name must
-  // mirror that convention. `entry.name` (the user-facing display name like
-  // "Pasted 2026-05-27") goes into `origin_name`, which is where the UI
-  // looks for the human label.
+  // Preserve the legacy `FileMetadata.name` on-disk filename shape while
+  // paintings still carry FileMetadata. Rendering now uses the main-resolved
+  // `path` below; `entry.name` (the user-facing display name like "Pasted
+  // 2026-05-27") goes into `origin_name`, which is where the UI looks for the
+  // human label.
   const onDiskName = `${entry.id}${dottedExt}`
   const displayName = `${entry.name}${dottedExt}`
   // `size` only exists on the internal variant; external entries never carry

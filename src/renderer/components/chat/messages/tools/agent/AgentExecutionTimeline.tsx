@@ -1,5 +1,5 @@
 import { usePartsMap } from '@renderer/components/chat/messages/blocks'
-import type { NormalToolResponse } from '@renderer/types'
+import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { parse as parsePartialJson } from 'partial-json'
 import { useDeferredValue, useMemo } from 'react'
 

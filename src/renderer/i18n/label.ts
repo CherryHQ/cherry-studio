@@ -5,8 +5,7 @@
  */
 
 import { loggerService } from '@logger'
-import type { BuiltinMcpServerName } from '@renderer/types'
-import { BuiltinMcpServerNames } from '@renderer/types'
+import { type BuiltinMcpServerName, BuiltinMcpServerNames } from '@shared/utils/mcp'
 
 const logger = loggerService.withContext('i18n:label')
 
@@ -188,7 +187,7 @@ const sidebarIconKeyMap = {
   assistants: 'agent.session.group.conversation',
   agents: 'title.work',
   store: 'assistants.presets.title',
-  paintings: 'paintings.title',
+  paintings: 'title.paintings',
   translate: 'translate.title',
   mini_app: 'miniApp.title',
   knowledge: 'knowledge.title',
@@ -209,7 +208,7 @@ const sidebarFavoriteKeyMap = {
   assistants: 'assistants.title',
   agents: 'title.work',
   store: 'assistants.presets.title',
-  paintings: 'paintings.title',
+  paintings: 'title.paintings',
   translate: 'translate.title',
   mini_app: 'miniApp.title',
   knowledge: 'knowledge.title',

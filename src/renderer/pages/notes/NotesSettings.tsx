@@ -1,8 +1,8 @@
 import { Button, Input, Slider, Switch } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Selector from '@renderer/components/Selector'
-import { useTheme } from '@renderer/context/ThemeProvider'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
+import { useTheme } from '@renderer/hooks/useTheme'
 import {
   SettingContainer,
   SettingDivider,
@@ -12,7 +12,7 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '@renderer/pages/settings'
-import type { EditorView } from '@renderer/types'
+import type { EditorView } from '@renderer/types/app'
 import { FolderOpen } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -104,6 +104,7 @@ const NotesSettings: FC = () => {
               onChange={(e) => setTempPath(e.target.value)}
               placeholder={t('notes.settings.data.work_directory_placeholder')}
               readOnly
+              tabIndex={-1}
             />
             <Button variant="default" onClick={handleSelectWorkDirectory} disabled={isSelecting} className="ml-2">
               <FolderOpen size={16} />

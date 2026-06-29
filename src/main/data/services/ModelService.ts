@@ -378,6 +378,27 @@ class ModelService {
       }
     }
 
+    // Protect models currently set as user defaults (chat / quick-assistant / translate)
+    // from being deleted during pull-reconcile. Deleting the user's chosen model while
+    // the preference still points to it causes 404s on every readDefaultModel() call.
+    const userDefaultIds = new Set<string>()
+    const preferenceService = application.get('PreferenceService')
+    const defaultModelId = preferenceService.get('chat.default_model_id')
+    const quickModelId = preferenceService.get('feature.quick_assistant.model_id')
+    const translateModelId = preferenceService.get('feature.translate.model_id')
+    for (const row of rows) {
+      if (row.id === defaultModelId || row.id === quickModelId || row.id === translateModelId) {
+        userDefaultIds.add(row.id)
+      }
+    }
+    if (userDefaultIds.size > 0) {
+      logger.warn('Skipped user-default model removal during reconcile', {
+        providerId,
+        skippedCount: userDefaultIds.size,
+        skippedIds: [...userDefaultIds]
+      })
+    }
+
     if (managedDefaultIds.size > 0) {
       logger.warn('Skipped managed CherryAI default model removal during reconcile', {
         providerId,
@@ -387,7 +408,7 @@ class ModelService {
     }
 
     return {
-      toRemove: toRemove.filter((id) => !managedDefaultIds.has(id)),
+      toRemove: toRemove.filter((id) => !managedDefaultIds.has(id) && !userDefaultIds.has(id)),
       presetBackedRemovalIds
     }
   }
