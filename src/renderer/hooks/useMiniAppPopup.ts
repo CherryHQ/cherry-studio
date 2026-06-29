@@ -122,6 +122,7 @@ function openExternalMiniAppUrl(url: string) {
 export const useMiniAppPopup = () => {
   const {
     allApps,
+    openedKeepAliveMiniApps,
     openedOneOffMiniApp,
     miniAppShow,
     setOpenedKeepAliveMiniApps,
@@ -153,27 +154,39 @@ export const useMiniAppPopup = () => {
   }, [tabs, tabsContext])
   const pinnedMiniAppIdsRef = useRef(pinnedMiniAppIds)
   pinnedMiniAppIdsRef.current = pinnedMiniAppIds
+  const keepAlivePrevRef = useRef(openedKeepAliveMiniApps)
+
+  useEffect(() => {
+    const previous = keepAlivePrevRef.current
+    keepAlivePrevRef.current = openedKeepAliveMiniApps
+
+    if (previous === openedKeepAliveMiniApps) return
+
+    const nextIds = new Set(openedKeepAliveMiniApps.map((app) => app.appId))
+    for (const app of previous) {
+      if (!nextIds.has(app.appId)) {
+        evictMiniApp(app.appId)
+      }
+    }
+  }, [openedKeepAliveMiniApps])
 
   // Trim the kept-alive list when the user lowers the cap. Evicts the oldest
   // non-pinned entries (head of the list) so the most-recently-touched ones —
   // and any pinned tabs regardless of recency — survive.
   useEffect(() => {
-    let evicted: MiniApp[] = []
     setOpenedKeepAliveMiniApps((list) => {
       if (list.length <= cap) return keepExistingList(list)
       const result = evictWithPinExemption(list, cap, pinnedMiniAppIdsRef.current)
       if (result.evicted.length === 0) return keepExistingList(list)
-      evicted = result.evicted
       return result.keep
     })
-    for (const app of evicted) evictMiniApp(app.appId)
   }, [cap, setOpenedKeepAliveMiniApps])
 
   /** Open a miniapp (popup shows and miniapp loaded) */
   const openMiniApp = useCallback(
     (app: MiniApp, keepAlive: boolean = false) => {
       if (keepAlive) {
-        let evicted: MiniApp[] = []
+        const wasKeepAlive = openedKeepAliveMiniApps.some((item) => item.appId === app.appId)
         setOpenedKeepAliveMiniApps((list) => {
           const exists = list.some((item) => item.appId === app.appId)
           if (exists) {
@@ -189,11 +202,11 @@ export const useMiniAppPopup = () => {
           // If every existing entry is pinned, the list grows past cap.
           const targetSize = Math.max(cap - 1, 0)
           const result = evictWithPinExemption(list, targetSize, pinnedMiniAppIdsRef.current)
-          evicted = result.evicted
           return [...result.keep, app]
         })
-        for (const evictedApp of evicted) evictMiniApp(evictedApp.appId)
-        setOpenedOneOffMiniApp(null)
+        if (!wasKeepAlive) {
+          setOpenedOneOffMiniApp(null)
+        }
         setCurrentMiniAppId(app.appId)
         setMiniAppShow(true)
         return
@@ -204,7 +217,14 @@ export const useMiniAppPopup = () => {
       setCurrentMiniAppId(app.appId)
       setMiniAppShow(true)
     },
-    [cap, setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp, setCurrentMiniAppId, setMiniAppShow]
+    [
+      cap,
+      openedKeepAliveMiniApps,
+      setOpenedKeepAliveMiniApps,
+      setOpenedOneOffMiniApp,
+      setCurrentMiniAppId,
+      setMiniAppShow
+    ]
   )
 
   /** a wrapper of openMiniApp(app, true) */
@@ -231,38 +251,35 @@ export const useMiniAppPopup = () => {
   /** Close a miniapp immediately (popup hides and miniapp unloaded) */
   const closeMiniApp = useCallback(
     (appid: string) => {
-      let removedKeepAlive = false
+      const wasKeepAlive = openedKeepAliveMiniApps.some((item) => item.appId === appid)
       setOpenedKeepAliveMiniApps((list) => {
         if (!list.some((item) => item.appId === appid)) return keepExistingList(list)
-        removedKeepAlive = true
         return list.filter((item) => item.appId !== appid)
       })
 
-      if (removedKeepAlive) {
-        evictMiniApp(appid)
-      } else if (openedOneOffMiniApp?.appId === appid) {
+      if (!wasKeepAlive && openedOneOffMiniApp?.appId === appid) {
         setOpenedOneOffMiniApp(null)
       }
 
       setCurrentMiniAppId('')
       setMiniAppShow(false)
     },
-    [openedOneOffMiniApp, setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp, setCurrentMiniAppId, setMiniAppShow]
+    [
+      openedKeepAliveMiniApps,
+      openedOneOffMiniApp,
+      setOpenedKeepAliveMiniApps,
+      setOpenedOneOffMiniApp,
+      setCurrentMiniAppId,
+      setMiniAppShow
+    ]
   )
 
   /** Close all miniApps (popup hides and all miniApps unloaded) */
   const closeAllMiniApps = useCallback(() => {
-    let closed: readonly MiniApp[] = []
-    setOpenedKeepAliveMiniApps((list) => {
-      closed = list
-      return []
-    })
+    setOpenedKeepAliveMiniApps([])
     setOpenedOneOffMiniApp(null)
     setCurrentMiniAppId('')
     setMiniAppShow(false)
-    // Mirrors LRU.clear() firing disposeAfter per entry: clean up webviews +
-    // close any tab still open for each previously kept-alive app.
-    for (const app of closed) evictMiniApp(app.appId)
   }, [setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp, setCurrentMiniAppId, setMiniAppShow])
 
   /** Hide the miniapp popup (only one-off miniapp unloaded) */
@@ -289,16 +306,13 @@ export const useMiniAppPopup = () => {
       }
 
       const app = toMiniApp(config)
-      let evicted: MiniApp[] = []
       setOpenedKeepAliveMiniApps((list) => {
         const wasCached = list.some((item) => item.appId === app.appId)
         if (wasCached) return keepExistingList(list)
         const targetSize = Math.max(cap - 1, 0)
         const result = evictWithPinExemption(list, targetSize, pinnedMiniAppIdsRef.current)
-        evicted = result.evicted
         return [...result.keep, app]
       })
-      for (const evictedApp of evicted) evictMiniApp(evictedApp.appId)
 
       setCurrentMiniAppId(app.appId)
       setMiniAppShow(true)
