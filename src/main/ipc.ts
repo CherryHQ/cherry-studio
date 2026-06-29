@@ -6,6 +6,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { generateSignature } from '@main/ai/provider/cherryai'
 import { isMac, isWin } from '@main/core/platform'
+import { commitUserDataPath } from '@main/core/preboot/userDataLocation'
 import { listDirectory as searchListDirectory } from '@main/services/file/tree/search'
 import { regionService } from '@main/services/RegionService'
 import { extractPdfText } from '@main/utils/pdf'
@@ -215,20 +216,15 @@ export async function registerIpc() {
     return isPathInside(childPath, parentPath)
   })
 
-  // Set app data path
-  //
-  // TODO(v2): This handler is incompatible with the frozen path registry
-  // established by Application.bootstrap(). Calling app.setPath('userData')
-  // here mutates Electron's path while application.getPath('app.userdata')
-  // keeps returning the boot-time value until the renderer triggers a
-  // relaunch (which it currently always does — see BasicDataSettings.tsx
-  // L186/203/322). When the v1 path-change flow is migrated to
-  // BootConfigService, redesign this handler so the app data path can only
-  // be changed via boot-config + restart, eliminating the divergence window.
+  // Set app data path — persist to BootConfig only. The live
+  // app.setPath('userData') happens in preboot resolveUserDataLocation() on
+  // the next launch. Changing the path ONLY via boot-config + relaunch keeps a
+  // single source of truth and avoids diverging from the path registry frozen
+  // by Application.bootstrap() (the renderer always relaunches after this —
+  // see BasicDataSettings.tsx). BootConfig lives under ~/.cherrystudio/,
+  // outside userData, so the commit survives the relocation itself.
   ipcMain.handle(IpcChannel.App_SetAppDataPath, async (_, filePath: string) => {
-    // updateAppDataConfig(filePath)
-    // app.setPath('userData', filePath)
-    // TODO: will refactor in v2
+    commitUserDataPath(filePath)
     return filePath
   })
 
