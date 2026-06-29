@@ -136,9 +136,9 @@ repurposed for **edit-in-place** instead of opening a switcher:
   prop (`'selector'` | `'edit'`). Old view passes `'edit'`; Home/draft and new view
   keep `'selector'`. In `'edit'` mode the trigger opens the resource edit dialog
   (`ResourceEditDialogHost`) for the current entity.
-- The agent composer's per-agent **model selector is removed** — model / plan model /
-  small model now live in the agent edit dialog. The agent switcher is also hidden
-  inside active sessions (an active session is bound to its agent).
+- The agent composer's inline model selector remains available for changing the
+  active agent model. The agent switcher is hidden inside active sessions (an
+  active session is bound to its agent).
 
 ## Agent workspace control (old view)
 

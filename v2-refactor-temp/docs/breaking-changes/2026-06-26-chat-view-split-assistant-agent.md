@@ -32,14 +32,9 @@ The preference key also changed: the never-shipped `chat.resource_list.position`
 
 Nothing — automatic. Switch **Conversation view** / **Work view** in Settings → Message Settings to change layout.
 
-## Also changed: agent composer model selector
+## Also changed: agent session options menu
 
-The agent composer toolbar **no longer has a per-agent model selector**. An agent's model, plan model, and small model are now edited from the **agent edit dialog**:
-
-- **Old view** — click the agent name in the composer toolbar (the trigger now opens the edit dialog instead of switching agents; the left rail handles switching).
-- Otherwise — open the agent's settings.
-
-The agent session options menu also drops its "toggle sidebar" item. Both are alpha behavior changes, not data-affecting — documented here for completeness.
+The agent session options menu drops its "toggle sidebar" item. This is an alpha behavior change, not data-affecting — documented here for completeness.
 
 ## Also changed: default sidebar grouping mode
 

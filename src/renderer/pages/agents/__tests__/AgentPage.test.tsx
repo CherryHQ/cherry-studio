@@ -731,6 +731,51 @@ describe('AgentPage', () => {
     expect(agentPageMocks.invalidateCache).not.toHaveBeenCalled()
   })
 
+  it('does not reuse an empty session from a different workspace from the old-view composer button', async () => {
+    agentPageMocks.workView = 'old'
+    activeSessionMocks.session = {
+      ...agentPageMocks.persistedSession,
+      id: 'session-active',
+      agentId: 'agent-a',
+      workspaceId: 'workspace-a',
+      workspace: agentPageMocks.workspace
+    }
+    activeSessionMocks.sessionSource = 'query'
+    agentPageMocks.oldViewSessions = [
+      {
+        id: 'session-empty-other-workspace',
+        agentId: 'agent-a',
+        name: 'common.unnamed',
+        updatedAt: '2026-01-03T00:00:00.000Z',
+        workspaceId: 'workspace-b',
+        workspace: { type: 'user' }
+      }
+    ]
+    agentPageMocks.dataApiPost.mockResolvedValue({
+      ...agentPageMocks.persistedSession,
+      id: 'session-composer-empty',
+      agentId: 'agent-a',
+      name: 'common.unnamed',
+      workspaceId: 'workspace-a',
+      workspace: agentPageMocks.workspace
+    })
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create empty session from composer' }))
+
+    await waitFor(() =>
+      expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
+        body: {
+          agentId: 'agent-a',
+          name: 'common.unnamed',
+          workspace: { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: 'workspace-a' }
+        }
+      })
+    )
+    expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-composer-empty')
+  })
+
   it('creates and activates a fresh empty session from the old-view composer button with the current workspace', async () => {
     agentPageMocks.workView = 'old'
     activeSessionMocks.session = {

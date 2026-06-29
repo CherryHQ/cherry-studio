@@ -47,6 +47,17 @@ function isUserWorkspaceSession(session: AgentSessionEntity | null | undefined):
   return !!session?.workspaceId && session.workspace?.type !== 'system'
 }
 
+function sessionMatchesWorkspaceSource(
+  session: AgentSessionEntity,
+  workspaceSource: AgentSessionWorkspaceSource
+): boolean {
+  if (workspaceSource.type === AGENT_WORKSPACE_TYPE.USER) {
+    return isUserWorkspaceSession(session) && session.workspaceId === workspaceSource.workspaceId
+  }
+
+  return session.workspace?.type === AGENT_WORKSPACE_TYPE.SYSTEM
+}
+
 function findLatestUpdatedSession<T extends { updatedAt?: string }>(sessions: readonly T[]): T | undefined {
   let latestSession: T | undefined
   let latestUpdatedAtMs = Number.NEGATIVE_INFINITY
@@ -827,7 +838,10 @@ const AgentPage = () => {
     try {
       const reusableSession = findLatestUpdatedSession(
         oldViewSessions.filter(
-          (candidate) => candidate.agentId === agentId && candidate.name.trim() === t('common.unnamed')
+          (candidate) =>
+            candidate.agentId === agentId &&
+            candidate.name.trim() === t('common.unnamed') &&
+            sessionMatchesWorkspaceSource(candidate, workspaceSource)
         )
       )
       const session =
