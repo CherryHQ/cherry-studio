@@ -242,6 +242,7 @@ export class AgentSessionService {
   async updateTx(tx: DbOrTx, id: string, patch: UpdateAgentSessionDto): Promise<SessionRow | undefined> {
     const sessionPatch: Partial<SessionRow> = {}
     if (patch.name !== undefined) sessionPatch.name = patch.name
+    if (patch.isNameManuallyEdited !== undefined) sessionPatch.isNameManuallyEdited = patch.isNameManuallyEdited
     if (patch.description !== undefined) sessionPatch.description = patch.description
     if (patch.agentId !== undefined) sessionPatch.agentId = patch.agentId
 
