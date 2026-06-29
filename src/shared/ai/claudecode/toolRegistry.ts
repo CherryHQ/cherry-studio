@@ -287,6 +287,38 @@ const CLAUDE_TOOL_REGISTRY = {
     description: 'Lists your knowledge bases',
     mcpServer: 'cherry-tools'
   },
+  // Deep-read tools follow the knowledge-base capability like kb_list (infrastructure the agent
+  // reaches for after a search) — internal, no separate toggle.
+  CherryKbRead: {
+    name: 'mcp__cherry-tools__kb_read',
+    category: 'context',
+    exposure: 'internal',
+    description: 'Reads a document from your knowledge bases',
+    mcpServer: 'cherry-tools'
+  },
+  CherryKbGrep: {
+    name: 'mcp__cherry-tools__kb_grep',
+    category: 'context',
+    exposure: 'internal',
+    description: 'Searches for an exact pattern inside a knowledge base document',
+    mcpServer: 'cherry-tools'
+  },
+  CherryKbTree: {
+    name: 'mcp__cherry-tools__kb_tree',
+    category: 'context',
+    exposure: 'internal',
+    description: 'Outlines the structure of a knowledge base',
+    mcpServer: 'cherry-tools'
+  },
+  // The one mutating KB tool (add/delete/refresh sources) — exposed as its own toggle so the user
+  // can see and disable write access; it still requires per-call approval at runtime.
+  CherryKbManage: {
+    name: 'mcp__cherry-tools__kb_manage',
+    category: 'context',
+    exposure: 'user',
+    description: 'Adds, deletes, or refreshes knowledge base documents',
+    mcpServer: 'cherry-tools'
+  },
   // claw (agent autonomy / channels). notify/config need a connected channel to do anything.
   ClawCron: {
     name: 'mcp__claw__cron',
@@ -373,6 +405,7 @@ const MCP_TOOL_LABELS: Record<string, string> = {
   'mcp__cherry-tools__web_search': 'Web Search',
   'mcp__cherry-tools__web_fetch': 'Web Fetch',
   'mcp__cherry-tools__kb_search': 'Knowledge Search',
+  'mcp__cherry-tools__kb_manage': 'Manage Knowledge',
   'mcp__agent-memory__memory': 'Memory',
   mcp__claw__cron: 'Scheduler'
 }
