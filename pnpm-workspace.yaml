@@ -82,6 +82,3 @@ supportedArchitectures:
     - current
   cpu:
     - current
-
-minimumReleaseAgeExclude:
-  - '@openrouter/ai-sdk-provider@2.10.0'
