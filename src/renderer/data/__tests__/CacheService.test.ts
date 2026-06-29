@@ -3,7 +3,7 @@
  *
  * This is the first unit test for the renderer CacheService itself (prior
  * coverage was limited to useCache hook type tests). It locks down the
- * Object.is → lodash.isEqual upgrade for setInternal / setSharedInternal,
+ * Object.is → isEqual upgrade for setInternal / setSharedInternal,
  * and the deepEqual → isEqual refactor for setPersist, focusing on the
  * scenarios the upgrade actually changes: object/array/record values that
  * are reconstructed as new references on every write.

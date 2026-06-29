@@ -49,8 +49,8 @@
     "zod": "^4.1.5"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.2.4",
     "@cherrystudio/ai-sdk-provider": "workspace:*",
-    "biome": "^0.3.3",
     "oxlint": "^1.36.0",
     "tsdown": "^0.20.3",
     "typescript": "^5.0.0",
