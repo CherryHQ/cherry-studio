@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { loggerService } from '@logger'
 import { WebContentsListener } from '@main/ai/streamManager/listeners/WebContentsListener'
 import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { IpcError } from '@shared/ipc/errors'
@@ -6,6 +7,8 @@ import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import type { aiRequestSchemas } from '@shared/ipc/schemas/ai'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
 import { serializeError } from '@shared/utils/error'
+
+const logger = loggerService.withContext('ipc/ai')
 
 /**
  * Thin adapters for the AI routes. The non-streaming model ops delegate to `AiService`;
@@ -18,10 +21,18 @@ import { serializeError } from '@shared/utils/error'
  * in `data`. Without this the renderer would only ever see `message` (Electron's
  * invoke reject drops `code`/`data`) — the detail this migration exists to surface.
  */
-async function exposeAiError<T>(op: () => Promise<T>): Promise<T> {
+async function exposeAiError<T>(route: string, op: () => Promise<T>): Promise<T> {
   try {
     return await op()
   } catch (e) {
+    // Log the FULL serialized error at the source (statusCode / responseBody / AI SDK
+    // subtype). The `data` rides the IpcError for the renderer, but Electron's invoke
+    // reject keeps only `message`, and a downstream normalize (e.g. the paintings
+    // pipeline → `REMOTE_ERROR`) can collapse even that — so the only durable record of
+    // the real cause is this log. User-initiated aborts are control flow, not failures.
+    if (!(e instanceof Error && e.name === 'AbortError')) {
+      logger.error(`${route} failed`, serializeError(e))
+    }
     throw new IpcError(aiErrorCodes.AI_REQUEST_FAILED, e instanceof Error ? e.message : String(e), serializeError(e))
   }
 }
@@ -38,15 +49,18 @@ function senderWebContents(senderId: WindowId | null): Electron.WebContents | un
 }
 
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
-  'ai.generate_text': (request) => exposeAiError(() => application.get('AiService').generateText(request)),
-  'ai.check_model': (request) => exposeAiError(() => application.get('AiService').checkModel(request)),
-  'ai.embed_many': (request) => exposeAiError(() => application.get('AiService').embedMany(request)),
+  'ai.generate_text': (request) =>
+    exposeAiError('ai.generate_text', () => application.get('AiService').generateText(request)),
+  'ai.check_model': (request) =>
+    exposeAiError('ai.check_model', () => application.get('AiService').checkModel(request)),
+  'ai.embed_many': (request) => exposeAiError('ai.embed_many', () => application.get('AiService').embedMany(request)),
   'ai.generate_image': ({ requestId, payload }) =>
-    exposeAiError(() => application.get('AiService').runImageRequest(requestId, payload)),
+    exposeAiError('ai.generate_image', () => application.get('AiService').runImageRequest(requestId, payload)),
   'ai.abort_image': async ({ requestId }) => {
     application.get('AiService').abortImage(requestId)
   },
-  'ai.list_models': (request) => exposeAiError(() => application.get('AiService').listModels(request)),
+  'ai.list_models': (request) =>
+    exposeAiError('ai.list_models', () => application.get('AiService').listModels(request)),
 
   // ── Streaming chat — delegate to AiStreamManager, which owns the stream registry. ──
   'ai.stream_open': async (request, { senderId }) => {

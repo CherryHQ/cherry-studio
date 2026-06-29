@@ -629,7 +629,10 @@ export class AiService extends BaseService {
     if (snapshot.status === 'cancelled') {
       throw new DOMException('Image generation aborted', 'AbortError')
     }
-    throw new Error(snapshot.error?.message ?? 'Image generation failed')
+    // `||` not `??`: a job can fail with an empty-string error message (a vendor that
+    // returns a non-OK response with no body), which would otherwise surface as a
+    // message-less `Error` the renderer can't show.
+    throw new Error(snapshot.error?.message || 'Image generation failed')
   }
 
   // ── Embedding ──
