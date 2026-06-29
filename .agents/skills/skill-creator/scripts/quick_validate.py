@@ -6,7 +6,6 @@ Quick validation script for skills - minimal version
 import sys
 import os
 import re
-import yaml
 from pathlib import Path
 
 def validate_skill(skill_path):
@@ -30,13 +29,28 @@ def validate_skill(skill_path):
 
     frontmatter_text = match.group(1)
 
-    # Parse YAML frontmatter
-    try:
-        frontmatter = yaml.safe_load(frontmatter_text)
-        if not isinstance(frontmatter, dict):
-            return False, "Frontmatter must be a YAML dictionary"
-    except yaml.YAMLError as e:
-        return False, f"Invalid YAML in frontmatter: {e}"
+    # Parse frontmatter with regex (stdlib-only, no PyYAML dependency).
+    # Extract top-level "key: value" lines; multi-line block scalars (|)
+    # are joined. This covers the simple fields SKILL.md uses.
+    frontmatter: dict[str, str] = {}
+    current_key = None
+    current_lines: list[str] = []
+    for fm_line in frontmatter_text.split('\n'):
+        # Top-level key: value (not indented)
+        kv = re.match(r'^([a-z][a-z0-9-]*)\s*:\s*(.*)', fm_line)
+        if kv:
+            if current_key is not None:
+                frontmatter[current_key] = '\n'.join(current_lines).strip()
+            current_key = kv.group(1)
+            val = kv.group(2).strip()
+            current_lines = [] if val in ('|', '>') else [val]
+        elif current_key is not None and (fm_line.startswith('  ') or fm_line.startswith('\t')):
+            current_lines.append(fm_line.strip())
+    if current_key is not None:
+        frontmatter[current_key] = '\n'.join(current_lines).strip()
+
+    if not frontmatter:
+        return False, "Frontmatter must be a YAML dictionary"
 
     # Define allowed properties
     ALLOWED_PROPERTIES = {'name', 'description', 'license', 'allowed-tools', 'metadata', 'compatibility'}
@@ -57,8 +71,6 @@ def validate_skill(skill_path):
 
     # Extract name for validation
     name = frontmatter.get('name', '')
-    if not isinstance(name, str):
-        return False, f"Name must be a string, got {type(name).__name__}"
     name = name.strip()
     if name:
         # Check naming convention (kebab-case: lowercase with hyphens)
