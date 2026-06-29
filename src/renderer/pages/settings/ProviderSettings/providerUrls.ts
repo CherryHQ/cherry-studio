@@ -469,13 +469,13 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
   },
   hunyuan: {
     api: {
-      url: 'https://api.hunyuan.cloud.tencent.com'
+      url: 'https://tokenhub.tencentmaas.com/v1'
     },
     websites: {
       official: 'https://cloud.tencent.com/product/hunyuan',
       apiKey: 'https://console.cloud.tencent.com/hunyuan/api-key',
-      docs: 'https://cloud.tencent.com/document/product/1729/111007',
-      models: 'https://cloud.tencent.com/document/product/1729/104753'
+      docs: 'https://cloud.tencent.com/document/product/1823/130058',
+      models: 'https://cloud.tencent.com/document/product/1823/130051'
     }
   },
   nvidia: {

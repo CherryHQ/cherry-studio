@@ -1086,16 +1086,26 @@
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.hunyuan.cloud.tencent.com",
-          "adapterFamily": "openai-compatible"
+          "baseUrl": "https://tokenhub.tencentmaas.com/v1",
+          "adapterFamily": "openai-compatible",
+          "reasoningFormat": {
+            "type": "openai-chat"
+          }
+        },
+        "anthropic-messages": {
+          "baseUrl": "https://tokenhub.tencentmaas.com",
+          "adapterFamily": "anthropic",
+          "reasoningFormat": {
+            "type": "anthropic"
+          }
         }
       },
       "metadata": {
         "website": {
           "official": "https://cloud.tencent.com/product/hunyuan",
           "apiKey": "https://console.cloud.tencent.com/hunyuan/api-key",
-          "docs": "https://cloud.tencent.com/document/product/1729/111007",
-          "models": "https://cloud.tencent.com/document/product/1729/104753"
+          "docs": "https://https://cloud.tencent.com/document/product/1823/130058",
+          "models": "https://cloud.tencent.com/document/product/1823/130051"
         }
       }
     },

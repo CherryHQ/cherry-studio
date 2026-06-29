@@ -32,6 +32,7 @@ import {
   isGemini3ThinkingTokenModel,
   isGrok4FastReasoningModel,
   isHostedGemma4ThinkingModel,
+  isHunyuanReasoningModel,
   isOpenAIDeepResearchModel,
   isOpenAIModel,
   isOpenAIOpenWeightModel,
@@ -163,6 +164,17 @@ export function getReasoningEffort(
         (isDeepSeekHybridInferenceModel(model) || isSupportedThinkingTokenZhipuModel(model)))
     ) {
       return { enable_thinking: false }
+    }
+
+    // Hunyuan models exposing the reasoning_effort knob (e.g. hy3) align with
+    // the industry OpenAI behavior — 'none' disables thinking (快思考). Excludes
+    // the enable_thinking SKUs (hunyuan-a13b) handled above.
+    if (
+      isHunyuanReasoningModel(model) &&
+      isSupportedReasoningEffortModel(model) &&
+      !isSupportedThinkingTokenHunyuanModel(model)
+    ) {
+      return { reasoningEffort: 'none' }
     }
 
     // together
