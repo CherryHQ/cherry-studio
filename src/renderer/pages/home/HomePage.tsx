@@ -63,7 +63,7 @@ import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('HomePage')
 const LAST_USED_ASSISTANT_CACHE_KEY = 'ui.chat.last_used_assistant_id'
-const TRADITIONAL_VIEW_RIGHT_PANE_OPEN_CACHE_KEY = 'ui.traditional_view.right_pane_open'
+const CHAT_RIGHT_PANE_OPEN_CACHE_KEY = 'ui.chat.right_pane_open'
 
 type DraftAssistantSelectionSource = 'explicit' | 'last-used' | 'first-assistant' | 'runtime-fallback'
 type ResolvedDraftAssistantSelection = { assistantId?: string; source: DraftAssistantSelectionSource }
@@ -108,9 +108,8 @@ const HomePage: FC = () => {
   const [draftAssistantSelection, setDraftAssistantSelection] = useState<DraftAssistantSelection | undefined>()
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
   const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
-  const [traditionalViewTopicRightPaneOpen, setTraditionalViewTopicRightPaneOpenCache] = usePersistCache(
-    TRADITIONAL_VIEW_RIGHT_PANE_OPEN_CACHE_KEY
-  )
+  const [traditionalViewTopicRightPaneOpen, setTraditionalViewTopicRightPaneOpenCache] =
+    usePersistCache(CHAT_RIGHT_PANE_OPEN_CACHE_KEY)
   const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()

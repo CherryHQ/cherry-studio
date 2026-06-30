@@ -37,7 +37,7 @@ though the display-mode controls are currently hidden in the UI.
 
 - `chat.conversation_view` / `chat.work_view` select the mode per surface.
 - `topic.tab.show` controls whether the left entity rail is expanded/collapsed.
-- `ui.traditional_view.right_pane_open` persists the traditional-view right panel's open state
+- `ui.chat.right_pane_open` persists the traditional-view right panel's open state
   for Home and Agent. Home uses it directly on the page-level Shell; Agent owns
   the same cached state in `AgentPage` and threads it through each `AgentChat`
   Shell mount so it survives draft → persistent remounts and page re-entry.

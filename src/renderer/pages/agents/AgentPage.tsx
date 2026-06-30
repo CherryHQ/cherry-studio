@@ -43,7 +43,7 @@ import { parseAgentRouteSearch } from './routeSearch'
 import type { DraftAgentSession, DraftAgentSessionDefaults, PersistentAgentSessionConversation } from './types'
 
 const logger = loggerService.withContext('AgentPage')
-const TRADITIONAL_VIEW_RIGHT_PANE_OPEN_CACHE_KEY = 'ui.traditional_view.right_pane_open'
+const CHAT_RIGHT_PANE_OPEN_CACHE_KEY = 'ui.chat.right_pane_open'
 
 function isUserWorkspaceSession(session: AgentSessionEntity | null | undefined): boolean {
   return !!session?.workspaceId && session.workspace?.type !== 'system'
@@ -106,9 +106,8 @@ const AgentPage = () => {
   const draftSessionRef = useRef<DraftAgentSession | null>(null)
   const [draftSession, setDraftSession] = useState<DraftAgentSession | null>(null)
   const [historyRecordsOpen, setHistoryRecordsOpen] = useState(false)
-  const [traditionalViewAgentRightPaneOpen, setTraditionalViewAgentRightPaneOpenCache] = usePersistCache(
-    TRADITIONAL_VIEW_RIGHT_PANE_OPEN_CACHE_KEY
-  )
+  const [traditionalViewAgentRightPaneOpen, setTraditionalViewAgentRightPaneOpenCache] =
+    usePersistCache(CHAT_RIGHT_PANE_OPEN_CACHE_KEY)
   // Traditional-view (rail) work-pane open state is cached here so it survives AgentChat draft→persistent
   // remounts (each branch mounts its own Shell) and app/page re-entry.
   const workPaneOpen = isTraditionalView && traditionalViewAgentRightPaneOpen

@@ -118,7 +118,7 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
           return homeMocks.persistCacheValues.get(key)
         }
 
-        return key === 'ui.traditional_view.right_pane_open' ? true : null
+        return key === 'ui.chat.right_pane_open' ? true : null
       })
       const setPersistCache = vi.fn((nextValue: unknown) => {
         homeMocks.persistCacheValues.set(key, nextValue)
@@ -597,7 +597,7 @@ describe('HomePage', () => {
 
   it('restores and records the traditional-view topic right pane open state from cache', () => {
     homeMocks.preferenceValues.set('chat.conversation_view', 'traditional')
-    homeMocks.persistCacheValues.set('ui.traditional_view.right_pane_open', false)
+    homeMocks.persistCacheValues.set('ui.chat.right_pane_open', false)
 
     render(<HomePage />)
 
@@ -605,7 +605,7 @@ describe('HomePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Close topic right pane' }))
 
-    expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.traditional_view.right_pane_open', false)
+    expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.right_pane_open', false)
   })
 
   it('passes the current assistant conversation count to the traditional-view top button', () => {
