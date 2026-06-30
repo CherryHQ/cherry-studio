@@ -14,6 +14,9 @@ export function statsToUsage(stats: MessageStats): Usage {
     completion_tokens: stats.completionTokens ?? 0,
     total_tokens: stats.totalTokens ?? 0,
     ...(stats.thoughtsTokens !== undefined && { thoughts_tokens: stats.thoughtsTokens }),
+    ...(stats.noCacheTokens !== undefined && { no_cache_tokens: stats.noCacheTokens }),
+    ...(stats.cacheReadTokens !== undefined && { cache_read_tokens: stats.cacheReadTokens }),
+    ...(stats.cacheWriteTokens !== undefined && { cache_write_tokens: stats.cacheWriteTokens }),
     ...(stats.cost !== undefined && { cost: stats.cost })
   }
 }

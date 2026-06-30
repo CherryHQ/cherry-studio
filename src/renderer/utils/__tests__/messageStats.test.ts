@@ -10,6 +10,9 @@ describe('statsToUsage', () => {
       completionTokens: 12,
       totalTokens: 42,
       thoughtsTokens: 3,
+      noCacheTokens: 5,
+      cacheReadTokens: 20,
+      cacheWriteTokens: 5,
       cost: 0.000123
     }
 
@@ -18,6 +21,9 @@ describe('statsToUsage', () => {
       completion_tokens: 12,
       total_tokens: 42,
       thoughts_tokens: 3,
+      no_cache_tokens: 5,
+      cache_read_tokens: 20,
+      cache_write_tokens: 5,
       cost: 0.000123
     })
   })
