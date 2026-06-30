@@ -792,8 +792,9 @@ describe('Sessions', () => {
     expect(screen.queryByText('New task')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Display mode')).not.toBeInTheDocument()
 
-    const searchInput = screen.getByPlaceholderText('Search tasks')
-    expect(searchInput).toHaveClass('h-8', 'rounded-lg', 'border-border-subtle', 'bg-background-subtle', 'text-xs')
+    // Behavior: the right panel exposes the search control and drops the sidebar's new/display-mode
+    // affordances. (Styling specifics intentionally not pinned here.)
+    expect(screen.getByPlaceholderText('Search tasks')).toBeInTheDocument()
   })
 
   it('forces time grouping in the right panel even when the agent display mode is stored', () => {

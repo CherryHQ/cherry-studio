@@ -101,6 +101,16 @@ describe('useResourceEntityRail', () => {
     expect(result.current.items).toEqual([])
   })
 
+  it('hides a brand-new entity that owns no resources while keeping the others shown', () => {
+    const { result } = renderRail({
+      entities: [...ENTITIES, { id: 'assistant-c', name: 'Assistant C', icon: 'C', orderKey: 'c' }],
+      // assistant-c owns no resources yet; only a and b do.
+      resources: RESOURCES
+    })
+
+    expect(result.current.items.map((item) => item.id)).toEqual(['assistant-a', 'assistant-b'])
+  })
+
   it('updates selection while keeping the list mounted during loading', () => {
     const { result, rerender } = renderRail({ isLoading: true, activeEntityId: 'assistant-a' })
 

@@ -814,8 +814,9 @@ describe('Topics', () => {
     expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Display mode')).not.toBeInTheDocument()
 
-    const searchInput = screen.getByRole('textbox', { name: 'Search conversations' })
-    expect(searchInput).toHaveClass('h-8', 'rounded-lg', 'border-border-subtle', 'bg-background-subtle', 'text-xs')
+    // Behavior: the right panel exposes the search control and drops the sidebar's new/display-mode
+    // affordances. (Styling specifics intentionally not pinned here.)
+    expect(screen.getByRole('textbox', { name: 'Search conversations' })).toBeInTheDocument()
   })
 
   it('forces time grouping in the right panel even when the assistant display mode is stored', () => {

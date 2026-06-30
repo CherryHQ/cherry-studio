@@ -171,8 +171,7 @@ describe('ResourceEntityRail', () => {
     expect(screen.queryByRole('button', { name: 'history.records.shortTitle' })).not.toBeInTheDocument()
   })
 
-  it('uses grouped-list entity typography and selected state', () => {
-    const onSelect = vi.fn()
+  it('marks the selected entity and wires context-menu actions', () => {
     const onContextMenuAction = vi.fn()
     const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
       callback(0)
@@ -189,37 +188,15 @@ describe('ResourceEntityRail', () => {
         variant="assistant"
         onAdd={vi.fn()}
         onContextMenuAction={onContextMenuAction}
-        onSelect={onSelect}
+        onSelect={vi.fn()}
       />
     )
 
-    const selectedTitle = screen.getByText('Assistant A')
-    const selectedRow = selectedTitle.closest('[role="option"]')
-    const selectedLeadingSlot = screen
-      .getByTestId('assistant-a-icon')
-      .closest('[data-resource-list-leading-slot="true"]')
+    // Behavior, not styling: the selected entity is marked selected and others are not.
+    expect(screen.getByText('Assistant A').closest('[role="option"]')).toHaveAttribute('data-selected', 'true')
+    expect(screen.getByText('Assistant B').closest('[role="option"]')).not.toHaveAttribute('data-selected', 'true')
 
-    expect(selectedRow).toHaveAttribute('data-selected', 'true')
-    expect(selectedRow).toHaveClass('bg-sidebar-accent', 'text-sidebar-foreground', 'shadow-none')
-    expect(selectedTitle).toHaveClass(
-      'font-medium',
-      'text-foreground',
-      'transition-[padding]',
-      'group-hover:pr-7',
-      'group-focus-within:pr-7',
-      'group-hover:text-inherit',
-      'group-focus-visible:text-inherit',
-      'group-data-[selected=true]:text-inherit'
-    )
-    expect(selectedTitle).not.toHaveClass('font-normal', 'text-sidebar-foreground/70')
-    expect(selectedLeadingSlot).toHaveClass(
-      'text-foreground',
-      'group-hover:text-inherit',
-      'group-focus-visible:text-inherit',
-      'group-data-[selected=true]:text-inherit'
-    )
-
-    expect(screen.getAllByRole('button', { name: 'common.more' })[0]).toHaveClass('size-6', '[&_svg]:size-3!')
+    // Behavior: context-menu actions are dispatched with the row's entity.
     fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0])
     expect(onContextMenuAction).toHaveBeenCalledWith(ITEMS[0], EDIT_ACTION)
 

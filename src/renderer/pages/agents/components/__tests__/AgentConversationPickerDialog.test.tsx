@@ -102,6 +102,24 @@ describe('AgentConversationPickerDialog', () => {
     await waitFor(() => expect(onSelect).toHaveBeenCalledWith('agent-new'))
   })
 
+  it('maps a selected picker row to its agent id', () => {
+    const onSelect = vi.fn()
+
+    render(
+      <AgentConversationPickerDialog
+        open
+        onOpenChange={vi.fn()}
+        agents={[{ id: 'agent-x', name: 'Agent X', configuration: {} } as any]}
+        onSelect={onSelect}
+      />
+    )
+
+    const item = mocks.pickerProps.items.find((entry: any) => entry.agentId === 'agent-x')
+    expect(item).toBeTruthy()
+    mocks.pickerProps.onSelect(item)
+    expect(onSelect).toHaveBeenCalledWith('agent-x')
+  })
+
   it('keeps the create dialog open and does not select when agent creation fails', async () => {
     mocks.createAgent.mockRejectedValue(new Error('create failed'))
     const onSelect = vi.fn()
