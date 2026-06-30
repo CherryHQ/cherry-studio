@@ -11,7 +11,7 @@ import { isSlashCommand } from '../../constants'
 import { FlushController } from '../../FlushController'
 import { FILE_EXTENSION_MIME_MAP, splitMessage } from '../../utils'
 import { registrationBegin, registrationPoll } from './FeishuAppRegistration'
-import { createElectronHttpInstance } from './feishuHttpInstance'
+import { createElectronHttpInstance } from './FeishuHttpInstance'
 
 const FEISHU_MAX_LENGTH = 4000
 

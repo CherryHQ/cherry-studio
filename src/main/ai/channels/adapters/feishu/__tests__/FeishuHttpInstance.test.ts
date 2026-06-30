@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createElectronHttpInstance } from '../feishuHttpInstance'
+import { createElectronHttpInstance } from '../FeishuHttpInstance'
 
 function okResponse(payload: unknown = { code: 0 }) {
   return {
