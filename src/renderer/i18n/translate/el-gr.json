@@ -3162,12 +3162,22 @@
           "agent_title": "Νέος Πράκτορας",
           "assistant_title": "Νέος Βοηθός",
           "avatar_aria": "Επιλέξτε άβαταρ",
+          "back": "Πίσω",
+          "capability": {
+            "import": "Εισαγωγή δεξιότητας",
+            "no_skills": "Δεν έχουν εγκατασταθεί δεξιότητες",
+            "search": "Δεξιότητες αναζήτησης"
+          },
           "description_placeholder": "Περιγράψτε για τι χρησιμεύει...",
-          "dialog_description": "Δημιούργησε έναν ελαφρύ βοηθό ή πράκτορα.",
-          "model_placeholder": "Επιλέξτε ένα μοντέλο",
-          "model_required": "Παρακαλώ επιλέξτε ένα μοντέλο",
+          "guided_progress": "Καθοδηγούμενη ρύθμιση · Βήμα {{current}} από {{total}}",
           "name_placeholder": "Εισάγετε ένα όνομα",
-          "name_required": "Παρακαλώ εισάγετε ένα όνομα",
+          "next": "Επόμενο",
+          "step": {
+            "basic": "Βασικές πληροφορίες",
+            "capability": "Δεξιότητες",
+            "knowledge": "Γνώση",
+            "persona": "Πρόσωπο"
+          },
           "submit": "Δημιουργία",
           "submit_failed": "Η δημιουργία απέτυχε"
         },

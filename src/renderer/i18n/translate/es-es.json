@@ -3162,12 +3162,22 @@
           "agent_title": "Nuevo Agente",
           "assistant_title": "Nuevo Asistente",
           "avatar_aria": "Elegir avatar",
+          "back": "Atrás",
+          "capability": {
+            "import": "Importar habilidad",
+            "no_skills": "Sin habilidades instaladas",
+            "search": "Habilidades de búsqueda"
+          },
           "description_placeholder": "Describe para qué sirve...",
-          "dialog_description": "Crea un asistente o agente ligero.",
-          "model_placeholder": "Selecciona un modelo",
-          "model_required": "Por favor selecciona un modelo",
+          "guided_progress": "Configuración guiada · Paso {{current}} de {{total}}",
           "name_placeholder": "Introduce un nombre",
-          "name_required": "Por favor, introduce un nombre",
+          "next": "Siguiente",
+          "step": {
+            "basic": "Información básica",
+            "capability": "Habilidades",
+            "knowledge": "Conocimiento",
+            "persona": "Persona"
+          },
           "submit": "Crear",
           "submit_failed": "Creación fallida"
         },

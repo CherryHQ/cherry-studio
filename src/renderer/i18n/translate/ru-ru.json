@@ -3162,12 +3162,22 @@
           "agent_title": "Новый агент",
           "assistant_title": "Новый ассистент",
           "avatar_aria": "Выберите аватар",
+          "back": "Назад",
+          "capability": {
+            "import": "Импортировать навык",
+            "no_skills": "Навыки не установлены",
+            "search": "Навыки поиска"
+          },
           "description_placeholder": "Опиши, для чего это нужно...",
-          "dialog_description": "Создайте лёгкого ассистента или агента.",
-          "model_placeholder": "Выберите модель",
-          "model_required": "Пожалуйста, выберите модель",
+          "guided_progress": "Настройка с помощью мастера · Шаг {{current}} из {{total}}",
           "name_placeholder": "Введите имя",
-          "name_required": "Пожалуйста, введите имя",
+          "next": "Далее",
+          "step": {
+            "basic": "Базовая информация",
+            "capability": "Навыки",
+            "knowledge": "Знание",
+            "persona": "Персона"
+          },
           "submit": "Создать",
           "submit_failed": "Создание не удалось"
         },

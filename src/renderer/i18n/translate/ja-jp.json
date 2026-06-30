@@ -3162,12 +3162,22 @@
           "agent_title": "新エージェント",
           "assistant_title": "新しいアシスタント",
           "avatar_aria": "アバターを選択",
+          "back": "戻る",
+          "capability": {
+            "import": "スキルをインポート",
+            "no_skills": "インストールされたスキルはありません",
+            "search": "検索スキル"
+          },
           "description_placeholder": "それが何のためにあるのかを説明してください…",
-          "dialog_description": "軽量なアシスタントまたはエージェントを作成する",
-          "model_placeholder": "モデルを選択してください",
-          "model_required": "モデルを選択してください",
+          "guided_progress": "ガイド付きセットアップ · ステップ {{current}} / {{total}}",
           "name_placeholder": "名前を入力してください",
-          "name_required": "名前を入力してください",
+          "next": "次",
+          "step": {
+            "basic": "基本情報",
+            "capability": "スキル",
+            "knowledge": "知識",
+            "persona": "ペルソナ"
+          },
           "submit": "作成",
           "submit_failed": "作成に失敗しました"
         },

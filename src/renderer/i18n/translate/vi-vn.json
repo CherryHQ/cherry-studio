@@ -3162,12 +3162,22 @@
           "agent_title": "Đại lý mới",
           "assistant_title": "Trợ lý mới",
           "avatar_aria": "Chọn hình đại diện",
+          "back": "Quay lại",
+          "capability": {
+            "import": "Nhập kỹ năng",
+            "no_skills": "Không có kỹ năng nào được cài đặt",
+            "search": "Kỹ năng tìm kiếm"
+          },
           "description_placeholder": "Mô tả mục đích của nó...",
-          "dialog_description": "Tạo một trợ lý hoặc tác nhân nhẹ.",
-          "model_placeholder": "Chọn một mô hình",
-          "model_required": "Vui lòng chọn một mô hình",
+          "guided_progress": "Thiết lập có hướng dẫn · Bước {{current}} trên {{total}}",
           "name_placeholder": "Nhập tên",
-          "name_required": "Vui lòng nhập tên",
+          "next": "Tiếp theo",
+          "step": {
+            "basic": "Thông tin cơ bản",
+            "capability": "Kỹ năng",
+            "knowledge": "Kiến thức",
+            "persona": "Nhân cách"
+          },
           "submit": "Tạo",
           "submit_failed": "Tạo thất bại"
         },
