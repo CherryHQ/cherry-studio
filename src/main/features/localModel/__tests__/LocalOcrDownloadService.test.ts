@@ -9,9 +9,29 @@ vi.mock('@application', async () => {
 })
 
 // Import the SUT after @application is mocked (its model dir resolves via application.getPath).
-const { localOcrDownloadService } = await import('../LocalOcrDownloadService')
+const { localOcrDownloadService, dictTextFromInferenceYml } = await import('../LocalOcrDownloadService')
 
 const DEFAULT_KEY = 'feature.file_processing.default_image_to_text'
+
+describe('dictTextFromInferenceYml', () => {
+  it('reproduces PaddleOCR dict format: leading blank slot, entries, trailing space slot', () => {
+    const yml = ['PostProcess:', '  name: CTCLabelDecode', '  character_dict:', "  - '!'", '  - a', '  - 你'].join('\n')
+
+    const text = dictTextFromInferenceYml(yml)
+
+    expect(text).toBe('\n!\na\n你\n')
+    // ppu-paddle-ocr parses the dict with split(/\r?\n/) and no trimming: index 0
+    // must be the blank token and the final entry the space class.
+    const entries = text.split(/\r?\n/)
+    expect(entries[0]).toBe('')
+    expect(entries.at(-1)).toBe('')
+    expect(entries.slice(1, -1)).toEqual(['!', 'a', '你'])
+  })
+
+  it('throws when the yml has no PostProcess.character_dict', () => {
+    expect(() => dictTextFromInferenceYml('PostProcess:\n  name: CTCLabelDecode\n')).toThrow('character_dict')
+  })
+})
 
 describe('LocalOcrDownloadService.remove — default image-to-text demotion', () => {
   beforeEach(() => {

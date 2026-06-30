@@ -2,7 +2,7 @@ import { inferenceHost } from '@main/ai/inference/InferenceHost'
 import { FILE_TYPE } from '@shared/types/file'
 
 import type { FileProcessingCapabilityHandler } from '../../types'
-import { isLocalPaddleocrModelDownloaded, ocrModelPaths } from '../modelAssets'
+import { isLocalPaddleocrModelDownloaded, ocrModelPaths } from '../modelPaths'
 
 /**
  * In-process OCR via PaddleOCR (ppu-paddle-ocr). Recognition runs in the

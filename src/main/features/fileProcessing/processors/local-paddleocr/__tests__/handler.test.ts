@@ -12,7 +12,7 @@ vi.mock('@main/ai/inference/InferenceHost', () => ({
   inferenceHost: { recognize: recognizeMock }
 }))
 
-vi.mock('../modelAssets', () => ({
+vi.mock('../modelPaths', () => ({
   isLocalPaddleocrModelDownloaded: isLocalPaddleocrModelDownloadedMock,
   ocrModelPaths: ocrModelPathsMock
 }))
@@ -20,8 +20,8 @@ vi.mock('../modelAssets', () => ({
 import { localPaddleocrImageToTextHandler } from '../image-to-text/handler'
 
 const MODEL_PATHS = {
-  detection: '/models/paddleocr/PP-OCRv6_small_det.ort',
-  recognition: '/models/paddleocr/PP-OCRv6_small_rec.ort',
+  detection: '/models/paddleocr/PP-OCRv6_medium_det.onnx',
+  recognition: '/models/paddleocr/PP-OCRv6_medium_rec.onnx',
   charactersDictionary: '/models/paddleocr/ppocrv6_dict.txt'
 }
 

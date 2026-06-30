@@ -4,11 +4,8 @@ import path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { inferenceHost, type InferenceProgress } from '@main/ai/inference/InferenceHost'
-import {
-  currentModelSource,
-  MODEL_DTYPE,
-  MODEL_REPO
-} from '@main/ai/provider/custom/localEmbedding/localEmbeddingRuntime'
+import { LOCAL_MODELS } from '@main/ai/inference/localModelCatalog'
+import { currentModelSource } from '@main/ai/provider/custom/localEmbedding/localEmbeddingRuntime'
 import {
   registerLocalEmbeddingModel,
   unregisterLocalEmbeddingModelIfUnused
@@ -17,8 +14,8 @@ import type { LocalModelStatus } from '@shared/data/presets/localModel'
 
 const logger = loggerService.withContext('LocalEmbeddingDownloadService')
 
-/** q8 weights file for {@link MODEL_REPO}; its presence marks the model cached. */
-const MODEL_FILE = 'model_quantized.onnx'
+/** Repo / quantization / ready-probe file for the local embedding model. */
+const { repo: MODEL_REPO, dtype: MODEL_DTYPE, readyFile: MODEL_FILE } = LOCAL_MODELS.embedding
 
 /** Whether `fileName` exists anywhere under `dir` (the transformers.js cache layout
  * nests weights under source-specific sub-paths, so we search rather than guess). */

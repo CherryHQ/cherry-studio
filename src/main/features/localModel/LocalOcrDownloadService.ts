@@ -5,18 +5,38 @@ import type { ReadableStream as NodeWebReadableStream } from 'node:stream/web'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { LOCAL_MODELS, type RemoteModelFile } from '@main/ai/inference/localModelCatalog'
+import { modelSourceOrder, resolveModelFileUrl } from '@main/ai/inference/modelSource'
 import {
   isLocalPaddleocrModelDownloaded,
-  OCR_MODEL_FILES,
   ocrModelDir,
   ocrModelPaths
-} from '@main/features/fileProcessing/processors/local-paddleocr/modelAssets'
+} from '@main/features/fileProcessing/processors/local-paddleocr/modelPaths'
 import type { LocalModelStatus } from '@shared/data/presets/localModel'
-import { net } from 'electron'
+import { app, net } from 'electron'
+import { parse } from 'yaml'
 
 const logger = loggerService.withContext('LocalOcrDownloadService')
 
-type OcrModelFile = (typeof OCR_MODEL_FILES)[keyof typeof OCR_MODEL_FILES]
+/**
+ * Build PaddleOCR's on-disk dictionary from the recognition model's
+ * `inference.yml`. The `*_onnx` repos ship the dictionary only inside that
+ * config (under `PostProcess.character_dict`), not as a standalone file.
+ *
+ * Format matters: ppu-paddle-ocr reads the dictionary file with
+ * `split(/\r?\n/)` and no trimming, then its CTC decoder treats index 0 as the
+ * blank token and the trailing entry as the space class. So the file must be a
+ * leading blank line, the `character_dict` entries, then a trailing newline —
+ * which reproduces the dictionary byte-for-byte.
+ */
+export function dictTextFromInferenceYml(yml: string): string {
+  const config = parse(yml) as { PostProcess?: { character_dict?: unknown } } | null
+  const characters = config?.PostProcess?.character_dict
+  if (!Array.isArray(characters) || characters.length === 0) {
+    throw new Error('inference.yml is missing PostProcess.character_dict')
+  }
+  return `\n${characters.map(String).join('\n')}\n`
+}
 
 /**
  * On-disk lifecycle of the local PaddleOCR model: status probe, download (with
@@ -38,18 +58,26 @@ class LocalOcrDownloadService {
     this.abortController = new AbortController()
     const { signal } = this.abortController
     const paths = ocrModelPaths()
-    const totalWeight = Object.values(OCR_MODEL_FILES).reduce((sum, file) => sum + file.weight, 0)
+    const weights = LOCAL_MODELS.ocr.weights
+    // The dictionary is a tiny fetch-and-parse step; weight it lightly so the
+    // bar doesn't sit at 100% while it finishes.
+    const DICTIONARY_WEIGHT = 1
+    const totalWeight = Object.values(weights).reduce((sum, file) => sum + file.weight, 0) + DICTIONARY_WEIGHT
     try {
       await fs.promises.mkdir(ocrModelDir(), { recursive: true })
       let doneWeight = 0
-      for (const key of Object.keys(OCR_MODEL_FILES) as (keyof typeof OCR_MODEL_FILES)[]) {
-        const file = OCR_MODEL_FILES[key]
+      for (const key of Object.keys(weights) as (keyof typeof weights)[]) {
+        const file = weights[key]
         await this.downloadFile(file, paths[key], signal, (fraction) => {
           const percent = Math.round((100 * (doneWeight + file.weight * fraction)) / totalWeight)
           this.broadcast({ status: 'downloading', percent })
         })
         doneWeight += file.weight
       }
+      // The character dictionary lives only inside the recognition model's
+      // inference.yml (not as a standalone file in the *_onnx repos) — fetch and
+      // parse it so the model dir holds all three files the inference worker needs.
+      await this.downloadDictionary(paths.charactersDictionary, signal)
       this.broadcast({ status: 'ready', percent: 100 })
       // Product decision: downloading the local OCR model promotes it to the
       // default image-to-text processor. Best-effort — a preference write hiccup
@@ -81,15 +109,16 @@ class LocalOcrDownloadService {
     return { removed: true }
   }
 
-  /** Try each mirror URL in order; the first that yields a valid file wins. */
+  /** Try each mirror (locale default first) in order; the first valid file wins. */
   private async downloadFile(
-    file: OcrModelFile,
+    file: RemoteModelFile,
     dest: string,
     signal: AbortSignal,
     onProgress: (fraction: number) => void
   ): Promise<void> {
+    const urls = modelSourceOrder(app.getLocale()).map((id) => resolveModelFileUrl(id, file.repo, file.remoteFile))
     let lastError: unknown
-    for (const url of file.urls) {
+    for (const url of urls) {
       try {
         await this.fetchToFile(url, dest, file.minBytes, signal, onProgress)
         return
@@ -100,6 +129,29 @@ class LocalOcrDownloadService {
       }
     }
     throw lastError instanceof Error ? lastError : new Error(`failed to download ${file.fileName}`)
+  }
+
+  /** Fetch the recognition model's inference.yml (mirror fallback) and write the parsed dict. */
+  private async downloadDictionary(dest: string, signal: AbortSignal): Promise<void> {
+    const { repo, sourceFile } = LOCAL_MODELS.ocr.dictionary
+    const urls = modelSourceOrder(app.getLocale()).map((id) => resolveModelFileUrl(id, repo, sourceFile))
+    let lastError: unknown
+    for (const url of urls) {
+      try {
+        const response = await net.fetch(url, { signal })
+        if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`)
+        const dictText = dictTextFromInferenceYml(await response.text())
+        const tmp = `${dest}.tmp`
+        await fs.promises.writeFile(tmp, dictText)
+        await fs.promises.rename(tmp, dest)
+        return
+      } catch (error) {
+        if (signal.aborted) throw error
+        lastError = error
+        logger.warn('dictionary mirror failed, trying next', { url, error: String(error) })
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error('failed to download OCR dictionary')
   }
 
   private async fetchToFile(
