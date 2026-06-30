@@ -234,4 +234,25 @@ describe('TraceStorageService', () => {
     expect(service['store'].getSpan('s')?.events?.map((e) => e.name)).toEqual(['first', 'second'])
     expect(service['pendingEvents'].size).toBe(0)
   })
+
+  // A second /v1/traces export of the same span must not drop log events already drained onto it.
+  it('preserves drained log events when a later span update arrives with empty or extra events', async () => {
+    await service._doInit()
+    service.addSpanEvent('trace', 'cc-span', timedEvent('llm_request'))
+    service.saveEntity(span({ id: 'cc-span', traceId: 'trace', topicId: 'topic' }))
+    expect(service['store'].getSpan('cc-span')?.events?.map((e) => e.name)).toEqual(['llm_request'])
+
+    // Re-export with no events: the drained log event survives (not wiped).
+    service.saveEntity(span({ id: 'cc-span', traceId: 'trace', topicId: 'topic', events: [] }))
+    expect(service['store'].getSpan('cc-span')?.events?.map((e) => e.name)).toEqual(['llm_request'])
+
+    // Re-export carrying its own event: unions with the drained one (no loss, no dupes).
+    service.saveEntity(span({ id: 'cc-span', traceId: 'trace', topicId: 'topic', events: [timedEvent('tool')] }))
+    expect(
+      service['store']
+        .getSpan('cc-span')
+        ?.events?.map((e) => e.name)
+        .sort()
+    ).toEqual(['llm_request', 'tool'])
+  })
 })
