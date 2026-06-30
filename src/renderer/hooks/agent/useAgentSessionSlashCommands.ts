@@ -1,7 +1,7 @@
-import { useSharedCache } from '@renderer/data/hooks/useCache'
+import { cacheService } from '@renderer/data/CacheService'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { SlashCommand } from '@shared/ai/slashCommands'
-import { useMemo } from 'react'
+import { useCallback, useMemo, useSyncExternalStore } from 'react'
 
 const EMPTY_SESSION_ID = '__none__'
 
@@ -12,9 +12,20 @@ const EMPTY_SESSION_ID = '__none__'
  * session is selected or the runtime hasn't reported a catalog yet, so callers fall back to the
  * builtin list. The cached SDK shape (`name` without a leading slash) is normalised to the
  * composer's `{ command, description }` form here.
+ *
+ * Read-only by design: it subscribes to the shared-cache store directly rather than via
+ * `useSharedCache`, which seeds the schema default on mount when this window's local copy is empty.
+ * That default is `null`, and the seed write broadcasts to Main — so a window mounting before
+ * `syncSharedCacheFromMain()` lands would clobber Main's already-published catalog. Reading without
+ * writing lets the sync deliver Main's value untouched (Main owns this key).
  */
 export function useAgentSessionSlashCommands(sessionId: string | undefined): SlashCommand[] | undefined {
-  const [cached] = useSharedCache(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId ?? EMPTY_SESSION_ID))
+  const key = AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId ?? EMPTY_SESSION_ID)
+  const cached = useSyncExternalStore(
+    useCallback((onChange) => cacheService.subscribe(key, onChange), [key]),
+    useCallback(() => cacheService.getShared(key), [key]),
+    useCallback(() => cacheService.getShared(key), [key])
+  )
 
   return useMemo(() => {
     if (!sessionId || !cached || cached.length === 0) return undefined

@@ -782,6 +782,45 @@ describe('AgentSessionRuntimeService', () => {
       expect(service.inspect('session-1')).toBeUndefined()
     })
 
+    it('re-priming a live session republishes the catalog without rebuilding the connection', async () => {
+      const commands = [{ name: 'clear', description: 'Clear conversation' }]
+      const connection = {
+        events: createAsyncQueue<any>().iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        getSupportedCommands: vi.fn().mockResolvedValue(commands)
+      }
+      const connect = vi.fn().mockResolvedValue(connection)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      mocks.getSessionById.mockResolvedValue({ id: 'session-1', agentId: 'agent-1' })
+      mocks.getAgent.mockResolvedValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+
+      const service = new AgentSessionRuntimeService()
+      await service.primeConnection('session-1')
+      await vi.waitFor(() =>
+        expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.slash_commands.session-1', commands)
+      )
+
+      mocks.cacheSetShared.mockClear()
+      connection.getSupportedCommands.mockClear()
+
+      // Second prime hits the existing-entry branch — it must re-read and republish (so a window
+      // mounting late still gets the catalog), not early-return on the live connection.
+      await service.primeConnection('session-1')
+      await vi.waitFor(() => {
+        expect(connection.getSupportedCommands).toHaveBeenCalled()
+        expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.slash_commands.session-1', commands)
+      })
+      // The existing connection is reused — no second connect.
+      expect(connect).toHaveBeenCalledTimes(1)
+    })
+
     it('replaces the cached catalog when the runtime pushes a commands_changed event', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)
