@@ -112,10 +112,10 @@ describe('detectLanguageByFranc', () => {
     expect(detectLanguageByFranc('你好世界')).toBe('zh-cn')
   })
 
-  it('passes minLength: 1 so short input is not dropped before detection', () => {
-    francMock.mockReturnValueOnce('cmn')
-    expect(detectLanguageByFranc('你好')).toBe('zh-cn')
-    expect(francMock).toHaveBeenCalledWith('你好', { minLength: 1 })
+  it('uses franc default minLength to avoid unreliable short-text guesses', () => {
+    francMock.mockReturnValueOnce('und')
+    expect(detectLanguageByFranc('my')).toBe(UNKNOWN_LANG_CODE)
+    expect(francMock).toHaveBeenCalledWith('my', { minLength: 10 })
   })
 
   it('returns the unknown lang code and logs a debug when the iso3 is not in the supported isoMap', () => {
@@ -259,7 +259,7 @@ describe('useDetectLang hook', () => {
 
     const code = await act(async () => result.current('Hello world'))
     expect(code).toBe('en-us')
-    expect(francMock).toHaveBeenCalledWith('Hello world', { minLength: 1 })
+    expect(francMock).toHaveBeenCalledWith('Hello world', { minLength: 10 })
     expect(generateTextMock).not.toHaveBeenCalled()
   })
 })

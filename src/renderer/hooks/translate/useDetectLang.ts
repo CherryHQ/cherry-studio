@@ -84,10 +84,9 @@ export const detectLanguageByLLM = async (
  */
 export const detectLanguageByFranc = (inputText: string): TranslateLangCode => {
   logger.info('Detect language by franc')
-  // franc-min defaults to minLength: 10, which drops short input (e.g. "你好")
-  // as `und` before detection runs. Lower it so script-based detection gets a
-  // chance on short non-Latin text.
-  const iso3 = franc(inputText, { minLength: 1 })
+  // Keep franc's default minimum length so very short text does not get
+  // over-confident, unreliable guesses.
+  const iso3 = franc(inputText, { minLength: 10 })
 
   const isoMap: Record<string, TranslateLangCode> = {
     cmn: BUILTIN_LANGUAGE.zhCN.langCode,

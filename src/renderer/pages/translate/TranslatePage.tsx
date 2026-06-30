@@ -301,10 +301,7 @@ const TranslatePage: FC = () => {
     if (!translateInput.trim() || !selectedModelId || isDetecting || isTranslating) return
 
     let actualSourceLanguage = sourceLanguage
-    if (isBidirectional) {
-      actualSourceLanguage = bidirectionalPair[0]
-      setDetectedLanguage(null)
-    } else if (sourceLanguage === 'auto') {
+    if (sourceLanguage === 'auto') {
       setIsDetecting(true)
       try {
         actualSourceLanguage = await detectLanguage(translateInput)

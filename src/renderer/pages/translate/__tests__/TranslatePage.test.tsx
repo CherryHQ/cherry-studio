@@ -711,7 +711,7 @@ describe('TranslatePage', () => {
         expect.any(AbortSignal)
       )
     )
-    expect((window as any).toast.error).not.toHaveBeenCalledWith('translate.error.detect.unknown')
+    expect((window as any).toast.error).not.toHaveBeenCalled()
     await waitFor(() =>
       expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
         sourceText: 'hello',
@@ -745,7 +745,7 @@ describe('TranslatePage', () => {
         expect.any(AbortSignal)
       )
     )
-    expect((window as any).toast.error).not.toHaveBeenCalledWith('translate.error.detect.failed')
+    expect((window as any).toast.error).not.toHaveBeenCalled()
     await waitFor(() =>
       expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
         sourceText: 'hello',
@@ -756,35 +756,37 @@ describe('TranslatePage', () => {
     )
   })
 
-  it('uses the explicit bidirectional pair without auto detecting source language', async () => {
+  it('uses the detected source language to choose the opposite bidirectional target', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': 'openai::gpt-4.1',
       'feature.translate.page.source_language': 'auto',
       'feature.translate.page.bidirectional_enabled': true,
       'feature.translate.page.bidirectional_pair': ['en-us', 'zh-cn']
     })
-    translateCoreMock.determineTargetLanguage.mockReturnValueOnce({ success: true, language: 'zh-cn' })
+    translateCoreMock.detectLanguage.mockResolvedValueOnce('zh-cn')
+    translateCoreMock.determineTargetLanguage.mockReturnValueOnce({ success: true, language: 'en-us' })
 
     const { rerender } = render(<TranslatePage />)
-    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: '你好' } })
     rerender(<TranslatePage />)
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
 
     await waitFor(() =>
       expect(translateCoreMock.translateText).toHaveBeenCalledWith(
-        'hello',
-        'zh-cn',
+        '你好',
+        'en-us',
         expect.any(Function),
         expect.any(AbortSignal)
       )
     )
-    expect(translateCoreMock.detectLanguage).not.toHaveBeenCalled()
+    expect(translateCoreMock.detectLanguage).toHaveBeenCalledWith('你好')
+    expect(translateCoreMock.determineTargetLanguage).toHaveBeenCalledWith('zh-cn', 'en-us', true, ['en-us', 'zh-cn'])
     await waitFor(() =>
       expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
-        sourceText: 'hello',
+        sourceText: '你好',
         targetText: 'translated text',
-        sourceLanguage: 'en-us',
-        targetLanguage: 'zh-cn'
+        sourceLanguage: 'zh-cn',
+        targetLanguage: 'en-us'
       })
     )
   })
