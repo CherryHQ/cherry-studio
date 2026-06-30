@@ -3,7 +3,7 @@
  *
  * This is the first unit test for the renderer CacheService itself (prior
  * coverage was limited to useCache hook type tests). It locks down the
- * Object.is → lodash.isEqual upgrade for setInternal / setSharedInternal,
+ * Object.is → isEqual upgrade for setInternal / setSharedInternal,
  * and the deepEqual → isEqual refactor for setPersist, focusing on the
  * scenarios the upgrade actually changes: object/array/record values that
  * are reconstructed as new references on every write.
@@ -117,6 +117,55 @@ describe('renderer CacheService equality semantics', () => {
 
       service.setPersist(key, [{ id: 't1' }, { id: 't2' }] as any)
       expect(broadcastSync).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  // hasPersist answers "has this key been overridden" (effective value differs
+  // from the schema default), NOT "is the key in the backing store" — mirrors the
+  // main-process tier. loadPersistCache seeds every key, so membership is always
+  // true and would carry no information.
+  describe('hasPersist (differs-from-default)', () => {
+    it('is false when the value equals the schema default (never set)', async () => {
+      const service = await createService()
+      expect(service.hasPersist('ui.sidebar.width')).toBe(false)
+    })
+
+    it('is true once an overriding (non-default) value is set', async () => {
+      const service = await createService()
+      service.setPersist('ui.sidebar.width', 999)
+      expect(service.hasPersist('ui.sidebar.width')).toBe(true)
+    })
+
+    it('is false when the set value happens to equal the default', async () => {
+      const service = await createService()
+      service.setPersist('ui.sidebar.width', 50) // 50 is the schema default
+      expect(service.hasPersist('ui.sidebar.width')).toBe(false)
+    })
+  })
+
+  describe('deletePersist (reset-to-default)', () => {
+    it('resets an overridden value back to the schema default', async () => {
+      const service = await createService()
+      service.setPersist('ui.sidebar.width', 999)
+      service.deletePersist('ui.sidebar.width')
+      expect(service.getPersist('ui.sidebar.width')).toBe(50)
+      expect(service.hasPersist('ui.sidebar.width')).toBe(false)
+    })
+
+    it('broadcasts the reset to other windows', async () => {
+      const service = await createService()
+      service.setPersist('ui.sidebar.width', 999)
+      broadcastSync.mockClear()
+
+      service.deletePersist('ui.sidebar.width')
+      expect(broadcastSync).toHaveBeenCalledTimes(1)
+    })
+
+    it('is a no-op when the value is already the default', async () => {
+      const service = await createService()
+      broadcastSync.mockClear()
+      service.deletePersist('ui.sidebar.width') // already default
+      expect(broadcastSync).not.toHaveBeenCalled()
     })
   })
 })

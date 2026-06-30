@@ -2,7 +2,7 @@ import '@cherrystudio/ui/components/composites/markdown/styles'
 
 import { Button, CodeEditor, type CodeEditorHandles, Field, FieldContent, FieldError, Markdown } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { Edit, Eye } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from 'react'
@@ -67,6 +67,15 @@ export function PromptEditorField({
     onChange(nextValue)
   }
 
+  // CodeMirror only focuses on clicks that land on its content. Clicking the gutter or the
+  // empty area below the text leaves the editor unfocused, so forward those clicks manually.
+  const handleEditorAreaMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (effectiveShowPreview) return
+    if ((event.target as HTMLElement).closest('.cm-content')) return
+    event.preventDefault()
+    codeEditorRef.current?.focus?.()
+  }
+
   return (
     <Field data-invalid={hasError || undefined} className="gap-1.5">
       <div className="flex items-center justify-between gap-3">
@@ -81,7 +90,7 @@ export function PromptEditorField({
             variant="ghost"
             onClick={() => setShowPreview((v) => !v)}
             disabled={value.length === 0}
-            className="flex h-auto min-h-0 items-center gap-1 rounded-2xs border border-border/20 px-2 py-[3px] font-normal text-muted-foreground/80 text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
+            className="flex h-auto min-h-0 items-center gap-1 rounded-full border border-border/20 px-2 py-[3px] font-normal text-muted-foreground/80 text-xs shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
             {effectiveShowPreview ? <Edit size={10} /> : <Eye size={10} />}
             <span>{t(effectiveShowPreview ? 'common.edit' : 'common.preview')}</span>
           </Button>
@@ -91,6 +100,7 @@ export function PromptEditorField({
       <FieldContent>
         <div
           aria-invalid={hasError || undefined}
+          onMouseDown={handleEditorAreaMouseDown}
           className={`overflow-hidden rounded-md border bg-accent/15 transition-all focus-within:bg-accent/20 ${
             hasError
               ? 'border-destructive/50 focus-within:border-destructive/60'

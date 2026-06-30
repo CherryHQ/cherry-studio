@@ -59,7 +59,8 @@ export function useChatKnowledgeBaseScope({
   )
   const filterSelectableKnowledgeBases = useCallback(
     (bases: readonly KnowledgeBase[]) => {
-      if (configuredKnowledgeBaseIdSet.size === 0) return []
+      if (configuredKnowledgeBaseIdSet.size === 0)
+        return bases.filter((base) => isKnowledgeBasesLoading || availableKnowledgeBaseIdSet.has(base.id))
       return bases.filter(
         (base) =>
           configuredKnowledgeBaseIdSet.has(base.id) &&

@@ -50,7 +50,7 @@ vi.mock('@renderer/data/CacheService', () => ({
   }
 }))
 
-vi.mock('@renderer/config/models', () => ({
+vi.mock('@renderer/utils/model', () => ({
   getThinkModelType: (...args: unknown[]) => mocks.getThinkModelType(...args),
   isDoubaoThinkingAutoModel: (...args: unknown[]) => mocks.isDoubaoThinkingAutoModel(...args),
   isFixedReasoningModel: (...args: unknown[]) => mocks.isFixedReasoningModel(...args),

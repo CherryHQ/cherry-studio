@@ -66,32 +66,29 @@ vi.mock('@renderer/utils/api', () => ({
   splitApiKeyString: (value: string) => value.split(',').map((item) => item.trim())
 }))
 
-vi.mock('@renderer/config/models', () => {
-  const qwenModel = {
-    id: 'qwen',
-    name: 'Qwen',
-    provider: 'cherryai',
-    group: 'Qwen'
-  }
+vi.mock('@renderer/utils/model', () => {
+  const isFunctionCallingModel = (model?: Model) =>
+    model?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false
+  const isOpenRouterBuiltInWebSearchModel = () => false
+  const isWebSearchModel = (model?: Model) => model?.capabilities.includes(MODEL_CAPABILITY.WEB_SEARCH) ?? false
+  // Mirror the real reconcile composition over the mocked predicates above.
+  const hasModelBuiltinWebSearch = (model?: Model) => isWebSearchModel(model) || isOpenRouterBuiltInWebSearchModel()
+  const canModelUseAssistantWebSearch = (model?: Model) =>
+    hasModelBuiltinWebSearch(model) || isFunctionCallingModel(model)
 
   return {
-    qwenModel,
-    SYSTEM_MODELS: new Proxy(
-      { defaultModel: [qwenModel] },
-      {
-        get: (target, prop) => (prop in target ? target[prop as keyof typeof target] : [])
-      }
-    ),
+    canModelUseAssistantWebSearch,
     getThinkModelType: () => 'default',
-    isFunctionCallingModel: (model?: Model) => model?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
+    hasModelBuiltinWebSearch,
+    isFunctionCallingModel,
     isGemini3Model: () => false,
     isGeminiModel: () => false,
     isGPT5SeriesReasoningModel: () => false,
-    isOpenRouterBuiltInWebSearchModel: () => false,
+    isOpenRouterBuiltInWebSearchModel,
     isOpenAIWebSearchModel: () => false,
     isSupportedReasoningEffortModel: () => false,
     isSupportedThinkingTokenModel: () => false,
-    isWebSearchModel: (model?: Model) => model?.capabilities.includes(MODEL_CAPABILITY.WEB_SEARCH) ?? false,
+    isWebSearchModel,
     MODEL_SUPPORTED_OPTIONS: { default: ['none'] },
     MODEL_SUPPORTED_REASONING_EFFORT: { default: ['none'] }
   }

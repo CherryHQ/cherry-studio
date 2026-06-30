@@ -98,7 +98,7 @@ const tabsContextMocks = vi.hoisted(() => ({
   tabs: [] as Array<{ id: string; type: string; url: string }>
 }))
 
-vi.mock('@renderer/context/TabsContext', () => ({
+vi.mock('@renderer/hooks/tab', () => ({
   useOptionalTabsContext: () => ({
     openTab: tabsContextMocks.openTab,
     setActiveTab: tabsContextMocks.setActiveTab,
@@ -206,8 +206,7 @@ vi.mock('@renderer/components/Popups/SaveToKnowledgePopup', () => ({
   default: { showForTopic: vi.fn() }
 }))
 
-vi.mock('@renderer/utils/export', () => ({
-  copyTopicAsMarkdown: vi.fn(),
+vi.mock('@renderer/services/ExportService', () => ({
   exportMarkdownToJoplin: vi.fn(),
   exportMarkdownToSiyuan: vi.fn(),
   exportMarkdownToYuque: vi.fn(),
@@ -217,7 +216,7 @@ vi.mock('@renderer/utils/export', () => ({
   topicToMarkdown: vi.fn().mockResolvedValue('# topic')
 }))
 
-vi.mock('@renderer/utils/copy', () => ({
+vi.mock('@renderer/services/CopyService', () => ({
   copyTopicAsMarkdown: vi.fn(),
   copyTopicAsPlainText: vi.fn()
 }))

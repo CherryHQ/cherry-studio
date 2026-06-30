@@ -4,7 +4,7 @@ import { MessageListProvider } from '@renderer/components/chat/messages/MessageL
 import { AskUserQuestionOptimisticInputProvider } from '@renderer/components/chat/messages/tools/agent/AskUserQuestionOptimisticContext'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { useSession } from '@renderer/hooks/agents/useSession'
+import { useSession } from '@renderer/hooks/agent/useSession'
 import { ipcApi } from '@renderer/ipc'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
