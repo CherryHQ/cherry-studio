@@ -3,7 +3,14 @@ import { type FileTreeNode } from '@renderer/components/FileTree'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { joinPath } from '@renderer/utils/path'
 import type { FilePath } from '@shared/types/file/common'
-import type { DirectoryTreeOptions, TreeDir, TreeDirRoot, TreeNode } from '@shared/utils/file/tree'
+import type {
+  CreateTreeIpcResult,
+  DirectoryTreeOptions,
+  TreeDir,
+  TreeDirRoot,
+  TreeMutationPushPayload,
+  TreeNode
+} from '@shared/utils/file/tree'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { getPathBasename, normalizeArtifactPaneFilePath, WORKSPACE_ROOT_ID } from './artifactPanePath'
@@ -81,6 +88,28 @@ function sortFileTreeNodes(nodes: FileTreeNode[]): FileTreeNode[] {
   })
 }
 
+function mergeFileTreeNodeLists(
+  baseNodes: readonly FileTreeNode[],
+  extraNodes: readonly FileTreeNode[]
+): FileTreeNode[] {
+  const merged = new Map<string, FileTreeNode>()
+  for (const node of baseNodes) {
+    merged.set(node.id, node)
+  }
+  for (const node of extraNodes) {
+    const existing = merged.get(node.id)
+    if (!existing || existing.kind !== 'folder' || node.kind !== 'folder') {
+      merged.set(node.id, node)
+      continue
+    }
+    merged.set(node.id, {
+      ...existing,
+      children: mergeFileTreeNodeLists(existing.children ?? [], node.children ?? [])
+    })
+  }
+  return sortFileTreeNodes(Array.from(merged.values()))
+}
+
 function mergeLazyChildren(
   nodes: readonly FileTreeNode[],
   lazyChildrenByDirId: ReadonlyMap<string, readonly FileTreeNode[]>
@@ -101,6 +130,61 @@ function mergeLazyChildren(
     }
     return { ...node, children: mergeLazyChildren(sortFileTreeNodes(merged), lazyChildrenByDirId) }
   })
+}
+
+function projectDirectoryEntries(
+  workspacePath: string,
+  entries: Array<{ path: string; isDirectory: boolean }>
+): FileTreeNode[] {
+  const rootName = getPathBasename(workspacePath)
+  const rootNode: FileTreeNode = {
+    id: WORKSPACE_ROOT_ID,
+    name: rootName || workspacePath,
+    kind: 'folder',
+    path: WORKSPACE_ROOT_ID,
+    children: []
+  }
+
+  const nodesById = new Map<string, FileTreeNode>([[WORKSPACE_ROOT_ID, rootNode]])
+
+  for (const entry of entries) {
+    const relativePath = normalizeArtifactPaneFilePath(workspacePath, entry.path)
+    if (!relativePath) continue
+
+    let parent = rootNode
+    const segments = relativePath.split('/').filter(Boolean)
+    for (let index = 0; index < segments.length; index += 1) {
+      const id = segments.slice(0, index + 1).join('/')
+      const isLast = index === segments.length - 1
+      const kind: FileTreeNode['kind'] = isLast && !entry.isDirectory ? 'file' : 'folder'
+      const existing = nodesById.get(id)
+      if (existing) {
+        if (existing.kind === 'folder') parent = existing
+        continue
+      }
+
+      const node: FileTreeNode = {
+        id,
+        name: segments[index],
+        kind,
+        path: joinPath(WORKSPACE_ROOT_ID, id),
+        children: kind === 'folder' ? [] : undefined
+      }
+      parent.children = parent.children ? [...parent.children, node] : [node]
+      nodesById.set(id, node)
+      if (node.kind === 'folder') parent = node
+    }
+  }
+
+  const sortChildren = (node: FileTreeNode): FileTreeNode => {
+    if (node.kind !== 'folder') return node
+    return {
+      ...node,
+      children: sortFileTreeNodes((node.children ?? []).map(sortChildren))
+    }
+  }
+
+  return [sortChildren(rootNode)]
 }
 
 interface WorkspaceFileTreeResult {
@@ -132,6 +216,51 @@ const useWorkspaceFileTree = (path: string | undefined): WorkspaceFileTreeResult
   }
 }
 
+function useArtifactFileSearch(workspacePath: string | undefined, searchKeyword: string): FileTreeNode[] | null {
+  const [searchTree, setSearchTree] = useState<FileTreeNode[] | null>(null)
+  const searchGenerationRef = useRef(0)
+
+  useEffect(() => {
+    const trimmedSearch = searchKeyword.trim()
+    if (!workspacePath || !trimmedSearch) {
+      searchGenerationRef.current += 1
+      setSearchTree(null)
+      return
+    }
+
+    const generation = searchGenerationRef.current + 1
+    searchGenerationRef.current = generation
+
+    void (async () => {
+      try {
+        const entries = await window.api.file.listDirectoryEntries(workspacePath as FilePath, {
+          recursive: true,
+          maxDepth: 0,
+          includeHidden: false,
+          includeFiles: true,
+          includeDirectories: true,
+          searchPattern: trimmedSearch
+        })
+        if (generation !== searchGenerationRef.current) return
+        setSearchTree(projectDirectoryEntries(workspacePath, entries))
+      } catch (err) {
+        if (generation !== searchGenerationRef.current) return
+        const normalized = err instanceof Error ? err : new Error(String(err))
+        logger.warn(`Failed to search workspace files: ${workspacePath}`, normalized)
+        setSearchTree(null)
+      }
+    })()
+  }, [searchKeyword, workspacePath])
+
+  return searchTree
+}
+
+interface LazyDirectoryWatcher {
+  treeId?: string
+  unsubscribe?: () => void
+  disposed: boolean
+}
+
 function useLazyArtifactFileTree({
   workspacePath,
   treeOpen,
@@ -146,17 +275,53 @@ function useLazyArtifactFileTree({
   const previousTreeOpenRef = useRef(false)
   const lazyChildrenByDirIdRef = useRef<Map<string, FileTreeNode[]>>(new Map())
   const lazyLoadingDirIdsRef = useRef<Set<string>>(new Set())
+  const lazyDirectoryWatchersRef = useRef<Map<string, LazyDirectoryWatcher>>(new Map())
   const lazyLoadGenerationRef = useRef(0)
   const currentWorkspacePathRef = useRef(workspacePath)
   const [lazyChildrenVersion, setLazyChildrenVersion] = useState(0)
   currentWorkspacePathRef.current = workspacePath
 
+  const bumpLazyVersion = useCallback(() => {
+    setLazyChildrenVersion((version) => version + 1)
+  }, [])
+
+  const disposeLazyDirectoryWatcher = useCallback((dirId: string) => {
+    const watcher = lazyDirectoryWatchersRef.current.get(dirId)
+    if (!watcher) return
+    watcher.disposed = true
+    watcher.unsubscribe?.()
+    if (watcher.treeId) {
+      Promise.resolve(window.api.tree.dispose(watcher.treeId)).catch((err) => {
+        logger.warn(`Failed to dispose lazy directory watcher: ${dirId}`, err as Error)
+      })
+    }
+    lazyDirectoryWatchersRef.current.delete(dirId)
+  }, [])
+
+  const disposeLazyDirectoryWatchers = useCallback(() => {
+    for (const dirId of Array.from(lazyDirectoryWatchersRef.current.keys())) {
+      disposeLazyDirectoryWatcher(dirId)
+    }
+  }, [disposeLazyDirectoryWatcher])
+
   const resetLazyChildren = useCallback(() => {
     lazyLoadGenerationRef.current += 1
     lazyChildrenByDirIdRef.current.clear()
     lazyLoadingDirIdsRef.current.clear()
-    setLazyChildrenVersion((version) => version + 1)
-  }, [])
+    bumpLazyVersion()
+  }, [bumpLazyVersion])
+
+  const restartLazyLoads = useCallback(
+    (options?: { clearChildren?: boolean }) => {
+      lazyLoadGenerationRef.current += 1
+      lazyLoadingDirIdsRef.current.clear()
+      if (options?.clearChildren) {
+        lazyChildrenByDirIdRef.current.clear()
+      }
+      bumpLazyVersion()
+    },
+    [bumpLazyVersion]
+  )
 
   const loadDirectoryChildren = useCallback(
     (dirId: string, options?: { force?: boolean }) => {
@@ -166,6 +331,7 @@ function useLazyArtifactFileTree({
       }
 
       lazyLoadingDirIdsRef.current.add(dirId)
+      bumpLazyVersion()
       const generation = lazyLoadGenerationRef.current
       const requestWorkspacePath = workspacePath
       const dirPath = joinPath(workspacePath, dirId)
@@ -200,7 +366,7 @@ function useLazyArtifactFileTree({
             return
           }
           lazyChildrenByDirIdRef.current.set(dirId, sortFileTreeNodes(children))
-          setLazyChildrenVersion((version) => version + 1)
+          bumpLazyVersion()
         } catch (err) {
           const normalized = err instanceof Error ? err : new Error(String(err))
           logger.warn(`Failed to load directory children: ${dirPath}`, normalized)
@@ -210,20 +376,64 @@ function useLazyArtifactFileTree({
             requestWorkspacePath === currentWorkspacePathRef.current
           ) {
             lazyLoadingDirIdsRef.current.delete(dirId)
+            bumpLazyVersion()
           }
         }
       })()
     },
-    [workspacePath]
+    [bumpLazyVersion, workspacePath]
   )
 
   const reloadExpandedDirectories = useCallback(() => {
     const expandedToReload = Array.from(expandedIds).filter((id) => id !== WORKSPACE_ROOT_ID)
-    resetLazyChildren()
+    restartLazyLoads()
     for (const id of expandedToReload) {
       loadDirectoryChildren(id, { force: true })
     }
-  }, [expandedIds, loadDirectoryChildren, resetLazyChildren])
+  }, [expandedIds, loadDirectoryChildren, restartLazyLoads])
+
+  const createLazyDirectoryWatcher = useCallback(
+    (dirId: string) => {
+      if (!workspacePath || dirId === WORKSPACE_ROOT_ID || lazyDirectoryWatchersRef.current.has(dirId)) return
+
+      const watcher: LazyDirectoryWatcher = { disposed: false }
+      lazyDirectoryWatchersRef.current.set(dirId, watcher)
+
+      const requestWorkspacePath = workspacePath
+      const dirPath = joinPath(workspacePath, dirId)
+
+      void (async () => {
+        try {
+          const result: CreateTreeIpcResult = await window.api.tree.create(dirPath, {
+            maxDepth: 1,
+            includeHidden: false
+          })
+          if (
+            watcher.disposed ||
+            requestWorkspacePath !== currentWorkspacePathRef.current ||
+            lazyDirectoryWatchersRef.current.get(dirId) !== watcher
+          ) {
+            Promise.resolve(window.api.tree.dispose(result.treeId)).catch((err) => {
+              logger.warn(`Failed to dispose stale lazy directory watcher: ${dirId}`, err as Error)
+            })
+            return
+          }
+
+          watcher.treeId = result.treeId
+          watcher.unsubscribe = window.api.tree.onMutation((payload: TreeMutationPushPayload) => {
+            if (payload.treeId !== result.treeId) return
+            loadDirectoryChildren(dirId, { force: true })
+          })
+        } catch (err) {
+          if (watcher.disposed || lazyDirectoryWatchersRef.current.get(dirId) !== watcher) return
+          lazyDirectoryWatchersRef.current.delete(dirId)
+          const normalized = err instanceof Error ? err : new Error(String(err))
+          logger.warn(`Failed to watch lazy directory: ${dirPath}`, normalized)
+        }
+      })()
+    },
+    [loadDirectoryChildren, workspacePath]
+  )
 
   const displayTree = useMemo(() => {
     void lazyChildrenVersion
@@ -238,14 +448,45 @@ function useLazyArtifactFileTree({
   }, [resetLazyChildren, treeOpen])
 
   useEffect(() => {
+    return () => {
+      disposeLazyDirectoryWatchers()
+    }
+  }, [disposeLazyDirectoryWatchers, treeOpen, workspacePath])
+
+  useEffect(() => {
     if (!treeOpen) return
     for (const id of expandedIds) {
       loadDirectoryChildren(id)
     }
   }, [expandedIds, loadDirectoryChildren, treeOpen])
 
+  useEffect(() => {
+    if (!treeOpen || !workspacePath) {
+      disposeLazyDirectoryWatchers()
+      return
+    }
+
+    const nextWatchedIds = new Set(Array.from(expandedIds).filter((id) => id !== WORKSPACE_ROOT_ID))
+    for (const dirId of Array.from(lazyDirectoryWatchersRef.current.keys())) {
+      if (!nextWatchedIds.has(dirId)) disposeLazyDirectoryWatcher(dirId)
+    }
+    for (const dirId of nextWatchedIds) {
+      createLazyDirectoryWatcher(dirId)
+    }
+  }, [
+    createLazyDirectoryWatcher,
+    disposeLazyDirectoryWatcher,
+    disposeLazyDirectoryWatchers,
+    expandedIds,
+    treeOpen,
+    workspacePath
+  ])
+
   return {
     displayTree,
+    isLoading:
+      lazyLoadingDirIdsRef.current.size > 0 ||
+      Array.from(expandedIds).some((id) => id !== WORKSPACE_ROOT_ID && !lazyChildrenByDirIdRef.current.has(id)),
     loadDirectoryChildren,
     reloadExpandedDirectories,
     resetLazyChildren
@@ -304,7 +545,13 @@ export function useArtifactFileTreeModel({
   onExpandedIdsChange
 }: UseArtifactFileTreeModelParams): ArtifactFileTreeModel {
   const { tree, isLoading, hasLoaded, error, refresh } = useWorkspaceFileTree(treeOpen ? workspacePath : undefined)
-  const { displayTree, loadDirectoryChildren, reloadExpandedDirectories, resetLazyChildren } = useLazyArtifactFileTree({
+  const {
+    displayTree,
+    isLoading: isLazyLoading,
+    loadDirectoryChildren,
+    reloadExpandedDirectories,
+    resetLazyChildren
+  } = useLazyArtifactFileTree({
     workspacePath,
     treeOpen,
     tree,
@@ -322,6 +569,13 @@ export function useArtifactFileTreeModel({
     [expandedIds, loadDirectoryChildren, onExpandedIdsChange]
   )
 
+  const trimmedFileSearch = enableFileSearch ? searchKeyword.trim() : ''
+  const searchTree = useArtifactFileSearch(treeOpen && enableFileSearch ? workspacePath : undefined, trimmedFileSearch)
+  const searchableTree = useMemo(() => {
+    if (!trimmedFileSearch || !searchTree) return displayTree
+    return mergeFileTreeNodeLists(displayTree, searchTree)
+  }, [displayTree, searchTree, trimmedFileSearch])
+
   const nodeById = useMemo(() => {
     const result = new Map<string, FileTreeNode>()
     const visit = (nodes: readonly FileTreeNode[]) => {
@@ -330,11 +584,9 @@ export function useArtifactFileTreeModel({
         if (node.children?.length) visit(node.children)
       }
     }
-    visit(displayTree)
+    visit(searchableTree)
     return result
-  }, [displayTree])
-
-  const trimmedFileSearch = enableFileSearch ? searchKeyword.trim() : ''
+  }, [searchableTree])
 
   const expandedIdsWithWorkspaceRoot = useMemo<ReadonlySet<string>>(() => {
     if (!workspacePath) return expandedIds
@@ -360,8 +612,8 @@ export function useArtifactFileTreeModel({
       }
       return out
     }
-    return filterNodes(displayTree)
-  }, [displayTree, trimmedFileSearch])
+    return filterNodes(searchableTree)
+  }, [displayTree, searchableTree, trimmedFileSearch])
 
   // While searching, expand every visible folder so matches stay reachable —
   // user-toggled `expandedIds` resumes after the keyword clears.
@@ -385,7 +637,7 @@ export function useArtifactFileTreeModel({
     effectiveExpandedIds,
     nodeById,
     isLoading,
-    hasLoaded,
+    hasLoaded: hasLoaded && !isLazyLoading,
     error,
     setExpandedIds,
     reloadExpandedDirectories,

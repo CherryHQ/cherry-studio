@@ -623,6 +623,103 @@ describe('ArtifactPane', () => {
     expect(screen.queryByTestId('tree-node-src/old.md')).not.toBeInTheDocument()
   })
 
+  it('keeps the selected lazy file while expanded directories are refreshing', async () => {
+    let resolveReload: (entries: Array<{ path: string; isDirectory: boolean }>) => void = () => undefined
+    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
+    mocks.listDirectoryEntries
+      .mockResolvedValueOnce([{ path: '/tmp/workspace/src/old.md', isDirectory: false }])
+      .mockReturnValueOnce(
+        new Promise<Array<{ path: string; isDirectory: boolean }>>((resolve) => {
+          resolveReload = resolve
+        })
+      )
+    mocks.fsReadText.mockResolvedValue('# Old')
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-src'))
+    await waitFor(() => expect(screen.getByTestId('tree-node-src/old.md')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-src/old.md'))
+    await waitFor(() => expect(screen.getByTestId('markdown')).toHaveTextContent('# Old'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.refresh' }))
+    await waitFor(() => expect(mocks.listDirectoryEntries).toHaveBeenCalledTimes(2))
+
+    expect(screen.getByTestId('tree-node-src/old.md')).toBeInTheDocument()
+    expect(screen.getByTestId('markdown')).toHaveTextContent('# Old')
+
+    await act(async () => {
+      resolveReload([{ path: '/tmp/workspace/src/new.md', isDirectory: false }])
+    })
+
+    await waitFor(() => expect(screen.queryByTestId('tree-node-src/old.md')).not.toBeInTheDocument())
+  })
+
+  it('reloads expanded lazy directories when their watcher reports a file change', async () => {
+    let pushMutation:
+      | ((payload: {
+          treeId: string
+          event: { type: 'updated'; path: string; stats: { mtime: number; birthtime: number } }
+        }) => void)
+      | undefined
+    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
+    mocks.listDirectoryEntries
+      .mockResolvedValueOnce([{ path: '/tmp/workspace/src/old.md', isDirectory: false }])
+      .mockResolvedValueOnce([{ path: '/tmp/workspace/src/new.md', isDirectory: false }])
+    mocks.treeOnMutation.mockImplementation((cb) => {
+      pushMutation = cb as typeof pushMutation
+      return () => {
+        pushMutation = undefined
+      }
+    })
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-src'))
+    await waitFor(() => expect(screen.getByTestId('tree-node-src/old.md')).toBeInTheDocument())
+    await waitFor(() =>
+      expect(mocks.treeCreate).toHaveBeenCalledWith('/tmp/workspace/src', expect.objectContaining({ maxDepth: 1 }))
+    )
+
+    act(() => {
+      pushMutation?.({
+        treeId: 'tree-default',
+        event: {
+          type: 'updated',
+          path: '/tmp/workspace/src/old.md',
+          stats: { mtime: 1, birthtime: 1 }
+        }
+      })
+    })
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-src/new.md')).toBeInTheDocument())
+    expect(screen.queryByTestId('tree-node-src/old.md')).not.toBeInTheDocument()
+  })
+
+  it('searches unloaded deep files and allows selecting the result', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+    mocks.listDirectoryEntries.mockResolvedValueOnce([
+      { path: '/tmp/workspace/src/feature/deep-result.ts', isDirectory: false }
+    ])
+    mocks.fsReadText.mockResolvedValue('export const value = 1')
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" fileTreeOpen enableFileSearch fileTreeSearchKeyword="deep" />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-src/feature/deep-result.ts')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-src/feature/deep-result.ts'))
+
+    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/src/feature/deep-result.ts'))
+    expect(screen.getByTestId('code-viewer')).toHaveTextContent('export const value = 1')
+  })
+
   it('drops pending lazy directory results when the file tree closes', async () => {
     let resolveListDirectory: (entries: Array<{ path: string; isDirectory: boolean }>) => void = () => undefined
     mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
