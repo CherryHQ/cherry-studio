@@ -925,6 +925,31 @@ describe('AgentPage', () => {
     ])
   })
 
+  it('toasts when the classic-layout composer empty-session creation fails', async () => {
+    agentPageMocks.sessionLayout = 'classic'
+    activeSessionMocks.session = {
+      ...agentPageMocks.persistedSession,
+      id: 'session-active',
+      agentId: 'agent-a',
+      workspaceId: 'workspace-a',
+      workspace: agentPageMocks.workspace
+    }
+    activeSessionMocks.sessionSource = 'query'
+    agentPageMocks.classicLayoutSessions = []
+    agentPageMocks.dataApiPost.mockRejectedValue(new Error('create failed'))
+    const toastError = vi.fn()
+    Object.assign(window, { toast: { error: toastError } })
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create empty session from composer' }))
+
+    await waitFor(() => expect(agentPageMocks.dataApiPost).toHaveBeenCalled())
+    await waitFor(() => expect(toastError).toHaveBeenCalled())
+    // The active session is unchanged — no new session was activated.
+    expect(agentPageMocks.activeSessionOptions?.activeSessionId).not.toBe('session-composer-empty')
+  })
+
   it('updates the active classic-layout session workspace through the composer control', async () => {
     agentPageMocks.sessionLayout = 'classic'
     activeSessionMocks.session = {

@@ -121,6 +121,24 @@ describe('AssistantConversationPickerDialog', () => {
     await waitFor(() => expect(onSelect).toHaveBeenCalledWith({ type: 'assistant', assistantId: 'assistant-new' }))
   })
 
+  it('keeps the create dialog open and does not select when assistant creation fails', async () => {
+    mocks.createAssistant.mockRejectedValue(new Error('create failed'))
+    const onSelect = vi.fn()
+
+    render(<AssistantConversationPickerDialog open onOpenChange={vi.fn()} assistants={[]} onSelect={onSelect} />)
+
+    fireEvent.click(screen.getByText('create-new'))
+    expect(screen.getByTestId('create-dialog')).toHaveAttribute('data-open', 'true')
+
+    // Submit re-throws so the wizard can surface the error; call it directly to capture the rejection.
+    await expect(
+      mocks.createDialogProps.onSubmit({ avatar: '🤖', name: 'New', modelId: 'p::m', description: 'desc' })
+    ).rejects.toThrow('create failed')
+
+    expect(screen.getByTestId('create-dialog')).toHaveAttribute('data-open', 'true')
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
   it('defaults to the combined view and filters via the popover', async () => {
     const assistants = [{ id: 'a1', name: 'My Assistant' }] as any
 

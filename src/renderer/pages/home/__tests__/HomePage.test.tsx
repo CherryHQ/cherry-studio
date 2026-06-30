@@ -844,6 +844,40 @@ describe('HomePage', () => {
     await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
   })
 
+  it('toasts and leaves the active topic untouched when classic-layout picker topic creation fails', async () => {
+    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.classicLayoutTopics = []
+    homeMocks.createTopic.mockRejectedValue(new Error('create failed'))
+    const toastError = vi.fn()
+    Object.assign(window, { toast: { error: toastError } })
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open assistant picker' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select my assistant' }))
+
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
+    await waitFor(() => expect(toastError).toHaveBeenCalled())
+    expect(screen.queryByTestId('active-topic')?.textContent).not.toBe('topic-created')
+  })
+
+  it('toasts when the classic-layout composer empty-topic creation fails', async () => {
+    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]
+    homeMocks.classicLayoutTopics = []
+    homeMocks.createTopic.mockRejectedValue(new Error('create failed'))
+    const toastError = vi.fn()
+    Object.assign(window, { toast: { error: toastError } })
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create empty topic from composer' }))
+
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalled())
+    await waitFor(() => expect(toastError).toHaveBeenCalled())
+    expect(screen.queryByTestId('active-topic')?.textContent).not.toBe('topic-created')
+  })
+
   it('forwards a reveal request when navigation asks the current chat tab to reveal its selection', async () => {
     render(<HomePage />)
 

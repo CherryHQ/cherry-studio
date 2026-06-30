@@ -3,7 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   createAgent: vi.fn(),
-  pickerProps: undefined as any
+  pickerProps: undefined as any,
+  createDialogProps: undefined as any
 }))
 
 vi.mock('@logger', () => ({
@@ -27,15 +28,18 @@ vi.mock('@renderer/components/resource', () => ({
 }))
 
 vi.mock('@renderer/components/resource/dialogs', () => ({
-  ResourceCreateWizard: (props: any) => (
-    <div data-testid="create-dialog" data-open={String(props.open)} data-kind={props.kind}>
-      <button
-        type="button"
-        onClick={() => props.onSubmit({ avatar: '🤖', name: 'New', modelId: 'p::m', description: 'desc' })}>
-        submit-create
-      </button>
-    </div>
-  )
+  ResourceCreateWizard: (props: any) => {
+    mocks.createDialogProps = props
+    return (
+      <div data-testid="create-dialog" data-open={String(props.open)} data-kind={props.kind}>
+        <button
+          type="button"
+          onClick={() => props.onSubmit({ avatar: '🤖', name: 'New', modelId: 'p::m', description: 'desc' })}>
+          submit-create
+        </button>
+      </div>
+    )
+  }
 }))
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
@@ -96,5 +100,23 @@ describe('AgentConversationPickerDialog', () => {
       })
     )
     await waitFor(() => expect(onSelect).toHaveBeenCalledWith('agent-new'))
+  })
+
+  it('keeps the create dialog open and does not select when agent creation fails', async () => {
+    mocks.createAgent.mockRejectedValue(new Error('create failed'))
+    const onSelect = vi.fn()
+
+    render(<AgentConversationPickerDialog open onOpenChange={vi.fn()} agents={[]} onSelect={onSelect} />)
+
+    fireEvent.click(screen.getByText('create-new'))
+    expect(screen.getByTestId('create-dialog')).toHaveAttribute('data-open', 'true')
+
+    // Submit re-throws so the wizard can surface the error; call it directly to capture the rejection.
+    await expect(
+      mocks.createDialogProps.onSubmit({ avatar: '🤖', name: 'New', modelId: 'p::m', description: 'desc' })
+    ).rejects.toThrow('create failed')
+
+    expect(screen.getByTestId('create-dialog')).toHaveAttribute('data-open', 'true')
+    expect(onSelect).not.toHaveBeenCalled()
   })
 })
