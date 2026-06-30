@@ -4,8 +4,12 @@ import { useCallback, useRef, useState } from 'react'
 import { getNextInputHistoryIndex, type InputHistoryDirection } from './inputHistoryNavigation'
 import type { ComposerSerializedDraft } from './tokens'
 
+interface UseInputHistoryApplyOptions {
+  source: 'history' | 'draft'
+}
+
 interface UseInputHistoryOptions {
-  applyDraft: (draft: ComposerSerializedDraft) => void
+  applyDraft: (draft: ComposerSerializedDraft, options: UseInputHistoryApplyOptions) => void
 }
 
 export function useInputHistory({ applyDraft }: UseInputHistoryOptions) {
@@ -20,20 +24,20 @@ export function useInputHistory({ applyDraft }: UseInputHistoryOptions) {
     (nextIndex: number) => {
       setHistoryIndex(nextIndex)
       if (nextIndex === -1) {
-        applyDraft(draftBeforeHistoryRef.current ?? { text: '', tokens: [] })
+        applyDraft(draftBeforeHistoryRef.current ?? { text: '', tokens: [] }, { source: 'draft' })
         draftBeforeHistoryRef.current = null
         return
       }
 
       const historyItem = history[nextIndex]
       if (!historyItem) {
-        applyDraft(draftBeforeHistoryRef.current ?? { text: '', tokens: [] })
+        applyDraft(draftBeforeHistoryRef.current ?? { text: '', tokens: [] }, { source: 'draft' })
         draftBeforeHistoryRef.current = null
         setHistoryIndex(-1)
         return
       }
 
-      applyDraft({ text: historyItem.content, tokens: [] })
+      applyDraft({ text: historyItem.content, tokens: [] }, { source: 'history' })
     },
     [applyDraft, history]
   )

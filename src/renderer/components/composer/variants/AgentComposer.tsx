@@ -96,6 +96,7 @@ import { emptyActions, type ProviderActionHandlers } from './shared/composerProv
 import { buildComposerQueuedPayload } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
+import { useLatest } from './shared/useLatest'
 
 const logger = loggerService.withContext('AgentComposer')
 const ResourceEditDialogHost = React.lazy(() =>
@@ -894,16 +895,29 @@ const AgentComposerInner = ({
     },
     [draftCacheKey]
   )
+  const filesRef = useLatest(files)
+  const inputHistoryFilesRef = useRef<ComposerAttachment[] | null>(null)
   const applyHistoryDraft = useCallback(
-    (historyDraft: ComposerSerializedDraft) => {
+    (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
       const nextSkillTokens = getCachedSkillTokens(historyDraft.tokens)
       setText(historyDraft.text)
       setDraftTokens(nextSkillTokens)
       draftTokensRef.current = nextSkillTokens
       writeAgentDraftCache(draftCacheKey, historyDraft.text, nextSkillTokens)
       setSelectedSkills(nextSkillTokens.map(getSkillFromCachedToken))
+
+      if (options.source === 'history') {
+        inputHistoryFilesRef.current ??= filesRef.current
+        setFiles([])
+        return
+      }
+
+      const savedFiles = inputHistoryFilesRef.current
+      inputHistoryFilesRef.current = null
+      if (!savedFiles) return
+      setFiles(savedFiles)
     },
-    [draftCacheKey, setText]
+    [draftCacheKey, filesRef, setFiles, setText]
   )
   const { navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
     applyDraft: applyHistoryDraft
@@ -911,6 +925,7 @@ const AgentComposerInner = ({
   const handleTextChange = useCallback(
     (nextText: string) => {
       resetHistoryIndex()
+      inputHistoryFilesRef.current = null
       setText(nextText)
     },
     [resetHistoryIndex, setText]
