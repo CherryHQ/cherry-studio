@@ -48,7 +48,7 @@ import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpServerLogEntry } from '@shared/types/mcp'
 import { useNavigate, useParams } from '@tanstack/react-router'
-import { ArrowLeft, ChevronDown, SaveIcon, X } from 'lucide-react'
+import { ArrowLeft, SaveIcon } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -166,7 +166,6 @@ const McpSettings: React.FC = () => {
   const [customRegistryUrl, setCustomRegistryUrl] = useState('')
   const [selectedRegistryType, setSelectedRegistryType] = useState<string>('')
 
-  const [showAdvanced, setShowAdvanced] = useState(false)
   const [serverVersion, setServerVersion] = useState<string | null>(null)
   const [logModalOpen, setLogModalOpen] = useState(false)
   const [logs, setLogs] = useState<(McpServerLogEntry & { serverId?: string })[]>([])
@@ -937,75 +936,6 @@ const McpSettings: React.FC = () => {
                 />
               </McpFormGrid>
             </McpFormSection>
-
-            <AdvancedSettingsButton onClick={() => setShowAdvanced(!showAdvanced)}>
-              <ChevronDown
-                size={16}
-                className={cn('transition-transform duration-200', showAdvanced && 'rotate-180')}
-              />
-              {t('common.advanced_settings')}
-            </AdvancedSettingsButton>
-
-            {showAdvanced && (
-              <McpFormSection>
-                <McpFormGrid>
-                  <FormField
-                    control={form.control}
-                    name="provider"
-                    render={({ field }) => (
-                      <FormItem className="min-w-0">
-                        <FormLabel>{t('settings.mcp.provider', 'Provider')}</FormLabel>
-                        <FormControl>
-                          <Input placeholder={t('settings.mcp.providerPlaceholder', 'Provider name')} {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="providerUrl"
-                    render={({ field }) => (
-                      <FormItem className="min-w-0">
-                        <FormLabel>{t('settings.mcp.providerUrl', 'Provider URL')}</FormLabel>
-                        <FormControl>
-                          <Input placeholder="https://provider-website.com" {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="logoUrl"
-                    render={({ field }) => (
-                      <FormItem className="min-w-0">
-                        <FormLabel>{t('settings.mcp.logoUrl', 'Logo URL')}</FormLabel>
-                        <FormControl>
-                          <Input placeholder="https://example.com/logo.png" {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="tags"
-                    render={({ field }) => (
-                      <FormItem className="min-w-0 xl:col-span-2">
-                        <FormLabel>{t('settings.mcp.tags', 'Tags')}</FormLabel>
-                        <FormControl>
-                          <TagsInput
-                            value={field.value ?? []}
-                            onChange={(next) => {
-                              field.onChange(next)
-                              setIsFormChanged(true)
-                            }}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                </McpFormGrid>
-              </McpFormSection>
-            )}
           </form>
         </Form>
       )
@@ -1216,22 +1146,6 @@ const McpFormGrid = ({ className, ...props }: React.ComponentPropsWithoutRef<'di
 const mcpInlineSettingItemClassName =
   'flex h-14 min-w-0 flex-row items-center justify-between gap-4 rounded-md border border-border/70 px-3'
 
-const AdvancedSettingsButton = ({
-  className,
-  type = 'button',
-  variant = 'ghost',
-  size = 'sm',
-  ...props
-}: React.ComponentPropsWithoutRef<typeof Button>) => (
-  <Button
-    type={type}
-    variant={variant}
-    size={size}
-    className={cn('h-8 w-fit gap-1.5 px-2 text-primary hover:text-primary', className)}
-    {...props}
-  />
-)
-
 const LogList = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Scrollbar>) => (
   <Scrollbar className={cn('flex flex-col gap-3 pt-1.25 pb-3.75', className)} {...props} />
 )
@@ -1305,72 +1219,5 @@ const McpRuntimeStatusBadge = ({
     {...props}
   />
 )
-
-interface TagsInputProps {
-  value: string[]
-  onChange: (next: string[]) => void
-}
-
-const TagsInput = ({ value, onChange }: TagsInputProps) => {
-  const { t } = useTranslation()
-  const [draft, setDraft] = useState('')
-
-  const commit = (raw: string) => {
-    const parts = raw
-      .split(',')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0 && !value.includes(s))
-    if (parts.length > 0) {
-      onChange([...value, ...parts])
-    }
-    setDraft('')
-  }
-
-  const removeAt = (index: number) => {
-    onChange(value.filter((_, i) => i !== index))
-  }
-
-  return (
-    <div className="flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border border-input bg-transparent px-2 py-1 shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
-      {value.map((tag, index) => (
-        <span
-          key={`${tag}-${index}`}
-          className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-foreground text-xs">
-          {tag}
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-destructive"
-            onClick={() => removeAt(index)}>
-            <X size={12} className="lucide-custom" />
-          </button>
-        </span>
-      ))}
-      <input
-        className="min-w-30 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-        value={draft}
-        placeholder={t('settings.mcp.tagsPlaceholder', 'Enter tags')}
-        onChange={(e) => {
-          const next = e.target.value
-          if (next.endsWith(',')) {
-            commit(next)
-          } else {
-            setDraft(next)
-          }
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && draft.trim()) {
-            e.preventDefault()
-            commit(draft)
-          } else if (e.key === 'Backspace' && draft === '' && value.length > 0) {
-            removeAt(value.length - 1)
-          }
-        }}
-        onBlur={() => {
-          if (draft.trim()) commit(draft)
-        }}
-      />
-    </div>
-  )
-}
 
 export default McpSettings
