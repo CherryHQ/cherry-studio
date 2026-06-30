@@ -656,6 +656,52 @@ class FeishuAdapter extends ChannelAdapter {
     }
   }
 
+  override async sendFile(chatId: string, file: FileAttachment): Promise<void> {
+    if (!this.client) {
+      throw new Error('Client is not connected')
+    }
+
+    const buffer = Buffer.from(file.data, 'base64')
+
+    // Images go through the image API so they render inline; everything else is
+    // uploaded as a generic file (`stream`) and delivered as a file message.
+    if (file.media_type.startsWith('image/')) {
+      const res = ensureFeishuSuccess<{ image_key?: string }>(
+        await this.client.im.image.create({ data: { image_type: 'message', image: buffer } }),
+        'Upload Feishu image'
+      )
+      const imageKey = res.data?.image_key
+      if (!imageKey) throw new Error('Feishu image upload returned no image_key')
+
+      ensureFeishuSuccess(
+        await this.client.im.message.create({
+          params: { receive_id_type: 'chat_id' },
+          data: { receive_id: chatId, msg_type: 'image', content: JSON.stringify({ image_key: imageKey }) }
+        }),
+        'Send Feishu image'
+      )
+    } else {
+      const res = ensureFeishuSuccess<{ file_key?: string }>(
+        await this.client.im.file.create({
+          data: { file_type: 'stream', file_name: file.filename, file: buffer }
+        }),
+        'Upload Feishu file'
+      )
+      const fileKey = res.data?.file_key
+      if (!fileKey) throw new Error('Feishu file upload returned no file_key')
+
+      ensureFeishuSuccess(
+        await this.client.im.message.create({
+          params: { receive_id_type: 'chat_id' },
+          data: { receive_id: chatId, msg_type: 'file', content: JSON.stringify({ file_key: fileKey }) }
+        }),
+        'Send Feishu file'
+      )
+    }
+
+    this.log.info('Sent file', { chatId, filename: file.filename, size: file.size, mediaType: file.media_type })
+  }
+
   async sendTypingIndicator(chatId: string): Promise<void> {
     await this.setChatReaction(chatId, REACTION_THINKING)
   }

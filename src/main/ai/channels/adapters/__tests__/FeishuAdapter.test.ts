@@ -31,12 +31,20 @@ const mockElementContent = vi.fn().mockResolvedValue({ code: 0 })
 const mockMessageResourceGet = vi.fn()
 const mockReactionCreate = vi.fn().mockResolvedValue({ code: 0, data: { reaction_id: 'rx-1' } })
 const mockReactionDelete = vi.fn().mockResolvedValue({ code: 0 })
+const mockFileCreate = vi.fn().mockResolvedValue({ code: 0, data: { file_key: 'file-1' } })
+const mockImageCreate = vi.fn().mockResolvedValue({ code: 0, data: { image_key: 'img-1' } })
 
 const mockClient = {
   im: {
     message: {
       create: mockImCreate,
       update: mockImUpdate
+    },
+    file: {
+      create: mockFileCreate
+    },
+    image: {
+      create: mockImageCreate
     },
     messageResource: {
       get: mockMessageResourceGet
@@ -93,6 +101,8 @@ describe('FeishuAdapter', () => {
     mockMessageResourceGet.mockReset()
     mockReactionCreate.mockClear().mockResolvedValue({ code: 0, data: { reaction_id: 'rx-1' } })
     mockReactionDelete.mockClear().mockResolvedValue({ code: 0 })
+    mockFileCreate.mockClear().mockResolvedValue({ code: 0, data: { file_key: 'file-1' } })
+    mockImageCreate.mockClear().mockResolvedValue({ code: 0, data: { image_key: 'img-1' } })
     mockWsStart.mockClear().mockResolvedValue(undefined)
     capturedEventHandlers = {}
   })
@@ -175,6 +185,53 @@ describe('FeishuAdapter', () => {
     await expect(adapter.sendMessage('oc_123', 'Hello Feishu')).rejects.toThrow(
       'Send Feishu message failed: permission denied'
     )
+  })
+
+  it('sendFile() uploads a generic file then posts a file message', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    const data = Buffer.from('pdf-bytes').toString('base64')
+    await adapter.sendFile('oc_123', {
+      filename: 'report.pdf',
+      data,
+      media_type: 'application/pdf',
+      size: 9
+    })
+
+    expect(mockFileCreate).toHaveBeenCalledWith({
+      data: { file_type: 'stream', file_name: 'report.pdf', file: expect.any(Buffer) }
+    })
+    expect(mockImCreate).toHaveBeenCalledWith({
+      params: { receive_id_type: 'chat_id' },
+      data: { receive_id: 'oc_123', msg_type: 'file', content: JSON.stringify({ file_key: 'file-1' }) }
+    })
+  })
+
+  it('sendFile() uploads images via the image API and posts an image message', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    const data = Buffer.from('png-bytes').toString('base64')
+    await adapter.sendFile('oc_123', { filename: 'chart.png', data, media_type: 'image/png', size: 9 })
+
+    expect(mockImageCreate).toHaveBeenCalledWith({ data: { image_type: 'message', image: expect.any(Buffer) } })
+    expect(mockFileCreate).not.toHaveBeenCalled()
+    expect(mockImCreate).toHaveBeenCalledWith({
+      params: { receive_id_type: 'chat_id' },
+      data: { receive_id: 'oc_123', msg_type: 'image', content: JSON.stringify({ image_key: 'img-1' }) }
+    })
+  })
+
+  it('sendFile() throws when the upload returns no file_key', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+    mockFileCreate.mockResolvedValueOnce({ code: 0, data: {} })
+
+    await expect(
+      adapter.sendFile('oc_123', { filename: 'a.bin', data: '', media_type: 'application/octet-stream', size: 0 })
+    ).rejects.toThrow('Feishu file upload returned no file_key')
+    expect(mockImCreate).not.toHaveBeenCalled()
   })
 
   it('onTextUpdate() creates streaming card and updates content via CardKit', async () => {
