@@ -18,7 +18,7 @@ Both are declared in `target-key-definitions.json` and generated into
 `preferenceSchemas.ts`; the legacy v1 `topicPosition` field is deleted during
 classification and is not migrated into either setting. The settings UI
 (`CommonSettings`) exposes them as "Conversation view" and "Work view", each with
-"Classic" / "Modern" labels, under the `settings.messages.view.classic` / `.modern`
+"Classic" / "Modern" labels, under the `settings.messages.layout.classic` / `.modern`
 keys (Chinese: 经典 / 现代).
 
 ## Surface terminology
@@ -26,10 +26,10 @@ keys (Chinese: 经典 / 现代).
 The two surfaces deliberately use different words at different layers; the mapping is
 fixed, not accidental:
 
-| Surface   | Domain entity | Resource          | Preference namespace | UI label (i18n) |
-| --------- | ------------- | ----------------- | -------------------- | --------------- |
-| Assistant | `assistant`   | topic             | `topic.*`            | "Conversation"  |
-| Agent     | `agent`       | session ("work")  | `agent.*`            | "Work"          |
+| Surface   | Domain entity | Resource          | Preference namespace | UI label (i18n)     |
+| --------- | ------------- | ----------------- | -------------------- | ------------------- |
+| Assistant | `assistant`   | topic             | `topic.*`            | "Conversation view" |
+| Agent     | `agent`       | session ("work")  | `agent.*`            | "Work view"         |
 
 So `topic.layout` governs the assistant surface and `agent.layout` governs the agent
 surface, while the shared rail/panel components stay entity-generic
@@ -53,10 +53,12 @@ though the display-mode controls are currently hidden in the UI.
 
 - `topic.layout` / `agent.layout` select the mode per surface.
 - `topic.tab.show` controls whether the left entity rail is expanded/collapsed.
-- `ui.chat.right_pane_open` persists the classic-layout right panel's open state
-  for Home and Agent. Home uses it directly on the page-level Shell; Agent owns
-  the same cached state in `AgentPage` and threads it through each `AgentChat`
-  Shell mount so it survives draft → persistent remounts and page re-entry.
+- The classic-layout right panel's open state is persisted per surface via the shared
+  `useClassicLayoutRightPaneOpen(surface, isClassic)` hook: `ui.chat.right_pane_open`
+  for the assistant surface and `ui.agent.right_pane_open` for the agent surface, so the
+  two don't bleed into each other. Home uses it directly on the page-level Shell; Agent
+  owns the same cached state in `AgentPage` and threads it through each `AgentChat` Shell
+  mount so it survives draft → persistent remounts and page re-entry.
 - Toggling a surface modern → classic → modern restores the last cached classic-layout
   right-panel open state.
 
