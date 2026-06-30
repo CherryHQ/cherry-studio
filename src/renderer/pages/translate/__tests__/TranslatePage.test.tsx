@@ -402,6 +402,23 @@ describe('TranslatePage', () => {
     )
   })
 
+  it('keeps commas and periods in the first translated line when exporting to notes', async () => {
+    MockUseCacheUtils.setCacheValue('translate.output', 'Hello, world.\nSecond translated line')
+    MockUsePreferenceUtils.setPreferenceValue('feature.notes.path', '/notes')
+
+    render(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'notes.save' }))
+
+    await waitFor(() =>
+      expect(exportContentToNotesMock).toHaveBeenCalledWith(
+        'Hello, world.',
+        'Hello, world.\nSecond translated line',
+        '/notes'
+      )
+    )
+  })
+
   it('logs failures when exporting the current translation result to notes', async () => {
     const exportError = new Error('export failed')
     MockUseCacheUtils.setCacheValue('translate.output', 'First translated line\nSecond translated line')

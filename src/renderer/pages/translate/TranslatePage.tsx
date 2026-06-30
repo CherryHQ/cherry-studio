@@ -24,7 +24,6 @@ import { ipcApi } from '@renderer/ipc'
 import { exportContentToNotes } from '@renderer/services/ExportService'
 import { type FileMetadata, isImageFileMetadata } from '@renderer/types/file'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { getTitleFromString } from '@renderer/utils/export'
 import { getFileExtension, isTextFile } from '@renderer/utils/file'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
 import { cn } from '@renderer/utils/style'
@@ -62,6 +61,7 @@ import TranslateSettings from './TranslateSettings'
 
 const logger = loggerService.withContext('TranslatePage')
 const PRIORITIZED_PROVIDER_IDS = ['cherryai', 'openai', 'anthropic', 'google', 'gemini', 'openrouter']
+const TRANSLATION_RESULT_TITLE_MAX_LENGTH = 80
 const EXCLUDED_TRANSLATE_MODEL_CAPABILITIES = new Set<string>([
   MODEL_CAPABILITY.EMBEDDING,
   MODEL_CAPABILITY.RERANK,
@@ -71,6 +71,9 @@ const EXCLUDED_TRANSLATE_MODEL_CAPABILITIES = new Set<string>([
 const getModelIdentifier = (model: SelectorModel) => model.apiModelId ?? parseUniqueModelId(model.id).modelId
 
 const getModelInitial = (model: SelectorModel) => model.name.trim().charAt(0) || 'M'
+
+const getTitleFromTranslationResult = (translationResult: string) =>
+  translationResult.trim().split(/\r?\n/, 1)[0].slice(0, TRANSLATION_RESULT_TITLE_MAX_LENGTH)
 
 type OcrJob = {
   jobId: string
@@ -264,9 +267,11 @@ const TranslatePage: FC = () => {
     const translationResult = translateOutput.trim()
     if (!translationResult) return
 
-    void exportContentToNotes(getTitleFromString(translationResult), translationResult, notesPath).catch((error) => {
-      logger.error('Failed to export output to notes:', error as Error)
-    })
+    void exportContentToNotes(getTitleFromTranslationResult(translationResult), translationResult, notesPath).catch(
+      (error) => {
+        logger.error('Failed to export output to notes:', error as Error)
+      }
+    )
   }, [notesPath, translateOutput])
 
   const translate = useCallback(
