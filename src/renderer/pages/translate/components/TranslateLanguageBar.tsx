@@ -11,6 +11,7 @@ import { ArrowLeftRight } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import stringWidth from 'string-width'
 
 type Props = {
   className?: string
@@ -29,11 +30,11 @@ const AUTO_EMOJI = '🌐'
 const UNKNOWN_EMOJI = '🏳️'
 const LANGUAGE_SELECT_MIN_WIDTH = 150
 const LANGUAGE_SELECT_MAX_WIDTH = 260
-const LANGUAGE_SELECT_EXTRA_CH = 6
+const LANGUAGE_SELECT_CHROME_WIDTH = 72
 
 const getLanguageSelectWidth = (options: ComboboxOption[]) => {
-  const maxLabelLength = Math.max(0, ...options.map((option) => Array.from(option.label).length))
-  return `clamp(${LANGUAGE_SELECT_MIN_WIDTH}px, ${maxLabelLength + LANGUAGE_SELECT_EXTRA_CH}ch, ${LANGUAGE_SELECT_MAX_WIDTH}px)`
+  const maxLabelWidth = Math.max(0, ...options.map((option) => stringWidth(option.label)))
+  return `clamp(${LANGUAGE_SELECT_MIN_WIDTH}px, calc(${maxLabelWidth}ch + ${LANGUAGE_SELECT_CHROME_WIDTH}px), ${LANGUAGE_SELECT_MAX_WIDTH}px)`
 }
 
 const TranslateLanguageBar: FC<Props> = ({
@@ -56,6 +57,14 @@ const TranslateLanguageBar: FC<Props> = ({
     [languages]
   )
 
+  const getLanguageLabel = useCallback(
+    (langCode: TranslateLangCode) => {
+      const lang = getLanguage(langCode)
+      return getLabel(lang ?? langCode, false) ?? lang?.value ?? langCode
+    },
+    [getLabel, getLanguage]
+  )
+
   const getLanguageDisplay = useCallback(
     (langCode: TranslateLangCode) => {
       const lang = getLanguage(langCode)
@@ -73,7 +82,7 @@ const TranslateLanguageBar: FC<Props> = ({
       const detected = detectedLanguage === UNKNOWN_LANG_CODE ? null : detectedLanguage
       return {
         emoji: detected ? (getLanguage(detected)?.emoji ?? UNKNOWN_EMOJI) : AUTO_EMOJI,
-        label: base
+        label: detected ? `${base} (${getLanguageLabel(detected)})` : base
       }
     }
     const lang = getLanguage(sourceLanguage)
@@ -81,16 +90,16 @@ const TranslateLanguageBar: FC<Props> = ({
       emoji: lang?.emoji ?? UNKNOWN_EMOJI,
       label: getLabel(lang ?? sourceLanguage, false) ?? lang?.value ?? sourceLanguage
     }
-  }, [detectedLanguage, getLabel, getLanguage, sourceLanguage, t])
+  }, [detectedLanguage, getLabel, getLanguage, getLanguageLabel, sourceLanguage, t])
 
   const autoSourceOption = useMemo(() => {
     const base = t('translate.detected.language')
     const detected = detectedLanguage === UNKNOWN_LANG_CODE ? null : detectedLanguage
     return {
       emoji: detected ? (getLanguage(detected)?.emoji ?? UNKNOWN_EMOJI) : AUTO_EMOJI,
-      label: base
+      label: detected ? `${base} (${getLanguageLabel(detected)})` : base
     }
-  }, [detectedLanguage, getLanguage, t])
+  }, [detectedLanguage, getLanguage, getLanguageLabel, t])
 
   const target = getLanguage(targetLanguage)
   const targetLabel = getLabel(target ?? targetLanguage, false) ?? target?.value ?? targetLanguage

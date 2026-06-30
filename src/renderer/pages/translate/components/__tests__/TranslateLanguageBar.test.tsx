@@ -6,11 +6,12 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import TranslateLanguageBar from '../TranslateLanguageBar'
 
 const mockUseLanguages = vi.fn()
+const mockT = vi.fn((key: string) => key)
 const sourceLanguageButtonName = /translate\.source_language/
 const targetLanguageButtonName = /translate\.target_language/
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({ t: mockT })
 }))
 
 vi.mock('@renderer/hooks/translate', () => ({
@@ -109,6 +110,8 @@ const baseProps = (): BarProps => ({
 describe('TranslateLanguageBar', () => {
   beforeEach(() => {
     mockUseLanguages.mockReset()
+    mockT.mockReset()
+    mockT.mockImplementation((key: string) => key)
     mockUseLanguages.mockReturnValue({
       languages: [english, chinese, japanese],
       getLanguage: (code: string) => [english, chinese, japanese].find((l) => l.langCode === code),
@@ -134,10 +137,10 @@ describe('TranslateLanguageBar', () => {
     render(<TranslateLanguageBar {...baseProps()} />)
 
     expect(screen.getByRole('button', { name: sourceLanguageButtonName })).toHaveStyle({
-      width: 'clamp(150px, 40ch, 260px)'
+      width: 'clamp(150px, calc(34ch + 72px), 260px)'
     })
     expect(screen.getByRole('button', { name: targetLanguageButtonName })).toHaveStyle({
-      width: 'clamp(150px, 40ch, 260px)'
+      width: 'clamp(150px, calc(34ch + 72px), 260px)'
     })
   })
 
@@ -241,15 +244,35 @@ describe('TranslateLanguageBar', () => {
     expect(props.onTargetChange).toHaveBeenCalledWith(japanese.langCode)
   })
 
-  it('keeps the auto label and only updates the icon when detection resolves to a known language', () => {
+  it('shows detected language hint when sourceLanguage is auto and detectedLanguage is set', () => {
     const props = baseProps()
     props.detectedLanguage = chinese.langCode
     render(<TranslateLanguageBar {...props} />)
 
     const sourceTrigger = screen.getByRole('button', { name: sourceLanguageButtonName })
-    expect(within(sourceTrigger).getByText('🇨🇳')).toBeInTheDocument()
-    expect(within(sourceTrigger).getByText('translate.detected.language')).toBeInTheDocument()
-    expect(within(sourceTrigger).queryByText(/Chinese/)).not.toBeInTheDocument()
+    expect(within(sourceTrigger).getByText(/translate\.detected\.language \(Chinese\)/)).toBeInTheDocument()
+  })
+
+  it('accounts for CJK label width when sizing the auto detected source selector', () => {
+    const simplifiedChinese = createLanguage('zh-cn', '简体中文', '🇨🇳')
+    mockT.mockImplementation((key: string) => (key === 'translate.detected.language' ? '自动检测' : key))
+    mockUseLanguages.mockReturnValue({
+      languages: [english, simplifiedChinese, japanese],
+      getLanguage: (code: string) => [english, simplifiedChinese, japanese].find((l) => l.langCode === code),
+      getLabel: (language: TranslateLanguage | TranslateLangCode | null, withEmoji = true) => {
+        if (typeof language === 'string') return language === 'unknown' ? 'Unknown' : language
+        if (!language) return 'Unknown'
+        return withEmoji ? `${language.emoji} ${language.value}` : language.value
+      }
+    })
+
+    const props = baseProps()
+    props.detectedLanguage = simplifiedChinese.langCode
+    render(<TranslateLanguageBar {...props} />)
+
+    expect(screen.getByRole('button', { name: sourceLanguageButtonName })).toHaveStyle({
+      width: 'clamp(150px, calc(19ch + 72px), 260px)'
+    })
   })
 
   it('keeps the auto source display when detection resolves to unknown', () => {

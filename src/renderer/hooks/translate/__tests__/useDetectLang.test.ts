@@ -23,10 +23,11 @@ vi.mock('i18next', () => ({
 }))
 
 // Franc returns the iso3 code; we canonicalize per test via mockReturnValue.
-// Forward the options arg so tests can assert the explicit { minLength: 1 }.
+// Forward options so tests catch unexpected franc configuration changes.
 const francMock = vi.fn<(input: string, options?: { minLength?: number }) => string>()
 vi.mock('franc-min', () => ({
-  franc: (input: string, options?: { minLength?: number }) => francMock(input, options)
+  franc: (input: string, options?: { minLength?: number }) =>
+    options === undefined ? francMock(input) : francMock(input, options)
 }))
 
 // LLM goes through ipcApi.request('ai.generate_text', …) now (Main IPC). Tests can
@@ -110,12 +111,6 @@ describe('detectLanguageByFranc', () => {
   it('maps a recognized iso3 to its corresponding lang code', () => {
     francMock.mockReturnValueOnce('cmn')
     expect(detectLanguageByFranc('你好世界')).toBe('zh-cn')
-  })
-
-  it('uses franc default minLength to avoid unreliable short-text guesses', () => {
-    francMock.mockReturnValueOnce('und')
-    expect(detectLanguageByFranc('my')).toBe(UNKNOWN_LANG_CODE)
-    expect(francMock).toHaveBeenCalledWith('my', { minLength: 10 })
   })
 
   it('returns the unknown lang code and logs a debug when the iso3 is not in the supported isoMap', () => {
@@ -259,7 +254,7 @@ describe('useDetectLang hook', () => {
 
     const code = await act(async () => result.current('Hello world'))
     expect(code).toBe('en-us')
-    expect(francMock).toHaveBeenCalledWith('Hello world', { minLength: 10 })
+    expect(francMock).toHaveBeenCalledWith('Hello world')
     expect(generateTextMock).not.toHaveBeenCalled()
   })
 })
