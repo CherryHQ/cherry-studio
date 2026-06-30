@@ -76,7 +76,8 @@ const AgentPage = () => {
   const reservedSessionRef = useRef<ReservedSession | null>(null)
 
   // Drop an eagerly-reserved+prewarmed session that the user abandoned without sending: close its warm
-  // query and delete the (still message-less) row. Best-effort; the boot sweep nets force-quit leftovers.
+  // query and delete the (still message-less) row. Best-effort and covers every in-app abandon path; a
+  // hard process-kill before this runs can leave a user-deletable empty `common.unnamed` session.
   const discardReservedSession = useCallback(() => {
     const reserved = reservedSessionRef.current
     if (!reserved) return
