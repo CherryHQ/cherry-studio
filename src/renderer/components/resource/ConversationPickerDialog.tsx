@@ -10,9 +10,12 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { Loader2 } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+
+const logger = loggerService.withContext('ConversationPickerDialog')
 
 export type ConversationPickerItem = {
   id: string
@@ -159,7 +162,13 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
                       key={item.id}
                       value={item.id}
                       className="group h-[42px] gap-2.5 rounded-md px-3"
-                      onSelect={() => void onSelect(item)}>
+                      // onSelect may be async; both current callers self-catch, but log here so a
+                      // future consumer with a rejecting onSelect doesn't fail silently.
+                      onSelect={() =>
+                        void Promise.resolve(onSelect(item)).catch((error) =>
+                          logger.error('Conversation picker onSelect rejected', error as Error)
+                        )
+                      }>
                       <span className="flex size-6 shrink-0 items-center justify-center rounded-lg text-foreground/70 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground [&_svg]:size-4 [&_svg]:shrink-0">
                         {item.icon}
                       </span>
