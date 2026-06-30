@@ -1,4 +1,5 @@
 import { renderHook, waitFor } from '@testing-library/react'
+import { StrictMode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from '../providerSetting/constants'
@@ -129,6 +130,21 @@ describe('useProviderAutoModelSync', () => {
     await waitFor(() => expect(syncProviderModelsMock).toHaveBeenCalledTimes(1))
   })
 
+  it('launches a single sync under StrictMode double-invocation', async () => {
+    // StrictMode invokes effects twice in dev. `autoSyncDecision` is memoized and
+    // does not observe the in-effect ref, so both invocations see shouldSync:true;
+    // without the synchronous re-entrancy guard this fires two concurrent /models
+    // mutations, one of which SWR discards as `undefined` and the caller spreads
+    // ("created is not iterable"). The guard must collapse them to one launch.
+    syncProviderModelsMock.mockResolvedValueOnce([{ id: 'openai::gpt-4o' }])
+
+    renderHook(() => useProviderAutoModelSync('openai'), { wrapper: StrictMode })
+
+    await waitFor(() => expect(syncProviderModelsMock).toHaveBeenCalledTimes(1))
+    await Promise.resolve()
+    expect(syncProviderModelsMock).toHaveBeenCalledTimes(1)
+  })
+
   it('logs when auto sync is skipped because no api keys are available', async () => {
     useProviderMock.mockReturnValue({
       provider: {
@@ -154,14 +170,15 @@ describe('useProviderAutoModelSync', () => {
     expect(syncProviderModelsMock).not.toHaveBeenCalled()
   })
 
-  it('auto-syncs a signed-in registry login provider that has no api keys', async () => {
-    // claude-code / codex / grok-cli carry no API key; their models come from the
-    // shipped registry catalog. Once signed in (isEnabled flipped by their login
-    // flow), sync must run despite the empty key list and materialize models.
+  it('auto-syncs an external-cli provider even while it is still disabled', async () => {
+    // claude-code is agent-only/undeletable and never chat-visible, so it is
+    // exempt from the login gate: its registry catalog must materialize (and the
+    // provider enable) regardless of CLI login state, so agents can pick a model.
+    // It carries no API key — models come from the shipped registry catalog.
     useProviderMock.mockReturnValue({
       provider: {
         id: 'claude-code',
-        isEnabled: true,
+        isEnabled: false,
         authMethods: ['external-cli'],
         modelListSource: 'registry',
         defaultChatEndpoint: 'anthropic_messages',
@@ -179,6 +196,7 @@ describe('useProviderAutoModelSync', () => {
     renderHook(() => useProviderAutoModelSync('claude-code'))
 
     await waitFor(() => expect(syncProviderModelsMock).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: true }))
   })
 
   it('does not sync or enable a login provider until it is signed in', async () => {
