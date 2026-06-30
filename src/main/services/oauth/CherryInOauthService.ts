@@ -1,6 +1,5 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { net } from 'electron'
 import * as z from 'zod'
@@ -63,9 +62,13 @@ export interface CherryINProfile {
   group: string | null
 }
 
-@Injectable('CherryInOauthService')
-@ServicePhase(Phase.Background)
-export class CherryInOauthService extends BaseService {
+/**
+ * CherryIN's REST operations (balance/profile/logout) layered over the OAuth
+ * session that `OAuthRuntimeService` owns. Stateless orchestration — owns no
+ * long-lived resources and registers no side effects — so it is a direct-import
+ * singleton, not a lifecycle service (see lifecycle-decision-guide.md).
+ */
+export class CherryInOauthService {
   private validateApiHost(apiHost: string): void {
     validateCherryInApiHost(apiHost)
   }
@@ -281,3 +284,5 @@ export class CherryInOauthService extends BaseService {
     }
   }
 }
+
+export const cherryInOauthService = new CherryInOauthService()

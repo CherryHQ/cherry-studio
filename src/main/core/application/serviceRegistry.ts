@@ -33,7 +33,6 @@ import { FileManager } from '@main/services/file/FileManager'
 import { DirectoryTreeManager } from '@main/services/file/tree/DirectoryTreeManager'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MainWindowService } from '@main/services/MainWindowService'
-import { CherryInOauthService } from '@main/services/oauth/CherryInOauthService'
 import { OAuthRuntimeService } from '@main/services/oauth/runtime/OAuthRuntimeService'
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
@@ -110,7 +109,6 @@ export const services = {
   TrayService,
   WebSearchService,
   WebviewService,
-  CherryInOauthService,
   OAuthRuntimeService,
   MainWindowService,
   QuickAssistantService,

@@ -27,17 +27,6 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('@main/core/lifecycle', () => {
-  class MockBaseService {}
-
-  return {
-    BaseService: MockBaseService,
-    Injectable: () => (target: unknown) => target,
-    ServicePhase: () => (target: unknown) => target,
-    Phase: { Background: 'background' }
-  }
-})
-
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
 import { CherryInOauthService } from '../CherryInOauthService'
 
