@@ -26,7 +26,7 @@ describe('QueuedFollowupsDock', () => {
     const onTogglePause = vi.fn()
     const onReorder = vi.fn()
 
-    render(
+    const { container } = render(
       <QueuedFollowupsDock
         items={items}
         paused={false}
@@ -41,7 +41,7 @@ describe('QueuedFollowupsDock', () => {
     expect(screen.getByText('first')).toBeInTheDocument()
     expect(screen.getByText('second')).toBeInTheDocument()
     // Composer token chip is rendered read-only from the stored draft tokens.
-    expect(screen.getByText('mySkill')).toBeInTheDocument()
+    expect(container.querySelector('[data-composer-token-kind="skill"]')).toHaveTextContent('mySkill')
 
     fireEvent.click(screen.getAllByLabelText('chat.input.followup_queue.steer')[0])
     expect(onSteer).toHaveBeenCalledWith('1')
