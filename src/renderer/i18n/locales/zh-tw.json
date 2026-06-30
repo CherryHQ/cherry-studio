@@ -937,6 +937,10 @@
           "description": "在你的環境中執行 Shell 命令",
           "label": "Bash"
         },
+        "CherryKbManage": {
+          "description": "新增、刪除或重新整理知識庫中的文件",
+          "label": "知識庫管理"
+        },
         "CherryKbSearch": {
           "description": "搜尋你的知識庫",
           "label": "知識庫搜尋"

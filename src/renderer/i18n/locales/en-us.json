@@ -937,6 +937,10 @@
           "description": "Executes shell commands in your environment",
           "label": "Bash"
         },
+        "CherryKbManage": {
+          "description": "Adds, deletes, or refreshes documents in your knowledge bases",
+          "label": "Manage Knowledge"
+        },
         "CherryKbSearch": {
           "description": "Searches your knowledge bases",
           "label": "Knowledge Search"
