@@ -156,11 +156,11 @@ class PaintingService {
   }
 
   async create(dto: CreatePaintingDto): Promise<Painting> {
-    const db = application.get('DbService').getDb()
+    const dbService = application.get('DbService')
 
     const row = await withSqliteErrors(
       () =>
-        db.transaction(async (tx) => {
+        dbService.withWriteTx(async (tx) => {
           const inserted = await insertWithOrderKey(
             tx,
             paintingTable,
@@ -203,7 +203,8 @@ class PaintingService {
   }
 
   async update(id: string, dto: UpdatePaintingDto): Promise<Painting> {
-    const db = application.get('DbService').getDb()
+    const dbService = application.get('DbService')
+    const db = dbService.getDb()
     const [existing] = await db.select().from(paintingTable).where(eq(paintingTable.id, id)).limit(1)
     if (!existing) {
       throw DataApiErrorFactory.notFound('Painting', id)
@@ -231,7 +232,7 @@ class PaintingService {
 
     const row = await withSqliteErrors(
       () =>
-        db.transaction(async (tx) => {
+        dbService.withWriteTx(async (tx) => {
           let target = existing
           if (Object.keys(updates).length > 0) {
             const [updated] = await tx.update(paintingTable).set(updates).where(eq(paintingTable.id, id)).returning()
@@ -267,20 +268,20 @@ class PaintingService {
   }
 
   async delete(id: string): Promise<void> {
-    const db = application.get('DbService').getDb()
+    const dbService = application.get('DbService')
     await this.getById(id)
     // painting_file_ref rows are removed by the FK cascade.
     await withSqliteErrors(
-      () => db.transaction(async (tx) => tx.delete(paintingTable).where(eq(paintingTable.id, id))),
+      () => dbService.withWriteTx(async (tx) => tx.delete(paintingTable).where(eq(paintingTable.id, id))),
       defaultHandlersFor('Painting', id)
     )
     logger.info('Deleted painting', { id })
   }
 
   async reorder(id: string, anchor: OrderRequest): Promise<void> {
-    const db = application.get('DbService').getDb()
+    const dbService = application.get('DbService')
 
-    await db.transaction(async (tx) => {
+    await dbService.withWriteTx(async (tx) => {
       const [target] = await tx.select().from(paintingTable).where(eq(paintingTable.id, id)).limit(1)
       if (!target) {
         throw DataApiErrorFactory.notFound('Painting', id)
@@ -299,9 +300,9 @@ class PaintingService {
   async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
     if (moves.length === 0) return
 
-    const db = application.get('DbService').getDb()
+    const dbService = application.get('DbService')
 
-    await db.transaction(async (tx) => {
+    await dbService.withWriteTx(async (tx) => {
       for (const move of moves) {
         const [target] = await tx.select().from(paintingTable).where(eq(paintingTable.id, move.id)).limit(1)
         if (!target) {

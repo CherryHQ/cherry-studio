@@ -6,6 +6,7 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { asc, eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -220,6 +221,18 @@ describe('PaintingService', () => {
 
     const rows = await dbh.db.select().from(paintingTable).orderBy(asc(paintingTable.orderKey))
     expect(rows.map((row) => row.id)).toEqual([third.id, first.id, second.id])
+  })
+
+  it('routes painting writes through DbService.withWriteTx', async () => {
+    const before = MockMainDbServiceUtils.getMockCallCounts().withWriteTx
+
+    const painting = await paintingService.create(p({ providerId: 'aihubmix', prompt: 'serialized writes' }))
+    await paintingService.update(painting.id, { prompt: 'updated' })
+    await paintingService.reorder(painting.id, { position: 'first' })
+    await paintingService.reorderBatch([{ id: painting.id, anchor: { position: 'last' } }])
+    await paintingService.delete(painting.id)
+
+    expect(MockMainDbServiceUtils.getMockCallCounts().withWriteTx - before).toBe(5)
   })
 
   describe('file refs', () => {
