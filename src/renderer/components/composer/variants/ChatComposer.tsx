@@ -446,7 +446,7 @@ const ChatComposerInner = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
   // Traditional/传统 view has a left assistant rail, so the toolbar trigger edits the assistant instead of switching.
-  const [conversationView] = usePreference('chat.conversation_view')
+  const [topicView] = usePreference('chat.topic_view')
   const [searching, setSearching] = useCache('chat.web_search.searching')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
   const { t } = useTranslation()
@@ -673,7 +673,7 @@ const ChatComposerInner = ({
   }, [onCreateEmptyTopic, selectedAssistantId])
 
   const handleNewTopicShortcut = useCallback(() => {
-    if (conversationView === 'traditional' && onCreateEmptyTopic) {
+    if (topicView === 'traditional' && onCreateEmptyTopic) {
       if (isAssistantLoading || hasMissingPersistedAssistant) return
       handleCreateEmptyTopic()
       return
@@ -682,7 +682,7 @@ const ChatComposerInner = ({
     addNewTopic()
   }, [
     addNewTopic,
-    conversationView,
+    topicView,
     handleCreateEmptyTopic,
     hasMissingPersistedAssistant,
     isAssistantLoading,
@@ -951,9 +951,9 @@ const ChatComposerInner = ({
     useMentionedModelSelector,
     shouldAutoSelectCreatedAssistant: Boolean(onDraftAssistantChange),
     selectModelLabel: runtimeModelPending ? t('common.loading') : t('button.select_model'),
-    showAssistantTrigger: conversationView !== 'traditional',
+    showAssistantTrigger: topicView !== 'traditional',
     newConversationAction:
-      conversationView === 'traditional' && onCreateEmptyTopic
+      topicView === 'traditional' && onCreateEmptyTopic
         ? {
             label: t('chat.conversation.new'),
             disabled: isAssistantLoading || hasMissingPersistedAssistant,

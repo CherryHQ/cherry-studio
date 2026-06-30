@@ -3,16 +3,16 @@
 Each chat surface — assistant conversations (Home) and agent work — has its own
 view-mode preference. The **traditional view** is a compact entity rail plus a right-side
 resource panel; the **efficiency view** is the classic single sidebar. The `efficiency` / `traditional`
-values are the persisted preference values and feed the `isTraditionalView` flag in the
-pages.
+values are the persisted preference values and feed the `isTraditionalTopicView` /
+`isTraditionalSessionView` flags in the pages.
 
 ## Preferences
 
 Two independent preferences, both `'efficiency' | 'traditional'` (`PreferenceTypes.ChatViewMode`),
 both defaulting to `'traditional'`:
 
-- `chat.conversation_view` — assistant chats (Home). v2-only, no v1 source.
-- `chat.work_view` — agent chats. v2-only, no v1 source.
+- `chat.topic_view` — assistant chats (Home). v2-only, no v1 source.
+- `chat.session_view` — agent chats. v2-only, no v1 source.
 
 Both are declared in `target-key-definitions.json` and generated into
 `preferenceSchemas.ts`; the legacy v1 `topicPosition` field is deleted during
@@ -35,7 +35,7 @@ though the display-mode controls are currently hidden in the UI.
 
 ## State
 
-- `chat.conversation_view` / `chat.work_view` select the mode per surface.
+- `chat.topic_view` / `chat.session_view` select the mode per surface.
 - `topic.tab.show` controls whether the left entity rail is expanded/collapsed.
 - `ui.chat.right_pane_open` persists the traditional-view right panel's open state
   for Home and Agent. Home uses it directly on the page-level Shell; Agent owns
@@ -132,8 +132,8 @@ level instead of prop-threaded).
 In traditional view the left rail owns entity switching, so the composer's assistant/agent
 switcher is hidden rather than repurposed:
 
-- `ChatComposer` passes `showAssistantTrigger: conversationView !== 'traditional'`.
-- `AgentComposer` passes `showAgentTrigger: workView !== 'traditional'`. The
+- `ChatComposer` passes `showAssistantTrigger: topicView !== 'traditional'`.
+- `AgentComposer` passes `showAgentTrigger: sessionView !== 'traditional'`. The
   `agentTriggerMode="edit"` code path still exists for toolbar-bound contexts, but
   it is not the traditional-view entry point because the trigger is hidden by
   `showAgentTrigger`.
@@ -196,8 +196,8 @@ in a draft session would otherwise remount the Shell and snap the work panel shu
 To match Home, the `Shell` exposes an additive `onOpenChange` callback;
 `AgentPage` owns the open state (`workPaneOpen`) and threads
 `defaultOpen` + `onOpenChange` through `AgentChat` to every `AgentRightPane` mount
-site, so the open state survives the remount. This is scoped to traditional view
-(`isTraditionalView`); efficiency view passes `undefined` and is byte-for-byte unchanged.
+site, so the open state survives the remount. This is scoped to traditional session
+view (`isTraditionalSessionView`); efficiency view passes `undefined` and is byte-for-byte unchanged.
 
 ## Key files
 

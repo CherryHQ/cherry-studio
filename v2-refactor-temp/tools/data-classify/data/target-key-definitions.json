@@ -104,14 +104,14 @@
       "description": "Web search provider overrides (from complex migration)"
     },
     {
-      "targetKey": "chat.conversation_view",
+      "targetKey": "chat.topic_view",
       "type": "PreferenceTypes.ChatViewMode",
       "defaultValue": "traditional",
       "status": "classified",
       "description": "Assistant conversation view: 'traditional' = entity rail + right topic panel, 'efficiency' = classic single topic sidebar (new v2 preference, no v1 source)"
     },
     {
-      "targetKey": "chat.work_view",
+      "targetKey": "chat.session_view",
       "type": "PreferenceTypes.ChatViewMode",
       "defaultValue": "traditional",
       "status": "classified",

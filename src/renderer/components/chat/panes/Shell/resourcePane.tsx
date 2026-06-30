@@ -4,7 +4,7 @@ import { createContext, type ReactNode, use } from 'react'
 import { Shell } from './Shell'
 
 // ── Resource-list-as-right-pane wiring ──────────────────────────────────────
-// In traditional-view mode (`chat.conversation_view`/`chat.work_view === 'traditional'`) the topic/session list moves into the
+// In traditional-view mode (`chat.topic_view`/`chat.session_view === 'traditional'`) the topic/session list moves into the
 // chat's right pane as an extra tab. The list node + its label are provided once at
 // the page level via context, so the Chat/AgentChat tree and the pane surfaces don't prop-thread
 // them through every layer. The tab/panel/toggle below derive everything from this context, and

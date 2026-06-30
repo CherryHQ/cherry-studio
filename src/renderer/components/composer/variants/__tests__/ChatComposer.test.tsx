@@ -50,7 +50,7 @@ const mocks = vi.hoisted(() => ({
   ipcOn: vi.fn(),
   chatWrite: undefined as any,
   files: undefined as any[] | undefined,
-  conversationView: undefined as string | undefined
+  topicView: undefined as string | undefined
 }))
 
 const originalResizeObserver = globalThis.ResizeObserver
@@ -376,7 +376,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'chat.message.font_size': 14,
       'chat.narrow_mode': false,
       'chat.input.send_message_shortcut': 'Enter',
-      'chat.conversation_view': mocks.conversationView
+      'chat.topic_view': mocks.topicView
     }
     return [values[key]]
   }
@@ -617,7 +617,7 @@ describe('ChatComposer', () => {
     mocks.ipcListeners.clear()
     mocks.ipcOn.mockReset()
     mocks.chatWrite = undefined
-    mocks.conversationView = undefined
+    mocks.topicView = undefined
     mocks.ipcOn.mockImplementation((channel: string, listener: (_event: unknown, payload: unknown) => void) => {
       mocks.ipcListeners.set(channel, listener)
       return () => mocks.ipcListeners.delete(channel)
@@ -951,7 +951,7 @@ describe('ChatComposer', () => {
   })
 
   it('hides the active assistant trigger from the toolbar in traditional/传统 view', () => {
-    mocks.conversationView = 'traditional'
+    mocks.topicView = 'traditional'
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
@@ -964,7 +964,7 @@ describe('ChatComposer', () => {
   })
 
   it('keeps the assistant switcher in the toolbar in the efficiency view', () => {
-    mocks.conversationView = 'efficiency'
+    mocks.topicView = 'efficiency'
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
@@ -973,7 +973,7 @@ describe('ChatComposer', () => {
   })
 
   it('renders the traditional-view empty topic action before the tool menu and passes the selected assistant', () => {
-    mocks.conversationView = 'traditional'
+    mocks.topicView = 'traditional'
     const onCreateEmptyTopic = vi.fn()
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} onCreateEmptyTopic={onCreateEmptyTopic} />)
@@ -992,14 +992,14 @@ describe('ChatComposer', () => {
   })
 
   it('hides the empty topic action outside traditional view or without a handler', () => {
-    mocks.conversationView = 'efficiency'
+    mocks.topicView = 'efficiency'
     const onCreateEmptyTopic = vi.fn()
 
     const { rerender } = render(<ChatComposer topic={topic} onSend={vi.fn()} onCreateEmptyTopic={onCreateEmptyTopic} />)
 
     expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
 
-    mocks.conversationView = 'traditional'
+    mocks.topicView = 'traditional'
     rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
@@ -1366,7 +1366,7 @@ describe('ChatComposer', () => {
   })
 
   it('routes traditional-view new topic shortcuts through the empty topic action', () => {
-    mocks.conversationView = 'traditional'
+    mocks.topicView = 'traditional'
     const onNewTopic = vi.fn()
     const onCreateEmptyTopic = vi.fn()
 

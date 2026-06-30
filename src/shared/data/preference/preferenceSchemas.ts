@@ -125,8 +125,6 @@ export interface PreferenceSchemas {
     // redux/settings/codeWrappable
     'chat.code.wrappable': boolean
     // target-key-definitions/complex/complex
-    'chat.conversation_view': PreferenceTypes.ChatViewMode
-    // target-key-definitions/complex/complex
     'chat.default_model_id': string | null
     // redux/settings/sendMessageShortcut
     'chat.input.send_message_shortcut': PreferenceTypes.SendMessageShortcut
@@ -171,6 +169,10 @@ export interface PreferenceSchemas {
     // redux/settings/narrowMode
     'chat.narrow_mode': boolean
     // target-key-definitions/complex/complex
+    'chat.session_view': PreferenceTypes.ChatViewMode
+    // target-key-definitions/complex/complex
+    'chat.topic_view': PreferenceTypes.ChatViewMode
+    // target-key-definitions/complex/complex
     'chat.web_search.compression.cutoff_limit': number
     // target-key-definitions/complex/complex
     'chat.web_search.compression.method': PreferenceTypes.WebSearchCompressionMethod
@@ -184,8 +186,6 @@ export interface PreferenceSchemas {
     'chat.web_search.max_results': number
     // target-key-definitions/complex/complex
     'chat.web_search.provider_overrides': PreferenceTypes.WebSearchProviderOverrides
-    // target-key-definitions/complex/complex
-    'chat.work_view': PreferenceTypes.ChatViewMode
     // redux/settings/skipBackupFile
     'data.backup.general.skip_backup_file': boolean
     // redux/settings/localBackupAutoSync
@@ -536,7 +536,6 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.code.viewer.theme_dark': 'auto',
     'chat.code.viewer.theme_light': 'auto',
     'chat.code.wrappable': false,
-    'chat.conversation_view': 'traditional',
     'chat.default_model_id': null,
     'chat.input.send_message_shortcut': 'Enter',
     'chat.input.show_estimated_tokens': false,
@@ -559,6 +558,8 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.message.style': 'bubble',
     'chat.message.thought.auto_collapse': true,
     'chat.narrow_mode': true,
+    'chat.session_view': 'traditional',
+    'chat.topic_view': 'traditional',
     'chat.web_search.compression.cutoff_limit': 2000,
     'chat.web_search.compression.method': 'none',
     'chat.web_search.default_fetch_urls_provider': 'jina',
@@ -566,7 +567,6 @@ export const DefaultPreferences: PreferenceSchemas = {
     'chat.web_search.exclude_domains': [],
     'chat.web_search.max_results': 5,
     'chat.web_search.provider_overrides': {},
-    'chat.work_view': 'traditional',
     'data.backup.general.skip_backup_file': false,
     'data.backup.local.auto_sync': false,
     'data.backup.local.dir': '',

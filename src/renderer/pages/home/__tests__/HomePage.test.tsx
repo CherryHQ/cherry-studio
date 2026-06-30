@@ -583,7 +583,7 @@ describe('HomePage', () => {
   })
 
   it('renders the assistant resource list with the resource pane open by default', () => {
-    homeMocks.preferenceValues.set('chat.conversation_view', 'traditional')
+    homeMocks.preferenceValues.set('chat.topic_view', 'traditional')
 
     render(<HomePage />)
 
@@ -596,7 +596,7 @@ describe('HomePage', () => {
   })
 
   it('restores and records the traditional-view topic right pane open state from cache', () => {
-    homeMocks.preferenceValues.set('chat.conversation_view', 'traditional')
+    homeMocks.preferenceValues.set('chat.topic_view', 'traditional')
     homeMocks.persistCacheValues.set('ui.chat.right_pane_open', false)
 
     render(<HomePage />)
@@ -609,7 +609,7 @@ describe('HomePage', () => {
   })
 
   it('passes the current assistant conversation count to the traditional-view top button', () => {
-    homeMocks.preferenceValues.set('chat.conversation_view', 'traditional')
+    homeMocks.preferenceValues.set('chat.topic_view', 'traditional')
     homeMocks.traditionalViewTopics = [
       { ...historyTopic, id: 'topic-a' },
       { ...historyTopic, id: 'topic-b' },
@@ -623,7 +623,7 @@ describe('HomePage', () => {
 
   it('selects the latest historical topic by default when entering traditional view without a route topic', async () => {
     homeMocks.locationState = undefined
-    homeMocks.preferenceValues.set('chat.conversation_view', 'traditional')
+    homeMocks.preferenceValues.set('chat.topic_view', 'traditional')
     homeMocks.traditionalViewTopics = [
       { ...historyTopic, id: 'topic-older', updatedAt: '2026-01-01T00:00:00.000Z' },
       { ...historyTopic, id: 'topic-latest', updatedAt: '2026-01-03T00:00:00.000Z' }
@@ -638,7 +638,7 @@ describe('HomePage', () => {
 
   it('selects the latest remaining topic after deleting the active assistant (traditional view, never draft)', async () => {
     homeMocks.locationState = undefined
-    homeMocks.preferenceValues.set('chat.conversation_view', 'traditional')
+    homeMocks.preferenceValues.set('chat.topic_view', 'traditional')
     homeMocks.traditionalViewTopics = [
       { ...historyTopic, id: 'topic-a', assistantId: 'assistant-a', updatedAt: '2026-01-05T00:00:00.000Z' },
       { ...historyTopic, id: 'topic-b-old', assistantId: 'assistant-b', updatedAt: '2026-01-01T00:00:00.000Z' },
@@ -659,7 +659,7 @@ describe('HomePage', () => {
   })
 
   it('creates and activates an empty topic after selecting an existing assistant from the traditional-view picker', async () => {
-    homeMocks.preferenceValues.set('chat.conversation_view', 'traditional')
+    homeMocks.preferenceValues.set('chat.topic_view', 'traditional')
     homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-2' })
 
     render(<HomePage />)
@@ -674,7 +674,7 @@ describe('HomePage', () => {
   })
 
   it('adds a catalog assistant before creating an empty topic from the traditional-view picker', async () => {
-    homeMocks.preferenceValues.set('chat.conversation_view', 'traditional')
+    homeMocks.preferenceValues.set('chat.topic_view', 'traditional')
     homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-created' })
 
     render(<HomePage />)
@@ -695,7 +695,7 @@ describe('HomePage', () => {
   })
 
   it('reuses an existing assistant whose name matches the catalog preset instead of duplicating it', async () => {
-    homeMocks.preferenceValues.set('chat.conversation_view', 'traditional')
+    homeMocks.preferenceValues.set('chat.topic_view', 'traditional')
     homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-existing', name: 'Catalog Preset' }]
     homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-existing' })
 
@@ -710,7 +710,7 @@ describe('HomePage', () => {
   })
 
   it('reuses the assistant latest empty topic instead of creating another one in the traditional-view picker', async () => {
-    homeMocks.preferenceValues.set('chat.conversation_view', 'traditional')
+    homeMocks.preferenceValues.set('chat.topic_view', 'traditional')
     homeMocks.traditionalViewTopics = [
       { id: 'topic-empty-latest', assistantId: 'assistant-2', name: '   ', updatedAt: '2026-01-03T00:00:00.000Z' },
       { id: 'topic-real-older', assistantId: 'assistant-2', name: 'Real chat', updatedAt: '2026-01-01T00:00:00.000Z' }
@@ -726,7 +726,7 @@ describe('HomePage', () => {
   })
 
   it('reuses the latest empty topic when an older candidate has an invalid timestamp', async () => {
-    homeMocks.preferenceValues.set('chat.conversation_view', 'traditional')
+    homeMocks.preferenceValues.set('chat.topic_view', 'traditional')
     homeMocks.traditionalViewTopics = [
       { id: 'topic-empty-invalid', assistantId: 'assistant-2', name: '   ', updatedAt: 'not-a-date' },
       { id: 'topic-empty-latest', assistantId: 'assistant-2', name: '   ', updatedAt: '2026-01-03T00:00:00.000Z' }
@@ -742,7 +742,7 @@ describe('HomePage', () => {
   })
 
   it('reuses the current assistant empty topic from the traditional-view composer button', async () => {
-    homeMocks.preferenceValues.set('chat.conversation_view', 'traditional')
+    homeMocks.preferenceValues.set('chat.topic_view', 'traditional')
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]
     homeMocks.traditionalViewTopics = [
       { id: 'topic-empty-latest', assistantId: 'assistant-1', name: '   ', updatedAt: '2026-01-03T00:00:00.000Z' }
@@ -758,7 +758,7 @@ describe('HomePage', () => {
   })
 
   it('creates and activates a fresh empty topic from the traditional-view composer button when no empty topic exists', async () => {
-    homeMocks.preferenceValues.set('chat.conversation_view', 'traditional')
+    homeMocks.preferenceValues.set('chat.topic_view', 'traditional')
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]
     homeMocks.traditionalViewTopics = [
       { id: 'topic-real-latest', assistantId: 'assistant-1', name: 'Real chat', updatedAt: '2026-01-03T00:00:00.000Z' }
@@ -779,7 +779,7 @@ describe('HomePage', () => {
   })
 
   it('creates a new topic when the assistant latest topic is not empty in the traditional-view picker', async () => {
-    homeMocks.preferenceValues.set('chat.conversation_view', 'traditional')
+    homeMocks.preferenceValues.set('chat.topic_view', 'traditional')
     homeMocks.traditionalViewTopics = [
       { id: 'topic-real-latest', assistantId: 'assistant-2', name: 'Real chat', updatedAt: '2026-01-03T00:00:00.000Z' }
     ]

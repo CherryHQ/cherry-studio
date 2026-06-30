@@ -42,7 +42,7 @@ const mocks = vi.hoisted(() => ({
   shortcutOptions: new Map<string, Record<string, unknown> | undefined>(),
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
   ipcOn: vi.fn(),
-  workView: undefined as string | undefined,
+  sessionView: undefined as string | undefined,
   runtimeHostProps: undefined as
     | { assistant?: { modelId?: string | null }; model?: Model; session?: { agentId?: string } }
     | undefined
@@ -380,7 +380,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'chat.message.font_size': 14,
       'chat.narrow_mode': false,
       'chat.input.send_message_shortcut': 'Enter',
-      'chat.work_view': mocks.workView
+      'chat.session_view': mocks.sessionView
     }
     return [values[key]]
   }
@@ -477,7 +477,7 @@ describe('AgentComposer', () => {
     mocks.surfaceProps = undefined
     mocks.derivedToolState = undefined
     mocks.runtimeHostProps = undefined
-    mocks.workView = undefined
+    mocks.sessionView = undefined
     mocks.shortcutHandlers.clear()
     mocks.shortcutOptions.clear()
     mocks.ipcListeners.clear()
@@ -583,7 +583,7 @@ describe('AgentComposer', () => {
   })
 
   it('routes traditional-view new session shortcuts through the empty session action', () => {
-    mocks.workView = 'traditional'
+    mocks.sessionView = 'traditional'
     const onNewSessionDraft = vi.fn()
     const onCreateEmptySession = vi.fn()
 
@@ -606,7 +606,7 @@ describe('AgentComposer', () => {
   })
 
   it('renders the empty session action before the tool menu and calls the explicit handler', () => {
-    mocks.workView = 'traditional'
+    mocks.sessionView = 'traditional'
     const onCreateEmptySession = vi.fn()
 
     render(
@@ -1461,7 +1461,7 @@ describe('AgentComposer', () => {
   })
 
   it('hides the active session agent trigger from the toolbar in traditional/传统 view', () => {
-    mocks.workView = 'traditional'
+    mocks.sessionView = 'traditional'
 
     render(
       <AgentComposer
@@ -1573,7 +1573,7 @@ describe('AgentComposer', () => {
   })
 
   it('hides the missing-agent trigger in traditional/传统 view', () => {
-    mocks.workView = 'traditional'
+    mocks.sessionView = 'traditional'
 
     render(<MissingAgentHomeComposer onAgentChange={vi.fn()} />)
 

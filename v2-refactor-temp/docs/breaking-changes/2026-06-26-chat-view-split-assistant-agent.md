@@ -10,8 +10,8 @@ date: 2026-06-26
 
 The single experimental `chat.resource_list.position` (`left`/`right`) preference is replaced by two independent settings under **Settings → Message Settings**:
 
-- **Conversation view** (assistant chats) — `chat.conversation_view`
-- **Work view** (agent chats) — `chat.work_view`
+- **Conversation view** (assistant chats) — `chat.topic_view`
+- **Work view** (agent chats) — `chat.session_view`
 
 Each is **Efficiency view** or **Traditional view**:
 
@@ -26,7 +26,7 @@ The legacy v1 assistant `topicPosition` is deleted during v2 classification and 
 
 Fresh installs and migrated users land on the **Traditional view**: a compact entity rail plus a right-side topic/session panel. Users can switch **Conversation view** or **Work view** to **Efficiency view** for the classic single sidebar.
 
-The preference key also changed: the never-shipped `chat.resource_list.position` no longer exists. Anything expecting that key should read `chat.conversation_view` / `chat.work_view` instead.
+The preference key also changed: the never-shipped `chat.resource_list.position` no longer exists. Anything expecting that key should read `chat.topic_view` / `chat.session_view` instead.
 
 ## What the user should do
 

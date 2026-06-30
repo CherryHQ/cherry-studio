@@ -632,7 +632,7 @@ const AgentComposerInner = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const [workView] = usePreference('chat.work_view')
+  const [sessionView] = usePreference('chat.session_view')
   const { t } = useTranslation()
   const modelProviderName = useProviderDisplayName(model?.providerId)
   const agentModelFilter = useAgentModelFilter(agentBase?.type)
@@ -995,7 +995,7 @@ const AgentComposerInner = ({
     selectModelLabel: t('button.select_model'),
     agentChanging,
     shouldAutoSelectCreatedAgent: Boolean(onAgentChange),
-    showAgentTrigger: workView !== 'traditional',
+    showAgentTrigger: sessionView !== 'traditional',
     canChangeModel,
     onModelSelect: handleModelSelect,
     modelFilter: agentModelFilter,
@@ -1105,7 +1105,7 @@ const MissingAgentHomeComposerInner = ({
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const [workView] = usePreference('chat.work_view')
+  const [sessionView] = usePreference('chat.session_view')
   const { t } = useTranslation()
   const [text, setText] = useState('')
   const selectAgentMessage = t('chat.alerts.select_agent')
@@ -1139,7 +1139,7 @@ const MissingAgentHomeComposerInner = ({
     selectModelLabel: t('button.select_model'),
     agentChanging,
     shouldAutoSelectCreatedAgent: true,
-    showAgentTrigger: workView !== 'traditional',
+    showAgentTrigger: sessionView !== 'traditional',
     canChangeModel: false,
     onAgentChange: handleAgentChange,
     onModelSelect: () => undefined

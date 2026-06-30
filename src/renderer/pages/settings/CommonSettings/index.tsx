@@ -171,8 +171,8 @@ const CommonSettings: FC = () => {
   const [menuPresentationMode, setMenuPresentationMode] = usePreference('menu.presentation_mode')
   const [customCss, setCustomCss] = usePreference('ui.custom_css')
   const [fontSize] = usePreference('chat.message.font_size')
-  const [conversationView, setConversationView] = usePreference('chat.conversation_view')
-  const [workView, setWorkView] = usePreference('chat.work_view')
+  const [topicView, setTopicView] = usePreference('chat.topic_view')
+  const [sessionView, setSessionView] = usePreference('chat.session_view')
   const [useSystemTitleBar, setUseSystemTitleBar] = usePreference('app.use_system_title_bar')
   const [notificationSettings, setNotificationSettings] = useMultiplePreferences({
     assistant: 'app.notification.assistant.enabled',
@@ -646,8 +646,8 @@ const CommonSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.messages.view.conversation')}</SettingRowTitle>
           <SegmentedControl<ChatViewMode>
-            value={conversationView}
-            onValueChange={setConversationView}
+            value={topicView}
+            onValueChange={setTopicView}
             options={viewModeOptions}
             size="sm"
           />
@@ -656,8 +656,8 @@ const CommonSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.messages.view.work')}</SettingRowTitle>
           <SegmentedControl<ChatViewMode>
-            value={workView}
-            onValueChange={setWorkView}
+            value={sessionView}
+            onValueChange={setSessionView}
             options={viewModeOptions}
             size="sm"
           />
