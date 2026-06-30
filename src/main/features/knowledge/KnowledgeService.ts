@@ -125,8 +125,8 @@ export interface KnowledgeConceptGrep {
  * One node of a knowledge base's organization tree, emitted in pre-order DFS so
  * the flat list reads top-down like an outline. `depth` (0 at the base root)
  * carries the hierarchy without a recursive shape. `conceptId` is set only for a
- * readable leaf (a completed file/url/note) so it can be passed to kb_read /
- * kb_grep; directories and not-yet-indexed leaves have none.
+ * readable leaf (a completed file/url/note) so it can be passed to kb_read
+ * (read or grep mode); directories and not-yet-indexed leaves have none.
  */
 export interface KnowledgeTreeNode {
   depth: number
@@ -187,13 +187,13 @@ function deriveConceptId(item: KnowledgeItem): string | undefined {
   }
 }
 
-/** Compile a kb_grep pattern (always global; case-insensitive unless told otherwise), turning a bad pattern into a validation error. */
+/** Compile a kb_read grep-mode pattern (always global; case-insensitive unless told otherwise), turning a bad pattern into a validation error. */
 function compileGrepRegex(pattern: string, ignoreCase: boolean): RegExp {
   try {
     return new RegExp(pattern, ignoreCase ? 'gi' : 'g')
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    throw DataApiErrorFactory.validation({ pattern: [message] }, `Invalid kb_grep regular expression: ${message}`)
+    throw DataApiErrorFactory.validation({ pattern: [message] }, `Invalid kb_read regular expression: ${message}`)
   }
 }
 
@@ -741,7 +741,7 @@ export class KnowledgeService extends BaseService {
   /**
    * Build a knowledge base's organization tree from the `knowledge_item.groupId`
    * hierarchy — directories are folders, file/url/note are leaves carrying a
-   * readable `conceptId` (when completed) for kb_read / kb_grep. This is the
+   * readable `conceptId` (when completed) for kb_read. This is the
    * logical org layer the OKF `index.md` surfaces, deliberately decoupled from
    * the flat physical `raw/` layout: no material scan, no path joins. Emitted as
    * a pre-order DFS node list (each node's `depth` carries the hierarchy),
@@ -834,7 +834,7 @@ export class KnowledgeService extends BaseService {
         },
         itemId: match.materialId,
         chunkId: match.unitId,
-        // Concept ID + title so a hit can be followed up with kb_read / kb_grep.
+        // Concept ID + title so a hit can be followed up with kb_read.
         conceptId: deriveConceptId(item),
         title: getKnowledgeItemDisplayTitle(item)
       })

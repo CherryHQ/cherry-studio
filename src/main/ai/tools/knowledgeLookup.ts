@@ -27,6 +27,7 @@ import type {
   KbListOutputItem,
   KbManageInput,
   KbManageOutput,
+  KbReadInput,
   KbReadOutput,
   KbSearchOutput,
   KbTreeOutput
@@ -62,30 +63,26 @@ Use this when:
 
 Workflow: call kb_list first to discover available bases and their contents, then call this tool with the chosen baseIds. You may call this multiple times with refined queries or different baseIds if the first results are insufficient. Cite sources by [id] in your final answer.`
 
-export const KNOWLEDGE_LIST_DESCRIPTION = `Browse the user's available knowledge bases before searching.
+export const KNOWLEDGE_LIST_DESCRIPTION = `Browse the user's knowledge bases and their structure.
 
-Returns each base's name, group, item count, and a few sample sources (filenames, URLs, note titles) so you can judge what topics it likely covers. Call this first when the user asks about their materials and you don't already know which base is relevant — then call kb_search with the chosen baseIds.`
+Two modes, selected by \`baseId\`:
+- Omit \`baseId\` to list the available bases — each with its name, group, item count, and a few sample sources (filenames, URLs, note titles) so you can judge what it covers. Call this first when the user asks about their materials and you don't already know which base is relevant, then call kb_search with the chosen baseIds.
+- Pass a \`baseId\` to outline that base instead: a flat top-down list of its folders and documents, each with a \`depth\`, title, type, and — for a readable document — a \`conceptId\` you can pass to kb_read. Use this to see how a base is organized, or to find a document's conceptId, without searching.`
 
-export const KNOWLEDGE_READ_DESCRIPTION = `Read the full text (or a slice) of a single knowledge base document by its Concept ID.
+export const KNOWLEDGE_READ_DESCRIPTION = `Read a single knowledge base document by its Concept ID — or grep inside it.
 
-Use this after kb_search to read the source behind a promising hit: kb_search returns short matching chunks, kb_read returns the whole document so you can quote it accurately and read the surrounding context. Pass the \`conceptId\` and \`baseId\` from a kb_search result. Long documents come back in capped slices — when \`totalChars\` exceeds the returned \`charEnd\`, call again with \`charStart\` set to the previous \`charEnd\` to page on.`
-
-export const KNOWLEDGE_GREP_DESCRIPTION = `Find exact text (a regular expression) inside a single knowledge base document by its Concept ID.
-
-Use this for precise lookups within a document you found via kb_search — locating a number, code symbol, term, or quote — when semantic search is too fuzzy. Returns each match's line, character offsets, and a snippet with surrounding context. Pass the \`conceptId\` and \`baseId\` from a kb_search result. For meaning-based search across documents, use kb_search instead.`
-
-export const KNOWLEDGE_TREE_DESCRIPTION = `Outline a knowledge base's structure — its folders and documents — without searching.
-
-Use this to see what a base contains and how it is organized before searching or reading: it returns the base's organization tree as a flat top-down list of nodes, each with a \`depth\` (folder nesting), title, type, and — for a readable document — a \`conceptId\` you can pass to kb_read / kb_grep. Prefer kb_search when you have a specific question; use kb_tree to browse or when the user asks "what's in my knowledge base".`
+Pass the \`conceptId\` and \`baseId\` from a kb_search hit (or a kb_list outline). Two modes, selected by \`pattern\`:
+- Omit \`pattern\` to read the document text: kb_search returns short matching chunks, kb_read returns the whole document (or a slice) so you can quote it accurately and read the surrounding context. Long documents come back in capped slices — when \`totalChars\` exceeds the returned \`charEnd\`, call again with \`charStart\` set to that \`charEnd\` to page on.
+- Pass a \`pattern\` (a regular expression) to grep instead: locate exact text — a number, code symbol, term, or quote — when semantic search is too fuzzy. Returns each match's line, character offsets, and a snippet. For meaning-based search across documents, use kb_search.`
 
 export const KNOWLEDGE_MANAGE_DESCRIPTION = `Modify a knowledge base: add a new source, or delete / re-index existing documents. Destructive — every call modifies the base and is gated behind user approval.
 
 Set \`action\`:
 - "add": import one new source. Set \`type\` and its field — "file" (\`path\`: an absolute local file path), "url" (\`url\`), or "note" (\`content\`, optional \`title\`). The source is copied in and indexed.
-- "delete": permanently remove documents. Set \`conceptIds\` to the Concept IDs (the \`conceptId\` field of a kb_search / kb_tree / kb_list result) to remove.
+- "delete": permanently remove documents. Set \`conceptIds\` to the Concept IDs (the \`conceptId\` field of a kb_search hit or a kb_list outline) to remove.
 - "refresh": re-index documents (re-read the source, rebuild chunks/embeddings). Set \`conceptIds\`.
 
-Only confirm a destructive change the user asked for. For delete/refresh, get \`conceptIds\` from kb_search / kb_tree first; ids that don't resolve come back in \`notFound\`.`
+Only confirm a destructive change the user asked for. For delete/refresh, get \`conceptIds\` from kb_search or a kb_list outline first; ids that don't resolve come back in \`notFound\`.`
 
 /**
  * A failed search must be distinguishable from "ran fine, found nothing": both
@@ -95,8 +92,11 @@ Only confirm a destructive change the user asked for. For delete/refresh, get \`
 export const knowledgeLookupErrorSchema = z.object({ error: z.string() })
 export type KnowledgeLookupError = z.infer<typeof knowledgeLookupErrorSchema>
 export type KnowledgeSearchResultOrError = KbSearchOutput | KnowledgeLookupError
-export type KnowledgeListResultOrError = KbListOutput | KnowledgeLookupError
-export type KnowledgeReadResultOrError = KbReadOutput | KnowledgeLookupError
+// kb_list has two output modes (list of bases / one base's outline tree), kb_read has two (document
+// text / grep matches). The merged result types below union both modes; the per-mode subtypes
+// (KnowledgeTreeResultOrError / KnowledgeGrepResultOrError) keep the underlying core fns precise.
+export type KnowledgeListResultOrError = KbListOutput | KbTreeOutput | KnowledgeLookupError
+export type KnowledgeReadResultOrError = KbReadOutput | KbGrepOutput | KnowledgeLookupError
 export type KnowledgeGrepResultOrError = KbGrepOutput | KnowledgeLookupError
 export type KnowledgeTreeResultOrError = KbTreeOutput | KnowledgeLookupError
 export type KnowledgeManageResultOrError = KbManageOutput | KnowledgeLookupError
@@ -112,16 +112,15 @@ export const KNOWLEDGE_LOOKUP_ERROR_NOTE =
 export const KNOWLEDGE_LIST_ERROR_NOTE =
   'Listing the knowledge bases failed (a knowledge-service error); tell the user instead of retrying.'
 
-export function isKnowledgeLookupError(
-  output: KnowledgeSearchResultOrError | KnowledgeListResultOrError
-): output is KnowledgeLookupError {
-  // Success is always the results array; the error object is the only non-array shape.
+export function isKnowledgeLookupError(output: KnowledgeSearchResultOrError): output is KnowledgeLookupError {
+  // kb_search success is always the results array; the error object is the only non-array shape.
+  // (kb_list can't use this — its success is an array OR a tree object; see knowledgeListModelOutput.)
   return !Array.isArray(output)
 }
 
 /**
- * kb_read / kb_grep return a single object on success (NOT an array), so the
- * array check above can't tell success from error — the `error` key is the
+ * kb_read (read and grep modes) returns a single object on success (NOT an array),
+ * so the array check above can't tell success from error — the `error` key is the
  * discriminant instead (a success object never carries one).
  */
 function isConceptLookupError(output: object): output is KnowledgeLookupError {
@@ -176,7 +175,7 @@ export async function searchKnowledge(
 
   return sorted.map((result, index) => ({
     id: index + 1,
-    // Provenance so the model can follow a hit with kb_read / kb_grep. conceptId
+    // Provenance so the model can follow a hit with kb_read. conceptId
     // is absent only for a not-yet-indexed snapshot (no relativePath); title is
     // always set. type is the item kind (file / url / note); `?.` keeps the map
     // resilient to a result without metadata (none in production).
@@ -241,9 +240,19 @@ export async function readConcept(
 
 export function knowledgeReadModelOutput(
   output: KnowledgeReadResultOrError
-): { type: 'text'; value: string } | { type: 'json'; value: KbReadOutput } {
+): { type: 'text'; value: string } | { type: 'json'; value: KbReadOutput | KbGrepOutput } {
   if (isConceptLookupError(output)) {
     return { type: 'text', value: output.error }
+  }
+  // Grep mode (called with a `pattern`) returns `matches`; a zero-match result is a steer, not data.
+  if ('matches' in output) {
+    if (output.totalMatches === 0) {
+      return {
+        type: 'text',
+        value: `No matches for that pattern in "${output.conceptId}". Try a broader pattern, or omit \`pattern\` to read the document directly.`
+      }
+    }
+    return { type: 'json', value: output }
   }
   return { type: 'json', value: output }
 }
@@ -260,7 +269,7 @@ export async function grepConcept(
   allowedIds: string[]
 ): Promise<KnowledgeGrepResultOrError> {
   if (allowedIds.length > 0 && !allowedIds.includes(baseId)) {
-    logger.warn('kb_grep targeted a base outside the assistant scope', { baseId, allowedIds })
+    logger.warn('kb_read (grep mode) targeted a base outside the assistant scope', { baseId, allowedIds })
     return { error: `Knowledge base "${baseId}" is not available to this assistant.` }
   }
   try {
@@ -277,19 +286,21 @@ export async function grepConcept(
   }
 }
 
-export function knowledgeGrepModelOutput(
-  output: KnowledgeGrepResultOrError
-): { type: 'text'; value: string } | { type: 'json'; value: KbGrepOutput } {
-  if (isConceptLookupError(output)) {
-    return { type: 'text', value: output.error }
+/**
+ * kb_read dispatch: read the document text, or — when a `pattern` is supplied — grep within it.
+ * One tool with two modes (see KNOWLEDGE_READ_DESCRIPTION); both cores above share the `{ error }`
+ * contract, so this only routes by the presence of `pattern`. (`!= null` also covers undefined.)
+ */
+export async function readOrGrepConcept(input: KbReadInput, allowedIds: string[]): Promise<KnowledgeReadResultOrError> {
+  if (input.pattern != null) {
+    return grepConcept(
+      input.baseId,
+      input.conceptId,
+      { pattern: input.pattern, ignoreCase: input.ignoreCase, maxMatches: input.maxMatches },
+      allowedIds
+    )
   }
-  if (output.totalMatches === 0) {
-    return {
-      type: 'text',
-      value: `No matches for that pattern in "${output.conceptId}". Try a broader pattern, or kb_read to scan the document directly.`
-    }
-  }
-  return { type: 'json', value: output }
+  return readConcept(input.baseId, input.conceptId, { charStart: input.charStart, charEnd: input.charEnd }, allowedIds)
 }
 
 /**
@@ -306,7 +317,7 @@ function conceptLookupError(
 ): KnowledgeLookupError {
   if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
     // resolveConcept checks the base (assertBaseCanRunRuntimeOperation) before the concept lookup, so
-    // a NOT_FOUND can mean the base itself is gone. Steer that to kb_list — matching kb_tree / kb_manage
+    // a NOT_FOUND can mean the base itself is gone. Steer that to kb_list — matching kb_manage
     // — rather than blaming the conceptId for a base the model picked from a stale/hallucinated id.
     // (`'resource' in` narrows the distributed details union: `error.code` does not re-parameterize the
     // DataApiError generic, so `details` here is the union of all per-code shapes.)
@@ -335,7 +346,7 @@ export async function readTree(
   allowedIds: string[]
 ): Promise<KnowledgeTreeResultOrError> {
   if (allowedIds.length > 0 && !allowedIds.includes(baseId)) {
-    logger.warn('kb_tree targeted a base outside the assistant scope', { baseId, allowedIds })
+    logger.warn('kb_list (outline mode) targeted a base outside the assistant scope', { baseId, allowedIds })
     return { error: `Knowledge base "${baseId}" is not available to this assistant.` }
   }
   try {
@@ -362,16 +373,20 @@ export async function readTree(
   }
 }
 
-export function knowledgeTreeModelOutput(
-  output: KnowledgeTreeResultOrError
-): { type: 'text'; value: string } | { type: 'json'; value: KbTreeOutput } {
-  if (isConceptLookupError(output)) {
-    return { type: 'text', value: output.error }
+/**
+ * kb_list dispatch: list the user's bases, or — when a `baseId` is supplied — outline that one
+ * base's structure. One tool with two modes (see KNOWLEDGE_LIST_DESCRIPTION); both cores share the
+ * `{ error }` contract, so this only routes by the presence of `baseId`. (`!= null` also covers
+ * undefined; strict callers pass null for "no baseId", MCP callers omit it.)
+ */
+export async function listOrOutlineKnowledge(
+  input: { query?: string | null; groupId?: string | null; baseId?: string | null; maxDepth?: number | null },
+  allowedIds: string[]
+): Promise<KnowledgeListResultOrError> {
+  if (input.baseId != null) {
+    return readTree(input.baseId, { maxDepth: input.maxDepth ?? undefined }, allowedIds)
   }
-  if (output.nodes.length === 0) {
-    return { type: 'text', value: `Knowledge base "${output.baseId}" has no items yet.` }
-  }
-  return { type: 'json', value: output }
+  return listKnowledgeBases(input.query, input.groupId, allowedIds)
 }
 
 /** Longest a derived note title (its first line) may be before it is truncated. */
@@ -539,19 +554,33 @@ export async function listKnowledgeBases(
 
 export function knowledgeListModelOutput(
   output: KnowledgeListResultOrError,
-  input: { query?: string | null; groupId?: string | null }
-): { type: 'text'; value: string } | { type: 'json'; value: KbListOutput } {
-  if (isKnowledgeLookupError(output)) {
-    return { type: 'text', value: KNOWLEDGE_LIST_ERROR_NOTE }
-  }
-  if (output.length === 0) {
-    const filtered = Boolean(input?.query) || Boolean(input?.groupId)
-    return {
-      type: 'text',
-      value: filtered
-        ? 'No knowledge bases match the filter. Retry with a broader query or omit groupId to see all available bases.'
-        : 'No knowledge bases are available for this assistant. Inform the user that no knowledge base is configured rather than retrying.'
+  input: { query?: string | null; groupId?: string | null; baseId?: string | null }
+): { type: 'text'; value: string } | { type: 'json'; value: KbListOutput | KbTreeOutput } {
+  const outlineMode = input?.baseId != null
+
+  // List mode success is the array of bases.
+  if (Array.isArray(output)) {
+    if (output.length === 0) {
+      const filtered = Boolean(input?.query) || Boolean(input?.groupId)
+      return {
+        type: 'text',
+        value: filtered
+          ? 'No knowledge bases match the filter. Retry with a broader query or omit groupId to see all available bases.'
+          : 'No knowledge bases are available for this assistant. Inform the user that no knowledge base is configured rather than retrying.'
+      }
     }
+    return { type: 'json', value: output }
+  }
+
+  // Non-array: an outline-mode tree object, or an `{ error }`.
+  if ('error' in output) {
+    // Outline mode surfaces the specific error (out-of-scope / not-found / service); list mode hides
+    // the raw listBases() infra error behind a fixed note (mirrors kb_search's all-failed path).
+    return { type: 'text', value: outlineMode ? output.error : KNOWLEDGE_LIST_ERROR_NOTE }
+  }
+  // Outline mode success: one base's tree.
+  if (output.nodes.length === 0) {
+    return { type: 'text', value: `Knowledge base "${output.baseId}" has no items yet.` }
   }
   return { type: 'json', value: output }
 }

@@ -4,12 +4,14 @@ import type { Assistant } from '@shared/data/types/assistant'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const readConcept = vi.fn()
+// Grep mode (kb_read with a pattern) routes to grepConcept; read mode routes to readConcept.
+const grepConcept = vi.fn()
 const loggerWarn = vi.hoisted(() => vi.fn())
 
 vi.mock('@main/core/application', () => ({
   application: {
     get: (name: string) => {
-      if (name === 'KnowledgeService') return { readConcept }
+      if (name === 'KnowledgeService') return { readConcept, grepConcept }
       throw new Error(`unexpected service: ${name}`)
     }
   }
@@ -29,7 +31,15 @@ function makeAssistant(overrides: Partial<Assistant> = {}): Assistant {
   return { id: 'assistant-1', knowledgeBaseIds: [], ...overrides } as Assistant
 }
 
-type ReadArgs = { baseId: string; conceptId: string; charStart?: number; charEnd?: number }
+type ReadArgs = {
+  baseId: string
+  conceptId: string
+  charStart?: number
+  charEnd?: number
+  pattern?: string
+  ignoreCase?: boolean
+  maxMatches?: number
+}
 
 function callExecute(args: ReadArgs, ctx: { assistant?: Assistant } = {}): Promise<unknown> {
   const execute = entry.tool.execute as (args: ReadArgs, options: ToolExecutionOptions) => Promise<unknown>
@@ -61,6 +71,7 @@ function conceptContent(overrides: Record<string, unknown> = {}) {
 describe('kb_read', () => {
   beforeEach(() => {
     readConcept.mockReset()
+    grepConcept.mockReset()
     loggerWarn.mockReset()
   })
 
@@ -151,6 +162,54 @@ describe('kb_read', () => {
     expect(result.error).toBe('vector store down')
   })
 
+  describe('grep mode (pattern)', () => {
+    it('greps the document when a pattern is given, forwarding options and mapping itemType → type', async () => {
+      grepConcept.mockResolvedValue({
+        conceptId: 'docs/intro.md',
+        title: 'intro.md',
+        itemType: 'note',
+        totalMatches: 1,
+        matches: [{ line: 2, charStart: 9, charEnd: 14, snippet: 'match' }]
+      })
+
+      const result = await callExecute(
+        { baseId: 'kb-1', conceptId: 'docs/intro.md', pattern: 'match', ignoreCase: false, maxMatches: 10 },
+        { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
+      )
+
+      expect(grepConcept).toHaveBeenCalledWith('kb-1', 'docs/intro.md', {
+        pattern: 'match',
+        ignoreCase: false,
+        maxMatches: 10
+      })
+      // read mode must NOT run when a pattern is present (pattern routes to grepConcept).
+      expect(readConcept).not.toHaveBeenCalled()
+      expect(result).toEqual({
+        conceptId: 'docs/intro.md',
+        title: 'intro.md',
+        type: 'note',
+        totalMatches: 1,
+        matches: [{ line: 2, charStart: 9, charEnd: 14, snippet: 'match' }]
+      })
+    })
+
+    it('surfaces an invalid-pattern validation error message', async () => {
+      grepConcept.mockRejectedValue(
+        DataApiErrorFactory.validation(
+          { pattern: ['Invalid regular expression'] },
+          'Invalid kb_read regular expression: ('
+        )
+      )
+
+      const result = (await callExecute(
+        { baseId: 'kb-1', conceptId: 'docs/intro.md', pattern: '(' },
+        { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
+      )) as { error: string }
+
+      expect(result.error).toContain('Invalid kb_read regular expression')
+    })
+  })
+
   describe('toModelOutput', () => {
     const toModelOutput = entry.tool.toModelOutput as (opts: {
       toolCallId: string
@@ -162,6 +221,32 @@ describe('kb_read', () => {
       const output = conceptContent({ itemType: undefined, type: 'file' })
       const result = toModelOutput({ toolCallId: 'tc-1', input: { baseId: 'kb-1', conceptId: 'x' }, output })
       expect(result).toEqual({ type: 'json', value: output })
+    })
+
+    it('passes grep matches through as json (grep mode)', () => {
+      const output = {
+        conceptId: 'docs/intro.md',
+        title: 'intro.md',
+        type: 'note',
+        totalMatches: 1,
+        matches: [{ line: 2, charStart: 9, charEnd: 14, snippet: 'match' }]
+      }
+      const result = toModelOutput({
+        toolCallId: 'tc-1',
+        input: { baseId: 'kb-1', conceptId: 'x', pattern: 'y' },
+        output
+      })
+      expect(result).toEqual({ type: 'json', value: output })
+    })
+
+    it('returns a no-matches hint as text when grep finds nothing (grep mode)', () => {
+      const result = toModelOutput({
+        toolCallId: 'tc-1',
+        input: { baseId: 'kb-1', conceptId: 'x', pattern: 'y' },
+        output: { conceptId: 'docs/intro.md', title: 'intro.md', type: 'note', totalMatches: 0, matches: [] }
+      })
+      expect(result.type).toBe('text')
+      expect(result.value).toMatch(/No matches/)
     })
 
     it('renders an error as text', () => {

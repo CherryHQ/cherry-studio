@@ -13,11 +13,18 @@ import * as z from 'zod'
 
 export const KB_LIST_TOOL_NAME = 'kb_list'
 
+// kb_list has two modes, selected by `baseId`:
+//   - omit `baseId`  → list the user's knowledge bases (name / group / item count / sample sources),
+//                       optionally filtered by `query` / `groupId`.
+//   - pass `baseId`  → outline that one base's folder/document structure (its organization tree),
+//                       optionally capped by `maxDepth`. Each readable leaf carries a `conceptId`
+//                       for kb_read.
+//
 // kb_list is consumed by two paths with conflicting schema needs, so it has two shapes.
 //
 // MCP / Claude Code bridge (cherryBuiltinTools): the agent parses raw args with this schema and may
-// omit either filter, so they are `.optional()`. `z.toJSONSchema` legitimately drops them from
-// `required`, which the non-strict MCP schema accepts. Omit a filter to skip it.
+// omit any field, so they are `.optional()`. `z.toJSONSchema` legitimately drops them from
+// `required`, which the non-strict MCP schema accepts. Omit a field to skip it.
 export const kbListInputSchema = z.object({
   query: z
     .string()
@@ -25,13 +32,28 @@ export const kbListInputSchema = z.object({
     .min(1)
     .max(200)
     .optional()
-    .describe('Case-insensitive substring filter against base name and sample sources. Omit to list all.'),
+    .describe('List mode only: case-insensitive substring filter against base name and sample sources.'),
   groupId: z
     .string()
     .trim()
     .min(1)
     .optional()
-    .describe('Restrict the result to a single knowledge base group. Omit to span all groups.')
+    .describe('List mode only: restrict the result to a single knowledge base group. Omit to span all groups.'),
+  baseId: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe(
+      'Pass a base id (from a prior list-mode call) to switch to outline mode: return that base’s ' +
+        'folder/document tree instead of the list of bases. Omit to list the bases.'
+    ),
+  maxDepth: z
+    .number()
+    .int()
+    .nonnegative()
+    .optional()
+    .describe('Outline mode only (requires `baseId`): limit the tree to this many folder levels (0 = top level).')
 })
 
 // AI-SDK path (KnowledgeListTool) runs with `strict: true`. A strict OpenAI-compatible provider (e.g.
@@ -46,13 +68,30 @@ export const kbListStrictInputSchema = z.object({
     .min(1)
     .max(200)
     .nullable()
-    .describe('Case-insensitive substring filter against base name and sample sources. Pass null to list all.'),
+    .describe(
+      'List mode only: case-insensitive substring filter against base name and sample sources. Pass null to list all.'
+    ),
   groupId: z
     .string()
     .trim()
     .min(1)
     .nullable()
-    .describe('Restrict the result to a single knowledge base group. Pass null to span all groups.')
+    .describe('List mode only: restrict the result to a single knowledge base group. Pass null to span all groups.'),
+  baseId: z
+    .string()
+    .trim()
+    .min(1)
+    .nullable()
+    .describe(
+      'Pass a base id (from a prior list-mode call) to switch to outline mode: return that base’s ' +
+        'folder/document tree instead of the list of bases. Pass null to list the bases.'
+    ),
+  maxDepth: z
+    .number()
+    .int()
+    .nonnegative()
+    .nullable()
+    .describe('Outline mode only (requires `baseId`): limit the tree to this many folder levels (0 = top level).')
 })
 
 export const kbListOutputItemSchema = z.object({
@@ -97,7 +136,7 @@ export const kbSearchInputSchema = z.object({
 export const kbSearchOutputItemSchema = z.object({
   id: z.number().int().positive(),
   // Concept ID (the source document's relative path, OKF §2), display title, and
-  // item type, so the model can follow a hit with kb_read / kb_grep. Optional:
+  // item type, so the model can follow a hit with kb_read. Optional:
   // older persisted tool results predate these fields and must still parse.
   conceptId: z.string().optional(),
   title: z.string().optional(),
@@ -132,15 +171,36 @@ export const kbReadInputSchema = z.object({
     .int()
     .nonnegative()
     .optional()
-    .describe('0-based start offset of the slice to read. Omit to start at the beginning of the document.'),
+    .describe('Read mode only: 0-based start offset of the slice to read. Omit to start at the beginning.'),
   charEnd: z
     .number()
     .int()
     .positive()
     .optional()
     .describe(
-      'End offset (exclusive) of the slice. Omit to read to the end. Long reads are capped; when `totalChars` ' +
-        'exceeds the returned `charEnd`, page on by calling again with `charStart` set to the previous `charEnd`.'
+      'Read mode only: end offset (exclusive) of the slice. Omit to read to the end. Long reads are capped; when ' +
+        '`totalChars` exceeds the returned `charEnd`, page on by calling again with `charStart` set to that `charEnd`.'
+    ),
+  pattern: z
+    .string()
+    .min(1)
+    .max(200)
+    .optional()
+    .describe(
+      'Pass a JavaScript regular expression to switch to grep mode: instead of the document text, return each ' +
+        'matching line with its character offsets and a snippet (anchors `^`/`$` bind to each line; a match ' +
+        'cannot span lines). Use this for an exact lookup — a number, code symbol, term, quote. Omit to read the ' +
+        'document text; use kb_search for semantic/meaning-based lookup across documents.'
+    ),
+  ignoreCase: z.boolean().optional().describe('Grep mode only: case-insensitive matching. Defaults to true.'),
+  maxMatches: z
+    .number()
+    .int()
+    .positive()
+    .max(200)
+    .optional()
+    .describe(
+      'Grep mode only: maximum matches to return (default 50, hard cap 200). `totalMatches` always reports the full count.'
     )
 })
 
@@ -158,34 +218,8 @@ export const kbReadOutputSchema = z.object({
 export type KbReadInput = z.infer<typeof kbReadInputSchema>
 export type KbReadOutput = z.infer<typeof kbReadOutputSchema>
 
-// ── kb_grep ──────────────────────────────────────────────────────
-
-export const KB_GREP_TOOL_NAME = 'kb_grep'
-
-export const kbGrepInputSchema = z.object({
-  baseId: z.string().trim().min(1).describe('ID of the knowledge base — a base id from kb_list or a kb_search hit.'),
-  conceptId: z
-    .string()
-    .trim()
-    .min(1)
-    .describe('Concept ID of the document to search within — the `conceptId` field of a kb_search hit.'),
-  pattern: z
-    .string()
-    .min(1)
-    .max(200)
-    .describe(
-      'JavaScript regular expression matched line by line against the document text (anchors `^`/`$` bind to each ' +
-        'line; a match cannot span lines). Matches exact text — use kb_search for semantic/meaning-based lookup.'
-    ),
-  ignoreCase: z.boolean().optional().describe('Case-insensitive matching. Defaults to true.'),
-  maxMatches: z
-    .number()
-    .int()
-    .positive()
-    .max(200)
-    .optional()
-    .describe('Maximum matches to return (default 50, hard cap 200). `totalMatches` always reports the full count.')
-})
+// ── kb_read: grep mode ───────────────────────────────────────────
+// kb_read returns these shapes (instead of kbReadOutputSchema) when called with a `pattern`.
 
 export const kbGrepMatchSchema = z.object({
   line: z.number().int().positive(),
@@ -202,26 +236,14 @@ export const kbGrepOutputSchema = z.object({
   matches: z.array(kbGrepMatchSchema)
 })
 
-export type KbGrepInput = z.infer<typeof kbGrepInputSchema>
 export type KbGrepMatch = z.infer<typeof kbGrepMatchSchema>
 export type KbGrepOutput = z.infer<typeof kbGrepOutputSchema>
 
-// ── kb_tree ──────────────────────────────────────────────────────
-
-export const KB_TREE_TOOL_NAME = 'kb_tree'
-
-export const kbTreeInputSchema = z.object({
-  baseId: z.string().trim().min(1).describe('ID of the knowledge base to outline — a base id from kb_list.'),
-  maxDepth: z
-    .number()
-    .int()
-    .nonnegative()
-    .optional()
-    .describe('Limit the outline to this many folder levels (0 = top level only). Omit for the whole tree.')
-})
-
+// ── kb_list: outline mode ────────────────────────────────────────
+// kb_list returns these shapes (instead of an array of bases) when called with a `baseId`.
+//
 // Flat pre-order DFS list: `depth` carries the hierarchy (no recursive shape). A leaf with a
-// `conceptId` is readable — pass it to kb_read / kb_grep. Folders and pending items have none.
+// `conceptId` is readable — pass it to kb_read. Folders and pending items have none.
 export const kbTreeNodeSchema = z.object({
   depth: z.number().int().nonnegative(),
   title: z.string(),
@@ -237,7 +259,6 @@ export const kbTreeOutputSchema = z.object({
   nodes: z.array(kbTreeNodeSchema)
 })
 
-export type KbTreeInput = z.infer<typeof kbTreeInputSchema>
 export type KbTreeNode = z.infer<typeof kbTreeNodeSchema>
 export type KbTreeOutput = z.infer<typeof kbTreeOutputSchema>
 
@@ -287,7 +308,7 @@ export const kbManageInputSchema = z.object({
     .array(z.string().trim().min(1))
     .optional()
     .describe(
-      'For action="delete"/"refresh": Concept IDs (the `conceptId` field of a kb_search / kb_tree / kb_list result) to operate on.'
+      'For action="delete"/"refresh": Concept IDs (the `conceptId` field of a kb_search hit or a kb_list result) to operate on.'
     )
 })
 
@@ -453,8 +474,6 @@ export const CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES: readonly string[] = [
   WEB_FETCH_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
   KB_READ_TOOL_NAME,
-  KB_GREP_TOOL_NAME,
-  KB_TREE_TOOL_NAME,
   KB_LIST_TOOL_NAME,
   REPORT_ARTIFACTS_TOOL_NAME
 ]

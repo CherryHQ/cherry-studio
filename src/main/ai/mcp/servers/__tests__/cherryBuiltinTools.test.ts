@@ -77,12 +77,10 @@ describe('cherryBuiltinTools', () => {
   it('advertises builtin tools with object input schemas and no $schema marker', () => {
     const tools = listCherryBuiltinTools()
     expect(tools.map((t) => t.name).sort()).toEqual([
-      'kb_grep',
       'kb_list',
       'kb_manage',
       'kb_read',
       'kb_search',
-      'kb_tree',
       'report_artifacts',
       'web_fetch',
       'web_search'
@@ -245,7 +243,7 @@ describe('cherryBuiltinTools', () => {
     expect(textOf(result)).toContain('conceptId')
   })
 
-  it('runs kb_grep unscoped and returns matches json', async () => {
+  it('runs kb_read in grep mode (pattern) unscoped and returns matches json', async () => {
     kbGrepConcept.mockResolvedValue({
       conceptId: 'docs/intro.md',
       title: 'intro.md',
@@ -255,7 +253,7 @@ describe('cherryBuiltinTools', () => {
     })
 
     const result = await callCherryBuiltinTool(
-      'kb_grep',
+      'kb_read',
       { baseId: 'b1', conceptId: 'docs/intro.md', pattern: 'match' },
       signal
     )
@@ -265,10 +263,12 @@ describe('cherryBuiltinTools', () => {
       ignoreCase: undefined,
       maxMatches: undefined
     })
+    // read mode must NOT run when a pattern is present.
+    expect(kbReadConcept).not.toHaveBeenCalled()
     expect(JSON.parse(textOf(result))).toMatchObject({ conceptId: 'docs/intro.md', type: 'note', totalMatches: 1 })
   })
 
-  it('returns a no-matches hint (not an error) when kb_grep finds nothing', async () => {
+  it('returns a no-matches hint (not an error) when kb_read grep mode finds nothing', async () => {
     kbGrepConcept.mockResolvedValue({
       conceptId: 'docs/intro.md',
       title: 'intro.md',
@@ -278,7 +278,7 @@ describe('cherryBuiltinTools', () => {
     })
 
     const result = await callCherryBuiltinTool(
-      'kb_grep',
+      'kb_read',
       { baseId: 'b1', conceptId: 'docs/intro.md', pattern: 'zzz' },
       signal
     )
@@ -287,7 +287,7 @@ describe('cherryBuiltinTools', () => {
     expect(textOf(result)).toContain('No matches')
   })
 
-  it('runs kb_tree unscoped and returns the outline json with itemType mapped to type', async () => {
+  it('runs kb_list in outline mode (baseId) and returns the outline json with itemType mapped to type', async () => {
     kbGetOrganizationTree.mockResolvedValue({
       baseId: 'b1',
       totalItems: 2,
@@ -298,18 +298,20 @@ describe('cherryBuiltinTools', () => {
       ]
     })
 
-    const result = await callCherryBuiltinTool('kb_tree', { baseId: 'b1', maxDepth: 2 }, signal)
+    const result = await callCherryBuiltinTool('kb_list', { baseId: 'b1', maxDepth: 2 }, signal)
 
     expect(kbGetOrganizationTree).toHaveBeenCalledWith('b1', { maxDepth: 2 })
+    // list mode must NOT run when a baseId is present.
+    expect(listBases).not.toHaveBeenCalled()
     const json = JSON.parse(textOf(result))
     expect(json.totalItems).toBe(2)
     expect(json.nodes[1]).toMatchObject({ type: 'file', conceptId: 'report.pdf' })
   })
 
-  it('returns an empty-base hint (not an error) when kb_tree finds no items', async () => {
+  it('returns an empty-base hint (not an error) when kb_list outline mode finds no items', async () => {
     kbGetOrganizationTree.mockResolvedValue({ baseId: 'b1', totalItems: 0, truncated: false, nodes: [] })
 
-    const result = await callCherryBuiltinTool('kb_tree', { baseId: 'b1' }, signal)
+    const result = await callCherryBuiltinTool('kb_list', { baseId: 'b1' }, signal)
 
     expect(result.isError).toBeFalsy()
     expect(textOf(result)).toMatch(/no items/i)

@@ -42,7 +42,5 @@ describe('claudeUserFacingTools', () => {
     expect(byName.has('mcp__cherry-tools__kb_manage')).toBe(true) // user — its own toggle
     expect(byName.get('mcp__cherry-tools__kb_manage')?.label).toBe('Manage Knowledge')
     expect(byName.has('mcp__cherry-tools__kb_read')).toBe(false) // internal — follows kb capability
-    expect(byName.has('mcp__cherry-tools__kb_grep')).toBe(false) // internal
-    expect(byName.has('mcp__cherry-tools__kb_tree')).toBe(false) // internal
   })
 })

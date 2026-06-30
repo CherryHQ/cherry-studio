@@ -599,8 +599,8 @@ async function buildToolPermissions(
     autoAllowRuntimeNamePrefixes: [
       // cherry-tools is injected for every session. Auto-allowing it (no per-call approval) is a
       // deliberate decision (matches feat/chat-page): its READ tools have no side effects in the
-      // main process — web_search/web_fetch read the network, kb_search/kb_read/kb_grep/kb_tree/
-      // kb_list read the user's knowledge bases, report_artifacts only records a declaration. The
+      // main process — web_search/web_fetch read the network, kb_search/kb_read/kb_list read the
+      // user's knowledge bases, report_artifacts only records a declaration. The
       // untrusted-channel exposure this creates (approval-free reads + web_fetch URL egress for
       // channel-linked sessions) is bounded by the system-level channel security policy
       // (CHANNEL_SECURITY_PROMPT). The MUTATING kb_manage tool is carved out below — it modifies the

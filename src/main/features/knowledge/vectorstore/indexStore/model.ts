@@ -43,7 +43,7 @@ export interface RebuildMaterialInput {
 /**
  * A material identified by its Concept ID (the `relative_path`, OKF §2). The
  * relative path is UNIQUE per index, so this is the addressing primitive behind
- * the deep-read tools (kb_read / kb_grep); the caller re-validates the resolved
+ * the deep-read tool kb_read (read or grep mode); the caller re-validates the resolved
  * material against the visible knowledge_item before exposing any content.
  */
 export interface KnowledgeMaterialRef {

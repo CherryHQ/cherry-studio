@@ -518,7 +518,7 @@ export const KnowledgeSearchResultSchema = z.strictObject({
   itemId: KnowledgeItemIdSchema.optional(),
   chunkId: z.string(),
   // Concept ID (the material's relative path, OKF §2) and display title of the
-  // source document, so a hit can be followed up with kb_read / kb_grep. Optional
+  // source document, so a hit can be followed up with kb_read. Optional
   // because a not-yet-indexed snapshot has no relativePath to derive the id from.
   conceptId: z.string().optional(),
   title: z.string().optional()

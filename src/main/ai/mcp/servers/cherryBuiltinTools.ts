@@ -6,8 +6,7 @@
  * logic against the user's configured `WebSearchService` provider and knowledge
  * bases. Injected by `settingsBuilder` as an `sdk`-type MCP server; Claude calls
  * these tools as `mcp__cherry-tools__web_search`, `…__web_fetch`, `…__kb_search`,
- * `…__kb_read`, `…__kb_grep`, `…__kb_tree`, `…__kb_list`, `…__kb_manage`, and
- * `…__report_artifacts`.
+ * `…__kb_read`, `…__kb_list`, `…__kb_manage`, and `…__report_artifacts`.
  *
  * KB scope is unscoped (`allowedIds: []`) because agents have no per-assistant
  * knowledge selection — the agent sees all of the user's knowledge bases. The
@@ -17,23 +16,17 @@
 
 import { loggerService } from '@logger'
 import {
-  grepConcept,
-  KNOWLEDGE_GREP_DESCRIPTION,
   KNOWLEDGE_LIST_DESCRIPTION,
   KNOWLEDGE_MANAGE_DESCRIPTION,
   KNOWLEDGE_READ_DESCRIPTION,
   KNOWLEDGE_SEARCH_DESCRIPTION,
-  KNOWLEDGE_TREE_DESCRIPTION,
-  knowledgeGrepModelOutput,
   knowledgeListModelOutput,
   knowledgeManageModelOutput,
   knowledgeReadModelOutput,
   knowledgeSearchModelOutput,
-  knowledgeTreeModelOutput,
-  listKnowledgeBases,
+  listOrOutlineKnowledge,
   manageKnowledge,
-  readConcept,
-  readTree,
+  readOrGrepConcept,
   searchKnowledge
 } from '@main/ai/tools/knowledgeLookup'
 import {
@@ -52,18 +45,14 @@ import {
   type Tool
 } from '@modelcontextprotocol/sdk/types.js'
 import {
-  KB_GREP_TOOL_NAME,
   KB_LIST_TOOL_NAME,
   KB_MANAGE_TOOL_NAME,
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
-  KB_TREE_TOOL_NAME,
-  kbGrepInputSchema,
   kbListInputSchema,
   kbManageInputSchema,
   kbReadInputSchema,
   kbSearchInputSchema,
-  kbTreeInputSchema,
   REPORT_ARTIFACTS_DESCRIPTION,
   REPORT_ARTIFACTS_TOOL_NAME,
   reportArtifactsInputSchema,
@@ -115,38 +104,22 @@ const HANDLERS: Record<string, ToolHandler> = {
       return knowledgeSearchModelOutput(await searchKnowledge(query, baseIds, KB_ALLOWED_IDS))
     }
   },
+  // kb_read has two modes (read the document / grep it for `pattern`); readOrGrepConcept routes by `pattern`.
   [KB_READ_TOOL_NAME]: {
     description: KNOWLEDGE_READ_DESCRIPTION,
     inputSchema: kbReadInputSchema,
     run: async (args) => {
-      const { baseId, conceptId, charStart, charEnd } = kbReadInputSchema.parse(args)
-      return knowledgeReadModelOutput(await readConcept(baseId, conceptId, { charStart, charEnd }, KB_ALLOWED_IDS))
+      const input = kbReadInputSchema.parse(args)
+      return knowledgeReadModelOutput(await readOrGrepConcept(input, KB_ALLOWED_IDS))
     }
   },
-  [KB_GREP_TOOL_NAME]: {
-    description: KNOWLEDGE_GREP_DESCRIPTION,
-    inputSchema: kbGrepInputSchema,
-    run: async (args) => {
-      const { baseId, conceptId, pattern, ignoreCase, maxMatches } = kbGrepInputSchema.parse(args)
-      return knowledgeGrepModelOutput(
-        await grepConcept(baseId, conceptId, { pattern, ignoreCase, maxMatches }, KB_ALLOWED_IDS)
-      )
-    }
-  },
-  [KB_TREE_TOOL_NAME]: {
-    description: KNOWLEDGE_TREE_DESCRIPTION,
-    inputSchema: kbTreeInputSchema,
-    run: async (args) => {
-      const { baseId, maxDepth } = kbTreeInputSchema.parse(args)
-      return knowledgeTreeModelOutput(await readTree(baseId, { maxDepth }, KB_ALLOWED_IDS))
-    }
-  },
+  // kb_list has two modes (list the bases / outline one base); listOrOutlineKnowledge routes by `baseId`.
   [KB_LIST_TOOL_NAME]: {
     description: KNOWLEDGE_LIST_DESCRIPTION,
     inputSchema: kbListInputSchema,
     run: async (args) => {
       const input = kbListInputSchema.parse(args)
-      return knowledgeListModelOutput(await listKnowledgeBases(input.query, input.groupId, KB_ALLOWED_IDS), input)
+      return knowledgeListModelOutput(await listOrOutlineKnowledge(input, KB_ALLOWED_IDS), input)
     }
   },
   [KB_MANAGE_TOOL_NAME]: {
