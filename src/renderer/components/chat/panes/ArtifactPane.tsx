@@ -86,7 +86,7 @@ const ARTIFACT_PREVIEW_MAX_SIZE_LABEL = '2 MB'
 const MARKDOWN_EXT = new Set(['.md', '.mdx', '.markdown'])
 const HTML_EXT = new Set(['.html', '.htm'])
 const PDF_EXT = new Set(['.pdf'])
-const OFFICE_DOCUMENT_EXT = new Set(['.doc', '.docx', '.ppt', '.pptx'])
+const OFFICE_DOCUMENT_EXT = new Set(['.doc', '.docx', '.xls', '.xlsx', '.xlsm', '.ppt', '.pptx'])
 
 const extOf = (name: string): string => {
   const dot = name.lastIndexOf('.')

@@ -1160,7 +1160,7 @@ describe('ArtifactPane', () => {
     expect(screen.queryByText('agent.preview_pane.too_large.title')).not.toBeInTheDocument()
   })
 
-  it.each(['proposal.docx', 'legacy.doc', 'slides.ppt', 'slides.pptx'])(
+  it.each(['report.xlsx', 'report.xlsm', 'proposal.docx', 'legacy.doc', 'legacy.xls', 'slides.ppt', 'slides.pptx'])(
     'routes Office documents to the shared preview panel for %s without reading source content',
     async (fileName) => {
       mockWorkspaceTree('/tmp/workspace', [fileName])

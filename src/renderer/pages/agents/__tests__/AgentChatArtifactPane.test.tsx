@@ -259,7 +259,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
         )}
       </div>
     ),
-    isOfficeDocumentFile: (filePath: string) => /\.(?:docx?|pptx?)$/i.test(filePath),
+    isOfficeDocumentFile: (filePath: string) => /\.(?:docx?|xlsx?|xlsm|pptx?)$/i.test(filePath),
     normalizeArtifactPaneFilePath: (workspacePath: string, rawPath: string) =>
       rawPath.startsWith(`${workspacePath}/`) ? rawPath.slice(workspacePath.length + 1) : rawPath,
     resolveArtifactPaneFileSelection: (workspacePath: string | undefined, rawPath: string) => {
@@ -905,7 +905,7 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', '')
   })
 
-  it('opens Excel file paths in an ordinary file preview tab with normal file sniffing', async () => {
+  it('opens Excel file paths in an office preview tab without text sniffing', () => {
     const isTextFile = vi.mocked(window.api.file.isTextFile)
 
     renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
@@ -916,8 +916,8 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByRole('button', { name: /report\.xlsx/ })).toBeInTheDocument()
     expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
     expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-file-path', 'report.xlsx')
-    expect(screen.getByTestId('artifact-file-preview').parentElement).toHaveClass('overflow-auto')
-    await waitFor(() => expect(isTextFile).toHaveBeenCalledWith('/tmp/workspace/report.xlsx'))
+    expect(screen.getByTestId('artifact-file-preview').parentElement).toHaveClass('overflow-hidden')
+    expect(isTextFile).not.toHaveBeenCalledWith('/tmp/workspace/report.xlsx')
   })
 
   it('lets the separate file preview tab open its file in the default app', () => {
