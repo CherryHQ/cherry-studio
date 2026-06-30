@@ -1254,6 +1254,63 @@ describe('ChatComposer', () => {
     expect(inProgressSkillToken.id).toBe('skill:pdf')
   })
 
+  it('clears chat tool state while previewing plain-text history and restores the entry draft tools', async () => {
+    MockUseDataApiUtils.mockQueryData('/input-history', [
+      {
+        id: '019b0000-0000-7000-8000-000000000001',
+        content: 'history entry',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      }
+    ])
+    const file = { fileTokenSourceId: 'source-1', name: 'doc.pdf', path: '/tmp/doc.pdf' } as any
+    const knowledgeBase = { id: 'kb-1', name: 'Knowledge One', documentCount: 1 } as KnowledgeBase
+    mocks.files = [file]
+    mocks.knowledgeBases = [knowledgeBase]
+    mocks.assistant = {
+      ...mocks.assistant,
+      knowledgeBaseIds: ['kb-1']
+    }
+    mocks.getDraft.mockImplementation(() => ({
+      text: mocks.surfaceProps?.text ?? '',
+      tokens: mocks.surfaceProps?.tokens.map(serializeComposerToken) ?? []
+    }))
+
+    const onSend = vi.fn()
+    const view = render(<ChatComposer topic={topic} onSend={onSend} />)
+    mocks.selectedKnowledgeBases = [knowledgeBase]
+    view.rerender(<ChatComposer topic={topic} onSend={onSend} />)
+
+    expect(mocks.surfaceProps?.tokens).toEqual([
+      expect.objectContaining({ id: 'file:source-1' }),
+      expect.objectContaining({ id: 'knowledge:kb-1' })
+    ])
+    expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBase])
+
+    act(() => {
+      mocks.surfaceProps?.onTextChange('chat draft')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('chat draft'))
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+    expect(mocks.files).toEqual([])
+    expect(mocks.selectedKnowledgeBases).toEqual([])
+    expect(mocks.surfaceProps?.tokens).toEqual([])
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(true)
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('chat draft'))
+    expect(mocks.files).toEqual([file])
+    expect(mocks.selectedKnowledgeBases).toEqual([knowledgeBase])
+    expect(mocks.surfaceProps?.tokens).toEqual([
+      expect.objectContaining({ id: 'file:source-1' }),
+      expect.objectContaining({ id: 'knowledge:kb-1' })
+    ])
+  })
   it('does NOT save input history when editing a previous message via forkAndResend', async () => {
     const forkAndResend = vi.fn().mockResolvedValue(undefined)
     mocks.chatWrite = { pause: vi.fn(), editMessage: vi.fn(), resend: vi.fn(), forkAndResend }

@@ -445,10 +445,32 @@ const ChatComposerInner = ({
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[] | undefined>(() =>
     initialDraft.tokens.length ? initialDraft.tokens : undefined
   )
-  const applyHistoryDraft = useCallback((historyDraft: ComposerSerializedDraft) => {
-    setText(historyDraft.text)
-    setDraftTokens(historyDraft.tokens.length ? historyDraft.tokens : undefined)
-  }, [])
+  const filesRef = useLatest(files)
+  const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
+  const inputHistoryToolsRef = useRef<Pick<SavedComposerDraft, 'files' | 'selectedKnowledgeBases'> | null>(null)
+  const applyHistoryDraft = useCallback(
+    (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
+      setText(historyDraft.text)
+      setDraftTokens(historyDraft.tokens.length ? historyDraft.tokens : undefined)
+
+      if (options.source === 'history') {
+        inputHistoryToolsRef.current ??= {
+          files: filesRef.current,
+          selectedKnowledgeBases: selectedKnowledgeBasesRef.current
+        }
+        setFiles([])
+        setSelectedKnowledgeBases([])
+        return
+      }
+
+      const savedTools = inputHistoryToolsRef.current
+      inputHistoryToolsRef.current = null
+      if (!savedTools) return
+      setFiles(savedTools.files)
+      setSelectedKnowledgeBases(savedTools.selectedKnowledgeBases)
+    },
+    [filesRef, selectedKnowledgeBasesRef, setFiles, setSelectedKnowledgeBases]
+  )
   const { navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
     applyDraft: applyHistoryDraft
   })
@@ -459,12 +481,11 @@ const ChatComposerInner = ({
   const handleTextChange = useCallback(
     (nextText: string) => {
       resetHistoryIndex()
+      inputHistoryToolsRef.current = null
       setText(nextText)
     },
     [resetHistoryIndex]
   )
-  const filesRef = useLatest(files)
-  const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
   const savedDraftBeforeEditingRef = useRef<SavedComposerDraft | null>(null)
   const editingOriginalFilePartsByTokenIdRef = useRef(new Map<string, ComposerFilePart>())
   const restoredEditingSessionIdRef = useRef<number | null>(null)

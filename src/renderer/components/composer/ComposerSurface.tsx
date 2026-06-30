@@ -395,7 +395,7 @@ function createComposerEditorContent(text: string, draftTokens: readonly Compose
 
 function getComposerSelectionState(view: ComposerTextInputView) {
   const { doc, selection } = view.state
-  const lastSelectablePosition = Math.max(1, doc.content.size - 1)
+  const lastSelectablePosition = Math.max(1, doc.content.size)
 
   return {
     isAllSelected: !selection.empty && selection.from <= 1 && selection.to >= lastSelectablePosition,
