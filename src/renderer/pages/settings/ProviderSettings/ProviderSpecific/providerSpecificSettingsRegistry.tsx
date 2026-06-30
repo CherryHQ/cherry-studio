@@ -48,14 +48,14 @@ export const PROVIDER_SPECIFIC_SETTINGS_REGISTRY: Record<ProviderSpecificPlaceme
       key: 'ovms-settings',
       when: ({ provider }) => matchesPreset(provider, 'ovms'),
       render: () => <OvmsSettings />
-    },
+    }
+  ],
+  afterAuth: [
     {
       key: 'dmxapi-settings',
       when: ({ meta }) => meta.isDmxapi,
       render: (providerId) => <DmxapiSettings providerId={providerId} />
-    }
-  ],
-  afterAuth: [
+    },
     {
       key: 'lmstudio-settings',
       when: ({ provider }) => matchesPreset(provider, 'lmstudio'),
