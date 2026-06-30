@@ -1,6 +1,7 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
+import { loggerService } from '@logger'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@main/ai/constants'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
@@ -38,6 +39,8 @@ import type { RequestFeature } from './feature'
 import { INTERNAL_FEATURES } from './features'
 import { type NativeFileSupport, resolveNativeFileSupport } from './nativeFileSupport'
 import type { RequestScope, SdkConfig } from './scope'
+
+const logger = loggerService.withContext('buildAgentParams')
 
 export interface BuildAgentParamsInput {
   request: AiBaseRequest & {
@@ -185,7 +188,8 @@ async function resolveTools(
     await syncMcpToolsToRegistry(undefined, { selectedToolIds: mcpToolIds })
   }
 
-  const activeEntries = registry.selectActive({ assistant, mcpToolIds, hasFileAttachments })
+  const hasAnyKnowledgeBase = await resolveHasAnyKnowledgeBase()
+  const activeEntries = registry.selectActive({ assistant, mcpToolIds, hasFileAttachments, hasAnyKnowledgeBase })
   let tools: ToolSet | undefined
   if (activeEntries.length > 0) {
     tools = {}
@@ -200,6 +204,20 @@ async function resolveTools(
   }
   const exposed = applyDeferExposition(tools, registry, model.contextWindow)
   return { tools: exposed.tools, deferredEntries: exposed.deferredEntries, mcpToolIds }
+}
+
+/**
+ * Whether the user has any knowledge base, used to gate the `kb_*` tools in `selectActive`. Fail-open:
+ * a transient count error must not suppress the KB tools for users who do have bases (the tools
+ * themselves steer gracefully when a lookup fails), so an error is treated as "present".
+ */
+async function resolveHasAnyKnowledgeBase(): Promise<boolean> {
+  try {
+    return await application.get('KnowledgeService').hasAnyBase()
+  } catch (error) {
+    logger.warn('Failed to check for knowledge bases during tool resolution; treating as present', { error })
+    return true
+  }
 }
 
 /**
