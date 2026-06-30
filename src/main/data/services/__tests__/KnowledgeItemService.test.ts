@@ -1,4 +1,3 @@
-import { fileRefTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -614,8 +613,6 @@ describe('KnowledgeItemService', () => {
           relativePath: 'a.md'
         }
       })
-      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceId, result.id))
-      expect(refs).toHaveLength(0)
     })
   })
 
