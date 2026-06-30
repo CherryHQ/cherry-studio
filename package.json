@@ -92,7 +92,6 @@
     "ci": "pnpm ci:basic-check && pnpm ci:test-check"
   },
   "dependencies": {
-    "@aiden0z/pptx-renderer": "^1.2.2",
     "@anthropic-ai/claude-agent-sdk": "0.3.168",
     "@expo/sudo-prompt": "^9.3.2",
     "@larksuiteoapi/node-sdk": "^1.59.0",
@@ -103,7 +102,6 @@
     "@vectorstores/core": "^0.1.8",
     "@vectorstores/env": "^0.1.0",
     "@vectorstores/readers": "^0.1.8",
-    "docx-preview": "^0.3.7",
     "font-list": "2.0.0",
     "graceful-fs": "4.2.11",
     "grammy": "^1.36.3",
@@ -146,6 +144,7 @@
     "@ai-sdk/test-server": "^1.0.3",
     "@ai-sdk/togetherai": "^2.0.45",
     "@ai-sdk/xai": "^3.0.83",
+    "@aiden0z/pptx-renderer": "^1.2.2",
     "@anthropic-ai/sdk": "^0.81.0",
     "@aws-sdk/client-s3": "^3.998.0",
     "@biomejs/biome": "2.2.4",
@@ -298,6 +297,7 @@
     "dexie-react-hooks": "^1.1.7",
     "diff": "^8.0.3",
     "docx": "^9.0.2",
+    "docx-preview": "^0.3.7",
     "dompurify": "^3.2.6",
     "dotenv": "16.6.1",
     "dotenv-cli": "^7.4.2",

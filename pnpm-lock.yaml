@@ -62,9 +62,6 @@ importers:
 
   .:
     dependencies:
-      '@aiden0z/pptx-renderer':
-        specifier: ^1.2.2
-        version: 1.2.2(pdfjs-dist@5.4.296)
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.168
         version: 0.3.168(@anthropic-ai/sdk@0.81.0(zod@4.3.4))(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))(zod@4.3.4)
@@ -95,9 +92,6 @@ importers:
       '@vectorstores/readers':
         specifier: ^0.1.8
         version: 0.1.8(@vectorstores/core@0.1.8)(@vectorstores/env@0.1.0)(encoding@0.1.13)
-      docx-preview:
-        specifier: ^0.3.7
-        version: 0.3.7
       font-list:
         specifier: 2.0.0
         version: 2.0.0
@@ -219,6 +213,9 @@ importers:
       '@ai-sdk/xai':
         specifier: ^3.0.83
         version: 3.0.83(patch_hash=cea8532677e6ed5c42055d3f359c447d0eff682ae359d922da2f891a61518a45)(zod@4.3.4)
+      '@aiden0z/pptx-renderer':
+        specifier: ^1.2.2
+        version: 1.2.2(pdfjs-dist@5.4.296)
       '@anthropic-ai/sdk':
         specifier: ^0.81.0
         version: 0.81.0(zod@4.3.4)
@@ -675,6 +672,9 @@ importers:
       docx:
         specifier: ^9.0.2
         version: 9.5.1
+      docx-preview:
+        specifier: ^0.3.7
+        version: 0.3.7
       dompurify:
         specifier: ^3.2.6
         version: 3.3.1
