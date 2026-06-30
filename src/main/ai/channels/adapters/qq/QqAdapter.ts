@@ -601,6 +601,10 @@ class QqAdapter extends ChannelAdapter {
     const ttl = QQ_PASSIVE_REPLY_TTL[type] ?? QQ_PASSIVE_REPLY_TTL_DEFAULT
     if (Date.now() - entry.receivedAt > ttl) {
       this.passiveReplies.delete(chatId)
+      // The inbound msg_id has expired, so this reply degrades to an active push, which QQ
+      // delivers to a group only if the owner enabled "机器人主动在群聊内发言". Surface it so a
+      // silently-undelivered group reply is traceable.
+      this.log.warn('QQ passive-reply window lapsed; falling back to active push', { chatId, ttl })
       return undefined
     }
     entry.seq += 1
