@@ -1,13 +1,14 @@
 import { ConfirmDialog } from '@cherrystudio/ui'
+import {
+  useAgentMutationsById,
+  useAssistantMutationsById,
+  usePromptMutationsById,
+  useSkillMutationsById
+} from '@renderer/hooks/resourceCatalog'
+import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { useAgentMutationsById } from '../adapters/agentAdapter'
-import { useAssistantMutationsById } from '../adapters/assistantAdapter'
-import { usePromptMutationsById } from '../adapters/promptAdapter'
-import { useSkillMutationsById } from '../adapters/skillAdapter'
-import type { ResourceItem } from '../types'
 
 interface Props {
   resource: ResourceItem | null
@@ -21,7 +22,7 @@ interface Props {
  * `useSkillMutationsById.uninstallSkill` (skills can't ride DataApi for
  * write operations because uninstall touches filesystem symlinks).
  */
-export const DeleteConfirmDialog: FC<Props> = ({ resource, onClose }) => {
+export const ResourceDeleteConfirmDialog: FC<Props> = ({ resource, onClose }) => {
   if (!resource) return null
   return <DeleteDialogBody resource={resource} onClose={onClose} />
 }

@@ -16,7 +16,9 @@ import {
   Skeleton
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { DEFAULT_TAG_COLOR, RESOURCE_TYPE_META } from '@renderer/components/resource/resourceCatalogConstants'
 import { useDeleteTag, useRenameTag } from '@renderer/hooks/useTags'
+import type { ResourceItem, ResourceType, TagItem } from '@renderer/types/resourceCatalog'
 import type { Tag as BackendTag } from '@shared/data/types/tag'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChevronLeft, ChevronRight, Pencil, Plus, Search, Tag, Trash2, Upload, X } from 'lucide-react'
@@ -24,8 +26,6 @@ import type { FC, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { DEFAULT_TAG_COLOR, RESOURCE_TYPE_META } from '../constants'
-import type { ResourceItem, ResourceType, TagItem } from '../types'
 import { AssistantCatalogTabRail } from './AssistantCatalogTabRail'
 import { AssistantCatalogPresetContent, ResourceCard } from './ResourceCards'
 import {

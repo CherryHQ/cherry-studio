@@ -1,8 +1,8 @@
+import { RESOURCE_TYPE_ORDER } from '@renderer/components/resource/resourceCatalogConstants'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { RESOURCE_TYPE_ORDER } from '../constants'
 import LibraryPage from '../LibraryPage'
 
 const {
@@ -52,30 +52,24 @@ vi.mock('react-i18next', () => ({
   }
 }))
 
-vi.mock('../adapters/assistantAdapter', () => ({
+vi.mock('@renderer/hooks/resourceCatalog', () => ({
   useAssistantMutations: () => ({
     createAssistant: createAssistantMock,
     duplicateAssistant: duplicateAssistantMock
-  })
-}))
-
-vi.mock('../adapters/agentAdapter', () => ({
+  }),
   useAgentMutations: () => ({
     createAgent: createAgentMock
-  })
-}))
-
-vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
-  useAgentModelFilter: () => vi.fn(() => true)
-}))
-
-vi.mock('../adapters/promptAdapter', () => ({
+  }),
   usePromptMutations: () => ({
     createPrompt: createPromptMock
   }),
   usePromptMutationsById: () => ({
     updatePrompt: updatePromptMock
   })
+}))
+
+vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
+  useAgentModelFilter: () => vi.fn(() => true)
 }))
 
 vi.mock('@renderer/hooks/useTags', () => ({
@@ -139,19 +133,7 @@ vi.mock('../list/LibrarySidebar', () => ({
   )
 }))
 
-vi.mock('../list/DeleteConfirmDialog', () => ({
-  DeleteConfirmDialog: () => null
-}))
-
-vi.mock('../list/ImportAssistantDialog', () => ({
-  ImportAssistantDialog: () => null
-}))
-
-vi.mock('@renderer/components/resource/dialogs/ImportSkillDialog', () => ({
-  ImportSkillDialog: () => null
-}))
-
-vi.mock('../list/AssistantPresetPreviewDialog', () => ({
+vi.mock('@renderer/components/resource/dialogs', () => ({
   AssistantPresetPreviewDialog: ({
     addedAssistantId,
     onAdd,
@@ -184,11 +166,10 @@ vi.mock('../list/AssistantPresetPreviewDialog', () => ({
           preview go to chat
         </button>
       </div>
-    ) : null
-}))
-
-vi.mock('@renderer/components/resource/dialogs/PromptEditDialog', () => ({
-  default: ({
+    ) : null,
+  ImportAssistantDialog: () => null,
+  ImportSkillDialog: () => null,
+  PromptEditDialog: ({
     open,
     prompt,
     onCancel,
@@ -208,10 +189,7 @@ vi.mock('@renderer/components/resource/dialogs/PromptEditDialog', () => ({
           close prompt dialog
         </button>
       </div>
-    ) : null
-}))
-
-vi.mock('@renderer/components/resource/dialogs', () => ({
+    ) : null,
   ResourceCreateWizard: ({
     kind,
     open,
@@ -250,6 +228,24 @@ vi.mock('@renderer/components/resource/dialogs', () => ({
         </button>
         <button type="button" onClick={() => onOpenChange(false)}>
           close {kind} create
+        </button>
+      </div>
+    ) : null,
+  ResourceDeleteConfirmDialog: () => null,
+  SkillDetailDialog: ({
+    skill,
+    open,
+    onOpenChange
+  }: {
+    skill: { name: string } | null
+    open: boolean
+    onOpenChange: (open: boolean) => void
+  }) =>
+    open && skill ? (
+      <div role="dialog" aria-label="skill-detail-dialog">
+        <span>{skill.name}</span>
+        <button type="button" onClick={() => onOpenChange(false)}>
+          close skill detail
         </button>
       </div>
     ) : null,
@@ -301,26 +297,6 @@ vi.mock('@renderer/components/resource/dialogs', () => ({
             </button>
           </div>
         ) : null}
-      </div>
-    ) : null
-}))
-
-vi.mock('../detail/skill/SkillDetailDialog', () => ({
-  default: ({
-    skill,
-    open,
-    onOpenChange
-  }: {
-    skill: { name: string } | null
-    open: boolean
-    onOpenChange: (open: boolean) => void
-  }) =>
-    open && skill ? (
-      <div role="dialog" aria-label="skill-detail-dialog">
-        <span>{skill.name}</span>
-        <button type="button" onClick={() => onOpenChange(false)}>
-          close skill detail
-        </button>
       </div>
     ) : null
 }))

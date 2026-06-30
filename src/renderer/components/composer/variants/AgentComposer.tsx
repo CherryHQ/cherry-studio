@@ -86,7 +86,7 @@ import { useComposerFileCapabilities } from './shared/useComposerFileCapabilitie
 
 const logger = loggerService.withContext('AgentComposer')
 const ResourceEditDialogHost = React.lazy(() =>
-  import('@renderer/components/resource/dialogs/ResourceEditDialogHost').then((module) => ({
+  import('@renderer/components/resource/dialogs/edit/ResourceEditDialogHost').then((module) => ({
     default: module.ResourceEditDialogHost
   }))
 )

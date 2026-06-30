@@ -1,9 +1,8 @@
 import { MenuItem } from '@cherrystudio/ui'
+import { RESOURCE_TYPE_META, RESOURCE_TYPE_ORDER } from '@renderer/components/resource/resourceCatalogConstants'
+import type { LibrarySidebarFilter } from '@renderer/types/resourceCatalog'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { RESOURCE_TYPE_META, RESOURCE_TYPE_ORDER } from '../constants'
-import type { LibrarySidebarFilter } from '../types'
 
 interface Props {
   filter: LibrarySidebarFilter

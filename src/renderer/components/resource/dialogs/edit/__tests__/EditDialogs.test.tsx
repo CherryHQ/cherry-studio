@@ -1,12 +1,12 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import type { AgentDetail } from '@renderer/pages/library/types'
+import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import type { Assistant } from '@shared/data/types/assistant'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { EDIT_DIALOG_PROMPT_MAX_HEIGHT, EDIT_DIALOG_PROMPT_MIN_HEIGHT } from '../edit/EditDialogShared'
+import { EDIT_DIALOG_PROMPT_MAX_HEIGHT, EDIT_DIALOG_PROMPT_MIN_HEIGHT } from '../EditDialogShared'
 
 const {
   agentTools,
@@ -371,8 +371,8 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
-import { AgentEditDialog } from '../edit/AgentEditDialog'
-import { AssistantEditDialog } from '../edit/AssistantEditDialog'
+import { AgentEditDialog } from '../AgentEditDialog'
+import { AssistantEditDialog } from '../AssistantEditDialog'
 
 const ASSISTANT: Assistant = {
   id: 'assistant-1',

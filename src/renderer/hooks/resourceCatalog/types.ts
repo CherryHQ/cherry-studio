@@ -1,4 +1,4 @@
-import type { ResourceType } from '../types'
+import type { ResourceType } from '@renderer/types/resourceCatalog'
 
 export interface ResourceListQuery {
   /** Free-text match against name OR description (passed through to the API). */

@@ -1,11 +1,11 @@
 import { Badge, Button, EmptyState, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { RESOURCE_TYPE_META } from '@renderer/components/resource/resourceCatalogConstants'
+import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import type { VirtualItem } from '@tanstack/react-virtual'
 import { MoreHorizontal, Trash2 } from 'lucide-react'
 import { type KeyboardEvent, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { RESOURCE_TYPE_META } from '../constants'
-import type { ResourceItem } from '../types'
 import { ResourceCardMenu } from './ResourceCardMenu'
 import { type AssistantCatalogPreset, getAssistantPresetCatalogKey } from './useAssistantPresetCatalog'
 

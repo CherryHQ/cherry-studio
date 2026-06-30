@@ -10,10 +10,16 @@ import {
 } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
 
-import type { AssistantCatalogPreset } from './useAssistantPresetCatalog'
+export interface AssistantPresetPreviewDialogPreset {
+  description?: string
+  emoji?: string
+  group?: string[]
+  name: string
+  prompt?: string
+}
 
 interface Props {
-  preset: AssistantCatalogPreset | null
+  preset: AssistantPresetPreviewDialogPreset | null
   open: boolean
   adding?: boolean
   addedAssistantId?: string

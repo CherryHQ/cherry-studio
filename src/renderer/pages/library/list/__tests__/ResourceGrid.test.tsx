@@ -1,11 +1,11 @@
-import type { ResourceItem } from '@renderer/pages/library/types'
+import { AssistantPresetPreviewDialog } from '@renderer/components/resource/dialogs/detail/AssistantPresetPreviewDialog'
+import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type * as ReactModule from 'react'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { AssistantPresetPreviewDialog } from '../AssistantPresetPreviewDialog'
 import { ResourceCardMenu } from '../ResourceCardMenu'
 import { AssistantCatalogPresetContent, ResourceCard } from '../ResourceCards'
 import { ResourceGrid } from '../ResourceGrid'
@@ -235,7 +235,7 @@ vi.mock('@cherrystudio/ui', async () => {
   }
 })
 
-vi.mock('../../adapters/assistantAdapter', () => ({
+vi.mock('@renderer/hooks/resourceCatalog', () => ({
   useAssistantMutationsById: () => ({
     updateAssistant: updateAssistantMock
   })

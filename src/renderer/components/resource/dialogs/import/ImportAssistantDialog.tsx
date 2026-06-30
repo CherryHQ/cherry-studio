@@ -11,16 +11,15 @@ import {
   TabsTrigger,
   Textarea
 } from '@cherrystudio/ui'
+import { getRandomTagColor } from '@renderer/components/resource/resourceCatalogConstants'
+import { useAssistantMutations } from '@renderer/hooks/resourceCatalog/assistantAdapter'
 import { useEnsureTags } from '@renderer/hooks/useTags'
+import { AssistantTransferError, parseAssistantImportContent } from '@renderer/utils/assistantTransfer'
 import { Clipboard, FileJson, Link, Upload } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { sanitizeUrl } from 'strict-url-sanitise'
-
-import { useAssistantMutations } from '../adapters/assistantAdapter'
-import { getRandomTagColor } from '../constants'
-import { AssistantTransferError, parseAssistantImportContent } from '../utils/assistantTransfer'
 
 const ALLOWED_FETCH_PROTOCOLS = new Set(['http:', 'https:'])
 const ALLOWED_FETCH_HOSTS = new Set(['gist.githubusercontent.com', 'raw.githubusercontent.com'])

@@ -2,15 +2,38 @@ import { Alert, Button } from '@cherrystudio/ui'
 import {
   AgentEditDialog,
   AssistantEditDialog,
+  AssistantPresetPreviewDialog,
+  ImportAssistantDialog,
+  ImportSkillDialog,
+  PromptEditDialog,
   ResourceCreateWizard,
   type ResourceCreateWizardKind,
-  type ResourceCreateWizardValues
+  type ResourceCreateWizardValues,
+  ResourceDeleteConfirmDialog,
+  SkillDetailDialog
 } from '@renderer/components/resource/dialogs'
 import { isSelectableAssistantModel } from '@renderer/components/resource/dialogs/form/assistantModelFilter'
-import { ImportSkillDialog } from '@renderer/components/resource/dialogs/ImportSkillDialog'
-import PromptEditDialog from '@renderer/components/resource/dialogs/PromptEditDialog'
+import {
+  DEFAULT_TAG_COLOR,
+  getRandomTagColor,
+  RESOURCE_TYPE_ORDER
+} from '@renderer/components/resource/resourceCatalogConstants'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import {
+  useAgentMutations,
+  useAssistantMutations,
+  usePromptMutations,
+  usePromptMutationsById
+} from '@renderer/hooks/resourceCatalog'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
+import type {
+  AgentDetail,
+  LibrarySidebarFilter,
+  ResourceItem,
+  ResourceType,
+  TagItem
+} from '@renderer/types/resourceCatalog'
+import { serializeAssistantForExport } from '@renderer/utils/assistantTransfer'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
@@ -20,14 +43,6 @@ import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useAgentMutations } from './adapters/agentAdapter'
-import { useAssistantMutations } from './adapters/assistantAdapter'
-import { usePromptMutations, usePromptMutationsById } from './adapters/promptAdapter'
-import { DEFAULT_TAG_COLOR, getRandomTagColor, RESOURCE_TYPE_ORDER } from './constants'
-import SkillDetailDialog from './detail/skill/SkillDetailDialog'
-import { AssistantPresetPreviewDialog } from './list/AssistantPresetPreviewDialog'
-import { DeleteConfirmDialog } from './list/DeleteConfirmDialog'
-import { ImportAssistantDialog } from './list/ImportAssistantDialog'
 import { LibrarySidebar } from './list/LibrarySidebar'
 import { ResourceGrid } from './list/ResourceGrid'
 import {
@@ -38,8 +53,6 @@ import {
   useAssistantPresetCatalog
 } from './list/useAssistantPresetCatalog'
 import { useResourceLibrary } from './list/useResourceLibrary'
-import type { AgentDetail, LibrarySidebarFilter, ResourceItem, ResourceType, TagItem } from './types'
-import { serializeAssistantForExport } from './utils/assistantTransfer'
 
 type EditDialogState = { kind: 'assistant'; resource: Assistant } | { kind: 'agent'; resource: AgentDetail }
 
@@ -482,7 +495,7 @@ export default function LibraryPage() {
         )}
       </div>
 
-      <DeleteConfirmDialog resource={deleteConfirm} onClose={() => setDeleteConfirm(null)} />
+      <ResourceDeleteConfirmDialog resource={deleteConfirm} onClose={() => setDeleteConfirm(null)} />
       <SkillDetailDialog
         skill={selectedSkill}
         open={Boolean(selectedSkill)}

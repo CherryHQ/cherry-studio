@@ -1,4 +1,4 @@
-import type { ResourceListQuery } from '@renderer/pages/library/adapters/types'
+import type { ResourceListQuery } from '@renderer/hooks/resourceCatalog'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,25 +12,25 @@ const mocks = vi.hoisted(() => ({
   useTagList: vi.fn()
 }))
 
-vi.mock('../../adapters/assistantAdapter', () => ({
+vi.mock('@renderer/hooks/resourceCatalog/assistantAdapter', () => ({
   assistantAdapter: {
     useList: mocks.useAssistantList
   }
 }))
 
-vi.mock('../../adapters/agentAdapter', () => ({
+vi.mock('@renderer/hooks/resourceCatalog/agentAdapter', () => ({
   agentAdapter: {
     useList: mocks.useAgentList
   }
 }))
 
-vi.mock('../../adapters/skillAdapter', () => ({
+vi.mock('@renderer/hooks/resourceCatalog/skillAdapter', () => ({
   skillAdapter: {
     useList: mocks.useSkillList
   }
 }))
 
-vi.mock('../../adapters/promptAdapter', () => ({
+vi.mock('@renderer/hooks/resourceCatalog/promptAdapter', () => ({
   promptAdapter: {
     useList: mocks.usePromptList
   }

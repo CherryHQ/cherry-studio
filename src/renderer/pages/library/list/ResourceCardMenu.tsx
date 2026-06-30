@@ -11,14 +11,13 @@ import {
   Separator
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { DEFAULT_TAG_COLOR, getRandomTagColor } from '@renderer/components/resource/resourceCatalogConstants'
+import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
+import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { ChevronDown, Copy, Download, Plus, Tag, Trash2 } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { useAssistantMutationsById } from '../adapters/assistantAdapter'
-import { DEFAULT_TAG_COLOR, getRandomTagColor } from '../constants'
-import type { ResourceItem } from '../types'
 
 const logger = loggerService.withContext('ResourceCardMenu')
 

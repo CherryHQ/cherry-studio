@@ -5,9 +5,9 @@ import { useAssistantApiById } from '@renderer/hooks/useAssistant'
 import { useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { AgentEditDialog } from './edit/AgentEditDialog'
-import { AssistantEditDialog } from './edit/AssistantEditDialog'
-import { isSelectableAssistantModel } from './form/assistantModelFilter'
+import { isSelectableAssistantModel } from '../form/assistantModelFilter'
+import { AgentEditDialog } from './AgentEditDialog'
+import { AssistantEditDialog } from './AssistantEditDialog'
 
 export type ResourceEditDialogTarget = { kind: 'assistant'; id: string } | { kind: 'agent'; id: string }
 

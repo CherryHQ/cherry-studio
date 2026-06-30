@@ -40,7 +40,7 @@ vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelFilter: () => vi.fn(() => true)
 }))
 
-vi.mock('../edit/AssistantEditDialog', () => ({
+vi.mock('../AssistantEditDialog', () => ({
   AssistantEditDialog: ({
     onOpenChange,
     onSaved,
@@ -62,7 +62,7 @@ vi.mock('../edit/AssistantEditDialog', () => ({
     ) : null
 }))
 
-vi.mock('../edit/AgentEditDialog', () => ({
+vi.mock('../AgentEditDialog', () => ({
   AgentEditDialog: ({
     onOpenChange,
     onSaved,
