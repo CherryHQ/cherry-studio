@@ -1,4 +1,5 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
+import ImageViewer from '@renderer/components/ImageViewer'
 import { ImageDown, ImageUp, RefreshCcw, RotateCcwSquare, RotateCwSquare, ZoomIn, ZoomOut } from 'lucide-react'
 import { motion } from 'motion/react'
 import {
@@ -187,9 +188,9 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
     <div className="flex min-h-0 w-full flex-1 flex-col p-2">
       <div
         className={`relative flex min-h-0 flex-1 flex-col items-center justify-center transition-opacity ${isLoading ? 'opacity-70' : 'opacity-100'}`}>
-        {painting.files.length > 0 ? (
+        {painting.files.length > 0 && currentImageUrl ? (
           <div className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden">
-            <img
+            <ImageViewer
               alt=""
               className={`max-h-full max-w-full select-none rounded-md bg-secondary object-contain ${
                 isDraggingImage ? 'cursor-grabbing transition-none' : 'cursor-grab transition-transform duration-150'
@@ -199,6 +200,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
               onPointerDown={onImagePointerDown}
               onPointerMove={onImagePointerMove}
               onPointerUp={stopImageDrag}
+              preview={false}
               src={currentImageUrl}
               style={{
                 transform: `translate(${imageOffset.x}px, ${imageOffset.y}px) scale(${imageScale}) rotate(${imageRotation}deg)`,
