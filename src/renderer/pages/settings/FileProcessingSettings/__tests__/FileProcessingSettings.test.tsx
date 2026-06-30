@@ -1,7 +1,7 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as RendererConstantModule from '@renderer/utils/platform'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -507,6 +507,34 @@ describe('FileProcessingSettings', () => {
     expect(popup.props.title).toBe(
       'settings.tool.file_processing.processors.mistral.name settings.provider.api.key.list.title'
     )
+  })
+
+  it('reopens the file processing API key list with keys saved from the popup', async () => {
+    render(<FileProcessingSettings />)
+
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api.key.list.open' }))
+
+    await waitFor(() => {
+      expect(topViewShowMock).toHaveBeenCalledTimes(1)
+    })
+
+    await act(async () => {
+      await topViewShowMock.mock.calls[0][0].props.onSetApiKeys('mistral', ['key,1', 'key2'])
+    })
+
+    expect(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder')).toHaveValue(
+      'key\\,1, key2'
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api.key.list.open' }))
+
+    await waitFor(() => {
+      expect(topViewShowMock).toHaveBeenCalledTimes(2)
+    })
+    expect(topViewShowMock.mock.calls[1][0].props.apiKeys).toEqual(['key,1', 'key2'])
   })
 
   it('stores System OCR language options on Windows', async () => {

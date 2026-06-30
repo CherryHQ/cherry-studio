@@ -99,6 +99,8 @@ describe('FileProcessingApiKeyList', () => {
     await waitFor(() => {
       expect(screen.queryByPlaceholderText('settings.provider.api.key.new_key.placeholder')).not.toBeInTheDocument()
     })
+    expect(screen.queryByText('error.no_api_key')).not.toBeInTheDocument()
+    expect(screen.getByText('key-1')).toBeInTheDocument()
   })
 
   it('rejects duplicate API keys', async () => {
@@ -124,6 +126,10 @@ describe('FileProcessingApiKeyList', () => {
     await waitFor(() => {
       expect(setApiKeysMock).toHaveBeenCalledWith('mistral', [])
     })
+    await waitFor(() => {
+      expect(screen.queryByText('key-1')).not.toBeInTheDocument()
+    })
+    expect(screen.getByText('error.no_api_key')).toBeInTheDocument()
   })
 
   it('keeps editing when API key persistence fails', async () => {
@@ -158,14 +164,15 @@ describe('FileProcessingApiKeyList', () => {
     expect(screen.getByText('key-1')).toBeInTheDocument()
   })
 
-  it('updates saved key rows from apiKeys props', () => {
-    const { rerender } = render(
+  it('uses the latest apiKeys snapshot when remounted', () => {
+    const { unmount } = render(
       <FileProcessingApiKeyList processorId="mistral" apiKeys={['key-1']} onSetApiKeys={setApiKeysMock} />
     )
 
     expect(screen.getByText('key-1')).toBeInTheDocument()
 
-    rerender(<FileProcessingApiKeyList processorId="mistral" apiKeys={['key-2']} onSetApiKeys={setApiKeysMock} />)
+    unmount()
+    render(<FileProcessingApiKeyList processorId="mistral" apiKeys={['key-2']} onSetApiKeys={setApiKeysMock} />)
 
     expect(screen.queryByText('key-1')).not.toBeInTheDocument()
     expect(screen.getByText('key-2')).toBeInTheDocument()

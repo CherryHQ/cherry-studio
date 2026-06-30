@@ -307,11 +307,6 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const [messagePreviewTarget, setMessagePreviewTarget] = useState<GlobalSearchMessagePreviewTarget | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
-  // Mirror the persist-cache value so the mount-time refresh effect can
-  // read the latest snapshot after its async fetches resolve without
-  // re-running on every recent-items change.
-  const recentItemsRef = useRef(recentItems)
-  recentItemsRef.current = recentItems
   const [userName] = usePreference('app.user.name')
   const {
     error,
@@ -369,11 +364,11 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   // recent topic/session titles. Persisted snapshots may carry stale titles
   // when the entity was renamed after the last visit; a single parallel
   // fetch per id corrects the snapshot in place. Failures (deleted entity,
-  // network) silently fall back to the cached title. Runs once per mount;
-  // the ref + setRecentItems pairing reads the latest snapshot when the
-  // fetch resolves, so the effect doesn't need to re-run on every change.
+  // network) silently fall back to the cached title. Runs once per mount
+  // (deps intentionally empty); the functional setRecentItems updater reads the
+  // latest snapshot when the fetch resolves, so the effect doesn't re-run.
   useEffect(() => {
-    const display = getDisplayGlobalSearchRecentEntries(recentItemsRef.current ?? [])
+    const display = getDisplayGlobalSearchRecentEntries(recentItems ?? [])
     type Refreshable = Extract<GlobalSearchRecentEntry, { kind: 'topic' | 'session' }>
     const refreshable: Refreshable[] = display.flatMap((entry): Refreshable[] => {
       if (entry.kind === 'route') return []
@@ -420,25 +415,28 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         updates.set(result.id, result.name)
       }
       if (updates.size === 0) return
-      const current = recentItemsRef.current ?? []
-      const next = current.map((entry) => {
-        if (entry.kind === 'route') return entry
-        const updateName = updates.get(getGlobalSearchRecentEntryId(entry))
-        // Compare against the trimmed name so a fetch returning "" or " "
-        // never overwrites a non-empty cached title; the empty-title bypass
-        // above keeps refetching until the server actually returns one.
-        return updateName && entry.title.trim() !== updateName ? { ...entry, title: updateName } : entry
+      // Functional update resolves against the latest persisted value (the list
+      // may have changed during the fetch). Returning `current` unchanged lets
+      // the CacheService isEqual short-circuit drop the write.
+      setRecentItems((prev) => {
+        const current = [...(prev ?? [])]
+        const next = current.map((entry) => {
+          if (entry.kind === 'route') return entry
+          const updateName = updates.get(getGlobalSearchRecentEntryId(entry))
+          // Compare against the trimmed name so a fetch returning "" or " "
+          // never overwrites a non-empty cached title; the empty-title bypass
+          // above keeps refetching until the server actually returns one.
+          return updateName && entry.title.trim() !== updateName ? { ...entry, title: updateName } : entry
+        })
+        return next.every((entry, index) => areGlobalSearchRecentEntriesEqual(entry, current[index])) ? current : next
       })
-      if (!next.every((entry, index) => areGlobalSearchRecentEntriesEqual(entry, current[index]))) {
-        setRecentItems(next)
-      }
     })
 
     return () => {
       cancelled = true
     }
-    // recentItems is read through recentItemsRef so this effect only runs
-    // once on mount; updates flow through setRecentItems.
+    // Mount-only: recentItems is read once (closure-captured at mount) and
+    // updates flow through the functional setRecentItems updater.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
