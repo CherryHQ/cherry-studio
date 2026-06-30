@@ -14,9 +14,14 @@
 
 import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
-import { chatMessageFileRefTable, paintingFileRefTable } from '@data/db/schemas/fileRelations'
+import {
+  chatMessageFileRefTable,
+  paintingFileRefTable,
+  type PersistentFileRefSourceType
+} from '@data/db/schemas/fileRelations'
 import type { FileEntryId, FileRef, FileRefSourceType } from '@shared/data/types/file'
 import { FileRefSchema } from '@shared/data/types/file'
+import type { tempSessionRoles } from '@shared/data/types/file/ref'
 import { chatMessageSourceType, paintingSourceType, tempSessionSourceType } from '@shared/data/types/file/ref'
 import { asc, count, eq, inArray } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
@@ -29,7 +34,7 @@ export interface FileRefSourceKey {
 export interface CreateTempSessionFileRefRow {
   readonly fileEntryId: FileEntryId
   readonly sourceId: string
-  readonly role: string
+  readonly role: (typeof tempSessionRoles)[number]
 }
 
 export interface FileRefService {
@@ -117,27 +122,32 @@ class FileRefServiceImpl implements FileRefService {
   }
 
   async findByEntryId(fileEntryId: FileEntryId): Promise<FileRef[]> {
-    const [chatRows, paintingRows] = await Promise.all([
-      this.getDb()
-        .select()
-        .from(chatMessageFileRefTable)
-        .where(eq(chatMessageFileRefTable.fileEntryId, fileEntryId))
-        .orderBy(asc(chatMessageFileRefTable.createdAt), asc(chatMessageFileRefTable.id)),
-      this.getDb()
-        .select()
-        .from(paintingFileRefTable)
-        .where(eq(paintingFileRefTable.fileEntryId, fileEntryId))
-        .orderBy(asc(paintingFileRefTable.createdAt), asc(paintingFileRefTable.id))
-    ])
+    const persistentRefReaders = {
+      [chatMessageSourceType]: async () => {
+        const rows = await this.getDb()
+          .select()
+          .from(chatMessageFileRefTable)
+          .where(eq(chatMessageFileRefTable.fileEntryId, fileEntryId))
+          .orderBy(asc(chatMessageFileRefTable.createdAt), asc(chatMessageFileRefTable.id))
+        return rows.map(chatMessageRowToFileRef)
+      },
+      [paintingSourceType]: async () => {
+        const rows = await this.getDb()
+          .select()
+          .from(paintingFileRefTable)
+          .where(eq(paintingFileRefTable.fileEntryId, fileEntryId))
+          .orderBy(asc(paintingFileRefTable.createdAt), asc(paintingFileRefTable.id))
+        return rows.map(paintingRowToFileRef)
+      }
+    } satisfies Record<PersistentFileRefSourceType, () => Promise<FileRef[]>>
 
+    const persistentRefs = (await Promise.all(Object.values(persistentRefReaders).map((readRefs) => readRefs()))).flat()
     const tempRefs = Object.values(this.readTempSessionCache())
       .flat()
       .filter((ref) => ref.fileEntryId === fileEntryId)
       .map(tempSessionRowToFileRef)
 
-    return [...chatRows.map(chatMessageRowToFileRef), ...paintingRows.map(paintingRowToFileRef), ...tempRefs].sort(
-      compareRefs
-    )
+    return [...persistentRefs, ...tempRefs].sort(compareRefs)
   }
 
   async findBySource(source: FileRefSourceKey): Promise<FileRef[]> {
@@ -199,20 +209,25 @@ class FileRefServiceImpl implements FileRefService {
 
     for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
       const chunk = ids.slice(i, i + SQLITE_INARRAY_CHUNK)
-      const [chatRows, paintingRows] = await Promise.all([
-        this.getDb()
-          .select({ entryId: chatMessageFileRefTable.fileEntryId, refCount: count() })
-          .from(chatMessageFileRefTable)
-          .where(inArray(chatMessageFileRefTable.fileEntryId, chunk))
-          .groupBy(chatMessageFileRefTable.fileEntryId),
-        this.getDb()
-          .select({ entryId: paintingFileRefTable.fileEntryId, refCount: count() })
-          .from(paintingFileRefTable)
-          .where(inArray(paintingFileRefTable.fileEntryId, chunk))
-          .groupBy(paintingFileRefTable.fileEntryId)
-      ])
-      for (const row of chatRows) add(row.entryId, row.refCount)
-      for (const row of paintingRows) add(row.entryId, row.refCount)
+      const persistentRefCounters = {
+        [chatMessageSourceType]: () =>
+          this.getDb()
+            .select({ entryId: chatMessageFileRefTable.fileEntryId, refCount: count() })
+            .from(chatMessageFileRefTable)
+            .where(inArray(chatMessageFileRefTable.fileEntryId, chunk))
+            .groupBy(chatMessageFileRefTable.fileEntryId),
+        [paintingSourceType]: () =>
+          this.getDb()
+            .select({ entryId: paintingFileRefTable.fileEntryId, refCount: count() })
+            .from(paintingFileRefTable)
+            .where(inArray(paintingFileRefTable.fileEntryId, chunk))
+            .groupBy(paintingFileRefTable.fileEntryId)
+      } satisfies Record<PersistentFileRefSourceType, () => Promise<Array<{ entryId: FileEntryId; refCount: number }>>>
+
+      const rowGroups = await Promise.all(Object.values(persistentRefCounters).map((countRefs) => countRefs()))
+      for (const rows of rowGroups) {
+        for (const row of rows) add(row.entryId, row.refCount)
+      }
     }
 
     const requested = new Set(ids)

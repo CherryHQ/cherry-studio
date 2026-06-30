@@ -26,8 +26,8 @@
  * carries exactly the fields it needs:
  *
  * - `completed` — happy path
- * - `partial` — retained for DB sweep wire compatibility; the current DB sweep
- *   returns only `completed` or `failed`
+ * - `partial` — umbrella/wire compatibility; the current DB sweep returns only
+ *   `completed` or `failed`, while FS sweep can still report `partial`
  * - `aborted` — FS sweep refused to run because the safety threshold tripped
  * - `failed` — outer try/catch caught an unexpected throw
  *

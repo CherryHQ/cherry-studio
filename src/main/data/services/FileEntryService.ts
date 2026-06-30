@@ -20,7 +20,11 @@
 
 import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
-import { chatMessageFileRefTable, paintingFileRefTable } from '@data/db/schemas/fileRelations'
+import {
+  chatMessageFileRefTable,
+  paintingFileRefTable,
+  type PersistentFileRefSourceType
+} from '@data/db/schemas/fileRelations'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
@@ -33,6 +37,7 @@ import {
   InternalEntrySchema,
   SafeNameSchema
 } from '@shared/data/types/file'
+import { chatMessageSourceType, paintingSourceType } from '@shared/data/types/file/ref'
 import { and, asc, count, eq, isNotNull, isNull, type SQL, sql, type SQLWrapper } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 import * as z from 'zod'
@@ -190,8 +195,8 @@ export interface FileEntryService {
   findUnreferenced(query?: { origin?: FileEntryOrigin }): Promise<FileEntry[]>
 
   /**
-   * All entry ids regardless of trashed state — backs the Phase 1b.4 startup
-   * file sweep, which needs to know which on-disk UUID files have a DB row
+   * All entry ids regardless of trashed state — backs the on-demand orphan
+   * sweep, which needs to know which on-disk UUID files have a DB row
    * (active or trashed; both are out of scope for unlink).
    */
   listAllIds(): Promise<Set<FileEntryId>>
@@ -511,17 +516,21 @@ class FileEntryServiceImpl implements FileEntryService {
   }
 
   async findUnreferenced(query: { origin?: FileEntryOrigin } = {}): Promise<FileEntry[]> {
+    const persistentRefAbsenceConditions = {
+      [chatMessageSourceType]: () =>
+        sql`NOT EXISTS (SELECT 1 FROM ${chatMessageFileRefTable} WHERE ${chatMessageFileRefTable.fileEntryId} = ${fileEntryTable.id})`,
+      [paintingSourceType]: () =>
+        sql`NOT EXISTS (SELECT 1 FROM ${paintingFileRefTable} WHERE ${paintingFileRefTable.fileEntryId} = ${fileEntryTable.id})`
+    } satisfies Record<PersistentFileRefSourceType, () => SQL>
+
     const conditions: SQL[] = [
       isNull(fileEntryTable.deletedAt),
-      isNull(chatMessageFileRefTable.id),
-      isNull(paintingFileRefTable.id)
+      ...Object.values(persistentRefAbsenceConditions).map((buildCondition) => buildCondition())
     ]
     if (query.origin) conditions.push(eq(fileEntryTable.origin, query.origin))
     const rows = await this.getDb()
       .select({ entry: fileEntryTable })
       .from(fileEntryTable)
-      .leftJoin(chatMessageFileRefTable, eq(chatMessageFileRefTable.fileEntryId, fileEntryTable.id))
-      .leftJoin(paintingFileRefTable, eq(paintingFileRefTable.fileEntryId, fileEntryTable.id))
       .where(and(...conditions))
       .orderBy(asc(fileEntryTable.createdAt))
     return rows.map((r) => rowToFileEntrySafe(r.entry)).filter((e): e is FileEntry => e !== null)

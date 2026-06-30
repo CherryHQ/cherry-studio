@@ -28,6 +28,10 @@ describe('FileRefService', () => {
     orderKeySeq = 0
   })
 
+  function fileEntryId(seed: number): FileEntryId {
+    return `019606a0-0000-7000-8000-${seed.toString(16).padStart(12, '0')}`
+  }
+
   async function seedEntry(id: FileEntryId): Promise<void> {
     const now = Date.now()
     await dbh.db.insert(fileEntryTable).values({
@@ -148,7 +152,7 @@ describe('FileRefService', () => {
     it('throws on duplicate temp ref (entryId, sourceId, role)', async () => {
       const entryId = '019606a0-0000-7000-8000-00000000bb02' as FileEntryId
       await seedEntry(entryId)
-      const values = { fileEntryId: entryId, sourceId: 'dup', role: 'pending' }
+      const values = { fileEntryId: entryId, sourceId: 'dup', role: 'pending' as const }
       await fileRefService.createTempSessionRef(values)
       await expect(fileRefService.createTempSessionRef(values)).rejects.toThrow()
     })
@@ -156,7 +160,7 @@ describe('FileRefService', () => {
     it('createManyTempSessionRefs skips conflicting rows and returns inserted ones', async () => {
       const entryId = '019606a0-0000-7000-8000-00000000bb03' as FileEntryId
       await seedEntry(entryId)
-      const base = { fileEntryId: entryId, role: 'pending' }
+      const base = { fileEntryId: entryId, role: 'pending' as const }
       await fileRefService.createTempSessionRef({ ...base, sourceId: 'one' })
 
       const result = await fileRefService.createManyTempSessionRefs([
@@ -188,7 +192,7 @@ describe('FileRefService', () => {
     it('cleanupTempSessionSources removes temp refs across multiple sourceIds', async () => {
       const entryId = '019606a0-0000-7000-8000-00000000bb06' as FileEntryId
       await seedEntry(entryId)
-      const make = (sourceId: string) => ({ fileEntryId: entryId, sourceId, role: 'pending' })
+      const make = (sourceId: string) => ({ fileEntryId: entryId, sourceId, role: 'pending' as const })
       await fileRefService.createManyTempSessionRefs([make('s1'), make('s2'), make('s3')])
 
       await expect(fileRefService.cleanupTempSessionSources(['s1', 's3'])).resolves.toBe(2)
@@ -198,24 +202,48 @@ describe('FileRefService', () => {
   })
 
   describe('sweep helpers', () => {
-    it('countByEntryIds counts refs per fileEntryId across persistent and temp refs', async () => {
+    it('countByEntryIds counts refs across chat, painting, and temp-session sources', async () => {
       const idA = '019606a0-0000-7000-8000-00000000cc01' as FileEntryId
       const idB = '019606a0-0000-7000-8000-00000000cc02' as FileEntryId
       const idC = '019606a0-0000-7000-8000-00000000cc03' as FileEntryId
+      const idD = '019606a0-0000-7000-8000-00000000cc06' as FileEntryId
       const paintingId = await seedPainting()
+      const secondPaintingId = await seedPainting()
+      const messageId = await seedChatMessage()
       await seedEntry(idA)
       await seedEntry(idB)
       await seedEntry(idC)
+      await seedEntry(idD)
       await fileRefService.createManyTempSessionRefs([
         { fileEntryId: idA, sourceId: 's1', role: 'pending' },
         { fileEntryId: idA, sourceId: 's2', role: 'pending' }
       ])
       await seedPaintingRef(idB, paintingId, 'output')
+      await seedChatRef(idD, messageId)
+      await seedPaintingRef(idD, secondPaintingId, 'input')
 
-      const result = await fileRefService.countByEntryIds([idA, idB, idC])
+      const result = await fileRefService.countByEntryIds([idA, idB, idC, idD])
       expect(result.get(idA)).toBe(2)
       expect(result.get(idB)).toBe(1)
       expect(result.has(idC)).toBe(false)
+      expect(result.get(idD)).toBe(2)
+    })
+
+    it('countByEntryIds chunks batches above the SQLite IN parameter cap', async () => {
+      const ids = Array.from({ length: 501 }, (_, index) => fileEntryId(0xdd0000 + index))
+      const firstId = ids[0]
+      const boundaryId = ids[500]
+      const paintingId = await seedPainting()
+      const messageId = await seedChatMessage()
+      await seedEntry(firstId)
+      await seedEntry(boundaryId)
+      await seedPaintingRef(firstId, paintingId, 'output')
+      await seedChatRef(boundaryId, messageId)
+
+      const result = await fileRefService.countByEntryIds(ids)
+      expect(result.get(firstId)).toBe(1)
+      expect(result.get(boundaryId)).toBe(1)
+      expect(result.size).toBe(2)
     })
 
     it('pruneMissingTempSessionRefs removes stale temp refs and keeps existing ones', async () => {

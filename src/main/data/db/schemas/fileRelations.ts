@@ -1,10 +1,28 @@
-import { sql } from 'drizzle-orm'
+import type { tempSessionSourceType } from '@shared/data/types/file/ref'
+import {
+  chatMessageRoles,
+  chatMessageSourceType,
+  type FileRefSourceType,
+  paintingRoles,
+  paintingSourceType
+} from '@shared/data/types/file/ref'
+import { sql, type SQLWrapper } from 'drizzle-orm'
 import { check, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 import { fileEntryTable } from './file'
 import { messageTable } from './message'
 import { paintingTable } from './painting'
+
+function sqlStringList(values: readonly string[]) {
+  return sql.raw(values.map((value) => `'${value.replaceAll("'", "''")}'`).join(', '))
+}
+
+function roleCheck(column: SQLWrapper, roles: readonly string[]) {
+  return sql`${column} IN (${sqlStringList(roles)})`
+}
+
+export type PersistentFileRefSourceType = Exclude<FileRefSourceType, typeof tempSessionSourceType>
 
 /**
  * Chat message file references.
@@ -23,14 +41,14 @@ export const chatMessageFileRefTable = sqliteTable(
     sourceId: text()
       .notNull()
       .references(() => messageTable.id, { onDelete: 'cascade' }),
-    role: text().notNull(),
+    role: text().notNull().$type<(typeof chatMessageRoles)[number]>(),
     ...createUpdateTimestamps
   },
   (t) => [
     index('cmfr_entry_id_idx').on(t.fileEntryId),
     index('cmfr_source_id_idx').on(t.sourceId),
     uniqueIndex('cmfr_unique_idx').on(t.fileEntryId, t.sourceId, t.role),
-    check('cmfr_role_check', sql`${t.role} IN ('attachment')`)
+    check('cmfr_role_check', roleCheck(t.role, chatMessageRoles))
   ]
 )
 
@@ -50,16 +68,21 @@ export const paintingFileRefTable = sqliteTable(
     sourceId: text()
       .notNull()
       .references(() => paintingTable.id, { onDelete: 'cascade' }),
-    role: text().notNull(),
+    role: text().notNull().$type<(typeof paintingRoles)[number]>(),
     ...createUpdateTimestamps
   },
   (t) => [
     index('pfr_entry_id_idx').on(t.fileEntryId),
     index('pfr_source_id_idx').on(t.sourceId),
     uniqueIndex('pfr_unique_idx').on(t.fileEntryId, t.sourceId, t.role),
-    check('pfr_role_check', sql`${t.role} IN ('output', 'input')`)
+    check('pfr_role_check', roleCheck(t.role, paintingRoles))
   ]
 )
+
+export const persistentFileRefTablesBySourceType = {
+  [chatMessageSourceType]: chatMessageFileRefTable,
+  [paintingSourceType]: paintingFileRefTable
+} as const satisfies Record<PersistentFileRefSourceType, typeof chatMessageFileRefTable | typeof paintingFileRefTable>
 
 export type ChatMessageFileRefRow = typeof chatMessageFileRefTable.$inferSelect
 export type InsertChatMessageFileRefRow = typeof chatMessageFileRefTable.$inferInsert

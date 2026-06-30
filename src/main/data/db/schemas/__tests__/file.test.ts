@@ -271,13 +271,14 @@ describe('chatMessageFileRefTable — CASCADE FK', () => {
   it('rejects unsupported chat_message_file_ref roles', async () => {
     const entry = baseInternal()
     const messageId = await seedMessage()
+    const invalidRole = 'source' as unknown as (typeof chatMessageFileRefTable.$inferInsert)['role']
     await dbh.db.insert(fileEntryTable).values(entry)
     await expect(
       dbh.db.insert(chatMessageFileRefTable).values({
         id: randomUUID(),
         fileEntryId: entry.id,
         sourceId: messageId,
-        role: 'source',
+        role: invalidRole,
         createdAt: TS,
         updatedAt: TS
       })
@@ -362,6 +363,23 @@ describe('paintingFileRefTable — CASCADE FK', () => {
       })
     ).rejects.toThrow()
   })
+
+  it('rejects unsupported painting_file_ref roles', async () => {
+    const entry = baseInternal()
+    const paintingId = await seedPainting()
+    const invalidRole = 'source' as unknown as (typeof paintingFileRefTable.$inferInsert)['role']
+    await dbh.db.insert(fileEntryTable).values(entry)
+    await expect(
+      dbh.db.insert(paintingFileRefTable).values({
+        id: randomUUID(),
+        fileEntryId: entry.id,
+        sourceId: paintingId,
+        role: invalidRole,
+        createdAt: TS,
+        updatedAt: TS
+      })
+    ).rejects.toThrow()
+  })
 })
 
 describe('paintingFileRefTable — unique constraint', () => {
@@ -388,7 +406,7 @@ describe('paintingFileRefTable — unique constraint', () => {
     const refValues = {
       fileEntryId: entry.id,
       sourceId: paintingId,
-      role: 'output',
+      role: 'output' as const,
       createdAt: TS,
       updatedAt: TS
     }
