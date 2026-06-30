@@ -76,7 +76,7 @@
 
 `AggregateMember { table, viaColumn, cascade:'include'|'optional' }`：include=随根整体处理；optional=根冲突时仅置空。派生由 `finalize` 启动期完成，**不**在 hook 调用期。
 
-### 4.2 25 不变量要点（§8.5 精炼，非全抄）
+### 4.2 26 不变量要点（§8.5 精炼，非全抄）
 
 每条失败抛 `ContributorFinalizeError(invariantId, payload)`，payload 含 domain/table/sourceType/owner 字段。
 
@@ -93,10 +93,11 @@
 - #11 每个 `FileRefSourceType` 有 owner 或 runtime-only 排除；#12 声明的 `jsonSoftReferences` 列真实存在且为 json 类型（不反向全库扫描）。
 
 **聚合边界（核心）**：
-- #13 aggregate.root 在 owner，identityKey 是其 PK 或业务 UNIQUE 键（防跨设备同值不同 UUID 撞 UNIQUE）。
+- #13 aggregate.root 在 owner，identityKey 是其 PK 或业务 UNIQUE 键（防跨设备同值不同 UUID 撞 UNIQUE）；非 PK 的 natural-key/slot identityKey 须由 codegen `DB_UNIQUE_KEYS` 证实真有 UNIQUE 约束，PK-backed identityKey（uuid/自然/复合 PK）豁免。
 - #14 aggregate.members 派生自 owning include references——junction 表、跨域 ref、及域内指向**其它聚合根**的 owning ref 均不计入（仅指向本 root 的 owning ref 入 members）；optional 自引用不计入；多 owning reference 指向 member/root 须显式 parent 否则拒绝歧义；parent 链有环拒绝。
 - #15 members 中每成员表属于本 contributor、viaColumn 是真实 FK 列指向 root.identityKey 或父 member 的 PK（多层 cascade A→B→C，C.viaColumn→B，§4.1 parent 派生）、junction 表不计入。
 - #16 renamable:true 聚合须有 `operations.cloneAggregate`。
+- #26 renamable:true 聚合 root PK 须为单列（importer 的 newRootKey 是单值，cloneAggregate 仅替换一个 PK 列；复合 PK renamable 会致 rename 身份损坏，应改 renamable:false）。
 
 **FK 自洽（须 codegen 生成 `DB_FOREIGN_KEYS`）**：
 - #19 每个 `EntityReference.kind` 与生成的 FK onDelete 自洽（cascade/restrict→owning 或 junction；set null/no action→optional；set default→拒绝）。

@@ -1,11 +1,11 @@
-// Tests for finalize() — the 25 registry invariants — plus the ReadonlyBackupRegistry
+// Tests for finalize() — the 26 registry invariants — plus the ReadonlyBackupRegistry
 // query surface and ContributorManager lazy/idempotent behavior.
 //
 // Strategy: a 14-domain synthetic fixture passes finalize cleanly (happy path);
 // each invariant is then exercised by cloning the fixture and mutating the one
 // declaration that should trip it. The fixture maps 14 domains onto 14 real
 // tables (FK-free where possible) and covers all 4 FileRefSourceTypes, so it
-// satisfies #1–#25 without the real B-track contributors.
+// satisfies #1–#26 without the real B-track contributors.
 import type {
   AggregateBoundary,
   BackupContributor,
@@ -262,6 +262,40 @@ describe('finalize invariants', () => {
     )
   })
 
+  it('#13 accepts a natural-key identityKey backed by a real UNIQUE constraint', () => {
+    // tag.name has a UNIQUE index (codegen DB_UNIQUE_KEYS.tag); a natural-key
+    // identityKey of ['name'] (≠ PK ['id']) is backed → passes #13.
+    const list = patchSchema(buildFixture(), 'TAGS_GROUPS', {
+      aggregates: [
+        {
+          root: 'tag',
+          renamable: false,
+          identityKey: ['name'],
+          identityClass: 'natural-key',
+          conflictDefault: 'FIELD_MERGE'
+        }
+      ]
+    })
+    expect(() => finalize(list, META)).not.toThrow()
+  })
+
+  it('#13 rejects a natural-key identityKey with no UNIQUE backing', () => {
+    // assistant.name exists but has NO unique index (DB_UNIQUE_KEYS.assistant = []);
+    // declaring it as a natural-key identityKey (≠ PK ['id']) is unbacked → #13.
+    const list = patchSchema(buildFixture(), 'ASSISTANTS', {
+      aggregates: [
+        {
+          root: 'assistant',
+          renamable: false,
+          identityKey: ['name'],
+          identityClass: 'natural-key',
+          conflictDefault: 'FIELD_MERGE'
+        }
+      ]
+    })
+    expectInvariant(list, 13)
+  })
+
   it('#14 rejects an aggregate member with no deriving owning reference', () => {
     // TAGS_GROUPS owns group+tag; declare group as a root with tag as a member, but
     // tag has no owning reference into group → #14.
@@ -299,6 +333,35 @@ describe('finalize invariants', () => {
 
   it('#16 rejects a renamable aggregate without cloneAggregate', () => {
     expectInvariant(patchSchema(buildFixture(), 'PROMPTS', { aggregates: [{ root: 'prompt', renamable: true }] }), 16)
+  })
+
+  it('#26 rejects a renamable aggregate with a composite root PK', () => {
+    // preference PK is composite [scope,key]; cloneAggregate is supplied so #16 passes,
+    // but #26 rejects — newRootKey is a single value and cannot fill a composite PK.
+    const list = buildFixture().map((c) =>
+      c.domain === 'PREFERENCES'
+        ? {
+            ...c,
+            schema: { ...c.schema, aggregates: [{ root: 'preference' as DbTableName, renamable: true }] },
+            operations: { cloneAggregate: async () => ({ rootRow: {} }) }
+          }
+        : c
+    )
+    expectInvariant(list, 26)
+  })
+
+  it('#26 allows a renamable aggregate with a single-column root PK', () => {
+    // prompt PK is ['id'] (single column); renamable + cloneAggregate present → #16 and #26 both pass.
+    const list = buildFixture().map((c) =>
+      c.domain === 'PROMPTS'
+        ? {
+            ...c,
+            schema: { ...c.schema, aggregates: [{ root: 'prompt' as DbTableName, renamable: true }] },
+            operations: { cloneAggregate: async () => ({ rootRow: {} }) }
+          }
+        : c
+    )
+    expect(() => finalize(list, META)).not.toThrow()
   })
 
   // NOTE: #19's restrict direction and #20's two branches (junction + non-cascade FK;
