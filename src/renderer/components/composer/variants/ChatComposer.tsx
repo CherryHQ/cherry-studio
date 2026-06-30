@@ -49,9 +49,11 @@ import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useStat
 import { useTranslation } from 'react-i18next'
 
 import { createComposerUserMessageParts } from '../composerDraft'
+import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
+import { useInputHistory } from '../useInputHistory'
 import { type ChatComposerDraftCache, readChatDraftCache, writeChatDraftCache } from './chat/chatDraftCache'
 import { createEditableMessageDraft, getEditableKnowledgeBases } from './chat/messageEditingDraft'
 import { useChatKnowledgeBaseScope } from './chat/useChatKnowledgeBaseScope'
@@ -445,6 +447,45 @@ const ChatComposerInner = ({
   )
   const filesRef = useLatest(files)
   const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
+  const inputHistoryToolsRef = useRef<Pick<SavedComposerDraft, 'files' | 'selectedKnowledgeBases'> | null>(null)
+  const applyHistoryDraft = useCallback(
+    (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
+      setText(historyDraft.text)
+      setDraftTokens(historyDraft.tokens.length ? historyDraft.tokens : undefined)
+
+      if (options.source === 'history') {
+        inputHistoryToolsRef.current ??= {
+          files: filesRef.current,
+          selectedKnowledgeBases: selectedKnowledgeBasesRef.current
+        }
+        setFiles([])
+        setSelectedKnowledgeBases([])
+        return
+      }
+
+      const savedTools = inputHistoryToolsRef.current
+      inputHistoryToolsRef.current = null
+      if (!savedTools) return
+      setFiles(savedTools.files)
+      setSelectedKnowledgeBases(savedTools.selectedKnowledgeBases)
+    },
+    [filesRef, selectedKnowledgeBasesRef, setFiles, setSelectedKnowledgeBases]
+  )
+  const { navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
+    applyDraft: applyHistoryDraft
+  })
+  const handleInputHistoryNavigate = useCallback(
+    (direction: InputHistoryDirection) => navigateHistory(direction, actionsRef.current.getDraft()),
+    [actionsRef, navigateHistory]
+  )
+  const handleTextChange = useCallback(
+    (nextText: string) => {
+      resetHistoryIndex()
+      inputHistoryToolsRef.current = null
+      setText(nextText)
+    },
+    [resetHistoryIndex]
+  )
   const savedDraftBeforeEditingRef = useRef<SavedComposerDraft | null>(null)
   const editingOriginalFilePartsByTokenIdRef = useRef(new Map<string, ComposerFilePart>())
   const restoredEditingSessionIdRef = useRef<number | null>(null)
@@ -715,6 +756,9 @@ const ChatComposerInner = ({
           knowledgeBaseIds: payload.knowledgeBaseIds,
           userMessageParts: [...payload.userMessageParts, ...fileParts]
         })
+        void saveHistory(payload.text).catch((error) => {
+          logger.warn('Failed to save input history', { error })
+        })
         return true
       } catch (error) {
         logger.warn('send failed', { error })
@@ -723,7 +767,7 @@ const ChatComposerInner = ({
         setIsSending(false)
       }
     },
-    [onSend]
+    [onSend, saveHistory]
   )
 
   const clearCurrentDraft = useCallback(() => {
@@ -731,7 +775,14 @@ const ChatComposerInner = ({
     setDraftTokens(undefined)
     setFiles([])
     setSelectedKnowledgeBases([])
-  }, [setFiles, setSelectedKnowledgeBases, setText])
+    // Clearing the composer must also drop the input-history nav state: a
+    // recalled draft that gets sent/queued without further edits would otherwise
+    // leave useInputHistory pointing at that history entry, so the next
+    // ArrowDown would restore the already-sent draft and ArrowUp would resume
+    // from a stale index.
+    resetHistoryIndex()
+    inputHistoryToolsRef.current = null
+  }, [resetHistoryIndex, setFiles, setSelectedKnowledgeBases, setText])
 
   // Queue mode: while a turn streams, follow-ups go here instead of sending; the head auto-drains
   // (normal send) when the topic goes idle, and the dock steers/edits/removes individual items.
@@ -936,7 +987,7 @@ const ChatComposerInner = ({
       )}
       <ComposerSurface
         text={text}
-        onTextChange={setText}
+        onTextChange={handleTextChange}
         tokens={tokens}
         draftTokens={draftTokens}
         managedTokenKinds={CHAT_MANAGED_TOKEN_KINDS}
@@ -1010,6 +1061,7 @@ const ChatComposerInner = ({
         narrowMode={forceNarrowLayout || narrowMode}
         onFocus={() => setSearching(false)}
         onActionsChange={handleSurfaceActionsChange}
+        onInputHistoryNavigate={handleInputHistoryNavigate}
         getToolLaunchers={() => getLaunchers()}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
         {...controlSlots}

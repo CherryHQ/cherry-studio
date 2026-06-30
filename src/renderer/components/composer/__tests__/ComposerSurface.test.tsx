@@ -2596,6 +2596,147 @@ describe('ComposerSurface', () => {
     expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
   })
 
+  describe('input history navigation', () => {
+    // buildView returns a minimal view mock with a state that satisfies
+    // getComposerSelectionState. In ProseMirror, `doc.content.size` is one past
+    // the trailing block-close token, so a caret visually at the end of the
+    // text sits at `content.size - 1` (with empty text normalized to position 1).
+    function buildView(cursorAtEnd: boolean, allSelected: boolean) {
+      const contentSize = 10
+      const endPosition = Math.max(1, contentSize - 1)
+      return {
+        state: {
+          doc: { content: { size: contentSize } },
+          selection: cursorAtEnd
+            ? { empty: true, from: endPosition, to: endPosition }
+            : allSelected
+              ? { empty: false, from: 0, to: contentSize }
+              : { empty: true, from: 3, to: 3 }
+        }
+      } as any
+    }
+
+    it('calls onInputHistoryNavigate with "up" when ArrowUp is pressed at the cursor end', async () => {
+      const onInputHistoryNavigate = vi.fn().mockReturnValue(true)
+      render(<ComposerSurface {...baseProps} text="hello" onInputHistoryNavigate={onInputHistoryNavigate} />)
+
+      await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowUp', cancelable: true })
+      const handled = mocks.editorOptions.editorProps.handleKeyDown(buildView(true, false), event)
+
+      expect(handled).toBe(true)
+      expect(onInputHistoryNavigate).toHaveBeenCalledWith('up')
+      expect(event.defaultPrevented).toBe(true)
+    })
+
+    it('does not treat the cursor one position before the document end as history-eligible', async () => {
+      const onInputHistoryNavigate = vi.fn().mockReturnValue(true)
+      render(<ComposerSurface {...baseProps} text="hello" onInputHistoryNavigate={onInputHistoryNavigate} />)
+
+      await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowUp', cancelable: true })
+      const handled = mocks.editorOptions.editorProps.handleKeyDown(
+        {
+          state: {
+            doc: { content: { size: 10 } },
+            selection: { empty: true, from: 8, to: 8 }
+          }
+        } as any,
+        event
+      )
+
+      expect(handled).toBe(false)
+      expect(onInputHistoryNavigate).not.toHaveBeenCalled()
+      expect(event.defaultPrevented).toBe(false)
+    })
+    it('calls onInputHistoryNavigate with "down" when ArrowDown is pressed with all text selected', async () => {
+      const onInputHistoryNavigate = vi.fn().mockReturnValue(true)
+      render(<ComposerSurface {...baseProps} text="hello" onInputHistoryNavigate={onInputHistoryNavigate} />)
+
+      await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowDown', cancelable: true })
+      const handled = mocks.editorOptions.editorProps.handleKeyDown(buildView(false, true), event)
+
+      expect(handled).toBe(true)
+      expect(onInputHistoryNavigate).toHaveBeenCalledWith('down')
+      expect(event.defaultPrevented).toBe(true)
+    })
+
+    it('does NOT preventDefault or call onInputHistoryNavigate when the guard rejects (non-empty, cursor in the middle)', async () => {
+      const onInputHistoryNavigate = vi.fn().mockReturnValue(true)
+      render(<ComposerSurface {...baseProps} text="hello" onInputHistoryNavigate={onInputHistoryNavigate} />)
+
+      await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowUp', cancelable: true })
+      const handled = mocks.editorOptions.editorProps.handleKeyDown(buildView(false, false), event)
+
+      expect(handled).toBe(false)
+      expect(onInputHistoryNavigate).not.toHaveBeenCalled()
+      expect(event.defaultPrevented).toBe(false)
+    })
+
+    it('does not prevent default when input history navigation returns false', async () => {
+      const onInputHistoryNavigate = vi.fn().mockReturnValue(false)
+      render(<ComposerSurface {...baseProps} text="hello" onInputHistoryNavigate={onInputHistoryNavigate} />)
+
+      await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowUp', cancelable: true })
+      const handled = mocks.editorOptions.editorProps.handleKeyDown(buildView(true, false), event)
+
+      // The parent signal was "not handled" — Surface must not preventDefault and must
+      // let the event bubble to the editor (so the caret can still move on empty history).
+      expect(handled).toBe(false)
+      expect(onInputHistoryNavigate).toHaveBeenCalledWith('up')
+      expect(event.defaultPrevented).toBe(false)
+    })
+
+    it('skips input history navigation while the QuickPanel is visible', async () => {
+      mocks.quickPanelIsVisible = true
+      const onInputHistoryNavigate = vi.fn().mockReturnValue(true)
+      render(<ComposerSurface {...baseProps} text="hello" onInputHistoryNavigate={onInputHistoryNavigate} />)
+
+      await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowUp', cancelable: true })
+      const handled = mocks.editorOptions.editorProps.handleKeyDown(buildView(true, false), event)
+
+      expect(handled).toBe(false)
+      expect(onInputHistoryNavigate).not.toHaveBeenCalled()
+      expect(event.defaultPrevented).toBe(false)
+    })
+
+    it('treats a caret sitting at doc.content.size - 1 (the visual end of non-empty text) as history-eligible', async () => {
+      // Regression: ProseMirror positions include the trailing block-close token,
+      // so a caret visually at the end of "hello" sits at `content.size - 1` (9),
+      // not at `content.size` (10). The history-navigation guard must accept
+      // position 9 even though `content.size` is 10.
+      const onInputHistoryNavigate = vi.fn().mockReturnValue(true)
+      render(<ComposerSurface {...baseProps} text="hello" onInputHistoryNavigate={onInputHistoryNavigate} />)
+
+      await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+      const event = new KeyboardEvent('keydown', { key: 'ArrowUp', cancelable: true })
+      const handled = mocks.editorOptions.editorProps.handleKeyDown(
+        {
+          state: {
+            doc: { content: { size: 10 } },
+            selection: { empty: true, from: 9, to: 9 }
+          }
+        } as any,
+        event
+      )
+
+      expect(handled).toBe(true)
+      expect(onInputHistoryNavigate).toHaveBeenCalledWith('up')
+      expect(event.defaultPrevented).toBe(true)
+    })
+  })
+
   it('keeps the QuickPanel root as the parent when opening child panels from slash', async () => {
     const onToolLauncherSelect = vi.fn()
     render(

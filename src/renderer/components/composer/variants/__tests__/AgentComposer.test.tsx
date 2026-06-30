@@ -3,6 +3,7 @@ import type { FileMetadata } from '@renderer/types/file'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { LocalSkill } from '@shared/types/skill'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
@@ -36,7 +37,9 @@ const mocks = vi.hoisted(() => ({
   availableSkills: [] as LocalSkill[],
   availableSkillsRefresh: vi.fn(),
   contextUsagePercentage: null as number | null,
+  saveInputHistoryTrigger: vi.fn(),
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
+  getDraft: vi.fn(),
   derivedToolState: undefined as { couldAddImageFile: boolean; extensions: string[] } | undefined,
   shortcutHandlers: new Map<string, () => void>(),
   shortcutOptions: new Map<string, Record<string, unknown> | undefined>(),
@@ -116,7 +119,14 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
         toggleExpanded: vi.fn(),
         removeToken: vi.fn(),
         insertToken: mocks.insertToken,
-        getDraft: () => ({ text: props.text, tokens: [...(props.draftTokens ?? [])] })
+        getDraft: () => {
+          // Default: mirror the live composer state. Individual tests override via
+          // mocks.getDraft.mockImplementation to inject specific tokens.
+          if (mocks.getDraft.mock.calls.length > 0 || mocks.getDraft.getMockImplementation()) {
+            return mocks.getDraft()
+          }
+          return { text: props.text, tokens: [...(props.draftTokens ?? [])] }
+        }
       })
     }, [props])
 
@@ -455,6 +465,9 @@ describe('AgentComposer', () => {
     mocks.updateModel.mockReset()
     mocks.updateSession.mockReset()
     mocks.setFiles.mockReset()
+    mocks.setFiles.mockImplementation((value) => {
+      mocks.files = typeof value === 'function' ? value(mocks.files) : value
+    })
     mocks.insertToken.mockReset()
     mocks.availableSkills = []
     mocks.availableSkillsRefresh.mockReset()
@@ -463,6 +476,7 @@ describe('AgentComposer', () => {
     mocks.surfaceProps = undefined
     mocks.derivedToolState = undefined
     mocks.runtimeHostProps = undefined
+    mocks.getDraft.mockReset()
     mocks.shortcutHandlers.clear()
     mocks.shortcutOptions.clear()
     mocks.ipcListeners.clear()
@@ -471,6 +485,11 @@ describe('AgentComposer', () => {
       mocks.ipcListeners.set(channel, listener)
       return () => mocks.ipcListeners.delete(channel)
     })
+    MockUseDataApiUtils.resetMocks()
+    MockUseDataApiUtils.mockQueryData('/input-history', [])
+    mocks.saveInputHistoryTrigger.mockReset()
+    mocks.saveInputHistoryTrigger.mockResolvedValue({})
+    MockUseDataApiUtils.mockMutationWithTrigger('POST', '/input-history', mocks.saveInputHistoryTrigger)
     Object.defineProperty(window, 'electron', {
       configurable: true,
       value: {
@@ -535,6 +554,267 @@ describe('AgentComposer', () => {
     expect(onNewSessionDraft).toHaveBeenCalledTimes(1)
   })
 
+  it('wires input history navigation into the composer surface', async () => {
+    MockUseDataApiUtils.mockQueryData('/input-history', [
+      {
+        id: '019b0000-0000-7000-8000-000000000001',
+        content: 'previous agent prompt',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      }
+    ])
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+
+    await waitFor(() => {
+      expect(mocks.surfaceProps?.text).toBe('previous agent prompt')
+    })
+  })
+
+  it('saves input history after a successful agent send', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined)
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'agent says hi', tokens: [] })
+    })
+
+    await waitFor(() => {
+      expect(mocks.sendMessage).toHaveBeenCalled()
+      expect(mocks.saveInputHistoryTrigger).toHaveBeenCalledWith({ body: { content: 'agent says hi' } })
+    })
+  })
+
+  it('resets input history navigation after a successful agent send, so a subsequent ArrowDown does not restore the recalled draft', async () => {
+    // Regression: clearCurrentDraft must also drop useInputHistory's nav state.
+    // Without that, recalling a history item, sending it, then pressing ArrowDown
+    // would restore the already-sent draft instead of staying on the fresh empty
+    // composer; ArrowUp would also resume from the stale index.
+    MockUseDataApiUtils.mockQueryData('/input-history', [
+      {
+        id: '019b0000-0000-7000-8000-000000000001',
+        content: 'sent history entry',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      }
+    ])
+    mocks.getDraft.mockImplementation(() => ({
+      text: mocks.surfaceProps?.text ?? '',
+      tokens: []
+    }))
+    mocks.sendMessage.mockResolvedValue(undefined)
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    // Recall the history entry.
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('sent history entry'))
+
+    // Send the recalled draft without any further edits.
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'sent history entry', tokens: [] })
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe(''))
+
+    // ArrowDown after a successful send must NOT restore the recalled draft.
+    act(() => {
+      mocks.surfaceProps?.onInputHistoryNavigate?.('down')
+    })
+    expect(mocks.surfaceProps?.text).toBe('')
+
+    // ArrowUp from the fresh composer should re-enter history at the latest entry.
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('sent history entry'))
+  })
+
+  it('does NOT save input history when an agent send rejects', async () => {
+    mocks.sendMessage.mockRejectedValue(new Error('agent send failed'))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'doomed agent send', tokens: [] })
+    })
+
+    expect(mocks.sendMessage).toHaveBeenCalled()
+    expect(mocks.saveInputHistoryTrigger).not.toHaveBeenCalled()
+  })
+
+  it('does NOT save input history when the follow-up is enqueued during streaming (only on real drain)', async () => {
+    mocks.sendMessage.mockResolvedValue(undefined)
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'queued agent follow-up', tokens: [] })
+    })
+
+    // Enqueue path: sendMessage is NOT called directly — it goes through the dock.
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(mocks.saveInputHistoryTrigger).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.queueContent).toBeTruthy()
+
+    // Manually drain the dock. Now sendMessage runs and saveHistory fires.
+    const queueContent = mocks.surfaceProps?.queueContent as any
+    const itemId = queueContent.props.items[0].id
+    await act(async () => {
+      await queueContent.props.onSteer(itemId)
+    })
+
+    await waitFor(() => {
+      expect(mocks.sendMessage).toHaveBeenCalled()
+      expect(mocks.saveInputHistoryTrigger).toHaveBeenCalledWith({ body: { content: 'queued agent follow-up' } })
+    })
+  })
+
+  it('round-trips in-progress skill tokens through agent input history navigation', async () => {
+    MockUseDataApiUtils.mockQueryData('/input-history', [
+      {
+        id: '019b0000-0000-7000-8000-000000000001',
+        content: 'history entry',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      }
+    ])
+
+    const inProgressSkillToken = {
+      id: 'skill:pdf',
+      kind: 'skill',
+      label: 'pdf',
+      index: 0,
+      textOffset: 0
+    }
+    mocks.getDraft.mockImplementation(() => ({
+      text: mocks.surfaceProps?.text ?? '',
+      tokens: [inProgressSkillToken]
+    }))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    // Pre-condition: no skill tokens yet.
+    expect(mocks.surfaceProps?.tokens ?? []).toEqual([])
+
+    // Enter history.
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+
+    // Exit history — entry draft's skill token must come back as a live selectedSkill.
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(true)
+    })
+    // applyHistoryDraft rebuilds skill tokens via getCachedSkillTokens(historyDraft.tokens).
+    // The entry draft had tokens: [skill:pdf], so on ArrowDown that token should reappear.
+    await waitFor(() => {
+      const tokens = mocks.surfaceProps?.tokens ?? []
+      expect(tokens).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'skill:pdf' })]))
+    })
+  })
+
+  it('clears agent files while previewing plain-text history and restores the entry draft files', async () => {
+    MockUseDataApiUtils.mockQueryData('/input-history', [
+      {
+        id: '019b0000-0000-7000-8000-000000000001',
+        content: 'history entry',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      }
+    ])
+    mocks.files = [file]
+    mocks.getDraft.mockImplementation(() => ({
+      text: mocks.surfaceProps?.text ?? '',
+      tokens: mocks.surfaceProps?.tokens.map((token, index) => ({ ...token, index, textOffset: 0 })) ?? []
+    }))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.surfaceProps?.tokens).toEqual([expect.objectContaining({ id: 'file:source-file-1' })])
+
+    act(() => {
+      mocks.surfaceProps?.onTextChange('agent draft')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('agent draft'))
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+    expect(mocks.files).toEqual([])
+    expect(mocks.surfaceProps?.tokens).toEqual([])
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(true)
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('agent draft'))
+    expect(mocks.files).toEqual([file])
+    expect(mocks.surfaceProps?.tokens).toEqual([expect.objectContaining({ id: 'file:source-file-1' })])
+  })
   it('passes attachment capabilities through the provider without effect mirroring', () => {
     render(
       <AgentComposer
@@ -1194,6 +1474,7 @@ describe('AgentComposer', () => {
 
     // A failed manual steer must not silently drop the queued item.
     expect(queueContent.props.items.map((entry: any) => entry.id)).toContain(itemId)
+    expect(mocks.saveInputHistoryTrigger).not.toHaveBeenCalled()
   })
 
   it('restores the current draft, files, and skill tokens when sending a new agent message fails', async () => {

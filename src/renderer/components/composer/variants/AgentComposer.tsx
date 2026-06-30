@@ -48,9 +48,11 @@ import { Bot, ChevronDown, CircleSlash, Folder, Sparkles, TriangleAlert } from '
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
+import { useInputHistory } from '../useInputHistory'
 import {
   type AgentComposerDraftCache,
   getAgentDraftCacheKey,
@@ -81,6 +83,7 @@ import { emptyActions, type ProviderActionHandlers } from './shared/composerProv
 import { buildComposerQueuedPayload } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
+import { useLatest } from './shared/useLatest'
 
 const logger = loggerService.withContext('AgentComposer')
 
@@ -601,6 +604,45 @@ const AgentComposerInner = ({
     },
     [draftCacheKey]
   )
+  const filesRef = useLatest(files)
+  const inputHistoryFilesRef = useRef<ComposerAttachment[] | null>(null)
+  const applyHistoryDraft = useCallback(
+    (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
+      const nextSkillTokens = getCachedSkillTokens(historyDraft.tokens)
+      setText(historyDraft.text)
+      setDraftTokens(nextSkillTokens)
+      draftTokensRef.current = nextSkillTokens
+      writeAgentDraftCache(draftCacheKey, historyDraft.text, nextSkillTokens)
+      setSelectedSkills(nextSkillTokens.map(getSkillFromCachedToken))
+
+      if (options.source === 'history') {
+        inputHistoryFilesRef.current ??= filesRef.current
+        setFiles([])
+        return
+      }
+
+      const savedFiles = inputHistoryFilesRef.current
+      inputHistoryFilesRef.current = null
+      if (!savedFiles) return
+      setFiles(savedFiles)
+    },
+    [draftCacheKey, filesRef, setFiles, setText]
+  )
+  const { navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
+    applyDraft: applyHistoryDraft
+  })
+  const handleTextChange = useCallback(
+    (nextText: string) => {
+      resetHistoryIndex()
+      inputHistoryFilesRef.current = null
+      setText(nextText)
+    },
+    [resetHistoryIndex, setText]
+  )
+  const handleInputHistoryNavigate = useCallback(
+    (direction: InputHistoryDirection) => navigateHistory(direction, actionsRef.current.getDraft()),
+    [actionsRef, navigateHistory]
+  )
 
   useEffect(() => {
     textRef.current = text
@@ -759,13 +801,16 @@ const AgentComposerInner = ({
           { body: { agentId, sessionId, userMessageParts: [...payload.userMessageParts, ...fileParts] } }
         )
         void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
+        void saveHistory(payload.text).catch((error) => {
+          logger.warn('Failed to save input history', { error })
+        })
         return true
       } catch (error: unknown) {
         logger.warn('Failed to send message:', error as Error)
         return false
       }
     },
-    [agentId, chatSendMessage, sessionId, sessionTopicId]
+    [agentId, chatSendMessage, saveHistory, sessionId, sessionTopicId]
   )
 
   const clearCurrentDraft = useCallback(() => {
@@ -776,7 +821,13 @@ const AgentComposerInner = ({
     draftTokensRef.current = []
     writeAgentDraftCache(draftCacheKey, '', [])
     setTimeoutTimer('agentComposerSendMessage', () => setText(''), 500)
-  }, [draftCacheKey, setFiles, setText, setTimeoutTimer])
+    // Drop the input-history nav state so a recalled draft that gets sent/queued
+    // does not leave useInputHistory pointing at it; otherwise the next
+    // ArrowDown would restore the already-sent draft and ArrowUp would resume
+    // from a stale index.
+    resetHistoryIndex()
+    inputHistoryFilesRef.current = null
+  }, [draftCacheKey, resetHistoryIndex, setFiles, setText, setTimeoutTimer])
 
   // Queue mode (same as chat): while the session streams, follow-ups queue here and auto-drain on idle.
   const { isFulfilled: sessionFulfilled, markSeen: markSessionSeen } = useTopicStreamStatus(sessionTopicId)
@@ -898,7 +949,7 @@ const AgentComposerInner = ({
       {model && <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} />}
       <ComposerSurface
         text={text}
-        onTextChange={setText}
+        onTextChange={handleTextChange}
         tokens={tokens}
         draftTokens={draftTokens}
         managedTokenKinds={AGENT_MANAGED_TOKEN_KINDS}
@@ -947,6 +998,7 @@ const AgentComposerInner = ({
         fontSize={fontSize}
         narrowMode={forceNarrowLayout || narrowMode}
         onActionsChange={handleSurfaceActionsChange}
+        onInputHistoryNavigate={handleInputHistoryNavigate}
         getToolLaunchers={() => getLaunchers()}
         suggestionSources={suggestionSources}
         rootPanelAdditionalItems={rootPanelSkillItems}
