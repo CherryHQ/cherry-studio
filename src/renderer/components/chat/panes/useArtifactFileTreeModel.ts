@@ -172,37 +172,34 @@ function useLazyArtifactFileTree({
 
       void (async () => {
         try {
-          const paths = await window.api.file.listDirectory(dirPath as FilePath, {
+          // One round trip that classifies each entry — avoids an `isDirectory`
+          // IPC call per entry (was N+1 round trips per expanded folder).
+          const entries = await window.api.file.listDirectoryEntries(dirPath as FilePath, {
             recursive: false,
             includeHidden: false,
             includeFiles: true,
             includeDirectories: true
           })
-          const children = await Promise.all(
-            paths.map(async (path) => {
-              const relativePath = normalizeArtifactPaneFilePath(requestWorkspacePath, path)
+          const children = entries
+            .map((entry) => {
+              const relativePath = normalizeArtifactPaneFilePath(requestWorkspacePath, entry.path)
               if (!relativePath) return null
-              try {
-                const isDirectory = await window.api.file.isDirectory(path)
-                return {
-                  id: relativePath,
-                  name: getPathBasename(relativePath),
-                  kind: isDirectory ? 'folder' : 'file',
-                  path: joinPath(WORKSPACE_ROOT_ID, relativePath),
-                  children: isDirectory ? [] : undefined
-                } satisfies FileTreeNode
-              } catch {
-                return null
-              }
+              return {
+                id: relativePath,
+                name: getPathBasename(relativePath),
+                kind: entry.isDirectory ? 'folder' : 'file',
+                path: joinPath(WORKSPACE_ROOT_ID, relativePath),
+                children: entry.isDirectory ? [] : undefined
+              } satisfies FileTreeNode
             })
-          )
+            .filter((child) => child !== null)
           if (
             generation !== lazyLoadGenerationRef.current ||
             requestWorkspacePath !== currentWorkspacePathRef.current
           ) {
             return
           }
-          lazyChildrenByDirIdRef.current.set(dirId, sortFileTreeNodes(children.filter((child) => child !== null)))
+          lazyChildrenByDirIdRef.current.set(dirId, sortFileTreeNodes(children))
           setLazyChildrenVersion((version) => version + 1)
         } catch (err) {
           const normalized = err instanceof Error ? err : new Error(String(err))

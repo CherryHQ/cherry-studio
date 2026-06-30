@@ -64,6 +64,7 @@ const mocks = vi.hoisted(() => ({
   isTextFile: vi.fn(),
   isDirectory: vi.fn(),
   listDirectory: vi.fn(),
+  listDirectoryEntries: vi.fn(),
   getMetadata: vi.fn(),
   createObjectURL: vi.fn(),
   revokeObjectURL: vi.fn(),
@@ -395,6 +396,7 @@ describe('ArtifactPane', () => {
     mocks.treeDispose.mockImplementation(() => Promise.resolve())
     mocks.treeOnMutation.mockImplementation(() => () => {})
     mocks.listDirectory.mockResolvedValue([])
+    mocks.listDirectoryEntries.mockResolvedValue([])
     mocks.isDirectory.mockResolvedValue(false)
     // Default: tests select text files; override per-test for binary cases.
     mocks.isTextFile.mockResolvedValue(true)
@@ -409,6 +411,7 @@ describe('ArtifactPane', () => {
           isTextFile: mocks.isTextFile,
           isDirectory: mocks.isDirectory,
           listDirectory: mocks.listDirectory,
+          listDirectoryEntries: mocks.listDirectoryEntries,
           getMetadata: mocks.getMetadata
         },
         fs: {
@@ -531,10 +534,12 @@ describe('ArtifactPane', () => {
 
   it('loads deeper directory children when folders are expanded', async () => {
     mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
-    mocks.listDirectory
-      .mockResolvedValueOnce(['/tmp/workspace/src/deep', '/tmp/workspace/src/notes.md'])
-      .mockResolvedValueOnce(['/tmp/workspace/src/deep/file.ts'])
-    mocks.isDirectory.mockImplementation((path: string) => Promise.resolve(path.endsWith('/deep')))
+    mocks.listDirectoryEntries
+      .mockResolvedValueOnce([
+        { path: '/tmp/workspace/src/deep', isDirectory: true },
+        { path: '/tmp/workspace/src/notes.md', isDirectory: false }
+      ])
+      .mockResolvedValueOnce([{ path: '/tmp/workspace/src/deep/file.ts', isDirectory: false }])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
@@ -544,18 +549,20 @@ describe('ArtifactPane', () => {
     fireEvent.click(screen.getByTestId('tree-node-src'))
 
     await waitFor(() =>
-      expect(mocks.listDirectory).toHaveBeenCalledWith(
+      expect(mocks.listDirectoryEntries).toHaveBeenCalledWith(
         '/tmp/workspace/src',
         expect.objectContaining({ recursive: false, includeFiles: true, includeDirectories: true })
       )
     )
     await waitFor(() => expect(screen.getByTestId('tree-node-src/deep')).toBeInTheDocument())
     expect(screen.getByTestId('tree-node-src/notes.md')).toBeInTheDocument()
+    // Single batched listing per expand — no follow-up isDirectory IPC.
+    expect(mocks.isDirectory).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByTestId('tree-node-src/deep'))
 
     await waitFor(() =>
-      expect(mocks.listDirectory).toHaveBeenCalledWith(
+      expect(mocks.listDirectoryEntries).toHaveBeenCalledWith(
         '/tmp/workspace/src/deep',
         expect.objectContaining({ recursive: false, includeFiles: true, includeDirectories: true })
       )
@@ -564,15 +571,14 @@ describe('ArtifactPane', () => {
   })
 
   it('ignores stale lazy directory results after the workspace changes', async () => {
-    let resolveListDirectory: (paths: string[]) => void = () => undefined
+    let resolveListDirectory: (entries: Array<{ path: string; isDirectory: boolean }>) => void = () => undefined
     mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
     mockWorkspaceTree('/tmp/other-workspace', ['src/other.ts'])
-    mocks.listDirectory.mockReturnValueOnce(
-      new Promise<string[]>((resolve) => {
+    mocks.listDirectoryEntries.mockReturnValueOnce(
+      new Promise<Array<{ path: string; isDirectory: boolean }>>((resolve) => {
         resolveListDirectory = resolve
       })
     )
-    mocks.isDirectory.mockResolvedValue(false)
 
     const { rerender } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
@@ -581,7 +587,7 @@ describe('ArtifactPane', () => {
 
     fireEvent.click(screen.getByTestId('tree-node-src'))
     await waitFor(() =>
-      expect(mocks.listDirectory).toHaveBeenCalledWith(
+      expect(mocks.listDirectoryEntries).toHaveBeenCalledWith(
         '/tmp/workspace/src',
         expect.objectContaining({ recursive: false, includeFiles: true, includeDirectories: true })
       )
@@ -591,7 +597,7 @@ describe('ArtifactPane', () => {
     await waitFor(() => expect(screen.getByTestId('tree-node-src/other.ts')).toBeInTheDocument())
 
     await act(async () => {
-      resolveListDirectory(['/tmp/workspace/src/stale.ts'])
+      resolveListDirectory([{ path: '/tmp/workspace/src/stale.ts', isDirectory: false }])
     })
 
     expect(screen.queryByTestId('tree-node-src/stale.ts')).not.toBeInTheDocument()
@@ -599,10 +605,9 @@ describe('ArtifactPane', () => {
 
   it('reloads lazy directory children when the file tree is refreshed', async () => {
     mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
-    mocks.listDirectory
-      .mockResolvedValueOnce(['/tmp/workspace/src/old.md'])
-      .mockResolvedValueOnce(['/tmp/workspace/src/new.md'])
-    mocks.isDirectory.mockResolvedValue(false)
+    mocks.listDirectoryEntries
+      .mockResolvedValueOnce([{ path: '/tmp/workspace/src/old.md', isDirectory: false }])
+      .mockResolvedValueOnce([{ path: '/tmp/workspace/src/new.md', isDirectory: false }])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
@@ -619,17 +624,16 @@ describe('ArtifactPane', () => {
   })
 
   it('drops pending lazy directory results when the file tree closes', async () => {
-    let resolveListDirectory: (paths: string[]) => void = () => undefined
+    let resolveListDirectory: (entries: Array<{ path: string; isDirectory: boolean }>) => void = () => undefined
     mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
     mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
-    mocks.listDirectory
+    mocks.listDirectoryEntries
       .mockReturnValueOnce(
-        new Promise<string[]>((resolve) => {
+        new Promise<Array<{ path: string; isDirectory: boolean }>>((resolve) => {
           resolveListDirectory = resolve
         })
       )
-      .mockResolvedValueOnce(['/tmp/workspace/src/fresh.ts'])
-    mocks.isDirectory.mockResolvedValue(false)
+      .mockResolvedValueOnce([{ path: '/tmp/workspace/src/fresh.ts', isDirectory: false }])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
@@ -639,7 +643,7 @@ describe('ArtifactPane', () => {
 
     fireEvent.click(screen.getByTestId('tree-node-src'))
     await waitFor(() =>
-      expect(mocks.listDirectory).toHaveBeenCalledWith(
+      expect(mocks.listDirectoryEntries).toHaveBeenCalledWith(
         '/tmp/workspace/src',
         expect.objectContaining({ recursive: false, includeFiles: true, includeDirectories: true })
       )
@@ -649,7 +653,7 @@ describe('ArtifactPane', () => {
     await waitFor(() => expect(screen.queryByTestId('file-tree')).not.toBeInTheDocument())
 
     await act(async () => {
-      resolveListDirectory(['/tmp/workspace/src/stale.ts'])
+      resolveListDirectory([{ path: '/tmp/workspace/src/stale.ts', isDirectory: false }])
     })
 
     fireEvent.click(fileTreeButton)
