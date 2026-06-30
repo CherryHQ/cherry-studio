@@ -467,7 +467,7 @@ export function Topics({
 
       if (topic.id !== activeTopic?.id) return
 
-      // The old-view right panel is scoped to a single assistant, so select that assistant's
+      // The traditional-view right panel is scoped to a single assistant, so select that assistant's
       // neighbouring topic instead of the global next one (which could belong to another assistant).
       const selectionList = isRightPanel
         ? topics.filter((candidate) => candidate.assistantId === assistantIdFilter)

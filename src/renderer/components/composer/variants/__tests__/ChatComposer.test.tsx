@@ -950,8 +950,8 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
   })
 
-  it('hides the active assistant trigger from the toolbar in old/传统 view', () => {
-    mocks.conversationView = 'old'
+  it('hides the active assistant trigger from the toolbar in traditional/传统 view', () => {
+    mocks.conversationView = 'traditional'
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
@@ -963,8 +963,8 @@ describe('ChatComposer', () => {
     expect(mocks.updateTopic).not.toHaveBeenCalled()
   })
 
-  it('keeps the assistant switcher in the toolbar in the efficiency (new) view', () => {
-    mocks.conversationView = 'new'
+  it('keeps the assistant switcher in the toolbar in the efficiency view', () => {
+    mocks.conversationView = 'efficiency'
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
@@ -972,8 +972,8 @@ describe('ChatComposer', () => {
     expect(screen.queryByTestId('resource-edit-dialog-host')).not.toBeInTheDocument()
   })
 
-  it('renders the old-view empty topic action before the tool menu and passes the selected assistant', () => {
-    mocks.conversationView = 'old'
+  it('renders the traditional-view empty topic action before the tool menu and passes the selected assistant', () => {
+    mocks.conversationView = 'traditional'
     const onCreateEmptyTopic = vi.fn()
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} onCreateEmptyTopic={onCreateEmptyTopic} />)
@@ -991,15 +991,15 @@ describe('ChatComposer', () => {
     expect(onCreateEmptyTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
   })
 
-  it('hides the empty topic action outside old view or without a handler', () => {
-    mocks.conversationView = 'new'
+  it('hides the empty topic action outside traditional view or without a handler', () => {
+    mocks.conversationView = 'efficiency'
     const onCreateEmptyTopic = vi.fn()
 
     const { rerender } = render(<ChatComposer topic={topic} onSend={vi.fn()} onCreateEmptyTopic={onCreateEmptyTopic} />)
 
     expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
 
-    mocks.conversationView = 'old'
+    mocks.conversationView = 'traditional'
     rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
@@ -1365,8 +1365,8 @@ describe('ChatComposer', () => {
     expect(mocks.createTopic).not.toHaveBeenCalled()
   })
 
-  it('routes old-view new topic shortcuts through the empty topic action', () => {
-    mocks.conversationView = 'old'
+  it('routes traditional-view new topic shortcuts through the empty topic action', () => {
+    mocks.conversationView = 'traditional'
     const onNewTopic = vi.fn()
     const onCreateEmptyTopic = vi.fn()
 

@@ -1,15 +1,15 @@
-# Chat View Modes (new / old)
+# Chat View Modes (efficiency / traditional)
 
 Each chat surface — assistant conversations (Home) and agent work — has its own
-view-mode preference. The **old view** is a compact entity rail plus a right-side
-resource panel; the **new view** is the classic single sidebar. The `new` / `old`
-values are the persisted preference values and feed the `isOldView` flag in the
+view-mode preference. The **traditional view** is a compact entity rail plus a right-side
+resource panel; the **efficiency view** is the classic single sidebar. The `efficiency` / `traditional`
+values are the persisted preference values and feed the `isTraditionalView` flag in the
 pages.
 
 ## Preferences
 
-Two independent preferences, both `'new' | 'old'` (`PreferenceTypes.ChatViewMode`),
-both defaulting to `'old'`:
+Two independent preferences, both `'efficiency' | 'traditional'` (`PreferenceTypes.ChatViewMode`),
+both defaulting to `'traditional'`:
 
 - `chat.conversation_view` — assistant chats (Home). v2-only, no v1 source.
 - `chat.work_view` — agent chats. v2-only, no v1 source.
@@ -22,14 +22,14 @@ classification and is not migrated into either setting. The settings UI
 
 ## Layout
 
-When the relevant preference is `old`:
+When the relevant preference is `traditional`:
 
 1. Left: a compact assistant/agent entity rail.
 2. Center: the existing chat surface.
 3. Right: an independently toggleable resource panel for the current
    assistant/agent's conversations/works.
 
-When the preference is `new`, the classic single sidebar is used
+When the preference is `efficiency`, the classic single sidebar is used
 (`HomeTabs` / `AgentSidePanel`). Its display-mode preferences and logic are kept,
 though the display-mode controls are currently hidden in the UI.
 
@@ -37,11 +37,11 @@ though the display-mode controls are currently hidden in the UI.
 
 - `chat.conversation_view` / `chat.work_view` select the mode per surface.
 - `topic.tab.show` controls whether the left entity rail is expanded/collapsed.
-- `ui.old_view.right_pane_open` persists the old-view right panel's open state
+- `ui.traditional_view.right_pane_open` persists the traditional-view right panel's open state
   for Home and Agent. Home uses it directly on the page-level Shell; Agent owns
   the same cached state in `AgentPage` and threads it through each `AgentChat`
   Shell mount so it survives draft → persistent remounts and page re-entry.
-- Toggling a surface old → new → old restores the last cached old-view
+- Toggling a surface old → new → old restores the last cached traditional-view
   right-panel open state.
 
 ## Left entity rail
@@ -88,11 +88,11 @@ own data fetching, pins, deletion, and context menus.
 ### Pinned entities
 
 - Pinned assistants/agents float into a "已固定" section at the top, mirroring the
-  new view's left list (entity pins reuse `usePins('assistant'|'agent')`). The rest
+  efficiency view's left list (entity pins reuse `usePins('assistant'|'agent')`). The rest
   sit under a "助手" / "智能体" section below.
 - Both are collapsible **section** headers (flush-left), so the entity rows keep
   their avatar and read as indented beneath. With nothing pinned the rail renders a
-  single flat list with no header — same as the new view's single-section case.
+  single flat list with no header — same as the efficiency view's single-section case.
 - Pinned rows cannot be dragged and nothing can be dropped into the pinned section;
   only the entities still owning resources appear (the rail's visibility invariant
   is unchanged).
@@ -127,25 +127,25 @@ level instead of prop-threaded).
 - Switching assistant/agent clears the right-list search; switching topic/session
   within the same entity does not.
 
-## Composer entity controls (old view)
+## Composer entity controls (traditional view)
 
-In old view the left rail owns entity switching, so the composer's assistant/agent
+In traditional view the left rail owns entity switching, so the composer's assistant/agent
 switcher is hidden rather than repurposed:
 
-- `ChatComposer` passes `showAssistantTrigger: conversationView !== 'old'`.
-- `AgentComposer` passes `showAgentTrigger: workView !== 'old'`. The
+- `ChatComposer` passes `showAssistantTrigger: conversationView !== 'traditional'`.
+- `AgentComposer` passes `showAgentTrigger: workView !== 'traditional'`. The
   `agentTriggerMode="edit"` code path still exists for toolbar-bound contexts, but
-  it is not the old-view entry point because the trigger is hidden by
+  it is not the traditional-view entry point because the trigger is hidden by
   `showAgentTrigger`.
-- Old view adds a new conversation/work action to the composer controls when
+- Traditional view adds a new conversation/work action to the composer controls when
   `onCreateEmptyTopic` / `onCreateEmptySession` is available.
 - The agent composer's inline model selector remains available for changing the
   active agent model. The agent switcher is hidden inside active sessions (an
   active session is bound to its agent).
 
-## Agent workspace control (old view)
+## Agent workspace control (traditional view)
 
-Old-view agent chats keep the workspace control visible in the composer because
+Traditional-view agent chats keep the workspace control visible in the composer because
 the classic left sidebar is no longer present:
 
 - Draft sessions keep the existing editable workspace selector.
@@ -196,8 +196,8 @@ in a draft session would otherwise remount the Shell and snap the work panel shu
 To match Home, the `Shell` exposes an additive `onOpenChange` callback;
 `AgentPage` owns the open state (`workPaneOpen`) and threads
 `defaultOpen` + `onOpenChange` through `AgentChat` to every `AgentRightPane` mount
-site, so the open state survives the remount. This is scoped to old view
-(`isOldView`); new view passes `undefined` and is byte-for-byte unchanged.
+site, so the open state survives the remount. This is scoped to traditional view
+(`isTraditionalView`); efficiency view passes `undefined` and is byte-for-byte unchanged.
 
 ## Key files
 
@@ -210,13 +210,13 @@ site, so the open state survives the remount. This is scoped to old view
   picker; wrapped by `pages/home/components/AssistantConversationPickerDialog.tsx`
   and `pages/agents/components/AgentConversationPickerDialog.tsx`.
 - `components/composer/variants/ChatComposer.tsx`,
-  `AgentComposer.tsx` — old-view entity trigger visibility and new conversation/work
+  `AgentComposer.tsx` — traditional-view entity trigger visibility and new conversation/work
   composer actions.
 - `hooks/useAssistantCatalogPresets.ts` — preset catalog feeding the assistant picker.
 - `hooks/resourceViewSources.ts` — shared full-list sources.
 - `pages/home/HomePage.tsx`, `pages/agents/AgentPage.tsx`,
   `pages/agents/AgentChat.tsx`, `pages/agents/AgentComposerSlot.tsx` — page wiring,
-  agent pane persistence, and old-view workspace switching.
+  agent pane persistence, and traditional-view workspace switching.
 - `main/data/services/AgentSessionService.ts`,
   `shared/data/api/schemas/agentSessions.ts` — empty-session workspace update
   validation and persistence.

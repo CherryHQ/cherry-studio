@@ -582,8 +582,8 @@ describe('AgentComposer', () => {
     expect(onNewSessionDraft).toHaveBeenCalledTimes(1)
   })
 
-  it('routes old-view new session shortcuts through the empty session action', () => {
-    mocks.workView = 'old'
+  it('routes traditional-view new session shortcuts through the empty session action', () => {
+    mocks.workView = 'traditional'
     const onNewSessionDraft = vi.fn()
     const onCreateEmptySession = vi.fn()
 
@@ -606,7 +606,7 @@ describe('AgentComposer', () => {
   })
 
   it('renders the empty session action before the tool menu and calls the explicit handler', () => {
-    mocks.workView = 'old'
+    mocks.workView = 'traditional'
     const onCreateEmptySession = vi.fn()
 
     render(
@@ -1460,8 +1460,8 @@ describe('AgentComposer', () => {
     expect(mocks.updateSession).not.toHaveBeenCalled()
   })
 
-  it('hides the active session agent trigger from the toolbar in old/传统 view', () => {
-    mocks.workView = 'old'
+  it('hides the active session agent trigger from the toolbar in traditional/传统 view', () => {
+    mocks.workView = 'traditional'
 
     render(
       <AgentComposer
@@ -1572,8 +1572,8 @@ describe('AgentComposer', () => {
     expect(onAgentChange).toHaveBeenCalledWith('agent-2')
   })
 
-  it('hides the missing-agent trigger in old/传统 view', () => {
-    mocks.workView = 'old'
+  it('hides the missing-agent trigger in traditional/传统 view', () => {
+    mocks.workView = 'traditional'
 
     render(<MissingAgentHomeComposer onAgentChange={vi.fn()} />)
 

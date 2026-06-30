@@ -106,16 +106,16 @@
     {
       "targetKey": "chat.conversation_view",
       "type": "PreferenceTypes.ChatViewMode",
-      "defaultValue": "old",
+      "defaultValue": "traditional",
       "status": "classified",
-      "description": "Assistant conversation view: 'old' = entity rail + right topic panel, 'new' = previous classic topic sidebar (new v2 preference, no v1 source)"
+      "description": "Assistant conversation view: 'traditional' = entity rail + right topic panel, 'efficiency' = classic single topic sidebar (new v2 preference, no v1 source)"
     },
     {
       "targetKey": "chat.work_view",
       "type": "PreferenceTypes.ChatViewMode",
-      "defaultValue": "old",
+      "defaultValue": "traditional",
       "status": "classified",
-      "description": "Agent work view: 'old' = entity rail + right session panel, 'new' = previous classic session sidebar (v2 new feature, no v1 source)"
+      "description": "Agent work view: 'traditional' = entity rail + right session panel, 'efficiency' = classic single session sidebar (v2 new feature, no v1 source)"
     },
     {
       "targetKey": "ui.sidebar.favorites",

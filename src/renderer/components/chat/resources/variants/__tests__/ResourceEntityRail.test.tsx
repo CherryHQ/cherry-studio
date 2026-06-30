@@ -301,7 +301,7 @@ describe('ResourceEntityRail', () => {
       />
     )
 
-    // Single section → no header shown (mirrors the new view), avatars still visible.
+    // Single section → no header shown (mirrors the efficiency view), avatars still visible.
     expect(screen.queryByText('selector.common.pinned_title')).not.toBeInTheDocument()
     expect(screen.queryByText('Assistants')).not.toBeInTheDocument()
     expect(screen.getByTestId('assistant-a-icon')).toBeInTheDocument()

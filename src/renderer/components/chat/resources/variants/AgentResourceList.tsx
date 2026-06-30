@@ -41,7 +41,7 @@ type AgentResourceListProps = {
   onStartDraftAgent: (agentId: string) => void | Promise<void>
   onStartMissingAgentDraft?: () => void | Promise<void>
   /**
-   * Called after the currently-active agent is deleted so the old-view page can
+   * Called after the currently-active agent is deleted so the traditional-view page can
    * settle (select the latest remaining session / clear). This is the old
    * layout's reset — unlike the new layout it must NOT open the draft compose.
    */
@@ -125,7 +125,7 @@ export function AgentResourceList({
   )
   const handleReorderError = useCallback(
     (error: unknown) => {
-      logger.error('Failed to reorder agent old-view rail', { error })
+      logger.error('Failed to reorder agent traditional-view rail', { error })
       window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.reorder.error.failed')))
     },
     [t]
@@ -158,7 +158,7 @@ export function AgentResourceList({
         await toggleAgentPin(agentId)
         await refetchAgents()
       } catch (err) {
-        logger.error('Failed to toggle agent pin from old-view rail', { agentId, err })
+        logger.error('Failed to toggle agent pin from traditional-view rail', { agentId, err })
         window.toast.error(t('common.error'))
       }
     },
@@ -192,7 +192,7 @@ export function AgentResourceList({
         await reload()
         window.toast.success(t('common.delete_success'))
       } catch (err) {
-        logger.error('Failed to delete agent from old-view rail', { agentId, err })
+        logger.error('Failed to delete agent from traditional-view rail', { agentId, err })
         window.toast.error(formatErrorMessageWithPrefix(err, t('agent.delete.error.failed')))
       } finally {
         setDeletingAgentId(null)

@@ -30,7 +30,7 @@ export type ResourceEntityRailItem = {
 
 // Pinned entities float into a "已固定" section at the top; the rest sit under the "助手" / "智能体"
 // section below. We use SECTION headers (not group headers) so the labels stay flush-left while the
-// entity rows keep their avatar and read as indented beneath — matching the new view's left list.
+// entity rows keep their avatar and read as indented beneath — matching the efficiency view's left list.
 // Each section also gets its own (header-less) group id so drag-reorder never crosses the boundary.
 const ENTITY_RAIL_PINNED_SECTION_ID = 'resource-entity-rail:section:pinned'
 const ENTITY_RAIL_DEFAULT_SECTION_ID = 'resource-entity-rail:section:default'
@@ -173,11 +173,11 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
     [getContextMenuActions, onContextMenuAction, onSelect, runContextMenuAction, t]
   )
   const empty = useMemo(() => emptyFallback ?? <div className="min-h-0 flex-1" />, [emptyFallback])
-  // Collapsible sections matching the new view's left assistant/agent layout (minus the nested
+  // Collapsible sections matching the efficiency view's left assistant/agent layout (minus the nested
   // topics/sessions): pinned entities float into "已固定" at the top, the rest sit under the
   // "助手" / "智能体" section below. Section headers stay flush-left; the entity rows keep their
   // avatar and read as indented beneath. The single-section case (nothing pinned) renders the flat
-  // list with no header, exactly like the new view.
+  // list with no header, exactly like the efficiency view.
   const sectionBy = useMemo<(item: T) => ResourceListSection>(
     () => (item) =>
       item.pinned

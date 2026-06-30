@@ -2,9 +2,9 @@ import { useSessions } from './agent/useSession'
 import { useTopics } from './useTopic'
 
 /**
- * Shared page-level data sources for the old-view layout.
+ * Shared page-level data sources for the traditional-view layout.
  *
- * In old view the entity rail and the right-panel resource list are two separate components that
+ * In traditional view the entity rail and the right-panel resource list are two separate components that
  * both need the full topic/session list (the rail to decide which entities own resources, the panel
  * to render the current entity's resources). They MUST read through one definition so they resolve
  * to a single SWR key — one fetch, and no chance of the two call sites drifting on load options
@@ -16,16 +16,16 @@ import { useTopics } from './useTopic'
 const AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE = 200
 
 /**
- * The shared full-topics source for the assistant old-view rail + right-panel topic list.
+ * The shared full-topics source for the assistant traditional-view rail + right-panel topic list.
  *
- * `enabled` lets always-mounted consumers (e.g. HomePage) gate the fetch to old view so new view
- * pays nothing; old-view consumers share the same SWR key, so there is still a single fetch.
+ * `enabled` lets always-mounted consumers (e.g. HomePage) gate the fetch to traditional view so efficiency view
+ * pays nothing; traditional-view consumers share the same SWR key, so there is still a single fetch.
  */
 export function useAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}) {
   return useTopics({ loadAll: true, enabled })
 }
 
-/** The shared full-sessions source for the agent old-view rail + right-panel session list. */
+/** The shared full-sessions source for the agent traditional-view rail + right-panel session list. */
 export function useAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) {
   return useSessions(undefined, { loadAll: true, pageSize: AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE, enabled })
 }

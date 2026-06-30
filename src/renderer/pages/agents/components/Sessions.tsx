@@ -661,7 +661,7 @@ const Sessions = ({
       if (!success || activeSessionId !== id) return
 
       if (isRightPanel) {
-        // Old view is scoped to a single agent: select that agent's neighbouring session rather than
+        // Traditional view is scoped to a single agent: select that agent's neighbouring session rather than
         // the first remaining session, which could belong to another agent.
         const index = filteredGroupedSessions.findIndex((s) => s.id === id)
         const next =

@@ -43,7 +43,7 @@ import { parseAgentRouteSearch } from './routeSearch'
 import type { DraftAgentSession, DraftAgentSessionDefaults, PersistentAgentSessionConversation } from './types'
 
 const logger = loggerService.withContext('AgentPage')
-const OLD_VIEW_RIGHT_PANE_OPEN_CACHE_KEY = 'ui.old_view.right_pane_open'
+const TRADITIONAL_VIEW_RIGHT_PANE_OPEN_CACHE_KEY = 'ui.traditional_view.right_pane_open'
 
 function isUserWorkspaceSession(session: AgentSessionEntity | null | undefined): boolean {
   return !!session?.workspaceId && session.workspace?.type !== 'system'
@@ -61,7 +61,7 @@ function sessionMatchesWorkspaceSource(
 }
 
 // Reuse the agent's latest *empty* placeholder session (matched by `isMatch`) instead of stacking a
-// new one. The empty session only exists to surface the agent in the old-view rail, so on repeated
+// new one. The empty session only exists to surface the agent in the traditional-view rail, so on repeated
 // adds we reopen the existing placeholder rather than pile up blanks.
 //
 // "Empty" is approximated by a blank name: the list API exposes no message count, and a session is
@@ -78,15 +78,16 @@ function findReusableEmptySession<T extends { name: string; updatedAt?: string }
 const AgentPage = () => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [workView] = usePreference('chat.work_view')
-  const isOldView = workView === 'old'
-  // Old view shares this full-sessions source with the rail; new view leaves it disabled (no fetch).
+  const isTraditionalView = workView === 'traditional'
+  // Traditional view shares this full-sessions source with the rail; efficiency view leaves it disabled (no fetch).
   // The picker uses it to reuse an empty placeholder session instead of stacking new ones.
   const {
-    sessions: oldViewSessions,
-    isLoadingAll: isOldViewSessionsLoading = false,
-    isFullyLoaded: isOldViewSessionsFullyLoaded = true
-  } = useAgentSessionsSource({ enabled: isOldView })
-  const isOldViewSessionHistoryReady = !isOldView || (!isOldViewSessionsLoading && isOldViewSessionsFullyLoaded)
+    sessions: traditionalViewSessions,
+    isLoadingAll: isTraditionalViewSessionsLoading = false,
+    isFullyLoaded: isTraditionalViewSessionsFullyLoaded = true
+  } = useAgentSessionsSource({ enabled: isTraditionalView })
+  const isTraditionalViewSessionHistoryReady =
+    !isTraditionalView || (!isTraditionalViewSessionsLoading && isTraditionalViewSessionsFullyLoaded)
   const routeSearch = parseAgentRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
   const currentTab = useCurrentTab()
   const routeSessionId = routeSearch.sessionId
@@ -105,17 +106,17 @@ const AgentPage = () => {
   const draftSessionRef = useRef<DraftAgentSession | null>(null)
   const [draftSession, setDraftSession] = useState<DraftAgentSession | null>(null)
   const [historyRecordsOpen, setHistoryRecordsOpen] = useState(false)
-  const [oldViewAgentRightPaneOpen, setOldViewAgentRightPaneOpenCache] = usePersistCache(
-    OLD_VIEW_RIGHT_PANE_OPEN_CACHE_KEY
+  const [traditionalViewAgentRightPaneOpen, setTraditionalViewAgentRightPaneOpenCache] = usePersistCache(
+    TRADITIONAL_VIEW_RIGHT_PANE_OPEN_CACHE_KEY
   )
-  // Old-view (rail) work-pane open state is cached here so it survives AgentChat draft→persistent
+  // Traditional-view (rail) work-pane open state is cached here so it survives AgentChat draft→persistent
   // remounts (each branch mounts its own Shell) and app/page re-entry.
-  const workPaneOpen = isOldView && oldViewAgentRightPaneOpen
+  const workPaneOpen = isTraditionalView && traditionalViewAgentRightPaneOpen
   const setWorkPaneOpen = useCallback(
     (open: boolean) => {
-      if (isOldView) setOldViewAgentRightPaneOpenCache(open)
+      if (isTraditionalView) setTraditionalViewAgentRightPaneOpenCache(open)
     },
-    [isOldView, setOldViewAgentRightPaneOpenCache]
+    [isTraditionalView, setTraditionalViewAgentRightPaneOpenCache]
   )
 
   useEffect(() => {
@@ -418,7 +419,10 @@ const AgentPage = () => {
       try {
         // Reuse the agent's latest empty placeholder regardless of workspace — the picker resolves a
         // fresh workspace below only when it has to create one. See findReusableEmptySession.
-        const reusableSession = findReusableEmptySession(oldViewSessions, (candidate) => candidate.agentId === agentId)
+        const reusableSession = findReusableEmptySession(
+          traditionalViewSessions,
+          (candidate) => candidate.agentId === agentId
+        )
 
         let session = reusableSession
         if (!session) {
@@ -453,14 +457,14 @@ const AgentPage = () => {
           )
         }
       } catch (err) {
-        logger.error('Failed to create agent session from old-view picker', err as Error, { agentId })
+        logger.error('Failed to create agent session from traditional-view picker', err as Error, { agentId })
         window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
       }
     },
     [
       buildDraftSessionWithFallback,
       invalidateCache,
-      oldViewSessions,
+      traditionalViewSessions,
       rememberLastUsedSession,
       resolveDraftWorkspaceSource,
       setActiveSessionId,
@@ -506,8 +510,8 @@ const AgentPage = () => {
       if (sessionId && conversationNav.focusExistingTab(sessionId, { excludeTabId: currentTabId ?? undefined })) return
       pendingSelectedSessionRef.current = null
       setResourceListOpen(true)
-      // Locate (history / global search) should reveal the target in the right work pane. In new view
-      // this setter is a no-op; old view persists it for the next AgentChat remount.
+      // Locate (history / global search) should reveal the target in the right work pane. In efficiency view
+      // this setter is a no-op; traditional view persists it for the next AgentChat remount.
       setWorkPaneOpen(true)
       setDraftSessionState(null)
       setMissingAgentDraft(false)
@@ -586,10 +590,10 @@ const AgentPage = () => {
       return
     }
 
-    if (isOldView) {
-      if (!isOldViewSessionHistoryReady) return
+    if (isTraditionalView) {
+      if (!isTraditionalViewSessionHistoryReady) return
 
-      const latestSession = findLatestUpdated(oldViewSessions)
+      const latestSession = findLatestUpdated(traditionalViewSessions)
       if (latestSession) {
         initialDraftSessionEvaluatedRef.current = true
         setPendingLocateMessageId(undefined)
@@ -622,11 +626,11 @@ const AgentPage = () => {
     agents,
     isAgentsLoading,
     isMessageOnlyView,
-    isOldView,
-    isOldViewSessionHistoryReady,
+    isTraditionalView,
+    isTraditionalViewSessionHistoryReady,
     lastUsedAgentId,
     missingAgentDraft,
-    oldViewSessions,
+    traditionalViewSessions,
     setActiveSessionId,
     setDraftSessionState,
     startDraftSession,
@@ -651,13 +655,15 @@ const AgentPage = () => {
     },
     [conversationNav, currentTabId, setActiveSessionAndDiscardDraft]
   )
-  // Old-view reset after deleting the active agent: select the latest remaining
+  // Traditional-view reset after deleting the active agent: select the latest remaining
   // session (across other agents), or clear to the empty state. Never open the
-  // draft compose — that belongs to the new layout. Filter by the deleted id so
+  // draft compose — that belongs to the efficiency layout. Filter by the deleted id so
   // this is correct even before the session cache refetches.
   const handleActiveAgentDeleted = useCallback(
     (deletedAgentId: string) => {
-      const nextSession = findLatestUpdated(oldViewSessions.filter((session) => session.agentId !== deletedAgentId))
+      const nextSession = findLatestUpdated(
+        traditionalViewSessions.filter((session) => session.agentId !== deletedAgentId)
+      )
       if (nextSession) {
         setActiveSessionAndDiscardDraft(nextSession.id, nextSession)
         return
@@ -668,7 +674,7 @@ const AgentPage = () => {
       pendingSelectedSessionRef.current = null
       setActiveSessionId(null)
     },
-    [oldViewSessions, setActiveSessionAndDiscardDraft, setActiveSessionId, setDraftSessionState]
+    [traditionalViewSessions, setActiveSessionAndDiscardDraft, setActiveSessionId, setDraftSessionState]
   )
 
   const ensurePersistentSession = useCallback(
@@ -774,7 +780,7 @@ const AgentPage = () => {
   const replaceSessionWorkspace = useCallback(
     async (workspaceId: string | null) => {
       const current = visibleSession
-      if (!isOldView || !current) return
+      if (!isTraditionalView || !current) return
 
       const currentIsSystemWorkspace = current.workspace?.type === AGENT_WORKSPACE_TYPE.SYSTEM
       if (workspaceId === null && currentIsSystemWorkspace) return
@@ -802,7 +808,7 @@ const AgentPage = () => {
       }
     },
     [
-      isOldView,
+      isTraditionalView,
       replacingSessionWorkspace,
       setActiveSessionId,
       setLastUsedWorkspaceId,
@@ -815,13 +821,13 @@ const AgentPage = () => {
   }, [])
 
   const panePosition = 'left'
-  // Old view = entity rail + right session panel; new view = the classic sidebar (AgentSidePanel).
+  // Traditional view = entity rail + right session panel; efficiency view = the classic sidebar (AgentSidePanel).
   const activeResourceAgentId = visibleSession?.agentId ?? visibleDraftSession?.agentId ?? null
   const sessionResourcePaneCount: ResourcePaneCountButtonProps | undefined =
-    isOldView && activeResourceAgentId
+    isTraditionalView && activeResourceAgentId
       ? {
           label: t('agent.session.list.title'),
-          count: oldViewSessions.filter((session) => session.agentId === activeResourceAgentId).length
+          count: traditionalViewSessions.filter((session) => session.agentId === activeResourceAgentId).length
         }
       : undefined
   const createAndActivateEmptySession = useCallback(async () => {
@@ -840,7 +846,7 @@ const AgentPage = () => {
       // Composer "new session" stays in the current workspace, so only reuse a placeholder that
       // matches it. See findReusableEmptySession.
       const reusableSession = findReusableEmptySession(
-        oldViewSessions,
+        traditionalViewSessions,
         (candidate) => candidate.agentId === agentId && sessionMatchesWorkspaceSource(candidate, workspaceSource)
       )
       const session =
@@ -865,13 +871,13 @@ const AgentPage = () => {
         })
       }
     } catch (err) {
-      logger.error('Failed to create empty agent session from old-view composer', err as Error, { agentId })
+      logger.error('Failed to create empty agent session from traditional-view composer', err as Error, { agentId })
       window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
     }
   }, [
     activeResourceAgentId,
     invalidateCache,
-    oldViewSessions,
+    traditionalViewSessions,
     rememberLastUsedSession,
     setActiveSessionId,
     setDraftSessionState,
@@ -880,7 +886,7 @@ const AgentPage = () => {
     visibleSession?.workspace?.type,
     visibleSession?.workspaceId
   ])
-  const pane = isOldView ? (
+  const pane = isTraditionalView ? (
     <AgentResourceList
       activeAgentId={activeResourceAgentId}
       onAddAgent={() => setAgentPickerOpen(true)}
@@ -900,10 +906,10 @@ const AgentPage = () => {
       setActiveSessionId={setActiveSessionAndDiscardDraft}
     />
   )
-  // In old view the session list moves into the chat's right pane as a tab; AgentChat keeps the
+  // In traditional view the session list moves into the chat's right pane as a tab; AgentChat keeps the
   // pane provider per-branch (its Shell meta is bound to per-session runtime, unlike Home), so the
   // config is threaded into each branch rather than lifted to this page.
-  const resourcePane: ResourcePaneConfig | null = isOldView
+  const resourcePane: ResourcePaneConfig | null = isTraditionalView
     ? {
         label: t('agent.session.list.title'),
         node: (
@@ -940,12 +946,12 @@ const AgentPage = () => {
           draftConversation={isMessageOnlyView ? null : visibleDraftSession}
           missingAgentDraft={!isMessageOnlyView && missingAgentDraft && !visibleSession && !visibleDraftSession}
           onStartDraftSession={isMessageOnlyView ? undefined : startDraftSession}
-          onCreateEmptySession={isOldView && !isMessageOnlyView ? createAndActivateEmptySession : undefined}
+          onCreateEmptySession={isTraditionalView && !isMessageOnlyView ? createAndActivateEmptySession : undefined}
           onMissingAgentDraftAgentChange={isMessageOnlyView ? undefined : startMissingAgentDraftSession}
           onEnsurePersistentSession={isMessageOnlyView ? undefined : ensurePersistentSession}
           onDraftAgentChange={isMessageOnlyView ? undefined : replaceDraftAgent}
           onDraftWorkspaceChange={isMessageOnlyView ? undefined : replaceDraftWorkspace}
-          onSessionWorkspaceChange={isOldView && !isMessageOnlyView ? replaceSessionWorkspace : undefined}
+          onSessionWorkspaceChange={isTraditionalView && !isMessageOnlyView ? replaceSessionWorkspace : undefined}
           onVisibleAgentChange={isMessageOnlyView ? undefined : setLastUsedAgentId}
           onVisibleWorkspaceChange={isMessageOnlyView ? undefined : setLastUsedWorkspaceId}
           locateMessageId={pendingLocateMessageId}
@@ -956,8 +962,8 @@ const AgentPage = () => {
           resourcePane={resourcePane}
           resourcePaneCount={sessionResourcePaneCount}
           resourcePaneRevealRequest={sessionRevealRequest}
-          workPaneOpen={isOldView ? workPaneOpen : undefined}
-          onWorkPaneOpenChange={isOldView ? setWorkPaneOpen : undefined}
+          workPaneOpen={isTraditionalView ? workPaneOpen : undefined}
+          onWorkPaneOpenChange={isTraditionalView ? setWorkPaneOpen : undefined}
         />
       </div>
       <HistoryRecordsPage
@@ -967,7 +973,7 @@ const AgentPage = () => {
         onClose={closeHistoryRecords}
         onRecordSelect={handleHistoryRecordsSessionSelect}
       />
-      {isOldView && (
+      {isTraditionalView && (
         <AgentConversationPickerDialog
           open={agentPickerOpen}
           onOpenChange={setAgentPickerOpen}

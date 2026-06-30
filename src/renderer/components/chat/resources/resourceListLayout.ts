@@ -21,6 +21,6 @@ export const RESOURCE_LIST_LEADING_ACTION_SLOT_CLASS = RESOURCE_LIST_LEADING_SLO
 
 export const RESOURCE_LIST_SELECTED_ROW_CLASS = 'bg-sidebar-accent text-sidebar-foreground shadow-none'
 
-/** Compact search input used by the right-panel presentation of the topic/session lists (old view). */
+/** Compact search input used by the right-panel presentation of the topic/session lists (traditional view). */
 export const RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS =
   'h-8 rounded-lg border-border-subtle bg-background-subtle pl-7 pr-2 text-xs shadow-none md:text-xs placeholder:text-xs placeholder:text-foreground-muted focus-visible:border-border-hover focus-visible:bg-background focus-visible:ring-0'

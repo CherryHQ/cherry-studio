@@ -336,8 +336,8 @@ const CommonSettings: FC = () => {
 
   const viewModeOptions = useMemo(
     () => [
-      { value: 'old' as const, label: t('settings.messages.view.old') },
-      { value: 'new' as const, label: t('settings.messages.view.new') }
+      { value: 'traditional' as const, label: t('settings.messages.view.traditional') },
+      { value: 'efficiency' as const, label: t('settings.messages.view.efficiency') }
     ],
     [t]
   )

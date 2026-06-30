@@ -99,7 +99,7 @@ function useTopicBranchLiveState(topicId: string): TopicMessageFlowLiveState | n
 /**
  * Opens the right resource pane when a *locate* request arrives (history records / global search),
  * so the located topic is actually visible. Passive "reveal current topic" requests don't set
- * `clearFilters`, so ordinary topic/tab switches never force the pane open. Old view only — outside it
+ * `clearFilters`, so ordinary topic/tab switches never force the pane open. Traditional view only — outside it
  * there is no resource pane to open.
  */
 function ResourcePaneLocateOpener({ revealRequest }: { revealRequest?: ResourceListRevealRequest }) {
