@@ -665,12 +665,14 @@ class FeishuAdapter extends ChannelAdapter {
 
     // Images go through the image API so they render inline; everything else is
     // uploaded as a generic file (`stream`) and delivered as a file message.
+    //
+    // NOTE: unlike `im.message.create`, the SDK's upload endpoints return the
+    // unwrapped data object ({image_key} / {file_key}) — not a {code,msg,data}
+    // envelope — so they must NOT go through `ensureFeishuSuccess`. A failed
+    // upload resolves to null, which we surface as a missing-key error.
     if (file.media_type.startsWith('image/')) {
-      const res = ensureFeishuSuccess<{ image_key?: string }>(
-        await this.client.im.image.create({ data: { image_type: 'message', image: buffer } }),
-        'Upload Feishu image'
-      )
-      const imageKey = res.data?.image_key
+      const uploaded = await this.client.im.image.create({ data: { image_type: 'message', image: buffer } })
+      const imageKey = uploaded?.image_key
       if (!imageKey) throw new Error('Feishu image upload returned no image_key')
 
       ensureFeishuSuccess(
@@ -681,13 +683,10 @@ class FeishuAdapter extends ChannelAdapter {
         'Send Feishu image'
       )
     } else {
-      const res = ensureFeishuSuccess<{ file_key?: string }>(
-        await this.client.im.file.create({
-          data: { file_type: 'stream', file_name: file.filename, file: buffer }
-        }),
-        'Upload Feishu file'
-      )
-      const fileKey = res.data?.file_key
+      const uploaded = await this.client.im.file.create({
+        data: { file_type: 'stream', file_name: file.filename, file: buffer }
+      })
+      const fileKey = uploaded?.file_key
       if (!fileKey) throw new Error('Feishu file upload returned no file_key')
 
       ensureFeishuSuccess(

@@ -31,8 +31,9 @@ const mockElementContent = vi.fn().mockResolvedValue({ code: 0 })
 const mockMessageResourceGet = vi.fn()
 const mockReactionCreate = vi.fn().mockResolvedValue({ code: 0, data: { reaction_id: 'rx-1' } })
 const mockReactionDelete = vi.fn().mockResolvedValue({ code: 0 })
-const mockFileCreate = vi.fn().mockResolvedValue({ code: 0, data: { file_key: 'file-1' } })
-const mockImageCreate = vi.fn().mockResolvedValue({ code: 0, data: { image_key: 'img-1' } })
+// The SDK unwraps upload responses to the inner data object (not a {code,data} envelope).
+const mockFileCreate = vi.fn().mockResolvedValue({ file_key: 'file-1' })
+const mockImageCreate = vi.fn().mockResolvedValue({ image_key: 'img-1' })
 
 const mockClient = {
   im: {
@@ -101,8 +102,8 @@ describe('FeishuAdapter', () => {
     mockMessageResourceGet.mockReset()
     mockReactionCreate.mockClear().mockResolvedValue({ code: 0, data: { reaction_id: 'rx-1' } })
     mockReactionDelete.mockClear().mockResolvedValue({ code: 0 })
-    mockFileCreate.mockClear().mockResolvedValue({ code: 0, data: { file_key: 'file-1' } })
-    mockImageCreate.mockClear().mockResolvedValue({ code: 0, data: { image_key: 'img-1' } })
+    mockFileCreate.mockClear().mockResolvedValue({ file_key: 'file-1' })
+    mockImageCreate.mockClear().mockResolvedValue({ image_key: 'img-1' })
     mockWsStart.mockClear().mockResolvedValue(undefined)
     capturedEventHandlers = {}
   })
@@ -226,7 +227,7 @@ describe('FeishuAdapter', () => {
   it('sendFile() throws when the upload returns no file_key', async () => {
     const adapter = createAdapter()
     await adapter.connect()
-    mockFileCreate.mockResolvedValueOnce({ code: 0, data: {} })
+    mockFileCreate.mockResolvedValueOnce(null)
 
     await expect(
       adapter.sendFile('oc_123', { filename: 'a.bin', data: '', media_type: 'application/octet-stream', size: 0 })
