@@ -1139,7 +1139,13 @@ const AgentComposerInner = ({
     draftTokensRef.current = []
     writeAgentDraftCache(draftCacheKey, '', [])
     setTimeoutTimer('agentComposerSendMessage', () => setText(''), 500)
-  }, [draftCacheKey, setFiles, setText, setTimeoutTimer])
+    // Drop the input-history nav state so a recalled draft that gets sent/queued
+    // does not leave useInputHistory pointing at it; otherwise the next
+    // ArrowDown would restore the already-sent draft and ArrowUp would resume
+    // from a stale index.
+    resetHistoryIndex()
+    inputHistoryFilesRef.current = null
+  }, [draftCacheKey, resetHistoryIndex, setFiles, setText, setTimeoutTimer])
 
   // Queue mode (same as chat): while the session streams, follow-ups queue here and auto-drain on idle.
   const { isFulfilled: sessionFulfilled, markSeen: markSessionSeen } = useTopicStreamStatus(sessionTopicId)
