@@ -160,7 +160,7 @@ flowchart TB
 | KNOWLEDGE | `knowledge_base` + `knowledge_item` | uuid-entity | **false**（`{baseId}` 目录 + `.cherry/index.sqlite` 随 base id 一致，RENAME 克隆难保证一致性；退化为 SKIP） | SKIP | ✗ |
 | TRANSLATE_HISTORY | `translate_language`（natural-key langCode 单表）+ `translate_history`（uuid-entity 独立聚合，sourceLanguage/targetLanguage→translate_language optional ref） | natural-key / uuid-entity | false | FIELD_MERGE / SKIP | ✗ |
 | PAINTINGS | `painting`（单表） | uuid-entity | false | SKIP | ✗ |
-| FILE_STORAGE | `file_entry` + `file_ref` | uuid-entity | false | SKIP | ✗ |
+| FILE_STORAGE | `file_entry` | uuid-entity | false | SKIP | ✗ |
 
 > 精简模式（§三.1）：10 域含、4 域（KNOWLEDGE / TRANSLATE_HISTORY / PAINTINGS / FILE_STORAGE）排除。junction 表（`agent_channel_task` / `agent_skill`）不计入聚合成员，走独立 junction reference。
 >
@@ -184,17 +184,19 @@ flowchart TB
 | FILE_STORAGE | restoreResources() 先于 DB 行导入，返回 skippedFileEntryIds；renamable:false，RENAME 退化为 SKIP |
 | PROVIDERS | 聚合 user_provider + user_model(providerId)；natural-key，默认 FIELD_MERGE（apiKeys/authConfig 列级合并，防丢 API key）；renamable:false（user_model.id 派生键） |
 
-#### 5.1 file_ref 归属（file_entry member，非 source-owned）
+#### 5.1 file-ref 归属（split per source domain，非 FILE_STORAGE-owned）
 
-`file_ref` 整表归 FILE_STORAGE（`file_entry` 的 include member，viaColumn=`fileEntryId`），**不**按 sourceType 行分区归 source 域。理由：`file_ref.fileEntryId` 是 NOT NULL cascade FK（`schemas/file.ts:131`）——文件被删则引用记录自动级联删除，是 include member 的天然语义（满足不变量 14/15）。若改 source-owned row-scope（类比 job_schedule）：file_entry 未恢复（SKIP/精简排除）时 file_ref 悬空会触发 post-restore 一致性检查硬失败，且破坏一表一 owner（不变量 2/3）。**job_schedule 可 row-scope 是因其自包含无跨域 NOT NULL FK，与 file_ref 结构不同构。**
+post-#16532：旧的多态 `file_ref` 表已拆分。`chat_message_file_ref`（FK `sourceId`→message cascade + `fileEntryId`→file_entry cascade）归 **TOPICS**（按 source 源域）；`painting_file_ref`（FK `sourceId`→painting cascade + `fileEntryId`→file_entry cascade）归 **PAINTINGS**。业务 service（TopicService / PaintingService）直接 own 持久 ref 写入。**FILE_STORAGE 只 owns `file_entry`**——不再是 ref 表的 owner。
 
-**双轨职责**（不冲突）：`aggregates`（file_ref 作 file_entry member）管**恢复期 DB 行聚合边界**（SKIP/OVERWRITE 整组传播）；`fileRefSourcePolicies`（sourceType→ownerDomain，如 chat_message→TOPICS）管**导出期文件 blob 收集**。两者作用于不同生命周期阶段。
+这两个 junction 是带真实单列 FK 的关联表（非多态），故 finalize #25 要求其 owner 声明 FK（不像 `entity_tag` 那样多态豁免）。`temp_session` ref 变纯内存（CacheService，无表）。
 
-**实施 caveat**：① 须兑现 post-restore 一致性检查（无悬空 file_ref / 无 file_entry 缺 blob，失败回滚）；② source 删除清理缺口（MessageService/KnowledgeItemService 未调 cleanupBySource，靠 OrphanRefScanner 兜底）；③ file_entry 软删除 vs file_ref 硬删除不对称（导出过滤须只取 deletedAt IS NULL）。
+`fileRefSourcePolicies`（sourceType→ownerDomain）覆盖 3 个 sourceType（`temp_session` runtime-only、`chat_message`→TOPICS、`painting`→PAINTINGS）管**导出期文件 blob 收集**——随 TOPICS/PAINTINGS contributor 落地 + temp_session runtime-owner 决策（finalize #11 follow-up）。
+
+**实施 caveat**：① post-restore 一致性检查（无悬空 ref / 无 file_entry 缺 blob，失败回滚）；② file_entry 软删除 vs ref 硬删除不对称（导出过滤须只取 `deletedAt IS NULL`）。
 
 #### 5.2 junction reference 在 SKIP/RENAME 的处理（不引入跨域 remap）
 
-junction reference（`agent_skill` / `agent_channel_task`，不计入 members 派生、不随根克隆）：root SKIP 时其行也不导入（cascade 依赖 root 存在）；root RENAME（renamable）时 junction 行随旧根 cascade-prune、不克隆到新根（"保留两边"时不继承 junction 绑定——与 `assistant_mcp_server` 这类 include member"克隆继承"区分）。**双端 cascade 由 DB FK + `defer_foreign_keys` 保证，不做跨域 id remap**（与已移除的 idStrategies 一致：保留源主键）。附件渲染靠 `message.data.fileEntryId` JSON 软引用（保持源 PK），不依赖 `file_ref.sourceId`（仅 orphan 检测用）——故 RENAME source 不需 remap file_ref。
+junction reference（`agent_skill` / `agent_channel_task`，不计入 members 派生、不随根克隆）：root SKIP 时其行也不导入（cascade 依赖 root 存在）；root RENAME（renamable）时 junction 行随旧根 cascade-prune、不克隆到新根（"保留两边"时不继承 junction 绑定——与 `assistant_mcp_server` 这类 include member"克隆继承"区分）。**双端 cascade 由 DB FK + `defer_foreign_keys` 保证，不做跨域 id remap**（与已移除的 idStrategies 一致：保留源主键）。附件渲染靠 `message.data.fileEntryId` JSON 软引用（保持源 PK），不依赖 file-ref junction 的 `sourceId`（仅 orphan 检测用）——故 RENAME source 不需 remap file-ref。
 
 **多态软引用 selected-domain 过滤**：`pin(entityType,entityId)` / `entity_tag(entityType,entityId,tagId)` 按 entityType 多态指向 topics/sessions/knowledge/file/painting 等域实体（无 FK）。精简模式排除 KNOWLEDGE/FILE_STORAGE/PAINTINGS 时，TAGS_GROUPS 若导入指向被排除域的 pin/tag 绑定，会恢复出指向缺失对象的 pin/tag state——须按 selected-domain 过滤（仅导入指向本次恢复域的绑定），并纳入 soft-reference coverage/finalize 校验（entityType→域映射穷尽，缺失则 finalize 失败）。RENAME 时这些多态绑定不随 root 克隆（与 entity_tag junction cascade-prune 区分）。
 
@@ -404,7 +406,7 @@ flowchart TB
 |---|---|
 | UI 模式 | 只暴露「完整 / 精简」 |
 | 精简模式范围 | 配置/设置域 + 聊天记录 + Agent 历史/配置：PREFERENCES、PROVIDERS、PROMPTS、MCP_SERVERS、TAGS_GROUPS、ASSISTANTS、AGENTS、MINIAPPS、SKILLS、TOPICS |
-| 精简模式排除 | KNOWLEDGE、TRANSLATE_HISTORY、PAINTINGS、FILE_STORAGE；不导出/恢复 file_entry、file_ref、文件 blob、知识库源文件 |
+| 精简模式排除 | KNOWLEDGE、TRANSLATE_HISTORY、PAINTINGS、FILE_STORAGE；不导出/恢复 file_entry、文件 blob、知识库源文件 |
 | BootConfig（文件型 pre-lifecycle 配置） | **排除**（完整/精简均不含）：`~/.cherrystudio/boot-config.json` 是 pre-lifecycle 配置（影响 userData 路径、硬件加速等启动行为），恢复需特殊时机（不能等普通 DB restore 事务）；换机场景用户通常希望保留目标机自己的启动配置。如未来需纳入，须作独立非 SQLite contributor 单独设计（恢复时机早于 DB restore） |
 | API key | 自用完整/精简备份默认含模型服务 API key / auth config；结果页统一展示备份范围 **+ 明文凭证警告**（与 §3 威胁模型一致）；不做分享/排障脱敏模式 |
 | 恢复冲突默认（按 identityClass） | uuid-entity 默认 SKIP（幂等重导入）；natural-key/slot **默认 FIELD_MERGE**（降级 SKIP 会撞 UNIQUE 或丢数据，如 PROVIDERS 丢 API key，故是强默认、非随便可选）；**设置类例外**（preference/note：SKIP 本地优先 + 补缺 + `platformSpecificKeys` 排除跨平台不兼容 key，见 §6 policy）；偏离默认须显式声明 + reason + 不变量 21 校验（与 §6.2 派生规则一致：默认可偏离，但须绑定事实+reason） |

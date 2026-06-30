@@ -25,6 +25,8 @@ import {
 import { BACKUP_DOMAINS, type BackupDomain } from '@main/data/db/backup/domains'
 import { describe, expect, it } from 'vitest'
 
+import { KNOWLEDGE_CONTRIBUTOR } from '@main/data/services/backupContributor-knowledge'
+
 import { ContributorFinalizeError } from './ContributorFinalizeError'
 import { ContributorManager } from './ContributorManager'
 import { finalize } from './finalize'
@@ -93,10 +95,11 @@ const buildFixture = (): BackupContributor[] => [
       { table: 'knowledge_base', column: 'groupId', referencedDomain: 'TAGS_GROUPS', kind: 'optional' },
       { table: 'knowledge_base', column: 'embeddingModelId', referencedDomain: 'PROVIDERS', kind: 'optional' },
       { table: 'knowledge_base', column: 'rerankModelId', referencedDomain: 'PROVIDERS', kind: 'optional' }
-    ],
-    fileRefSourcePolicies: [
-      { sourceType: 'knowledge_item', ownerDomain: 'KNOWLEDGE', resourcePolicy: 'include-with-owner' }
     ]
+    // post-#16532: knowledge_item is no longer a FileRefSourceType (knowledge files are
+    // collected via collectFileResources, not FileManager refs), so KNOWLEDGE declares
+    // no fileRefSourcePolicies. The fixture still covers allSourceTypes via temp_session
+    // (AGENTS), chat_message (TOPICS), painting (PAINTINGS).
   }),
   contributor('PAINTINGS', ['painting'], {
     fileRefSourcePolicies: [{ sourceType: 'painting', ownerDomain: 'PAINTINGS', resourcePolicy: 'include-with-owner' }]
@@ -138,6 +141,16 @@ describe('finalize happy path', () => {
     const registry = finalize(buildFixture(), META)
     expect(registry).toBeInstanceOf(ReadonlyBackupRegistryImpl)
     expect(registry.domains).toEqual(BACKUP_DOMAINS)
+  })
+
+  it('the real KNOWLEDGE_CONTRIBUTOR declaration passes finalize (knowledge_item aggregate boundary)', () => {
+    // The synthetic fixture's KNOWLEDGE owns only knowledge_base; swap in the REAL
+    // contributor so CI exercises the actual knowledge_item member + baseId owning ref
+    // + 3 cross-domain FKs + composite self-FK coverage through every invariant — a
+    // regression in the real declaration (e.g. a codegen FK change) fails here, not at
+    // ContributorManager wiring time (which needs all 14 domains).
+    const list = buildFixture().map((c) => (c.domain === 'KNOWLEDGE' ? KNOWLEDGE_CONTRIBUTOR : c))
+    expect(() => finalize(list, META)).not.toThrow()
   })
 })
 

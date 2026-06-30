@@ -35,15 +35,7 @@ const ownedTables = (): Set<string> => new Set(CONTRIBUTORS.flatMap((c) => c.sch
  * pending their blocking schema PRs (see ~/Downloads/backup-schema-status-2026-06-30.md).
  * The exhaustiveness drift gate asserts the actual gap is a subset of this set.
  */
-const WAVE2_DOMAINS = new Set<BackupDomain>([
-  'PROVIDERS',
-  'AGENTS',
-  'MINIAPPS',
-  'TOPICS',
-  'KNOWLEDGE',
-  'PAINTINGS',
-  'FILE_STORAGE'
-])
+const WAVE2_DOMAINS = new Set<BackupDomain>(['PROVIDERS', 'AGENTS', 'MINIAPPS', 'TOPICS', 'PAINTINGS'])
 const WAVE2_TABLES = new Set<string>([
   'agent',
   'agent_channel',
@@ -53,14 +45,12 @@ const WAVE2_TABLES = new Set<string>([
   'agent_session_message',
   'agent_skill',
   'agent_workspace',
-  'file_entry',
-  'file_ref',
+  'chat_message_file_ref',
   'job_schedule',
-  'knowledge_base',
-  'knowledge_item',
   'message',
   'mini_app',
   'painting',
+  'painting_file_ref',
   'topic',
   'user_model',
   'user_provider'

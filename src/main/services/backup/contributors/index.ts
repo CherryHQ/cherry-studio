@@ -11,6 +11,8 @@
 import { PREFERENCES_CONTRIBUTOR } from '@main/data/backupContributor-preferences'
 import type { BackupContributor } from '@main/data/db/backup/contributor-types'
 import { ASSISTANTS_CONTRIBUTOR } from '@main/data/services/backupContributor-assistants'
+import { FILE_STORAGE_CONTRIBUTOR } from '@main/data/services/backupContributor-file-storage'
+import { KNOWLEDGE_CONTRIBUTOR } from '@main/data/services/backupContributor-knowledge'
 import { MCP_SERVERS_CONTRIBUTOR } from '@main/data/services/backupContributor-mcp-servers'
 import { PROMPTS_CONTRIBUTOR } from '@main/data/services/backupContributor-prompts'
 import { SKILLS_CONTRIBUTOR } from '@main/data/services/backupContributor-skills'
@@ -28,6 +30,8 @@ export { CircularReferenceError, READONLY_REGISTRY, ReadonlyBackupRegistryImpl }
 // contributor without knowing its owning-module path.
 export {
   ASSISTANTS_CONTRIBUTOR,
+  FILE_STORAGE_CONTRIBUTOR,
+  KNOWLEDGE_CONTRIBUTOR,
   MCP_SERVERS_CONTRIBUTOR,
   PREFERENCES_CONTRIBUTOR,
   PROMPTS_CONTRIBUTOR,
@@ -39,12 +43,12 @@ export {
 /**
  * The contributor barrel — every BackupContributor the backup system knows.
  *
- * Wave 1 (7 stable domains): PREFERENCES, PROMPTS, MCP_SERVERS, TAGS_GROUPS,
- * ASSISTANTS, SKILLS, TRANSLATE_HISTORY.
+ * Landed (9 of 14): PREFERENCES, PROMPTS, MCP_SERVERS, TAGS_GROUPS, ASSISTANTS,
+ * SKILLS, TRANSLATE_HISTORY (Wave 1) + FILE_STORAGE, KNOWLEDGE.
  *
- * Wave 2 (pending — blocked on in-flight schema PRs, see
+ * Pending Wave 2 (blocked on in-flight schema PRs, see
  * ~/Downloads/backup-schema-status-2026-06-30.md): PROVIDERS, AGENTS, MINIAPPS,
- * TOPICS, KNOWLEDGE, PAINTINGS, FILE_STORAGE.
+ * TOPICS, PAINTINGS.
  *
  * Finalize invariant #1 requires registry.length === 14, so ContributorManager is
  * NOT yet wired with this barrel (the singleton stays default-empty; getRegistry()
@@ -59,5 +63,7 @@ export const CONTRIBUTORS: readonly BackupContributor[] = [
   TAGS_GROUPS_CONTRIBUTOR,
   ASSISTANTS_CONTRIBUTOR,
   SKILLS_CONTRIBUTOR,
-  TRANSLATE_HISTORY_CONTRIBUTOR
+  TRANSLATE_HISTORY_CONTRIBUTOR,
+  FILE_STORAGE_CONTRIBUTOR,
+  KNOWLEDGE_CONTRIBUTOR
 ]
