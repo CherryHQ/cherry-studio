@@ -10,6 +10,20 @@ import { splitMessage } from '../../utils'
 
 const QQ_MAX_LENGTH = 2000
 const QQ_API_BASE = 'https://api.sgroup.qq.com'
+/**
+ * QQ passive-reply window per chat type (ms): the inbound msg_id is rejected once it lapses.
+ * QQ discontinued active group/C2C push on 2025-04-21 (and the monthly quota is 4 msgs), so a
+ * lapsed window means the reply simply cannot be delivered — there is no active-push fallback.
+ * Single chat (C2C) gets 60 min; group / guild subchannel / guild DM get 5 min.
+ * See https://bot.q.qq.com/wiki/develop/api-v2/server-inter/message/send-receive/send.html
+ */
+const QQ_PASSIVE_REPLY_TTL: Record<string, number> = {
+  c2c: 60 * 60 * 1000,
+  group: 5 * 60 * 1000,
+  channel: 5 * 60 * 1000,
+  dm: 5 * 60 * 1000
+}
+const QQ_PASSIVE_REPLY_TTL_DEFAULT = 5 * 60 * 1000
 
 // QQ Bot WebSocket opcodes
 const OP_DISPATCH = 0
@@ -42,6 +56,14 @@ type QqAttachment = {
   url: string
 }
 
+/** Latest inbound message per chat, used to send QQ passive replies. */
+type PassiveReply = {
+  msgId: string
+  receivedAt: number
+  /** Reply counter; QQ v2 dedupes repeat replies on one msg_id unless msg_seq differs. */
+  seq: number
+}
+
 type QqMessage = {
   id: string
   author: {
@@ -65,6 +87,8 @@ class QqAdapter extends ChannelAdapter {
   private readonly clientSecret: string
   private readonly allowedChatIds: string[]
 
+  /** Per-chat inbound message ids, keyed by chatId, for QQ passive replies. */
+  private readonly passiveReplies = new Map<string, PassiveReply>()
   private tokenCache: QqTokenCache | null = null
   private sessionId: string | null = null
   private lastSeq: number | null = null
@@ -378,6 +402,11 @@ class QqAdapter extends ChannelAdapter {
   }
 
   private async processMessage(msg: QqMessage, chatId: string, userId: string, userName: string): Promise<void> {
+    // Remember the inbound id so replies (including command/whoami responses) can reply
+    // passively against it — QQ discontinued active group/C2C push (2025-04-21), so a passive
+    // reply against a recent msg_id is the only way to deliver into a group or single chat.
+    this.passiveReplies.set(chatId, { msgId: msg.id, receivedAt: Date.now(), seq: 0 })
+
     const text = this.parseContent(msg.content)
 
     if (isSlashCommand(text)) {
@@ -527,30 +556,53 @@ class QqAdapter extends ChannelAdapter {
     const [type, id] = chatId.split(':')
 
     let endpoint: string
-    let body: Record<string, unknown>
+    const body: Record<string, unknown> = { markdown: { content: text }, msg_type: 2 }
 
     switch (type) {
       case 'c2c':
         endpoint = `${QQ_API_BASE}/v2/users/${id}/messages`
-        body = { markdown: { content: text }, msg_type: 2 }
         break
       case 'group':
         endpoint = `${QQ_API_BASE}/v2/groups/${id}/messages`
-        body = { markdown: { content: text }, msg_type: 2 }
         break
       case 'channel':
         endpoint = `${QQ_API_BASE}/channels/${id}/messages`
-        body = { markdown: { content: text }, msg_type: 2 }
         break
       case 'dm':
         endpoint = `${QQ_API_BASE}/dms/${id}/messages`
-        body = { markdown: { content: text }, msg_type: 2 }
         break
       default:
         throw new Error(`Unknown chat type: ${type}`)
     }
 
+    const passive = this.nextPassiveReply(chatId, type)
+    if (passive) {
+      body.msg_id = passive.msgId
+      // v2 group/C2C dedupe repeat replies sharing one msg_id; a unique seq keeps every chunk.
+      if (type === 'group' || type === 'c2c') {
+        body.msg_seq = passive.seq
+      }
+    }
+
     await this.apiRequest(endpoint, { method: 'POST', body })
+  }
+
+  /**
+   * Consume the next passive-reply slot for a chat: returns the inbound msg_id plus an
+   * incrementing seq, or undefined once the type's reply window has lapsed. QQ caps passive
+   * replies at 5 per msg_id; beyond that the API rejects the send. Each call advances the seq
+   * so chunked replies aren't deduped by QQ (same msg_id + msg_seq fails).
+   */
+  private nextPassiveReply(chatId: string, type: string): { msgId: string; seq: number } | undefined {
+    const entry = this.passiveReplies.get(chatId)
+    if (!entry) return undefined
+    const ttl = QQ_PASSIVE_REPLY_TTL[type] ?? QQ_PASSIVE_REPLY_TTL_DEFAULT
+    if (Date.now() - entry.receivedAt > ttl) {
+      this.passiveReplies.delete(chatId)
+      return undefined
+    }
+    entry.seq += 1
+    return { msgId: entry.msgId, seq: entry.seq }
   }
 
   // oxlint-disable-next-line no-unused-vars -- no-op abstract method
