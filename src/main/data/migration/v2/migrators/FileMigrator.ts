@@ -116,7 +116,7 @@ interface PreparedFileEntry {
  * Returns null if the row is malformed (missing required fields).
  *
  * The v1 id is preserved verbatim into v2 (per migration-plan §2.9): cross-table
- * references in message_blocks / paintings / knowledge_items / file_ref need no
+ * references in message_blocks / paintings / knowledge_items / file associations need no
  * translation, and `FileEntryIdSchema = z.uuid()` already accepts the v4 ids
  * that v1 emits.
  */
@@ -160,8 +160,8 @@ function toFileEntry(
   if (!isInternal) {
     // Neither under the internal dir nor physically present: dead metadata
     // left by incomplete v1 deletes. Do not fabricate an external entry —
-    // downstream migrators (Chat/Painting) already resolve file_ref against
-    // file_entry, so skipping cannot create dangling FKs.
+    // downstream migrators (Chat/Painting) already resolve file associations
+    // against file_entry, so skipping cannot create dangling FKs.
     onWarning(
       `Orphan file row id=${row.id}: no physical file and path is not internal; skipping. path=${JSON.stringify(row.path)}`
     )

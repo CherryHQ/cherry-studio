@@ -2351,7 +2351,7 @@ describe('KnowledgeMigrator file item path storage', () => {
     }
   }
 
-  it('inserts file items with knowledge-owned relative paths and no file_ref rows', async () => {
+  it('inserts file items with knowledge-owned relative paths and no FileManager refs', async () => {
     const ctx = makeExecCtx()
 
     const migrator = new KnowledgeMigrator() as any
