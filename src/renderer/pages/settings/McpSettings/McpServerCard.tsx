@@ -294,7 +294,7 @@ const ServerLogo = ({ className, ...props }: React.ComponentPropsWithoutRef<'img
 const MutedCell = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'hidden w-16 shrink-0 truncate text-right text-muted-foreground text-sm min-[1180px]:block',
+      'hidden w-16 shrink-0 truncate text-right text-muted-foreground text-sm tabular-nums min-[1180px]:block',
       className
     )}
     {...props}
@@ -302,7 +302,10 @@ const MutedCell = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'
 )
 
 const SourceCell = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('hidden min-w-0 shrink-0 items-center gap-1.5 min-[1320px]:flex', className)} {...props} />
+  <div
+    className={cn('hidden w-32 shrink-0 items-center justify-end gap-1.5 min-[1320px]:flex', className)}
+    {...props}
+  />
 )
 
 const ToolbarWrapper = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
