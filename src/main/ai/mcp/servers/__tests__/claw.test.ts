@@ -1,4 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock TaskService before importing ClawServer
 const mockCreateTask = vi.fn()
@@ -6,6 +10,7 @@ const mockListTasks = vi.fn()
 const mockDeleteTask = vi.fn()
 const mockGetNotifyAdapters = vi.fn()
 const mockSendMessage = vi.fn()
+const mockSendFile = vi.fn()
 const mockGetAgent = vi.fn()
 const mockUpdateAgent = vi.fn()
 const mockSyncChannel = vi.fn()
@@ -78,9 +83,10 @@ vi.mock('@main/services/MainWindowService', () => ({
 const { default: ClawServer } = await import('../claw')
 type ClawServerInstance = InstanceType<typeof ClawServer>
 const WORKSPACE_SOURCE = { type: 'system' as const }
+const WORKSPACE_PATH = '/tmp/claw-test-workspace'
 
-function createServer(agentId = 'agent_test') {
-  return new ClawServer(agentId, WORKSPACE_SOURCE)
+function createServer(agentId = 'agent_test', workspacePath = WORKSPACE_PATH) {
+  return new ClawServer(agentId, WORKSPACE_SOURCE, workspacePath)
 }
 
 // Helper to call tools via the Server's request handlers
@@ -278,7 +284,8 @@ describe('ClawServer', () => {
       return {
         channelId,
         notifyChatIds: chatIds,
-        sendMessage: mockSendMessage
+        sendMessage: mockSendMessage,
+        sendFile: mockSendFile
       }
     }
 
@@ -293,7 +300,7 @@ describe('ClawServer', () => {
       expect(mockSendMessage).toHaveBeenCalledTimes(2)
       expect(mockSendMessage).toHaveBeenCalledWith('100', 'Hello user!')
       expect(mockSendMessage).toHaveBeenCalledWith('200', 'Hello user!')
-      expect(result.content[0].text).toContain('2 chat(s)')
+      expect(result.content[0].text).toContain('Message sent to 2 chat(s)')
     })
 
     it('should filter by channel_id when provided', async () => {
@@ -305,7 +312,7 @@ describe('ClawServer', () => {
 
       expect(mockSendMessage).toHaveBeenCalledTimes(1)
       expect(mockSendMessage).toHaveBeenCalledWith('200', 'Targeted')
-      expect(result.content[0].text).toContain('1 chat(s)')
+      expect(result.content[0].text).toContain('Message sent to 1 chat(s)')
     })
 
     it('should return message when no notify channels found', async () => {
@@ -318,12 +325,20 @@ describe('ClawServer', () => {
       expect(mockSendMessage).not.toHaveBeenCalled()
     })
 
-    it('should error when message is missing', async () => {
+    it('should error when both message and file_path are missing', async () => {
       const server = createServer()
       const result = await callTool(server, {}, 'notify')
 
       expect(result.isError).toBe(true)
-      expect(result.content[0].text).toContain("'message' is required")
+      expect(result.content[0].text).toContain("Provide 'message', 'file_path', or both")
+    })
+
+    it('should error when message and file_path are whitespace only', async () => {
+      const server = createServer()
+      const result = await callTool(server, { message: '   ', file_path: '   ' }, 'notify')
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain("Provide 'message', 'file_path', or both")
     })
 
     it('should report partial failures', async () => {
@@ -333,8 +348,97 @@ describe('ClawServer', () => {
       const server = createServer('agent_1')
       const result = await callTool(server, { message: 'Test' }, 'notify')
 
-      expect(result.content[0].text).toContain('1 chat(s)')
+      expect(result.content[0].text).toContain('Message sent to 1 chat(s)')
       expect(result.content[0].text).toContain('rate limited')
+    })
+
+    it('should sanitize the message before sending', async () => {
+      mockSendMessage.mockResolvedValue(undefined)
+      mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100'])])
+
+      const server = createServer('agent_1')
+      await callTool(server, { message: 'token sk-ant-api03-SECRETSECRETSECRET' }, 'notify')
+
+      const sent = mockSendMessage.mock.calls[0][1] as string
+      expect(sent).toContain('[REDACTED]')
+      expect(sent).not.toContain('SECRETSECRETSECRET')
+    })
+
+    describe('file forwarding', () => {
+      let workspace: string
+
+      beforeEach(async () => {
+        workspace = await mkdtemp(path.join(tmpdir(), 'claw-notify-'))
+      })
+
+      afterEach(async () => {
+        await rm(workspace, { recursive: true, force: true })
+      })
+
+      it('should forward a workspace file to each chat', async () => {
+        mockSendFile.mockResolvedValue(undefined)
+        mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100', '200'])])
+        await writeFile(path.join(workspace, 'report.txt'), 'hello')
+
+        const server = createServer('agent_1', workspace)
+        const result = await callTool(server, { file_path: 'report.txt' }, 'notify')
+
+        expect(mockSendFile).toHaveBeenCalledTimes(2)
+        const [chatId, file] = mockSendFile.mock.calls[0]
+        expect(chatId).toBe('100')
+        expect(file.filename).toBe('report.txt')
+        expect(file.media_type).toBe('text/plain')
+        expect(Buffer.from(file.data, 'base64').toString()).toBe('hello')
+        expect(result.content[0].text).toContain('File "report.txt" sent to 2 chat(s)')
+      })
+
+      it('should send both message and file independently', async () => {
+        mockSendMessage.mockResolvedValue(undefined)
+        mockSendFile.mockResolvedValue(undefined)
+        mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100'])])
+        await writeFile(path.join(workspace, 'a.txt'), 'x')
+
+        const server = createServer('agent_1', workspace)
+        const result = await callTool(server, { message: 'see attached', file_path: 'a.txt' }, 'notify')
+
+        expect(mockSendMessage).toHaveBeenCalledWith('100', 'see attached')
+        expect(mockSendFile).toHaveBeenCalledTimes(1)
+        expect(result.content[0].text).toContain('Message sent to 1 chat(s)')
+        expect(result.content[0].text).toContain('File "a.txt" sent to 1 chat(s)')
+      })
+
+      it('should reject a path outside the workspace before dispatch', async () => {
+        mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100'])])
+
+        const server = createServer('agent_1', workspace)
+        const result = await callTool(server, { file_path: '../../etc/passwd' }, 'notify')
+
+        expect(result.isError).toBe(true)
+        expect(mockSendFile).not.toHaveBeenCalled()
+      })
+
+      it('should error when the file does not exist', async () => {
+        mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100'])])
+
+        const server = createServer('agent_1', workspace)
+        const result = await callTool(server, { file_path: 'missing.txt' }, 'notify')
+
+        expect(result.isError).toBe(true)
+        expect(result.content[0].text).toContain('not found')
+        expect(mockSendFile).not.toHaveBeenCalled()
+      })
+
+      it('should tally a per-chat sendFile failure', async () => {
+        mockSendFile.mockRejectedValue(new Error('unsupported'))
+        mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100'])])
+        await writeFile(path.join(workspace, 'a.txt'), 'x')
+
+        const server = createServer('agent_1', workspace)
+        const result = await callTool(server, { file_path: 'a.txt' }, 'notify')
+
+        expect(result.content[0].text).toContain('File "a.txt" sent to 0 chat(s)')
+        expect(result.content[0].text).toContain('unsupported')
+      })
     })
   })
 

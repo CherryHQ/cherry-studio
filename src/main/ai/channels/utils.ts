@@ -38,5 +38,10 @@ export const FILE_EXTENSION_MIME_MAP: Record<string, string> = {
   txt: 'text/plain',
   csv: 'text/csv',
   md: 'text/markdown',
-  zip: 'application/zip'
+  zip: 'application/zip',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp'
 }

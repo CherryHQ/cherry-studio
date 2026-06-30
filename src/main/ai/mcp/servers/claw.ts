@@ -3,6 +3,8 @@ import { agentChannelWorkflowService } from '@data/services/AgentChannelWorkflow
 import { agentService } from '@data/services/AgentService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
+import type { ChannelAdapter } from '@main/ai/channels/ChannelAdapter'
+import { resolveWorkspaceFile, sanitizeChannelOutput } from '@main/ai/channels/security'
 import { application } from '@main/core/application'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
@@ -91,20 +93,24 @@ const CRON_TOOL: Tool = {
 const NOTIFY_TOOL: Tool = {
   name: 'notify',
   description:
-    'Send a notification message to the user through connected channels (e.g. Telegram). Use this to proactively inform the user about task results, status updates, or any important information.',
+    'Send a notification to the user through connected channels (e.g. Telegram). Provide a message, a file to forward from your workspace, or both. Use this to proactively deliver task results, status updates, or produced files. Note: WeChat can only forward image files.',
   inputSchema: {
     type: 'object',
     properties: {
       message: {
         type: 'string',
-        description: 'The notification message to send to the user'
+        description: 'The notification message to send to the user. Optional if file_path is provided.'
+      },
+      file_path: {
+        type: 'string',
+        description:
+          'Optional: path to a file in your workspace to forward to the user (relative to the workspace, or an absolute path inside it). The file must reside within the session workspace.'
       },
       channel_id: {
         type: 'string',
         description: 'Optional: send to a specific channel only (omit to send to all notify-enabled channels)'
       }
-    },
-    required: ['message']
+    }
   }
 }
 
@@ -214,11 +220,18 @@ class ClawServer {
   public mcpServer: McpServer
   private agentId: string
   private workspace: AgentSessionWorkspaceSource
+  private workspacePath: string
   private sourceChannelId: string | undefined
 
-  constructor(agentId: string, workspace: AgentSessionWorkspaceSource, sourceChannelId?: string) {
+  constructor(
+    agentId: string,
+    workspace: AgentSessionWorkspaceSource,
+    workspacePath: string,
+    sourceChannelId?: string
+  ) {
     this.agentId = agentId
     this.workspace = workspace
+    this.workspacePath = workspacePath
     this.sourceChannelId = sourceChannelId
     this.mcpServer = new McpServer(
       {
@@ -365,8 +378,17 @@ class ClawServer {
   }
 
   private async sendNotification(args: Record<string, string | undefined>) {
-    const message = args.message
-    if (!message) throw new McpError(ErrorCode.InvalidParams, "'message' is required for notify")
+    const message = args.message?.trim()
+    const filePath = args.file_path?.trim()
+    if (!message && !filePath) {
+      throw new McpError(ErrorCode.InvalidParams, "Provide 'message', 'file_path', or both for notify")
+    }
+
+    // Resolve the file once before dispatch so a bad path fails fast (one error,
+    // not one per chat). Guard errors surface as a clean isError result via the
+    // CallTool catch.
+    const file = filePath ? await resolveWorkspaceFile(this.workspacePath, filePath) : undefined
+    const sanitizedMessage = message ? sanitizeChannelOutput(message).text : undefined
 
     const targetChannelId = args.channel_id
     let adapters = application.get('ChannelManager').getAgentAdapters(this.agentId)
@@ -386,33 +408,54 @@ class ClawServer {
       }
     }
 
-    let sent = 0
+    let messagesSent = 0
+    let filesSent = 0
     const errors: string[] = []
+
+    const recordError = (adapter: ChannelAdapter, chatId: string, what: string, err: unknown) => {
+      const errMsg = err instanceof Error ? err.message : String(err)
+      errors.push(`${adapter.channelId}/${chatId} (${what}): ${errMsg}`)
+      logger.warn(`Failed to send ${what} via notify`, {
+        agentId: this.agentId,
+        channelId: adapter.channelId,
+        chatId,
+        error: errMsg
+      })
+    }
 
     for (const adapter of adapters) {
       for (const chatId of adapter.notifyChatIds) {
-        try {
-          await adapter.sendMessage(chatId, message)
-          sent++
-        } catch (err) {
-          const errMsg = err instanceof Error ? err.message : String(err)
-          errors.push(`${adapter.channelId}/${chatId}: ${errMsg}`)
-          logger.warn('Failed to send notification', {
-            agentId: this.agentId,
-            channelId: adapter.channelId,
-            chatId,
-            error: errMsg
-          })
+        // Message and file are independent — one failing must not skip the other.
+        if (sanitizedMessage) {
+          try {
+            await adapter.sendMessage(chatId, sanitizedMessage)
+            messagesSent++
+          } catch (err) {
+            recordError(adapter, chatId, 'message', err)
+          }
+        }
+        if (file) {
+          try {
+            await adapter.sendFile(chatId, file)
+            filesSent++
+          } catch (err) {
+            recordError(adapter, chatId, 'file', err)
+          }
         }
       }
     }
 
-    const parts = [`Notification sent to ${sent} chat(s).`]
-    if (errors.length > 0) {
-      parts.push(`Errors: ${errors.join('; ')}`)
-    }
+    const parts: string[] = []
+    if (sanitizedMessage) parts.push(`Message sent to ${messagesSent} chat(s).`)
+    if (file) parts.push(`File "${file.filename}" sent to ${filesSent} chat(s).`)
+    if (errors.length > 0) parts.push(`Errors: ${errors.join('; ')}`)
 
-    logger.info('Notification sent via notify tool', { agentId: this.agentId, sent, errors: errors.length })
+    logger.info('Notification sent via notify tool', {
+      agentId: this.agentId,
+      messagesSent,
+      filesSent,
+      errors: errors.length
+    })
     return {
       content: [{ type: 'text' as const, text: parts.join(' ') }]
     }

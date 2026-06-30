@@ -899,7 +899,7 @@ export async function buildMcpServers(
         throw new Error(`Unsupported workspace type: ${String(exhaustive)}`)
       }
     }
-    const clawServer = new ClawServer(agent.id, workspaceSource, sourceChannelId)
+    const clawServer = new ClawServer(agent.id, workspaceSource, session.workspace.path, sourceChannelId)
     mcpList.claw = { type: 'sdk', name: 'claw', instance: clawServer.mcpServer }
 
     // agent-memory — the FACT.md / JOURNAL.jsonl memory tool the CherryClaw prompt and the
