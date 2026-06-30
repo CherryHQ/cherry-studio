@@ -52,7 +52,13 @@ const homeMocks = vi.hoisted(() => ({
   cacheSetPersist: vi.fn(),
   addAssistant: vi.fn(),
   createTopic: vi.fn(),
-  classicLayoutTopics: [] as Array<{ id: string; assistantId?: string; name: string; updatedAt: string }>,
+  classicLayoutTopics: [] as Array<{
+    id: string
+    assistantId?: string
+    name: string
+    createdAt?: string
+    updatedAt: string
+  }>,
   currentTab: undefined as { metadata?: Record<string, unknown> } | undefined,
   assistants: [{ id: 'assistant-default' }] as Array<{ id: string; name?: string }>,
   assistantsError: undefined as Error | undefined,
@@ -712,8 +718,21 @@ describe('HomePage', () => {
   it('reuses the assistant latest empty topic instead of creating another one in the classic-layout picker', async () => {
     homeMocks.preferenceValues.set('topic.layout', 'classic')
     homeMocks.classicLayoutTopics = [
-      { id: 'topic-empty-latest', assistantId: 'assistant-2', name: '   ', updatedAt: '2026-01-03T00:00:00.000Z' },
-      { id: 'topic-real-older', assistantId: 'assistant-2', name: 'Real chat', updatedAt: '2026-01-01T00:00:00.000Z' }
+      {
+        id: 'topic-empty-latest',
+        assistantId: 'assistant-2',
+        name: '',
+        createdAt: '2026-01-03T00:00:00.000Z',
+        updatedAt: '2026-01-03T00:00:00.000Z'
+      },
+      // Touched (updatedAt > createdAt) → not an untouched placeholder, never reused.
+      {
+        id: 'topic-real-older',
+        assistantId: 'assistant-2',
+        name: 'Real chat',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T01:00:00.000Z'
+      }
     ]
 
     render(<HomePage />)
@@ -728,8 +747,20 @@ describe('HomePage', () => {
   it('reuses the latest empty topic when an older candidate has an invalid timestamp', async () => {
     homeMocks.preferenceValues.set('topic.layout', 'classic')
     homeMocks.classicLayoutTopics = [
-      { id: 'topic-empty-invalid', assistantId: 'assistant-2', name: '   ', updatedAt: 'not-a-date' },
-      { id: 'topic-empty-latest', assistantId: 'assistant-2', name: '   ', updatedAt: '2026-01-03T00:00:00.000Z' }
+      {
+        id: 'topic-empty-invalid',
+        assistantId: 'assistant-2',
+        name: '',
+        createdAt: 'not-a-date',
+        updatedAt: 'not-a-date'
+      },
+      {
+        id: 'topic-empty-latest',
+        assistantId: 'assistant-2',
+        name: '',
+        createdAt: '2026-01-03T00:00:00.000Z',
+        updatedAt: '2026-01-03T00:00:00.000Z'
+      }
     ]
 
     render(<HomePage />)
@@ -745,7 +776,13 @@ describe('HomePage', () => {
     homeMocks.preferenceValues.set('topic.layout', 'classic')
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]
     homeMocks.classicLayoutTopics = [
-      { id: 'topic-empty-latest', assistantId: 'assistant-1', name: '   ', updatedAt: '2026-01-03T00:00:00.000Z' }
+      {
+        id: 'topic-empty-latest',
+        assistantId: 'assistant-1',
+        name: '',
+        createdAt: '2026-01-03T00:00:00.000Z',
+        updatedAt: '2026-01-03T00:00:00.000Z'
+      }
     ]
 
     render(<HomePage />)
@@ -761,7 +798,13 @@ describe('HomePage', () => {
     homeMocks.preferenceValues.set('topic.layout', 'classic')
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]
     homeMocks.classicLayoutTopics = [
-      { id: 'topic-real-latest', assistantId: 'assistant-1', name: 'Real chat', updatedAt: '2026-01-03T00:00:00.000Z' }
+      {
+        id: 'topic-real-latest',
+        assistantId: 'assistant-1',
+        name: 'Real chat',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-03T00:00:00.000Z'
+      }
     ]
     homeMocks.createTopic.mockResolvedValue({
       ...createdTopic,
@@ -778,10 +821,18 @@ describe('HomePage', () => {
     expect(homeMocks.refreshTopics).toHaveBeenCalled()
   })
 
-  it('creates a new topic when the assistant latest topic is not empty in the classic-layout picker', async () => {
+  it('creates a new topic when the assistant latest topic is chatted-in with a blank name (auto-naming off) in the classic-layout picker', async () => {
     homeMocks.preferenceValues.set('topic.layout', 'classic')
+    // Auto-naming off keeps the name blank, but updatedAt has moved past createdAt — this is a real
+    // conversation that must NOT be reopened as a reusable empty placeholder (#16434).
     homeMocks.classicLayoutTopics = [
-      { id: 'topic-real-latest', assistantId: 'assistant-2', name: 'Real chat', updatedAt: '2026-01-03T00:00:00.000Z' }
+      {
+        id: 'topic-chatted-blank',
+        assistantId: 'assistant-2',
+        name: '',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-03T00:00:00.000Z'
+      }
     ]
     homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-2' })
 

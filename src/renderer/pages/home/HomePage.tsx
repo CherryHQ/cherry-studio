@@ -36,7 +36,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { FileMetadata } from '@renderer/types/file'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { findLatestUpdated } from '@renderer/utils/resourceEntity'
+import { findLatestUpdated, isUntouchedSinceCreation } from '@renderer/utils/resourceEntity'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { getTabInstanceKey } from '@renderer/utils/tabInstanceMetadata'
@@ -79,16 +79,17 @@ type DraftAssistantSelection = {
 // topic only exists to surface the assistant in the classic-layout rail, so on repeated adds we reopen the
 // existing placeholder rather than pile up blanks.
 //
-// "Empty" is approximated by a blank name: the list API exposes no message count, and a topic is
-// auto-titled once it gets messages. A still-untitled topic that already has messages would also be
-// treated as reusable — acceptable, since reuse just reopens it (no data loss, no duplicate). Swap
-// the name test for a backend `messageCount` on the topic list if that ever lands.
-function findReusableEmptyTopic<T extends { name: string; assistantId?: string; updatedAt?: string }>(
+// Emptiness is detected via `isUntouchedSinceCreation` (updatedAt === createdAt), not a blank name:
+// with auto-naming off a chatted-in topic keeps a blank name forever, so a name test would reopen it
+// instead of starting a new conversation. See isUntouchedSinceCreation for the full rationale.
+function findReusableEmptyTopic<T extends { assistantId?: string; createdAt?: string; updatedAt?: string }>(
   topics: readonly T[],
   assistantId: string | undefined
 ): T | undefined {
   if (!assistantId) return undefined
-  return findLatestUpdated(topics.filter((topic) => topic.assistantId === assistantId && topic.name.trim() === ''))
+  return findLatestUpdated(
+    topics.filter((topic) => topic.assistantId === assistantId && isUntouchedSinceCreation(topic))
+  )
 }
 
 type DraftChatSendOptions = {

@@ -73,6 +73,7 @@ const agentPageMocks = vi.hoisted(() => ({
     id: string
     agentId?: string
     name: string
+    createdAt?: string
     updatedAt: string
     workspaceId?: string
     workspace?: { type?: string }
@@ -733,14 +734,17 @@ describe('AgentPage', () => {
         id: 'session-empty-latest',
         agentId: 'agent-b',
         name: '',
+        createdAt: '2026-01-03T00:00:00.000Z',
         updatedAt: '2026-01-03T00:00:00.000Z',
         workspace: { type: 'system' }
       },
+      // Touched (updatedAt > createdAt) → not an untouched placeholder, never reused.
       {
         id: 'session-real-older',
         agentId: 'agent-b',
         name: 'Real session',
-        updatedAt: '2026-01-01T00:00:00.000Z',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T01:00:00.000Z',
         workspace: { type: 'system' }
       }
     ]
@@ -766,6 +770,7 @@ describe('AgentPage', () => {
         id: 'session-empty-invalid',
         agentId: 'agent-b',
         name: '',
+        createdAt: 'not-a-date',
         updatedAt: 'not-a-date',
         workspace: { type: 'system' }
       },
@@ -773,6 +778,7 @@ describe('AgentPage', () => {
         id: 'session-empty-latest',
         agentId: 'agent-b',
         name: '',
+        createdAt: '2026-01-03T00:00:00.000Z',
         updatedAt: '2026-01-03T00:00:00.000Z',
         workspace: { type: 'system' }
       }
@@ -802,6 +808,7 @@ describe('AgentPage', () => {
         id: 'session-empty-latest',
         agentId: 'agent-a',
         name: '',
+        createdAt: '2026-01-03T00:00:00.000Z',
         updatedAt: '2026-01-03T00:00:00.000Z',
         workspaceId: 'workspace-a',
         workspace: { type: 'user' }
@@ -828,10 +835,12 @@ describe('AgentPage', () => {
     }
     activeSessionMocks.sessionSource = 'query'
     agentPageMocks.classicLayoutSessions = [
+      // Untouched placeholder, but a different workspace → blocked by workspace match, not touched-ness.
       {
         id: 'session-empty-other-workspace',
         agentId: 'agent-a',
         name: '',
+        createdAt: '2026-01-03T00:00:00.000Z',
         updatedAt: '2026-01-03T00:00:00.000Z',
         workspaceId: 'workspace-b',
         workspace: { type: 'user' }
@@ -862,7 +871,7 @@ describe('AgentPage', () => {
     expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-composer-empty')
   })
 
-  it('creates and activates a fresh empty session from the classic-layout composer button with the current workspace', async () => {
+  it('creates a fresh session from the classic-layout composer button when the latest is chatted-in with a blank name (auto-naming off)', async () => {
     agentPageMocks.sessionLayout = 'classic'
     activeSessionMocks.session = {
       ...agentPageMocks.persistedSession,
@@ -872,11 +881,14 @@ describe('AgentPage', () => {
       workspace: agentPageMocks.workspace
     }
     activeSessionMocks.sessionSource = 'query'
+    // Auto-naming off keeps the name blank, but updatedAt has moved past createdAt — a real
+    // conversation that must NOT be reused as an empty placeholder (#16434).
     agentPageMocks.classicLayoutSessions = [
       {
-        id: 'session-real-latest',
+        id: 'session-chatted-blank',
         agentId: 'agent-a',
-        name: 'Real session',
+        name: '',
+        createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-03T00:00:00.000Z',
         workspaceId: 'workspace-a',
         workspace: { type: 'user' }

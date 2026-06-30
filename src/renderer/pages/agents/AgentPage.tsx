@@ -21,7 +21,7 @@ import { useConversationNavigation } from '@renderer/hooks/useConversationNaviga
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { findLatestUpdated } from '@renderer/utils/resourceEntity'
+import { findLatestUpdated, isUntouchedSinceCreation } from '@renderer/utils/resourceEntity'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { getTabInstanceKey } from '@renderer/utils/tabInstanceMetadata'
@@ -64,15 +64,14 @@ function sessionMatchesWorkspaceSource(
 // new one. The empty session only exists to surface the agent in the classic-layout rail, so on repeated
 // adds we reopen the existing placeholder rather than pile up blanks.
 //
-// "Empty" is approximated by a blank name: the list API exposes no message count, and a session is
-// auto-titled once it gets content. A still-untitled session that already has messages would also be
-// treated as reusable — acceptable, since reuse just reopens it (no data loss, no duplicate). Swap
-// the name test for a backend `messageCount` on the session list if that ever lands.
-function findReusableEmptySession<T extends { name: string; updatedAt?: string }>(
+// Emptiness is detected via `isUntouchedSinceCreation` (updatedAt === createdAt), not a blank name:
+// with auto-naming off a chatted-in session keeps a blank name forever, so a name test would reopen it
+// instead of starting a new conversation. See isUntouchedSinceCreation for the full rationale.
+function findReusableEmptySession<T extends { createdAt?: string; updatedAt?: string }>(
   sessions: readonly T[],
   isMatch: (session: T) => boolean
 ): T | undefined {
-  return findLatestUpdated(sessions.filter((session) => session.name.trim() === '' && isMatch(session)))
+  return findLatestUpdated(sessions.filter((session) => isUntouchedSinceCreation(session) && isMatch(session)))
 }
 
 const AgentPage = () => {
