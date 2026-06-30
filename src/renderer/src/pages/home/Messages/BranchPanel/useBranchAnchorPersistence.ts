@@ -1,8 +1,18 @@
 import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { useCallback, useEffect } from 'react'
+import type { CreateBranchAnchorDto } from '@shared/data/api/schemas/branchAnchors'
+import { useCallback, useEffect, useRef } from 'react'
 
-import { buildCreateBranchAnchorBody, shouldWriteBranchAnchorOnce } from './branchAnchorWrite'
+import {
+  buildCreateBranchAnchorBody,
+  claimBranchAnchorCreate,
+  claimBranchAnchorDelete,
+  clearBranchAnchorCreateGuard,
+  getBranchAnchorTopicKey,
+  markBranchAnchorCreated,
+  markBranchAnchorDeleted,
+  markBranchAnchorDeleteFailed
+} from './branchAnchorWrite'
 import type { Branch } from './types'
 
 const logger = loggerService.withContext('BranchAnchorPersistence')
@@ -14,35 +24,104 @@ interface UseBranchAnchorPersistenceArgs {
 
 export function useBranchAnchorPersistence({ parentTopicId, branches }: UseBranchAnchorPersistenceArgs): void {
   const { trigger: createBranchAnchor } = useMutation('POST', '/branch-anchors')
+  const { trigger: deleteBranchAnchor } = useMutation('DELETE', '/branch-anchors/:id')
+  const latestDesiredKeptByTopicIdRef = useRef(new Map<string, boolean>())
+  const latestCreateBodyByTopicIdRef = useRef(new Map<string, CreateBranchAnchorDto>())
+  const latestBranchIdByTopicIdRef = useRef(new Map<string, string>())
+  const reconcileBranchTopicRef = useRef<(branchTopicId: string) => void>(() => undefined)
 
-  const persistBranchAnchorIfReady = useCallback(
-    (branch: Branch) => {
-      const body = buildCreateBranchAnchorBody(parentTopicId, branch)
-      if (!body) return
-
-      if (!shouldWriteBranchAnchorOnce(branch)) return
+  const startCreateBranchAnchor = useCallback(
+    (body: CreateBranchAnchorDto) => {
+      const branchTopicId = body.branchTopicId
+      if (!claimBranchAnchorCreate(branchTopicId)) return
 
       void createBranchAnchor({ body })
         .then((anchor) => {
+          markBranchAnchorCreated(branchTopicId, anchor.id)
           logger.debug('Created branch anchor for kept branch', {
             anchorId: anchor.id,
-            branchId: branch.id,
+            branchId: latestBranchIdByTopicIdRef.current.get(branchTopicId),
             branchTopicId: body.branchTopicId,
             parentTopicId: body.parentTopicId
           })
+
+          if (latestDesiredKeptByTopicIdRef.current.get(branchTopicId) !== true) {
+            reconcileBranchTopicRef.current(branchTopicId)
+          }
         })
         .catch((error) => {
-          logger.error('Failed to create branch anchor for kept branch', error as Error, {
-            branchId: branch.id,
+          clearBranchAnchorCreateGuard(branchTopicId)
+          logger.warn('Failed to create branch anchor for kept branch', error as Error, {
+            branchId: latestBranchIdByTopicIdRef.current.get(branchTopicId),
             branchTopicId: body.branchTopicId,
             parentTopicId: body.parentTopicId
           })
         })
     },
-    [createBranchAnchor, parentTopicId]
+    [createBranchAnchor]
   )
 
+  const startDeleteBranchAnchor = useCallback(
+    (branchTopicId: string) => {
+      const anchorId = claimBranchAnchorDelete(branchTopicId)
+      if (!anchorId) return
+
+      void deleteBranchAnchor({ params: { id: anchorId } })
+        .then(() => {
+          markBranchAnchorDeleted(branchTopicId, anchorId)
+          logger.debug('Deleted branch anchor for unkept branch', {
+            anchorId,
+            branchId: latestBranchIdByTopicIdRef.current.get(branchTopicId),
+            branchTopicId
+          })
+
+          if (latestDesiredKeptByTopicIdRef.current.get(branchTopicId) === true) {
+            reconcileBranchTopicRef.current(branchTopicId)
+          }
+        })
+        .catch((error) => {
+          markBranchAnchorDeleteFailed(branchTopicId, anchorId)
+          logger.warn('Failed to delete branch anchor for unkept branch', error as Error, {
+            anchorId,
+            branchId: latestBranchIdByTopicIdRef.current.get(branchTopicId),
+            branchTopicId
+          })
+        })
+    },
+    [deleteBranchAnchor]
+  )
+
+  const reconcileBranchTopic = useCallback(
+    (branchTopicId: string) => {
+      if (latestDesiredKeptByTopicIdRef.current.get(branchTopicId) === true) {
+        const body = latestCreateBodyByTopicIdRef.current.get(branchTopicId)
+        if (body) {
+          startCreateBranchAnchor(body)
+        }
+        return
+      }
+
+      startDeleteBranchAnchor(branchTopicId)
+    },
+    [startCreateBranchAnchor, startDeleteBranchAnchor]
+  )
+
+  reconcileBranchTopicRef.current = reconcileBranchTopic
+
   useEffect(() => {
-    branches.forEach((branch) => persistBranchAnchorIfReady(branch))
-  }, [branches, persistBranchAnchorIfReady])
+    branches.forEach((branch) => {
+      const branchTopicId = getBranchAnchorTopicKey(branch)
+      if (!branchTopicId) return
+
+      latestDesiredKeptByTopicIdRef.current.set(branchTopicId, branch.disposition === 'kept')
+      latestBranchIdByTopicIdRef.current.set(branchTopicId, branch.id)
+
+      const body = buildCreateBranchAnchorBody(parentTopicId, branch)
+      if (body) {
+        latestCreateBodyByTopicIdRef.current.set(branchTopicId, body)
+      }
+
+      reconcileBranchTopic(branchTopicId)
+    })
+  }, [branches, parentTopicId, reconcileBranchTopic])
 }

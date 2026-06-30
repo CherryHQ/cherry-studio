@@ -1,5 +1,5 @@
 import type { Topic } from '@renderer/types'
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { resetBranchAnchorWriteGuardForTest } from '../branchAnchorWrite'
@@ -8,8 +8,9 @@ import type { Branch } from '../types'
 const mocks = vi.hoisted(() => ({
   useMutation: vi.fn(),
   createBranchAnchor: vi.fn(),
+  deleteBranchAnchor: vi.fn(),
   loggerDebug: vi.fn(),
-  loggerError: vi.fn()
+  loggerWarn: vi.fn()
 }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
@@ -20,7 +21,7 @@ vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
       debug: mocks.loggerDebug,
-      error: mocks.loggerError
+      warn: mocks.loggerWarn
     })
   }
 }))
@@ -60,10 +61,25 @@ describe('useBranchAnchorPersistence (P2 Step 2A)', () => {
     vi.clearAllMocks()
     resetBranchAnchorWriteGuardForTest()
     mocks.createBranchAnchor.mockResolvedValue({ id: 'anchor-1' })
-    mocks.useMutation.mockReturnValue({
-      trigger: mocks.createBranchAnchor,
-      isLoading: false,
-      error: undefined
+    mocks.deleteBranchAnchor.mockResolvedValue(undefined)
+    mocks.useMutation.mockImplementation((method, path) => {
+      if (method === 'POST' && path === '/branch-anchors') {
+        return {
+          trigger: mocks.createBranchAnchor,
+          isLoading: false,
+          error: undefined
+        }
+      }
+
+      if (method === 'DELETE' && path === '/branch-anchors/:id') {
+        return {
+          trigger: mocks.deleteBranchAnchor,
+          isLoading: false,
+          error: undefined
+        }
+      }
+
+      throw new Error(`Unexpected mutation: ${method} ${path}`)
     })
   })
 
@@ -112,11 +128,42 @@ describe('useBranchAnchorPersistence (P2 Step 2A)', () => {
 
     await waitFor(() => expect(mocks.createBranchAnchor).toHaveBeenCalledTimes(1))
 
-    rerender({ currentBranches: [{ ...keptBranch, disposition: 'pending' }] })
     rerender({ currentBranches: [{ ...keptBranch, disposition: 'kept' }] })
     rerender({ currentBranches: [makeBranch({ id: 'branch-duplicate-ui', topic: topic('branch-topic-1') })] })
 
     expect(mocks.createBranchAnchor).toHaveBeenCalledTimes(1)
+  })
+
+  it('deletes the created anchor when a kept branch becomes pending', async () => {
+    const keptBranch = makeBranch({ disposition: 'kept' })
+    const { rerender } = renderPersistence([keptBranch])
+
+    await waitFor(() => expect(mocks.createBranchAnchor).toHaveBeenCalledTimes(1))
+
+    rerender({ currentBranches: [{ ...keptBranch, disposition: 'pending' }] })
+
+    await waitFor(() => expect(mocks.deleteBranchAnchor).toHaveBeenCalledTimes(1))
+    expect(mocks.deleteBranchAnchor).toHaveBeenCalledWith({ params: { id: 'anchor-1' } })
+  })
+
+  it('allows the same branchTopicId to create a new anchor after successful unkeep cleanup', async () => {
+    const keptBranch = makeBranch({ disposition: 'kept' })
+    mocks.createBranchAnchor.mockResolvedValueOnce({ id: 'anchor-1' }).mockResolvedValueOnce({ id: 'anchor-2' })
+    const { rerender } = renderPersistence([keptBranch])
+
+    await waitFor(() => expect(mocks.createBranchAnchor).toHaveBeenCalledTimes(1))
+
+    rerender({ currentBranches: [{ ...keptBranch, disposition: 'pending' }] })
+
+    await waitFor(() => expect(mocks.deleteBranchAnchor).toHaveBeenCalledTimes(1))
+    await waitFor(() =>
+      expect(mocks.loggerDebug).toHaveBeenCalledWith('Deleted branch anchor for unkept branch', expect.any(Object))
+    )
+
+    rerender({ currentBranches: [{ ...keptBranch, disposition: 'kept' }] })
+
+    await waitFor(() => expect(mocks.createBranchAnchor).toHaveBeenCalledTimes(2))
+    expect(mocks.deleteBranchAnchor).toHaveBeenCalledWith({ params: { id: 'anchor-1' } })
   })
 
   it('does not create anchors for pending discard/removal', () => {
@@ -141,6 +188,58 @@ describe('useBranchAnchorPersistence (P2 Step 2A)', () => {
     renderPersistence([makeBranch()])
 
     await waitFor(() => expect(mocks.createBranchAnchor).toHaveBeenCalledTimes(1))
-    await waitFor(() => expect(mocks.loggerError).toHaveBeenCalledWith(expect.any(String), error, expect.any(Object)))
+    await waitFor(() => expect(mocks.loggerWarn).toHaveBeenCalledWith(expect.any(String), error, expect.any(Object)))
+  })
+
+  it('clears the create guard after POST failure so a later kept render can retry', async () => {
+    const error = new Error('network down')
+    const keptBranch = makeBranch()
+    mocks.createBranchAnchor.mockRejectedValueOnce(error).mockResolvedValueOnce({ id: 'anchor-retry' })
+    const { rerender } = renderPersistence([keptBranch])
+
+    await waitFor(() => expect(mocks.loggerWarn).toHaveBeenCalledWith(expect.any(String), error, expect.any(Object)))
+
+    rerender({ currentBranches: [{ ...keptBranch }] })
+
+    await waitFor(() => expect(mocks.createBranchAnchor).toHaveBeenCalledTimes(2))
+  })
+
+  it('deletes the anchor after POST succeeds if the branch was unkept while create was in-flight', async () => {
+    let resolveCreate: (value: { id: string }) => void = () => undefined
+    const createPromise = new Promise<{ id: string }>((resolve) => {
+      resolveCreate = resolve
+    })
+    const keptBranch = makeBranch()
+    mocks.createBranchAnchor.mockReturnValueOnce(createPromise)
+    const { rerender } = renderPersistence([keptBranch])
+
+    await waitFor(() => expect(mocks.createBranchAnchor).toHaveBeenCalledTimes(1))
+
+    rerender({ currentBranches: [{ ...keptBranch, disposition: 'pending' }] })
+    expect(mocks.deleteBranchAnchor).not.toHaveBeenCalled()
+
+    await act(async () => {
+      resolveCreate({ id: 'anchor-in-flight' })
+      await createPromise
+    })
+
+    await waitFor(() => expect(mocks.deleteBranchAnchor).toHaveBeenCalledWith({ params: { id: 'anchor-in-flight' } }))
+  })
+
+  it('keeps the anchor id after DELETE failure so a later pending lifecycle can retry cleanup', async () => {
+    const error = new Error('delete failed')
+    const keptBranch = makeBranch()
+    mocks.deleteBranchAnchor.mockRejectedValueOnce(error).mockResolvedValueOnce(undefined)
+    const { rerender } = renderPersistence([keptBranch])
+
+    await waitFor(() => expect(mocks.createBranchAnchor).toHaveBeenCalledTimes(1))
+
+    rerender({ currentBranches: [{ ...keptBranch, disposition: 'pending' }] })
+
+    await waitFor(() => expect(mocks.loggerWarn).toHaveBeenCalledWith(expect.any(String), error, expect.any(Object)))
+
+    rerender({ currentBranches: [{ ...keptBranch, disposition: 'pending' }] })
+
+    await waitFor(() => expect(mocks.deleteBranchAnchor).toHaveBeenCalledTimes(2))
   })
 })

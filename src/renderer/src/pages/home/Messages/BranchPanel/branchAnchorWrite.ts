@@ -12,7 +12,12 @@ export function canWriteBranchAnchor(
   return branch.disposition === 'kept' && hasBranchTopic(branch)
 }
 
-const writtenBranchAnchorRef = new Set<string>()
+type BranchAnchorPersistenceState =
+  | { status: 'creating' }
+  | { status: 'created'; anchorId: string }
+  | { status: 'deleting'; anchorId: string }
+
+const branchAnchorPersistenceRef = new Map<string, BranchAnchorPersistenceState>()
 
 function getBranchAnchorWriteKey(branch: Branch): string | null {
   if (!canWriteBranchAnchor(branch)) return null
@@ -22,9 +27,50 @@ function getBranchAnchorWriteKey(branch: Branch): string | null {
 export function shouldWriteBranchAnchorOnce(branch: Branch): boolean {
   const writeKey = getBranchAnchorWriteKey(branch)
   if (!writeKey) return false
-  if (writtenBranchAnchorRef.has(writeKey)) return false
-  writtenBranchAnchorRef.add(writeKey)
+  return claimBranchAnchorCreate(writeKey)
+}
+
+export function getBranchAnchorTopicKey(branch: Branch): string | null {
+  return hasBranchTopic(branch) ? branch.topic.id : null
+}
+
+export function claimBranchAnchorCreate(branchTopicId: string): boolean {
+  if (branchAnchorPersistenceRef.has(branchTopicId)) return false
+  branchAnchorPersistenceRef.set(branchTopicId, { status: 'creating' })
   return true
+}
+
+export function markBranchAnchorCreated(branchTopicId: string, anchorId: string): void {
+  branchAnchorPersistenceRef.set(branchTopicId, { status: 'created', anchorId })
+}
+
+export function clearBranchAnchorCreateGuard(branchTopicId: string): void {
+  const state = branchAnchorPersistenceRef.get(branchTopicId)
+  if (state?.status === 'creating') {
+    branchAnchorPersistenceRef.delete(branchTopicId)
+  }
+}
+
+export function claimBranchAnchorDelete(branchTopicId: string): string | null {
+  const state = branchAnchorPersistenceRef.get(branchTopicId)
+  if (state?.status !== 'created') return null
+
+  branchAnchorPersistenceRef.set(branchTopicId, { status: 'deleting', anchorId: state.anchorId })
+  return state.anchorId
+}
+
+export function markBranchAnchorDeleted(branchTopicId: string, anchorId: string): void {
+  const state = branchAnchorPersistenceRef.get(branchTopicId)
+  if (state?.status === 'deleting' && state.anchorId === anchorId) {
+    branchAnchorPersistenceRef.delete(branchTopicId)
+  }
+}
+
+export function markBranchAnchorDeleteFailed(branchTopicId: string, anchorId: string): void {
+  const state = branchAnchorPersistenceRef.get(branchTopicId)
+  if (state?.status === 'deleting' && state.anchorId === anchorId) {
+    branchAnchorPersistenceRef.set(branchTopicId, { status: 'created', anchorId })
+  }
 }
 
 export function buildCreateBranchAnchorBody(parentTopicId: string, branch: Branch): CreateBranchAnchorDto | null {
@@ -45,5 +91,5 @@ export function buildCreateBranchAnchorBody(parentTopicId: string, branch: Branc
 }
 
 export function resetBranchAnchorWriteGuardForTest(): void {
-  writtenBranchAnchorRef.clear()
+  branchAnchorPersistenceRef.clear()
 }
