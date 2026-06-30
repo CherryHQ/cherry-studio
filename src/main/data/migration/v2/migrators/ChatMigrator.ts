@@ -41,15 +41,15 @@
  *    - Old: `message.mentions: Model[]`
  *    - New: Not migrated — derivable from sibling responses' modelId + siblingsGroupId
  *
- * ## `chat_message` `file_ref` backfill
+ * ## `chat_message_file_ref` backfill
  *
  * v1 image/file blocks reference v1 files via `block.file.id`. Those ids
  * survive into v2 as `FileUIPart.providerMetadata.cherry.fileEntryId` (inline
  * JSON on `messageTable.data.parts`), populated by ChatMappings during the
- * image/file mapping. This migrator also creates `file_ref` rows
- * (`sourceType='chat_message'`, `sourceId=messageId`, `role='attachment'`)
- * for each distinct (message, fileId) pair referencing an existing `file_entry`.
- * Dangling refs (fileId not in `file_entry`) are skipped with warnings.
+ * image/file mapping. This migrator also creates `chat_message_file_ref` rows
+ * (`sourceId=messageId`, `role='attachment'`) for each distinct (message,
+ * fileId) pair referencing an existing `file_entry`. Dangling refs (fileId not
+ * in `file_entry`) are skipped with warnings.
  *
  * ## Performance Considerations
  *
@@ -61,14 +61,14 @@
  * @since v2.0.0
  */
 
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
-import { chatMessageSourceType } from '@shared/data/types/file/ref/chatMessage'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { eq, inArray, sql } from 'drizzle-orm'
@@ -202,7 +202,7 @@ export class ChatMigrator extends BaseMigrator {
   // Buffered transformed topics across all streamed batches. Inserted in a
   // post-stream pass once orderKey can be assigned globally per groupId.
   private stagedTopics: PreparedTopicData[] = []
-  // file_ref backfill state
+  // chat_message_file_ref backfill state
   private migratedFileEntryIds: Set<string> = new Set()
   private skippedWarnings: Map<string, { count: number; samples: string[] }> = new Map()
   private fileRefInsertCount = 0
@@ -458,7 +458,7 @@ export class ChatMigrator extends BaseMigrator {
       })
 
       this.migratedFileEntryIds = await this.loadMigratedFileEntryIds(ctx)
-      logger.info('Loaded migrated file entry IDs for file_ref backfill', {
+      logger.info('Loaded migrated file entry IDs for chat_message_file_ref backfill', {
         referencedCount: this.migratedFileEntryIds.size
       })
 
@@ -616,14 +616,12 @@ export class ChatMigrator extends BaseMigrator {
       // fault (WAL loss, CASCADE from an unexpected file_entry delete), not a
       // migration logic bug — so it warrants investigation, not migration abort.
       if (this.fileRefInsertCount > 0) {
-        const fileRefResult = await db
-          .select({ count: sql<number>`count(*)` })
-          .from(fileRefTable)
-          .where(eq(fileRefTable.sourceType, chatMessageSourceType))
-          .get()
+        const fileRefResult = await db.select({ count: sql<number>`count(*)` }).from(chatMessageFileRefTable).get()
         const targetFileRefCount = fileRefResult?.count ?? 0
         if (targetFileRefCount < this.fileRefInsertCount) {
-          logger.warn(`file_ref count mismatch: expected ${this.fileRefInsertCount}, got ${targetFileRefCount}`)
+          logger.warn(
+            `chat_message_file_ref count mismatch: expected ${this.fileRefInsertCount}, got ${targetFileRefCount}`
+          )
         }
       }
 
@@ -722,7 +720,7 @@ export class ChatMigrator extends BaseMigrator {
           .where(inArray(fileEntryTable.id, chunk))
         for (const row of rows) result.add(row.id)
       } catch (err) {
-        logger.error('Failed to query file_entry during file_ref backfill', err as Error, {
+        logger.error('Failed to query file_entry during chat_message_file_ref backfill', err as Error, {
           chunkStart: i,
           chunkSize: chunk.length,
           totalReferencedIds: allIds.length
@@ -733,8 +731,11 @@ export class ChatMigrator extends BaseMigrator {
     return result
   }
 
-  private collectFileRefRows(batchMessages: NewMessage[], now: number): Array<typeof fileRefTable.$inferInsert> {
-    const rows: Array<typeof fileRefTable.$inferInsert> = []
+  private collectFileRefRows(
+    batchMessages: NewMessage[],
+    now: number
+  ): Array<typeof chatMessageFileRefTable.$inferInsert> {
+    const rows: Array<typeof chatMessageFileRefTable.$inferInsert> = []
     for (const msg of batchMessages) {
       const dedupKey = new Set<string>()
       for (const fileId of extractFileEntryIds(msg.data?.parts)) {
@@ -751,7 +752,6 @@ export class ChatMigrator extends BaseMigrator {
         rows.push({
           id: uuidv4(),
           fileEntryId: fileId,
-          sourceType: chatMessageSourceType,
           sourceId: msg.id,
           role: 'attachment',
           createdAt: now,
@@ -1090,7 +1090,7 @@ export class ChatMigrator extends BaseMigrator {
         }
         if (batchFileRefRows.length > 0) {
           for (let i = 0; i < batchFileRefRows.length; i += FILE_REF_INSERT_BATCH_SIZE) {
-            await tx.insert(fileRefTable).values(batchFileRefRows.slice(i, i + FILE_REF_INSERT_BATCH_SIZE))
+            await tx.insert(chatMessageFileRefTable).values(batchFileRefRows.slice(i, i + FILE_REF_INSERT_BATCH_SIZE))
           }
         }
       })
@@ -1147,11 +1147,9 @@ export class ChatMigrator extends BaseMigrator {
     }
 
     // Self-check FK integrity for the tables this migrator owns: topic.assistantId →
-    // assistant (migrated at order 2) and message.topicId / parentId / modelId all resolve
-    // by now. file_ref is intentionally excluded — it is a polymorphic table shared with
-    // KnowledgeMigrator, so foreign_key_check cannot be scoped to "our rows" here; it is
-    // covered by the engine's final verifyForeignKeys().
-    await this.assertOwnedForeignKeys(db, [topicTable, messageTable, pinTable])
+    // assistant (migrated at order 2), message.topicId / parentId / modelId, and
+    // chat_message_file_ref.sourceId/fileEntryId all resolve by now.
+    await this.assertOwnedForeignKeys(db, [topicTable, messageTable, pinTable, chatMessageFileRefTable])
 
     return { topicsInserted, messagesInserted, pinsInserted }
   }
