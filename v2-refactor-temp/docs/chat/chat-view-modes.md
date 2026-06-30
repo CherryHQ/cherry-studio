@@ -194,7 +194,7 @@ a fresh `AgentRightPane` (= a fresh `Shell`) per conversation branch
 in a draft session would otherwise remount the Shell and snap the work panel shut.
 
 To match Home, the `Shell` exposes an additive `onOpenChange` callback;
-`AgentPage` owns the open state (`workPaneOpen`) and threads
+`AgentPage` owns the open state (`sessionPaneOpen`) and threads
 `defaultOpen` + `onOpenChange` through `AgentChat` to every `AgentRightPane` mount
 site, so the open state survives the remount. This is scoped to traditional session
 view (`isTraditionalSessionView`); efficiency view passes `undefined` and is byte-for-byte unchanged.
