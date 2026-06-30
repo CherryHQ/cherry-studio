@@ -441,10 +441,14 @@ describe('TasksSettings task logs', () => {
     expect(screen.getByPlaceholderText('agent.cherryClaw.tasks.intervalPlaceholder')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('agent.cherryClaw.tasks.cronPlaceholder')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('radio', { name: 'agent.cherryClaw.tasks.scheduleType.cron' }))
+    act(() => {
+      fireEvent.click(screen.getByRole('radio', { name: 'agent.cherryClaw.tasks.scheduleType.cron' }))
+    })
 
-    expect(screen.getByPlaceholderText('agent.cherryClaw.tasks.cronPlaceholder')).toBeInTheDocument()
-    expect(screen.queryByPlaceholderText('agent.cherryClaw.tasks.intervalPlaceholder')).not.toBeInTheDocument()
+    expect(await screen.findByPlaceholderText('agent.cherryClaw.tasks.cronPlaceholder')).toBeInTheDocument()
+    await waitFor(() =>
+      expect(screen.queryByPlaceholderText('agent.cherryClaw.tasks.intervalPlaceholder')).not.toBeInTheDocument()
+    )
   })
 
   it('moves run and delete into the task detail more menu', async () => {
