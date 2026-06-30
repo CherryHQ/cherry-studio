@@ -32,7 +32,6 @@ import { BochaIcon } from './bocha'
 import { BoltNewIcon } from './bolt-new'
 import { BurncloudIcon } from './burncloud'
 import { BytedanceIcon } from './bytedance'
-import { CephalonIcon } from './cephalon'
 import { CerebrasIcon } from './cerebras'
 import { CherryinIcon } from './cherryin'
 import { CloudflareIcon } from './cloudflare'
@@ -146,7 +145,6 @@ import { TesseractJsIcon } from './tesseract-js'
 import { ThinkAnyIcon } from './think-any'
 import { TngIcon } from './tng'
 import { TogetherIcon } from './together'
-import { TokenfluxIcon } from './tokenflux'
 import { TwitterIcon } from './twitter'
 import { UpstageIcon } from './upstage'
 import { VercelIcon } from './vercel'
@@ -193,7 +191,6 @@ export const PROVIDER_ICON_CATALOG = {
   'bolt-new': BoltNewIcon,
   burncloud: BurncloudIcon,
   bytedance: BytedanceIcon,
-  cephalon: CephalonIcon,
   cerebras: CerebrasIcon,
   cherryin: CherryinIcon,
   cloudflare: CloudflareIcon,
@@ -307,7 +304,6 @@ export const PROVIDER_ICON_CATALOG = {
   'think-any': ThinkAnyIcon,
   tng: TngIcon,
   together: TogetherIcon,
-  tokenflux: TokenfluxIcon,
   twitter: TwitterIcon,
   upstage: UpstageIcon,
   vercel: VercelIcon,
