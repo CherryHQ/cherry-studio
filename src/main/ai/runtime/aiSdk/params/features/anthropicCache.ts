@@ -64,7 +64,7 @@ function withCacheProviderOptions<T extends { providerOptions?: unknown }>(value
     providerOptions: {
       ...(value.providerOptions && typeof value.providerOptions === 'object' ? value.providerOptions : {}),
       anthropic: {
-        ...((value.providerOptions as { anthropic?: object } | undefined)?.anthropic ?? {}),
+        ...(value.providerOptions as { anthropic?: object } | undefined)?.anthropic,
         cacheControl: cacheProviderOptions.anthropic.cacheControl
       }
     }

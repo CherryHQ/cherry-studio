@@ -4,12 +4,14 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Agent } from '../../Agent'
 import { attachUsageObserver } from '../usage'
 
+type ObserverCallback = (payload?: unknown) => void
+
 describe('attachUsageObserver', () => {
   it('emits accumulated cache token details in message metadata', () => {
-    const callbacks: Record<string, Function> = {}
+    const callbacks: Record<string, ObserverCallback> = {}
     const chunks: UIMessageChunk[] = []
     const agent = {
-      on: vi.fn((name: string, cb: Function) => {
+      on: vi.fn((name: string, cb: ObserverCallback) => {
         callbacks[name] = cb
       }),
       write: vi.fn((chunk: UIMessageChunk) => chunks.push(chunk))
