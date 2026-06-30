@@ -255,7 +255,12 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
 }))
 
 vi.mock('@renderer/hooks/resourceViewSources', () => ({
-  useAssistantTopicsSource: () => ({ topics: homeMocks.classicLayoutTopics })
+  // Match the real useTopics shape: isLoadingAll/isFullyLoaded are always present.
+  useAssistantTopicsSource: () => ({
+    topics: homeMocks.classicLayoutTopics,
+    isLoadingAll: false,
+    isFullyLoaded: true
+  })
 }))
 
 vi.mock('@renderer/hooks/useTopic', async () => {

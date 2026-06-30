@@ -121,8 +121,8 @@ const HomePage: FC = () => {
   // The picker uses it to reuse an empty placeholder topic instead of stacking new ones.
   const {
     topics: classicLayoutTopics,
-    isLoadingAll: isClassicTopicLayoutLoading = false,
-    isFullyLoaded: isClassicTopicLayoutFullyLoaded = true
+    isLoadingAll: isClassicTopicLayoutLoading,
+    isFullyLoaded: isClassicTopicLayoutFullyLoaded
   } = useAssistantTopicsSource({ enabled: isClassicTopicLayout })
   const isClassicTopicLayoutHistoryReady =
     !isClassicTopicLayout || (!isClassicTopicLayoutLoading && isClassicTopicLayoutFullyLoaded)
