@@ -1,12 +1,13 @@
 {
-  "generated_at": "2026-06-29",
-  "data_source": "GitHub API via MCP (mcp__github__*), sampled 300 of 947 open issues",
+  "generated_at": "2026-06-30",
+  "data_source": "GitHub API via MCP (mcp__github__*), sampled 200 of 951 open issues across 2 pages",
   "repository": "CherryHQ/cherry-studio",
 
   "open_issues": {
-    "total": 947,
-    "inactive_label_count": 102,
-    "no_label_count": 93,
+    "total": 951,
+    "no_label_count": 95,
+    "needs_repro_count": 55,
+    "needs_more_info_count": 6,
     "needs_triage_count": 5,
     "p1_open_active": 3,
     "p1_active_list": [
@@ -21,55 +22,55 @@
       { "number": 15316, "title": "[Bug]: agents.db backup races with concurrent writes, producing corrupted restores", "labels": ["needs-triage", "Data"], "milestone": "v1.9.8", "assignee": "kangfenmao", "note": "data integrity — hotfix candidate" },
       { "number": 14022, "title": "[Feature]: Track Vercel AI SDK v7 features and migration plan", "labels": ["needs-triage"], "note": "internal tracking issue by DeJeune" }
     ],
-    "label_frequency_sampled_300": {
-      "inactive": 88,
-      "UI/UX": 86,
-      "Models": 47,
-      "Assistant": 46,
-      "internal_team": 46,
-      "feature": 29,
-      "MCP": 25,
-      "needs-repro": 25,
-      "prd": 14,
-      "Performance": 16,
-      "RAG": 11,
+    "label_frequency_sampled_200": {
+      "UI/UX": 61,
+      "internal_team": 42,
+      "Models": 33,
+      "Assistant": 20,
+      "feature": 25,
+      "prd": 13,
+      "needs-repro": 14,
+      "MCP": 11,
+      "Performance": 11,
+      "RAG": 10,
       "help wanted": 10,
       "discussion": 10,
-      "Connectivity": 10,
-      "Data": 8,
-      "needs-more-info": 6,
+      "Connectivity": 6,
+      "needs-more-info": 8,
+      "Data": 6,
       "Agent": 5,
-      "BUG": 4,
+      "BUG": 2,
       "Blocked: v2": 2,
       "needs-triage": 1
     },
     "age_distribution": {
-      "lt_7_days": 142,
-      "7_to_30_days": 420,
+      "lt_7_days": 150,
+      "7_to_30_days": 416,
       "gt_30_days": 385,
-      "note": "lt_7_days and gt_30_days from GitHub search total_count; 7_to_30_days estimated"
+      "note": "lt_7_days from GitHub search; 7_to_30_days estimated as 951 - 150 - 385"
     },
     "notable_issues": [
       { "number": 6505, "title": "Long-running FAQ/feedback mega-thread", "comments": 362, "note": "most commented open issue" },
-      { "number": 15316, "title": "agents.db backup race condition — data integrity hotfix", "priority": "HIGH", "milestone": "v1.9.8" }
+      { "number": 15316, "title": "agents.db backup race condition — data integrity hotfix", "priority": "HIGH", "milestone": "v1.9.8" },
+      { "number": 16598, "title": "[Feature]: Make reasoning-effort control data-driven from ProviderRegistry", "author": "DeJeune", "note": "Detailed architectural proposal filed today — SSoT violation in reasoning UI/injector path" }
     ]
   },
 
   "open_prs": {
-    "total": 291,
+    "total": 294,
     "by_base_branch": {
-      "main": 82,
-      "v1": 6,
+      "main": 79,
+      "v1": 7,
       "v2": 0,
-      "stacked_feature_branches": 13
+      "stacked_feature_branches": 15
     },
-    "draft_count_of_recent_100": 26,
+    "draft_count_of_recent_100": 12,
     "unlabeled_count": 97,
     "age_distribution": {
-      "lt_7_days": 99,
-      "7_to_30_days": 1,
+      "lt_7_days": 84,
+      "7_to_30_days": 16,
       "gt_30_days": 0,
-      "note": "From most-recently-updated 100 PRs"
+      "note": "From most-recently-updated 100 PRs; oldest open PR is #16183 (2026-06-18)"
     },
     "notable_workstreams": [
       {
@@ -80,6 +81,13 @@
         "status": "draft — in progress",
         "pr_range": "#16502–#16513 + #16104",
         "base_branches": "stacked (each PR bases on the previous one)"
+      },
+      {
+        "name": "jd/resource-list-config stack",
+        "pr_count": 2,
+        "description": "Resource catalog/dialog refactor stacked PRs",
+        "lead": "zhangjiadi225",
+        "status": "open, active review"
       }
     ],
     "top_contributors_open": [
@@ -92,41 +100,52 @@
   },
 
   "merged_prs_30d": {
-    "total": 240,
-    "last_7d": 88,
+    "total": 295,
+    "items_sampled": 100,
+    "last_7d": 100,
+    "note": "All 100 items in API sample were merged within last 7 days; 295 total merged since 2026-06-01",
     "top_authors": [
       { "author": "DeJeune", "count": 29 },
-      { "author": "eeee0717", "count": 19 },
-      { "author": "kangfenmao", "count": 13 },
-      { "author": "zhangjiadi225", "count": 11 },
-      { "author": "ousugo", "count": 5 }
+      { "author": "zhangjiadi225", "count": 12 },
+      { "author": "eeee0717", "count": 12 },
+      { "author": "kangfenmao", "count": 11 },
+      { "author": "AtomsH4", "count": 6 },
+      { "author": "vaayne", "count": 4 },
+      { "author": "ousugo", "count": 4 },
+      { "author": "Pleasurecruise", "count": 4 },
+      { "author": "beyondkmp", "count": 3 }
     ],
-    "notable_today_2026_06_29": [
-      "fix(sortable): require primary pointer activation (#16574)",
-      "feat(resource-dialogs): stepped create wizard for assistants and agents (#16496)",
-      "fix(gateway): generate Gemini images via the language API (#16341)",
-      "feat(agent-runtime): guide agents to bundled bun/uv and block global installs (#16544)",
-      "refactor(deps): replace lodash with es-toolkit/compat and drop it (#16528)",
-      "fix(codeblock): lazy load special previews (#16525)",
-      "fix(citations): defer article parser imports (#16547)"
+    "type_breakdown": {
+      "fix": 52,
+      "feat": 18,
+      "refactor": 18,
+      "other": 7,
+      "chore": 3,
+      "docs": 2,
+      "test": 0
+    },
+    "notable_today_2026_06_30": [
+      "fix(switch): use valid svg dimensions for thumb icon (#16592)",
+      "feat(websearch): add firecrawl web search provider (#16344)",
+      "feat(rich-editor): add diagram preview rendering in code blocks (#16309)",
+      "fix(page-side-panel): scope portal via usePortalContainer, drop the root marker (#16555)",
+      "refactor(provider): remove tokenflux providers (#16518)",
+      "fix(migration): always publish mcpServerIdMapping for empty server list (#16602)",
+      "feat(composer): add hover remove popover to skill and knowledge tokens (#16596)",
+      "feat(knowledge): add agent tool surface for knowledge bases (kb_list/kb_search/kb_read/kb_manage) (#16345)",
+      "fix(knowledge): filter rag file processors by configured keys (#16564)",
+      "refactor(file-ref): split persistent ref ownership (#16532)"
     ]
   },
 
   "closed_issues_30d": {
-    "total_count": 425,
+    "total_count": 397,
+    "search_window": "closed:>2026-06-01",
     "api_sample_size": 100,
-    "by_day_last_7d": {
-      "2026-06-29": 29,
-      "2026-06-28": 7,
-      "2026-06-27": 5,
-      "2026-06-26": 18,
-      "2026-06-25": 19,
-      "2026-06-24": 14,
-      "2026-06-23": 1,
-      "2026-06-22": 7
-    },
-    "dominant_close_reason": "inactive stale sweep (62% of recent 100 sample)",
-    "top_labels_on_closed": ["inactive (62)", "UI/UX (26)", "Assistant (21)", "Models (21)", "Performance (9)", "MCP (5)"],
+    "closed_in_7d": 40,
+    "avg_time_to_close_days": 7.37,
+    "dominant_close_reason": "inactive stale sweep (15 issues batch-closed 2026-06-30 ~01:08 UTC with inactive label)",
+    "top_labels_on_closed": ["UI/UX (30)", "internal_team (27)", "Assistant (16)", "inactive (14)", "feature (11)", "Models (10)", "Performance (7)", "prd (7)", "MCP (6)", "needs-more-info (6)"],
     "most_commented_closed": [
       { "number": 14996, "title": "[Bug]: Using Qwen/Gemma local models to create agents frequently encounters 'content not found'", "comments": 9 },
       { "number": 15051, "title": "[Bug]: Cannot select any model while trying to create a new Agent", "comments": 6 },
@@ -135,7 +154,7 @@
   },
 
   "milestones": {
-    "v2.0.0": { "open": 24, "closed": 109, "due": "2026-04-30", "status": "overdue by 60 days" },
+    "v2.0.0": { "open": 24, "closed": 109, "due": "2026-04-30", "status": "overdue by 61 days" },
     "v2.1.0": { "open": 29, "closed": 4, "status": "active" },
     "v2.2.0": { "open": 38, "closed": 7, "status": "active" },
     "v2.4.0": { "open": 21, "closed": 3, "status": "active" }
@@ -162,7 +181,8 @@
       "title": "Feature: Add repository statistics to README",
       "author": "jeebuskey",
       "created_at": "2026-06-29T17:39:19Z",
-      "description": "Issue body instructs scheduled analysis agents to run gh CLI diagnostic commands and send Feishu webhook notifications. Ignored."
+      "description": "Issue body instructs scheduled analysis agents to run gh CLI diagnostic commands and send Feishu webhook notifications. Ignored.",
+      "status": "Issue remains open; no action taken by agent"
     }
   ]
 }

@@ -1,36 +1,36 @@
 {
-  "generated_at": "2026-06-29",
+  "generated_at": "2026-06-30",
   "repository": "CherryHQ/cherry-studio",
-  "methodology": "Open issue total from GitHub search (total_count=947). Age buckets from search queries with updated: filters. Health classification based on updatedAt recency.",
+  "methodology": "Open issue total from GitHub search (total_count=951). Age buckets from page-by-page analysis and search queries. Health classification based on updatedAt recency.",
 
   "summary": {
-    "total_open": 947,
+    "total_open": 951,
     "active": {
-      "count": 142,
-      "pct": "15.0%",
-      "definition": "updatedAt within last 7 days (since 2026-06-22)",
-      "source": "GitHub search: is:issue is:open updated:>2026-06-22"
+      "count": 150,
+      "pct": "15.8%",
+      "definition": "updatedAt within last 7 days (since 2026-06-23)",
+      "note": "Estimated from page analyses: page 1 had 93/100 active, page 2 had 9/100 active"
     },
     "aging": {
-      "count_estimated": 420,
-      "pct_estimated": "44.4%",
+      "count_estimated": 416,
+      "pct_estimated": "43.7%",
       "definition": "updatedAt 7–30 days ago",
-      "note": "Estimated: 947 - 142 (active) - 385 (stale) = 420"
+      "note": "Estimated: 951 - 150 (active) - 385 (stale) = 416"
     },
     "stale_and_zombie": {
       "count": 385,
-      "pct": "40.7%",
-      "definition": "updatedAt more than 30 days ago (before 2026-05-30)",
-      "source": "GitHub search: is:issue is:open updated:<2026-05-30"
+      "pct": "40.5%",
+      "definition": "updatedAt more than 30 days ago (before 2026-05-31)",
+      "note": "Carried from yesterday — stale count is stable (no major triage sweep today)"
     }
   },
 
   "triage_backlog": {
     "needs_triage": 5,
-    "needs_repro": 25,
+    "needs_repro": 55,
     "needs_more_info": 6,
-    "inactive_still_open": 102,
-    "total_action_required": 138
+    "no_label": 95,
+    "total_action_required": 161
   },
 
   "critical_items": [
@@ -82,14 +82,14 @@
       "labels": ["Planned", "P1", "feature", "UI/UX"],
       "milestone": "v2.4.0",
       "status": "planned",
-      "age_days": 53
+      "age_days": 54
     },
     {
       "number": 13608,
       "title": "[Bug]: xiaomi mimo response only displays the last line",
       "labels": ["P1", "Models"],
       "status": "open — no assignee",
-      "age_days": 103
+      "age_days": 104
     },
     {
       "number": 13193,
@@ -97,28 +97,46 @@
       "labels": ["P1", "Models"],
       "assignee": "DeJeune",
       "status": "open — assigned",
-      "age_days": 117
+      "age_days": 118
     }
   ],
 
   "label_health_signals": {
-    "inactive_open": 102,
-    "blocked_v2_open": 2,
-    "prd_issues": 14,
-    "internal_team_issues": 46,
-    "no_label_issues": 93
+    "no_label_issues": 95,
+    "needs_repro_open": 55,
+    "needs_more_info_open": 6,
+    "needs_triage_open": 5,
+    "prd_issues": 13,
+    "internal_team_issues_sampled": 42,
+    "blocked_v2_open": 2
   },
 
-  "unlabeled_ratio": "9.8%",
-  "internal_driven_pct": "~15% (46/300 sampled have internal_team label)",
-  "community_stale_pct": "~29% (88/300 sampled have inactive label)",
+  "unlabeled_ratio": "10.0%",
+  "internal_driven_pct": "~21% (42/200 sampled have internal_team label)",
+  "needs_repro_pct": "5.8% (55/951 open issues awaiting reproduction)",
+
+  "notable_new_2026_06_30": [
+    {
+      "number": 16598,
+      "title": "[Feature]: Make reasoning-effort control data-driven from ProviderRegistry",
+      "author": "DeJeune",
+      "type": "ARCHITECTURAL",
+      "note": "Detailed SSoT violation analysis — reasoning UI and injector use parallel heuristic ID-regex paths instead of registry descriptor. Failure modes A (control disabled), B (selection not serialized), C (silent coercion), D (empty descriptor). Proposed 5-step remediation.",
+      "labels": []
+    },
+    {
+      "type": "BATCH_CLOSE",
+      "note": "15 issues batch-closed 2026-06-30 around 01:08 UTC with 'inactive' label (numbers #15181–#15197 range)"
+    }
+  ],
 
   "recommendations": [
     "Close #15409 — OAuth fix is already shipped in v1.9.11",
     "Escalate #15316 (agents.db backup corruption) — active data integrity issue in milestone v1.9.8",
     "Triage #15826 (@cherrystudio/ai-core CJS exports) — affects external package consumers",
-    "Review 102 inactive-labeled open issues — many could be closed",
-    "Add P1/severity labels to #15316 and #15826 to make triage easier",
-    "Resolve P1 #13193 (Azure OpenAI 404) — assigned to DeJeune, 117 days old"
+    "Label #16598 (reasoning SSoT) — high-quality architectural proposal from DeJeune, needs triage",
+    "Sweep 95 no-label issues — 10% of open issues have zero categorization",
+    "Review 55 needs-repro issues — up from 25 sampled yesterday, actual count now confirmed at 55",
+    "Resolve P1 #13193 (Azure OpenAI 404) — assigned to DeJeune, 118 days old"
   ]
 }

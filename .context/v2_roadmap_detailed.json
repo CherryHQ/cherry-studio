@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-29",
+  "generated_at": "2026-06-30",
   "repository": "CherryHQ/cherry-studio",
 
   "v2_branch_status": {
@@ -7,34 +7,22 @@
     "merge_completed_approximately": "2026-W22 (week of May 26 – June 1, 2026)",
     "active_dev_branch": "main",
     "open_prs_targeting_v2": 0,
-    "closed_prs_sampled": 100,
-    "closed_v2_prs_merged": 34,
-    "closed_v2_prs_rejected": 66,
-    "merge_rate": "34%"
-  },
-
-  "v2_historical_contributors": [
-    { "author": "eeee0717",     "merged_prs": 24, "pct": "71%" },
-    { "author": "Cherry-Yiran", "merged_prs": 3,  "pct": "9%" },
-    { "author": "EurFelux",     "merged_prs": 3,  "pct": "9%" },
-    { "author": "DeJeune",      "merged_prs": 1,  "pct": "3%" },
-    { "author": "kangfenmao",   "merged_prs": 1,  "pct": "3%" },
-    { "author": "kovsu",        "merged_prs": 1,  "pct": "3%" },
-    { "author": "0xfullex",     "merged_prs": 1,  "pct": "3%" }
-  ],
-
-  "v2_merge_velocity": {
-    "2026-W03": 1, "2026-W04": 1, "2026-W11": 1, "2026-W12": 2,
-    "2026-W13": 3, "2026-W14": 3, "2026-W15": 2, "2026-W16": 1,
-    "2026-W17": 1, "2026-W18": 1, "2026-W19": 3, "2026-W20": 2,
-    "2026-W21": 4, "2026-W22": 9
+    "merged_prs_30d_total": 295,
+    "merge_rate_type_breakdown": {
+      "fix": 52,
+      "feat": 18,
+      "refactor": 18,
+      "other": 7,
+      "chore": 3,
+      "docs": 2
+    }
   },
 
   "milestones": {
     "v2.0.0": {
       "status": "overdue",
       "due_on": "2026-04-30",
-      "days_overdue": 60,
+      "days_overdue": 61,
       "open_issues": 24,
       "closed_issues": 109,
       "completion_pct": 82
@@ -79,49 +67,71 @@
         "#16512 — refactor(pages): v2 re-skin pages + quick-assistant [12/13]",
         "#16513 — shared component re-skin + legacy-css-var governance [13/13]"
       ],
-      "status": "all drafts — being developed in sequence",
-      "total_prs": 13
-    },
-    {
-      "name": "Dependency Cleanup (lodash, antd, styled-components)",
-      "type": "Dependency Refactor",
-      "lead": "DeJeune",
-      "completed_2026_06_29": [
-        "#16528 — replace lodash with es-toolkit/compat and drop it (MERGED 2026-06-29)"
-      ],
-      "open_prs": [],
-      "status": "lodash migration complete; antd/styled-components previously done"
-    },
-    {
-      "name": "Agent Runtime / SDK Integration",
-      "type": "Core Feature",
-      "lead": "DeJeune, vaayne",
-      "prs": [
-        "#16544 — guide agents to bundled bun/uv and block global installs (MERGED 2026-06-29)",
-        "#16462 — AI SDK v7 migration plan and design docs (draft)",
-        "#16492 — OAuth runtime provider registry (vaayne)",
-        "#16283 — login-based providers: Claude Code, OpenAI Codex, Grok"
-      ],
-      "status": "multiple open PRs"
+      "status": "all drafts — being developed in sequence"
     },
     {
       "name": "Knowledge Base Enhancement",
       "type": "Feature",
       "lead": "eeee0717, LWWZH",
-      "prs": [
-        "#16345 — agent tool surface for knowledge bases (kb_read/grep/tree)",
+      "merged_today_2026_06_30": [
+        "#16345 — feat(knowledge): add agent tool surface for knowledge bases (kb_list/kb_search/kb_read/kb_manage) — MERGED 2026-06-30",
+        "#16564 — fix(knowledge): filter rag file processors by configured keys — MERGED 2026-06-30"
+      ],
+      "open_prs": [
         "#16486 — file-name search to knowledge base index",
         "#16407 — local embedding and PaddleOCR (draft)",
         "#16443 — e2e data-testid hooks + agent-e2e spec (draft)"
       ],
-      "status": "multiple open PRs"
+      "status": "active — major feature merged today (kb_list/kb_search/kb_read/kb_manage agent tools)"
+    },
+    {
+      "name": "Agent Runtime / SDK Integration",
+      "type": "Core Feature",
+      "lead": "DeJeune, vaayne",
+      "merged_today_2026_06_30": [
+        "#16602 — fix(migration): always publish mcpServerIdMapping for empty server list — MERGED 2026-06-30"
+      ],
+      "open_prs": [
+        "#16462 — AI SDK v7 migration plan and design docs (draft)",
+        "#16492 — OAuth runtime provider registry (vaayne)",
+        "#16283 — login-based providers: Claude Code, OpenAI Codex, Grok"
+      ],
+      "open_issues": [
+        "#16598 — Make reasoning-effort control data-driven from ProviderRegistry (SSoT architectural issue, filed by DeJeune 2026-06-30)"
+      ],
+      "status": "active — MCP migration fix merged; reasoning SSoT issue newly filed"
     },
     {
       "name": "IPC Migration to IpcApi",
       "type": "Architecture",
       "lead": "Pleasurecruise",
-      "prs": ["#16397 — migrate runtime IPC to IpcApi", "#16554 — binary.latest_versions IPC"],
-      "status": "open PRs"
+      "open_prs": [
+        "#16397 — migrate runtime IPC to IpcApi",
+        "#16554 — binary.latest_versions IPC"
+      ],
+      "status": "open PRs, no merges today"
+    },
+    {
+      "name": "Composer UX Improvements",
+      "type": "Feature/UX",
+      "lead": "zhangjiadi225, DeJeune",
+      "merged_today_2026_06_30": [
+        "#16596 — feat(composer): add hover remove popover to skill and knowledge tokens — MERGED 2026-06-30"
+      ],
+      "open_prs": [
+        "#16429 — feat(composer): add input history navigation",
+        "#16489 — refactor(settings): remove standalone settings window"
+      ],
+      "status": "active"
+    },
+    {
+      "name": "Settings Window Consolidation",
+      "type": "Refactor",
+      "lead": "DeJeune",
+      "open_prs": [
+        "#16489 — refactor(settings): remove standalone settings window"
+      ],
+      "status": "open PR — updated today"
     },
     {
       "name": "Channels — outbound file forwarding",
@@ -147,20 +157,32 @@
     "tracking_issue": 14022,
     "current_version": "ai@^6.x + 17 @ai-sdk/* packages",
     "v7_milestone_status": "55% complete (44/79 closed as of April 2026)",
+    "migration_doc_pr": 16462,
     "key_breaking_changes": [
       "CallSettings → ModelCallOptions + RequestOptions",
       "image-* → file-* type unification",
       "experimental_context → runtimeContext",
       "CJS exports removed (pure ESM in v7)",
       "TelemetrySettings → TelemetryOptions"
-    ],
-    "migration_doc_pr": 16462
+    ]
   },
 
   "release_status": {
     "latest_public": "v1.9.11",
     "published_at": "2026-06-07",
     "draft": "v1.9.12",
-    "note": "v2.0.0 not yet released; public releases still on v1.9.x branch. v2.0.0 milestone 60 days overdue."
-  }
+    "note": "v2.0.0 not yet released; public releases still on v1.9.x branch. v2.0.0 milestone 61 days overdue."
+  },
+
+  "top_merged_contributors_30d": [
+    { "author": "DeJeune", "merged_prs": 29 },
+    { "author": "zhangjiadi225", "merged_prs": 12 },
+    { "author": "eeee0717", "merged_prs": 12 },
+    { "author": "kangfenmao", "merged_prs": 11 },
+    { "author": "AtomsH4", "merged_prs": 6 },
+    { "author": "vaayne", "merged_prs": 4 },
+    { "author": "ousugo", "merged_prs": 4 },
+    { "author": "Pleasurecruise", "merged_prs": 4 },
+    { "author": "beyondkmp", "merged_prs": 3 }
+  ]
 }
