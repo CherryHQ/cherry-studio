@@ -18,9 +18,8 @@ Both are declared in `target-key-definitions.json` and generated into
 `preferenceSchemas.ts`; the legacy v1 `topicPosition` field is deleted during
 classification and is not migrated into either setting. The settings UI
 (`CommonSettings`) exposes them as "Conversation view" and "Work view", each with
-"Efficient" / "Classic" labels. (The i18n label strings are unchanged from the
-earlier naming, so the `modern` value still shows as "Efficient"; only the stored
-values and code identifiers moved to `classic` / `modern`.)
+"Classic" / "Modern" labels, under the `settings.messages.view.classic` / `.modern`
+keys (Chinese: 经典 / 现代).
 
 ## Surface terminology
 

@@ -6469,9 +6469,9 @@
       "title": "訊息設定",
       "use_serif_font": "使用襯線字型",
       "view": {
+        "classic": "經典",
         "conversation": "對話視圖",
-        "efficiency": "效率",
-        "traditional": "傳統",
+        "modern": "現代",
         "work": "工作視圖"
       },
       "wide_mode": "寬版面模式"

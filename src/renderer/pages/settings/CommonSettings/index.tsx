@@ -336,8 +336,8 @@ const CommonSettings: FC = () => {
 
   const layoutOptions = useMemo(
     () => [
-      { value: 'classic' as const, label: t('settings.messages.view.traditional') },
-      { value: 'modern' as const, label: t('settings.messages.view.efficiency') }
+      { value: 'classic' as const, label: t('settings.messages.view.classic') },
+      { value: 'modern' as const, label: t('settings.messages.view.modern') }
     ],
     [t]
   )

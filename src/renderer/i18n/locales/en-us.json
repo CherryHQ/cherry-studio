@@ -6469,9 +6469,9 @@
       "title": "Message Settings",
       "use_serif_font": "Use serif font",
       "view": {
+        "classic": "Classic",
         "conversation": "Conversation view",
-        "efficiency": "Efficient",
-        "traditional": "Classic",
+        "modern": "Modern",
         "work": "Work view"
       },
       "wide_mode": "Wide layout mode"
