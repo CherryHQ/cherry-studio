@@ -47,6 +47,11 @@ interface ForeignKeyInfo {
   readonly onDelete: 'cascade' | 'restrict' | 'set null' | 'no action' | 'set default'
 }
 
+/** A UNIQUE constraint/index, as a column set (order-insensitive). */
+interface UniqueKeyInfo {
+  readonly columns: readonly string[]
+}
+
 interface PrimaryKeyInfo {
   readonly columns: readonly string[]
   readonly kind: 'uuid-v4' | 'uuid-v7' | 'natural' | 'composite' | 'autoincrement'
@@ -58,6 +63,7 @@ interface TableInfo {
   readonly columns: readonly ColumnInfo[]
   readonly primaryKey: PrimaryKeyInfo
   readonly foreignKeys: readonly ForeignKeyInfo[]
+  readonly uniqueKeys: readonly UniqueKeyInfo[]
 }
 
 /**
@@ -209,7 +215,45 @@ function extractTableInfo(table: SQLiteTable, autoIncrementKeys: Set<string>): T
     }
   })
 
-  return { name: config.name, columns, primaryKey, foreignKeys }
+  // Unique keys: aggregate THREE Drizzle sources so finalize #13 can verify a
+  // natural-key identityKey is genuinely backed by a UNIQUE constraint. inline
+  // column .unique() is invisible to both config.indexes and config.uniqueConstraints
+  // (it only sets column.isUnique), so all three must be scanned.
+  //   - uniqueIndex() → config.indexes with config.unique === true. Partial unique
+  //     indexes (config.where set) are NOT a cross-device identity guarantee, so
+  //     excluded. Expression-column indexes (a SQL entry in config.columns) can't
+  //     be represented as a clean column set, so the whole index is skipped.
+  //   - table-level unique().on(...) → config.uniqueConstraints (SQLiteColumn[]).
+  //   - inline column .unique() → column.isUnique === true (single-column).
+  const uniqueKeySet = new Set<string>()
+  const uniqueKeys: UniqueKeyInfo[] = []
+  const addUnique = (cols: readonly string[]): void => {
+    if (cols.length === 0) return
+    const dedupKey = [...cols].sort().join(' ')
+    if (uniqueKeySet.has(dedupKey)) return
+    uniqueKeySet.add(dedupKey)
+    uniqueKeys.push({ columns: cols })
+  }
+  const resolveColumnName = (col: unknown): string | undefined =>
+    keyLookup.get(col as SQLiteColumn) ??
+    (typeof (col as { name?: unknown }).name === 'string' ? (col as { name: string }).name : undefined)
+  for (const idx of config.indexes) {
+    const cfg = (idx as { config: { unique?: boolean; where?: unknown; columns?: readonly unknown[] } }).config
+    if (!cfg.unique || cfg.where != null) continue
+    const cols = (cfg.columns ?? []).map(resolveColumnName)
+    if (cols.some((c) => c === undefined)) continue // expression-column index — skip
+    addUnique(cols as string[])
+  }
+  for (const uc of config.uniqueConstraints) {
+    addUnique((uc as { columns: readonly SQLiteColumn[] }).columns.map((c) => keyLookup.get(c) ?? c.name))
+  }
+  for (const column of config.columns) {
+    if ((column as { isUnique?: boolean }).isUnique === true) {
+      addUnique([keyLookup.get(column) ?? column.name])
+    }
+  }
+
+  return { name: config.name, columns, primaryKey, foreignKeys, uniqueKeys }
 }
 
 /** Read a column's $defaultFn source string (for UUID helper detection). */
@@ -282,6 +326,14 @@ function emitDbSchemaRefs(
     })
     .join(',\n')
 
+  const uniqueKeys = sortedTables
+    .map((t) => {
+      if (t.uniqueKeys.length === 0) return `  ${t.name}: []`
+      const facts = t.uniqueKeys.map((u) => `    { columns: [${u.columns.map((c) => str(c)).join(', ')}] }`).join(',\n')
+      return `  ${t.name}: [\n${facts}\n  ]`
+    })
+    .join(',\n')
+
   const ftsEntries = ftsVirtualTables
     .map(([ftsTable, contentTable]) => `  ${ftsTable}: ${str(contentTable)},`)
     .join('\n')
@@ -327,6 +379,11 @@ export interface ForeignKeyFact {
   readonly onDelete: 'cascade' | 'restrict' | 'set null' | 'no action' | 'set default'
 }
 
+/** A UNIQUE constraint/index as a column set (order-insensitive). */
+export interface UniqueKeyFact {
+  readonly columns: readonly DbColumnName[]
+}
+
 // Compile-time validation helpers. table('x')/column<'t'>('c') fail tsc when the
 // literal is not a known table/column, so typos surface at compile time.
 export function table<T extends DbTableName>(literal: T): T {
@@ -337,6 +394,15 @@ export function column<T extends DbTableName>(literal: DbColumnName<T>): DbColum
 }
 export function columns<T extends DbTableName>(literals: readonly DbColumnName<T>[]): readonly DbColumnName<T>[] {
   return literals
+}
+// Mirror a codegen PK fact for a table whose contributor knows its PK is
+// unambiguous, forcing ambiguous:false (overrides the H4/H5 heuristic). The single
+// shared replacement for the per-file \`pk()\` helper previously duplicated across
+// contributors. Forward-references DB_PRIMARY_KEYS (defined below) — safe because
+// mirrorPk is only ever called at contributor-module load, after this module fully
+// evaluates.
+export function mirrorPk(t: DbTableName): PrimaryKeyFact {
+  return { ...DB_PRIMARY_KEYS[t], ambiguous: false as const }
 }
 
 // 1. Business tables discovered via sqliteTable() calls. Excludes
@@ -367,7 +433,17 @@ export const DB_FOREIGN_KEYS = {
 ${foreignKeys}
 } as const satisfies Readonly<Record<DbTableName, readonly ForeignKeyFact[]>>
 
-// 3c. FTS5 virtual tables (content-table mapping). Keys are the FTS virtual table
+// 3c. Unique-key facts — every UNIQUE constraint/index, as column sets, so finalize
+//     #13 can verify a natural-key aggregate's identityKey is genuinely unique
+//     (cross-device identity). Aggregates three schema sources: uniqueIndex(),
+//     table-level unique().on(...), and inline column .unique() (the last is
+//     invisible to the first two — only column.isUnique exposes it). Partial unique
+//     indexes (WHERE) are excluded — not a cross-device identity guarantee.
+export const DB_UNIQUE_KEYS = {
+${uniqueKeys}
+} as const satisfies Readonly<Record<DbTableName, readonly UniqueKeyFact[]>>
+
+// 3d. FTS5 virtual tables (content-table mapping). Keys are the FTS virtual table
 //     names (not in DB_TABLES, in ALWAYS_STRIP); values are content tables (in
 //     DB_TABLES). Parsed from the *_FTS_STATEMENTS content= clauses.
 export const DB_FTS_VIRTUAL_TABLES = {
