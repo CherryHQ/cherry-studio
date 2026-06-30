@@ -75,8 +75,6 @@ interface SortableProps<T> {
   className?: string
   /** Disable dragging for the whole collection */
   disabled?: boolean
-  /** Whether non-dragging items animate layout changes */
-  animateLayoutChanges?: boolean
   /** Item list style */
   listStyle?: React.CSSProperties
   /** Item style */
@@ -110,7 +108,6 @@ function Sortable<T>({
   showGhost = false,
   className,
   disabled = false,
-  animateLayoutChanges = true,
   listStyle,
   itemStyle,
   gap,
@@ -226,7 +223,6 @@ function Sortable<T>({
               item={item}
               renderItem={renderItem}
               disabled={disabled}
-              animateLayoutChanges={animateLayoutChanges}
               useDragOverlay={useDragOverlay}
               showGhost={showGhost}
               itemStyle={itemStyle}

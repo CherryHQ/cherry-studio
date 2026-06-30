@@ -9,7 +9,6 @@ interface SortableItemProps<T> {
   index: number
   renderItem: RenderItemType<T>
   disabled?: boolean
-  animateLayoutChanges?: boolean
   useDragOverlay?: boolean
   showGhost?: boolean
   itemStyle?: React.CSSProperties
@@ -21,7 +20,6 @@ export function SortableItem<T>({
   index,
   renderItem,
   disabled = false,
-  animateLayoutChanges = true,
   useDragOverlay = true,
   showGhost = true,
   itemStyle
@@ -40,8 +38,8 @@ export function SortableItem<T>({
       dragging={isDragging}
       dragOverlay={!useDragOverlay && isDragging}
       ghost={showGhost && useDragOverlay && isDragging}
-      transform={animateLayoutChanges || isDragging ? transform : null}
-      transition={animateLayoutChanges || isDragging ? transition : 'none'}
+      transform={transform}
+      transition={transition}
       listeners={listeners}
       itemStyle={itemStyle}
       {...attributes}
