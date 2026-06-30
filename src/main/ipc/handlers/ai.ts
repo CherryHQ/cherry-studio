@@ -71,6 +71,10 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   // ── Agent sessions & tasks — delegate to the owning services. ──
   'ai.prewarm_agent_session': async ({ sessionId }) => {
+    // Skip prewarming a session that's already live/streaming: it would spawn a redundant warm
+    // subprocess for the active connection (e.g. the message-list mount prewarm firing mid-handoff
+    // while the first turn streams). onSessionIdle re-prewarms once the session goes idle.
+    if (application.get('AgentSessionRuntimeService').isSessionBusy(sessionId)) return
     await application.get('ClaudeCodeWarmQueryManager').prewarmAgentSession(sessionId)
   },
   'ai.close_agent_session_warm': async ({ sessionId }) => {

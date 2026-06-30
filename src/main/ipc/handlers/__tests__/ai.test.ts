@@ -25,6 +25,7 @@ const aiStreamManager = {
 }
 
 const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn(), closeAgentSessionWarm: vi.fn() }
+const agentSessionRuntimeService = { isSessionBusy: vi.fn() }
 const agentJobsService = { runTask: vi.fn() }
 
 // WebContentsListener (constructed in the stream_open handler) wires once()/isDestroyed().
@@ -34,6 +35,7 @@ const windowManager = { getWindow: vi.fn() }
 beforeEach(() => {
   vi.clearAllMocks()
   windowManager.getWindow.mockReturnValue({ webContents: fakeWebContents })
+  agentSessionRuntimeService.isSessionBusy.mockReturnValue(false)
   appGetMock.mockImplementation((name: string) => {
     switch (name) {
       case 'AiService':
@@ -42,6 +44,8 @@ beforeEach(() => {
         return aiStreamManager
       case 'ClaudeCodeWarmQueryManager':
         return claudeCodeWarmQueryManager
+      case 'AgentSessionRuntimeService':
+        return agentSessionRuntimeService
       case 'AgentJobsService':
         return agentJobsService
       case 'WindowManager':
@@ -195,10 +199,17 @@ describe('aiHandlers — streaming', () => {
 })
 
 describe('aiHandlers — agent sessions & tasks', () => {
-  it('prewarm_agent_session delegates to ClaudeCodeWarmQueryManager', async () => {
+  it('prewarm_agent_session delegates to ClaudeCodeWarmQueryManager when the session is idle', async () => {
     claudeCodeWarmQueryManager.prewarmAgentSession.mockResolvedValue(undefined)
     await aiHandlers['ai.prewarm_agent_session']({ sessionId: 's1' }, ctx)
     expect(claudeCodeWarmQueryManager.prewarmAgentSession).toHaveBeenCalledWith('s1')
+  })
+
+  it('prewarm_agent_session skips a busy session to avoid a redundant warm subprocess', async () => {
+    agentSessionRuntimeService.isSessionBusy.mockReturnValue(true)
+    await aiHandlers['ai.prewarm_agent_session']({ sessionId: 's1' }, ctx)
+    expect(agentSessionRuntimeService.isSessionBusy).toHaveBeenCalledWith('s1')
+    expect(claudeCodeWarmQueryManager.prewarmAgentSession).not.toHaveBeenCalled()
   })
 
   it('close_agent_session_warm delegates to ClaudeCodeWarmQueryManager', async () => {

@@ -553,6 +553,31 @@ describe('AgentPage', () => {
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-created'))
   })
 
+  it('awaits the adopted-session rename from the sent text before handing off', async () => {
+    agentPageMocks.routeSearch = {}
+    // Reserve creates a placeholder-named session; the send text ('hello') renames it.
+    agentPageMocks.dataApiPost.mockResolvedValueOnce({ ...agentPageMocks.persistedSession, name: 'common.unnamed' })
+    agentPageMocks.dataApiPatch.mockResolvedValue({ ...agentPageMocks.persistedSession, name: 'hello' })
+    render(<AgentPage />)
+    await waitFor(() => expect(screen.getByTestId('draft-session')).toHaveTextContent('agent-a'))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Compose intent' }))
+    })
+    await waitFor(() => expect(agentPageMocks.dataApiPost).toHaveBeenCalledTimes(1))
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Persist draft session' }))
+    })
+
+    // Renamed via an awaited PATCH (not fire-and-forget), no second create, then handed off.
+    expect(agentPageMocks.dataApiPatch).toHaveBeenCalledWith('/agent-sessions/session-created', {
+      body: { name: 'hello' }
+    })
+    expect(agentPageMocks.dataApiPost).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-created'))
+  })
+
   it('discards the reserved session when the draft is abandoned without sending', async () => {
     agentPageMocks.routeSearch = {}
     const { rerender } = render(<AgentPage />)

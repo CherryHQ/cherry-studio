@@ -581,15 +581,20 @@ const AgentPage = () => {
         reservedSessionRef.current = null
         const reservedPersisted = await reserved.promise
         if (reservedPersisted) {
+          let persisted = reservedPersisted
           const name = temporaryTitle || reservedPersisted.name
-          const persisted =
-            name === reservedPersisted.name
-              ? reservedPersisted
-              : { ...reservedPersisted, name, session: { ...reservedPersisted.session, name } }
           if (name !== reservedPersisted.name) {
-            void dataApiService.patch(`/agent-sessions/${persisted.sessionId}`, { body: { name } }).catch((error) => {
+            try {
+              // Await the rename so finalizeHandoff's cache invalidation revalidates against the
+              // persisted name (not the placeholder), and a failed rename can't leave the UI showing
+              // a name the DB never stored — hand off the row the server actually returned.
+              const renamed = await dataApiService.patch(`/agent-sessions/${reservedPersisted.sessionId}`, {
+                body: { name }
+              })
+              persisted = { ...reservedPersisted, name: renamed.name, session: renamed }
+            } catch (error) {
               logger.warn('Failed to name adopted session', error as Error)
-            })
+            }
           }
           finalizeHandoff(persisted)
           return persisted
