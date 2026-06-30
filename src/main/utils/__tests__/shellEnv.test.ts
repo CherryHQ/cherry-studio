@@ -217,4 +217,23 @@ describe('shellEnv – Windows registry PATH', () => {
 
     expect(execFileSync).toHaveBeenCalledTimes(2)
   })
+
+  // -- cache isolation ------------------------------------------------------
+
+  it('returns a copy so a caller mutating the result cannot poison the cache', async () => {
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const keyPath = (args as string[])[1]
+      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows')
+      throw new Error('not found')
+    })
+
+    const first = await refreshShellEnv()
+    const pathKey = Object.keys(first).find((k) => k.toLowerCase() === 'path')
+    expect(pathKey).toBeDefined()
+    // Simulate a consumer stripping vars in place (e.g. removeEnvProxy).
+    delete first[pathKey as string]
+
+    const second = await getShellEnv()
+    expect(second[pathKey as string]).toBeDefined()
+  })
 })

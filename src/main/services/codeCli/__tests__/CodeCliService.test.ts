@@ -30,7 +30,7 @@ vi.mock('@main/core/platform', () => ({
   isWin: false
 }))
 
-vi.mock('@main/utils/shellEnv', () => ({
+vi.mock('@main/utils/processRunner', () => ({
   removeEnvProxy: vi.fn()
 }))
 

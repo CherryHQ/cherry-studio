@@ -27,8 +27,8 @@ function binaryShimsDir(): string {
  * Directories that hold Cherry-managed binaries, in resolution order:
  * mise shims first (user-installed wins), then `cherry.bin` (bundled fallback).
  *
- * Single source of truth for the binary path layout — `getBinaryPath()` (process.ts)
- * and the PATH-appending logic in `shellEnv.ts` consume this. Do not hand-join
+ * Single source of truth for the binary path layout — `getBinaryPath()`
+ * (binaryResolver.ts) and the PATH-appending logic in `shellEnv.ts` consume this. Do not hand-join
  * `cherry.bin` / `feature.binary.data` elsewhere.
  */
 export function getBinarySearchDirs(): string[] {

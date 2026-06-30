@@ -301,7 +301,7 @@ export class BinaryManager extends BaseService {
       }
     }
 
-    // Reuse the shared MISE_*/PATH merge (single source of truth in process.ts),
+    // Reuse the shared MISE_*/PATH merge (single source of truth in binaryEnv.ts),
     // prepending mise's own dir so a re-exec'd child mise resolves. HOME/XDG are
     // relocated *after* the merge — this isolation is scoped to the install
     // subprocess only; the shared execution env keeps the user's real HOME.

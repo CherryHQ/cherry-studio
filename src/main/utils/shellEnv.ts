@@ -354,12 +354,14 @@ function loadShellEnv(): Promise<Record<string, string>> {
 /**
  * Get the cached shell environment. If no cache exists yet, fetches it once.
  * This is a pure query -- it never invalidates the cache.
+ *
+ * Returns a shallow copy: callers routinely mutate the env they get back (e.g.
+ * `removeEnvProxy`, merging per-spawn overrides), and handing out the cached
+ * object itself would let one such mutation silently poison every later reader.
  */
 async function getShellEnv(): Promise<Record<string, string>> {
-  if (cachedEnv) {
-    return cachedEnv
-  }
-  return loadShellEnv()
+  const env = cachedEnv ?? (await loadShellEnv())
+  return { ...env }
 }
 
 export default getShellEnv
@@ -369,8 +371,8 @@ export default getShellEnv
  * This is an explicit command -- callers use this when they need to pick up
  * newly installed tools (nvm, mise, fnm, etc.) that change PATH.
  *
- * Returns the fresh environment so callers can use it directly without a
- * separate getShellEnv() call, avoiding stale-read race conditions.
+ * Returns a fresh shallow copy (see getShellEnv) so callers can use it directly
+ * without a separate getShellEnv() call, avoiding stale-read race conditions.
  *
  * If a fetch is already in flight, that one is reused instead of spawning a
  * second shell -- it is already fresh enough, and a duplicate spawn just
@@ -378,21 +380,8 @@ export default getShellEnv
  */
 export async function refreshShellEnv(): Promise<Record<string, string>> {
   if (inflight) {
-    return inflight
+    return { ...(await inflight) }
   }
   cachedEnv = null
-  return loadShellEnv()
-}
-
-/**
- * Strip proxy-related variables from an environment map in place.
- * Used before spawning child processes that must not inherit Cherry's proxy
- * settings (e.g. Bun, which does not support HTTPS proxies).
- */
-export const removeEnvProxy = (env: Record<string, string>) => {
-  delete env.HTTPS_PROXY
-  delete env.HTTP_PROXY
-  delete env.grpc_proxy
-  delete env.http_proxy
-  delete env.https_proxy
+  return { ...(await loadShellEnv()) }
 }
