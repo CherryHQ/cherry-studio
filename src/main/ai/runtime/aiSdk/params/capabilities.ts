@@ -33,7 +33,7 @@ import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { getAiSdkProviderId } from '../../../provider/factory'
 import type { AppProviderId } from '../../../types'
-import { buildProviderBuiltinWebSearchConfig } from '../../../utils/websearch'
+import { buildProviderBuiltinWebSearchConfig, hasExternalSearchProvider } from '../../../utils/websearch'
 
 export interface ResolvedCapabilities {
   enableReasoning: boolean
@@ -45,11 +45,6 @@ export interface ResolvedCapabilities {
   webSearchPluginConfig?: WebSearchPluginConfig
 }
 
-export interface ResolveCapabilitiesOptions {
-  /** Caller-supplied external web search provider id. When set, disables built-in web search. */
-  webSearchProviderId?: string
-}
-
 function mapVertexAIGatewayModelToProviderId(model: Model): AppProviderId | undefined {
   if (isAnthropicModel(model)) return 'anthropic'
   if (isGeminiModel(model)) return 'google'
@@ -58,12 +53,7 @@ function mapVertexAIGatewayModelToProviderId(model: Model): AppProviderId | unde
   return undefined
 }
 
-export function resolveCapabilities(
-  model: Model,
-  provider: Provider,
-  assistant: Assistant,
-  options: ResolveCapabilitiesOptions = {}
-): ResolvedCapabilities {
+export function resolveCapabilities(model: Model, provider: Provider, assistant: Assistant): ResolvedCapabilities {
   // `isFixedReasoningModel` covers models where reasoning is always on regardless
   // of user setting (e.g. OpenAI o1 / o3 — they reason by construction).
   const enableReasoning =
@@ -71,9 +61,12 @@ export function resolveCapabilities(
       assistant.settings?.reasoning_effort !== undefined) ||
     isFixedReasoningModel(model)
 
-  const hasExternalSearch = !!options.webSearchProviderId
+  // When an external search provider is configured (Bing, Exa, Tavily, etc.)
+  // provider-native search is suppressed so the agentic web__search tool is
+  // the only path — otherwise models see both and produce duplicate citations
+  // or fail with "Server not found: default_api" through relays.
   const enableWebSearch =
-    !hasExternalSearch &&
+    !hasExternalSearchProvider() &&
     ((!!assistant.settings?.enableWebSearch && isWebSearchModel(model)) ||
       isOpenRouterBuiltInWebSearchModel(model) ||
       model.id.includes('sonar'))
@@ -92,7 +85,7 @@ export function resolveCapabilities(
 
   const streamOutput = assistant.settings?.streamOutput !== false
 
-  // Build provider-builtin web search config when enabled
+  // Build provider-builtin web search config when enabled.
   let webSearchPluginConfig: WebSearchPluginConfig | undefined
   if (enableWebSearch) {
     const preferenceService = application.get('PreferenceService')
