@@ -152,6 +152,13 @@ export function useAgentMessageListProviderValue({
     [workspacePath]
   )
 
+  const isDirectory = useCallback(
+    (path: string) => {
+      return window.api.file.isDirectory(resolveWorkspaceFilePath(workspacePath, path))
+    },
+    [workspacePath]
+  )
+
   const abortTool = useCallback((toolId: string) => {
     return window.api.mcp.abortTool(toolId)
   }, [])
@@ -248,6 +255,7 @@ export function useAgentMessageListProviderValue({
       openCitationsPanel,
       openAgentToolFlow,
       showInFolder,
+      isDirectory,
       abortTool,
       bindMessageRuntime,
       bindMessageGroupRuntime,
@@ -265,6 +273,7 @@ export function useAgentMessageListProviderValue({
       errorActions,
       exportActions,
       headerCapabilities,
+      isDirectory,
       leafCapabilities,
       navigateToRoute,
       loadOlder,

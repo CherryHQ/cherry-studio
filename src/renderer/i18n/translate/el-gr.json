@@ -6465,6 +6465,8 @@
         "logo_upload_label": "Μεταφόρτωση Logo",
         "name": "Όνομα",
         "name_placeholder": "Παρακαλώ εισάγετε το όνομα",
+        "remove_confirm_description": "Διαγραφή προσαρμοσμένης μίνι εφαρμογής \"{{name}}\"; Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.",
+        "remove_confirm_title": "Διαγραφή προσαρμοσμένης μίνι εφαρμογής;",
         "remove_error": "Αποτυχία διαγραφής της προσαρμοσμένης εφαρμογής.",
         "remove_success": "Η προσαρμοσμένη εφαρμογή διαγράφηκε επιτυχώς.",
         "save_error": "Αποτυχία αποθήκευσης της προσαρμοσμένης εφαρμογής.",
@@ -6493,6 +6495,7 @@
         "title": "Φίλτραρισμα περιοχής για μικρές εφαρμογές"
       },
       "reset_tooltip": "Επαναφορά στις προεπιλεγμένες τιμές",
+      "title": "Ρυθμίσεις Mini Apps",
       "visible": "Εμφανιζόμενα μικροπρογράμματα"
     },
     "model": "Πρόεδρος Υπηρεσίας",
@@ -6644,6 +6647,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
+        "sync_apply_default_in_use": "Κάποια μοντέλα χρησιμοποιούνται ως προεπιλεγμένα και δεν μπορούν να αφαιρεθούν.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",
