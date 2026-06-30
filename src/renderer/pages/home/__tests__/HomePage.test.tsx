@@ -849,6 +849,22 @@ describe('HomePage', () => {
     await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
   })
 
+  it('ignores a rapid double-click on the classic-layout composer new-topic action', () => {
+    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]
+    homeMocks.classicLayoutTopics = []
+    // Never resolves: the first create stays in flight so the re-entry guard must drop the second click.
+    homeMocks.createTopic.mockReturnValue(new Promise(() => {}))
+
+    render(<HomePage />)
+
+    const button = screen.getByRole('button', { name: 'Create empty topic from composer' })
+    fireEvent.click(button)
+    fireEvent.click(button)
+
+    expect(homeMocks.createTopic).toHaveBeenCalledTimes(1)
+  })
+
   it('focuses the existing tab instead of duplicating a reused topic already open elsewhere', async () => {
     homeMocks.preferenceValues.set('topic.layout', 'classic')
     homeMocks.focusExistingTab.mockReturnValue(true)

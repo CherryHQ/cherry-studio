@@ -106,6 +106,9 @@ const HomePage: FC = () => {
   const topicRevealRequestIdRef = useRef(0)
   const draftAssistantStartStateRef = useRef<DraftAssistantStartState>({ firstLaunchStarted: false })
   const draftAssistantSelectionRef = useRef<DraftAssistantSelection | null>(null)
+  // Guards the classic-layout topic-create paths against re-entry: a rapid double-click would
+  // otherwise read the same pre-refresh topic list twice and stack duplicate blank topics.
+  const isCreatingTopicRef = useRef(false)
   const [draftAssistantSelection, setDraftAssistantSelection] = useState<DraftAssistantSelection | undefined>()
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
   const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
@@ -500,6 +503,8 @@ const HomePage: FC = () => {
 
   const handleAssistantConversationSelect = useCallback(
     async (selection: AssistantConversationSelection) => {
+      if (isCreatingTopicRef.current) return
+      isCreatingTopicRef.current = true
       // Close the picker first so the topic/assistant data churn below doesn't refresh the dialog
       // while it's still visible (which reads as a black/white flash + the dialog reopening).
       setAssistantPickerOpen(false)
@@ -523,6 +528,8 @@ const HomePage: FC = () => {
       } catch (err) {
         logger.error('Failed to create assistant conversation from classic-layout picker', err as Error)
         window.toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+      } finally {
+        isCreatingTopicRef.current = false
       }
     },
     [createTopic, classicLayoutTopics, refreshTopics, resolveAssistantIdForSelection, setActiveTopicAndDiscardDraft, t]
@@ -530,6 +537,8 @@ const HomePage: FC = () => {
 
   const createAndActivateEmptyTopic = useCallback(
     async (payload?: AddNewTopicPayload) => {
+      if (isCreatingTopicRef.current) return
+      isCreatingTopicRef.current = true
       try {
         const selection = resolveDraftAssistantTarget(payload?.assistantId)
         const reusableTopic = findReusableEmptyTopic(classicLayoutTopics, selection.assistantId)
@@ -551,6 +560,8 @@ const HomePage: FC = () => {
       } catch (err) {
         logger.error('Failed to create empty topic from classic-layout composer', err as Error)
         window.toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+      } finally {
+        isCreatingTopicRef.current = false
       }
     },
     [createTopic, classicLayoutTopics, refreshTopics, resolveDraftAssistantTarget, setActiveTopicAndDiscardDraft, t]
