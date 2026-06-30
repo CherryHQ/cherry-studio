@@ -1,5 +1,10 @@
 import type * as NodeModule from 'node:module'
 
+import {
+  CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
+  toCherryBuiltinRuntimeName
+} from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
+import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -407,9 +412,9 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.steerHolder).toBeDefined()
 
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    expect(preToolUse).toHaveLength(3) // disabledToolHook + rtkRewriteHook + steerHook
+    expect(preToolUse).toHaveLength(4) // disabledToolHook + dependencyIsolationHook + rtkRewriteHook + steerHook
 
-    const steerHook = preToolUse![2] as unknown as (input: {
+    const steerHook = preToolUse![3] as unknown as (input: {
       hook_event_name: string
     }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
 
@@ -441,7 +446,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    const steerHook = preToolUse![2] as unknown as (input: {
+    const steerHook = preToolUse![3] as unknown as (input: {
       hook_event_name: string
     }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
     const onInjected = vi.fn()
@@ -453,6 +458,29 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     expect(settings.steerHolder!.pending).toEqual([emptySteer])
     expect(onInjected).not.toHaveBeenCalled()
+  })
+
+  it('hands the real kb_manage approval exception to the tool-policy snapshot (production gate wiring)', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    // settingsBuilder must derive the approval exceptions from the shared constant and pass them to the
+    // snapshot. The agentTools test proves those options gate kb_manage; this proves settingsBuilder
+    // actually supplies them — dropping `.map(toCherryBuiltinRuntimeName)` or the exceptions fails here.
+    const exceptions = CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
+    expect(exceptions).toContain(toCherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME))
+    expect(mocks.createToolPolicySnapshot).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        autoAllowRuntimeNamePrefixes: expect.arrayContaining(['mcp__cherry-tools__']),
+        autoAllowRuntimeNameExceptions: exceptions
+      })
+    )
   })
 
   it('warns and falls back to no channels when channel lookup fails during tool-policy build', async () => {

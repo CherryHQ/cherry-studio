@@ -605,4 +605,50 @@ describe('KnowledgeIndexStore', () => {
   it('listExistingEmbeddingHashes returns an empty set for empty input', async () => {
     expect((await store.listExistingEmbeddingHashes([])).size).toBe(0)
   })
+
+  describe('deep-read lookups', () => {
+    it('resolves a material by its relative path (the Concept ID) and returns null for an unknown path', async () => {
+      await store.rebuildMaterial('m1', buildInput('hello world', [[0, 11]], 'docs/intro.md'))
+
+      const ref = await store.getMaterialByRelativePath('docs/intro.md')
+      expect(ref).not.toBeNull()
+      expect(ref?.materialId).toBe('m1')
+      expect(ref?.relativePath).toBe('docs/intro.md')
+
+      expect(await store.getMaterialByRelativePath('docs/missing.md')).toBeNull()
+    })
+
+    it('reads back the full content text a material was indexed from', async () => {
+      const text = 'the quick brown fox jumps over the lazy dog'
+      await store.rebuildMaterial(
+        'm1',
+        buildInput(text, [
+          [0, 19],
+          [20, text.length]
+        ])
+      )
+
+      expect(await store.readMaterialContent('m1')).toBe(text)
+    })
+
+    it('keeps content readable as the exact source the units were sliced from', async () => {
+      const text = 'alpha beta gamma'
+      await store.rebuildMaterial(
+        'm1',
+        buildInput(text, [
+          [0, 5],
+          [6, 10]
+        ])
+      )
+
+      const content = await store.readMaterialContent('m1')
+      for (const unit of await store.listMaterialUnits('m1')) {
+        expect(content?.slice(unit.charStart, unit.charEnd)).toBe(unit.text)
+      }
+    })
+
+    it('returns null content for an unknown material', async () => {
+      expect(await store.readMaterialContent('nope')).toBeNull()
+    })
+  })
 })

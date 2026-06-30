@@ -103,6 +103,11 @@ export class McpServerMigrator extends BaseMigrator {
 
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {
     if (this.preparedResults.length === 0) {
+      // Always publish the (empty) mapping so downstream migrators can distinguish
+      // "ran with zero servers" from "never ran". Without this, AssistantMigrator
+      // throws a fatal error when assistants still reference now-deleted servers,
+      // instead of gracefully dropping those dangling refs.
+      ctx.sharedData.set('mcpServerIdMapping', new Map<string, string>())
       return { success: true, processedCount: 0 }
     }
 

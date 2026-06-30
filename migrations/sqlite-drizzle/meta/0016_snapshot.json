@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "476199db-8eff-4a75-91dc-c63a28aaf810",
+  "id": "90f4df29-3e99-4eff-b91e-5deaa5d691a6",
   "prevId": "105b4da9-7d69-4d03-9ccf-b099bb352292",
   "tables": {
     "agent": {
@@ -1339,8 +1339,8 @@
         }
       }
     },
-    "file_ref": {
-      "name": "file_ref",
+    "chat_message_file_ref": {
+      "name": "chat_message_file_ref",
       "columns": {
         "id": {
           "name": "id",
@@ -1351,13 +1351,6 @@
         },
         "file_entry_id": {
           "name": "file_entry_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "source_type": {
-          "name": "source_type",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -1393,28 +1386,37 @@
         }
       },
       "indexes": {
-        "file_ref_entry_id_idx": {
-          "name": "file_ref_entry_id_idx",
+        "cmfr_entry_id_idx": {
+          "name": "cmfr_entry_id_idx",
           "columns": ["file_entry_id"],
           "isUnique": false
         },
-        "file_ref_source_idx": {
-          "name": "file_ref_source_idx",
-          "columns": ["source_type", "source_id"],
+        "cmfr_source_id_idx": {
+          "name": "cmfr_source_id_idx",
+          "columns": ["source_id"],
           "isUnique": false
         },
-        "file_ref_unique_idx": {
-          "name": "file_ref_unique_idx",
-          "columns": ["file_entry_id", "source_type", "source_id", "role"],
+        "cmfr_unique_idx": {
+          "name": "cmfr_unique_idx",
+          "columns": ["file_entry_id", "source_id", "role"],
           "isUnique": true
         }
       },
       "foreignKeys": {
-        "file_ref_file_entry_id_file_entry_id_fk": {
-          "name": "file_ref_file_entry_id_file_entry_id_fk",
-          "tableFrom": "file_ref",
+        "chat_message_file_ref_file_entry_id_file_entry_id_fk": {
+          "name": "chat_message_file_ref_file_entry_id_file_entry_id_fk",
+          "tableFrom": "chat_message_file_ref",
           "tableTo": "file_entry",
           "columnsFrom": ["file_entry_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "chat_message_file_ref_source_id_message_id_fk": {
+          "name": "chat_message_file_ref_source_id_message_id_fk",
+          "tableFrom": "chat_message_file_ref",
+          "tableTo": "message",
+          "columnsFrom": ["source_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -1422,7 +1424,104 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "cmfr_role_check": {
+          "name": "cmfr_role_check",
+          "value": "\"chat_message_file_ref\".\"role\" IN ('attachment')"
+        }
+      }
+    },
+    "painting_file_ref": {
+      "name": "painting_file_ref",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "file_entry_id": {
+          "name": "file_entry_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "pfr_entry_id_idx": {
+          "name": "pfr_entry_id_idx",
+          "columns": ["file_entry_id"],
+          "isUnique": false
+        },
+        "pfr_source_id_idx": {
+          "name": "pfr_source_id_idx",
+          "columns": ["source_id"],
+          "isUnique": false
+        },
+        "pfr_unique_idx": {
+          "name": "pfr_unique_idx",
+          "columns": ["file_entry_id", "source_id", "role"],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "painting_file_ref_file_entry_id_file_entry_id_fk": {
+          "name": "painting_file_ref_file_entry_id_file_entry_id_fk",
+          "tableFrom": "painting_file_ref",
+          "tableTo": "file_entry",
+          "columnsFrom": ["file_entry_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "painting_file_ref_source_id_painting_id_fk": {
+          "name": "painting_file_ref_source_id_painting_id_fk",
+          "tableFrom": "painting_file_ref",
+          "tableTo": "painting",
+          "columnsFrom": ["source_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "pfr_role_check": {
+          "name": "pfr_role_check",
+          "value": "\"painting_file_ref\".\"role\" IN ('output', 'input')"
+        }
+      }
     },
     "group": {
       "name": "group",
@@ -1994,7 +2093,7 @@
         },
         "knowledge_base_status_error_check": {
           "name": "knowledge_base_status_error_check",
-          "value": "\n        (\n          \"knowledge_base\".\"status\" = 'completed'\n          AND \"knowledge_base\".\"error\" IS NULL\n          AND (\n            (\n              \"knowledge_base\".\"embedding_model_id\" IS NOT NULL\n              AND \"knowledge_base\".\"dimensions\" IS NOT NULL\n              AND \"knowledge_base\".\"dimensions\" > 0\n            )\n            OR (\n              \"knowledge_base\".\"embedding_model_id\" IS NULL\n              AND \"knowledge_base\".\"dimensions\" IS NULL\n              AND \"knowledge_base\".\"search_mode\" = 'bm25'\n            )\n          )\n        )\n        OR (\n          \"knowledge_base\".\"status\" = 'failed'\n          AND \"knowledge_base\".\"error\" IS NOT NULL\n          AND length(trim(\"knowledge_base\".\"error\")) > 0\n        )\n      "
+          "value": "\n        (\n          \"knowledge_base\".\"status\" = 'completed'\n          AND \"knowledge_base\".\"embedding_model_id\" IS NOT NULL\n          AND \"knowledge_base\".\"dimensions\" IS NOT NULL\n          AND \"knowledge_base\".\"dimensions\" > 0\n          AND \"knowledge_base\".\"error\" IS NULL\n        )\n        OR (\n          \"knowledge_base\".\"status\" = 'failed'\n          AND \"knowledge_base\".\"error\" IS NOT NULL\n          AND length(trim(\"knowledge_base\".\"error\")) > 0\n        )\n      "
         }
       }
     },
