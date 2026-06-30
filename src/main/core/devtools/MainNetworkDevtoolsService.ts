@@ -492,8 +492,8 @@ export class MainNetworkDevtoolsService extends BaseService {
     this.broadcast({ type: 'event', event })
   }
 
-  private async startWebSocketServer(): Promise<void> {
-    const server = new WebSocketServer({ host: '127.0.0.1', port: getMainNetworkDevtoolsPort() })
+  private async startWebSocketServer(port = getMainNetworkDevtoolsPort()): Promise<number> {
+    const server = new WebSocketServer({ host: '127.0.0.1', port })
 
     server.on('error', (error) => {
       logger.error('Main Network DevTools websocket server error', error)
@@ -524,14 +524,16 @@ export class MainNetworkDevtoolsService extends BaseService {
       throw new Error('Main Network DevTools websocket server did not expose a TCP port')
     }
 
-    const port = (address as AddressInfo).port
-    logger.info(`Main Network DevTools websocket server listening on 127.0.0.1:${port}`)
+    const listeningPort = (address as AddressInfo).port
+    logger.info(`Main Network DevTools websocket server listening on 127.0.0.1:${listeningPort}`)
 
     this.registerDisposable(() => {
       for (const client of this.clients) client.close()
       this.clients.clear()
       server.close()
     })
+
+    return listeningPort
   }
 
   private handleClientMessage(raw: string): void {
@@ -892,6 +894,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function waitForServerListening(server: WebSocketServer): Promise<void> {
+  if (server.address()) return Promise.resolve()
+
   return new Promise((resolve, reject) => {
     const cleanup = () => {
       server.off('listening', handleListening)
