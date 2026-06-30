@@ -6454,6 +6454,12 @@
         "show_estimated_tokens": "顯示預估 Token 數",
         "title": "輸入設定"
       },
+      "layout": {
+        "classic": "經典",
+        "conversation": "對話視圖",
+        "modern": "現代",
+        "work": "工作視圖"
+      },
       "markdown_rendering_input_message": "Markdown 渲染輸入訊息",
       "metrics": "首字延遲 {{time_first_token_millsec}} ms | 每秒 {{token_speed}} tokens",
       "model": {
@@ -6468,12 +6474,6 @@
       "show_message_outline": "顯示訊息大綱",
       "title": "訊息設定",
       "use_serif_font": "使用襯線字型",
-      "view": {
-        "classic": "經典",
-        "conversation": "對話視圖",
-        "modern": "現代",
-        "work": "工作視圖"
-      },
       "wide_mode": "寬版面模式"
     },
     "miniApps": {

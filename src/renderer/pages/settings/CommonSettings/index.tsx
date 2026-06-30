@@ -336,8 +336,8 @@ const CommonSettings: FC = () => {
 
   const layoutOptions = useMemo(
     () => [
-      { value: 'classic' as const, label: t('settings.messages.view.classic') },
-      { value: 'modern' as const, label: t('settings.messages.view.modern') }
+      { value: 'classic' as const, label: t('settings.messages.layout.classic') },
+      { value: 'modern' as const, label: t('settings.messages.layout.modern') }
     ],
     [t]
   )
@@ -644,7 +644,7 @@ const CommonSettings: FC = () => {
         </SettingRow>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.messages.view.conversation')}</SettingRowTitle>
+          <SettingRowTitle>{t('settings.messages.layout.conversation')}</SettingRowTitle>
           <SegmentedControl<ChatLayoutMode>
             value={topicLayout}
             onValueChange={setTopicLayout}
@@ -654,7 +654,7 @@ const CommonSettings: FC = () => {
         </SettingRow>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.messages.view.work')}</SettingRowTitle>
+          <SettingRowTitle>{t('settings.messages.layout.work')}</SettingRowTitle>
           <SegmentedControl<ChatLayoutMode>
             value={sessionLayout}
             onValueChange={setSessionLayout}

@@ -6454,6 +6454,12 @@
         "show_estimated_tokens": "Show estimated tokens",
         "title": "Input Settings"
       },
+      "layout": {
+        "classic": "Classic",
+        "conversation": "Conversation view",
+        "modern": "Modern",
+        "work": "Work view"
+      },
       "markdown_rendering_input_message": "Markdown render input message",
       "metrics": "{{time_first_token_millsec}}ms to first token | {{token_speed}} tok/sec",
       "model": {
@@ -6468,12 +6474,6 @@
       "show_message_outline": "Show message outline",
       "title": "Message Settings",
       "use_serif_font": "Use serif font",
-      "view": {
-        "classic": "Classic",
-        "conversation": "Conversation view",
-        "modern": "Modern",
-        "work": "Work view"
-      },
       "wide_mode": "Wide layout mode"
     },
     "miniApps": {

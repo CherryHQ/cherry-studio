@@ -6454,6 +6454,12 @@
         "show_estimated_tokens": "显示预估 Token 数",
         "title": "输入设置"
       },
+      "layout": {
+        "classic": "经典",
+        "conversation": "对话视图",
+        "modern": "现代",
+        "work": "工作视图"
+      },
       "markdown_rendering_input_message": "Markdown 渲染输入消息",
       "metrics": "首字时延 {{time_first_token_millsec}} ms | 每秒 {{token_speed}} tokens",
       "model": {
@@ -6468,12 +6474,6 @@
       "show_message_outline": "显示消息大纲",
       "title": "消息设置",
       "use_serif_font": "使用衬线字体",
-      "view": {
-        "classic": "经典",
-        "conversation": "对话视图",
-        "modern": "现代",
-        "work": "工作视图"
-      },
       "wide_mode": "宽布局模式"
     },
     "miniApps": {
