@@ -64,10 +64,6 @@ export function useShellActions(): ShellActions {
   return actions
 }
 
-export function useOptionalShellActions(): ShellActions | undefined {
-  return use(ShellActionsContext) ?? undefined
-}
-
 export function useShellState(): ShellState {
   const state = use(ShellStateContext)
   if (!state) throw new Error('useShellState must be used within <Shell>')

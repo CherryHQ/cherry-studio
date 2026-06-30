@@ -17,10 +17,6 @@ const agentDataMocks = vi.hoisted(() => ({
   refetchAgents: vi.fn()
 }))
 
-const shellActionMocks = vi.hoisted(() => ({
-  close: vi.fn()
-}))
-
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key
@@ -35,12 +31,6 @@ vi.mock('@logger', () => ({
       warn: vi.fn()
     })
   }
-}))
-
-vi.mock('@renderer/components/chat/panes/Shell', () => ({
-  useOptionalShellActions: () => ({
-    close: shellActionMocks.close
-  })
 }))
 
 vi.mock('@renderer/components/EmojiIcon', () => ({
@@ -202,7 +192,6 @@ vi.mock('@renderer/utils/error', () => ({
 
 describe('old layout entity resource list actions', () => {
   beforeEach(() => {
-    shellActionMocks.close.mockClear()
     assistantDataMocks.deleteAssistant.mockResolvedValue(undefined)
     assistantDataMocks.refreshTopics.mockResolvedValue(undefined)
     assistantDataMocks.refetchAssistants.mockResolvedValue(undefined)
@@ -248,7 +237,6 @@ describe('old layout entity resource list actions', () => {
     // remaining topic) and must NOT open the new-layout draft compose.
     await waitFor(() => expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1'))
     expect(onStartDraftAssistant).not.toHaveBeenCalled()
-    expect(shellActionMocks.close).not.toHaveBeenCalled()
   })
 
   it('uses delete-agent actions for the old layout agent context and more menus', async () => {
@@ -284,6 +272,5 @@ describe('old layout entity resource list actions', () => {
     // Old layout resets via the dedicated callback, never the draft compose.
     await waitFor(() => expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1'))
     expect(onStartMissingAgentDraft).not.toHaveBeenCalled()
-    expect(shellActionMocks.close).not.toHaveBeenCalled()
   })
 })

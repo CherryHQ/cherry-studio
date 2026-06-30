@@ -143,7 +143,7 @@ import {
   useChatMaximizedOverlayBottomInset,
   useSetChatMaximizedOverlayBottomInset
 } from '../../../layout/ChatViewportInsetContext'
-import { Shell, useOptionalShellActions, useShellActions, useShellState } from '../Shell'
+import { Shell, useShellActions, useShellState } from '../Shell'
 
 function CloseShellButton() {
   const actions = useShellActions()
@@ -171,12 +171,6 @@ function ShellActionsRenderCounter() {
   renderCountRef.current += 1
 
   return <output data-testid="shell-actions-render-count">{renderCountRef.current}</output>
-}
-
-function OptionalShellActionsSnapshot() {
-  const actions = useOptionalShellActions()
-
-  return <output data-testid="optional-shell-actions">{actions ? 'available' : 'missing'}</output>
 }
 
 function ToggleMaximizedButton() {
@@ -348,12 +342,6 @@ describe('Shell.Toggle', () => {
 
     expect(screen.getByTestId('shell-state')).toHaveTextContent('open:trace:false')
     expect(screen.getByTestId('shell-actions-render-count')).toHaveTextContent('1')
-  })
-
-  it('allows optional actions consumers outside a shell', () => {
-    render(<OptionalShellActionsSnapshot />)
-
-    expect(screen.getByTestId('optional-shell-actions')).toHaveTextContent('missing')
   })
 
   it('closes the open pane with the right sidebar shortcut', () => {

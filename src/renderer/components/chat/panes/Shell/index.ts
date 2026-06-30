@@ -7,4 +7,4 @@ export {
   useResourcePane
 } from './resourcePane'
 export { ResourcePaneCountButton, type ResourcePaneCountButtonProps } from './ResourcePaneCountButton'
-export { Shell, useOptionalShellActions, useOptionalShellState, useShellActions, useShellState } from './Shell'
+export { Shell, useOptionalShellState, useShellActions, useShellState } from './Shell'
