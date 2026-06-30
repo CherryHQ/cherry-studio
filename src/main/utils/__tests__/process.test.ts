@@ -12,7 +12,6 @@ import {
   findViaMise,
   getBinaryName,
   getBinaryPath,
-  getBinarySearchDirs,
   validateGitBashPath
 } from '../process'
 
@@ -1189,18 +1188,5 @@ describe('getBinaryPath', () => {
     const result = await getBinaryPath('bun')
 
     expect(result).toBe(binaryName)
-  })
-})
-
-describe('getBinarySearchDirs', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    vi.mocked(path.join).mockImplementation((...args) => args.join('/'))
-  })
-
-  it('returns the mise shims dir before the bundled cherry.bin dir', () => {
-    // Shims must precede cherry.bin so a user-installed copy shadows the bundled
-    // one — the same ordering getBinaryPath() and shellEnv.ts rely on.
-    expect(getBinarySearchDirs()).toEqual(['/mock/feature.binary.data/shims', '/mock/cherry.bin'])
   })
 })

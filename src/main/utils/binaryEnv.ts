@@ -3,15 +3,37 @@ import { isWin } from '@main/core/platform'
 import path from 'path'
 
 /**
- * Environment primitives for Cherry-managed binaries — what Cherry injects into a
- * child process's env, independent of how the base env is obtained. Two scenarios
- * consume these: the **execution** path (running installed binaries; see
- * `shellEnv.ts`, which captures the user's real shell env first) and the
- * **install** path (the mise install subprocess; see
- * `BinaryManager.buildIsolatedEnv`, which isolates the user's env). Kept as a
+ * Layout and environment primitives for Cherry-managed binaries — where the
+ * binaries live and what Cherry injects into a child process's env, independent
+ * of how the base env is obtained. Two scenarios consume these: the **execution**
+ * path (running installed binaries; see `shellEnv.ts`, which captures the user's
+ * real shell env first) and the **install** path (the mise install subprocess;
+ * see `BinaryManager.buildIsolatedEnv`, which isolates the user's env). Kept as a
  * dependency-free leaf so both can share the primitives without pulling in the
  * other's machinery.
  */
+
+/** Root dir for all Cherry-managed binary state (mise data, shims, isolated home). */
+function binaryDataDir(): string {
+  return application.getPath('feature.binary.data')
+}
+
+/** The mise shims dir — where installed-tool shim executables land. */
+function binaryShimsDir(): string {
+  return path.join(binaryDataDir(), 'shims')
+}
+
+/**
+ * Directories that hold Cherry-managed binaries, in resolution order:
+ * mise shims first (user-installed wins), then `cherry.bin` (bundled fallback).
+ *
+ * Single source of truth for the binary path layout — `getBinaryPath()` (process.ts)
+ * and the PATH-appending logic in `shellEnv.ts` consume this. Do not hand-join
+ * `cherry.bin` / `feature.binary.data` elsewhere.
+ */
+export function getBinarySearchDirs(): string[] {
+  return [binaryShimsDir(), application.getPath('cherry.bin')]
+}
 
 /**
  * Env injected into every process that *runs* a managed binary (the CLIs, the
@@ -24,13 +46,13 @@ import path from 'path'
  * mise *install* subprocess — see `getBinaryIsolatedHomeEnv()`.
  */
 export function getBinaryExecutionEnv(): Record<string, string> {
-  const dataDir = application.getPath('feature.binary.data')
+  const dataDir = binaryDataDir()
   return {
     MISE_DATA_DIR: dataDir,
     MISE_CONFIG_DIR: path.join(dataDir, 'config'),
     MISE_CACHE_DIR: path.join(dataDir, 'cache'),
     MISE_STATE_DIR: path.join(dataDir, 'state'),
-    MISE_SHIMS_DIR: path.join(dataDir, 'shims'),
+    MISE_SHIMS_DIR: binaryShimsDir(),
     MISE_YES: '1',
     MISE_NO_ANALYTICS: '1',
     MISE_EXPERIMENTAL: '1'
@@ -46,7 +68,7 @@ export function getBinaryExecutionEnv(): Record<string, string> {
  * logged-out on every run.
  */
 export function getBinaryIsolatedHomeEnv(): Record<string, string> {
-  const dataDir = application.getPath('feature.binary.data')
+  const dataDir = binaryDataDir()
   return {
     HOME: path.join(dataDir, 'home'),
     XDG_CONFIG_HOME: path.join(dataDir, 'xdg', 'config'),

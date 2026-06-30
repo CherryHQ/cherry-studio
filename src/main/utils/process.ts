@@ -7,6 +7,7 @@ import fs from 'fs'
 import iconv from 'iconv-lite'
 import path from 'path'
 
+import { getBinarySearchDirs } from './binaryEnv'
 import getShellEnv, { refreshShellEnv } from './shellEnv'
 
 const logger = loggerService.withContext('Utils:Process')
@@ -45,18 +46,6 @@ export async function getBinaryName(name: string): Promise<string> {
     return `${name}.exe`
   }
   return name
-}
-
-/**
- * Directories that hold Cherry-managed binaries, in resolution order:
- * mise shims first (user-installed wins), then `cherry.bin` (bundled fallback).
- *
- * Single source of truth for the binary path layout — both `getBinaryPath()`
- * and the PATH-appending logic in `shellEnv.ts` consume this. Do not hand-join
- * `cherry.bin` / `feature.binary.data` elsewhere.
- */
-export function getBinarySearchDirs(): string[] {
-  return [path.join(application.getPath('feature.binary.data'), 'shims'), application.getPath('cherry.bin')]
 }
 
 export async function getBinaryPath(name?: string): Promise<string> {
