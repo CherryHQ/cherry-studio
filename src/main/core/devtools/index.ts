@@ -18,7 +18,7 @@ const logger = loggerService.withContext('devtools')
  */
 export async function installDevtoolsExtensions(): Promise<void> {
   if (!isDev) return
-  await Promise.all([
+  await Promise.allSettled([
     installReactDevtools(),
     installBundledDevtools('data-api', 'DataApi'),
     installBundledDevtools('main-network', 'Main Network')
