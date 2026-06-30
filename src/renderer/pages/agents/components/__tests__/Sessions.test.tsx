@@ -1577,6 +1577,52 @@ describe('Sessions', () => {
     expect(setActiveSessionId).not.toHaveBeenCalledWith('session-b-first', expect.anything())
   })
 
+  it('clears the active session and toasts when the post-delete draft start fails in the right panel', async () => {
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } }],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({
+          id: 'session-a-only',
+          name: 'A Only session',
+          agentId: 'agent-a',
+          orderKey: 'a',
+          updatedAt: '2026-01-03T01:00:00.000Z'
+        })
+      ]
+    })
+    const onStartDraftSession = vi.fn().mockRejectedValue(new Error('workspace refetch failed'))
+    const setActiveSessionId = vi.fn()
+
+    render(
+      <SessionsForTest
+        agentIdFilter="agent-a"
+        presentation="right-panel"
+        activeSessionId="session-a-only"
+        onStartDraftSession={onStartDraftSession}
+        setActiveSessionId={setActiveSessionId}
+      />
+    )
+
+    const sessionRow = screen.getByText('A Only session').closest('[role="option"]')
+    const deleteButton = within(sessionRow as HTMLElement).getByLabelText('Delete')
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+
+    await vi.waitFor(() => expect(onStartDraftSession).toHaveBeenCalled())
+    // The rejection must be surfaced and the active id cleared in `finally` so the view never
+    // stays pointed at the just-deleted session.
+    await vi.waitFor(() => expect(window.toast.error).toHaveBeenCalled())
+    await vi.waitFor(() => expect(setActiveSessionId).toHaveBeenCalledWith(null, null))
+  })
+
   it('subscribes stream status only for visible session rows', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
     setSessionGroupExpansionCache({

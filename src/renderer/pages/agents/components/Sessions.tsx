@@ -685,13 +685,22 @@ const Sessions = ({
           : agentIdFilter
             ? { agentId: agentIdFilter, workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } }
             : null
-        if (seed?.agentId && onStartDraftSession) {
-          await onStartDraftSession({
-            agentId: seed.agentId,
-            workspace: seed.workspace ?? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
-          })
+        // Mirror the sibling create paths (createSessionFromSeed / handleRenameSession): if the
+        // draft start rejects (e.g. the user-workspace refetch fails) surface a toast and still
+        // clear the active id in `finally`, so we never strand the view on the just-deleted session.
+        try {
+          if (seed?.agentId && onStartDraftSession) {
+            await onStartDraftSession({
+              agentId: seed.agentId,
+              workspace: seed.workspace ?? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+            })
+          }
+        } catch (err) {
+          logger.error('Failed to start draft session after deleting last session', { err, sessionId: id })
+          window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+        } finally {
+          setActiveSessionId(null)
         }
-        setActiveSessionId(null)
         return
       }
 
@@ -706,7 +715,8 @@ const Sessions = ({
       isRightPanel,
       onStartDraftSession,
       sessionItems,
-      setActiveSessionId
+      setActiveSessionId,
+      t
     ]
   )
 
