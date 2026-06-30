@@ -17,6 +17,7 @@ import { useActiveSession, useSession, useUpdateSession } from '@renderer/hooks/
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/hooks/tab'
+import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
@@ -43,7 +44,6 @@ import { parseAgentRouteSearch } from './routeSearch'
 import type { DraftAgentSession, DraftAgentSessionDefaults, PersistentAgentSessionConversation } from './types'
 
 const logger = loggerService.withContext('AgentPage')
-const CHAT_RIGHT_PANE_OPEN_CACHE_KEY = 'ui.chat.right_pane_open'
 
 function isUserWorkspaceSession(session: AgentSessionEntity | null | undefined): boolean {
   return !!session?.workspaceId && session.workspace?.type !== 'system'
@@ -105,17 +105,10 @@ const AgentPage = () => {
   const draftSessionRef = useRef<DraftAgentSession | null>(null)
   const [draftSession, setDraftSession] = useState<DraftAgentSession | null>(null)
   const [historyRecordsOpen, setHistoryRecordsOpen] = useState(false)
-  const [classicLayoutRightPaneOpen, setClassicLayoutRightPaneOpenCache] =
-    usePersistCache(CHAT_RIGHT_PANE_OPEN_CACHE_KEY)
-  // Classic-layout (rail) session-pane open state is cached here so it survives AgentChat draft→persistent
-  // remounts (each branch mounts its own Shell) and app/page re-entry.
-  const sessionPaneOpen = isClassicSessionLayout && classicLayoutRightPaneOpen
-  const setSessionPaneOpen = useCallback(
-    (open: boolean) => {
-      if (isClassicSessionLayout) setClassicLayoutRightPaneOpenCache(open)
-    },
-    [isClassicSessionLayout, setClassicLayoutRightPaneOpenCache]
-  )
+  // Classic-layout (rail) session-pane open state, cached on the agent surface's own key so it
+  // survives AgentChat draft→persistent remounts (each branch mounts its own Shell) and app/page
+  // re-entry, without bleeding into the assistant surface.
+  const [sessionPaneOpen, setSessionPaneOpen] = useClassicLayoutRightPaneOpen('agent', isClassicSessionLayout)
 
   useEffect(() => {
     pendingSelectedSessionRef.current = null

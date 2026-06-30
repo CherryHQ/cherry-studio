@@ -140,7 +140,7 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
             return agentPageMocks.lastUsedSessionId
           case 'ui.agent.last_used_workspace_id':
             return agentPageMocks.lastUsedWorkspaceId
-          case 'ui.chat.right_pane_open':
+          case 'ui.agent.right_pane_open':
             return agentPageMocks.classicLayoutRightPaneOpen
           default:
             return undefined
@@ -151,7 +151,7 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
         key !== 'ui.agent.last_used_agent_id' &&
         key !== 'ui.agent.last_used_session_id' &&
         key !== 'ui.agent.last_used_workspace_id' &&
-        key !== 'ui.chat.right_pane_open'
+        key !== 'ui.agent.right_pane_open'
       ) {
         return [undefined, vi.fn()]
       }
@@ -163,7 +163,7 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
         } else if (key === 'ui.agent.last_used_session_id') {
           agentPageMocks.lastUsedSessionId = nextValue as string | null
           agentPageMocks.setLastUsedSessionId(nextValue)
-        } else if (key === 'ui.chat.right_pane_open') {
+        } else if (key === 'ui.agent.right_pane_open') {
           agentPageMocks.classicLayoutRightPaneOpen = nextValue as boolean
           agentPageMocks.setClassicLayoutRightPaneOpen(nextValue)
         } else {

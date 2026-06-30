@@ -29,6 +29,7 @@ import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/hooks/tab'
 import { useAssistantApiById, useAssistants } from '@renderer/hooks/useAssistant'
 import { toCreateAssistantDtoFromCatalogPreset } from '@renderer/hooks/useAssistantCatalogPresets'
+import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
 import { ipcApi } from '@renderer/ipc'
@@ -63,7 +64,6 @@ import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('HomePage')
 const LAST_USED_ASSISTANT_CACHE_KEY = 'ui.chat.last_used_assistant_id'
-const CHAT_RIGHT_PANE_OPEN_CACHE_KEY = 'ui.chat.right_pane_open'
 
 type DraftAssistantSelectionSource = 'explicit' | 'last-used' | 'first-assistant' | 'runtime-fallback'
 type ResolvedDraftAssistantSelection = { assistantId?: string; source: DraftAssistantSelectionSource }
@@ -109,23 +109,14 @@ const HomePage: FC = () => {
   const [draftAssistantSelection, setDraftAssistantSelection] = useState<DraftAssistantSelection | undefined>()
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
   const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
-  const [classicLayoutRightPaneOpen, setClassicLayoutRightPaneOpenCache] =
-    usePersistCache(CHAT_RIGHT_PANE_OPEN_CACHE_KEY)
   const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [topicLayout] = usePreference('topic.layout')
   const isClassicTopicLayout = topicLayout === 'classic'
-  // Classic-layout right-pane open state is shared via the `ui.chat.right_pane_open` cache; derive the
-  // topic-scoped open flag + gated setter here (modern layout leaves the setter a no-op).
-  const topicPaneOpen = isClassicTopicLayout && classicLayoutRightPaneOpen
-  const setTopicPaneOpen = useCallback(
-    (open: boolean) => {
-      if (isClassicTopicLayout) setClassicLayoutRightPaneOpenCache(open)
-    },
-    [isClassicTopicLayout, setClassicLayoutRightPaneOpenCache]
-  )
+  // Classic-layout right-pane open state, cached on the assistant surface's own key.
+  const [topicPaneOpen, setTopicPaneOpen] = useClassicLayoutRightPaneOpen('chat', isClassicTopicLayout)
   // Classic layout shares this full-topics source with the rail; modern layout leaves it disabled (no fetch).
   // The picker uses it to reuse an empty placeholder topic instead of stacking new ones.
   const {
