@@ -1103,7 +1103,7 @@ const McpSettings: React.FC = () => {
                   size="sm"
                   variant="ghost"
                   onClick={() => onDeleteMcpServer(server)}
-                  className="rounded-full text-destructive hover:text-destructive">
+                  className="-ml-2 rounded-full text-destructive opacity-60 hover:text-destructive hover:opacity-100 focus-visible:opacity-100 active:opacity-100">
                   <DeleteIcon size={14} className="lucide-custom" />
                   {t('common.delete')}
                 </Button>
