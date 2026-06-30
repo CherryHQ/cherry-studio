@@ -241,6 +241,8 @@ const AgentChat = ({
   if (isInitializing) {
     return (
       <AgentRightPane
+        filesEnabled={false}
+        statusEnabled={false}
         workspacePath={draftAgentConversation?.workspace?.path}
         messages={EMPTY_MESSAGES}
         partsByMessageId={EMPTY_PARTS}
