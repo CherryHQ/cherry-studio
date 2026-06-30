@@ -130,6 +130,17 @@ export function isLoginBasedProvider(provider: Pick<Provider, 'authMethods'>): b
   return methods !== undefined && methods.length > 0 && !methods.includes('api-key')
 }
 
+/**
+ * External-CLI providers (e.g. Claude Code) reuse a CLI's own stored login and
+ * hold no app-side credential, so they cannot serve a normal chat/generation
+ * request: they are surfaced only to agent pickers (hidden from chat selectors,
+ * rejected as a topic-naming model). Capability-derived from `authMethods`, not
+ * keyed to a specific provider id, so a second such provider is covered for free.
+ */
+export function isExternalCliProvider(provider: Pick<Provider, 'authMethods'>): boolean {
+  return provider.authMethods?.includes('external-cli') ?? false
+}
+
 export function isAnthropicSupportedProvider(provider: Provider): boolean {
   return getProviderHostTopology(provider).hasAnthropicEndpoint
 }

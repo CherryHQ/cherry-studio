@@ -1,7 +1,7 @@
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
-import { isLoginBasedProvider } from '../provider'
+import { isExternalCliProvider, isLoginBasedProvider } from '../provider'
 
 const withAuthMethods = (authMethods?: Provider['authMethods']): Pick<Provider, 'authMethods'> => ({ authMethods })
 
@@ -30,5 +30,22 @@ describe('isLoginBasedProvider', () => {
 
   it('is false for an empty method list', () => {
     expect(isLoginBasedProvider(withAuthMethods([]))).toBe(false)
+  })
+})
+
+describe('isExternalCliProvider', () => {
+  it('is true only for external-cli providers (claude-code)', () => {
+    expect(isExternalCliProvider(withAuthMethods(['external-cli']))).toBe(true)
+  })
+
+  // OAuth login-based providers (codex / grok) hold an app-side token and CAN
+  // serve a normal request, so they are not external-cli / agent-only.
+  it('is false for oauth login-based providers (codex / grok)', () => {
+    expect(isExternalCliProvider(withAuthMethods(['oauth']))).toBe(false)
+  })
+
+  it('is false for api-key providers and when authMethods is absent', () => {
+    expect(isExternalCliProvider(withAuthMethods(['api-key']))).toBe(false)
+    expect(isExternalCliProvider(withAuthMethods(undefined))).toBe(false)
   })
 })

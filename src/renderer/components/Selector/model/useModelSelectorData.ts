@@ -7,6 +7,7 @@ import { getSearchMatchScore } from '@renderer/utils/model'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { isExternalCliProvider } from '@shared/utils/provider'
 import { sortBy } from 'es-toolkit/compat'
 import { useCallback, useMemo } from 'react'
 
@@ -115,8 +116,7 @@ export function useModelSelectorData({
   // A provider whose credentials come from an external CLI login carries no API
   // key and cannot serve a normal chat request — it is agent-only.
   const agentOnlyProviderIds = useMemo(
-    () =>
-      new Set(availableProviders.filter((provider) => provider.authMethods?.includes('external-cli')).map((p) => p.id)),
+    () => new Set(availableProviders.filter(isExternalCliProvider).map((p) => p.id)),
     [availableProviders]
   )
 

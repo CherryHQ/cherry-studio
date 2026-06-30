@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   updateTopic: vi.fn(),
   getMessageById: vi.fn(),
   getModelByKey: vi.fn(),
+  getProviderByProviderId: vi.fn(),
   getAgent: vi.fn(),
   getSession: vi.fn(),
   updateSession: vi.fn()
@@ -53,6 +54,12 @@ vi.mock('@main/data/services/MessageService', () => ({
 vi.mock('@data/services/ModelService', () => ({
   modelService: {
     getByKey: mocks.getModelByKey
+  }
+}))
+
+vi.mock('@data/services/ProviderService', () => ({
+  providerService: {
+    getByProviderId: mocks.getProviderByProviderId
   }
 }))
 
@@ -102,6 +109,7 @@ describe('TopicNamingService', () => {
     mockMainLoggerService.debug.mockClear()
     MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.enabled', true)
     mocks.getModelByKey.mockResolvedValue({ id: 'openai::gpt-4o-mini' })
+    mocks.getProviderByProviderId.mockResolvedValue({ authMethods: ['api-key'] })
     mockRenameInputs()
   })
 
@@ -494,8 +502,9 @@ describe('TopicNamingService', () => {
     expect(mocks.broadcast).not.toHaveBeenCalled()
   })
 
-  it('falls back when topic naming model points to an agent-only provider', async () => {
+  it('falls back when topic naming model points to an external-CLI (agent-only) provider', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.model_id', 'claude-code::haiku')
+    mocks.getProviderByProviderId.mockResolvedValue({ authMethods: ['external-cli'] })
     mocks.getSession.mockResolvedValue({
       id: 'session-1',
       agentId: 'agent-1',
@@ -515,8 +524,25 @@ describe('TopicNamingService', () => {
       })
     )
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-      'topic.naming.model_id points to the agent-only Claude Code provider; falling back to managed CherryAI default model',
+      'topic.naming.model_id points to an external-CLI (agent-only) provider; falling back to managed CherryAI default model',
       { configured: 'claude-code::haiku' }
+    )
+  })
+
+  it('uses an oauth login-based provider (e.g. Codex/Grok) as a topic naming model', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.model_id', 'openai-codex::gpt-5')
+    mocks.getProviderByProviderId.mockResolvedValue({ authMethods: ['oauth'] })
+
+    await createService().maybeRenameFromConversationSummary('topic-1', 'assistant-1', 'message-1', {
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Assistant response' }]
+    } as never)
+
+    expect(mocks.getModelByKey).toHaveBeenCalledWith('openai-codex', 'gpt-5')
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uniqueModelId: 'openai-codex::gpt-5'
+      })
     )
   })
 })

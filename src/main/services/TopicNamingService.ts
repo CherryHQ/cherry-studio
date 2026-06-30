@@ -1,12 +1,12 @@
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { modelService } from '@data/services/ModelService'
+import { providerService } from '@data/services/ProviderService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import type { AiGenerateRequest } from '@main/ai/AiService'
 import { application } from '@main/core/application'
 import { messageService } from '@main/data/services/MessageService'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
-import { isClaudeCodeProviderId } from '@shared/data/presets/claudeCode'
 import type { Message, MessageData, UIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { Topic } from '@shared/data/types/topic'
@@ -17,6 +17,7 @@ import {
   sanitizeConversationTitle,
   truncateFirstUserMessageTitleSource
 } from '@shared/utils/conversationTitle'
+import { isExternalCliProvider } from '@shared/utils/provider'
 
 const logger = loggerService.withContext('TopicNamingService')
 
@@ -367,17 +368,20 @@ export class TopicNamingService {
 
     const { providerId, modelId } = parseUniqueModelId(parsed.data)
 
-    // Claude Code reuses the CLI's own login: it holds no app-side credential and
-    // cannot serve a generation request, so it can never name a topic.
-    if (isClaudeCodeProviderId(providerId)) {
-      logger.warn(
-        'topic.naming.model_id points to the agent-only Claude Code provider; falling back to managed CherryAI default model',
-        { configured }
-      )
-      return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
-    }
-
     try {
+      // External-CLI providers (e.g. Claude Code) reuse a CLI's own login: they
+      // hold no app-side credential and cannot serve a generation request, so they
+      // can never name a topic. Capability-derived, so any such provider is covered
+      // without keying on a specific id.
+      const provider = await providerService.getByProviderId(providerId)
+      if (isExternalCliProvider(provider)) {
+        logger.warn(
+          'topic.naming.model_id points to an external-CLI (agent-only) provider; falling back to managed CherryAI default model',
+          { configured }
+        )
+        return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+      }
+
       await modelService.getByKey(providerId, modelId)
       return parsed.data
     } catch (error) {
