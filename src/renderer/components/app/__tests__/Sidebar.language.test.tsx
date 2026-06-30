@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -70,7 +71,8 @@ vi.mock('@renderer/hooks/tab', () => ({
     },
     openTab: vi.fn(),
     updateTab: vi.fn()
-  })
+  }),
+  useOptionalTabsContext: () => null
 }))
 
 vi.mock('../../Popups/UserPopup', () => ({
@@ -90,6 +92,8 @@ describe('Sidebar language refresh', () => {
     languageState.language = 'en-US'
     MockUsePreferenceUtils.resetMocks()
     MockUseCacheUtils.resetMocks()
+    MockUseDataApiUtils.resetMocks()
+    MockUseDataApiUtils.mockQueryData('/mini-apps', [])
     MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', ['assistants'])
     MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_provider', 'zhipu')
     MockUseCacheUtils.setPersistCacheValue('ui.sidebar.width', 170)

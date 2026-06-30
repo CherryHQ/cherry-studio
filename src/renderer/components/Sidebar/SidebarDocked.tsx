@@ -35,6 +35,7 @@ function IconDockedTabs({ dockedTabs, activeTabId, onMiniAppTabClick }: DockedTa
           <SidebarTooltip key={dockedTab.id} content={dockedTab.title}>
             <button
               type="button"
+              aria-label={dockedTab.title}
               onClick={() => onMiniAppTabClick?.(dockedTab.id)}
               className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150 ${
                 isActive

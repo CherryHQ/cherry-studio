@@ -40,7 +40,9 @@ const mocks = vi.hoisted(() => ({
   tabs: [] as FakeTab[],
   sidebarFavorites: ['assistants'] as string[],
   sidebarMiniAppFavorites: [] as string[],
-  allApps: [] as FakeMiniApp[]
+  allApps: [] as FakeMiniApp[],
+  visibleMiniApps: null as FakeMiniApp[] | null,
+  pinnedMiniApps: [] as FakeMiniApp[]
 }))
 
 vi.mock('@data/hooks/useCache', () => ({
@@ -67,7 +69,11 @@ vi.mock('@renderer/hooks/useAvatar', () => ({
 }))
 
 vi.mock('@renderer/hooks/useMiniApps', () => ({
-  useMiniApps: () => ({ allApps: mocks.allApps })
+  useMiniApps: () => ({
+    allApps: mocks.allApps,
+    miniApps: mocks.visibleMiniApps ?? mocks.allApps,
+    pinned: mocks.pinnedMiniApps
+  })
 }))
 vi.mock('@renderer/i18n/label', () => ({
   getSidebarIconLabelKey: (icon: string) =>
@@ -239,6 +245,8 @@ afterEach(() => {
   }
   mocks.tabs = []
   mocks.allApps = []
+  mocks.visibleMiniApps = null
+  mocks.pinnedMiniApps = []
   mocks.sidebarWidth = 50
   vi.useRealTimers()
   document.documentElement.style.removeProperty('--sidebar-width')
@@ -348,6 +356,17 @@ describe('app Sidebar', () => {
 
     expect(screen.getByTestId('sidebar-mini-app-calculator')).toHaveTextContent('Calculator')
     expect(screen.queryByTestId('sidebar-mini-app-stale')).not.toBeInTheDocument()
+  })
+
+  it('does not render hidden mini apps left in sidebar favorites', () => {
+    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app')]
+    mocks.sidebarMiniAppFavorites = [miniAppFavorite('calculator')]
+    mocks.allApps = [{ appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }]
+    mocks.visibleMiniApps = []
+
+    render(<Sidebar />)
+
+    expect(screen.queryByTestId('sidebar-mini-app-calculator')).not.toBeInTheDocument()
   })
 
   it('opens a mini app tab from the sidebar mini app section', () => {

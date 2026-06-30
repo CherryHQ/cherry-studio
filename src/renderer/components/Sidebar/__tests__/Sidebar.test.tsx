@@ -1,4 +1,4 @@
-import { fireEvent, render } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { Search } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -22,12 +22,12 @@ vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
   default: () => false
 }))
 
-vi.mock('@renderer/config/miniApps', () => ({
+vi.mock('@renderer/components/Icons/miniAppsLogo', () => ({
   getMiniAppsLogo: (logo?: string) => {
     if (logo !== 'qwen') return undefined
 
-    const QwenLogo = ({ style }: { style?: CSSProperties }) => (
-      <svg data-testid="resolved-mini-app-logo" style={style} />
+    const QwenLogo = ({ style, ...props }: { style?: CSSProperties }) => (
+      <svg data-testid="resolved-mini-app-logo" style={style} {...props} />
     )
     QwenLogo.Avatar = ({ size }: { size: number }) => (
       <span data-size={size} data-testid="resolved-mini-app-logo-avatar" />
@@ -234,7 +234,10 @@ describe('Sidebar resize handle', () => {
     )
 
     expect(container.querySelector('[data-testid="resolved-mini-app-logo-avatar"]')).not.toBeInTheDocument()
-    expect(container.querySelector('[aria-label="Qwen"]')).toHaveStyle({ width: '16px', height: '16px' })
+    expect(container.querySelector('[data-testid="resolved-mini-app-logo"]')).toHaveStyle({
+      width: '16px',
+      height: '16px'
+    })
   })
 
   it('uses compact docked mini app dividers instead of full-width borders', () => {
@@ -348,12 +351,34 @@ describe('Sidebar resize handle', () => {
       />
     )
 
-    const miniAppLogo = container.querySelector('[aria-label="Qwen"]')
+    const miniAppLogo = container.querySelector('[data-testid="resolved-mini-app-logo"]')
     const dockedMiniAppButton = miniAppLogo?.closest('button')
 
     expect(miniAppLogo).toHaveStyle({ width: '22px', height: '22px' })
     expect(dockedMiniAppButton).toHaveClass('h-9', 'w-9')
     expect(dockedMiniAppButton).toHaveClass('hover:bg-accent/60', 'hover:text-foreground')
+  })
+
+  it('names icon-only docked mini app buttons from the full title when the logo is missing', () => {
+    render(
+      <Sidebar
+        width={SIDEBAR_ICON_WIDTH}
+        setWidth={vi.fn()}
+        activeItem="chat"
+        items={items}
+        dockedTabs={[
+          {
+            id: 'custom',
+            title: 'Custom Tool',
+            type: 'miniapp',
+            miniApp: { id: 'custom' }
+          }
+        ]}
+        onItemClick={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Custom Tool' })).toBeInTheDocument()
   })
 
   it('renders footer actions with the current sidebar layout', () => {

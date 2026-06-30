@@ -48,7 +48,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const [sidebarFavorites] = usePreference('ui.sidebar.favorites')
   const [sidebarMiniAppFavorites] = usePreference('ui.sidebar.mini_app_favorites')
   const { activeTab, updateTab, openTab } = useTabs()
-  const { allApps } = useMiniApps()
+  const { miniApps, pinned } = useMiniApps()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
 
   // Sidebar width — persisted across restarts. Dragging through the
@@ -111,12 +111,20 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     () => getSidebarMiniAppFavoriteIds(sidebarMiniAppFavorites),
     [sidebarMiniAppFavorites]
   )
+  const openableMiniAppById = useMemo(() => {
+    const appById = new Map<string, (typeof miniApps)[number]>()
+    for (const app of miniApps) {
+      appById.set(app.appId, app)
+    }
+    for (const app of pinned) {
+      appById.set(app.appId, app)
+    }
+    return appById
+  }, [miniApps, pinned])
 
   const sidebarMiniAppTabs = useMemo<SidebarMiniAppTab[]>(() => {
-    const appById = new Map(allApps.map((app) => [app.appId, app]))
-
     return sidebarMiniAppFavoriteIds.flatMap((appId) => {
-      const app = appById.get(appId)
+      const app = openableMiniAppById.get(appId)
       if (!app) return []
 
       return [
@@ -132,7 +140,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         }
       ]
     })
-  }, [allApps, sidebarMiniAppFavoriteIds, t])
+  }, [openableMiniAppById, sidebarMiniAppFavoriteIds, t])
 
   const items = useMemo<SidebarMenuItem[]>(
     () =>
@@ -198,7 +206,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const handleOpenMiniAppTab = useCallback(
     (appId: string) => {
-      const app = allApps.find((item) => item.appId === appId)
+      const app = openableMiniAppById.get(appId)
       if (!app) return
 
       openTab(`${MINI_APP_ROUTE_PREFIX}${app.appId}`, {
@@ -206,7 +214,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         icon: app.logo
       })
     },
-    [allApps, openTab, t]
+    [openableMiniAppById, openTab, t]
   )
 
   // Common props shared between normal and floating sidebar
