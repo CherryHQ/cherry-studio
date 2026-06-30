@@ -49,7 +49,7 @@ const agentPageMocks = vi.hoisted(() => ({
   lastUsedAgentId: null as string | null,
   lastUsedSessionId: null as string | null,
   lastUsedWorkspaceId: null as string | null,
-  traditionalViewRightPaneOpen: true,
+  classicLayoutRightPaneOpen: true,
   focusExistingTab: vi.fn(() => false),
   activeSessionOptions: null as {
     activeSessionId: string | null
@@ -58,9 +58,9 @@ const agentPageMocks = vi.hoisted(() => ({
   setLastUsedAgentId: vi.fn(),
   setLastUsedSessionId: vi.fn(),
   setLastUsedWorkspaceId: vi.fn(),
-  setTraditionalViewRightPaneOpen: vi.fn(),
+  setClassicLayoutRightPaneOpen: vi.fn(),
   setShowSidebar: vi.fn(),
-  sessionView: 'efficiency' as 'efficiency' | 'traditional',
+  sessionLayout: 'modern' as 'modern' | 'classic',
   isActiveTab: false,
   showSidebar: false,
   routeSearch: { sessionId: 'session-initial' } as Record<string, unknown>,
@@ -69,7 +69,7 @@ const agentPageMocks = vi.hoisted(() => ({
   updateSession: vi.fn(),
   setSessionWorkspace: vi.fn(),
   invalidateCache: vi.fn(),
-  traditionalViewSessions: [] as Array<{
+  classicLayoutSessions: [] as Array<{
     id: string
     agentId?: string
     name: string
@@ -93,7 +93,7 @@ vi.mock('@data/DataApiService', () => ({
 }))
 
 vi.mock('@renderer/hooks/resourceViewSources', () => ({
-  useAgentSessionsSource: () => ({ sessions: agentPageMocks.traditionalViewSessions })
+  useAgentSessionsSource: () => ({ sessions: agentPageMocks.classicLayoutSessions })
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
@@ -108,8 +108,8 @@ vi.mock('@data/hooks/usePreference', async () => {
       const [value, setValue] = React.useState<unknown>(
         key === 'topic.tab.show'
           ? agentPageMocks.showSidebar
-          : key === 'chat.session_view'
-            ? agentPageMocks.sessionView
+          : key === 'agent.layout'
+            ? agentPageMocks.sessionLayout
             : undefined
       )
       const setPreference = vi.fn(async (nextValue: unknown) => {
@@ -140,7 +140,7 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
           case 'ui.agent.last_used_workspace_id':
             return agentPageMocks.lastUsedWorkspaceId
           case 'ui.chat.right_pane_open':
-            return agentPageMocks.traditionalViewRightPaneOpen
+            return agentPageMocks.classicLayoutRightPaneOpen
           default:
             return undefined
         }
@@ -163,8 +163,8 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
           agentPageMocks.lastUsedSessionId = nextValue as string | null
           agentPageMocks.setLastUsedSessionId(nextValue)
         } else if (key === 'ui.chat.right_pane_open') {
-          agentPageMocks.traditionalViewRightPaneOpen = nextValue as boolean
-          agentPageMocks.setTraditionalViewRightPaneOpen(nextValue)
+          agentPageMocks.classicLayoutRightPaneOpen = nextValue as boolean
+          agentPageMocks.setClassicLayoutRightPaneOpen(nextValue)
         } else {
           agentPageMocks.lastUsedWorkspaceId = nextValue as string | null
           agentPageMocks.setLastUsedWorkspaceId(nextValue)
@@ -509,14 +509,14 @@ describe('AgentPage', () => {
     vi.clearAllMocks()
     agentPageMocks.routeSearch = { sessionId: 'session-initial' }
     agentPageMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Agent A' }]
-    agentPageMocks.traditionalViewSessions = []
+    agentPageMocks.classicLayoutSessions = []
     agentPageMocks.currentTab = undefined
     agentPageMocks.lastUsedAgentId = null
     agentPageMocks.lastUsedWorkspaceId = null
-    agentPageMocks.traditionalViewRightPaneOpen = true
+    agentPageMocks.classicLayoutRightPaneOpen = true
     agentPageMocks.activeSessionOptions = null
     agentPageMocks.focusExistingTab.mockReturnValue(false)
-    agentPageMocks.sessionView = 'efficiency'
+    agentPageMocks.sessionLayout = 'modern'
     agentPageMocks.showSidebar = false
     agentPageMocks.isActiveTab = false
     agentPageMocks.dataApiGet.mockImplementation(async (path: string) => {
@@ -546,7 +546,7 @@ describe('AgentPage', () => {
   })
 
   it('renders the agent resource list in the left pane', () => {
-    agentPageMocks.sessionView = 'traditional'
+    agentPageMocks.sessionLayout = 'classic'
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
 
@@ -559,9 +559,9 @@ describe('AgentPage', () => {
     expect(screen.queryByTestId('agent-side-panel')).not.toBeInTheDocument()
   })
 
-  it('restores and records the traditional-view agent right pane open state from cache', () => {
-    agentPageMocks.sessionView = 'traditional'
-    agentPageMocks.traditionalViewRightPaneOpen = false
+  it('restores and records the classic-layout agent right pane open state from cache', () => {
+    agentPageMocks.sessionLayout = 'classic'
+    agentPageMocks.classicLayoutRightPaneOpen = false
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
 
@@ -571,14 +571,14 @@ describe('AgentPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Close session pane' }))
 
-    expect(agentPageMocks.setTraditionalViewRightPaneOpen).toHaveBeenCalledWith(false)
+    expect(agentPageMocks.setClassicLayoutRightPaneOpen).toHaveBeenCalledWith(false)
   })
 
-  it('passes the current agent task count to the traditional-view top button', () => {
-    agentPageMocks.sessionView = 'traditional'
+  it('passes the current agent task count to the classic-layout top button', () => {
+    agentPageMocks.sessionLayout = 'classic'
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
-    agentPageMocks.traditionalViewSessions = [
+    agentPageMocks.classicLayoutSessions = [
       { ...agentPageMocks.persistedSession, id: 'session-a' },
       { ...agentPageMocks.persistedSession, id: 'session-b' },
       { ...agentPageMocks.persistedSession, id: 'session-other', agentId: 'agent-b' }
@@ -589,10 +589,10 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('resource-pane-count')).toHaveTextContent('任务:2')
   })
 
-  it('selects the latest historical session by default when entering traditional view without a route session', async () => {
-    agentPageMocks.sessionView = 'traditional'
+  it('selects the latest historical session by default when entering classic layout without a route session', async () => {
+    agentPageMocks.sessionLayout = 'classic'
     agentPageMocks.routeSearch = {}
-    agentPageMocks.traditionalViewSessions = [
+    agentPageMocks.classicLayoutSessions = [
       {
         ...agentPageMocks.persistedSession,
         id: 'session-older',
@@ -613,13 +613,13 @@ describe('AgentPage', () => {
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
   })
 
-  it('selects the latest remaining session after deleting the active agent (traditional view, never draft)', async () => {
-    agentPageMocks.sessionView = 'traditional'
+  it('selects the latest remaining session after deleting the active agent (classic layout, never draft)', async () => {
+    agentPageMocks.sessionLayout = 'classic'
     // Pin the active session via the route so the load-time auto-select effect stays out of the way.
     agentPageMocks.routeSearch = { sessionId: 'session-a' }
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-a', agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
-    agentPageMocks.traditionalViewSessions = [
+    agentPageMocks.classicLayoutSessions = [
       {
         ...agentPageMocks.persistedSession,
         id: 'session-a',
@@ -643,14 +643,14 @@ describe('AgentPage', () => {
     render(<AgentPage />)
     fireEvent.click(screen.getByRole('button', { name: 'Delete active agent' }))
 
-    // Traditional view settles on the latest session of a remaining agent, never the draft compose.
+    // Classic layout settles on the latest session of a remaining agent, never the draft compose.
     await waitFor(() => expect(screen.getByTestId('active-session')).toHaveTextContent('session-b-new'))
     expect(screen.getByTestId('missing-agent-draft')).toHaveTextContent('false')
     expect(screen.getByTestId('draft-session')).toHaveTextContent('')
   })
 
-  it('creates and activates an empty session after selecting an agent from the traditional-view picker', async () => {
-    agentPageMocks.sessionView = 'traditional'
+  it('creates and activates an empty session after selecting an agent from the classic-layout picker', async () => {
+    agentPageMocks.sessionLayout = 'classic'
     agentPageMocks.routeSearch = {}
     agentPageMocks.agents = [
       { id: 'agent-a', model: 'model-a', name: 'Agent A' },
@@ -687,8 +687,8 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('draft-session')).toHaveTextContent('')
   })
 
-  it('uses the remembered workspace when creating an empty session from the traditional-view picker', async () => {
-    agentPageMocks.sessionView = 'traditional'
+  it('uses the remembered workspace when creating an empty session from the classic-layout picker', async () => {
+    agentPageMocks.sessionLayout = 'classic'
     agentPageMocks.routeSearch = {}
     agentPageMocks.lastUsedWorkspaceId = 'workspace-remembered'
     agentPageMocks.agents = [
@@ -721,14 +721,14 @@ describe('AgentPage', () => {
     expect(agentPageMocks.setLastUsedWorkspaceId).toHaveBeenCalledWith('workspace-remembered')
   })
 
-  it('reuses the agent latest empty session instead of creating another one from the traditional-view picker', async () => {
-    agentPageMocks.sessionView = 'traditional'
+  it('reuses the agent latest empty session instead of creating another one from the classic-layout picker', async () => {
+    agentPageMocks.sessionLayout = 'classic'
     agentPageMocks.routeSearch = {}
     agentPageMocks.agents = [
       { id: 'agent-a', model: 'model-a', name: 'Agent A' },
       { id: 'agent-b', model: 'model-b', name: 'Agent B' }
     ]
-    agentPageMocks.traditionalViewSessions = [
+    agentPageMocks.classicLayoutSessions = [
       {
         id: 'session-empty-latest',
         agentId: 'agent-b',
@@ -755,13 +755,13 @@ describe('AgentPage', () => {
   })
 
   it('reuses the latest empty session when an older candidate has an invalid timestamp', async () => {
-    agentPageMocks.sessionView = 'traditional'
+    agentPageMocks.sessionLayout = 'classic'
     agentPageMocks.routeSearch = {}
     agentPageMocks.agents = [
       { id: 'agent-a', model: 'model-a', name: 'Agent A' },
       { id: 'agent-b', model: 'model-b', name: 'Agent B' }
     ]
-    agentPageMocks.traditionalViewSessions = [
+    agentPageMocks.classicLayoutSessions = [
       {
         id: 'session-empty-invalid',
         agentId: 'agent-b',
@@ -787,8 +787,8 @@ describe('AgentPage', () => {
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
   })
 
-  it('reuses the current agent empty session from the traditional-view composer button', async () => {
-    agentPageMocks.sessionView = 'traditional'
+  it('reuses the current agent empty session from the classic-layout composer button', async () => {
+    agentPageMocks.sessionLayout = 'classic'
     activeSessionMocks.session = {
       ...agentPageMocks.persistedSession,
       id: 'session-active',
@@ -797,7 +797,7 @@ describe('AgentPage', () => {
       workspace: agentPageMocks.workspace
     }
     activeSessionMocks.sessionSource = 'query'
-    agentPageMocks.traditionalViewSessions = [
+    agentPageMocks.classicLayoutSessions = [
       {
         id: 'session-empty-latest',
         agentId: 'agent-a',
@@ -817,8 +817,8 @@ describe('AgentPage', () => {
     expect(agentPageMocks.invalidateCache).not.toHaveBeenCalled()
   })
 
-  it('does not reuse an empty session from a different workspace from the traditional-view composer button', async () => {
-    agentPageMocks.sessionView = 'traditional'
+  it('does not reuse an empty session from a different workspace from the classic-layout composer button', async () => {
+    agentPageMocks.sessionLayout = 'classic'
     activeSessionMocks.session = {
       ...agentPageMocks.persistedSession,
       id: 'session-active',
@@ -827,7 +827,7 @@ describe('AgentPage', () => {
       workspace: agentPageMocks.workspace
     }
     activeSessionMocks.sessionSource = 'query'
-    agentPageMocks.traditionalViewSessions = [
+    agentPageMocks.classicLayoutSessions = [
       {
         id: 'session-empty-other-workspace',
         agentId: 'agent-a',
@@ -862,8 +862,8 @@ describe('AgentPage', () => {
     expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-composer-empty')
   })
 
-  it('creates and activates a fresh empty session from the traditional-view composer button with the current workspace', async () => {
-    agentPageMocks.sessionView = 'traditional'
+  it('creates and activates a fresh empty session from the classic-layout composer button with the current workspace', async () => {
+    agentPageMocks.sessionLayout = 'classic'
     activeSessionMocks.session = {
       ...agentPageMocks.persistedSession,
       id: 'session-active',
@@ -872,7 +872,7 @@ describe('AgentPage', () => {
       workspace: agentPageMocks.workspace
     }
     activeSessionMocks.sessionSource = 'query'
-    agentPageMocks.traditionalViewSessions = [
+    agentPageMocks.classicLayoutSessions = [
       {
         id: 'session-real-latest',
         agentId: 'agent-a',
@@ -913,8 +913,8 @@ describe('AgentPage', () => {
     ])
   })
 
-  it('updates the active traditional-view session workspace through the composer control', async () => {
-    agentPageMocks.sessionView = 'traditional'
+  it('updates the active classic-layout session workspace through the composer control', async () => {
+    agentPageMocks.sessionLayout = 'classic'
     activeSessionMocks.session = {
       ...agentPageMocks.persistedSession,
       id: 'session-active',
@@ -943,14 +943,14 @@ describe('AgentPage', () => {
     expect(agentPageMocks.setLastUsedWorkspaceId).toHaveBeenCalledWith('workspace-next')
   })
 
-  it('creates a new session when the agent latest session is not empty from the traditional-view picker', async () => {
-    agentPageMocks.sessionView = 'traditional'
+  it('creates a new session when the agent latest session is not empty from the classic-layout picker', async () => {
+    agentPageMocks.sessionLayout = 'classic'
     agentPageMocks.routeSearch = {}
     agentPageMocks.agents = [
       { id: 'agent-a', model: 'model-a', name: 'Agent A' },
       { id: 'agent-b', model: 'model-b', name: 'Agent B' }
     ]
-    agentPageMocks.traditionalViewSessions = [
+    agentPageMocks.classicLayoutSessions = [
       {
         id: 'session-real-latest',
         agentId: 'agent-b',
@@ -1068,8 +1068,8 @@ describe('AgentPage', () => {
   })
 
   it('opens the session pane when a global-search locate targets a session in the current tab', () => {
-    agentPageMocks.sessionView = 'traditional'
-    agentPageMocks.traditionalViewRightPaneOpen = false
+    agentPageMocks.sessionLayout = 'classic'
+    agentPageMocks.classicLayoutRightPaneOpen = false
     agentPageMocks.focusExistingTab.mockReturnValue(false)
 
     render(<AgentPage />)

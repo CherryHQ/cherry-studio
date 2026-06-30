@@ -42,7 +42,7 @@ const mocks = vi.hoisted(() => ({
   shortcutOptions: new Map<string, Record<string, unknown> | undefined>(),
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
   ipcOn: vi.fn(),
-  sessionView: undefined as string | undefined,
+  sessionLayout: undefined as string | undefined,
   runtimeHostProps: undefined as
     | { assistant?: { modelId?: string | null }; model?: Model; session?: { agentId?: string } }
     | undefined
@@ -380,7 +380,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'chat.message.font_size': 14,
       'chat.narrow_mode': false,
       'chat.input.send_message_shortcut': 'Enter',
-      'chat.session_view': mocks.sessionView
+      'agent.layout': mocks.sessionLayout
     }
     return [values[key]]
   }
@@ -477,7 +477,7 @@ describe('AgentComposer', () => {
     mocks.surfaceProps = undefined
     mocks.derivedToolState = undefined
     mocks.runtimeHostProps = undefined
-    mocks.sessionView = undefined
+    mocks.sessionLayout = undefined
     mocks.shortcutHandlers.clear()
     mocks.shortcutOptions.clear()
     mocks.ipcListeners.clear()
@@ -582,8 +582,8 @@ describe('AgentComposer', () => {
     expect(onNewSessionDraft).toHaveBeenCalledTimes(1)
   })
 
-  it('routes traditional-view new session shortcuts through the empty session action', () => {
-    mocks.sessionView = 'traditional'
+  it('routes classic-layout new session shortcuts through the empty session action', () => {
+    mocks.sessionLayout = 'classic'
     const onNewSessionDraft = vi.fn()
     const onCreateEmptySession = vi.fn()
 
@@ -606,7 +606,7 @@ describe('AgentComposer', () => {
   })
 
   it('renders the empty session action before the tool menu and calls the explicit handler', () => {
-    mocks.sessionView = 'traditional'
+    mocks.sessionLayout = 'classic'
     const onCreateEmptySession = vi.fn()
 
     render(
@@ -633,7 +633,7 @@ describe('AgentComposer', () => {
     expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps the tool menu at the far left in the efficiency view', () => {
+  it('keeps the tool menu at the far left in the modern layout', () => {
     const onCreateEmptySession = vi.fn()
 
     render(
@@ -1460,8 +1460,8 @@ describe('AgentComposer', () => {
     expect(mocks.updateSession).not.toHaveBeenCalled()
   })
 
-  it('hides the active session agent trigger from the toolbar in traditional/传统 view', () => {
-    mocks.sessionView = 'traditional'
+  it('hides the active session agent trigger from the toolbar in classic layout', () => {
+    mocks.sessionLayout = 'classic'
 
     render(
       <AgentComposer
@@ -1572,8 +1572,8 @@ describe('AgentComposer', () => {
     expect(onAgentChange).toHaveBeenCalledWith('agent-2')
   })
 
-  it('hides the missing-agent trigger in traditional/传统 view', () => {
-    mocks.sessionView = 'traditional'
+  it('hides the missing-agent trigger in classic layout', () => {
+    mocks.sessionLayout = 'classic'
 
     render(<MissingAgentHomeComposer onAgentChange={vi.fn()} />)
 

@@ -4,7 +4,7 @@ import { createContext, type ReactNode, use } from 'react'
 import { Shell } from './Shell'
 
 // ── Resource-list-as-right-pane wiring ──────────────────────────────────────
-// In traditional-view mode (`chat.topic_view`/`chat.session_view === 'traditional'`) the topic/session list moves into the
+// In classic-layout mode (`topic.layout`/`agent.layout === 'classic'`) the topic/session list moves into the
 // chat's right pane as an extra tab. The list node + its label are provided once at
 // the page level via context, so the Chat/AgentChat tree and the pane surfaces don't prop-thread
 // them through every layer. The tab/panel/toggle below derive everything from this context, and
@@ -30,7 +30,7 @@ export function useResourcePane(): ResourcePaneConfig | null {
   return use(ResourcePaneContext)
 }
 
-/** Shared `resources` tab-strip entry. Renders nothing outside traditional view. Place inside `Shell.TabList`. */
+/** Shared `resources` tab-strip entry. Renders nothing outside classic layout. Place inside `Shell.TabList`. */
 export function ResourcePaneTab() {
   const config = useResourcePane()
   if (!config) return null
@@ -42,7 +42,7 @@ export function ResourcePaneTab() {
   )
 }
 
-/** Shared `resources` tab panel. Renders nothing outside traditional view. Place inside `Shell.Tabs`. */
+/** Shared `resources` tab panel. Renders nothing outside classic layout. Place inside `Shell.Tabs`. */
 export function ResourcePanePanel() {
   const config = useResourcePane()
   if (!config) return null

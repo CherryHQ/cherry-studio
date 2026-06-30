@@ -104,18 +104,18 @@
       "description": "Web search provider overrides (from complex migration)"
     },
     {
-      "targetKey": "chat.topic_view",
-      "type": "PreferenceTypes.ChatViewMode",
-      "defaultValue": "traditional",
+      "targetKey": "topic.layout",
+      "type": "PreferenceTypes.ChatLayoutMode",
+      "defaultValue": "classic",
       "status": "classified",
-      "description": "Assistant conversation view: 'traditional' = entity rail + right topic panel, 'efficiency' = classic single topic sidebar (new v2 preference, no v1 source)"
+      "description": "Assistant conversation layout: 'classic' = entity rail + right topic panel, 'modern' = single topic sidebar (new v2 preference, no v1 source)"
     },
     {
-      "targetKey": "chat.session_view",
-      "type": "PreferenceTypes.ChatViewMode",
-      "defaultValue": "traditional",
+      "targetKey": "agent.layout",
+      "type": "PreferenceTypes.ChatLayoutMode",
+      "defaultValue": "classic",
       "status": "classified",
-      "description": "Agent work view: 'traditional' = entity rail + right session panel, 'efficiency' = classic single session sidebar (v2 new feature, no v1 source)"
+      "description": "Agent work layout: 'classic' = entity rail + right session panel, 'modern' = single session sidebar (v2 new feature, no v1 source)"
     },
     {
       "targetKey": "ui.sidebar.favorites",

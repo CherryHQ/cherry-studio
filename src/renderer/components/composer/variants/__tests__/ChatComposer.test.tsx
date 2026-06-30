@@ -50,7 +50,7 @@ const mocks = vi.hoisted(() => ({
   ipcOn: vi.fn(),
   chatWrite: undefined as any,
   files: undefined as any[] | undefined,
-  topicView: undefined as string | undefined
+  topicLayout: undefined as string | undefined
 }))
 
 const originalResizeObserver = globalThis.ResizeObserver
@@ -376,7 +376,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'chat.message.font_size': 14,
       'chat.narrow_mode': false,
       'chat.input.send_message_shortcut': 'Enter',
-      'chat.topic_view': mocks.topicView
+      'topic.layout': mocks.topicLayout
     }
     return [values[key]]
   }
@@ -617,7 +617,7 @@ describe('ChatComposer', () => {
     mocks.ipcListeners.clear()
     mocks.ipcOn.mockReset()
     mocks.chatWrite = undefined
-    mocks.topicView = undefined
+    mocks.topicLayout = undefined
     mocks.ipcOn.mockImplementation((channel: string, listener: (_event: unknown, payload: unknown) => void) => {
       mocks.ipcListeners.set(channel, listener)
       return () => mocks.ipcListeners.delete(channel)
@@ -650,7 +650,7 @@ describe('ChatComposer', () => {
     globalThis.ResizeObserver = originalResizeObserver
   })
 
-  it('keeps the tool menu at the far left in the efficiency view', () => {
+  it('keeps the tool menu at the far left in the modern layout', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     const leftControls = screen.getByTestId('composer-left-controls')
@@ -950,8 +950,8 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
   })
 
-  it('hides the active assistant trigger from the toolbar in traditional/传统 view', () => {
-    mocks.topicView = 'traditional'
+  it('hides the active assistant trigger from the toolbar in classic layout', () => {
+    mocks.topicLayout = 'classic'
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
@@ -963,8 +963,8 @@ describe('ChatComposer', () => {
     expect(mocks.updateTopic).not.toHaveBeenCalled()
   })
 
-  it('keeps the assistant switcher in the toolbar in the efficiency view', () => {
-    mocks.topicView = 'efficiency'
+  it('keeps the assistant switcher in the toolbar in the modern layout', () => {
+    mocks.topicLayout = 'modern'
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
@@ -972,8 +972,8 @@ describe('ChatComposer', () => {
     expect(screen.queryByTestId('resource-edit-dialog-host')).not.toBeInTheDocument()
   })
 
-  it('renders the traditional-view empty topic action before the tool menu and passes the selected assistant', () => {
-    mocks.topicView = 'traditional'
+  it('renders the classic-layout empty topic action before the tool menu and passes the selected assistant', () => {
+    mocks.topicLayout = 'classic'
     const onCreateEmptyTopic = vi.fn()
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} onCreateEmptyTopic={onCreateEmptyTopic} />)
@@ -991,15 +991,15 @@ describe('ChatComposer', () => {
     expect(onCreateEmptyTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
   })
 
-  it('hides the empty topic action outside traditional view or without a handler', () => {
-    mocks.topicView = 'efficiency'
+  it('hides the empty topic action outside classic layout or without a handler', () => {
+    mocks.topicLayout = 'modern'
     const onCreateEmptyTopic = vi.fn()
 
     const { rerender } = render(<ChatComposer topic={topic} onSend={vi.fn()} onCreateEmptyTopic={onCreateEmptyTopic} />)
 
     expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
 
-    mocks.topicView = 'traditional'
+    mocks.topicLayout = 'classic'
     rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
@@ -1365,8 +1365,8 @@ describe('ChatComposer', () => {
     expect(mocks.createTopic).not.toHaveBeenCalled()
   })
 
-  it('routes traditional-view new topic shortcuts through the empty topic action', () => {
-    mocks.topicView = 'traditional'
+  it('routes classic-layout new topic shortcuts through the empty topic action', () => {
+    mocks.topicLayout = 'classic'
     const onNewTopic = vi.fn()
     const onCreateEmptyTopic = vi.fn()
 

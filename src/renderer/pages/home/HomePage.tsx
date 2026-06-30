@@ -76,7 +76,7 @@ type DraftAssistantSelection = {
 }
 
 // Reuse the assistant's latest *empty* placeholder topic instead of stacking a new one. The empty
-// topic only exists to surface the assistant in the traditional-view rail, so on repeated adds we reopen the
+// topic only exists to surface the assistant in the classic-layout rail, so on repeated adds we reopen the
 // existing placeholder rather than pile up blanks.
 //
 // "Empty" is approximated by a blank name: the list API exposes no message count, and a topic is
@@ -108,32 +108,32 @@ const HomePage: FC = () => {
   const [draftAssistantSelection, setDraftAssistantSelection] = useState<DraftAssistantSelection | undefined>()
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
   const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
-  const [traditionalViewRightPaneOpen, setTraditionalViewRightPaneOpenCache] =
+  const [classicLayoutRightPaneOpen, setClassicLayoutRightPaneOpenCache] =
     usePersistCache(CHAT_RIGHT_PANE_OPEN_CACHE_KEY)
   const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
-  const [topicView] = usePreference('chat.topic_view')
-  const isTraditionalTopicView = topicView === 'traditional'
-  // Traditional-view right-pane open state is shared via the `ui.chat.right_pane_open` cache; derive the
-  // topic-scoped open flag + gated setter here (efficiency view leaves the setter a no-op).
-  const topicPaneOpen = isTraditionalTopicView && traditionalViewRightPaneOpen
+  const [topicLayout] = usePreference('topic.layout')
+  const isClassicTopicLayout = topicLayout === 'classic'
+  // Classic-layout right-pane open state is shared via the `ui.chat.right_pane_open` cache; derive the
+  // topic-scoped open flag + gated setter here (modern layout leaves the setter a no-op).
+  const topicPaneOpen = isClassicTopicLayout && classicLayoutRightPaneOpen
   const setTopicPaneOpen = useCallback(
     (open: boolean) => {
-      if (isTraditionalTopicView) setTraditionalViewRightPaneOpenCache(open)
+      if (isClassicTopicLayout) setClassicLayoutRightPaneOpenCache(open)
     },
-    [isTraditionalTopicView, setTraditionalViewRightPaneOpenCache]
+    [isClassicTopicLayout, setClassicLayoutRightPaneOpenCache]
   )
-  // Traditional view shares this full-topics source with the rail; efficiency view leaves it disabled (no fetch).
+  // Classic layout shares this full-topics source with the rail; modern layout leaves it disabled (no fetch).
   // The picker uses it to reuse an empty placeholder topic instead of stacking new ones.
   const {
-    topics: traditionalViewTopics,
-    isLoadingAll: isTraditionalTopicViewLoading = false,
-    isFullyLoaded: isTraditionalTopicViewFullyLoaded = true
-  } = useAssistantTopicsSource({ enabled: isTraditionalTopicView })
-  const isTraditionalTopicViewHistoryReady =
-    !isTraditionalTopicView || (!isTraditionalTopicViewLoading && isTraditionalTopicViewFullyLoaded)
+    topics: classicLayoutTopics,
+    isLoadingAll: isClassicTopicLayoutLoading = false,
+    isFullyLoaded: isClassicTopicLayoutFullyLoaded = true
+  } = useAssistantTopicsSource({ enabled: isClassicTopicLayout })
+  const isClassicTopicLayoutHistoryReady =
+    !isClassicTopicLayout || (!isClassicTopicLayoutLoading && isClassicTopicLayoutFullyLoaded)
   const [historyRecordsOpen, setHistoryRecordsOpen] = useState(false)
   const [assistantPickerOpen, setAssistantPickerOpen] = useState(false)
 
@@ -303,13 +303,13 @@ const HomePage: FC = () => {
   const visibleAssistantId = visibleTopic?.assistantId ?? draftAssistantSelectionSnapshot?.assistantId
   const { assistant: visibleAssistant } = useAssistantApiById(visibleAssistantId ?? undefined)
   const topicResourcePaneCount = useMemo<ResourcePaneCountButtonProps | undefined>(() => {
-    if (!isTraditionalTopicView || !visibleAssistantId) return undefined
+    if (!isClassicTopicLayout || !visibleAssistantId) return undefined
 
     return {
       label: t('chat.topics.title'),
-      count: traditionalViewTopics.filter((topic) => topic.assistantId === visibleAssistantId).length
+      count: classicLayoutTopics.filter((topic) => topic.assistantId === visibleAssistantId).length
     }
-  }, [isTraditionalTopicView, traditionalViewTopics, t, visibleAssistantId])
+  }, [isClassicTopicLayout, classicLayoutTopics, t, visibleAssistantId])
   const isDraftView = !isMessageOnlyView && !!draftAssistantSelectionSnapshot
   const tabInstanceTopicId =
     !isMessageOnlyView && !isDraftView ? (visibleTopic?.id ?? routeActiveTopicId ?? undefined) : undefined
@@ -426,10 +426,10 @@ const HomePage: FC = () => {
     if (!shouldUseDraft || draftAssistantStartStateRef.current.firstLaunchStarted || state?.topic) return
     if (draftAssistantSelectionSnapshot || activeTopic || isActiveTopicLoading) return
     if (!isAssistantListResolved) return
-    if (isTraditionalTopicView && !isTraditionalTopicViewHistoryReady) return
+    if (isClassicTopicLayout && !isClassicTopicLayoutHistoryReady) return
 
-    if (isTraditionalTopicView && !routeAssistantId) {
-      const latestTopic = findLatestUpdated(traditionalViewTopics)
+    if (isClassicTopicLayout && !routeAssistantId) {
+      const latestTopic = findLatestUpdated(classicLayoutTopics)
       if (latestTopic) {
         draftAssistantStartStateRef.current.firstLaunchStarted = true
         setDraftAssistantSelectionState(undefined)
@@ -445,9 +445,9 @@ const HomePage: FC = () => {
     draftAssistantSelectionSnapshot,
     isActiveTopicLoading,
     isAssistantListResolved,
-    isTraditionalTopicView,
-    isTraditionalTopicViewHistoryReady,
-    traditionalViewTopics,
+    isClassicTopicLayout,
+    isClassicTopicLayoutHistoryReady,
+    classicLayoutTopics,
     routeAssistantId,
     setActiveTopic,
     setDraftAssistantSelectionState,
@@ -471,14 +471,14 @@ const HomePage: FC = () => {
     },
     [conversationNav, currentTabId, setActiveTopic, setDraftAssistantSelectionState]
   )
-  // Traditional-view reset after deleting the active assistant: select the latest
+  // Classic-layout reset after deleting the active assistant: select the latest
   // remaining topic (across other assistants). Filter by the deleted id so this
   // is correct even before the topic cache refetches. If nothing remains, fall
-  // back to the draft compose — traditional view has no empty-with-rail state to show.
+  // back to the draft compose — classic layout has no empty-with-rail state to show.
   const handleActiveAssistantDeleted = useCallback(
     (deletedAssistantId: string) => {
       const nextTopic = findLatestUpdated(
-        traditionalViewTopics.filter((topic) => topic.assistantId !== deletedAssistantId)
+        classicLayoutTopics.filter((topic) => topic.assistantId !== deletedAssistantId)
       )
       if (nextTopic) {
         setActiveTopicAndDiscardDraft(mapApiTopicToRendererTopic(nextTopic))
@@ -486,7 +486,7 @@ const HomePage: FC = () => {
       }
       startDraftAssistantSelection()
     },
-    [traditionalViewTopics, setActiveTopicAndDiscardDraft, startDraftAssistantSelection]
+    [classicLayoutTopics, setActiveTopicAndDiscardDraft, startDraftAssistantSelection]
   )
 
   const resolveAssistantIdForSelection = useCallback(
@@ -513,7 +513,7 @@ const HomePage: FC = () => {
         const assistantId = await resolveAssistantIdForSelection(selection)
 
         // Reuse the assistant's latest empty placeholder topic (see findReusableEmptyTopic).
-        const reusableTopic = findReusableEmptyTopic(traditionalViewTopics, assistantId)
+        const reusableTopic = findReusableEmptyTopic(classicLayoutTopics, assistantId)
 
         const topic = reusableTopic ?? (await createTopic({ assistantId }))
         const rendererTopic = mapApiTopicToRendererTopic(topic)
@@ -526,13 +526,13 @@ const HomePage: FC = () => {
           })
         }
       } catch (err) {
-        logger.error('Failed to create assistant conversation from traditional-view picker', err as Error)
+        logger.error('Failed to create assistant conversation from classic-layout picker', err as Error)
         window.toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
       }
     },
     [
       createTopic,
-      traditionalViewTopics,
+      classicLayoutTopics,
       refreshTopics,
       resolveAssistantIdForSelection,
       setActiveTopic,
@@ -545,7 +545,7 @@ const HomePage: FC = () => {
     async (payload?: AddNewTopicPayload) => {
       try {
         const selection = resolveDraftAssistantTarget(payload?.assistantId)
-        const reusableTopic = findReusableEmptyTopic(traditionalViewTopics, selection.assistantId)
+        const reusableTopic = findReusableEmptyTopic(classicLayoutTopics, selection.assistantId)
         const topic =
           reusableTopic ??
           (await createTopic({
@@ -561,13 +561,13 @@ const HomePage: FC = () => {
           })
         }
       } catch (err) {
-        logger.error('Failed to create empty topic from traditional-view composer', err as Error)
+        logger.error('Failed to create empty topic from classic-layout composer', err as Error)
         window.toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
       }
     },
     [
       createTopic,
-      traditionalViewTopics,
+      classicLayoutTopics,
       refreshTopics,
       resolveDraftAssistantTarget,
       setActiveTopic,
@@ -661,9 +661,9 @@ const HomePage: FC = () => {
     return <Container id="home-page" />
   }
 
-  // Traditional view = entity rail + right topic panel; efficiency view = the classic single sidebar (HomeTabs).
+  // Classic layout = entity rail + right topic panel; modern layout = the single sidebar (HomeTabs).
   const panePosition: ChatPanePosition = 'left'
-  const pane = isTraditionalTopicView ? (
+  const pane = isClassicTopicLayout ? (
     <AssistantResourceList
       activeAssistantId={visibleAssistantId ?? null}
       onAddAssistant={() => setAssistantPickerOpen(true)}
@@ -681,10 +681,10 @@ const HomePage: FC = () => {
       revealRequest={topicRevealRequest}
     />
   )
-  // In traditional view the topic list moves into the chat's right pane as a tab; the single page-level
+  // In classic layout the topic list moves into the chat's right pane as a tab; the single page-level
   // provider owns the Shell for both views so the rail and the right panel share its open/maximize
   // state. New (sidebar) view passes a null config, leaving the pane as branch/trace only.
-  const resourcePane: ResourcePaneConfig | null = isTraditionalTopicView
+  const resourcePane: ResourcePaneConfig | null = isClassicTopicLayout
     ? {
         label: t('chat.topics.title'),
         node: (
@@ -703,7 +703,7 @@ const HomePage: FC = () => {
     <TopicRightPane
       resourcePane={resourcePane}
       defaultOpen={topicPaneOpen}
-      onOpenChange={isTraditionalTopicView ? setTopicPaneOpen : undefined}
+      onOpenChange={isClassicTopicLayout ? setTopicPaneOpen : undefined}
       revealRequest={topicRevealRequest}>
       {content}
     </TopicRightPane>
@@ -717,7 +717,7 @@ const HomePage: FC = () => {
       onRecordSelect={handleHistoryRecordsTopicSelect}
     />
   )
-  const assistantPickerDialog = isTraditionalTopicView ? (
+  const assistantPickerDialog = isClassicTopicLayout ? (
     <AssistantConversationPickerDialog
       open={assistantPickerOpen}
       onOpenChange={setAssistantPickerOpen}
@@ -739,7 +739,7 @@ const HomePage: FC = () => {
             panePosition={panePosition}
             onPaneCollapse={() => setResourceListOpen(false)}
             onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
-            onCreateEmptyTopic={isTraditionalTopicView && !isMessageOnlyView ? createAndActivateEmptyTopic : undefined}
+            onCreateEmptyTopic={isClassicTopicLayout && !isMessageOnlyView ? createAndActivateEmptyTopic : undefined}
             onDraftAssistantChange={updateDraftAssistantSelection}
             onSend={sendDraftMessage}
             showResourceListControls={!isMessageOnlyView && !isWindowFrame}
@@ -768,7 +768,7 @@ const HomePage: FC = () => {
           panePosition={panePosition}
           onPaneCollapse={() => setResourceListOpen(false)}
           onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
-          onCreateEmptyTopic={isTraditionalTopicView && !isMessageOnlyView ? createAndActivateEmptyTopic : undefined}
+          onCreateEmptyTopic={isClassicTopicLayout && !isMessageOnlyView ? createAndActivateEmptyTopic : undefined}
           showResourceListControls={!isMessageOnlyView && !isWindowFrame}
           sidebarOpen={effectiveShowSidebar}
           onSidebarToggle={toggleResourceListOpen}

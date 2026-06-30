@@ -1,47 +1,64 @@
-# Chat View Modes (efficiency / traditional)
+# Chat Layout Modes (classic / modern)
 
 Each chat surface — assistant conversations (Home) and agent work — has its own
-view-mode preference. The **traditional view** is a compact entity rail plus a right-side
-resource panel; the **efficiency view** is the classic single sidebar. The `efficiency` / `traditional`
-values are the persisted preference values and feed the `isTraditionalTopicView` /
-`isTraditionalSessionView` flags in the pages.
+layout-mode preference. The **classic layout** is a compact entity rail plus a right-side
+resource panel; the **modern layout** is the single sidebar. The `classic` / `modern`
+values are the persisted preference values and feed the `isClassicTopicLayout` /
+`isClassicSessionLayout` flags in the pages.
 
 ## Preferences
 
-Two independent preferences, both `'efficiency' | 'traditional'` (`PreferenceTypes.ChatViewMode`),
-both defaulting to `'traditional'`:
+Two independent preferences, both `'classic' | 'modern'` (`PreferenceTypes.ChatLayoutMode`),
+both defaulting to `'classic'`:
 
-- `chat.topic_view` — assistant chats (Home). v2-only, no v1 source.
-- `chat.session_view` — agent chats. v2-only, no v1 source.
+- `topic.layout` — assistant chats (Home). v2-only, no v1 source.
+- `agent.layout` — agent chats. v2-only, no v1 source.
 
 Both are declared in `target-key-definitions.json` and generated into
 `preferenceSchemas.ts`; the legacy v1 `topicPosition` field is deleted during
 classification and is not migrated into either setting. The settings UI
 (`CommonSettings`) exposes them as "Conversation view" and "Work view", each with
-"Efficient" / "Classic" labels.
+"Efficient" / "Classic" labels. (The i18n label strings are unchanged from the
+earlier naming, so the `modern` value still shows as "Efficient"; only the stored
+values and code identifiers moved to `classic` / `modern`.)
+
+## Surface terminology
+
+The two surfaces deliberately use different words at different layers; the mapping is
+fixed, not accidental:
+
+| Surface   | Domain entity | Resource          | Preference namespace | UI label (i18n) |
+| --------- | ------------- | ----------------- | -------------------- | --------------- |
+| Assistant | `assistant`   | topic             | `topic.*`            | "Conversation"  |
+| Agent     | `agent`       | session ("work")  | `agent.*`            | "Work"          |
+
+So `topic.layout` governs the assistant surface and `agent.layout` governs the agent
+surface, while the shared rail/panel components stay entity-generic
+(`ResourceEntityRail`, `ConversationPickerDialog`). The layout *mode* itself is always
+`classic` / `modern` regardless of surface.
 
 ## Layout
 
-When the relevant preference is `traditional`:
+When the relevant preference is `classic`:
 
 1. Left: a compact assistant/agent entity rail.
 2. Center: the existing chat surface.
 3. Right: an independently toggleable resource panel for the current
    assistant/agent's conversations/works.
 
-When the preference is `efficiency`, the classic single sidebar is used
+When the preference is `modern`, the single sidebar is used
 (`HomeTabs` / `AgentSidePanel`). Its display-mode preferences and logic are kept,
 though the display-mode controls are currently hidden in the UI.
 
 ## State
 
-- `chat.topic_view` / `chat.session_view` select the mode per surface.
+- `topic.layout` / `agent.layout` select the mode per surface.
 - `topic.tab.show` controls whether the left entity rail is expanded/collapsed.
-- `ui.chat.right_pane_open` persists the traditional-view right panel's open state
+- `ui.chat.right_pane_open` persists the classic-layout right panel's open state
   for Home and Agent. Home uses it directly on the page-level Shell; Agent owns
   the same cached state in `AgentPage` and threads it through each `AgentChat`
   Shell mount so it survives draft → persistent remounts and page re-entry.
-- Toggling a surface efficiency → traditional → efficiency restores the last cached traditional-view
+- Toggling a surface modern → classic → modern restores the last cached classic-layout
   right-panel open state.
 
 ## Left entity rail
@@ -88,11 +105,11 @@ own data fetching, pins, deletion, and context menus.
 ### Pinned entities
 
 - Pinned assistants/agents float into a "已固定" section at the top, mirroring the
-  efficiency view's left list (entity pins reuse `usePins('assistant'|'agent')`). The rest
+  modern layout's left list (entity pins reuse `usePins('assistant'|'agent')`). The rest
   sit under a "助手" / "智能体" section below.
 - Both are collapsible **section** headers (flush-left), so the entity rows keep
   their avatar and read as indented beneath. With nothing pinned the rail renders a
-  single flat list with no header — same as the efficiency view's single-section case.
+  single flat list with no header — same as the modern layout's single-section case.
 - Pinned rows cannot be dragged and nothing can be dropped into the pinned section;
   only the entities still owning resources appear (the rail's visibility invariant
   is unchanged).
@@ -101,7 +118,7 @@ own data fetching, pins, deletion, and context menus.
 
 - Non-pinned entities are ordered by assistant/agent `orderKey`; drag reorders and
   persists the real `orderKey` (optimistic, then refetch).
-- Entity rows keep the classic sidebar's entity context menus (assistant grouped-row /
+- Entity rows keep the single sidebar's entity context menus (assistant grouped-row /
   agent `AgentItem` behavior). Deleting the current entity, or clearing all its
   resources, closes the right panel and leaves the main chat in that entity's
   blank state.
@@ -120,32 +137,32 @@ level instead of prop-threaded).
   open/closed. The panel is mutually exclusive with branch/trace/files/status/flow
   (scoped to the current chat instance).
 - Fixed time grouping, groups expanded by default; does not read/write the
-  classic sidebar's group-collapsed state or display options. Header keeps only search,
+  single sidebar's group-collapsed state or display options. Header keeps only search,
   scoped to the current entity; creating a topic/session stays on the left rail
-  and classic sidebar entry points. Drag/group movement is disabled (the list is
+  and single sidebar entry points. Drag/group movement is disabled (the list is
   fixed time-grouped).
 - Switching assistant/agent clears the right-list search; switching topic/session
   within the same entity does not.
 
-## Composer entity controls (traditional view)
+## Composer entity controls (classic layout)
 
-In traditional view the left rail owns entity switching, so the composer's assistant/agent
+In classic layout the left rail owns entity switching, so the composer's assistant/agent
 switcher is hidden rather than repurposed:
 
-- `ChatComposer` passes `showAssistantTrigger: topicView !== 'traditional'`.
-- `AgentComposer` passes `showAgentTrigger: sessionView !== 'traditional'`. The
+- `ChatComposer` passes `showAssistantTrigger: topicLayout !== 'classic'`.
+- `AgentComposer` passes `showAgentTrigger: sessionLayout !== 'classic'`. The
   `agentTriggerMode="edit"` code path still exists for toolbar-bound contexts, but
-  it is not the traditional-view entry point because the trigger is hidden by
+  it is not the classic-layout entry point because the trigger is hidden by
   `showAgentTrigger`.
-- Traditional view adds a new conversation/work action to the composer controls when
+- Classic layout adds a new conversation/work action to the composer controls when
   `onCreateEmptyTopic` / `onCreateEmptySession` is available.
 - The agent composer's inline model selector remains available for changing the
   active agent model. The agent switcher is hidden inside active sessions (an
   active session is bound to its agent).
 
-## Agent workspace control (traditional view)
+## Agent workspace control (classic layout)
 
-Traditional-view agent chats keep the workspace control visible in the composer because
+Classic-layout agent chats keep the workspace control visible in the composer because
 the classic left sidebar is no longer present:
 
 - Draft sessions keep the existing editable workspace selector.
@@ -196,8 +213,8 @@ in a draft session would otherwise remount the Shell and snap the work panel shu
 To match Home, the `Shell` exposes an additive `onOpenChange` callback;
 `AgentPage` owns the open state (`sessionPaneOpen`) and threads
 `defaultOpen` + `onOpenChange` through `AgentChat` to every `AgentRightPane` mount
-site, so the open state survives the remount. This is scoped to traditional session
-view (`isTraditionalSessionView`); efficiency view passes `undefined` and is byte-for-byte unchanged.
+site, so the open state survives the remount. This is scoped to the classic session
+layout (`isClassicSessionLayout`); modern layout passes `undefined` and is byte-for-byte unchanged.
 
 ## Key files
 
@@ -210,13 +227,13 @@ view (`isTraditionalSessionView`); efficiency view passes `undefined` and is byt
   picker; wrapped by `pages/home/components/AssistantConversationPickerDialog.tsx`
   and `pages/agents/components/AgentConversationPickerDialog.tsx`.
 - `components/composer/variants/ChatComposer.tsx`,
-  `AgentComposer.tsx` — traditional-view entity trigger visibility and new conversation/work
+  `AgentComposer.tsx` — classic-layout entity trigger visibility and new conversation/work
   composer actions.
 - `hooks/useAssistantCatalogPresets.ts` — preset catalog feeding the assistant picker.
 - `hooks/resourceViewSources.ts` — shared full-list sources.
 - `pages/home/HomePage.tsx`, `pages/agents/AgentPage.tsx`,
   `pages/agents/AgentChat.tsx`, `pages/agents/AgentComposerSlot.tsx` — page wiring,
-  agent pane persistence, and traditional-view workspace switching.
+  agent pane persistence, and classic-layout workspace switching.
 - `main/data/services/AgentSessionService.ts`,
   `shared/data/api/schemas/agentSessions.ts` — empty-session workspace update
   validation and persistence.

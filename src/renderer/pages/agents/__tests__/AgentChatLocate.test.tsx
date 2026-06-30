@@ -406,7 +406,7 @@ describe('AgentChat locate pending message', () => {
     })
   })
 
-  it('opens the traditional-view resource pane when a locate reveal request arrives on the same session branch', async () => {
+  it('opens the classic-layout resource pane when a locate reveal request arrives on the same session branch', async () => {
     const resourcePane = { node: <div data-testid="session-resource-list">Sessions</div>, label: 'title.work' }
     const baseProps = {
       ...activeSessionProps(),

@@ -154,7 +154,7 @@ interface AgentRightPaneContextValue {
 
 interface AgentRightPaneProviderProps extends AgentRightPaneMeta {
   children: ReactNode
-  /** In traditional view the session list mounts as the first right-pane tab; null leaves files/status/flow. */
+  /** In classic layout the session list mounts as the first right-pane tab; null leaves files/status/flow. */
   resourcePane?: ResourcePaneConfig | null
   revealRequest?: ResourceListRevealRequest
   defaultOpen?: boolean

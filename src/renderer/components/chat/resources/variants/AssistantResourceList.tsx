@@ -36,7 +36,7 @@ type AssistantResourceListProps = {
   onSelectTopic: (topic: Topic) => void | boolean
   onStartDraftAssistant: (assistantId: string | null) => void | Promise<void>
   /**
-   * Called after the currently-active assistant is deleted so the traditional-view page
+   * Called after the currently-active assistant is deleted so the classic-layout page
    * can settle (select the latest remaining topic / fall back). This is the old
    * layout's reset and is distinct from `onStartDraftAssistant`.
    */
@@ -120,7 +120,7 @@ export function AssistantResourceList({
   )
   const handleReorderError = useCallback(
     (error: unknown) => {
-      logger.error('Failed to reorder assistant traditional-view rail', { error })
+      logger.error('Failed to reorder assistant classic-layout rail', { error })
       window.toast.error(formatErrorMessageWithPrefix(error, t('assistants.reorder.error.failed')))
     },
     [t]
@@ -153,7 +153,7 @@ export function AssistantResourceList({
         await toggleAssistantPin(assistantId)
         await refreshAssistants()
       } catch (err) {
-        logger.error('Failed to toggle assistant pin from traditional-view rail', { assistantId, err })
+        logger.error('Failed to toggle assistant pin from classic-layout rail', { assistantId, err })
         window.toast.error(t('common.error'))
       }
     },
@@ -187,7 +187,7 @@ export function AssistantResourceList({
         await refreshTopics()
         window.toast.success(t('common.delete_success'))
       } catch (err) {
-        logger.error('Failed to delete assistant from traditional-view rail', { assistantId, err })
+        logger.error('Failed to delete assistant from classic-layout rail', { assistantId, err })
         window.toast.error(formatErrorMessageWithPrefix(err, t('common.delete_failed')))
       } finally {
         setDeletingAssistantId(null)

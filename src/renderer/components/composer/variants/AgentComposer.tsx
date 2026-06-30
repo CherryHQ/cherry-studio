@@ -557,8 +557,8 @@ const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => {
       <ComposerToolbarControls
         inputAdapter={inputAdapter}
         newConversationAction={props.newConversationAction}
-        // Traditional view hides the agent trigger (switching lives in the left rail), freeing the toolbar's
-        // leading slot — so the tool menu sits before the context controls. Efficiency view keeps the
+        // Classic layout hides the agent trigger (switching lives in the left rail), freeing the toolbar's
+        // leading slot — so the tool menu sits before the context controls. Modern layout keeps the
         // trigger, so the menu stays after.
         toolMenuPlacement={props.showAgentTrigger === false ? 'afterContext' : 'beforeContext'}
         renderContextControls={({ side, iconOnly }) => (
@@ -632,7 +632,7 @@ const AgentComposerInner = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const [sessionView] = usePreference('chat.session_view')
+  const [sessionLayout] = usePreference('agent.layout')
   const { t } = useTranslation()
   const modelProviderName = useProviderDisplayName(model?.providerId)
   const agentModelFilter = useAgentModelFilter(agentBase?.type)
@@ -995,7 +995,7 @@ const AgentComposerInner = ({
     selectModelLabel: t('button.select_model'),
     agentChanging,
     shouldAutoSelectCreatedAgent: Boolean(onAgentChange),
-    showAgentTrigger: sessionView !== 'traditional',
+    showAgentTrigger: sessionLayout !== 'classic',
     canChangeModel,
     onModelSelect: handleModelSelect,
     modelFilter: agentModelFilter,
@@ -1105,7 +1105,7 @@ const MissingAgentHomeComposerInner = ({
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const [sessionView] = usePreference('chat.session_view')
+  const [sessionLayout] = usePreference('agent.layout')
   const { t } = useTranslation()
   const [text, setText] = useState('')
   const selectAgentMessage = t('chat.alerts.select_agent')
@@ -1139,7 +1139,7 @@ const MissingAgentHomeComposerInner = ({
     selectModelLabel: t('button.select_model'),
     agentChanging,
     shouldAutoSelectCreatedAgent: true,
-    showAgentTrigger: sessionView !== 'traditional',
+    showAgentTrigger: sessionLayout !== 'classic',
     canChangeModel: false,
     onAgentChange: handleAgentChange,
     onModelSelect: () => undefined

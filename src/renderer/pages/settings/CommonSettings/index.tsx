@@ -31,7 +31,7 @@ import { formatErrorMessage } from '@renderer/utils/error'
 import { isLinux, isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import { isValidProxyUrl } from '@renderer/utils/url'
-import type { ChatViewMode, LanguageVarious, MenuPresentationMode } from '@shared/data/preference/preferenceTypes'
+import type { ChatLayoutMode, LanguageVarious, MenuPresentationMode } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { defaultLanguage } from '@shared/utils/languages'
 import { Code, MessageSquare, Minus, Monitor, Moon, Palette, Plus, Shield, Sun } from 'lucide-react'
@@ -171,8 +171,8 @@ const CommonSettings: FC = () => {
   const [menuPresentationMode, setMenuPresentationMode] = usePreference('menu.presentation_mode')
   const [customCss, setCustomCss] = usePreference('ui.custom_css')
   const [fontSize] = usePreference('chat.message.font_size')
-  const [topicView, setTopicView] = usePreference('chat.topic_view')
-  const [sessionView, setSessionView] = usePreference('chat.session_view')
+  const [topicLayout, setTopicLayout] = usePreference('topic.layout')
+  const [sessionLayout, setSessionLayout] = usePreference('agent.layout')
   const [useSystemTitleBar, setUseSystemTitleBar] = usePreference('app.use_system_title_bar')
   const [notificationSettings, setNotificationSettings] = useMultiplePreferences({
     assistant: 'app.notification.assistant.enabled',
@@ -334,10 +334,10 @@ const CommonSettings: FC = () => {
     [t]
   )
 
-  const viewModeOptions = useMemo(
+  const layoutOptions = useMemo(
     () => [
-      { value: 'traditional' as const, label: t('settings.messages.view.traditional') },
-      { value: 'efficiency' as const, label: t('settings.messages.view.efficiency') }
+      { value: 'classic' as const, label: t('settings.messages.view.traditional') },
+      { value: 'modern' as const, label: t('settings.messages.view.efficiency') }
     ],
     [t]
   )
@@ -645,20 +645,20 @@ const CommonSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.messages.view.conversation')}</SettingRowTitle>
-          <SegmentedControl<ChatViewMode>
-            value={topicView}
-            onValueChange={setTopicView}
-            options={viewModeOptions}
+          <SegmentedControl<ChatLayoutMode>
+            value={topicLayout}
+            onValueChange={setTopicLayout}
+            options={layoutOptions}
             size="sm"
           />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.messages.view.work')}</SettingRowTitle>
-          <SegmentedControl<ChatViewMode>
-            value={sessionView}
-            onValueChange={setSessionView}
-            options={viewModeOptions}
+          <SegmentedControl<ChatLayoutMode>
+            value={sessionLayout}
+            onValueChange={setSessionLayout}
+            options={layoutOptions}
             size="sm"
           />
         </SettingRow>

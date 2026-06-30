@@ -7,8 +7,8 @@ import ChatPreferenceSections from '../ChatPreferenceSections'
 const mocks = vi.hoisted(() => ({
   setPreference: vi.fn(),
   preferenceValues: {
-    'chat.topic_view': 'efficiency',
-    'chat.session_view': 'traditional',
+    'topic.layout': 'modern',
+    'agent.layout': 'classic',
     'chat.message.style': 'plain',
     'chat.message.font_size': 14,
     'chat.input.send_message_shortcut': 'Enter',

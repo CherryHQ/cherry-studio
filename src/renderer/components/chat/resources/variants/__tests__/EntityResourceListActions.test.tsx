@@ -190,7 +190,7 @@ vi.mock('@renderer/utils/error', () => ({
   formatErrorMessageWithPrefix: (_error: unknown, prefix: string) => prefix
 }))
 
-describe('traditional view entity resource list actions', () => {
+describe('classic layout entity resource list actions', () => {
   beforeEach(() => {
     assistantDataMocks.deleteAssistant.mockResolvedValue(undefined)
     assistantDataMocks.refreshTopics.mockResolvedValue(undefined)
@@ -207,7 +207,7 @@ describe('traditional view entity resource list actions', () => {
     } as unknown as typeof window.toast
   })
 
-  it('uses delete-assistant actions for the traditional view assistant context and more menus', async () => {
+  it('uses delete-assistant actions for the classic layout assistant context and more menus', async () => {
     const onStartDraftAssistant = vi.fn()
     const onActiveAssistantDeleted = vi.fn()
 
@@ -233,13 +233,13 @@ describe('traditional view entity resource list actions', () => {
     await waitFor(() =>
       expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledWith('assistant-1', { deleteTopics: true })
     )
-    // Traditional view resets via the dedicated callback (page settles to the latest
-    // remaining topic) and must NOT open the efficiency view draft compose.
+    // Classic layout resets via the dedicated callback (page settles to the latest
+    // remaining topic) and must NOT open the modern layout draft compose.
     await waitFor(() => expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1'))
     expect(onStartDraftAssistant).not.toHaveBeenCalled()
   })
 
-  it('uses delete-agent actions for the traditional view agent context and more menus', async () => {
+  it('uses delete-agent actions for the classic layout agent context and more menus', async () => {
     const onStartMissingAgentDraft = vi.fn()
     const onActiveAgentDeleted = vi.fn()
 
@@ -269,7 +269,7 @@ describe('traditional view entity resource list actions', () => {
         query: { deleteSessions: true }
       })
     )
-    // Traditional view resets via the dedicated callback, never the draft compose.
+    // Classic layout resets via the dedicated callback, never the draft compose.
     await waitFor(() => expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1'))
     expect(onStartMissingAgentDraft).not.toHaveBeenCalled()
   })
