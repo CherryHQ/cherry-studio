@@ -573,6 +573,7 @@ describe('ArtifactPane', () => {
   it('ignores stale lazy directory results after the workspace changes', async () => {
     let resolveListDirectory: (entries: Array<{ path: string; isDirectory: boolean }>) => void = () => undefined
     mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
+    mockWorkspaceTree('/tmp/workspace/src', [])
     mockWorkspaceTree('/tmp/other-workspace', ['src/other.ts'])
     mocks.listDirectoryEntries.mockReturnValueOnce(
       new Promise<Array<{ path: string; isDirectory: boolean }>>((resolve) => {
@@ -723,6 +724,7 @@ describe('ArtifactPane', () => {
   it('drops pending lazy directory results when the file tree closes', async () => {
     let resolveListDirectory: (entries: Array<{ path: string; isDirectory: boolean }>) => void = () => undefined
     mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
+    mockWorkspaceTree('/tmp/workspace/src', [])
     mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
     mocks.listDirectoryEntries
       .mockReturnValueOnce(
