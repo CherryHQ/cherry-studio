@@ -135,6 +135,20 @@ describe('useMainSettingsTab', () => {
     })
   })
 
+  it('does not replay the same init data request when tabs change', () => {
+    mocks.initData = { kind: 'settings-navigation', path: '/settings/provider', requestId: 1 }
+    const { rerender } = render(<MainSettingsTabBridgeHarness />)
+
+    expect(mocks.openTab).toHaveBeenCalledTimes(1)
+
+    mocks.tabs = [{ id: 'settings-1', type: 'route', url: '/settings/provider', title: 'settings.title' }]
+    rerender(<MainSettingsTabBridgeHarness />)
+
+    expect(mocks.openTab).toHaveBeenCalledTimes(1)
+    expect(mocks.updateTab).not.toHaveBeenCalled()
+    expect(mocks.setActiveTab).not.toHaveBeenCalled()
+  })
+
   it('normalizes invalid event paths before opening the tab', () => {
     render(<MainSettingsTabBridgeHarness />)
 

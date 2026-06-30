@@ -85,11 +85,14 @@ function useSettingsTabEventBridge(openSettingsRoute: (path: SettingsPath) => vo
 export function useMainSettingsTab() {
   const openSettingsRoute = useOpenSettingsRoute()
   const initData = useWindowInitData<MainWindowInitData>()
+  const handledSettingsNavigationRequestIdRef = useRef<number | null>(null)
 
   useEffect(() => {
-    if (initData?.kind === 'settings-navigation') {
-      openSettingsRoute(initData.path)
-    }
+    if (initData?.kind !== 'settings-navigation') return
+    if (handledSettingsNavigationRequestIdRef.current === initData.requestId) return
+
+    handledSettingsNavigationRequestIdRef.current = initData.requestId
+    openSettingsRoute(initData.path)
   }, [initData, openSettingsRoute])
 
   useSettingsTabEventBridge(openSettingsRoute)
