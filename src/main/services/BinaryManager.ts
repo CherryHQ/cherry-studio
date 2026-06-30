@@ -10,9 +10,11 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import { regionService } from '@main/services/RegionService'
-import { getBinaryExecutionEnv, getBinaryIsolatedHomeEnv, getBinaryPath } from '@main/utils/process'
+import { getBinaryIsolatedHomeEnv, getBinaryPath, mergeBinaryExecutionEnv } from '@main/utils/process'
 import type { BinaryState, ManagedBinary, ToolInstallState } from '@shared/data/preference/preferenceTypes'
 import { PRESETS_BINARY_TOOLS, TOOL_KEY_RE, validateManagedBinary } from '@shared/data/presets/binaryTools'
+import { Mutex } from 'async-mutex'
+import { valid as semverValid } from 'semver'
 
 const logger = loggerService.withContext('BinaryManager')
 
@@ -54,20 +56,15 @@ const MISE_PASSTHROUGH_ENV = [
   'PIP_INDEX_URL'
 ]
 
-// Matches a resolved semver version (1.2.3, 1.2.3-rc.1, 1.2.3+build). Used to
-// distinguish "concrete version we can persist and compare for equality" from
-// floating pins like "latest" / "stable" / "lts" / "1" / "1.2" that mise
-// accepts but would always mismatch the resolved version in state.
-const SEMVER_RE = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]*)?$/
-
-function isSemverVersion(v: string): boolean {
-  return SEMVER_RE.test(v)
-}
-
-// True for any pin that does not pick a single concrete version. Used in
-// reconcile to skip the equality check when the user requested a floating pin.
+// True for any pin that does not pick a single concrete version — floating pins
+// like "latest" / "stable" / "lts" / "1" / "1.2" that mise accepts but that don't
+// resolve to one version we can persist and compare. semver.valid() returns null
+// for all of them. A leading-"v" form like "v1.2.3" IS concrete; it gets
+// normalized (via semverValid) wherever it's stored or compared, so it round-trips
+// against mise's bare resolved version instead of reinstalling or skipping an
+// upgrade every boot.
 function isFloatingVersion(v?: string): boolean {
-  return !v || !isSemverVersion(v)
+  return !v || semverValid(v) === null
 }
 
 const RUNTIME_DEPS: Record<string, string> = { npm: 'node@22', pipx: 'python@3.12' }
@@ -108,7 +105,9 @@ export class BinaryManager extends BaseService {
   private isolatedEnvPromise: Promise<Record<string, string>> | null = null
   private registryCache: Array<{ name: string; tool: string }> | null = null
   private registryCacheTime = 0
-  private stateLock: Promise<unknown> = Promise.resolve()
+  // Serializes state read-modify-write across reconcile/install/remove so
+  // concurrent callers can't clobber state.json or each other's mise mutations.
+  private readonly stateMutex = new Mutex()
 
   protected async onInit() {
     await this.extractBundledBinaries()
@@ -245,7 +244,7 @@ export class BinaryManager extends BaseService {
   }
 
   private findMiseBin(): string | null {
-    const binaryName = isWin ? 'mise.exe' : 'mise'
+    const binaryName = withExe('mise')
 
     const cherryBin = path.join(application.getPath('cherry.bin'), binaryName)
     if (fs.existsSync(cherryBin)) {
@@ -301,23 +300,15 @@ export class BinaryManager extends BaseService {
       }
     }
 
-    // HOME/XDG relocation is scoped to this install subprocess only — the shared
-    // execution env must keep the user's real HOME (see getBinaryExecutionEnv).
-    Object.assign(env, getBinaryExecutionEnv(), getBinaryIsolatedHomeEnv())
-
-    const pathKey = Object.keys(env).find((key) => key.toLowerCase() === 'path') || (isWin ? 'Path' : 'PATH')
-    const pathSegments = [
-      env['MISE_SHIMS_DIR'],
-      this.miseBin ? path.dirname(this.miseBin) : '',
-      env[pathKey] || ''
-    ].filter(Boolean)
-    env[pathKey] = pathSegments.join(path.delimiter)
-    if (!isWin) {
-      env['PATH'] = env[pathKey]
-    }
+    // Reuse the shared MISE_*/PATH merge (single source of truth in process.ts),
+    // prepending mise's own dir so a re-exec'd child mise resolves. HOME/XDG are
+    // relocated *after* the merge — this isolation is scoped to the install
+    // subprocess only; the shared execution env keeps the user's real HOME.
+    const merged = mergeBinaryExecutionEnv(env, this.miseBin ? [path.dirname(this.miseBin)] : [])
+    Object.assign(merged, getBinaryIsolatedHomeEnv())
 
     if (isWin) {
-      env['USERPROFILE'] = env['HOME']
+      merged['USERPROFILE'] = merged['HOME']
     }
 
     for (const key of [
@@ -331,10 +322,10 @@ export class BinaryManager extends BaseService {
       'XDG_CACHE_HOME',
       'XDG_STATE_HOME'
     ]) {
-      fs.mkdirSync(env[key], { recursive: true })
+      fs.mkdirSync(merged[key], { recursive: true })
     }
 
-    return env
+    return merged
   }
 
   /**
@@ -365,7 +356,7 @@ export class BinaryManager extends BaseService {
     return this.isolatedEnvPromise
   }
 
-  private async runMise(args: string[], cwd: string): Promise<{ stdout: string; stderr: string }> {
+  private async runMise(args: string[]): Promise<{ stdout: string; stderr: string }> {
     if (!this.miseBin) {
       // Without mise there is nothing to run. The non-null assertion previously
       // used for the env would have silently fallen back to `process.env`,
@@ -375,16 +366,9 @@ export class BinaryManager extends BaseService {
       throw new Error('mise binary not available')
     }
     const env = await this.getIsolatedEnv()
-    return execFileAsync(this.miseBin, args, { cwd, env, timeout: 120_000 })
-  }
-
-  private withStateLock<T>(fn: () => Promise<T>): Promise<T> {
-    const next = this.stateLock.then(
-      () => fn(),
-      () => fn()
-    )
-    this.stateLock = next.catch(() => {})
-    return next
+    // cwd is always a throwaway tmp dir so mise never picks up a project-local
+    // mise.toml from the main process's working directory.
+    return execFileAsync(this.miseBin, args, { cwd: os.tmpdir(), env, timeout: 120_000 })
   }
 
   private async isManagedBinaryReady(toolName: string): Promise<boolean> {
@@ -394,7 +378,7 @@ export class BinaryManager extends BaseService {
       // or AV stripped the exec bit, the file would be missing/unusable
       // while mise still claims success. Verify the resolved path exists
       // (and is executable, on POSIX) before declaring ready.
-      const { stdout } = await this.runMise(['which', toolName], os.tmpdir())
+      const { stdout } = await this.runMise(['which', toolName])
       const resolved = stdout.trim().split(/\r?\n/)[0]
       if (!resolved) return false
       await fsp.access(resolved, isWin ? fs.constants.F_OK : fs.constants.X_OK)
@@ -411,11 +395,11 @@ export class BinaryManager extends BaseService {
     const toolSpec = `${tool.tool}@${requested}`
     const args = ['use', '-g', ...(runtime ? [runtime] : []), toolSpec]
 
-    await this.runMise(args, os.tmpdir())
-    await this.runMise(['reshim'], os.tmpdir())
+    await this.runMise(args)
+    await this.runMise(['reshim'])
 
     try {
-      const { stdout: lsOut } = await this.runMise(['ls', '--json', tool.tool], os.tmpdir())
+      const { stdout: lsOut } = await this.runMise(['ls', '--json', tool.tool])
       const lsData = JSON.parse(lsOut) as Record<string, Array<{ version?: string }>>
       const entries = Object.values(lsData).flat()
       if (entries.length > 0 && entries[0].version) {
@@ -424,13 +408,12 @@ export class BinaryManager extends BaseService {
     } catch {
       logger.warn('Failed to query installed version via mise ls', { tool: tool.tool })
     }
-    // Never persist a floating sentinel (latest, stable, lts, prefix queries
-    // like "1" or "1.2", etc.) as a resolved version — it would break the
-    // equality check in reconcile() (existing.version === tool.version) and
-    // surface as `vlatest` / `vlts` in the UI. Only real semver versions
-    // round-trip; anything else falls back to "unknown" (empty string),
-    // which reconcile treats as unpinned via isFloatingVersion().
-    return tool.version && isSemverVersion(tool.version) ? tool.version : ''
+    // Persist the normalized concrete version (semverValid strips a leading "v"
+    // so it round-trips against mise's bare resolved version). Floating sentinels
+    // (latest, stable, lts, prefix queries like "1" or "1.2") normalize to null
+    // and are stored as "" (unpinned), which reconcile treats as floating via
+    // isFloatingVersion() — never surfacing as `vlatest` / `vlts` in the UI.
+    return tool.version ? (semverValid(tool.version) ?? '') : ''
   }
 
   private loadState(): BinaryState {
@@ -489,10 +472,6 @@ export class BinaryManager extends BaseService {
     const tmp = statePath + '.tmp'
     fs.writeFileSync(tmp, JSON.stringify(state, null, 2))
     fs.renameSync(tmp, statePath)
-    this.broadcastState(state)
-  }
-
-  private broadcastState(state: BinaryState) {
     application.get('IpcApiService').broadcast('binary.state_changed', state)
   }
 
@@ -501,7 +480,7 @@ export class BinaryManager extends BaseService {
       return { installed: [], failed: [{ name: '*', error: 'mise binary not available' }], skipped: [] }
     }
 
-    return this.withStateLock(async () => {
+    return this.stateMutex.runExclusive(async () => {
       const state = this.loadState()
       const result: ReconcileResult = { installed: [], failed: [], skipped: [] }
 
@@ -520,8 +499,9 @@ export class BinaryManager extends BaseService {
           // Skip when the pin is floating (latest, stable, lts, prefix queries
           // like "1" or "1.2") — comparing those literally against the stored
           // resolved version would always mismatch and trigger reinstall every
-          // boot. For concrete semvers we still require exact equality.
-          if (isFloatingVersion(tool.version) || existing.version === tool.version) {
+          // boot. For concrete semvers we compare normalized, so a "v1.2.3" pin
+          // matches a stored "1.2.3" (no reinstall) yet still upgrades off "1.2.2".
+          if (isFloatingVersion(tool.version) || semverValid(existing.version) === semverValid(tool.version)) {
             result.skipped.push(tool.name)
             continue
           }
@@ -566,7 +546,7 @@ export class BinaryManager extends BaseService {
       throw new Error('Binary backend not available')
     }
 
-    return this.withStateLock(async () => {
+    return this.stateMutex.runExclusive(async () => {
       const version = await this.installWithMise(tool)
       // mise can report success while leaving the binary unrunnable (missing
       // file, AV stripped the exec bit). Verify before persisting so we never
@@ -591,17 +571,11 @@ export class BinaryManager extends BaseService {
       return this.registryCache
     }
 
-    const { stdout } = await this.runMise(['registry'], os.tmpdir())
-    const entries: Array<{ name: string; tool: string }> = []
-
-    for (const line of stdout.split('\n')) {
-      if (!line.trim()) continue
-      const match = line.match(/^(\S+)\s+(.+)$/)
-      if (!match) continue
-      const [, name, backends] = match
-      const tool = backends.trim().split(/\s+/)[0]
-      entries.push({ name, tool })
-    }
+    const { stdout } = await this.runMise(['registry', '--json'])
+    const parsed = JSON.parse(stdout) as Array<{ short?: string; backends?: string[] }>
+    const entries = parsed.flatMap((e) =>
+      e.short && e.backends?.length ? [{ name: e.short, tool: e.backends[0] }] : []
+    )
 
     this.registryCache = entries
     this.registryCacheTime = Date.now()
@@ -613,7 +587,15 @@ export class BinaryManager extends BaseService {
       return []
     }
 
-    const registry = await this.loadRegistry()
+    let registry: Array<{ name: string; tool: string }>
+    try {
+      registry = await this.loadRegistry()
+    } catch (err) {
+      // A mise too old for `registry --json` (rejects the flag) or a malformed
+      // dump must not throw out of search — degrade to no results.
+      logger.warn('Failed to load mise registry', err as Error)
+      return []
+    }
     const q = query.toLowerCase()
     return registry.filter((entry) => entry.name.toLowerCase().includes(q)).slice(0, 50)
   }
@@ -625,19 +607,19 @@ export class BinaryManager extends BaseService {
   }
 
   async removeTool(toolName: string): Promise<void> {
-    return this.withStateLock(async () => {
+    return this.stateMutex.runExclusive(async () => {
       const state = this.loadState()
       const existing = state.tools[toolName]
       if (!existing) return
 
       if (this.miseBin) {
         try {
-          await this.runMise(['unuse', '-g', existing.tool], os.tmpdir())
+          await this.runMise(['unuse', '-g', existing.tool])
           // `unuse` only drops the global config entry; the installed versions
           // linger under the isolated data dir (installs/cache/downloads) and
           // accumulate across install/remove cycles. Uninstall them too.
-          await this.runMise(['uninstall', '--all', existing.tool], os.tmpdir())
-          await this.runMise(['reshim'], os.tmpdir())
+          await this.runMise(['uninstall', '--all', existing.tool])
+          await this.runMise(['reshim'])
         } catch (err) {
           logger.warn('Failed to remove mise tool', {
             name: toolName,

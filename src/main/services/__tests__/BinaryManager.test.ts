@@ -283,6 +283,47 @@ describe('BinaryManager', () => {
       expect(result.failed[0].name).toBe('fd')
       expect(result.failed[0].error).toContain('not runnable')
     })
+
+    it('skips a leading-v pin that matches the stored bare version (normalized compare)', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      mockFs.readFileSync.mockReturnValue(
+        JSON.stringify({ tools: { fd: { tool: 'github:sharkdp/fd', version: '1.2.3' } } })
+      )
+
+      mockExecFileAsync.mockResolvedValueOnce({ stdout: '/mock/mise/shims/fd\n', stderr: '' }) // which fd (ready)
+
+      const result = await service.reconcile([{ name: 'fd', tool: 'github:sharkdp/fd', version: 'v1.2.3' }])
+
+      expect(result.skipped).toEqual(['fd'])
+      expect(result.installed).toHaveLength(0)
+    })
+
+    it('upgrades when a leading-v pin resolves higher than the stored version', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      mockFs.readFileSync.mockReturnValue(
+        JSON.stringify({ tools: { fd: { tool: 'github:sharkdp/fd', version: '1.2.2' } } })
+      )
+
+      mockExecFileAsync
+        .mockResolvedValueOnce({ stdout: '/mock/mise/shims/fd\n', stderr: '' }) // which fd (skip-path ready check)
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
+        .mockResolvedValueOnce({ stdout: JSON.stringify({ 'github:sharkdp/fd': [{ version: '1.2.3' }] }), stderr: '' }) // ls --json
+        .mockResolvedValueOnce({ stdout: '/mock/mise/shims/fd\n', stderr: '' }) // which fd (post-install ready)
+
+      const result = await service.reconcile([{ name: 'fd', tool: 'github:sharkdp/fd', version: 'v1.2.3' }])
+
+      expect(result.installed).toEqual(['fd'])
+      expect(result.skipped).toHaveLength(0)
+      const savedState = JSON.parse(mockFs.writeFileSync.mock.calls.at(-1)![1])
+      expect(savedState.tools.fd.version).toBe('1.2.3')
+    })
   })
 
   describe('removeTool', () => {
@@ -410,7 +451,10 @@ describe('BinaryManager', () => {
       ;(service as any).isolatedEnv = {}
 
       mockExecFileAsync.mockResolvedValue({
-        stdout: 'fd   github:sharkdp/fd\nrg   github:BurntSushi/ripgrep\n',
+        stdout: JSON.stringify([
+          { short: 'fd', backends: ['github:sharkdp/fd'] },
+          { short: 'rg', backends: ['github:BurntSushi/ripgrep'] }
+        ]),
         stderr: ''
       })
 
@@ -418,6 +462,16 @@ describe('BinaryManager', () => {
       await service.searchRegistry('rg')
 
       expect(mockExecFileAsync).toHaveBeenCalledTimes(1)
+    })
+
+    it('returns empty array when the registry command fails (e.g. mise too old for --json)', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      mockExecFileAsync.mockRejectedValue(new Error('unexpected argument --json'))
+
+      await expect(service.searchRegistry('fd')).resolves.toEqual([])
     })
   })
 
@@ -558,9 +612,29 @@ describe('BinaryManager', () => {
         timeout: 120_000
       })
     })
+
+    it('normalizes a leading-v pin to a bare version when mise ls cannot resolve it', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      mockExecFileAsync
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
+        .mockResolvedValueOnce({ stdout: 'not json', stderr: '' }) // ls --json -> parse fails, hit fallback
+
+      // semverValid normalizes 'v1.2.3' -> '1.2.3' so the persisted version
+      // round-trips against mise's bare resolved version (no reinstall loop).
+      const version = await (service as any).installWithMise({
+        name: 'fd',
+        tool: 'github:sharkdp/fd',
+        version: 'v1.2.3'
+      })
+      expect(version).toBe('1.2.3')
+    })
   })
 
-  describe('withStateLock concurrency', () => {
+  describe('state mutex concurrency', () => {
     it('serializes concurrent installTool calls', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
@@ -640,10 +714,10 @@ describe('BinaryManager', () => {
 
       mockExecFileAsync.mockResolvedValueOnce({ stdout: 'ok\n', stderr: '' })
 
-      await (service as any).runMise(['which', 'fd'], '/custom/cwd')
+      await (service as any).runMise(['which', 'fd'])
 
       expect(mockExecFileAsync).toHaveBeenCalledWith('/mock/mise', ['which', 'fd'], {
-        cwd: '/custom/cwd',
+        cwd: '/tmp',
         env: isolatedEnv,
         timeout: 120_000
       })
@@ -652,7 +726,7 @@ describe('BinaryManager', () => {
     it('throws when mise binary is null', async () => {
       const service = new BinaryManager()
 
-      await expect((service as any).runMise(['which', 'fd'], '/tmp')).rejects.toThrow('mise binary not available')
+      await expect((service as any).runMise(['which', 'fd'])).rejects.toThrow('mise binary not available')
     })
   })
 
@@ -670,7 +744,7 @@ describe('BinaryManager', () => {
       expect(regionService.isInChina).not.toHaveBeenCalled()
 
       mockExecFileAsync.mockResolvedValue({ stdout: 'ok\n', stderr: '' })
-      await (service as any).runMise(['which', 'fd'], '/tmp')
+      await (service as any).runMise(['which', 'fd'])
 
       expect(regionService.isInChina).toHaveBeenCalledTimes(1)
       expect((service as any).isolatedEnv).not.toBeNull()
@@ -682,10 +756,7 @@ describe('BinaryManager', () => {
       ;(service as any).miseBin = '/mock/mise'
 
       mockExecFileAsync.mockResolvedValue({ stdout: 'ok\n', stderr: '' })
-      await Promise.all([
-        (service as any).runMise(['registry'], '/tmp'),
-        (service as any).runMise(['registry'], '/tmp')
-      ])
+      await Promise.all([(service as any).runMise(['registry']), (service as any).runMise(['registry'])])
 
       // Memoized in-flight promise → a single build and a single region lookup.
       expect(regionService.isInChina).toHaveBeenCalledTimes(1)
