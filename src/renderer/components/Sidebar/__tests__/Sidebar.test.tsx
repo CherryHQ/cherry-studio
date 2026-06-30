@@ -215,7 +215,7 @@ describe('Sidebar resize handle', () => {
   })
 
   it('renders full docked mini app icons directly without avatar chrome', () => {
-    const { container, getByTestId } = render(
+    const { container } = render(
       <Sidebar
         width={SIDEBAR_FULL_THRESHOLD}
         setWidth={vi.fn()}
@@ -234,7 +234,50 @@ describe('Sidebar resize handle', () => {
     )
 
     expect(container.querySelector('[data-testid="resolved-mini-app-logo-avatar"]')).not.toBeInTheDocument()
-    expect(getByTestId('resolved-mini-app-logo')).toHaveStyle({ width: '16px', height: '16px' })
+    expect(container.querySelector('[aria-label="Qwen"]')).toHaveStyle({ width: '16px', height: '16px' })
+  })
+
+  it('uses compact docked mini app dividers instead of full-width borders', () => {
+    const dockedTabs = [
+      {
+        id: 'qwen',
+        title: 'Qwen',
+        type: 'miniapp' as const,
+        miniApp: { id: 'qwen', logo: 'qwen' }
+      }
+    ]
+
+    const { container: fullContainer } = render(
+      <Sidebar
+        width={SIDEBAR_FULL_THRESHOLD}
+        setWidth={vi.fn()}
+        activeItem="chat"
+        items={items}
+        dockedTabs={dockedTabs}
+        onItemClick={vi.fn()}
+      />
+    )
+    const fullDivider = fullContainer.querySelector('.sidebar-docked-divider')
+
+    expect(fullDivider).toHaveClass('w-8')
+    expect(fullDivider).toHaveClass('bg-border-subtle')
+    expect(fullDivider?.parentElement).not.toHaveClass('border-t')
+
+    const { container: iconContainer } = render(
+      <Sidebar
+        width={SIDEBAR_ICON_WIDTH}
+        setWidth={vi.fn()}
+        activeItem="chat"
+        items={items}
+        dockedTabs={dockedTabs}
+        onItemClick={vi.fn()}
+      />
+    )
+    const iconDivider = iconContainer.querySelector('.sidebar-docked-divider')
+
+    expect(iconDivider).toHaveClass('w-6')
+    expect(iconDivider).toHaveClass('bg-border-subtle')
+    expect(iconDivider?.parentElement).not.toHaveClass('border-t')
   })
 
   it('uses the same full row sizing and hover styles for docked mini apps as sidebar menu items', () => {
@@ -287,7 +330,7 @@ describe('Sidebar resize handle', () => {
   })
 
   it('uses the same icon row sizing and hover styles for docked mini apps as sidebar menu items', () => {
-    const { getByTestId } = render(
+    const { container } = render(
       <Sidebar
         width={SIDEBAR_ICON_WIDTH}
         setWidth={vi.fn()}
@@ -305,9 +348,10 @@ describe('Sidebar resize handle', () => {
       />
     )
 
-    const dockedMiniAppButton = getByTestId('resolved-mini-app-logo').closest('button')
+    const miniAppLogo = container.querySelector('[aria-label="Qwen"]')
+    const dockedMiniAppButton = miniAppLogo?.closest('button')
 
-    expect(getByTestId('resolved-mini-app-logo')).toHaveStyle({ width: '22px', height: '22px' })
+    expect(miniAppLogo).toHaveStyle({ width: '22px', height: '22px' })
     expect(dockedMiniAppButton).toHaveClass('h-9', 'w-9')
     expect(dockedMiniAppButton).toHaveClass('hover:bg-accent/60', 'hover:text-foreground')
   })

@@ -20,9 +20,14 @@ export function SidebarDocked({ layout, dockedTabs, ...props }: SidebarDockedPro
 
 type DockedTabsProps = Omit<SidebarDockedProps, 'layout'>
 
+function DockedDivider({ widthClass }: { widthClass: string }) {
+  return <div aria-hidden="true" className={`sidebar-docked-divider mx-auto h-px ${widthClass} bg-border-subtle`} />
+}
+
 function IconDockedTabs({ dockedTabs, activeTabId, onMiniAppTabClick }: DockedTabsProps) {
   return (
-    <div className="mt-1 flex flex-col items-center gap-0.5 border-border/30 border-t px-1.5 pt-1 [-webkit-app-region:no-drag]">
+    <div className="mt-1 flex flex-col items-center gap-0.5 px-1.5 [-webkit-app-region:no-drag]">
+      <DockedDivider widthClass="w-6" />
       {dockedTabs.map((dockedTab) => {
         const isActive = activeTabId === dockedTab.id
 
@@ -48,7 +53,8 @@ function IconDockedTabs({ dockedTabs, activeTabId, onMiniAppTabClick }: DockedTa
 
 function FullDockedTabs({ dockedTabs, activeTabId, onMiniAppTabClick }: DockedTabsProps) {
   return (
-    <div className="mt-1 space-y-0.5 border-border/30 border-t px-2 pt-1 [-webkit-app-region:no-drag]">
+    <div className="mt-1 space-y-0.5 px-2 [-webkit-app-region:no-drag]">
+      <DockedDivider widthClass="w-8" />
       {dockedTabs.map((dockedTab) => {
         const isActive = activeTabId === dockedTab.id
 
