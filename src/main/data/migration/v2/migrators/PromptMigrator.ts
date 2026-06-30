@@ -3,7 +3,7 @@
  *
  * Mapping:
  *   QuickPhrase.id        → prompt.id (legacy QuickPhrase.id was uuidv4; preserve it)
- *   QuickPhrase.title     → prompt.title (fallback 'Untitled')
+ *   QuickPhrase.title     → prompt.title (fallback '')
  *   QuickPhrase.content   → prompt.content (${var} syntax preserved)
  *   QuickPhrase.order     → drives relative order; stamped as fractional-indexing `orderKey`
  *   QuickPhrase.createdAt → prompt.createdAt
@@ -205,7 +205,7 @@ function getLegacyOrder(phrase: LegacyQuickPhrase): number {
 }
 
 function normalizeTitle(title: LegacyQuickPhrase['title']): string {
-  return typeof title === 'string' && title.length > 0 ? title : 'Untitled'
+  return typeof title === 'string' && title.length > 0 ? title : ''
 }
 
 function wrapExecuteError(
