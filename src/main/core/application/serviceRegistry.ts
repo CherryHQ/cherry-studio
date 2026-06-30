@@ -14,6 +14,7 @@ import { NodeTraceService } from '@main/ai/observability/runtime/NodeTraceServic
 import { TraceStorageService } from '@main/ai/observability/storage/TraceStorageService'
 import { ClaudeCodeWarmQueryManager } from '@main/ai/runtime/claudeCode/ClaudeCodeWarmQueryManager'
 import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
+import { MainNetworkDevtoolsService } from '@main/core/devtools/MainNetworkDevtoolsService'
 import { JobManager } from '@main/core/job/JobManager'
 import { PowerService } from '@main/core/power/PowerService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
@@ -77,6 +78,7 @@ import type { ServiceConstructor } from '../lifecycle/types'
  * Value = service class constructor
  */
 export const services = {
+  MainNetworkDevtoolsService,
   WindowManager,
   DbService,
   CacheService,
