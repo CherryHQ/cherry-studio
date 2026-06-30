@@ -2,7 +2,7 @@ import { Button, Markdown, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
-import OfficePreviewPanel from '@renderer/components/ArtifactPreview/office/OfficePreviewPanel'
+import type { OfficePreviewPanelProps } from '@renderer/components/ArtifactPreview/office/OfficePreviewPanel'
 import { EmptyState, LoadingState } from '@renderer/components/chat'
 import HtmlPreviewFrame from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
 import CodeViewer from '@renderer/components/CodeViewer'
@@ -21,6 +21,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import {
   type ComponentType,
   type MouseEvent as ReactMouseEvent,
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -71,10 +72,10 @@ interface ArtifactFilePreviewProps {
   filePath?: string | null
   isText: IsTextState
   fileSize: FileSizeState
+  officeActions?: ReactNode
   pdfLayoutPending?: boolean
   pdfLayoutRefreshKey?: number
   contentRefreshKey?: number
-  onOpenExternal?: () => void
 }
 
 /** Files above this size skip text preview (and `readText`) — Shiki tokenize gets unusable past ~2MB. */
@@ -249,8 +250,10 @@ type PdfPreviewPanelComponent = ComponentType<{
   fileName: string
   refreshKey: number
 }>
+type OfficePreviewPanelComponent = ComponentType<OfficePreviewPanelProps>
 
 let pdfPreviewPanelPromise: Promise<PdfPreviewPanelComponent> | null = null
+let officePreviewPanelPromise: Promise<OfficePreviewPanelComponent> | null = null
 
 const loadPdfPreviewPanel = () => {
   pdfPreviewPanelPromise ??= import('@renderer/components/ArtifactPreview/pdf/PdfPreviewPanel')
@@ -260,6 +263,16 @@ const loadPdfPreviewPanel = () => {
       throw err
     })
   return pdfPreviewPanelPromise
+}
+
+const loadOfficePreviewPanel = () => {
+  officePreviewPanelPromise ??= import('@renderer/components/ArtifactPreview/office/OfficePreviewPanel')
+    .then((module) => module.default)
+    .catch((err: unknown) => {
+      officePreviewPanelPromise = null
+      throw err
+    })
+  return officePreviewPanelPromise
 }
 
 function getArtifactFileTreeWidthBounds(artifactPaneWidth: number) {
@@ -383,15 +396,17 @@ export function ArtifactFilePreview({
   filePath,
   isText,
   fileSize,
+  officeActions,
   pdfLayoutPending = false,
   pdfLayoutRefreshKey = 0,
-  contentRefreshKey = 0,
-  onOpenExternal
+  contentRefreshKey = 0
 }: ArtifactFilePreviewProps) {
   const { t } = useTranslation()
   const [fileContent, setFileContent] = useState<string | null>(null)
   const [PdfPreviewPanel, setPdfPreviewPanel] = useState<PdfPreviewPanelComponent | null>(null)
   const [pdfPreviewLoadError, setPdfPreviewLoadError] = useState<Error | null>(null)
+  const [OfficePreviewPanel, setOfficePreviewPanel] = useState<OfficePreviewPanelComponent | null>(null)
+  const [officePreviewLoadError, setOfficePreviewLoadError] = useState<Error | null>(null)
   const [readError, setReadError] = useState<Error | null>(null)
   const [loadingContent, setLoadingContent] = useState(false)
   const isPdfPreview = filePath ? isPdfFile(filePath) : false
@@ -479,6 +494,32 @@ export function ArtifactFilePreview({
     }
   }, [PdfPreviewPanel, filePath, isPdfPreview, pdfLayoutPending])
 
+  useEffect(() => {
+    if (!isOfficeDocumentPreview) {
+      setOfficePreviewLoadError(null)
+      return
+    }
+    if (OfficePreviewPanel) return
+
+    let cancelled = false
+    setOfficePreviewLoadError(null)
+
+    loadOfficePreviewPanel()
+      .then((component) => {
+        if (!cancelled) setOfficePreviewPanel(() => component)
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        const normalized = err instanceof Error ? err : new Error(String(err))
+        logger.error('Failed to load Office preview panel', normalized)
+        setOfficePreviewLoadError(normalized)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [OfficePreviewPanel, isOfficeDocumentPreview])
+
   if (!workspacePath) {
     return (
       <EmptyState
@@ -541,6 +582,16 @@ export function ArtifactFilePreview({
     )
   }
   if (isOfficeDocumentPreview) {
+    if (officePreviewLoadError) {
+      return <EmptyState icon={AlertCircle} title={t('common.error')} description={officePreviewLoadError.message} />
+    }
+    if (!OfficePreviewPanel) {
+      return (
+        <div className="flex h-full w-full items-center justify-center">
+          <LoadingState label={t('common.loading')} />
+        </div>
+      )
+    }
     return (
       <OfficePreviewPanel
         filePath={filePath}
@@ -549,7 +600,7 @@ export function ArtifactFilePreview({
         sourceSize={fileSize.status === 'ok' ? fileSize.size : undefined}
         className="min-h-0"
         refreshKey={contentRefreshKey}
-        onOpenExternal={onOpenExternal}
+        actions={officeActions}
       />
     )
   }

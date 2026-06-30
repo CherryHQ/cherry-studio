@@ -242,21 +242,17 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
     ArtifactFilePreview: ({
       workspacePath,
       filePath,
-      onOpenExternal
+      officeActions
     }: {
       workspacePath?: string
       filePath?: string | null
-      onOpenExternal?: () => void
+      officeActions?: ReactNode
     }) => (
       <div
         data-testid="artifact-file-preview"
         data-workspace-path={workspacePath ?? ''}
         data-file-path={filePath ?? ''}>
-        {onOpenExternal && (
-          <button type="button" onClick={onOpenExternal}>
-            open external preview
-          </button>
-        )}
+        {officeActions}
       </div>
     ),
     isOfficeDocumentFile: (filePath: string) => /\.(?:docx?|xlsx?|xlsm|pptx?)$/i.test(filePath),
@@ -275,6 +271,14 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
     default: MockArtifactPane
   }
 })
+
+vi.mock('@renderer/components/chat/panes/OpenExternalAppButton', () => ({
+  default: ({ workdir, filePath }: { workdir: string; filePath?: string | null }) => (
+    <button type="button" onClick={() => window.api.file.openPath(`${workdir}/${filePath ?? ''}`)}>
+      open external preview
+    </button>
+  )
+}))
 
 vi.mock('@renderer/components/chat/trace/TracePane', () => ({
   TracePane: ({ payload }: { payload: { topicId: string; traceId: string; modelName?: string } | null }) => (

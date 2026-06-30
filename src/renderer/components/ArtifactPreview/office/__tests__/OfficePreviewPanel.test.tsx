@@ -7,22 +7,32 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   wordPreviewPanelProps: [] as Array<{ fileName: string; filePath: string; refreshKey: number; sourceSize?: number }>,
-  pptxPreviewPanelProps: [] as Array<{ fileName: string; filePath: string; refreshKey: number; sourceSize?: number }>
+  pptxPreviewPanelProps: [] as Array<{ fileName: string; filePath: string; refreshKey: number; sourceSize?: number }>,
+  wordPreviewPanelModuleLoadCount: 0,
+  pptxPreviewPanelModuleLoadCount: 0
 }))
 
-vi.mock('../WordPreviewPanel', () => ({
-  default: (props: { fileName: string; filePath: string; refreshKey: number; sourceSize?: number }) => {
-    mocks.wordPreviewPanelProps.push(props)
-    return <div data-testid="word-preview-panel" data-file-name={props.fileName} data-file-path={props.filePath} />
+vi.mock('../WordPreviewPanel', () => {
+  mocks.wordPreviewPanelModuleLoadCount += 1
+  return {
+    default: (props: { fileName: string; filePath: string; refreshKey: number; sourceSize?: number }) => {
+      mocks.wordPreviewPanelProps.push(props)
+      return <div data-testid="word-preview-panel" data-file-name={props.fileName} data-file-path={props.filePath} />
+    },
+    __esModule: true
   }
-}))
+})
 
-vi.mock('../PptxPreviewPanel', () => ({
-  default: (props: { fileName: string; filePath: string; refreshKey: number; sourceSize?: number }) => {
-    mocks.pptxPreviewPanelProps.push(props)
-    return <div data-testid="pptx-preview-panel" data-file-name={props.fileName} data-file-path={props.filePath} />
+vi.mock('../PptxPreviewPanel', () => {
+  mocks.pptxPreviewPanelModuleLoadCount += 1
+  return {
+    default: (props: { fileName: string; filePath: string; refreshKey: number; sourceSize?: number }) => {
+      mocks.pptxPreviewPanelProps.push(props)
+      return <div data-testid="pptx-preview-panel" data-file-name={props.fileName} data-file-path={props.filePath} />
+    },
+    __esModule: true
   }
-}))
+})
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'button'>>) => (
@@ -98,9 +108,11 @@ describe('OfficePreviewPanel', () => {
     expect(screen.getByRole('button', { name: 'open in default app' })).toBeInTheDocument()
     expect(mocks.wordPreviewPanelProps).toEqual([])
     expect(mocks.pptxPreviewPanelProps).toEqual([])
+    expect(mocks.wordPreviewPanelModuleLoadCount).toBe(0)
+    expect(mocks.pptxPreviewPanelModuleLoadCount).toBe(0)
   })
 
-  it('renders docx files with the dedicated Word preview panel', () => {
+  it('renders docx files with the dedicated Word preview panel', async () => {
     render(
       <OfficePreviewPanel
         filePath="report.docx"
@@ -111,7 +123,10 @@ describe('OfficePreviewPanel', () => {
       />
     )
 
-    expect(screen.getByTestId('word-preview-panel')).toHaveAttribute('data-file-path', '/tmp/workspace/report.docx')
+    expect(await screen.findByTestId('word-preview-panel')).toHaveAttribute(
+      'data-file-path',
+      '/tmp/workspace/report.docx'
+    )
     expect(mocks.wordPreviewPanelProps[0]).toEqual({
       fileName: 'report.docx',
       filePath: '/tmp/workspace/report.docx',
@@ -121,7 +136,7 @@ describe('OfficePreviewPanel', () => {
     expect(mocks.pptxPreviewPanelProps).toEqual([])
   })
 
-  it('renders pptx files with the dedicated PPTX preview panel', () => {
+  it('renders pptx files with the dedicated PPTX preview panel', async () => {
     render(
       <OfficePreviewPanel
         filePath="slides.pptx"
@@ -132,7 +147,10 @@ describe('OfficePreviewPanel', () => {
       />
     )
 
-    expect(screen.getByTestId('pptx-preview-panel')).toHaveAttribute('data-file-path', '/tmp/workspace/slides.pptx')
+    expect(await screen.findByTestId('pptx-preview-panel')).toHaveAttribute(
+      'data-file-path',
+      '/tmp/workspace/slides.pptx'
+    )
     expect(mocks.pptxPreviewPanelProps[0]).toEqual({
       fileName: 'slides.pptx',
       filePath: '/tmp/workspace/slides.pptx',
