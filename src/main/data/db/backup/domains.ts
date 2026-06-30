@@ -43,7 +43,7 @@ export type BackupDomain =
  * excluded 4 last); order is otherwise not load-bearing — consumers sort via
  * topoSort by reference dependencies, not by this declaration order.
  */
-export const BACKUP_DOMAINS: readonly BackupDomain[] = [
+export const BACKUP_DOMAINS = [
   'PREFERENCES',
   'PROVIDERS',
   'PROMPTS',
@@ -58,7 +58,7 @@ export const BACKUP_DOMAINS: readonly BackupDomain[] = [
   'PAINTINGS',
   'FILE_STORAGE',
   'TRANSLATE_HISTORY'
-]
+] as const satisfies readonly BackupDomain[]
 
 /**
  * Restore conflict strategy for an aggregate.
