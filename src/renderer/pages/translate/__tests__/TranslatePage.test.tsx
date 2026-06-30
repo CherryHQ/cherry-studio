@@ -385,8 +385,8 @@ describe('TranslatePage', () => {
     expect(modelSelectorMock).toHaveBeenCalledWith(expect.objectContaining({ showTagFilter: false }))
   })
 
-  it('exports the current translation result to notes using the first translated line as title', async () => {
-    MockUseCacheUtils.setCacheValue('translate.output', 'First translated line\nSecond translated line')
+  it('exports the trimmed current translation result to notes using the first translated line as title', async () => {
+    MockUseCacheUtils.setCacheValue('translate.output', '\nFirst translated line\nSecond translated line\n')
     MockUsePreferenceUtils.setPreferenceValue('feature.notes.path', '/notes')
 
     render(<TranslatePage />)
