@@ -35,4 +35,14 @@ describe('DefaultPreferences', () => {
     expect(DefaultPreferences.default['topic.tab.display_mode']).toBe(topicDisplayDefault)
     expect(DefaultPreferences.default['agent.session.display_mode']).toBe(agentSessionDisplayDefault)
   })
+
+  it('defaults both conversation and work surfaces to the classic layout for new users', () => {
+    const topicLayoutDefault: PreferenceSchemas['default']['topic.layout'] = 'classic'
+    const agentLayoutDefault: PreferenceSchemas['default']['agent.layout'] = 'classic'
+
+    // preferenceSchemas.ts is generated from classification.json; pin the defaults so a
+    // regeneration that drops or flips either layout key fails loudly instead of shipping silently.
+    expect(DefaultPreferences.default['topic.layout']).toBe(topicLayoutDefault)
+    expect(DefaultPreferences.default['agent.layout']).toBe(agentLayoutDefault)
+  })
 })
