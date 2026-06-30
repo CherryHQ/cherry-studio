@@ -109,7 +109,9 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
   const handleHide = () => {
     updateAppStatus(app.appId, 'disabled')
       .then(() => {
-        setOpenedKeepAliveMiniApps(openedKeepAliveMiniApps.filter((item) => item.appId !== app.appId))
+        // Functional update: resolve against the latest list so a mini app opened
+        // during the status mutation's await is not clobbered by a stale snapshot.
+        setOpenedKeepAliveMiniApps((prev) => prev.filter((item) => item.appId !== app.appId))
       })
       .catch(reportFailure('miniApp.hide_failed'))
   }

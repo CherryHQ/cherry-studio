@@ -247,9 +247,9 @@ export class TopicService {
 
   /** Pin state and ordering go through `/pins` and `/topics/:id/order` — not this DTO. */
   async update(id: string, dto: UpdateTopicDto): Promise<Topic> {
-    const db = application.get('DbService').getDb()
+    const dbService = application.get('DbService')
 
-    const topic = await db.transaction(async (tx) => {
+    const topic = await dbService.withWriteTx(async (tx) => {
       const [existing] = await tx
         .select({ id: topicTable.id })
         .from(topicTable)
@@ -258,8 +258,14 @@ export class TopicService {
       if (!existing) throw DataApiErrorFactory.notFound('Topic', id)
 
       const updates: Partial<typeof topicTable.$inferInsert> = {}
-      if (dto.name !== undefined) updates.name = dto.name
-      if (dto.isNameManuallyEdited !== undefined) updates.isNameManuallyEdited = dto.isNameManuallyEdited
+      if (dto.name !== undefined) {
+        updates.name = dto.name
+        // Name-only patches are user/manual renames. Auto-namers must opt out explicitly.
+        updates.isNameManuallyEdited = dto.isNameManuallyEdited ?? true
+      } else if (dto.isNameManuallyEdited !== undefined) {
+        // Keep flag-only patches for repair/migration paths that need to adjust metadata.
+        updates.isNameManuallyEdited = dto.isNameManuallyEdited
+      }
       if (dto.assistantId !== undefined) updates.assistantId = dto.assistantId
       if (dto.groupId !== undefined) updates.groupId = dto.groupId
 

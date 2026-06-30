@@ -76,6 +76,27 @@ describe('agentSessionHandlers', () => {
     })
   })
 
+  describe('/agent-sessions/:sessionId', () => {
+    it('forwards manual-name marker updates to AgentSessionService', async () => {
+      const response = { id: 'session-1', name: 'Renamed session', isNameManuallyEdited: true }
+      updateMock.mockResolvedValueOnce(response)
+
+      const result = await agentSessionHandlers['/agent-sessions/:sessionId'].PATCH({
+        params: { sessionId: 'session-1' },
+        body: {
+          name: 'Renamed session',
+          isNameManuallyEdited: true
+        }
+      } as never)
+
+      expect(updateMock).toHaveBeenCalledWith('session-1', {
+        name: 'Renamed session',
+        isNameManuallyEdited: true
+      })
+      expect(result).toBe(response)
+    })
+  })
+
   describe('/agents/:agentId/sessions', () => {
     it('delegates agent-scoped session delete to AgentSessionService', async () => {
       const response = { deletedIds: ['session-a'] }

@@ -56,25 +56,10 @@ export function TabsProvider({
   // Route-derived tab titles are localized, so recompute them on language change.
   const { i18n } = useTranslation()
 
-  // Pinned tabs - persistent storage
-  const [pinnedTabs, setPinnedTabsRaw] = usePersistCache('ui.tab.pinned_tabs')
-
-  // Use ref to keep a reference to the latest pinnedTabs, avoiding closure issues
-  const pinnedTabsRef = useRef(pinnedTabs)
-  pinnedTabsRef.current = pinnedTabs
-
-  // Wrap setter to support functional updates
-  const setPinnedTabs = useCallback(
-    (updater: Tab[] | ((prev: Tab[]) => Tab[])) => {
-      if (typeof updater === 'function') {
-        const newValue = updater(pinnedTabsRef.current || [])
-        setPinnedTabsRaw(newValue)
-      } else {
-        setPinnedTabsRaw(updater)
-      }
-    },
-    [setPinnedTabsRaw]
-  )
+  // Pinned tabs - persistent storage. The setter natively supports functional
+  // updates resolved against the latest persisted value, so callers can use
+  // `setPinnedTabs(prev => ...)` directly (no manual ref mirroring needed).
+  const [pinnedTabs, setPinnedTabs] = usePersistCache('ui.tab.pinned_tabs')
 
   // Whether a tab's `isPinned` should route it into the persistent pinned list. The main
   // window surfaces pinned tabs, so it follows the flag. A detached sub-window passes
