@@ -338,7 +338,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.chat.artifact_pane.file_tree.width': 160,
   'ui.chat.last_used_assistant_id': null,
   'ui.chat.last_used_topic_id': null,
-  'ui.old_view.right_pane_open': true,
+  'ui.old_view.right_pane_open': false,
   'ui.topic.expansion.time': [],
   'ui.topic.expansion.assistant': [],
   'ui.agent.last_used_session_id': null,
