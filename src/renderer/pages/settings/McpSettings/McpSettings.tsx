@@ -2,10 +2,6 @@ import {
   Alert,
   Badge,
   Button,
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
   Flex,
   Form,
   FormControl,
@@ -110,7 +106,7 @@ const PipRegistry: Registry[] = [
   { name: '腾讯云', url: 'https://mirrors.cloud.tencent.com/pypi/simple/' }
 ]
 
-type TabKey = 'settings' | 'description' | 'tools' | 'prompts' | 'resources'
+type TabKey = 'settings' | 'description' | 'logs' | 'tools' | 'prompts' | 'resources'
 type McpTabItem = {
   key: TabKey
   label: React.ReactNode
@@ -167,7 +163,6 @@ const McpSettings: React.FC = () => {
   const [selectedRegistryType, setSelectedRegistryType] = useState<string>('')
 
   const [serverVersion, setServerVersion] = useState<string | null>(null)
-  const [logModalOpen, setLogModalOpen] = useState(false)
   const [logs, setLogs] = useState<(McpServerLogEntry & { serverId?: string })[]>([])
 
   const { theme } = useTheme()
@@ -341,6 +336,13 @@ const McpSettings: React.FC = () => {
   useEffect(() => {
     setLogs([])
   }, [server?.id])
+
+  useEffect(() => {
+    if (activeTab === 'logs') {
+      void fetchServerLogs()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, server?.id])
 
   useEffect(() => {
     if (server?.isActive) {
@@ -990,6 +992,32 @@ const McpSettings: React.FC = () => {
     )
   }
 
+  tabs.push({
+    key: 'logs',
+    label: t('settings.mcp.logs', 'Logs'),
+    children: (
+      <LogList>
+        {logs.length === 0 && (
+          <span className="text-foreground-muted text-sm">{t('settings.mcp.noLogs', 'No logs yet')}</span>
+        )}
+        {logs.map((log, idx) => (
+          <LogItem key={`${log.timestamp}-${idx}`}>
+            <LogHeader>
+              <Timestamp>{new Date(log.timestamp).toLocaleTimeString()}</Timestamp>
+              <Badge variant="outline" className={mapLogLevelClass(log.level)}>
+                {log.level}
+              </Badge>
+              <LogMessage>{log.message}</LogMessage>
+            </LogHeader>
+            {log.data && (
+              <PreBlock>{typeof log.data === 'string' ? log.data : JSON.stringify(log.data, null, 2)}</PreBlock>
+            )}
+          </LogItem>
+        ))}
+      </LogList>
+    )
+  })
+
   const activeTabValue = tabs.some((tab) => tab.key === activeTab) ? activeTab : 'settings'
 
   return (
@@ -1023,18 +1051,6 @@ const McpSettings: React.FC = () => {
                       {runtimeStatusLabel}
                     </McpRuntimeStatusBadge>
                     {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
-                    <Button size="sm" variant="ghost" className="shrink-0" onClick={() => setLogModalOpen(true)}>
-                      {t('settings.mcp.logs', 'View Logs')}
-                    </Button>
-                    <Button
-                      size="icon-sm"
-                      variant="ghost"
-                      className="shrink-0"
-                      aria-label={t('common.delete')}
-                      title={t('common.delete')}
-                      onClick={() => onDeleteMcpServer(server)}>
-                      <DeleteIcon size={14} className="lucide-custom text-destructive" />
-                    </Button>
                   </Flex>
                 </Flex>
                 <Flex className="shrink-0 items-center">
@@ -1082,7 +1098,15 @@ const McpSettings: React.FC = () => {
           </Scrollbar>
           {activeTabValue === 'settings' && (
             <div className="shrink-0 border-border/60 border-t px-6 py-3">
-              <div className="mx-auto flex w-full max-w-3xl justify-end">
+              <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => onDeleteMcpServer(server)}
+                  className="rounded-full text-destructive hover:text-destructive">
+                  <DeleteIcon size={14} className="lucide-custom" />
+                  {t('common.delete')}
+                </Button>
                 <Button
                   size="sm"
                   variant="default"
@@ -1097,38 +1121,6 @@ const McpSettings: React.FC = () => {
           )}
         </Tabs>
       </SettingContainer>
-
-      <Dialog
-        open={logModalOpen}
-        onOpenChange={(next) => {
-          setLogModalOpen(next)
-          if (next) void fetchServerLogs()
-        }}>
-        <DialogContent className="max-h-[70vh] sm:max-w-180">
-          <DialogHeader>
-            <DialogTitle>{t('settings.mcp.logs', 'Server Logs')}</DialogTitle>
-          </DialogHeader>
-          <LogList>
-            {logs.length === 0 && (
-              <span className="text-foreground-muted text-sm">{t('settings.mcp.noLogs', 'No logs yet')}</span>
-            )}
-            {logs.map((log, idx) => (
-              <LogItem key={`${log.timestamp}-${idx}`}>
-                <LogHeader>
-                  <Timestamp>{new Date(log.timestamp).toLocaleTimeString()}</Timestamp>
-                  <Badge variant="outline" className={mapLogLevelClass(log.level)}>
-                    {log.level}
-                  </Badge>
-                  <LogMessage>{log.message}</LogMessage>
-                </LogHeader>
-                {log.data && (
-                  <PreBlock>{typeof log.data === 'string' ? log.data : JSON.stringify(log.data, null, 2)}</PreBlock>
-                )}
-              </LogItem>
-            ))}
-          </LogList>
-        </DialogContent>
-      </Dialog>
     </Container>
   )
 }
@@ -1152,8 +1144,8 @@ const McpFormGrid = ({ className, ...props }: React.ComponentPropsWithoutRef<'di
 const mcpInlineSettingItemClassName =
   'flex h-14 min-w-0 flex-row items-center justify-between gap-4 rounded-md border border-border/70 px-3'
 
-const LogList = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Scrollbar>) => (
-  <Scrollbar className={cn('flex flex-col gap-3 pt-1.25 pb-3.75', className)} {...props} />
+const LogList = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex flex-col gap-3 pt-1.25 pb-3.75', className)} {...props} />
 )
 
 const LogItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
