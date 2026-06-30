@@ -3,6 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const searchKeywords = vi.fn()
 const fetchUrls = vi.fn()
 const kbSearch = vi.fn()
+const kbReadConcept = vi.fn()
+const kbGrepConcept = vi.fn()
+const kbGetOrganizationTree = vi.fn()
+const kbAddItems = vi.fn()
+const kbDeleteConcepts = vi.fn()
+const kbRefreshConcepts = vi.fn()
 const listBases = vi.fn()
 const listRootItems = vi.fn()
 
@@ -16,7 +22,19 @@ vi.mock('@main/core/application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'WebSearchService') return { searchKeywords, fetchUrls }
-      if (name === 'KnowledgeService') return { search: kbSearch, listBases, listRootItems }
+      if (name === 'KnowledgeService') {
+        return {
+          search: kbSearch,
+          readConcept: kbReadConcept,
+          grepConcept: kbGrepConcept,
+          getOrganizationTree: kbGetOrganizationTree,
+          addItems: kbAddItems,
+          deleteConcepts: kbDeleteConcepts,
+          refreshConcepts: kbRefreshConcepts,
+          listBases,
+          listRootItems
+        }
+      }
       throw new Error(`unexpected service: ${name}`)
     }
   }
@@ -46,6 +64,12 @@ describe('cherryBuiltinTools', () => {
     searchKeywords.mockReset()
     fetchUrls.mockReset()
     kbSearch.mockReset()
+    kbReadConcept.mockReset()
+    kbGrepConcept.mockReset()
+    kbGetOrganizationTree.mockReset()
+    kbAddItems.mockReset()
+    kbDeleteConcepts.mockReset()
+    kbRefreshConcepts.mockReset()
     listBases.mockReset()
     listRootItems.mockReset()
   })
@@ -54,6 +78,8 @@ describe('cherryBuiltinTools', () => {
     const tools = listCherryBuiltinTools()
     expect(tools.map((t) => t.name).sort()).toEqual([
       'kb_list',
+      'kb_manage',
+      'kb_read',
       'kb_search',
       'report_artifacts',
       'web_fetch',
@@ -179,6 +205,159 @@ describe('cherryBuiltinTools', () => {
     expect(textOf(result)).toContain('Knowledge base search failed')
   })
 
+  it('runs kb_read unscoped and returns the document json with itemType mapped to type', async () => {
+    kbReadConcept.mockResolvedValue({
+      conceptId: 'docs/intro.md',
+      title: 'intro.md',
+      itemType: 'file',
+      totalChars: 11,
+      charStart: 0,
+      charEnd: 11,
+      content: 'hello world',
+      truncated: false
+    })
+
+    const result = await callCherryBuiltinTool(
+      'kb_read',
+      { baseId: 'b1', conceptId: 'docs/intro.md', charStart: 0, charEnd: 11 },
+      signal
+    )
+
+    expect(kbReadConcept).toHaveBeenCalledWith('b1', 'docs/intro.md', { charStart: 0, charEnd: 11 })
+    expect(result.isError).toBeFalsy()
+    expect(JSON.parse(textOf(result))).toMatchObject({
+      conceptId: 'docs/intro.md',
+      type: 'file',
+      content: 'hello world'
+    })
+  })
+
+  it('steers kb_read to re-check the conceptId when the document is not found', async () => {
+    const { DataApiErrorFactory } = await import('@shared/data/api')
+    kbReadConcept.mockRejectedValue(DataApiErrorFactory.notFound('Knowledge concept', 'docs/gone.md'))
+
+    const result = await callCherryBuiltinTool('kb_read', { baseId: 'b1', conceptId: 'docs/gone.md' }, signal)
+
+    expect(result.isError).toBeFalsy()
+    expect(textOf(result)).toContain('docs/gone.md')
+    expect(textOf(result)).toContain('conceptId')
+  })
+
+  it('runs kb_read in grep mode (pattern) unscoped and returns matches json', async () => {
+    kbGrepConcept.mockResolvedValue({
+      conceptId: 'docs/intro.md',
+      title: 'intro.md',
+      itemType: 'note',
+      totalMatches: 1,
+      matches: [{ line: 2, charStart: 9, charEnd: 14, snippet: 'match' }]
+    })
+
+    const result = await callCherryBuiltinTool(
+      'kb_read',
+      { baseId: 'b1', conceptId: 'docs/intro.md', pattern: 'match' },
+      signal
+    )
+
+    expect(kbGrepConcept).toHaveBeenCalledWith('b1', 'docs/intro.md', {
+      pattern: 'match',
+      ignoreCase: undefined,
+      maxMatches: undefined
+    })
+    // read mode must NOT run when a pattern is present.
+    expect(kbReadConcept).not.toHaveBeenCalled()
+    expect(JSON.parse(textOf(result))).toMatchObject({ conceptId: 'docs/intro.md', type: 'note', totalMatches: 1 })
+  })
+
+  it('returns a no-matches hint (not an error) when kb_read grep mode finds nothing', async () => {
+    kbGrepConcept.mockResolvedValue({
+      conceptId: 'docs/intro.md',
+      title: 'intro.md',
+      itemType: 'note',
+      totalMatches: 0,
+      matches: []
+    })
+
+    const result = await callCherryBuiltinTool(
+      'kb_read',
+      { baseId: 'b1', conceptId: 'docs/intro.md', pattern: 'zzz' },
+      signal
+    )
+
+    expect(result.isError).toBeFalsy()
+    expect(textOf(result)).toContain('No matches')
+  })
+
+  it('runs kb_list in outline mode (baseId) and returns the outline json with itemType mapped to type', async () => {
+    kbGetOrganizationTree.mockResolvedValue({
+      baseId: 'b1',
+      totalItems: 2,
+      truncated: false,
+      nodes: [
+        { depth: 0, title: 'docs', itemType: 'directory', status: 'completed', conceptId: undefined },
+        { depth: 1, title: 'report.pdf', itemType: 'file', status: 'completed', conceptId: 'report.pdf' }
+      ]
+    })
+
+    const result = await callCherryBuiltinTool('kb_list', { baseId: 'b1', maxDepth: 2 }, signal)
+
+    expect(kbGetOrganizationTree).toHaveBeenCalledWith('b1', { maxDepth: 2 })
+    // list mode must NOT run when a baseId is present.
+    expect(listBases).not.toHaveBeenCalled()
+    const json = JSON.parse(textOf(result))
+    expect(json.totalItems).toBe(2)
+    expect(json.nodes[1]).toMatchObject({ type: 'file', conceptId: 'report.pdf' })
+  })
+
+  it('returns an empty-base hint (not an error) when kb_list outline mode finds no items', async () => {
+    kbGetOrganizationTree.mockResolvedValue({ baseId: 'b1', totalItems: 0, truncated: false, nodes: [] })
+
+    const result = await callCherryBuiltinTool('kb_list', { baseId: 'b1' }, signal)
+
+    expect(result.isError).toBeFalsy()
+    expect(textOf(result)).toMatch(/no items/i)
+  })
+
+  it('runs kb_manage add unscoped, building the add input from an absolute file path', async () => {
+    kbAddItems.mockResolvedValue({ status: 'added' })
+
+    const result = await callCherryBuiltinTool(
+      'kb_manage',
+      { baseId: 'b1', action: 'add', type: 'file', path: '/Users/me/docs/report.pdf' },
+      signal
+    )
+
+    expect(kbAddItems).toHaveBeenCalledWith('b1', [
+      { type: 'file', data: { source: 'report.pdf', path: '/Users/me/docs/report.pdf' } }
+    ])
+    expect(result.isError).toBeFalsy()
+    expect(JSON.parse(textOf(result))).toEqual({ action: 'add', added: ['report.pdf'] })
+  })
+
+  it('runs kb_manage delete unscoped, forwarding conceptIds and the applied/notFound split', async () => {
+    kbDeleteConcepts.mockResolvedValue({ applied: ['docs/a.md'], notFound: ['docs/gone.md'] })
+
+    const result = await callCherryBuiltinTool(
+      'kb_manage',
+      { baseId: 'b1', action: 'delete', conceptIds: ['docs/a.md', 'docs/gone.md'] },
+      signal
+    )
+
+    expect(kbDeleteConcepts).toHaveBeenCalledWith('b1', ['docs/a.md', 'docs/gone.md'])
+    expect(JSON.parse(textOf(result))).toEqual({
+      action: 'delete',
+      deleted: ['docs/a.md'],
+      notFound: ['docs/gone.md']
+    })
+  })
+
+  it('steers kb_manage (not an error) when a required add field is missing', async () => {
+    const result = await callCherryBuiltinTool('kb_manage', { baseId: 'b1', action: 'add', type: 'note' }, signal)
+
+    expect(result.isError).toBeFalsy()
+    expect(kbAddItems).not.toHaveBeenCalled()
+    expect(textOf(result)).toContain('content')
+  })
+
   it('routes kb_list through KnowledgeService, forwarding positional query/groupId', async () => {
     listBases.mockResolvedValue([
       { id: 'b1', name: 'Recipes', groupId: 'g1', status: 'completed', documentCount: 1 },
@@ -194,6 +373,22 @@ describe('cherryBuiltinTools', () => {
     expect(json[0]).toMatchObject({ id: 'b2', name: 'Invoices', groupId: 'g2', itemCount: 1, sampleSources: ['Soup'] })
     expect(listRootItems).toHaveBeenCalledWith('b2')
     expect(listRootItems).not.toHaveBeenCalledWith('b1')
+  })
+
+  it('omits the misleading documentCount from kb_list output, exposing only itemCount', async () => {
+    // base.documentCount is the configured retrieval top-K (search results to return), not a count of
+    // stored documents — it is usually null. Exposing it made the agent report "0 documents" for a
+    // populated base. itemCount (root items) is the real count the agent should see.
+    listBases.mockResolvedValue([{ id: 'b1', name: 'Recipes', groupId: 'g1', status: 'completed', documentCount: 5 }])
+    listRootItems.mockResolvedValue([
+      { type: 'note', status: 'completed', data: { content: 'Soup' } },
+      { type: 'note', status: 'completed', data: { content: 'Stew' } }
+    ])
+
+    const json = JSON.parse(textOf(await callCherryBuiltinTool('kb_list', {}, signal)))
+
+    expect(json[0]).not.toHaveProperty('documentCount')
+    expect(json[0].itemCount).toBe(2)
   })
 
   it('returns a fixed note (not a raw error) when listing the knowledge bases fails', async () => {
