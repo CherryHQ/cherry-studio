@@ -432,4 +432,68 @@ describe('AgentChat locate pending message', () => {
     await waitFor(() => expect(screen.getByTestId('agent-right-pane')).toHaveAttribute('data-open', 'true'))
     expect(screen.getByTestId('session-resource-list')).toBeInTheDocument()
   })
+
+  it('seeds the classic-layout resource pane open on the first frame when the session pane is persisted open', () => {
+    const resourcePane = { node: <div data-testid="session-resource-list">Sessions</div>, label: 'title.work' }
+
+    render(
+      <AgentChat
+        {...activeSessionProps()}
+        pane={<aside data-testid="session-pane" />}
+        paneOpen={true}
+        panePosition="left"
+        resourcePane={resourcePane}
+        sessionPaneOpen={true}
+        onSessionPaneOpenChange={vi.fn()}
+      />
+    )
+
+    // No reveal request: the persistent branch must seed `open` directly from sessionPaneOpen
+    // (AgentChatSessionFrame's defaultOpen). Dropping that defaultOpen would render this closed.
+    expect(screen.getByTestId('agent-right-pane')).toHaveAttribute('data-open', 'true')
+  })
+
+  it('keeps the classic-layout resource pane open across the draft → persistent session handoff', async () => {
+    const resourcePane = { node: <div data-testid="session-resource-list">Sessions</div>, label: 'title.work' }
+    const draftConversation = {
+      agentId: 'agent-1',
+      workspaceSource: { type: 'system' as const },
+      workspace: { type: 'system' as const, path: '/tmp/workspace' }
+    }
+
+    const { rerender } = render(
+      <AgentChat
+        activeSession={undefined}
+        activeSessionLoading={false}
+        activeSessionSource="none"
+        draftConversation={draftConversation}
+        pane={<aside data-testid="session-pane" />}
+        paneOpen={true}
+        panePosition="left"
+        resourcePane={resourcePane}
+        sessionPaneOpen={true}
+        onSessionPaneOpenChange={vi.fn()}
+      />
+    )
+
+    // The draft branch seeds the pane open from the persisted sessionPaneOpen.
+    expect(screen.getByTestId('agent-right-pane')).toHaveAttribute('data-open', 'true')
+
+    // Hand off to the persisted session: the AgentRightPane/Shell remounts under a different
+    // branch, so it must re-seed `open` from sessionPaneOpen rather than slamming shut.
+    rerender(
+      <AgentChat
+        {...activeSessionProps()}
+        draftConversation={null}
+        pane={<aside data-testid="session-pane" />}
+        paneOpen={true}
+        panePosition="left"
+        resourcePane={resourcePane}
+        sessionPaneOpen={true}
+        onSessionPaneOpenChange={vi.fn()}
+      />
+    )
+
+    await waitFor(() => expect(screen.getByTestId('agent-right-pane')).toHaveAttribute('data-open', 'true'))
+  })
 })
