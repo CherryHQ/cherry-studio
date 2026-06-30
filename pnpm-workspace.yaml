@@ -64,7 +64,6 @@ allowBuilds:
   '@paymoapp/electron-shutdown-handler': true
   '@scarf/scarf': true
   '@swc/core': true
-  canvas: true
   core-js: true
   electron: true
   electron-winstaller: true
