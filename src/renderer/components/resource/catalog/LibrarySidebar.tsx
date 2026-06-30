@@ -1,12 +1,13 @@
 import { MenuItem } from '@cherrystudio/ui'
 import { RESOURCE_TYPE_META, RESOURCE_TYPE_ORDER } from '@renderer/components/resource/resourceCatalogConstants'
-import type { LibrarySidebarFilter } from '@renderer/types/resourceCatalog'
+import type { LibrarySidebarFilter, ResourceType } from '@renderer/types/resourceCatalog'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
   filter: LibrarySidebarFilter
   onFilterChange: (f: LibrarySidebarFilter) => void
+  resourceTypes?: readonly ResourceType[]
   typeCounts?: Record<string, number>
 }
 
@@ -16,7 +17,12 @@ const ITEM_CLASS =
   'data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-foreground ' +
   'focus-visible:bg-sidebar-accent focus-visible:text-sidebar-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring'
 
-export const LibrarySidebar: FC<Props> = ({ filter, onFilterChange, typeCounts }) => {
+export const LibrarySidebar: FC<Props> = ({
+  filter,
+  onFilterChange,
+  resourceTypes = RESOURCE_TYPE_ORDER,
+  typeCounts
+}) => {
   const { t } = useTranslation()
 
   return (
@@ -31,7 +37,7 @@ export const LibrarySidebar: FC<Props> = ({ filter, onFilterChange, typeCounts }
       <div className="flex-1 overflow-y-auto px-2 pb-3 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-sidebar-border [&::-webkit-scrollbar]:w-1">
         {/* Resource Types */}
         <div className="space-y-1">
-          {RESOURCE_TYPE_ORDER.map((resourceType) => {
+          {resourceTypes.map((resourceType) => {
             const meta = RESOURCE_TYPE_META[resourceType]
             const Icon = meta.icon
             const count = typeCounts?.[resourceType]

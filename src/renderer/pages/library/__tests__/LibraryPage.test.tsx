@@ -91,7 +91,7 @@ vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock
 }))
 
-vi.mock('../list/useAssistantPresetCatalog', () => ({
+vi.mock('@renderer/components/resource/catalog/useAssistantPresetCatalog', () => ({
   ASSISTANT_CATALOG_MY_TAB: '__mine__',
   getAssistantPresetCatalogKey: (preset: { id: string }) => preset.id,
   toCreateAssistantDtoFromCatalogPreset: (preset: { name: string }) => ({
@@ -100,7 +100,7 @@ vi.mock('../list/useAssistantPresetCatalog', () => ({
   useAssistantPresetCatalog: () => assistantCatalogMock
 }))
 
-vi.mock('../list/useResourceLibrary', () => ({
+vi.mock('@renderer/components/resource/catalog/useResourceLibrary', () => ({
   useResourceLibrary: (options: unknown) => {
     resourceLibraryOptionsMock.push(options)
     return {
@@ -120,7 +120,7 @@ vi.mock('../list/useResourceLibrary', () => ({
   }
 }))
 
-vi.mock('../list/LibrarySidebar', () => ({
+vi.mock('@renderer/components/resource/catalog/LibrarySidebar', () => ({
   LibrarySidebar: ({ onFilterChange }: { onFilterChange: (filter: { resourceType: string }) => void }) => (
     <div data-testid="library-sidebar">
       <button type="button" onClick={() => onFilterChange({ resourceType: 'assistant' })}>
@@ -301,7 +301,7 @@ vi.mock('@renderer/components/resource/dialogs', () => ({
     ) : null
 }))
 
-vi.mock('../list/ResourceGrid', () => ({
+vi.mock('@renderer/components/resource/catalog/ResourceGrid', () => ({
   ResourceGrid: ({
     activeResourceType,
     assistantCatalog,

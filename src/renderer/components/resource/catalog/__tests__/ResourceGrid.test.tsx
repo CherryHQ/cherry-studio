@@ -36,7 +36,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@renderer/pages/library/list/AssistantPresetGroupIcon', () => ({
+vi.mock('@renderer/components/resource/catalog/AssistantPresetGroupIcon', () => ({
   AssistantPresetGroupIcon: () => <span />
 }))
 
