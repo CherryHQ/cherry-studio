@@ -3166,12 +3166,22 @@
           "agent_title": "New Agent",
           "assistant_title": "New Assistant",
           "avatar_aria": "Choose avatar",
+          "back": "Back",
+          "capability": {
+            "import": "Import skill",
+            "no_skills": "No skills installed",
+            "search": "Search skills"
+          },
           "description_placeholder": "Describe what it is for...",
-          "dialog_description": "Create a lightweight assistant or agent.",
-          "model_placeholder": "Select a model",
-          "model_required": "Please select a model",
+          "guided_progress": "Guided setup · Step {{current}} of {{total}}",
           "name_placeholder": "Enter a name",
-          "name_required": "Please enter a name",
+          "next": "Next",
+          "step": {
+            "basic": "Basic info",
+            "capability": "Skills",
+            "knowledge": "Knowledge",
+            "persona": "Persona"
+          },
           "submit": "Create",
           "submit_failed": "Create failed"
         },
