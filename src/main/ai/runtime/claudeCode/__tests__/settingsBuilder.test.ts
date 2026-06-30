@@ -1,4 +1,5 @@
 import type * as NodeModule from 'node:module'
+import path from 'node:path'
 
 import {
   CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
@@ -9,7 +10,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
-  reconcileAgentSkills: vi.fn(),
+  listSkills: vi.fn(),
+  listLocalSkills: vi.fn(),
   modelGetByKey: vi.fn(),
   findBySessionId: vi.fn(),
   createToolPolicySnapshot: vi.fn(),
@@ -22,7 +24,8 @@ const mocks = vi.hoisted(() => ({
   getPathStatus: vi.fn(),
   getAppLanguage: vi.fn(),
   resolveRequire: vi.fn(),
-  loggerWarn: vi.fn()
+  loggerWarn: vi.fn(),
+  isWin: false
 }))
 
 vi.mock('node:module', async (importOriginal) => {
@@ -72,7 +75,7 @@ vi.mock('@data/services/ProviderService', () => ({
 }))
 
 vi.mock('@main/ai/skills/SkillService', () => ({
-  skillService: { reconcileAgentSkills: mocks.reconcileAgentSkills }
+  skillService: { list: mocks.listSkills, listLocal: mocks.listLocalSkills }
 }))
 
 vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
@@ -109,7 +112,9 @@ vi.mock('@main/core/application', () => ({
 
 vi.mock('@main/core/platform', () => ({
   isLinux: false,
-  isWin: false
+  get isWin() {
+    return mocks.isWin
+  }
 }))
 
 vi.mock('@main/services/proxy/proxyEnv', () => ({
@@ -199,10 +204,12 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
     mocks.getAppLanguage.mockReturnValue('en-US')
-    mocks.reconcileAgentSkills.mockResolvedValue(undefined)
+    mocks.isWin = false
+    mocks.listSkills.mockResolvedValue([])
+    mocks.listLocalSkills.mockResolvedValue([])
   })
 
-  it('reconciles enabled skills into the session workspace before returning settings', async () => {
+  it('builds the SDK skill whitelist from the DB and workspace before returning settings', async () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
@@ -211,9 +218,35 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    expect(mocks.reconcileAgentSkills).toHaveBeenCalledWith('agent-1', '/workspace/project')
+    expect(mocks.listSkills).toHaveBeenCalledWith({ agentId: 'agent-1' })
+    expect(mocks.listLocalSkills).toHaveBeenCalledWith('/workspace/project')
     expect(settings.cwd).toBe('/workspace/project')
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
+  })
+
+  it('whitelists by directory name only, excludes disabled, never lets a shared SKILL.md name leak through', async () => {
+    mocks.listSkills.mockResolvedValue([
+      // Enabled and disabled skills deliberately share a SKILL.md `name` ('pdf').
+      // The whitelist must key on the unique folderName so the disabled skill
+      // is not un-hidden by the enabled one's name.
+      { id: 'skill-1', folderName: 'pdf-tools', name: 'pdf', isEnabled: true },
+      { id: 'skill-2', folderName: 'pdf-legacy', name: 'pdf', isEnabled: false }
+    ])
+    // Workspace project skill under cwd/.claude/skills — must be in the whitelist or the
+    // SDK filters the user's own project skill out. Keyed by its directory name (filename).
+    mocks.listLocalSkills.mockResolvedValue([{ name: 'Project Skill', filename: 'my-project-skill' }])
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.skills).toEqual(['pdf-tools', 'my-project-skill'])
+    expect(settings.skills).not.toContain('pdf') // shared SKILL.md name never whitelisted
+    expect(settings.skills).not.toContain('pdf-legacy') // disabled skill excluded
+    expect(settings.skills?.some((skill) => path.isAbsolute(skill))).toBe(false)
   })
 
   it('resolves the plan (sonnet) and small (haiku) model env keys from their own model ids', async () => {
