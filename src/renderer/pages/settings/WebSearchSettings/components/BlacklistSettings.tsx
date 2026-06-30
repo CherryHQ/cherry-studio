@@ -1,4 +1,4 @@
-import { Alert, Button, Textarea } from '@cherrystudio/ui'
+import { Alert, Button, InfoTooltip, Textarea } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
 import { Info } from 'lucide-react'
@@ -6,7 +6,7 @@ import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDivider, SettingGroup, SettingTitle } from '../..'
+import { SettingGroup, SettingTitle } from '../..'
 import { useWebSearchPersist } from '../hooks/useWebSearchPersist'
 import { parseWebSearchBlacklistInput } from '../utils/webSearchBlacklist'
 
@@ -50,44 +50,51 @@ const BlacklistSettings: FC = () => {
 
   return (
     <SettingGroup theme={theme}>
-      <SettingTitle>{t('settings.tool.websearch.blacklist')}</SettingTitle>
-      <SettingDivider />
-      <div className="space-y-2 py-2.5">
-        <div className="flex items-center gap-2 text-foreground-muted text-sm leading-5">
-          <span>{t('settings.tool.websearch.blacklist_description')}</span>
-          <span className="rounded-md bg-muted px-1.5 py-px font-medium text-foreground-muted text-xs leading-tight">
-            {excludeDomains.length}
-          </span>
-        </div>
-        <div className="relative">
-          <Textarea.Input
-            value={blacklistInput}
-            onChange={(e) => setBlacklistInput(e.target.value)}
-            placeholder={t('settings.tool.websearch.blacklist_tooltip')}
-            className="max-h-40 min-h-28 rounded-lg pr-20 text-sm leading-5 shadow-none"
-            rows={4}
+      <SettingTitle>
+        <span className="flex min-w-0 items-center gap-1.5">
+          {t('settings.tool.websearch.blacklist')}
+          <InfoTooltip
+            content={t('settings.tool.websearch.blacklist_description')}
+            placement="right"
+            iconProps={{ size: 13, className: 'shrink-0 cursor-pointer' }}
           />
-          {blacklistDirty && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="absolute right-2 bottom-2 h-7 px-2.5"
-              onClick={() => void updateManualBlacklist(blacklistInput)}>
-              {t('common.save')}
-            </Button>
-          )}
+        </span>
+        <span className="shrink-0 rounded-md bg-muted px-1.5 py-px font-medium text-foreground-muted text-xs leading-tight">
+          {excludeDomains.length}
+        </span>
+      </SettingTitle>
+      <div className="mt-3">
+        <div className="space-y-2">
+          <div className="relative">
+            <Textarea.Input
+              value={blacklistInput}
+              onChange={(e) => setBlacklistInput(e.target.value)}
+              placeholder={t('settings.tool.websearch.blacklist_tooltip')}
+              className="max-h-40 min-h-28 rounded-lg pr-20 text-sm leading-5 shadow-none"
+              rows={4}
+            />
+            {blacklistDirty && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="absolute right-2 bottom-2 h-7 px-2.5"
+                onClick={() => void updateManualBlacklist(blacklistInput)}>
+                {t('common.save')}
+              </Button>
+            )}
+          </div>
         </div>
+        {invalidEntries.length > 0 && (
+          <Alert
+            className="mt-1"
+            message={t('settings.tool.websearch.blacklist_invalid_entries', {
+              entries: invalidEntries.join(', ')
+            })}
+            type="error"
+          />
+        )}
       </div>
-      {invalidEntries.length > 0 && (
-        <Alert
-          className="mt-1"
-          message={t('settings.tool.websearch.blacklist_invalid_entries', {
-            entries: invalidEntries.join(', ')
-          })}
-          type="error"
-        />
-      )}
     </SettingGroup>
   )
 }

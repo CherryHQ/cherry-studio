@@ -7,7 +7,7 @@ import { formatErrorMessage } from '@renderer/utils/error'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import { SettingCard, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const logger = loggerService.withContext('NotionSettings')
 
@@ -78,59 +78,56 @@ const NotionSettings: FC = () => {
           onClick={handleNotionTitleClick}
         />
       </SettingTitle>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.notion.database_id')}</SettingRowTitle>
-        <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
-          <Input
-            type="text"
-            value={notionDatabaseID || ''}
-            onChange={handleNotionDatabaseIdChange}
-            onBlur={handleNotionDatabaseIdChange}
-            placeholder={t('settings.data.notion.database_id_placeholder')}
-          />
-        </RowFlex>
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.notion.page_name_key')}</SettingRowTitle>
-        <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
-          <Input
-            type="text"
-            value={notionPageNameKey || ''}
-            onChange={handleNotionPageNameKeyChange}
-            onBlur={handleNotionPageNameKeyChange}
-            placeholder={t('settings.data.notion.page_name_key_placeholder')}
-          />
-        </RowFlex>
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.notion.api_key')}</SettingRowTitle>
-        <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
-          <RowFlex className="w-full min-w-0 items-center gap-1.25">
+      <SettingCard>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.notion.database_id')}</SettingRowTitle>
+          <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
             <Input
-              type="password"
-              value={notionApiKey || ''}
-              onChange={handleNotionTokenChange}
-              onBlur={handleNotionTokenChange}
-              placeholder={t('settings.data.notion.api_key_placeholder')}
-              style={{ width: '100%' }}
+              type="text"
+              value={notionDatabaseID || ''}
+              onChange={handleNotionDatabaseIdChange}
+              onBlur={handleNotionDatabaseIdChange}
+              placeholder={t('settings.data.notion.database_id_placeholder')}
             />
-            <Button onClick={handleNotionConnectionCheck} variant="outline" className="h-9 shrink-0">
-              {t('settings.data.notion.check.button')}
-            </Button>
           </RowFlex>
-        </RowFlex>
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.notion.export_reasoning.title')}</SettingRowTitle>
-        <Switch checked={notionExportReasoning} onCheckedChange={handleNotionExportReasoningChange} />
-      </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.notion.export_reasoning.help')}</SettingHelpText>
-      </SettingRow>
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.notion.page_name_key')}</SettingRowTitle>
+          <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
+            <Input
+              type="text"
+              value={notionPageNameKey || ''}
+              onChange={handleNotionPageNameKeyChange}
+              onBlur={handleNotionPageNameKeyChange}
+              placeholder={t('settings.data.notion.page_name_key_placeholder')}
+            />
+          </RowFlex>
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.notion.api_key')}</SettingRowTitle>
+          <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
+            <RowFlex className="w-full min-w-0 items-center gap-1.25">
+              <Input
+                type="password"
+                value={notionApiKey || ''}
+                onChange={handleNotionTokenChange}
+                onBlur={handleNotionTokenChange}
+                placeholder={t('settings.data.notion.api_key_placeholder')}
+                style={{ width: '100%' }}
+              />
+              <Button onClick={handleNotionConnectionCheck} variant="outline" className="h-8 shrink-0 rounded-lg">
+                {t('settings.data.notion.check.button')}
+              </Button>
+            </RowFlex>
+          </RowFlex>
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle tip={t('settings.data.notion.export_reasoning.help')}>
+            {t('settings.data.notion.export_reasoning.title')}
+          </SettingRowTitle>
+          <Switch checked={notionExportReasoning} onCheckedChange={handleNotionExportReasoningChange} />
+        </SettingRow>
+      </SettingCard>
     </SettingGroup>
   )
 }
