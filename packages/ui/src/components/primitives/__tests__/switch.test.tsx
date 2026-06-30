@@ -37,7 +37,7 @@ describe('Switch', () => {
   it('renders the thumb svg without the invalid "inherit" dimension attributes', () => {
     const { container } = render(<Switch />)
 
-    const svg = container.querySelector('svg')
+    const svg = container.querySelector('[data-slot="switch-thumb"] svg')
 
     expect(svg).not.toBeNull()
     // "inherit" is a CSS keyword and is invalid as an SVG width/height attribute,
