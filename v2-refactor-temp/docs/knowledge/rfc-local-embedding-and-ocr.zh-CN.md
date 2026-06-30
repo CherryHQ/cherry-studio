@@ -1,7 +1,7 @@
 # RFC: 本地嵌入与 OCR — Qwen3-Embedding-0.6B + PaddleOCR v6 统一于 onnxruntime-node
 
 > 定位：本地模型能力选型 RFC。提案新增**可选、本地**的两项能力——文本嵌入（服务知识库）与 OCR（**暴露为 agent 工具，与知识库无关**），
-> 二者**统一运行在同一份 `onnxruntime-node` 原生 runtime** 上，并通过一个**扩展界面插件化按需下载**（框架二进制 + 模型，基础安装包零增量）。
+> 二者**统一运行在同一份 `onnxruntime-node` 原生 runtime** 上；框架二进制随安装包发布，**仅模型**经设置「环境依赖 → 本地模型」下载卡片按需下载。
 >
 > 目标是把选型结论、依赖/打包影响、实施拆分讲清楚，不作为逐文件实施清单。
 >
@@ -27,7 +27,7 @@
 - 本地文本嵌入（服务知识库）：`onnx-community/Qwen3-Embedding-0.6B-ONNX`，默认 dtype **q8**，经 transformers.js 在主进程 CPU 运行。
 - 本地 OCR（暴露为 agent 工具）：PaddleOCR v6，经 `ppu-paddle-ocr` 运行，仅 `image_to_text`。
 - 二者共用单份 `onnxruntime-node`，最小化新增二进制。
-- **插件化按需下载**：通过一个扩展界面下载框架二进制 + 模型，**基础安装包零增量**，二进制与模型都不进安装包。
+- **模型按需下载**：框架二进制（onnxruntime-node / transformers.js / ppu / opencv）作为普通依赖随安装包发布；**仅模型**经设置「环境依赖 → 本地模型」下载卡片按需下载，不进安装包。
 
 **非目标**
 
@@ -48,17 +48,16 @@ flowchart TD
   OCRH["local-paddleocr handler（主进程）"]
   TJS["transformers.js  device:cpu"]
   PPU["ppu-paddle-ocr / ppu-ocv"]
-  ORT["onnxruntime-node 1.24.3  单份共享原生 runtime"]
+  ORT["onnxruntime-node 1.24.3  单份共享原生 runtime（随安装包）"]
   CV["@napi-rs/canvas 1.x  已随 pdfjs 打包"]
   OCV["opencv-js  wasm ~14MB"]
-  EXT["扩展界面：插件化按需下载"]
+  EXT["设置 → 环境依赖 → 本地模型（下载卡片）"]
   M1["Qwen3-Embedding-0.6B q8 ~614MB"]
-  M2["PP-OCRv6 small  50+ 语言"]
+  M2["PP-OCRv6 medium  ~140MB"]
   KB --> EMB --> TJS --> ORT
   AGT --> OCRH --> PPU --> ORT
   PPU --> CV
   PPU --> OCV
-  EXT -. 下载 .-> ORT
   EXT -. 下载 .-> M1
   EXT -. 下载 .-> M2
 ```
@@ -83,8 +82,8 @@ flowchart TD
 ### 4.3 关键工程要点
 
 - **必须用 ONNX community 仓库**：官方 safetensors 不能被 transformers.js 直接本地加载。
-- **下载架构**：manifest + 多源（huggingface / mirror / cdn / modelscope）fallback，不硬编码 HF URL。
-- **本地加载**：`env.allowRemoteModels=false`，模型目录走 `application.getPath('models.transformers')`（需在 `pathRegistry` 新增 key，集中式路径，不 ad-hoc 拼接）。
+- **下载架构**：HF / ModelScope 镜像表（`modelSource.ts`），按 locale 选默认源 + 另一镜像 fallback，不硬编码 HF URL。
+- **本地加载**：`env.allowRemoteModels=false`，模型目录走 `application.getPath('feature.embedding.models')`（`pathRegistry` 已加该 key，集中式路径，不 ad-hoc 拼接）。
 - **推理**：query 侧加 instruction 前缀（`Instruct: {task}\nQuery:{q}`），document 侧不加；**last_token pooling + L2 normalize**。
 - **诚实提醒**：transformers.js 的 feature-extraction 原生 pooling 仅 `mean/cls/none`，**last_token 需 `pooling:'none'` 后手动取末 token + 归一化**——这段后处理 transformers.js 与 DIY 差距不大，落地先用固定样例对相似度趋势。
 
@@ -114,7 +113,7 @@ local-embedding::qwen3-embedding-0.6b
 
 ### 5.1 选型：ppu-paddle-ocr
 
-`ppu-paddle-ocr@6.0.0`：纯 TS、跨端，模型 **PP-OCRv6 small（50+ 语言）首次运行下载 + 缓存**，v3/v4/v5/v6 全系可切。`onnxruntime-node` 为其 `peerDependency + optionalDependency`（范围 `^1.23.2`，⊇ 1.24.3）→ 与 embedding **dedupe 成单份**。连带 `ppu-ocv` → `@napi-rs/canvas`（已打包，见 §6.2）+ `@techstark/opencv-js`（wasm ~14MB，唯一真·净新增）。
+`ppu-paddle-ocr@6.0.0`：纯 TS、跨端，v3/v4/v5/v6 全系可切。模型用 **PP-OCRv6 medium**（det + rec ONNX，约 140MB），由 **app 从官方 PaddlePaddle 仓库**（`PaddlePaddle/PP-OCRv6_medium_{det,rec}_onnx`，HuggingFace / ModelScope 镜像 fallback）**按需下载到受管目录**——不走 ppu 自带的「首次运行下载 + 缓存」。字符字典官方 `*_onnx` 仓库未单独发布，改从识别模型的 `inference.yml`（`PostProcess.character_dict`）解析后写盘（格式须复刻 ppu 期望：开头 blank 槽 + 字符 + 结尾 space 槽）。`onnxruntime-node` 为 ppu 的 `peerDependency + optionalDependency`（范围 `^1.23.2`，⊇ 1.24.3）→ 与 embedding **dedupe 成单份**。连带 `ppu-ocv` → `@napi-rs/canvas`（已打包，见 §6.2）+ `@techstark/opencv-js`（wasm ~14MB，唯一真·净新增）。
 
 **OCR 不进 model/provider 表，是 fileProcessing 的 `image_to_text` processor**（与 `tesseract` / `system` / `mistral` 平级，靠 `processorId` 注册）。本地 / 远程区分是现成的一等维度 `FileProcessorType = 'api' | 'builtin'`：
 
@@ -136,7 +135,7 @@ local-embedding::qwen3-embedding-0.6b
 ### 5.3 定位与引擎选用
 
 - **定位**：本地 OCR **暴露为 agent 工具**，与知识库无关（不进 KB 图片 / 多模态管线）；在本 RFC 中只因与 embedding 共用 runtime + 下载机制而一并设计。
-- **引擎选用（已定）**：多个 `image_to_text` 引擎（`system` / `tesseract` / 远程 `paddleocr` / `local-paddleocr` …）的优先顺序**交给用户决定**，UI 上可自定义默认；但**当用户在扩展界面手动下载了 PaddleOCR 框架，则自动把 `local-paddleocr` 设为默认**。
+- **引擎选用（已定）**：多个 `image_to_text` 引擎（`system` / `tesseract` / 远程 `paddleocr` / `local-paddleocr` …）的优先顺序**交给用户决定**，UI 上可自定义默认；但**当用户在设置「环境依赖 → 本地模型」下载卡片下载了本地 PaddleOCR 模型，则自动把 `local-paddleocr` 设为默认**。
 
 ### 5.4 落地接线（新增 `local-paddleocr` processor）
 
@@ -179,19 +178,19 @@ local-embedding::qwen3-embedding-0.6b
 
 > **⚠️ 此 PDF 治理与 OCR / embedding 主功能正交，建议单独成一个 PR**（含 viewer v6 迁移 + 预览冒烟），不与 OCR 功能混在同一 PR，避免无关风险扩散。
 
-## 7. 打包与体积影响（插件化）
+## 7. 打包与体积影响
 
-**基础安装包零增量**——框架二进制与模型都不进安装包，全部经扩展界面按需下载。各组件归属：
+框架二进制作为普通 `dependencies` 随安装包发布（electron-vite / electron-builder 正常打包），**仅模型经设置卡片按需下载**。各组件归属：
 
 | 组件 | 类型 | 体积 | 交付方式 |
 |---|---|---|---|
-| onnxruntime-node 1.24.3（当前平台 CPU） | 原生 `.node` + `libonnxruntime` | 单平台 ~25–40MB | **下载 bundle**（embedding/OCR 共担） |
-| transformers.js + tokenizer | JS | ~9.5MB | **下载 bundle** |
-| @techstark/opencv-js | wasm（平台无关） | ~14MB | **下载 bundle**（OCR 用） |
-| 模型（Qwen3 q8 / PP-OCRv6） | 权重 | ~614MB / 数十 MB | **按需下载**（分模型） |
-| @napi-rs/canvas 1.x | 原生 skia | — | 已在基础安装包（PDF 用），仅版本对齐 |
+| onnxruntime-node 1.24.3（当前平台 CPU） | 原生 `.node` + `libonnxruntime` | 单平台 ~25–40MB | **随安装包**（`before-pack` 裁到目标平台） |
+| transformers.js + tokenizer | JS | ~9.5MB | **随安装包** |
+| @techstark/opencv-js | wasm（平台无关） | ~14MB | **随安装包**（经 ppu 传递依赖） |
+| @napi-rs/canvas | 原生 skia | — | 已在安装包（PDF 用） |
+| 模型（Qwen3 q8 / PP-OCRv6 medium） | 权重 | ~614MB / ~140MB | **按需下载**（设置「环境依赖 → 本地模型」卡片，分模型） |
 
-**机制说明**：dedupe / canvas 版本对齐仍在**构建期**由单一 `package.json` 决定（§6 不变）；插件化只改变**交付边界**——把 onnxruntime-node / transformers.js / opencv 从安装包移到可下载 bundle，主进程经 `createRequire` 从用户插件目录加载（参考 `McpPackageService` 的下载 / 解压 / 版本管理）。原生 addon 走 N-API、ABI 稳定，`disable-library-validation` 已开（mac），下载后抹 quarantine 即可加载，无需 electron-rebuild。
+**机制说明**：原计划「框架经扩展界面插件化下载、基础安装包零增量」**未采用**——onnxruntime-node / transformers.js / opencv 都作为普通依赖随安装包发布，只有模型走 `local_model.*` IPC + `LocalModelsSection` 下载卡片按需下载。因此安装包相对增大（onnxruntime-node 即便 `before-pack` 裁到目标平台，仍含其原生 runtime）。dedupe / canvas 版本对齐仍在**构建期**由单一 `package.json` 决定（§6 不变）。
 
 ## 8. 风险与验证 Checklist
 
@@ -207,21 +206,21 @@ local-embedding::qwen3-embedding-0.6b
 | 阶段 | 内容 | 依赖 |
 |---|---|---|
 | PR-0（独立） | PDF 治理：移除 pdf-parse + pdfjs 升 v6 + canvas 对齐 1.x | 正交，可先行 |
-| PR-1 | 插件加载器 + 下载 / 解压 / 版本管理（onnxruntime-node + 框架二进制经扩展界面下载，`createRequire` 加载）+ 扩展界面 UI | — |
+| PR-1 | 模型下载服务（`LocalEmbeddingDownloadService` / `LocalOcrDownloadService` + `local_model.*` IPC）+ 设置「本地模型」下载卡片 UI；框架作为普通依赖随安装包 | — |
 | PR-2 | transformers.js 本地 embedding provider（aiCore 扩展 + user_provider/user_model 注册 + `isHidden` + 路径 key） | 复用 PR-1 |
 | PR-3 | `local-paddleocr` processor（ppu-paddle-ocr 进程内 handler + opencv-js + 模型下载 + 下载即设默认） | 复用 PR-1 |
 | PR-4（小） | ProviderSettings/ModelList 补 `!isHidden` 过滤（本地 embedding 从模型列表隐藏、选择器仍显示） | 配套 PR-2 |
 
 ## 10. 待确认问题
 
-产品决策已定：OCR = agent 工具（与 KB 无关）/ 插件化按需下载 / 引擎顺序用户定 + 下载即设默认 / 仅 `image_to_text` / 扩展界面下载 embedding + OCR / dtype = q8。剩余为落地前的实现细节：
+产品决策已定：OCR = agent 工具（与 KB 无关）/ 框架随安装包、仅模型按需下载 / 引擎顺序用户定 + 下载即设默认 / 仅 `image_to_text` / 设置「本地模型」卡片下载 embedding + OCR / dtype = q8。剩余为落地前的实现细节：
 
-- **插件打包机制**：基础包带哪些桩、下载 bundle 如何构建 / 签名、`createRequire` 加载点——本方案最大块的新设计工作。
+- **框架交付方式（已定）**：放弃插件化下载 bundle，框架作为普通依赖随安装包发布；`before-pack` 仅把 onnxruntime-node 裁到目标平台。
 - **`isHidden` 接线**：ProviderSettings/ModelList 补 `!isHidden` 过滤的落点；实测 KB 嵌入模型选择器确实显示 `isHidden` 模型。
 - **last_token pooling 正确性**：transformers.js `pooling:'none'` + 手动取末 token，先用固定样例对相似度趋势。
 - **`pnpm why` 实测**：`onnxruntime-node` 单份 1.24.3 + `@napi-rs/canvas` 单份 1.x。
 - **PDF 治理 PR-0**：viewer v6 冒烟（`PDFDocumentProxy.destroy()` → `loadingTask.destroy()`）。
-- **路径 key / 镜像**：`models.transformers`（+ paddle 模型目录 key）命名；HF / modelscope / cdn 多源 fallback（国内）。
+- **路径 key / 镜像（已定）**：embedding = `feature.embedding.models`、OCR = `feature.ocr.paddleocr`；下载源走 HF / ModelScope 镜像表（`modelSource.ts`），按 locale 选默认。
 
 ## 11. 参考
 
