@@ -543,7 +543,11 @@ const AgentPage = () => {
         const session = await dataApiService.post('/agent-sessions', {
           body: { agentId: current.agentId, name: t('common.unnamed'), workspace: current.workspaceSource }
         })
-        void ipcApi.request('ai.prewarm_agent_session', { sessionId: session.id }).catch((error) => {
+        // Await registration (the IPC returns once the warm entry is registered, not once the
+        // subprocess startup finishes). If the user sends right after the first keystroke, consume()
+        // then finds the entry and awaits the in-flight startup instead of racing it and cold-starting.
+        // Non-fatal — on failure the reservation still resolves and the connect path falls back to cold.
+        await ipcApi.request('ai.prewarm_agent_session', { sessionId: session.id }).catch((error) => {
           logger.warn('Failed to prewarm reserved agent session', error as Error)
         })
         return {
