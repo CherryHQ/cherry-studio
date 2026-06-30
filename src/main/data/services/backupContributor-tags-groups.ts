@@ -17,11 +17,8 @@
 // Preset: full + lite.
 
 import type { BackupContributor } from '@main/data/db/backup/contributor-types'
-import { column, columns, DB_PRIMARY_KEYS, table } from '@main/data/db/backup/dbSchemaRefs'
+import { column, columns, mirrorPk, table } from '@main/data/db/backup/dbSchemaRefs'
 import { deepFreeze } from '@main/data/db/backup/freeze'
-
-/** Mirror a codegen PK fact with `ambiguous` confirmed false (finalize #8/#9). */
-const pk = (t: Parameters<typeof table>[0]) => ({ ...DB_PRIMARY_KEYS[t], ambiguous: false as const })
 
 /**
  * TAGS_GROUPS domain. `tag` (UNIQUE name) and `pin` (UNIQUE [entityType,entityId])
@@ -37,7 +34,7 @@ export const TAGS_GROUPS_CONTRIBUTOR = deepFreeze<BackupContributor>({
       // identity-propagation clarity even though #25 exempts entity_tag.
       { table: table('entity_tag'), column: column('tagId'), referencedDomain: 'TAGS_GROUPS', kind: 'owning' }
     ],
-    primaryKeys: [pk('tag'), pk('entity_tag'), pk('group'), pk('pin')],
+    primaryKeys: [mirrorPk('tag'), mirrorPk('entity_tag'), mirrorPk('group'), mirrorPk('pin')],
     aggregates: [
       {
         root: table('tag'),
@@ -67,7 +64,7 @@ export const TAGS_GROUPS_CONTRIBUTOR = deepFreeze<BackupContributor>({
     fileRefSourcePolicies: [],
     jsonSoftReferences: []
   },
-  backupPolicy: { uniqueMergeRules: [] },
+  backupPolicy: {},
   // TODO(C/D track): selected-domain filtering for the polymorphic tables (codex
   // review P2). pin.entityId / entity_tag.entityId point polymorphically (by
   // entityType) into topics/sessions/knowledge/file/painting. In lite restore —

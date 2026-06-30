@@ -10,11 +10,8 @@
 // Preset: full + lite.
 
 import type { BackupContributor } from '@main/data/db/backup/contributor-types'
-import { columns, DB_PRIMARY_KEYS, table } from '@main/data/db/backup/dbSchemaRefs'
+import { columns, mirrorPk, table } from '@main/data/db/backup/dbSchemaRefs'
 import { deepFreeze } from '@main/data/db/backup/freeze'
-
-/** Mirror a codegen PK fact with `ambiguous` confirmed false (finalize #8/#9). */
-const pk = (t: Parameters<typeof table>[0]) => ({ ...DB_PRIMARY_KEYS[t], ambiguous: false as const })
 
 /**
  * SKILLS domain: globally-enabled skills, keyed by the UNIQUE `folderName`. Per
@@ -27,7 +24,7 @@ export const SKILLS_CONTRIBUTOR = deepFreeze<BackupContributor>({
   schema: {
     tables: [table('agent_global_skill')],
     references: [],
-    primaryKeys: [pk('agent_global_skill')],
+    primaryKeys: [mirrorPk('agent_global_skill')],
     aggregates: [
       {
         root: table('agent_global_skill'),
@@ -41,7 +38,7 @@ export const SKILLS_CONTRIBUTOR = deepFreeze<BackupContributor>({
     fileRefSourcePolicies: [],
     jsonSoftReferences: []
   },
-  backupPolicy: { uniqueMergeRules: [] },
+  backupPolicy: {},
   // TODO(C/D track + spec clarification): the domain spec marks SKILLS schema-only
   // ("无文件资源"), but SkillService reads + symlinks skill content from the directory
   // {userData}/feature.agents.skills/{folderName}. A schema-only restore re-creates the

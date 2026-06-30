@@ -173,7 +173,7 @@ export interface BackupContributorPolicy {
   /** Only exceptions; each binds a declared reference + non-redundant action + reason. */
   readonly omittedReferenceOverrides?: readonly OmittedReferenceOverride[]
   /** Tables with non-PK unique columns needing merge-before-insert. */
-  readonly uniqueMergeRules: readonly UniqueMergeRule[]
+  readonly uniqueMergeRules?: readonly UniqueMergeRule[]
   /** FIELD_MERGE column-level merge rules (M4). */
   readonly fieldMergePolicies?: readonly FieldMergePolicy[]
   /** PREFERENCES-only: platform-specific key patterns (shortcut.* / *.path / ...). */

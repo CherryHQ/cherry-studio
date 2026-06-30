@@ -83,7 +83,10 @@ describe('ASSISTANTS contributor', () => {
   it('cloneAggregate returns a root row with the PK replaced by newRootKey', async () => {
     const cloneAggregate = ASSISTANTS_CONTRIBUTOR.operations!.cloneAggregate!
     // cloneAggregate is pure (no db on the context) — stub only the fields it reads.
+    // The PK column is derived from ctx.registry (#26 guarantees a single-column root PK).
     const ctx = {
+      aggregate: { root: table('assistant') },
+      registry: { getPrimaryKey: () => ({ columns: ['id'] }) },
       rootRow: { id: 'old-id', name: 'a', prompt: 'p' },
       newRootKey: 'new-id'
     } as unknown as CloneAggregateContext

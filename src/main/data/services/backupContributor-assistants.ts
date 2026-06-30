@@ -14,11 +14,8 @@
 // Preset: full + lite.
 
 import type { BackupContributor } from '@main/data/db/backup/contributor-types'
-import { column, columns, DB_PRIMARY_KEYS, table } from '@main/data/db/backup/dbSchemaRefs'
+import { column, columns, mirrorPk, table } from '@main/data/db/backup/dbSchemaRefs'
 import { deepFreeze } from '@main/data/db/backup/freeze'
-
-/** Mirror a codegen PK fact with `ambiguous` confirmed false (finalize #8/#9). */
-const pk = (t: Parameters<typeof table>[0]) => ({ ...DB_PRIMARY_KEYS[t], ambiguous: false as const })
 
 /**
  * ASSISTANTS domain. assistant.modelId → user_model (PROVIDERS) is optional
@@ -61,7 +58,7 @@ export const ASSISTANTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
         kind: 'junction'
       }
     ],
-    primaryKeys: [pk('assistant'), pk('assistant_mcp_server'), pk('assistant_knowledge_base')],
+    primaryKeys: [mirrorPk('assistant'), mirrorPk('assistant_mcp_server'), mirrorPk('assistant_knowledge_base')],
     aggregates: [
       {
         root: table('assistant'),
@@ -76,11 +73,16 @@ export const ASSISTANTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
     fileRefSourcePolicies: [],
     jsonSoftReferences: []
   },
-  backupPolicy: { uniqueMergeRules: [] },
+  backupPolicy: {},
   operations: {
     // Renamable aggregate (RENAME on conflict) → cloneAggregate is required (#16).
-    // Pure: no db on the context. Returns a new root row carrying the fresh PK;
-    // the importer remaps member `assistantId` columns via its memberKeyMap.
-    cloneAggregate: async (ctx) => ({ rootRow: { ...ctx.rootRow, id: ctx.newRootKey } })
+    // Pure: no db on the context. The fresh-PK column is read from the registry
+    // (not hardcoded) so this stays correct for any single-column-PK renamable
+    // root — finalize #26 guarantees the root PK is single-column. The importer
+    // remaps member `assistantId` columns via its memberKeyMap.
+    cloneAggregate: async (ctx) => {
+      const pkColumn = ctx.registry.getPrimaryKey(ctx.aggregate.root).columns[0]
+      return { rootRow: { ...ctx.rootRow, [pkColumn]: ctx.newRootKey } }
+    }
   }
 })

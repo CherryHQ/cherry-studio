@@ -10,11 +10,8 @@
 // Preset: full only (history excluded from lite).
 
 import type { BackupContributor } from '@main/data/db/backup/contributor-types'
-import { column, columns, DB_PRIMARY_KEYS, table } from '@main/data/db/backup/dbSchemaRefs'
+import { column, columns, mirrorPk, table } from '@main/data/db/backup/dbSchemaRefs'
 import { deepFreeze } from '@main/data/db/backup/freeze'
-
-/** Mirror a codegen PK fact with `ambiguous` confirmed false (finalize #8/#9). */
-const pk = (t: Parameters<typeof table>[0]) => ({ ...DB_PRIMARY_KEYS[t], ambiguous: false as const })
 
 /**
  * TRANSLATE_HISTORY domain. `translate_language` is a natural-key singleton set
@@ -40,7 +37,7 @@ export const TRANSLATE_HISTORY_CONTRIBUTOR = deepFreeze<BackupContributor>({
         kind: 'optional'
       }
     ],
-    primaryKeys: [pk('translate_language'), pk('translate_history')],
+    primaryKeys: [mirrorPk('translate_language'), mirrorPk('translate_history')],
     aggregates: [
       {
         root: table('translate_language'),
@@ -55,6 +52,6 @@ export const TRANSLATE_HISTORY_CONTRIBUTOR = deepFreeze<BackupContributor>({
     fileRefSourcePolicies: [],
     jsonSoftReferences: []
   },
-  backupPolicy: { uniqueMergeRules: [] },
+  backupPolicy: {},
   operations: undefined
 })

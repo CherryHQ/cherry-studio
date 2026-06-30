@@ -9,11 +9,8 @@
 // Preset: full + lite.
 
 import type { BackupContributor } from '@main/data/db/backup/contributor-types'
-import { columns, DB_PRIMARY_KEYS, table } from '@main/data/db/backup/dbSchemaRefs'
+import { columns, mirrorPk, table } from '@main/data/db/backup/dbSchemaRefs'
 import { deepFreeze } from '@main/data/db/backup/freeze'
-
-/** Mirror a codegen PK fact with `ambiguous` confirmed false (finalize #8/#9). */
-const pk = (t: Parameters<typeof table>[0]) => ({ ...DB_PRIMARY_KEYS[t], ambiguous: false as const })
 
 /**
  * MCP_SERVERS domain: user-configured MCP servers. Single table, uuid-v4 PK, no
@@ -24,12 +21,12 @@ export const MCP_SERVERS_CONTRIBUTOR = deepFreeze<BackupContributor>({
   schema: {
     tables: [table('mcp_server')],
     references: [],
-    primaryKeys: [pk('mcp_server')],
+    primaryKeys: [mirrorPk('mcp_server')],
     aggregates: [{ root: table('mcp_server'), identityKey: columns(['id']), members: [], renamable: false }],
     fileRefSourcePolicies: [],
     jsonSoftReferences: []
   },
-  backupPolicy: { uniqueMergeRules: [] },
+  backupPolicy: {},
   // TODO(C/D track): DXT/MCPB package resources (codex review P2). An MCP server
   // imported from a DXT/MCPB package persists `dxtPath`; McpRuntimeService reads the
   // manifest + runs from that extracted directory. A schema-only restore re-creates
