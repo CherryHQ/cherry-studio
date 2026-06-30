@@ -141,7 +141,12 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   saveEntity(entity: SpanEntity) {
     if (!this.isActivated) return
     this.applyTraceMeta(entity)
-    if (this.store.getSpan(entity.id)) {
+    const existing = this.store.getSpan(entity.id)
+    if (existing) {
+      // Preserve events already on the span (incl. orphan log events drained earlier): a later
+      // /v1/traces export carrying empty/partial events must not drop them. Merge into the incoming
+      // entity, which is the object ultimately stored (updateModelName re-sets it after updateEntity).
+      entity.events = this.mergeEvents(existing.events, entity.events)
       this.updateEntity(entity)
     } else {
       this.addEntity(entity)
@@ -274,6 +279,23 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     })
     this.applyTraceMeta(savedEntity)
     this.store.setSpan(savedEntity)
+  }
+
+  /** Union span events by name+time, preserving existing (incl. log-derived) events; never shrink. */
+  private mergeEvents(saved: TimedEvent[] | undefined, incoming: TimedEvent[] | undefined): TimedEvent[] | undefined {
+    if (!incoming || incoming.length === 0) return saved
+    if (!saved || saved.length === 0) return incoming
+    const eventKey = (event: TimedEvent) =>
+      `${event.name}@${Array.isArray(event.time) ? `${event.time[0]}.${event.time[1]}` : String(event.time)}`
+    const seen = new Set<string>()
+    const merged: TimedEvent[] = []
+    for (const event of [...saved, ...incoming]) {
+      const key = eventKey(event)
+      if (seen.has(key)) continue
+      seen.add(key)
+      merged.push(event)
+    }
+    return merged
   }
 
   private mergeAttributes(savedEntity: SpanEntity, value: unknown): void {
