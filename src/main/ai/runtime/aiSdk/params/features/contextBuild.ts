@@ -35,8 +35,6 @@ const logger = loggerService.withContext('contextBuild')
 /** head/tail kept inline in the truncation marker (carried from P1 / #14916). */
 const HEAD_CHARS = 500
 const TAIL_CHARS = 1_000
-/** Last-resort context window when the model row has none. */
-const FALLBACK_CONTEXT_WINDOW = 128_000
 /** Never drop below this many messages in the sliding-window fallback. */
 const MIN_MESSAGES_KEPT = 2
 
@@ -46,7 +44,8 @@ export function buildChefOptions(scope: RequestScope): ContextChefOptions | null
   if (!settings.enabled) return null
 
   const options: ContextChefOptions = {
-    contextWindow: scope.model.contextWindow ?? FALLBACK_CONTEXT_WINDOW,
+    // Required input — the model layer's contract guarantees it; never defaulted here.
+    contextWindow: scope.model.contextWindow as number,
 
     compact: {
       reasoning: 'before-last-message',

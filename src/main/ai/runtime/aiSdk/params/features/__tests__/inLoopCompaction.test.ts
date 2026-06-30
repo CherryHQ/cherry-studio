@@ -74,12 +74,10 @@ describe('inLoopCompactionFeature', () => {
     expect(inLoopCompactionFeature.applies?.(scope({ contextWindow: CONTEXT_WINDOW }))).toBe(false)
   })
 
-  it('does not apply when contextWindow is 0', () => {
-    expect(inLoopCompactionFeature.applies?.(scope({ chatId: 'topic-1', contextWindow: 0 }))).toBe(false)
-  })
-
-  it('does not apply when contextWindow is undefined', () => {
-    expect(inLoopCompactionFeature.applies?.(scope({ chatId: 'topic-1', contextWindow: undefined }))).toBe(false)
+  it('does not gate on contextWindow — required input guaranteed upstream, not checked here', () => {
+    // The compaction layer treats contextWindow as a required precondition (the model
+    // layer's contract); it neither fabricates a fallback nor excludes when absent.
+    expect(inLoopCompactionFeature.applies?.(scope({ chatId: 'topic-1', contextWindow: undefined }))).toBe(true)
   })
 
   it('does not apply for agent-session topics', () => {

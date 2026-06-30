@@ -44,8 +44,6 @@ import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupI
 const COMPACT_TRIGGER_RATIO = 0.8
 /** Keep this fraction of the window as recent verbatim exchanges. */
 const KEEP_BUDGET_RATIO = 0.3
-/** Last-resort window when a model row reports none. */
-const FALLBACK_CONTEXT_WINDOW = 128_000
 
 const logger = loggerService.withContext('PersistentChatContextProvider')
 
@@ -550,7 +548,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     if (!on) return effective.map((r) => this.toServed(r))
     if (!compressionModel) return effective.map((r) => this.toServed(r))
 
-    const minContextWindow = Math.min(...models.map((m) => m.contextWindow ?? FALLBACK_CONTEXT_WINDOW))
+    // contextWindow is a required input — the model layer's contract guarantees it;
+    // this layer never fabricates or defaults it.
+    const minContextWindow = Math.min(...models.map((m) => m.contextWindow as number))
     if (this.estimateContext(effective) <= Math.floor(minContextWindow * COMPACT_TRIGGER_RATIO)) {
       return effective.map((r) => this.toServed(r))
     }

@@ -120,16 +120,18 @@ export const inLoopCompactionFeature: RequestFeature = {
   applies: (scope) => {
     const topicId = scope.request.chatId
     if (!topicId) return false
-    if ((scope.model.contextWindow ?? 0) <= 0) return false
     if (isAgentSessionTopic(topicId)) return false
     if (temporaryChatService.hasTopic(topicId)) return false
     return Boolean(scope.contextSettings.enabled && scope.contextSettings.compress.enabled && scope.compressionModel)
   },
   contributeHooks: (scope) => {
-    const contextWindow = scope.model.contextWindow
     const model = scope.compressionModel
-    // Unreachable at runtime — `applies()` already guards both; present only to narrow the types.
-    if (!contextWindow || !model) return {}
+    // `applies()` already guards compressionModel; this narrows the type.
+    if (!model) return {}
+    // contextWindow is a required input for compaction — a budget against a known
+    // window is the whole point. Its presence is the model layer's contract; this
+    // layer never fabricates or defaults it.
+    const contextWindow = scope.model.contextWindow as number
     const trigger = Math.floor(contextWindow * COMPACT_TRIGGER_RATIO)
     const keepBudget = Math.floor(contextWindow * KEEP_BUDGET_RATIO)
     return {
