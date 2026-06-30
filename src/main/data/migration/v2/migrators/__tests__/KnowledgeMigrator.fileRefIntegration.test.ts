@@ -7,10 +7,11 @@
 // The protections under test: `KnowledgeMigrator.execute()` must remap
 // assistant knowledge-base refs from legacy IDs to migrated IDs, drop
 // orphaned assistant refs, and migrate legacy file items to knowledge-owned
-// relative paths without creating file_ref rows.
+// relative paths without creating FileManager association rows.
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable } from '@data/db/schemas/assistantRelations'
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { chatMessageFileRefTable, paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -275,7 +276,7 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
     expect(fkCheck.rows).toHaveLength(0)
   })
 
-  it('migrates legacy file items to relative paths without creating file_refs', async () => {
+  it('migrates legacy file items to relative paths without creating FileManager refs', async () => {
     const dexieFiles: FileMetadata[] = [
       dexieFileRow({ id: FILE_SURVIVOR_ID }),
       dexieFileRow({ id: FILE_SKIPPED_ID, size: -1 })
@@ -341,14 +342,18 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
       }
     ])
 
-    const fileRefRows = await dbh.db.select({ fileEntryId: fileRefTable.fileEntryId }).from(fileRefTable)
-    expect(fileRefRows).toHaveLength(0)
+    const [chatRefRows, paintingRefRows] = await Promise.all([
+      dbh.db.select({ fileEntryId: chatMessageFileRefTable.fileEntryId }).from(chatMessageFileRefTable),
+      dbh.db.select({ fileEntryId: paintingFileRefTable.fileEntryId }).from(paintingFileRefTable)
+    ])
+    expect(chatRefRows).toHaveLength(0)
+    expect(paintingRefRows).toHaveLength(0)
 
     const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
     expect(fkCheck.rows).toHaveLength(0)
   })
 
-  it('migrates more than 999 legacy file items without creating file_refs', async () => {
+  it('migrates more than 999 legacy file items without creating FileManager refs', async () => {
     const FILE_COUNT = 1200
     const dexieFiles: FileMetadata[] = Array.from({ length: FILE_COUNT }, (_, i) =>
       dexieFileRow({ id: fileEntryIdAt(i + 1000) })
@@ -389,8 +394,12 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
       relativePath: `${fileEntryIdAt(1000)}.pdf`
     })
 
-    const refRows = await dbh.db.select({ fileEntryId: fileRefTable.fileEntryId }).from(fileRefTable)
-    expect(refRows).toHaveLength(0)
+    const [chatRefRows, paintingRefRows] = await Promise.all([
+      dbh.db.select({ fileEntryId: chatMessageFileRefTable.fileEntryId }).from(chatMessageFileRefTable),
+      dbh.db.select({ fileEntryId: paintingFileRefTable.fileEntryId }).from(paintingFileRefTable)
+    ])
+    expect(chatRefRows).toHaveLength(0)
+    expect(paintingRefRows).toHaveLength(0)
 
     const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
     expect(fkCheck.rows).toHaveLength(0)

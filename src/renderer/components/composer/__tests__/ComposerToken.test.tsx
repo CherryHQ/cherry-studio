@@ -173,6 +173,10 @@ vi.mock('@cherrystudio/ui', async () => {
   }
 })
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key })
+}))
+
 const promptVariableToken: PromptVariableComposerInputToken = {
   id: 'prompt-variable:0:city',
   kind: 'promptVariable',
@@ -230,13 +234,23 @@ function getRenderedFileToken(container: HTMLElement) {
 }
 
 function getFileTokenTrigger(container: HTMLElement) {
-  const trigger = getRenderedFileToken(container).closest('[data-popover-trigger="true"]')
+  return getTokenTrigger(container, 'file')
+}
+
+function getTokenTrigger(container: HTMLElement, kind: string) {
+  const token = container.querySelector(`[data-composer-token-kind="${kind}"]`)
+  expect(token).toBeInTheDocument()
+  const trigger = token?.closest('[data-popover-trigger="true"]')
   expect(trigger).toBeInTheDocument()
   return trigger as HTMLElement
 }
 
 function openFileTokenPopover(container: HTMLElement) {
-  const trigger = getFileTokenTrigger(container)
+  return openTokenPopover(container, 'file')
+}
+
+function openTokenPopover(container: HTMLElement, kind: string) {
+  const trigger = getTokenTrigger(container, kind)
   fireEvent.focus(trigger)
   fireEvent.keyDown(trigger, { key: 'Enter' })
   expect(screen.getByTestId('composer-token-popover')).toHaveAttribute('data-open', 'true')
@@ -248,6 +262,17 @@ function expectFileTokenVariant(container: HTMLElement, variant: string, iconCla
   expect(token).toHaveAttribute('data-file-token-variant', variant)
   expect(token.querySelector(`[data-file-token-icon="${variant}"]`)).toHaveClass('border-0', ...iconClassNames)
   return token
+}
+
+function expectTokenPopoverUsesPreviewCardShell(content: HTMLElement) {
+  const card = content.firstElementChild as HTMLElement
+  expect(card).toHaveClass('w-72', 'overflow-hidden', 'text-left')
+
+  const header = card.firstElementChild as HTMLElement
+  expect(header).toHaveClass('h-20', 'items-center', 'border-border-subtle', 'border-b', 'bg-muted')
+
+  const icon = header.firstElementChild as HTMLElement
+  expect(icon).toHaveClass('size-12', 'items-center', 'justify-center', 'rounded-xl')
 }
 
 describe('ComposerToken', () => {
@@ -741,6 +766,69 @@ describe('ComposerToken', () => {
     expect(token?.querySelector('svg')?.parentElement).toHaveClass('translate-y-[0.08em]')
   })
 
+  it('shows a skill token popover with a remove action and no description', () => {
+    const onRemove = vi.fn()
+    const { container } = render(
+      <ComposerToken
+        token={{
+          id: 'skill:pdf',
+          kind: 'skill',
+          label: 'PDF Reader',
+          description: 'Read and summarize PDF files.',
+          promptText: 'Use the PDF Reader skill.'
+        }}
+        onRemove={onRemove}
+        removeLabel="删除"
+      />
+    )
+
+    expect(container.querySelector('[data-composer-token-kind="skill"]')).toHaveClass('group-data-[state=open]:ring-1')
+
+    openTokenPopover(container, 'skill')
+
+    const content = screen.getByTestId('composer-token-popover-content')
+    expectTokenPopoverUsesPreviewCardShell(content)
+    expect(content).toHaveTextContent('PDF Reader')
+    expect(content).not.toHaveTextContent('Read and summarize PDF files.')
+    expect(content).not.toHaveTextContent('Use the PDF Reader skill.')
+
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    expect(onRemove).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows a knowledge token popover with a remove action and no description', () => {
+    const onRemove = vi.fn()
+    const { container } = render(
+      <ComposerToken
+        token={{
+          id: 'knowledge:base-1',
+          kind: 'knowledge',
+          label: 'Product Docs',
+          payload: {
+            description: 'Release notes and product specifications.'
+          }
+        }}
+        onRemove={onRemove}
+        removeLabel="删除"
+      />
+    )
+
+    expect(container.querySelector('[data-composer-token-kind="knowledge"]')).toHaveClass(
+      'group-data-[state=open]:ring-1'
+    )
+
+    openTokenPopover(container, 'knowledge')
+
+    const content = screen.getByTestId('composer-token-popover-content')
+    expectTokenPopoverUsesPreviewCardShell(content)
+    expect(content).toHaveTextContent('Product Docs')
+    expect(content).toHaveTextContent('chat.input.knowledge_base')
+    expect(content).not.toHaveTextContent('Release notes and product specifications.')
+
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    expect(onRemove).toHaveBeenCalledTimes(1)
+  })
+
   it('renders prompt variable tokens with text color and selected underline', () => {
     const { rerender } = render(<ComposerToken token={promptVariableToken} />)
 
@@ -995,6 +1083,28 @@ describe('ComposerToken', () => {
     fireEvent.click(removeButton as HTMLButtonElement)
 
     await waitFor(() => expect(serializeComposerDocument(editor!).text).toBe(''))
+  })
+
+  it('removes a knowledge token from the default node view action', async () => {
+    const knowledgeToken: ComposerDraftToken = {
+      id: 'knowledge:base-1',
+      kind: 'knowledge',
+      label: 'Product Docs'
+    }
+    let editor: Editor | null = null
+    const { container } = render(<ComposerEditorHarness text="" onEditor={(nextEditor) => (editor = nextEditor)} />)
+
+    await waitFor(() => expect(editor).not.toBeNull())
+
+    act(() => {
+      editor!.chain().focus().insertComposerToken(knowledgeToken).run()
+    })
+
+    await waitFor(() => expect(container.querySelector('[data-popover-trigger="true"]')).toBeInTheDocument())
+    openTokenPopover(container, 'knowledge')
+    fireEvent.click(screen.getByRole('button', { name: 'appMenu.delete' }))
+
+    await waitFor(() => expect(serializeComposerDocument(editor!).tokens).toEqual([]))
   })
 
   it('does not expose a trailing quote newline after Backspace removes the inserted separator', async () => {

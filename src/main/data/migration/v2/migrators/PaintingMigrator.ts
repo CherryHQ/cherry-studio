@@ -1,8 +1,8 @@
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { paintingTable } from '@data/db/schemas/painting'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
-import { paintingSourceType } from '@shared/data/types/file/ref'
 import { inArray, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -20,6 +20,7 @@ import {
 const logger = loggerService.withContext('PaintingMigrator')
 
 const INSERT_BATCH_SIZE = 100
+const INARRAY_CHUNK = 500
 
 export class PaintingMigrator extends BaseMigrator {
   readonly id = 'painting'
@@ -33,7 +34,7 @@ export class PaintingMigrator extends BaseMigrator {
   /**
    * `painting.id` → output/input file ids extracted from the legacy record.
    * Resolved against `file_entry` at execute() time so we never insert a
-   * `file_ref` row with a dangling FK (legacy rows can reference file ids
+   * `painting_file_ref` row with a dangling FK (legacy rows can reference file ids
    * that the FileMigrator skipped as malformed).
    */
   private preparedFileRefs = new Map<string, LegacyPaintingFileRefs>()
@@ -154,11 +155,11 @@ export class PaintingMigrator extends BaseMigrator {
           )
         }
 
-        // ─── file_ref rows ───
+        // ─── painting_file_ref rows ───
         // Legacy painting rows carry output/input `file_entry.id`s in JSON.
-        // The v2 schema dropped that column; emit `file_ref` rows so the
-        // painting still points at its files via the new (sourceType,
-        // sourceId, role) trio. File ids that the FileMigrator skipped
+        // The v2 schema dropped that column; emit `painting_file_ref` rows so
+        // the painting still points at its files via the new (sourceId, role)
+        // pair. File ids that the FileMigrator skipped
         // (malformed v1 rows) are filtered out here to avoid FK violations
         // — they would be silently dropped by `inArray`, but we count them
         // explicitly so the validate() step has a stat to report.
@@ -169,14 +170,18 @@ export class PaintingMigrator extends BaseMigrator {
         }
         if (allFileIds.size > 0) {
           const idList = Array.from(allFileIds)
-          const existing = await tx
-            .select({ id: fileEntryTable.id })
-            .from(fileEntryTable)
-            .where(inArray(fileEntryTable.id, idList))
-          const existingIds = new Set(existing.map((r) => r.id))
+          const existingIds = new Set<string>()
+          for (let i = 0; i < idList.length; i += INARRAY_CHUNK) {
+            const chunk = idList.slice(i, i + INARRAY_CHUNK)
+            const existing = await tx
+              .select({ id: fileEntryTable.id })
+              .from(fileEntryTable)
+              .where(inArray(fileEntryTable.id, chunk))
+            for (const row of existing) existingIds.add(row.id)
+          }
 
           const now = Date.now()
-          const refRows: Array<typeof fileRefTable.$inferInsert> = []
+          const refRows: Array<typeof paintingFileRefTable.$inferInsert> = []
           for (const [paintingId, files] of this.preparedFileRefs) {
             for (const fileId of files.output) {
               if (!existingIds.has(fileId)) {
@@ -186,7 +191,6 @@ export class PaintingMigrator extends BaseMigrator {
               refRows.push({
                 id: uuidv4(),
                 fileEntryId: fileId,
-                sourceType: paintingSourceType,
                 sourceId: paintingId,
                 role: 'output',
                 createdAt: now,
@@ -201,7 +205,6 @@ export class PaintingMigrator extends BaseMigrator {
               refRows.push({
                 id: uuidv4(),
                 fileEntryId: fileId,
-                sourceType: paintingSourceType,
                 sourceId: paintingId,
                 role: 'input',
                 createdAt: now,
@@ -212,10 +215,10 @@ export class PaintingMigrator extends BaseMigrator {
 
           for (let i = 0; i < refRows.length; i += INSERT_BATCH_SIZE) {
             const batch = refRows.slice(i, i + INSERT_BATCH_SIZE)
-            await tx.insert(fileRefTable).values(batch).onConflictDoNothing()
+            await tx.insert(paintingFileRefTable).values(batch).onConflictDoNothing()
           }
 
-          logger.info('[execute] painting file_ref summary', {
+          logger.info('[execute] painting_file_ref summary', {
             referenced: refRows.length,
             droppedDangling: this.droppedFileRefs
           })

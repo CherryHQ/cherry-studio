@@ -15,8 +15,9 @@
  * from the same module so they can never drift.
  *
  * The tree is a **runtime / render-layer** concern — not coupled to
- * `file_entry` / `file_ref`. Notes joins its sparse-state `noteTable`
- * renderer-side after the tree mirror has been built — see directory-tree.md §9.
+ * `file_entry` or FileManager ref association tables. Notes joins its
+ * sparse-state `noteTable` renderer-side after the tree mirror has been built —
+ * see directory-tree.md §9.
  */
 
 import type { FilePath } from '@shared/types/file'

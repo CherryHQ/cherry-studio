@@ -3,8 +3,9 @@
  *
  * Tracks transient FileEntry records (typically paste previews, draft attachments)
  * that are in use by a session and should be retained until the session completes.
- * Entries with no file_ref are eligible for cleanup per business policy.
- * Temp refs must be explicitly created and removed by the session owner.
+ * Temp refs are backed by main-process CacheService memory, not SQLite, so they
+ * disappear on app restart. Temp refs must be explicitly created and removed by
+ * the session owner.
  */
 
 import * as z from 'zod'
