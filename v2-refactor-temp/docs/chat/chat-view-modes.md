@@ -41,7 +41,7 @@ though the display-mode controls are currently hidden in the UI.
   for Home and Agent. Home uses it directly on the page-level Shell; Agent owns
   the same cached state in `AgentPage` and threads it through each `AgentChat`
   Shell mount so it survives draft → persistent remounts and page re-entry.
-- Toggling a surface old → new → old restores the last cached traditional-view
+- Toggling a surface efficiency → traditional → efficiency restores the last cached traditional-view
   right-panel open state.
 
 ## Left entity rail

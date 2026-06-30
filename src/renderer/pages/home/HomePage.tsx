@@ -108,7 +108,7 @@ const HomePage: FC = () => {
   const [draftAssistantSelection, setDraftAssistantSelection] = useState<DraftAssistantSelection | undefined>()
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
   const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
-  const [traditionalViewTopicRightPaneOpen, setTraditionalViewTopicRightPaneOpenCache] =
+  const [traditionalViewRightPaneOpen, setTraditionalViewRightPaneOpenCache] =
     usePersistCache(CHAT_RIGHT_PANE_OPEN_CACHE_KEY)
   const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
@@ -116,6 +116,15 @@ const HomePage: FC = () => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [topicView] = usePreference('chat.topic_view')
   const isTraditionalTopicView = topicView === 'traditional'
+  // Traditional-view right-pane open state is shared via the `ui.chat.right_pane_open` cache; derive the
+  // topic-scoped open flag + gated setter here (efficiency view leaves the setter a no-op).
+  const topicPaneOpen = isTraditionalTopicView && traditionalViewRightPaneOpen
+  const setTopicPaneOpen = useCallback(
+    (open: boolean) => {
+      if (isTraditionalTopicView) setTraditionalViewRightPaneOpenCache(open)
+    },
+    [isTraditionalTopicView, setTraditionalViewRightPaneOpenCache]
+  )
   // Traditional view shares this full-topics source with the rail; efficiency view leaves it disabled (no fetch).
   // The picker uses it to reuse an empty placeholder topic instead of stacking new ones.
   const {
@@ -693,8 +702,8 @@ const HomePage: FC = () => {
   const renderWithRightPane = (content: ReactNode) => (
     <TopicRightPane
       resourcePane={resourcePane}
-      defaultOpen={isTraditionalTopicView ? traditionalViewTopicRightPaneOpen : false}
-      onOpenChange={isTraditionalTopicView ? setTraditionalViewTopicRightPaneOpenCache : undefined}
+      defaultOpen={topicPaneOpen}
+      onOpenChange={isTraditionalTopicView ? setTopicPaneOpen : undefined}
       revealRequest={topicRevealRequest}>
       {content}
     </TopicRightPane>

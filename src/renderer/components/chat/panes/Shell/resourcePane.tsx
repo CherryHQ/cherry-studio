@@ -15,7 +15,7 @@ export const RESOURCE_PANE_TAB = 'resources'
 export type ResourcePaneConfig = {
   /** The resource list to mount inside the right pane. */
   node: ReactNode
-  /** Tab label + toggle tooltip source — pages supply the product word ("topic" / "work"). */
+  /** Tab label + toggle tooltip source — pages supply the product word ("topic" / "session"). */
   label: string
 }
 

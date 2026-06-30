@@ -414,8 +414,8 @@ describe('AgentChat locate pending message', () => {
       paneOpen: true,
       panePosition: 'left' as const,
       resourcePane,
-      workPaneOpen: false,
-      onWorkPaneOpenChange: vi.fn()
+      sessionPaneOpen: false,
+      onSessionPaneOpenChange: vi.fn()
     }
 
     const { rerender } = render(<AgentChat {...baseProps} />)

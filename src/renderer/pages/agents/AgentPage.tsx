@@ -106,16 +106,16 @@ const AgentPage = () => {
   const draftSessionRef = useRef<DraftAgentSession | null>(null)
   const [draftSession, setDraftSession] = useState<DraftAgentSession | null>(null)
   const [historyRecordsOpen, setHistoryRecordsOpen] = useState(false)
-  const [traditionalViewAgentRightPaneOpen, setTraditionalViewAgentRightPaneOpenCache] =
+  const [traditionalViewRightPaneOpen, setTraditionalViewRightPaneOpenCache] =
     usePersistCache(CHAT_RIGHT_PANE_OPEN_CACHE_KEY)
-  // Traditional-view (rail) work-pane open state is cached here so it survives AgentChat draft→persistent
+  // Traditional-view (rail) session-pane open state is cached here so it survives AgentChat draft→persistent
   // remounts (each branch mounts its own Shell) and app/page re-entry.
-  const workPaneOpen = isTraditionalSessionView && traditionalViewAgentRightPaneOpen
-  const setWorkPaneOpen = useCallback(
+  const sessionPaneOpen = isTraditionalSessionView && traditionalViewRightPaneOpen
+  const setSessionPaneOpen = useCallback(
     (open: boolean) => {
-      if (isTraditionalSessionView) setTraditionalViewAgentRightPaneOpenCache(open)
+      if (isTraditionalSessionView) setTraditionalViewRightPaneOpenCache(open)
     },
-    [isTraditionalSessionView, setTraditionalViewAgentRightPaneOpenCache]
+    [isTraditionalSessionView, setTraditionalViewRightPaneOpenCache]
   )
 
   useEffect(() => {
@@ -509,9 +509,9 @@ const AgentPage = () => {
       if (sessionId && conversationNav.focusExistingTab(sessionId, { excludeTabId: currentTabId ?? undefined })) return
       pendingSelectedSessionRef.current = null
       setResourceListOpen(true)
-      // Locate (history / global search) should reveal the target in the right work pane. In efficiency view
+      // Locate (history / global search) should reveal the target in the right session pane. In efficiency view
       // this setter is a no-op; traditional view persists it for the next AgentChat remount.
-      setWorkPaneOpen(true)
+      setSessionPaneOpen(true)
       setDraftSessionState(null)
       setMissingAgentDraft(false)
       setPendingLocateMessageId(messageId)
@@ -535,7 +535,7 @@ const AgentPage = () => {
       currentTabId,
       setDraftSessionState,
       setResourceListOpen,
-      setWorkPaneOpen,
+      setSessionPaneOpen,
       startDefaultDraftSession
     ]
   )
@@ -965,8 +965,8 @@ const AgentPage = () => {
           resourcePane={resourcePane}
           resourcePaneCount={sessionResourcePaneCount}
           resourcePaneRevealRequest={sessionRevealRequest}
-          workPaneOpen={isTraditionalSessionView ? workPaneOpen : undefined}
-          onWorkPaneOpenChange={isTraditionalSessionView ? setWorkPaneOpen : undefined}
+          sessionPaneOpen={isTraditionalSessionView ? sessionPaneOpen : undefined}
+          onSessionPaneOpenChange={isTraditionalSessionView ? setSessionPaneOpen : undefined}
         />
       </div>
       <HistoryRecordsPage

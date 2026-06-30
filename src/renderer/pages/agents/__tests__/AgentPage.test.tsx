@@ -290,8 +290,8 @@ vi.mock('../AgentChat', () => ({
     resourcePaneCount,
     resourcePane,
     showResourceListControls,
-    workPaneOpen,
-    onWorkPaneOpenChange,
+    sessionPaneOpen,
+    onSessionPaneOpenChange,
     onPaneCollapse
   }: {
     activeSession?: { id: string } | null
@@ -321,8 +321,8 @@ vi.mock('../AgentChat', () => ({
     resourcePaneCount?: { label: string; count: number }
     resourcePane?: { node?: ReactNode; label?: string } | null
     showResourceListControls?: boolean
-    workPaneOpen?: boolean
-    onWorkPaneOpenChange?: (open: boolean) => void
+    sessionPaneOpen?: boolean
+    onSessionPaneOpenChange?: (open: boolean) => void
     onPaneCollapse?: () => void
   }) => (
     <section>
@@ -335,7 +335,7 @@ vi.mock('../AgentChat', () => ({
       <output data-testid="missing-agent-draft">{String(Boolean(missingAgentDraft))}</output>
       <output data-testid="locate-message-id">{locateMessageId ?? ''}</output>
       <output data-testid="pane-open">{String(paneOpen)}</output>
-      <output data-testid="work-pane-open">{String(workPaneOpen)}</output>
+      <output data-testid="session-pane-open">{String(sessionPaneOpen)}</output>
       <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
       {resourcePaneCount && (
         <output data-testid="resource-pane-count">
@@ -383,9 +383,9 @@ vi.mock('../AgentChat', () => ({
         }>
         Persist long draft session
       </button>
-      {onWorkPaneOpenChange && (
-        <button type="button" onClick={() => onWorkPaneOpenChange(false)}>
-          Close work pane
+      {onSessionPaneOpenChange && (
+        <button type="button" onClick={() => onSessionPaneOpenChange(false)}>
+          Close session pane
         </button>
       )}
       {onPaneCollapse && (
@@ -555,7 +555,7 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('agent-resource-list')).toHaveAttribute('data-active-agent-id', 'agent-a')
     expect(screen.getByTestId('session-resource-panel')).toHaveAttribute('data-agent-id', 'agent-a')
     expect(screen.getByTestId('session-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
-    expect(screen.getByTestId('work-pane-open')).toHaveTextContent('true')
+    expect(screen.getByTestId('session-pane-open')).toHaveTextContent('true')
     expect(screen.queryByTestId('agent-side-panel')).not.toBeInTheDocument()
   })
 
@@ -567,9 +567,9 @@ describe('AgentPage', () => {
 
     render(<AgentPage />)
 
-    expect(screen.getByTestId('work-pane-open')).toHaveTextContent('false')
+    expect(screen.getByTestId('session-pane-open')).toHaveTextContent('false')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Close work pane' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close session pane' }))
 
     expect(agentPageMocks.setTraditionalViewRightPaneOpen).toHaveBeenCalledWith(false)
   })
@@ -643,7 +643,7 @@ describe('AgentPage', () => {
     render(<AgentPage />)
     fireEvent.click(screen.getByRole('button', { name: 'Delete active agent' }))
 
-    // Old layout settles on the latest session of a remaining agent, never the draft compose.
+    // Traditional view settles on the latest session of a remaining agent, never the draft compose.
     await waitFor(() => expect(screen.getByTestId('active-session')).toHaveTextContent('session-b-new'))
     expect(screen.getByTestId('missing-agent-draft')).toHaveTextContent('false')
     expect(screen.getByTestId('draft-session')).toHaveTextContent('')
@@ -1067,14 +1067,14 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
   })
 
-  it('opens the work pane when a global-search locate targets a session in the current tab', () => {
+  it('opens the session pane when a global-search locate targets a session in the current tab', () => {
     agentPageMocks.sessionView = 'traditional'
     agentPageMocks.traditionalViewRightPaneOpen = false
     agentPageMocks.focusExistingTab.mockReturnValue(false)
 
     render(<AgentPage />)
 
-    expect(screen.getByTestId('work-pane-open')).toHaveTextContent('false')
+    expect(screen.getByTestId('session-pane-open')).toHaveTextContent('false')
 
     const sessionMessageHandler = vi
       .mocked(EventEmitter.on)
@@ -1086,7 +1086,7 @@ describe('AgentPage', () => {
       sessionMessageHandler?.({ sessionId: 'session-locate', messageId: 'message-locate' })
     })
 
-    expect(screen.getByTestId('work-pane-open')).toHaveTextContent('true')
+    expect(screen.getByTestId('session-pane-open')).toHaveTextContent('true')
   })
 
   it('forwards a reveal request when navigation asks the current agent tab to reveal its selection', async () => {

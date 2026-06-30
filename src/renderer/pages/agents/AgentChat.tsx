@@ -95,8 +95,8 @@ interface AgentChatProps {
   resourcePane?: ResourcePaneConfig | null
   resourcePaneCount?: ResourcePaneCountButtonProps
   resourcePaneRevealRequest?: ResourceListRevealRequest
-  workPaneOpen?: boolean
-  onWorkPaneOpenChange?: (open: boolean) => void
+  sessionPaneOpen?: boolean
+  onSessionPaneOpenChange?: (open: boolean) => void
 }
 
 const AgentChat = ({
@@ -131,8 +131,8 @@ const AgentChat = ({
   resourcePane,
   resourcePaneCount,
   resourcePaneRevealRequest,
-  workPaneOpen,
-  onWorkPaneOpenChange
+  sessionPaneOpen,
+  onSessionPaneOpenChange
 }: AgentChatProps) => {
   const { t } = useTranslation()
   const [messageStyle] = usePreference('chat.message.style')
@@ -244,8 +244,8 @@ const AgentChat = ({
         workspacePath={draftAgentConversation?.workspace?.path}
         messages={EMPTY_MESSAGES}
         partsByMessageId={EMPTY_PARTS}
-        defaultOpen={workPaneOpen}
-        onOpenChange={onWorkPaneOpenChange}
+        defaultOpen={sessionPaneOpen}
+        onOpenChange={onSessionPaneOpenChange}
         resourcePane={resourcePane}
         revealRequest={resourcePaneRevealRequest}>
         <ConversationShell
@@ -371,8 +371,8 @@ const AgentChat = ({
           agentId={draftAgentConversation.agentId}
           agentName={activeAgent?.name}
           agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
-          defaultOpen={workPaneOpen}
-          onOpenChange={onWorkPaneOpenChange}
+          defaultOpen={sessionPaneOpen}
+          onOpenChange={onSessionPaneOpenChange}
           resourcePane={resourcePane}
           revealRequest={resourcePaneRevealRequest}>
           {shell}
@@ -420,8 +420,8 @@ const AgentChat = ({
           statusEnabled={false}
           messages={EMPTY_MESSAGES}
           partsByMessageId={EMPTY_PARTS}
-          defaultOpen={workPaneOpen}
-          onOpenChange={onWorkPaneOpenChange}
+          defaultOpen={sessionPaneOpen}
+          onOpenChange={onSessionPaneOpenChange}
           resourcePane={resourcePane}
           revealRequest={resourcePaneRevealRequest}>
           {shell}
@@ -487,8 +487,8 @@ const AgentChat = ({
       resourcePane={resourcePane}
       resourcePaneCount={resourcePaneCount}
       resourcePaneRevealRequest={resourcePaneRevealRequest}
-      workPaneOpen={workPaneOpen}
-      onWorkPaneOpenChange={onWorkPaneOpenChange}
+      sessionPaneOpen={sessionPaneOpen}
+      onSessionPaneOpenChange={onSessionPaneOpenChange}
       showWorkspaceSelector={Boolean(onSessionWorkspaceChange)}
       onWorkspaceChange={onSessionWorkspaceChange}
       workspaceChanging={replacingSessionWorkspace}
@@ -546,8 +546,8 @@ interface AgentChatSessionFrameProps {
   resourcePane?: ResourcePaneConfig | null
   resourcePaneCount?: ResourcePaneCountButtonProps
   resourcePaneRevealRequest?: ResourceListRevealRequest
-  workPaneOpen?: boolean
-  onWorkPaneOpenChange?: (open: boolean) => void
+  sessionPaneOpen?: boolean
+  onSessionPaneOpenChange?: (open: boolean) => void
 }
 
 const AgentChatSessionFrame = ({
@@ -581,8 +581,8 @@ const AgentChatSessionFrame = ({
   resourcePane,
   resourcePaneCount,
   resourcePaneRevealRequest,
-  workPaneOpen,
-  onWorkPaneOpenChange
+  sessionPaneOpen,
+  onSessionPaneOpenChange
 }: AgentChatSessionFrameProps) => {
   const runtime = useAgentChatRuntimeState({
     session,
@@ -688,8 +688,8 @@ const AgentChatSessionFrame = ({
       agentName={activeAgent?.name}
       agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
       modelFallback={runtime.fallbackSnapshot}
-      defaultOpen={workPaneOpen}
-      onOpenChange={onWorkPaneOpenChange}
+      defaultOpen={sessionPaneOpen}
+      onOpenChange={onSessionPaneOpenChange}
       resourcePane={resourcePane}
       revealRequest={resourcePaneRevealRequest}>
       <ConversationShell

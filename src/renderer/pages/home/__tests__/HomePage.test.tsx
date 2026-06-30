@@ -651,7 +651,7 @@ describe('HomePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete active assistant' }))
 
-    // Old layout settles on the latest topic of a remaining assistant, never the draft compose.
+    // Traditional view settles on the latest topic of a remaining assistant, never the draft compose.
     await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-b-new'))
     expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-b')
     expect(screen.queryByTestId('draft-composer')).not.toBeInTheDocument()

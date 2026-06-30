@@ -42,8 +42,8 @@ type AgentResourceListProps = {
   onStartMissingAgentDraft?: () => void | Promise<void>
   /**
    * Called after the currently-active agent is deleted so the traditional-view page can
-   * settle (select the latest remaining session / clear). This is the old
-   * layout's reset — unlike the new layout it must NOT open the draft compose.
+   * settle (select the latest remaining session / clear). This is the traditional
+   * view's reset — unlike the efficiency view it must NOT open the draft compose.
    */
   onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
 }

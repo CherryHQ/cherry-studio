@@ -1278,7 +1278,7 @@ describe('Topics', () => {
     expect(topicRow.querySelector('[aria-label="Pin Conversation"]')).toBeInTheDocument()
   })
 
-  it('positions inactive topic stream indicators at the far right in the old layout and hides them on hover', () => {
+  it('positions inactive topic stream indicators at the far right in the traditional view and hides them on hover', () => {
     setTopicStreamCacheStatus('topic-c', 'pending')
     renderTopicList({
       activeTopic: createRendererTopic({ id: 'topic-a', assistantId: 'assistant-1', name: 'Alpha topic' }),
