@@ -27,6 +27,14 @@ type Props = {
 
 const AUTO_EMOJI = '🌐'
 const UNKNOWN_EMOJI = '🏳️'
+const LANGUAGE_SELECT_MIN_WIDTH = 150
+const LANGUAGE_SELECT_MAX_WIDTH = 260
+const LANGUAGE_SELECT_EXTRA_CH = 6
+
+const getLanguageSelectWidth = (options: ComboboxOption[]) => {
+  const maxLabelLength = Math.max(0, ...options.map((option) => Array.from(option.label).length))
+  return `clamp(${LANGUAGE_SELECT_MIN_WIDTH}px, ${maxLabelLength + LANGUAGE_SELECT_EXTRA_CH}ch, ${LANGUAGE_SELECT_MAX_WIDTH}px)`
+}
 
 const TranslateLanguageBar: FC<Props> = ({
   className,
@@ -125,6 +133,8 @@ const TranslateLanguageBar: FC<Props> = ({
       })),
     [getLabel, languageIcon, selectableLanguages]
   )
+  const sourceSelectWidth = useMemo(() => getLanguageSelectWidth(sourceOptions), [sourceOptions])
+  const targetSelectWidth = useMemo(() => getLanguageSelectWidth(targetOptions), [targetOptions])
 
   return (
     <div className={cn('flex shrink-0 items-center gap-3 px-4 py-4 lg:px-6', className)}>
@@ -138,8 +148,8 @@ const TranslateLanguageBar: FC<Props> = ({
             placeholder={t('translate.source_language')}
             searchable={false}
             emptyText={t('common.no_results')}
-            width={150}
-            popoverClassName="w-[220px]"
+            width={sourceSelectWidth}
+            popoverClassName="w-(--radix-popover-trigger-width)"
             renderValue={(value, options) => {
               const option = options.find((item) => item.value === value)
               return (
@@ -194,8 +204,8 @@ const TranslateLanguageBar: FC<Props> = ({
           placeholder={t('translate.target_language')}
           searchable={false}
           emptyText={t('common.no_results')}
-          width={150}
-          popoverClassName="w-[220px]"
+          width={targetSelectWidth}
+          popoverClassName="w-(--radix-popover-trigger-width)"
           renderValue={(value, options) => {
             const option = options.find((item) => item.value === value)
             return (

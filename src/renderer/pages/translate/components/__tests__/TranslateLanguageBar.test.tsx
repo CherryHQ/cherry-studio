@@ -90,6 +90,7 @@ const createLanguage = (langCode: string, value: string, emoji: string): Transla
 const english = createLanguage('en-us', 'English', '🇬🇧')
 const chinese = createLanguage('zh-cn', 'Chinese', '🇨🇳')
 const japanese = createLanguage('ja-jp', 'Japanese', '🇯🇵')
+const longNamedLanguage = createLanguage('es-es', 'Extraordinarily Long Language Name', '🇪🇸')
 
 type BarProps = React.ComponentProps<typeof TranslateLanguageBar>
 
@@ -116,6 +117,27 @@ describe('TranslateLanguageBar', () => {
         if (!language) return 'Unknown'
         return withEmoji ? `${language.emoji} ${language.value}` : language.value
       }
+    })
+  })
+
+  it('sizes language selectors from the longest option label', () => {
+    mockUseLanguages.mockReturnValue({
+      languages: [english, chinese, japanese, longNamedLanguage],
+      getLanguage: (code: string) => [english, chinese, japanese, longNamedLanguage].find((l) => l.langCode === code),
+      getLabel: (language: TranslateLanguage | TranslateLangCode | null, withEmoji = true) => {
+        if (typeof language === 'string') return language === 'unknown' ? 'Unknown' : language
+        if (!language) return 'Unknown'
+        return withEmoji ? `${language.emoji} ${language.value}` : language.value
+      }
+    })
+
+    render(<TranslateLanguageBar {...baseProps()} />)
+
+    expect(screen.getByRole('button', { name: sourceLanguageButtonName })).toHaveStyle({
+      width: 'clamp(150px, 40ch, 260px)'
+    })
+    expect(screen.getByRole('button', { name: targetLanguageButtonName })).toHaveStyle({
+      width: 'clamp(150px, 40ch, 260px)'
     })
   })
 
