@@ -8,7 +8,14 @@ import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { v4 as uuidv4 } from 'uuid'
 
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingsContentColumn, SettingTitle } from '../..'
+import {
+  SettingCard,
+  SettingGroup,
+  SettingRow,
+  SettingRowTitle,
+  SettingsContentColumn,
+  SettingsPageHeader
+} from '../..'
 
 const API_SERVER_DEFAULTS = {
   HOST: '127.0.0.1',
@@ -89,133 +96,150 @@ const ApiGatewaySettings: FC = () => {
   return (
     <Container theme={theme}>
       <SettingGroup theme={theme}>
-        <HeaderRow>
-          <div className="min-w-0">
-            <SettingTitle className="justify-start gap-2">
-              <Server size={16} />
-              {t('apiGateway.title')}
-            </SettingTitle>
-            <PageDescription>{t('apiGateway.description')}</PageDescription>
-          </div>
-          {apiGatewayRunning && (
-            <Button variant="outline" onClick={openApiDocs}>
-              <ExternalLink size={14} />
-              {t('apiGateway.documentation.title')}
-            </Button>
+        <SettingsPageHeader
+          icon={<Server />}
+          title={t('apiGateway.title')}
+          description={t('apiGateway.description')}
+          action={
+            apiGatewayRunning && (
+              <Button
+                variant="outline"
+                className="rounded-lg [&_svg]:[stroke-width:var(--icon-stroke)]"
+                onClick={openApiDocs}>
+                <ExternalLink size={14} />
+                {t('apiGateway.documentation.title')}
+              </Button>
+            )
+          }
+        />
+
+        <div className="mt-3 space-y-3">
+          {!apiGatewayRunning && (
+            <WarningBanner>
+              <TriangleAlert className="size-4 shrink-0 text-warning" />
+              <span>{t('agent.warning.enable_server')}</span>
+            </WarningBanner>
           )}
-        </HeaderRow>
-
-        <SettingDivider />
-        {!apiGatewayRunning && (
-          <WarningBanner>
-            <TriangleAlert className="size-4 shrink-0 text-warning" />
-            <span>{t('agent.warning.enable_server')}</span>
-          </WarningBanner>
-        )}
-        <StatusCard $running={apiGatewayRunning}>
-          <StatusSection>
-            <IndicatorLight
-              color={apiGatewayRunning ? 'green' : '#ef4444'}
-              size={10}
-              animation={apiGatewayRunning}
-              shadow={apiGatewayRunning}
-            />
-            <StatusContent>
-              <StatusText $running={apiGatewayRunning}>
-                {apiGatewayRunning ? t('apiGateway.status.running') : t('apiGateway.status.stopped')}
-              </StatusText>
-              <StatusSubtext>{apiGatewayRunning ? serverUrl : t('apiGateway.fields.port.description')}</StatusSubtext>
-            </StatusContent>
-          </StatusSection>
-
-          <ButtonGroup attached={false}>
-            {apiGatewayRunning && (
-              <Tooltip title={t('apiGateway.actions.restart.tooltip')}>
-                <Button variant="outline" loading={apiGatewayLoading} onClick={handleApiGatewayRestart}>
-                  <RotateCcw size={14} />
-                  {t('apiGateway.actions.restart.button')}
-                </Button>
-              </Tooltip>
-            )}
-            {apiGatewayRunning ? (
-              <Button variant="outline" loading={apiGatewayLoading} onClick={() => handleApiGatewayToggle(false)}>
-                <Square size={14} />
-                {t('apiGateway.actions.stop')}
-              </Button>
-            ) : (
-              <Button loading={apiGatewayLoading} onClick={() => handleApiGatewayToggle(true)}>
-                <Play size={14} />
-                {t('apiGateway.actions.start')}
-              </Button>
-            )}
-          </ButtonGroup>
-        </StatusCard>
-        {!apiGatewayRunning && (
-          <>
-            <SettingDivider />
-            <SettingRow className="items-start gap-6">
-              <FieldText>
-                <SettingRowTitle>{t('apiGateway.fields.port.label')}</SettingRowTitle>
-                <FieldDescription>{t('apiGateway.fields.port.description')}</FieldDescription>
-              </FieldText>
-              <Input
-                className="w-24 text-center"
-                type="number"
-                min={1000}
-                max={65535}
-                value={serverPort}
-                onChange={(event) => handlePortChange(event.target.value)}
+          <StatusCard $running={apiGatewayRunning}>
+            <StatusSection>
+              <IndicatorLight
+                color={apiGatewayRunning ? 'var(--color-success-base)' : 'var(--color-error-base)'}
+                size={10}
+                animation={apiGatewayRunning}
+                shadow={apiGatewayRunning}
               />
-            </SettingRow>
-            <SettingDivider />
-            <SettingRow className="items-start gap-6">
-              <FieldText>
-                <SettingRowTitle>{t('apiGateway.fields.url.label')}</SettingRowTitle>
-                <FieldDescription>{t('apiGateway.messages.notEnabled')}</FieldDescription>
-              </FieldText>
-              <Input className="w-105 font-mono text-xs" value={serverUrl} readOnly disabled />
-            </SettingRow>
-          </>
-        )}
-        <SettingDivider />
-        <SettingRow className="items-start gap-6">
-          <FieldText>
-            <SettingRowTitle>{t('apiGateway.fields.apiKey.label')}</SettingRowTitle>
-            <FieldDescription>{t('apiGateway.fields.apiKey.description')}</FieldDescription>
-          </FieldText>
-          <InlineInputGroup>
-            <Input
-              className="font-mono text-xs"
-              value={apiKey}
-              readOnly
-              placeholder={t('apiGateway.fields.apiKey.placeholder')}
-            />
+              <StatusContent>
+                <StatusText $running={apiGatewayRunning}>
+                  {apiGatewayRunning ? t('apiGateway.status.running') : t('apiGateway.status.stopped')}
+                </StatusText>
+                <StatusSubtext>{apiGatewayRunning ? serverUrl : t('apiGateway.fields.port.description')}</StatusSubtext>
+              </StatusContent>
+            </StatusSection>
+
             <ButtonGroup attached={false}>
-              {!apiGatewayRunning && (
-                <Button variant="outline" onClick={regenerateApiKey}>
-                  {t('apiGateway.actions.regenerate')}
+              {apiGatewayRunning && (
+                <Tooltip title={t('apiGateway.actions.restart.tooltip')}>
+                  <Button
+                    variant="outline"
+                    className="rounded-lg [&_svg]:[stroke-width:var(--icon-stroke)]"
+                    loading={apiGatewayLoading}
+                    onClick={handleApiGatewayRestart}>
+                    <RotateCcw size={14} />
+                    {t('apiGateway.actions.restart.button')}
+                  </Button>
+                </Tooltip>
+              )}
+              {apiGatewayRunning ? (
+                <Button
+                  variant="outline"
+                  className="rounded-lg [&_svg]:[stroke-width:var(--icon-stroke)]"
+                  loading={apiGatewayLoading}
+                  onClick={() => handleApiGatewayToggle(false)}>
+                  <Square size={14} />
+                  {t('apiGateway.actions.stop')}
+                </Button>
+              ) : (
+                <Button size="sm" loading={apiGatewayLoading} onClick={() => handleApiGatewayToggle(true)}>
+                  <Play size={14} />
+                  {t('apiGateway.actions.start')}
                 </Button>
               )}
-              <Tooltip title={t('apiGateway.fields.apiKey.copyTooltip')}>
-                <Button size="icon-sm" variant="outline" onClick={copyApiKey} disabled={!apiKey}>
-                  <Copy size={14} />
-                </Button>
-              </Tooltip>
             </ButtonGroup>
-          </InlineInputGroup>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow className="items-start gap-6">
-          <FieldText>
-            <SettingRowTitle>{t('apiGateway.authHeader.title')}</SettingRowTitle>
-            <FieldDescription>{t('apiGateway.authHeaderText')}</FieldDescription>
-          </FieldText>
-          <Input
-            className="w-105 font-mono text-xs"
-            value={`Authorization: Bearer ${apiKey || 'your-api-key'}`}
-            readOnly
-          />
-        </SettingRow>
+          </StatusCard>
+          <SettingCard className="mt-0">
+            {!apiGatewayRunning && (
+              <>
+                <SettingRow>
+                  <SettingRowTitle tip={t('apiGateway.fields.port.description')}>
+                    {t('apiGateway.fields.port.label')}
+                  </SettingRowTitle>
+                  <Input
+                    className="w-24 text-center"
+                    type="number"
+                    min={1000}
+                    max={65535}
+                    value={serverPort}
+                    onChange={(event) => handlePortChange(event.target.value)}
+                  />
+                </SettingRow>
+                <SettingRow>
+                  <SettingRowTitle className="flex-none" tip={t('apiGateway.messages.notEnabled')}>
+                    {t('apiGateway.fields.url.label')}
+                  </SettingRowTitle>
+                  <Input
+                    className="min-w-0 max-w-105 flex-1 font-mono text-xs"
+                    value={serverUrl}
+                    readOnly
+                    disabled
+                  />
+                </SettingRow>
+              </>
+            )}
+            <SettingRow>
+              <SettingRowTitle className="flex-none" tip={t('apiGateway.fields.apiKey.description')}>
+                {t('apiGateway.fields.apiKey.label')}
+              </SettingRowTitle>
+              <InlineInputGroup>
+                <Input
+                  className="min-w-0 flex-1 font-mono text-xs"
+                  value={apiKey}
+                  readOnly
+                  placeholder={t('apiGateway.fields.apiKey.placeholder')}
+                />
+                <ButtonGroup attached={false}>
+                  {!apiGatewayRunning && (
+                    <Button
+                      variant="outline"
+                      className="h-8 rounded-lg hover:bg-(--color-surface-fg-subtle-solid) [&_svg]:[stroke-width:var(--icon-stroke)]"
+                      onClick={regenerateApiKey}>
+                      {t('apiGateway.actions.regenerate')}
+                    </Button>
+                  )}
+                  <Tooltip title={t('apiGateway.fields.apiKey.copyTooltip')}>
+                    <Button
+                      size="icon-sm"
+                      variant="outline"
+                      className="size-8 rounded-lg hover:bg-(--color-surface-fg-subtle-solid) [&_svg]:[stroke-width:var(--icon-stroke)]"
+                      onClick={copyApiKey}
+                      disabled={!apiKey}>
+                      <Copy size={14} />
+                    </Button>
+                  </Tooltip>
+                </ButtonGroup>
+              </InlineInputGroup>
+            </SettingRow>
+            <SettingRow>
+              <SettingRowTitle className="flex-none" tip={t('apiGateway.authHeaderText')}>
+                {t('apiGateway.authHeader.title')}
+              </SettingRowTitle>
+              <Input
+                className="min-w-0 max-w-105 flex-1 font-mono text-xs"
+                value={`Authorization: Bearer ${apiKey || 'your-api-key'}`}
+                readOnly
+              />
+            </SettingRow>
+          </SettingCard>
+        </div>
       </SettingGroup>
     </Container>
   )
@@ -223,14 +247,6 @@ const ApiGatewaySettings: FC = () => {
 
 const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof SettingsContentColumn>) => (
   <SettingsContentColumn className={cn('flex h-[calc(100vh-var(--navbar-height))] flex-col', className)} {...props} />
-)
-
-const HeaderRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex items-center justify-between gap-4', className)} {...props} />
-)
-
-const PageDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mt-2 max-w-140 text-foreground-muted text-xs leading-5', className)} {...props} />
 )
 
 const WarningBanner = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
@@ -281,16 +297,8 @@ const StatusSubtext = ({ className, ...props }: React.ComponentPropsWithoutRef<'
   <div className={cn('m-0 text-foreground-muted text-xs', className)} {...props} />
 )
 
-const FieldDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mt-1 text-foreground-muted text-xs leading-5', className)} {...props} />
-)
-
-const FieldText = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('min-w-0 flex-1', className)} {...props} />
-)
-
 const InlineInputGroup = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex w-105 items-center gap-2', className)} {...props} />
+  <div className={cn('flex min-w-0 max-w-105 flex-1 items-center gap-2', className)} {...props} />
 )
 
 export default ApiGatewaySettings

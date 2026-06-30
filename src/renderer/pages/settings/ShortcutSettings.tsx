@@ -374,7 +374,7 @@ const ShortcutSettings: FC = () => {
             className={cn(
               'h-8 w-36 rounded-lg border-border/60 bg-background text-center text-sm',
               !pendingDisplay && 'text-muted-foreground',
-              hasConflict && 'border-red-500 focus-visible:ring-red-500/50'
+              hasConflict && 'border-destructive focus-visible:ring-destructive/50'
             )}
             onKeyDown={(event) => void handleKeyDown(event, record)}
             onBlur={(event) => {
@@ -386,7 +386,7 @@ const ShortcutSettings: FC = () => {
             {pendingDisplay || t('settings.shortcuts.press_shortcut')}
           </Button>
           {hasConflict && (
-            <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-red-500 text-xs">
+            <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-destructive text-xs">
               {conflictLabel ? t('settings.shortcuts.conflict_with', { name: conflictLabel }) : conflictMessage}
             </span>
           )}
@@ -412,8 +412,8 @@ const ShortcutSettings: FC = () => {
             <RowFlex
               className={cn(
                 'min-h-9 items-center gap-1 rounded-lg border border-transparent bg-transparent px-2 py-1 transition-colors hover:border-border/60 hover:bg-muted/35',
-                hasSystemConflict && 'border-red-500',
-                isEditable ? 'cursor-pointer hover:bg-accent/60' : 'cursor-not-allowed opacity-50'
+                hasSystemConflict && 'border-destructive',
+                isEditable ? 'cursor-pointer hover:bg-accent/60' : 'cursor-not-allowed'
               )}
               onClick={() => isEditable && handleAddShortcut(record.key)}>
               {displayKeys.map((key) => (
@@ -421,7 +421,7 @@ const ShortcutSettings: FC = () => {
                   key={key}
                   className={cn(
                     'min-w-6 rounded-md border border-border/60 bg-card px-1.5 py-0.75 text-foreground text-xs shadow-none',
-                    hasSystemConflict && 'border-red-500/60 text-red-500'
+                    hasSystemConflict && 'border-destructive/60 text-destructive'
                   )}>
                   {formatKeyDisplay(key, isMac)}
                 </Kbd>
@@ -429,7 +429,7 @@ const ShortcutSettings: FC = () => {
             </RowFlex>
           </RowFlex>
           {hasSystemConflict && (
-            <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-red-500 text-xs">
+            <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-destructive text-xs">
               {conflictMessage}
             </span>
           )}
@@ -441,15 +441,15 @@ const ShortcutSettings: FC = () => {
       <div className="relative flex flex-col items-end">
         <span
           className={cn(
-            'rounded-lg border border-transparent border-dashed bg-transparent px-2.5 py-1.5 text-muted-foreground text-sm transition-colors hover:border-border/60 hover:bg-muted/30',
-            hasSystemConflict && 'border-red-500 text-red-500',
+            'whitespace-nowrap rounded-lg border border-transparent border-dashed bg-transparent px-2 py-1.5 text-muted-foreground text-xs transition-colors hover:border-border/60 hover:bg-muted/30',
+            hasSystemConflict && 'border-destructive text-destructive',
             isEditable ? 'cursor-pointer hover:bg-accent/50' : 'cursor-not-allowed opacity-50'
           )}
           onClick={() => isEditable && handleAddShortcut(record.key)}>
           {t('settings.shortcuts.press_shortcut')}
         </span>
         {hasSystemConflict && (
-          <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-red-500 text-xs">
+          <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-destructive text-xs">
             {conflictMessage}
           </span>
         )}
@@ -457,7 +457,7 @@ const ShortcutSettings: FC = () => {
     )
   }
 
-  const renderShortcutRow = (record: (typeof shortcuts)[number], isLast: boolean) => {
+  const renderShortcutRow = (record: (typeof shortcuts)[number]) => {
     const switchNode = (
       <Switch
         size="sm"
@@ -487,16 +487,16 @@ const ShortcutSettings: FC = () => {
     return (
       <div
         key={record.key}
-        className={cn(
-          'grid grid-cols-[minmax(0,1fr)_14rem_2.5rem] items-center gap-3 py-2.5',
-          !record.preference.enabled && 'opacity-60',
-          !isLast && 'border-border/50 border-b'
-        )}>
-        <div className="min-w-0 pr-2">
-          <div className="truncate font-medium text-[14px] text-foreground">{record.label}</div>
+        className={cn('flex items-center gap-3 py-1.5', !record.preference.enabled && 'opacity-60')}>
+        <div
+          className="min-w-0 flex-auto truncate pr-2 text-(length:--font-size-body-xs) font-normal text-foreground leading-4.5"
+          title={record.label}>
+          {record.label}
         </div>
-        <div className="flex min-h-9 items-center justify-end">{renderShortcutCell(record)}</div>
-        <div className="flex justify-end">
+        <div className="flex min-h-9 min-w-0 shrink-[2] items-center justify-end overflow-hidden">
+          {renderShortcutCell(record)}
+        </div>
+        <div className="flex shrink-0 justify-end">
           {!record.preference.binding.length ? (
             <Tooltip content={t('settings.shortcuts.bind_first_to_enable')}>
               <span>{switchNode}</span>
@@ -510,8 +510,8 @@ const ShortcutSettings: FC = () => {
   }
 
   return (
-    <div className="flex flex-1" data-theme-mode={theme}>
-      <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full flex-1 flex-row overflow-hidden">
+    <div className="flex min-w-0 flex-1" data-theme-mode={theme}>
+      <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full min-w-0 flex-1 flex-row overflow-hidden">
         <div className={`flex flex-col ${settingsSubmenuScrollClassName}`}>
           <PageHeader title={t('settings.shortcuts.title')} />
           <Scrollbar className="min-h-0 flex-1">
@@ -527,7 +527,9 @@ const ShortcutSettings: FC = () => {
                     icon={groupIconMap[group.key]}
                     active={isActive}
                     label={group.label}
-                    suffix={<span className="shrink-0 text-[11px] text-muted-foreground">{count}</span>}
+                    suffix={
+                      <span className="text-(length:--font-size-body-xs) shrink-0 text-muted-foreground">{count}</span>
+                    }
                     onClick={() => {
                       setActiveGroup(group.key)
                       setSearchQuery('')
@@ -563,7 +565,7 @@ const ShortcutSettings: FC = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 gap-1.5 px-2.5 text-destructive text-xs shadow-none hover:text-destructive"
+                  className="h-8 gap-1.5 px-2.5 text-xs shadow-none"
                   onClick={handleResetAllShortcuts}>
                   <Undo2 size={13} />
                   {t('settings.shortcuts.reset')}
@@ -584,10 +586,8 @@ const ShortcutSettings: FC = () => {
             </div>
 
             {visibleShortcuts.length > 0 ? (
-              <div>
-                {visibleShortcuts.map((record, index) =>
-                  renderShortcutRow(record, index === visibleShortcuts.length - 1)
-                )}
+              <div className="rounded-xl border border-border/60 px-4 py-1">
+                {visibleShortcuts.map((record) => renderShortcutRow(record))}
               </div>
             ) : (
               <div className="py-10 text-center text-muted-foreground text-sm">{t('settings.shortcuts.empty')}</div>

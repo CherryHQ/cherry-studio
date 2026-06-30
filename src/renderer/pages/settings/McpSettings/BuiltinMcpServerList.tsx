@@ -53,13 +53,13 @@ const BuiltinMcpServerList: FC = () => {
       <div className="mb-3 flex w-full min-w-0 flex-wrap items-center justify-between gap-3">
         <Tabs value={filter} onValueChange={(value) => setFilter(value as typeof filter)} className="min-w-0">
           <TabsList className="h-8 rounded-full bg-muted/70 p-0.5">
-            <TabsTrigger value="all" className="h-7 rounded-[14px] px-2.5 text-xs">
+            <TabsTrigger value="all" className="h-7 rounded-xl px-2.5 text-xs">
               {t('models.all')}
             </TabsTrigger>
-            <TabsTrigger value="installed" className="h-7 rounded-[14px] px-2.5 text-xs">
+            <TabsTrigger value="installed" className="h-7 rounded-xl px-2.5 text-xs">
               {t('settings.skills.installed')}
             </TabsTrigger>
-            <TabsTrigger value="available" className="h-7 rounded-[14px] px-2.5 text-xs">
+            <TabsTrigger value="available" className="h-7 rounded-xl px-2.5 text-xs">
               {t('settings.skills.install')}
             </TabsTrigger>
           </TabsList>
@@ -83,12 +83,13 @@ const BuiltinMcpServerList: FC = () => {
             <div
               key={server.id}
               className={cn(
-                'group flex min-h-16 items-center gap-3 rounded-lg border border-border/60 px-3.5 py-2 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/35',
-                isInstalled && 'bg-muted/25'
+                'group flex min-h-16 items-center gap-3 rounded-xl border border-border/60 px-3.5 py-2 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/35'
               )}>
               <div className="min-w-0 flex-1">
                 <div className="mb-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 overflow-hidden">
-                  <span className="truncate font-semibold text-[14px] leading-5">{server.name}</span>
+                  <span className="text-(length:--font-size-body-xs) truncate font-medium leading-5">
+                    {server.name}
+                  </span>
                   {server?.shouldConfig && (
                     <a
                       href="https://docs.cherry-ai.com/advanced-basic/mcp/buildin"
@@ -96,7 +97,7 @@ const BuiltinMcpServerList: FC = () => {
                       rel="noopener noreferrer">
                       <Badge
                         variant="outline"
-                        className="h-5 rounded-md border-destructive/25 bg-destructive/10 px-1.5 font-medium text-[11px] text-destructive leading-none">
+                        className="text-(length:--font-size-body-xs) h-5 rounded-md border-destructive/25 bg-destructive/10 px-1.5 font-medium text-destructive leading-none">
                         {t('settings.mcp.requiresConfig')}
                       </Badge>
                     </a>
@@ -104,18 +105,18 @@ const BuiltinMcpServerList: FC = () => {
                 </div>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <div className="line-clamp-2 cursor-pointer text-[13px] text-muted-foreground leading-5 transition-colors hover:text-foreground">
+                    <div className="text-(length:--font-size-body-xs) line-clamp-2 cursor-pointer text-muted-foreground leading-5 transition-colors hover:text-foreground">
                       {t(getBuiltInMcpServerDescriptionLabelKey(server.name))}
                     </div>
                   </PopoverTrigger>
                   <PopoverContent align="start" side="top" className="w-auto max-w-100">
                     <div className="mb-2 font-semibold text-foreground text-sm">{server.name}</div>
-                    <div className="wrap-break-word whitespace-pre-wrap text-[14px] text-foreground leading-normal">
+                    <div className="wrap-break-word text-(length:--font-size-body-sm) whitespace-pre-wrap text-foreground leading-normal">
                       {t(getBuiltInMcpServerDescriptionLabelKey(server.name))}
                       {server.reference && (
                         <a
                           href={server.reference}
-                          className="wrap-break-word mt-2 inline-block text-primary hover:underline">
+                          className="wrap-break-word !text-info mt-2 inline-block hover:underline">
                           {server.reference}
                         </a>
                       )}

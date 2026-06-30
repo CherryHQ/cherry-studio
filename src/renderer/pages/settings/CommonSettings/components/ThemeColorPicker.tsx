@@ -1,6 +1,16 @@
-import { Input, RowFlex } from '@cherrystudio/ui'
+import {
+  ColorPicker,
+  ColorPickerEyeDropper,
+  ColorPickerHue,
+  ColorPickerSelection,
+  Input,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  RowFlex
+} from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
-import { useEffect, useState } from 'react'
+import { type CSSProperties, useEffect, useState } from 'react'
 
 const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/
 const SHORT_HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{3}$/
@@ -42,6 +52,7 @@ interface ThemeColorPickerProps {
 const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: ThemeColorPickerProps) => {
   const normalizedValue = normalizeHexColor(value) ?? '#000000'
   const [draftValue, setDraftValue] = useState(normalizedValue)
+  const isCustomValue = !presets.some((color) => (normalizeHexColor(color) ?? color) === normalizedValue)
 
   useEffect(() => {
     setDraftValue(normalizedValue)
@@ -51,28 +62,25 @@ const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: Th
     setDraftValue(nextValue)
 
     const nextColor = normalizeHexColor(nextValue)
-    if (nextColor) {
+    if (nextColor && nextColor !== normalizedValue) {
       onChange(nextColor)
     }
   }
 
-  const handleInputBlur = () => {
-    const nextColor = normalizeHexColor(draftValue)
-
-    if (!nextColor) {
-      setDraftValue(normalizedValue)
-      return
-    }
-
-    setDraftValue(nextColor)
-    if (nextColor !== normalizedValue) {
-      onChange(nextColor)
-    }
+  const handlePickerChange = ([r, g, b]: [number, number, number, number]) => {
+    const hex = `#${[r, g, b]
+      .map((channel) =>
+        Math.max(0, Math.min(255, Math.round(channel)))
+          .toString(16)
+          .padStart(2, '0')
+      )
+      .join('')}`
+    commitColor(hex)
   }
 
   return (
-    <RowFlex className={cn('min-w-0 max-w-full flex-wrap items-center gap-3', className)}>
-      <RowFlex className="min-w-0 max-w-full flex-wrap gap-3">
+    <RowFlex className={cn('min-w-0 max-w-full flex-wrap items-center gap-3.5', className)}>
+      <RowFlex className="min-w-0 max-w-full flex-wrap items-center gap-3">
         {presets.map((color) => {
           const normalizedPreset = normalizeHexColor(color) ?? color
           const selected = normalizedPreset === normalizedValue
@@ -84,32 +92,48 @@ const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: Th
               aria-label={normalizedPreset}
               aria-pressed={selected}
               className={cn(
-                'relative flex h-6 w-6 items-center justify-center rounded-full outline-none transition-opacity hover:opacity-80 focus-visible:ring-3 focus-visible:ring-ring/50'
+                'size-5 rounded-full outline-none transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                selected && 'ring-(--dot-color) ring-2 ring-offset-2 ring-offset-background'
               )}
-              onClick={() => commitColor(normalizedPreset)}>
-              <span
-                className={cn('h-5 w-5 rounded-full border-2', selected ? 'border-border' : 'border-transparent')}
-                style={{ backgroundColor: normalizedPreset }}
-              />
-            </button>
+              style={{ backgroundColor: normalizedPreset, '--dot-color': normalizedPreset } as CSSProperties}
+              onClick={() => commitColor(normalizedPreset)}
+            />
           )
         })}
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              aria-label={ariaLabel}
+              className={cn(
+                'relative size-5 shrink-0 cursor-pointer rounded-full outline-none transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                isCustomValue && 'ring-(--dot-color) ring-2 ring-offset-2 ring-offset-background'
+              )}
+              style={
+                {
+                  background:
+                    'conic-gradient(from 180deg, #E5484D, #F76B15, #FFC53D, #30A46C, #0091FF, #8E4EC6, #E5484D)',
+                  '--dot-color': normalizedValue
+                } as CSSProperties
+              }
+            />
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-64 p-3">
+            <ColorPicker defaultValue={normalizedValue} onChange={handlePickerChange} className="gap-3">
+              <ColorPickerSelection className="h-40 w-full rounded-lg" />
+              <RowFlex className="items-center gap-2">
+                <ColorPickerEyeDropper size="icon-sm" />
+                <ColorPickerHue className="flex-1" />
+              </RowFlex>
+            </ColorPicker>
+          </PopoverContent>
+        </Popover>
       </RowFlex>
-      <label className="relative flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md border border-border bg-background shadow-xs outline-none focus-within:ring-3 focus-within:ring-ring/50">
-        <input
-          type="color"
-          value={normalizedValue}
-          aria-label={ariaLabel}
-          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-          onChange={(event) => commitColor(event.target.value)}
-        />
-        <span className="h-5 w-5 rounded-sm border border-border" style={{ backgroundColor: normalizedValue }} />
-      </label>
       <Input
         value={draftValue}
-        onChange={(event) => setDraftValue(event.target.value)}
-        onBlur={handleInputBlur}
-        className="h-8 w-24 font-mono text-xs uppercase"
+        onChange={(event) => commitColor(event.target.value)}
+        onBlur={() => setDraftValue(normalizedValue)}
+        className="h-7 w-22 font-mono text-xs uppercase"
         spellCheck={false}
       />
     </RowFlex>
