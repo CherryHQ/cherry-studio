@@ -1,6 +1,5 @@
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { useCommandHandler } from '@renderer/hooks/command'
-import type { Topic } from '@renderer/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -73,6 +72,15 @@ const homeMocks = vi.hoisted(() => ({
   setShowSidebar: vi.fn(),
   isActiveTab: false,
   streamOpen: vi.fn()
+}))
+
+// The send path calls ipcApi.request('ai.stream_open', …); route it to homeMocks.streamOpen.
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (route: string, input: unknown) =>
+      route === 'ai.stream_open' ? homeMocks.streamOpen(input) : Promise.resolve(undefined),
+    on: () => () => {}
+  }
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
@@ -155,17 +163,15 @@ vi.mock('@renderer/components/chat', () => ({
   LoadingState: ({ label }: { label?: string }) => <div role="status">{label}</div>
 }))
 
-vi.mock('@renderer/components/chat/composer/variants/ChatComposer', () => ({
-  ChatPlacementComposer: ({
+vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
+  ChatHomePlacementComposer: ({
     assistantId,
-    isHome,
     onDraftAssistantChange,
     onNewTopic,
     onSend,
     scopeKey
   }: {
     assistantId?: string
-    isHome: boolean
     onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
     onNewTopic?: (payload?: { assistantId?: string | null }) => void | Promise<void>
     onSend: (
@@ -176,11 +182,7 @@ vi.mock('@renderer/components/chat/composer/variants/ChatComposer', () => ({
     ) => void | Promise<void>
     scopeKey: string
   }) => (
-    <div
-      data-assistant-id={assistantId ?? ''}
-      data-home={String(isHome)}
-      data-scope-key={scopeKey}
-      data-testid="draft-composer">
+    <div data-assistant-id={assistantId ?? ''} data-scope-key={scopeKey} data-testid="draft-composer">
       <button
         type="button"
         onClick={() => onSend('hello', { userMessageParts: [{ type: 'text', text: 'hello' }] as CherryMessagePart[] })}>
@@ -196,7 +198,7 @@ vi.mock('@renderer/components/chat/composer/variants/ChatComposer', () => ({
   )
 }))
 
-vi.mock('@renderer/context/TabIdContext', () => ({
+vi.mock('@renderer/hooks/tab', () => ({
   useCurrentTab: () => homeMocks.currentTab,
   useCurrentTabId: () => 'chat-tab',
   useIsActiveTab: () => homeMocks.isActiveTab,
@@ -402,8 +404,9 @@ vi.mock('@renderer/services/EventService', () => ({
   }
 }))
 
-import { useTabSelfMetadata } from '@renderer/context/TabIdContext'
+import { useTabSelfMetadata } from '@renderer/hooks/tab'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import type { Topic } from '@renderer/types/topic'
 
 import HomePage from '../HomePage'
 
@@ -438,9 +441,6 @@ describe('HomePage', () => {
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
-        ai: {
-          streamOpen: homeMocks.streamOpen
-        },
         window: {
           resetMinimumSize: vi.fn().mockResolvedValue(undefined),
           setMinimumSize: vi.fn().mockResolvedValue(undefined)

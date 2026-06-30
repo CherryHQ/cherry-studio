@@ -1,5 +1,4 @@
 import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
-import type { Topic } from '@renderer/types'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { render, waitFor } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
@@ -63,12 +62,8 @@ vi.mock('@renderer/components/Selector', () => ({
   ModelSelector: ({ trigger }: { trigger: ReactNode }) => <>{trigger}</>
 }))
 
-vi.mock('@renderer/config/models', () => ({
+vi.mock('@renderer/utils/model', () => ({
   isVisionModel: vi.fn(() => false)
-}))
-
-vi.mock('@renderer/config/models/_bridge', () => ({
-  toSharedCompatModel: vi.fn(() => undefined)
 }))
 
 vi.mock('@renderer/components/chat/messages/editing/MessageEditingContext', () => ({
@@ -209,6 +204,7 @@ vi.mock('react-i18next', () => ({
 
 import { dataApiService } from '@data/DataApiService'
 import { resolvePartFromParts } from '@renderer/components/chat/messages/blocks'
+import type { Topic } from '@renderer/types/topic'
 import { updateCodeBlock } from '@renderer/utils/markdown'
 
 import { useHomeMessageListProviderValue } from '../homeMessageListAdapter'

@@ -10,6 +10,8 @@ export interface ToolApplyScope {
   readonly assistant?: Assistant
   /** Server allowlist + per-tool disable already applied. */
   readonly mcpToolIds: ReadonlySet<string>
+  /** True when the request carries first-party file attachments — gates the `read_file` tool. Defaults to false. */
+  readonly hasFileAttachments?: boolean
 }
 
 /**

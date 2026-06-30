@@ -1,11 +1,10 @@
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useTheme } from '@renderer/context/ThemeProvider'
 import { useProvider } from '@renderer/hooks/useProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
 
 import ProviderHeader from './components/ProviderHeader'
 import AuthenticationSection from './ConnectionSettings/AuthenticationSection'
 import { useProviderAutoModelSync } from './hooks/providerSetting/useProviderAutoModelSync'
-import { useProviderLegacyWebSearchSync } from './hooks/providerSetting/useProviderLegacyWebSearchSync'
 import { useProviderOnboardingAutoEnable } from './hooks/providerSetting/useProviderOnboardingAutoEnable'
 import { ModelList } from './ModelList'
 import { ModelListHealthProvider, useModelListHealth } from './ModelList/modelListHealthContext'
@@ -38,7 +37,6 @@ export default function ProviderSetting({ providerId, isOnboarding = false }: Pr
     providerId,
     isOnboarding
   })
-  useProviderLegacyWebSearchSync(providerId)
 
   if (!provider) {
     return null

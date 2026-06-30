@@ -109,8 +109,15 @@
     {
       "idx": 15,
       "version": "6",
-      "when": 1782285292691,
-      "tag": "0015_blue_impossible_man",
+      "when": 1782552088472,
+      "tag": "0015_abnormal_apocalypse",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1782802606305,
+      "tag": "0016_remarkable_radioactive_man",
       "breakpoints": true
     }
   ],

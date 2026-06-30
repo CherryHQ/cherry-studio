@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "75ba72c6-544e-413f-b89b-a65719a5c0bb",
+  "id": "105b4da9-7d69-4d03-9ccf-b099bb352292",
   "prevId": "5d72d904-e1ca-4832-a085-bbf3ee2a3a08",
   "tables": {
     "agent": {
@@ -500,6 +500,14 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "is_name_manually_edited": {
+          "name": "is_name_manually_edited",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
         },
         "description": {
           "name": "description",
@@ -2453,13 +2461,6 @@
         },
         "stats": {
           "name": "stats",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "compaction_summary": {
-          "name": "compaction_summary",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

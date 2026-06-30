@@ -20,7 +20,7 @@ import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model
 import type { ModelMessage } from 'ai'
 
 import { resolveRequestContextSettings } from '../../contextBuild/resolveRequestContextSettings'
-import { prepareModelMessages } from '../../messages/messageConverter'
+import { toModelMessages } from '../../messages/messageRules'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { wrapSteerReminder } from '../../steerReminder'
 import type { AiStreamRequest } from '../../types/requests'
@@ -567,10 +567,12 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
     const boundary = recent[keepIdx - 1] // real row before the kept user row
 
-    const realFold = rawMsgs.slice(d + 1, d + 1 + keepIdx)
     const oldSummary = d >= 0 ? rows[d].compactionSummary : undefined
     try {
-      const realModelMessages = await prepareModelMessages(realFold)
+      // Fold = the older slice of `recent` (before the keep boundary). Convert those rows
+      // to served UIMessages, then to ModelMessages via the shared pipeline. (messageConverter
+      // + its prepareModelMessages were removed in main #16257; toModelMessages is the successor.)
+      const realModelMessages = await toModelMessages(recent.slice(0, keepIdx).map((r) => this.toServed(r)))
       const modelMessages: ModelMessage[] = [
         ...(oldSummary ? [{ role: 'user' as const, content: Prompts.getCompactSummaryWrapper(oldSummary) }] : []),
         ...realModelMessages

@@ -1,7 +1,7 @@
 import { Input } from '@cherrystudio/ui'
 import ProviderField from '@renderer/pages/settings/ProviderSettings/primitives/ProviderField'
 import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 

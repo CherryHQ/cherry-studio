@@ -2,13 +2,13 @@ import { Button, Scrollbar, Skeleton } from '@cherrystudio/ui'
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
-import type { Citation } from '@renderer/types'
-import { fetchWebContent, fetchXOEmbed, isXPostUrl } from '@renderer/utils/fetch'
+import type { Citation } from '@renderer/types/message'
+import { fetchWebContent, fetchXOEmbed, isXPostUrl, noContent, xOembedKey } from '@renderer/utils/fetch'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
-import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { Check, Copy, FileSearch } from 'lucide-react'
-import React from 'react'
+import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import useSWRImmutable from 'swr/immutable'
 
 import { useOptionalMessageListActions } from '../MessageListProvider'
 import type { MessageListActions } from '../types'
@@ -27,17 +27,6 @@ interface CitationsPanelContentProps {
   citations: Citation[]
   actions?: CitationPanelActions
 }
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: Infinity,
-      gcTime: Infinity,
-      refetchOnWindowFocus: false,
-      retry: false
-    }
-  }
-})
 
 /**
  * 限制文本长度
@@ -100,31 +89,29 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
 
 export const CitationsPanelContent: React.FC<CitationsPanelContentProps> = ({ citations, actions }) => {
   return (
-    <QueryClientProvider client={queryClient}>
-      <Scrollbar className="min-h-0 flex-1">
-        {citations.map((citation) => (
-          <div
-            key={citation.url || citation.number || citation.title}
-            className="border-border border-b-[0.5px] last:border-b-0">
-            {citation.type === 'websearch' && (
-              <div className="max-w-[min(400px,60vw)] px-3">
-                <WebSearchCitation citation={citation} actions={actions} />
-              </div>
-            )}
-            {citation.type === 'memory' && (
-              <div className="max-w-150 px-3">
-                <KnowledgeCitation citation={{ ...citation }} actions={actions} />
-              </div>
-            )}
-            {citation.type === 'knowledge' && (
-              <div className="max-w-150 px-3">
-                <KnowledgeCitation citation={{ ...citation }} actions={actions} />
-              </div>
-            )}
-          </div>
-        ))}
-      </Scrollbar>
-    </QueryClientProvider>
+    <Scrollbar className="min-h-0 flex-1">
+      {citations.map((citation) => (
+        <div
+          key={citation.url || citation.number || citation.title}
+          className="border-border border-b-[0.5px] last:border-b-0">
+          {citation.type === 'websearch' && (
+            <div className="max-w-[min(400px,60vw)] px-3">
+              <WebSearchCitation citation={citation} actions={actions} />
+            </div>
+          )}
+          {citation.type === 'memory' && (
+            <div className="max-w-150 px-3">
+              <KnowledgeCitation citation={{ ...citation }} actions={actions} />
+            </div>
+          )}
+          {citation.type === 'knowledge' && (
+            <div className="max-w-150 px-3">
+              <KnowledgeCitation citation={{ ...citation }} actions={actions} />
+            </div>
+          )}
+        </div>
+      ))}
+    </Scrollbar>
   )
 }
 
@@ -187,30 +174,28 @@ const WebSearchCitation: React.FC<{ citation: Citation; actions?: CitationPanelA
     openExternalUrl: actions?.openExternalUrl ?? providerActions?.openExternalUrl
   }
 
-  const { data: fetchedContent, isLoading } = useQuery({
-    queryKey: ['webContent', citation.url],
-    queryFn: async () => {
-      if (!citation.url) return ''
+  const { data: rawContent, isLoading } = useSWRImmutable(
+    citation.url ? `webContent/${citation.url}` : null,
+    async () => {
       if (isXPost) {
         const oembed = await fetchXOEmbed(citation.url)
-        if (oembed) {
-          return `@${oembed.author}: ${oembed.text}`
-        }
-        return ''
+        return oembed ? `@${oembed.author}: ${oembed.text}` : ''
       }
       const res = await fetchWebContent(citation.url, 'markdown')
+      // Graceful degrade: fetchWebContent swallows failures into `noContent`, so
+      // suppress it to render no snippet (just title + link) rather than placeholder text.
+      if (res.content === noContent) return ''
       return cleanMarkdownContent(res.content)
     },
-    enabled: Boolean(citation.url),
-    select: (content) => truncateText(content, 100)
-  })
+    { shouldRetryOnError: false }
+  )
+  const fetchedContent = useMemo(() => (rawContent ? truncateText(rawContent, 100) : undefined), [rawContent])
 
-  const { data: oembedData } = useQuery({
-    queryKey: ['xOembed', citation.url],
-    queryFn: () => fetchXOEmbed(citation.url),
-    enabled: isXPost && Boolean(citation.url),
-    staleTime: Infinity
-  })
+  const { data: oembedData } = useSWRImmutable(
+    isXPost && citation.url ? xOembedKey(citation.url) : null,
+    () => fetchXOEmbed(citation.url),
+    { shouldRetryOnError: false }
+  )
 
   const displayTitle = isXPost && oembedData?.author ? `@${oembedData.author}` : citation.title
   const titleContent = displayTitle || citation.hostname || citation.content || citation.url
@@ -244,9 +229,11 @@ const WebSearchCitation: React.FC<{ citation: Citation; actions?: CitationPanelA
             <Skeleton className="h-3 w-2/3" />
           </div>
         ) : (
-          <div className="selectable-text cursor-text select-text break-all text-[13px] text-foreground-secondary leading-[1.6]">
-            {fetchedContent}
-          </div>
+          fetchedContent && (
+            <div className="selectable-text cursor-text select-text break-all text-[13px] text-foreground-secondary leading-[1.6]">
+              {fetchedContent}
+            </div>
+          )
         )}
       </div>
     </SelectionContextMenu>

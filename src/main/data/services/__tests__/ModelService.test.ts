@@ -2,6 +2,7 @@
  * Tests for ModelService — field mapping, update behavior, and create merge logic.
  */
 
+import { application } from '@application'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -1460,6 +1461,35 @@ describe('ModelService.reconcileForProvider', () => {
       providerId: CHERRYAI_PROVIDER_ID,
       skippedCount: 1,
       skippedIds: [CHERRYAI_DEFAULT_UNIQUE_MODEL_ID]
+    })
+    warnSpy.mockRestore()
+  })
+
+  it('does not remove models set as user defaults (chat / quick-assistant / translate)', async () => {
+    const modelId = 'openai::gpt-4o'
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o', { id: modelId, name: 'gpt-4o' }))
+
+    const preferenceService = application.get('PreferenceService')
+    vi.mocked(preferenceService.get).mockImplementation((key: string) => {
+      if (key === 'chat.default_model_id') return modelId
+      return null
+    })
+
+    const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
+
+    const result = await modelService.reconcileForProvider('openai', {
+      toAdd: [],
+      toRemove: [modelId]
+    })
+
+    expect(result.map((m) => m.id)).toEqual([modelId])
+    const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, modelId))
+    expect(rows).toHaveLength(1)
+    expect(warnSpy).toHaveBeenCalledWith('Skipped user-default model removal during reconcile', {
+      providerId: 'openai',
+      skippedCount: 1,
+      skippedIds: [modelId]
     })
     warnSpy.mockRestore()
   })

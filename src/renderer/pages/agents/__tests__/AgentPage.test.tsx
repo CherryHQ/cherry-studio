@@ -146,7 +146,7 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
   }
 })
 
-vi.mock('@renderer/hooks/agents/useAgent', () => ({
+vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgents: () => ({
     agents: agentPageMocks.agents,
     isLoading: false
@@ -156,7 +156,7 @@ vi.mock('@renderer/hooks/agents/useAgent', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/agents/useSession', () => ({
+vi.mock('@renderer/hooks/agent/useSession', () => ({
   useSession: () => ({
     session: undefined,
     isLoading: false
@@ -199,7 +199,7 @@ vi.mock('@renderer/hooks/useConversationNavigation', () => ({
   })
 }))
 
-vi.mock('@renderer/context/TabIdContext', () => ({
+vi.mock('@renderer/hooks/tab', () => ({
   useCurrentTab: () => agentPageMocks.currentTab,
   useCurrentTabId: () => 'agent-tab',
   useIsActiveTab: () => agentPageMocks.isActiveTab,
@@ -308,6 +308,15 @@ vi.mock('../AgentChat', () => ({
       <button type="button" onClick={() => void onEnsurePersistentSession?.('hello')}>
         Persist draft session
       </button>
+      <button
+        type="button"
+        onClick={() =>
+          void onEnsurePersistentSession?.(
+            'Please inspect the renderer startup path and suggest fixes for the auto naming regression'
+          )
+        }>
+        Persist long draft session
+      </button>
       {onPaneCollapse && (
         <button type="button" onClick={onPaneCollapse}>
           Collapse pane
@@ -376,7 +385,7 @@ vi.mock('../../history/HistoryRecordsPage', () => ({
     ) : null
 }))
 
-import { useTabSelfMetadata } from '@renderer/context/TabIdContext'
+import { useTabSelfMetadata } from '@renderer/hooks/tab'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 
 import AgentPage from '../AgentPage'
@@ -709,6 +718,25 @@ describe('AgentPage', () => {
     )
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-created'))
     expect(screen.getByTestId('active-session')).toHaveTextContent('session-created')
+  })
+
+  it('uses the shared first-message temporary title when persisting a draft session', async () => {
+    agentPageMocks.routeSearch = {}
+
+    render(<AgentPage />)
+
+    await waitFor(() => expect(screen.getByTestId('draft-session')).toHaveTextContent('agent-a'))
+    fireEvent.click(screen.getByRole('button', { name: 'Persist long draft session' }))
+
+    await waitFor(() =>
+      expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
+        body: {
+          agentId: 'agent-a',
+          name: 'Please inspect the renderer startup path and sugge',
+          workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+        }
+      })
+    )
   })
 
   it('records the visible agent reported by the chat body', async () => {

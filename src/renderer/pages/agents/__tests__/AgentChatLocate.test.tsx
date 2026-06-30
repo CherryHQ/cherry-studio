@@ -120,19 +120,19 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
   default: () => <div />
 }))
 
-vi.mock('@renderer/components/chat/composer/ComposerContext', () => ({
+vi.mock('@renderer/components/composer/ComposerContext', () => ({
   ComposerContextProvider: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 
-vi.mock('@renderer/components/chat/composer/ComposerCore', () => ({
+vi.mock('@renderer/components/composer/ComposerCore', () => ({
   default: ({ fallback }: { fallback: ReactNode }) => <>{fallback}</>
 }))
 
-vi.mock('@renderer/components/chat/composer/useToolApprovalComposerOverrides', () => ({
+vi.mock('@renderer/components/composer/useToolApprovalComposerOverrides', () => ({
   useToolApprovalComposerOverrides: () => ({})
 }))
 
-vi.mock('@renderer/components/chat/composer/ComposerDockTransitionFrame', () => ({
+vi.mock('@renderer/components/composer/ComposerDockTransitionFrame', () => ({
   default: ({ main, composer }: { main: ReactNode; composer: ReactNode }) => (
     <div>
       {main}
@@ -141,7 +141,7 @@ vi.mock('@renderer/components/chat/composer/ComposerDockTransitionFrame', () => 
   )
 }))
 
-vi.mock('@renderer/components/chat/composer/variants/AgentComposer', () => ({
+vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
   default: () => <div />,
   AgentHomeComposer: () => <div />
 }))
@@ -174,7 +174,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: (key: string) => [key === 'chat.narrow_mode' ? false : 'none', vi.fn()]
 }))
 
-vi.mock('@renderer/hooks/agents/useAgent', () => ({
+vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgent: () => ({
     agent: { id: 'agent-1', model: 'provider:model-1' },
     isLoading: false
@@ -216,7 +216,7 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useInvalidateCache: () => vi.fn()
 }))
 
-vi.mock('@renderer/hooks/agents/useSession', () => ({
+vi.mock('@renderer/hooks/agent/useSession', () => ({
   useActiveSession: () => activeSessionMocks.result
 }))
 
@@ -239,13 +239,6 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
     liveAssistants: [],
     disposeOverlay: vi.fn(),
     reset: vi.fn()
-  })
-}))
-
-vi.mock('@renderer/hooks/useSettings', () => ({
-  useSettings: () => ({
-    messageNavigation: 'none',
-    messageStyle: 'message-style'
   })
 }))
 

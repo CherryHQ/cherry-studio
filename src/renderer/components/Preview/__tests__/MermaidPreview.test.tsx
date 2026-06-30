@@ -30,7 +30,7 @@ vi.mock('@renderer/components/Preview/hooks/useDebouncedRender', () => ({
 }))
 
 // Mock nanoid
-vi.mock('@reduxjs/toolkit', () => ({
+vi.mock('nanoid', () => ({
   nanoid: () => 'test-id-123456'
 }))
 

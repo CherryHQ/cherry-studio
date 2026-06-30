@@ -1,6 +1,6 @@
-import { isMac } from '@renderer/config/constant'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import { cn } from '@renderer/utils'
+import { isMac } from '@renderer/utils/platform'
+import { cn } from '@renderer/utils/style'
 import { Search } from 'lucide-react'
 import React, { useCallback, useEffect, useRef } from 'react'
 

@@ -1,10 +1,11 @@
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import { getMiniAppsLogo } from '@renderer/config/miniApps'
-import { cn } from '@renderer/utils'
+import { getMiniAppsLogo } from '@renderer/components/Icons/miniAppsLogo'
+import { cn } from '@renderer/utils/style'
+import { TAB_ICON_EMOJI_PREFIX } from '@renderer/utils/tabIcons'
 import type { FC } from 'react'
 
-import type { Tab } from '../../hooks/useTabs'
-import { getTabIcon, TAB_ICON_EMOJI_PREFIX } from './tabIcons'
+import type { Tab } from '../../hooks/tab'
+import { getTabIcon } from './tabIcons'
 
 /**
  * Renders a tab's icon: a per-entity emoji (`emoji:<glyph>`), a mini-app logo,

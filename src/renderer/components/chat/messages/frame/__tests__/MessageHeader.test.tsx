@@ -19,15 +19,15 @@ vi.mock('@cherrystudio/ui', () => ({
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 
-vi.mock('@renderer/config/models', () => ({
+vi.mock('@renderer/utils/model', () => ({
   getModelLogo: () => null
 }))
 
-vi.mock('@renderer/context/ThemeProvider', () => ({
+vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'light' })
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/naming', () => ({
   firstLetter: (value: string) => value.slice(0, 1),
   isEmoji: () => false,
   removeLeadingEmoji: (value: string) => value

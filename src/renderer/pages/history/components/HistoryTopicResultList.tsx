@@ -5,7 +5,7 @@ import type {
   TopicMenuActionContextOverride,
   TopicMenuPreset
 } from '@renderer/pages/home/Tabs/components/useTopicMenuActions'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Topic } from '@shared/data/types/topic'
 import { Bot, MessageSquareText } from 'lucide-react'

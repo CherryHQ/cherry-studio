@@ -13,6 +13,7 @@ import { registry, type ToolRegistry } from '../registry'
 import { createFsReadToolEntry } from './FsReadTool'
 import { createKbListToolEntry } from './KnowledgeListTool'
 import { createKbSearchToolEntry } from './KnowledgeSearchTool'
+import { createReadFileToolEntry } from './ReadFileTool'
 import { createWebFetchToolEntry } from './WebFetchTool'
 import { createWebSearchToolEntry } from './WebSearchTool'
 
@@ -24,6 +25,7 @@ export function registerBuiltinTools(reg: ToolRegistry = registry): void {
   reg.register(createFsReadToolEntry())
   reg.register(createKbListToolEntry())
   reg.register(createKbSearchToolEntry())
+  reg.register(createReadFileToolEntry())
   reg.register(createWebFetchToolEntry())
   reg.register(createWebSearchToolEntry())
 }
