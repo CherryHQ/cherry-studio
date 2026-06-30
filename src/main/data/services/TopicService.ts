@@ -4,6 +4,7 @@ import { randomBytes } from 'node:crypto'
 
 import { application } from '@application'
 import { assistantTable } from '@data/db/schemas/assistant'
+import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
@@ -20,13 +21,12 @@ import type {
   ListTopicsQuery,
   UpdateTopicDto
 } from '@shared/data/api/schemas/topics'
-import { chatMessageSourceType } from '@shared/data/types/file'
 import type { Topic } from '@shared/data/types/topic'
 import type { SQL } from 'drizzle-orm'
 import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
-import { fileRefService } from './FileRefService'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
@@ -36,6 +36,8 @@ const logger = loggerService.withContext('DataApi:TopicService')
 
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
+const SQLITE_INARRAY_CHUNK = 500
+const SQLITE_INSERT_CHUNK = 100
 
 type TopicRow = typeof topicTable.$inferSelect
 type TopicEntitySearchItem = Extract<EntitySearchItem, { type: 'topic' }>
@@ -54,6 +56,40 @@ function rowToTopic(row: TopicRow): Topic {
 
 function topicScopePredicate(groupId: string | null): SQL {
   return groupId === null ? isNull(topicTable.groupId) : eq(topicTable.groupId, groupId)
+}
+
+async function copyChatMessageFileRefsBySourceIdMapTx(
+  tx: DbOrTx,
+  sourceIdMap: ReadonlyMap<string, string>
+): Promise<void> {
+  if (sourceIdMap.size === 0) return
+  const sourceIds = [...sourceIdMap.keys()]
+  const now = Date.now()
+
+  for (let i = 0; i < sourceIds.length; i += SQLITE_INARRAY_CHUNK) {
+    const chunk = sourceIds.slice(i, i + SQLITE_INARRAY_CHUNK)
+    const sourceRefs = await tx
+      .select()
+      .from(chatMessageFileRefTable)
+      .where(inArray(chatMessageFileRefTable.sourceId, chunk))
+    const values = sourceRefs.flatMap((ref) => {
+      const copiedSourceId = sourceIdMap.get(ref.sourceId)
+      if (!copiedSourceId) return []
+      return [
+        {
+          id: uuidv4(),
+          fileEntryId: ref.fileEntryId,
+          sourceId: copiedSourceId,
+          role: ref.role,
+          createdAt: now,
+          updatedAt: now
+        }
+      ]
+    })
+    for (let j = 0; j < values.length; j += SQLITE_INSERT_CHUNK) {
+      await tx.insert(chatMessageFileRefTable).values(values.slice(j, j + SQLITE_INSERT_CHUNK))
+    }
+  }
 }
 
 // Wire format: `pin:<orderKey>` / `topic:<updatedAt>:<id>` / `topic:` (pin exhausted).
@@ -224,7 +260,7 @@ export class TopicService {
 
       // Intentionally copies only topic metadata, root-to-node messages, and chat-message file refs.
       // Pins, tags, trace links, and pruned siblings/descendants stay with their original rows.
-      await fileRefService.copyBySourceIdMapTx(tx, chatMessageSourceType, copiedMessageIds)
+      await copyChatMessageFileRefsBySourceIdMapTx(tx, copiedMessageIds)
 
       const [updatedTopicRow] = await tx
         .update(topicTable)
@@ -247,9 +283,9 @@ export class TopicService {
 
   /** Pin state and ordering go through `/pins` and `/topics/:id/order` — not this DTO. */
   async update(id: string, dto: UpdateTopicDto): Promise<Topic> {
-    const db = application.get('DbService').getDb()
+    const dbService = application.get('DbService')
 
-    const topic = await db.transaction(async (tx) => {
+    const topic = await dbService.withWriteTx(async (tx) => {
       const [existing] = await tx
         .select({ id: topicTable.id })
         .from(topicTable)
@@ -258,8 +294,14 @@ export class TopicService {
       if (!existing) throw DataApiErrorFactory.notFound('Topic', id)
 
       const updates: Partial<typeof topicTable.$inferInsert> = {}
-      if (dto.name !== undefined) updates.name = dto.name
-      if (dto.isNameManuallyEdited !== undefined) updates.isNameManuallyEdited = dto.isNameManuallyEdited
+      if (dto.name !== undefined) {
+        updates.name = dto.name
+        // Name-only patches are user/manual renames. Auto-namers must opt out explicitly.
+        updates.isNameManuallyEdited = dto.isNameManuallyEdited ?? true
+      } else if (dto.isNameManuallyEdited !== undefined) {
+        // Keep flag-only patches for repair/migration paths that need to adjust metadata.
+        updates.isNameManuallyEdited = dto.isNameManuallyEdited
+      }
       if (dto.assistantId !== undefined) updates.assistantId = dto.assistantId
       if (dto.groupId !== undefined) updates.groupId = dto.groupId
 

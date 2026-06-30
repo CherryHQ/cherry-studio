@@ -59,10 +59,12 @@ describe('kb_search', () => {
     loggerWarn.mockReset()
   })
 
-  it('builds an entry with the agreed namespace + defer policy', () => {
+  it('builds an entry with the agreed namespace + defer policy and is auto-approved (read-only)', () => {
     expect(entry.name).toBe(KB_SEARCH_TOOL_NAME)
     expect(entry.namespace).toBe('kb')
-    expect(entry.defer).toBe('auto')
+    expect(entry.defer).toBe('always')
+    // kb_search only reads — no per-call approval prompt (the auto-approve half of the carve-out).
+    expect(entry.tool.needsApproval).toBeFalsy()
   })
 
   it('returns [] and does not search when every requested baseId is outside the assistant scope', async () => {
@@ -190,11 +192,33 @@ describe('kb_search', () => {
   })
 
   describe('applies', () => {
-    it('returns true only when the assistant has at least one knowledge base id', () => {
+    it('returns true only when a base exists AND at least one is bound to the assistant', () => {
       const applies = entry.applies!
-      expect(applies({ assistant: undefined, mcpToolIds: new Set() })).toBe(false)
-      expect(applies({ assistant: makeAssistant({ knowledgeBaseIds: [] }), mcpToolIds: new Set() })).toBe(false)
-      expect(applies({ assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }), mcpToolIds: new Set() })).toBe(true)
+      // No base in the system → never applies, even with bound ids.
+      expect(
+        applies({
+          assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }),
+          mcpToolIds: new Set(),
+          hasAnyKnowledgeBase: false
+        })
+      ).toBe(false)
+      // A base exists but none bound to this assistant → does not apply.
+      expect(applies({ assistant: undefined, mcpToolIds: new Set(), hasAnyKnowledgeBase: true })).toBe(false)
+      expect(
+        applies({
+          assistant: makeAssistant({ knowledgeBaseIds: [] }),
+          mcpToolIds: new Set(),
+          hasAnyKnowledgeBase: true
+        })
+      ).toBe(false)
+      // A base exists AND is bound → applies.
+      expect(
+        applies({
+          assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }),
+          mcpToolIds: new Set(),
+          hasAnyKnowledgeBase: true
+        })
+      ).toBe(true)
     })
   })
 })

@@ -29,7 +29,7 @@ import {
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import type { Note } from '@shared/data/types/note'
 import type { DirectoryTreeOptions } from '@shared/utils/file'
-import { debounce } from 'lodash'
+import { debounce } from 'es-toolkit/compat'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'

@@ -1,4 +1,8 @@
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { chatMessageFileRefTable, paintingFileRefTable } from '@data/db/schemas/fileRelations'
+import { messageTable } from '@data/db/schemas/message'
+import { paintingTable } from '@data/db/schemas/painting'
+import { topicTable } from '@data/db/schemas/topic'
 import { DataApiError, ErrorCode } from '@shared/data/api'
 import type { CanonicalExternalPath, FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -1316,18 +1320,68 @@ describe('FileEntryService', () => {
   describe('findUnreferenced', () => {
     async function seedRef(fileEntryId: FileEntryId): Promise<void> {
       const now = Date.now()
-      await dbh.db.insert(fileRefTable).values({
-        id: '11111111-1111-4111-8111-' + fileEntryId.slice(-12),
+      const paintingId = '11111111-1111-4111-8111-' + fileEntryId.slice(-12)
+      await dbh.db.insert(paintingTable).values({
+        id: paintingId,
+        providerId: 'provider',
+        modelId: null,
+        prompt: 'prompt',
+        orderKey: paintingId,
+        createdAt: now,
+        updatedAt: now
+      })
+      await dbh.db.insert(paintingFileRefTable).values({
+        id: '22222222-2222-4222-8222-' + fileEntryId.slice(-12),
         fileEntryId,
-        sourceType: 'temp_session',
-        sourceId: 'sess-1',
-        role: 'pending',
+        sourceId: paintingId,
+        role: 'output',
         createdAt: now,
         updatedAt: now
       })
     }
 
-    it('returns only entries with zero file_refs', async () => {
+    async function seedChatRef(fileEntryId: FileEntryId): Promise<void> {
+      const now = Date.now()
+      const suffix = fileEntryId.slice(-12)
+      const topicId = `topic-${suffix}`
+      const rootId = `root-${suffix}`
+      const messageId = `message-${suffix}`
+      await dbh.db.insert(topicTable).values({ id: topicId, activeNodeId: messageId, orderKey: topicId })
+      await dbh.db.insert(messageTable).values([
+        {
+          id: rootId,
+          parentId: null,
+          topicId,
+          role: 'root',
+          data: { parts: [] },
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: messageId,
+          parentId: rootId,
+          topicId,
+          role: 'user',
+          data: { parts: [{ type: 'text', text: 'hello' }] },
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: now,
+          updatedAt: now
+        }
+      ])
+      await dbh.db.insert(chatMessageFileRefTable).values({
+        id: `33333333-3333-4333-8333-${suffix}`,
+        fileEntryId,
+        sourceId: messageId,
+        role: 'attachment',
+        createdAt: now,
+        updatedAt: now
+      })
+    }
+
+    it('returns only entries with zero persistent refs', async () => {
       const referenced = '019606a0-0000-7000-8000-000000000d01' as FileEntryId
       const orphan = '019606a0-0000-7000-8000-000000000d02' as FileEntryId
       await fileEntryService.create({
@@ -1349,6 +1403,53 @@ describe('FileEntryService', () => {
       const result = await fileEntryService.findUnreferenced()
       const ids = result.map((e) => e.id)
       expect(ids).toEqual([orphan])
+    })
+
+    it('excludes entries referenced only by chat_message_file_ref', async () => {
+      const referenced = '019606a0-0000-7000-8000-000000000d03' as FileEntryId
+      const orphan = '019606a0-0000-7000-8000-000000000d04' as FileEntryId
+      await fileEntryService.create({
+        id: referenced,
+        origin: 'internal',
+        name: 'chat-ref',
+        ext: 'txt',
+        size: 1
+      })
+      await fileEntryService.create({
+        id: orphan,
+        origin: 'internal',
+        name: 'orphan',
+        ext: 'txt',
+        size: 1
+      })
+      await seedChatRef(referenced)
+
+      const result = await fileEntryService.findUnreferenced()
+      expect(result.map((e) => e.id)).toEqual([orphan])
+    })
+
+    it('excludes entries referenced by both chat and painting refs', async () => {
+      const referenced = '019606a0-0000-7000-8000-000000000d05' as FileEntryId
+      const orphan = '019606a0-0000-7000-8000-000000000d06' as FileEntryId
+      await fileEntryService.create({
+        id: referenced,
+        origin: 'internal',
+        name: 'both-ref',
+        ext: 'txt',
+        size: 1
+      })
+      await fileEntryService.create({
+        id: orphan,
+        origin: 'internal',
+        name: 'orphan',
+        ext: 'txt',
+        size: 1
+      })
+      await seedRef(referenced)
+      await seedChatRef(referenced)
+
+      const result = await fileEntryService.findUnreferenced()
+      expect(result.map((e) => e.id)).toEqual([orphan])
     })
 
     it('honours the optional origin filter', async () => {

@@ -92,7 +92,7 @@ export function resolvePhysicalPath(entry: PathResolvableEntry): FilePath {
  * When a new rule also collapses previously-distinct strings to the same
  * canonical form (e.g. `fs.realpath` merging case-insensitive duplicates),
  * the migration additionally MUST merge the colliding rows. The winner
- * selection and file_ref re-pointing rules are defined in
+ * selection and association-row re-pointing rules are defined in
  * `docs/references/file/file-manager-architecture.md §1.2 Rule evolution
  * discipline` — follow them exactly; do not improvise.
  * ─────────────────────────────────────────────────────────────────────────

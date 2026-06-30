@@ -1,22 +1,24 @@
 /**
  * File API Schema definitions (read-only DataApi)
  *
- * DataApi is a **pure SQL read surface** for file data. Handlers:
+ * DataApi is a SQL-first read surface for file data. Handlers:
  *
  * - MUST NOT read or `stat` the filesystem
  * - MUST NOT call main-side resolvers (`resolvePhysicalPath`, etc.)
- * - MUST NOT consult in-memory caches outside the DB (no `danglingCache.check`, no `versionCache`)
+ * - MUST NOT consult FS-state caches (`danglingCache.check`, `versionCache`)
  * - MUST return a **fixed shape per endpoint** — no opt-in flags that toggle extra fields
  *
- * The only allowed "derivation" inside DataApi is **SQL aggregation** (JOIN / GROUP BY /
- * COUNT), because that stays in the DB layer. Anything that requires FS IO or main-side
- * computation lives in **File IPC** (see `src/shared/types/file/ipc.ts`).
+ * SQL aggregation (JOIN / GROUP BY / COUNT) stays in the DB layer. Temp-session refs are
+ * the narrow exception: they are main-memory CacheService state by design and are included
+ * by the ref endpoints so a temp attachment is not reported as orphan during the session.
+ * Anything that requires FS IO or main-side path computation lives in **File IPC** (see
+ * `src/shared/types/file/ipc.ts`).
  *
  * Endpoints:
  * - `GET /files/entries`            — FileEntry list (fixed shape)
  * - `GET /files/entries/:id`        — Single entry lookup (fixed shape)
  * - `GET /files/entries/stats`      — Pure-SQL aggregate counts for sidebar filters
- * - `GET /files/entries/ref-counts` — Pure-SQL ref-count aggregation for a batch of ids
+ * - `GET /files/entries/ref-counts` — Ref-count aggregation for a batch of ids (persistent SQL refs + temp-session cache refs)
  * - `GET /files/entries/:id/refs`   — File references for a specific entry
  * - `GET /files/refs`               — File references filtered by business source
  *
@@ -29,7 +31,7 @@
  *
  * | Former opt-in       | Current home                                                           |
  * |---------------------|------------------------------------------------------------------------|
- * | `includeRefCount`   | `GET /files/entries/ref-counts?entryIds=...` (still DataApi, dedicated)|
+ * | `includeRefCount`   | `GET /files/entries/ref-counts?entryIds=...` (DataApi; persistent refs + temp-session cache refs) |
  * | `includeDangling`   | File IPC `getDanglingState` / `batchGetDanglingStates` (FS-backed)     |
  * | `includePath`       | File IPC `getPhysicalPath` / `batchGetPhysicalPaths` (main resolver)   |
  * | `includeUrl`        | Shared pure helper `toSafeFileUrl(path, ext)` in `@shared/utils/file/url`, composed in-process from the `FilePath` returned by `getPhysicalPath` (no dedicated IPC) |
@@ -55,7 +57,7 @@ import * as z from 'zod'
 /**
  * Per-entry reference-count record produced by `GET /files/entries/ref-counts`.
  *
- * Pure SQL aggregation (`SELECT fileEntryId, COUNT(*) FROM file_ref GROUP BY fileEntryId`).
+ * Ref aggregation across persistent association tables plus CacheService-backed temp-session refs.
  * Entries with zero refs are still returned with `refCount = 0` so the renderer can
  * safely map by id without special-casing missing keys.
  */
@@ -196,8 +198,9 @@ export type FileSchemas = {
   /**
    * Batch ref-count aggregation for a set of entry ids.
    *
-   * Pure SQL (`COUNT(*) ... GROUP BY fileEntryId`). Each requested id appears in the
-   * response — entries with zero refs return `refCount = 0` rather than being omitted.
+   * Counts persistent SQL association-table refs (`COUNT(*) ... GROUP BY fileEntryId`)
+   * and then merges CacheService-backed temp-session refs. Each requested id appears
+   * in the response — entries with zero refs return `refCount = 0` rather than being omitted.
    *
    * @example GET /files/entries/ref-counts?entryIds=abc123,def456
    */
@@ -229,8 +232,8 @@ export type FileSchemas = {
    * (`z.strictObject` — neither is optional), so the URL always carries the
    * full source key even though the path stays a plain `/files/refs`.
    *
-   * Ref write operations (create / cleanup) are NOT exposed via DataApi.
-   * Business services call fileRefService directly; Renderer does not manage refs.
+   * Ref write operations are NOT exposed via DataApi. Persistent refs are
+   * owned by business services; temp-session refs are main-process only.
    *
    * @example GET /files/refs?sourceType=chat_message&sourceId=msg1
    */

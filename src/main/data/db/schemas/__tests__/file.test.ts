@@ -1,5 +1,5 @@
 /**
- * DB-level integrity tests for `file_entry` / `file_ref` schemas.
+ * DB-level integrity tests for `file_entry` / file association schemas.
  *
  * These exercise the SQLite CHECK constraints, global unique index on
  * `externalPath`, and CASCADE FK — all of which are runtime guards we rely on
@@ -9,7 +9,11 @@
 
 import { randomUUID } from 'node:crypto'
 
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { chatMessageFileRefTable, paintingFileRefTable } from '@data/db/schemas/fileRelations'
+import { messageTable } from '@data/db/schemas/message'
+import { paintingTable } from '@data/db/schemas/painting'
+import { topicTable } from '@data/db/schemas/topic'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
@@ -147,40 +151,134 @@ describe('fileEntryTable — fe_size_internal_only check', () => {
   })
 })
 
-describe('fileRefTable — CASCADE FK', () => {
+describe('chatMessageFileRefTable — CASCADE FK', () => {
   const dbh = setupTestDatabase()
 
-  it('deleting a file_entry removes its file_ref rows via CASCADE', async () => {
+  async function seedMessage(id = randomUUID()) {
+    const topicId = randomUUID()
+    const rootId = randomUUID()
+    await dbh.db.insert(topicTable).values({
+      id: topicId,
+      activeNodeId: id,
+      orderKey: topicId,
+      createdAt: TS,
+      updatedAt: TS
+    })
+    await dbh.db.insert(messageTable).values([
+      {
+        id: rootId,
+        parentId: null,
+        topicId,
+        role: 'root',
+        data: { parts: [] },
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: TS,
+        updatedAt: TS
+      },
+      {
+        id,
+        parentId: rootId,
+        topicId,
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'hello' }] },
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: TS,
+        updatedAt: TS
+      }
+    ])
+    return id
+  }
+
+  it('deleting a file_entry removes chat_message_file_ref rows via CASCADE', async () => {
     const entry = baseInternal()
+    const messageId = await seedMessage()
     await dbh.db.insert(fileEntryTable).values(entry)
 
-    await dbh.db.insert(fileRefTable).values({
+    await dbh.db.insert(chatMessageFileRefTable).values({
       id: randomUUID(),
       fileEntryId: entry.id,
-      sourceType: 'knowledge_item',
-      sourceId: 'msg-1',
+      sourceId: messageId,
       role: 'attachment',
       createdAt: TS,
       updatedAt: TS
     })
 
-    const beforeDelete = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.fileEntryId, entry.id))
+    const beforeDelete = await dbh.db
+      .select()
+      .from(chatMessageFileRefTable)
+      .where(eq(chatMessageFileRefTable.fileEntryId, entry.id))
     expect(beforeDelete).toHaveLength(1)
 
     await dbh.db.delete(fileEntryTable).where(eq(fileEntryTable.id, entry.id))
 
-    const afterDelete = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.fileEntryId, entry.id))
+    const afterDelete = await dbh.db
+      .select()
+      .from(chatMessageFileRefTable)
+      .where(eq(chatMessageFileRefTable.fileEntryId, entry.id))
     expect(afterDelete).toHaveLength(0)
   })
 
-  it('rejects file_ref pointing to a non-existent file_entry', async () => {
+  it('deleting a message removes chat_message_file_ref rows via CASCADE', async () => {
+    const entry = baseInternal()
+    const messageId = await seedMessage()
+    await dbh.db.insert(fileEntryTable).values(entry)
+    await dbh.db.insert(chatMessageFileRefTable).values({
+      id: randomUUID(),
+      fileEntryId: entry.id,
+      sourceId: messageId,
+      role: 'attachment',
+      createdAt: TS,
+      updatedAt: TS
+    })
+
+    await dbh.db.delete(messageTable).where(eq(messageTable.id, messageId))
+
+    const remaining = await dbh.db.select().from(chatMessageFileRefTable)
+    expect(remaining).toHaveLength(0)
+  })
+
+  it('rejects chat_message_file_ref pointing to a non-existent file_entry', async () => {
+    const messageId = await seedMessage()
     await expect(
-      dbh.db.insert(fileRefTable).values({
+      dbh.db.insert(chatMessageFileRefTable).values({
         id: randomUUID(),
         fileEntryId: uuidv7(),
-        sourceType: 'knowledge_item',
-        sourceId: 'msg-orphan',
+        sourceId: messageId,
         role: 'attachment',
+        createdAt: TS,
+        updatedAt: TS
+      })
+    ).rejects.toThrow()
+  })
+
+  it('rejects chat_message_file_ref pointing to a non-existent message', async () => {
+    const entry = baseInternal()
+    await dbh.db.insert(fileEntryTable).values(entry)
+    await expect(
+      dbh.db.insert(chatMessageFileRefTable).values({
+        id: randomUUID(),
+        fileEntryId: entry.id,
+        sourceId: randomUUID(),
+        role: 'attachment',
+        createdAt: TS,
+        updatedAt: TS
+      })
+    ).rejects.toThrow()
+  })
+
+  it('rejects unsupported chat_message_file_ref roles', async () => {
+    const entry = baseInternal()
+    const messageId = await seedMessage()
+    const invalidRole = 'source' as unknown as (typeof chatMessageFileRefTable.$inferInsert)['role']
+    await dbh.db.insert(fileEntryTable).values(entry)
+    await expect(
+      dbh.db.insert(chatMessageFileRefTable).values({
+        id: randomUUID(),
+        fileEntryId: entry.id,
+        sourceId: messageId,
+        role: invalidRole,
         createdAt: TS,
         updatedAt: TS
       })
@@ -188,41 +286,150 @@ describe('fileRefTable — CASCADE FK', () => {
   })
 })
 
-describe('fileRefTable — unique constraint', () => {
+describe('paintingFileRefTable — CASCADE FK', () => {
   const dbh = setupTestDatabase()
 
-  it('rejects duplicate (fileEntryId, sourceType, sourceId, role)', async () => {
+  async function seedPainting(id = randomUUID()) {
+    await dbh.db.insert(paintingTable).values({
+      id,
+      providerId: 'provider',
+      modelId: null,
+      prompt: 'prompt',
+      orderKey: 'a0',
+      createdAt: TS,
+      updatedAt: TS
+    })
+    return id
+  }
+
+  it('deleting a file_entry removes painting_file_ref rows via CASCADE', async () => {
     const entry = baseInternal()
+    const paintingId = await seedPainting()
+    await dbh.db.insert(fileEntryTable).values(entry)
+
+    await dbh.db.insert(paintingFileRefTable).values({
+      id: randomUUID(),
+      fileEntryId: entry.id,
+      sourceId: paintingId,
+      role: 'output',
+      createdAt: TS,
+      updatedAt: TS
+    })
+
+    const beforeDelete = await dbh.db
+      .select()
+      .from(paintingFileRefTable)
+      .where(eq(paintingFileRefTable.fileEntryId, entry.id))
+    expect(beforeDelete).toHaveLength(1)
+
+    await dbh.db.delete(fileEntryTable).where(eq(fileEntryTable.id, entry.id))
+
+    const afterDelete = await dbh.db
+      .select()
+      .from(paintingFileRefTable)
+      .where(eq(paintingFileRefTable.fileEntryId, entry.id))
+    expect(afterDelete).toHaveLength(0)
+  })
+
+  it('deleting a painting removes painting_file_ref rows via CASCADE', async () => {
+    const entry = baseInternal()
+    const paintingId = await seedPainting()
+    await dbh.db.insert(fileEntryTable).values(entry)
+    await dbh.db.insert(paintingFileRefTable).values({
+      id: randomUUID(),
+      fileEntryId: entry.id,
+      sourceId: paintingId,
+      role: 'output',
+      createdAt: TS,
+      updatedAt: TS
+    })
+
+    await dbh.db.delete(paintingTable).where(eq(paintingTable.id, paintingId))
+
+    const remaining = await dbh.db.select().from(paintingFileRefTable)
+    expect(remaining).toHaveLength(0)
+  })
+
+  it('rejects painting_file_ref pointing to a non-existent file_entry', async () => {
+    const paintingId = await seedPainting()
+    await expect(
+      dbh.db.insert(paintingFileRefTable).values({
+        id: randomUUID(),
+        fileEntryId: uuidv7(),
+        sourceId: paintingId,
+        role: 'output',
+        createdAt: TS,
+        updatedAt: TS
+      })
+    ).rejects.toThrow()
+  })
+
+  it('rejects unsupported painting_file_ref roles', async () => {
+    const entry = baseInternal()
+    const paintingId = await seedPainting()
+    const invalidRole = 'source' as unknown as (typeof paintingFileRefTable.$inferInsert)['role']
+    await dbh.db.insert(fileEntryTable).values(entry)
+    await expect(
+      dbh.db.insert(paintingFileRefTable).values({
+        id: randomUUID(),
+        fileEntryId: entry.id,
+        sourceId: paintingId,
+        role: invalidRole,
+        createdAt: TS,
+        updatedAt: TS
+      })
+    ).rejects.toThrow()
+  })
+})
+
+describe('paintingFileRefTable — unique constraint', () => {
+  const dbh = setupTestDatabase()
+
+  async function seedPainting(id = randomUUID()) {
+    await dbh.db.insert(paintingTable).values({
+      id,
+      providerId: 'provider',
+      modelId: null,
+      prompt: 'prompt',
+      orderKey: 'a0',
+      createdAt: TS,
+      updatedAt: TS
+    })
+    return id
+  }
+
+  it('rejects duplicate (fileEntryId, sourceId, role)', async () => {
+    const entry = baseInternal()
+    const paintingId = await seedPainting()
     await dbh.db.insert(fileEntryTable).values(entry)
 
     const refValues = {
       fileEntryId: entry.id,
-      sourceType: 'knowledge_item',
-      sourceId: 'msg-dup',
-      role: 'attachment',
+      sourceId: paintingId,
+      role: 'output' as const,
       createdAt: TS,
       updatedAt: TS
     }
 
-    await dbh.db.insert(fileRefTable).values({ id: randomUUID(), ...refValues })
-    await expect(dbh.db.insert(fileRefTable).values({ id: randomUUID(), ...refValues })).rejects.toThrow()
+    await dbh.db.insert(paintingFileRefTable).values({ id: randomUUID(), ...refValues })
+    await expect(dbh.db.insert(paintingFileRefTable).values({ id: randomUUID(), ...refValues })).rejects.toThrow()
   })
 
-  it('allows multiple roles for the same (fileEntryId, sourceType, sourceId)', async () => {
+  it('allows multiple roles for the same (fileEntryId, sourceId)', async () => {
     const entry = baseInternal()
+    const paintingId = await seedPainting()
     await dbh.db.insert(fileEntryTable).values(entry)
 
     const common = {
       fileEntryId: entry.id,
-      sourceType: 'knowledge_item',
-      sourceId: 'msg-multi-role',
+      sourceId: paintingId,
       createdAt: TS,
       updatedAt: TS
     }
 
-    await dbh.db.insert(fileRefTable).values({ id: randomUUID(), ...common, role: 'attachment' })
+    await dbh.db.insert(paintingFileRefTable).values({ id: randomUUID(), ...common, role: 'output' })
     await expect(
-      dbh.db.insert(fileRefTable).values({ id: randomUUID(), ...common, role: 'source' })
+      dbh.db.insert(paintingFileRefTable).values({ id: randomUUID(), ...common, role: 'input' })
     ).resolves.not.toThrow()
   })
 })

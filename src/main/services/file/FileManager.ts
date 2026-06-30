@@ -132,7 +132,6 @@ import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { orphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry'
 import { remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
@@ -597,7 +596,7 @@ export interface IFileManager {
 
   /**
    * Run both the FS-level orphan sweep (architecture §10) and the DB-level
-   * orphan-ref / entry sweep (§7 Layer 3) concurrently, returning a single
+   * temp-session ref prune / entry report (§7 Layer 3) concurrently, returning a single
    * `OrphanReport` once both settle. The `outcome` discriminator on the
    * report distinguishes `'completed'` / `'partial'` / `'failed'` so the
    * renderer cannot read a failed run as a healthy zero.
@@ -652,8 +651,7 @@ export class FileManager extends BaseService implements IFileManager {
     fileEntryService,
     fileRefService,
     danglingCache,
-    versionCache: this._versionCache,
-    orphanRegistry: orphanCheckerRegistry
+    versionCache: this._versionCache
   }
 
   protected override async onInit(): Promise<void> {
@@ -714,7 +712,7 @@ export class FileManager extends BaseService implements IFileManager {
 
   /**
    * Run the FS-level orphan sweep (file-manager-architecture §10) and
-   * the DB-level orphan-ref / entry sweep (file-manager-architecture §7
+   * the DB-level temp-session ref prune / entry report (file-manager-architecture §7
    * Layer 3) concurrently, returning a single `OrphanReport` once both
    * settle. User-triggered via the `File_RunSweep` IPC channel; there is
    * no startup auto-run.
@@ -725,8 +723,8 @@ export class FileManager extends BaseService implements IFileManager {
    * - DB sweep collapse → `outcome: 'failed'` (counts are meaningless;
    *   `errorMessage` carries the cause). FS sweep status no longer
    *   matters in this branch.
-   * - DB sweep per-sourceType checker throws → `outcome: 'partial'` with
-   *   `errorsByType`.
+   * - DB sweep `partial` is preserved in the wire type for compatibility,
+   *   but the current DB implementation returns only `completed` or `failed`.
    * - DB sweep clean BUT FS sweep returned `'partial'` / `'aborted'` /
    *   `'failed'` (or threw before producing a report) → umbrella degrades
    *   to `'partial'` with empty `errorsByType` and a populated
@@ -765,8 +763,7 @@ export class FileManager extends BaseService implements IFileManager {
 
     const dbSweepPromise = runDbSweep({
       fileEntryService: this.deps.fileEntryService,
-      fileRefService: this.deps.fileRefService,
-      registry: this.deps.orphanRegistry
+      fileRefService: this.deps.fileRefService
     }).catch((err): DbSweepReport => {
       fileManagerLogger.error('DB orphan sweep failed', err)
       return {
