@@ -52,7 +52,7 @@ getBinaryPath(name)  →  mise shim → cherry.bin → binary name (PATH fallbac
                         mise-managed bundled     resolved by user shell at exec
 ```
 
-`getBinaryPath()` in `src/main/utils/process.ts` is the **only** path resolver. Direct `os.homedir() + HOME_CHERRY_DIR` joins are forbidden — use `application.getPath('cherry.bin')` / `application.getPath('feature.binary.data')` instead.
+`getBinaryPath()` in `src/main/utils/binaryResolver.ts` is the **only** path resolver. Direct `os.homedir() + HOME_CHERRY_DIR` joins are forbidden — use `application.getPath('cherry.bin')` / `application.getPath('feature.binary.data')` instead.
 
 ## Why state is a file, not DataApi / Preference
 
