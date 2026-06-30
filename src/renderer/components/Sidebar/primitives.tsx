@@ -96,7 +96,7 @@ export function UserAvatar({
       ) : isEmojiAvatar ? (
         <EmojiIcon emoji={user.avatar!} fluid fontSize={10} />
       ) : (
-        <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-blue-400 to-indigo-500 text-[10px] text-white">
+        <div className="text-(length:--font-size-body-2xs) flex h-full w-full items-center justify-center bg-linear-to-br from-blue-400 to-indigo-500 text-white">
           {getUserAvatarFallback(user)}
         </div>
       )}

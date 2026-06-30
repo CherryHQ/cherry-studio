@@ -34,7 +34,7 @@ function IconFooter({ user, actions, extensionsLabel, onExtensionsClick }: Foote
           <button
             type="button"
             onClick={onExtensionsClick}
-            className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
+            className="flex h-9 w-9 items-center justify-center rounded-full text-foreground/80 transition-colors hover:bg-accent/60 hover:text-foreground [&_svg]:text-current">
             <Columns2 size={18} strokeWidth={1.6} />
           </button>
         </SidebarTooltip>
@@ -42,7 +42,7 @@ function IconFooter({ user, actions, extensionsLabel, onExtensionsClick }: Foote
       {actions}
       {user && (
         <div className="cursor-pointer" onClick={user.onClick}>
-          <UserAvatar user={user} className="h-7 w-7" />
+          <UserAvatar user={user} className="h-8 w-8" />
         </div>
       )}
     </div>
@@ -56,7 +56,7 @@ function FullFooter({ user, actions, extensionsLabel, onExtensionsClick }: Foote
         <button
           type="button"
           onClick={onExtensionsClick}
-          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
+          className="text-(length:--font-size-body-sm) flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.75 text-foreground/80 transition-colors hover:bg-accent/60 hover:text-foreground">
           <Columns2 size={16} strokeWidth={1.6} />
           <span>{extensionsLabel}</span>
         </button>
@@ -70,7 +70,7 @@ function FullFooter({ user, actions, extensionsLabel, onExtensionsClick }: Foote
           onClick={user.onClick}>
           <UserAvatar user={user} className="h-7 w-7 shrink-0" />
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] text-sidebar-foreground">{user.name}</div>
+            <div className="text-(length:--font-size-body-sm) truncate text-sidebar-foreground">{user.name}</div>
           </div>
           <ChevronRight size={14} className="shrink-0 text-muted-foreground" />
         </div>
