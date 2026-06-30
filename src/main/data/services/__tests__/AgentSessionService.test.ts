@@ -315,6 +315,26 @@ describe('AgentSessionService', () => {
     })
   })
 
+  it('is a no-op when re-setting an empty system session to a system workspace', async () => {
+    const session = await agentSessionService.create({
+      agentId: 'agent-session-test',
+      name: 'System to system',
+      workspace: { type: 'system' }
+    })
+    const originalSystemWorkspaceId = session.workspaceId
+
+    const updated = await agentSessionService.setWorkspace(session.id, { type: 'system' })
+
+    // Idempotent: the existing system workspace is already correct, so the binding must not change
+    // and no second system workspace row may be created (which would repoint the session and leak
+    // the original row + its directory).
+    expect(updated.workspaceId).toBe(originalSystemWorkspaceId)
+    expect(updated.workspace.type).toBe('system')
+    const allWorkspaceRows = await dbh.db.select().from(agentWorkspaceTable)
+    expect(allWorkspaceRows).toHaveLength(1)
+    expect(allWorkspaceRows[0]?.id).toBe(originalSystemWorkspaceId)
+  })
+
   it('rejects workspace updates after messages are sent', async () => {
     const firstWorkspace = await createWorkspace('before-locked-switch')
     const secondWorkspace = await createWorkspace('after-locked-switch')
