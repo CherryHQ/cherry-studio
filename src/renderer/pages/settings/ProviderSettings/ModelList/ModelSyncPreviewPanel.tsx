@@ -136,7 +136,6 @@ export default function ModelSyncPreviewPanel({
                   </span>
                   <ModelGlyph model={model} />
                   <div className="min-w-0 flex-1">
-                    <p className={modelSyncClasses.fetchRowTitle}>{model.name}</p>
                     <p className={modelSyncClasses.fetchRowId}>{modelIdLine(model.id, model.apiModelId)}</p>
                   </div>
                   <div className={modelSyncClasses.fetchCapabilityStrip}>
@@ -211,7 +210,6 @@ export default function ModelSyncPreviewPanel({
                   </span>
                   <ModelGlyph model={item.model} />
                   <div className="min-w-0 flex-1">
-                    <p className={modelSyncClasses.fetchRowTitleStrike}>{item.model.name}</p>
                     <p className={modelSyncClasses.fetchRowIdStrike}>
                       {modelIdLine(item.model.id, item.model.apiModelId)}
                     </p>
