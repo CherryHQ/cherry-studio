@@ -16,11 +16,11 @@ import { createPerplexity, type PerplexityProviderSettings } from '@ai-sdk/perpl
 import type { ProviderV3 } from '@ai-sdk/provider'
 import { createTogetherAI, type TogetherAIProviderSettings } from '@ai-sdk/togetherai'
 import { ProviderExtension, type ProviderExtensionConfig } from '@cherrystudio/ai-core/provider'
-import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import {
   createGitHubCopilotOpenAICompatible,
   type GitHubCopilotProviderSettings
 } from '@opeoginni/github-copilot-openai-compatible'
+import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import type { OllamaProviderSettings } from 'ollama-ai-provider-v2'
 import { createOllama } from 'ollama-ai-provider-v2'
