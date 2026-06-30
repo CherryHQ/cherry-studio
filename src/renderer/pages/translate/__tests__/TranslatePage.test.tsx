@@ -37,6 +37,7 @@ const translateCoreMock = vi.hoisted(() => ({
   formatErrorMessageWithPrefix: vi.fn((_: unknown, prefix: string) => prefix)
 }))
 const loggerWarnMock = vi.hoisted(() => vi.fn())
+const loggerErrorMock = vi.hoisted(() => vi.fn())
 const clipboardWriteTextMock = vi.hoisted(() => vi.fn())
 const toastLoadingMock = vi.hoisted(() => vi.fn())
 const toastCloseToastMock = vi.hoisted(() => vi.fn())
@@ -151,7 +152,7 @@ vi.mock('@renderer/ipc', () => ({
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
-      error: vi.fn(),
+      error: loggerErrorMock,
       warn: loggerWarnMock,
       info: vi.fn(),
       debug: vi.fn()
@@ -338,6 +339,7 @@ describe('TranslatePage', () => {
     translateCoreMock.formatErrorMessageWithPrefix.mockReset()
     translateCoreMock.formatErrorMessageWithPrefix.mockImplementation((_: unknown, prefix: string) => prefix)
     loggerWarnMock.mockReset()
+    loggerErrorMock.mockReset()
     clipboardWriteTextMock.mockReset()
     modelSelectorMock.mockReset()
     clipboardWriteTextMock.mockResolvedValue(undefined)
@@ -398,6 +400,28 @@ describe('TranslatePage', () => {
         '/notes'
       )
     )
+  })
+
+  it('logs failures when exporting the current translation result to notes', async () => {
+    const exportError = new Error('export failed')
+    MockUseCacheUtils.setCacheValue('translate.output', 'First translated line\nSecond translated line')
+    MockUsePreferenceUtils.setPreferenceValue('feature.notes.path', '/notes')
+    exportContentToNotesMock.mockRejectedValueOnce(exportError)
+
+    render(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'notes.save' }))
+
+    await waitFor(() =>
+      expect(exportContentToNotesMock).toHaveBeenCalledWith(
+        'First translated line',
+        'First translated line\nSecond translated line',
+        '/notes'
+      )
+    )
+    await waitFor(() => {
+      expect(loggerErrorMock).toHaveBeenCalledWith('Failed to export output to notes:', exportError)
+    })
   })
 
   it('appends selected file text to the latest input after async read completes', async () => {

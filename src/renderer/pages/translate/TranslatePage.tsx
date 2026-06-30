@@ -262,7 +262,11 @@ const TranslatePage: FC = () => {
 
   const onExportOutputToNotes = useCallback(async () => {
     if (!translateOutput.trim()) return
-    await exportContentToNotes(getTitleFromString(translateOutput), translateOutput, notesPath)
+    try {
+      await exportContentToNotes(getTitleFromString(translateOutput), translateOutput, notesPath)
+    } catch (error) {
+      logger.error('Failed to export output to notes:', error as Error)
+    }
   }, [notesPath, translateOutput])
 
   const translate = useCallback(
