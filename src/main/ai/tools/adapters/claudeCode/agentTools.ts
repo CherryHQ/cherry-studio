@@ -117,6 +117,17 @@ function injectedRuntimeTool(runtimeName: string): Tool {
   }
 }
 
+// An injected runtime tool that matches an auto-allow prefix but must still prompt — used for
+// mutating cherry-tools (e.g. kb_manage) so a destructive call goes through per-call user approval.
+function injectedRuntimeToolRequiringApproval(runtimeName: string): Tool {
+  return {
+    id: runtimeName,
+    name: runtimeName,
+    origin: 'internal',
+    approval: 'prompt'
+  }
+}
+
 export interface ClaudeAgentToolPolicySnapshot {
   resolve(runtimeName: string, input?: unknown): Tool | undefined
   isDisabled(runtimeName: string): boolean
@@ -127,7 +138,13 @@ export interface ClaudeAgentToolPolicySnapshot {
 
 export async function createClaudeAgentToolPolicySnapshot(
   agent: AgentEntity,
-  options: { autoAllowRuntimeNamePrefixes?: readonly string[]; conditionContext?: ClaudeToolContext } = {}
+  options: {
+    autoAllowRuntimeNamePrefixes?: readonly string[]
+    // Runtime names that match an auto-allow prefix but must still require per-call approval
+    // (e.g. mutating cherry-tools like kb_manage). Checked against the full runtime name.
+    autoAllowRuntimeNameExceptions?: readonly string[]
+    conditionContext?: ClaudeToolContext
+  } = {}
 ): Promise<ClaudeAgentToolPolicySnapshot> {
   let descriptors: ClaudeToolDescriptor[] = []
   let policy: ClaudeToolPolicy = {}
@@ -167,6 +184,11 @@ export async function createClaudeAgentToolPolicySnapshot(
   return {
     resolve(runtimeName, input) {
       if (options.autoAllowRuntimeNamePrefixes?.some((prefix) => runtimeName.startsWith(prefix))) {
+        // A mutating injected tool (e.g. kb_manage) matches the prefix but is excepted from
+        // auto-approval — resolve it as prompt-required so canUseTool emits an approval request.
+        if (options.autoAllowRuntimeNameExceptions?.includes(runtimeName)) {
+          return injectedRuntimeToolRequiringApproval(runtimeName)
+        }
         return injectedRuntimeTool(runtimeName)
       }
       const descriptor = findRuntimeDescriptor(descriptors, runtimeName)
