@@ -1,9 +1,9 @@
 // ContributorFinalizeError — thrown when ContributorManager.finalize() detects a
-// violation of one of the 25 registry invariants (registry.md). The payload carries
+// violation of one of the 26 registry invariants (registry.md). The payload carries
 // the minimum locator (invariant id + domain/table/sourceType/owner) so a startup
 // failure points straight at the offending declaration.
 export interface ContributorFinalizePayload {
-  /** Which invariant (1-25, per registry.md) was violated. */
+  /** Which invariant (1-26, per registry.md) was violated. */
   readonly invariant: number
   readonly domain?: string
   readonly table?: string

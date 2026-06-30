@@ -1,4 +1,4 @@
-// ContributorManager.finalize() core — validates the 25 registry invariants
+// ContributorManager.finalize() core — validates the 26 registry invariants
 // (registry.md §"finalize 25 不变量") against the codegen facts (DB_TABLES /
 // DB_COLUMNS_BY_TABLE / DB_FOREIGN_KEYS) and the contributor declarations,
 // then builds the immutable registry data. Pure / in-memory — never touches
@@ -18,6 +18,7 @@ import {
   DB_COLUMNS_BY_TABLE,
   DB_FOREIGN_KEYS,
   DB_TABLES,
+  DB_UNIQUE_KEYS,
   type DbColumnName,
   type DbTableName
 } from '@main/data/db/backup/dbSchemaRefs'
@@ -40,6 +41,10 @@ function fail(payload: ContributorFinalizePayload): never {
 const sameReference = (a: EntityReference, b: EntityReference): boolean =>
   a.table === b.table && a.column === b.column && a.kind === b.kind
 
+/** True when two column lists hold the same members, order-insensitive (used by #13). */
+const sameColumnSet = (a: readonly DbColumnName[], b: readonly DbColumnName[]): boolean =>
+  a.length === b.length && a.every((col) => b.includes(col))
+
 /**
  * Map a generated FK's onDelete to the ReferenceKind it implies (registry.md #19).
  * cascade/restrict → owning; set null/no action → optional; set default → rejected.
@@ -53,7 +58,7 @@ const expectedKindForOnDelete = (
 }
 
 /**
- * Validate the 25 registry invariants and produce an immutable registry. Throws
+ * Validate the 26 registry invariants and produce an immutable registry. Throws
  * ContributorFinalizeError (invariant id + locator payload, #18) on the first
  * violation. Invariant #17 (deep-freeze) is the B track's responsibility — it
  * freezes each contributor constant at load via freeze.deepFreeze; finalize and
@@ -183,6 +188,24 @@ export function finalize(
           fail({ invariant: 13, domain: c.domain, aggregate: agg.root })
         }
       }
+      // #13 (unique-backing): a natural-key/slot identityKey that is NOT the root
+      // PK must be backed by a real UNIQUE constraint (codegen DB_UNIQUE_KEYS) —
+      // otherwise a cross-device restore could merge two distinct rows that happen
+      // to share an identityKey value. PK-backed identityKeys are exempt because a
+      // PK is inherently unique; this lets preference (composite PK [scope,key]),
+      // translate_language (natural PK [langCode]) and future natural-PK domains
+      // pass without a separate unique index. uuid-entity identityKeys are always
+      // PK-backed, so they never reach the unique lookup.
+      if (rootPk && !sameColumnSet(identityKey, rootPk.columns)) {
+        const identityClass =
+          agg.identityClass ?? (rootPk.kind === 'uuid-v4' || rootPk.kind === 'uuid-v7' ? 'uuid-entity' : 'natural-key')
+        if (identityClass !== 'uuid-entity') {
+          const backed = DB_UNIQUE_KEYS[agg.root].some((u) => sameColumnSet(u.columns, identityKey))
+          if (!backed) {
+            fail({ invariant: 13, domain: c.domain, aggregate: agg.root, missingUnique: [...identityKey] })
+          }
+        }
+      }
       // #14: each member derives from an in-domain OWNING reference on viaColumn
       //      (junction tables and cross-domain refs are explicitly excluded,
       //      registry.md #14); only `include`-cascade members are derived this way.
@@ -210,6 +233,20 @@ export function finalize(
       // #16: renamable aggregates must supply cloneAggregate.
       if (agg.renamable && c.operations?.cloneAggregate === undefined) {
         fail({ invariant: 16, domain: c.domain, aggregate: agg.root })
+      }
+      // #26: renamable aggregates must have a single-column root PK — the importer's
+      // newRootKey is a single value and cloneAggregate replaces exactly one PK
+      // column (registry.getPrimaryKey(root).columns[0]). A composite-PK renamable
+      // aggregate would silently corrupt identity on rename, so it is forbidden;
+      // the remedy is to set renamable:false, not to change the schema.
+      if (agg.renamable && rootPk && rootPk.columns.length !== 1) {
+        fail({
+          invariant: 26,
+          domain: c.domain,
+          aggregate: agg.root,
+          pkColumns: [...rootPk.columns],
+          reason: 'renamable-requires-single-column-pk'
+        })
       }
     }
   }
