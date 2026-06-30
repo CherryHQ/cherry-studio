@@ -13,7 +13,7 @@
  */
 
 import { cacheService } from '@data/CacheService'
-import { useCache, usePersistCache, useSharedCache } from '@data/hooks/useCache'
+import { useCache, usePersistCache, useSharedCache, useSharedCacheValue } from '@data/hooks/useCache'
 import type {
   ExpandTemplateKey,
   InferSharedCacheValue,
@@ -290,6 +290,24 @@ describe('functional updater (runtime)', () => {
         result.current[1](true)
       })
       expect(cacheService.getShared('feature.api_gateway.running')).toBe(true)
+    })
+  })
+
+  describe('read-only shared value (useSharedCacheValue)', () => {
+    it('returns the current shared value', () => {
+      cacheService.setShared('feature.api_gateway.running', true)
+      const { result } = renderHook(() => useSharedCacheValue('feature.api_gateway.running'))
+      expect(result.current).toBe(true)
+    })
+
+    it('does not seed a default on mount, so it cannot clobber a key the owner has not populated', () => {
+      // Unset the key: `useSharedCache` would seed its schema default here and broadcast it to Main.
+      cacheService.deleteShared('feature.api_gateway.running')
+      const setSpy = vi.spyOn(cacheService, 'setShared')
+
+      renderHook(() => useSharedCacheValue('feature.api_gateway.running'))
+
+      expect(setSpy).not.toHaveBeenCalled()
     })
   })
 
