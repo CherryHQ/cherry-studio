@@ -86,4 +86,19 @@ describe('MessageTokens', () => {
 
     expect(container.querySelector('.message-tokens')?.textContent).toBe('Tokens:3.3K↑1.2K↓2.0K')
   })
+
+  it('shows prompt cache hit rate when cache stats exist', () => {
+    const { container } = renderWithProvider(
+      createMessage('assistant', {
+        promptTokens: 100,
+        completionTokens: 20,
+        totalTokens: 120,
+        noCacheTokens: 10,
+        cacheReadTokens: 70,
+        cacheWriteTokens: 20
+      })
+    )
+
+    expect(container.querySelector('.message-tokens')?.textContent).toBe('Tokens:0.1K↑0.1K↓0.0KCache 70%')
+  })
 })

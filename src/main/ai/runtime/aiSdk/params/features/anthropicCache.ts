@@ -10,6 +10,7 @@
 
 import type { LanguageModelV3CallOptions, LanguageModelV3FunctionTool, LanguageModelV3Message } from '@ai-sdk/provider'
 import { definePlugin } from '@cherrystudio/ai-core'
+import { resolveAnthropicCacheSettings } from '@shared/ai/anthropicCache'
 import type { Assistant } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -19,48 +20,9 @@ import { estimateTokenCount } from 'tokenx'
 import type { RequestFeature } from '../feature'
 
 const MAX_CACHE_BREAKPOINTS = 4
-const DEFAULT_TOKEN_THRESHOLD = 1024
-const HAIKU_TOKEN_THRESHOLD = 2048
-const DEFAULT_CACHE_LAST_N_MESSAGES = 2
-
 const cacheProviderOptions = {
   anthropic: { cacheControl: { type: 'ephemeral' } }
 } as const
-
-interface EffectiveAnthropicCacheSettings {
-  enabled: boolean
-  tokenThreshold: number
-  cacheSystemMessage: boolean
-  cacheLastNMessages: number
-  cacheToolDefinitions: boolean
-}
-
-function getMinimumTokenThreshold(model: Model): number {
-  const id = `${model.id} ${model.name} ${model.apiModelId ?? ''}`.toLowerCase()
-  return id.includes('haiku') ? HAIKU_TOKEN_THRESHOLD : DEFAULT_TOKEN_THRESHOLD
-}
-
-export function resolveAnthropicCacheSettings(provider: Provider, model: Model): EffectiveAnthropicCacheSettings {
-  const settings = provider.settings?.cacheControl
-  if (settings?.enabled === false) {
-    return {
-      enabled: false,
-      tokenThreshold: getMinimumTokenThreshold(model),
-      cacheSystemMessage: settings.cacheSystemMessage ?? true,
-      cacheLastNMessages: settings.cacheLastNMessages ?? DEFAULT_CACHE_LAST_N_MESSAGES,
-      cacheToolDefinitions: true
-    }
-  }
-
-  const minimum = getMinimumTokenThreshold(model)
-  return {
-    enabled: true,
-    tokenThreshold: Math.max(settings?.tokenThreshold ?? DEFAULT_TOKEN_THRESHOLD, minimum),
-    cacheSystemMessage: settings?.cacheSystemMessage ?? true,
-    cacheLastNMessages: settings?.cacheLastNMessages ?? DEFAULT_CACHE_LAST_N_MESSAGES,
-    cacheToolDefinitions: true
-  }
-}
 
 function hasVolatilePromptVariables(assistant: Assistant | undefined): boolean {
   const prompt = assistant?.prompt

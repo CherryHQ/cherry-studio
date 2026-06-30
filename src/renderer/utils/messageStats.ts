@@ -1,6 +1,32 @@
 import type { Metrics, Usage } from '@renderer/types/message'
 import type { MessageStats } from '@shared/data/types/message'
 
+export interface CacheTokenStats {
+  noCacheTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  totalInputTokens: number
+  hitRate: number
+  savedInputTokens: number
+}
+
+export function getCacheTokenStats(stats: MessageStats): CacheTokenStats | undefined {
+  const noCacheTokens = stats.noCacheTokens ?? 0
+  const cacheReadTokens = stats.cacheReadTokens ?? 0
+  const cacheWriteTokens = stats.cacheWriteTokens ?? 0
+  const totalInputTokens = noCacheTokens + cacheReadTokens + cacheWriteTokens
+  if (totalInputTokens === 0) return undefined
+
+  return {
+    noCacheTokens,
+    cacheReadTokens,
+    cacheWriteTokens,
+    totalInputTokens,
+    hitRate: cacheReadTokens / totalInputTokens,
+    savedInputTokens: cacheReadTokens
+  }
+}
+
 /**
  * Project `MessageStats` onto the OpenAI-shaped `Usage` the renderer
  * UI reads. Required OpenAI fields (`prompt_tokens` / `completion_tokens`
