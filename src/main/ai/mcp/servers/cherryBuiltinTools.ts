@@ -5,20 +5,28 @@
  * use, so Claude Code's web search/fetch and knowledge-base tools run identical
  * logic against the user's configured `WebSearchService` provider and knowledge
  * bases. Injected by `settingsBuilder` as an `sdk`-type MCP server; Claude calls
- * these five tools as `mcp__cherry-tools__web_search`, `…__web_fetch`,
- * `…__kb_search`, `…__kb_list`, and `…__report_artifacts`.
+ * these tools as `mcp__cherry-tools__web_search`, `…__web_fetch`, `…__kb_search`,
+ * `…__kb_read`, `…__kb_list`, `…__kb_manage`, and `…__report_artifacts`.
  *
  * KB scope is unscoped (`allowedIds: []`) because agents have no per-assistant
- * knowledge selection — the agent sees all of the user's knowledge bases.
+ * knowledge selection — the agent sees all of the user's knowledge bases. The
+ * destructive `kb_manage` tool relies on Claude Code's own per-call permission
+ * prompt for approval (the AI-SDK path uses the tool's `needsApproval` instead).
  */
 
 import { loggerService } from '@logger'
 import {
   KNOWLEDGE_LIST_DESCRIPTION,
+  KNOWLEDGE_MANAGE_DESCRIPTION,
+  KNOWLEDGE_READ_DESCRIPTION,
   KNOWLEDGE_SEARCH_DESCRIPTION,
   knowledgeListModelOutput,
+  knowledgeManageModelOutput,
+  knowledgeReadModelOutput,
   knowledgeSearchModelOutput,
-  listKnowledgeBases,
+  listOrOutlineKnowledge,
+  manageKnowledge,
+  readOrGrepConcept,
   searchKnowledge
 } from '@main/ai/tools/knowledgeLookup'
 import {
@@ -38,8 +46,12 @@ import {
 } from '@modelcontextprotocol/sdk/types.js'
 import {
   KB_LIST_TOOL_NAME,
+  KB_MANAGE_TOOL_NAME,
+  KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
   kbListInputSchema,
+  kbManageInputSchema,
+  kbReadInputSchema,
   kbSearchInputSchema,
   REPORT_ARTIFACTS_DESCRIPTION,
   REPORT_ARTIFACTS_TOOL_NAME,
@@ -92,12 +104,30 @@ const HANDLERS: Record<string, ToolHandler> = {
       return knowledgeSearchModelOutput(await searchKnowledge(query, baseIds, KB_ALLOWED_IDS))
     }
   },
+  // kb_read has two modes (read the document / grep it for `pattern`); readOrGrepConcept routes by `pattern`.
+  [KB_READ_TOOL_NAME]: {
+    description: KNOWLEDGE_READ_DESCRIPTION,
+    inputSchema: kbReadInputSchema,
+    run: async (args) => {
+      const input = kbReadInputSchema.parse(args)
+      return knowledgeReadModelOutput(await readOrGrepConcept(input, KB_ALLOWED_IDS))
+    }
+  },
+  // kb_list has two modes (list the bases / outline one base); listOrOutlineKnowledge routes by `baseId`.
   [KB_LIST_TOOL_NAME]: {
     description: KNOWLEDGE_LIST_DESCRIPTION,
     inputSchema: kbListInputSchema,
     run: async (args) => {
       const input = kbListInputSchema.parse(args)
-      return knowledgeListModelOutput(await listKnowledgeBases(input.query, input.groupId, KB_ALLOWED_IDS), input)
+      return knowledgeListModelOutput(await listOrOutlineKnowledge(input, KB_ALLOWED_IDS), input)
+    }
+  },
+  [KB_MANAGE_TOOL_NAME]: {
+    description: KNOWLEDGE_MANAGE_DESCRIPTION,
+    inputSchema: kbManageInputSchema,
+    run: async (args) => {
+      const input = kbManageInputSchema.parse(args)
+      return knowledgeManageModelOutput(await manageKnowledge(input, KB_ALLOWED_IDS))
     }
   },
   // Pure declaration tool: the model reports its final deliverable file(s). The value lives in the

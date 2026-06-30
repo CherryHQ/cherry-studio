@@ -3,6 +3,7 @@ import { computeSearchTextId, computeUnitId, hashContentText, hashEmbeddingText 
 import type {
   KnowledgeIndexSearchInput,
   KnowledgeIndexSearchMatch,
+  KnowledgeMaterialRef,
   KnowledgeSearchUnit,
   RebuildMaterialInput
 } from './model'
@@ -297,6 +298,49 @@ export class KnowledgeIndexStore {
         text: row.body as string
       }
     })
+  }
+
+  /**
+   * Resolve a Concept ID (a material's `relative_path`, OKF §2) to its material
+   * row, or null when no material has that path. `relative_path` is UNIQUE per
+   * index, so this is the lookup behind the deep-read tools — they re-validate
+   * the resolved material against the visible knowledge_item before reading.
+   */
+  async getMaterialByRelativePath(relativePath: string): Promise<KnowledgeMaterialRef | null> {
+    const result = await this.driver.execute(
+      `SELECT material_id, relative_path FROM material WHERE relative_path = ?`,
+      [relativePath]
+    )
+    const row = result.rows[0]
+    if (!row) {
+      return null
+    }
+    return {
+      materialId: row.material_id as string,
+      relativePath: row.relative_path as string
+    }
+  }
+
+  /**
+   * Read back a material's full indexed text — the immutable `content.text` its
+   * `current_content_hash` points at — or null when the material is unknown or
+   * has no current content yet (mid-index). This is the verbatim text the units
+   * were sliced from, so `text.slice(unit.charStart, unit.charEnd) === unit.text`
+   * holds (the same invariant rebuildMaterial enforces at write time).
+   */
+  async readMaterialContent(materialId: string): Promise<string | null> {
+    const result = await this.driver.execute(
+      `SELECT c.text AS text
+         FROM material m
+         JOIN content c ON c.content_hash = m.current_content_hash
+        WHERE m.material_id = ?`,
+      [materialId]
+    )
+    const row = result.rows[0]
+    if (!row || row.text == null) {
+      return null
+    }
+    return row.text as string
   }
 
   /**
