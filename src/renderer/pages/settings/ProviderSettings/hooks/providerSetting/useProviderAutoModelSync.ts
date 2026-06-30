@@ -3,6 +3,7 @@ import { useModels } from '@renderer/hooks/useModel'
 import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
 import { providerNeedsApiKeyForModelSync } from '@renderer/pages/settings/ProviderSettings/ModelList/providerModelSyncRequirements'
 import { enableProviderWhenModelsAvailable } from '@renderer/pages/settings/ProviderSettings/utils/providerEnablement'
+import { isLoginBasedProvider } from '@shared/utils/provider'
 import { getProviderHostTopology } from '@shared/utils/providerTopology'
 import { useEffect, useMemo, useRef } from 'react'
 
@@ -52,6 +53,19 @@ export function useProviderAutoModelSync(providerId: string) {
         shouldSync: false,
         reason: 'existing_models',
         details: { modelCount: models.length }
+      } as const
+    }
+
+    // Login-based providers (claude-code / codex / grok-cli) ship disabled and
+    // serve a registry catalog, so without this gate visiting their settings
+    // page would sync + enable them before the user signs in. Their login flow
+    // (LoginOauthPanel / ClaudeCodeSettings) flips `isEnabled` on confirmed
+    // login, so treat `isEnabled` as the "signed in" signal and defer sync until
+    // then — matching how an API-key provider waits for its key.
+    if (isLoginBasedProvider(provider) && !provider.isEnabled) {
+      return {
+        shouldSync: false,
+        reason: 'login_required'
       } as const
     }
 

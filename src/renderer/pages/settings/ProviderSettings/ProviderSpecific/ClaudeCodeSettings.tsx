@@ -1,5 +1,6 @@
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
 import { CodeCli } from '@shared/types/codeCli'
 import { CheckCircle2, CircleAlert, Copy, RefreshCw, TerminalSquare } from 'lucide-react'
@@ -21,6 +22,7 @@ interface ClaudeCodeSettingsProps {
 
 const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
   const { t } = useTranslation()
+  const { provider, updateProvider } = useProvider(providerId)
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null)
   const [checking, setChecking] = useState(false)
   const [launching, setLaunching] = useState(false)
@@ -40,6 +42,17 @@ const ClaudeCodeSettings: FC<ClaudeCodeSettingsProps> = ({ providerId }) => {
   useEffect(() => {
     void checkLogin()
   }, [checkLogin])
+
+  // Mirror the external-CLI login into the provider's enabled state, the same way
+  // LoginOauthPanel does for OAuth providers: a login-based provider stays disabled
+  // (hidden from pickers, no auto model sync) until its login is confirmed, then
+  // gets enabled. DataApi does not auto-sync, so the renderer drives this.
+  useEffect(() => {
+    if (loggedIn === null || !provider || provider.isEnabled === loggedIn) {
+      return
+    }
+    void updateProvider({ isEnabled: loggedIn })
+  }, [loggedIn, provider, updateProvider])
 
   const handleOpenTerminal = useCallback(async () => {
     setLaunching(true)

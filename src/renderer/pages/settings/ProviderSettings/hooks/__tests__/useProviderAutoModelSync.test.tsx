@@ -154,14 +154,15 @@ describe('useProviderAutoModelSync', () => {
     expect(syncProviderModelsMock).not.toHaveBeenCalled()
   })
 
-  it('auto-syncs a registry-sourced login provider that has no api keys', async () => {
+  it('auto-syncs a signed-in registry login provider that has no api keys', async () => {
     // claude-code / codex / grok-cli carry no API key; their models come from the
-    // shipped registry catalog, so sync must run despite the empty key list and
-    // materialize models into user_model after login.
+    // shipped registry catalog. Once signed in (isEnabled flipped by their login
+    // flow), sync must run despite the empty key list and materialize models.
     useProviderMock.mockReturnValue({
       provider: {
         id: 'claude-code',
-        isEnabled: false,
+        isEnabled: true,
+        authMethods: ['external-cli'],
         modelListSource: 'registry',
         defaultChatEndpoint: 'anthropic_messages',
         endpointConfigs: {
@@ -178,7 +179,39 @@ describe('useProviderAutoModelSync', () => {
     renderHook(() => useProviderAutoModelSync('claude-code'))
 
     await waitFor(() => expect(syncProviderModelsMock).toHaveBeenCalledTimes(1))
-    await waitFor(() => expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: true }))
+  })
+
+  it('does not sync or enable a login provider until it is signed in', async () => {
+    // Registry login providers ship disabled; visiting their settings page before
+    // login must NOT sync (which would materialize models) or enable them — the
+    // login flow flips isEnabled, which is the signal this hook waits for.
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'openai-codex',
+        isEnabled: false,
+        authMethods: ['oauth'],
+        modelListSource: 'registry',
+        defaultChatEndpoint: 'openai_responses',
+        endpointConfigs: {
+          openai_responses: { baseUrl: 'https://chatgpt.com/backend-api/codex' }
+        }
+      },
+      updateProvider: updateProviderMock
+    })
+    useProviderApiKeysMock.mockReturnValue({
+      data: { keys: [] }
+    })
+
+    renderHook(() => useProviderAutoModelSync('openai-codex'))
+
+    await waitFor(() =>
+      expect(loggerInfoMock).toHaveBeenCalledWith('Skipping provider auto model sync', {
+        providerId: 'openai-codex',
+        reason: 'login_required'
+      })
+    )
+    expect(syncProviderModelsMock).not.toHaveBeenCalled()
+    expect(updateProviderMock).not.toHaveBeenCalled()
   })
 
   it('logs auto sync failures and allows retrying when the same signature becomes eligible again', async () => {
