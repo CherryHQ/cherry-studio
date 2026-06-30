@@ -4,7 +4,7 @@ import { execFileSync, spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 
-import getShellEnv, { refreshShellEnv } from './shellEnv'
+import { getShellEnv, refreshShellEnv } from './shellEnv'
 
 /**
  * Resolution for arbitrary executables in the user's environment — locating
@@ -27,7 +27,7 @@ const MAX_OUTPUT_SIZE = 10240
 /**
  * Check if a command is available in the user's login shell environment
  * @param command - Command name to check (e.g., 'npx', 'uvx')
- * @param loginShellEnv - The login shell environment from getLoginShellEnvironment()
+ * @param loginShellEnv - The login shell environment from getShellEnv()
  * @returns Full path to the command if found, null otherwise
  */
 export async function findCommandInShellEnv(

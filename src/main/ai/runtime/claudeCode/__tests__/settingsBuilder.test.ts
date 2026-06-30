@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   listChannels: vi.fn(),
   applicationGet: vi.fn(),
   applicationGetPath: vi.fn(),
-  getLoginShellEnvironment: vi.fn(),
+  getShellEnv: vi.fn(),
   getBinaryPath: vi.fn(),
   getProxyEnvironment: vi.fn(),
   getPathStatus: vi.fn(),
@@ -150,7 +150,7 @@ vi.mock('@main/utils/rtk', () => ({
 }))
 
 vi.mock('@main/utils/shellEnv', () => ({
-  default: mocks.getLoginShellEnvironment
+  getShellEnv: mocks.getShellEnv
 }))
 
 vi.mock('../ToolApprovalRegistry', () => ({
@@ -202,7 +202,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.applicationGetPath.mockImplementation((key: string) => `/app/${key}`)
-    mocks.getLoginShellEnvironment.mockResolvedValue({})
+    mocks.getShellEnv.mockResolvedValue({})
     mocks.getBinaryPath.mockResolvedValue('/usr/local/bin/bun')
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })

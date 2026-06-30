@@ -70,7 +70,7 @@ vi.mock('@data/services/ProviderService', () => ({
 }))
 
 vi.mock('@main/utils/shellEnv', () => ({
-  default: vi.fn(() => Promise.resolve({ PATH: '/usr/bin' })),
+  getShellEnv: vi.fn(() => Promise.resolve({ PATH: '/usr/bin' })),
   refreshShellEnv: vi.fn(() => Promise.resolve({ PATH: '/usr/bin' }))
 }))
 

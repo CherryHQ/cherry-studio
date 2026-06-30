@@ -6,7 +6,7 @@ import { type ChildProcess, spawn, type SpawnOptions } from 'child_process'
 import iconv from 'iconv-lite'
 import path from 'path'
 
-import getShellEnv from './shellEnv'
+import { getShellEnv } from './shellEnv'
 
 /**
  * Process execution helpers — spawning child processes with proper Windows

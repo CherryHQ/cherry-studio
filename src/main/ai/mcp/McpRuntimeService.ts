@@ -12,7 +12,7 @@ import { getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/binary
 import { findCommandInShellEnv } from '@main/utils/commandResolver'
 import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
-import getLoginShellEnvironment from '@main/utils/shellEnv'
+import { getShellEnv } from '@main/utils/shellEnv'
 import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import type { SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
@@ -488,8 +488,8 @@ export class McpRuntimeService extends BaseService {
             const connectEnv: Record<string, string> = { ...server.env }
 
             // Get login shell environment first - needed for command detection and server execution
-            // Note: getLoginShellEnvironment() is memoized, so subsequent calls are fast
-            const loginShellEnv = await getLoginShellEnvironment()
+            // Note: getShellEnv() is memoized, so subsequent calls are fast
+            const loginShellEnv = await getShellEnv()
 
             // For package servers, use resolved configuration with platform overrides and variable substitution
             if (server.dxtPath) {

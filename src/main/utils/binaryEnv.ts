@@ -87,8 +87,24 @@ export function mergeBinaryExecutionEnv(
   const binaryEnv = getBinaryExecutionEnv()
   const pathKey = Object.keys(env).find((key) => key.toLowerCase() === 'path') || (isWin ? 'Path' : 'PATH')
   const pathSeparator = isWin ? ';' : path.delimiter
-  const pathValue = [binaryEnv.MISE_SHIMS_DIR, ...extraPathPrefixes, env[pathKey] || env.PATH || '']
-    .filter(Boolean)
+  // Dedup segments (first occurrence wins) so prepending the shims dir can't
+  // double it up when the caller's PATH already carries it — callers like
+  // shellEnv append the same tool dirs upstream. Order is load-bearing on
+  // Windows, so we keep first occurrence rather than sorting.
+  const seen = new Set<string>()
+  const pathValue = [
+    binaryEnv.MISE_SHIMS_DIR,
+    ...extraPathPrefixes,
+    ...(env[pathKey] || env.PATH || '').split(pathSeparator)
+  ]
+    .map((segment) => segment.trim())
+    .filter((segment) => {
+      if (!segment) return false
+      const canonical = isWin ? path.normalize(segment).toLowerCase() : path.normalize(segment)
+      if (seen.has(canonical)) return false
+      seen.add(canonical)
+      return true
+    })
     .join(pathSeparator)
   const merged = { ...env, ...binaryEnv, [pathKey]: pathValue }
   if (!isWin) merged.PATH = pathValue

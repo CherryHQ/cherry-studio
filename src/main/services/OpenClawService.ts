@@ -15,7 +15,7 @@ import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/m
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
 import { crossPlatformSpawn } from '@main/utils/processRunner'
-import getShellEnv, { refreshShellEnv } from '@main/utils/shellEnv'
+import { getShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { EndpointType, Model as DataModel } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { Provider as DataProvider } from '@shared/data/types/provider'

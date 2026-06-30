@@ -53,7 +53,7 @@ import { autoDiscoverGitBash } from '@main/utils/commandResolver'
 import { getPathStatus, type PathStatus } from '@main/utils/file/pathStatus'
 import { getAppLanguage, t } from '@main/utils/language'
 import { rtkRewrite } from '@main/utils/rtk'
-import getLoginShellEnvironment from '@main/utils/shellEnv'
+import { getShellEnv } from '@main/utils/shellEnv'
 import {
   CHANNEL_SECURITY_PROMPT,
   REPORT_ARTIFACTS_PROMPT,
@@ -465,7 +465,7 @@ async function buildEnvironment(
   _provider: Provider, // retained for API compat; providerId resolved from agent.model
   agent: AgentEntity
 ): Promise<Record<string, string | undefined>> {
-  const loginShellEnv = await getLoginShellEnvironment()
+  const loginShellEnv = await getShellEnv()
   const customGitBashPath = isWin ? autoDiscoverGitBash() : null
   const bunPath = await getBinaryPath('bun')
 

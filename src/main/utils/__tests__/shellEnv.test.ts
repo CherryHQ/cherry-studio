@@ -25,7 +25,7 @@ vi.mock('@application', () => ({
 vi.mock('child_process')
 
 // Import AFTER mocks are registered so the module binds to mocked values.
-import getShellEnv, { refreshShellEnv } from '../shellEnv'
+import { getShellEnv, refreshShellEnv } from '../shellEnv'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -186,6 +186,21 @@ describe('shellEnv – Windows registry PATH', () => {
     expect(env.Path).toContain('binary-manager')
     expect(env.Path).toContain('shims')
     expect(env.Path).toContain('bin')
+  })
+
+  it('lists the mise shims dir only once despite appending and prepending it', async () => {
+    // appendCherryToolDirsToPath() adds the shims dir, then mergeBinaryExecutionEnv()
+    // prepends it again — the merge step must dedup so it does not appear twice.
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const keyPath = (args as string[])[1]
+      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows')
+      throw new Error('not found')
+    })
+
+    const env = await refreshShellEnv()
+
+    const shimsCount = env.Path.split(';').filter((seg) => seg.endsWith('shims')).length
+    expect(shimsCount).toBe(1)
   })
 
   // -- does not spawn cmd.exe -----------------------------------------------

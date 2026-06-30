@@ -359,12 +359,10 @@ function loadShellEnv(): Promise<Record<string, string>> {
  * `removeEnvProxy`, merging per-spawn overrides), and handing out the cached
  * object itself would let one such mutation silently poison every later reader.
  */
-async function getShellEnv(): Promise<Record<string, string>> {
+export async function getShellEnv(): Promise<Record<string, string>> {
   const env = cachedEnv ?? (await loadShellEnv())
   return { ...env }
 }
-
-export default getShellEnv
 
 /**
  * Invalidate the shell env cache and immediately re-fetch a fresh environment.
