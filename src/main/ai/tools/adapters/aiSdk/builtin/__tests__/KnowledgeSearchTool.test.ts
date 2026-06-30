@@ -158,7 +158,7 @@ describe('kb_search', () => {
   })
 
   describe('toModelOutput', () => {
-    it('returns a hint pointing the model at kb_list when output is empty', () => {
+    it('returns a hint pointing the model at kb_list and instructing it to inform the user when output is empty', () => {
       const toModelOutput = entry.tool.toModelOutput as (opts: {
         toolCallId: string
         input: { query: string; baseIds: string[] }
@@ -171,6 +171,8 @@ describe('kb_search', () => {
       })
       expect(result.type).toBe('text')
       expect(result.value).toMatch(/kb_list/)
+      expect(result.value).toMatch(/inform the user/i)
+      expect(result.value).toMatch(/knowledge base/)
     })
 
     it('passes the array through as json when results are present', () => {
