@@ -5,8 +5,7 @@ import {
   oauthWithAihubmix,
   oauthWithAiOnly,
   oauthWithPPIO,
-  oauthWithSiliconFlow,
-  oauthWithTokenFlux
+  oauthWithSiliconFlow
 } from '@renderer/utils/oauth'
 import type { API_KEY_OAUTH_PROVIDER_IDS } from '@shared/utils/provider'
 import type { FC } from 'react'
@@ -25,7 +24,6 @@ const API_KEY_OAUTH_LAUNCHERS: Record<
   silicon: oauthWithSiliconFlow,
   aihubmix: oauthWithAihubmix,
   ppio: oauthWithPPIO,
-  tokenflux: () => oauthWithTokenFlux(),
   '302ai': oauthWith302AI,
   aionly: oauthWithAiOnly
 }

@@ -265,7 +265,6 @@ export async function buildClaudeCodeSessionSettings(
   // 1. Working directory (session-bound)
   const cwd = session.workspace.path
   await prepareClaudeCodeWorkspaceDirectory(session)
-  await skillService.reconcileAgentSkills(session.agentId, cwd)
 
   // 2. Environment variables
   const env = await buildEnvironment(provider, agent)
@@ -297,7 +296,12 @@ export async function buildClaudeCodeSessionSettings(
   // 8. Auto-approve allowlist for injected built-in MCP servers (soul/assistant only)
   const finalAllowedTools = adjustAllowedToolsForMcp(soulEnabled, isAssistant)
 
-  // 9. Build settings
+  // 9. Skills — pass the SDK skill-name whitelist (managed skills enabled for this
+  // agent + the workspace's own .claude/skills). The CLAUDE_CONFIG_DIR/skills mirror
+  // is maintained by SkillService (install/uninstall/startup), not here.
+  const skills = await buildSkillWhitelist(agent.id, cwd)
+
+  // 10. Build settings
   const settings: ClaudeCodeSettings = {
     cwd,
     env,
@@ -311,6 +315,7 @@ export async function buildClaudeCodeSessionSettings(
     allowedTools: finalAllowedTools,
     disallowedTools,
     plugins,
+    skills,
     canUseTool,
     hooks,
     approvalEmitter,
@@ -568,6 +573,35 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
   }
 
   return env
+}
+
+/**
+ * Compute the SDK `Options.skills` whitelist for a session.
+ *
+ * `Options.skills` is a *filter over everything the SDK discovers* — both the
+ * managed mirror under CLAUDE_CONFIG_DIR/skills (maintained by `SkillService`)
+ * and the workspace's own `cwd/.claude/skills`. So the whitelist must list:
+ *   - the agent's enabled managed skills, and
+ *   - the workspace's project-local skills (omitting them would filter the
+ *     user's own project skills out of their session).
+ *
+ * We match by *directory name only* (`folderName` for managed skills, the
+ * `.claude/skills/<dir>` name for workspace skills). The SDK also matches the
+ * SKILL.md `name`, but that field is not unique — including it would let an
+ * enabled skill's name un-hide a different, disabled skill that happens to
+ * share it. Directory names are unique within each root, so they can't collide.
+ *
+ * Read-only: the filesystem mirror is maintained at install / uninstall /
+ * startup reconcile, never here — so concurrent session builds never race.
+ */
+export async function buildSkillWhitelist(agentId: string, cwd: string): Promise<string[]> {
+  const installedSkills = await skillService.list({ agentId })
+  const enabledNames = installedSkills.filter((skill) => skill.isEnabled).map((skill) => skill.folderName)
+
+  const workspaceSkills = await skillService.listLocal(cwd)
+  const workspaceNames = workspaceSkills.map((skill) => skill.filename)
+
+  return Array.from(new Set([...enabledNames, ...workspaceNames]))
 }
 
 async function discoverPlugins(cwd: string, agentId: string): Promise<SdkPluginConfig[] | undefined> {
