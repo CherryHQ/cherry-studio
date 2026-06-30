@@ -10,7 +10,7 @@ import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, Service
 import { WindowType } from '@main/core/window/types'
 import { defaultAppHeaders } from '@main/utils/http'
 import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
-import getLoginShellEnvironment, { removeEnvProxy } from '@main/utils/shell-env'
+import getLoginShellEnvironment, { removeEnvProxy } from '@main/utils/shellEnv'
 import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import type { SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'

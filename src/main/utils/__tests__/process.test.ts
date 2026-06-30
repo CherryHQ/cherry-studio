@@ -1200,7 +1200,7 @@ describe('getBinarySearchDirs', () => {
 
   it('returns the mise shims dir before the bundled cherry.bin dir', () => {
     // Shims must precede cherry.bin so a user-installed copy shadows the bundled
-    // one — the same ordering getBinaryPath() and shell-env.ts rely on.
+    // one — the same ordering getBinaryPath() and shellEnv.ts rely on.
     expect(getBinarySearchDirs()).toEqual(['/mock/feature.binary.data/shims', '/mock/cherry.bin'])
   })
 })

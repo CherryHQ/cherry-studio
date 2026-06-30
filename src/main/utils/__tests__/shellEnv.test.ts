@@ -25,7 +25,7 @@ vi.mock('@application', () => ({
 vi.mock('child_process')
 
 // Import AFTER mocks are registered so the module binds to mocked values.
-import { refreshShellEnv } from '../shell-env'
+import { refreshShellEnv } from '../shellEnv'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -44,7 +44,7 @@ const HKCU_KEY = 'HKCU\\Environment'
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('shell-env – Windows registry PATH', () => {
+describe('shellEnv – Windows registry PATH', () => {
   const savedEnv = process.env
 
   beforeEach(() => {

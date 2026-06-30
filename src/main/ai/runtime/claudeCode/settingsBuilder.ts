@@ -52,7 +52,7 @@ import { getPathStatus, type PathStatus } from '@main/utils/file/pathStatus'
 import { getAppLanguage, t } from '@main/utils/language'
 import { autoDiscoverGitBash, getBinaryPath } from '@main/utils/process'
 import { rtkRewrite } from '@main/utils/rtk'
-import getLoginShellEnvironment from '@main/utils/shell-env'
+import getLoginShellEnvironment from '@main/utils/shellEnv'
 import {
   CHANNEL_SECURITY_PROMPT,
   REPORT_ARTIFACTS_PROMPT,
