@@ -21,9 +21,8 @@ import { useTranslation } from 'react-i18next'
 const BASE_URL = 'https://www.cherry-ai.com/'
 
 const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarAppId>(REQUIRED_SIDEBAR_FAVORITES)
-const LAUNCHPAD_GRID_CLASS =
-  'grid grid-cols-[repeat(auto-fill,92px)] justify-start justify-items-center gap-x-14 gap-y-8 px-2'
-const LAUNCHPAD_ITEM_CLASS = 'w-[92px]'
+const LAUNCHPAD_GRID_CLASS = 'grid grid-cols-6 justify-items-center gap-2 px-2'
+const LAUNCHPAD_ITEM_CLASS = 'mx-auto w-[92px]'
 const SORTABLE_CONTENTS_STYLE = { display: 'contents' } as const
 
 const APP_ICON_BACKGROUNDS: Record<SidebarAppId, string> = {
@@ -307,9 +306,9 @@ export default function LaunchpadPage() {
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
       <Scrollbar className="min-h-0 flex-1">
-        <div className="mx-auto flex w-full max-w-[920px] flex-col gap-8 px-8 py-12.5">
+        <div className="mx-auto flex w-full max-w-180 flex-col gap-5 py-12.5">
           <section className="flex flex-col gap-2">
-            <h2 className="m-0 px-2 py-0 font-semibold text-[14px] text-foreground opacity-80">
+            <h2 className="m-0 px-9 py-0 font-semibold text-[14px] text-foreground opacity-80">
               {t('launchpad.apps')}
             </h2>
             <div className={LAUNCHPAD_GRID_CLASS}>
@@ -330,7 +329,7 @@ export default function LaunchpadPage() {
 
           {launchpadMiniAppsVisible && (
             <section className="flex flex-col gap-2">
-              <h2 className="m-0 px-2 py-0 font-semibold text-[14px] text-foreground opacity-80">
+              <h2 className="m-0 px-9 py-0 font-semibold text-[14px] text-foreground opacity-80">
                 {t('launchpad.miniApps')}
               </h2>
               <div className={LAUNCHPAD_GRID_CLASS}>

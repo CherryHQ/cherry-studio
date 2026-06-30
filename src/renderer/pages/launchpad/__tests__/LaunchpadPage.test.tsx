@@ -172,6 +172,38 @@ describe('LaunchpadPage', () => {
     expect(screen.queryByRole('button', { name: 'Manage' })).not.toBeInTheDocument()
   })
 
+  it('keeps the launchpad grid at the original compact density', () => {
+    mocks.pinnedMiniApps = [
+      {
+        appId: 'calculator',
+        name: 'Calculator',
+        logo: 'calc-logo',
+        url: 'https://example.com',
+        presetMiniAppId: 'calculator',
+        status: 'pinned',
+        orderKey: ''
+      }
+    ]
+
+    render(<LaunchpadPage />)
+
+    const appsHeading = screen.getByRole('heading', { name: 'Apps' })
+    const appsGrid = appsHeading.nextElementSibling
+    const miniAppsGrid = screen.getByRole('heading', { name: 'Mini Apps' }).nextElementSibling
+    const content = appsHeading.closest('section')?.parentElement
+
+    expect(content).toHaveClass('max-w-180', 'gap-5')
+    expect(appsGrid).toHaveClass('grid-cols-6', 'justify-items-center', 'gap-2', 'px-2')
+    expect(appsGrid).not.toHaveClass('gap-x-14', 'gap-y-8')
+    expect(miniAppsGrid).toHaveClass('grid-cols-6', 'justify-items-center', 'gap-2', 'px-2')
+    expect(screen.getByRole('button', { name: 'Chat' })).toHaveClass('mx-auto', 'w-[92px]')
+    expect(screen.getByRole('button', { name: 'Calculator' }).parentElement).toHaveClass(
+      'mx-auto',
+      'w-[92px]',
+      'justify-center'
+    )
+  })
+
   it('renders fixed sidebar apps first and unpinned apps in default order', () => {
     mocks.sidebarFavorites = [appFavorite('translate'), appFavorite('assistants'), appFavorite('agents')]
 
