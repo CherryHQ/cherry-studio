@@ -395,11 +395,15 @@ function createComposerEditorContent(text: string, draftTokens: readonly Compose
 
 function getComposerSelectionState(view: ComposerTextInputView) {
   const { doc, selection } = view.state
-  const lastSelectablePosition = Math.max(1, doc.content.size)
+  // ProseMirror positions are token-based: `doc.content.size` is one past the
+  // trailing block-close token, so the caret at end-of-text sits at
+  // `content.size - 1` for non-empty text. Empty text only has a single
+  // selectable position (`1`), which is what `Math.max(1, ...)` normalizes.
+  const lastSelectablePosition = Math.max(1, doc.content.size - 1)
 
   return {
     isAllSelected: !selection.empty && selection.from <= 1 && selection.to >= lastSelectablePosition,
-    isCursorAtEnd: selection.empty && selection.from >= lastSelectablePosition
+    isCursorAtEnd: selection.empty && selection.from === lastSelectablePosition
   }
 }
 
