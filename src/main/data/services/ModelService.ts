@@ -35,7 +35,6 @@ import type {
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { ReasoningFormatType } from '@shared/data/types/provider'
 import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
-import { isEqual } from 'lodash'
 
 const logger = loggerService.withContext('DataApi:ModelService')
 const SQLITE_INARRAY_CHUNK = 500
@@ -346,7 +345,29 @@ function enrichableValueEqual(next: unknown, prev: unknown): boolean {
     const prevSet = new Set(prev)
     return next.every((item) => prevSet.has(item))
   }
-  return isEqual(next, prev)
+  return deepEqual(next, prev)
+}
+
+/**
+ * Minimal JSON-value deep equality (object key order-insensitive). Used instead
+ * of `lodash.isEqual` to keep the main-process service free of a runtime lodash
+ * dependency. Only compares the JSON-serializable column values stored on
+ * user_model (scalars + pricing / reasoning / parameter objects).
+ */
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false
+    return a.every((item, index) => deepEqual(item, b[index]))
+  }
+  const aKeys = Object.keys(a as Record<string, unknown>)
+  const bKeys = Object.keys(b as Record<string, unknown>)
+  if (aKeys.length !== bKeys.length) return false
+  return aKeys.every(
+    (key) =>
+      Object.hasOwn(b, key) && deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key])
+  )
 }
 
 /**
