@@ -1,6 +1,6 @@
 import { Button, Input, PageSidePanelItem, Switch, Tooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import type { Provider, RuntimeApiFeatures } from '@shared/data/types/provider'
 import { isAnthropicSupportedProvider } from '@shared/utils/provider'
 import { Info } from 'lucide-react'

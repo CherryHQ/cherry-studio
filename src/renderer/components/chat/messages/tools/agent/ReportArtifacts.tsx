@@ -1,6 +1,6 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { Icon } from '@iconify/react'
-import type { McpToolResponse, NormalToolResponse } from '@renderer/types'
+import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
 import { ExternalLink } from 'lucide-react'

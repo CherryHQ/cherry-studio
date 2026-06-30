@@ -1,4 +1,3 @@
-import { configManager } from '@main/services/ConfigManager'
 import { execFileSync, spawn } from 'child_process'
 import { EventEmitter } from 'events'
 import fs from 'fs'
@@ -13,20 +12,9 @@ import {
   findViaMise,
   getBinaryName,
   getBinaryPath,
+  getBinarySearchDirs,
   validateGitBashPath
 } from '../process'
-
-// Mock configManager
-vi.mock('@main/services/ConfigManager', () => ({
-  ConfigKeys: {
-    GitBashPath: 'gitBashPath',
-    GitBashPathSource: 'gitBashPathSource'
-  },
-  configManager: {
-    get: vi.fn(),
-    set: vi.fn()
-  }
-}))
 
 // Mock dependencies
 vi.mock('child_process')
@@ -773,13 +761,10 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
     const originalEnvVar = process.env.CLAUDE_CODE_GIT_BASH_PATH
 
     beforeEach(() => {
-      vi.mocked(configManager.get).mockReset()
-      vi.mocked(configManager.set).mockReset()
       delete process.env.CLAUDE_CODE_GIT_BASH_PATH
     })
 
     afterEach(() => {
-      // Restore original environment variable
       if (originalEnvVar !== undefined) {
         process.env.CLAUDE_CODE_GIT_BASH_PATH = originalEnvVar
       } else {
@@ -787,269 +772,48 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
       }
     })
 
-    /**
-     * Helper to mock fs.existsSync with a set of valid paths
-     */
     const mockExistingPaths = (...validPaths: string[]) => {
       vi.mocked(fs.existsSync).mockImplementation((p) => validPaths.includes(p as string))
     }
 
-    describe('with no existing config path', () => {
-      it('should discover and persist Git Bash path when not configured', () => {
-        const bashPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
-        const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
+    it('returns the CLAUDE_CODE_GIT_BASH_PATH override when it is valid', () => {
+      const envPath = 'C:\\EnvGit\\bin\\bash.exe'
+      process.env.CLAUDE_CODE_GIT_BASH_PATH = envPath
+      mockExistingPaths(envPath)
 
-        vi.mocked(configManager.get).mockReturnValue(undefined)
-        process.env.ProgramFiles = 'C:\\Program Files'
-        mockExistingPaths(gitPath, bashPath)
-
-        const result = autoDiscoverGitBash()
-
-        expect(result).toBe(bashPath)
-        expect(configManager.set).toHaveBeenCalledWith('gitBashPath', bashPath)
-      })
-
-      it('should return null and not persist when Git Bash is not found', () => {
-        vi.mocked(configManager.get).mockReturnValue(undefined)
-        vi.mocked(fs.existsSync).mockReturnValue(false)
-        vi.mocked(execFileSync).mockImplementation(() => {
-          throw new Error('Not found')
-        })
-
-        const result = autoDiscoverGitBash()
-
-        expect(result).toBeNull()
-        expect(configManager.set).not.toHaveBeenCalled()
-      })
+      expect(autoDiscoverGitBash()).toBe(envPath)
     })
 
-    describe('environment variable precedence', () => {
-      it('should use env var over valid config path', () => {
-        const envPath = 'C:\\EnvGit\\bin\\bash.exe'
-        const configPath = 'C:\\ConfigGit\\bin\\bash.exe'
+    it('falls back to auto-discovery when the env override is invalid', () => {
+      const envPath = 'C:\\Invalid\\bash.exe'
+      const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
+      const bashPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
 
-        process.env.CLAUDE_CODE_GIT_BASH_PATH = envPath
-        vi.mocked(configManager.get).mockReturnValue(configPath)
-        mockExistingPaths(envPath, configPath)
+      process.env.CLAUDE_CODE_GIT_BASH_PATH = envPath
+      process.env.ProgramFiles = 'C:\\Program Files'
+      // env path does not exist; the standard Git install does
+      mockExistingPaths(gitPath, bashPath)
 
-        const result = autoDiscoverGitBash()
-
-        // Env var should take precedence
-        expect(result).toBe(envPath)
-        // Should not persist env var path (it's a runtime override)
-        expect(configManager.set).not.toHaveBeenCalled()
-      })
-
-      it('should fall back to config path when env var is invalid', () => {
-        const envPath = 'C:\\Invalid\\bash.exe'
-        const configPath = 'C:\\ConfigGit\\bin\\bash.exe'
-
-        process.env.CLAUDE_CODE_GIT_BASH_PATH = envPath
-        vi.mocked(configManager.get).mockReturnValue(configPath)
-        // Env path is invalid (doesn't exist), only config path exists
-        mockExistingPaths(configPath)
-
-        const result = autoDiscoverGitBash()
-
-        // Should fall back to config path
-        expect(result).toBe(configPath)
-        expect(configManager.set).not.toHaveBeenCalled()
-      })
-
-      it('should fall back to auto-discovery when both env var and config are invalid', () => {
-        const envPath = 'C:\\InvalidEnv\\bash.exe'
-        const configPath = 'C:\\InvalidConfig\\bash.exe'
-        const discoveredPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
-        const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
-
-        process.env.CLAUDE_CODE_GIT_BASH_PATH = envPath
-        process.env.ProgramFiles = 'C:\\Program Files'
-        vi.mocked(configManager.get).mockReturnValue(configPath)
-        // Both env and config paths are invalid, only standard Git exists
-        mockExistingPaths(gitPath, discoveredPath)
-
-        const result = autoDiscoverGitBash()
-
-        expect(result).toBe(discoveredPath)
-        expect(configManager.set).toHaveBeenCalledWith('gitBashPath', discoveredPath)
-      })
+      expect(autoDiscoverGitBash()).toBe(bashPath)
     })
 
-    describe('with valid existing config path', () => {
-      it('should validate and return existing path without re-discovering', () => {
-        const existingPath = 'C:\\CustomGit\\bin\\bash.exe'
+    it('discovers Git Bash from a standard Git for Windows install', () => {
+      const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
+      const bashPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
 
-        vi.mocked(configManager.get).mockReturnValue(existingPath)
-        mockExistingPaths(existingPath)
+      process.env.ProgramFiles = 'C:\\Program Files'
+      mockExistingPaths(gitPath, bashPath)
 
-        const result = autoDiscoverGitBash()
-
-        expect(result).toBe(existingPath)
-        // Should not call findGitBash or persist again
-        expect(configManager.set).not.toHaveBeenCalled()
-        // Should not call execFileSync (which findGitBash would use for discovery)
-        expect(execFileSync).not.toHaveBeenCalled()
-      })
-
-      it('should not override existing valid config with auto-discovery', () => {
-        const existingPath = 'C:\\CustomGit\\bin\\bash.exe'
-        const discoveredPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
-
-        vi.mocked(configManager.get).mockReturnValue(existingPath)
-        mockExistingPaths(existingPath, discoveredPath)
-
-        const result = autoDiscoverGitBash()
-
-        expect(result).toBe(existingPath)
-        expect(configManager.set).not.toHaveBeenCalled()
-      })
+      expect(autoDiscoverGitBash()).toBe(bashPath)
     })
 
-    describe('with invalid existing config path', () => {
-      it('should attempt auto-discovery when existing path does not exist', () => {
-        const existingPath = 'C:\\NonExistent\\bin\\bash.exe'
-        const discoveredPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
-        const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
-
-        vi.mocked(configManager.get).mockReturnValue(existingPath)
-        process.env.ProgramFiles = 'C:\\Program Files'
-        // Invalid path doesn't exist, but Git is installed at standard location
-        mockExistingPaths(gitPath, discoveredPath)
-
-        const result = autoDiscoverGitBash()
-
-        // Should discover and return the new path
-        expect(result).toBe(discoveredPath)
-        // Should persist the discovered path (overwrites invalid)
-        expect(configManager.set).toHaveBeenCalledWith('gitBashPath', discoveredPath)
+    it('returns null when Git Bash cannot be found', () => {
+      vi.mocked(fs.existsSync).mockReturnValue(false)
+      vi.mocked(execFileSync).mockImplementation(() => {
+        throw new Error('Not found')
       })
 
-      it('should attempt auto-discovery when existing path is not bash.exe', () => {
-        const existingPath = 'C:\\CustomGit\\bin\\git.exe'
-        const discoveredPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
-        const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
-
-        vi.mocked(configManager.get).mockReturnValue(existingPath)
-        process.env.ProgramFiles = 'C:\\Program Files'
-        // Invalid path exists but is not bash.exe (validation will fail)
-        // Git is installed at standard location
-        mockExistingPaths(existingPath, gitPath, discoveredPath)
-
-        const result = autoDiscoverGitBash()
-
-        // Should discover and return the new path
-        expect(result).toBe(discoveredPath)
-        // Should persist the discovered path (overwrites invalid)
-        expect(configManager.set).toHaveBeenCalledWith('gitBashPath', discoveredPath)
-      })
-
-      it('should return null when existing path is invalid and discovery fails', () => {
-        const existingPath = 'C:\\NonExistent\\bin\\bash.exe'
-
-        vi.mocked(configManager.get).mockReturnValue(existingPath)
-        vi.mocked(fs.existsSync).mockReturnValue(false)
-        vi.mocked(execFileSync).mockImplementation(() => {
-          throw new Error('Not found')
-        })
-
-        const result = autoDiscoverGitBash()
-
-        // Both validation and discovery failed
-        expect(result).toBeNull()
-        // Should not persist when discovery fails
-        expect(configManager.set).not.toHaveBeenCalled()
-      })
-    })
-
-    describe('config persistence verification', () => {
-      it('should persist discovered path with correct config key', () => {
-        const bashPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
-        const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
-
-        vi.mocked(configManager.get).mockReturnValue(undefined)
-        process.env.ProgramFiles = 'C:\\Program Files'
-        mockExistingPaths(gitPath, bashPath)
-
-        autoDiscoverGitBash()
-
-        // On Windows, configManager.set is called twice (for path and source)
-        // On other platforms, it's called once
-        const expectedCalls = process.platform === 'win32' ? 2 : 1
-        expect(configManager.set).toHaveBeenCalledTimes(expectedCalls)
-        expect(configManager.set).toHaveBeenCalledWith('gitBashPath', bashPath)
-      })
-
-      it('should persist on each discovery when config remains undefined', () => {
-        const bashPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
-        const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
-
-        vi.mocked(configManager.get).mockReturnValue(undefined)
-        process.env.ProgramFiles = 'C:\\Program Files'
-        mockExistingPaths(gitPath, bashPath)
-
-        autoDiscoverGitBash()
-        autoDiscoverGitBash()
-
-        // On Windows, configManager.set is called twice per discovery (for path and source)
-        // On other platforms, it's called once per discovery
-        const expectedCallsPerCall = process.platform === 'win32' ? 2 : 1
-        expect(configManager.set).toHaveBeenCalledTimes(expectedCallsPerCall * 2)
-      })
-    })
-
-    describe('real-world scenarios', () => {
-      it('should discover and persist standard Git for Windows installation', () => {
-        const gitPath = 'C:\\Program Files\\Git\\cmd\\git.exe'
-        const bashPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
-
-        vi.mocked(configManager.get).mockReturnValue(undefined)
-        process.env.ProgramFiles = 'C:\\Program Files'
-        mockExistingPaths(gitPath, bashPath)
-
-        const result = autoDiscoverGitBash()
-
-        expect(result).toBe(bashPath)
-        expect(configManager.set).toHaveBeenCalledWith('gitBashPath', bashPath)
-      })
-
-      it('should discover portable Git via where.exe and persist', () => {
-        const gitPath = 'D:\\PortableApps\\Git\\bin\\git.exe'
-        const bashPath = 'D:\\PortableApps\\Git\\bin\\bash.exe'
-
-        vi.mocked(configManager.get).mockReturnValue(undefined)
-
-        vi.mocked(fs.existsSync).mockImplementation((p) => {
-          const pathStr = p?.toString() || ''
-          // Common git paths don't exist
-          if (pathStr.includes('Program Files\\Git\\cmd\\git.exe')) return false
-          if (pathStr.includes('Program Files (x86)\\Git\\cmd\\git.exe')) return false
-          // Portable bash path exists
-          if (pathStr === bashPath) return true
-          return false
-        })
-
-        vi.mocked(execFileSync).mockReturnValue(gitPath)
-
-        const result = autoDiscoverGitBash()
-
-        expect(result).toBe(bashPath)
-        expect(configManager.set).toHaveBeenCalledWith('gitBashPath', bashPath)
-      })
-
-      it('should respect user-configured path over auto-discovery', () => {
-        const userConfiguredPath = 'D:\\MyGit\\bin\\bash.exe'
-        const systemPath = 'C:\\Program Files\\Git\\bin\\bash.exe'
-
-        vi.mocked(configManager.get).mockReturnValue(userConfiguredPath)
-        mockExistingPaths(userConfiguredPath, systemPath)
-
-        const result = autoDiscoverGitBash()
-
-        expect(result).toBe(userConfiguredPath)
-        expect(configManager.set).not.toHaveBeenCalled()
-        // Verify findGitBash was not called for discovery
-        expect(execFileSync).not.toHaveBeenCalled()
-      })
+      expect(autoDiscoverGitBash()).toBeNull()
     })
   })
 })
@@ -1382,8 +1146,11 @@ describe('findCommandInShellEnv', () => {
 })
 
 describe('getBinaryPath', () => {
-  // The global '@application' mock resolves 'cherry.bin' to '/mock/cherry.bin'.
+  // The global '@application' mock resolves 'cherry.bin' to '/mock/cherry.bin'
+  // and 'feature.binary.data' to '/mock/feature.binary.data'. getBinaryPath
+  // searches mise shims first, then the bundled cherry.bin fallback.
   const binDir = '/mock/cherry.bin'
+  const shimsDir = '/mock/feature.binary.data/shims'
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -1395,15 +1162,24 @@ describe('getBinaryPath', () => {
     expect(result).toBe(binDir)
   })
 
-  it('returns the managed binary path when that binary exists in the bin dir', async () => {
+  it('returns the mise shim path when that binary exists, preferring it over cherry.bin', async () => {
     const binaryName = await getBinaryName('bun')
     vi.mocked(fs.existsSync).mockReturnValue(true)
 
     const result = await getBinaryPath('bun')
 
+    // Shims are searched first, so a user-installed copy wins over the bundled one.
+    expect(result).toBe(`${shimsDir}/${binaryName}`)
+    expect(fs.existsSync).toHaveBeenCalledWith(`${shimsDir}/${binaryName}`)
+  })
+
+  it('falls back to the cherry.bin path when the binary exists only there', async () => {
+    const binaryName = await getBinaryName('bun')
+    vi.mocked(fs.existsSync).mockImplementation((p) => p === `${binDir}/${binaryName}`)
+
+    const result = await getBinaryPath('bun')
+
     expect(result).toBe(`${binDir}/${binaryName}`)
-    // Existence is gated on the binary file itself, not merely the bin dir.
-    expect(fs.existsSync).toHaveBeenCalledWith(`${binDir}/${binaryName}`)
   })
 
   it('falls back to the bare name (resolved via system PATH) when the binary is absent', async () => {
@@ -1413,5 +1189,18 @@ describe('getBinaryPath', () => {
     const result = await getBinaryPath('bun')
 
     expect(result).toBe(binaryName)
+  })
+})
+
+describe('getBinarySearchDirs', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(path.join).mockImplementation((...args) => args.join('/'))
+  })
+
+  it('returns the mise shims dir before the bundled cherry.bin dir', () => {
+    // Shims must precede cherry.bin so a user-installed copy shadows the bundled
+    // one — the same ordering getBinaryPath() and shell-env.ts rely on.
+    expect(getBinarySearchDirs()).toEqual(['/mock/feature.binary.data/shims', '/mock/cherry.bin'])
   })
 })

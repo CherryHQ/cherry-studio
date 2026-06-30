@@ -1,19 +1,18 @@
 import { usePreference } from '@data/hooks/usePreference'
+import { SIDEBAR_ICON_COMPONENTS } from '@renderer/components/app/sidebarIcons'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import App from '@renderer/components/MiniApp/MiniApp'
 import Scrollbar from '@renderer/components/Scrollbar'
-import {
-  getRequiredSidebarIconsVisible,
-  getSidebarMenuPath,
-  REQUIRED_SIDEBAR_ICONS,
-  sanitizeSidebarIcons,
-  SIDEBAR_ICON_COMPONENTS,
-  SIDEBAR_ICON_ORDER
-} from '@renderer/config/sidebar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
-import type { SidebarFavorite, SidebarIcon } from '@shared/data/preference/preferenceTypes'
+import {
+  getRequiredSidebarFavoritesVisible,
+  getSidebarMenuPath,
+  REQUIRED_SIDEBAR_FAVORITES,
+  sanitizeSidebarFavorites,
+  SIDEBAR_FAVORITE_ORDER
+} from '@renderer/utils/sidebar'
+import type { SidebarFavorite } from '@shared/data/preference/preferenceTypes'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useMemo } from 'react'
@@ -21,9 +20,9 @@ import { useTranslation } from 'react-i18next'
 
 const BASE_URL = 'https://www.cherry-ai.com/'
 
-const REQUIRED_SIDEBAR_ICON_SET = new Set<SidebarIcon>(REQUIRED_SIDEBAR_ICONS)
+const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarFavorite>(REQUIRED_SIDEBAR_FAVORITES)
 
-const APP_ICON_BACKGROUNDS: Record<SidebarIcon, string> = {
+const APP_ICON_BACKGROUNDS: Record<SidebarFavorite, string> = {
   assistants: 'linear-gradient(135deg, #111827, #4B5563)',
   agents: 'linear-gradient(135deg, #2563EB, #38BDF8)',
   store: 'linear-gradient(135deg, #0EA5E9, #6366F1)',
@@ -37,31 +36,31 @@ const APP_ICON_BACKGROUNDS: Record<SidebarIcon, string> = {
   openclaw: 'linear-gradient(135deg, #EF4444, #B91C1C)'
 }
 
-function insertSidebarIconByCanonicalOrder(favorites: SidebarIcon[], icon: SidebarIcon) {
-  const iconOrder = SIDEBAR_ICON_ORDER.indexOf(icon)
-  const insertIndex = favorites.findIndex((favorite) => SIDEBAR_ICON_ORDER.indexOf(favorite) > iconOrder)
-  favorites.splice(insertIndex === -1 ? favorites.length : insertIndex, 0, icon)
+function insertSidebarFavoriteByCanonicalOrder(favorites: SidebarFavorite[], favorite: SidebarFavorite) {
+  const favoriteOrder = SIDEBAR_FAVORITE_ORDER.indexOf(favorite)
+  const insertIndex = favorites.findIndex((existing) => SIDEBAR_FAVORITE_ORDER.indexOf(existing) > favoriteOrder)
+  favorites.splice(insertIndex === -1 ? favorites.length : insertIndex, 0, favorite)
 }
 
 function getSidebarFavoritesWithPinnedState({
   favorites,
-  icon,
+  favorite,
   pinned
 }: {
-  favorites: readonly SidebarIcon[] | undefined
-  icon: SidebarIcon
+  favorites: readonly SidebarFavorite[] | undefined
+  favorite: SidebarFavorite
   pinned: boolean
-}): SidebarIcon[] {
-  const nextFavorites = sanitizeSidebarIcons(favorites).filter((favorite) => favorite !== icon)
+}): SidebarFavorite[] {
+  const nextFavorites = sanitizeSidebarFavorites(favorites).filter((existing) => existing !== favorite)
 
-  for (const requiredIcon of REQUIRED_SIDEBAR_ICONS) {
-    if (!nextFavorites.includes(requiredIcon)) {
-      insertSidebarIconByCanonicalOrder(nextFavorites, requiredIcon)
+  for (const requiredFavorite of REQUIRED_SIDEBAR_FAVORITES) {
+    if (!nextFavorites.includes(requiredFavorite)) {
+      insertSidebarFavoriteByCanonicalOrder(nextFavorites, requiredFavorite)
     }
   }
 
-  if (pinned && !nextFavorites.includes(icon)) {
-    nextFavorites.push(icon)
+  if (pinned && !nextFavorites.includes(favorite)) {
+    nextFavorites.push(favorite)
   }
 
   return nextFavorites
@@ -70,12 +69,12 @@ function getSidebarFavoritesWithPinnedState({
 export default function LaunchpadPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { defaultPaintingProvider } = useSettings()
+  const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
   const { pinned, openedKeepAliveMiniApps } = useMiniApps()
   const [sidebarFavorites, setSidebarFavorites] = usePreference('ui.sidebar.favorites')
 
-  const visibleSidebarIconSet = useMemo(
-    () => new Set(getRequiredSidebarIconsVisible(sidebarFavorites)),
+  const visibleSidebarFavoriteSet = useMemo(
+    () => new Set(getRequiredSidebarFavoritesVisible(sidebarFavorites)),
     [sidebarFavorites]
   )
 
@@ -108,11 +107,11 @@ export default function LaunchpadPage() {
   }
 
   const saveSidebarFavoritePinnedState = useCallback(
-    (icon: SidebarIcon, pinned: boolean) => {
+    (icon: SidebarFavorite, pinned: boolean) => {
       void setSidebarFavorites(
         getSidebarFavoritesWithPinnedState({
           favorites: sidebarFavorites,
-          icon,
+          favorite: icon,
           pinned
         })
       ).catch(() => {
@@ -123,39 +122,39 @@ export default function LaunchpadPage() {
   )
 
   const pinToSidebar = useCallback(
-    (icon: SidebarIcon) => {
-      if (visibleSidebarIconSet.has(icon)) return
+    (icon: SidebarFavorite) => {
+      if (visibleSidebarFavoriteSet.has(icon)) return
       saveSidebarFavoritePinnedState(icon, true)
     },
-    [saveSidebarFavoritePinnedState, visibleSidebarIconSet]
+    [saveSidebarFavoritePinnedState, visibleSidebarFavoriteSet]
   )
 
   const unpinFromSidebar = useCallback(
-    (icon: SidebarIcon) => {
-      if (!visibleSidebarIconSet.has(icon) || REQUIRED_SIDEBAR_ICON_SET.has(icon)) return
+    (icon: SidebarFavorite) => {
+      if (!visibleSidebarFavoriteSet.has(icon) || REQUIRED_SIDEBAR_FAVORITE_SET.has(icon)) return
       saveSidebarFavoritePinnedState(icon, false)
     },
-    [saveSidebarFavoritePinnedState, visibleSidebarIconSet]
+    [saveSidebarFavoritePinnedState, visibleSidebarFavoriteSet]
   )
 
   const getAppContextMenuItems = useCallback(
-    (icon: SidebarIcon): CommandContextMenuExtraItem[] => {
-      const isPinned = visibleSidebarIconSet.has(icon)
+    (icon: SidebarFavorite): CommandContextMenuExtraItem[] => {
+      const isPinned = visibleSidebarFavoriteSet.has(icon)
 
       return [
         {
           type: 'item',
           id: `launchpad.${isPinned ? 'unpin-from-sidebar' : 'pin-to-sidebar'}.${icon}`,
           label: t(isPinned ? 'launchpad.unpin_from_sidebar' : 'launchpad.pin_to_sidebar'),
-          enabled: !isPinned || !REQUIRED_SIDEBAR_ICON_SET.has(icon),
+          enabled: !isPinned || !REQUIRED_SIDEBAR_FAVORITE_SET.has(icon),
           onSelect: () => (isPinned ? unpinFromSidebar(icon) : pinToSidebar(icon))
         }
       ]
     },
-    [pinToSidebar, t, unpinFromSidebar, visibleSidebarIconSet]
+    [pinToSidebar, t, unpinFromSidebar, visibleSidebarFavoriteSet]
   )
 
-  const appMenuItems = SIDEBAR_ICON_ORDER.flatMap((icon) => {
+  const appMenuItems = SIDEBAR_FAVORITE_ORDER.flatMap((icon) => {
     const Icon = SIDEBAR_ICON_COMPONENTS[icon]
     if (!Icon || !getSidebarMenuPath(icon, defaultPaintingProvider)) return []
 

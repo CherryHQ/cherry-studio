@@ -4,13 +4,8 @@ export enum IpcChannel {
   App_SetLaunchOnBoot = 'app:set-launch-on-boot',
   App_SetEnableSpellCheck = 'app:set-enable-spell-check',
   App_SetSpellCheckLanguages = 'app:set-spell-check-languages',
-  App_CheckForUpdate = 'app:check-for-update',
-  App_QuitAndInstall = 'app:quit-and-install',
   Application_Quit = 'application:quit',
   App_Info = 'app:info',
-  App_SetAutoUpdate = 'app:set-auto-update',
-  App_SetTestPlan = 'app:set-test-plan',
-  App_SetTestChannel = 'app:set-test-channel',
   App_HandleZoomFactor = 'app:handle-zoom-factor',
   App_Select = 'app:select',
   App_HasWritePermission = 'app:has-write-permission',
@@ -27,8 +22,6 @@ export enum IpcChannel {
   App_ResetData = 'app:reset-data',
   App_IsBinaryExist = 'app:is-binary-exist',
   App_GetBinaryPath = 'app:get-binary-path',
-  App_InstallUvBinary = 'app:install-uv-binary',
-  App_InstallBunBinary = 'app:install-bun-binary',
   App_InstallOvmsBinary = 'app:install-ovms-binary',
   App_LogToMain = 'app:log-to-main',
   App_GetSystemFonts = 'app:get-system-fonts',
@@ -213,9 +206,6 @@ export enum IpcChannel {
   File_ValidateNotesDirectory = 'file:validateNotesDirectory',
   File_BatchUploadMarkdown = 'file:batchUploadMarkdown',
   File_ShowInFolder = 'file:showInFolder',
-  // FileManager v2 surface (Phase 1b.3)
-  File_GetDanglingState = 'file:getDanglingState',
-  File_BatchGetDanglingStates = 'file:batchGetDanglingStates',
   // FileManager v2 surface (Phase 2)
   File_CreateInternalEntry = 'file:createInternalEntry',
   File_EnsureExternalEntry = 'file:ensureExternalEntry',
@@ -277,10 +267,7 @@ export enum IpcChannel {
   System_GetDeviceType = 'system:getDeviceType',
   System_GetHostname = 'system:getHostname',
   System_GetCpuName = 'system:getCpuName',
-  System_CheckGitBash = 'system:checkGitBash',
-  System_GetGitBashPath = 'system:getGitBashPath',
-  System_GetGitBashPathInfo = 'system:getGitBashPathInfo',
-  System_SetGitBashPath = 'system:setGitBashPath',
+  // Git Bash has no IPC channel; resolved in-process (settingsBuilder).
 
   // DevTools
   System_ToggleDevTools = 'system:toggleDevTools',
@@ -408,37 +395,15 @@ export enum IpcChannel {
   // Analytics
   Analytics_TrackTokenUsage = 'analytics:track-token-usage',
 
-  // AI Stream (AiStreamManager)
-  Ai_StreamChunk = 'ai:stream-chunk',
-  Ai_StreamDone = 'ai:stream-done',
-  Ai_StreamError = 'ai:stream-error',
+  // AI capability IPC (model ops, streaming chat, agent-session warm-up, tool approval,
+  // agent run-task) migrated to IpcApi (`ai.*`). Only `translate.open` remains on legacy IPC.
   Ai_Translate_Open = 'ai:translate:open',
-  /** Renderer → Main: send message (AiStreamManager routes to start or steer) */
-  Ai_Stream_Open = 'ai:stream:open',
-  /** Renderer → Main: subscribe to a topic's stream state */
-  Ai_Stream_Attach = 'ai:stream:attach',
-  /** Renderer → Main: unsubscribe from a topic (stream continues in Main) */
-  Ai_Stream_Detach = 'ai:stream:detach',
-  /** Renderer → Main: abort the active generation on a topic */
-  Ai_Stream_Abort = 'ai:stream:abort',
-  /** Renderer → Main: prewarm the next Claude Agent SDK query for an agent session */
-  Ai_AgentSession_Prewarm = 'ai:agent-session:prewarm',
-  /** Renderer → Main: close unused Claude Agent SDK warm query for an agent session */
-  Ai_AgentSession_CloseWarm = 'ai:agent-session:close-warm',
-  Ai_ToolApproval_Respond = 'ai:tool-approval:respond',
-
-  // AI Non-streaming
-  Ai_GenerateText = 'ai:generate-text',
-  Ai_CheckModel = 'ai:check-model',
-  Ai_EmbedMany = 'ai:embed-many',
-  Ai_GenerateImage = 'ai:generate-image',
-  Ai_AbortImage = 'ai:abort-image',
-  Ai_ListModels = 'ai:list-models',
-  Ai_Agent_RunTask = 'ai:agent:run-task',
 
   // Settings window — legacy "open a named window" channel (preload `settings.openSettings`).
   // The former WindowManager_* control + event channels were migrated to IpcApi (`window.*`).
   SettingsWindow_Open = 'settings-window:open'
+
+  // BinaryManager (tool manager) was migrated to IpcApi (`binary.*`).
 
   // ──────────────────────────────────────────────────────────────
   // TODO(v2): the following IPC channels are still referenced via

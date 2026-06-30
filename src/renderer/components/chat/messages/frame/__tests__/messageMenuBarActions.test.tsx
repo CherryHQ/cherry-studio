@@ -1,6 +1,8 @@
+import {
+  DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS,
+  getMessageMenuBarConfig
+} from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
 import { defaultMessageMenuConfig, type MessageListActions } from '@renderer/components/chat/messages/types'
-import { DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS, getMessageMenuBarConfig } from '@renderer/config/registry/messageMenuBar'
-import { TopicType } from '@renderer/types'
 import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, MouseEvent, ReactElement, ReactNode } from 'react'
@@ -111,10 +113,15 @@ vi.mock('@renderer/services/MessagesService', () => ({
   getMessageTitle: vi.fn()
 }))
 
+vi.mock('@renderer/services/ExportService', () => ({
+  messageToMarkdown: vi.fn()
+}))
+
 vi.mock('@renderer/utils/export', () => ({
-  messageToMarkdown: vi.fn(),
   messageToPlainText: vi.fn(() => 'plain text')
 }))
+
+import { TopicType } from '@renderer/types/topic'
 
 import type { MessageMenuBarActionContext } from '../messageMenuBarActions'
 import {

@@ -1,5 +1,5 @@
 import { Button, InputGroup, InputGroupInput, Tooltip } from '@cherrystudio/ui'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import { Copy, RotateCcw, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 

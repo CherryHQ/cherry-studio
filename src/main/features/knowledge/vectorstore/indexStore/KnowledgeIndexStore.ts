@@ -3,10 +3,11 @@ import { computeSearchTextId, computeUnitId, hashContentText, hashEmbeddingText 
 import type {
   KnowledgeIndexSearchInput,
   KnowledgeIndexSearchMatch,
+  KnowledgeMaterialRef,
   KnowledgeSearchUnit,
   RebuildMaterialInput
 } from './model'
-import type { SqliteDriver, SqliteTransaction, SqlValue, VectorIndex } from './types'
+import type { SqliteDriver, SqliteReclaimOutcome, SqliteTransaction, SqlValue, VectorIndex } from './types'
 import { encodeVectorBlob } from './vectorBlob'
 
 /** RRF constant (1-indexed rank), matching the legacy hybrid fusion. */
@@ -14,6 +15,15 @@ const RRF_K = 60
 
 /** Max bound parameters per `listExistingEmbeddingHashes` query (SQLite's limit is ~999). */
 const EMBEDDING_HASH_QUERY_BATCH = 500
+
+/**
+ * How long {@link KnowledgeIndexStore.deleteMaterials} may run its per-material
+ * row deletes before handing the main-process event loop back to the OS message
+ * pump (see the method doc for why). Tuned well under the multi-second window
+ * that surfaces the macOS beachball, while large enough that the yields add no
+ * measurable overhead to a small delete.
+ */
+const DELETE_YIELD_BUDGET_MS = 50
 
 /**
  * Engine-neutral store over a per-base `index.sqlite`. Written once; the storage
@@ -133,7 +143,7 @@ export class KnowledgeIndexStore {
       //         body, so an offset/hash mismatch would leave a unit silently absent
       //         from vector search; and
       //     (b) the listExistingEmbeddingHashes race — the caller reads existing hashes
-      //         outside the base lock, so a concurrent GC (step 8 / deleteMaterial) can
+      //         outside the base lock, so a concurrent GC (step 8 / deleteMaterials) can
       //         drop a hash it reported present before this rebuild writes, and the job
       //         then skips re-embedding it. Failing loud rolls back; the job's retry
       //         re-reads (the hash is now absent), re-embeds it, and converges.
@@ -154,16 +164,52 @@ export class KnowledgeIndexStore {
   }
 
   /**
-   * Delete a material and everything derived from it. Removing the material row
-   * cascades to its `search_unit`; the units' body `search_text` is deleted
-   * explicitly first (no FK), which also clears the FTS index via the delete
-   * trigger. {@link collectIndexGarbage} then sweeps the `embedding` and `content`
-   * rows this delete orphaned, in the same transaction.
+   * Delete many materials in ONE transaction, sweeping orphaned `embedding` /
+   * `content` rows with a SINGLE {@link collectIndexGarbage} pass at the end.
+   *
+   * Removing each material row cascades to its `search_unit`; the units' body
+   * `search_text` is deleted explicitly first (no FK), which also clears the FTS
+   * index via the delete trigger.
+   *
+   * collectIndexGarbage runs two FULL-TABLE anti-join scans, so calling it once
+   * per material (the old per-material delete loop) made a bulk delete
+   * O(materials × table): deleting a folder of N files scanned the whole
+   * `embedding`/`content` table N times. With a large index (e.g. a folder of
+   * PDFs chunked into tens of thousands of rows) that blocked the main-process
+   * event loop for seconds — the folder-delete UI freeze. Deleting the rows up
+   * front and GCing once makes it O(N + table), and the single transaction makes
+   * the bulk delete atomic (a failure rolls the whole batch back so a retry
+   * re-discovers every affected id).
+   *
+   * Batching the GC removes the super-linear cost, but the per-material row
+   * deletes are still linear in chunks: each `search_text` delete fires the FTS
+   * delete trigger, which the libsql driver runs synchronously on the main
+   * process. Tens of thousands of rows still sum to a multi-second block, and
+   * because Electron drives the window from this same loop that block IS the
+   * macOS beachball (the renderer thread never stalls). So the loop yields to the
+   * OS message pump whenever it has run for {@link DELETE_YIELD_BUDGET_MS}: the
+   * total work is unchanged, but no single uninterrupted block is long enough to
+   * freeze the window. Yielding mid-transaction is safe — the caller holds the
+   * base mutation lock, so no other writer is waiting on this base's index.
    */
-  async deleteMaterial(materialId: string): Promise<void> {
+  async deleteMaterials(materialIds: string[]): Promise<void> {
+    const uniqueMaterialIds = [...new Set(materialIds)]
+    if (uniqueMaterialIds.length === 0) {
+      return
+    }
     await this.driver.transaction(async (tx) => {
-      await this.deleteMaterialSearchText(tx, materialId)
-      await tx.execute(`DELETE FROM material WHERE material_id = ?`, [materialId])
+      // performance.now() is monotonic — a wall-clock step (NTP/manual) mid-batch
+      // must not make the delta negative and silently disable the yields for the
+      // rest of a large delete, reintroducing the freeze this loop prevents.
+      let lastYieldAt = performance.now()
+      for (const materialId of uniqueMaterialIds) {
+        await this.deleteMaterialSearchText(tx, materialId)
+        await tx.execute(`DELETE FROM material WHERE material_id = ?`, [materialId])
+        if (performance.now() - lastYieldAt >= DELETE_YIELD_BUDGET_MS) {
+          await new Promise<void>((resolve) => setImmediate(resolve))
+          lastYieldAt = performance.now()
+        }
+      }
       await this.collectIndexGarbage(tx)
     })
   }
@@ -255,6 +301,49 @@ export class KnowledgeIndexStore {
   }
 
   /**
+   * Resolve a Concept ID (a material's `relative_path`, OKF §2) to its material
+   * row, or null when no material has that path. `relative_path` is UNIQUE per
+   * index, so this is the lookup behind the deep-read tools — they re-validate
+   * the resolved material against the visible knowledge_item before reading.
+   */
+  async getMaterialByRelativePath(relativePath: string): Promise<KnowledgeMaterialRef | null> {
+    const result = await this.driver.execute(
+      `SELECT material_id, relative_path FROM material WHERE relative_path = ?`,
+      [relativePath]
+    )
+    const row = result.rows[0]
+    if (!row) {
+      return null
+    }
+    return {
+      materialId: row.material_id as string,
+      relativePath: row.relative_path as string
+    }
+  }
+
+  /**
+   * Read back a material's full indexed text — the immutable `content.text` its
+   * `current_content_hash` points at — or null when the material is unknown or
+   * has no current content yet (mid-index). This is the verbatim text the units
+   * were sliced from, so `text.slice(unit.charStart, unit.charEnd) === unit.text`
+   * holds (the same invariant rebuildMaterial enforces at write time).
+   */
+  async readMaterialContent(materialId: string): Promise<string | null> {
+    const result = await this.driver.execute(
+      `SELECT c.text AS text
+         FROM material m
+         JOIN content c ON c.content_hash = m.current_content_hash
+        WHERE m.material_id = ?`,
+      [materialId]
+    )
+    const row = result.rows[0]
+    if (!row || row.text == null) {
+      return null
+    }
+    return row.text as string
+  }
+
+  /**
    * Retrieve units for a query. 'vector' and 'bm25' return their single ranked
    * list; 'hybrid' fuses both with Reciprocal Rank Fusion (rank-based, so the
    * incompatible cosine/BM25 score ranges don't need normalizing). The body
@@ -276,6 +365,23 @@ export class KnowledgeIndexStore {
       this.bm25Search(input.queryText, prefetch)
     ])
     return fuseWithRrf(vector, bm25, alpha, input.topK)
+  }
+
+  /**
+   * Return space a large delete freed back to the OS (see {@link SqliteDriver.reclaim}).
+   * Best-effort; only VACUUMs when the freelist crossed the driver's size threshold.
+   *
+   * Passes the external-content FTS 'optimize' as a pre-VACUUM step. A delete only
+   * TOMBSTONES its trigram entries (via the search_text delete trigger); the segment
+   * blobs linger as live rows in the `search_text_fts_data` shadow table, which VACUUM
+   * cannot reclaim on its own (they are not free pages). 'optimize' merges and drops
+   * them so the VACUUM hands their pages back to the OS. The driver gates it behind the
+   * freelist threshold (runs only when a VACUUM will), so a small delete never pays the
+   * whole-index segment merge — and the FTS table name lives here, with the schema, not
+   * in the engine-neutral driver.
+   */
+  async reclaimSpace(): Promise<SqliteReclaimOutcome> {
+    return this.driver.reclaim([`INSERT INTO search_text_fts(search_text_fts) VALUES('optimize')`])
   }
 
   async close(): Promise<void> {
@@ -331,7 +437,7 @@ export class KnowledgeIndexStore {
       `SELECT su.unit_id, su.material_id, su.unit_index, st.text AS body, bm25(search_text_fts) AS score
        FROM search_text_fts
        JOIN search_text st
-         ON st.rowid = search_text_fts.rowid AND st.target_type = 'search_unit' AND st.kind = 'body'
+         ON st.fts_rowid = search_text_fts.rowid AND st.target_type = 'search_unit' AND st.kind = 'body'
        JOIN search_unit su ON su.unit_id = st.target_id
        WHERE search_text_fts MATCH ?
        ORDER BY score

@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { getProviderLabelKey } from '@renderer/i18n/label'
-import type { McpServer } from '@renderer/types'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import i18next from 'i18next'
 
 const logger = loggerService.withContext('TokenLanYunSyncUtils')

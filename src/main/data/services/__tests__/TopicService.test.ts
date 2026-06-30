@@ -1,6 +1,7 @@
 // Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
 import '@data/services/MessageService'
 
+import { application } from '@application'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { groupTable } from '@data/db/schemas/group'
@@ -14,7 +15,7 @@ import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { chatMessageSourceType, type FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { and, asc, eq, isNotNull, isNull } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, type Mock } from 'vitest'
 
 describe('TopicService', () => {
   const dbh = setupTestDatabase()
@@ -85,6 +86,68 @@ describe('TopicService', () => {
     expect(traceId).toMatch(/^[0-9a-f]{32}$/)
     expect(await topicService.ensureTraceId('topic-trace')).toBe(traceId)
     expect((await topicService.getById('topic-trace')).traceId).toBe(traceId)
+  })
+
+  it('treats name-only updates as manual topic renames', async () => {
+    await dbh.db.insert(topicTable).values({
+      id: 'topic-name-only',
+      name: 'Before name-only update',
+      isNameManuallyEdited: false,
+      orderKey: 'a0'
+    })
+
+    const updated = await topicService.update('topic-name-only', {
+      name: 'Manual topic name'
+    })
+
+    expect(updated).toMatchObject({
+      id: 'topic-name-only',
+      name: 'Manual topic name',
+      isNameManuallyEdited: true
+    })
+  })
+
+  it('routes topic updates through serialized write transactions', async () => {
+    await dbh.db.insert(topicTable).values({
+      id: 'topic-serialized-update',
+      name: 'Before serialized update',
+      orderKey: 'a0'
+    })
+
+    const withWriteTx = application.get('DbService').withWriteTx as Mock
+    withWriteTx.mockClear()
+
+    const updated = await topicService.update('topic-serialized-update', {
+      name: 'After serialized update',
+      isNameManuallyEdited: false
+    })
+
+    expect(withWriteTx).toHaveBeenCalledTimes(1)
+    expect(updated).toMatchObject({
+      id: 'topic-serialized-update',
+      name: 'After serialized update',
+      isNameManuallyEdited: false
+    })
+  })
+
+  it('preserves explicit automatic topic renames', async () => {
+    await dbh.db.insert(topicTable).values({
+      id: 'topic-auto-name',
+      name: 'Before automatic update',
+      isNameManuallyEdited: false,
+      orderKey: 'a1'
+    })
+
+    const updated = await topicService.update('topic-auto-name', {
+      name: 'Automatic topic name',
+      isNameManuallyEdited: false
+    })
+
+    expect(updated).toMatchObject({
+      id: 'topic-auto-name',
+      name: 'Automatic topic name',
+      isNameManuallyEdited: false
+    })
   })
 
   describe('listByCursor', () => {
@@ -713,6 +776,18 @@ describe('TopicService', () => {
       const [row] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, result.id))
       expect(row?.orderKey).toBeDefined()
       expect(row?.orderKey).not.toBe('')
+    })
+
+    it('inserts new topics before existing topics in orderKey order', async () => {
+      await dbh.db.insert(topicTable).values([
+        { id: 'existing-1', name: 'Existing 1', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+        { id: 'existing-2', name: 'Existing 2', orderKey: 'a1', createdAt: 2, updatedAt: 2 }
+      ])
+
+      const result = await topicService.create({ name: 'fresh' })
+
+      const rows = await dbh.db.select({ id: topicTable.id }).from(topicTable).orderBy(asc(topicTable.orderKey))
+      expect(rows.map((row) => row.id)).toEqual([result.id, 'existing-1', 'existing-2'])
     })
 
     it('inserts exactly one content-less virtual root and leaves activeNodeId null', async () => {

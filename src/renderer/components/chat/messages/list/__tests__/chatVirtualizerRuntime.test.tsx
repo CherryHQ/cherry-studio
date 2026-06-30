@@ -548,9 +548,11 @@ describe('useChatVirtualizerRuntime', () => {
 
     // The user scrolls all the way to the bottom (700 - 400 = 300). That is far
     // enough from the anchor (120) to release the pin, so the user has taken
-    // control and reaching the bottom re-engages bottom-follow.
+    // control and reaching the bottom re-engages bottom-follow. The scroll is a
+    // real user gesture (input-gated), so flag the input first.
     scroller.scrollTop = 300
     act(() => {
+      runtime!.markUserInput()
       runtime!.scrollerProps.onScroll(300)
     })
 
@@ -732,9 +734,15 @@ describe('useChatVirtualizerRuntime', () => {
 
       act(() => runtime!.scrollerProps.onScroll(followedOffset))
 
+      // A real non-wheel upward gesture (scrollbar drag) fires pointerdown, which
+      // the host reports via markUserInput; that's what makes this a takeover
+      // rather than a programmatic remeasure jump (which must NOT take over).
       const userOffset = followedOffset - 40
       scrollTop = userOffset
-      act(() => runtime!.scrollerProps.onScroll(userOffset))
+      act(() => {
+        runtime!.markUserInput()
+        runtime!.scrollerProps.onScroll(userOffset)
+      })
       expect(handle!.isAtBottom()).toBe(false)
 
       scrollHeight = 2200
@@ -742,6 +750,70 @@ describe('useChatVirtualizerRuntime', () => {
       raf.tick(10)
 
       expect(scrollTop).toBe(userOffset)
+    } finally {
+      restoreResizeObserver()
+      raf.restore()
+    }
+  })
+
+  it('ignores a large programmatic backward jump during bottom-follow (no input) and keeps following', () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        handle = nextHandle
+      }
+      let scrollTop = 0
+      let scrollHeight = 1000
+      render(
+        <RuntimeDomProbe
+          items={['message-a']}
+          handleRef={handleRef}
+          preserveScrollAnchor
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => scrollHeight })
+      Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
+      runtime!.vlistHandleRef.current = createHandle()
+
+      scrollHeight = 1200
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      scrollTop = 800
+      act(() => runtime!.scrollerProps.onScroll(800))
+      expect(handle!.isAtBottom()).toBe(true)
+
+      scrollHeight = 2000
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      raf.tick()
+      const followedOffset = scrollTop
+      expect(followedOffset).toBeGreaterThan(800)
+      act(() => runtime!.scrollerProps.onScroll(followedOffset))
+
+      // virtua remeasure compensation jumps scrollTop backward by 40 mid-stream —
+      // there is NO preceding user input, so it must not cancel the follow.
+      const jumpOffset = followedOffset - 40
+      scrollTop = jumpOffset
+      act(() => runtime!.scrollerProps.onScroll(jumpOffset))
+      expect(handle!.isAtBottom()).toBe(true)
+
+      // Streaming continues; bottom-follow is still live and tracks the new bottom.
+      scrollHeight = 2200
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      raf.tick(10)
+      expect(scrollTop).toBeGreaterThan(jumpOffset)
     } finally {
       restoreResizeObserver()
       raf.restore()

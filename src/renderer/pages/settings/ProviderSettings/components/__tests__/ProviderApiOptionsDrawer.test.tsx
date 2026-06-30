@@ -14,7 +14,7 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: unknown[]) => useProviderMock(...args)
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/style', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 

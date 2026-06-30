@@ -1,11 +1,46 @@
 import type { FetchFunction } from '@ai-sdk/provider-utils'
-import { net } from 'electron'
+import { net, session } from 'electron'
+
+/**
+ * Sentinel header that carries a caller-supplied `User-Agent` past Chromium's
+ * network stack.
+ *
+ * `customFetch` issues requests through Electron `net.fetch`, which runs on the
+ * Chromium stack and overwrites the `User-Agent` request header with the
+ * session default — so a provider's custom `User-Agent` (set via
+ * `provider.settings.extraHeaders`) never reaches the wire. We instead carry the
+ * desired value in this non-restricted header and swap it back onto `User-Agent`
+ * inside {@link installProviderUserAgentInterceptor}'s `onBeforeSendHeaders`
+ * hook — the one place Electron lets the outbound UA be set on the Chromium stack
+ * (mirrors `WebviewService.initSessionUserAgent`).
+ */
+const PROVIDER_USER_AGENT_HEADER = 'x-cherry-studio-user-agent'
+
+/**
+ * Resolve the effective `User-Agent` from a {@link HeadersInit} with
+ * case-insensitive last-writer-wins.
+ *
+ * A plain header object can hold case variants of the same name — e.g. Copilot's
+ * default `User-Agent` plus a lowercase `user-agent` from `extraHeaders` after a
+ * `{ ...defaults, ...extraHeaders }` merge. `new Headers(...).get('user-agent')`
+ * would comma-join them (`"Copilot/1.0, MyAgent/1.0"`), losing the override; here
+ * the last entry wins, matching the merge's `extraHeaders`-precedence.
+ */
+function resolveUserAgent(headers: HeadersInit): string | null {
+  if (headers instanceof Headers) return headers.get('user-agent')
+  const entries = Array.isArray(headers) ? headers : Object.entries(headers)
+  let userAgent: string | null = null
+  for (const [key, value] of entries) {
+    if (key.toLowerCase() === 'user-agent') userAgent = value
+  }
+  return userAgent
+}
 
 /**
  * Base `fetch` for AI provider HTTP calls.
  *
- * Proxy policy is applied centrally by `ProxyManager`
- * (`src/main/services/ProxyManager.ts`), which configures both the Electron
+ * Proxy policy is applied centrally by `ProxyService`
+ * (`src/main/services/proxy/ProxyService.ts`), which configures both the Electron
  * session/app proxy and the Node network stack (`src/main/services/proxy`). AI
  * provider traffic intentionally uses Electron
  * `net.fetch` here so it runs on Chromium's network stack and benefits from
@@ -16,6 +51,57 @@ import { net } from 'electron'
  * request signing) take an inner `FetchFunction` and delegate the actual network
  * call to this one.
  */
-export const customFetch: FetchFunction = (input: RequestInfo | URL, init?: RequestInit) =>
+export const customFetch: FetchFunction = (input: RequestInfo | URL, init?: RequestInit) => {
   // `net.fetch` accepts only `string | Request`; FetchFunction may hand us a URL.
-  net.fetch(input instanceof URL ? input.href : input, init)
+  const target = input instanceof URL ? input.href : input
+
+  // A custom `User-Agent` in the request headers is overwritten by Chromium's net
+  // stack, so smuggle it through PROVIDER_USER_AGENT_HEADER and let the default-session
+  // interceptor restore it. Only the (string, init) call shape carries headers here;
+  // the AI SDK always uses it, so the Request-input path needs no handling.
+  const userAgent = init?.headers ? resolveUserAgent(init.headers) : null
+  if (userAgent) {
+    const headers = new Headers(init?.headers)
+    headers.set(PROVIDER_USER_AGENT_HEADER, userAgent)
+    return net.fetch(target, { ...init, headers })
+  }
+
+  return net.fetch(target, init)
+}
+
+/**
+ * Install the default-session `onBeforeSendHeaders` interceptor that restores a
+ * provider `User-Agent` smuggled through {@link PROVIDER_USER_AGENT_HEADER}.
+ *
+ * `net.fetch` issues on `session.defaultSession`, so this is where its requests
+ * pass through. The hook is a pass-through for every other request; it only
+ * rewrites headers carrying the sentinel. Returns a disposer that removes the
+ * interceptor.
+ *
+ * Owns the default session's single `onBeforeSendHeaders` slot — nothing else may
+ * register one on `defaultSession` (Electron keeps only the latest listener).
+ */
+export function installProviderUserAgentInterceptor(): () => void {
+  session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
+    const sentinelKey = Object.keys(details.requestHeaders).find(
+      (key) => key.toLowerCase() === PROVIDER_USER_AGENT_HEADER
+    )
+    if (!sentinelKey) {
+      callback({ requestHeaders: details.requestHeaders })
+      return
+    }
+
+    const userAgent = details.requestHeaders[sentinelKey]
+    const requestHeaders: Record<string, string> = {}
+    for (const [key, value] of Object.entries(details.requestHeaders)) {
+      const lower = key.toLowerCase()
+      // Drop the sentinel and Chromium's default UA; the latter is re-added below.
+      if (lower === PROVIDER_USER_AGENT_HEADER || lower === 'user-agent') continue
+      requestHeaders[key] = value
+    }
+    requestHeaders['User-Agent'] = userAgent
+    callback({ requestHeaders })
+  })
+
+  return () => session.defaultSession.webRequest.onBeforeSendHeaders(null)
+}

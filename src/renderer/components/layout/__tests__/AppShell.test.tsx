@@ -28,7 +28,7 @@ vi.mock('@renderer/components/Popups/SearchPopup', () => ({
   }
 }))
 
-vi.mock('../../../hooks/useTabs', () => ({
+vi.mock('../../../hooks/tab', () => ({
   useTabs: () => ({
     activeTabId: 'home',
     closeTab: vi.fn(),

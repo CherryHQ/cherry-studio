@@ -7,8 +7,9 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import { FileEntrySchema } from '@shared/data/types/file'
-import { SafeExtSchema, SafeNameSchema } from '@shared/data/types/file/essential'
+import { SafeNameSchema } from '@shared/data/types/file/essential'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
+import { SafeExtSchema } from '@shared/types/file/common'
 import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
@@ -20,13 +21,15 @@ const BATCH_SIZE = 500
 const VALIDATE_SAMPLE_LIMIT = 10
 
 /**
- * Strip leading dot from extension, return null for empty/extensionless.
- * Legacy v1 ext field looks like '.pdf' or '.txt' or '' for extensionless.
+ * Strip legacy leading dot and OS-ignored trailing dot/space from extension,
+ * return null for empty/extensionless. Legacy v1 ext field looks like '.pdf'
+ * or '.txt' or '' for extensionless.
  */
 function normalizeExt(ext: string | undefined | null): string | null {
   if (!ext || ext.trim() === '') return null
   const stripped = ext.startsWith('.') ? ext.slice(1) : ext
-  return stripped.length > 0 ? stripped : null
+  const normalized = stripped.replace(/[\s.]+$/, '')
+  return normalized.length > 0 ? normalized : null
 }
 
 /**

@@ -22,9 +22,17 @@ interface DetailHeaderProps {
   onOpenRecallTest: () => void
   onRenameBase: (base: Pick<KnowledgeBase, 'id' | 'name'>) => void
   onDeleteBase: (baseId: string) => Promise<void> | void
+  onRebuild: () => void
 }
 
-const DetailHeader = ({ base, onOpenRagConfig, onOpenRecallTest, onRenameBase, onDeleteBase }: DetailHeaderProps) => {
+const DetailHeader = ({
+  base,
+  onOpenRagConfig,
+  onOpenRecallTest,
+  onRenameBase,
+  onDeleteBase,
+  onRebuild
+}: DetailHeaderProps) => {
   const { t } = useTranslation()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -54,29 +62,47 @@ const DetailHeader = ({ base, onOpenRagConfig, onOpenRecallTest, onRenameBase, o
 
             <div className="flex min-w-0 items-center gap-2">
               <h1 className="min-w-0 truncate font-bold text-2xl text-foreground leading-8">{base.name}</h1>
-              <Badge
-                variant="outline"
-                className={`${statusBadgeClassNames[base.status]} shrink-0`}
-                aria-label={statusLabel}
-                title={statusLabel}>
-                {statusLabel}
-              </Badge>
+              {base.status === 'failed' ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={onRebuild}
+                  aria-label={`${statusLabel}, ${t('knowledge.restore.action')}`}
+                  title={t('knowledge.restore.action')}
+                  className="h-auto min-h-0 shrink-0 cursor-pointer rounded-full p-0 shadow-none transition-opacity hover:bg-transparent hover:opacity-80">
+                  <Badge variant="outline" className={statusBadgeClassNames[base.status]}>
+                    {statusLabel}
+                  </Badge>
+                </Button>
+              ) : (
+                <Badge
+                  variant="outline"
+                  className={`${statusBadgeClassNames[base.status]} shrink-0`}
+                  aria-label={statusLabel}
+                  title={statusLabel}>
+                  {statusLabel}
+                </Badge>
+              )}
             </div>
           </div>
 
           <div className="flex shrink-0 items-center gap-1">
-            <Button type="button" variant="ghost" size="sm" onClick={onOpenRecallTest}>
-              <FlaskConical size={14} />
-              {t('knowledge.tabs.recall_test')}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t('knowledge.tabs.rag_config')}
-              onClick={onOpenRagConfig}>
-              <SlidersHorizontal size={14} />
-            </Button>
+            {base.status !== 'failed' && (
+              <>
+                <Button type="button" variant="ghost" size="sm" onClick={onOpenRecallTest}>
+                  <FlaskConical size={14} />
+                  {t('knowledge.tabs.recall_test')}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t('knowledge.tabs.rag_config')}
+                  onClick={onOpenRagConfig}>
+                  <SlidersHorizontal size={14} />
+                </Button>
+              </>
+            )}
             <Popover open={isMenuOpen} onOpenChange={setIsMenuOpen}>
               <PopoverTrigger asChild>
                 <Button type="button" variant="ghost" size="icon-sm" aria-label={t('common.more')}>

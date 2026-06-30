@@ -39,6 +39,7 @@ out
 mcp_server
 stats.html
 .eslintcache
+# Downloaded native binaries (mise, etc.)
 resources/binaries/
 
 # ENV
@@ -63,6 +64,7 @@ local
 .zed/*
 !.zed/settings.json.example
 CLAUDE.local.md
+AGENTS.override.md
 
 # vitest
 coverage

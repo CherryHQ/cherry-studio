@@ -286,17 +286,18 @@ const createTopicStreamStatusMock = (overrides: { isFulfilled?: boolean; isPendi
   status: undefined
 })
 
-vi.mock('@renderer/hooks/agents/useSession', () => ({
+vi.mock('@renderer/hooks/agent/useSession', () => ({
   useSessions: sessionDataMocks.useSessions,
   useUpdateSession: sessionDataMocks.useUpdateSession
 }))
 
-vi.mock('@renderer/hooks/agents/useAgent', () => ({
+vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgents: agentDataMocks.useAgents
 }))
 
-vi.mock('@renderer/context/TabsContext', () => ({
-  useOptionalTabsContext: () => tabsContextMocks
+vi.mock('@renderer/hooks/tab', () => ({
+  useOptionalTabsContext: () => tabsContextMocks,
+  useCurrentTabId: () => null
 }))
 
 vi.mock('@renderer/components/resource/dialogs', () => ({
@@ -571,7 +572,8 @@ function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessio
     orderKey: 'a',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: CURRENT_SESSION_ISO,
-    ...overrides
+    ...overrides,
+    isNameManuallyEdited: overrides.isNameManuallyEdited ?? false
   }
 }
 
@@ -1343,7 +1345,7 @@ describe('Sessions', () => {
 
     await vi.waitFor(() =>
       expect(sessionDataMocks.updateSession).toHaveBeenCalledWith(
-        { id: 'session-a', name: 'Renamed session' },
+        { id: 'session-a', name: 'Renamed session', isNameManuallyEdited: true },
         { showSuccessToast: false }
       )
     )
@@ -1370,7 +1372,7 @@ describe('Sessions', () => {
 
     await vi.waitFor(() =>
       expect(sessionDataMocks.updateSession).toHaveBeenCalledWith(
-        { id: 'session-a', name: 'Renamed from menu' },
+        { id: 'session-a', name: 'Renamed from menu', isNameManuallyEdited: true },
         { showSuccessToast: false }
       )
     )

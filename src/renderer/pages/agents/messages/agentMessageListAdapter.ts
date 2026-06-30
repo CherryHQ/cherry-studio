@@ -25,7 +25,7 @@ import type {
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/components/chat/messages/utils/filePath'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types/topic'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useMemo } from 'react'
@@ -152,6 +152,13 @@ export function useAgentMessageListProviderValue({
     [workspacePath]
   )
 
+  const isDirectory = useCallback(
+    (path: string) => {
+      return window.api.file.isDirectory(resolveWorkspaceFilePath(workspacePath, path))
+    },
+    [workspacePath]
+  )
+
   const abortTool = useCallback((toolId: string) => {
     return window.api.mcp.abortTool(toolId)
   }, [])
@@ -248,6 +255,7 @@ export function useAgentMessageListProviderValue({
       openCitationsPanel,
       openAgentToolFlow,
       showInFolder,
+      isDirectory,
       abortTool,
       bindMessageRuntime,
       bindMessageGroupRuntime,
@@ -265,6 +273,7 @@ export function useAgentMessageListProviderValue({
       errorActions,
       exportActions,
       headerCapabilities,
+      isDirectory,
       leafCapabilities,
       navigateToRoute,
       loadOlder,

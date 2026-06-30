@@ -38,11 +38,16 @@ import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSd
 import { skillService } from '@main/ai/skills/SkillService'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
+import {
+  CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
+  CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES,
+  toCherryBuiltinRuntimeName
+} from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { application } from '@main/core/application'
 import { isLinux, isWin } from '@main/core/platform'
-import { getProxyEnvironment } from '@main/services/proxy/nodeProxy'
-import { toAsarUnpackedPath } from '@main/utils'
+import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
+import { toAsarUnpackedPath } from '@main/utils/asar'
 import { getPathStatus, type PathStatus } from '@main/utils/file/pathStatus'
 import { getAppLanguage, t } from '@main/utils/language'
 import { autoDiscoverGitBash, getBinaryPath } from '@main/utils/process'
@@ -66,6 +71,7 @@ import { languageEnglishNameMap } from '@shared/utils/languages'
 import { app } from 'electron'
 
 import type { AgentRuntimeUserInput } from '../types'
+import { detectGlobalInstall } from './dependencyGuard'
 import { toolApprovalRegistry } from './ToolApprovalRegistry'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
@@ -593,15 +599,19 @@ async function buildToolPermissions(
   const toolPolicySnapshot = await ensureToolPolicySnapshot(session.id, agent, {
     autoAllowRuntimeNamePrefixes: [
       // cherry-tools is injected for every session. Auto-allowing it (no per-call approval) is a
-      // deliberate decision (matches feat/chat-page): none of its tools have side effects in the
-      // main process — web_search/web_fetch read the network, kb_search/kb_list read the user's
-      // knowledge bases, report_artifacts only records a declaration. The untrusted-channel exposure
-      // this creates (approval-free kb reads + web_fetch URL egress for channel-linked sessions) is
-      // bounded by the system-level channel security policy (CHANNEL_SECURITY_PROMPT).
+      // deliberate decision (matches feat/chat-page): its READ tools have no side effects in the
+      // main process — web_search/web_fetch read the network, kb_search/kb_read/kb_list read the
+      // user's knowledge bases, report_artifacts only records a declaration. The
+      // untrusted-channel exposure this creates (approval-free reads + web_fetch URL egress for
+      // channel-linked sessions) is bounded by the system-level channel security policy
+      // (CHANNEL_SECURITY_PROMPT). The MUTATING kb_manage tool is carved out below — it modifies the
+      // user's knowledge bases, so it must go through per-call approval rather than this prefix.
       'mcp__cherry-tools__',
       ...(soulEnabled ? ['mcp__claw__'] : []),
       ...(isAssistant ? ['mcp__assistant__'] : [])
     ],
+    // Mutating cherry-tools (kb_manage) match the prefix above but must still prompt for approval.
+    autoAllowRuntimeNameExceptions: CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
     conditionContext
   })
 
@@ -648,10 +658,35 @@ async function buildToolPermissions(
     })
   }
 
+  // Block global/shared dependency installs before they run, to prevent cross-agent dependency
+  // pollution: the runtime keeps the user's real HOME, so `-g` / `uv tool install` / `pip --user`
+  // would leak into ~/.bun, ~/.local/share/uv, … shared by every session. Fires on every Bash call
+  // regardless of permission mode (same rationale as disabledToolHook). Project-local installs and
+  // ephemeral runners (`bun x` / `uvx`) are not flagged. Deny (not rewrite) so the model adapts to a
+  // project-local install on its own — rewriting global→local semantics is fragile.
+  const dependencyIsolationHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'PreToolUse') return {}
+    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    if (toolName !== 'Bash') return {}
+    const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
+    const command = toolInput?.command
+    if (typeof command !== 'string' || !command.trim()) return {}
+    const reason = detectGlobalInstall(command)
+    if (!reason) return {}
+    logger.info('Blocked global install to prevent dependency pollution', { sessionId: session.id, reason })
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason: `Blocked to avoid cross-agent dependency pollution: ${reason}. Install into the current project instead (e.g. \`bun install <pkg>\`, or \`uv run --with <pkg> python\` for Python). For one-off tools use \`bun x <tool>\` / \`uvx <tool>\` (ephemeral).`
+      }
+    }
+  }
+
   const rtkRewriteHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
-    if (toolName !== 'Bash' && toolName !== 'builtin_Bash') return {}
+    if (toolName !== 'Bash') return {}
     const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
     const command = toolInput?.command
     if (typeof command !== 'string' || !command.trim()) return {}
@@ -716,7 +751,7 @@ async function buildToolPermissions(
 
   return {
     canUseTool,
-    hooks: { PreToolUse: [{ hooks: [disabledToolHook, rtkRewriteHook, steerHook] }] },
+    hooks: { PreToolUse: [{ hooks: [disabledToolHook, dependencyIsolationHook, rtkRewriteHook, steerHook] }] },
     // `disabled`-exposure tools (incl. WebSearch/WebFetch) come from the declarative
     // registry; soul/assistant overlays stay until they migrate to per-tool exposure (PR-7).
     disallowedTools: [
@@ -728,6 +763,29 @@ async function buildToolPermissions(
     ],
     toolPolicySnapshot
   }
+}
+
+/**
+ * Describe the runtimes the agent's Bash tool can rely on. bun and uv ship
+ * bundled and are always on PATH (extracted at boot into `cherry.bin`); node /
+ * npm / npx / pip are NOT guaranteed to exist, so the model is steered to bun and
+ * uv for running scripts and pulling libraries when it needs to verify logic.
+ *
+ * Only the `bun` binary is bundled (no `bunx` shim), so the model is told to use
+ * `bun x` rather than `bunx`; `uvx` is bundled alongside `uv`. Resolved paths are
+ * stable (fixed install location), so this block is safe inside the warm-query
+ * system-prompt signature — see {@link formatNetworkProbeLine}.
+ */
+async function buildRuntimeContext(): Promise<string> {
+  const [bunPath, uvPath, rgPath] = await Promise.all([getBinaryPath('bun'), getBinaryPath('uv'), getBinaryPath('rg')])
+  return [
+    '## Available Runtimes',
+    'bun and uv are bundled and always on PATH. Use them to pull libraries and write throwaway scripts to verify logic — prefer them over node/npm/npx/pip, which are not guaranteed to be installed.',
+    `- JavaScript / TypeScript — run with \`bun <file>\`, add deps with \`bun install <pkg>\`, run a package with \`bun x <tool>\` (bun: ${bunPath})`,
+    `- Python — run with \`uv run python <file>\`, add deps inline with \`uv run --with <pkg> python <file>\` (ephemeral, no venv needed), run a tool with \`uvx <tool>\` (uv: ${uvPath})`,
+    `- Search — \`rg\` for fast file/content search (ripgrep: ${rgPath})`,
+    'Install dependencies INTO the project (cwd) only. Global installs (`-g`/`--global`, `uv tool install`, `pip install --user`) are blocked to keep tasks isolated — use `bun x` / `uvx` for one-off tools.'
+  ].join('\n')
 }
 
 export async function buildSystemPrompt(
@@ -769,11 +827,15 @@ export async function buildSystemPrompt(
     }
   }
 
+  // Bundled-runtime guidance (bun/uv) so the agent verifies logic with tools that actually exist.
+  // Not added to the assistant path above — it injects its own environment via buildAssistantContext.
+  const runtimeBlock = `\n\n${await buildRuntimeContext()}`
+
   // Soul mode
   if (soulEnabled) {
     const soulPrompt = await promptBuilder.buildSystemPrompt(cwd, agentConfig)
     const userInstructions = instructions ? `\n\n${instructions}` : ''
-    return `${soulPrompt}${userInstructions}${channelSecurityBlock}${artifactsBlock}\n\n${langInstruction}`
+    return `${soulPrompt}${userInstructions}${channelSecurityBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
   }
 
   // Standard mode
@@ -781,13 +843,13 @@ export async function buildSystemPrompt(
     return {
       type: 'preset',
       preset: 'claude_code',
-      append: `${instructions}${channelSecurityBlock}${artifactsBlock}\n\n${langInstruction}`
+      append: `${instructions}${channelSecurityBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
     }
   }
   return {
     type: 'preset',
     preset: 'claude_code',
-    append: `${channelSecurityBlock}${artifactsBlock}\n\n${langInstruction}`
+    append: `${channelSecurityBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
   }
 }
 
@@ -931,11 +993,13 @@ async function resolveSourceChannel(agentId: string, sessionId: string): Promise
  * Auto-approve allowlist for injected built-in MCP servers. Returns `undefined` for a plain agent
  * (Claude Code then permits all tools; cherry-tools is auto-approved via the canUseTool prefix).
  * Soul/assistant agents force an explicit allowlist so their claw/agent-memory/assistant tools pass.
+ * The read-only cherry-tools are listed explicitly (not a wildcard) so the mutating kb_manage tool is
+ * excluded from the SDK pre-approval and routed through per-call approval via canUseTool.
  */
 export function adjustAllowedToolsForMcp(soulEnabled: boolean, isAssistant: boolean): string[] | undefined {
   if (!soulEnabled && !isAssistant) return undefined
 
-  const result = ['mcp__cherry-tools__*']
+  const result = CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
   if (soulEnabled) result.push('mcp__claw__*', 'mcp__agent-memory__*')
   if (isAssistant) result.push('mcp__assistant__*')
   return result

@@ -26,6 +26,7 @@ import { IpcApiService } from '@main/ipc/IpcApiService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
+import { BinaryManager } from '@main/services/BinaryManager'
 import { CherryInOauthService } from '@main/services/CherryInOauthService'
 import { CodeCliService } from '@main/services/codeCli'
 import { CommandService } from '@main/services/CommandService'
@@ -36,7 +37,7 @@ import { MainWindowService } from '@main/services/MainWindowService'
 import { OpenClawService } from '@main/services/OpenClawService'
 import { OvmsManager } from '@main/services/OvmsManager'
 import { ProtocolService } from '@main/services/protocol/ProtocolService'
-import { ProxyManager } from '@main/services/ProxyManager'
+import { ProxyService } from '@main/services/proxy/ProxyService'
 import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
 import { SearchService } from '@main/services/SearchService'
@@ -102,7 +103,7 @@ export const services = {
   ClaudeCodeTraceBridgeService,
   OvmsManager,
   ProtocolService,
-  ProxyManager,
+  ProxyService,
   StorageMonitorService,
   PythonService,
   TrayService,
@@ -114,6 +115,7 @@ export const services = {
   McpPackageService,
   McpRuntimeService,
   McpCatalogService,
+  BinaryManager,
   OpenClawService,
   SearchService,
   AgentSessionRuntimeService,

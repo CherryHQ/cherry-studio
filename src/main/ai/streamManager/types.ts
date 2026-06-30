@@ -49,6 +49,7 @@ export interface StreamDoneResult {
   finalMessage?: CherryUIMessage
   status: 'success'
   modelId?: UniqueModelId
+  anchorMessageId?: string
   /** True when all executions in the topic are done. */
   isTopicDone?: boolean
   timings?: TransportTimings
@@ -58,6 +59,7 @@ export interface StreamPausedResult {
   finalMessage?: CherryUIMessage
   status: 'paused'
   modelId?: UniqueModelId
+  anchorMessageId?: string
   isTopicDone?: boolean
   timings?: TransportTimings
 }
@@ -68,6 +70,7 @@ export interface StreamErrorResult {
   finalMessage?: CherryUIMessage
   status: 'error'
   modelId?: UniqueModelId
+  anchorMessageId?: string
   isTopicDone?: boolean
   timings?: TransportTimings
 }
@@ -78,7 +81,7 @@ export interface StreamListener {
   /** Stable id used for dedup, detach-by-match, and logging. */
   readonly id: string
 
-  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId): void
+  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string): void
   onDone(result: StreamDoneResult): void | Promise<void>
   onPaused(result: StreamPausedResult): void | Promise<void>
   onError(result: StreamErrorResult): void | Promise<void>

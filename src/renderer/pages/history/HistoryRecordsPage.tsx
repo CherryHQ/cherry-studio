@@ -2,9 +2,9 @@ import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useMultiplePreferences } from '@renderer/data/hooks/usePreference'
-import { useAgents } from '@renderer/hooks/agents/useAgent'
-import { useAgentSessionStreamStatuses } from '@renderer/hooks/agents/useAgentSessionStreamStatuses'
-import { useSessions, useUpdateSession } from '@renderer/hooks/agents/useSession'
+import { useAgents } from '@renderer/hooks/agent/useAgent'
+import { useAgentSessionStreamStatuses } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
+import { useSessions, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
@@ -28,7 +28,7 @@ import { sortTopicsForDisplayGroups } from '@renderer/pages/home/Tabs/components
 import { createTopicActionContext, useTopicMenuPreset } from '@renderer/pages/home/Tabs/components/useTopicMenuActions'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Topic as RendererTopic } from '@renderer/types'
+import type { Topic as RendererTopic } from '@renderer/types/topic'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { Bot, ChevronLeft } from 'lucide-react'
@@ -656,7 +656,10 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
       const trimmedName = name.trim()
       if (!session || !trimmedName || trimmedName === session.name) return
 
-      const updatedSession = await updateSession({ id, name: trimmedName }, { showSuccessToast: false })
+      const updatedSession = await updateSession(
+        { id, name: trimmedName, isNameManuallyEdited: true },
+        { showSuccessToast: false }
+      )
       if (updatedSession) {
         window.toast.success(t('common.saved'))
       }

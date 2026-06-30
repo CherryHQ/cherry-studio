@@ -5,12 +5,9 @@ import { LoadingIcon } from '@renderer/components/Icons'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTimer } from '@renderer/hooks/useTimer'
-import {
-  captureScrollable,
-  captureScrollableAsDataURL,
-  classNames,
-  removeSpecialCharactersForFileName
-} from '@renderer/utils'
+import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
+import { captureScrollable, captureScrollableAsDataURL } from '@renderer/utils/image'
+import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 

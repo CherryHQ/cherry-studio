@@ -6,12 +6,17 @@ import { useKnowledgeRagConfig } from '../useKnowledgeRagConfig'
 
 const mockUseMutation = vi.fn()
 const mockTrigger = vi.fn()
+const mockUsePreference = vi.fn()
 const mockLogger = vi.hoisted(() => ({
   error: vi.fn()
 }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useMutation: (...args: unknown[]) => mockUseMutation(...args)
+}))
+
+vi.mock('@data/hooks/usePreference', () => ({
+  usePreference: (...args: unknown[]) => mockUsePreference(...args)
 }))
 
 vi.mock('@logger', () => ({
@@ -58,6 +63,8 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   fileProcessorId: undefined,
   chunkSize: 1024,
   chunkOverlap: 200,
+  chunkStrategy: 'structured',
+  chunkSeparator: '\\n\\n',
   threshold: 0,
   documentCount: 6,
   status: 'completed',
@@ -76,27 +83,37 @@ describe('useKnowledgeRagConfig', () => {
       isLoading: false,
       error: undefined
     })
+    mockUsePreference.mockReturnValue([
+      {
+        paddleocr: {
+          apiKeys: ['paddle-key']
+        },
+        mineru: {
+          apiKeys: []
+        },
+        mistral: {
+          apiKeys: ['   ']
+        }
+      }
+    ])
   })
 
-  it('builds options from shared data and translations and exposes the save mutation', async () => {
+  it('builds options from configured document processors and exposes the save mutation', async () => {
     const base = createKnowledgeBase({
-      fileProcessorId: 'doc2x',
+      fileProcessorId: 'paddleocr',
       rerankModelId: 'jina::jina-reranker-v2-base-multilingual'
     })
     const { result } = renderHook(() => useKnowledgeRagConfig(base))
 
-    expect(result.current.fileProcessorOptions).toEqual([
-      { value: 'paddleocr', label: 'PaddleOCR' },
-      { value: 'mineru', label: 'MinerU' },
-      { value: 'doc2x', label: 'Doc2X' },
-      { value: 'mistral', label: 'Mistral' },
-      { value: 'open-mineru', label: 'Open MinerU' }
-    ])
+    expect(result.current.fileProcessorOptions).toEqual([{ value: 'paddleocr', label: 'PaddleOCR' }])
     expect(result.current.searchModeOptions).toEqual([
       { value: 'hybrid', label: '混合检索（推荐）' },
       { value: 'vector', label: '向量检索' },
       { value: 'bm25', label: '全文检索' }
     ])
+    expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('mineru')
+    expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('doc2x')
+    expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('mistral')
     expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('tesseract')
     expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('system')
     expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('ovocr')
@@ -109,6 +126,8 @@ describe('useKnowledgeRagConfig', () => {
         fileProcessorId: null,
         chunkSize: '1536',
         chunkOverlap: '256',
+        chunkStrategy: 'structured',
+        chunkSeparator: '\\n\\n',
         embeddingModelId: 'voyage::voyage-3-large',
         rerankModelId: null,
         documentCount: 10,

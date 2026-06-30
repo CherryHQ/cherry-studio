@@ -1,8 +1,8 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { isLinux, isWin } from '@renderer/config/constant'
 import { ipcApi } from '@renderer/ipc'
 import { useIpcOn } from '@renderer/ipc/useIpcOn'
+import { isLinux, isWin } from '@renderer/utils/platform'
 import { Minus, Square, X } from 'lucide-react'
 import type { SVGProps } from 'react'
 import { useEffect, useState } from 'react'
@@ -49,10 +49,20 @@ export const WindowRestoreIcon = ({ size = '1.1em', ...props }: WindowRestoreIco
   </svg>
 )
 
+/**
+ * Whether the renderer draws the OS window controls. Windows is always frameless (custom
+ * controls); Linux is frameless unless the user opted into the system title bar, in which
+ * case the OS draws them. Exported so frameless surfaces can reserve corner space to match.
+ */
+export function useHasWindowControls(): boolean {
+  const [useSystemTitleBar] = usePreference('app.use_system_title_bar')
+  return isWin || (isLinux && !useSystemTitleBar)
+}
+
 const WindowControls: React.FC = () => {
   const [isMaximized, setIsMaximized] = useState(false)
   const { t } = useTranslation()
-  const [useSystemTitleBar] = usePreference('app.use_system_title_bar')
+  const hasWindowControls = useHasWindowControls()
 
   useEffect(() => {
     // Check initial maximized state
@@ -62,13 +72,7 @@ const WindowControls: React.FC = () => {
   // Listen for maximized state changes (auto-unsubscribes on unmount)
   useIpcOn('window.maximized_changed', setIsMaximized)
 
-  // Only show on Windows and Linux
-  if (!isWin && !isLinux) {
-    return null
-  }
-
-  // Hide on Linux if using system title bar
-  if (isLinux && useSystemTitleBar) {
+  if (!hasWindowControls) {
     return null
   }
 
