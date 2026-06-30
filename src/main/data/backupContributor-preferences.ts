@@ -14,11 +14,8 @@
 // Preset: full + lite.
 
 import type { BackupContributor } from '@main/data/db/backup/contributor-types'
-import { columns, DB_PRIMARY_KEYS, table } from '@main/data/db/backup/dbSchemaRefs'
+import { columns, mirrorPk, table } from '@main/data/db/backup/dbSchemaRefs'
 import { deepFreeze } from '@main/data/db/backup/freeze'
-
-/** Mirror a codegen PK fact with `ambiguous` confirmed false (finalize #8/#9). */
-const pk = (t: Parameters<typeof table>[0]) => ({ ...DB_PRIMARY_KEYS[t], ambiguous: false as const })
 
 /**
  * PREFERENCES domain. preference is keyed by composite [scope, key]; note by the
@@ -30,7 +27,7 @@ export const PREFERENCES_CONTRIBUTOR = deepFreeze<BackupContributor>({
   schema: {
     tables: [table('preference'), table('note')],
     references: [],
-    primaryKeys: [pk('preference'), pk('note')],
+    primaryKeys: [mirrorPk('preference'), mirrorPk('note')],
     aggregates: [
       {
         root: table('preference'),
@@ -53,7 +50,6 @@ export const PREFERENCES_CONTRIBUTOR = deepFreeze<BackupContributor>({
     jsonSoftReferences: []
   },
   backupPolicy: {
-    uniqueMergeRules: [],
     // PREFERENCES-only: key patterns EXCLUDED at restore so a backup from another
     // OS/machine does not import foreign keybindings or absolute paths. Starter
     // set (openspec config-domains.md); the full list is curated by the
