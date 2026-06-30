@@ -145,7 +145,7 @@ const AgentPage = () => {
   const [agentPickerOpen, setAgentPickerOpen] = useState(false)
   const { t } = useTranslation()
   const invalidateCache = useInvalidateCache()
-  const { updateSession, setSessionWorkspace } = useUpdateSession()
+  const { setSessionWorkspace } = useUpdateSession()
   const pendingSelectedSession =
     pendingSelectedSessionRef.current?.id === activeSessionId ? pendingSelectedSessionRef.current : null
   const {
