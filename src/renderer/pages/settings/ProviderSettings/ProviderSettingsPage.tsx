@@ -1,3 +1,5 @@
+import './assets/styles/provider-settings-scoped-theme.css'
+
 import { usePersistCache } from '@data/hooks/useCache'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useNavigate, useSearch } from '@tanstack/react-router'
@@ -89,7 +91,7 @@ export default function ProviderSettingsPage({ isOnboarding = false }: ProviderS
   )
 
   return (
-    <div className="relative flex h-full min-h-0 w-full min-w-0 overflow-hidden">
+    <div className="provider-settings-default-scope provider-settings-layout-cq relative flex h-full min-h-0 w-full min-w-0 overflow-hidden">
       <ProviderList
         selectedProviderId={selectedProviderId}
         filterModeHint={filterModeHint}

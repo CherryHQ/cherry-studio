@@ -67,7 +67,6 @@ export default function ApiHost({ providerId }: ApiHostProps) {
             providerIdForSettings={provider.id}
             apiHost={apiHost}
             isCherryIN={meta.isCherryIN}
-            isChineseUser={meta.isChineseUser}
             isVertexAI={provider.id === 'vertexai'}
             isApiHostResettable={hostPreview.isApiHostResettable}
             onResetApiHost={endpointActions.resetApiHost}

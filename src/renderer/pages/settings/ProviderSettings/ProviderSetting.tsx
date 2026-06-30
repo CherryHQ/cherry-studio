@@ -45,7 +45,10 @@ export default function ProviderSetting({ providerId, isOnboarding = false }: Pr
   return (
     <ProviderSettingsContainer theme={theme}>
       <div className="flex h-full min-h-0 w-full flex-col">
-        <div data-testid="provider-detail-shell" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {/* Scoped mock alignment: tokens in `provider-settings-scoped-theme.css`, compositions in ProviderSettingsPrimitives. */}
+        <div
+          data-testid="provider-detail-shell"
+          className="provider-settings-default-scope flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className={providerDetailColumnClasses.headerPad}>
             <div className={providerDetailColumnClasses.headerContentMaxWidth}>
               <ProviderHeader providerId={providerId} />

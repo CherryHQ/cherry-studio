@@ -1,6 +1,7 @@
-import { InputGroup, InputGroupAddon, InputGroupInput, Tooltip, WarnTooltip } from '@cherrystudio/ui'
-import { useProvider } from '@renderer/hooks/useProvider'
+import { Button, InputGroup, InputGroupAddon, InputGroupInput, Tooltip, WarnTooltip } from '@cherrystudio/ui'
+import { useProvider, useProviderAuthConfig } from '@renderer/hooks/useProvider'
 import type { ApiKeyConnectivity } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
+import { hasApiKeys } from '@shared/utils/provider'
 import { Activity, Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -27,6 +28,7 @@ export default function ApiKey({
 }: ApiKeyProps) {
   const { t } = useTranslation()
   const { provider } = useProvider(providerId)
+  const { data: authConfig } = useProviderAuthConfig(providerId)
   const meta = useProviderMeta(providerId)
   const { inputApiKey, setInputApiKey } = useAuthenticationApiKey()
   const [showApiKey, setShowApiKey] = useState(false)
@@ -39,6 +41,9 @@ export default function ApiKey({
   if (!provider || !meta.isApiKeyFieldVisible) {
     return null
   }
+
+  // After OAuth login the key is provisioned and managed by the OAuth flow, so manual editing is locked.
+  const isOAuthLoggedIn = hasApiKeys(provider) && authConfig?.type === 'oauth' && Boolean(authConfig.accessToken)
 
   return (
     <>
@@ -68,7 +73,7 @@ export default function ApiKey({
                 value={inputApiKey}
                 placeholder={t('settings.provider.api_key.placeholder')}
                 onChange={(event) => setInputApiKey(event.target.value)}
-                disabled={provider.id === 'copilot'}
+                disabled={provider.id === 'copilot' || isOAuthLoggedIn}
               />
               {provider.id !== 'copilot' && (
                 <InputGroupAddon align="inline-end" className="-mr-0.5 pr-0">
@@ -96,19 +101,21 @@ export default function ApiKey({
             </InputGroup>
             <Tooltip content={t('settings.provider.api.key.list.title')}>
               <span className="inline-flex shrink-0">
-                <button
+                <Button
+                  variant="outline"
                   type="button"
                   disabled={provider.id === 'copilot'}
                   className={fieldClasses.inputActionButton}
                   aria-label={t('settings.provider.api.key.list.title')}
                   onClick={() => setKeyListOpen(true)}>
                   <KeyRound size={14} />
-                </button>
+                </Button>
               </span>
             </Tooltip>
             <Tooltip content={t('settings.provider.check')}>
               <span className="inline-flex shrink-0">
-                <button
+                <Button
+                  variant="outline"
                   type="button"
                   disabled={provider.id === 'copilot' || !inputApiKey || apiKeyConnectivity.checking}
                   className={fieldClasses.inputActionButton}
@@ -119,7 +126,7 @@ export default function ApiKey({
                   ) : (
                     <Activity size={14} />
                   )}
-                </button>
+                </Button>
               </span>
             </Tooltip>
           </div>
