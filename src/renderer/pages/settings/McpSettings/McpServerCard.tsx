@@ -127,7 +127,6 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
     [server.providerUrl]
   )
 
-  const sourceLabel = server.provider || (server.installSource === 'builtin' ? t('settings.mcp.builtinServers') : '')
   const typeLabel = t(getMcpTypeLabelKey(server.type ?? 'stdio'))
 
   const getTypeBadgeClass = () => {
@@ -234,13 +233,6 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
         </div>
 
         <SourceCell>
-          {sourceLabel ? (
-            <MetaBadge className={server.provider ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}>
-              {sourceLabel}
-            </MetaBadge>
-          ) : (
-            <span className="text-muted-foreground/70">—</span>
-          )}
           {server.providerUrl && (
             <Button
               variant="ghost"
@@ -302,10 +294,7 @@ const MutedCell = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'
 )
 
 const SourceCell = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={cn('hidden w-32 shrink-0 items-center justify-end gap-1.5 min-[1320px]:flex', className)}
-    {...props}
-  />
+  <div className={cn('hidden w-7 shrink-0 items-center justify-end min-[1320px]:flex', className)} {...props} />
 )
 
 const ToolbarWrapper = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
