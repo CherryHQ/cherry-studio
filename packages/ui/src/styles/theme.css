@@ -271,8 +271,15 @@
   /* ==================== */
   /* Runtime Theme Inputs */
   /* ==================== */
+  /* --cs-theme-primary is the user-chosen theme color (overridable by useUserTheme).
+   * It only feeds --color-control-accent (switch/slider/etc.) and --color-link;
+   * --color-primary and --color-ring stay anchored to the neutral --cs-primary so
+   * inputs/selects/focus never follow the theme color. */
   --cs-theme-primary: var(--cs-primary);
-  --cs-theme-ring: color-mix(in srgb, var(--cs-theme-primary) 40%, transparent);
+  --cs-theme-control-accent: var(--cs-theme-primary);
+  --cs-theme-control-accent-hover: color-mix(in srgb, var(--cs-theme-control-accent) 88%, var(--cs-foreground));
+  --cs-theme-control-accent-foreground: var(--cs-control-accent-foreground);
+  --cs-theme-ring: color-mix(in srgb, var(--cs-primary) 40%, transparent);
 
   /* ==================== */
   /* Compatibility Aliases */
@@ -283,11 +290,16 @@
   /* ==================== */
   /* Semantic Colors */
   /* ==================== */
-  --color-primary: var(--cs-theme-primary);
+  --color-primary: var(--cs-primary);
   --color-primary-hover: var(--cs-primary-hover);
   --color-primary-soft: color-mix(in srgb, var(--color-primary) 60%, transparent);
   --color-primary-mute: color-mix(in srgb, var(--color-primary) 30%, transparent);
+  --color-control-accent: var(--cs-theme-control-accent);
+  --color-control-accent-hover: var(--cs-theme-control-accent-hover);
+  --color-control-accent-foreground: var(--cs-theme-control-accent-foreground);
   --color-ring: var(--cs-theme-ring);
+  --color-link: var(--cs-theme-control-accent);
+  --color-control-thumb: var(--cs-control-thumb);
   --color-destructive: var(--cs-destructive);
   --color-destructive-hover: var(--cs-destructive-hover);
   --color-success: var(--cs-success);
@@ -307,6 +319,9 @@
   --color-border-hover: var(--cs-border-hover);
   --color-border-active: var(--cs-border-active);
   --color-frame-border: var(--cs-frame-border);
+  --color-frame-border-translucent: var(--cs-frame-border-translucent);
+  --color-border-fg-muted: var(--cs-border-fg-muted);
+  --color-icon-muted: var(--cs-icon-muted);
   --color-secondary: var(--cs-secondary);
   --color-secondary-hover: var(--cs-secondary-hover);
   --color-secondary-active: var(--cs-secondary-active);
@@ -316,6 +331,15 @@
   --color-ghost-active: var(--cs-ghost-active);
   --color-sidebar: var(--cs-sidebar);
   --color-sidebar-accent: var(--cs-sidebar-accent);
+  --color-sidebar-translucent: var(--cs-sidebar-translucent);
+  --color-sidebar-glass-shadow: var(--cs-sidebar-glass-shadow);
+  --color-tabbar-glass-surface: var(--cs-tabbar-glass-surface);
+  --color-tabbar-glass-border: var(--cs-tabbar-glass-border);
+  --color-tabbar-glass-hover: var(--cs-tabbar-glass-hover);
+  --color-tabbar-glass-shadow: var(--cs-tabbar-glass-shadow);
+  --color-selected: var(--cs-selected);
+  --color-selected-border: var(--cs-selected-border);
+  --color-surface-fg-subtle-solid: var(--cs-surface-fg-subtle-solid);
   --color-card-foreground: var(--cs-card-foreground);
   --color-popover-foreground: var(--cs-popover-foreground);
   --color-secondary-foreground: var(--cs-secondary-foreground);
@@ -329,6 +353,17 @@
   --color-sidebar-accent-foreground: var(--cs-sidebar-accent-foreground);
   --color-sidebar-border: var(--cs-sidebar-border);
   --color-sidebar-ring: var(--cs-sidebar-ring);
+  --color-highlight: var(--cs-highlight);
+  --color-highlight-surface: var(--cs-highlight-surface);
+  --color-highlight-foreground: var(--cs-highlight-foreground);
+  --color-button-elevated-from: var(--cs-button-elevated-from);
+  --color-button-elevated-to: var(--cs-button-elevated-to);
+  --color-button-elevated-foreground: var(--cs-button-elevated-foreground);
+  --color-button-elevated-shadow: var(--cs-button-elevated-shadow);
+  --color-button-elevated-rim: var(--cs-button-elevated-rim);
+  --color-button-elevated-highlight: var(--cs-button-elevated-highlight);
+  --color-button-elevated-highlight-hover: var(--cs-button-elevated-highlight-hover);
+  --color-button-elevated-inner-shadow: var(--cs-button-elevated-inner-shadow);
 
   /* ==================== */
   /* Status Colors */
@@ -400,6 +435,8 @@
   --font-weight-regular: var(--cs-font-weight-regular);
   --font-weight-medium: var(--cs-font-weight-medium);
   --font-weight-bold: var(--cs-font-weight-bold);
+  --icon-stroke: var(--cs-icon-stroke);
+  --font-size-body-2xs: var(--cs-font-size-body-2xs);
   --font-size-body-xs: var(--cs-font-size-body-xs);
   --font-size-body-sm: var(--cs-font-size-body-sm);
   --font-size-body-md: var(--cs-font-size-body-md);
@@ -410,6 +447,7 @@
   --font-size-heading-lg: var(--cs-font-size-heading-lg);
   --font-size-heading-xl: var(--cs-font-size-heading-xl);
   --font-size-heading-2xl: var(--cs-font-size-heading-2xl);
+  --letter-spacing-tight: var(--cs-letter-spacing-tight);
   --line-height-body-xs: var(--cs-line-height-body-xs);
   --line-height-body-sm: var(--cs-line-height-body-sm);
   --line-height-body-md: var(--cs-line-height-body-md);
