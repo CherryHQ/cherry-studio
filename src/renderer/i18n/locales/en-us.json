@@ -4744,6 +4744,7 @@
     "jina": "Jina",
     "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
+    "local-embedding": "Qwen3 Embedding 0.6B",
     "longcat": "LongCat AI",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
@@ -6800,7 +6801,7 @@
         },
         "ocr": {
           "name": "Local OCR",
-          "subtitle": "PaddleOCR PP-OCRv6 · ~31 MB"
+          "subtitle": "PaddleOCR PP-OCRv6 · ~140 MB"
         },
         "remove": "Remove",
         "status": {
@@ -7375,7 +7376,7 @@
             "name": "Doc2x"
           },
           "local_paddleocr": {
-            "description": "PaddleOCR (PP-OCRv6 small) running in-process — fully offline, no API key, with recognition on a background thread so the UI stays responsive. Download the model (~31MB) in Environment Dependencies before first use.",
+            "description": "PaddleOCR (PP-OCRv6 medium) running in-process — fully offline, no API key, with recognition on a background thread so the UI stays responsive. Download the model (~140MB) in Environment Dependencies before first use.",
             "name": "Local PaddleOCR",
             "status": {
               "local": "Runs fully on your device"

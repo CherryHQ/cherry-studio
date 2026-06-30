@@ -4744,6 +4744,7 @@
     "jina": "Jina",
     "lanyun": "藍耘",
     "lmstudio": "LM Studio",
+    "local-embedding": "Qwen3 Embedding 0.6B",
     "longcat": "龍貓",
     "mimo": "小米 MiMo",
     "mineru": "MinerU",
@@ -6800,7 +6801,7 @@
         },
         "ocr": {
           "name": "本機 OCR 模型",
-          "subtitle": "PaddleOCR PP-OCRv6 · 約 31 MB"
+          "subtitle": "PaddleOCR PP-OCRv6 · 約 140 MB"
         },
         "remove": "刪除",
         "status": {
@@ -7375,7 +7376,7 @@
             "name": "Doc2x"
           },
           "local_paddleocr": {
-            "description": "在本機行程內執行的 PaddleOCR（PP-OCRv6 小模型），完全離線、無需 API Key，辨識在背景執行緒進行不阻塞介面。首次使用請先在「環境相依」中下載模型（約 31MB）。",
+            "description": "在本機行程內執行的 PaddleOCR（PP-OCRv6 中等模型），完全離線、無需 API Key，辨識在背景執行緒進行不阻塞介面。首次使用請先在「環境相依」中下載模型（約 140MB）。",
             "name": "本機 PaddleOCR",
             "status": {
               "local": "完全本機離線執行"

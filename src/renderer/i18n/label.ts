@@ -87,7 +87,8 @@ const providerKeyMap = {
   cerebras: 'provider.cerebras',
   mimo: 'provider.mimo',
   'minimax-global': 'provider.minimax-global',
-  zai: 'provider.zai'
+  zai: 'provider.zai',
+  'local-embedding': 'provider.local-embedding'
 } as const
 
 /**
