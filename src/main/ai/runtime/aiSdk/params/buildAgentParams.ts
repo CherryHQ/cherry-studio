@@ -192,10 +192,14 @@ async function resolveTools(
   }
   // First-class client tools (no `execute`) supplied per request by assistant-less
   // callers (the API gateway). Merged here so they share the registry/defer-exposition
-  // path instead of being mutated onto raw SDK params.
+  // path instead of being mutated onto raw SDK params. Sort entries so the provider's
+  // serialized tool prefix is byte-stable for identical tool sets.
   const clientTools = request.callOverrides?.tools
   if (clientTools && Object.keys(clientTools).length > 0) {
-    tools = { ...tools, ...clientTools }
+    tools = {
+      ...tools,
+      ...Object.fromEntries(Object.entries(clientTools).sort(([a], [b]) => a.localeCompare(b)))
+    }
   }
   const exposed = applyDeferExposition(tools, registry, model.contextWindow)
   return { tools: exposed.tools, deferredEntries: exposed.deferredEntries, mcpToolIds }

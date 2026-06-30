@@ -2,23 +2,69 @@
  * Anthropic Prompt Caching Middleware
  *
  * Adds `providerOptions.anthropic.cacheControl = { type: 'ephemeral' }` markers
- * on qualifying system / trailing messages so Anthropic-compatible providers
- * re-use the prefix KV cache.
+ * on qualifying system / tool / trailing-message breakpoints so Anthropic-compatible
+ * providers re-use stable prompt prefixes.
  *
  * @see https://ai-sdk.dev/providers/ai-sdk-providers/anthropic#cache-control
  */
 
-import type { LanguageModelV3Message } from '@ai-sdk/provider'
+import type { LanguageModelV3CallOptions, LanguageModelV3FunctionTool, LanguageModelV3Message } from '@ai-sdk/provider'
 import { definePlugin } from '@cherrystudio/ai-core'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import type { Assistant } from '@shared/data/types/assistant'
+import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { estimateTokenCount } from 'tokenx'
 
 import type { RequestFeature } from '../feature'
 
+const MAX_CACHE_BREAKPOINTS = 4
+const DEFAULT_TOKEN_THRESHOLD = 1024
+const HAIKU_TOKEN_THRESHOLD = 2048
+const DEFAULT_CACHE_LAST_N_MESSAGES = 2
+
 const cacheProviderOptions = {
   anthropic: { cacheControl: { type: 'ephemeral' } }
+} as const
+
+interface EffectiveAnthropicCacheSettings {
+  enabled: boolean
+  tokenThreshold: number
+  cacheSystemMessage: boolean
+  cacheLastNMessages: number
+  cacheToolDefinitions: boolean
+}
+
+function getMinimumTokenThreshold(model: Model): number {
+  const id = `${model.id} ${model.name} ${model.apiModelId ?? ''}`.toLowerCase()
+  return id.includes('haiku') ? HAIKU_TOKEN_THRESHOLD : DEFAULT_TOKEN_THRESHOLD
+}
+
+export function resolveAnthropicCacheSettings(provider: Provider, model: Model): EffectiveAnthropicCacheSettings {
+  const settings = provider.settings?.cacheControl
+  if (settings?.enabled === false) {
+    return {
+      enabled: false,
+      tokenThreshold: getMinimumTokenThreshold(model),
+      cacheSystemMessage: settings.cacheSystemMessage ?? true,
+      cacheLastNMessages: settings.cacheLastNMessages ?? DEFAULT_CACHE_LAST_N_MESSAGES,
+      cacheToolDefinitions: true
+    }
+  }
+
+  const minimum = getMinimumTokenThreshold(model)
+  return {
+    enabled: true,
+    tokenThreshold: Math.max(settings?.tokenThreshold ?? DEFAULT_TOKEN_THRESHOLD, minimum),
+    cacheSystemMessage: settings?.cacheSystemMessage ?? true,
+    cacheLastNMessages: settings?.cacheLastNMessages ?? DEFAULT_CACHE_LAST_N_MESSAGES,
+    cacheToolDefinitions: true
+  }
+}
+
+function hasVolatilePromptVariables(assistant: Assistant | undefined): boolean {
+  const prompt = assistant?.prompt
+  return Boolean(prompt?.includes('{{time}}') || prompt?.includes('{{datetime}}'))
 }
 
 function estimateContentTokens(content: LanguageModelV3Message['content']): number {
@@ -34,65 +80,164 @@ function estimateContentTokens(content: LanguageModelV3Message['content']): numb
   return 0
 }
 
-function anthropicCacheMiddleware(provider: Provider): LanguageModelMiddleware {
+function estimateToolTokens(tool: LanguageModelV3FunctionTool): number {
+  return estimateTokenCount(
+    JSON.stringify({
+      name: tool.name,
+      description: tool.description,
+      input_schema: tool.inputSchema
+    })
+  )
+}
+
+function isFunctionTool(
+  tool: NonNullable<LanguageModelV3CallOptions['tools']>[number]
+): tool is LanguageModelV3FunctionTool {
+  return tool.type === 'function'
+}
+
+function withCacheProviderOptions<T extends { providerOptions?: unknown }>(value: T): T {
   return {
-    specificationVersion: 'v3',
-    transformParams: async ({ params }) => {
-      const settings = provider.settings?.cacheControl
-      if (!settings?.enabled || !settings.tokenThreshold) return params
-      if (!Array.isArray(params.prompt) || params.prompt.length === 0) return params
-
-      const { tokenThreshold, cacheSystemMessage, cacheLastNMessages } = settings
-      const messages = [...params.prompt]
-      let cachedCount = 0
-
-      if (cacheSystemMessage) {
-        for (let i = 0; i < messages.length; i++) {
-          const msg = messages[i]
-          if (msg.role === 'system' && estimateContentTokens(msg.content) >= tokenThreshold) {
-            messages[i] = { ...msg, providerOptions: cacheProviderOptions }
-            break
-          }
-        }
+    ...value,
+    providerOptions: {
+      ...(value.providerOptions && typeof value.providerOptions === 'object' ? value.providerOptions : {}),
+      anthropic: {
+        ...((value.providerOptions as { anthropic?: object } | undefined)?.anthropic ?? {}),
+        cacheControl: cacheProviderOptions.anthropic.cacheControl
       }
-
-      if (cacheLastNMessages && cacheLastNMessages > 0) {
-        const cumsumTokens: number[] = []
-        let tokenSum = 0
-        for (let i = 0; i < messages.length; i++) {
-          tokenSum += estimateContentTokens(messages[i].content)
-          cumsumTokens.push(tokenSum)
-        }
-
-        for (let i = messages.length - 1; i >= 0 && cachedCount < cacheLastNMessages; i--) {
-          const msg = messages[i]
-          if (msg.role === 'system' || cumsumTokens[i] < tokenThreshold || msg.content.length === 0) {
-            continue
-          }
-          const newContent = [...msg.content]
-          const lastIndex = newContent.length - 1
-          newContent[lastIndex] = {
-            ...newContent[lastIndex],
-            providerOptions: cacheProviderOptions
-          }
-          messages[i] = { ...msg, content: newContent } as LanguageModelV3Message
-          cachedCount++
-        }
-      }
-
-      return { ...params, prompt: messages }
     }
   }
 }
 
-// TODO: use context manager replace middleware
-function createAnthropicCachePlugin(provider: Provider) {
+interface CacheBreakpointBudget {
+  remaining: number
+  use(): boolean
+}
+
+function createCacheBreakpointBudget(): CacheBreakpointBudget {
+  return {
+    remaining: MAX_CACHE_BREAKPOINTS,
+    use() {
+      if (this.remaining <= 0) return false
+      this.remaining--
+      return true
+    }
+  }
+}
+
+function hasCacheableContent(msg: LanguageModelV3Message): boolean {
+  return typeof msg.content === 'string' ? msg.content.length > 0 : msg.content.length > 0
+}
+
+function applyToolCacheMarker(
+  tools: LanguageModelV3CallOptions['tools'],
+  prefixTokens: number,
+  tokenThreshold: number,
+  budget: CacheBreakpointBudget
+): { tools: LanguageModelV3CallOptions['tools']; prefixTokens: number } {
+  if (!tools?.length) return { tools, prefixTokens }
+
+  const sortedTools = [...tools].sort((a, b) => {
+    const aName = isFunctionTool(a) ? a.name : a.id
+    const bName = isFunctionTool(b) ? b.name : b.id
+    return aName.localeCompare(bName)
+  })
+
+  let cumulative = prefixTokens
+  let markerIndex = -1
+  for (let i = 0; i < sortedTools.length; i++) {
+    const tool = sortedTools[i]
+    if (!isFunctionTool(tool)) continue
+    cumulative += estimateToolTokens(tool)
+    if (cumulative >= tokenThreshold) markerIndex = i
+  }
+
+  if (markerIndex === -1 || !budget.use()) return { tools: sortedTools, prefixTokens: cumulative }
+
+  const markedTools = [...sortedTools]
+  markedTools[markerIndex] = withCacheProviderOptions(markedTools[markerIndex] as LanguageModelV3FunctionTool)
+  return { tools: markedTools, prefixTokens: cumulative }
+}
+
+export async function transformAnthropicCacheParams(
+  params: LanguageModelV3CallOptions,
+  provider: Provider,
+  model: Model,
+  assistant: Assistant | undefined
+): Promise<LanguageModelV3CallOptions> {
+  const settings = resolveAnthropicCacheSettings(provider, model)
+  if (!settings.enabled) return params
+  if (!Array.isArray(params.prompt) || params.prompt.length === 0) return params
+
+  const messages = [...params.prompt]
+  const budget = createCacheBreakpointBudget()
+  const volatileSystemPrompt = hasVolatilePromptVariables(assistant)
+
+  if (settings.cacheSystemMessage && !volatileSystemPrompt) {
+    let systemPrefixTokens = 0
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i]
+      systemPrefixTokens += estimateContentTokens(msg.content)
+      if (msg.role === 'system' && systemPrefixTokens >= settings.tokenThreshold && budget.use()) {
+        messages[i] = withCacheProviderOptions(msg)
+        break
+      }
+    }
+  }
+
+  const toolResult = settings.cacheToolDefinitions
+    ? applyToolCacheMarker(params.tools, 0, settings.tokenThreshold, budget)
+    : { tools: params.tools, prefixTokens: 0 }
+
+  if (settings.cacheLastNMessages > 0) {
+    const cumsumTokens: number[] = []
+    let tokenSum = 0
+    for (let i = 0; i < messages.length; i++) {
+      tokenSum += estimateContentTokens(messages[i].content)
+      cumsumTokens.push(tokenSum)
+    }
+
+    let cachedCount = 0
+    for (let i = messages.length - 1; i >= 0 && cachedCount < settings.cacheLastNMessages; i--) {
+      const msg = messages[i]
+      if (msg.role === 'system' || cumsumTokens[i] < settings.tokenThreshold || !hasCacheableContent(msg)) {
+        continue
+      }
+      if (!budget.use()) break
+
+      if (typeof msg.content === 'string') {
+        messages[i] = withCacheProviderOptions(msg)
+      } else {
+        const newContent = [...msg.content]
+        const lastIndex = newContent.length - 1
+        newContent[lastIndex] = withCacheProviderOptions(newContent[lastIndex])
+        messages[i] = { ...msg, content: newContent } as LanguageModelV3Message
+      }
+      cachedCount++
+    }
+  }
+
+  return { ...params, prompt: messages, tools: toolResult.tools }
+}
+
+function anthropicCacheMiddleware(
+  provider: Provider,
+  model: Model,
+  assistant: Assistant | undefined
+): LanguageModelMiddleware {
+  return {
+    specificationVersion: 'v3',
+    transformParams: async ({ params }) => transformAnthropicCacheParams(params, provider, model, assistant)
+  }
+}
+
+function createAnthropicCachePlugin(provider: Provider, model: Model, assistant: Assistant | undefined) {
   return definePlugin({
     name: 'anthropic-cache',
     enforce: 'pre',
     configureContext: (context) => {
       context.middlewares = context.middlewares || []
-      context.middlewares.push(anthropicCacheMiddleware(provider))
+      context.middlewares.push(anthropicCacheMiddleware(provider, model, assistant))
     }
   })
 }
@@ -101,6 +246,6 @@ export const anthropicCacheFeature: RequestFeature = {
   name: 'anthropic-cache',
   applies: (scope) =>
     scope.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES &&
-    Boolean(scope.provider.settings?.cacheControl?.enabled && scope.provider.settings.cacheControl.tokenThreshold),
-  contributeModelAdapters: (scope) => [createAnthropicCachePlugin(scope.provider)]
+    resolveAnthropicCacheSettings(scope.provider, scope.model).enabled,
+  contributeModelAdapters: (scope) => [createAnthropicCachePlugin(scope.provider, scope.model, scope.assistant)]
 }
