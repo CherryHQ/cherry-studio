@@ -818,6 +818,18 @@ describe('Topics', () => {
     expect(searchInput).toHaveClass('h-8', 'rounded-lg', 'border-border-subtle', 'bg-background-subtle', 'text-xs')
   })
 
+  it('forces time grouping in the right panel even when the assistant display mode is stored', () => {
+    // beforeEach stores topic.tab.display_mode: 'assistant'. The classic right panel is the parent
+    // switch and must ignore the stored display mode, grouping strictly by time. The observable
+    // consequence is that assistant grouping is never engaged, so the assistants list (only needed
+    // for assistant grouping) is not fetched. Reverting `isRightPanel ? 'time' : …` would flip
+    // isAssistantDisplayMode to true here and enable that query.
+    renderTopicList({ assistantIdFilter: 'assistant-1', presentation: 'right-panel' })
+
+    const assistantsQueryCall = mockUseQuery.mock.calls.find(([path]) => path === '/assistants')
+    expect(assistantsQueryCall?.[1]).toMatchObject({ enabled: false })
+  })
+
   it('pins from the trailing row button without selecting the topic', async () => {
     const { getByText, setActiveTopic } = renderTopicList()
 

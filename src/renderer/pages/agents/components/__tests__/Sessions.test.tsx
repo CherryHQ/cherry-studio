@@ -796,6 +796,19 @@ describe('Sessions', () => {
     expect(searchInput).toHaveClass('h-8', 'rounded-lg', 'border-border-subtle', 'bg-background-subtle', 'text-xs')
   })
 
+  it('forces time grouping in the right panel even when the agent display mode is stored', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    setupSessions()
+
+    render(<SessionsForTest agentIdFilter="agent-a" presentation="right-panel" />)
+
+    // The classic right panel is the parent switch and forces time grouping, so agent grouping is
+    // never engaged and the agent pins query stays disabled. Reverting the `isRightPanel ? 'time' :`
+    // force would flip displayMode back to the stored 'agent' and enable it.
+    expect(pinMocks.usePins).toHaveBeenCalledWith('agent', { enabled: false })
+    expect(pinMocks.usePins).not.toHaveBeenCalledWith('agent', { enabled: true })
+  })
+
   it('starts a first-agent draft from the header when there are agents but no sessions', async () => {
     const onStartDraftSession = vi.fn()
     const onStartMissingAgentDraft = vi.fn()
