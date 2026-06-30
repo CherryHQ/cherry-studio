@@ -974,6 +974,17 @@ async function createSiyuanDoc(
   return data.data
 }
 
+const saveContentToNotes = async (title: string, content: string, folderPath: string): Promise<void> => {
+  await addNote(title, content, folderPath)
+
+  window.toast.success(i18n.t('message.success.notes.export'))
+}
+
+const handleNotesExportError = (error: unknown): void => {
+  logger.error('导出到笔记失败:', error as Error)
+  window.toast.error(i18n.t('message.error.notes.export'))
+}
+
 /**
  * 导出任意文本内容到笔记工作区
  * @param title 笔记标题
@@ -982,12 +993,9 @@ async function createSiyuanDoc(
  */
 export const exportContentToNotes = async (title: string, content: string, folderPath: string): Promise<void> => {
   try {
-    await addNote(title, content, folderPath)
-
-    window.toast.success(i18n.t('message.success.notes.export'))
+    await saveContentToNotes(title, content, folderPath)
   } catch (error) {
-    logger.error('导出到笔记失败:', error as Error)
-    window.toast.error(i18n.t('message.error.notes.export'))
+    handleNotesExportError(error)
     throw error
   }
 }
@@ -1009,8 +1017,13 @@ export const exportMessageToNotes = async (title: string, content: string, folde
  * @param folderPath
  */
 export const exportTopicToNotes = async (topic: Topic, folderPath: string): Promise<void> => {
-  const content = await topicToMarkdown(topic)
-  await exportContentToNotes(topic.name, content, folderPath)
+  try {
+    const content = await topicToMarkdown(topic)
+    await saveContentToNotes(topic.name, content, folderPath)
+  } catch (error) {
+    handleNotesExportError(error)
+    throw error
+  }
 }
 
 // NOTE (domain-axis follow-up, deferred per the cycle-break refactor plan):

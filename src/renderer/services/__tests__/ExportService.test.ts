@@ -1,8 +1,10 @@
 // Import Message, MessageBlock, and necessary enums
 import { getTopicMessages } from '@renderer/hooks/useTopic'
+import { addNote } from '@renderer/services/NotesService'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { beforeEach, describe, expect, it, test, vi } from 'vitest'
 
 // --- Mocks Setup ---
@@ -15,6 +17,14 @@ beforeEach(() => {
         read: vi.fn().mockResolvedValue('[]'),
         writeWithId: vi.fn()
       }
+    },
+    configurable: true
+  })
+  Object.defineProperty(window, 'toast', {
+    value: {
+      error: vi.fn(),
+      success: vi.fn(),
+      warning: vi.fn()
     },
     configurable: true
   })
@@ -98,6 +108,10 @@ vi.mock('@renderer/hooks/useTopic', () => ({
   getTopicMessages: vi.fn()
 }))
 
+vi.mock('@renderer/services/NotesService', () => ({
+  addNote: vi.fn()
+}))
+
 // PreferenceService is now mocked globally in tests/renderer.setup.ts
 
 vi.mock('@renderer/utils/markdown', async (importOriginal) => {
@@ -114,6 +128,7 @@ import { processCitations } from '@renderer/utils/export'
 import { markdownToPlainText } from '@renderer/utils/markdown'
 
 import {
+  exportTopicToNotes,
   messagesToMarkdown,
   messageToMarkdown,
   messageToMarkdownWithReasoning,
@@ -558,6 +573,36 @@ describe('ExportService', () => {
 
       const plainText = await topicToPlainText(testTopic)
       expect(plainText).toBe('Multi Plain Formatted\n\nUser:\nMsg1 Formatted\n\nAssistant:\nMsg2 Formatted')
+    })
+  })
+
+  describe('exportTopicToNotes', () => {
+    beforeEach(() => {
+      vi.clearAllMocks()
+      ;(addNote as any).mockResolvedValue(undefined)
+    })
+
+    it('logs and toasts when topic markdown generation fails', async () => {
+      const exportError = new Error('markdown failed')
+      const loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+      const testTopic: Topic = {
+        id: 'topic_markdown_failure',
+        name: 'Topic Markdown Failure',
+        assistantId: 'asst_test',
+        messages: [] as any,
+        createdAt: '',
+        updatedAt: '',
+        type: TopicType.Chat
+      }
+      ;(getTopicMessages as any).mockRejectedValue(exportError)
+
+      await expect(exportTopicToNotes(testTopic, '/notes')).rejects.toThrow(exportError)
+
+      expect(addNote).not.toHaveBeenCalled()
+      expect(loggerErrorSpy).toHaveBeenCalledWith('导出到笔记失败:', exportError)
+      expect(window.toast.error).toHaveBeenCalledWith('message.error.notes.export')
+
+      loggerErrorSpy.mockRestore()
     })
   })
 
