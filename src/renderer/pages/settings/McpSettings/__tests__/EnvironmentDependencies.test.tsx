@@ -140,7 +140,15 @@ describe('EnvironmentDependencies', () => {
     ipcMocks.probeBundled.mockResolvedValue({ uv: '1.0.0', bun: '1.0.0' })
     const { container } = render(<EnvironmentDependencies mini />)
 
+    expect(container).toBeEmptyDOMElement()
     await waitFor(() => expect(ipcMocks.probeBundled).toHaveBeenCalled())
     await waitFor(() => expect(container).toBeEmptyDOMElement())
+  })
+
+  it('waits for dependency checks before showing the mini warning', async () => {
+    const { container } = render(<EnvironmentDependencies mini />)
+
+    expect(container).toBeEmptyDOMElement()
+    await waitFor(() => expect(screen.getByRole('button')).toBeInTheDocument())
   })
 })

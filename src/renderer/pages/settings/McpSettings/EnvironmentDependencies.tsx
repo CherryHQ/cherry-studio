@@ -53,6 +53,7 @@ interface EnvironmentDependenciesProps {
 
 const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = false }) => {
   const [binaryState, setBinaryState] = useState<BinaryState | null>(null)
+  const [binaryStateReady, setBinaryStateReady] = useState(false)
   const [bundled, setBundled] = useState<Record<string, string | null>>({})
   const [installingTools, setInstallingTools] = useState<Set<string>>(new Set())
   const [customTools, setCustomTools] = usePreference('feature.binary.tools')
@@ -83,6 +84,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       setBundled(bundledMap)
     } catch (error) {
       logger.error('Failed to refresh binary state', error as Error)
+    } finally {
+      if (mountedRef.current) setBinaryStateReady(true)
     }
   }, [])
 
@@ -92,6 +95,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
   useIpcOn('binary.state_changed', (state) => {
     setBinaryState(state)
+    setBinaryStateReady(true)
     // mise install may shadow a bundled binary; re-probe so the source label stays accurate.
     void ipcApi.request('binary.probe_bundled').then((b) => {
       if (mountedRef.current) setBundled(b)
@@ -160,6 +164,10 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const totalCount = PRESETS_BINARY_TOOLS.length + customTools.length
 
   if (mini) {
+    if (!binaryStateReady) {
+      return null
+    }
+
     const uvAvailable = Boolean(binaryState?.tools.uv) || 'uv' in bundled
     const bunAvailable = Boolean(binaryState?.tools.bun) || 'bun' in bundled
     if (uvAvailable && bunAvailable) {

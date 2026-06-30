@@ -6,11 +6,11 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
+  Scrollbar,
   Sortable,
   useDndReorder
 } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { matchKeywordsInString } from '@renderer/utils/match'
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
@@ -141,12 +141,12 @@ const McpServersList: FC = () => {
 
   return (
     <div className="flex h-[calc(100vh-var(--navbar-height))] w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden px-6 py-4 pt-3">
-      <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-2">
-        <div className="flex w-full flex-wrap items-center justify-between gap-3">
+      <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
+        <div className="mb-3 flex w-full flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 flex-wrap items-center gap-3">
-            <div className="flex min-w-0 items-center gap-3">
-              <SettingTitle>{t('settings.mcp.allServers')}</SettingTitle>
-              <span className="shrink-0 text-muted-foreground text-sm">
+            <div className="flex min-w-0 items-center gap-2">
+              <SettingTitle className="m-0">{t('settings.mcp.allServers')}</SettingTitle>
+              <span className="text-muted-foreground text-sm">
                 {activeServerCount}/{mcpServers.length}
               </span>
             </div>

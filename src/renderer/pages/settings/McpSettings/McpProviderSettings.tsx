@@ -137,13 +137,13 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
                 </Button>
               )}
             </div>
-            <ProviderDescription>{t(provider.descriptionKey)}</ProviderDescription>
           </div>
         </div>
         <Button
           onClick={handleFetch}
           disabled={isFetching || isFetchDisabled}
-          className="h-8 shrink-0 rounded-lg px-3 text-xs shadow-none">
+          size="sm"
+          className="h-7 shrink-0 rounded-lg px-2 text-xs shadow-none">
           {t('settings.mcp.fetch.button', 'Fetch Servers')}
         </Button>
       </ProviderHeader>
@@ -234,15 +234,14 @@ const DetailContainer = ({ className, ...props }: React.ComponentPropsWithoutRef
 )
 
 const ProviderHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex items-center justify-between gap-3 border-border/70 border-b pb-2', className)} {...props} />
+  <div
+    className={cn('flex items-center justify-between gap-3 border-border/70 border-b pb-1.5', className)}
+    {...props}
+  />
 )
 
 const ProviderName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('min-w-0 truncate font-semibold text-base leading-6', className)} {...props} />
-)
-
-const ProviderDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mt-0.5 text-muted-foreground text-xs leading-5', className)} {...props} />
+  <span className={cn('min-w-0 truncate font-semibold text-[15px] leading-5', className)} {...props} />
 )
 
 const SettingsPanel = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
