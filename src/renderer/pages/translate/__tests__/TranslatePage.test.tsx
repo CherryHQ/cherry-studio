@@ -689,20 +689,104 @@ describe('TranslatePage', () => {
     expect(translateCoreMock.translateText).not.toHaveBeenCalled()
   })
 
-  it('shows unknown-language warning and skips translate when detection returns unknown', async () => {
+  it('continues translating with the selected target when auto detection returns unknown', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': 'openai::gpt-4.1',
-      'feature.translate.page.source_language': 'auto'
+      'feature.translate.page.source_language': 'auto',
+      'feature.translate.page.target_language': 'en-us'
     })
     translateCoreMock.detectLanguage.mockResolvedValueOnce('unknown')
+    translateCoreMock.determineTargetLanguage.mockReturnValueOnce({ success: true, language: 'en-us' })
 
     const { rerender } = render(<TranslatePage />)
     fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
     rerender(<TranslatePage />)
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
 
-    await waitFor(() => expect((window as any).toast.error).toHaveBeenCalledWith('translate.error.detect.unknown'))
-    expect(translateCoreMock.translateText).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(translateCoreMock.translateText).toHaveBeenCalledWith(
+        'hello',
+        'en-us',
+        expect.any(Function),
+        expect.any(AbortSignal)
+      )
+    )
+    expect((window as any).toast.error).not.toHaveBeenCalledWith('translate.error.detect.unknown')
+    await waitFor(() =>
+      expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
+        sourceText: 'hello',
+        targetText: 'translated text',
+        sourceLanguage: 'unknown',
+        targetLanguage: 'en-us'
+      })
+    )
+  })
+
+  it('continues translating with the selected target when auto detection throws', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'auto',
+      'feature.translate.page.target_language': 'en-us'
+    })
+    const detectError = new Error('detect failed')
+    translateCoreMock.detectLanguage.mockRejectedValueOnce(detectError)
+    translateCoreMock.determineTargetLanguage.mockReturnValueOnce({ success: true, language: 'en-us' })
+
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+
+    await waitFor(() =>
+      expect(translateCoreMock.translateText).toHaveBeenCalledWith(
+        'hello',
+        'en-us',
+        expect.any(Function),
+        expect.any(AbortSignal)
+      )
+    )
+    expect((window as any).toast.error).not.toHaveBeenCalledWith('translate.error.detect.failed')
+    await waitFor(() =>
+      expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
+        sourceText: 'hello',
+        targetText: 'translated text',
+        sourceLanguage: 'unknown',
+        targetLanguage: 'en-us'
+      })
+    )
+  })
+
+  it('uses the explicit bidirectional pair without auto detecting source language', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'auto',
+      'feature.translate.page.bidirectional_enabled': true,
+      'feature.translate.page.bidirectional_pair': ['en-us', 'zh-cn']
+    })
+    translateCoreMock.determineTargetLanguage.mockReturnValueOnce({ success: true, language: 'zh-cn' })
+
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+
+    await waitFor(() =>
+      expect(translateCoreMock.translateText).toHaveBeenCalledWith(
+        'hello',
+        'zh-cn',
+        expect.any(Function),
+        expect.any(AbortSignal)
+      )
+    )
+    expect(translateCoreMock.detectLanguage).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
+        sourceText: 'hello',
+        targetText: 'translated text',
+        sourceLanguage: 'en-us',
+        targetLanguage: 'zh-cn'
+      })
+    )
   })
 
   it('swallows abort errors from translate without showing success-side effects', async () => {

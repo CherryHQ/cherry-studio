@@ -183,7 +183,7 @@ describe('TranslateLanguageBar', () => {
     expect(swapButton).toHaveAttribute('disabled')
   })
 
-  it('renders bidirectional pair display and disables source dropdown', () => {
+  it('renders bidirectional pair display without the source dropdown', () => {
     const props = baseProps()
     props.isBidirectional = true
     const { container } = render(<TranslateLanguageBar {...props} />)
@@ -191,9 +191,10 @@ describe('TranslateLanguageBar', () => {
     // The A ⇆ B text is present
     expect(container.textContent).toContain('English ⇆ Chinese')
 
-    // Source trigger button is disabled
-    const sourceButton = screen.getByRole('button', { name: sourceLanguageButtonName })
-    expect(sourceButton).toHaveAttribute('disabled')
+    const pairButton = screen.getByRole('button', { name: 'English ⇆ Chinese' })
+    expect(pairButton).toHaveClass('h-8', 'text-sm')
+    expect(pairButton).not.toHaveClass('h-9')
+    expect(screen.queryByRole('button', { name: sourceLanguageButtonName })).not.toBeInTheDocument()
   })
 
   it('adds visible focus rings to language trigger buttons', () => {
@@ -218,13 +219,25 @@ describe('TranslateLanguageBar', () => {
     expect(props.onTargetChange).toHaveBeenCalledWith(japanese.langCode)
   })
 
-  it('shows detected language hint when sourceLanguage is auto and detectedLanguage is set', () => {
+  it('keeps the auto label and only updates the icon when detection resolves to a known language', () => {
     const props = baseProps()
     props.detectedLanguage = chinese.langCode
     render(<TranslateLanguageBar {...props} />)
 
-    // Inside the source trigger the label contains "(Chinese)"
     const sourceTrigger = screen.getByRole('button', { name: sourceLanguageButtonName })
-    expect(within(sourceTrigger).getByText(/translate\.detected\.language \(Chinese\)/)).toBeInTheDocument()
+    expect(within(sourceTrigger).getByText('🇨🇳')).toBeInTheDocument()
+    expect(within(sourceTrigger).getByText('translate.detected.language')).toBeInTheDocument()
+    expect(within(sourceTrigger).queryByText(/Chinese/)).not.toBeInTheDocument()
+  })
+
+  it('keeps the auto source display when detection resolves to unknown', () => {
+    const props = baseProps()
+    props.detectedLanguage = 'unknown'
+    render(<TranslateLanguageBar {...props} />)
+
+    const sourceTrigger = screen.getByRole('button', { name: sourceLanguageButtonName })
+    expect(within(sourceTrigger).getByText('🌐')).toBeInTheDocument()
+    expect(within(sourceTrigger).getByText('translate.detected.language')).toBeInTheDocument()
+    expect(within(sourceTrigger).queryByText(/Unknown/)).not.toBeInTheDocument()
   })
 })

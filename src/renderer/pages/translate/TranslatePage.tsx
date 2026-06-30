@@ -301,25 +301,23 @@ const TranslatePage: FC = () => {
     if (!translateInput.trim() || !selectedModelId || isDetecting || isTranslating) return
 
     let actualSourceLanguage = sourceLanguage
-    if (sourceLanguage === 'auto') {
+    if (isBidirectional) {
+      actualSourceLanguage = bidirectionalPair[0]
+      setDetectedLanguage(null)
+    } else if (sourceLanguage === 'auto') {
       setIsDetecting(true)
       try {
         actualSourceLanguage = await detectLanguage(translateInput)
         setDetectedLanguage(actualSourceLanguage)
       } catch (error) {
         logger.error('Failed to detect language', error as Error)
-        window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.detect.failed')))
-        return
+        actualSourceLanguage = UNKNOWN_LANG_CODE
+        setDetectedLanguage(UNKNOWN_LANG_CODE)
       } finally {
         setIsDetecting(false)
       }
     } else {
       setDetectedLanguage(null)
-    }
-
-    if (actualSourceLanguage === UNKNOWN_LANG_CODE) {
-      window.toast.error(t('translate.error.detect.unknown'))
-      return
     }
 
     const targetResult = determineTargetLanguage(
