@@ -4,6 +4,8 @@ import { isDev } from '@main/core/platform'
 import { session } from 'electron'
 import { join } from 'path'
 
+import { registerMainNetworkDevtoolsOrigin } from './mainNetworkDevtoolsAccess'
+
 const logger = loggerService.withContext('devtools')
 
 /**
@@ -21,7 +23,9 @@ export async function installDevtoolsExtensions(): Promise<void> {
   await Promise.allSettled([
     installReactDevtools(),
     installBundledDevtools('data-api', 'DataApi'),
-    installBundledDevtools('main-network', 'Main Network')
+    installBundledDevtools('main-network', 'Main Network', (extension) => {
+      registerMainNetworkDevtoolsOrigin(`chrome-extension://${extension.id}`)
+    })
   ])
 }
 
@@ -39,12 +43,17 @@ async function installReactDevtools() {
   }
 }
 
-async function installBundledDevtools(directoryName: string, displayName: string) {
+async function installBundledDevtools(
+  directoryName: string,
+  displayName: string,
+  onInstalled?: (extension: { id: string; name: string }) => void
+) {
   try {
     const devtoolsPath = join(application.getPath('app.root.resources'), 'devtools', directoryName)
     // Loads into the default session, so every default-session BrowserWindow can inspect bundled panels.
-    const { name } = await session.defaultSession.extensions.loadExtension(devtoolsPath)
-    logger.info(`Added Extension: ${name}`)
+    const extension = await session.defaultSession.extensions.loadExtension(devtoolsPath)
+    onInstalled?.({ id: extension.id, name: extension.name })
+    logger.info(`Added Extension: ${extension.name}`)
   } catch (error) {
     logger.error(`Failed to install ${displayName} DevTools extension`, error as Error)
   }

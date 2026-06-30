@@ -55,7 +55,10 @@ describe('installDevtoolsExtensions', () => {
     platformMock.isDev = true
     installExtensionMock.mockResolvedValue('React Developer Tools')
     loadExtensionMock.mockImplementation((path: string) =>
-      Promise.resolve({ name: path.endsWith('/main-network') ? 'Main Network DevTools' : 'DataApi DevTools' })
+      Promise.resolve({
+        id: path.endsWith('/main-network') ? 'main-network-extension-id' : 'data-api-extension-id',
+        name: path.endsWith('/main-network') ? 'Main Network DevTools' : 'DataApi DevTools'
+      })
     )
   })
 
