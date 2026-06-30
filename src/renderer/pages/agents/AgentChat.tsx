@@ -14,7 +14,6 @@ import {
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
 import { AgentHomeComposer, MissingAgentHomeComposer } from '@renderer/components/composer/variants/AgentComposer'
-import { type ConversationResourceKind, ConversationResourceView } from '@renderer/components/resource/conversation'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import type { AgentSessionSource } from '@renderer/hooks/agent/useSession'
@@ -96,7 +95,6 @@ interface AgentChatProps {
   resourcePane?: ResourcePaneConfig | null
   resourcePaneCount?: ResourcePaneCountButtonProps
   resourcePaneRevealRequest?: ResourceListRevealRequest
-  resourceView?: Extract<ConversationResourceKind, 'agent' | 'skill'> | null
   sessionPaneOpen?: boolean
   onSessionPaneOpenChange?: (open: boolean) => void
 }
@@ -133,7 +131,6 @@ const AgentChat = ({
   resourcePane,
   resourcePaneCount,
   resourcePaneRevealRequest,
-  resourceView,
   sessionPaneOpen,
   onSessionPaneOpenChange
 }: AgentChatProps) => {
@@ -240,20 +237,6 @@ const AgentChat = ({
 
   const isInitializing = !sessionSnapshot && (hasLockedSession ? lockedSessionLoading : activeSessionLoading)
   const citationsPanelOpen = citationPanelCitations !== null
-
-  if (resourceView) {
-    return (
-      <ConversationShell
-        className={messageStyle}
-        pane={pane}
-        paneOpen={paneOpen}
-        panePosition={panePosition}
-        onPaneCollapse={onPaneCollapse}
-        center={<ConversationResourceView kind={resourceView} />}
-        centerClassName="relative"
-      />
-    )
-  }
 
   if (isInitializing) {
     return (

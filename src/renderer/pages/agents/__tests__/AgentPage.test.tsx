@@ -237,6 +237,27 @@ vi.mock('@renderer/hooks/useConversationNavigation', () => ({
   })
 }))
 
+vi.mock('@renderer/components/chat', () => ({
+  ConversationPageShell: ({ center, pane }: { center?: { content?: ReactNode }; pane?: ReactNode }) => (
+    <section data-testid="agent-conversation-page-shell">
+      {pane}
+      {center?.content}
+    </section>
+  ),
+  ConversationShell: ({ center, pane }: { center?: ReactNode; pane?: ReactNode }) => (
+    <section data-testid="agent-conversation-shell">
+      {pane}
+      {center}
+    </section>
+  )
+}))
+
+vi.mock('@renderer/components/resource/catalog', () => ({
+  ResourceCatalogView: ({ defaultResourceType }: { defaultResourceType: string }) => (
+    <div data-testid={`resource-catalog-${defaultResourceType}`} />
+  )
+}))
+
 vi.mock('@renderer/hooks/tab', () => ({
   useCurrentTab: () => agentPageMocks.currentTab,
   useCurrentTabId: () => 'agent-tab',
@@ -326,7 +347,7 @@ vi.mock('../AgentChat', () => ({
     onSessionPaneOpenChange?: (open: boolean) => void
     onPaneCollapse?: () => void
   }) => (
-    <section>
+    <section data-testid="agent-chat">
       <output data-testid="active-session">{activeSession?.id ?? ''}</output>
       <output data-testid="active-session-loading">{String(Boolean(activeSessionLoading))}</output>
       <output data-testid="draft-session">{draftConversation?.agentId ?? ''}</output>
@@ -407,6 +428,7 @@ vi.mock('../AgentSidePanel', () => ({
     onStartDraftSession,
     onStartMissingAgentDraft,
     revealRequest,
+    resourceMenuItems,
     setActiveSessionId
   }: any) => {
     return (
@@ -444,6 +466,11 @@ vi.mock('../AgentSidePanel', () => ({
           }>
           Start panel draft
         </button>
+        {resourceMenuItems?.map((item: { id: string; label: ReactNode; onSelect: () => void | Promise<void> }) => (
+          <button key={item.id} type="button" onClick={() => void item.onSelect()}>
+            {item.label}
+          </button>
+        ))}
       </div>
     )
   }
@@ -453,11 +480,13 @@ vi.mock('@renderer/components/chat/resources/variants/AgentResourceList', () => 
   AgentResourceList: ({
     activeAgentId,
     onAddAgent,
-    onActiveAgentDeleted
+    onActiveAgentDeleted,
+    resourceMenuItems
   }: {
     activeAgentId?: string | null
     onAddAgent?: () => void | Promise<void>
     onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
+    resourceMenuItems?: Array<{ id: string; label: ReactNode; onSelect: () => void | Promise<void> }>
   }) => (
     <div data-active-agent-id={activeAgentId ?? ''} data-testid="agent-resource-list">
       <button type="button" onClick={() => void onAddAgent?.()}>
@@ -466,6 +495,11 @@ vi.mock('@renderer/components/chat/resources/variants/AgentResourceList', () => 
       <button type="button" onClick={() => void onActiveAgentDeleted?.(activeAgentId ?? '')}>
         Delete active agent
       </button>
+      {resourceMenuItems?.map((item) => (
+        <button key={item.id} type="button" onClick={() => void item.onSelect()}>
+          {item.label}
+        </button>
+      ))}
     </div>
   )
 }))
@@ -558,6 +592,18 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('session-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
     expect(screen.getByTestId('session-pane-open')).toHaveTextContent('true')
     expect(screen.queryByTestId('agent-side-panel')).not.toBeInTheDocument()
+  })
+
+  it('renders the agent resource view outside AgentChat runtime', () => {
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.agent' }))
+
+    expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-conversation-page-shell')).toBeInTheDocument()
+    expect(screen.queryByTestId('agent-chat')).not.toBeInTheDocument()
   })
 
   it('restores and records the classic-layout agent right pane open state from cache', () => {

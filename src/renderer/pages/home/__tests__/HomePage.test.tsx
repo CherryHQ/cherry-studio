@@ -141,6 +141,21 @@ vi.mock('@renderer/components/chat', () => ({
   ChatAppShell: ({ centerContent }: { centerContent?: ReactNode }) => (
     <div data-testid="message-only-shell">{centerContent}</div>
   ),
+  ConversationPageShell: ({
+    center,
+    pane,
+    paneOpen
+  }: {
+    center?: { content?: ReactNode }
+    pane?: ReactNode
+    paneOpen?: boolean
+  }) => (
+    <section data-testid="home-conversation-page-shell">
+      <output data-testid="pane-open">{String(paneOpen)}</output>
+      <div>{pane}</div>
+      <div>{center?.content}</div>
+    </section>
+  ),
   ConversationShell: ({
     topBar,
     pane,
@@ -175,6 +190,12 @@ vi.mock('@renderer/components/chat', () => ({
   ),
   EmptyState: ({ title }: { title?: string }) => <div data-testid="empty-state">{title}</div>,
   LoadingState: ({ label }: { label?: string }) => <div role="status">{label}</div>
+}))
+
+vi.mock('@renderer/components/resource/catalog', () => ({
+  ResourceCatalogView: ({ defaultResourceType }: { defaultResourceType: string }) => (
+    <div data-testid={`resource-catalog-${defaultResourceType}`} />
+  )
 }))
 
 vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
@@ -418,11 +439,16 @@ vi.mock('../components/ChatNavbar', () => ({
 }))
 
 vi.mock('../Tabs', () => ({
-  default: ({ onOpenHistoryRecords, revealRequest }: any) => (
+  default: ({ onOpenHistoryRecords, resourceMenuItems, revealRequest }: any) => (
     <div data-reveal-request={JSON.stringify(revealRequest ?? null)} data-testid="home-tabs">
       <button type="button" onClick={() => onOpenHistoryRecords?.()}>
         Open history records
       </button>
+      {resourceMenuItems?.map((item: { id: string; label: ReactNode; onSelect: () => void | Promise<void> }) => (
+        <button key={item.id} type="button" onClick={() => void item.onSelect()}>
+          {item.label}
+        </button>
+      ))}
     </div>
   )
 }))
@@ -477,11 +503,13 @@ vi.mock('@renderer/components/chat/resources/variants/AssistantResourceList', ()
   AssistantResourceList: ({
     activeAssistantId,
     onAddAssistant,
-    onActiveAssistantDeleted
+    onActiveAssistantDeleted,
+    resourceMenuItems
   }: {
     activeAssistantId?: string | null
     onAddAssistant?: () => void | Promise<void>
     onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
+    resourceMenuItems?: Array<{ id: string; label: ReactNode; onSelect: () => void | Promise<void> }>
   }) => (
     <div data-active-assistant-id={activeAssistantId ?? ''} data-testid="assistant-resource-list">
       <button type="button" onClick={() => void onAddAssistant?.()}>
@@ -490,6 +518,11 @@ vi.mock('@renderer/components/chat/resources/variants/AssistantResourceList', ()
       <button type="button" onClick={() => void onActiveAssistantDeleted?.(activeAssistantId ?? '')}>
         Delete active assistant
       </button>
+      {resourceMenuItems?.map((item) => (
+        <button key={item.id} type="button" onClick={() => void item.onSelect()}>
+          {item.label}
+        </button>
+      ))}
     </div>
   )
 }))
@@ -604,6 +637,16 @@ describe('HomePage', () => {
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-assistant-id', 'assistant-1')
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
     expect(screen.queryByTestId('home-tabs')).not.toBeInTheDocument()
+  })
+
+  it('renders the assistant resource view in the chat center', () => {
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.assistant' }))
+
+    expect(screen.getByTestId('resource-catalog-assistant')).toBeInTheDocument()
+    expect(screen.getByTestId('home-conversation-page-shell')).toBeInTheDocument()
+    expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
   })
 
   it('restores and records the classic-layout topic right pane open state from cache', () => {

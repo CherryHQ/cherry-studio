@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import {
   ChatAppShell,
   type ChatPanePosition,
+  ConversationPageShell,
   ConversationShell,
   ConversationStageCenter,
   EmptyState,
@@ -14,7 +15,7 @@ import {
   type ResourcePaneCountButtonProps,
   useResourcePane
 } from '@renderer/components/chat/panes/Shell'
-import type { ConversationResourceMenuItem, ResourceListRevealRequest } from '@renderer/components/chat/resources'
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { AssistantResourceList } from '@renderer/components/chat/resources/variants/AssistantResourceList'
 import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
@@ -23,7 +24,11 @@ import {
   createRecentTopicEntryFromTopic,
   upsertGlobalSearchRecentEntry
 } from '@renderer/components/GlobalSearch/globalSearchGroups'
-import { type ConversationResourceKind, ConversationResourceView } from '@renderer/components/resource/conversation'
+import {
+  ConversationResourceView,
+  type ConversationResourceViewDefinition,
+  useConversationResourceView
+} from '@renderer/components/resource/conversation'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
@@ -66,6 +71,7 @@ import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('HomePage')
 const LAST_USED_ASSISTANT_CACHE_KEY = 'ui.chat.last_used_assistant_id'
+type AssistantConversationResourceKind = 'assistant'
 
 type DraftAssistantSelectionSource = 'explicit' | 'last-used' | 'first-assistant' | 'runtime-fallback'
 type ResolvedDraftAssistantSelection = { assistantId?: string; source: DraftAssistantSelectionSource }
@@ -133,7 +139,6 @@ const HomePage: FC = () => {
     !isClassicTopicLayout || (!isClassicTopicLayoutLoading && isClassicTopicLayoutFullyLoaded)
   const [historyRecordsOpen, setHistoryRecordsOpen] = useState(false)
   const [assistantPickerOpen, setAssistantPickerOpen] = useState(false)
-  const [activeResourceView, setActiveResourceView] = useState<null | 'assistant'>(null)
 
   const location = useLocation()
   const routeSearch = parseChatRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
@@ -155,7 +160,6 @@ const HomePage: FC = () => {
   )
 
   const shouldUseDraft = !state?.topic && !isMessageOnlyView
-  const activeAssistantResourceView = !isMessageOnlyView && !isWindowFrame ? activeResourceView : null
 
   const setDraftAssistantSelectionState = useCallback((selection?: DraftAssistantSelection) => {
     draftAssistantSelectionRef.current = selection ?? null
@@ -230,6 +234,33 @@ const HomePage: FC = () => {
       ? undefined
       : (activeTopic ?? (isActiveTopicLoading ? lastVisibleTopicRef.current : undefined) ?? undefined)
   const draftScopeKey = `home-draft:${draftScopeId}`
+  const resourceConversationKey = useMemo(() => {
+    if (visibleTopic?.id) return `topic:${visibleTopic.id}`
+    if (draftAssistantSelectionSnapshot) return `draft:${draftAssistantSelectionSnapshot.assistantId ?? 'default'}`
+    return 'empty'
+  }, [draftAssistantSelectionSnapshot, visibleTopic?.id])
+  const resourceViewDefinitions = useMemo<
+    readonly ConversationResourceViewDefinition<AssistantConversationResourceKind>[]
+  >(
+    () => [
+      {
+        icon: <MessageCircle />,
+        id: 'assistant-resource-view',
+        kind: 'assistant',
+        label: t('chat.resource_view.menu.assistant')
+      }
+    ],
+    [t]
+  )
+  const {
+    activeKind: activeResourceViewKind,
+    close: closeResourceView,
+    menuItems: resourceMenuItems
+  } = useConversationResourceView<AssistantConversationResourceKind>({
+    conversationKey: resourceConversationKey,
+    definitions: resourceViewDefinitions,
+    disabled: isMessageOnlyView || isWindowFrame
+  })
 
   useEffect(() => {
     if (!isAssistantListResolved || !lastUsedAssistantId || assistantIdSet.has(lastUsedAssistantId)) return
@@ -392,7 +423,7 @@ const HomePage: FC = () => {
   const startDraftAssistantSelection = useCallback(
     (payload?: AddNewTopicPayload) => {
       try {
-        setActiveResourceView(null)
+        closeResourceView()
         const selection = resolveDraftAssistantTarget(payload?.assistantId)
         const targetAssistantId = selection.assistantId
         const current = draftAssistantSelectionRef.current
@@ -408,7 +439,7 @@ const HomePage: FC = () => {
         logger.error('Failed to start draft topic', err as Error)
       }
     },
-    [resolveDraftAssistantTarget, setDraftAssistantSelectionState]
+    [closeResourceView, resolveDraftAssistantTarget, setDraftAssistantSelectionState]
   )
 
   const updateDraftAssistantSelection = useCallback(
@@ -458,7 +489,7 @@ const HomePage: FC = () => {
 
   const setActiveTopicAndDiscardDraft = useCallback(
     (topic: Topic) => {
-      setActiveResourceView(null)
+      closeResourceView()
       // One tab per topic: if this topic is already open in another tab, focus
       // that tab instead of navigating the current one (which would duplicate
       // it in the tab bar). The current tab keeps its own topic untouched.
@@ -470,7 +501,7 @@ const HomePage: FC = () => {
       setActiveTopic(topic)
       return true
     },
-    [conversationNav, currentTabId, setActiveTopic, setDraftAssistantSelectionState]
+    [closeResourceView, conversationNav, currentTabId, setActiveTopic, setDraftAssistantSelectionState]
   )
   // Classic-layout reset after deleting the active assistant: select the latest
   // remaining topic (across other assistants). Filter by the deleted id so this
@@ -511,7 +542,7 @@ const HomePage: FC = () => {
     async (selection: AssistantConversationSelection) => {
       if (isCreatingTopicRef.current) return
       isCreatingTopicRef.current = true
-      setActiveResourceView(null)
+      closeResourceView()
       // Close the picker first so the topic/assistant data churn below doesn't refresh the dialog
       // while it's still visible (which reads as a black/white flash + the dialog reopening).
       setAssistantPickerOpen(false)
@@ -539,14 +570,22 @@ const HomePage: FC = () => {
         isCreatingTopicRef.current = false
       }
     },
-    [createTopic, classicLayoutTopics, refreshTopics, resolveAssistantIdForSelection, setActiveTopicAndDiscardDraft, t]
+    [
+      closeResourceView,
+      createTopic,
+      classicLayoutTopics,
+      refreshTopics,
+      resolveAssistantIdForSelection,
+      setActiveTopicAndDiscardDraft,
+      t
+    ]
   )
 
   const createAndActivateEmptyTopic = useCallback(
     async (payload?: AddNewTopicPayload) => {
       if (isCreatingTopicRef.current) return
       isCreatingTopicRef.current = true
-      setActiveResourceView(null)
+      closeResourceView()
       try {
         const selection = resolveDraftAssistantTarget(payload?.assistantId)
         const reusableTopic = findReusableEmptyTopic(classicLayoutTopics, selection.assistantId)
@@ -572,7 +611,15 @@ const HomePage: FC = () => {
         isCreatingTopicRef.current = false
       }
     },
-    [createTopic, classicLayoutTopics, refreshTopics, resolveDraftAssistantTarget, setActiveTopicAndDiscardDraft, t]
+    [
+      closeResourceView,
+      createTopic,
+      classicLayoutTopics,
+      refreshTopics,
+      resolveDraftAssistantTarget,
+      setActiveTopicAndDiscardDraft,
+      t
+    ]
   )
 
   useEffect(() => {
@@ -585,7 +632,7 @@ const HomePage: FC = () => {
 
   const handleHistoryTopicSelect = useCallback(
     (topic: Topic, messageId?: string) => {
-      setActiveResourceView(null)
+      closeResourceView()
       if (!setActiveTopicAndDiscardDraft(topic)) return
       setResourceListOpen(true)
       setPendingLocateMessageId(messageId)
@@ -597,7 +644,7 @@ const HomePage: FC = () => {
         requestId: topicRevealRequestIdRef.current
       })
     },
-    [setActiveTopicAndDiscardDraft, setResourceListOpen]
+    [closeResourceView, setActiveTopicAndDiscardDraft, setResourceListOpen]
   )
   const closeHistoryRecords = useCallback(() => {
     setHistoryRecordsOpen(false)
@@ -642,22 +689,14 @@ const HomePage: FC = () => {
   const handleLocateMessageHandled = useCallback(() => {
     setPendingLocateMessageId(undefined)
   }, [])
-
-  const resourceMenuItems = useMemo<readonly ConversationResourceMenuItem[] | undefined>(() => {
-    if (isMessageOnlyView || isWindowFrame) return undefined
-
-    return [
-      {
-        active: activeAssistantResourceView === 'assistant',
-        icon: <MessageCircle />,
-        id: 'assistant-resource-view',
-        label: t('chat.resource_view.menu.assistant'),
-        onSelect: () => setActiveResourceView('assistant')
+  const resourceCenter = activeResourceViewKind
+    ? {
+        className: 'relative',
+        content: <ConversationResourceView kind={activeResourceViewKind} />
       }
-    ]
-  }, [activeAssistantResourceView, isMessageOnlyView, isWindowFrame, t])
+    : null
 
-  if (!visibleTopic && !draftAssistantSelectionSnapshot && !activeAssistantResourceView) {
+  if (!visibleTopic && !draftAssistantSelectionSnapshot && !resourceCenter) {
     if (isMessageOnlyView) {
       return (
         <Container id="home-page">
@@ -681,7 +720,7 @@ const HomePage: FC = () => {
     <AssistantResourceList
       activeAssistantId={visibleAssistantId ?? null}
       onAddAssistant={() => {
-        setActiveResourceView(null)
+        closeResourceView()
         setAssistantPickerOpen(true)
       }}
       onOpenHistoryRecords={openHistoryRecords}
@@ -746,12 +785,13 @@ const HomePage: FC = () => {
     />
   ) : null
 
-  if (activeAssistantResourceView) {
+  if (resourceCenter) {
     return (
       <Container id="home-page">
         <ContentContainer $detached={isWindowFrame}>
-          <HomeResourceViewChat
-            kind={activeAssistantResourceView}
+          <ConversationPageShell
+            id="chat"
+            center={resourceCenter}
             pane={pane}
             paneOpen={effectiveShowSidebar}
             panePosition={panePosition}
@@ -817,31 +857,6 @@ const HomePage: FC = () => {
       {assistantPickerDialog}
       {historyRecordsOverlay}
     </Container>
-  )
-}
-
-type HomeResourceViewChatProps = {
-  kind: ConversationResourceKind
-  pane?: ReactNode
-  paneOpen?: boolean
-  panePosition?: ChatPanePosition
-  onPaneCollapse?: () => void
-}
-
-function HomeResourceViewChat({ kind, pane, paneOpen, panePosition, onPaneCollapse }: HomeResourceViewChatProps) {
-  const [messageStyle] = usePreference('chat.message.style')
-
-  return (
-    <ConversationShell
-      id="chat"
-      className={messageStyle}
-      pane={pane}
-      paneOpen={paneOpen}
-      panePosition={panePosition}
-      onPaneCollapse={onPaneCollapse}
-      center={<ConversationResourceView kind={kind} />}
-      centerClassName="relative"
-    />
   )
 }
 
