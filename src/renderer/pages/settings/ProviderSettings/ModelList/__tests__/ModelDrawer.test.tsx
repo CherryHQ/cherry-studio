@@ -352,6 +352,78 @@ describe('Model drawers', () => {
     )
   })
 
+  it('saves only the changed field and does not resend untouched pricing (no user-override pollution)', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'OpenAI' }
+    })
+
+    render(
+      <EditModelDrawer
+        providerId="openai"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'openai::no-price-model',
+            providerId: 'openai',
+            name: 'No Price Model',
+            group: 'Anthropic',
+            capabilities: [],
+            supportsStreaming: true
+            // No pricing on the model — the drawer synthesizes a {0, USD} block,
+            // which must diff as unchanged so `pricing` is NOT sent on save.
+          } as any
+        }
+      />
+    )
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('settings.models.add.model_name.label'), {
+        target: { value: 'New Name' }
+      })
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /common\.save/i }))
+    })
+
+    // Exact payload: only the changed field, no synthesized pricing / capabilities / token fields.
+    expect(updateModelMock).toHaveBeenCalledWith('openai', 'no-price-model', { name: 'New Name' })
+  })
+
+  it('does not call updateModel when saving without any edits', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'OpenAI' }
+    })
+
+    render(
+      <EditModelDrawer
+        providerId="openai"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'openai::claude-4-sonnet',
+            providerId: 'openai',
+            name: 'claude-4-sonnet',
+            group: 'Anthropic',
+            capabilities: [],
+            supportsStreaming: true,
+            pricing: {
+              input: { perMillionTokens: 0, currency: 'USD' },
+              output: { perMillionTokens: 0, currency: 'USD' }
+            }
+          } as any
+        }
+      />
+    )
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /common\.save/i }))
+    })
+
+    expect(updateModelMock).not.toHaveBeenCalled()
+  })
+
   it('shows delete only for disabled models and deletes after confirmation', async () => {
     useProviderMock.mockReturnValue({
       provider: { id: 'openai', name: 'OpenAI' }

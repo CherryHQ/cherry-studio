@@ -835,6 +835,67 @@ describe('ModelService.list — registry enrichment', () => {
     expect(model.capabilities).toEqual([MODEL_CAPABILITY.FUNCTION_CALL])
     expect(model.capabilities).not.toContain(MODEL_CAPABILITY.WEB_SEARCH)
   })
+
+  it('does NOT apply a registry force-override when capabilities are user-overridden', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('perplexity', 'Perplexity'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('perplexity', 'sonar-pro', {
+        presetModelId: 'sonar-pro',
+        name: 'Sonar Pro',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+        userOverrides: ['capabilities']
+      })
+    )
+
+    lookupModelMock.mockImplementation(async (providerId: string, modelId: string) => {
+      if (providerId === 'perplexity' && modelId === 'sonar-pro') {
+        return {
+          presetModel: { id: 'sonar-pro', capabilities: [MODEL_CAPABILITY.WEB_SEARCH] },
+          // `force` normally replaces the whole set; the user override must win.
+          registryOverride: { capabilities: { force: [MODEL_CAPABILITY.WEB_SEARCH] } }
+        }
+      }
+      return { presetModel: null, registryOverride: null }
+    })
+
+    const [model] = await modelService.list({ providerId: 'perplexity' })
+
+    expect(model.capabilities).toEqual([MODEL_CAPABILITY.FUNCTION_CALL])
+    expect(model.capabilities).not.toContain(MODEL_CAPABILITY.WEB_SEARCH)
+  })
+
+  it('still attaches imageGeneration metadata when capabilities are user-overridden', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('cherryin', 'CherryIn'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('cherryin', 'qwen-image-edit-2509', {
+        presetModelId: 'qwen-image-edit-2509',
+        name: 'Qwen Image Edit',
+        // Capability enrichment is skipped (user-overridden), but the
+        // imageGeneration metadata block must still attach for the painting form.
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        userOverrides: ['capabilities']
+      })
+    )
+
+    lookupModelMock.mockImplementation(async (providerId: string, modelId: string) => {
+      if (providerId === 'cherryin' && modelId === 'qwen-image-edit-2509') {
+        return {
+          presetModel: {
+            id: 'qwen-image-edit-2509',
+            capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+            imageGeneration: imageGenerationMeta
+          },
+          registryOverride: null
+        }
+      }
+      return { presetModel: null, registryOverride: null }
+    })
+
+    const [model] = await modelService.list({ providerId: 'cherryin' })
+
+    expect(model.imageGeneration).toEqual(imageGenerationMeta)
+    expect(model.capabilities).toEqual([MODEL_CAPABILITY.IMAGE_GENERATION])
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1375,6 +1436,42 @@ describe('ModelService.bulkUpdate', () => {
       .then((rows) => rows[0])
     expect(afterRollback?.name).toBe(originalGpt4o.name)
     expect(afterRollback?.name).toBe('GPT-4o-original')
+  })
+
+  it('marks only the genuinely changed enrichable field in a full-field patch', async () => {
+    // bulkUpdate shares computeChangedEnrichableFields with update(): a full
+    // field patch must record only the field whose value actually changed,
+    // not every enrichable field present in the patch.
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai', 'gpt-4o', {
+        name: 'GPT-4o',
+        capabilities: ['function-call'],
+        contextWindow: 128_000,
+        maxOutputTokens: 4096
+      })
+    )
+
+    await modelService.bulkUpdate([
+      {
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        patch: {
+          name: 'GPT-4o', // unchanged
+          capabilities: ['function-call'], // unchanged
+          contextWindow: 200_000, // changed
+          maxOutputTokens: 4096 // unchanged
+        }
+      }
+    ])
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(eq(userModelTable.id, createUniqueModelId('openai', 'gpt-4o')))
+
+    expect(row.contextWindow).toBe(200_000)
+    expect(row.userOverrides).toEqual(['contextWindow'])
   })
 })
 
