@@ -36,10 +36,13 @@ vi.mock('@main/utils/process', async () => {
   const { tryTestRipgrepPath: tryPath } = await import('./ripgrepTestUtils')
   const resolvedRgPath = tryPath() ?? '/nonexistent/rg'
   return {
-    getBinaryExecutionEnv: () => ({}),
     getBinaryPath: async (name?: string) => (name === 'rg' ? resolvedRgPath : (name ?? ''))
   }
 })
+
+vi.mock('@main/utils/binaryEnv', () => ({
+  getBinaryExecutionEnv: () => ({})
+}))
 
 import * as builderModule from '../builder'
 import { DirectoryTreeManager } from '../DirectoryTreeManager'

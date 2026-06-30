@@ -5,7 +5,8 @@ import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
 import { execFileSync, spawn } from 'child_process'
 
-import { getBinarySearchDirs, mergeBinaryExecutionEnv } from './process'
+import { mergeBinaryExecutionEnv } from './binaryEnv'
+import { getBinarySearchDirs } from './process'
 
 const logger = loggerService.withContext('ShellEnv')
 

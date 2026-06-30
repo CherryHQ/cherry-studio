@@ -80,7 +80,7 @@ vi.mock('node:util', async (importOriginal) => {
 })
 
 const { BinaryManager, validateManagedBinary } = await import('../BinaryManager')
-const { getBinaryExecutionEnv, getBinaryIsolatedHomeEnv } = await import('@main/utils/process')
+const { getBinaryExecutionEnv, getBinaryIsolatedHomeEnv } = await import('@main/utils/binaryEnv')
 
 describe('binary execution env split', () => {
   // The shared execution env runs the launched CLIs (claude/codex/gemini/qwen)

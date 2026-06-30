@@ -42,10 +42,13 @@ vi.mock('@main/utils/process', async () => {
   // binary availability — keeping the error-path test's assertion correct.
   const resolvedRgPath = tryTestRipgrepPath() ?? '/nonexistent/rg'
   return {
-    getBinaryExecutionEnv: () => ({}),
     getBinaryPath: async (name?: string) => (name === 'rg' ? resolvedRgPath : (name ?? ''))
   }
 })
+
+vi.mock('@main/utils/binaryEnv', () => ({
+  getBinaryExecutionEnv: () => ({})
+}))
 
 const { listDirectory } = await import('../search')
 
