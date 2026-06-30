@@ -30,7 +30,10 @@ vi.mock('@main/core/platform', () => ({
   isWin: false
 }))
 
+// Default export is the login-shell env probe; mocked so checkClaudeLogin never
+// execs a real shell. `removeEnvProxy` is the named export used by the runner.
 vi.mock('@main/utils/shell-env', () => ({
+  default: vi.fn().mockResolvedValue({}),
   removeEnvProxy: vi.fn()
 }))
 
@@ -42,11 +45,6 @@ vi.mock('@main/utils/process', () => ({
   getBinaryName: vi.fn().mockResolvedValue('bun'),
   getBinaryPath: vi.fn().mockResolvedValue('/mock/bin/tool'),
   isBinaryExists: vi.fn().mockResolvedValue(false)
-}))
-
-// Default export is the login-shell env probe; mocked so checkClaudeLogin never execs a real shell.
-vi.mock('@main/utils/shell-env', () => ({
-  default: vi.fn().mockResolvedValue({})
 }))
 
 vi.mock('child_process', () => ({
