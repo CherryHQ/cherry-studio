@@ -1,3 +1,5 @@
+import { EventEmitter } from 'node:events'
+
 import { BaseService } from '@main/core/lifecycle'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -29,6 +31,11 @@ vi.mock('electron', () => ({
 }))
 
 import {
+  clearMainNetworkDevtoolsOrigins,
+  isMainNetworkDevtoolsOriginAllowed,
+  registerMainNetworkDevtoolsOrigin
+} from '../mainNetworkDevtoolsAccess'
+import {
   captureRequestBody,
   describeHttpRequest,
   getMainNetworkDevtoolsPort,
@@ -41,12 +48,13 @@ import {
 describe('MainNetworkDevtoolsService helpers', () => {
   beforeEach(() => {
     BaseService.resetInstances()
-    delete process.env.CS_MAIN_NETWORK_DEVTOOLS_PORT
+    clearMainNetworkDevtoolsOrigins()
     vi.mocked(net.fetch).mockReset()
   })
 
   afterEach(() => {
     BaseService.resetInstances()
+    clearMainNetworkDevtoolsOrigins()
   })
 
   it('redacts sensitive URL credentials and query params', () => {
@@ -102,8 +110,11 @@ describe('MainNetworkDevtoolsService helpers', () => {
     originalNetFetch.mockResolvedValue(response)
 
     const service = new MainNetworkDevtoolsService()
-    const serviceState = service as unknown as { events: MainNetworkDevtoolsEvent[] }
-    await service._doInit()
+    const serviceState = service as unknown as {
+      events: MainNetworkDevtoolsEvent[]
+      patchNetFetch: () => void
+    }
+    serviceState.patchNetFetch()
 
     try {
       expect(net.fetch).not.toBe(originalNetFetch)
@@ -135,8 +146,11 @@ describe('MainNetworkDevtoolsService helpers', () => {
     originalNetFetch.mockResolvedValue(response)
 
     const service = new MainNetworkDevtoolsService()
-    const serviceState = service as unknown as { events: MainNetworkDevtoolsEvent[] }
-    await service._doInit()
+    const serviceState = service as unknown as {
+      events: MainNetworkDevtoolsEvent[]
+      patchNetFetch: () => void
+    }
+    serviceState.patchNetFetch()
 
     try {
       await expect(net.fetch('https://api.test/v1/chat')).resolves.toBe(response)
@@ -162,16 +176,86 @@ describe('MainNetworkDevtoolsService helpers', () => {
     )
   })
 
-  it('reads the optional websocket port override from the environment', () => {
-    expect(getMainNetworkDevtoolsPort()).toBe(0)
+  it('allows only registered DevTools extension origins', () => {
+    expect(isMainNetworkDevtoolsOriginAllowed(undefined)).toBe(false)
+    expect(isMainNetworkDevtoolsOriginAllowed('http://localhost:3000')).toBe(false)
 
-    process.env.CS_MAIN_NETWORK_DEVTOOLS_PORT = '34567'
-    expect(getMainNetworkDevtoolsPort()).toBe(34567)
+    registerMainNetworkDevtoolsOrigin('chrome-extension://main-network-id')
 
-    process.env.CS_MAIN_NETWORK_DEVTOOLS_PORT = 'invalid'
-    expect(getMainNetworkDevtoolsPort()).toBe(0)
+    expect(isMainNetworkDevtoolsOriginAllowed('chrome-extension://main-network-id')).toBe(true)
+    expect(isMainNetworkDevtoolsOriginAllowed('chrome-extension://other-id')).toBe(false)
+  })
+
+  it('does not attach a data listener when observing Node http responses', () => {
+    const service = new MainNetworkDevtoolsService()
+    const serviceState = service as unknown as {
+      events: MainNetworkDevtoolsEvent[]
+      wrapHttpMethod: (
+        originalMethod: (...args: unknown[]) => unknown,
+        source: 'http' | 'https'
+      ) => (...args: unknown[]) => unknown
+    }
+    const request = createMockClientRequest()
+    const wrappedRequest = serviceState.wrapHttpMethod(() => request, 'http')
+
+    expect(wrappedRequest('http://example.test')).toBe(request)
+
+    const response = Object.assign(new EventEmitter(), {
+      headers: { 'content-type': 'text/plain' },
+      statusCode: 200,
+      statusMessage: 'OK'
+    })
+    request.emit('response', response)
+
+    expect(response.listenerCount('data')).toBe(0)
+    expect(serviceState.events[0]).toMatchObject({
+      state: 'success',
+      status: 200,
+      statusText: 'OK',
+      responseBody: {
+        contentType: 'text/plain',
+        note: 'Node http/https response body capture is skipped to avoid changing stream consumption.'
+      }
+    })
+  })
+
+  it('marks Node http events as error when request creation throws synchronously', () => {
+    const service = new MainNetworkDevtoolsService()
+    const serviceState = service as unknown as {
+      events: MainNetworkDevtoolsEvent[]
+      wrapHttpMethod: (
+        originalMethod: (...args: unknown[]) => unknown,
+        source: 'http' | 'https'
+      ) => (...args: unknown[]) => unknown
+    }
+    const wrappedRequest = serviceState.wrapHttpMethod(() => {
+      throw new Error('invalid request')
+    }, 'https')
+
+    expect(() => wrappedRequest('https://example.test')).toThrow('invalid request')
+    expect(serviceState.events[0]).toMatchObject({
+      source: 'https',
+      state: 'error',
+      error: 'invalid request',
+      completedAt: expect.any(Number),
+      duration: expect.any(Number)
+    })
+  })
+
+  it('uses the fixed websocket port shared by the DevTools panel', () => {
+    expect(getMainNetworkDevtoolsPort()).toBe(38997)
   })
 })
+
+function createMockClientRequest() {
+  const request = new EventEmitter() as EventEmitter & {
+    write: ReturnType<typeof vi.fn>
+    end: ReturnType<typeof vi.fn>
+  }
+  request.write = vi.fn(() => true)
+  request.end = vi.fn(() => request)
+  return request
+}
 
 async function waitFor(predicate: () => boolean): Promise<void> {
   for (let attempt = 0; attempt < 20; attempt++) {

@@ -1,5 +1,3 @@
-/* global chrome */
-
 const rowsEl = document.getElementById('rows')
 const detailsEl = document.getElementById('details')
 const filterEl = document.getElementById('filter')
@@ -8,25 +6,14 @@ const clearEl = document.getElementById('clear')
 const statusEl = document.getElementById('status')
 const COPY_FEEDBACK_DURATION_MS = 2500
 const RECONNECT_INTERVAL_MS = 1000
+// Keep in sync with MAIN_NETWORK_DEVTOOLS_DEFAULT_PORT in src/main/core/devtools/mainNetworkDevtoolsAccess.ts.
+const MAIN_NETWORK_DEVTOOLS_PORT = 38997
 
 let events = []
 let selectedId = null
 let rowsSignature = ''
 let detailsSignature = ''
 let socket = null
-let currentConfigSignature = ''
-
-function evalInInspectedWindow(expression) {
-  return new Promise((resolve) => {
-    chrome.devtools.inspectedWindow.eval(expression, (result, exceptionInfo) => {
-      if (exceptionInfo) {
-        resolve(undefined)
-        return
-      }
-      resolve(result)
-    })
-  })
-}
 
 function setStatus(text, className = '') {
   statusEl.textContent = text
@@ -387,45 +374,21 @@ function handleMessage(raw) {
   }
 }
 
-async function discoverConfig() {
-  const config = await evalInInspectedWindow(
-    'window.__CHERRY_MAIN_NETWORK_DEVTOOLS__ ? { port: window.__CHERRY_MAIN_NETWORK_DEVTOOLS__.port, token: window.__CHERRY_MAIN_NETWORK_DEVTOOLS__.token } : undefined'
-  )
-
-  if (!config || typeof config.port !== 'number' || typeof config.token !== 'string') {
-    return undefined
-  }
-
-  return config
-}
-
-function connect(config) {
-  const configSignature = `${config.port}:${config.token}`
-  if (socket && currentConfigSignature === configSignature) {
-    if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) return
-  }
+function connect() {
+  if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return
 
   if (socket) socket.close()
-  currentConfigSignature = configSignature
-  setStatus(`Connecting 127.0.0.1:${config.port}...`)
+  setStatus(`Connecting 127.0.0.1:${MAIN_NETWORK_DEVTOOLS_PORT}...`)
 
-  socket = new WebSocket(`ws://127.0.0.1:${config.port}/?token=${encodeURIComponent(config.token)}`)
-  socket.addEventListener('open', () => setStatus(`Connected 127.0.0.1:${config.port}`, 'connected'))
+  socket = new WebSocket(`ws://127.0.0.1:${MAIN_NETWORK_DEVTOOLS_PORT}/`)
+  socket.addEventListener('open', () => setStatus(`Connected 127.0.0.1:${MAIN_NETWORK_DEVTOOLS_PORT}`, 'connected'))
   socket.addEventListener('message', (event) => handleMessage(event.data))
   socket.addEventListener('close', () => setStatus('Disconnected; retrying...', 'error'))
   socket.addEventListener('error', () => setStatus('Connection failed; retrying...', 'error'))
 }
 
-async function ensureConnection() {
-  if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return
-
-  const config = await discoverConfig()
-  if (!config) {
-    setStatus('Monitor unavailable; reload the inspected window if this persists.', 'error')
-    return
-  }
-
-  connect(config)
+function ensureConnection() {
+  connect()
 }
 
 filterEl.addEventListener('input', () => renderRows())
@@ -455,4 +418,4 @@ clearEl.addEventListener('click', () => {
 })
 
 setInterval(ensureConnection, RECONNECT_INTERVAL_MS)
-void ensureConnection()
+ensureConnection()

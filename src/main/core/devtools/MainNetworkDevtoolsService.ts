@@ -6,15 +6,18 @@ import type { AddressInfo } from 'node:net'
 import { loggerService } from '@logger'
 import { BaseService, Conditional, Injectable, Phase, Priority, ServicePhase, when } from '@main/core/lifecycle'
 import { isDev } from '@main/core/platform'
-import { app, BrowserWindow, net, type WebContents } from 'electron'
+import { net } from 'electron'
 import WebSocket, { WebSocketServer } from 'ws'
+
+import { getMainNetworkDevtoolsPort, isMainNetworkDevtoolsOriginAllowed } from './mainNetworkDevtoolsAccess'
+
+export { getMainNetworkDevtoolsPort } from './mainNetworkDevtoolsAccess'
 
 const logger = loggerService.withContext('MainNetworkDevtoolsService')
 
 const MAX_EVENTS = 1000
 const MAX_BODY_CHARS = 128 * 1024
 const REDACTED = '[redacted]'
-const MAIN_NETWORK_DEVTOOLS_PORT_ENV = 'CS_MAIN_NETWORK_DEVTOOLS_PORT'
 const SENSITIVE_HEADER_NAMES = new Set([
   'authorization',
   'cookie',
@@ -80,19 +83,6 @@ interface RequestDescription {
   requestHeaders?: Record<string, string>
   requestBody?: MainNetworkDevtoolsBody
   requestContentType?: string
-}
-
-interface MainNetworkDevtoolsConfig {
-  port: number
-  token: string
-}
-
-export function getMainNetworkDevtoolsPort(): number {
-  const rawPort = process.env[MAIN_NETWORK_DEVTOOLS_PORT_ENV]
-  if (!rawPort) return 0
-
-  const port = Number.parseInt(rawPort, 10)
-  return Number.isInteger(port) && port > 0 && port <= 65535 ? port : 0
 }
 
 export function redactUrl(rawUrl: string): string {
@@ -176,10 +166,11 @@ export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): 
  * Development-only monitor for network requests initiated by this main-process
  * JavaScript runtime (`fetch`, Electron `net.fetch`, and Node `http`/`https`).
  *
- * Known limitation: traffic emitted by native binaries or child processes is not
- * visible to these in-process monkey patches. In particular, Claude agent SDK /
- * Claude Code requests may be performed by the SDK-managed native executable and
- * therefore do not appear in this panel.
+ * Known limitations: traffic emitted by native binaries or child processes is
+ * not visible to these in-process monkey patches. In particular, Claude agent SDK
+ * / Claude Code requests may be performed by the SDK-managed native executable
+ * and therefore do not appear in this panel. Node `http`/`https` response bodies
+ * are intentionally skipped to avoid changing stream consumption behavior.
  */
 @Injectable('MainNetworkDevtoolsService')
 @ServicePhase(Phase.Background)
@@ -188,10 +179,6 @@ export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): 
 export class MainNetworkDevtoolsService extends BaseService {
   private readonly events: MainNetworkDevtoolsEvent[] = []
   private readonly clients = new Set<WebSocket>()
-  private readonly token = randomUUID()
-  private readonly attachedWebContents = new WeakSet<WebContents>()
-
-  private config: MainNetworkDevtoolsConfig | null = null
   private originalFetch: typeof globalThis.fetch | undefined
   private originalNetFetch: typeof net.fetch | undefined
   private originalHttpGet: typeof http.get | null = null
@@ -210,7 +197,6 @@ export class MainNetworkDevtoolsService extends BaseService {
 
     try {
       await this.startWebSocketServer()
-      this.registerWindowInjection()
     } catch (error) {
       logger.error('Failed to start Main Network DevTools websocket server', error as Error)
     }
@@ -344,7 +330,19 @@ export class MainNetworkDevtoolsService extends BaseService {
       const startedAt = performance.now()
       const description = describeHttpRequest(source, args)
       const id = this.recordStarted(source, description)
-      const request = originalMethod(...args)
+      let request: ClientRequest
+
+      try {
+        request = originalMethod(...args)
+      } catch (error) {
+        this.updateEvent(id, {
+          state: 'error',
+          error: getErrorMessage(error),
+          completedAt: Date.now(),
+          duration: performance.now() - startedAt
+        })
+        throw error
+      }
 
       this.trackClientRequest(request, id, startedAt, description.requestContentType)
       return request
@@ -372,7 +370,7 @@ export class MainNetworkDevtoolsService extends BaseService {
 
     request.once('response', (response: IncomingMessage) => {
       const responseHeaders = redactHeaders(response.headers)
-      const responseBodyAccumulator = createBodyAccumulator(getHeaderValue(responseHeaders, 'content-type'))
+      const contentType = getHeaderValue(responseHeaders, 'content-type')
       const statusPatch = getHttpStatusPatch(response.statusCode, response.statusMessage)
       this.updateEvent(id, {
         status: response.statusCode,
@@ -380,17 +378,13 @@ export class MainNetworkDevtoolsService extends BaseService {
         responseHeaders,
         responseStartedAt: Date.now()
       })
-
-      response.on('data', (chunk) => responseBodyAccumulator.append(chunk))
-      response.once('end', () => complete({ ...statusPatch, responseBody: responseBodyAccumulator.toBody() }))
-      response.once('close', () => {
-        const responseBody = responseBodyAccumulator.toBody()
-        if (response.complete) complete({ ...statusPatch, responseBody })
-        else complete({ state: 'error', error: 'Response closed before complete', responseBody })
+      complete({
+        ...statusPatch,
+        responseBody: {
+          contentType,
+          note: 'Node http/https response body capture is skipped to avoid changing stream consumption.'
+        }
       })
-      response.once('error', (error) =>
-        complete({ state: 'error', error: getErrorMessage(error), responseBody: responseBodyAccumulator.toBody() })
-      )
     })
 
     request.once('error', (error) => complete({ state: 'error', error: getErrorMessage(error) }))
@@ -506,9 +500,8 @@ export class MainNetworkDevtoolsService extends BaseService {
     })
 
     server.on('connection', (socket, request) => {
-      const requestUrl = new URL(request.url ?? '/', 'ws://127.0.0.1')
-      if (requestUrl.searchParams.get('token') !== this.token) {
-        socket.close(1008, 'Unauthorized')
+      if (!isMainNetworkDevtoolsOriginAllowed(request.headers.origin)) {
+        socket.close(1008, 'Unauthorized origin')
         return
       }
 
@@ -531,61 +524,13 @@ export class MainNetworkDevtoolsService extends BaseService {
       throw new Error('Main Network DevTools websocket server did not expose a TCP port')
     }
 
-    this.config = { port: (address as AddressInfo).port, token: this.token }
-    logger.info(`Main Network DevTools websocket server listening on 127.0.0.1:${this.config.port}`)
+    const port = (address as AddressInfo).port
+    logger.info(`Main Network DevTools websocket server listening on 127.0.0.1:${port}`)
 
     this.registerDisposable(() => {
       for (const client of this.clients) client.close()
       this.clients.clear()
       server.close()
-    })
-  }
-
-  private registerWindowInjection(): void {
-    const handler = (_event: Electron.Event, window: BrowserWindow) => this.attachWindow(window)
-    app.on('browser-window-created', handler)
-    this.registerDisposable(() => app.removeListener('browser-window-created', handler))
-
-    if (app.isReady()) {
-      for (const window of BrowserWindow.getAllWindows()) this.attachWindow(window)
-      return
-    }
-
-    let disposed = false
-    this.registerDisposable(() => {
-      disposed = true
-    })
-    void app.whenReady().then(() => {
-      if (disposed) return
-      for (const window of BrowserWindow.getAllWindows()) this.attachWindow(window)
-    })
-  }
-
-  private attachWindow(window: BrowserWindow): void {
-    if (!this.config || window.isDestroyed()) return
-
-    const webContents = window.webContents
-    if (this.attachedWebContents.has(webContents)) return
-    this.attachedWebContents.add(webContents)
-
-    const inject = () => this.injectConfig(webContents)
-    webContents.on('did-finish-load', inject)
-    this.registerDisposable(() => webContents.removeListener('did-finish-load', inject))
-
-    if (!webContents.isLoading()) {
-      inject()
-    }
-  }
-
-  private injectConfig(webContents: WebContents): void {
-    if (!this.config || webContents.isDestroyed()) return
-
-    const script = `Object.defineProperty(window, '__CHERRY_MAIN_NETWORK_DEVTOOLS__', { value: ${JSON.stringify(
-      this.config
-    )}, configurable: true });`
-
-    void webContents.executeJavaScript(script, false).catch((error) => {
-      logger.debug('Failed to inject Main Network DevTools config', error as Error)
     })
   }
 
