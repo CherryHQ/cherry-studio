@@ -38,18 +38,20 @@ describe('builtin tool contracts', () => {
     expect(description).not.toContain('web__search')
   })
 
-  it('keeps kb_list strict-path filters in `required` so strict providers accept the schema', () => {
+  it('keeps kb_list strict-path fields in `required` so strict providers accept the schema', () => {
     // Regression: the AI-SDK path (KnowledgeListTool) runs strict:true. An all-optional object
     // serializes away `required` entirely, and a strict OpenAI-compatible provider then rejects the
     // whole request ("Tool ... has invalid 'parameters' schema: None is not of type 'array'"), killing
-    // every tool call. The strict variant makes the fields `.nullable()` (null = no filter) so they
-    // stay in `required` with a null option.
+    // every tool call. The strict variant makes every field `.nullable()` (null = unused) so they all
+    // stay in `required` with a null option — including the outline-mode `baseId` / `maxDepth`.
     const json = z.toJSONSchema(kbListStrictInputSchema) as { required?: unknown }
 
     expect(Array.isArray(json.required)).toBe(true)
-    expect(json.required).toEqual(expect.arrayContaining(['query', 'groupId']))
-    // null is the "no filter" signal; an explicit null must still parse.
-    expect(kbListStrictInputSchema.safeParse({ query: null, groupId: null }).success).toBe(true)
+    expect(json.required).toEqual(expect.arrayContaining(['query', 'groupId', 'baseId', 'maxDepth']))
+    // null is the "unused" signal for every field; an explicit all-null object must still parse.
+    expect(
+      kbListStrictInputSchema.safeParse({ query: null, groupId: null, baseId: null, maxDepth: null }).success
+    ).toBe(true)
   })
 
   it('lets the MCP kb_list path omit either filter', () => {
