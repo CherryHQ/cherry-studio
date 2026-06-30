@@ -2,7 +2,7 @@ import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResourcePaneConfig, ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
-import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
+import type { ConversationResourceMenuItem, ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { AgentResourceList } from '@renderer/components/chat/resources/variants/AgentResourceList'
 import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
@@ -31,8 +31,9 @@ import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/
 import { buildFirstUserMessageTitle } from '@shared/utils/conversationTitle'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { useSearch } from '@tanstack/react-router'
+import { Bot, Zap } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
-import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import HistoryRecordsPage from '../history/HistoryRecordsPage'
@@ -135,6 +136,7 @@ const AgentPage = () => {
   const [replacingSessionWorkspace, setReplacingSessionWorkspace] = useState(false)
   const [missingAgentDraft, setMissingAgentDraft] = useState(false)
   const [agentPickerOpen, setAgentPickerOpen] = useState(false)
+  const [activeResourceView, setActiveResourceView] = useState<null | 'agent' | 'skill'>(null)
   const { t } = useTranslation()
   const invalidateCache = useInvalidateCache()
   const { setSessionWorkspace } = useUpdateSession()
@@ -154,6 +156,7 @@ const AgentPage = () => {
     ? routeSession
     : (activeSession ?? (isActiveSessionLoading ? lastVisibleSessionRef.current : null))
   const visibleDraftSession = !isMessageOnlyView && !activeSessionId ? draftSession : null
+  const activeAgentResourceView = !isMessageOnlyView && !isWindowFrame ? activeResourceView : null
   const setDraftSessionState = useCallback((nextDraft: DraftAgentSession | null) => {
     draftSessionRef.current = nextDraft
     setDraftSession(nextDraft)
@@ -361,6 +364,7 @@ const AgentPage = () => {
 
   const startDraftSession = useCallback(
     async (defaults: DraftAgentSessionDefaults) => {
+      setActiveResourceView(null)
       const { rememberedWorkspaceId, workspaceSource } = resolveDraftWorkspaceSource(defaults)
 
       if (
@@ -404,6 +408,7 @@ const AgentPage = () => {
 
   const handleAgentConversationSelect = useCallback(
     async (agentId: string) => {
+      setActiveResourceView(null)
       // Close the picker first so the session/state churn below doesn't refresh the dialog while it's
       // still visible (which reads as a black/white flash + the dialog reopening).
       setAgentPickerOpen(false)
@@ -465,6 +470,7 @@ const AgentPage = () => {
   )
 
   const startMissingAgentDraft = useCallback(() => {
+    setActiveResourceView(null)
     setPendingLocateMessageId(undefined)
     pendingSelectedSessionRef.current = null
     setDraftSessionState(null)
@@ -481,6 +487,7 @@ const AgentPage = () => {
   )
 
   const startDefaultDraftSession = useCallback(async () => {
+    setActiveResourceView(null)
     setPendingLocateMessageId(undefined)
     pendingSelectedSessionRef.current = null
 
@@ -498,6 +505,7 @@ const AgentPage = () => {
 
   const handleHistorySessionSelect = useCallback(
     (sessionId: string | null, messageId?: string) => {
+      setActiveResourceView(null)
       if (sessionId && conversationNav.focusExistingTab(sessionId, { excludeTabId: currentTabId ?? undefined })) return
       pendingSelectedSessionRef.current = null
       setResourceListOpen(true)
@@ -630,6 +638,7 @@ const AgentPage = () => {
 
   const setActiveSessionAndDiscardDraft = useCallback(
     (sessionId: string | null, session?: AgentSessionEntity | null) => {
+      setActiveResourceView(null)
       pendingSelectedSessionRef.current = session ?? null
       if (sessionId) {
         setDraftSessionState(null)
@@ -641,6 +650,7 @@ const AgentPage = () => {
   )
   const handleResourceSessionSelect = useCallback(
     (sessionId: string, session: AgentSessionEntity) => {
+      setActiveResourceView(null)
       if (conversationNav.focusExistingTab(sessionId, { excludeTabId: currentTabId ?? undefined })) return
       setActiveSessionAndDiscardDraft(sessionId, session)
     },
@@ -822,6 +832,7 @@ const AgentPage = () => {
         }
       : undefined
   const createAndActivateEmptySession = useCallback(async () => {
+    setActiveResourceView(null)
     const agentId = activeResourceAgentId
     if (!agentId) return
 
@@ -877,14 +888,38 @@ const AgentPage = () => {
     visibleSession?.workspace?.type,
     visibleSession?.workspaceId
   ])
+  const resourceMenuItems = useMemo<readonly ConversationResourceMenuItem[] | undefined>(() => {
+    if (isMessageOnlyView || isWindowFrame) return undefined
+
+    return [
+      {
+        active: activeAgentResourceView === 'agent',
+        icon: <Bot />,
+        id: 'agent-resource-view',
+        label: t('chat.resource_view.menu.agent'),
+        onSelect: () => setActiveResourceView('agent')
+      },
+      {
+        active: activeAgentResourceView === 'skill',
+        icon: <Zap />,
+        id: 'skill-resource-view',
+        label: t('chat.resource_view.menu.skill'),
+        onSelect: () => setActiveResourceView('skill')
+      }
+    ]
+  }, [activeAgentResourceView, isMessageOnlyView, isWindowFrame, t])
   const pane = isClassicSessionLayout ? (
     <AgentResourceList
       activeAgentId={activeResourceAgentId}
-      onAddAgent={() => setAgentPickerOpen(true)}
+      onAddAgent={() => {
+        setActiveResourceView(null)
+        setAgentPickerOpen(true)
+      }}
       onOpenHistoryRecords={openHistoryRecords}
       onSelectSession={handleResourceSessionSelect}
       onStartDraftAgent={(agentId) => startDraftSession({ agentId })}
       onStartMissingAgentDraft={startMissingAgentDraft}
+      resourceMenuItems={resourceMenuItems}
       onActiveAgentDeleted={handleActiveAgentDeleted}
     />
   ) : (
@@ -894,6 +929,7 @@ const AgentPage = () => {
       onOpenHistoryRecords={openHistoryRecords}
       onStartDraftSession={startDraftSession}
       onStartMissingAgentDraft={isMessageOnlyView ? undefined : startMissingAgentDraft}
+      resourceMenuItems={resourceMenuItems}
       setActiveSessionId={setActiveSessionAndDiscardDraft}
     />
   )
@@ -955,6 +991,7 @@ const AgentPage = () => {
           resourcePane={resourcePane}
           resourcePaneCount={sessionResourcePaneCount}
           resourcePaneRevealRequest={sessionRevealRequest}
+          resourceView={activeAgentResourceView}
           sessionPaneOpen={isClassicSessionLayout ? sessionPaneOpen : undefined}
           onSessionPaneOpenChange={isClassicSessionLayout ? setSessionPaneOpen : undefined}
         />

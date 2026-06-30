@@ -1646,6 +1646,13 @@
       "top": "回到頂端"
     },
     "resend": "重新傳送",
+    "resource_view": {
+      "menu": {
+        "agent": "智能體",
+        "assistant": "助手",
+        "skill": "技能"
+      }
+    },
     "save": {
       "file": {
         "title": "儲存到本機檔案"

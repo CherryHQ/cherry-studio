@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
+import type { ConversationResourceMenuItem } from '@renderer/components/chat/resources'
 import {
   ResourceEntityRail,
   type ResourceEntityRailItem
@@ -35,6 +36,7 @@ type AssistantResourceListProps = {
   onOpenHistoryRecords?: () => void
   onSelectTopic: (topic: Topic) => void | boolean
   onStartDraftAssistant: (assistantId: string | null) => void | Promise<void>
+  resourceMenuItems?: readonly ConversationResourceMenuItem[]
   /**
    * Called after the currently-active assistant is deleted so the classic-layout page
    * can settle (select the latest remaining topic / fall back). This is the old
@@ -49,6 +51,7 @@ export function AssistantResourceList({
   onOpenHistoryRecords,
   onSelectTopic,
   onStartDraftAssistant,
+  resourceMenuItems,
   onActiveAssistantDeleted
 }: AssistantResourceListProps) {
   const { t } = useTranslation()
@@ -272,6 +275,7 @@ export function AssistantResourceList({
         addLabel={t('chat.add.assistant.title')}
         onAdd={onAddAssistant ?? (() => onStartDraftAssistant(null))}
         onOpenHistoryRecords={onOpenHistoryRecords}
+        resourceMenuItems={resourceMenuItems}
         onSelect={handleSelect}
         onReorder={handleReorder}
         getContextMenuActions={getContextMenuActions}

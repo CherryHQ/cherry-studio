@@ -3,6 +3,8 @@ import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/action
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import {
+  ConversationResourceMenu,
+  type ConversationResourceMenuItem,
   ResourceList,
   type ResourceListGroup,
   type ResourceListReorderPayload,
@@ -49,6 +51,7 @@ export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionCon
   onAdd: () => void | Promise<void>
   /** When provided, a history-records button sits next to the add button. */
   onOpenHistoryRecords?: () => void
+  resourceMenuItems?: readonly ConversationResourceMenuItem[]
   onContextMenuAction?: (item: T, action: ResolvedAction<TActionContext>) => void | Promise<void>
   onReorder?: (payload: ResourceListReorderPayload) => void | Promise<void>
   onSelect: (item: T) => void | Promise<void>
@@ -87,6 +90,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   listRef,
   onAdd,
   onOpenHistoryRecords,
+  resourceMenuItems,
   onContextMenuAction,
   onReorder,
   onSelect,
@@ -238,6 +242,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
               ) : undefined
             }
           />
+          <ConversationResourceMenu items={resourceMenuItems} />
         </ResourceList.Header>
         <ResourceList.Body<T>
           listRef={effectiveListRef}

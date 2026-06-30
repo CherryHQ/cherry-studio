@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
+import type { ConversationResourceMenuItem } from '@renderer/components/chat/resources'
 import {
   ResourceEntityRail,
   type ResourceEntityRailItem
@@ -40,6 +41,7 @@ type AgentResourceListProps = {
   onSelectSession: (sessionId: string, session: AgentSessionEntity) => void
   onStartDraftAgent: (agentId: string) => void | Promise<void>
   onStartMissingAgentDraft?: () => void | Promise<void>
+  resourceMenuItems?: readonly ConversationResourceMenuItem[]
   /**
    * Called after the currently-active agent is deleted so the classic-layout page can
    * settle (select the latest remaining session / clear). This is the classic
@@ -55,6 +57,7 @@ export function AgentResourceList({
   onSelectSession,
   onStartDraftAgent,
   onStartMissingAgentDraft,
+  resourceMenuItems,
   onActiveAgentDeleted
 }: AgentResourceListProps) {
   const { t } = useTranslation()
@@ -269,6 +272,7 @@ export function AgentResourceList({
         addLabel={t('agent.add.title')}
         onAdd={onAddAgent ?? (() => onStartMissingAgentDraft?.())}
         onOpenHistoryRecords={onOpenHistoryRecords}
+        resourceMenuItems={resourceMenuItems}
         onSelect={handleSelect}
         onReorder={handleReorder}
         getContextMenuActions={getContextMenuActions}

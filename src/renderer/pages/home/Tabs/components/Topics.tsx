@@ -7,6 +7,8 @@ import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import {
+  ConversationResourceMenu,
+  type ConversationResourceMenuItem,
   RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
   ResourceList,
   type ResourceListItemReorderPayload,
@@ -88,6 +90,7 @@ interface Props {
   onOpenHistoryRecords?: () => void
   presentation?: 'sidebar' | 'right-panel'
   revealRequest?: ResourceListRevealRequest
+  resourceMenuItems?: readonly ConversationResourceMenuItem[]
   setActiveTopic: (topic: Topic) => void
 }
 
@@ -204,6 +207,7 @@ export function Topics({
   onOpenHistoryRecords,
   presentation = 'sidebar',
   revealRequest,
+  resourceMenuItems,
   setActiveTopic
 }: Props) {
   const { t } = useTranslation()
@@ -1076,15 +1080,18 @@ export function Topics({
               wrapperClassName="pt-1"
             />
           ) : (
-            <ResourceList.HeaderItem
-              type="button"
-              command="topic.create"
-              aria-label={t('chat.conversation.new')}
-              icon={<SquarePen />}
-              label={t('chat.conversation.new')}
-              onClick={() => void onNewTopic?.(headerCreateTopicPayload)}
-              actions={<TopicHistoryButton onOpenHistoryRecords={onOpenHistoryRecords} />}
-            />
+            <>
+              <ResourceList.HeaderItem
+                type="button"
+                command="topic.create"
+                aria-label={t('chat.conversation.new')}
+                icon={<SquarePen />}
+                label={t('chat.conversation.new')}
+                onClick={() => void onNewTopic?.(headerCreateTopicPayload)}
+                actions={<TopicHistoryButton onOpenHistoryRecords={onOpenHistoryRecords} />}
+              />
+              <ConversationResourceMenu items={resourceMenuItems} />
+            </>
           )}
         </ResourceList.Header>
 

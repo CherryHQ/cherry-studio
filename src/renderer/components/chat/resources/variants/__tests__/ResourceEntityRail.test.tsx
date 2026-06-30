@@ -171,6 +171,35 @@ describe('ResourceEntityRail', () => {
     expect(screen.queryByRole('button', { name: 'history.records.shortTitle' })).not.toBeInTheDocument()
   })
 
+  it('renders resource menu items below the add button', () => {
+    const onSelectResourceView = vi.fn()
+
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants"
+        items={ITEMS}
+        resourceMenuItems={[
+          {
+            active: true,
+            id: 'assistant-view',
+            label: 'Assistants',
+            onSelect: onSelectResourceView
+          }
+        ]}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    )
+
+    const item = screen.getByRole('button', { name: 'Assistants' })
+
+    expect(item).toHaveAttribute('aria-current', 'page')
+    fireEvent.click(item)
+    expect(onSelectResourceView).toHaveBeenCalledTimes(1)
+  })
+
   it('marks the selected entity and wires context-menu actions', () => {
     const onContextMenuAction = vi.fn()
     const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
