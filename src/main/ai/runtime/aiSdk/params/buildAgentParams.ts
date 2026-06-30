@@ -161,6 +161,17 @@ function canModelConsumeTools(model: Model): boolean {
  * sync the MCP entries into the registry, then materialise the active
  * `ToolSet` via `applies` predicates and defer exposition.
  */
+function compareToolNames(a: string, b: string): number {
+  if (a < b) return -1
+  if (a > b) return 1
+  return 0
+}
+
+function sortToolSet(tools: ToolSet | undefined): ToolSet | undefined {
+  if (!tools) return undefined
+  return Object.fromEntries(Object.entries(tools).sort(([a], [b]) => compareToolNames(a, b)))
+}
+
 async function resolveTools(
   request: BuildAgentParamsInput['request'],
   assistant: Assistant | undefined,
@@ -192,16 +203,17 @@ async function resolveTools(
   }
   // First-class client tools (no `execute`) supplied per request by assistant-less
   // callers (the API gateway). Merged here so they share the registry/defer-exposition
-  // path instead of being mutated onto raw SDK params. Sort entries so the provider's
-  // serialized tool prefix is byte-stable for identical tool sets.
+  // path instead of being mutated onto raw SDK params.
   const clientTools = request.callOverrides?.tools
   if (clientTools && Object.keys(clientTools).length > 0) {
     tools = {
       ...tools,
-      ...Object.fromEntries(Object.entries(clientTools).sort(([a], [b]) => a.localeCompare(b)))
+      ...clientTools
     }
   }
-  const exposed = applyDeferExposition(tools, registry, model.contextWindow)
+  // Provider serialization follows object insertion order. Sort the complete
+  // materialized set here so cache prefix bytes stay stable before middleware runs.
+  const exposed = applyDeferExposition(sortToolSet(tools), registry, model.contextWindow)
   return { tools: exposed.tools, deferredEntries: exposed.deferredEntries, mcpToolIds }
 }
 

@@ -104,35 +104,52 @@ describe('transformAnthropicCacheParams', () => {
     expect(countCacheMarkers(out)).toBe(0)
   })
 
-  it('does not emit markers below the model-aware minimum prefix', async () => {
+  it('does not emit markers below the configured prefix threshold', async () => {
     const out = await transform({ prompt: [textMessage('system', 'short')] })
 
     expect(countCacheMarkers(out)).toBe(0)
   })
 
-  it('uses the Haiku minimum instead of a lower configured threshold', async () => {
+  it('does not maintain model-specific threshold guesses', async () => {
     const out = await transform(
-      { prompt: [textMessage('system', 'x '.repeat(1300))] },
+      { prompt: [textMessage('system', 'x '.repeat(1500))] },
       makeProvider({ enabled: true, tokenThreshold: 1024 }),
-      makeModel({ id: 'anthropic::claude-3-haiku', name: 'Claude 3 Haiku' })
+      makeModel({ id: 'anthropic::claude-haiku-4-5', name: 'Claude Haiku 4.5' })
     )
 
-    expect(countCacheMarkers(out)).toBe(0)
+    expect(countCacheMarkers(out)).toBe(1)
   })
 
-  it('keeps marker count under Anthropic’s four-breakpoint ceiling', async () => {
+  it('uses tool definitions in the cumulative prefix gate for system messages', async () => {
     const out = await transform({
-      prompt: [
-        textMessage('system', 'x '.repeat(3000)),
-        textMessage('user', 'u '.repeat(3000)),
-        textMessage('assistant', 'a '.repeat(3000)),
-        textMessage('user', 'u '.repeat(3000)),
-        textMessage('assistant', 'a '.repeat(3000))
-      ],
-      tools: [makeTool('z_tool', 5000), makeTool('a_tool', 5000)]
+      tools: [makeTool('mcp_tool', 6000)],
+      prompt: [textMessage('system', 'short')]
     })
 
-    expect(countCacheMarkers(out)).toBeLessThanOrEqual(4)
+    expect(hasCacheControl(out.prompt[0])).toBe(true)
+    expect(out.tools?.filter((tool) => 'providerOptions' in tool && hasCacheControl(tool))).toHaveLength(1)
+  })
+
+  it('keeps marker count under Anthropic’s four-breakpoint ceiling when more than four candidates qualify', async () => {
+    const out = await transform(
+      {
+        prompt: [
+          textMessage('system', 'x '.repeat(3000)),
+          textMessage('user', 'u '.repeat(3000)),
+          textMessage('assistant', 'a '.repeat(3000)),
+          textMessage('user', 'u '.repeat(3000)),
+          textMessage('assistant', 'a '.repeat(3000)),
+          textMessage('user', 'u '.repeat(3000))
+        ],
+        tools: [makeTool('z_tool', 5000), makeTool('a_tool', 5000)]
+      },
+      makeProvider({ enabled: true, tokenThreshold: 1024, cacheLastNMessages: 6 })
+    )
+
+    expect(countCacheMarkers(out)).toBe(4)
+    expect(hasCacheControl(out.prompt[0])).toBe(true)
+    expect(out.tools?.filter((tool) => 'providerOptions' in tool && hasCacheControl(tool))).toHaveLength(1)
+    expect(countCacheMarkers({ ...out, tools: undefined, prompt: out.prompt.slice(1) })).toBe(2)
   })
 
   it('sorts inline tools and marks exactly one deterministic tool definition when tool schemas cross the threshold', async () => {
@@ -146,14 +163,15 @@ describe('transformAnthropicCacheParams', () => {
     expect(hasCacheControl(out.tools?.at(-1) as LanguageModelV3FunctionTool)).toBe(true)
   })
 
-  it('serializes the same selected tool set identically across transforms', async () => {
-    const input = {
+  it('serializes the same selected tool set identically regardless of input order', async () => {
+    const first = await transform({
       tools: [makeTool('z_tool', 2000), makeTool('a_tool', 2000)],
       prompt: [textMessage('system', 'short')]
-    }
-
-    const first = await transform(input)
-    const second = await transform(input)
+    })
+    const second = await transform({
+      tools: [makeTool('a_tool', 2000), makeTool('z_tool', 2000)],
+      prompt: [textMessage('system', 'short')]
+    })
 
     expect(JSON.stringify(first.tools)).toBe(JSON.stringify(second.tools))
   })

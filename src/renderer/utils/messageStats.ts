@@ -10,10 +10,11 @@ export interface CacheTokenStats {
   savedInputTokens: number
 }
 
-export function getCacheTokenStats(stats: MessageStats): CacheTokenStats | undefined {
-  const noCacheTokens = stats.noCacheTokens ?? 0
-  const cacheReadTokens = stats.cacheReadTokens ?? 0
-  const cacheWriteTokens = stats.cacheWriteTokens ?? 0
+function buildCacheTokenStats(
+  noCacheTokens: number,
+  cacheReadTokens: number,
+  cacheWriteTokens: number
+): CacheTokenStats | undefined {
   const totalInputTokens = noCacheTokens + cacheReadTokens + cacheWriteTokens
   if (totalInputTokens === 0) return undefined
 
@@ -23,8 +24,13 @@ export function getCacheTokenStats(stats: MessageStats): CacheTokenStats | undef
     cacheWriteTokens,
     totalInputTokens,
     hitRate: cacheReadTokens / totalInputTokens,
+    // Anthropic cache reads are discounted rather than free; this is token-volume saved from re-sending.
     savedInputTokens: cacheReadTokens
   }
+}
+
+export function getCacheTokenStats(stats: MessageStats): CacheTokenStats | undefined {
+  return buildCacheTokenStats(stats.noCacheTokens ?? 0, stats.cacheReadTokens ?? 0, stats.cacheWriteTokens ?? 0)
 }
 
 /**

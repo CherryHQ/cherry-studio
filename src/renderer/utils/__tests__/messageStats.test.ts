@@ -53,7 +53,7 @@ describe('statsToUsage', () => {
 })
 
 describe('getCacheTokenStats', () => {
-  it('aggregates cache hit rate and saved input tokens', () => {
+  it('computes cache hit rate and saved input tokens for one message', () => {
     expect(getCacheTokenStats({ noCacheTokens: 10, cacheReadTokens: 70, cacheWriteTokens: 20 })).toEqual({
       noCacheTokens: 10,
       cacheReadTokens: 70,

@@ -52,6 +52,12 @@ function estimateToolTokens(tool: LanguageModelV3FunctionTool): number {
   )
 }
 
+function compareCacheKeys(a: string, b: string): number {
+  if (a < b) return -1
+  if (a > b) return 1
+  return 0
+}
+
 function isFunctionTool(
   tool: NonNullable<LanguageModelV3CallOptions['tools']>[number]
 ): tool is LanguageModelV3FunctionTool {
@@ -91,34 +97,44 @@ function hasCacheableContent(msg: LanguageModelV3Message): boolean {
   return typeof msg.content === 'string' ? msg.content.length > 0 : msg.content.length > 0
 }
 
-function applyToolCacheMarker(
-  tools: LanguageModelV3CallOptions['tools'],
-  prefixTokens: number,
-  tokenThreshold: number,
-  budget: CacheBreakpointBudget
-): { tools: LanguageModelV3CallOptions['tools']; prefixTokens: number } {
-  if (!tools?.length) return { tools, prefixTokens }
-
-  const sortedTools = [...tools].sort((a, b) => {
+function sortToolsForCache(tools: LanguageModelV3CallOptions['tools']): LanguageModelV3CallOptions['tools'] {
+  if (!tools?.length) return tools
+  return [...tools].sort((a, b) => {
     const aName = isFunctionTool(a) ? a.name : a.id
     const bName = isFunctionTool(b) ? b.name : b.id
-    return aName.localeCompare(bName)
+    return compareCacheKeys(aName, bName)
   })
+}
 
-  let cumulative = prefixTokens
+function estimateToolsPrefix(sortedTools: LanguageModelV3CallOptions['tools']): {
+  totalTokens: number
+  markerIndex: number
+} {
+  let totalTokens = 0
   let markerIndex = -1
-  for (let i = 0; i < sortedTools.length; i++) {
-    const tool = sortedTools[i]
+  for (let i = 0; i < (sortedTools?.length ?? 0); i++) {
+    const tool = sortedTools?.[i]
+    if (!tool) continue
     if (!isFunctionTool(tool)) continue
-    cumulative += estimateToolTokens(tool)
-    if (cumulative >= tokenThreshold) markerIndex = i
+    totalTokens += estimateToolTokens(tool)
+    markerIndex = i
   }
+  return { totalTokens, markerIndex }
+}
 
-  if (markerIndex === -1 || !budget.use()) return { tools: sortedTools, prefixTokens: cumulative }
+function applyToolCacheMarker(
+  sortedTools: LanguageModelV3CallOptions['tools'],
+  markerIndex: number,
+  toolPrefixTokens: number,
+  tokenThreshold: number,
+  budget: CacheBreakpointBudget
+): LanguageModelV3CallOptions['tools'] {
+  if (!sortedTools?.length || markerIndex === -1 || toolPrefixTokens < tokenThreshold || !budget.use())
+    return sortedTools
 
   const markedTools = [...sortedTools]
   markedTools[markerIndex] = withCacheProviderOptions(markedTools[markerIndex] as LanguageModelV3FunctionTool)
-  return { tools: markedTools, prefixTokens: cumulative }
+  return markedTools
 }
 
 export async function transformAnthropicCacheParams(
@@ -127,16 +143,19 @@ export async function transformAnthropicCacheParams(
   model: Model,
   assistant: Assistant | undefined
 ): Promise<LanguageModelV3CallOptions> {
-  const settings = resolveAnthropicCacheSettings(provider, model)
+  void model
+  const settings = resolveAnthropicCacheSettings(provider)
   if (!settings.enabled) return params
   if (!Array.isArray(params.prompt) || params.prompt.length === 0) return params
 
   const messages = [...params.prompt]
   const budget = createCacheBreakpointBudget()
   const volatileSystemPrompt = hasVolatilePromptVariables(assistant)
+  const sortedTools = sortToolsForCache(params.tools)
+  const toolPrefix = estimateToolsPrefix(sortedTools)
 
   if (settings.cacheSystemMessage && !volatileSystemPrompt) {
-    let systemPrefixTokens = 0
+    let systemPrefixTokens = toolPrefix.totalTokens
     for (let i = 0; i < messages.length; i++) {
       const msg = messages[i]
       systemPrefixTokens += estimateContentTokens(msg.content)
@@ -147,13 +166,13 @@ export async function transformAnthropicCacheParams(
     }
   }
 
-  const toolResult = settings.cacheToolDefinitions
-    ? applyToolCacheMarker(params.tools, 0, settings.tokenThreshold, budget)
-    : { tools: params.tools, prefixTokens: 0 }
+  const tools = settings.cacheToolDefinitions
+    ? applyToolCacheMarker(sortedTools, toolPrefix.markerIndex, toolPrefix.totalTokens, settings.tokenThreshold, budget)
+    : sortedTools
 
   if (settings.cacheLastNMessages > 0) {
     const cumsumTokens: number[] = []
-    let tokenSum = 0
+    let tokenSum = toolPrefix.totalTokens
     for (let i = 0; i < messages.length; i++) {
       tokenSum += estimateContentTokens(messages[i].content)
       cumsumTokens.push(tokenSum)
@@ -179,7 +198,7 @@ export async function transformAnthropicCacheParams(
     }
   }
 
-  return { ...params, prompt: messages, tools: toolResult.tools }
+  return { ...params, prompt: messages, tools }
 }
 
 function anthropicCacheMiddleware(
@@ -207,7 +226,6 @@ function createAnthropicCachePlugin(provider: Provider, model: Model, assistant:
 export const anthropicCacheFeature: RequestFeature = {
   name: 'anthropic-cache',
   applies: (scope) =>
-    scope.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES &&
-    resolveAnthropicCacheSettings(scope.provider, scope.model).enabled,
+    scope.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES && resolveAnthropicCacheSettings(scope.provider).enabled,
   contributeModelAdapters: (scope) => [createAnthropicCachePlugin(scope.provider, scope.model, scope.assistant)]
 }
