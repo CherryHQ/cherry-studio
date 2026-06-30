@@ -379,25 +379,44 @@ export const ModelSnapshotSchema = z.strictObject({
 })
 export type ModelSnapshot = z.infer<typeof ModelSnapshotSchema>
 
+const AssistantSnapshotSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  emoji: z.string(),
+  model: ModelSnapshotSchema
+})
+const AgentSnapshotSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  emoji: z.string().optional(),
+  type: z.string(),
+  model: ModelSnapshotSchema
+})
+
 /**
  * Per-message snapshot of the producing author, captured at creation time so the
  * header can still show it after the entity is renamed/deleted. The author
  * (chat `assistant` / session `agent`) owns the model it ran — `model` is nested
  * inside the author. The header shows the author first, the model secondary.
+ *
+ * Exactly one author: a message is produced by a chat assistant OR a session
+ * agent, never both and never neither — modelled as a strict union so the
+ * validation boundary rejects `{}` / `{ assistant, agent }`.
  */
-export const MessageSnapshotSchema = z.strictObject({
-  assistant: z.object({ id: z.string(), name: z.string(), emoji: z.string(), model: ModelSnapshotSchema }).optional(),
-  agent: z
-    .object({
-      id: z.string(),
-      name: z.string(),
-      emoji: z.string().optional(),
-      type: z.string(),
-      model: ModelSnapshotSchema
-    })
-    .optional()
-})
+export const MessageSnapshotSchema = z.union([
+  z.strictObject({ assistant: AssistantSnapshotSchema }),
+  z.strictObject({ agent: AgentSnapshotSchema })
+])
 export type MessageSnapshot = z.infer<typeof MessageSnapshotSchema>
+export type MessageSnapshotAuthor = z.infer<typeof AssistantSnapshotSchema> | z.infer<typeof AgentSnapshotSchema>
+
+/** Narrows a snapshot to its single producing author (assistant for chat, agent for sessions). */
+export function getMessageSnapshotAuthor(
+  snapshot: MessageSnapshot | null | undefined
+): MessageSnapshotAuthor | undefined {
+  if (!snapshot) return undefined
+  return 'assistant' in snapshot ? snapshot.assistant : snapshot.agent
+}
 
 // ============================================================================
 // Message Entity Types

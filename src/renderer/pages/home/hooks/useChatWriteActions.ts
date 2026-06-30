@@ -20,7 +20,12 @@ import { ipcApi } from '@renderer/ipc'
 import type { Topic } from '@renderer/types/topic'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import { DataApiError, ErrorCode } from '@shared/data/api'
-import type { BranchMessagesResponse, CherryUIMessage, Message as DbMessage } from '@shared/data/types/message'
+import {
+  type BranchMessagesResponse,
+  type CherryUIMessage,
+  getMessageSnapshotAuthor,
+  type Message as DbMessage
+} from '@shared/data/types/message'
 import { type UniqueModelId } from '@shared/data/types/model'
 import type { ChatRequestOptions } from 'ai'
 import { useCallback, useMemo } from 'react'
@@ -37,7 +42,7 @@ function getDirectAssistantModelIds(messages: CherryUIMessage[], userMessageId: 
     if (message.metadata?.parentId !== userMessageId) continue
 
     const snapshot = message.metadata?.messageSnapshot
-    const model = snapshot?.assistant?.model ?? snapshot?.agent?.model
+    const model = getMessageSnapshotAuthor(snapshot)?.model
     const modelId = resolveUniqueModelId(message.metadata?.modelId, model)
     if (modelId) modelIds.add(modelId)
   }

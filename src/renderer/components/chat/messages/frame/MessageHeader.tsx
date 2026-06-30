@@ -3,6 +3,7 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import type { Model } from '@renderer/types/model'
 import { getModelLogo } from '@renderer/utils/model'
 import { firstLetter, removeLeadingEmoji } from '@renderer/utils/naming'
+import { getMessageSnapshotAuthor } from '@shared/data/types/message'
 import dayjs from 'dayjs'
 import { Sparkle } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
@@ -53,7 +54,7 @@ const MessageHeader: FC<Props> = memo(
     const ModelIcon = useMemo(() => getModelLogo(displayModel), [displayModel])
 
     // Producing author (assistant/agent) snapshotted at creation — shown first; the model is secondary.
-    const authorSnapshot = message.messageSnapshot?.assistant ?? message.messageSnapshot?.agent
+    const authorSnapshot = getMessageSnapshotAuthor(message.messageSnapshot)
     const authorName = authorSnapshot?.name || assistantProfile?.name
     const authorAvatar = authorSnapshot?.emoji || assistantProfile?.avatar
     const modelName = getMessageListItemModelName(message)
@@ -119,7 +120,9 @@ const MessageHeader: FC<Props> = memo(
               {username}
             </span>
             {secondaryModelName && (
-              <span className="shrink-0 truncate text-foreground-muted text-xs leading-5">{secondaryModelName}</span>
+              <span className="min-w-0 max-w-[160px] shrink truncate text-foreground-muted text-xs leading-5">
+                {secondaryModelName}
+              </span>
             )}
             {isGroupContextMessage && (
               <Tooltip content={t('chat.message.useful.tip')}>
