@@ -84,11 +84,18 @@ export const CreateAgentSessionMessagesSchema = z.strictObject({
 })
 export type CreateAgentSessionMessagesDto = z.infer<typeof CreateAgentSessionMessagesSchema>
 
+/**
+ * Session name validator. Empty is allowed for an untitled placeholder session,
+ * and the length is capped at 255 — matching topic.name semantics
+ * (`TopicNameEntitySchema`).
+ */
+export const SessionNameEntitySchema = z.string().max(255)
+
 export const AgentSessionEntitySchema = z.strictObject({
   id: z.string(),
   agentId: z.string().nullable(),
   /** May be empty for an untitled placeholder session, matching topic.name semantics. */
-  name: z.string(),
+  name: SessionNameEntitySchema,
   isNameManuallyEdited: z.boolean(),
   description: z.string().optional(),
   workspaceId: z.string(),
@@ -104,14 +111,14 @@ export type AgentSessionEntity = z.infer<typeof AgentSessionEntitySchema>
 // Create requires a real `agentId` — orphans only happen via cascade, never on insert.
 export const CreateAgentSessionSchema = z.strictObject({
   agentId: z.string().min(1),
-  name: z.string(),
+  name: SessionNameEntitySchema,
   description: z.string().optional(),
   workspace: AgentSessionWorkspaceSourceSchema
 })
 export type CreateAgentSessionDto = z.infer<typeof CreateAgentSessionSchema>
 
 export const UpdateAgentSessionSchema = z.strictObject({
-  name: z.string().optional(),
+  name: SessionNameEntitySchema.optional(),
   isNameManuallyEdited: z.boolean().optional(),
   description: z.string().optional(),
   agentId: z.string().min(1).optional()

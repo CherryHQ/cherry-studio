@@ -104,6 +104,27 @@ describe('AgentSession schemas', () => {
     expect(UpdateAgentSessionSchema.parse({ name: '' })).toEqual({ name: '' })
   })
 
+  it('caps session names at 255 characters, matching topic.name semantics', () => {
+    const maxName = 'a'.repeat(255)
+    const overflowName = 'a'.repeat(256)
+
+    expect(
+      CreateAgentSessionSchema.safeParse({
+        agentId: 'agent-1',
+        name: maxName,
+        workspace: { type: 'system' }
+      }).success
+    ).toBe(true)
+    expect(
+      CreateAgentSessionSchema.safeParse({
+        agentId: 'agent-1',
+        name: overflowName,
+        workspace: { type: 'system' }
+      }).success
+    ).toBe(false)
+    expect(UpdateAgentSessionSchema.safeParse({ name: overflowName }).success).toBe(false)
+  })
+
   it('caps bulk delete ids', () => {
     const validIds = Array.from({ length: AGENT_SESSION_DELETE_MAX_IDS }, (_, index) => `session-${index}`).join(',')
     const tooManyIds = `${validIds},session-overflow`
