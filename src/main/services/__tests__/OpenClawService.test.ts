@@ -42,10 +42,16 @@ vi.mock('@application', () => ({
   }
 }))
 
-vi.mock('@main/utils/process', () => ({
+vi.mock('@main/utils/binaryResolver', () => ({
+  getBinaryPath: vi.fn(() => Promise.resolve('/mock/bin/openclaw'))
+}))
+
+vi.mock('@main/utils/commandResolver', () => ({
+  findExecutableInEnv: vi.fn()
+}))
+
+vi.mock('@main/utils/processRunner', () => ({
   crossPlatformSpawn: vi.fn(),
-  findExecutableInEnv: vi.fn(),
-  getBinaryPath: vi.fn(() => Promise.resolve('/mock/bin/openclaw')),
   runInstallScript: vi.fn()
 }))
 

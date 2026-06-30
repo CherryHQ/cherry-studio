@@ -11,7 +11,7 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { isWin } from '@main/core/platform'
 import { regionService } from '@main/services/RegionService'
 import { getBinaryIsolatedHomeEnv, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
-import { getBinaryPath } from '@main/utils/process'
+import { getBinaryPath } from '@main/utils/binaryResolver'
 import type { BinaryState, ManagedBinary, ToolInstallState } from '@shared/data/preference/preferenceTypes'
 import { PRESETS_BINARY_TOOLS, TOOL_KEY_RE, validateManagedBinary } from '@shared/data/presets/binaryTools'
 import { Mutex } from 'async-mutex'

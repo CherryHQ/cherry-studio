@@ -35,7 +35,7 @@ vi.mock('node:fs', async (importOriginal) => {
 // reads cherry.bin / mise shims — neither is populated under vitest. Point it
 // at the test ripgrep binary so scans spawn a real ripgrep; `existsSync` (mocked
 // above) still governs the "binary not available" branch.
-vi.mock('@main/utils/process', async () => {
+vi.mock('@main/utils/binaryResolver', async () => {
   const { tryTestRipgrepPath } = await import('./ripgrepTestUtils')
   // When ripgrep is unavailable, return a non-existent sentinel path so
   // `resolveRipgrepBinary`'s existsSync check (not testRipgrepPath) governs

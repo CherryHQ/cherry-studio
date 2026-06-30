@@ -38,7 +38,7 @@ vi.mock('@main/services/RegionService', () => ({
   regionService: { isInChina: vi.fn().mockResolvedValue(false) }
 }))
 
-vi.mock('@main/utils/process', () => ({
+vi.mock('@main/utils/binaryResolver', () => ({
   getBinaryName: vi.fn().mockResolvedValue('bun'),
   getBinaryPath: vi.fn().mockResolvedValue('/mock/bin/tool'),
   isBinaryExists: vi.fn().mockResolvedValue(false)

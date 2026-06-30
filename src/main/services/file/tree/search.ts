@@ -19,7 +19,7 @@ import * as path from 'node:path'
 
 import { loggerService } from '@logger'
 import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
-import { getBinaryPath } from '@main/utils/process'
+import { getBinaryPath } from '@main/utils/binaryResolver'
 import type { DirectoryListOptions, FilePath } from '@shared/types/file'
 
 import { defaultRipgrepGlobArgs } from './gitignore'

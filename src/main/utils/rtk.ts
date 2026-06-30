@@ -4,7 +4,7 @@ import { promisify } from 'node:util'
 
 import { loggerService } from '@logger'
 import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
-import { getBinaryPath } from '@main/utils/process'
+import { getBinaryPath } from '@main/utils/binaryResolver'
 import { gte as semverGte } from 'semver'
 
 const execFileAsync = promisify(execFile)

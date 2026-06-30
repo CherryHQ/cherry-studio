@@ -1,74 +1,19 @@
-import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
-import chardet from 'chardet'
-import { type ChildProcess, execFileSync, spawn, type SpawnOptions } from 'child_process'
+import { execFileSync, spawn } from 'child_process'
 import fs from 'fs'
-import iconv from 'iconv-lite'
 import path from 'path'
 
-import { getBinarySearchDirs } from './binaryEnv'
 import getShellEnv, { refreshShellEnv } from './shellEnv'
 
-const logger = loggerService.withContext('Utils:Process')
+/**
+ * Resolution for arbitrary executables in the user's environment — locating
+ * commands (npx, uvx, git, …) in the captured shell env, with Windows-specific
+ * fallbacks (`where.exe`, mise) and Git Bash discovery. Distinct from
+ * `binaryResolver.ts`, which resolves Cherry's own managed binaries.
+ */
 
-export function runInstallScript(scriptPath: string, extraEnv?: Record<string, string>): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    const installScriptPath = path.join(application.getPath('app.root.resources.scripts'), scriptPath)
-    logger.info(`Running script at: ${installScriptPath}`)
-
-    const nodeProcess = spawn(process.execPath, [installScriptPath], {
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', ...extraEnv }
-    })
-
-    nodeProcess.stdout.on('data', (data) => {
-      logger.debug(`Script output: ${data}`)
-    })
-
-    nodeProcess.stderr.on('data', (data) => {
-      logger.error(`Script error: ${data}`)
-    })
-
-    nodeProcess.on('close', (code) => {
-      if (code === 0) {
-        logger.debug('Script completed successfully')
-        resolve()
-      } else {
-        logger.warn(`Script exited with code ${code}`)
-        reject(new Error(`Process exited with code ${code}`))
-      }
-    })
-  })
-}
-
-export async function getBinaryName(name: string): Promise<string> {
-  if (isWin) {
-    return `${name}.exe`
-  }
-  return name
-}
-
-export async function getBinaryPath(name?: string): Promise<string> {
-  const searchDirs = getBinarySearchDirs()
-  if (!name) {
-    // Legacy: no-arg returns the cherry.bin directory (extract target).
-    return application.getPath('cherry.bin')
-  }
-
-  const binaryName = await getBinaryName(name)
-  for (const dir of searchDirs) {
-    const candidate = path.join(dir, binaryName)
-    if (fs.existsSync(candidate)) {
-      return candidate
-    }
-  }
-  return binaryName
-}
-
-export async function isBinaryExists(name: string): Promise<boolean> {
-  const cmd = await getBinaryPath(name)
-  return fs.existsSync(cmd)
-}
+const logger = loggerService.withContext('Utils:CommandResolver')
 
 // Timeout for command lookup operations (in milliseconds)
 const COMMAND_LOOKUP_TIMEOUT_MS = 5000
@@ -294,10 +239,6 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
   }
 }
 
-// ============================================================================
-// Unified Shell Environment Utilities
-// ============================================================================
-
 /** Timeout for mise operations (in milliseconds) */
 const MISE_TIMEOUT_MS = 5000
 
@@ -410,107 +351,6 @@ export async function findExecutableInEnv(name: string): Promise<string | null> 
   }
 
   return null
-}
-
-/**
- * Spawn a process with proper Windows handling for .cmd files and npm shims.
- * On Windows, .cmd/.bat files need `shell: true` so Node.js delegates quoting
- * to cmd.exe via `/d /s /c "..."`. Manually constructing `cmd.exe /c` args
- * breaks when both the command path and arguments contain spaces (cmd.exe's
- * quote-stripping rule 2 kicks in and mangles the command line).
- */
-export function crossPlatformSpawn(
-  command: string,
-  args: string[],
-  options: SpawnOptions & { env: Record<string, string> }
-): ChildProcess {
-  // Always hide console window on Windows
-  const baseOptions: SpawnOptions = { ...options, windowsHide: true, stdio: options.stdio ?? 'pipe' }
-
-  if (isWin && !command.toLowerCase().endsWith('.exe')) {
-    // When shell: true, Node passes the command to cmd.exe as:
-    //   cmd /d /s /c "command arg1 arg2"
-    // If the command path contains spaces (e.g. C:\Program Files\nodejs\npm.cmd),
-    // cmd.exe splits on the space. Wrapping in quotes fixes this:
-    //   cmd /d /s /c ""C:\Program Files\nodejs\npm.cmd" arg1 arg2"
-    const quotedCommand = command.includes(' ') && !command.startsWith('"') ? `"${command}"` : command
-    return spawn(quotedCommand, args, { ...baseOptions, shell: true })
-  }
-  return spawn(command, args, baseOptions)
-}
-
-/**
- * Decode a Buffer from a shell process.
- * On Chinese Windows, cmd.exe outputs in the OEM code page (typically GBK/CP936).
- * Uses chardet to detect the actual encoding and iconv-lite to decode.
- */
-export function decodeBufferFromShell(buf: Buffer): string {
-  if (!isWin) return buf.toString('utf8')
-  const detected = chardet.detect(buf)
-  if (detected && detected !== 'UTF-8') {
-    try {
-      return iconv.decode(buf, detected)
-    } catch {
-      return buf.toString('utf8')
-    }
-  }
-  return buf.toString('utf8')
-}
-
-/**
- * Execute a command and return its output.
- * Uses crossPlatformSpawn internally for proper Windows .cmd handling.
- * If no env is provided, automatically uses the shell environment.
- */
-export async function executeCommand(
-  command: string,
-  args: string[],
-  options?: {
-    /** Capture and return stdout (default: false) */
-    capture?: boolean
-    /** Environment variables (defaults to getShellEnv()) */
-    env?: Record<string, string>
-    /** Timeout in milliseconds */
-    timeout?: number
-  }
-): Promise<string> {
-  const env = options?.env ?? (await getShellEnv())
-
-  return new Promise<string>((resolve, reject) => {
-    const child = crossPlatformSpawn(command, args, { env })
-    let stdout = ''
-    let stderr = ''
-
-    child.stdout?.on('data', (chunk) => {
-      stdout += chunk.toString()
-    })
-
-    child.stderr?.on('data', (chunk) => {
-      stderr += chunk.toString()
-    })
-
-    let timeoutId: ReturnType<typeof setTimeout> | undefined
-    if (options?.timeout) {
-      timeoutId = setTimeout(() => {
-        child.kill('SIGKILL')
-        reject(new Error(`Command timed out after ${options.timeout}ms`))
-      }, options.timeout)
-    }
-
-    child.on('error', (err) => {
-      if (timeoutId) clearTimeout(timeoutId)
-      reject(err)
-    })
-
-    child.on('close', (code) => {
-      if (timeoutId) clearTimeout(timeoutId)
-      if (code === 0) {
-        resolve(options?.capture ? stdout : '')
-      } else {
-        reject(new Error(stderr || `Command failed with code ${code}`))
-      }
-    })
-  })
 }
 
 /**

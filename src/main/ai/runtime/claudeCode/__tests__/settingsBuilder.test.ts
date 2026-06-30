@@ -137,9 +137,12 @@ vi.mock('@main/utils/language', () => ({
   }
 }))
 
-vi.mock('@main/utils/process', () => ({
-  autoDiscoverGitBash: vi.fn(() => null),
+vi.mock('@main/utils/binaryResolver', () => ({
   getBinaryPath: mocks.getBinaryPath
+}))
+
+vi.mock('@main/utils/commandResolver', () => ({
+  autoDiscoverGitBash: vi.fn(() => null)
 }))
 
 vi.mock('@main/utils/rtk', () => ({

@@ -32,7 +32,7 @@ import { BaseService } from '@main/core/lifecycle'
 // Production resolves ripgrep via BinaryManager (`getBinaryPath('rg')`), which
 // reads cherry.bin / mise shims — neither is populated under vitest. Point it
 // at the test ripgrep binary so real-builder tests spawn an actual ripgrep scan.
-vi.mock('@main/utils/process', async () => {
+vi.mock('@main/utils/binaryResolver', async () => {
   const { tryTestRipgrepPath: tryPath } = await import('./ripgrepTestUtils')
   const resolvedRgPath = tryPath() ?? '/nonexistent/rg'
   return {
