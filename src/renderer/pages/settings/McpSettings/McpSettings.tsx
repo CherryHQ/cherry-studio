@@ -1037,22 +1037,13 @@ const McpSettings: React.FC = () => {
                     </Button>
                   </Flex>
                 </Flex>
-                <Flex className="shrink-0 items-center gap-3">
+                <Flex className="shrink-0 items-center">
                   <Switch
                     checked={server.isActive}
                     key={server.id}
                     loading={loadingServer === server.id}
                     onCheckedChange={onToggleActive}
                   />
-                  <Button
-                    size="sm"
-                    variant="default"
-                    onClick={onSave}
-                    disabled={loading || !isFormChanged || activeTabValue !== 'settings'}
-                    className="rounded-full">
-                    <SaveIcon size={14} />
-                    {t('common.save')}
-                  </Button>
                 </Flex>
               </SettingTitle>
               <SettingDivider className="mb-0" />
@@ -1089,6 +1080,21 @@ const McpSettings: React.FC = () => {
               ))}
             </div>
           </Scrollbar>
+          {activeTabValue === 'settings' && (
+            <div className="shrink-0 border-border/60 border-t px-6 py-3">
+              <div className="mx-auto flex w-full max-w-3xl justify-end">
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={onSave}
+                  disabled={loading || !isFormChanged}
+                  className="rounded-full">
+                  <SaveIcon size={14} />
+                  {t('common.save')}
+                </Button>
+              </div>
+            </div>
+          )}
         </Tabs>
       </SettingContainer>
 
