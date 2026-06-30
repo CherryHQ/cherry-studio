@@ -172,6 +172,15 @@ export function describeHttpRequest(source: 'http' | 'https', args: unknown[]): 
   }
 }
 
+/**
+ * Development-only monitor for network requests initiated by this main-process
+ * JavaScript runtime (`fetch`, Electron `net.fetch`, and Node `http`/`https`).
+ *
+ * Known limitation: traffic emitted by native binaries or child processes is not
+ * visible to these in-process monkey patches. In particular, Claude agent SDK /
+ * Claude Code requests may be performed by the SDK-managed native executable and
+ * therefore do not appear in this panel.
+ */
 @Injectable('MainNetworkDevtoolsService')
 @ServicePhase(Phase.Background)
 @Priority(0)
