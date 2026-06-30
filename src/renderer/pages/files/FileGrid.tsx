@@ -134,13 +134,14 @@ export const FileGrid = memo(function FileGrid({
                 <div className="absolute top-1 right-1 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
                   <Button
                     variant="ghost"
+                    size="icon-sm"
                     onClick={(e) => {
                       e.stopPropagation()
                       onDelete(file.id)
                     }}
                     title={file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')}
-                    className="flex h-5 w-5 items-center justify-center rounded bg-background/80 p-0 text-destructive/70 shadow-sm backdrop-blur transition-colors hover:bg-destructive/10 hover:text-destructive">
-                    <Trash2 size={10} />
+                    className="size-6 min-h-0 rounded bg-background/95 p-0 text-destructive/75 shadow-sm backdrop-blur transition-colors hover:bg-background hover:text-destructive">
+                    <Trash2 className="size-3" />
                   </Button>
                 </div>
               </div>

@@ -116,7 +116,7 @@ describe('FileList', () => {
     expect(onSelect).toHaveBeenCalledWith(file.id)
   })
 
-  it('only shows the row show-in-folder action for external files', () => {
+  it('shows the row show-in-folder action for active files', () => {
     const externalFile: FileItem = {
       ...file,
       id: 'external-file',
@@ -125,7 +125,7 @@ describe('FileList', () => {
 
     const { rerender } = render(<FileList {...fileListProps(null)} files={[file]} />)
 
-    expect(screen.queryByRole('button', { name: 'files.show_in_folder' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'files.show_in_folder' })).toBeInTheDocument()
 
     rerender(<FileList {...fileListProps(null)} files={[externalFile]} />)
 

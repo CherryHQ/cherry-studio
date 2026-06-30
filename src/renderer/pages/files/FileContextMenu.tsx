@@ -61,7 +61,7 @@ function FileContextMenuContent({
   const { t } = useTranslation()
   const canUseFileActions = !file.isMissing
   const canRename = canUseFileActions && showRename
-  const canShowInFolder = canUseFileActions && file.origin === 'external'
+  const canShowInFolder = canUseFileActions
   const hasPrimaryAction = canRename || canShowInFolder
 
   if (isTrash) {

@@ -241,6 +241,7 @@ const FileToolbar = memo(function FileToolbar({
   showSelectionControls,
   selectionControlsDisabled,
   isTrash,
+  showUpload,
   canEmptyTrash,
   selectedCount,
   visibleSelectionState,
@@ -254,6 +255,7 @@ const FileToolbar = memo(function FileToolbar({
   showSelectionControls: boolean
   selectionControlsDisabled: boolean
   isTrash: boolean
+  showUpload: boolean
   canEmptyTrash: boolean
   selectedCount: number
   visibleSelectionState: boolean | 'indeterminate'
@@ -330,7 +332,7 @@ const FileToolbar = memo(function FileToolbar({
           className="h-8 px-2.5 text-destructive/65 text-xs hover:bg-destructive/[0.08] hover:text-destructive disabled:text-muted-foreground/35">
           {t('files.empty_trash')}
         </Button>
-      ) : (
+      ) : showUpload ? (
         <Button
           variant="outline"
           size="sm"
@@ -339,7 +341,7 @@ const FileToolbar = memo(function FileToolbar({
           <Upload size={13} />
           <span>{t('files.upload')}</span>
         </Button>
-      )}
+      ) : null}
     </div>
   )
 })
@@ -490,6 +492,7 @@ function FilesPage() {
   }, [refetchFileStats, refreshActiveFiles, refreshTrashedFiles, resetActiveFiles, resetTrashedFiles])
 
   const isTrash = filter.kind === 'library' && filter.value === 'trash'
+  const showUploadButton = filter.kind === 'library' && filter.value === 'all'
   const isImageGrid = filter.kind === 'type' && filter.value === 'image'
   const hasMoreCurrentFiles = isTrash ? hasMoreTrashedFiles : hasMoreActiveFiles
   const isLoadingMoreActiveFiles = isActiveFilesRefreshing && activeFilePages.length > 0
@@ -910,20 +913,23 @@ function FilesPage() {
             .filter((path): path is string => Boolean(path))
           void handleImportPaths(paths)
         }}>
-        <FileToolbar
-          showSelectionControls={!isImageGrid}
-          selectionControlsDisabled={filteredFiles.length === 0}
-          isTrash={isTrash}
-          canEmptyTrash={filteredFiles.length > 0}
-          selectedCount={selectedIds.size}
-          visibleSelectionState={visibleSelectionState}
-          batchDeleteLabel={batchDeleteLabel}
-          onUpload={() => void handleUploadClick()}
-          onEmptyTrash={handleEmptyTrash}
-          onBatchDelete={() => handleDelete()}
-          onBatchRestore={() => void handleRestore(new Set(selectedIds))}
-          onSelectAll={handleSelectAllVisible}
-        />
+        {!isImageGrid && (
+          <FileToolbar
+            showSelectionControls
+            selectionControlsDisabled={filteredFiles.length === 0}
+            isTrash={isTrash}
+            showUpload={showUploadButton}
+            canEmptyTrash={filteredFiles.length > 0}
+            selectedCount={selectedIds.size}
+            visibleSelectionState={visibleSelectionState}
+            batchDeleteLabel={batchDeleteLabel}
+            onUpload={() => void handleUploadClick()}
+            onEmptyTrash={handleEmptyTrash}
+            onBatchDelete={() => handleDelete()}
+            onBatchRestore={() => void handleRestore(new Set(selectedIds))}
+            onSelectAll={handleSelectAllVisible}
+          />
+        )}
 
         {dragOver && (
           <div className="pointer-events-none absolute inset-0 z-50 m-2 flex items-center justify-center rounded-lg border-2 border-border/50 border-dashed bg-accent/25">

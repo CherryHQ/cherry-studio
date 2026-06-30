@@ -438,6 +438,18 @@ describe('FilesPage file operations', () => {
     })
   })
 
+  it('only shows upload in the all files tab', () => {
+    mockFiles([entry])
+    mockFileStats(statsForEntries([entry]))
+    render(<FilesPage />)
+
+    expect(screen.getByText('files.upload')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('files.image'))
+
+    expect(screen.queryByText('files.upload')).not.toBeInTheDocument()
+  })
+
   it('selects all visible files from the header checkbox and exposes batch delete', async () => {
     const secondEntry = { ...entry, id: 'file-2', name: 'notes' } as unknown as FileEntry
     renderFilesPage([entry, secondEntry])
@@ -901,6 +913,8 @@ describe('FilesPage file operations', () => {
     expect(await screen.findByAltText('photo.png')).toBeInTheDocument()
     expect(screen.queryByLabelText('files.select_all_short')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('files.select_file')).not.toBeInTheDocument()
+    expect(screen.queryByText('files.upload')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('files.actions')).not.toBeInTheDocument()
 
     fireEvent.contextMenu(screen.getByAltText('photo.png'))
     fireEvent.click(screen.getByText('files.rename'))

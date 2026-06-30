@@ -134,7 +134,7 @@ export const FileList = memo(function FileList({
         const canRestore = isTrash && canUseFileActions
         const canOpen = !isTrash && canUseFileActions
         const canRename = !isTrash && canUseFileActions
-        const canShowInFolder = !isTrash && canUseFileActions && file.origin === 'external'
+        const canShowInFolder = !isTrash && canUseFileActions
         const deleteLabel = isTrash
           ? t('files.permanent_delete')
           : file.origin === 'external'
@@ -241,7 +241,7 @@ export const FileList = memo(function FileList({
                       e.stopPropagation()
                       onShowInFolder(file.id)
                     }}>
-                    <FolderOpen size={12} />
+                    <FolderOpen size={14} />
                   </Button>
                 ) : (
                   renderActionPlaceholder('location')
