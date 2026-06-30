@@ -154,6 +154,33 @@ describe('useProviderAutoModelSync', () => {
     expect(syncProviderModelsMock).not.toHaveBeenCalled()
   })
 
+  it('auto-syncs a registry-sourced login provider that has no api keys', async () => {
+    // claude-code / codex / grok-cli carry no API key; their models come from the
+    // shipped registry catalog, so sync must run despite the empty key list and
+    // materialize models into user_model after login.
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'claude-code',
+        isEnabled: false,
+        modelListSource: 'registry',
+        defaultChatEndpoint: 'anthropic_messages',
+        endpointConfigs: {
+          anthropic_messages: { baseUrl: 'https://api.anthropic.com' }
+        }
+      },
+      updateProvider: updateProviderMock
+    })
+    useProviderApiKeysMock.mockReturnValue({
+      data: { keys: [] }
+    })
+    syncProviderModelsMock.mockResolvedValueOnce([{ id: 'claude-code::claude-sonnet' }])
+
+    renderHook(() => useProviderAutoModelSync('claude-code'))
+
+    await waitFor(() => expect(syncProviderModelsMock).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: true }))
+  })
+
   it('logs auto sync failures and allows retrying when the same signature becomes eligible again', async () => {
     const syncError = new Error('sync down')
     syncProviderModelsMock.mockRejectedValueOnce(syncError).mockResolvedValueOnce([])
