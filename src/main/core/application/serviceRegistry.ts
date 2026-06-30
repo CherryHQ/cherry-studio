@@ -14,6 +14,7 @@ import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
 import { ClaudeCodeTraceBridgeService, NodeTraceService, TraceStorageService } from '@main/ai/observability'
 import { ClaudeCodeWarmQueryManager } from '@main/ai/runtime/claudeCode'
 import { AiStreamManager } from '@main/ai/streamManager'
+import { MainNetworkDevtoolsService } from '@main/core/devtools/MainNetworkDevtoolsService'
 import { JobManager } from '@main/core/job/JobManager'
 import type { ServiceConstructor } from '@main/core/lifecycle'
 import { PowerService } from '@main/core/power/PowerService'
@@ -72,6 +73,7 @@ import { WebviewService } from '@main/services/WebviewService'
  * Value = service class constructor
  */
 export const services = {
+  MainNetworkDevtoolsService,
   WindowManager,
   DbService,
   CacheService,

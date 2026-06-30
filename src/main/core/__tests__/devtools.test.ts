@@ -54,28 +54,36 @@ describe('installDevtoolsExtensions', () => {
     vi.clearAllMocks()
     platformMock.isDev = true
     installExtensionMock.mockResolvedValue('React Developer Tools')
-    loadExtensionMock.mockResolvedValue({ name: 'DataApi DevTools' })
+    loadExtensionMock.mockImplementation((path: string) =>
+      Promise.resolve({ name: path.endsWith('/main-network') ? 'Main Network DevTools' : 'DataApi DevTools' })
+    )
   })
 
-  it('installs React and DataApi devtools in development', async () => {
+  it('installs React and bundled Cherry devtools in development', async () => {
     await installDevtoolsExtensions()
 
     expect(installExtensionMock).toHaveBeenCalledWith('react-devtools')
     expect(loadExtensionMock).toHaveBeenCalledWith('/mock/app.root.resources/devtools/data-api')
+    expect(loadExtensionMock).toHaveBeenCalledWith('/mock/app.root.resources/devtools/main-network')
     expect(loggerMock.info).toHaveBeenCalledWith('Added Extension: React Developer Tools')
     expect(loggerMock.info).toHaveBeenCalledWith('Added Extension: DataApi DevTools')
+    expect(loggerMock.info).toHaveBeenCalledWith('Added Extension: Main Network DevTools')
   })
 
   it('logs install failures without throwing', async () => {
     const reactError = new Error('react failed')
     const dataApiError = new Error('data api failed')
+    const mainNetworkError = new Error('main network failed')
     installExtensionMock.mockRejectedValue(reactError)
-    loadExtensionMock.mockRejectedValue(dataApiError)
+    loadExtensionMock.mockImplementation((path: string) =>
+      Promise.reject(path.endsWith('/main-network') ? mainNetworkError : dataApiError)
+    )
 
     await expect(installDevtoolsExtensions()).resolves.toBeUndefined()
 
     expect(loggerMock.error).toHaveBeenCalledWith('Failed to install React Developer Tools extension', reactError)
     expect(loggerMock.error).toHaveBeenCalledWith('Failed to install DataApi DevTools extension', dataApiError)
+    expect(loggerMock.error).toHaveBeenCalledWith('Failed to install Main Network DevTools extension', mainNetworkError)
   })
 
   it('is a no-op outside development', async () => {
