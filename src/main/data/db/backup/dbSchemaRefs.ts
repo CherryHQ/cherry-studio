@@ -38,6 +38,11 @@ export interface ForeignKeyFact {
   readonly onDelete: 'cascade' | 'restrict' | 'set null' | 'no action' | 'set default'
 }
 
+/** A UNIQUE constraint/index as a column set (order-insensitive). */
+export interface UniqueKeyFact {
+  readonly columns: readonly DbColumnName[]
+}
+
 // Compile-time validation helpers. table('x')/column<'t'>('c') fail tsc when the
 // literal is not a known table/column, so typos surface at compile time.
 export function table<T extends DbTableName>(literal: T): T {
@@ -48,6 +53,15 @@ export function column<T extends DbTableName>(literal: DbColumnName<T>): DbColum
 }
 export function columns<T extends DbTableName>(literals: readonly DbColumnName<T>[]): readonly DbColumnName<T>[] {
   return literals
+}
+// Mirror a codegen PK fact for a table whose contributor knows its PK is
+// unambiguous, forcing ambiguous:false (overrides the H4/H5 heuristic). The single
+// shared replacement for the per-file `pk()` helper previously duplicated across
+// contributors. Forward-references DB_PRIMARY_KEYS (defined below) — safe because
+// mirrorPk is only ever called at contributor-module load, after this module fully
+// evaluates.
+export function mirrorPk(t: DbTableName): PrimaryKeyFact {
+  return { ...DB_PRIMARY_KEYS[t], ambiguous: false as const }
 }
 
 // 1. Business tables discovered via sqliteTable() calls. Excludes
@@ -736,7 +750,51 @@ export const DB_FOREIGN_KEYS = {
   user_provider: []
 } as const satisfies Readonly<Record<DbTableName, readonly ForeignKeyFact[]>>
 
-// 3c. FTS5 virtual tables (content-table mapping). Keys are the FTS virtual table
+// 3c. Unique-key facts — every UNIQUE constraint/index, as column sets, so finalize
+//     #13 can verify a natural-key aggregate's identityKey is genuinely unique
+//     (cross-device identity). Aggregates three schema sources: uniqueIndex(),
+//     table-level unique().on(...), and inline column .unique() (the last is
+//     invisible to the first two — only column.isUnique exposes it). Partial unique
+//     indexes (WHERE) are excluded — not a cross-device identity guarantee.
+export const DB_UNIQUE_KEYS = {
+  agent: [],
+  agent_channel: [],
+  agent_channel_task: [],
+  agent_global_skill: [{ columns: ['folderName'] }],
+  agent_mcp_server: [],
+  agent_session: [],
+  agent_session_message: [{ columns: ['ftsRowid'] }],
+  agent_skill: [],
+  agent_workspace: [{ columns: ['path'] }],
+  app_state: [],
+  assistant: [],
+  assistant_knowledge_base: [],
+  assistant_mcp_server: [],
+  entity_tag: [],
+  file_entry: [],
+  file_ref: [{ columns: ['fileEntryId', 'sourceType', 'sourceId', 'role'] }],
+  group: [],
+  job: [],
+  job_schedule: [{ columns: ['type', 'name'] }],
+  knowledge_base: [],
+  knowledge_item: [{ columns: ['baseId', 'id'] }],
+  mcp_server: [],
+  message: [{ columns: ['ftsRowid'] }],
+  mini_app: [],
+  note: [{ columns: ['rootPath', 'path'] }],
+  painting: [],
+  pin: [{ columns: ['entityType', 'entityId'] }],
+  preference: [],
+  prompt: [],
+  tag: [{ columns: ['name'] }],
+  topic: [],
+  translate_history: [],
+  translate_language: [],
+  user_model: [{ columns: ['providerId', 'modelId'] }],
+  user_provider: []
+} as const satisfies Readonly<Record<DbTableName, readonly UniqueKeyFact[]>>
+
+// 3d. FTS5 virtual tables (content-table mapping). Keys are the FTS virtual table
 //     names (not in DB_TABLES, in ALWAYS_STRIP); values are content tables (in
 //     DB_TABLES). Parsed from the *_FTS_STATEMENTS content= clauses.
 export const DB_FTS_VIRTUAL_TABLES = {
@@ -746,6 +804,6 @@ export const DB_FTS_VIRTUAL_TABLES = {
 
 // 5. Generation metadata for diagnostics. Excluded from byte-for-byte CHECK.
 export const BACKUP_REFS_META = {
-  generatedAt: '2026-06-29T14:30:50.654Z',
-  schemaCommit: 'c469793ddf'
+  generatedAt: '2026-06-30T09:25:08.171Z',
+  schemaCommit: '4b3b1a58e0'
 } as const
