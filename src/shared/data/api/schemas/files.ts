@@ -18,7 +18,7 @@
  * - `GET /files/entries`            — FileEntry list (fixed shape)
  * - `GET /files/entries/:id`        — Single entry lookup (fixed shape)
  * - `GET /files/entries/stats`      — Pure-SQL aggregate counts for sidebar filters
- * - `GET /files/entries/ref-counts` — Pure-SQL ref-count aggregation for a batch of ids
+ * - `GET /files/entries/ref-counts` — Ref-count aggregation for a batch of ids (persistent SQL refs + temp-session cache refs)
  * - `GET /files/entries/:id/refs`   — File references for a specific entry
  * - `GET /files/refs`               — File references filtered by business source
  *
@@ -31,7 +31,7 @@
  *
  * | Former opt-in       | Current home                                                           |
  * |---------------------|------------------------------------------------------------------------|
- * | `includeRefCount`   | `GET /files/entries/ref-counts?entryIds=...` (still DataApi, dedicated)|
+ * | `includeRefCount`   | `GET /files/entries/ref-counts?entryIds=...` (DataApi; persistent refs + temp-session cache refs) |
  * | `includeDangling`   | File IPC `getDanglingState` / `batchGetDanglingStates` (FS-backed)     |
  * | `includePath`       | File IPC `getPhysicalPath` / `batchGetPhysicalPaths` (main resolver)   |
  * | `includeUrl`        | Shared pure helper `toSafeFileUrl(path, ext)` in `@shared/utils/file/url`, composed in-process from the `FilePath` returned by `getPhysicalPath` (no dedicated IPC) |
@@ -198,8 +198,9 @@ export type FileSchemas = {
   /**
    * Batch ref-count aggregation for a set of entry ids.
    *
-   * Pure SQL (`COUNT(*) ... GROUP BY fileEntryId`). Each requested id appears in the
-   * response — entries with zero refs return `refCount = 0` rather than being omitted.
+   * Counts persistent SQL association-table refs (`COUNT(*) ... GROUP BY fileEntryId`)
+   * and then merges CacheService-backed temp-session refs. Each requested id appears
+   * in the response — entries with zero refs return `refCount = 0` rather than being omitted.
    *
    * @example GET /files/entries/ref-counts?entryIds=abc123,def456
    */

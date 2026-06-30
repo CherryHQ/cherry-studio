@@ -182,7 +182,7 @@ reindexItems(baseId, itemIds)
 
 User-triggered reindex is intentionally an offline rebuild of an existing subtree, not a cancellation or preemption primitive.
 
-Allowing reindex while a subtree is still `preparing`, `processing`, `reading`, or `embedding` would force `reindex-subtree` to coordinate with active indexing and expansion jobs. That reintroduces cancellation races: old jobs may still be reading, writing vectors, attaching refs, or expanding children while the reindex job is deleting vectors and resetting rows.
+Allowing reindex while a subtree is still `preparing`, `processing`, `reading`, or `embedding` would force `reindex-subtree` to coordinate with active indexing and expansion jobs. That reintroduces cancellation races: old jobs may still be reading sources, writing vectors, recording indexed paths, or expanding children while the reindex job is deleting vectors and resetting rows.
 
 The simpler rule is:
 
@@ -199,7 +199,7 @@ The reindex job owns the destructive and stateful work:
 
 - clear vectors for resolved leaf items;
 - delete previous container descendants when selected roots are containers;
-- keep selected leaf root file refs because those root items still own their source files;
+- keep selected leaf root source-file metadata because those root items still own their source files;
 - skip if the target subtree became `deleting` after the entrypoint guard;
 - reset subtree item state;
 - call `scheduleItem` for each selected root.
@@ -241,7 +241,7 @@ knowledge.prepare-root(baseId, itemId)
        find previous descendants
        ignore descendants already deleting
        clear vectors for removable leaf descendants
-       detach file refs for removable descendants
+       purge Knowledge-owned raw/indexed files for removable leaf descendants
        delete removable descendants by resolved id
   -> under same-base mutation lock:
        re-read root and skip if it is now missing or deleting
@@ -254,7 +254,7 @@ knowledge.prepare-root(baseId, itemId)
          rethrow
 ```
 
-The stale expansion cleanup clears vectors and file refs before deleting resolved descendant rows so a retry does not leave stale vectors or file refs from a previous partial expansion.
+The stale expansion cleanup clears derived vector material and purges Knowledge-owned raw/indexed files for removable leaf descendants before deleting resolved descendant rows, so a retry does not leave stale vectors or stale Knowledge-owned files from a previous partial expansion.
 
 The second root read closes the race where `prepare-root` loads an active root, then a delete request marks that root `deleting` before expansion starts. Once a root is deleting, no new children may be created under it.
 
