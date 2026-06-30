@@ -95,7 +95,7 @@ function getFilePreviewTitle(filePath: string): string {
 }
 
 function isFramedFilePreview(filePath: string): boolean {
-  return /\.(html?|pdf)$/i.test(filePath)
+  return /\.(html?|pdf)$/i.test(filePath) || isOfficeDocumentFile(filePath)
 }
 
 interface AgentFlowTab {
@@ -133,6 +133,7 @@ interface AgentRightPaneState {
   fileTreeOpen: boolean
   fileTreeExpandedIds: ReadonlySet<string>
   fileTreeSearchKeyword: string
+  workspaceId?: string
   workspacePath?: string
 }
 
@@ -161,6 +162,7 @@ interface AgentRightPaneProviderProps extends AgentRightPaneMeta {
   defaultOpen?: boolean
   /** Persist open state across the per-branch Shell remount (draft→persistent handoff). */
   onOpenChange?: (open: boolean) => void
+  workspaceId?: string
   workspacePath?: string
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
@@ -180,6 +182,7 @@ export function useAgentRightPaneActions(): AgentRightPaneActions {
 
 function AgentRightPaneStateProvider({
   children,
+  workspaceId,
   workspacePath,
   messages,
   partsByMessageId,
@@ -201,7 +204,8 @@ function AgentRightPaneStateProvider({
   const [fileTreeOpen, setFileTreeOpen] = useState(false)
   const [fileTreeExpandedIds, setFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
-  const previousWorkspacePathRef = useRef(workspacePath)
+  const workspaceKey = `${workspaceId ?? ''}\0${workspacePath ?? ''}`
+  const previousWorkspaceKeyRef = useRef(workspaceKey)
 
   const activeFlowToolCallId = getFlowToolCallId(activeTab)
   const activeFlowTab = activeFlowToolCallId
@@ -243,14 +247,14 @@ function AgentRightPaneStateProvider({
   )
 
   useEffect(() => {
-    if (previousWorkspacePathRef.current === workspacePath) return
-    previousWorkspacePathRef.current = workspacePath
+    if (previousWorkspaceKeyRef.current === workspaceKey) return
+    previousWorkspaceKeyRef.current = workspaceKey
     setSelectedFile(null)
     setFilePreview(null)
     setFileTreeExpandedIds(new Set())
     setFileTreeSearchKeyword('')
     if (activeTab === FILE_PREVIEW_TAB) openTab('files')
-  }, [activeTab, openTab, workspacePath])
+  }, [activeTab, openTab, workspaceKey])
   const closeFilePreview = useCallback(() => {
     if (activeTab === FILE_PREVIEW_TAB) openTab('files')
     setFilePreview(null)
@@ -275,6 +279,7 @@ function AgentRightPaneStateProvider({
         fileTreeOpen,
         fileTreeExpandedIds,
         fileTreeSearchKeyword,
+        workspaceId,
         workspacePath
       },
       actions: {
@@ -322,6 +327,7 @@ function AgentRightPaneStateProvider({
       statusEnabled,
       status,
       traceId,
+      workspaceId,
       workspacePath
     ]
   )

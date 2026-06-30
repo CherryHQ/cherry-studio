@@ -1,7 +1,7 @@
 import 'pdfjs-dist/web/pdf_viewer.css'
 
+import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { EmptyState, LoadingState } from '@renderer/components/chat'
 import { AlertCircle } from 'lucide-react'
 import { getDocument, GlobalWorkerOptions, type PDFDocumentLoadingTask, type PDFDocumentProxy } from 'pdfjs-dist'
 // oxlint-disable-next-line import/default -- Vite exposes ?url imports as default asset URLs.
@@ -10,7 +10,7 @@ import { EventBus, PDFLinkService, PDFViewer } from 'pdfjs-dist/web/pdf_viewer.m
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import DocumentPreviewToolbar from './DocumentPreviewToolbar'
+import DocumentPreviewToolbar from '../DocumentPreviewToolbar'
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
@@ -58,13 +58,6 @@ const resolveThemeBackground = (element: HTMLElement | null): string | null => {
   return isEffectiveBackground(backgroundColor) ? backgroundColor : null
 }
 
-const toPdfData = (data: unknown): Uint8Array => {
-  if (data instanceof Uint8Array) return data
-  if (data instanceof ArrayBuffer) return new Uint8Array(data)
-  if (ArrayBuffer.isView(data)) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
-  return data as Uint8Array
-}
-
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
 
 const formatPdfZoom = (scale: number) => `${Math.round(scale * 100)}%`
@@ -82,6 +75,13 @@ const normalizePinchWheelDelta = (event: WheelEvent): number => {
 
 const detachDocument = (viewer: PdfJsViewer) => {
   ;(viewer.setDocument as (pdfDocument: PDFDocumentProxy | null) => void)(null)
+}
+
+const toPdfData = (data: unknown): Uint8Array => {
+  if (data instanceof Uint8Array) return data
+  if (data instanceof ArrayBuffer) return new Uint8Array(data)
+  if (ArrayBuffer.isView(data)) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
+  return data as Uint8Array
 }
 
 const PdfPreviewPanel = ({ filePath, fileName, refreshKey }: PdfPreviewPanelProps) => {
@@ -215,10 +215,10 @@ const PdfPreviewPanel = ({ filePath, fileName, refreshKey }: PdfPreviewPanelProp
 
     void (async () => {
       try {
-        const data = toPdfData(await window.api.fs.read(filePath))
+        const pdfData = toPdfData(await window.api.fs.read(filePath))
         if (cancelled) return
 
-        loadingTask = getDocument({ data })
+        loadingTask = getDocument({ data: pdfData })
         const nextDocument = await loadingTask.promise
         if (cancelled) {
           void nextDocument.destroy()
@@ -418,7 +418,10 @@ const PdfPreviewPanel = ({ filePath, fileName, refreshKey }: PdfPreviewPanelProp
   if (loading) {
     return (
       <div className="flex h-full w-full items-center justify-center bg-background">
-        <LoadingState label={t('common.loading')} />
+        <div className="flex items-center gap-2 text-muted-foreground text-sm">
+          <span className="size-4 animate-spin rounded-full border border-muted-foreground/30 border-t-muted-foreground" />
+          <span>{t('common.loading')}</span>
+        </div>
       </div>
     )
   }

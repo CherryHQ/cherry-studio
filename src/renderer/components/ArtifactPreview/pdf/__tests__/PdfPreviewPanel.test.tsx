@@ -163,14 +163,19 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat', () => ({
+vi.mock('@cherrystudio/ui', () => ({
+  Button: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'button'>>) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
   EmptyState: ({ title, description }: { title: string; description?: string }) => (
     <div data-testid="empty-state">
       <span>{title}</span>
       <span>{description}</span>
     </div>
   ),
-  LoadingState: ({ label }: { label?: string }) => <div data-testid="loading-state">{label}</div>
+  Tooltip: ({ children }: PropsWithChildren<{ content: string }>) => <>{children}</>
 }))
 
 vi.mock('react-i18next', () => ({
@@ -211,6 +216,12 @@ describe('PdfPreviewPanel', () => {
     mocks.pdfDocument.numPages = 1
     document.documentElement.style.setProperty('--color-background', 'rgb(10, 11, 12)')
 
+    mocks.pdfDocument.destroy = mocks.pdfDocumentDestroy
+    mocks.fsRead.mockResolvedValue(new Uint8Array([0x25, 0x50, 0x44, 0x46]))
+    mocks.getDocument.mockReturnValue({
+      destroy: mocks.loadingTaskDestroy,
+      promise: Promise.resolve(mocks.pdfDocument)
+    })
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
@@ -218,13 +229,6 @@ describe('PdfPreviewPanel', () => {
           read: mocks.fsRead
         }
       }
-    })
-
-    mocks.pdfDocument.destroy = mocks.pdfDocumentDestroy
-    mocks.fsRead.mockResolvedValue(new Uint8Array([1, 2, 3]))
-    mocks.getDocument.mockReturnValue({
-      destroy: mocks.loadingTaskDestroy,
-      promise: Promise.resolve(mocks.pdfDocument)
     })
   })
 
@@ -248,7 +252,7 @@ describe('PdfPreviewPanel', () => {
       position: 'absolute'
     })
     expect(mocks.fsRead).toHaveBeenCalledWith('/tmp/workspace/paper.pdf')
-    expect(mocks.getDocument).toHaveBeenCalledWith({ data: new Uint8Array([1, 2, 3]) })
+    expect(mocks.getDocument).toHaveBeenCalledWith({ data: new Uint8Array([0x25, 0x50, 0x44, 0x46]) })
     expect(mocks.pdfViewerConstructor).toHaveBeenCalledWith(
       expect.objectContaining({
         container: viewerContainer,

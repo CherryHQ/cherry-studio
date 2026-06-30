@@ -2,6 +2,7 @@ import { Button, Markdown, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePersistCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
+import OfficePreviewPanel from '@renderer/components/ArtifactPreview/office/OfficePreviewPanel'
 import { EmptyState, LoadingState } from '@renderer/components/chat'
 import HtmlPreviewFrame from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
 import CodeViewer from '@renderer/components/CodeViewer'
@@ -20,7 +21,6 @@ import { AnimatePresence, motion } from 'motion/react'
 import {
   type ComponentType,
   type MouseEvent as ReactMouseEvent,
-  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -71,10 +71,10 @@ interface ArtifactFilePreviewProps {
   filePath?: string | null
   isText: IsTextState
   fileSize: FileSizeState
-  officeActions?: ReactNode
   pdfLayoutPending?: boolean
   pdfLayoutRefreshKey?: number
   contentRefreshKey?: number
+  onOpenExternal?: () => void
 }
 
 /** Files above this size skip text preview (and `readText`) — Shiki tokenize gets unusable past ~2MB. */
@@ -86,7 +86,7 @@ const ARTIFACT_PREVIEW_MAX_SIZE_LABEL = '2 MB'
 const MARKDOWN_EXT = new Set(['.md', '.mdx', '.markdown'])
 const HTML_EXT = new Set(['.html', '.htm'])
 const PDF_EXT = new Set(['.pdf'])
-const OFFICE_DOCUMENT_EXT = new Set(['.doc', '.docx', '.xls', '.xlsx', '.xlsm', '.ppt', '.pptx'])
+const OFFICE_DOCUMENT_EXT = new Set(['.doc', '.docx', '.ppt', '.pptx'])
 
 const extOf = (name: string): string => {
   const dot = name.lastIndexOf('.')
@@ -253,7 +253,7 @@ type PdfPreviewPanelComponent = ComponentType<{
 let pdfPreviewPanelPromise: Promise<PdfPreviewPanelComponent> | null = null
 
 const loadPdfPreviewPanel = () => {
-  pdfPreviewPanelPromise ??= import('./PdfPreviewPanel')
+  pdfPreviewPanelPromise ??= import('@renderer/components/ArtifactPreview/pdf/PdfPreviewPanel')
     .then((module) => module.default)
     .catch((err: unknown) => {
       pdfPreviewPanelPromise = null
@@ -383,10 +383,10 @@ export function ArtifactFilePreview({
   filePath,
   isText,
   fileSize,
-  officeActions,
   pdfLayoutPending = false,
   pdfLayoutRefreshKey = 0,
-  contentRefreshKey = 0
+  contentRefreshKey = 0,
+  onOpenExternal
 }: ArtifactFilePreviewProps) {
   const { t } = useTranslation()
   const [fileContent, setFileContent] = useState<string | null>(null)
@@ -541,13 +541,15 @@ export function ArtifactFilePreview({
     )
   }
   if (isOfficeDocumentPreview) {
-    const extension = extOf(filePath).replace(/^\./, '')
     return (
-      <EmptyState
-        icon={FileText}
-        title={t('agent.preview_pane.office.title', { extension })}
-        description={t('agent.preview_pane.office.description')}
-        actions={officeActions}
+      <OfficePreviewPanel
+        filePath={filePath}
+        fileName={filePath}
+        sourceFilePath={joinPath(workspacePath, filePath)}
+        sourceSize={fileSize.status === 'ok' ? fileSize.size : undefined}
+        className="min-h-0"
+        refreshKey={contentRefreshKey}
+        onOpenExternal={onOpenExternal}
       />
     )
   }
@@ -789,13 +791,14 @@ const ArtifactPane = ({
 
   const handleRefresh = useCallback(() => {
     refresh()
-    if (workspacePath && selectedFile && isText === 'text') {
+    if (workspacePath && selectedFile && (isText === 'text' || isOfficeDocumentSelection)) {
       setContentRefreshToken((v) => v + 1)
     }
-  }, [refresh, selectedFile, workspacePath, isText])
+  }, [refresh, selectedFile, workspacePath, isText, isOfficeDocumentSelection])
 
   const isSelectedHtmlPreview = selectedFile ? isHtmlFile(selectedFile) : false
   const isSelectedPdfPreview = isPdfSelection
+  const isSelectedOfficePreview = isOfficeDocumentSelection
   const openableFilePath = isOfficeDocumentSelection ? selectedFile : null
 
   const maximizeLabel = t(maximized ? 'agent.preview_pane.minimize' : 'agent.preview_pane.maximize')
@@ -952,7 +955,9 @@ const ArtifactPane = ({
             data-artifact-right-pane
             className={cn(
               'min-h-0 min-w-0 flex-1',
-              isSelectedHtmlPreview || isSelectedPdfPreview ? 'overflow-hidden' : 'overflow-auto',
+              isSelectedHtmlPreview || isSelectedPdfPreview || isSelectedOfficePreview
+                ? 'overflow-hidden'
+                : 'overflow-auto',
               isFileTreeResizing && 'pointer-events-none'
             )}>
             {renderRight()}

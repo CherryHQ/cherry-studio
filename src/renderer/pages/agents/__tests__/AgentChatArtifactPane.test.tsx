@@ -242,20 +242,24 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
     ArtifactFilePreview: ({
       workspacePath,
       filePath,
-      officeActions
+      onOpenExternal
     }: {
       workspacePath?: string
       filePath?: string | null
-      officeActions?: ReactNode
+      onOpenExternal?: () => void
     }) => (
       <div
         data-testid="artifact-file-preview"
         data-workspace-path={workspacePath ?? ''}
         data-file-path={filePath ?? ''}>
-        {officeActions}
+        {onOpenExternal && (
+          <button type="button" onClick={onOpenExternal}>
+            open external preview
+          </button>
+        )}
       </div>
     ),
-    isOfficeDocumentFile: (filePath: string) => /\.(?:docx?|xlsx?|xlsm|pptx?)$/i.test(filePath),
+    isOfficeDocumentFile: (filePath: string) => /\.(?:docx?|pptx?)$/i.test(filePath),
     normalizeArtifactPaneFilePath: (workspacePath: string, rawPath: string) =>
       rawPath.startsWith(`${workspacePath}/`) ? rawPath.slice(workspacePath.length + 1) : rawPath,
     resolveArtifactPaneFileSelection: (workspacePath: string | undefined, rawPath: string) => {
@@ -271,14 +275,6 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
     default: MockArtifactPane
   }
 })
-
-vi.mock('@renderer/components/chat/panes/OpenExternalAppButton', () => ({
-  default: ({ workdir, filePath }: { workdir: string; filePath?: string | null }) => (
-    <button type="button" data-testid="open-external-app-button" data-workdir={workdir} data-file-path={filePath ?? ''}>
-      open external app
-    </button>
-  )
-}))
 
 vi.mock('@renderer/components/chat/trace/TracePane', () => ({
   TracePane: ({ payload }: { payload: { topicId: string; traceId: string; modelName?: string } | null }) => (
@@ -374,14 +370,26 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
 const activeSessionMocks = vi.hoisted(() => ({
   result: {
     activeSessionId: 'session-1',
-    session: { id: 'session-1', agentId: 'agent-1', traceId: 'trace-a', workspace: { path: '/tmp/workspace' } },
+    session: {
+      id: 'session-1',
+      agentId: 'agent-1',
+      traceId: 'trace-a',
+      workspaceId: 'workspace-1',
+      workspace: { path: '/tmp/workspace' }
+    },
     isLoading: false,
     sessionSource: 'query',
     setActiveSessionId: vi.fn()
   } as {
     activeSessionId: string | null
     session:
-      | { id: string; agentId: string | null; traceId?: string | null; workspace: { path: string } | null }
+      | {
+          id: string
+          agentId: string | null
+          traceId?: string | null
+          workspaceId?: string
+          workspace: { path: string } | null
+        }
       | undefined
     isLoading: boolean
     sessionSource?: 'query' | 'pending' | 'none'
@@ -533,7 +541,13 @@ describe('AgentChat artifact pane', () => {
     })
     activeSessionMocks.result = {
       activeSessionId: 'session-1',
-      session: { id: 'session-1', agentId: 'agent-1', traceId: 'trace-a', workspace: { path: '/tmp/workspace' } },
+      session: {
+        id: 'session-1',
+        agentId: 'agent-1',
+        traceId: 'trace-a',
+        workspaceId: 'workspace-1',
+        workspace: { path: '/tmp/workspace' }
+      },
       isLoading: false,
       setActiveSessionId: vi.fn()
     }
@@ -546,6 +560,7 @@ describe('AgentChat artifact pane', () => {
           }
         },
         file: {
+          openPath: vi.fn(),
           isTextFile: vi.fn().mockResolvedValue(true),
           getMetadata: vi.fn().mockResolvedValue({ kind: 'file', size: 1024 })
         }
@@ -890,7 +905,7 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', '')
   })
 
-  it('opens Excel file paths in an ordinary file preview tab without text sniffing', () => {
+  it('opens Excel file paths in an ordinary file preview tab with normal file sniffing', async () => {
     const isTextFile = vi.mocked(window.api.file.isTextFile)
 
     renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
@@ -902,9 +917,18 @@ describe('AgentChat artifact pane', () => {
     expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
     expect(screen.getByTestId('artifact-file-preview')).toHaveAttribute('data-file-path', 'report.xlsx')
     expect(screen.getByTestId('artifact-file-preview').parentElement).toHaveClass('overflow-auto')
-    expect(screen.getByTestId('open-external-app-button')).toHaveAttribute('data-workdir', '/tmp/workspace')
-    expect(screen.getByTestId('open-external-app-button')).toHaveAttribute('data-file-path', 'report.xlsx')
-    expect(isTextFile).not.toHaveBeenCalledWith('/tmp/workspace/report.xlsx')
+    await waitFor(() => expect(isTextFile).toHaveBeenCalledWith('/tmp/workspace/report.xlsx'))
+  })
+
+  it('lets the separate file preview tab open its file in the default app', () => {
+    const openPath = vi.mocked(window.api.file.openPath)
+
+    renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'open excel artifact file' }))
+    fireEvent.click(screen.getByRole('button', { name: 'open external preview' }))
+
+    expect(openPath).toHaveBeenCalledWith('/tmp/workspace/report.xlsx')
   })
 
   it('opens absolute file paths outside the workspace in a separate file preview tab', () => {
