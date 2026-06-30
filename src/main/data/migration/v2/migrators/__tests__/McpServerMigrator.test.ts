@@ -176,6 +176,18 @@ describe('McpServerMigrator', () => {
       expect(result).toStrictEqual({ success: true, processedCount: 0 })
     })
 
+    it('should publish an empty id mapping when there are no servers', async () => {
+      // AssistantMigrator throws if mcpServerIdMapping is absent while assistants
+      // still reference (now-deleted) servers. Publishing an empty map lets it
+      // drop those dangling refs instead of failing the whole migration.
+      const ctx = createMockContext({ mcp: { servers: [] } })
+      await migrator.prepare(ctx as any)
+      await migrator.execute(ctx as any)
+      const mapping = ctx.sharedData.get('mcpServerIdMapping')
+      expect(mapping).toBeInstanceOf(Map)
+      expect((mapping as Map<string, string>).size).toBe(0)
+    })
+
     it('should return failure when transaction throws', async () => {
       const ctx = createMockContext({ mcp: { servers: SAMPLE_SERVERS } })
       ctx.db.transaction = vi.fn().mockRejectedValue(new Error('SQLITE_CONSTRAINT'))
