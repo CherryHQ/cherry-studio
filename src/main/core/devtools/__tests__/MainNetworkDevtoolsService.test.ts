@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events'
 import { BaseService } from '@main/core/lifecycle'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import WebSocket from 'ws'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -186,6 +187,29 @@ describe('MainNetworkDevtoolsService helpers', () => {
     expect(isMainNetworkDevtoolsOriginAllowed('chrome-extension://other-id')).toBe(false)
   })
 
+  it('enforces the registered DevTools extension origin on live websocket connections', async () => {
+    registerMainNetworkDevtoolsOrigin('chrome-extension://main-network-id')
+
+    const service = new MainNetworkDevtoolsService()
+    const serviceState = service as unknown as {
+      startWebSocketServer: (port?: number) => Promise<number>
+    }
+    const port = await serviceState.startWebSocketServer(0)
+
+    try {
+      await expect(waitForRejectedSocket(port, 'https://evil.example')).resolves.toBe(1008)
+
+      const { socket, message } = await openSocketWithMessage(port, 'chrome-extension://main-network-id')
+      try {
+        expect(message).toEqual({ type: 'snapshot', events: [] })
+      } finally {
+        socket.close()
+      }
+    } finally {
+      await service._doStop()
+    }
+  })
+
   it('does not attach a data listener when observing Node http responses', () => {
     const service = new MainNetworkDevtoolsService()
     const serviceState = service as unknown as {
@@ -246,6 +270,61 @@ describe('MainNetworkDevtoolsService helpers', () => {
     expect(getMainNetworkDevtoolsPort()).toBe(38997)
   })
 })
+
+function openSocketWithMessage(port: number, origin: string): Promise<{ socket: WebSocket; message: unknown }> {
+  return new Promise((resolve, reject) => {
+    const socket = new WebSocket(`ws://127.0.0.1:${port}/`, { headers: { Origin: origin } })
+    const timeout = setTimeout(() => {
+      cleanup()
+      socket.terminate()
+      reject(new Error('Timed out waiting for websocket message'))
+    }, 1000)
+    const cleanup = () => {
+      clearTimeout(timeout)
+      socket.off('message', handleMessage)
+      socket.off('close', handleClose)
+      socket.off('error', handleError)
+    }
+    const handleMessage = (raw: WebSocket.RawData) => {
+      cleanup()
+      try {
+        resolve({ socket, message: JSON.parse(raw.toString()) })
+      } catch (error) {
+        reject(error)
+      }
+    }
+    const handleClose = (code: number) => {
+      cleanup()
+      reject(new Error(`Websocket closed before first message: ${code}`))
+    }
+    const handleError = (error: Error) => {
+      cleanup()
+      reject(error)
+    }
+
+    socket.once('message', handleMessage)
+    socket.once('close', handleClose)
+    socket.once('error', handleError)
+  })
+}
+
+function waitForRejectedSocket(port: number, origin: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const socket = new WebSocket(`ws://127.0.0.1:${port}/`, { headers: { Origin: origin } })
+    const timeout = setTimeout(() => {
+      socket.terminate()
+      reject(new Error('Timed out waiting for websocket rejection'))
+    }, 1000)
+    socket.once('close', (code) => {
+      clearTimeout(timeout)
+      resolve(code)
+    })
+    socket.once('error', (error) => {
+      clearTimeout(timeout)
+      reject(error)
+    })
+  })
+}
 
 function createMockClientRequest() {
   const request = new EventEmitter() as EventEmitter & {
