@@ -163,6 +163,8 @@ async function loadCatalogPresets(language: string, resourcesPath: string) {
   try {
     return await readLocalPresets(language, resourcesPath)
   } catch (error) {
+    // Intentional graceful degradation: the catalog is a bundled, browse-only resource, so a
+    // missing/corrupt file renders as an empty catalog (logged, not toasted) rather than failing.
     logger.error('Failed to load local assistant presets', toLogContext(error))
     return []
   }

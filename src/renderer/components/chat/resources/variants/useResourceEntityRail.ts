@@ -130,10 +130,14 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
       } catch (error) {
         setOptimisticOrderIds(null)
         onReorderError(error)
+        // Best-effort resync after the rollback; a transient refetch failure leaves the
+        // already-restored order in place, so swallowing it is intentional.
         await refetchEntities().catch(() => undefined)
         return
       }
 
+      // Post-success refresh to pick up the server order; the optimistic order already matches,
+      // so a transient refetch failure is benign and intentionally swallowed.
       await refetchEntities().catch(() => undefined)
     },
     [items, onReorderError, refetchEntities, reorder]
