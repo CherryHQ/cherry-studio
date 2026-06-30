@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import ImageViewer, { getImageBlobFromSource } from '../ImageViewer'
+import ImageViewer, { getImageBlobFromSource, saveImageFromSource } from '../ImageViewer'
 
 const mocks = vi.hoisted(() => ({
   convertImageToPng: vi.fn(),
@@ -131,6 +131,26 @@ describe('ImageViewer', () => {
       expect(mocks.toast.error).toHaveBeenCalledWith('message.download.failed')
     })
     expect(mocks.toast.success).not.toHaveBeenCalled()
+  })
+
+  it('saves non-base64 inline image data URLs', async () => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="100%"><text>hello</text></svg>'
+    mocks.fileSave.mockResolvedValue('/tmp/vector.svg')
+
+    await saveImageFromSource(`data:image/svg+xml,${svg}`)
+
+    expect(mocks.fileSave).toHaveBeenCalledWith('image.svg', expect.any(Uint8Array))
+    const bytes = mocks.fileSave.mock.calls[0][1] as Uint8Array
+    expect(new TextDecoder().decode(bytes)).toBe(svg)
+    expect(mocks.fetch).not.toHaveBeenCalled()
+  })
+
+  it('sanitizes decoded URL filenames before showing the save dialog', async () => {
+    mocks.fileSave.mockResolvedValue('/tmp/evil.png')
+
+    await saveImageFromSource('https://example.com/images/%2Ftmp%2Fevil%5Cname.png')
+
+    expect(mocks.fileSave).toHaveBeenCalledWith('_tmp_evil_name.png', expect.any(Uint8Array))
   })
 
   it('reads image blobs from data URLs', async () => {
