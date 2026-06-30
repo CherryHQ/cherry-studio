@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import {
   allSourceTypes,
+  chatMessageFileRefSchema,
+  chatMessageSourceType,
   FileRefSchema,
-  knowledgeItemFileRefSchema,
-  knowledgeItemSourceType,
   paintingFileRefSchema,
   paintingSourceType,
   tempSessionFileRefSchema,
@@ -13,59 +13,41 @@ import {
 
 const REF_ID = '11111111-2222-4333-8444-000000000001' // UUIDv4
 const ENTRY_ID = '019606a0-0000-7000-8000-000000000001' // UUIDv7
-const KB_ITEM_ID = '019606a1-0000-7000-8000-000000000abc' // UUIDv7
+const MESSAGE_ID = '33333333-4444-4555-8666-000000000002' // UUID (legacy chat ids may be v4)
 const PAINTING_ID = '33333333-4444-4555-8666-000000000003' // UUIDv4 (painting.id)
 const TS = 1700000000000
 
 describe('FileRefSourceType', () => {
   it('exposes exactly the currently-registered source types', () => {
-    // Defensive: this assertion locks the currently-registered set.
-    // Adding a new variant must also extend (a) the discriminated union and
-    // (b) the OrphanRefScanner registry — see ref/README.md.
-    expect([...allSourceTypes]).toEqual(['temp_session', 'knowledge_item', 'chat_message', 'painting'])
+    expect([...allSourceTypes]).toEqual(['temp_session', 'chat_message', 'painting'])
   })
 })
 
-describe('knowledgeItemFileRefSchema', () => {
-  function makeKnowledgeItemRef(overrides: Record<string, unknown> = {}) {
+describe('chatMessageFileRefSchema', () => {
+  function makeChatMessageRef(overrides: Record<string, unknown> = {}) {
     return {
       id: REF_ID,
       fileEntryId: ENTRY_ID,
-      sourceType: knowledgeItemSourceType,
-      sourceId: KB_ITEM_ID,
-      role: 'source',
+      sourceType: chatMessageSourceType,
+      sourceId: MESSAGE_ID,
+      role: 'attachment',
       createdAt: TS,
       updatedAt: TS,
       ...overrides
     }
   }
 
-  it('accepts a well-formed knowledge_item ref', () => {
-    const parsed = knowledgeItemFileRefSchema.parse(makeKnowledgeItemRef())
-    expect(parsed.sourceType).toBe('knowledge_item')
-    expect(parsed.sourceId).toBe(KB_ITEM_ID)
-    expect(parsed.role).toBe('source')
+  it('accepts a well-formed chat_message ref', () => {
+    const parsed = chatMessageFileRefSchema.parse(makeChatMessageRef())
+    expect(parsed.sourceType).toBe('chat_message')
+    expect(parsed.sourceId).toBe(MESSAGE_ID)
+    expect(parsed.role).toBe('attachment')
   })
 
-  it('accepts every knowledge_item role', () => {
-    for (const role of ['source', 'processed_artifact']) {
-      const parsed = knowledgeItemFileRefSchema.parse(makeKnowledgeItemRef({ role }))
-      expect(parsed.role).toBe(role)
+  it('rejects role values outside the chat_message vocabulary', () => {
+    for (const role of ['source', 'preview', 'thumbnail', '']) {
+      expect(() => chatMessageFileRefSchema.parse(makeChatMessageRef({ role }))).toThrow()
     }
-  })
-
-  it('rejects role values outside the knowledge_item enum', () => {
-    for (const role of ['attachment', 'preview', 'thumbnail', '']) {
-      expect(() => knowledgeItemFileRefSchema.parse(makeKnowledgeItemRef({ role }))).toThrow()
-    }
-  })
-
-  it('rejects a non-UUIDv7 sourceId (knowledge_item.id is v2-native)', () => {
-    expect(() => knowledgeItemFileRefSchema.parse(makeKnowledgeItemRef({ sourceId: 'not-a-uuid' }))).toThrow()
-  })
-
-  it('rejects sourceType other than the literal knowledge_item', () => {
-    expect(() => knowledgeItemFileRefSchema.parse(makeKnowledgeItemRef({ sourceType: 'temp_session' }))).toThrow()
   })
 })
 
@@ -108,7 +90,7 @@ describe('paintingFileRefSchema', () => {
   })
 
   it('rejects sourceType other than the literal painting', () => {
-    expect(() => paintingFileRefSchema.parse(makePaintingRef({ sourceType: 'knowledge_item' }))).toThrow()
+    expect(() => paintingFileRefSchema.parse(makePaintingRef({ sourceType: 'chat_message' }))).toThrow()
   })
 })
 
@@ -126,18 +108,18 @@ describe('FileRefSchema discriminated union', () => {
     expect(parsed.sourceType).toBe('temp_session')
   })
 
-  it('dispatches to the knowledge_item variant', () => {
+  it('dispatches to the chat_message variant', () => {
     const parsed = FileRefSchema.parse({
       id: REF_ID,
       fileEntryId: ENTRY_ID,
-      sourceType: knowledgeItemSourceType,
-      sourceId: KB_ITEM_ID,
-      role: 'source',
+      sourceType: chatMessageSourceType,
+      sourceId: MESSAGE_ID,
+      role: 'attachment',
       createdAt: TS,
       updatedAt: TS
     })
-    expect(parsed.sourceType).toBe('knowledge_item')
-    expect(parsed.role).toBe('source')
+    expect(parsed.sourceType).toBe('chat_message')
+    expect(parsed.role).toBe('attachment')
   })
 
   it('dispatches to the painting variant', () => {
@@ -154,16 +136,13 @@ describe('FileRefSchema discriminated union', () => {
   })
 
   it('rejects an unregistered sourceType (not in allSourceTypes)', () => {
-    // `note` remains unregistered; it must be rejected so DataApi round-trip
-    // stays consistent. When a new variant lands, update this list alongside
-    // the union.
-    for (const sourceType of ['note']) {
+    for (const sourceType of ['note', 'knowledge_item']) {
       expect(() =>
         FileRefSchema.parse({
           id: REF_ID,
           fileEntryId: ENTRY_ID,
           sourceType,
-          sourceId: KB_ITEM_ID,
+          sourceId: MESSAGE_ID,
           role: 'attachment',
           createdAt: TS,
           updatedAt: TS

@@ -2,17 +2,11 @@
  * Painting file reference variant
  *
  * Links a FileEntry to a `painting` row in the v2 paintings subsystem. The
- * `painting.files` JSON column holds two buckets — generated `output` files
- * and `input` files — which map directly to the two roles below.
+ * painting association table holds two buckets — generated `output` files and
+ * `input` files — which map directly to the two roles below.
  *
- * ## Ownership split
- *
- * `PaintingService` owns ref *removal* (it calls `fileRefService.cleanupBySource`
- * on painting delete). Ref *creation* is NOT done here: paintings still create
- * and resolve files through the v1 file system in the renderer, and v1→v2 file
- * data migration is owned by a separate in-flight PR. This variant exists so
- * that PR (and any future v2 generation path) has a registered source type to
- * write `file_ref` rows against, and so the orphan checker can validate them.
+ * Painting row deletion is handled by DB-level cascade. Explicit cleanup is
+ * still used when replacing a painting's file set wholesale.
  *
  * ## sourceId format
  *
