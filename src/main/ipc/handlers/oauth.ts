@@ -19,5 +19,11 @@ export const oauthHandlers: IpcHandlersFor<typeof oauthRequestSchemas> = {
       throw new Error(`Unsupported external-cli provider: ${providerId}`)
     }
     return application.get('CodeCliService').checkClaudeLogin()
-  }
+  },
+  // `ctx.senderId` is the deep-link flow's initiator: the result is later pushed
+  // point-to-point to exactly this window (carrying API keys), so a source-trust
+  // caller with no window (`senderId === null`) is rejected inside the runtime.
+  // Per-provider host validation lives in the provider definition's createClient.
+  'oauth.start_deep_link_flow': ({ providerId, oauthServer, apiHost }, ctx) =>
+    runtime().startDeepLinkFlow(ctx.senderId, providerId, { oauthServer, apiHost: apiHost ?? oauthServer })
 }

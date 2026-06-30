@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import i18n, { getLanguageCode } from '@renderer/i18n'
 import { ipcApi } from '@renderer/ipc'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 const logger = loggerService.withContext('Utils:oauth')
 
@@ -207,9 +208,9 @@ export interface NewApiOAuthConfig {
  * CherryIN OAuth flow using Authorization Code with PKCE.
  *
  * PKCE, token exchange and API-key fetch all happen in the main process
- * (`CherryInOauthService`); the deep-link callback is routed by `ProtocolService`
- * directly to this renderer's webContents (captured at `startOAuthFlow` time),
- * so we just await a single point-to-point IPC event keyed by `state`.
+ * (`OAuthRuntimeService`); the deep-link callback is routed by `ProtocolService`
+ * directly to this renderer's webContents (captured at flow-start time), so we
+ * just await a single point-to-point IPC event keyed by `state`.
  */
 export const oauthWithCherryIn = async (
   setKey: (key: string) => void | Promise<void>,
@@ -217,7 +218,11 @@ export const oauthWithCherryIn = async (
 ): Promise<string> => {
   const { oauthServer, apiHost } = config
 
-  const { authUrl, state } = await ipcApi.request('cherryin.start_oauth_flow', { oauthServer, apiHost })
+  const { authUrl, state } = await ipcApi.request('oauth.start_deep_link_flow', {
+    providerId: SystemProviderIds.cherryin,
+    oauthServer,
+    apiHost
+  })
 
   logger.debug('Opening authorization URL')
 
@@ -230,7 +235,7 @@ export const oauthWithCherryIn = async (
   return new Promise<string>((resolve, reject) => {
     let timeoutId: ReturnType<typeof setTimeout> | null = null
 
-    const removeListener = ipcApi.on('cherryin.oauth_result', async (result) => {
+    const removeListener = ipcApi.on('oauth.deep_link_result', async (result) => {
       // Defensive: another concurrent CherryIN flow on the same window would
       // hit the same listener; main only ever pushes for our state, but filter
       // anyway to keep the contract explicit.

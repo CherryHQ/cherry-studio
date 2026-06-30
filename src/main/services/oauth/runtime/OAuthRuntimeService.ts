@@ -213,25 +213,6 @@ export class OAuthRuntimeService extends BaseService {
     }
   }
 
-  public saveTokens = async (
-    providerId: string,
-    data: { accessToken: string; refreshToken?: string; expiresAt?: number; accountId?: string },
-    clientId?: string
-  ): Promise<void> => {
-    const definition = this.getDefinition(providerId)
-    const current = await this.tokenStore.get(providerId)
-    await this.tokenStore.set(
-      providerId,
-      {
-        accessToken: data.accessToken,
-        refreshToken: data.refreshToken ?? current?.refreshToken,
-        expiresAt: data.expiresAt,
-        accountId: data.accountId ?? current?.accountId
-      },
-      clientId ?? definition.clientId
-    )
-  }
-
   public getAccount = async (providerId: string): Promise<OAuthAccount> => {
     this.getDefinition(providerId)
     const config = await this.tokenStore.get(providerId)
@@ -295,31 +276,45 @@ export class OAuthRuntimeService extends BaseService {
    * caller supplies `buildRequest` so the retry re-shapes headers/body with the
    * fresh token; this owns token fetch, the not-signed-in guard, and the retry —
    * keeping that logic in one place instead of per-provider fetch wrappers.
+   *
+   * `options.context` is threaded into token fetch/refresh (CherryIN needs its
+   * `apiHost`); `options.onUnauthorized` runs when the request is still 401 after
+   * the retry, for the caller's diagnostic logging.
    */
   public authenticatedFetch = async (
     providerId: string,
     buildRequest: (creds: OAuthTokenCredentials) => { input: RequestInfo | URL; init: RequestInit },
     doFetch: (input: RequestInfo | URL, init: RequestInit) => Promise<Response>,
-    notSignedInMessage?: string
+    options: {
+      context?: OAuthRuntimeProviderContext
+      notSignedInMessage?: string
+      onUnauthorized?: (response: Response) => void | Promise<void>
+    } = {}
   ): Promise<Response> => {
     this.getDefinition(providerId)
-    const creds = await this.getValidAccessToken(providerId)
+    const { context, notSignedInMessage, onUnauthorized } = options
+    const creds = await this.getValidAccessToken(providerId, context)
     if (!creds?.accessToken) {
       throw new OAuthServiceError(notSignedInMessage ?? `Not signed in to ${providerId}`)
     }
 
     const first = buildRequest(creds)
-    const response = await doFetch(first.input, first.init)
-    if (response.status !== 401) return response
+    let response = await doFetch(first.input, first.init)
+    if (response.status === 401) {
+      const refreshed = await this.getValidAccessToken(providerId, { ...context, forceRefresh: true })
+      if (refreshed?.accessToken) {
+        // Drain the discarded 401 body before retrying so the underlying (undici)
+        // connection is released instead of leaking one per forced refresh.
+        void response.body?.cancel?.()
+        const retry = buildRequest(refreshed)
+        response = await doFetch(retry.input, retry.init)
+      }
+    }
 
-    // Drain the discarded 401 body before retrying so the underlying (undici)
-    // connection is released instead of leaking one per forced refresh.
-    void response.body?.cancel?.()
-
-    const refreshed = await this.getValidAccessToken(providerId, { forceRefresh: true })
-    if (!refreshed?.accessToken) return response
-    const retry = buildRequest(refreshed)
-    return doFetch(retry.input, retry.init)
+    if (response.status === 401) {
+      await onUnauthorized?.(response)
+    }
+    return response
   }
 
   private clearSession(definition: OAuthRuntimeProviderDefinition): Promise<void> {

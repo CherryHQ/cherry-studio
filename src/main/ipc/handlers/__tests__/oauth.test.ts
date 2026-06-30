@@ -9,7 +9,8 @@ const runtimeService = {
   signIn: vi.fn((providerId: string) => Promise.resolve({ accountId: `${providerId}-account` })),
   hasToken: vi.fn(() => Promise.resolve(true)),
   getAccount: vi.fn(() => Promise.resolve({ accountId: 'acc-1' })),
-  logout: vi.fn(() => Promise.resolve())
+  logout: vi.fn(() => Promise.resolve()),
+  startDeepLinkFlow: vi.fn(() => Promise.resolve({ authUrl: 'https://open.cherryin.ai/auth', state: 'st' }))
 }
 
 const codeCliService = {
@@ -57,5 +58,31 @@ describe('oauthHandlers', () => {
       /Unsupported external-cli/
     )
     expect(codeCliService.checkClaudeLogin).not.toHaveBeenCalled()
+  })
+
+  it('forwards the initiator window id, provider, and hosts to startDeepLinkFlow', async () => {
+    await expect(
+      oauthHandlers['oauth.start_deep_link_flow'](
+        { providerId: 'cherryin', oauthServer: 'https://open.cherryin.ai', apiHost: 'https://api.cherryin.ai' },
+        ctx
+      )
+    ).resolves.toEqual({ authUrl: 'https://open.cherryin.ai/auth', state: 'st' })
+    expect(runtimeService.startDeepLinkFlow).toHaveBeenCalledWith('w1', 'cherryin', {
+      oauthServer: 'https://open.cherryin.ai',
+      apiHost: 'https://api.cherryin.ai'
+    })
+  })
+
+  // apiHost falls back to oauthServer; a null senderId (source-trust caller with
+  // no window) passes through so the runtime rejects it.
+  it('defaults apiHost to oauthServer and passes a null senderId through', async () => {
+    await oauthHandlers['oauth.start_deep_link_flow'](
+      { providerId: 'cherryin', oauthServer: 'https://open.cherryin.ai' },
+      { senderId: null }
+    )
+    expect(runtimeService.startDeepLinkFlow).toHaveBeenCalledWith(null, 'cherryin', {
+      oauthServer: 'https://open.cherryin.ai',
+      apiHost: 'https://open.cherryin.ai'
+    })
   })
 })

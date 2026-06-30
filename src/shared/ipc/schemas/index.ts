@@ -2,11 +2,11 @@ import type { RouteDef } from '../define'
 import { type AiEventSchemas, aiRequestSchemas } from './ai'
 import { appRequestSchemas } from './app'
 import { type BinaryEventSchemas, binaryRequestSchemas } from './binary'
-import { type CherryinEventSchemas, cherryinRequestSchemas } from './cherryin'
+import { cherryinRequestSchemas } from './cherryin'
 import { fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
 import { knowledgeRequestSchemas } from './knowledge'
-import { oauthRequestSchemas } from './oauth'
+import { type OAuthEventSchemas, oauthRequestSchemas } from './oauth'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
 import { webSearchRequestSchemas } from './webSearch'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
@@ -43,7 +43,7 @@ export type IpcRoute = keyof IpcRequestSchemas
  */
 export type IpcEventSchemas = AiEventSchemas &
   BinaryEventSchemas &
-  CherryinEventSchemas &
+  OAuthEventSchemas &
   SelectionEventSchemas &
   WindowEventSchemas
 /** Union of all declared event names (`never` until a domain is migrated). */

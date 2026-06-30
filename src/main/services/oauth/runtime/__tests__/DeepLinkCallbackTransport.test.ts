@@ -72,7 +72,7 @@ describe('DeepLinkCallbackTransport', () => {
 
     transport.sendConsumedResult('state', 'settings-window', { apiKeys: 'k1,k2' })
 
-    expect(ipcApiServiceMock.send).toHaveBeenCalledWith('settings-window', 'cherryin.oauth_result', {
+    expect(ipcApiServiceMock.send).toHaveBeenCalledWith('settings-window', 'oauth.deep_link_result', {
       state: 'state',
       apiKeys: 'k1,k2'
     })

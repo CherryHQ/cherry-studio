@@ -128,7 +128,7 @@ export class DeepLinkCallbackTransport {
       'error' in result && result.error !== undefined
         ? { state, error: result.error }
         : { state, apiKeys: result.apiKeys ?? '' }
-    application.get('IpcApiService').send(windowId, 'cherryin.oauth_result', payload)
+    application.get('IpcApiService').send(windowId, 'oauth.deep_link_result', payload)
   }
 
   getInitiatorWindowId(state: string): WindowId | null {

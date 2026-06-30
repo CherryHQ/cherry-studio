@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const runtimeMocks = vi.hoisted(() => ({
-  startDeepLinkFlow: vi.fn(),
   getValidAccessToken: vi.fn(),
+  authenticatedFetch: vi.fn(),
   logout: vi.fn()
 }))
 
@@ -46,28 +46,21 @@ describe('CherryInOauthService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    // Faithful stand-in for OAuthRuntimeService.authenticatedFetch: token
+    // resolution + 401 force-refresh live in the runtime (covered by its own
+    // tests). Here we only drive the request shaping/response handling the
+    // CherryIN service owns — build with a fixed credential, run doFetch, and
+    // fire onUnauthorized on a 401 so the diagnostic log is exercised.
+    runtimeMocks.authenticatedFetch.mockImplementation(async (_providerId, buildRequest, doFetch, options = {}) => {
+      const { input, init } = buildRequest({ accessToken: 'oauth-access', accountId: null })
+      const response = await doFetch(input, init)
+      if (response.status === 401) await options.onUnauthorized?.(response)
+      return response
+    })
     cherryInOauthService = new CherryInOauthService()
   })
 
-  it('delegates CherryIN OAuth start to OAuthRuntimeService deep-link flow', async () => {
-    runtimeMocks.startDeepLinkFlow.mockResolvedValue({
-      authUrl: 'https://open.cherryin.ai/oauth2/auth',
-      state: 'state'
-    })
-
-    await expect(cherryInOauthService.startOAuthFlow('settings-window', 'https://open.cherryin.ai')).resolves.toEqual({
-      authUrl: 'https://open.cherryin.ai/oauth2/auth',
-      state: 'state'
-    })
-
-    expect(runtimeMocks.startDeepLinkFlow).toHaveBeenCalledWith('settings-window', 'cherryin', {
-      oauthServer: 'https://open.cherryin.ai',
-      apiHost: 'https://open.cherryin.ai'
-    })
-  })
-
-  it('maps balance/profile data using runtime-provided OAuth credentials', async () => {
-    runtimeMocks.getValidAccessToken.mockResolvedValue({ accessToken: 'oauth-access' })
+  it('maps balance/profile data and shapes the authenticated balance request', async () => {
     netMocks.fetch
       .mockResolvedValueOnce({
         ok: true,
@@ -106,10 +99,14 @@ describe('CherryInOauthService', () => {
       monthlyUsageTokens: null,
       monthlySpend: 6.82
     })
-    expect(runtimeMocks.getValidAccessToken).toHaveBeenCalledWith('cherryin', {
-      apiHost: 'https://open.cherryin.ai',
-      forceRefresh: false
-    })
+    // Delegates to the runtime with the cherryin provider id and its apiHost
+    // context, and shapes the bearer/json request the runtime then drives.
+    expect(runtimeMocks.authenticatedFetch).toHaveBeenCalledWith(
+      'cherryin',
+      expect.any(Function),
+      expect.any(Function),
+      expect.objectContaining({ context: { apiHost: 'https://open.cherryin.ai' } })
+    )
     expect(netMocks.fetch).toHaveBeenCalledWith(
       'https://open.cherryin.ai/api/v1/oauth/balance',
       expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer oauth-access' }) })
@@ -118,7 +115,6 @@ describe('CherryInOauthService', () => {
 
   it('logs 401 response details and surfaces balance HTTP failures', async () => {
     const errorSpy = vi.spyOn(mockMainLoggerService, 'error').mockImplementation(() => {})
-    runtimeMocks.getValidAccessToken.mockResolvedValue({ accessToken: 'oauth-access-token' })
     netMocks.fetch.mockResolvedValue({
       ok: false,
       status: 401,
@@ -145,10 +141,6 @@ describe('CherryInOauthService', () => {
 
   it('rejects api hosts outside the allowlist on every IPC entry point', async () => {
     const forgedHost = 'https://attacker.example.com'
-
-    await expect(cherryInOauthService.startOAuthFlow('settings-window', forgedHost)).rejects.toThrow(
-      /Unauthorized API host/
-    )
 
     await expect(cherryInOauthService.getBalance(forgedHost)).rejects.toThrow(/Unauthorized API host/)
 

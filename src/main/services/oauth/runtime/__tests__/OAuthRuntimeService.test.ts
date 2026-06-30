@@ -180,8 +180,39 @@ describe('OAuthRuntimeService', () => {
 
   it('authenticatedFetch throws the supplied hint when not signed in', async () => {
     await expect(
-      service.authenticatedFetch('codex', () => ({ input: 'x', init: {} }), vi.fn(), 'please sign in')
+      service.authenticatedFetch('codex', () => ({ input: 'x', init: {} }), vi.fn(), {
+        notSignedInMessage: 'please sign in'
+      })
     ).rejects.toThrow('please sign in')
+  })
+
+  // CherryIN path: still 401 after the forced-refresh retry → onUnauthorized fires
+  // once with the final response, and the 401 is returned (not thrown) for the
+  // caller to surface. `context` is accepted and threaded into token refresh.
+  it('authenticatedFetch reports a persistent 401 to onUnauthorized and returns it', async () => {
+    seedOAuth('cherryin', { accessToken: 'tok', refreshToken: 'r', expiresAt: FUTURE(), accountId: null })
+    h.refreshMock.mockResolvedValue({ access_token: 'tok2', refresh_token: 'r2', expires_in: 3600 })
+
+    const doFetch = vi
+      .fn()
+      .mockResolvedValueOnce({ status: 401, body: { cancel: vi.fn() } } as unknown as Response)
+      .mockResolvedValueOnce({ status: 401 } as Response)
+    const onUnauthorized = vi.fn()
+
+    const res = await service.authenticatedFetch(
+      'cherryin',
+      () => ({ input: 'http://example/api', init: {} }),
+      doFetch,
+      {
+        context: { apiHost: 'https://open.cherryin.ai' },
+        onUnauthorized
+      }
+    )
+
+    expect(res.status).toBe(401)
+    expect(doFetch).toHaveBeenCalledTimes(2)
+    expect(h.refreshMock).toHaveBeenCalledTimes(1)
+    expect(onUnauthorized).toHaveBeenCalledTimes(1)
   })
 
   // B1 via logout: codex disables, cherryin stays enabled.

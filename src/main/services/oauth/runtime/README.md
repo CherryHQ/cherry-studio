@@ -43,7 +43,7 @@ Three pieces, all keyed by `providerId`:
   - `LoopbackCallbackTransport` — spins a localhost HTTP server (Codex, Grok).
   - `DeepLinkCallbackTransport` — waits for a `cherrystudio://` deep link, then
     pushes the result point-to-point to the initiator window via
-    `IpcApiService.send('cherryin.oauth_result', …)` (CherryIN). The OAuth token
+    `IpcApiService.send('oauth.deep_link_result', …)` (CherryIN). The OAuth token
     never crosses to the renderer — only the side-effect API keys do.
 - **`providers/<id>.ts`** — one file per login provider: its client/urls/scope/
   transport plus optional behavior hooks. **`providerDefinitions.ts`** is the

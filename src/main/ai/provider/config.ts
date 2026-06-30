@@ -244,7 +244,7 @@ function buildCodexFetch() {
         }
       }),
       customFetch,
-      'Not signed in to OpenAI Codex. Open the provider settings and sign in again.'
+      { notSignedInMessage: 'Not signed in to OpenAI Codex. Open the provider settings and sign in again.' }
     )
 }
 
@@ -305,7 +305,7 @@ function buildGrokCliFetch() {
         }
       }),
       customFetch,
-      'Not signed in to Grok CLI. Open the provider settings and sign in again.'
+      { notSignedInMessage: 'Not signed in to Grok CLI. Open the provider settings and sign in again.' }
     )
   }
 }

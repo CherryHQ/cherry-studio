@@ -1,7 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { WindowId } from '@shared/ipc/types'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { net } from 'electron'
 import * as z from 'zod'
@@ -64,30 +63,11 @@ export interface CherryINProfile {
   group: string | null
 }
 
-export interface OauthFlowParams {
-  authUrl: string
-  state: string
-}
-
 @Injectable('CherryInOauthService')
 @ServicePhase(Phase.Background)
 export class CherryInOauthService extends BaseService {
   private validateApiHost(apiHost: string): void {
     validateCherryInApiHost(apiHost)
-  }
-
-  public startOAuthFlow = async (
-    initiatorWindowId: WindowId | null,
-    oauthServer: string,
-    apiHost?: string
-  ): Promise<OauthFlowParams> => {
-    this.validateApiHost(oauthServer)
-    if (apiHost) this.validateApiHost(apiHost)
-
-    return application.get('OAuthRuntimeService').startDeepLinkFlow(initiatorWindowId, SystemProviderIds.cherryin, {
-      oauthServer,
-      apiHost: apiHost ?? oauthServer
-    })
   }
 
   public getToken = async (apiHost = 'https://open.cherryin.ai'): Promise<string | null> => {
@@ -169,68 +149,39 @@ export class CherryInOauthService extends BaseService {
     })
   }
 
-  private authenticatedFetch = async (
-    apiHost: string,
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<Response> => {
-    const getCredentials = async (forceRefresh = false): Promise<{ accessToken: string } | null> => {
-      const credentials = await application
-        .get('OAuthRuntimeService')
-        .getValidAccessToken(SystemProviderIds.cherryin, { apiHost, forceRefresh })
-      return credentials?.accessToken ? { accessToken: credentials.accessToken } : null
-    }
-
-    const makeRequest = async (accessToken: string): Promise<Response> => {
-      const requestOptions: RequestInit = {
-        ...options,
-        headers: {
-          ...options.headers,
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
+  // Token fetch, the not-signed-in guard and the 401 force-refresh+retry live in
+  // OAuthRuntimeService.authenticatedFetch (shared with Codex/Grok). CherryIN only
+  // shapes the request (apiHost + bearer/json headers), threads its `apiHost`
+  // context for refresh, and supplies the 401 diagnostic log.
+  private authenticatedFetch = (apiHost: string, endpoint: string, options: RequestInit = {}): Promise<Response> => {
+    return application.get('OAuthRuntimeService').authenticatedFetch(
+      SystemProviderIds.cherryin,
+      (creds) => ({
+        input: `${apiHost}${endpoint}`,
+        init: {
+          ...options,
+          headers: {
+            ...options.headers,
+            Authorization: `Bearer ${creds.accessToken}`,
+            'Content-Type': 'application/json'
+          }
         }
+      }),
+      (input, init) => net.fetch(input as RequestInfo, init),
+      {
+        context: { apiHost },
+        notSignedInMessage: 'OAuth session expired: failed to refresh access token',
+        onUnauthorized: (response) =>
+          this.logUnauthorizedResponse(apiHost, endpoint, response, {
+            ...options,
+            headers: {
+              ...options.headers,
+              Authorization: 'Bearer <redacted>',
+              'Content-Type': 'application/json'
+            }
+          })
       }
-
-      return net.fetch(`${apiHost}${endpoint}`, requestOptions)
-    }
-
-    const credentials = await getCredentials()
-    if (!credentials) {
-      throw new CherryInOauthServiceError(
-        'OAuth session expired: failed to refresh access token',
-        undefined,
-        'OAuthSessionExpired'
-      )
-    }
-
-    let response = await makeRequest(credentials.accessToken)
-
-    if (response.status === 401) {
-      logger.info('Got 401, forcing CherryIN OAuth token refresh')
-      const refreshedCredentials = await getCredentials(true)
-      if (refreshedCredentials) {
-        response = await makeRequest(refreshedCredentials.accessToken)
-      } else {
-        throw new CherryInOauthServiceError(
-          'OAuth session expired: failed to refresh access token',
-          undefined,
-          'OAuthSessionExpired'
-        )
-      }
-    }
-
-    if (response.status === 401) {
-      await this.logUnauthorizedResponse(apiHost, endpoint, response, {
-        ...options,
-        headers: {
-          ...options.headers,
-          Authorization: 'Bearer <redacted>',
-          'Content-Type': 'application/json'
-        }
-      })
-    }
-
-    return response
+    )
   }
 
   private getProfile = async (apiHost: string): Promise<CherryINProfile | null> => {
