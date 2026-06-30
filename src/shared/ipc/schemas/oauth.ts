@@ -8,9 +8,10 @@ import { defineRoute } from '../define'
  * loopback callback.
  *
  * Provider-generic, not per-provider: a fixed set of operations carries the
- * target `providerId` as input, and the handler dispatches to that provider's
- * `*OauthService`. Adding a provider needs no new route — only a handler-side
- * dispatch entry — so the IPC surface stays flat as the provider set grows.
+ * target `providerId` as input, and the handler drives every provider through
+ * the shared `OAuthRuntimeService` + its provider definition (`providers/<id>.ts`).
+ * Adding a provider needs no new route and no new service — only a provider
+ * definition entry — so the IPC surface stays flat as the provider set grows.
  *
  * `sign_in`/`get_account` return the account superset (just the account id);
  * providers without an account concept resolve `{ accountId: null }`.

@@ -66,8 +66,9 @@ fields and hooks:
   needs OIDC discovery first (Grok). Host-pin discovered endpoints.
 - `extractAccountId(accessToken)` — pull an account id out of the token (Codex's
   JWT claim). Omit if the provider has no account concept.
-- `beforePersistTokens(tokenData, context)` — post-exchange side effect (CherryIN
-  fetches the user's API keys here). Omit for vanilla providers.
+- `afterPersistTokens(tokenData, context)` — post-exchange side effect, run
+  *after* the tokens are persisted so a failure here never discards a valid token
+  (CherryIN fetches the user's API keys here). Omit for vanilla providers.
 
 But a provider is more than its OAuth flow. End-to-end, a new login-based
 provider also touches:

@@ -29,7 +29,7 @@ const h = vi.hoisted(() => {
     providerServiceMock: {
       getAuthConfig: vi.fn(async (id: string) => providerStore.get(id)?.authConfig ?? null),
       update: vi.fn(async (id: string, patch: Record<string, unknown>) => {
-        providerStore.set(id, { ...(providerStore.get(id) ?? {}), ...patch })
+        providerStore.set(id, { ...providerStore.get(id), ...patch })
       })
     }
   }
@@ -110,8 +110,7 @@ describe('OAuthRuntimeService', () => {
 
     expect(await service.getValidAccessToken('codex')).toBeNull()
     const stored = h.providerStore.get('codex')
-    expect((stored?.authConfig as { type: string }).type).toBe('oauth')
-    expect((stored?.authConfig as { refreshToken?: string }).refreshToken).toBe('r')
+    expect(stored?.authConfig).toMatchObject({ type: 'oauth', refreshToken: 'r' })
     expect(stored?.isEnabled).toBeUndefined()
   })
 
@@ -121,7 +120,7 @@ describe('OAuthRuntimeService', () => {
     h.refreshMock.mockRejectedValue(new OAuthHttpError('timeout', 408, ''))
 
     expect(await service.getValidAccessToken('codex')).toBeNull()
-    expect((h.providerStore.get('codex')?.authConfig as { type: string }).type).toBe('oauth')
+    expect(h.providerStore.get('codex')?.authConfig).toMatchObject({ type: 'oauth' })
   })
 
   // W1 terminal + B1: a rejected refresh token clears the session, and codex
@@ -204,7 +203,7 @@ describe('OAuthRuntimeService', () => {
     const account = await service.signIn('codex')
 
     const stored = h.providerStore.get('codex')
-    expect((stored?.authConfig as { accessToken?: string }).accessToken).toBe('at')
+    expect(stored?.authConfig).toMatchObject({ accessToken: 'at' })
     expect(stored?.isEnabled).toBe(true)
     expect(account).toEqual({ accountId: null })
     expect(h.transportMock.close).toHaveBeenCalled()
@@ -229,7 +228,7 @@ describe('OAuthRuntimeService', () => {
 
     await service.handleDeepLinkCallback(new URL('app://cb?state=st&code=c'))
 
-    expect((h.providerStore.get('cherryin')?.authConfig as { accessToken?: string }).accessToken).toBe('at')
+    expect(h.providerStore.get('cherryin')?.authConfig).toMatchObject({ accessToken: 'at' })
     expect(h.deepLinkTransportMock.sendConsumedResult).toHaveBeenCalledWith('st', 'win-1', { apiKeys: undefined })
   })
 
@@ -266,7 +265,7 @@ describe('OAuthRuntimeService', () => {
 
     await service.handleDeepLinkCallback(new URL('app://cb?state=st&code=c'))
 
-    expect((h.providerStore.get('cherryin')?.authConfig as { accessToken?: string }).accessToken).toBe('at')
+    expect(h.providerStore.get('cherryin')?.authConfig).toMatchObject({ accessToken: 'at' })
     expect(h.deepLinkTransportMock.sendConsumedResult).toHaveBeenCalledWith('st', 'win-1', { error: 'key fetch 503' })
   })
 })
