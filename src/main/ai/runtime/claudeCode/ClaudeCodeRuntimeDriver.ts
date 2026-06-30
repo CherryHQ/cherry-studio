@@ -287,6 +287,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           continue
         }
 
+        // Mid-session command catalog push (skills discovered in a subdirectory, etc.). Handle it
+        // ahead of the no-adapter drop so a primed (turn-less) connection still refreshes its cache.
+        if (message.type === 'system' && message.subtype === 'commands_changed') {
+          this.eventQueue.push({ type: 'supported-commands', commands: message.commands })
+          continue
+        }
+
         if (!this.adapter) {
           if (message.type === 'result') {
             this.updateResumeToken(message.session_id)

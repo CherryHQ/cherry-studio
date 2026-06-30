@@ -25,7 +25,8 @@ const aiStreamManager = {
 }
 
 const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn(), closeAgentSessionWarm: vi.fn() }
-const agentSessionRuntimeService = { primeConnection: vi.fn() }
+const agentSessionRuntimeService = { primeConnection: vi.fn(), releaseIdleConnection: vi.fn() }
+const claudeCodeTraceBridgeService = { isTraceModeEnabled: vi.fn() }
 const agentJobsService = { runTask: vi.fn() }
 
 // WebContentsListener (constructed in the stream_open handler) wires once()/isDestroyed().
@@ -45,6 +46,8 @@ beforeEach(() => {
         return claudeCodeWarmQueryManager
       case 'AgentSessionRuntimeService':
         return agentSessionRuntimeService
+      case 'ClaudeCodeTraceBridgeService':
+        return claudeCodeTraceBridgeService
       case 'AgentJobsService':
         return agentJobsService
       case 'WindowManager':
@@ -199,14 +202,22 @@ describe('aiHandlers — streaming', () => {
 
 describe('aiHandlers — agent sessions & tasks', () => {
   it('prewarm_agent_session primes the session connection so commands load before the first turn', async () => {
+    claudeCodeTraceBridgeService.isTraceModeEnabled.mockReturnValue(false)
     agentSessionRuntimeService.primeConnection.mockResolvedValue(undefined)
     await aiHandlers['ai.prewarm_agent_session']({ sessionId: 's1' }, ctx)
     expect(agentSessionRuntimeService.primeConnection).toHaveBeenCalledWith('s1')
   })
 
-  it('close_agent_session_warm delegates to ClaudeCodeWarmQueryManager', async () => {
+  it('prewarm_agent_session does not prime a connection while trace mode is on', async () => {
+    claudeCodeTraceBridgeService.isTraceModeEnabled.mockReturnValue(true)
+    await aiHandlers['ai.prewarm_agent_session']({ sessionId: 's1' }, ctx)
+    expect(agentSessionRuntimeService.primeConnection).not.toHaveBeenCalled()
+  })
+
+  it('close_agent_session_warm releases the warm query and the primed connection', async () => {
     await aiHandlers['ai.close_agent_session_warm']({ sessionId: 's1' }, ctx)
     expect(claudeCodeWarmQueryManager.closeAgentSessionWarm).toHaveBeenCalledWith('s1')
+    expect(agentSessionRuntimeService.releaseIdleConnection).toHaveBeenCalledWith('s1')
   })
 
   it('respond_tool_approval delegates to AiService with the resolved sender WebContents', async () => {

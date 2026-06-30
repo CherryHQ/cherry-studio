@@ -15,11 +15,12 @@ const mocks = vi.hoisted(() => ({
   cacheSetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
   getSessionById: vi.fn(),
-  getAgent: vi.fn()
+  getAgent: vi.fn(),
+  ensureTraceId: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: { getById: mocks.getSessionById }
+  agentSessionService: { getById: mocks.getSessionById, ensureTraceId: mocks.ensureTraceId }
 }))
 
 vi.mock('@data/services/AgentService', () => ({
@@ -131,6 +132,7 @@ describe('AgentSessionRuntimeService', () => {
     mocks.getLastRuntimeResumeToken.mockResolvedValue(null)
     mocks.findPendingAssistantMessageIds.mockResolvedValue([])
     mocks.markMessagesError.mockResolvedValue(undefined)
+    mocks.ensureTraceId.mockResolvedValue('b'.repeat(32))
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'AiStreamManager') {
         return {
@@ -760,6 +762,11 @@ describe('AgentSessionRuntimeService', () => {
       await service.primeConnection('session-1')
 
       expect(connect).toHaveBeenCalledTimes(1)
+      // The primed connection carries the session's trace context (resolved via ensureTraceId) so its
+      // subprocess spans join the session trace tree — not a trace-less connection reused by turn 1.
+      expect(connect).toHaveBeenCalledWith(
+        expect.objectContaining({ trace: expect.objectContaining({ traceId: 'b'.repeat(32) }) })
+      )
       await vi.waitFor(() =>
         expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.slash_commands.session-1', commands)
       )
@@ -772,6 +779,33 @@ describe('AgentSessionRuntimeService', () => {
       mocks.getSessionById.mockResolvedValue({ id: 'session-1', agentId: null })
       const service = new AgentSessionRuntimeService()
       await service.primeConnection('session-1')
+      expect(service.inspect('session-1')).toBeUndefined()
+    })
+
+    it('replaces the cached catalog when the runtime pushes a commands_changed event', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const updated = [
+        { name: 'clear', description: 'Clear conversation' },
+        { name: 'deploy', description: 'Custom project command discovered mid-session' }
+      ]
+
+      ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'supported-commands', commands: updated })
+
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.slash_commands.session-1', updated)
+    })
+
+    it('releaseIdleConnection closes an idle session but leaves a busy one running', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+
+      // Mid-turn: a backgrounded stream must keep running, so release is a no-op.
+      service.releaseIdleConnection('session-1')
+      expect(service.inspect('session-1')).toBeDefined()
+
+      // Turn settled → idle: leaving the view tears the connection down now, not at the idle TTL.
+      service.markTurnTerminal('session-1', 'success')
+      service.releaseIdleConnection('session-1')
       expect(service.inspect('session-1')).toBeUndefined()
     })
   })

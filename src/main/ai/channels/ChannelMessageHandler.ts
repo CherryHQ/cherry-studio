@@ -489,12 +489,24 @@ export class ChannelMessageHandler {
   }
 
   /** Read-only lookup of the session currently bound to a chat — tracker first, then the persisted
-   *  channel row. Returns null when no session exists yet (unlike {@link resolveSession}, never creates one). */
+   *  channel row. Mirrors {@link doResolveSession}'s ownership guard (`session.agentId === agentId`)
+   *  so a stale/reassigned channel link can't surface another agent's commands; returns null when no
+   *  session is bound to this agent yet (unlike {@link resolveSession}, never creates one). */
   private async peekSessionId(agentId: string, channelId: string, chatId: string): Promise<string | null> {
-    const tracked = this.sessionTracker.get(`${agentId}:${channelId}:${chatId}`)
-    if (tracked) return tracked
+    const lookup = async (sessionId: string) => agentSessionService.getById(sessionId).catch(() => null)
+
+    const trackedId = this.sessionTracker.get(`${agentId}:${channelId}:${chatId}`)
+    if (trackedId) {
+      const session = await lookup(trackedId)
+      if (session?.agentId === agentId) return session.id
+    }
+
     const channelRow = await channelService.getChannel(channelId)
-    return channelRow?.sessionId ?? null
+    if (channelRow?.sessionId) {
+      const session = await lookup(channelRow.sessionId)
+      if (session?.agentId === agentId) return session.id
+    }
+    return null
   }
 
   private async resolveSession(

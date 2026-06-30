@@ -293,6 +293,29 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('maps an SDK commands_changed message to a supported-commands event without an active turn', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    // No `send()` → no adapter (the primed, turn-less case). The mid-session push must still surface so
+    // the catalog refreshes; `supportedCommands()` alone would miss it (captured once at init).
+    const commands = [{ name: 'deploy', description: 'Deploy the app', argumentHint: '' }]
+    queryQueue.push({ type: 'system', subtype: 'commands_changed', commands, session_id: 'resume-1' })
+
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'supported-commands', commands }
+    })
+
+    void connection.close()
+  })
+
   it('maps SDK compact failures to runtime compaction-error events', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }

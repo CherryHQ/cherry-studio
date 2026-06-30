@@ -443,6 +443,8 @@ describe('ChannelMessageHandler', () => {
       sessionId: 'session-xyz',
       workspace: { type: 'system' }
     } as any)
+    // The bound session belongs to this agent, so its catalog is allowed to merge.
+    vi.mocked(agentSessionService.getById).mockResolvedValue({ id: 'session-xyz', agentId: 'agent-1' } as any)
     MockMainCacheServiceUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('session-xyz'), [
       { name: 'deploy', description: 'Deploy the app', argumentHint: '' },
       // Collides with the control command — control description must win, session dup dropped.
@@ -463,6 +465,37 @@ describe('ChannelMessageHandler', () => {
       expect(helpText).not.toContain('session dup')
     } finally {
       MockMainCacheServiceUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('session-xyz'), null)
+    }
+  })
+
+  it('handleCommand /help ignores a channel session that belongs to another agent', async () => {
+    const adapter = createMockAdapter()
+    vi.mocked(agentService.getAgent).mockResolvedValueOnce({ name: 'TestAgent', description: '' } as any)
+    vi.mocked(channelService.getChannel).mockResolvedValueOnce({
+      id: 'channel-1',
+      sessionId: 'stale-session',
+      workspace: { type: 'system' }
+    } as any)
+    // Channel was reassigned: the persisted session link now points at another agent's session.
+    vi.mocked(agentSessionService.getById).mockResolvedValue({ id: 'stale-session', agentId: 'other-agent' } as any)
+    MockMainCacheServiceUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('stale-session'), [
+      { name: 'leak', description: 'commands from the wrong agent', argumentHint: '' }
+    ])
+
+    try {
+      await channelMessageHandler.handleCommand(adapter, {
+        chatId: 'chat-stale',
+        userId: 'user-1',
+        userName: 'User',
+        command: 'help'
+      })
+
+      const helpText = adapter.sendMessage.mock.calls[0][1] as string
+      expect(helpText).not.toContain('/leak')
+      // Control commands are still listed — only the foreign session catalog is withheld.
+      expect(helpText).toContain('/new')
+    } finally {
+      MockMainCacheServiceUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('stale-session'), null)
     }
   })
 
