@@ -3,8 +3,8 @@
  *
  * Links a FileEntry to a message row in the v2 chat subsystem. The owning
  * service writes refs when a message is created with file or image blocks.
- * The corresponding `chatMessageChecker` (in `orphanCheckerRegistry`) uses
- * the message DB table to determine liveness.
+ * The association table has an FK to `message`, so message deletion cascades
+ * its refs at the database layer.
  *
  * ## sourceId format
  *
