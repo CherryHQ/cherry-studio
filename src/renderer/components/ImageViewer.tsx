@@ -6,7 +6,6 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
-import { download } from '@renderer/utils/download'
 import { convertImageToPng } from '@renderer/utils/image'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { Base64 } from 'js-base64'
@@ -63,6 +62,42 @@ export async function copyImageToClipboard(src: string): Promise<void> {
   })
 
   await navigator.clipboard.write([item])
+}
+
+function getImageFileNameFromSource(src: string, mimeType: string): string {
+  const extension = mime.getExtension(mimeType) || 'png'
+
+  if (src.startsWith('file://') || src.startsWith('http://') || src.startsWith('https://')) {
+    try {
+      const sourceName = decodeURIComponent(new URL(src).pathname.split('/').filter(Boolean).at(-1) ?? '')
+      if (sourceName) {
+        return /\.[^.]+$/.test(sourceName) ? sourceName : `${sourceName}.${extension}`
+      }
+    } catch {
+      // Fall through to the default image filename.
+    }
+  }
+
+  return `image.${extension}`
+}
+
+function blobToUint8Array(blob: Blob): Promise<Uint8Array> {
+  if (typeof blob.arrayBuffer === 'function') {
+    return blob.arrayBuffer().then((buffer) => new Uint8Array(buffer))
+  }
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer))
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read image data'))
+    reader.readAsArrayBuffer(blob)
+  })
+}
+
+export async function saveImageFromSource(src: string): Promise<string | null> {
+  const blob = await getImageBlobFromSource(src)
+  const bytes = await blobToUint8Array(blob)
+  return window.api.file.save(getImageFileNameFromSource(src, blob.type), bytes)
 }
 
 const getPreviewIndex = (items: ImagePreviewItem[], src: string, fallbackIndex = 0) => {
@@ -165,6 +200,22 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ alt, onClick, onContextMenu, 
     [t]
   )
 
+  const handleDownloadImage = React.useCallback(
+    async (item: ImagePreviewItem) => {
+      try {
+        const savedPath = await saveImageFromSource(item.src)
+        if (savedPath) {
+          window.toast.success(t('message.download.success'))
+        }
+      } catch (error) {
+        const err = error as Error
+        logger.error(`Failed to download image: ${err.message}`, { stack: err.stack })
+        window.toast.error(t('message.download.failed'))
+      }
+    },
+    [t]
+  )
+
   const builtInActions = React.useMemo<ImagePreviewAction[]>(
     () => [
       {
@@ -183,10 +234,10 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ alt, onClick, onContextMenu, 
         icon: <DownloadIcon className="size-3.5" />,
         id: 'download',
         label: t('common.download'),
-        onSelect: (item) => download(item.src)
+        onSelect: handleDownloadImage
       }
     ],
-    [handleCopyImage, handleCopySource, t]
+    [handleCopyImage, handleCopySource, handleDownloadImage, t]
   )
 
   const contextActions = React.useMemo(

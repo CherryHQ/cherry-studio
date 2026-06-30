@@ -8,10 +8,6 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('@renderer/utils/download', () => ({
-  download: vi.fn()
-}))
-
 vi.mock('@renderer/utils/image', () => ({
   convertImageToPng: vi.fn()
 }))

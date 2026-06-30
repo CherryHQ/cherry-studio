@@ -6,10 +6,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ImageViewer, { getImageBlobFromSource } from '../ImageViewer'
 
 const mocks = vi.hoisted(() => ({
-  download: vi.fn(),
   convertImageToPng: vi.fn(),
   fetch: vi.fn(),
   fsRead: vi.fn(),
+  fileSave: vi.fn(),
   toast: {
     error: vi.fn(),
     success: vi.fn()
@@ -18,10 +18,6 @@ const mocks = vi.hoisted(() => ({
     write: vi.fn(),
     writeText: vi.fn()
   }
-}))
-
-vi.mock('@renderer/utils/download', () => ({
-  download: mocks.download
 }))
 
 vi.mock('@renderer/utils/image', () => ({
@@ -53,7 +49,7 @@ describe('ImageViewer', () => {
     mocks.fsRead.mockResolvedValue(new Uint8Array([1, 2, 3]))
 
     Object.assign(window, {
-      api: { fs: { read: mocks.fsRead } },
+      api: { file: { save: mocks.fileSave }, fs: { read: mocks.fsRead } },
       toast: mocks.toast
     })
     Object.assign(navigator, { clipboard: mocks.clipboard })
@@ -102,15 +98,39 @@ describe('ImageViewer', () => {
     expect(mocks.toast.success).toHaveBeenCalledWith('message.copy.success')
   })
 
-  it('downloads the image from the context menu', async () => {
-    render(<ImageViewer src="https://example.com/image.png" alt="Example image" />)
+  it('shows download success after the image is saved from the context menu', async () => {
+    let resolveSave: (path: string) => void = () => {}
+    mocks.fileSave.mockReturnValue(new Promise<string>((resolve) => (resolveSave = resolve)))
+
+    render(<ImageViewer src="data:image/png;base64,aGVsbG8=" alt="Example image" />)
 
     fireEvent.contextMenu(screen.getByRole('img', { name: 'Example image' }))
     fireEvent.click(screen.getByRole('button', { name: 'common.download' }))
 
     await waitFor(() => {
-      expect(mocks.download).toHaveBeenCalledWith('https://example.com/image.png')
+      expect(mocks.fileSave).toHaveBeenCalledWith('image.png', expect.any(Uint8Array))
     })
+    expect(mocks.toast.success).not.toHaveBeenCalled()
+
+    resolveSave('/tmp/image.png')
+
+    await waitFor(() => {
+      expect(mocks.toast.success).toHaveBeenCalledWith('message.download.success')
+    })
+  })
+
+  it('shows download failure when saving the image fails from the context menu', async () => {
+    mocks.fileSave.mockRejectedValue(new Error('save failed'))
+
+    render(<ImageViewer src="data:image/png;base64,aGVsbG8=" alt="Example image" />)
+
+    fireEvent.contextMenu(screen.getByRole('img', { name: 'Example image' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.download' }))
+
+    await waitFor(() => {
+      expect(mocks.toast.error).toHaveBeenCalledWith('message.download.failed')
+    })
+    expect(mocks.toast.success).not.toHaveBeenCalled()
   })
 
   it('reads image blobs from data URLs', async () => {
