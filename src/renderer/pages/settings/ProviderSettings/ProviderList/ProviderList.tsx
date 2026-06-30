@@ -99,7 +99,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   }, [allModels, searchText])
 
   const filteredProviders = useMemo(() => {
-    return providers.filter((provider) => {
+    let filtered = providers.filter((provider) => {
       if (!isProviderSettingsListVisibleProvider(provider)) {
         return false
       }
@@ -118,6 +118,18 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
       const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
       return matchKeywordsInProvider(keywords, provider, providerModelsIndex?.get(provider.id))
     })
+
+    // In 'all' mode, sort enabled providers to the top so users can find
+    // active providers at a glance without scrolling through the full list.
+    if (filterMode === 'all') {
+      filtered = [...filtered].sort((a, b) => {
+        if (a.isEnabled && !b.isEnabled) return -1
+        if (!a.isEnabled && b.isEnabled) return 1
+        return 0
+      })
+    }
+
+    return filtered
   }, [filterMode, isOvmsSupported, providers, providerModelsIndex, searchText])
 
   const providerCounts = useMemo(
