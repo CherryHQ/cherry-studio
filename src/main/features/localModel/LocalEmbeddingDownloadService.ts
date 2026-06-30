@@ -2,7 +2,6 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
-import { loggerService } from '@logger'
 import { inferenceHost, type InferenceProgress } from '@main/ai/inference/InferenceHost'
 import { LOCAL_MODELS } from '@main/ai/inference/localModelCatalog'
 import { currentModelSource } from '@main/ai/provider/custom/localEmbedding/localEmbeddingRuntime'
@@ -10,9 +9,8 @@ import {
   registerLocalEmbeddingModel,
   unregisterLocalEmbeddingModelIfUnused
 } from '@main/features/localModel/localEmbeddingRegistration'
-import type { LocalModelStatus } from '@shared/data/presets/localModel'
-
-const logger = loggerService.withContext('LocalEmbeddingDownloadService')
+import { LocalModelDownloadService } from '@main/features/localModel/LocalModelDownloadService'
+import type { LocalModelKind } from '@shared/data/presets/localModel'
 
 /** Repo / quantization / ready-probe file for the local embedding model. */
 const { repo: MODEL_REPO, dtype: MODEL_DTYPE, readyFile: MODEL_FILE } = LOCAL_MODELS.embedding
@@ -37,52 +35,37 @@ function containsFile(dir: string, fileName: string): boolean {
 }
 
 /**
- * Manages the on-disk lifecycle of the local embedding model: status probe,
- * download (delegated to the inference worker, with progress broadcast to the
- * renderer), cancel, and remove. Stateless across restarts — the source of truth
- * is the cache directory on disk, not memory.
+ * On-disk lifecycle of the local embedding model. The download itself is
+ * delegated to the inference worker (transformers.js); the shared
+ * downloading/abort/broadcast machinery lives in {@link LocalModelDownloadService}.
  */
-class LocalEmbeddingDownloadService {
-  private downloading = false
-  private abortController: AbortController | null = null
+class LocalEmbeddingDownloadService extends LocalModelDownloadService {
+  protected readonly kind: LocalModelKind = 'embedding'
 
   private modelDir(): string {
     return path.join(application.getPath('feature.embedding.models'), ...MODEL_REPO.split('/'))
   }
 
-  getStatus(): LocalModelStatus {
-    if (this.downloading) return 'downloading'
-    return containsFile(this.modelDir(), MODEL_FILE) ? 'ready' : 'not_downloaded'
+  protected isReady(): boolean {
+    return containsFile(this.modelDir(), MODEL_FILE)
   }
 
-  async download(): Promise<void> {
-    if (this.downloading) return
-    this.downloading = true
-    this.abortController = new AbortController()
-    try {
-      await inferenceHost.loadEmbedding(
-        currentModelSource(),
-        MODEL_REPO,
-        MODEL_DTYPE,
-        (p) => this.broadcastProgress(p),
-        this.abortController.signal
-      )
-      // Now that the weights are on disk, register the provider/model so the KB
-      // embedding picker lists it (lazy equivalent of the old boot seeder).
-      await registerLocalEmbeddingModel()
-      this.broadcast({ status: 'ready', percent: 100 })
-    } catch (error) {
-      logger.error('local embedding download failed', error as Error)
-      this.broadcast({ status: 'error', percent: 0 })
-      throw error
-    } finally {
-      this.downloading = false
-      this.abortController = null
-    }
+  protected async performDownload(signal: AbortSignal): Promise<void> {
+    await inferenceHost.loadEmbedding(
+      currentModelSource(),
+      MODEL_REPO,
+      MODEL_DTYPE,
+      (p) => this.broadcastProgress(p),
+      signal
+    )
+    // Now that the weights are on disk, register the provider/model so the KB
+    // embedding picker lists it (lazy equivalent of the old boot seeder).
+    await registerLocalEmbeddingModel()
+    this.broadcast({ status: 'ready', percent: 100 })
   }
 
-  cancel(): void {
-    this.abortController?.abort(new Error('download cancelled'))
+  override cancel(): void {
+    super.cancel()
     // The worker may be mid-fetch; terminating it stops the download immediately.
     inferenceHost.terminate()
   }
@@ -115,16 +98,6 @@ class LocalEmbeddingDownloadService {
           ? Math.round(((p.loaded ?? 0) / p.total) * 100)
           : 0
     this.broadcast({ status: p.status, percent, loaded: p.loaded, total: p.total, file: p.file })
-  }
-
-  private broadcast(payload: {
-    status: string
-    percent: number
-    loaded?: number
-    total?: number
-    file?: string
-  }): void {
-    application.get('IpcApiService').broadcast('local_model.download_progress', { model: 'embedding', ...payload })
   }
 }
 

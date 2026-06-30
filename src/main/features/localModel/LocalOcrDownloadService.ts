@@ -12,7 +12,8 @@ import {
   ocrModelDir,
   ocrModelPaths
 } from '@main/features/fileProcessing/processors/local-paddleocr/modelPaths'
-import type { LocalModelStatus } from '@shared/data/presets/localModel'
+import { LocalModelDownloadService } from '@main/features/localModel/LocalModelDownloadService'
+import type { LocalModelKind } from '@shared/data/presets/localModel'
 import { app, net } from 'electron'
 import { parse } from 'yaml'
 
@@ -39,64 +40,49 @@ export function dictTextFromInferenceYml(yml: string): string {
 }
 
 /**
- * On-disk lifecycle of the local PaddleOCR model: status probe, download (with
- * mirror fallback + aggregate progress broadcast to the renderer), cancel, and
- * remove. Stateless across restarts — the source of truth is the files on disk.
+ * On-disk lifecycle of the local PaddleOCR model: download (with mirror fallback
+ * + aggregate progress broadcast) and remove. The shared downloading/abort/
+ * broadcast machinery lives in {@link LocalModelDownloadService}. Stateless
+ * across restarts — the source of truth is the files on disk.
  */
-class LocalOcrDownloadService {
-  private downloading = false
-  private abortController: AbortController | null = null
+class LocalOcrDownloadService extends LocalModelDownloadService {
+  protected readonly kind: LocalModelKind = 'ocr'
 
-  getStatus(): LocalModelStatus {
-    if (this.downloading) return 'downloading'
-    return isLocalPaddleocrModelDownloaded() ? 'ready' : 'not_downloaded'
+  protected isReady(): boolean {
+    return isLocalPaddleocrModelDownloaded()
   }
 
-  async download(): Promise<void> {
-    if (this.downloading) return
-    this.downloading = true
-    this.abortController = new AbortController()
-    const { signal } = this.abortController
+  protected async performDownload(signal: AbortSignal): Promise<void> {
     const paths = ocrModelPaths()
     const weights = LOCAL_MODELS.ocr.weights
     // The dictionary is a tiny fetch-and-parse step; weight it lightly so the
     // bar doesn't sit at 100% while it finishes.
     const DICTIONARY_WEIGHT = 1
     const totalWeight = Object.values(weights).reduce((sum, file) => sum + file.weight, 0) + DICTIONARY_WEIGHT
-    try {
-      await fs.promises.mkdir(ocrModelDir(), { recursive: true })
-      let doneWeight = 0
-      for (const key of Object.keys(weights) as (keyof typeof weights)[]) {
-        const file = weights[key]
-        await this.downloadFile(file, paths[key], signal, (fraction) => {
-          const percent = Math.round((100 * (doneWeight + file.weight * fraction)) / totalWeight)
-          this.broadcast({ status: 'downloading', percent })
-        })
-        doneWeight += file.weight
-      }
-      // The character dictionary lives only inside the recognition model's
-      // inference.yml (not as a standalone file in the *_onnx repos) — fetch and
-      // parse it so the model dir holds all three files the inference worker needs.
-      await this.downloadDictionary(paths.charactersDictionary, signal)
-      this.broadcast({ status: 'ready', percent: 100 })
-      // Product decision: downloading the local OCR model promotes it to the
-      // default image-to-text processor. Best-effort — a preference write hiccup
-      // must not undo a successful download.
-      await this.promoteToDefault()
-    } catch (error) {
-      logger.error('local OCR model download failed', error as Error)
-      // Drop partials so the next probe reports not_downloaded rather than ready.
-      await this.cleanup()
-      this.broadcast({ status: 'error', percent: 0 })
-      throw error
-    } finally {
-      this.downloading = false
-      this.abortController = null
+    await fs.promises.mkdir(ocrModelDir(), { recursive: true })
+    let doneWeight = 0
+    for (const key of Object.keys(weights) as (keyof typeof weights)[]) {
+      const file = weights[key]
+      await this.downloadFile(file, paths[key], signal, (fraction) => {
+        const percent = Math.round((100 * (doneWeight + file.weight * fraction)) / totalWeight)
+        this.broadcast({ status: 'downloading', percent })
+      })
+      doneWeight += file.weight
     }
+    // The character dictionary lives only inside the recognition model's
+    // inference.yml (not as a standalone file in the *_onnx repos) — fetch and
+    // parse it so the model dir holds all three files the inference worker needs.
+    await this.downloadDictionary(paths.charactersDictionary, signal)
+    this.broadcast({ status: 'ready', percent: 100 })
+    // Product decision: downloading the local OCR model promotes it to the
+    // default image-to-text processor. Best-effort — a preference write hiccup
+    // must not undo a successful download.
+    await this.promoteToDefault()
   }
 
-  cancel(): void {
-    this.abortController?.abort(new Error('download cancelled'))
+  protected override async cleanupAfterError(): Promise<void> {
+    // Drop partials so the next probe reports not_downloaded rather than ready.
+    await this.cleanup()
   }
 
   async remove(): Promise<{ removed: boolean }> {
@@ -217,10 +203,6 @@ class LocalOcrDownloadService {
 
   private async cleanup(): Promise<void> {
     await fs.promises.rm(ocrModelDir(), { recursive: true, force: true })
-  }
-
-  private broadcast(payload: { status: string; percent: number }): void {
-    application.get('IpcApiService').broadcast('local_model.download_progress', { model: 'ocr', ...payload })
   }
 }
 
