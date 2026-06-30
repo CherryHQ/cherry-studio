@@ -849,6 +849,33 @@ describe('HomePage', () => {
     await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
   })
 
+  it('focuses the existing tab instead of duplicating a reused topic already open elsewhere', async () => {
+    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.focusExistingTab.mockReturnValue(true)
+    homeMocks.classicLayoutTopics = [
+      {
+        id: 'topic-empty-latest',
+        assistantId: 'assistant-2',
+        name: '',
+        createdAt: '2026-01-03T00:00:00.000Z',
+        updatedAt: '2026-01-03T00:00:00.000Z'
+      }
+    ]
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open assistant picker' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select my assistant' }))
+
+    // The reused topic is already open in another tab, so we focus it instead of navigating
+    // (and duplicating) the current tab.
+    await waitFor(() =>
+      expect(homeMocks.focusExistingTab).toHaveBeenCalledWith('topic-empty-latest', expect.anything())
+    )
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('active-topic')?.textContent).not.toBe('topic-empty-latest')
+  })
+
   it('toasts and leaves the active topic untouched when classic-layout picker topic creation fails', async () => {
     homeMocks.preferenceValues.set('topic.layout', 'classic')
     homeMocks.classicLayoutTopics = []

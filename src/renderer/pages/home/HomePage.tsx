@@ -472,8 +472,10 @@ const HomePage: FC = () => {
       const nextTopic = findLatestUpdated(
         classicLayoutTopics.filter((topic) => topic.assistantId !== deletedAssistantId)
       )
-      if (nextTopic) {
-        setActiveTopicAndDiscardDraft(mapApiTopicToRendererTopic(nextTopic))
+      // setActiveTopicAndDiscardDraft returns false when the next topic is already open in another
+      // tab (it focuses that tab). In that case the current tab would otherwise keep pointing at the
+      // just-deleted topic, so fall through to a draft instead of leaving a ghost.
+      if (nextTopic && setActiveTopicAndDiscardDraft(mapApiTopicToRendererTopic(nextTopic))) {
         return
       }
       startDraftAssistantSelection()
@@ -510,8 +512,9 @@ const HomePage: FC = () => {
         const topic = reusableTopic ?? (await createTopic({ assistantId }))
         const rendererTopic = mapApiTopicToRendererTopic(topic)
 
-        setDraftAssistantSelectionState(undefined)
-        setActiveTopic(rendererTopic)
+        // One tab per topic: a reused topic already open in another tab focuses that tab instead of
+        // duplicating it here; this also discards any pending draft selection.
+        setActiveTopicAndDiscardDraft(rendererTopic)
         if (!reusableTopic) {
           void refreshTopics().catch((err) => {
             logger.warn('Failed to refresh topics after assistant picker topic create', err as Error)
@@ -522,15 +525,7 @@ const HomePage: FC = () => {
         window.toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
       }
     },
-    [
-      createTopic,
-      classicLayoutTopics,
-      refreshTopics,
-      resolveAssistantIdForSelection,
-      setActiveTopic,
-      setDraftAssistantSelectionState,
-      t
-    ]
+    [createTopic, classicLayoutTopics, refreshTopics, resolveAssistantIdForSelection, setActiveTopicAndDiscardDraft, t]
   )
 
   const createAndActivateEmptyTopic = useCallback(
@@ -545,8 +540,9 @@ const HomePage: FC = () => {
           }))
         const rendererTopic = mapApiTopicToRendererTopic(topic)
 
-        setDraftAssistantSelectionState(undefined)
-        setActiveTopic(rendererTopic)
+        // One tab per topic: a reused topic already open in another tab focuses that tab instead of
+        // duplicating it here; this also discards any pending draft selection.
+        setActiveTopicAndDiscardDraft(rendererTopic)
         if (!reusableTopic) {
           void refreshTopics().catch((err) => {
             logger.warn('Failed to refresh topics after composer topic create', err as Error)
@@ -557,15 +553,7 @@ const HomePage: FC = () => {
         window.toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
       }
     },
-    [
-      createTopic,
-      classicLayoutTopics,
-      refreshTopics,
-      resolveDraftAssistantTarget,
-      setActiveTopic,
-      setDraftAssistantSelectionState,
-      t
-    ]
+    [createTopic, classicLayoutTopics, refreshTopics, resolveDraftAssistantTarget, setActiveTopicAndDiscardDraft, t]
   )
 
   useEffect(() => {
