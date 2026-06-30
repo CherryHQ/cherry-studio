@@ -192,7 +192,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
     []
   )
 
-  // Alias the compound provider to a local before rendering — same pattern as TopicList/SessionList.
+  // Alias the compound provider to a local before rendering — same pattern as TopicResourceList/SessionResourceList.
   // Written inline as `<ResourceList.Provider>` it gets auto-rewritten to `<ResourceList>` by the
   // React-19 "drop Context .Provider" lint fixer (ResourceList.Provider only looks like a Context).
   const Provider = ResourceList.Provider
