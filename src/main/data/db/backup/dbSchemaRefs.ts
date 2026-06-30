@@ -81,9 +81,9 @@ export const DB_TABLES = [
   'assistant',
   'assistant_knowledge_base',
   'assistant_mcp_server',
+  'chat_message_file_ref',
   'entity_tag',
   'file_entry',
-  'file_ref',
   'group',
   'job',
   'job_schedule',
@@ -94,6 +94,7 @@ export const DB_TABLES = [
   'mini_app',
   'note',
   'painting',
+  'painting_file_ref',
   'pin',
   'preference',
   'prompt',
@@ -251,6 +252,14 @@ export const DB_COLUMNS_BY_TABLE = {
     { name: 'createdAt', dbName: 'createdAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
     { name: 'updatedAt', dbName: 'updatedAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' }
   ],
+  chat_message_file_ref: [
+    { name: 'id', dbName: 'id', isPrimaryKey: true, isNullable: false, sqlType: 'text' },
+    { name: 'fileEntryId', dbName: 'fileEntryId', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
+    { name: 'sourceId', dbName: 'sourceId', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
+    { name: 'role', dbName: 'role', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
+    { name: 'createdAt', dbName: 'createdAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
+    { name: 'updatedAt', dbName: 'updatedAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' }
+  ],
   entity_tag: [
     { name: 'entityType', dbName: 'entityType', isPrimaryKey: true, isNullable: false, sqlType: 'text' },
     { name: 'entityId', dbName: 'entityId', isPrimaryKey: true, isNullable: false, sqlType: 'text' },
@@ -268,15 +277,6 @@ export const DB_COLUMNS_BY_TABLE = {
     { name: 'createdAt', dbName: 'createdAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
     { name: 'updatedAt', dbName: 'updatedAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
     { name: 'deletedAt', dbName: 'deletedAt', isPrimaryKey: false, isNullable: true, sqlType: 'integer' }
-  ],
-  file_ref: [
-    { name: 'id', dbName: 'id', isPrimaryKey: true, isNullable: false, sqlType: 'text' },
-    { name: 'fileEntryId', dbName: 'fileEntryId', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
-    { name: 'sourceType', dbName: 'sourceType', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
-    { name: 'sourceId', dbName: 'sourceId', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
-    { name: 'role', dbName: 'role', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
-    { name: 'createdAt', dbName: 'createdAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
-    { name: 'updatedAt', dbName: 'updatedAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' }
   ],
   group: [
     { name: 'id', dbName: 'id', isPrimaryKey: true, isNullable: false, sqlType: 'text' },
@@ -443,6 +443,14 @@ export const DB_COLUMNS_BY_TABLE = {
     { name: 'modelId', dbName: 'modelId', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'prompt', dbName: 'prompt', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'orderKey', dbName: 'orderKey', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
+    { name: 'createdAt', dbName: 'createdAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
+    { name: 'updatedAt', dbName: 'updatedAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' }
+  ],
+  painting_file_ref: [
+    { name: 'id', dbName: 'id', isPrimaryKey: true, isNullable: false, sqlType: 'text' },
+    { name: 'fileEntryId', dbName: 'fileEntryId', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
+    { name: 'sourceId', dbName: 'sourceId', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
+    { name: 'role', dbName: 'role', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'createdAt', dbName: 'createdAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
     { name: 'updatedAt', dbName: 'updatedAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' }
   ],
@@ -614,6 +622,7 @@ export const DB_PRIMARY_KEYS = {
     kind: 'composite',
     ambiguous: false
   },
+  chat_message_file_ref: { table: 'chat_message_file_ref', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
   entity_tag: {
     table: 'entity_tag',
     columns: ['entityType', 'entityId', 'tagId'],
@@ -621,7 +630,6 @@ export const DB_PRIMARY_KEYS = {
     ambiguous: false
   },
   file_entry: { table: 'file_entry', columns: ['id'], kind: 'uuid-v7', ambiguous: false },
-  file_ref: { table: 'file_ref', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
   group: { table: 'group', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
   job: { table: 'job', columns: ['id'], kind: 'uuid-v7', ambiguous: false },
   job_schedule: { table: 'job_schedule', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
@@ -632,6 +640,7 @@ export const DB_PRIMARY_KEYS = {
   mini_app: { table: 'mini_app', columns: ['appId'], kind: 'natural', ambiguous: true },
   note: { table: 'note', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
   painting: { table: 'painting', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
+  painting_file_ref: { table: 'painting_file_ref', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
   pin: { table: 'pin', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
   preference: { table: 'preference', columns: ['scope', 'key'], kind: 'composite', ambiguous: false },
   prompt: { table: 'prompt', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
@@ -689,9 +698,12 @@ export const DB_FOREIGN_KEYS = {
     { columns: ['assistantId'], targetTable: 'assistant', targetColumns: ['id'], onDelete: 'cascade' },
     { columns: ['mcpServerId'], targetTable: 'mcp_server', targetColumns: ['id'], onDelete: 'cascade' }
   ],
+  chat_message_file_ref: [
+    { columns: ['fileEntryId'], targetTable: 'file_entry', targetColumns: ['id'], onDelete: 'cascade' },
+    { columns: ['sourceId'], targetTable: 'message', targetColumns: ['id'], onDelete: 'cascade' }
+  ],
   entity_tag: [{ columns: ['tagId'], targetTable: 'tag', targetColumns: ['id'], onDelete: 'cascade' }],
   file_entry: [],
-  file_ref: [{ columns: ['fileEntryId'], targetTable: 'file_entry', targetColumns: ['id'], onDelete: 'cascade' }],
   group: [],
   job: [
     { columns: ['scheduleId'], targetTable: 'job_schedule', targetColumns: ['id'], onDelete: 'set null' },
@@ -721,6 +733,10 @@ export const DB_FOREIGN_KEYS = {
   mini_app: [],
   note: [],
   painting: [],
+  painting_file_ref: [
+    { columns: ['fileEntryId'], targetTable: 'file_entry', targetColumns: ['id'], onDelete: 'cascade' },
+    { columns: ['sourceId'], targetTable: 'painting', targetColumns: ['id'], onDelete: 'cascade' }
+  ],
   pin: [],
   preference: [],
   prompt: [],
@@ -770,9 +786,9 @@ export const DB_UNIQUE_KEYS = {
   assistant: [],
   assistant_knowledge_base: [],
   assistant_mcp_server: [],
+  chat_message_file_ref: [{ columns: ['fileEntryId', 'sourceId', 'role'] }],
   entity_tag: [],
   file_entry: [],
-  file_ref: [{ columns: ['fileEntryId', 'sourceType', 'sourceId', 'role'] }],
   group: [],
   job: [],
   job_schedule: [{ columns: ['type', 'name'] }],
@@ -783,6 +799,7 @@ export const DB_UNIQUE_KEYS = {
   mini_app: [],
   note: [{ columns: ['rootPath', 'path'] }],
   painting: [],
+  painting_file_ref: [{ columns: ['fileEntryId', 'sourceId', 'role'] }],
   pin: [{ columns: ['entityType', 'entityId'] }],
   preference: [],
   prompt: [],
@@ -804,6 +821,6 @@ export const DB_FTS_VIRTUAL_TABLES = {
 
 // 5. Generation metadata for diagnostics. Excluded from byte-for-byte CHECK.
 export const BACKUP_REFS_META = {
-  generatedAt: '2026-06-30T09:25:08.171Z',
-  schemaCommit: '4b3b1a58e0'
+  generatedAt: '2026-06-30T17:18:29.115Z',
+  schemaCommit: '366ff3ea10'
 } as const

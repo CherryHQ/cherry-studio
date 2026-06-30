@@ -334,9 +334,12 @@ export function finalize(
       ownerContributor.schema.references.filter((r) => r.table === table).map((r) => r.column)
     )
     for (const fk of fks) {
-      // polymorphic soft-ref tables (entity_tag/file_ref) are exempt — their FKs
-      // are domain-polymorphic, declared via fileRefSourcePolicies/jsonSoftReferences.
-      if (table === 'entity_tag' || table === 'file_ref') continue
+      // polymorphic soft-ref table (entity_tag) is exempt — its FKs are
+      // domain-polymorphic, declared via fileRefSourcePolicies/jsonSoftReferences.
+      // (file_ref was the other exempt table pre-#16532; it was split into
+      // chat_message_file_ref + painting_file_ref, which have real single-column FKs
+      // and are NOT polymorphic, so they are not exempt — their owners declare FKs.)
+      if (table === 'entity_tag') continue
       // EntityReference is single-column, so a composite FK is treated as declared
       // when ANY of its columns is declared (its principal column carries the ref).
       // Requiring every column is impossible here: #24 demands each declared column
