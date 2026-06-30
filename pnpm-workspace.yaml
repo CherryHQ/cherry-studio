@@ -64,11 +64,13 @@ allowBuilds:
   '@paymoapp/electron-shutdown-handler': true
   '@scarf/scarf': true
   '@swc/core': true
+  canvas: false
   core-js: true
   electron: true
   electron-winstaller: true
   esbuild: true
   msw: true
+  onnxruntime-node: true
   protobufjs: true
   registry-js: true
   selection-hook: true
