@@ -8,6 +8,7 @@ import {
   LayoutGrid,
   Library,
   MessageCircle,
+  MessageSquare,
   MousePointerClick,
   NotepadText,
   Palette,
@@ -21,7 +22,8 @@ export type IconComponent = React.FC<{ size?: number; strokeWidth?: number; clas
 // ─── Route → Icon mapping ─────────────────────────────────────────────────────
 
 export const ROUTE_ICONS: Record<string, IconComponent> = {
-  '/app/chat': MessageCircle,
+  '/app/launchpad': LayoutGrid,
+  '/app/chat': MessageSquare,
   '/app/agents': MousePointerClick,
   '/app/paintings': Palette,
   '/app/translate': Languages,

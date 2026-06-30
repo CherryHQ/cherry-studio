@@ -327,13 +327,18 @@ describe('SubWindowService', () => {
       expect(win.show).toHaveBeenCalledTimes(1)
     })
 
-    it('does not show here when an initial position was provided (Tab_MoveWindow shows it)', () => {
+    it('positions at the (rounded) coords and shows on create when an initial position was provided', () => {
       const win = createMockWindow()
       windowManagerMock.getWindow.mockReturnValue(win)
 
-      svc.createWindow({ id: 'tab-xy', url: 'u', x: 10, y: 10 })
+      // Fractional coords (HiDPI screenX/Y) must be rounded — raw floats crash setPosition.
+      svc.createWindow({ id: 'tab-xy', url: 'u', x: 10.6, y: 10.2 })
 
-      expect(win.show).not.toHaveBeenCalled()
+      // A quick drag-release can send no follow-up Tab_MoveWindow, which used to leave the window
+      // created-but-hidden. createWindow now places it at the cursor and shows it immediately; the
+      // move stream (when present) keeps tracking the cursor afterwards.
+      expect(win.setPosition).toHaveBeenCalledWith(11, 10)
+      expect(win.show).toHaveBeenCalledTimes(1)
     })
 
     it('shows a reused (already-loaded) standby immediately — no dependence on isLoadingMainFrame', () => {

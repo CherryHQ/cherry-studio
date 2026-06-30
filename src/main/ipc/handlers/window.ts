@@ -36,6 +36,8 @@ export const windowHandlers: IpcHandlersFor<typeof windowRequestSchemas> = {
     senderId ? application.get('WindowManager').isMaximized(senderId) : false,
   'window.is_full_screen': async (_input, { senderId }) =>
     senderId ? application.get('WindowManager').isFullScreen(senderId) : false,
+  'window.is_focused': async (_input, { senderId }) =>
+    senderId ? application.get('WindowManager').isFocused(senderId) : false,
   'window.get_init_data': async (_input, { senderId }) =>
     senderId ? application.get('WindowManager').getInitData(senderId) : null
 }

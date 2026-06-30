@@ -1,9 +1,12 @@
 import '@renderer/assets/styles/tailwind.css'
 
 import { preferenceService } from '@data/PreferenceService'
+import { loggerService } from '@logger'
 import { createRoot } from 'react-dom/client'
 
 import SelectionToolbarApp from './SelectionToolbarApp'
+
+loggerService.initWindowSource('SelectionToolbar')
 
 await preferenceService.preload([
   'app.language',

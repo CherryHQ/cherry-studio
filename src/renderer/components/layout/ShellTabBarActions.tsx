@@ -48,8 +48,8 @@ export function ShellTabBarActions() {
               type="button"
               aria-label={t('globalSearch.open')}
               onClick={handleSearchClick}
-              className="mr-1 flex h-8 w-8 items-center justify-center rounded-[8px] text-foreground/80 transition-colors hover:bg-[rgba(107,114,128,0.12)] hover:text-foreground">
-              <Search size={16} strokeWidth={1.8} />
+              className="mr-1 flex h-8 w-8 items-center justify-center rounded-[8px] text-foreground/80 transition-colors hover:bg-accent hover:text-foreground [&_svg]:text-current">
+              <Search size={16} strokeWidth={1.6} />
             </button>
           </CommandTooltip>
         </div>
@@ -77,8 +77,8 @@ export function SidebarShellActions({
             type="button"
             aria-label={t(getThemeModeLabelKey(settedTheme))}
             onClick={toggleTheme}
-            className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
-            <ThemeIcon size={18} strokeWidth={1.6} />
+            className="flex h-9 w-9 items-center justify-center rounded-full text-foreground/80 transition-colors hover:bg-accent/60 hover:text-foreground [&_svg]:text-current">
+            <ThemeIcon size={16} strokeWidth={1.6} />
           </button>
         </Tooltip>
         <CommandTooltip command="app.settings.open" label={t('settings.title')} placement="right" delay={800}>
@@ -86,8 +86,8 @@ export function SidebarShellActions({
             type="button"
             aria-label={t('settings.title')}
             onClick={handleSettingsClick}
-            className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
-            <Settings size={18} strokeWidth={1.6} />
+            className="flex h-9 w-9 items-center justify-center rounded-full text-foreground/80 transition-colors hover:bg-accent/60 hover:text-foreground [&_svg]:text-current">
+            <Settings size={16} strokeWidth={1.6} />
           </button>
         </CommandTooltip>
       </>
@@ -100,7 +100,7 @@ export function SidebarShellActions({
         type="button"
         aria-label={t(getThemeModeLabelKey(settedTheme))}
         onClick={toggleTheme}
-        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
+        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-foreground/80 transition-colors hover:bg-accent/60 hover:text-foreground [&_svg]:text-current">
         <ThemeIcon size={16} strokeWidth={1.6} />
         <span>{t(getThemeModeLabelKey(settedTheme))}</span>
       </button>
@@ -108,7 +108,7 @@ export function SidebarShellActions({
         type="button"
         aria-label={t('settings.title')}
         onClick={handleSettingsClick}
-        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
+        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-foreground/80 transition-colors hover:bg-accent/60 hover:text-foreground [&_svg]:text-current">
         <Settings size={16} strokeWidth={1.6} />
         <span>{t('settings.title')}</span>
       </button>

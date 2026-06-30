@@ -45,12 +45,18 @@ export const SubWindowControls = () => {
           aria-label={pinLabel}
           aria-pressed={pinned}
           onClick={handleTogglePin}
-          className={cn(pinned && 'text-primary! hover:text-primary!')}>
+          className={cn(
+            '[&_svg]:!size-4 text-foreground/80! [&_svg]:[stroke-width:1.6]',
+            pinned && 'text-primary! hover:text-primary!'
+          )}>
           <Pin className={pinned ? 'fill-current' : undefined} />
         </NavbarIcon>
       </Tooltip>
       <Tooltip placement="bottom" content={t('subWindow.back_to_main')} delay={400}>
-        <NavbarIcon aria-label={t('subWindow.back_to_main')} onClick={handleBackToMain}>
+        <NavbarIcon
+          aria-label={t('subWindow.back_to_main')}
+          onClick={handleBackToMain}
+          className="[&_svg]:!size-4 text-foreground/80! [&_svg]:[stroke-width:1.6]">
           <BackToMainWindowIcon />
         </NavbarIcon>
       </Tooltip>
