@@ -1050,7 +1050,7 @@ const McpSettings: React.FC = () => {
                     <McpRuntimeStatusBadge state={server.isActive ? runtimeStatus.state : 'disabled'}>
                       {runtimeStatusLabel}
                     </McpRuntimeStatusBadge>
-                    {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
+                    {serverVersion && <VersionText>{serverVersion}</VersionText>}
                   </Flex>
                 </Flex>
                 <Flex className="shrink-0 items-center">
@@ -1063,7 +1063,7 @@ const McpSettings: React.FC = () => {
                 </Flex>
               </SettingTitle>
               <SettingDivider className="mb-0" />
-              <div className="mt-1 flex min-w-0 items-center justify-between gap-2">
+              <div className="mt-2 flex min-w-0 items-center justify-between gap-2">
                 <SegmentedControl<TabKey>
                   value={activeTabValue}
                   options={tabs.map((tab) => ({ value: tab.key, label: tab.label }))}
@@ -1097,13 +1097,13 @@ const McpSettings: React.FC = () => {
             </div>
           </Scrollbar>
           {activeTabValue === 'settings' && (
-            <div className="shrink-0 border-border/60 border-t px-6 py-3">
+            <div className="flex min-h-14 shrink-0 items-center border-border/60 border-t px-6">
               <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
                 <Button
                   size="sm"
                   variant="ghost"
                   onClick={() => onDeleteMcpServer(server)}
-                  className="-ml-2 rounded-full text-destructive opacity-60 hover:text-destructive hover:opacity-100 focus-visible:opacity-100 active:opacity-100">
+                  className="-ml-2 -mt-1 rounded-full text-destructive opacity-60 hover:text-destructive hover:opacity-100 focus-visible:opacity-100 active:opacity-100">
                   <DeleteIcon size={14} className="lucide-custom" />
                   {t('common.delete')}
                 </Button>
@@ -1189,15 +1189,8 @@ function mapLogLevelClass(level: McpServerLogEntry['level']) {
   }
 }
 
-const VersionBadge = ({ count, className, ...props }: { count: string } & React.ComponentProps<'span'>) => (
-  <span
-    className={cn(
-      'inline-flex h-4.5 min-w-4.5 items-center justify-center rounded-[9px] bg-primary px-1.5 font-medium text-[11px] text-white leading-4.5 shadow-sm',
-      className
-    )}
-    {...props}>
-    {count}
-  </span>
+const VersionText = ({ className, ...props }: React.ComponentProps<'span'>) => (
+  <span className={cn('shrink-0 text-[11px] text-muted-foreground leading-4', className)} {...props} />
 )
 
 const McpRuntimeStatusBadge = ({
