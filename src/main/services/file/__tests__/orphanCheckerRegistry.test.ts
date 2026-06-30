@@ -308,7 +308,7 @@ describe('orphanCheckerRegistry', () => {
         status: 'success',
         siblingsGroupId: 0,
         modelId: null,
-        modelSnapshot: null,
+        messageSnapshot: null,
         stats: null,
         createdAt: Date.now(),
         updatedAt: Date.now()
@@ -350,7 +350,7 @@ describe('orphanCheckerRegistry', () => {
             status: 'success' as const,
             siblingsGroupId: 0,
             modelId: null,
-            modelSnapshot: null,
+            messageSnapshot: null,
             stats: null,
             createdAt: Date.now(),
             updatedAt: Date.now()

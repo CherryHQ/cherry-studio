@@ -5,9 +5,9 @@
 import {
   ContentMessageRoleSchema,
   MessageDataSchema,
+  MessageSnapshotSchema,
   MessageStatsSchema,
-  MessageStatusSchema,
-  ModelSnapshotSchema
+  MessageStatusSchema
 } from '@shared/data/types/message'
 import { TraceIdSchema } from '@shared/data/types/trace'
 import * as z from 'zod'
@@ -44,7 +44,7 @@ const AgentSessionMessageBaseSchema = z.strictObject({
   data: MessageDataSchema,
   status: MessageStatusSchema,
   modelId: z.string().nullable(),
-  modelSnapshot: ModelSnapshotSchema.nullable(),
+  messageSnapshot: MessageSnapshotSchema.nullable(),
   stats: MessageStatsSchema.nullable()
 })
 
@@ -62,7 +62,7 @@ export type AgentSessionMessageEntity = z.infer<typeof AgentSessionMessageEntity
 
 export const CreateAgentSessionMessageSchema = AgentSessionMessageBaseSchema.pick({
   modelId: true,
-  modelSnapshot: true,
+  messageSnapshot: true,
   stats: true
 })
   .partial()

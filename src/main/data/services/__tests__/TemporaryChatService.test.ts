@@ -101,12 +101,19 @@ describe('TemporaryChatService', () => {
 
     it('appendMessage returns Message with parentId=null, siblingsGroupId=0, searchableText=""', async () => {
       const topic = await service.createTopic({ name: 'T' })
-      const snapshot = { id: 'mdl-1', name: 'GPT', provider: 'openai' }
+      const snapshot = {
+        assistant: {
+          id: 'a1',
+          name: 'GPT Assistant',
+          emoji: '🤖',
+          model: { id: 'mdl-1', name: 'GPT', provider: 'openai' }
+        }
+      }
       const msg = await service.appendMessage(topic.id, {
         role: 'assistant',
         data: mainText('world'),
         modelId: 'mdl-1',
-        modelSnapshot: snapshot,
+        messageSnapshot: snapshot,
         stats: { totalTokens: 42 }
       })
       expect(msg.parentId).toBeNull()
@@ -114,7 +121,7 @@ describe('TemporaryChatService', () => {
       expect(msg.searchableText).toBe('')
       expect(msg.topicId).toBe(topic.id)
       expect(msg.modelId).toBe('mdl-1')
-      expect(msg.modelSnapshot).toEqual(snapshot)
+      expect(msg.messageSnapshot).toEqual(snapshot)
       expect(msg.stats).toEqual({ totalTokens: 42 })
       expect(typeof msg.createdAt).toBe('string')
     })

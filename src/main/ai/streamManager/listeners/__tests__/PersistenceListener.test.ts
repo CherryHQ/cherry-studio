@@ -47,7 +47,9 @@ function makeListener(modelId?: UniqueModelId) {
     backend: new TemporaryChatBackend({
       topicId: 'abc',
       modelId,
-      modelSnapshot: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' }
+      messageSnapshot: {
+        assistant: { id: 'a1', name: 'A', emoji: '', model: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' } }
+      }
     })
   })
 }

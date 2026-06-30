@@ -15,13 +15,11 @@ import {
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
-import type { GetAgentResponse } from '@renderer/types/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
-import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { isToolUIPart } from 'ai'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
@@ -106,7 +104,6 @@ export interface AgentChatRuntimeState {
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
-  fallbackSnapshot?: ModelSnapshot
   isPending: boolean
   stop: () => Promise<void>
   sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<void>
@@ -117,7 +114,6 @@ export interface AgentChatRuntimeState {
 
 interface UseAgentChatRuntimeStateParams {
   session: AgentSessionEntity
-  activeAgent: GetAgentResponse | undefined
   sessionMessagesEnabled: boolean
   sessionHistoryFetchOnMount?: boolean
   reservedMessages: CherryUIMessage[]
@@ -125,7 +121,6 @@ interface UseAgentChatRuntimeStateParams {
 
 export function useAgentChatRuntimeState({
   session,
-  activeAgent,
   sessionMessagesEnabled,
   sessionHistoryFetchOnMount,
   reservedMessages
@@ -182,14 +177,6 @@ export function useAgentChatRuntimeState({
     },
     [chat, deleteSessionMessage]
   )
-
-  const fallbackSnapshot = useMemo<ModelSnapshot | undefined>(() => {
-    const modelString = activeAgent?.model
-    if (!isUniqueModelId(modelString)) return undefined
-    const { providerId, modelId } = parseUniqueModelId(modelString)
-    if (!providerId || !modelId) return undefined
-    return { id: modelId, name: activeAgent?.modelName ?? modelId, provider: providerId }
-  }, [activeAgent?.model, activeAgent?.modelName])
 
   const basePartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const next: Record<string, CherryMessagePart[]> = {}
@@ -338,7 +325,6 @@ export function useAgentChatRuntimeState({
     isLoading,
     hasOlder,
     loadOlder,
-    fallbackSnapshot,
     isPending,
     stop: chat.stop,
     sendMessage,

@@ -482,7 +482,6 @@ const AgentChatSessionFrame = ({
 }: AgentChatSessionFrameProps) => {
   const runtime = useAgentChatRuntimeState({
     session,
-    activeAgent,
     sessionMessagesEnabled,
     sessionHistoryFetchOnMount,
     reservedMessages
@@ -552,7 +551,6 @@ const AgentChatSessionFrame = ({
       activeAgent={activeAgent}
       partsByMessageId={runtime.partsByMessageId}
       optimisticAskUserQuestionInputsByToolCallId={runtime.optimisticAskUserQuestionInputsByToolCallId}
-      modelFallback={runtime.fallbackSnapshot}
       isLoading={runtime.isLoading}
       hasOlder={runtime.hasOlder}
       loadOlder={runtime.loadOlder}
@@ -572,8 +570,7 @@ const AgentChatSessionFrame = ({
       traceId={session.traceId ?? undefined}
       agentId={agentId ?? session.agentId ?? undefined}
       agentName={activeAgent?.name}
-      agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
-      modelFallback={runtime.fallbackSnapshot}>
+      agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}>
       <ConversationShell
         className={className}
         pane={pane}

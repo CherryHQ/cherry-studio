@@ -3,6 +3,7 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import type { Model } from '@renderer/types/model'
 import { getModelLogo } from '@renderer/utils/model'
 import { firstLetter, removeLeadingEmoji } from '@renderer/utils/naming'
+import { getMessageSnapshotAuthor } from '@shared/data/types/message'
 import dayjs from 'dayjs'
 import { Sparkle } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
@@ -52,19 +53,23 @@ const MessageHeader: FC<Props> = memo(
     const displayModel = messageModel ?? model
     const ModelIcon = useMemo(() => getModelLogo(displayModel), [displayModel])
 
-    const getUserName = useCallback(() => {
-      if (message.role === 'assistant' && assistantProfile?.name) {
-        return assistantProfile.name
-      }
+    // Producing author (assistant/agent) snapshotted at creation — shown first; the model is secondary.
+    const authorSnapshot = getMessageSnapshotAuthor(message.messageSnapshot)
+    const authorName = authorSnapshot?.name || assistantProfile?.name
+    const authorAvatar = authorSnapshot?.emoji || assistantProfile?.avatar
+    const modelName = getMessageListItemModelName(message)
 
+    const getUserName = useCallback(() => {
       if (message.role === 'assistant') {
-        return getMessageListItemModelName(message) || model?.name || model?.id || ''
+        return authorName || modelName || model?.name || model?.id || ''
       }
 
       return userName || t('common.you')
-    }, [assistantProfile?.name, message, model, t, userName])
+    }, [authorName, modelName, message.role, model, t, userName])
 
     const isAssistantMessage = message.role === 'assistant'
+    // When the author is named, demote the model to a muted secondary label.
+    const secondaryModelName = isAssistantMessage && authorName ? modelName : undefined
     const hiddenContentHoverClass = isAssistantMessage
       ? 'group-hover/header:opacity-100'
       : 'group-hover/message:opacity-100'
@@ -73,10 +78,7 @@ const MessageHeader: FC<Props> = memo(
       : 'group-hover/message:pointer-events-auto group-hover/message:opacity-100'
 
     const username = useMemo(() => removeLeadingEmoji(getUserName()), [getUserName])
-    const avatarName = useMemo(
-      () => firstLetter(assistantProfile?.name ?? username ?? '').toUpperCase(),
-      [assistantProfile?.name, username]
-    )
+    const avatarName = useMemo(() => firstLetter(authorName ?? username ?? '').toUpperCase(), [authorName, username])
 
     const openUserProfile = useCallback(() => {
       void actions.openUserProfile?.()
@@ -89,8 +91,8 @@ const MessageHeader: FC<Props> = memo(
       <div
         className={`message-header group/header relative flex gap-2.5 ${hasBodySlot ? 'mb-0 items-start' : 'mb-2 items-center'}`}>
         {isAssistantMessage ? (
-          assistantProfile?.avatar ? (
-            <MessageAvatar avatar={assistantProfile.avatar} fallback={avatarName} />
+          authorAvatar ? (
+            <MessageAvatar avatar={authorAvatar} fallback={avatarName} />
           ) : ModelIcon ? (
             <MessageAvatarFrame className="bg-background">
               <ModelIcon className={MESSAGE_MODEL_AVATAR_ICON_CLASS} aria-hidden="true" />
@@ -117,6 +119,11 @@ const MessageHeader: FC<Props> = memo(
               }}>
               {username}
             </span>
+            {secondaryModelName && (
+              <span className="min-w-0 max-w-[160px] shrink truncate text-foreground-muted text-xs leading-5">
+                {secondaryModelName}
+              </span>
+            )}
             {isGroupContextMessage && (
               <Tooltip content={t('chat.message.useful.tip')}>
                 <Sparkle className="shrink-0" fill="var(--color-primary)" strokeWidth={0} size={16} />

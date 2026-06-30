@@ -791,7 +791,7 @@ describe('ChatMigrator model reference sanitization', () => {
         status: 'success',
         siblingsGroupId: 0,
         modelId: 'cherryai::qwen',
-        modelSnapshot: null,
+        messageSnapshot: null,
         stats: null,
         createdAt: 1,
         updatedAt: 1
@@ -867,7 +867,7 @@ describe('ChatMigrator.insertStagedTopics file_ref backfill', () => {
       status: 'success',
       siblingsGroupId: 0,
       modelId: null,
-      modelSnapshot: null,
+      messageSnapshot: null,
       stats: null,
       createdAt: 1,
       updatedAt: 1

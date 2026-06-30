@@ -47,13 +47,8 @@ import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens
 import { isVisionModel } from '@renderer/utils/model'
 import { translateText } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
-import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
-import {
-  createUniqueModelId,
-  type Model as SharedModel,
-  parseUniqueModelId,
-  type UniqueModelId
-} from '@shared/data/types/model'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { createUniqueModelId, type Model as SharedModel, type UniqueModelId } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
 import { useNavigate } from '@tanstack/react-router'
 import { last } from 'es-toolkit/compat'
@@ -547,8 +542,8 @@ export function useHomeMessageListProviderValue({
   )
 
   const regenerateMessageUsingModel = useCallback(
-    (messageId: string, modelId: UniqueModelId, modelSnapshot?: ModelSnapshot) =>
-      requireChatWrite('regenerateMessageUsingModel').regenerate(messageId, { modelId, modelSnapshot }),
+    (messageId: string, modelId: UniqueModelId) =>
+      requireChatWrite('regenerateMessageUsingModel').regenerate(messageId, { modelId }),
     [requireChatWrite]
   )
 
@@ -573,14 +568,8 @@ export function useHomeMessageListProviderValue({
 
       const onSelectMentionModel = async (selected: SharedModel | undefined) => {
         if (!selected) return
-        const { providerId, modelId } = parseUniqueModelId(selected.id)
         try {
-          await regenerateMessageUsingModel(message.id, selected.id, {
-            id: modelId,
-            name: selected.name,
-            provider: providerId,
-            ...(selected.group && { group: selected.group })
-          })
+          await regenerateMessageUsingModel(message.id, selected.id)
         } catch (error) {
           logger.error('Failed to regenerate message using selected model:', error as Error)
           window.toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))

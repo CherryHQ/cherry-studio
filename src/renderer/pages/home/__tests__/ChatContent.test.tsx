@@ -721,7 +721,7 @@ describe('ChatContent', () => {
       status: 'success',
       siblingsGroupId: 17,
       modelId: null,
-      modelSnapshot: null,
+      messageSnapshot: null,
       traceId: null,
       stats: null,
       createdAt: '2026-01-01T00:00:03.000Z',
@@ -875,7 +875,14 @@ describe('ChatContent', () => {
       metadata: {
         parentId: 'history-user',
         modelId: 'legacy-model-b',
-        modelSnapshot: { id: 'model-b', name: 'Model B', provider: 'provider-b' },
+        messageSnapshot: {
+          assistant: {
+            id: 'a1',
+            name: 'A',
+            emoji: '',
+            model: { id: 'model-b', name: 'Model B', provider: 'provider-b' }
+          }
+        },
         status: 'success',
         createdAt: '2026-01-01T00:00:02.000Z'
       }
@@ -903,7 +910,7 @@ describe('ChatContent', () => {
       status: 'success',
       siblingsGroupId: 19,
       modelId: null,
-      modelSnapshot: null,
+      messageSnapshot: null,
       traceId: null,
       stats: null,
       createdAt: '2026-01-01T00:00:05.000Z',
@@ -965,7 +972,7 @@ describe('ChatContent', () => {
       status: 'success',
       siblingsGroupId: 23,
       modelId: null,
-      modelSnapshot: null,
+      messageSnapshot: null,
       traceId: null,
       stats: null,
       createdAt: '2026-01-01T00:00:03.000Z',

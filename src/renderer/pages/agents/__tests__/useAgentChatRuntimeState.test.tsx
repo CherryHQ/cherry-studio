@@ -169,7 +169,6 @@ describe('useAgentChatRuntimeState', () => {
     renderHook(() =>
       useAgentChatRuntimeState({
         session,
-        activeAgent: undefined,
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
@@ -205,7 +204,6 @@ describe('useAgentChatRuntimeState', () => {
     renderHook(() =>
       useAgentChatRuntimeState({
         session,
-        activeAgent: undefined,
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
@@ -244,7 +242,6 @@ describe('useAgentChatRuntimeState', () => {
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
         session,
-        activeAgent: undefined,
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
@@ -258,7 +255,6 @@ describe('useAgentChatRuntimeState', () => {
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
         session,
-        activeAgent: undefined,
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
@@ -279,7 +275,6 @@ describe('useAgentChatRuntimeState', () => {
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
         session,
-        activeAgent: undefined,
         sessionMessagesEnabled: true,
         reservedMessages: []
       })

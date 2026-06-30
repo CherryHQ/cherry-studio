@@ -31,7 +31,7 @@ function toReservedAgentUIMessage(row: AgentSessionMessageEntity): CherryUIMessa
       status: row.status,
       createdAt: row.createdAt,
       modelId: row.modelId ?? undefined,
-      modelSnapshot: row.modelSnapshot ?? undefined,
+      messageSnapshot: row.messageSnapshot ?? undefined,
       stats: row.stats ?? undefined,
       ...(row.stats?.totalTokens ? { totalTokens: row.stats.totalTokens } : {})
     }
@@ -70,7 +70,17 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     const uniqueModelId = agent.model
     const { providerId, modelId: rawModelId } = parseUniqueModelId(uniqueModelId)
-    const modelSnapshot = { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
+    // The agent owns the model it ran — snapshot the agent (with the model nested) so the
+    // header shows the agent first, even after the agent is deleted.
+    const messageSnapshot = {
+      agent: {
+        id: agent.id,
+        name: agent.name,
+        emoji: agent.configuration?.avatar,
+        type: agent.type,
+        model: { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
+      }
+    }
 
     const userMessageId = uuidv7()
     const userMessageParts = req.userMessageParts ?? []
@@ -84,7 +94,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       status: 'success',
       searchableText: '',
       modelId: null,
-      modelSnapshot: null,
+      messageSnapshot: null,
       stats: null,
       runtimeResumeToken: null,
       createdAt,
@@ -160,7 +170,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
           status: 'pending',
           data: { parts: [] },
           modelId: uniqueModelId,
-          modelSnapshot
+          messageSnapshot
         }
       ]
     })
@@ -184,7 +194,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
       modelId: uniqueModelId,
       assistantMessageId,
       userMessage,
-      traceId
+      traceId,
+      messageSnapshot
     })
 
     return {

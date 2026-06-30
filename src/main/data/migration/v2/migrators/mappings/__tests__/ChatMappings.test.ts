@@ -811,26 +811,49 @@ describe('transformMessage', () => {
     expect(result.modelId).toBeNull()
   })
 
-  it('builds modelSnapshot from model object', async () => {
+  it('builds the assistant snapshot with the model nested', async () => {
     const oldMsg: OldMessage = {
       ...msg('m1', 'assistant'),
       model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai', group: 'chatgpt' }
     }
     const blocks: OldBlock[] = [mainTextBlock('b1', 'm1', 'hello')]
 
-    const result = await transformMessage(oldMsg, null, 0, blocks, 'topic-1')
+    const result = await transformMessage(oldMsg, null, 0, blocks, 'topic-1', undefined, {
+      id: 'asst-1',
+      name: 'Translator',
+      emoji: '🌐'
+    })
 
-    expect(result.modelSnapshot).toEqual({
-      id: 'gpt-4',
-      name: 'GPT-4',
-      provider: 'openai',
-      group: 'chatgpt'
+    expect(result.messageSnapshot).toEqual({
+      assistant: {
+        id: 'asst-1',
+        name: 'Translator',
+        emoji: '🌐',
+        model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai', group: 'chatgpt' }
+      }
     })
   })
 
-  it('returns null modelSnapshot when model is missing', async () => {
-    const result = await transformMessage(msg('m1', 'assistant'), null, 0, [mainTextBlock('b1', 'm1', 'x')], 't1')
-    expect(result.modelSnapshot).toBeNull()
+  it('returns null snapshot when the assistant is missing (author owns the model)', async () => {
+    const oldMsg: OldMessage = {
+      ...msg('m1', 'assistant'),
+      model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai', group: 'chatgpt' }
+    }
+    const result = await transformMessage(oldMsg, null, 0, [mainTextBlock('b1', 'm1', 'x')], 't1')
+    expect(result.messageSnapshot).toBeNull()
+  })
+
+  it('omits the snapshot from user-role messages even when an assistant is resolved', async () => {
+    const oldMsg: OldMessage = {
+      ...msg('m1', 'user'),
+      model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai', group: 'chatgpt' }
+    }
+    const result = await transformMessage(oldMsg, null, 0, [mainTextBlock('b1', 'm1', 'x')], 't1', undefined, {
+      id: 'asst-1',
+      name: 'Translator',
+      emoji: '🌐'
+    })
+    expect(result.messageSnapshot).toBeNull()
   })
 
   it('drops legacy traceId because span history is not migrated', async () => {

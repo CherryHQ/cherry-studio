@@ -44,7 +44,14 @@ describe('toAgentSessionUIMessage', () => {
       searchableText: 'from parts',
       status: 'success',
       modelId: 'anthropic::claude',
-      modelSnapshot: { id: 'claude', name: 'Claude', provider: 'anthropic' },
+      messageSnapshot: {
+        agent: {
+          id: 'ag1',
+          name: 'Agent',
+          type: 'claude-code',
+          model: { id: 'claude', name: 'Claude', provider: 'anthropic' }
+        }
+      },
       stats: { totalTokens: 10 },
       runtimeResumeToken: 'agent-session-1',
       createdAt: '2026-01-01T00:00:00.000Z',
@@ -59,7 +66,14 @@ describe('toAgentSessionUIMessage', () => {
         createdAt: '2026-01-01T00:00:00.000Z',
         status: 'success',
         modelId: 'anthropic::claude',
-        modelSnapshot: { id: 'claude', name: 'Claude', provider: 'anthropic' },
+        messageSnapshot: {
+          agent: {
+            id: 'ag1',
+            name: 'Agent',
+            type: 'claude-code',
+            model: { id: 'claude', name: 'Claude', provider: 'anthropic' }
+          }
+        },
         stats: { totalTokens: 10 }
       }
     })

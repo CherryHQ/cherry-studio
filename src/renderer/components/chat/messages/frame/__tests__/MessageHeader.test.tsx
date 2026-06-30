@@ -50,12 +50,13 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-const createMessage = (role: 'assistant' | 'user' = 'assistant') =>
+const createMessage = (role: 'assistant' | 'user' = 'assistant', extra: Record<string, unknown> = {}) =>
   ({
     id: 'message-1',
     role,
     createdAt: new Date('2026-06-06T00:00:00.000Z').toISOString(),
-    updatedAt: new Date('2026-06-06T00:00:00.000Z').toISOString()
+    updatedAt: new Date('2026-06-06T00:00:00.000Z').toISOString(),
+    ...extra
   }) as Parameters<typeof MessageHeader>[0]['message']
 
 describe('MessageHeader', () => {
@@ -88,5 +89,44 @@ describe('MessageHeader', () => {
 
     expect(header).toHaveClass('mb-2', 'items-center')
     expect(container.querySelector('.message-body-column')).toBeNull()
+  })
+
+  it('shows the snapshot assistant name as primary and the model as secondary', () => {
+    const { getByText } = render(
+      <MessageHeader
+        message={createMessage('assistant', {
+          model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' },
+          messageSnapshot: {
+            assistant: {
+              id: 'a1',
+              name: 'My Assistant',
+              emoji: '🤖',
+              model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
+            }
+          }
+        })}
+      />
+    )
+    expect(getByText('My Assistant')).toBeTruthy()
+    expect(getByText('GPT-4')).toBeTruthy()
+  })
+
+  it('shows the snapshot agent name as primary', () => {
+    const { getByText } = render(
+      <MessageHeader
+        message={createMessage('assistant', {
+          model: { id: 'claude', name: 'Claude', provider: 'anthropic' },
+          messageSnapshot: {
+            agent: {
+              id: 'ag1',
+              name: 'My Agent',
+              type: 'claude-code',
+              model: { id: 'claude', name: 'Claude', provider: 'anthropic' }
+            }
+          }
+        })}
+      />
+    )
+    expect(getByText('My Agent')).toBeTruthy()
   })
 })

@@ -62,7 +62,7 @@ describe('ImportService.importConversations', () => {
     vi.mocked(dataApiService.post).mockImplementation(async (path: string, options: any) => {
       const returnedId = path === '/assistants' ? nextId('asst') : path === '/topics' ? nextId('topic') : nextId('msg')
       calls.push({ path, body: options?.body, returnedId })
-      return { id: returnedId }
+      return path === '/assistants' ? { id: returnedId, name: 'ChatGPT Import', emoji: '🤖' } : { id: returnedId }
     })
 
     const response = await ImportService.importConversations(chatgptExport())
@@ -92,10 +92,12 @@ describe('ImportService.importConversations', () => {
     // Text content is folded into a single AI SDK text part.
     expect(messageCalls[0].body.data.parts).toEqual([{ type: 'text', text: 'Hi' }])
 
-    // Assistant messages carry a model snapshot (drives the model badge); user
-    // messages do not.
-    expect(messageCalls[0].body.modelSnapshot).toBeUndefined()
-    expect(messageCalls[1].body.modelSnapshot).toMatchObject({ id: 'gpt-5', provider: 'openai' })
+    // Assistant messages freeze the producing author (with the source model
+    // nested) so the header survives rename/delete; user messages do not.
+    expect(messageCalls[0].body.messageSnapshot).toBeUndefined()
+    expect(messageCalls[1].body.messageSnapshot).toMatchObject({
+      assistant: { id: 'asst_1', model: { id: 'gpt-5', provider: 'openai' } }
+    })
 
     // Imported messages are persisted as completed.
     expect(messageCalls.every((c) => c.body.status === 'success')).toBe(true)

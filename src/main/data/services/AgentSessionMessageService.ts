@@ -251,7 +251,7 @@ export class AgentSessionMessageService {
       searchableText: row.searchableText,
       status: row.status as AgentSessionMessageEntity['status'],
       modelId: row.modelId,
-      modelSnapshot: row.modelSnapshot,
+      messageSnapshot: row.messageSnapshot,
       stats: row.stats,
       runtimeResumeToken: row.runtimeResumeToken,
       createdAt: timestampToISO(row.createdAt),
@@ -322,7 +322,8 @@ export class AgentSessionMessageService {
       const runtimeResumeTokenToPersist = runtimeResumeToken ?? existingRow.runtimeResumeToken ?? null
       const updatedAtMs = timestampMs
       const modelId = message.modelId === undefined ? existingRow.modelId : message.modelId
-      const modelSnapshot = message.modelSnapshot === undefined ? existingRow.modelSnapshot : message.modelSnapshot
+      const messageSnapshot =
+        message.messageSnapshot === undefined ? existingRow.messageSnapshot : message.messageSnapshot
       const stats = message.stats === undefined ? existingRow.stats : message.stats
 
       await withSqliteErrors(
@@ -334,7 +335,7 @@ export class AgentSessionMessageService {
               status,
               data: message.data,
               modelId,
-              modelSnapshot,
+              messageSnapshot,
               stats,
               runtimeResumeToken: runtimeResumeTokenToPersist,
               updatedAt: updatedAtMs
@@ -350,7 +351,7 @@ export class AgentSessionMessageService {
         data: message.data,
         searchableText: existingRow.searchableText,
         modelId,
-        modelSnapshot,
+        messageSnapshot,
         stats,
         runtimeResumeToken: runtimeResumeTokenToPersist,
         updatedAt: updatedAtMs
@@ -364,7 +365,7 @@ export class AgentSessionMessageService {
       status,
       data: message.data,
       modelId: message.modelId,
-      modelSnapshot: message.modelSnapshot,
+      messageSnapshot: message.messageSnapshot,
       stats: message.stats,
       runtimeResumeToken,
       createdAt: timestampMs,
