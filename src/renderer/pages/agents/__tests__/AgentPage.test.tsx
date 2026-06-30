@@ -451,14 +451,19 @@ vi.mock('../AgentSidePanel', () => ({
 vi.mock('@renderer/components/chat/resources/variants/AgentResourceList', () => ({
   AgentResourceList: ({
     activeAgentId,
-    onAddAgent
+    onAddAgent,
+    onActiveAgentDeleted
   }: {
     activeAgentId?: string | null
     onAddAgent?: () => void | Promise<void>
+    onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
   }) => (
     <div data-active-agent-id={activeAgentId ?? ''} data-testid="agent-resource-list">
       <button type="button" onClick={() => void onAddAgent?.()}>
         Open agent picker
+      </button>
+      <button type="button" onClick={() => void onActiveAgentDeleted?.(activeAgentId ?? '')}>
+        Delete active agent
       </button>
     </div>
   )
@@ -606,6 +611,42 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('active-session')).toHaveTextContent('session-latest')
     expect(screen.getByTestId('draft-session')).toHaveTextContent('')
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+  })
+
+  it('selects the latest remaining session after deleting the active agent (old view, never draft)', async () => {
+    agentPageMocks.workView = 'old'
+    // Pin the active session via the route so the load-time auto-select effect stays out of the way.
+    agentPageMocks.routeSearch = { sessionId: 'session-a' }
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-a', agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+    agentPageMocks.oldViewSessions = [
+      {
+        ...agentPageMocks.persistedSession,
+        id: 'session-a',
+        agentId: 'agent-a',
+        updatedAt: '2026-01-02T00:00:00.000Z'
+      },
+      {
+        ...agentPageMocks.persistedSession,
+        id: 'session-b-old',
+        agentId: 'agent-b',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      },
+      {
+        ...agentPageMocks.persistedSession,
+        id: 'session-b-new',
+        agentId: 'agent-b',
+        updatedAt: '2026-01-03T00:00:00.000Z'
+      }
+    ]
+
+    render(<AgentPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Delete active agent' }))
+
+    // Old layout settles on the latest session of a remaining agent, never the draft compose.
+    await waitFor(() => expect(screen.getByTestId('active-session')).toHaveTextContent('session-b-new'))
+    expect(screen.getByTestId('missing-agent-draft')).toHaveTextContent('false')
+    expect(screen.getByTestId('draft-session')).toHaveTextContent('')
   })
 
   it('creates and activates an empty session after selecting an agent from the old-view picker', async () => {

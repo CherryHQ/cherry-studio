@@ -462,6 +462,21 @@ const HomePage: FC = () => {
     },
     [conversationNav, currentTabId, setActiveTopic, setDraftAssistantSelectionState]
   )
+  // Old-view reset after deleting the active assistant: select the latest
+  // remaining topic (across other assistants). Filter by the deleted id so this
+  // is correct even before the topic cache refetches. If nothing remains, fall
+  // back to the draft compose — old view has no empty-with-rail state to show.
+  const handleActiveAssistantDeleted = useCallback(
+    (deletedAssistantId: string) => {
+      const nextTopic = findLatestUpdated(oldViewTopics.filter((topic) => topic.assistantId !== deletedAssistantId))
+      if (nextTopic) {
+        setActiveTopicAndDiscardDraft(mapApiTopicToRendererTopic(nextTopic))
+        return
+      }
+      startDraftAssistantSelection()
+    },
+    [oldViewTopics, setActiveTopicAndDiscardDraft, startDraftAssistantSelection]
+  )
 
   const resolveAssistantIdForSelection = useCallback(
     async (selection: AssistantConversationSelection) => {
@@ -644,6 +659,7 @@ const HomePage: FC = () => {
       onOpenHistoryRecords={openHistoryRecords}
       onSelectTopic={setActiveTopicAndDiscardDraft}
       onStartDraftAssistant={(assistantId) => startDraftAssistantSelection({ assistantId })}
+      onActiveAssistantDeleted={handleActiveAssistantDeleted}
     />
   ) : (
     <HomeTabs

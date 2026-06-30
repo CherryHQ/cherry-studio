@@ -35,6 +35,12 @@ type AssistantResourceListProps = {
   onOpenHistoryRecords?: () => void
   onSelectTopic: (topic: Topic) => void | boolean
   onStartDraftAssistant: (assistantId: string | null) => void | Promise<void>
+  /**
+   * Called after the currently-active assistant is deleted so the old-view page
+   * can settle (select the latest remaining topic / fall back). This is the old
+   * layout's reset and is distinct from `onStartDraftAssistant`.
+   */
+  onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
 }
 
 export function AssistantResourceList({
@@ -42,7 +48,8 @@ export function AssistantResourceList({
   onAddAssistant,
   onOpenHistoryRecords,
   onSelectTopic,
-  onStartDraftAssistant
+  onStartDraftAssistant,
+  onActiveAssistantDeleted
 }: AssistantResourceListProps) {
   const { t } = useTranslation()
   const {
@@ -173,7 +180,7 @@ export function AssistantResourceList({
 
         await deleteAssistant(assistantId, { deleteTopics: true })
         if (activeAssistantId === assistantId) {
-          await onStartDraftAssistant(null)
+          await onActiveAssistantDeleted?.(assistantId)
         }
 
         await refreshAssistants()
@@ -190,7 +197,7 @@ export function AssistantResourceList({
       activeAssistantId,
       deleteAssistant,
       deletingAssistantId,
-      onStartDraftAssistant,
+      onActiveAssistantDeleted,
       refreshAssistants,
       refreshTopics,
       t

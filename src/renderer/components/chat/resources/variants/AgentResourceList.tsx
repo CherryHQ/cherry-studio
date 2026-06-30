@@ -40,6 +40,12 @@ type AgentResourceListProps = {
   onSelectSession: (sessionId: string, session: AgentSessionEntity) => void
   onStartDraftAgent: (agentId: string) => void | Promise<void>
   onStartMissingAgentDraft?: () => void | Promise<void>
+  /**
+   * Called after the currently-active agent is deleted so the old-view page can
+   * settle (select the latest remaining session / clear). This is the old
+   * layout's reset — unlike the new layout it must NOT open the draft compose.
+   */
+  onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
 }
 
 export function AgentResourceList({
@@ -48,7 +54,8 @@ export function AgentResourceList({
   onOpenHistoryRecords,
   onSelectSession,
   onStartDraftAgent,
-  onStartMissingAgentDraft
+  onStartMissingAgentDraft,
+  onActiveAgentDeleted
 }: AgentResourceListProps) {
   const { t } = useTranslation()
   const { agents, isLoading: isAgentsLoading, error: agentsError, refetch: refetchAgents } = useAgents()
@@ -178,7 +185,7 @@ export function AgentResourceList({
 
         await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
         if (activeAgentId === agentId) {
-          await onStartMissingAgentDraft?.()
+          await onActiveAgentDeleted?.(agentId)
         }
 
         await refetchAgents()
@@ -191,7 +198,7 @@ export function AgentResourceList({
         setDeletingAgentId(null)
       }
     },
-    [activeAgentId, deleteAgent, deletingAgentId, onStartMissingAgentDraft, refetchAgents, reload, t]
+    [activeAgentId, deleteAgent, deletingAgentId, onActiveAgentDeleted, refetchAgents, reload, t]
   )
 
   const getContextMenuActions = useCallback(

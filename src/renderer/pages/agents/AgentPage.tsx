@@ -651,6 +651,25 @@ const AgentPage = () => {
     },
     [conversationNav, currentTabId, setActiveSessionAndDiscardDraft]
   )
+  // Old-view reset after deleting the active agent: select the latest remaining
+  // session (across other agents), or clear to the empty state. Never open the
+  // draft compose — that belongs to the new layout. Filter by the deleted id so
+  // this is correct even before the session cache refetches.
+  const handleActiveAgentDeleted = useCallback(
+    (deletedAgentId: string) => {
+      const nextSession = findLatestUpdated(oldViewSessions.filter((session) => session.agentId !== deletedAgentId))
+      if (nextSession) {
+        setActiveSessionAndDiscardDraft(nextSession.id, nextSession)
+        return
+      }
+      setPendingLocateMessageId(undefined)
+      setMissingAgentDraft(false)
+      setDraftSessionState(null)
+      pendingSelectedSessionRef.current = null
+      setActiveSessionId(null)
+    },
+    [oldViewSessions, setActiveSessionAndDiscardDraft, setActiveSessionId, setDraftSessionState]
+  )
 
   const ensurePersistentSession = useCallback(
     async (initialName?: string) => {
@@ -869,6 +888,7 @@ const AgentPage = () => {
       onSelectSession={handleResourceSessionSelect}
       onStartDraftAgent={(agentId) => startDraftSession({ agentId })}
       onStartMissingAgentDraft={startMissingAgentDraft}
+      onActiveAgentDeleted={handleActiveAgentDeleted}
     />
   ) : (
     <AgentSidePanel

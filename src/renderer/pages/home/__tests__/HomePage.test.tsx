@@ -465,14 +465,19 @@ vi.mock('../components/TopicRightPane', () => {
 vi.mock('@renderer/components/chat/resources/variants/AssistantResourceList', () => ({
   AssistantResourceList: ({
     activeAssistantId,
-    onAddAssistant
+    onAddAssistant,
+    onActiveAssistantDeleted
   }: {
     activeAssistantId?: string | null
     onAddAssistant?: () => void | Promise<void>
+    onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
   }) => (
     <div data-active-assistant-id={activeAssistantId ?? ''} data-testid="assistant-resource-list">
       <button type="button" onClick={() => void onAddAssistant?.()}>
         Open assistant picker
+      </button>
+      <button type="button" onClick={() => void onActiveAssistantDeleted?.(activeAssistantId ?? '')}>
+        Delete active assistant
       </button>
     </div>
   )
@@ -627,6 +632,28 @@ describe('HomePage', () => {
     render(<HomePage />)
 
     await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-latest'))
+    expect(screen.queryByTestId('draft-composer')).not.toBeInTheDocument()
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
+  it('selects the latest remaining topic after deleting the active assistant (old view, never draft)', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.preferenceValues.set('chat.conversation_view', 'old')
+    homeMocks.oldViewTopics = [
+      { ...historyTopic, id: 'topic-a', assistantId: 'assistant-a', updatedAt: '2026-01-05T00:00:00.000Z' },
+      { ...historyTopic, id: 'topic-b-old', assistantId: 'assistant-b', updatedAt: '2026-01-01T00:00:00.000Z' },
+      { ...historyTopic, id: 'topic-b-new', assistantId: 'assistant-b', updatedAt: '2026-01-03T00:00:00.000Z' }
+    ]
+
+    render(<HomePage />)
+    // Latest overall (assistant-a) auto-selects on load.
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-a'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete active assistant' }))
+
+    // Old layout settles on the latest topic of a remaining assistant, never the draft compose.
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-b-new'))
+    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-b')
     expect(screen.queryByTestId('draft-composer')).not.toBeInTheDocument()
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })

@@ -220,12 +220,14 @@ describe('old layout entity resource list actions', () => {
 
   it('uses delete-assistant actions for the old layout assistant context and more menus', async () => {
     const onStartDraftAssistant = vi.fn()
+    const onActiveAssistantDeleted = vi.fn()
 
     render(
       <AssistantResourceList
         activeAssistantId="assistant-1"
         onSelectTopic={vi.fn()}
         onStartDraftAssistant={onStartDraftAssistant}
+        onActiveAssistantDeleted={onActiveAssistantDeleted}
       />
     )
 
@@ -242,12 +244,16 @@ describe('old layout entity resource list actions', () => {
     await waitFor(() =>
       expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledWith('assistant-1', { deleteTopics: true })
     )
-    expect(onStartDraftAssistant).toHaveBeenCalledWith(null)
+    // Old layout resets via the dedicated callback (page settles to the latest
+    // remaining topic) and must NOT open the new-layout draft compose.
+    await waitFor(() => expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1'))
+    expect(onStartDraftAssistant).not.toHaveBeenCalled()
     expect(shellActionMocks.close).not.toHaveBeenCalled()
   })
 
   it('uses delete-agent actions for the old layout agent context and more menus', async () => {
     const onStartMissingAgentDraft = vi.fn()
+    const onActiveAgentDeleted = vi.fn()
 
     render(
       <AgentResourceList
@@ -255,6 +261,7 @@ describe('old layout entity resource list actions', () => {
         onSelectSession={vi.fn()}
         onStartDraftAgent={vi.fn()}
         onStartMissingAgentDraft={onStartMissingAgentDraft}
+        onActiveAgentDeleted={onActiveAgentDeleted}
       />
     )
 
@@ -274,7 +281,9 @@ describe('old layout entity resource list actions', () => {
         query: { deleteSessions: true }
       })
     )
-    expect(onStartMissingAgentDraft).toHaveBeenCalled()
+    // Old layout resets via the dedicated callback, never the draft compose.
+    await waitFor(() => expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1'))
+    expect(onStartMissingAgentDraft).not.toHaveBeenCalled()
     expect(shellActionMocks.close).not.toHaveBeenCalled()
   })
 })
