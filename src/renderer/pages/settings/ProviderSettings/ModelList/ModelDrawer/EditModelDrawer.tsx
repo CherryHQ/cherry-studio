@@ -16,6 +16,7 @@ import type { UpdateModelDto } from '@shared/data/api/schemas/models'
 import { CURRENCY, type Currency, type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { isNewApiProvider } from '@shared/utils/provider'
+import { isEqual } from 'es-toolkit/compat'
 import { ChevronDown, ChevronUp, SaveIcon } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -172,12 +173,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       if (patch.contextWindow !== model.contextWindow) changes.contextWindow = patch.contextWindow
       if (patch.maxInputTokens !== model.maxInputTokens) changes.maxInputTokens = patch.maxInputTokens
       if (patch.maxOutputTokens !== model.maxOutputTokens) changes.maxOutputTokens = patch.maxOutputTokens
-      const pricingChanged =
-        patch.pricing?.input?.perMillionTokens !== baselinePricing.input.perMillionTokens ||
-        patch.pricing?.input?.currency !== baselinePricing.input.currency ||
-        patch.pricing?.output?.perMillionTokens !== baselinePricing.output.perMillionTokens ||
-        patch.pricing?.output?.currency !== baselinePricing.output.currency
-      if (pricingChanged) changes.pricing = patch.pricing
+      if (!isEqual(patch.pricing, baselinePricing)) changes.pricing = patch.pricing
 
       if (Object.keys(changes).length === 0) {
         return
