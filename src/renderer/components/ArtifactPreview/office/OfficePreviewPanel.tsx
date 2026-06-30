@@ -7,7 +7,6 @@ import PptxPreviewPanel from './PptxPreviewPanel'
 import WordPreviewPanel from './WordPreviewPanel'
 
 const SUPPORTED_OFFICE_PREVIEW_EXTENSIONS = new Set(['docx', 'pptx'])
-const LEGACY_OFFICE_EXTENSIONS = new Set(['doc', 'ppt'])
 
 export interface OfficePreviewPanelProps {
   filePath: string
@@ -79,10 +78,9 @@ export function OfficePreviewPanel({
   const extension = getPreviewExtension(filePath, fileName)
   const displayName = getFileDisplayName(filePath, fileName)
   const supported = SUPPORTED_OFFICE_PREVIEW_EXTENSIONS.has(extension)
-  const legacy = LEGACY_OFFICE_EXTENSIONS.has(extension)
   const previewFilePath = sourceFilePath ?? (isAbsoluteFilePath(filePath) ? filePath : undefined)
 
-  if (!supported || legacy) {
+  if (!supported) {
     return (
       <div className={cn('flex h-full min-h-[320px] min-w-0 flex-col bg-background', className)}>
         <UnsupportedOfficePreview extension={extension} onOpenExternal={onOpenExternal} />
