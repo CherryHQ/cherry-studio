@@ -12,7 +12,60 @@ import {
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+// Fake registry — the seeder resolves the hy3 row through `mergePresetModel`,
+// so the registry must surface the `hy3` provider-models override plus the
+// Hunyuan provider's per-endpoint reasoning formats. Mirrors the real
+// `provider-models.json` / `providers.json` entries so the test still validates
+// the registry → DB-row mapping (not just a hand-typed row).
+vi.mock('@cherrystudio/provider-registry/node', () => {
+  const HY3_OVERRIDE = {
+    providerId: 'hunyuan',
+    modelId: 'hy3',
+    apiModelId: 'hy3',
+    name: 'Hy3',
+    family: 'hunyuan',
+    ownedBy: 'tencent',
+    capabilities: { force: ['function-call', 'reasoning'] },
+    endpointTypes: ['openai-chat-completions', 'anthropic-messages'],
+    inputModalities: ['text'],
+    outputModalities: ['text'],
+    reasoning: { supportedEfforts: ['none', 'high'] }
+  }
+
+  const HUNYUAN_PROVIDER = {
+    id: 'hunyuan',
+    name: 'Tencent Hy',
+    defaultChatEndpoint: 'openai-chat-completions',
+    endpointConfigs: {
+      'openai-chat-completions': {
+        baseUrl: 'https://tokenhub.tencentmaas.com/v1',
+        adapterFamily: 'openai-compatible',
+        reasoningFormat: { type: 'openai-chat' }
+      },
+      'anthropic-messages': {
+        baseUrl: 'https://tokenhub.tencentmaas.com',
+        adapterFamily: 'anthropic',
+        reasoningFormat: { type: 'anthropic' }
+      }
+    }
+  }
+
+  class RegistryLoader {
+    findOverride(providerId: string, modelId: string) {
+      return providerId === 'hunyuan' && modelId === 'hy3' ? HY3_OVERRIDE : null
+    }
+    findModel() {
+      return null
+    }
+    loadProviders() {
+      return [HUNYUAN_PROVIDER]
+    }
+  }
+
+  return { RegistryLoader }
+})
 
 describe('HunyuanHy3ModelSeeder', () => {
   const dbh = setupTestDatabase()
@@ -35,7 +88,7 @@ describe('HunyuanHy3ModelSeeder', () => {
     return model
   }
 
-  it('seeds the hy3 model with dual-protocol endpoints and reasoning efforts', async () => {
+  it('seeds the hy3 model with dual-protocol endpoints and reasoning efforts resolved from the registry', async () => {
     await insertHunyuanProvider()
 
     await new HunyuanHy3ModelSeeder().run(dbh.db)
