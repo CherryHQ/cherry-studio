@@ -1,5 +1,5 @@
 import type { Assistant } from '@shared/data/types/assistant'
-import { createUniqueModelId, MODEL_CAPABILITY, type Model } from '@shared/data/types/model'
+import { createUniqueModelId, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
