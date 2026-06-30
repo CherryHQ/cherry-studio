@@ -1,7 +1,8 @@
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import { List } from 'lucide-react'
-import { createContext, type ReactNode, use } from 'react'
+import { createContext, type ReactNode, use, useEffect, useRef } from 'react'
 
-import { Shell } from './Shell'
+import { Shell, useShellActions } from './Shell'
 
 // ── Resource-list-as-right-pane wiring ──────────────────────────────────────
 // In classic-layout mode (`topic.layout`/`agent.layout === 'classic'`) the topic/session list moves into the
@@ -52,4 +53,25 @@ export function ResourcePanePanel() {
       {config.node}
     </Shell.Panel>
   )
+}
+
+/**
+ * Opens the right resource pane when a *locate* request arrives (history records / global search),
+ * so the located topic/session is actually visible. Passive "reveal current" requests don't set
+ * `clearFilters`, so ordinary topic/tab switches never force the pane open. Classic layout only —
+ * outside it there is no resource pane to open. Mount inside the Shell tree.
+ */
+export function ResourcePaneLocateOpener({ revealRequest }: { revealRequest?: ResourceListRevealRequest }) {
+  const actions = useShellActions()
+  const resourcePane = useResourcePane()
+  const handledRequestIdRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (!resourcePane || !revealRequest?.clearFilters) return
+    if (handledRequestIdRef.current === revealRequest.requestId) return
+    handledRequestIdRef.current = revealRequest.requestId
+    actions.openTab(RESOURCE_PANE_TAB)
+  }, [actions, resourcePane, revealRequest])
+
+  return null
 }

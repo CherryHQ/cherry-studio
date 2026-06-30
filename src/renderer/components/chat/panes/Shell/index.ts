@@ -1,6 +1,7 @@
 export {
   RESOURCE_PANE_TAB,
   type ResourcePaneConfig,
+  ResourcePaneLocateOpener,
   ResourcePanePanel,
   ResourcePaneProvider,
   ResourcePaneTab,

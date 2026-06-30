@@ -2,12 +2,12 @@ import type { TopicMessageFlowLiveState } from '@renderer/components/chat/messag
 import {
   RESOURCE_PANE_TAB,
   type ResourcePaneConfig,
+  ResourcePaneLocateOpener,
   ResourcePanePanel,
   ResourcePaneProvider,
   ResourcePaneTab,
   Shell,
   useResourcePane,
-  useShellActions,
   useShellState
 } from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
@@ -17,7 +17,7 @@ import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { Activity, GitBranch } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
-import { createContext, use, useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
+import { createContext, use, useCallback, useRef, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import TopicBranchPanel from './TopicBranchPanel'
@@ -94,27 +94,6 @@ function useTopicBranchLiveState(topicId: string): TopicMessageFlowLiveState | n
   const getSnapshot = useCallback(() => store.getSnapshot(topicId), [store, topicId])
 
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
-}
-
-/**
- * Opens the right resource pane when a *locate* request arrives (history records / global search),
- * so the located topic is actually visible. Passive "reveal current topic" requests don't set
- * `clearFilters`, so ordinary topic/tab switches never force the pane open. Classic layout only — outside it
- * there is no resource pane to open.
- */
-function ResourcePaneLocateOpener({ revealRequest }: { revealRequest?: ResourceListRevealRequest }) {
-  const actions = useShellActions()
-  const resourcePane = useResourcePane()
-  const handledRequestIdRef = useRef<number | null>(null)
-
-  useEffect(() => {
-    if (!resourcePane || !revealRequest?.clearFilters) return
-    if (handledRequestIdRef.current === revealRequest.requestId) return
-    handledRequestIdRef.current = revealRequest.requestId
-    actions.openTab(RESOURCE_PANE_TAB)
-  }, [actions, resourcePane, revealRequest])
-
-  return null
 }
 
 function TopicRightPaneProvider({

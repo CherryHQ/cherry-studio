@@ -13,6 +13,7 @@ import OpenExternalAppButton from '@renderer/components/chat/panes/OpenExternalA
 import {
   RESOURCE_PANE_TAB,
   type ResourcePaneConfig,
+  ResourcePaneLocateOpener,
   ResourcePanePanel,
   ResourcePaneProvider,
   ResourcePaneTab,
@@ -175,21 +176,6 @@ function useAgentRightPane(): AgentRightPaneContextValue {
 
 export function useAgentRightPaneActions(): AgentRightPaneActions {
   return useAgentRightPane().actions
-}
-
-function ResourcePaneLocateOpener({ revealRequest }: { revealRequest?: ResourceListRevealRequest }) {
-  const actions = useShellActions()
-  const resourcePane = useResourcePane()
-  const handledRequestIdRef = useRef<number | null>(null)
-
-  useEffect(() => {
-    if (!resourcePane || !revealRequest?.clearFilters) return
-    if (handledRequestIdRef.current === revealRequest.requestId) return
-    handledRequestIdRef.current = revealRequest.requestId
-    actions.openTab(RESOURCE_PANE_TAB)
-  }, [actions, resourcePane, revealRequest])
-
-  return null
 }
 
 function AgentRightPaneStateProvider({
