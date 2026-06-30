@@ -117,6 +117,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
     rawPath.startsWith(`${workspacePath}/`) ? rawPath.slice(workspacePath.length + 1) : rawPath,
   resolveArtifactPaneFileSelection: (workspacePath: string | undefined, rawPath: string) =>
     workspacePath ? { workspacePath, filePath: rawPath.replace(`${workspacePath}/`, '') } : null,
+  ArtifactPaneView: () => <div />,
   default: () => <div />
 }))
 

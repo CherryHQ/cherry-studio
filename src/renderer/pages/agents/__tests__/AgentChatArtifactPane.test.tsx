@@ -154,6 +154,43 @@ vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
   )
 }))
 
+vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => {
+  const workspaceRootId = '__workspace_root__'
+
+  return {
+    isSelectableFileNode: (nodeById: ReadonlyMap<string, { kind: string }>, selectedFile: string | null) =>
+      Boolean(selectedFile && nodeById.get(selectedFile)?.kind === 'file'),
+    useArtifactFileTreeModel: ({
+      workspacePath,
+      expandedIds,
+      onExpandedIdsChange
+    }: {
+      workspacePath?: string
+      expandedIds: ReadonlySet<string>
+      onExpandedIdsChange: (next: ReadonlySet<string>) => void
+    }) => {
+      const effectiveExpandedIds = new Set(expandedIds)
+      if (workspacePath) effectiveExpandedIds.add(workspaceRootId)
+
+      return {
+        filteredTree: [],
+        effectiveExpandedIds,
+        nodeById: new Map([['README.md', { kind: 'file' }]]),
+        isLoading: false,
+        hasLoaded: Boolean(workspacePath),
+        setExpandedIds: (ids: ReadonlySet<string>) => {
+          const next = new Set(ids)
+          next.delete(workspaceRootId)
+          onExpandedIdsChange(next)
+        },
+        reloadExpandedDirectories: () => {},
+        resetLazyChildren: () => {},
+        refresh: () => {}
+      }
+    }
+  }
+})
+
 vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
   const MockArtifactPane = ({
     workspacePath,
@@ -237,6 +274,41 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
     )
   }
 
+  const MockArtifactPaneView = ({
+    model,
+    treeOpen,
+    onTreeOpenChange,
+    searchKeyword,
+    onSearchKeywordChange,
+    selectedFile,
+    onSelectedFileChange,
+    workspacePath
+  }: {
+    model: {
+      effectiveExpandedIds: ReadonlySet<string>
+      setExpandedIds: (ids: ReadonlySet<string>) => void
+    }
+    treeOpen: boolean
+    onTreeOpenChange: (open: boolean) => void
+    searchKeyword: string
+    onSearchKeywordChange: (keyword: string) => void
+    selectedFile: string | null
+    onSelectedFileChange: (file: string | null) => void
+    workspacePath?: string
+  }) => (
+    <MockArtifactPane
+      workspacePath={workspacePath}
+      selectedFile={selectedFile}
+      onSelectedFileChange={onSelectedFileChange}
+      fileTreeOpen={treeOpen}
+      onFileTreeOpenChange={onTreeOpenChange}
+      fileTreeExpandedIds={new Set(Array.from(model.effectiveExpandedIds).filter((id) => id !== '__workspace_root__'))}
+      onFileTreeExpandedIdsChange={model.setExpandedIds}
+      fileTreeSearchKeyword={searchKeyword}
+      onFileTreeSearchKeywordChange={onSearchKeywordChange}
+    />
+  )
+
   return {
     ARTIFACT_PANE_WIDTH: 460,
     ArtifactFilePreview: ({
@@ -268,6 +340,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
       }
       return workspacePath ? { workspacePath, filePath: rawPath } : null
     },
+    ArtifactPaneView: MockArtifactPaneView,
     default: MockArtifactPane
   }
 })
