@@ -61,7 +61,7 @@ jobs:
           node-version-file: '.node-version'
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v5
+        uses: pnpm/action-setup@v6
 
       - name: Clean node_modules
         if: ${{ github.event.inputs.clean == 'true' }}
