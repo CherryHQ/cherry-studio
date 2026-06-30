@@ -185,7 +185,7 @@ vi.mock('../utils/storage/pathStorage', async () => {
   }
 })
 
-const { KnowledgeService } = await import('../KnowledgeService')
+const { KnowledgeService, KNOWLEDGE_TREE_MAX_NODES } = await import('../KnowledgeService')
 
 const NOTE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
 const DELETING_NOTE_ITEM_ID = '0198f3f2-7d1b-7abc-8def-123456789abc'
@@ -1764,8 +1764,7 @@ describe('KnowledgeService', () => {
     function arrangeReadable(text: string, itemBaseId = 'kb-1') {
       getMaterialByRelativePathMock.mockResolvedValue({
         materialId: NOTE_ITEM_ID,
-        relativePath: CONCEPT_ID,
-        contentHash: 'hash-1'
+        relativePath: CONCEPT_ID
       })
       knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID, itemBaseId, null, 'completed'))
       readMaterialContentMock.mockResolvedValue(text)
@@ -1854,12 +1853,18 @@ describe('KnowledgeService', () => {
       expect(readMaterialContentMock).not.toHaveBeenCalled()
     })
 
-    it('throws NOT_FOUND when the material has no current content', async () => {
+    it('throws a distinct "Knowledge concept content" NOT_FOUND when the material has no current content', async () => {
       const service = new KnowledgeService()
       arrangeReadable('placeholder')
       readMaterialContentMock.mockResolvedValue(null)
 
-      await expect(service.readConcept('kb-1', CONCEPT_ID)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+      // The resource MUST be the content-missing discriminator (not the generic 'Knowledge concept'),
+      // so the tool layer steers "retry / re-indexing" rather than "verify the conceptId". This pins the
+      // service end of the three-literal coupling that conceptLookupError matches on.
+      await expect(service.readConcept('kb-1', CONCEPT_ID)).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'Knowledge concept content' }
+      })
     })
   })
 
@@ -1869,8 +1874,7 @@ describe('KnowledgeService', () => {
     function arrangeReadable(text: string) {
       getMaterialByRelativePathMock.mockResolvedValue({
         materialId: NOTE_ITEM_ID,
-        relativePath: CONCEPT_ID,
-        contentHash: 'hash-1'
+        relativePath: CONCEPT_ID
       })
       knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
       readMaterialContentMock.mockResolvedValue(text)
@@ -2019,6 +2023,24 @@ describe('KnowledgeService', () => {
       // maxDepth 0 keeps only the top level; the nested folder and its file are dropped.
       expect(tree.nodes.map((node) => node.title)).toEqual(['docs'])
       expect(tree.totalItems).toBe(3)
+      // maxDepth filtering must NOT set truncated — that flag is reserved for the node-cap (see JSDoc).
+      expect(tree.truncated).toBe(false)
+    })
+
+    it('caps the node list at KNOWLEDGE_TREE_MAX_NODES and flags truncated', async () => {
+      const service = new KnowledgeService()
+      // One more root leaf than the cap: every node is at depth 0, so only the cap (not maxDepth) can trim.
+      const items = Array.from({ length: KNOWLEDGE_TREE_MAX_NODES + 1 }, (_, idx) =>
+        createFileItem(`f${idx}`, 'kb-1', `/doc-${idx}.pdf`, 'completed')
+      )
+      knowledgeItemGetItemsByBaseIdMock.mockResolvedValue(items)
+
+      const tree = await service.getOrganizationTree('kb-1')
+
+      expect(tree.truncated).toBe(true)
+      expect(tree.nodes).toHaveLength(KNOWLEDGE_TREE_MAX_NODES)
+      // totalItems counts every non-deleting item, even those past the cap.
+      expect(tree.totalItems).toBe(KNOWLEDGE_TREE_MAX_NODES + 1)
     })
   })
 
@@ -2027,7 +2049,7 @@ describe('KnowledgeService', () => {
 
     function arrangeResolvable(itemBaseId = 'kb-1') {
       getMaterialByRelativePathMock.mockImplementation(async (relativePath: string) =>
-        relativePath === CONCEPT_ID ? { materialId: NOTE_ITEM_ID, relativePath: CONCEPT_ID, contentHash: 'h' } : null
+        relativePath === CONCEPT_ID ? { materialId: NOTE_ITEM_ID, relativePath: CONCEPT_ID } : null
       )
       knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID, itemBaseId, null, 'completed'))
     }
@@ -2086,11 +2108,11 @@ describe('KnowledgeService', () => {
   describe('refreshConcepts', () => {
     const CONCEPT_ID = 'docs/intro.md'
 
-    function arrangeResolvable() {
+    function arrangeResolvable(itemBaseId = 'kb-1') {
       getMaterialByRelativePathMock.mockImplementation(async (relativePath: string) =>
-        relativePath === CONCEPT_ID ? { materialId: NOTE_ITEM_ID, relativePath: CONCEPT_ID, contentHash: 'h' } : null
+        relativePath === CONCEPT_ID ? { materialId: NOTE_ITEM_ID, relativePath: CONCEPT_ID } : null
       )
-      knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
+      knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID, itemBaseId, null, 'completed'))
     }
 
     it('resolves a Concept ID to its item and re-indexes it, reporting it applied', async () => {
@@ -2119,6 +2141,18 @@ describe('KnowledgeService', () => {
       const result = await service.refreshConcepts('kb-1', ['docs/missing.md'])
 
       expect(result).toEqual({ applied: [], notFound: ['docs/missing.md'] })
+      expect(enqueueMock).not.toHaveBeenCalled()
+    })
+
+    it('treats a resolved material in another base as notFound (identity re-check)', async () => {
+      const service = new KnowledgeService()
+      // The relative path resolves, but the item lives in another base — refresh must not cross the
+      // identity boundary (same guard as deleteConcepts; refreshConcepts shares resolveConceptItemIds).
+      arrangeResolvable('other-base')
+
+      const result = await service.refreshConcepts('kb-1', [CONCEPT_ID])
+
+      expect(result).toEqual({ applied: [], notFound: [CONCEPT_ID] })
       expect(enqueueMock).not.toHaveBeenCalled()
     })
   })

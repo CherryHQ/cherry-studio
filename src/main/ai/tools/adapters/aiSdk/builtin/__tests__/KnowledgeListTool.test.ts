@@ -177,10 +177,12 @@ describe('kb_list', () => {
     knowledgeServiceGetOrganizationTree.mockReset()
   })
 
-  it('builds an entry with the agreed namespace + defer policy', () => {
+  it('builds an entry with the agreed namespace + defer policy and is auto-approved (read-only)', () => {
     expect(entry.name).toBe(KB_LIST_TOOL_NAME)
     expect(entry.namespace).toBe('kb')
     expect(entry.defer).toBe('never')
+    // kb_list only reads — no per-call approval prompt (the auto-approve half of the carve-out).
+    expect(entry.tool.needsApproval).toBeFalsy()
   })
 
   it('returns only bases in the assistant scope when knowledgeBaseIds is non-empty', async () => {
@@ -320,16 +322,33 @@ describe('kb_list', () => {
     expect(knowledgeServiceListRootItems).not.toHaveBeenCalled()
   })
 
-  it('still lists a base when listRootItems throws (degrades to empty sampleSources)', async () => {
+  it('flags itemsUnavailable (not a fabricated empty) when listRootItems throws for a completed base', async () => {
     knowledgeServiceListBases.mockResolvedValue([makeBase({ id: 'kb-1' })])
     knowledgeServiceListRootItems.mockRejectedValue(new Error('boom'))
 
     const [base] = (await callExecute({}, { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) })) as Array<{
       id: string
       sampleSources: string[]
+      itemCount?: number
+      itemsUnavailable?: boolean
     }>
     expect(base.id).toBe('kb-1')
     expect(base.sampleSources).toEqual([])
+    // A read failure must NOT look like a genuinely empty base: signal it in-band and omit the count.
+    expect(base.itemsUnavailable).toBe(true)
+    expect(base.itemCount).toBeUndefined()
+  })
+
+  it('reports a real itemCount and no itemsUnavailable flag on a successful (empty) read', async () => {
+    knowledgeServiceListBases.mockResolvedValue([makeBase({ id: 'kb-1' })])
+    knowledgeServiceListRootItems.mockResolvedValue([])
+
+    const [base] = (await callExecute({}, { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) })) as Array<{
+      itemCount?: number
+      itemsUnavailable?: boolean
+    }>
+    expect(base.itemCount).toBe(0)
+    expect(base.itemsUnavailable).toBeUndefined()
   })
 
   describe('outline mode (baseId)', () => {
@@ -453,9 +472,9 @@ describe('kb_list', () => {
   })
 
   describe('applies', () => {
-    it('applies whenever any base exists, regardless of assistant binding', () => {
+    it('applies only when a base exists AND one is bound to the assistant (matches kb_search/kb_read)', () => {
       const applies = entry.applies!
-      // No base in the system → does not apply, even with bound ids.
+      // No base in the system → never applies, even with bound ids.
       expect(
         applies({
           assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }),
@@ -463,11 +482,20 @@ describe('kb_list', () => {
           hasAnyKnowledgeBase: false
         })
       ).toBe(false)
-      // A base exists → applies even with no bound bases (and even with no assistant): kb_list browses all bases.
-      expect(applies({ assistant: undefined, mcpToolIds: new Set(), hasAnyKnowledgeBase: true })).toBe(true)
+      // A base exists but none bound (or no assistant) → does NOT apply: listing every base would be a
+      // discovery dead-end (no kb_read / kb_search to act on them) and widen the per-assistant scope.
+      expect(applies({ assistant: undefined, mcpToolIds: new Set(), hasAnyKnowledgeBase: true })).toBe(false)
       expect(
         applies({
           assistant: makeAssistant({ knowledgeBaseIds: [] }),
+          mcpToolIds: new Set(),
+          hasAnyKnowledgeBase: true
+        })
+      ).toBe(false)
+      // A base exists AND is bound → applies.
+      expect(
+        applies({
+          assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }),
           mcpToolIds: new Set(),
           hasAnyKnowledgeBase: true
         })

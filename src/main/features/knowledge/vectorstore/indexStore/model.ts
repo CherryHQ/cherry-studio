@@ -49,8 +49,6 @@ export interface RebuildMaterialInput {
 export interface KnowledgeMaterialRef {
   materialId: string
   relativePath: string
-  /** Hash of the material's current content, or null while it is mid-index (no content yet). */
-  contentHash: string | null
 }
 
 /** A retrieval unit read back from the index, with its body text. */

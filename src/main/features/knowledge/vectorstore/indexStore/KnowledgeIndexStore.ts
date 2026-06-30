@@ -308,7 +308,7 @@ export class KnowledgeIndexStore {
    */
   async getMaterialByRelativePath(relativePath: string): Promise<KnowledgeMaterialRef | null> {
     const result = await this.driver.execute(
-      `SELECT material_id, relative_path, current_content_hash FROM material WHERE relative_path = ?`,
+      `SELECT material_id, relative_path FROM material WHERE relative_path = ?`,
       [relativePath]
     )
     const row = result.rows[0]
@@ -317,8 +317,7 @@ export class KnowledgeIndexStore {
     }
     return {
       materialId: row.material_id as string,
-      relativePath: row.relative_path as string,
-      contentHash: (row.current_content_hash as string | null) ?? null
+      relativePath: row.relative_path as string
     }
   }
 

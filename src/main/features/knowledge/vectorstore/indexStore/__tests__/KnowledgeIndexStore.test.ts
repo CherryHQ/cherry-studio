@@ -611,7 +611,6 @@ describe('KnowledgeIndexStore', () => {
       expect(ref).not.toBeNull()
       expect(ref?.materialId).toBe('m1')
       expect(ref?.relativePath).toBe('docs/intro.md')
-      expect(ref?.contentHash).toBeTruthy()
 
       expect(await store.getMaterialByRelativePath('docs/missing.md')).toBeNull()
     })

@@ -57,8 +57,10 @@ export function createKbListToolEntry(): ToolEntry {
     description: "List the user's knowledge bases, or outline one base's structure",
     defer: 'never',
     tool: kbListTool,
-    // Discovery entry point: available whenever the user has any knowledge base, even when none are
-    // bound to this assistant — so the model can browse all bases before searching.
-    applies: (scope) => scope.hasAnyKnowledgeBase === true
+    // Discovery entry point, always inlined (defer: 'never') — but gated identically to kb_search /
+    // kb_read / kb_manage: a base must exist AND be bound to this assistant. Listing every base while
+    // none are bound (no kb_read / kb_search to act on them) is a discovery dead-end and widens the
+    // per-assistant scope, so kb_list shares the siblings' gate.
+    applies: (scope) => scope.hasAnyKnowledgeBase === true && (scope.assistant?.knowledgeBaseIds?.length ?? 0) > 0
   }
 }

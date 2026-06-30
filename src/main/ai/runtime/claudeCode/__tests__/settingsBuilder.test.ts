@@ -2,9 +2,9 @@ import type * as NodeModule from 'node:module'
 
 import {
   CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
-  cherryBuiltinRuntimeName,
-  KB_MANAGE_TOOL_NAME
-} from '@shared/ai/builtinTools'
+  toCherryBuiltinRuntimeName
+} from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
+import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -471,9 +471,9 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     // settingsBuilder must derive the approval exceptions from the shared constant and pass them to the
     // snapshot. The agentTools test proves those options gate kb_manage; this proves settingsBuilder
-    // actually supplies them — dropping `.map(cherryBuiltinRuntimeName)` or the exceptions fails here.
-    const exceptions = CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(cherryBuiltinRuntimeName)
-    expect(exceptions).toContain(cherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME))
+    // actually supplies them — dropping `.map(toCherryBuiltinRuntimeName)` or the exceptions fails here.
+    const exceptions = CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
+    expect(exceptions).toContain(toCherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME))
     expect(mocks.createToolPolicySnapshot).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({

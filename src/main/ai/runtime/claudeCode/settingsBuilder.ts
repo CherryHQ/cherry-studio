@@ -38,6 +38,11 @@ import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSd
 import { skillService } from '@main/ai/skills/SkillService'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
+import {
+  CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
+  CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES,
+  toCherryBuiltinRuntimeName
+} from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { application } from '@main/core/application'
 import { isLinux, isWin } from '@main/core/platform'
@@ -48,11 +53,6 @@ import { getAppLanguage, t } from '@main/utils/language'
 import { autoDiscoverGitBash, getBinaryPath } from '@main/utils/process'
 import { rtkRewrite } from '@main/utils/rtk'
 import getLoginShellEnvironment from '@main/utils/shell-env'
-import {
-  CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
-  CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES,
-  cherryBuiltinRuntimeName
-} from '@shared/ai/builtinTools'
 import {
   CHANNEL_SECURITY_PROMPT,
   REPORT_ARTIFACTS_PROMPT,
@@ -611,7 +611,7 @@ async function buildToolPermissions(
       ...(isAssistant ? ['mcp__assistant__'] : [])
     ],
     // Mutating cherry-tools (kb_manage) match the prefix above but must still prompt for approval.
-    autoAllowRuntimeNameExceptions: CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(cherryBuiltinRuntimeName),
+    autoAllowRuntimeNameExceptions: CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
     conditionContext
   })
 
@@ -999,7 +999,7 @@ async function resolveSourceChannel(agentId: string, sessionId: string): Promise
 export function adjustAllowedToolsForMcp(soulEnabled: boolean, isAssistant: boolean): string[] | undefined {
   if (!soulEnabled && !isAssistant) return undefined
 
-  const result = CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(cherryBuiltinRuntimeName)
+  const result = CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
   if (soulEnabled) result.push('mcp__claw__*', 'mcp__agent-memory__*')
   if (isAssistant) result.push('mcp__assistant__*')
   return result

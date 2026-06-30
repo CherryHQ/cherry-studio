@@ -40,12 +40,19 @@ import type {
   KnowledgeSearchResult
 } from '@shared/data/types/knowledge'
 import { KnowledgeAddItemInputSchema } from '@shared/data/types/knowledge'
+import PQueue from 'p-queue'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('KnowledgeLookup')
 
 const SAMPLE_LIMIT = 8
 const NOTE_SNIPPET_MAX_CHARS = 80
+/**
+ * Max concurrent `listRootItems` reads behind one kb_list call. A user with 50+ KBs would otherwise
+ * fire 50 concurrent SQLite reads; 8 in-flight keeps the agent loop responsive without overwhelming
+ * the knowledge service. (listRootItems is a pure Drizzle/SQLite read — no vector store.)
+ */
+const KB_LIST_ROOT_ITEMS_CONCURRENCY = 8
 
 /**
  * `DataApiError.details.resource` value KnowledgeBaseService.getById stamps on a missing-base
@@ -53,6 +60,13 @@ const NOTE_SNIPPET_MAX_CHARS = 80
  * so they can steer to kb_list instead of always blaming the conceptId (see {@link conceptLookupError}).
  */
 const KNOWLEDGE_BASE_NOT_FOUND_RESOURCE = 'KnowledgeBase'
+
+/**
+ * NOT_FOUND resource thrown by resolveConcept when a visible, completed document has no content row
+ * (an invariant violation / reindex TOCTOU race) — distinct from a bad conceptId so the steer can be
+ * "retry shortly" rather than "verify the conceptId". Mirrors the literal thrown in KnowledgeService.
+ */
+const KNOWLEDGE_CONCEPT_CONTENT_NOT_FOUND_RESOURCE = 'Knowledge concept content'
 
 export const KNOWLEDGE_SEARCH_DESCRIPTION = `Search the user's private knowledge base — local documents, notes, web clippings.
 
@@ -66,8 +80,8 @@ Workflow: call kb_list first to discover available bases and their contents, the
 export const KNOWLEDGE_LIST_DESCRIPTION = `Browse the user's knowledge bases and their structure.
 
 Two modes, selected by \`baseId\`:
-- Omit \`baseId\` to list the available bases — each with its name, group, item count, and a few sample sources (filenames, URLs, note titles) so you can judge what it covers. Call this first when the user asks about their materials and you don't already know which base is relevant, then call kb_search with the chosen baseIds.
-- Pass a \`baseId\` to outline that base instead: a flat top-down list of its folders and documents, each with a \`depth\`, title, type, and — for a readable document — a \`conceptId\` you can pass to kb_read. Use this to see how a base is organized, or to find a document's conceptId, without searching.`
+- Omit \`baseId\` to list the available bases — each with its name, group, item count, and a few sample sources (filenames, URLs, note titles) so you can judge what it covers. Call this first when the user asks about their materials and you don't already know which base is relevant, then call kb_search with the chosen baseIds. If a base comes back with \`itemsUnavailable: true\` its contents could not be read this call (not that it is empty) — do not tell the user it holds nothing; retry or use kb_search.
+- Pass a \`baseId\` to outline that base instead: a flat top-down list of its folders and documents, each with a \`depth\`, title, type, \`status\`, and — for a readable document — a \`conceptId\` you can pass to kb_read. A node only carries a \`conceptId\` once its \`status\` is "completed"; a still-indexing or failed document has none. Use this to see how a base is organized, or to find a document's conceptId, without searching.`
 
 export const KNOWLEDGE_READ_DESCRIPTION = `Read a single knowledge base document by its Concept ID — or grep inside it.
 
@@ -97,8 +111,8 @@ export type KnowledgeSearchResultOrError = KbSearchOutput | KnowledgeLookupError
 // (KnowledgeTreeResultOrError / KnowledgeGrepResultOrError) keep the underlying core fns precise.
 export type KnowledgeListResultOrError = KbListOutput | KbTreeOutput | KnowledgeLookupError
 export type KnowledgeReadResultOrError = KbReadOutput | KbGrepOutput | KnowledgeLookupError
-export type KnowledgeGrepResultOrError = KbGrepOutput | KnowledgeLookupError
-export type KnowledgeTreeResultOrError = KbTreeOutput | KnowledgeLookupError
+type KnowledgeGrepResultOrError = KbGrepOutput | KnowledgeLookupError
+type KnowledgeTreeResultOrError = KbTreeOutput | KnowledgeLookupError
 export type KnowledgeManageResultOrError = KbManageOutput | KnowledgeLookupError
 
 /**
@@ -211,7 +225,7 @@ export function knowledgeSearchModelOutput(
  * error all return `{ error }` with a message the model can act on (re-check the
  * id, or stop). `allowedIds` scopes which bases are reachable (empty = all).
  */
-export async function readConcept(
+async function readConcept(
   baseId: string,
   conceptId: string,
   range: { charStart?: number; charEnd?: number },
@@ -262,7 +276,7 @@ export function knowledgeReadModelOutput(
  * scope/not-found/invalid-pattern/service errors all return `{ error }`. An
  * invalid pattern surfaces the regex error so the model can fix it.
  */
-export async function grepConcept(
+async function grepConcept(
   baseId: string,
   conceptId: string,
   options: { pattern: string; ignoreCase?: boolean; maxMatches?: number },
@@ -324,6 +338,19 @@ function conceptLookupError(
     if (error.details && 'resource' in error.details && error.details.resource === KNOWLEDGE_BASE_NOT_FOUND_RESOURCE) {
       return { error: `Knowledge base "${baseId}" not found. Call kb_list to see the available bases.` }
     }
+    // The conceptId resolved to a real, visible document whose content is momentarily missing (being
+    // re-indexed). Verifying the id won't help — steer the model to retry rather than re-pick.
+    if (
+      error.details &&
+      'resource' in error.details &&
+      error.details.resource === KNOWLEDGE_CONCEPT_CONTENT_NOT_FOUND_RESOURCE
+    ) {
+      return {
+        error:
+          `Document "${conceptId}" in knowledge base "${baseId}" has no readable content right now ` +
+          '(it may be re-indexing). Retry shortly; the conceptId itself is valid.'
+      }
+    }
     return {
       error:
         `No document with conceptId "${conceptId}" in knowledge base "${baseId}". ` +
@@ -340,7 +367,7 @@ function conceptLookupError(
  * throws: an out-of-scope base or a service error returns `{ error }`; a missing
  * base maps to a clear "not found" message. `allowedIds` scopes reachable bases.
  */
-export async function readTree(
+async function readTree(
   baseId: string,
   options: { maxDepth?: number },
   allowedIds: string[]
@@ -508,19 +535,26 @@ function validateAddInput(candidate: unknown, source: string): AddInputResult {
   return { ok: true, input: parsed.data, source }
 }
 
+/** First non-empty, trimmed line of `content`, or undefined if every line is blank. */
+function firstNonEmptyLine(content: string): string | undefined {
+  return content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.length > 0)
+}
+
 /** A note's display source: the caller-supplied title, else its first non-empty line (truncated), else a placeholder. */
 function deriveNoteSource(content: string, title?: string): string {
   const explicit = title?.trim()
   if (explicit) return explicit
-  const firstLine = content
-    .split('\n')
-    .find((line) => line.trim().length > 0)
-    ?.trim()
+  // Truncation here differs by role from deriveSampleSource's note branch (a stored id, plain-clipped;
+  // vs a display sample, ellipsised), so only the first-non-empty-line extraction is shared.
+  const firstLine = firstNonEmptyLine(content)
   if (!firstLine) return 'Untitled note'
   return firstLine.length > NOTE_TITLE_MAX_CHARS ? firstLine.slice(0, NOTE_TITLE_MAX_CHARS) : firstLine
 }
 
-export async function listKnowledgeBases(
+async function listKnowledgeBases(
   query: string | null | undefined,
   groupId: string | null | undefined,
   allowedIds: string[]
@@ -533,11 +567,12 @@ export async function listKnowledgeBases(
     // null and undefined both mean "no group filter" — kb_list's nullable input passes null for that.
     const groupFiltered = groupId != null ? scopedBases.filter((base) => base.groupId === groupId) : scopedBases
 
-    // Cap concurrency: a user with 50+ KBs would otherwise fire 50 concurrent listRootItems queries on
-    // every kb_list call. listRootItems is a pure Drizzle/SQLite read (no vector store), so 8 in-flight
-    // is plenty to keep the agent loop responsive without overwhelming the knowledge service.
-    const items: KbListOutputItem[] = await mapWithConcurrency(groupFiltered, 8, (base) =>
-      buildOutputItem(base, knowledgeService)
+    // Build each base's summary with bounded concurrency (see KB_LIST_ROOT_ITEMS_CONCURRENCY).
+    // `throwOnTimeout: true` keeps p-queue's add() return type as the value (not `T | void`), so the
+    // ordered map stays typed; map preserves order and no task is given a timeout.
+    const queue = new PQueue({ concurrency: KB_LIST_ROOT_ITEMS_CONCURRENCY })
+    const items: KbListOutputItem[] = await Promise.all(
+      groupFiltered.map((base) => queue.add(() => buildOutputItem(base, knowledgeService), { throwOnTimeout: true }))
     )
 
     const lowered = query?.toLowerCase()
@@ -590,10 +625,16 @@ async function buildOutputItem(
   knowledgeService: { listRootItems: (id: string) => Promise<KnowledgeItem[]> }
 ): Promise<KbListOutputItem> {
   let rootItems: KnowledgeItem[] = []
+  let itemsUnavailable = false
   if (base.status === 'completed') {
     try {
       rootItems = await knowledgeService.listRootItems(base.id)
     } catch (error) {
+      // A completed base whose items could not be read right now (store busy / closed mid-flight).
+      // Flag it in-band instead of returning itemCount:0 — a fabricated 0 with empty sampleSources is
+      // indistinguishable from a genuinely empty base and would make the model tell the user the base
+      // holds nothing (mirrors searchKnowledge's failure-vs-no-matches split).
+      itemsUnavailable = true
       logger.warn('KnowledgeService.listRootItems failed', {
         baseId: base.id,
         error: error instanceof Error ? error.message : String(error)
@@ -612,7 +653,9 @@ async function buildOutputItem(
     name: base.name,
     groupId: base.groupId,
     status: base.status,
-    itemCount: rootItems.length,
+    // On a read failure omit the (unknown) count and flag it; otherwise report the real count (a failed
+    // base legitimately reports 0 — its status already warns the model not to trust the contents).
+    ...(itemsUnavailable ? { itemsUnavailable: true } : { itemCount: rootItems.length }),
     sampleSources
   }
 }
@@ -633,10 +676,11 @@ function deriveSampleSource(item: KnowledgeItem): string | null {
     case 'directory':
       return item.data.source.trim() || null
     case 'note': {
-      const firstLine = item.data.content.split(/\r?\n/).find((line) => line.trim().length > 0)
+      const firstLine = firstNonEmptyLine(item.data.content)
       if (!firstLine) return null
-      const trimmed = firstLine.trim()
-      return trimmed.length > NOTE_SNIPPET_MAX_CHARS ? `${trimmed.slice(0, NOTE_SNIPPET_MAX_CHARS - 1)}…` : trimmed
+      return firstLine.length > NOTE_SNIPPET_MAX_CHARS
+        ? `${firstLine.slice(0, NOTE_SNIPPET_MAX_CHARS - 1)}…`
+        : firstLine
     }
     default:
       return null
@@ -646,23 +690,4 @@ function deriveSampleSource(item: KnowledgeItem): string | null {
 function matchesQuery(item: KbListOutputItem, lowered: string): boolean {
   if (item.name.toLowerCase().includes(lowered)) return true
   return item.sampleSources.some((source) => source.toLowerCase().includes(lowered))
-}
-
-/** Run `mapper` over `items` with at most `limit` in flight at once. */
-async function mapWithConcurrency<T, R>(
-  items: readonly T[],
-  limit: number,
-  mapper: (item: T) => Promise<R>
-): Promise<R[]> {
-  const results: R[] = new Array(items.length)
-  let cursor = 0
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (true) {
-      const i = cursor++
-      if (i >= items.length) return
-      results[i] = await mapper(items[i])
-    }
-  })
-  await Promise.all(workers)
-  return results
 }

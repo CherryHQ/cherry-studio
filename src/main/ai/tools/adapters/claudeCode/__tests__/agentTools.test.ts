@@ -10,9 +10,9 @@ import {
   CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
   CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES,
   CHERRY_BUILTIN_MCP_SERVER,
-  cherryBuiltinRuntimeName,
-  KB_MANAGE_TOOL_NAME
-} from '@shared/ai/builtinTools'
+  toCherryBuiltinRuntimeName
+} from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
+import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -170,7 +170,7 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
   const PREFIX = `mcp__${CHERRY_BUILTIN_MCP_SERVER}__`
   const productionOptions = {
     autoAllowRuntimeNamePrefixes: [PREFIX],
-    autoAllowRuntimeNameExceptions: CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(cherryBuiltinRuntimeName)
+    autoAllowRuntimeNameExceptions: CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
   }
 
   it('keeps kb_manage approval-gated and the two policy sets disjoint', () => {
@@ -182,17 +182,17 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
     const autoApproved = new Set<string>(CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES)
     expect(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.some((name) => autoApproved.has(name))).toBe(false)
     // The derived prefix matches the fully-qualified runtime name, pinning the two helpers in sync.
-    expect(cherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME)).toBe(`${PREFIX}${KB_MANAGE_TOOL_NAME}`)
+    expect(toCherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME)).toBe(`${PREFIX}${KB_MANAGE_TOOL_NAME}`)
   })
 
   it('prompts for every approval-required tool and auto-approves every read tool under the real wiring', async () => {
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(), productionOptions)
 
     for (const name of CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES) {
-      expect(snapshot.resolve(cherryBuiltinRuntimeName(name))).toMatchObject({ approval: 'prompt' })
+      expect(snapshot.resolve(toCherryBuiltinRuntimeName(name))).toMatchObject({ approval: 'prompt' })
     }
     for (const name of CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES) {
-      expect(snapshot.resolve(cherryBuiltinRuntimeName(name))).toMatchObject({ approval: 'auto' })
+      expect(snapshot.resolve(toCherryBuiltinRuntimeName(name))).toMatchObject({ approval: 'auto' })
     }
   })
 })

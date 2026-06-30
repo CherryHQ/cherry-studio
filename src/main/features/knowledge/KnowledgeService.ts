@@ -85,7 +85,7 @@ const CONCEPT_GREP_SNIPPET_PAD = 60
  */
 const CONCEPT_GREP_MAX_LINE_CHARS = 2000
 /** Hard ceiling on nodes {@link KnowledgeService.getOrganizationTree} returns, bounding the response for a huge base. */
-const KNOWLEDGE_TREE_MAX_NODES = 1000
+export const KNOWLEDGE_TREE_MAX_NODES = 1000
 
 /** Verbatim slice of a knowledge concept's indexed text, addressed by Concept ID (the material's relative path, OKF §2). */
 export interface KnowledgeConceptContent {
@@ -182,7 +182,14 @@ function deriveConceptId(item: KnowledgeItem): string | undefined {
   }
   try {
     return toMaterialRelativePath(item)
-  } catch {
+  } catch (error) {
+    // A completed url/note with no snapshot relativePath is an invariant violation. Swallow it (one
+    // unfollowable hit must not sink the whole search) but leave a diagnostic trail rather than a silent drop.
+    logger.warn('deriveConceptId: completed item has no material relativePath', {
+      itemId: item.id,
+      type: item.type,
+      error: error instanceof Error ? error.message : String(error)
+    })
     return undefined
   }
 }
@@ -732,7 +739,13 @@ export class KnowledgeService extends BaseService {
 
     const text = await this.runStoreOperation(store, baseId, operation, () => store.readMaterialContent(ref.materialId))
     if (text == null) {
-      throw DataApiErrorFactory.notFound('Knowledge concept', conceptId)
+      // The material resolved and the item is visible + completed, yet it has no content row — an
+      // invariant violation or a reindex TOCTOU race, NOT a bad conceptId. Use a distinct resource so the
+      // tool layer (conceptLookupError) can steer "retry shortly" instead of "verify the conceptId", which
+      // cannot fix a missing content row. The resource string mirrors KNOWLEDGE_CONCEPT_CONTENT_NOT_FOUND_RESOURCE
+      // in knowledgeLookup.ts.
+      logger.warn('resolveConcept: visible completed item has no content row', { baseId, conceptId, operation })
+      throw DataApiErrorFactory.notFound('Knowledge concept content', conceptId)
     }
 
     return { item, text }

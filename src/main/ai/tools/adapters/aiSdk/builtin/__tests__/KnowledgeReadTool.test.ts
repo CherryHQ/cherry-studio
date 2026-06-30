@@ -75,10 +75,12 @@ describe('kb_read', () => {
     loggerWarn.mockReset()
   })
 
-  it('builds an entry with the agreed namespace + defer policy', () => {
+  it('builds an entry with the agreed namespace + defer policy and is auto-approved (read-only)', () => {
     expect(entry.name).toBe(KB_READ_TOOL_NAME)
     expect(entry.namespace).toBe('kb')
     expect(entry.defer).toBe('always')
+    // kb_read only reads — the approval carve-out's auto-approve half: no per-call prompt (cf. kb_manage).
+    expect(entry.tool.needsApproval).toBeFalsy()
   })
 
   it('returns an error and does not read when the base is outside the assistant scope', async () => {
@@ -134,6 +136,21 @@ describe('kb_read', () => {
 
     expect(result.error).toContain('docs/gone.md')
     expect(result.error).toContain('conceptId')
+  })
+
+  it('steers a missing-content NOT_FOUND to retry (re-indexing) instead of blaming the conceptId', async () => {
+    // resolveConcept throws a distinct 'Knowledge concept content' resource when a visible, completed
+    // document momentarily has no content row (reindex TOCTOU). Verifying the id can't fix that.
+    readConcept.mockRejectedValue(DataApiErrorFactory.notFound('Knowledge concept content', 'docs/intro.md'))
+
+    const result = (await callExecute(
+      { baseId: 'kb-1', conceptId: 'docs/intro.md' },
+      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
+    )) as { error: string }
+
+    expect(result.error).toContain('docs/intro.md')
+    expect(result.error).toMatch(/re-indexing|retry/i)
+    expect(result.error).not.toContain('Verify the conceptId')
   })
 
   it('steers a missing-base NOT_FOUND to kb_list instead of blaming the conceptId', async () => {

@@ -96,6 +96,19 @@ describe('kb_manage', () => {
     expect(result).toEqual({ action: 'add', added: ['report.pdf'] })
   })
 
+  it('rejects a non-absolute file path via schema validation and does not add', async () => {
+    const result = (await callExecute(
+      { baseId: 'kb-1', action: 'add', type: 'file', path: 'relative/report.pdf' },
+      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
+    )) as { error: string }
+
+    expect(result.error).toContain('Invalid knowledge item to add')
+    // Assert the rejection reason is absoluteness specifically — so the test can't pass for the wrong
+    // reason (e.g. a future required field going missing) while absolute-path enforcement silently drops.
+    expect(result.error).toContain('absolute')
+    expect(addItems).not.toHaveBeenCalled()
+  })
+
   it('adds a url, using the url as its source', async () => {
     const result = await callExecute(
       { baseId: 'kb-1', action: 'add', type: 'url', url: 'https://example.com/post' },
