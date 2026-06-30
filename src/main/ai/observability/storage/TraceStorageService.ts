@@ -15,6 +15,14 @@ import { TraceSpanStore } from './TraceSpanStore'
 
 const logger = loggerService.withContext('TraceStorageService')
 
+// Claude Code's OTLP log events (raw API bodies, tool I/O, prompts) stream in every ~1s DURING a
+// turn, but the span they reference is only exported when it ENDS — so events routinely arrive
+// before their span. Buffer such orphans (bounded) and drain them once the span lands, instead of
+// dropping them and losing the rich per-span detail. Caps keep a span that never arrives from
+// growing memory without bound; the oldest buffered span is evicted first (Map insertion order).
+const MAX_PENDING_EVENT_SPANS = 1000
+const MAX_PENDING_EVENTS_PER_SPAN = 200
+
 /** Union spans by id; `overrides` (e.g. the live, fresher copy) wins over `base` (e.g. the history file). */
 function mergeSpansById(base: SpanEntity[], overrides: SpanEntity[]): SpanEntity[] {
   const byId = new Map<string, SpanEntity>()
@@ -27,6 +35,8 @@ function mergeSpansById(base: SpanEntity[], overrides: SpanEntity[]): SpanEntity
 @ServicePhase(Phase.WhenReady)
 export class TraceStorageService extends BaseService implements TraceStore, Activatable {
   private readonly store = new TraceSpanStore()
+  // Orphan OTLP log events keyed by the span id they reference, awaiting that span's arrival.
+  private readonly pendingEvents = new Map<string, TimedEvent[]>()
 
   protected async onInit() {
     this.registerIpcHandlers()
@@ -56,6 +66,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
    */
   async onDeactivate() {
     this.store.clear()
+    this.pendingEvents.clear()
   }
 
   private registerIpcHandlers() {
@@ -70,6 +81,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     this.applyTraceMeta(spanEntity)
     this.store.setSpan(spanEntity)
     this.updateModelName(spanEntity)
+    this.drainPendingEvents(spanEntity.id)
   }
 
   endSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {
@@ -96,10 +108,12 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
 
   clear: () => void = () => {
     this.store.clear()
+    this.pendingEvents.clear()
   }
 
   async cleanLocalData() {
     this.store.clear()
+    this.pendingEvents.clear()
     try {
       await fs.rm(this.traceRootDir(), { recursive: true, force: true })
     } catch (err) {
@@ -127,28 +141,68 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   saveEntity(entity: SpanEntity) {
     if (!this.isActivated) return
     this.applyTraceMeta(entity)
-    if (this.store.getSpan(entity.id)) {
+    const existing = this.store.getSpan(entity.id)
+    if (existing) {
+      // Preserve events already on the span (incl. orphan log events drained earlier): a later
+      // /v1/traces export carrying empty/partial events must not drop them. Merge into the incoming
+      // entity, which is the object ultimately stored (updateModelName re-sets it after updateEntity).
+      entity.events = this.mergeEvents(existing.events, entity.events)
       this.updateEntity(entity)
     } else {
       this.addEntity(entity)
     }
     this.updateModelName(entity)
+    // Claude Code spans land here via /v1/traces; attach any log events that arrived first.
+    this.drainPendingEvents(entity.id)
   }
 
   /**
    * Append a single OTel event to an in-memory span. Used by `LocalTraceWindowSink`
    * to deliver Claude Code OTLP log events that arrive separately from their parent span.
+   *
+   * The event's span may not be stored yet (it arrives mid-turn; the span is exported on end), so a
+   * miss buffers the event for later draining (see {@link drainPendingEvents}) instead of dropping it.
    */
   addSpanEvent(_traceId: string, spanId: string, event: TimedEvent): void {
     if (!this.isActivated) return
     const span = this.store.getSpan(spanId)
     if (!span) {
-      logger.warn('addSpanEvent: span not found in store', { spanId })
+      this.bufferPendingEvent(spanId, event)
       return
     }
-    const events = Array.isArray(span.events) ? [...span.events, event] : [event]
-    span.events = events
+    this.appendEventsToSpan(span, [event])
+  }
+
+  private appendEventsToSpan(span: SpanEntity, events: TimedEvent[]): void {
+    if (events.length === 0) return
+    span.events = Array.isArray(span.events) ? [...span.events, ...events] : [...events]
     this.store.setSpan(span)
+  }
+
+  private bufferPendingEvent(spanId: string, event: TimedEvent): void {
+    let events = this.pendingEvents.get(spanId)
+    if (!events) {
+      // Evict the oldest buffered span (insertion order) once over the cap so events for spans that
+      // never arrive can't grow memory without bound.
+      if (this.pendingEvents.size >= MAX_PENDING_EVENT_SPANS) {
+        const oldest = this.pendingEvents.keys().next().value
+        if (oldest !== undefined) this.pendingEvents.delete(oldest)
+      }
+      events = []
+      this.pendingEvents.set(spanId, events)
+    }
+    if (events.length >= MAX_PENDING_EVENTS_PER_SPAN) return
+    events.push(event)
+  }
+
+  /** Drain buffered orphan events onto a span that has just been stored. No-op when none buffered. */
+  private drainPendingEvents(spanId: string): void {
+    const events = this.pendingEvents.get(spanId)
+    if (!events) return
+    this.pendingEvents.delete(spanId)
+    const span = this.store.getSpan(spanId)
+    if (!span) return
+    this.appendEventsToSpan(span, events)
   }
 
   /**
@@ -225,6 +279,23 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     })
     this.applyTraceMeta(savedEntity)
     this.store.setSpan(savedEntity)
+  }
+
+  /** Union span events by name+time, preserving existing (incl. log-derived) events; never shrink. */
+  private mergeEvents(saved: TimedEvent[] | undefined, incoming: TimedEvent[] | undefined): TimedEvent[] | undefined {
+    if (!incoming || incoming.length === 0) return saved
+    if (!saved || saved.length === 0) return incoming
+    const eventKey = (event: TimedEvent) =>
+      `${event.name}@${Array.isArray(event.time) ? `${event.time[0]}.${event.time[1]}` : String(event.time)}`
+    const seen = new Set<string>()
+    const merged: TimedEvent[] = []
+    for (const event of [...saved, ...incoming]) {
+      const key = eventKey(event)
+      if (seen.has(key)) continue
+      seen.add(key)
+      merged.push(event)
+    }
+    return merged
   }
 
   private mergeAttributes(savedEntity: SpanEntity, value: unknown): void {

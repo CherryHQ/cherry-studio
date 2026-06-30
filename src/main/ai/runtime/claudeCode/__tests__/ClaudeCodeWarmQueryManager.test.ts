@@ -1,19 +1,18 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { startupMock, buildWarmRequestMock, applicationGetMock, traceModeEnabledMock } = vi.hoisted(() => ({
+const { startupMock, buildWarmRequestMock, getShellEnvMock } = vi.hoisted(() => ({
   startupMock: vi.fn(),
   buildWarmRequestMock: vi.fn(),
-  applicationGetMock: vi.fn(),
-  traceModeEnabledMock: vi.fn()
-}))
-
-vi.mock('@main/core/application', () => ({
-  application: { get: applicationGetMock }
+  getShellEnvMock: vi.fn()
 }))
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   startup: startupMock
+}))
+
+vi.mock('@main/utils/shell-env', () => ({
+  default: getShellEnvMock
 }))
 
 vi.mock('../agentSessionWarmup', () => ({
@@ -40,15 +39,21 @@ describe('ClaudeCodeWarmQueryManager', () => {
     BaseService.resetInstances()
     vi.clearAllMocks()
     vi.useFakeTimers()
-    applicationGetMock.mockImplementation((name: string) => {
-      if (name === 'ClaudeCodeTraceBridgeService') return { isTraceModeEnabled: traceModeEnabledMock }
-      throw new Error(`Unexpected application.get(${name})`)
-    })
-    traceModeEnabledMock.mockReturnValue(false)
+    getShellEnvMock.mockResolvedValue({})
   })
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('prewarms the login shell environment on ready', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+
+    await manager._doInit()
+
+    // settingsBuilder's buildEnvironment awaits the same cached getShellEnv(); warming it here keeps
+    // the first agent request off the (up to 15s) login-shell spawn.
+    expect(getShellEnvMock).toHaveBeenCalledTimes(1)
   })
 
   it('consumes a matching warm query once', async () => {
@@ -139,15 +144,9 @@ describe('ClaudeCodeWarmQueryManager', () => {
     expect(consumed).toBe(warm)
   })
 
-  it('does not prewarm agent sessions while Claude Code trace mode is enabled', async () => {
-    traceModeEnabledMock.mockReturnValue(true)
-    const manager = new ClaudeCodeWarmQueryManager()
-
-    await manager.prewarmAgentSession('session-1')
-
-    expect(buildWarmRequestMock).not.toHaveBeenCalled()
-    expect(startupMock).not.toHaveBeenCalled()
-  })
+  // Trace-mode gating now lives in `buildClaudeCodeWarmQueryRequestForAgentSession`, which bakes the
+  // session-stable trace env into the warm options so the signature still matches a trace connection.
+  // The manager no longer short-circuits on trace mode — see agentSessionWarmup.test.ts.
 
   // sessionId validation (empty / non-string) now lives in the IpcApi router's zod parse of
   // `ai.prewarm_agent_session` / `ai.close_agent_session_warm`, not in this service — so it is no

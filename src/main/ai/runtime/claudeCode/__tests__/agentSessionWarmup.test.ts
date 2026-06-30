@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getSessionById: vi.fn(),
+  ensureTraceId: vi.fn(),
   getAgent: vi.fn(),
   getProviderByProviderId: vi.fn(),
   getModelByKey: vi.fn(),
@@ -12,11 +13,13 @@ const mocks = vi.hoisted(() => ({
   apiGatewayEnsureKey: vi.fn(),
   apiGatewayIsRunning: vi.fn(),
   apiGatewayStart: vi.fn(),
-  apiGatewayGetCurrentConfig: vi.fn()
+  apiGatewayGetCurrentConfig: vi.fn(),
+  isTraceModeEnabled: vi.fn(),
+  traceEnvForPrewarm: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: { getById: mocks.getSessionById }
+  agentSessionService: { getById: mocks.getSessionById, ensureTraceId: mocks.ensureTraceId }
 }))
 
 vi.mock('@data/services/AgentService', () => ({
@@ -49,6 +52,12 @@ vi.mock('@main/core/application', () => ({
           getCurrentConfig: mocks.apiGatewayGetCurrentConfig
         }
       }
+      if (name === 'ClaudeCodeTraceBridgeService') {
+        return {
+          isTraceModeEnabled: mocks.isTraceModeEnabled,
+          traceEnvForPrewarm: mocks.traceEnvForPrewarm
+        }
+      }
       throw new Error(`Unexpected application.get(${name})`)
     })
   }
@@ -62,11 +71,14 @@ vi.mock('../settingsBuilder', () => ({
   buildClaudeCodeSessionSettings: mocks.buildSessionSettings
 }))
 
-const { buildClaudeCodeQueryRequestForAgentSession } = await import('../agentSessionWarmup')
+const { buildClaudeCodeQueryRequestForAgentSession, buildClaudeCodeWarmQueryRequestForAgentSession } = await import(
+  '../agentSessionWarmup'
+)
 
 describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.isTraceModeEnabled.mockReturnValue(false)
     mocks.getSessionById.mockResolvedValue({ id: 'session-1', agentId: 'agent-1' })
     mocks.getAgent.mockResolvedValue({ id: 'agent-1', model: 'provider-1::model-1' })
     mocks.getProviderByProviderId.mockResolvedValue({
@@ -188,5 +200,54 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     )
     expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
+  })
+})
+
+describe('buildClaudeCodeWarmQueryRequestForAgentSession trace env baking', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.isTraceModeEnabled.mockReturnValue(false)
+    mocks.getSessionById.mockResolvedValue({ id: 'session-1', agentId: 'agent-1' })
+    mocks.getAgent.mockResolvedValue({ id: 'agent-1', model: 'provider-1::model-1' })
+    mocks.getProviderByProviderId.mockResolvedValue({
+      id: 'provider-1',
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } }
+    })
+    mocks.getModelByKey.mockResolvedValue({ id: 'model-1', apiModelId: 'claude-sonnet' })
+    mocks.resolveEffectiveEndpoint.mockReturnValue({ baseUrl: 'https://api.example.com' })
+    mocks.getRotatedApiKey.mockResolvedValue('api-key')
+    mocks.getLastRuntimeResumeToken.mockResolvedValue(null)
+    mocks.buildSessionSettings.mockResolvedValue({ env: {} })
+  })
+
+  it('leaves warm options untouched and skips trace plumbing when trace mode is off', async () => {
+    const request = await buildClaudeCodeWarmQueryRequestForAgentSession('session-1')
+
+    expect(request?.options.env).not.toHaveProperty('TRACEPARENT')
+    expect(mocks.ensureTraceId).not.toHaveBeenCalled()
+    expect(mocks.traceEnvForPrewarm).not.toHaveBeenCalled()
+  })
+
+  it('bakes the session-stable trace env into warm options when trace mode is on', async () => {
+    mocks.isTraceModeEnabled.mockReturnValue(true)
+    const traceId = 'a'.repeat(32)
+    mocks.ensureTraceId.mockResolvedValue(traceId)
+    mocks.traceEnvForPrewarm.mockResolvedValue({
+      CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+      TRACEPARENT: `00-${traceId}-${'a'.repeat(16)}-01`
+    })
+
+    const request = await buildClaudeCodeWarmQueryRequestForAgentSession('session-1')
+
+    // rootSpanId is the deterministic first-16-hex of the traceId (see deriveRootSpanId).
+    expect(mocks.ensureTraceId).toHaveBeenCalledWith('session-1')
+    expect(mocks.traceEnvForPrewarm).toHaveBeenCalledWith(traceId, 'a'.repeat(16))
+    expect(request?.options.env).toMatchObject({
+      // Base runtime env from the builder is preserved …
+      ANTHROPIC_MODEL: 'claude-sonnet',
+      // … and the trace env is merged on top, matching what the live connection injects.
+      CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+      TRACEPARENT: `00-${traceId}-${'a'.repeat(16)}-01`
+    })
   })
 })

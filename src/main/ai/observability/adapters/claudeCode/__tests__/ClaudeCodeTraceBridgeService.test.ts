@@ -262,4 +262,37 @@ describe('ClaudeCodeTraceBridgeService', () => {
     await expect(service.prepareTrace(traceContext)).resolves.toBeUndefined()
     expect((service as any).server).toBeUndefined()
   })
+
+  it('builds warm-query trace env matching prepareTrace without registering span context', async () => {
+    const service = new ClaudeCodeTraceBridgeService()
+    await service._doInit()
+
+    const warmEnv = await service.traceEnvForPrewarm(traceContext.traceId, traceContext.rootSpanId)
+
+    // Same TRACEPARENT the live connection injects, so the warm-query signature matches …
+    expect(warmEnv).toMatchObject({
+      CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+      TRACEPARENT: `00-${traceContext.traceId}-${traceContext.rootSpanId}-01`
+    })
+    expect(warmEnv?.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT).toBe(`${warmEnv?.BETA_TRACING_ENDPOINT}/v1/traces`)
+    // … but prewarm must NOT register span-mapping metadata (the live prepareTrace owns that).
+    expect(mocks.traceStorageSetTopicId).not.toHaveBeenCalled()
+  })
+
+  it('skips warm-query trace env for invalid traceparent ids', async () => {
+    const service = new ClaudeCodeTraceBridgeService()
+    await service._doInit()
+
+    await expect(service.traceEnvForPrewarm('0'.repeat(32), traceContext.rootSpanId)).resolves.toBeUndefined()
+    expect((service as any).server).toBeUndefined()
+  })
+
+  it('does not build warm-query trace env when developer mode is disabled', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('app.developer_mode.enabled', false)
+    const service = new ClaudeCodeTraceBridgeService()
+    await service._doInit()
+
+    await expect(service.traceEnvForPrewarm(traceContext.traceId, traceContext.rootSpanId)).resolves.toBeUndefined()
+    expect((service as any).server).toBeUndefined()
+  })
 })
