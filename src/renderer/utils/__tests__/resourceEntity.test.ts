@@ -16,6 +16,18 @@ describe('resourceEntity', () => {
       ).toBe(false)
     })
 
+    it('tolerates the ~1ms insert straddle of the two Date.now() timestamp defaults', () => {
+      // createdAt and updatedAt are filled by independent Date.now() calls, so a fresh row can land
+      // 1ms apart across a boundary; that must still read as untouched/reusable.
+      expect(
+        isUntouchedSinceCreation({ createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.001Z' })
+      ).toBe(true)
+      // A real bump (here a couple of ms, in practice far more) is still touched.
+      expect(
+        isUntouchedSinceCreation({ createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.500Z' })
+      ).toBe(false)
+    })
+
     it('treats a row missing either timestamp as touched (not reusable)', () => {
       expect(isUntouchedSinceCreation({ updatedAt: '2024-01-01T00:00:00.000Z' })).toBe(false)
       expect(isUntouchedSinceCreation({ createdAt: '2024-01-01T00:00:00.000Z' })).toBe(false)
