@@ -317,10 +317,12 @@ const TranslatePage: FC = () => {
       setDetectedLanguage(null)
     }
 
+    const shouldUseBidirectionalTarget = isBidirectional && actualSourceLanguage !== UNKNOWN_LANG_CODE
+
     const targetResult = determineTargetLanguage(
       actualSourceLanguage,
       targetLanguage,
-      isBidirectional,
+      shouldUseBidirectionalTarget,
       bidirectionalPair
     )
 

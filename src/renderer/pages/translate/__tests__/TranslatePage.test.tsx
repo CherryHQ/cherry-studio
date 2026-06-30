@@ -1,4 +1,5 @@
 import type * as TranslateHooks from '@renderer/hooks/translate'
+import type * as TranslateUtils from '@renderer/utils/translate'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -32,7 +33,6 @@ const translateCoreMock = vi.hoisted(() => ({
   detectLanguage: vi.fn(),
   setTimeoutTimer: vi.fn(),
   translateText: vi.fn(),
-  determineTargetLanguage: vi.fn(),
   isAbortError: vi.fn(),
   formatErrorMessageWithPrefix: vi.fn((_: unknown, prefix: string) => prefix)
 }))
@@ -177,12 +177,11 @@ vi.mock('@renderer/utils/input', () => ({
   getTextFromDropEvent: dropMock.getTextFromDropEvent
 }))
 
-vi.mock('@renderer/utils/translate', () => ({
+vi.mock('@renderer/utils/translate', async (importOriginal) => ({
+  ...(await importOriginal<typeof TranslateUtils>()),
   createInputScrollHandler: () => vi.fn(),
   createOutputScrollHandler: () => vi.fn(),
-  determineTargetLanguage: translateCoreMock.determineTargetLanguage,
-  translateText: translateCoreMock.translateText,
-  UNKNOWN_LANG_CODE: 'unknown'
+  translateText: translateCoreMock.translateText
 }))
 
 vi.mock('../components/IconButton', () => ({
@@ -317,8 +316,6 @@ describe('TranslatePage', () => {
     translateCoreMock.setTimeoutTimer.mockReset()
     translateCoreMock.translateText.mockReset()
     translateCoreMock.translateText.mockResolvedValue('translated text')
-    translateCoreMock.determineTargetLanguage.mockReset()
-    translateCoreMock.determineTargetLanguage.mockReturnValue({ success: true, language: 'zh-cn' })
     translateCoreMock.isAbortError.mockReset()
     translateCoreMock.isAbortError.mockReturnValue(false)
     translateCoreMock.formatErrorMessageWithPrefix.mockReset()
@@ -676,9 +673,8 @@ describe('TranslatePage', () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': 'openai::gpt-4.1',
       'feature.translate.page.source_language': 'zh-cn',
-      'feature.translate.page.target_language': 'en-us'
+      'feature.translate.page.target_language': 'zh-cn'
     })
-    translateCoreMock.determineTargetLanguage.mockReturnValueOnce({ success: false, errorType: 'same_language' })
 
     const { rerender } = render(<TranslatePage />)
     fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
@@ -696,7 +692,6 @@ describe('TranslatePage', () => {
       'feature.translate.page.target_language': 'en-us'
     })
     translateCoreMock.detectLanguage.mockResolvedValueOnce('unknown')
-    translateCoreMock.determineTargetLanguage.mockReturnValueOnce({ success: true, language: 'en-us' })
 
     const { rerender } = render(<TranslatePage />)
     fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
@@ -730,7 +725,6 @@ describe('TranslatePage', () => {
     })
     const detectError = new Error('detect failed')
     translateCoreMock.detectLanguage.mockRejectedValueOnce(detectError)
-    translateCoreMock.determineTargetLanguage.mockReturnValueOnce({ success: true, language: 'en-us' })
 
     const { rerender } = render(<TranslatePage />)
     fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
@@ -756,6 +750,40 @@ describe('TranslatePage', () => {
     )
   })
 
+  it('continues translating with the selected target when auto detection returns unknown in bidirectional mode', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'auto',
+      'feature.translate.page.target_language': 'en-us',
+      'feature.translate.page.bidirectional_enabled': true,
+      'feature.translate.page.bidirectional_pair': ['en-us', 'zh-cn']
+    })
+    translateCoreMock.detectLanguage.mockResolvedValueOnce('unknown')
+
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+
+    await waitFor(() =>
+      expect(translateCoreMock.translateText).toHaveBeenCalledWith(
+        'hello',
+        'en-us',
+        expect.any(Function),
+        expect.any(AbortSignal)
+      )
+    )
+    expect((window as any).toast.warning).not.toHaveBeenCalledWith('translate.language.not_pair')
+    await waitFor(() =>
+      expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
+        sourceText: 'hello',
+        targetText: 'translated text',
+        sourceLanguage: 'unknown',
+        targetLanguage: 'en-us'
+      })
+    )
+  })
+
   it('uses the detected source language to choose the opposite bidirectional target', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': 'openai::gpt-4.1',
@@ -764,7 +792,6 @@ describe('TranslatePage', () => {
       'feature.translate.page.bidirectional_pair': ['en-us', 'zh-cn']
     })
     translateCoreMock.detectLanguage.mockResolvedValueOnce('zh-cn')
-    translateCoreMock.determineTargetLanguage.mockReturnValueOnce({ success: true, language: 'en-us' })
 
     const { rerender } = render(<TranslatePage />)
     fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: '你好' } })
@@ -780,7 +807,6 @@ describe('TranslatePage', () => {
       )
     )
     expect(translateCoreMock.detectLanguage).toHaveBeenCalledWith('你好')
-    expect(translateCoreMock.determineTargetLanguage).toHaveBeenCalledWith('zh-cn', 'en-us', true, ['en-us', 'zh-cn'])
     await waitFor(() =>
       expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
         sourceText: '你好',
@@ -940,7 +966,7 @@ describe('TranslatePage', () => {
         sourceText: 'hello',
         targetText: 'translated text',
         sourceLanguage: 'zh-cn',
-        targetLanguage: 'zh-cn'
+        targetLanguage: 'en-us'
       })
     )
     expect((window as any).toast.success).toHaveBeenCalledWith('translate.complete')
