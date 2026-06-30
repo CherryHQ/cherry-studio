@@ -4,13 +4,19 @@ import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/compon
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import { resolveInlineFilePath } from '@renderer/components/chat/messages/utils/filePath'
-import ArtifactPane, {
+import {
   ArtifactFilePreview,
+  ArtifactPaneView,
   isOfficeDocumentFile,
   resolveArtifactPaneFileSelection
 } from '@renderer/components/chat/panes/ArtifactPane'
 import OpenExternalAppButton from '@renderer/components/chat/panes/OpenExternalAppButton'
 import { Shell, useShellActions, useShellState } from '@renderer/components/chat/panes/Shell'
+import {
+  type ArtifactFileTreeModel,
+  isSelectableFileNode,
+  useArtifactFileTreeModel
+} from '@renderer/components/chat/panes/useArtifactFileTreeModel'
 import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
 import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import NavbarIcon from '@renderer/components/NavbarIcon'
@@ -154,6 +160,17 @@ function useAgentRightPane(): AgentRightPaneContextValue {
   return value
 }
 
+// The workspace file-tree model lives in its own context so its frequent
+// updates (every lazy-load tick produces a fresh `filteredTree`) only re-render
+// the files panel, not the status/flow/info panels reading the main context.
+const AgentFileTreeModelContext = createContext<ArtifactFileTreeModel | null>(null)
+
+function useAgentFileTreeModel(): ArtifactFileTreeModel {
+  const value = use(AgentFileTreeModelContext)
+  if (!value) throw new Error('useAgentFileTreeModel must be used within <AgentRightPane>')
+  return value
+}
+
 export function useAgentRightPaneActions(): AgentRightPaneActions {
   return useAgentRightPane().actions
 }
@@ -180,6 +197,19 @@ function AgentRightPaneStateProvider({
   const [fileTreeExpandedIds, setFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
   const previousWorkspacePathRef = useRef(workspacePath)
+
+  // Built once here (the provider survives the Host↔Overlay maximize swap), so
+  // maximize/minimize no longer remounts + rematerializes the workspace tree.
+  const fileTreeModel = useArtifactFileTreeModel({
+    workspacePath,
+    treeOpen: fileTreeOpen,
+    expandedIds: fileTreeExpandedIds,
+    searchKeyword: fileTreeSearchKeyword,
+    enableFileSearch: true,
+    onExpandedIdsChange: setFileTreeExpandedIds
+  })
+  // Stable callback for effect deps (the model object itself is new each render).
+  const { resetLazyChildren: resetFileTreeLazyChildren } = fileTreeModel
 
   const activeFlowToolCallId = getFlowToolCallId(activeTab)
   const activeFlowTab = activeFlowToolCallId
@@ -227,8 +257,19 @@ function AgentRightPaneStateProvider({
     setFilePreview(null)
     setFileTreeExpandedIds(new Set())
     setFileTreeSearchKeyword('')
+    // The lazy-children map now lives in the surviving provider, so its reset on
+    // workspace change must be explicit (previously it rode the pane remount).
+    resetFileTreeLazyChildren()
     if (activeTab === FILE_PREVIEW_TAB) openTab('files')
-  }, [activeTab, openTab, workspacePath])
+  }, [activeTab, resetFileTreeLazyChildren, openTab, workspacePath])
+
+  // Drop a selection that no longer resolves to a file in the loaded tree
+  // (e.g. the watcher reported it removed).
+  useEffect(() => {
+    if (!selectedFile || !fileTreeModel.hasLoaded) return
+    if (isSelectableFileNode(fileTreeModel.nodeById, selectedFile)) return
+    setSelectedFile(null)
+  }, [fileTreeModel.hasLoaded, fileTreeModel.nodeById, selectedFile])
   const closeFilePreview = useCallback(() => {
     if (activeTab === FILE_PREVIEW_TAB) openTab('files')
     setFilePreview(null)
@@ -292,7 +333,11 @@ function AgentRightPaneStateProvider({
     ]
   )
 
-  return <AgentRightPaneContext value={value}>{children}</AgentRightPaneContext>
+  return (
+    <AgentRightPaneContext value={value}>
+      <AgentFileTreeModelContext value={fileTreeModel}>{children}</AgentFileTreeModelContext>
+    </AgentRightPaneContext>
+  )
 }
 
 function AgentRightPaneProvider(props: AgentRightPaneProviderProps) {
@@ -306,21 +351,21 @@ function AgentRightPaneProvider(props: AgentRightPaneProviderProps) {
 
 function AgentRightPaneFilesPanel() {
   const { state, actions } = useAgentRightPane()
+  const model = useAgentFileTreeModel()
   const shellState = useShellState()
   return (
-    <ArtifactPane
+    <ArtifactPaneView
       workspacePath={state.workspacePath}
       pdfLayoutPending={shellState.pdfLayoutPending}
-      selectedFile={state.selectedFile}
-      onSelectedFileChange={actions.setSelectedFile}
-      fileTreeOpen={state.fileTreeOpen}
-      onFileTreeOpenChange={actions.setFileTreeOpen}
-      fileTreeExpandedIds={state.fileTreeExpandedIds}
-      onFileTreeExpandedIdsChange={actions.setFileTreeExpandedIds}
-      fileTreeSearchKeyword={state.fileTreeSearchKeyword}
-      onFileTreeSearchKeywordChange={actions.setFileTreeSearchKeyword}
       pdfLayoutRefreshKey={shellState.pdfLayoutRefreshKey}
       enableFileSearch
+      model={model}
+      selectedFile={state.selectedFile}
+      onSelectedFileChange={actions.setSelectedFile}
+      treeOpen={state.fileTreeOpen}
+      onTreeOpenChange={actions.setFileTreeOpen}
+      searchKeyword={state.fileTreeSearchKeyword}
+      onSearchKeywordChange={actions.setFileTreeSearchKeyword}
     />
   )
 }

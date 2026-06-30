@@ -2,10 +2,58 @@ import { loggerService } from '@logger'
 import type { SerializedTreeNode } from '@shared/utils/file/tree'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
-import type { PropsWithChildren } from 'react'
+import { type PropsWithChildren, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import ArtifactPane, { ARTIFACT_FILE_TREE_DEFAULT_WIDTH, resolveArtifactPaneFileSelection } from '../ArtifactPane'
+import ArtifactPane, {
+  ARTIFACT_FILE_TREE_DEFAULT_WIDTH,
+  ArtifactPaneView,
+  resolveArtifactPaneFileSelection
+} from '../ArtifactPane'
+import { useArtifactFileTreeModel } from '../useArtifactFileTreeModel'
+
+/**
+ * Mimics the agent right-pane: a parent that owns the lifted tree model and
+ * renders `ArtifactPaneView` into one of two mutually-exclusive slots (the
+ * docked `Shell.Host` vs the `Shell.MaximizedOverlay`). Toggling `maximized`
+ * remounts the view across slots while the model-owning parent survives.
+ */
+function MaximizeSwapHarness({ workspacePath }: { workspacePath: string }) {
+  const [maximized, setMaximized] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
+  const [searchKeyword, setSearchKeyword] = useState('')
+  const model = useArtifactFileTreeModel({
+    workspacePath,
+    treeOpen: true,
+    expandedIds,
+    searchKeyword,
+    enableFileSearch: true,
+    onExpandedIdsChange: setExpandedIds
+  })
+  const view = (
+    <ArtifactPaneView
+      workspacePath={workspacePath}
+      enableFileSearch
+      model={model}
+      selectedFile={selectedFile}
+      onSelectedFileChange={setSelectedFile}
+      treeOpen
+      onTreeOpenChange={() => {}}
+      searchKeyword={searchKeyword}
+      onSearchKeywordChange={setSearchKeyword}
+    />
+  )
+  return (
+    <div>
+      <button type="button" data-testid="toggle-max" onClick={() => setMaximized((value) => !value)}>
+        toggle
+      </button>
+      {!maximized && <div data-testid="host-slot">{view}</div>}
+      {maximized && <div data-testid="overlay-slot">{view}</div>}
+    </div>
+  )
+}
 
 const mocks = vi.hoisted(() => ({
   treeCreate: vi.fn(),
@@ -453,6 +501,32 @@ describe('ArtifactPane', () => {
     await waitFor(() =>
       expect(mocks.treeCreate).toHaveBeenCalledWith('/tmp/workspace', expect.objectContaining({ maxDepth: 3 }))
     )
+  })
+
+  it('keeps a single workspace tree across a Host↔Overlay maximize swap', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+
+    render(<MaximizeSwapHarness workspacePath="/tmp/workspace" />)
+
+    await waitFor(() => expect(mocks.treeCreate).toHaveBeenCalledTimes(1))
+    expect(screen.getByTestId('host-slot')).toBeInTheDocument()
+
+    // Maximize: the view unmounts from the host slot and remounts in the
+    // overlay slot. The model lives in the surviving parent, so the tree is
+    // neither recreated nor disposed (this is the freeze the fix removes).
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('toggle-max'))
+    })
+    await waitFor(() => expect(screen.getByTestId('overlay-slot')).toBeInTheDocument())
+
+    // Minimize back to the docked slot.
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('toggle-max'))
+    })
+    await waitFor(() => expect(screen.getByTestId('host-slot')).toBeInTheDocument())
+
+    expect(mocks.treeCreate).toHaveBeenCalledTimes(1)
+    expect(mocks.treeDispose).not.toHaveBeenCalled()
   })
 
   it('loads deeper directory children when folders are expanded', async () => {
