@@ -2813,6 +2813,8 @@
       "chunking": "Chunking",
       "default_separator": "Auto (recommended)",
       "document_count": "Requested Chunks (Top K)",
+      "download_local_embedding": "Download Local Model",
+      "download_local_embedding_failed": "Failed to download the local embedding model",
       "embedding_model": "Embedding Model",
       "embedding_model_select": "Model Selection",
       "file_processing": "File Processing",
@@ -2849,7 +2851,8 @@
       "separator_rule": "Separator Rule",
       "smart_chunking": "Smart Chunking",
       "threshold": "Similarity Threshold",
-      "tokens_unit": "tokens"
+      "tokens_unit": "tokens",
+      "use_local_embedding": "Use Local Model"
     },
     "recall": {
       "collapse": "Collapse Chunk",

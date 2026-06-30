@@ -2813,6 +2813,8 @@
       "chunking": "Chunking",
       "default_separator": "自动（推荐）",
       "document_count": "请求文档片段数 (Top K)",
+      "download_local_embedding": "下载本地模型",
+      "download_local_embedding_failed": "本地嵌入模型下载失败",
       "embedding_model": "嵌入模型",
       "embedding_model_select": "模型选择",
       "file_processing": "文档处理",
@@ -2849,7 +2851,8 @@
       "separator_rule": "分隔符规则",
       "smart_chunking": "智能分段",
       "threshold": "相似度阈值",
-      "tokens_unit": "tokens"
+      "tokens_unit": "tokens",
+      "use_local_embedding": "使用本地模型"
     },
     "recall": {
       "collapse": "收起片段",

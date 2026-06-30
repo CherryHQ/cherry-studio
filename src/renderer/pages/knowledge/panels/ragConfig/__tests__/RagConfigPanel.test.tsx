@@ -185,6 +185,10 @@ vi.mock('../../../components/KnowledgeModelSelect', () => ({
   )
 }))
 
+vi.mock('../LocalEmbeddingDownloadButton', () => ({
+  default: () => null
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
