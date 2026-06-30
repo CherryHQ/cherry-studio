@@ -1,7 +1,8 @@
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, symlink, truncate, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { isWorkspaceFileError, resolveWorkspaceFile, WorkspaceFileError } from '../WorkspaceFileGuard'
@@ -75,6 +76,18 @@ describe('resolveWorkspaceFile', () => {
   it('rejects a non-existent file as not-found', async () => {
     await expect(resolveWorkspaceFile(workspace, 'missing.txt')).rejects.toMatchObject({
       reason: 'not-found'
+    })
+  })
+
+  it('rejects a file larger than the size limit as too-large', async () => {
+    // Sparse file via truncate — fstat reports the size without writing 100MB of bytes,
+    // and the guard checks size before reading, so no large read happens.
+    const big = path.join(workspace, 'big.bin')
+    await writeFile(big, '')
+    await truncate(big, MAX_FILE_SIZE_BYTES + 1)
+
+    await expect(resolveWorkspaceFile(workspace, 'big.bin')).rejects.toMatchObject({
+      reason: 'too-large'
     })
   })
 

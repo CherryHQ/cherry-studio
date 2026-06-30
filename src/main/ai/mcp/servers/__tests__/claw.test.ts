@@ -325,6 +325,17 @@ describe('ClawServer', () => {
       expect(mockSendMessage).not.toHaveBeenCalled()
     })
 
+    it('should send to no one when adapters have empty notifyChatIds', async () => {
+      mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', [])])
+
+      const server = createServer('agent_1')
+      const result = await callTool(server, { message: 'Hello' }, 'notify')
+
+      expect(mockSendMessage).not.toHaveBeenCalled()
+      expect(mockSendFile).not.toHaveBeenCalled()
+      expect(result.content[0].text).toContain('Message sent to 0 chat(s)')
+    })
+
     it('should error when both message and file_path are missing', async () => {
       const server = createServer()
       const result = await callTool(server, {}, 'notify')
