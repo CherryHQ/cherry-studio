@@ -635,6 +635,7 @@ describe('edit dialogs', () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
     const clearButton = screen.getByRole('button', { name: 'Tags Clear' })
+    expect(clearButton).toHaveClass('focus-visible:pointer-events-auto', 'focus-visible:opacity-100')
     fireEvent.click(clearButton)
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 

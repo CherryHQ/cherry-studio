@@ -46,7 +46,11 @@ export const TagSelector: FC<Props> = ({ value, onChange, allTagNames, disabled,
         onValueChange={(selectedValue) => onChange(decodeTagSelectValue(selectedValue))}>
         <SelectTrigger
           size="sm"
-          className={cn('w-full', value && '[&_svg]:transition-opacity group-hover/tag-select:[&_svg]:opacity-0')}
+          className={cn(
+            'w-full',
+            value &&
+              '[&_svg]:transition-opacity group-focus-within/tag-select:[&_svg]:opacity-0 group-hover/tag-select:[&_svg]:opacity-0'
+          )}
           aria-label={t('library.config.basic.tags')}>
           <SelectValue placeholder={t('library.config.basic.tag_placeholder')} />
         </SelectTrigger>
@@ -67,7 +71,7 @@ export const TagSelector: FC<Props> = ({ value, onChange, allTagNames, disabled,
             event.stopPropagation()
             onChange(null)
           }}
-          className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-2.5 flex size-5 min-h-0 shrink-0 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground/70 opacity-0 shadow-none transition-[background-color,color,opacity] hover:bg-muted hover:text-foreground active:bg-muted group-hover/tag-select:pointer-events-auto group-hover/tag-select:opacity-100">
+          className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-2.5 flex size-5 min-h-0 shrink-0 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground/70 opacity-0 shadow-none transition-[background-color,color,opacity] hover:bg-muted hover:text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100 active:bg-muted group-focus-within/tag-select:pointer-events-auto group-focus-within/tag-select:opacity-100 group-hover/tag-select:pointer-events-auto group-hover/tag-select:opacity-100">
           <X size={12} />
         </Button>
       ) : null}
