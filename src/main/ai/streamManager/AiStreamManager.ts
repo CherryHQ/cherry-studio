@@ -656,9 +656,7 @@ export class AiStreamManager extends BaseService {
     else if (topicDone && !chaining) {
       // A sibling errored/aborted (this exec finished clean but the topic didn't): drop the queue,
       // matching onExecutionError/onExecutionPaused. A clean 'done' or an approval-park keeps it.
-      if (stream.status === 'error' || stream.status === 'aborted') {
-        this.dropPendingSteers(topicId, stream.status)
-      }
+      if (stream.status === 'error' || stream.status === 'aborted') this.dropPendingSteers(topicId, stream.status)
       this.runTerminalLifecycle(stream)
     }
   }

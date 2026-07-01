@@ -21,16 +21,12 @@
  */
 import { compactModelMessages } from '@context-chef/ai-sdk-middleware'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
+import { CONTEXT_COMPACT_KEEP_BUDGET_RATIO, CONTEXT_COMPACT_TRIGGER_RATIO } from '@main/ai/constants'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import type { LanguageModelUsage, ModelMessage } from 'ai'
 import { estimateTokenCount } from 'tokenx'
 
 import type { RequestFeature } from '../feature'
-
-/** Compact the in-flight prompt when it crosses this fraction of the context window. */
-const COMPACT_TRIGGER_RATIO = 0.8
-/** Target fraction of the window to retain as recent verbatim turns. */
-const KEEP_BUDGET_RATIO = 0.3
 
 /** tokenx estimate of one ModelMessage (text/reasoning dominate; other parts stringified). */
 function estimateMessageTokens(message: ModelMessage): number {
@@ -132,8 +128,8 @@ export const inLoopCompactionFeature: RequestFeature = {
     // window is the whole point. Its presence is the model layer's contract; this
     // layer never fabricates or defaults it.
     const contextWindow = scope.model.contextWindow as number
-    const trigger = Math.floor(contextWindow * COMPACT_TRIGGER_RATIO)
-    const keepBudget = Math.floor(contextWindow * KEEP_BUDGET_RATIO)
+    const trigger = Math.floor(contextWindow * CONTEXT_COMPACT_TRIGGER_RATIO)
+    const keepBudget = Math.floor(contextWindow * CONTEXT_COMPACT_KEEP_BUDGET_RATIO)
     return {
       prepareStep: async ({ messages, steps }) => {
         if (estimatePromptTokens(messages, steps) < trigger) return undefined

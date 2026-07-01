@@ -9,12 +9,13 @@ import { summarizeModelMessages } from '@context-chef/ai-sdk-middleware'
 import { Prompts } from '@context-chef/core'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
+import { CONTEXT_COMPACT_KEEP_BUDGET_RATIO, CONTEXT_COMPACT_TRIGGER_RATIO } from '@main/ai/constants'
 import { application } from '@main/core/application'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import { applyApprovalDecisions } from '@shared/ai/transport'
-import { type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
+import { type Message as SharedMessage, type MessageRole, toContentRole } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ModelMessage } from 'ai'
@@ -39,11 +40,6 @@ import {
 } from './compaction'
 import type { MainContinueConversationRequest, MainDispatchRequest, MainSteerContinuationRequest } from './dispatch'
 import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
-
-/** Recompact when the served history exceeds this fraction of the context window. */
-const COMPACT_TRIGGER_RATIO = 0.8
-/** Keep this fraction of the window as recent verbatim exchanges. */
-const KEEP_BUDGET_RATIO = 0.3
 
 const logger = loggerService.withContext('PersistentChatContextProvider')
 
@@ -481,11 +477,6 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     }
   }
 
-  /** Raw path from root → anchor, preserving all Message fields (including compactionSummary). */
-  private async getPathRows(anchorMessageId: string): Promise<SharedMessage[]> {
-    return messageService.getPathToNode(anchorMessageId)
-  }
-
   private toRow(m: SharedMessage): CompactionRow {
     return {
       id: m.id,
@@ -497,7 +488,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
   }
 
   private toServed(row: CompactionRow): CherryUIMessage {
-    return { id: row.id, role: row.role, parts: row.parts } as CherryUIMessage
+    // Route the role through toContentRole to keep the virtual-root guard that the
+    // rest of this file relies on (a `root` row must never reach model history).
+    return { id: row.id, role: toContentRole(row.role as MessageRole), parts: row.parts } as CherryUIMessage
   }
 
   private estimateTotal(rows: CompactionRow[]): number {
@@ -539,7 +532,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     topicId: string,
     models: Model[]
   ): Promise<CherryUIMessage[]> {
-    const rawMsgs = await this.getPathRows(anchorMessageId)
+    // Raw path from root → anchor, preserving all Message fields (including compactionSummary).
+    const rawMsgs = await messageService.getPathToNode(anchorMessageId)
     const rows = rawMsgs.map((m) => this.toRow(m))
     const effective = applyDeepestMarker(rows)
 
@@ -551,13 +545,13 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // contextWindow is a required input — the model layer's contract guarantees it;
     // this layer never fabricates or defaults it.
     const minContextWindow = Math.min(...models.map((m) => m.contextWindow as number))
-    if (this.estimateContext(effective) <= Math.floor(minContextWindow * COMPACT_TRIGGER_RATIO)) {
+    if (this.estimateContext(effective) <= Math.floor(minContextWindow * CONTEXT_COMPACT_TRIGGER_RATIO)) {
       return effective.map((r) => this.toServed(r))
     }
 
     const d = findDeepestMarker(rows)
     const recent = rows.slice(d + 1) // real rows after the marker (summary row is synthetic)
-    const keepIdx = planKeepBoundary(recent, Math.floor(minContextWindow * KEEP_BUDGET_RATIO))
+    const keepIdx = planKeepBoundary(recent, Math.floor(minContextWindow * CONTEXT_COMPACT_KEEP_BUDGET_RATIO))
     // Over-budget-without-compacting edge: when everything in `recent` fits the keep
     // budget yet `effective` still exceeds the trigger (a large prior `oldSummary`),
     // there is no boundary to snap, so we serve the marker-applied history as-is. Not a

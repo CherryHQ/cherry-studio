@@ -124,6 +124,10 @@ interface TextReadResult {
  *  Format ported from #14916's readers/text.ts — the model pattern-matches it. */
 function formatLines(content: string, offset: number | undefined, limit: number | undefined): TextReadResult {
   const lines = content.split('\n')
+  // A file ending in '\n' yields a trailing '' element ("a\nb\n" → ["a","b",""]); drop it so
+  // totalLines counts real lines and the model isn't told to page for a phantom empty line.
+  // (An empty file stays [''] → totalLines 1.)
+  if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop()
   const totalLines = lines.length
   const startIndex = Math.max(0, (offset ?? 1) - 1)
   const endIndex = Math.min(startIndex + (limit ?? DEFAULT_READ_LIMIT), totalLines)

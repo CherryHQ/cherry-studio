@@ -182,4 +182,12 @@ describe('executeFsRead — size caps', () => {
     const out = await executeFsRead({ path: p })
     expect(out).toMatchObject({ kind: 'text', startLine: 1, endLine: 1, totalLines: 1 })
   })
+
+  it('does not count a trailing newline as a phantom extra line', async () => {
+    // "a\nb\n".split("\n") → ["a","b",""]; the trailing "" must not inflate totalLines
+    // to 3 (which would tell the model to page for a non-existent line 3).
+    const p = writeVfsFile('vfs_trailing_nl.txt', 'a\nb\n')
+    const out = await executeFsRead({ path: p })
+    expect(out).toMatchObject({ kind: 'text', totalLines: 2, endLine: 2 })
+  })
 })
