@@ -4,13 +4,17 @@ import type { AgentSession, AgentSessionEvent, LoadExtensionsResult } from '@ear
 import { loggerService } from '@logger'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { application } from '@main/core/application'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 
+import { toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
   AgentRuntimeEvent,
+  AgentRuntimePolicyUpdate,
   AgentRuntimeUserInput
 } from '../types'
+import { createPiApprovalExtension } from './approvalExtension'
 import { resolvePiProviderInjection } from './modelInjection'
 import { loadPiSdk } from './piSdk'
 import { PiStreamAdapter } from './piStreamAdapter'
@@ -64,6 +68,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private resumeToken?: string
   private lastStopReason?: string
   private closed = false
+  /** Live tool policy read by the approval extension at fire-time (plan D4). */
+  private permissionMode: AgentPermissionMode = 'default'
+  private disabledTools = new Set<string>()
 
   readonly events = this.eventQueue
 
@@ -81,6 +88,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (!agent?.model) {
       throw new Error(`pi agent ${session.agentId} has no model configured`)
     }
+
+    // pi has no native permission modes; the approval extension enforces them.
+    // `plan` is unsupported for pi (deferred) — it falls through to gate-all.
+    this.permissionMode = agent.configuration?.permission_mode ?? 'default'
+    this.disabledTools = new Set(agent.disabledTools ?? [])
 
     const injection = await resolvePiProviderInjection(this.input.modelId ?? agent.model)
 
@@ -113,8 +125,17 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       cwd: workspacePath,
       agentDir,
       settingsManager,
-      // Provider injection re-applies across reloads (plan D1); approval joins in Phase 3.
-      extensionFactories: [createPiProviderExtension(injection.providerName, injection.providerConfig)],
+      // Provider injection re-applies across reloads (plan D1); the approval/policy
+      // gate enforces disabledTools/global-install/rtk/approval per turn (plan D4).
+      extensionFactories: [
+        createPiProviderExtension(injection.providerName, injection.providerConfig),
+        createPiApprovalExtension({
+          sessionId: this.input.sessionId,
+          emit: (chunk) => this.eventQueue.push({ type: 'chunk', chunk }),
+          getPermissionMode: () => this.permissionMode,
+          isDisabled: (toolName) => this.disabledTools.has(toolName)
+        })
+      ],
       // Cherry owns the persona: replace pi's discovered system prompt with the
       // agent's instructions when present, else keep pi's base (plan Phase 2).
       ...(instructions ? { systemPromptOverride: () => instructions } : {})
@@ -149,7 +170,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       settingsManager,
       sessionManager,
       resourceLoader,
-      model
+      model,
+      // Bake disabled tools out of the session's tool set (plan capability matrix);
+      // the approval gate also blocks them live so a mid-session disable is enforced.
+      ...(this.disabledTools.size > 0 ? { excludeTools: [...this.disabledTools] } : {})
     })
 
     this.session = piSession
@@ -176,9 +200,28 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     })
   }
 
+  /**
+   * Live policy changes. pi has no native permission modes, so both updates only
+   * mutate the state the approval gate reads at fire-time — no pi round-trip.
+   * A tool disabled mid-session is enforced by the gate's block even though it was
+   * not `excludeTools`-baked at create; a tool re-enabled after being baked out at
+   * create stays absent for this session (revisit if live re-enable is needed).
+   */
+  applyPolicyUpdate(update: AgentRuntimePolicyUpdate): boolean {
+    if (update.type === 'permission-mode') {
+      this.permissionMode = update.permissionMode ?? 'default'
+      return true
+    }
+    this.disabledTools = new Set(update.agent.disabledTools ?? [])
+    return true
+  }
+
   async close(): Promise<void> {
     if (this.closed) return
     this.closed = true
+    // Deny any approval still awaiting a renderer decision so its held tool
+    // promise resolves instead of hanging past teardown (plan Phase 3).
+    toolApprovalRegistry.abort(this.input.sessionId, 'pi-session-closed')
     // Unsubscribe first so the abort's terminal events do not race into a
     // closing queue.
     this.unsubscribe?.()

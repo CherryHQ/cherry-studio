@@ -41,8 +41,10 @@ vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: { ge
 vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.getAgent } }))
 vi.mock('./modelInjection', () => ({ resolvePiProviderInjection: mocks.resolveInjection }))
 vi.mock('./piSdk', () => ({ loadPiSdk: mocks.loadPiSdk }))
+vi.mock('@main/utils/rtk', () => ({ rtkRewrite: vi.fn().mockResolvedValue(null) }))
 
 const { PiRuntimeConnection } = await import('./PiRuntimeConnection')
+const { toolApprovalRegistry } = await import('../toolApproval/ToolApprovalRegistry')
 
 const fakeSession = {
   get isStreaming() {
@@ -100,6 +102,7 @@ async function collectUntilTerminal(events: AsyncIterable<AgentRuntimeEvent>): P
 
 beforeEach(() => {
   vi.clearAllMocks()
+  toolApprovalRegistry.clear('test-reset')
   mocks.subscribeCb = undefined
   mocks.createOpts = undefined
   mocks.loaderOpts = undefined
@@ -231,5 +234,44 @@ describe('PiRuntimeConnection', () => {
     await expect(resolve({ extensionsResult: { extensions: [] } })).resolves.toBe(false)
     mocks.trustGet.mockReturnValue(true)
     await expect(resolve({ extensionsResult: { extensions: [] } })).resolves.toBe(true)
+  })
+
+  it('wires both the provider and approval extensions and bakes disabledTools into excludeTools', async () => {
+    mocks.getAgent.mockResolvedValue({ id: 'agent-1', model: 'p::m', disabledTools: ['bash', 'write'] })
+    await new PiRuntimeConnection(input).start()
+
+    const factories = (mocks.loaderOpts as { extensionFactories: unknown[] }).extensionFactories
+    expect(factories).toHaveLength(2)
+    expect(mocks.createOpts?.excludeTools).toEqual(['bash', 'write'])
+  })
+
+  it('close() aborts an approval still awaiting the renderer decision', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    const factories = (mocks.loaderOpts as { extensionFactories: Array<(pi: unknown) => void> }).extensionFactories
+
+    let handler!: (event: unknown, ctx: unknown) => Promise<{ block?: boolean; reason?: string } | undefined>
+    factories[1]({
+      on: (evt: string, h: unknown) => {
+        if (evt === 'tool_call') handler = h as typeof handler
+      }
+    })
+    const pending = handler(
+      { type: 'tool_call', toolName: 'bash', toolCallId: 'tc1', input: { command: 'ls' } },
+      { signal: undefined }
+    )
+    await new Promise((r) => setTimeout(r, 0))
+    expect(toolApprovalRegistry.size()).toBe(1)
+
+    await conn.close()
+    await expect(pending).resolves.toMatchObject({ block: true, reason: 'pi-session-closed' })
+    expect(toolApprovalRegistry.size()).toBe(0)
+  })
+
+  it('applyPolicyUpdate flips permission mode and disabled tools', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    expect(conn.applyPolicyUpdate({ type: 'permission-mode', permissionMode: 'bypassPermissions' })).toBe(true)
+    expect(
+      conn.applyPolicyUpdate({ type: 'tool-policy', agent: { mcps: [], disabledTools: ['edit'], configuration: {} } })
+    ).toBe(true)
   })
 })
