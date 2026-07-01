@@ -45,6 +45,26 @@ function getRenderedPages(body: HTMLElement): HTMLElement[] {
   return Array.from(body.children).filter((child): child is HTMLElement => child instanceof HTMLElement)
 }
 
+// docx-preview writes a hyperlink relationship's target straight onto the anchor's href with no
+// protocol filtering, so a crafted `javascript:` link would otherwise execute in this renderer on click.
+const UNSAFE_HYPERLINK_PROTOCOLS = new Set(['javascript:', 'vbscript:', 'data:', 'file:'])
+
+function sanitizeHyperlinks(body: HTMLElement): void {
+  body.querySelectorAll<HTMLAnchorElement>('a[href]').forEach((anchor) => {
+    const href = anchor.getAttribute('href') ?? ''
+    let protocol: string | null = null
+    try {
+      protocol = new URL(href, 'https://docx-preview.invalid/').protocol
+    } catch {
+      protocol = null
+    }
+    if (protocol && UNSAFE_HYPERLINK_PROTOCOLS.has(protocol)) {
+      anchor.removeAttribute('href')
+    }
+    anchor.setAttribute('rel', 'noopener noreferrer')
+  })
+}
+
 const WordPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize }: WordPreviewPanelProps) => {
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -146,6 +166,7 @@ const WordPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize }: WordPr
           page.dataset.docxPreviewPage = String(index + 1)
           page.classList.add('docx-preview-page')
         })
+        sanitizeHyperlinks(stagingBody)
         bodyContainer.replaceChildren(...stagingBody.childNodes)
         styleContainer.replaceChildren(...stagingStyle.childNodes)
 

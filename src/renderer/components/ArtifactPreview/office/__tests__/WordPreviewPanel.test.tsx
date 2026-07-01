@@ -112,6 +112,28 @@ describe('WordPreviewPanel', () => {
     expect(mocks.renderAsync).not.toHaveBeenCalled()
   })
 
+  it('strips dangerous hyperlink protocols and hardens remaining links', async () => {
+    mocks.renderAsync.mockImplementationOnce(async (_data: Uint8Array, bodyContainer: HTMLElement) => {
+      bodyContainer.innerHTML =
+        '<section>' +
+        '<a href="javascript:alert(1)" id="malicious">malicious</a>' +
+        '<a href="https://example.com" id="safe">safe</a>' +
+        '</section>'
+    })
+
+    render(<WordPreviewPanel filePath="/tmp/report.docx" fileName="report.docx" refreshKey={0} sourceSize={1024} />)
+
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
+
+    const malicious = await screen.findByText('malicious')
+    expect(malicious).not.toHaveAttribute('href')
+    expect(malicious).toHaveAttribute('rel', 'noopener noreferrer')
+
+    const safe = screen.getByText('safe')
+    expect(safe).toHaveAttribute('href', 'https://example.com')
+    expect(safe).toHaveAttribute('rel', 'noopener noreferrer')
+  })
+
   it('cleans and re-renders when refreshKey changes', async () => {
     const { rerender } = render(
       <WordPreviewPanel filePath="/tmp/report.docx" fileName="report.docx" refreshKey={0} sourceSize={1024} />
