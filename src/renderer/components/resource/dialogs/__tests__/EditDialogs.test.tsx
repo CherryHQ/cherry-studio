@@ -297,7 +297,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.stream_output': 'Stream output',
           'library.config.basic.tags': 'Tags',
           'library.config.basic.tag_empty': 'No tags',
-          'library.config.basic.tag_none': 'No tag',
           'library.config.basic.tag_placeholder': 'Select tag',
           'library.config.basic.tag_search': 'Search tags',
           'library.config.basic.mcp_mode': 'MCP Mode',

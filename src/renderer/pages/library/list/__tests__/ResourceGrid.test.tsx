@@ -605,6 +605,9 @@ describe('ResourceCardMenu tag binding', () => {
     )
 
     await user.click(screen.getByRole('button', { name: /library.action.manage_tags/ }))
+    expect(screen.getByRole('menu', { name: 'library.config.basic.tags' })).toContainElement(
+      screen.getByRole('menuitemradio', { name: 'alpha' })
+    )
     await user.click(screen.getByRole('menuitemradio', { name: 'alpha' }))
 
     await waitFor(() =>

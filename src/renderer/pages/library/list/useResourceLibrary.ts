@@ -108,9 +108,9 @@ export function useResourceLibrary({
   const filteredPrompts = promptAdapter.useList(promptsVisible ? { search: trimmedSearch } : undefined)
 
   const buildAssistantItem = useCallback((a: Assistant): ResourceItem => {
-    // Defensive `?? []`: schema declares tags as required, but stale DataApi
-    // cache or a row from a code path that bypasses the embed helper can
-    // still hand us undefined here. `.map` would throw.
+    // Defensive optional access: schema declares tags as required, but stale DataApi
+    // cache or a row from a code path that bypasses the embed helper can still hand
+    // us undefined here.
     const tag = a.tags?.[0]
     return {
       id: a.id,

@@ -3156,7 +3156,6 @@
         "stream_output": "流式输出",
         "tag_empty": "没有可选的标签",
         "tag_hint": "如需新增标签,请在资源库顶部栏的「+ 标签」入口创建",
-        "tag_none": "无标签",
         "tag_placeholder": "选择标签",
         "tag_search": "搜索标签",
         "tags": "标签",

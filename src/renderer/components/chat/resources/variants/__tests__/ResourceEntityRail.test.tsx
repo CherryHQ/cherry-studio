@@ -65,7 +65,8 @@ vi.mock('@renderer/components/VirtualList', () => {
     return rows
   }
 
-  const GroupedVirtualList = ({
+  const GroupedVirtualListContent = ({
+    dragEnabled,
     ref,
     className,
     groups,
@@ -91,6 +92,7 @@ vi.mock('@renderer/components/VirtualList', () => {
         }}
         role={role}
         className={className}
+        data-draggable={dragEnabled ? 'true' : 'false'}
         {...scrollerProps}>
         {rows.map((row, index) => {
           if (row.type === 'group-header') {
@@ -114,8 +116,8 @@ vi.mock('@renderer/components/VirtualList', () => {
   return {
     buildGroupedVirtualRows,
     DynamicVirtualList: () => null,
-    GroupedSortableVirtualList: GroupedVirtualList,
-    GroupedVirtualList
+    GroupedSortableVirtualList: (props) => <GroupedVirtualListContent {...props} dragEnabled />,
+    GroupedVirtualList: (props) => <GroupedVirtualListContent {...props} dragEnabled={false} />
   }
 })
 
@@ -292,6 +294,7 @@ describe('ResourceEntityRail', () => {
     // The flat default "Assistants" header never appears while grouping by tag.
     expect(screen.queryByText('Assistants')).not.toBeInTheDocument()
     expect(screen.getByTestId('work-a-icon')).toBeInTheDocument()
+    expect(screen.getByRole('listbox', { name: 'Assistants list' })).toHaveAttribute('data-draggable', 'false')
   })
 
   it('keeps a real tag named like the untagged sentinel separate from untagged entities', () => {

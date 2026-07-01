@@ -171,7 +171,10 @@ export function ResourceCardMenu({
                 )}
               </div>
               <Separator className="mx-1 mb-0.5 bg-border-subtle" />
-              <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-0.5">
+              <div
+                role="menu"
+                aria-label={t('library.config.basic.tags')}
+                className="flex-1 overflow-y-auto [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-0.5">
                 {allTagNames.length === 0 && !tagInput.trim() && (
                   <p className="px-2.5 py-2 text-center text-foreground-muted text-xs">
                     {t('library.tag_picker.no_tags')}
