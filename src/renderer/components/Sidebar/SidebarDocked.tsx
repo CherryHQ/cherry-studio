@@ -21,7 +21,9 @@ export function SidebarDocked({ layout, dockedTabs, ...props }: SidebarDockedPro
 type DockedTabsProps = Omit<SidebarDockedProps, 'layout'>
 
 function DockedDivider({ widthClass }: { widthClass: string }) {
-  return <div aria-hidden="true" className={`sidebar-docked-divider mx-auto h-px ${widthClass} bg-border-subtle`} />
+  return (
+    <div aria-hidden="true" className={`sidebar-docked-divider mx-auto my-1.5 h-px ${widthClass} bg-border-subtle`} />
+  )
 }
 
 function IconDockedTabs({ dockedTabs, activeTabId, onMiniAppTabClick }: DockedTabsProps) {

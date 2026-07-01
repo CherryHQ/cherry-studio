@@ -263,6 +263,7 @@ describe('Sidebar resize handle', () => {
     const fullDivider = fullContainer.querySelector('.sidebar-docked-divider')
 
     expect(fullDivider).toHaveClass('w-8')
+    expect(fullDivider).toHaveClass('my-1.5')
     expect(fullDivider).toHaveClass('bg-border-subtle')
     expect(fullDivider?.parentElement).not.toHaveClass('border-t')
 
@@ -279,6 +280,7 @@ describe('Sidebar resize handle', () => {
     const iconDivider = iconContainer.querySelector('.sidebar-docked-divider')
 
     expect(iconDivider).toHaveClass('w-6')
+    expect(iconDivider).toHaveClass('my-1.5')
     expect(iconDivider).toHaveClass('bg-border-subtle')
     expect(iconDivider?.parentElement).not.toHaveClass('border-t')
   })
