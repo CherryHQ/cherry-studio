@@ -63,7 +63,7 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
           <>
             <Tooltip content={t('notes.new_note')} delay={800}>
               <div
-                className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-foreground/80 hover:bg-muted hover:text-foreground [&_svg]:[stroke-width:1.6]"
                 onClick={onCreateNote}>
                 <FilePlus2 size={18} />
               </div>
@@ -71,7 +71,7 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
 
             <Tooltip content={t('notes.new_folder')} delay={800}>
               <div
-                className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-foreground/80 hover:bg-muted hover:text-foreground [&_svg]:[stroke-width:1.6]"
                 onClick={onCreateFolder}>
                 <FolderPlus size={18} />
               </div>
@@ -81,7 +81,7 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
               <PopoverTrigger asChild>
                 <div>
                   <Tooltip content={t('assistants.presets.sorting.title')} delay={800}>
-                    <div className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground">
+                    <div className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-foreground/80 hover:bg-muted hover:text-foreground [&_svg]:[stroke-width:1.6]">
                       <ArrowUpNarrowWide size={18} />
                     </div>
                   </Tooltip>
@@ -111,7 +111,7 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
 
             <Tooltip content={t('notes.show_starred')} delay={800}>
               <div
-                className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-foreground/80 hover:bg-muted hover:text-foreground [&_svg]:[stroke-width:1.6]"
                 onClick={onToggleStarredView}>
                 <Star size={18} />
               </div>
@@ -119,7 +119,7 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
 
             <Tooltip content={t('common.search')} delay={800}>
               <div
-                className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-foreground/80 hover:bg-muted hover:text-foreground [&_svg]:[stroke-width:1.6]"
                 onClick={onToggleSearchView}>
                 <Search size={18} />
               </div>
@@ -129,7 +129,7 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
         {isShowStarred && (
           <Tooltip content={t('common.back')} delay={800}>
             <div
-              className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-foreground/80 hover:bg-muted hover:text-foreground [&_svg]:[stroke-width:1.6]"
               onClick={onToggleStarredView}>
               <ArrowLeft size={18} />
             </div>
@@ -139,7 +139,7 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
           <>
             <Tooltip content={t('common.back')} delay={800}>
               <div
-                className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-foreground/80 hover:bg-muted hover:text-foreground [&_svg]:[stroke-width:1.6]"
                 onClick={onToggleSearchView}>
                 <ArrowLeft size={18} />
               </div>
@@ -155,7 +155,7 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
               {searchKeyword && (
                 <button
                   type="button"
-                  className="-translate-y-1/2 absolute top-1/2 right-1 flex size-5 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+                  className="-translate-y-1/2 absolute top-1/2 right-1 flex size-5 items-center justify-center rounded text-foreground/80 hover:bg-accent hover:text-foreground [&_svg]:[stroke-width:1.6]"
                   onClick={() => onSetSearchKeyword('')}
                   aria-label={t('common.clear')}>
                   <X size={13} />
