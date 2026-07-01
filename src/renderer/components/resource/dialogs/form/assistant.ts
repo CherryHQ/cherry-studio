@@ -21,9 +21,9 @@ const UI_DEFAULT_MAX_TOOL_CALLS = 20
  * Flat form state for the Assistant edit dialog. Every editable field lives
  * here so the dialog commits in a single PATCH.
  *
- * `tagName` stores one user-facing name, not an id — tag-id resolution
- * happens at save time via `ensureTags` so the user can freely type a new tag
- * without paying a network round-trip per keystroke.
+ * `tagName` stores one user-facing name, not an id — tag-id resolution happens
+ * at save time via `ensureTags`, keeping the form state independent from
+ * backend tag ids.
  */
 export interface AssistantFormState {
   // columns
