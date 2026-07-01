@@ -33,6 +33,12 @@ const toPptxData = (data: unknown): Uint8Array => {
 
 const formatPptxZoom = (zoom: number): string => `${Math.round(zoom)}%`
 
+function assertSourceSize(size: number): void {
+  if (size > PPTX_PREVIEW_MAX_SOURCE_BYTES) {
+    throw new Error('PPTX preview supports files up to 25 MB')
+  }
+}
+
 const PptxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize }: PptxPreviewPanelProps) => {
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -128,11 +134,10 @@ const PptxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize }: PptxPr
 
     void (async () => {
       try {
-        if (typeof sourceSize === 'number' && sourceSize > PPTX_PREVIEW_MAX_SOURCE_BYTES) {
-          throw new Error('PPTX preview supports files up to 25 MB')
-        }
+        if (typeof sourceSize === 'number') assertSourceSize(sourceSize)
 
         const pptxData = toPptxData(await window.api.fs.read(filePath))
+        assertSourceSize(pptxData.byteLength)
         if (cancelled) return
 
         viewer = new PptxViewer(container, {

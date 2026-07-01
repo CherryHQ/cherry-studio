@@ -143,6 +143,15 @@ describe('PptxPreviewPanel', () => {
     expect(mocks.open).not.toHaveBeenCalled()
   })
 
+  it('rejects oversized bytes discovered after reading the file', async () => {
+    mocks.fsRead.mockResolvedValueOnce(new Uint8Array(25 * 1024 * 1024 + 1))
+
+    render(<PptxPreviewPanel filePath="/tmp/grew.pptx" fileName="grew.pptx" refreshKey={0} />)
+
+    expect(await screen.findByTestId('empty-state')).toHaveTextContent('files.preview.error')
+    expect(mocks.viewerInstances).toHaveLength(0)
+  })
+
   it('destroys the viewer when open() rejects on a malformed file', async () => {
     mocks.open.mockImplementationOnce(() => {
       throw new Error('corrupt pptx')
