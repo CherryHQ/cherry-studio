@@ -115,69 +115,6 @@ describe('AgentSessionService', () => {
     expect(result[0]).not.toHaveProperty('workspace')
   })
 
-  it('resolves system as the default workspace when an agent has no sessions', async () => {
-    await expect(agentSessionService.resolveDefaultWorkspaceForAgent('agent-session-test')).resolves.toEqual({
-      type: 'system'
-    })
-  })
-
-  it('resolves the latest agent session workspace as the default workspace', async () => {
-    const oldWorkspace = await createWorkspace('default-old')
-    const newWorkspace = await createWorkspace('default-new')
-    await dbh.db.insert(agentSessionTable).values([
-      {
-        id: 'default-old-session',
-        agentId: 'agent-session-test',
-        name: 'Old default',
-        workspaceId: oldWorkspace.id,
-        orderKey: 'default-a0',
-        updatedAt: 100
-      },
-      {
-        id: 'default-new-session',
-        agentId: 'agent-session-test',
-        name: 'New default',
-        workspaceId: newWorkspace.id,
-        orderKey: 'default-a1',
-        updatedAt: 200
-      }
-    ])
-
-    await expect(agentSessionService.resolveDefaultWorkspaceForAgent('agent-session-test')).resolves.toEqual({
-      type: 'user',
-      workspaceId: newWorkspace.id
-    })
-  })
-
-  it('resolves system when the latest agent session has no project workspace', async () => {
-    const oldWorkspace = await createWorkspace('default-before-system')
-    const systemWorkspace = await dbh.db.transaction((tx) =>
-      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'default-system-session' })
-    )
-    await dbh.db.insert(agentSessionTable).values([
-      {
-        id: 'default-user-session',
-        agentId: 'agent-session-test',
-        name: 'User default',
-        workspaceId: oldWorkspace.id,
-        orderKey: 'default-b0',
-        updatedAt: 100
-      },
-      {
-        id: 'default-system-session',
-        agentId: 'agent-session-test',
-        name: 'System default',
-        workspaceId: systemWorkspace.id,
-        orderKey: 'default-b1',
-        updatedAt: 200
-      }
-    ])
-
-    await expect(agentSessionService.resolveDefaultWorkspaceForAgent('agent-session-test')).resolves.toEqual({
-      type: 'system'
-    })
-  })
-
   it('binds a session to an explicit workspace', async () => {
     const workspace = await createWorkspace('explicit')
 
