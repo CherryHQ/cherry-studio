@@ -8,6 +8,10 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
+vi.mock('@main/ai/inference/InferenceHost', () => ({
+  inferenceHost: { terminate: vi.fn() }
+}))
+
 // Import the SUT after @application is mocked (its model dir resolves via application.getPath).
 const { localOcrDownloadService, dictTextFromInferenceYml } = await import('../LocalOcrDownloadService')
 
@@ -71,5 +75,17 @@ describe('LocalOcrDownloadService.remove — default image-to-text demotion', ()
       recursive: true,
       force: true
     })
+  })
+
+  it('terminates the inference worker before deleting so open OCR handles are released', async () => {
+    const { inferenceHost } = await import('@main/ai/inference/InferenceHost')
+    const terminate = vi.mocked(inferenceHost.terminate)
+
+    await localOcrDownloadService.remove()
+
+    expect(terminate).toHaveBeenCalledTimes(1)
+    // The worker (caching PaddleOcrService's native session + open weight files) must
+    // be released BEFORE the weights are unlinked — Windows fails to delete open files.
+    expect(terminate.mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(fs.promises.rm).mock.invocationCallOrder[0])
   })
 })

@@ -5,6 +5,7 @@ import type { ReadableStream as NodeWebReadableStream } from 'node:stream/web'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { inferenceHost } from '@main/ai/inference/InferenceHost'
 import { LOCAL_MODELS, type RemoteModelFile } from '@main/ai/inference/localModelCatalog'
 import { modelSourceOrder, resolveModelFileUrl } from '@main/ai/inference/modelSource'
 import {
@@ -91,6 +92,11 @@ class LocalOcrDownloadService extends LocalModelDownloadService {
     // throw for every OCR consumer (translation / chat attachments / read_file), with
     // no self-heal. Clearing it lets the platform default take over again.
     await this.demoteFromDefault()
+    // Release the inference worker before deleting the weights: OCR recognition
+    // caches its PaddleOcrService (native onnxruntime session + open weight files)
+    // in the worker, so on Windows an open handle makes the unlink fail. Mirrors
+    // the embedding remove, which terminates first for the same reason.
+    inferenceHost.terminate()
     await this.cleanup()
     return { removed: true }
   }
