@@ -73,6 +73,21 @@ export function getNormalizedExecutablePath(): string {
 }
 
 /**
+ * Persist a chosen userData location to BootConfig, keyed by the normalized
+ * executable path so resolveUserDataLocation() applies it on the next launch.
+ *
+ * Commits the path only — no copy. The caller must copy first (copy-data flow,
+ * see BasicDataSettings.tsx startMigration) and trigger the relaunch.
+ */
+export function commitUserDataPath(targetPath: string): void {
+  const exe = getNormalizedExecutablePath()
+  const current = bootConfigService.get('app.user_data_path')
+  bootConfigService.set('app.user_data_path', { ...current, [exe]: targetPath })
+  bootConfigService.flush()
+  logger.info('userData path committed to BootConfig; relaunch required', { exe, targetPath })
+}
+
+/**
  * Resolve where the Electron userData directory should live, applying any
  * pending relocation along the way, and call app.setPath('userData', ...).
  *

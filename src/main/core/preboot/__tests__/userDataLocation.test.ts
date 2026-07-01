@@ -208,6 +208,65 @@ describe('getNormalizedExecutablePath', () => {
   })
 })
 
+describe('commitUserDataPath', () => {
+  // These tests cover the write-side counterpart that the App_SetAppDataPath
+  // IPC handler calls. The commit logic is the single reconnect point that
+  // was missing in the v1→v2 migration: resolveUserDataLocation() already
+  // read app.user_data_path[exe], but nothing wrote it.
+  it('writes the path keyed by the normalized exe and flushes', async () => {
+    stubConstants({ isLinux: false, isWin: false, isPortable: false })
+    stubElectron({ exePath: '/mock/exe' })
+    const store = stubBootConfig({ 'app.user_data_path': {} })
+    stubFs()
+    const { commitUserDataPath } = await loadModule()
+    commitUserDataPath('/new/data')
+    expect(store['app.user_data_path']).toEqual({ '/mock/exe': '/new/data' })
+    expect(bootConfigFlushMock).toHaveBeenCalled()
+    // Must NOT live-mutate Electron's path — the registry is frozen after
+    // bootstrap(); the change applies only on the next launch via preboot.
+    expect(setPathMock).not.toHaveBeenCalled()
+  })
+
+  it('merges with existing entries without clobbering sibling exes', async () => {
+    stubConstants({ isLinux: false, isWin: false, isPortable: false })
+    stubElectron({ exePath: '/mock/exe' })
+    const store = stubBootConfig({
+      'app.user_data_path': { '/other/exe': '/other/data', '/mock/exe': '/old/data' }
+    })
+    stubFs()
+    const { commitUserDataPath } = await loadModule()
+    commitUserDataPath('/new/data')
+    expect(store['app.user_data_path']).toEqual({
+      '/other/exe': '/other/data',
+      '/mock/exe': '/new/data'
+    })
+  })
+
+  it('overwrites a previous path for the same exe', async () => {
+    stubConstants({ isLinux: false, isWin: false, isPortable: false })
+    stubElectron({ exePath: '/mock/exe' })
+    const store = stubBootConfig({ 'app.user_data_path': { '/mock/exe': '/old/data' } })
+    stubFs()
+    const { commitUserDataPath } = await loadModule()
+    commitUserDataPath('/new/data')
+    expect(store['app.user_data_path']).toEqual({ '/mock/exe': '/new/data' })
+  })
+
+  it('AppImage build keys by the normalized AppImage path, not the raw exe', async () => {
+    vi.stubEnv('APPIMAGE', '/home/alice/Apps/CherryStudio-1.0.0.AppImage')
+    stubConstants({ isLinux: true, isWin: false, isPortable: false })
+    stubElectron({ exePath: '/tmp/.mount_abc/usr/bin/cherry-studio' })
+    const store = stubBootConfig({ 'app.user_data_path': {} })
+    stubFs()
+    const { commitUserDataPath } = await loadModule()
+    commitUserDataPath('/home/alice/cherry-data')
+    // Key must match what resolveUserDataLocation() will look up next launch.
+    expect(store['app.user_data_path']).toEqual({
+      '/home/alice/Apps/cherry-studio.appimage': '/home/alice/cherry-data'
+    })
+  })
+})
+
 describe('resolveUserDataLocation', () => {
   describe('normal resolution (no pending relocation)', () => {
     it('app.isPackaged=false: appends Dev suffix and ignores BootConfig', async () => {
