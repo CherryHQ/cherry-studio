@@ -1,4 +1,3 @@
-import { agentAdapter, assistantAdapter, promptAdapter, skillAdapter } from '@renderer/hooks/resourceCatalog'
 import { useTagList } from '@renderer/hooks/useTags'
 import type { AgentDetail, ResourceItem, ResourceType, SortKey } from '@renderer/types/resourceCatalog'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
@@ -7,6 +6,11 @@ import type { Assistant } from '@shared/data/types/assistant'
 import type { Prompt } from '@shared/data/types/prompt'
 import type { Tag } from '@shared/data/types/tag'
 import { useCallback, useMemo } from 'react'
+
+import { agentAdapter } from './agentAdapter'
+import { assistantAdapter } from './assistantAdapter'
+import { promptAdapter } from './promptAdapter'
+import { skillAdapter } from './skillAdapter'
 
 function compareItems(a: ResourceItem, b: ResourceItem, sort: SortKey): number {
   if (sort === 'name') return a.name.localeCompare(b.name, 'zh')

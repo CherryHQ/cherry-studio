@@ -12,12 +12,12 @@ import {
   DialogHeader,
   DialogTitle,
   EmptyState,
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
   Input,
   MenuItem,
   MenuList,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   Skeleton
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
@@ -123,34 +123,44 @@ interface AssistantAddMenuProps {
  */
 function AssistantAddMenu({ onNew, onImport, onOpenLibrary }: AssistantAddMenuProps) {
   const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+
+  const selectAction = (action: () => void) => {
+    setOpen(false)
+    action()
+  }
 
   return (
-    <HoverCard openDelay={100} closeDelay={150}>
-      <HoverCardTrigger asChild>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
         <Button variant="default" size="sm" className="shrink-0">
           <Plus size={12} className="lucide-custom" />
           <span>{t('chat.add.assistant.title')}</span>
           <ChevronDown size={12} className="opacity-70" />
         </Button>
-      </HoverCardTrigger>
-      <HoverCardContent align="end" className="w-44 p-1">
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-44 rounded-md p-1">
         <MenuList className="gap-0.5">
           <MenuItem
             icon={<Plus size={14} />}
             label={t('library.create_menu.create', { type: t(RESOURCE_TYPE_META.assistant.labelKey) })}
-            onClick={onNew}
+            onClick={() => selectAction(onNew)}
           />
           {onOpenLibrary ? (
             <MenuItem
               icon={<Library size={14} />}
               label={t('library.assistant_catalog.title')}
-              onClick={onOpenLibrary}
+              onClick={() => selectAction(onOpenLibrary)}
             />
           ) : null}
-          <MenuItem icon={<Upload size={14} />} label={t('assistants.presets.import.action')} onClick={onImport} />
+          <MenuItem
+            icon={<Upload size={14} />}
+            label={t('assistants.presets.import.action')}
+            onClick={() => selectAction(onImport)}
+          />
         </MenuList>
-      </HoverCardContent>
-    </HoverCard>
+      </PopoverContent>
+    </Popover>
   )
 }
 

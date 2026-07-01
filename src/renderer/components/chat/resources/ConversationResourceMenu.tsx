@@ -1,6 +1,7 @@
-import { ResourceList } from '@renderer/components/chat/resources'
 import { cn } from '@renderer/utils/style'
 import type { ReactNode } from 'react'
+
+import { ResourceList } from './ResourceList'
 
 export type ConversationResourceMenuItem = {
   active?: boolean

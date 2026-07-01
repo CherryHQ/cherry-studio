@@ -1,14 +1,5 @@
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import type { ConversationResourceMenuItem } from '@renderer/components/chat/resources'
-import {
-  ResourceEntityRail,
-  type ResourceEntityRailItem
-} from '@renderer/components/chat/resources/variants/ResourceEntityRail'
-import {
-  type ResourceEntityRailReorderAnchor,
-  useResourceEntityRail
-} from '@renderer/components/chat/resources/variants/useResourceEntityRail'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
@@ -22,7 +13,10 @@ import { Bot, Edit3, PinIcon, PinOffIcon, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { ConversationResourceMenuItem } from '../ConversationResourceMenu'
+import { ResourceEntityRail, type ResourceEntityRailItem } from './ResourceEntityRail'
 import { sortResourceItemsByPinnedTime } from './resourceEntitySort'
+import { type ResourceEntityRailReorderAnchor, useResourceEntityRail } from './useResourceEntityRail'
 
 const logger = loggerService.withContext('AssistantResourceList')
 

@@ -27,10 +27,15 @@ vi.mock('react-i18next', () => ({
           'common.delete': '删除',
           'common.rename': '重命名',
           'common.save': '保存',
+          'chat.add.assistant.title': '添加助手',
+          'assistants.presets.import.action': '导入助手',
           'library.assistant_catalog.add': '添加',
+          'library.assistant_catalog.title': '助手库',
           'library.assistant_catalog.go_to_chat': '去对话',
+          'library.create_menu.create': '新建助手',
           'library.toolbar.all_tags': '全部标签',
-          'library.toolbar.tag_button': '标签'
+          'library.toolbar.tag_button': '标签',
+          'library.type.assistant': '助手'
         }) satisfies Record<string, string>
       )[key] ?? key
   })
@@ -168,12 +173,6 @@ vi.mock('@cherrystudio/ui', async () => {
         {description && <div>{description}</div>}
       </div>
     ),
-    HoverCard: ({ children }: { children?: ReactNode }) => <>{children}</>,
-    HoverCardContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-    HoverCardTrigger: ({ asChild, children }: { asChild?: boolean; children?: ReactNode }) => {
-      void asChild
-      return <>{children}</>
-    },
     Dialog: ({ children, open }: { children?: ReactNode; open?: boolean }) => (open ? <>{children}</> : null),
     DialogContent: ({ children }: { children?: ReactNode }) => <div role="dialog">{children}</div>,
     DialogDescription: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -389,6 +388,28 @@ describe('ResourceGrid empty state copy', () => {
 
     expect(screen.getByText('library.empty_state.no_match_title')).toBeInTheDocument()
     expect(screen.getByText('library.empty_state.no_match_description')).toBeInTheDocument()
+  })
+})
+
+describe('ResourceGrid assistant add menu', () => {
+  it('opens assistant actions by click and dispatches the selected action', async () => {
+    const user = userEvent.setup()
+    const onCreate = vi.fn()
+    const onImportAssistant = vi.fn()
+    const onOpenAssistantLibrary = vi.fn()
+
+    renderResourceGrid({
+      onCreate,
+      onImportAssistant,
+      onOpenAssistantLibrary
+    })
+
+    await user.click(screen.getByRole('button', { name: /添加助手/ }))
+    await user.click(screen.getByRole('button', { name: '助手库' }))
+
+    expect(onOpenAssistantLibrary).toHaveBeenCalledTimes(1)
+    expect(onCreate).not.toHaveBeenCalled()
+    expect(onImportAssistant).not.toHaveBeenCalled()
   })
 })
 
