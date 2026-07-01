@@ -12,7 +12,12 @@ import {
   DialogHeader,
   DialogTitle,
   EmptyState,
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
   Input,
+  MenuItem,
+  MenuList,
   Skeleton
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
@@ -21,7 +26,19 @@ import { useDeleteTag, useRenameTag } from '@renderer/hooks/useTags'
 import type { ResourceItem, ResourceType, TagItem } from '@renderer/types/resourceCatalog'
 import type { Tag as BackendTag } from '@shared/data/types/tag'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronLeft, ChevronRight, Pencil, Plus, Search, Tag, Trash2, Upload, X } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Library,
+  Pencil,
+  Plus,
+  Search,
+  Tag,
+  Trash2,
+  Upload,
+  X
+} from 'lucide-react'
 import type { FC, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -64,6 +81,8 @@ interface Props {
   onExport: (r: ResourceItem) => void
   onCreate: (type: ResourceType) => void
   onImportAssistant: () => void
+  /** Open the community assistant library dialog. When omitted the add menu hides the library item. */
+  onOpenAssistantLibrary?: () => void
   tags: TagItem[]
   activeTag: string | null
   onTagFilter: (tagName: string | null) => void
@@ -112,6 +131,50 @@ function useGridColumnCount(scrollRef: RefObject<HTMLDivElement | null>) {
   return gridState.columnCount
 }
 
+interface AssistantAddMenuProps {
+  onNew: () => void
+  onImport: () => void
+  onOpenLibrary?: () => void
+}
+
+/**
+ * The single "添加助手" control: one button that reveals 新建助手 / 助手库 / 导入助手 on hover.
+ * The library item only appears when a handler is supplied (the resource-center page wires it;
+ * the legacy inline-catalog surface keeps browsing via its own tab rail and omits it).
+ */
+function AssistantAddMenu({ onNew, onImport, onOpenLibrary }: AssistantAddMenuProps) {
+  const { t } = useTranslation()
+
+  return (
+    <HoverCard openDelay={100} closeDelay={150}>
+      <HoverCardTrigger asChild>
+        <Button variant="default" size="sm" className="shrink-0">
+          <Plus size={12} className="lucide-custom" />
+          <span>{t('chat.add.assistant.title')}</span>
+          <ChevronDown size={12} className="opacity-70" />
+        </Button>
+      </HoverCardTrigger>
+      <HoverCardContent align="end" className="w-44 p-1">
+        <MenuList className="gap-0.5">
+          <MenuItem
+            icon={<Plus size={14} />}
+            label={t('library.create_menu.create', { type: t(RESOURCE_TYPE_META.assistant.labelKey) })}
+            onClick={onNew}
+          />
+          {onOpenLibrary ? (
+            <MenuItem
+              icon={<Library size={14} />}
+              label={t('library.assistant_catalog.title')}
+              onClick={onOpenLibrary}
+            />
+          ) : null}
+          <MenuItem icon={<Upload size={14} />} label={t('assistants.presets.import.action')} onClick={onImport} />
+        </MenuList>
+      </HoverCardContent>
+    </HoverCard>
+  )
+}
+
 export const ResourceGrid: FC<Props> = ({
   resources,
   isLoading = false,
@@ -124,6 +187,7 @@ export const ResourceGrid: FC<Props> = ({
   onExport,
   onCreate,
   onImportAssistant,
+  onOpenAssistantLibrary,
   tags,
   activeTag,
   onTagFilter,
@@ -291,26 +355,23 @@ export const ResourceGrid: FC<Props> = ({
           <div className="flex-1" />
 
           <div className="flex shrink-0 items-center gap-2">
-            {activeResourceType !== 'skill' && (
+            {activeResourceType === 'assistant' ? (
+              <AssistantAddMenu
+                onNew={() => onCreate('assistant')}
+                onImport={onImportAssistant}
+                onOpenLibrary={onOpenAssistantLibrary}
+              />
+            ) : activeResourceType === 'skill' ? (
+              <Button variant="default" size="sm" onClick={() => onCreate('skill')} className="shrink-0">
+                <Upload size={12} className="lucide-custom" />
+                <span>{t('library.create_menu.import', { type: t(RESOURCE_TYPE_META.skill.labelKey) })}</span>
+              </Button>
+            ) : (
               <Button variant="default" size="sm" onClick={() => onCreate(activeResourceType)} className="shrink-0">
                 <Plus size={12} className="lucide-custom" />
                 <span>
                   {t('library.create_menu.create', { type: t(RESOURCE_TYPE_META[activeResourceType].labelKey) })}
                 </span>
-              </Button>
-            )}
-
-            {activeResourceType === 'assistant' && (
-              <Button variant="outline" size="sm" onClick={onImportAssistant} className="shrink-0">
-                <Upload size={12} />
-                <span>{t('assistants.presets.import.action')}</span>
-              </Button>
-            )}
-
-            {activeResourceType === 'skill' && (
-              <Button variant="default" size="sm" onClick={() => onCreate('skill')} className="shrink-0">
-                <Upload size={12} className="lucide-custom" />
-                <span>{t('library.create_menu.import', { type: t(RESOURCE_TYPE_META.skill.labelKey) })}</span>
               </Button>
             )}
           </div>

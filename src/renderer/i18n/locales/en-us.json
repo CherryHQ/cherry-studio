@@ -2963,7 +2963,8 @@
       "preview_description": "Overview",
       "preview_prompt": "Prompt",
       "scroll_left": "Scroll categories left",
-      "scroll_right": "Scroll categories right"
+      "scroll_right": "Scroll categories right",
+      "title": "Assistant Library"
     },
     "badge": {
       "update": "Update"

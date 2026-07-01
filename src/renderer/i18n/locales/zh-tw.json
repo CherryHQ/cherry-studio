@@ -2963,7 +2963,8 @@
       "preview_description": "簡介",
       "preview_prompt": "提示詞",
       "scroll_left": "向左捲動分類",
-      "scroll_right": "向右捲動分類"
+      "scroll_right": "向右捲動分類",
+      "title": "助手庫"
     },
     "badge": {
       "update": "更新"

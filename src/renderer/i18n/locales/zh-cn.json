@@ -2963,7 +2963,8 @@
       "preview_description": "简介",
       "preview_prompt": "提示词",
       "scroll_left": "向左滚动分类",
-      "scroll_right": "向右滚动分类"
+      "scroll_right": "向右滚动分类",
+      "title": "助手库"
     },
     "badge": {
       "update": "更新"

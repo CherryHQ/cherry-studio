@@ -43,6 +43,7 @@ import type { Tag } from '@shared/data/types/tag'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { AssistantLibraryDialog } from './AssistantLibraryDialog'
 import { LibrarySidebar } from './LibrarySidebar'
 import { ResourceGrid } from './ResourceGrid'
 import {
@@ -141,6 +142,7 @@ export function ResourceCatalogView({
   const [promptDialog, setPromptDialog] = useState<PromptDialogState>(null)
   const [selectedSkill, setSelectedSkill] = useState<InstalledSkill | null>(null)
   const [assistantImportOpen, setAssistantImportOpen] = useState(false)
+  const [assistantLibraryOpen, setAssistantLibraryOpen] = useState(false)
   const [skillImportOpen, setSkillImportOpen] = useState(false)
   const [activeAssistantCatalogTab, setActiveAssistantCatalogTab] = useState(ASSISTANT_CATALOG_MY_TAB)
   const [previewAssistantPreset, setPreviewAssistantPreset] = useState<AssistantCatalogPreset | null>(null)
@@ -151,6 +153,9 @@ export function ResourceCatalogView({
   const isAssistantLibrary = activeResourceType === 'assistant'
   const isAssistantCatalogEnabled = assistantCatalogEnabled && isAssistantLibrary
   const isAssistantCatalogMine = !isAssistantCatalogEnabled || activeAssistantCatalogTab === ASSISTANT_CATALOG_MY_TAB
+  // The dialog-based assistant library replaces the inline catalog on the resource-center page
+  // (its inline tab rail is disabled there); the legacy library page keeps browsing inline.
+  const assistantLibraryDialogEnabled = isAssistantLibrary && !isAssistantCatalogEnabled
 
   useEffect(() => {
     if (resourceTypes.includes(activeResourceType)) return
@@ -524,6 +529,7 @@ export function ResourceCatalogView({
             }}
             onCreate={handleCreate}
             onImportAssistant={() => setAssistantImportOpen(true)}
+            onOpenAssistantLibrary={assistantLibraryDialogEnabled ? () => setAssistantLibraryOpen(true) : undefined}
             tags={scopedTags}
             activeTag={activeTag}
             onTagFilter={setActiveTag}
@@ -562,6 +568,14 @@ export function ResourceCatalogView({
         onOpenChat={handleOpenAssistantPresetChat}
       />
       <ImportAssistantDialog open={assistantImportOpen} onOpenChange={setAssistantImportOpen} onImported={refetch} />
+      {assistantLibraryDialogEnabled ? (
+        <AssistantLibraryDialog
+          open={assistantLibraryOpen}
+          onOpenChange={setAssistantLibraryOpen}
+          onAssistantAdded={refetch}
+          onOpenAssistantChat={onOpenAssistantChat}
+        />
+      ) : null}
       <ImportSkillDialog open={skillImportOpen} onOpenChange={setSkillImportOpen} onInstalled={refetch} />
       <ResourceCreateWizard
         kind={createDialogKind ?? 'assistant'}

@@ -172,6 +172,12 @@ vi.mock('@cherrystudio/ui', async () => {
         {description && <div>{description}</div>}
       </div>
     ),
+    HoverCard: ({ children }: { children?: ReactNode }) => <>{children}</>,
+    HoverCardContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    HoverCardTrigger: ({ asChild, children }: { asChild?: boolean; children?: ReactNode }) => {
+      void asChild
+      return <>{children}</>
+    },
     Dialog: ({ children, open }: { children?: ReactNode; open?: boolean }) => (open ? <>{children}</> : null),
     DialogContent: ({ children }: { children?: ReactNode }) => <div role="dialog">{children}</div>,
     DialogDescription: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
