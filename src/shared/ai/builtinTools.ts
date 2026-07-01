@@ -388,7 +388,6 @@ export const kbManageOutputSchema = z.object({
   notFound: z.array(z.string()).optional()
 })
 
-export type KbManageInput = z.infer<typeof kbManageInputSchema>
 export type KbManageOutput = z.infer<typeof kbManageOutputSchema>
 
 // ── web_search ───────────────────────────────────────────────────
