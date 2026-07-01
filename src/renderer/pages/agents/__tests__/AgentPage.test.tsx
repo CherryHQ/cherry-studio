@@ -2,7 +2,7 @@ import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrame
 import { useCommandHandler } from '@renderer/hooks/command'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -238,8 +238,20 @@ vi.mock('@renderer/hooks/useConversationNavigation', () => ({
 }))
 
 vi.mock('@renderer/components/chat', () => ({
-  ConversationPageShell: ({ center, pane }: { center?: { content?: ReactNode }; pane?: ReactNode }) => (
+  ConversationPageShell: ({
+    center,
+    pane,
+    paneOpen,
+    topBar
+  }: {
+    center?: { content?: ReactNode }
+    pane?: ReactNode
+    paneOpen?: boolean
+    topBar?: ReactNode
+  }) => (
     <section data-testid="agent-conversation-page-shell">
+      <output data-testid="resource-pane-open">{String(paneOpen)}</output>
+      {topBar}
       {pane}
       {center?.content}
     </section>
@@ -418,6 +430,18 @@ vi.mock('../AgentChat', () => ({
       {pane}
       {resourcePane?.node}
     </section>
+  )
+}))
+
+vi.mock('../components/AgentChatNavbar', () => ({
+  default: ({ onSidebarToggle }: { onSidebarToggle?: () => void }) => (
+    <div data-testid="agent-chat-navbar">
+      {onSidebarToggle && (
+        <button type="button" onClick={onSidebarToggle}>
+          Toggle sidebar
+        </button>
+      )}
+    </div>
   )
 }))
 
@@ -604,6 +628,25 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
     expect(screen.getByTestId('agent-conversation-page-shell')).toBeInTheDocument()
     expect(screen.queryByTestId('agent-chat')).not.toBeInTheDocument()
+  })
+
+  it('keeps a sidebar toggle in the agent resource view top bar so a collapsed pane can be reopened', async () => {
+    agentPageMocks.showSidebar = true
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.agent' }))
+
+    const shell = screen.getByTestId('agent-conversation-page-shell')
+    expect(within(shell).getByTestId('resource-pane-open')).toHaveTextContent('true')
+
+    // Collapse the pane from the top-bar toggle, then confirm the toggle survives the collapse.
+    fireEvent.click(within(shell).getByRole('button', { name: 'Toggle sidebar' }))
+    await waitFor(() => expect(within(shell).getByTestId('resource-pane-open')).toHaveTextContent('false'))
+
+    fireEvent.click(within(shell).getByRole('button', { name: 'Toggle sidebar' }))
+    await waitFor(() => expect(within(shell).getByTestId('resource-pane-open')).toHaveTextContent('true'))
   })
 
   it('restores and records the classic-layout agent right pane open state from cache', () => {

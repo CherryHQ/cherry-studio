@@ -2,7 +2,7 @@ import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrame
 import { useCommandHandler } from '@renderer/hooks/command'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -144,14 +144,17 @@ vi.mock('@renderer/components/chat', () => ({
   ConversationPageShell: ({
     center,
     pane,
-    paneOpen
+    paneOpen,
+    topBar
   }: {
     center?: { content?: ReactNode }
     pane?: ReactNode
     paneOpen?: boolean
+    topBar?: ReactNode
   }) => (
     <section data-testid="home-conversation-page-shell">
       <output data-testid="pane-open">{String(paneOpen)}</output>
+      <div>{topBar}</div>
       <div>{pane}</div>
       <div>{center?.content}</div>
     </section>
@@ -659,6 +662,24 @@ describe('HomePage', () => {
     expect(screen.getByTestId('resource-catalog-assistant')).toBeInTheDocument()
     expect(screen.getByTestId('home-conversation-page-shell')).toBeInTheDocument()
     expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
+  })
+
+  it('keeps a sidebar toggle in the resource view top bar so a collapsed pane can be reopened', async () => {
+    homeMocks.preferenceValues.set('topic.tab.show', true)
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.assistant' }))
+
+    const shell = screen.getByTestId('home-conversation-page-shell')
+    expect(within(shell).getByTestId('pane-open')).toHaveTextContent('true')
+
+    // Collapse the pane from the top-bar toggle, then confirm the toggle survives the collapse.
+    fireEvent.click(within(shell).getByRole('button', { name: 'Toggle sidebar' }))
+    await waitFor(() => expect(within(shell).getByTestId('pane-open')).toHaveTextContent('false'))
+
+    fireEvent.click(within(shell).getByRole('button', { name: 'Toggle sidebar' }))
+    await waitFor(() => expect(within(shell).getByTestId('pane-open')).toHaveTextContent('true'))
   })
 
   it('starts a modern-layout draft from the inline assistant catalog go-to-chat action', async () => {

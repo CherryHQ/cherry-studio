@@ -816,6 +816,13 @@ const HomePage: FC = () => {
             paneOpen={effectiveShowSidebar}
             panePosition={panePosition}
             onPaneCollapse={() => setResourceListOpen(false)}
+            topBar={
+              <ChatNavbar
+                showSidebarControls={!isMessageOnlyView && !isWindowFrame}
+                sidebarOpen={effectiveShowSidebar}
+                onSidebarToggle={toggleResourceListOpen}
+              />
+            }
           />
         </ContentContainer>
         {assistantPickerDialog}

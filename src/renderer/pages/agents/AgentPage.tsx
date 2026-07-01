@@ -45,6 +45,7 @@ import { useTranslation } from 'react-i18next'
 import HistoryRecordsPage from '../history/HistoryRecordsPage'
 import AgentChat from './AgentChat'
 import AgentSidePanel from './AgentSidePanel'
+import AgentChatNavbar from './components/AgentChatNavbar'
 import { AgentConversationPickerDialog } from './components/AgentConversationPickerDialog'
 import Sessions from './components/Sessions'
 import { parseAgentRouteSearch } from './routeSearch'
@@ -998,6 +999,14 @@ const AgentPage = () => {
             paneOpen={effectiveShowSidebar}
             panePosition={panePosition}
             onPaneCollapse={() => setResourceListOpen(false)}
+            topBar={
+              <AgentChatNavbar
+                activeAgent={null}
+                showSidebarControls={!isMessageOnlyView && !isWindowFrame}
+                sidebarOpen={effectiveShowSidebar}
+                onSidebarToggle={toggleResourceListOpen}
+              />
+            }
           />
         ) : (
           <AgentChat
