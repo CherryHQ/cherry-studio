@@ -69,7 +69,10 @@ function createLocalEmbeddingModelRow(): LocalEmbeddingModelRow {
     parameters: null,
     pricing: null,
     isEnabled: true,
-    // Hidden from general model lists; the KB embedding picker still shows it.
+    // Kept for parity with the old seeded row. The general model lists don't filter
+    // on `isHidden`, so the model deliberately surfaces in capability-filtered
+    // pickers (e.g. the KB embedding picker) once downloaded; what's kept out of the
+    // UI is the *provider*, via isProviderSettingsListVisibleProvider.
     isHidden: true,
     isDeprecated: false,
     notes: null,
