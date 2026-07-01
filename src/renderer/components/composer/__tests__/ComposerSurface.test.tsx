@@ -888,25 +888,28 @@ describe('ComposerSurface', () => {
       items: []
     })
 
-    expect(mocks.quickPanelOpen).toHaveBeenCalledWith({
-      title: 'settings.quickPanel.title',
-      list: [
-        expect.objectContaining({
-          label: 'Generate image',
-          description: 'The model does not support generating images.',
-          disabled: true,
-          filterText: expect.stringContaining('The model does not support generating images.')
-        })
-      ],
-      symbol: '/',
-      queryAnchor: 0,
-      triggerInfo: {
-        type: 'input',
-        position: 0,
-        originalText: '/image'
-      },
-      trackInputQuery: true
-    })
+    expect(mocks.quickPanelOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'settings.quickPanel.title',
+        list: [
+          expect.objectContaining({
+            label: 'Generate image',
+            description: 'The model does not support generating images.',
+            disabled: true,
+            filterText: expect.stringContaining('The model does not support generating images.')
+          })
+        ],
+        symbol: '/',
+        queryAnchor: 0,
+        triggerInfo: {
+          type: 'input',
+          position: 0,
+          originalText: '/image'
+        },
+        trackInputQuery: true,
+        sortFn: expect.any(Function)
+      })
+    )
 
     const event = new KeyboardEvent('keydown', { key: 'Enter' })
     expect(rootSource.onKeyDown({ event })).toBe(false)

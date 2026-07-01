@@ -3,6 +3,7 @@ import type {
   QuickPanelInputAdapter,
   QuickPanelListItem,
   QuickPanelOpenOptions,
+  QuickPanelSortFn,
   QuickPanelTriggerInfo
 } from '@renderer/components/QuickPanel'
 
@@ -11,6 +12,17 @@ import type { ComposerRootPanelSelectHandler } from './rootPanel'
 import { ComposerPanelSymbol } from './symbols'
 
 export type ComposerUnifiedPanelSection = 'primary-tools' | 'commands' | 'resources'
+
+interface ComposerUnifiedPanelSortMetadata {
+  section: ComposerUnifiedPanelSection
+  order: number
+}
+
+const ComposerUnifiedPanelSortMetadataSymbol = Symbol('ComposerUnifiedPanelSortMetadata')
+
+type ComposerUnifiedPanelSortedItem = QuickPanelListItem & {
+  [ComposerUnifiedPanelSortMetadataSymbol]?: ComposerUnifiedPanelSortMetadata
+}
 
 export interface ComposerUnifiedPanelResourceContext {
   inputAdapter?: QuickPanelInputAdapter
@@ -59,6 +71,59 @@ function getLauncherDescription(launcher: ComposerToolLauncher) {
     return launcher.disabledReason
   }
   return launcher.description
+}
+
+function getUnifiedPanelSortLayer(section?: ComposerUnifiedPanelSection) {
+  return section === 'resources' ? 1 : 0
+}
+
+function withUnifiedPanelSortMetadata(
+  item: QuickPanelListItem,
+  metadata: ComposerUnifiedPanelSortMetadata
+): QuickPanelListItem {
+  return {
+    ...item,
+    [ComposerUnifiedPanelSortMetadataSymbol]: metadata
+  } as ComposerUnifiedPanelSortedItem
+}
+
+function getUnifiedPanelSortMetadata(item: QuickPanelListItem) {
+  return (item as ComposerUnifiedPanelSortedItem)[ComposerUnifiedPanelSortMetadataSymbol]
+}
+
+function tagUnifiedPanelSectionItems(
+  items: readonly QuickPanelListItem[] | undefined,
+  section: ComposerUnifiedPanelSection,
+  nextOrder: { value: number }
+) {
+  return (items ?? []).map((item) =>
+    withUnifiedPanelSortMetadata(item, {
+      section,
+      order: nextOrder.value++
+    })
+  )
+}
+
+const sortUnifiedQuickPanelItems: QuickPanelSortFn = (items, searchText) => {
+  if (!searchText) return items
+
+  return items
+    .map((item, index) => ({
+      item,
+      index,
+      metadata: getUnifiedPanelSortMetadata(item)
+    }))
+    .sort((a, b) => {
+      const layerDiff = getUnifiedPanelSortLayer(a.metadata?.section) - getUnifiedPanelSortLayer(b.metadata?.section)
+      if (layerDiff !== 0) return layerDiff
+
+      const orderA = a.metadata?.order ?? a.index
+      const orderB = b.metadata?.order ?? b.index
+      if (orderA !== orderB) return orderA - orderB
+
+      return a.index - b.index
+    })
+    .map(({ item }) => item)
 }
 
 function launcherSupportsSource(launcher: ComposerToolLauncher, source: ComposerToolLauncherSource) {
@@ -242,19 +307,22 @@ export function createUnifiedQuickPanelOpenOptions(
     seenLauncherIds,
     getRootPanelOptions
   })
+  const nextSortOrder = { value: 0 }
+  const list = [
+    ...tagUnifiedPanelSectionItems(options.leadingItems, 'primary-tools', nextSortOrder),
+    ...tagUnifiedPanelSectionItems(primaryItems, 'primary-tools', nextSortOrder),
+    ...tagUnifiedPanelSectionItems(commandItems, 'commands', nextSortOrder),
+    ...tagUnifiedPanelSectionItems(options.additionalItems, 'commands', nextSortOrder),
+    ...tagUnifiedPanelSectionItems(options.resourceItems, 'resources', nextSortOrder)
+  ]
 
   return {
     title: options.title,
-    list: [
-      ...(options.leadingItems ?? []),
-      ...primaryItems,
-      ...commandItems,
-      ...(options.additionalItems ?? []),
-      ...(options.resourceItems ?? [])
-    ],
+    list,
     symbol: ComposerPanelSymbol.Root,
     queryAnchor: options.queryAnchor,
     triggerInfo: options.triggerInfo ?? { type: 'button' },
-    trackInputQuery: true
+    trackInputQuery: true,
+    sortFn: sortUnifiedQuickPanelItems
   }
 }
