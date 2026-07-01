@@ -56,14 +56,6 @@ vi.mock('@context-chef/ai-sdk-middleware', () => ({
   compactModelMessages: mockCompactModelMessages
 }))
 
-// Mock prepareModelMessages — returns empty array (content doesn't matter for these tests).
-// Path relative to this test file: __tests__ → context → streamManager → ai → messages
-vi.mock('../../../messages/messageConverter', () => ({
-  prepareModelMessages: vi.fn(async () => []),
-  toCherryUIMessage: vi.fn(),
-  resolveUIMessageFileUrls: vi.fn(async (msgs: unknown[]) => msgs)
-}))
-
 // Override the global @application mock to also handle AiStreamManager lookups.
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('../../../../../../tests/__mocks__/main/application')

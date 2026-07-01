@@ -132,7 +132,9 @@ export const inLoopCompactionFeature: RequestFeature = {
     const keepBudget = Math.floor(contextWindow * CONTEXT_COMPACT_KEEP_BUDGET_RATIO)
     return {
       prepareStep: async ({ messages, steps }) => {
-        if (estimatePromptTokens(messages, steps) < trigger) return undefined
+        // Compact only when strictly over the trigger (`<=` is a no-op), matching the
+        // turn-start comparison so the two paths never disagree at estimate === trigger.
+        if (estimatePromptTokens(messages, steps) <= trigger) return undefined
         const keepRecentTurns = computeKeepRecentTurns(messages, keepBudget)
         const compacted = await compactModelMessages(messages, model, { keepRecentTurns })
         return compacted === messages ? undefined : { messages: compacted }

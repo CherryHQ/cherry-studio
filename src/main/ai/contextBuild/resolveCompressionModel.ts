@@ -47,7 +47,10 @@ export async function resolveCompressionModel(modelIdRaw: string): Promise<Langu
       config.providerId as Parameters<typeof createExecutor>[0],
       config.providerSettings as Parameters<typeof createExecutor>[1]
     )
-    return await executor.languageModel(model.apiModelId ?? model.id)
+    // languageModel() prepends the providerId (`${providerId}:${modelId}`), so it needs the
+    // BARE modelId — fall back to the parsed `modelId`, not the composite `model.id`
+    // (`||` also covers an empty apiModelId).
+    return await executor.languageModel(model.apiModelId || modelId)
   } catch (error) {
     logger.warn('compression model resolution failed', {
       providerId,
