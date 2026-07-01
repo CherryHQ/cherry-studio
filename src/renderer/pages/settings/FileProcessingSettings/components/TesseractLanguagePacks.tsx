@@ -37,25 +37,21 @@ export function TesseractLanguagePacks({ options, selectedLanguages, onChange }:
   )
 
   return (
-    <div className="flex flex-col gap-3 border-border-muted border-t pt-4">
-      <SettingRow className="items-center gap-4 py-0">
-        <SettingRowTitle className="w-24 shrink-0">
-          {t('settings.tool.file_processing.fields.languages')}
-        </SettingRowTitle>
-        <div className="min-w-0 flex-1">
-          <Combobox
-            multiple
-            width={220}
-            value={selectedLanguages}
-            options={options}
-            onChange={onChange}
-            renderValue={renderSelectedLanguages}
-            searchable={false}
-            placeholder={t('common.select')}
-            emptyText={t('common.no_results')}
-          />
-        </div>
-      </SettingRow>
-    </div>
+    <SettingRow className="items-center gap-4">
+      <SettingRowTitle className="w-24 flex-none">{t('settings.tool.file_processing.fields.languages')}</SettingRowTitle>
+      <div className="min-w-0 flex-1">
+        <Combobox
+          multiple
+          className="w-full max-w-[220px]"
+          value={selectedLanguages}
+          options={options}
+          onChange={onChange}
+          renderValue={renderSelectedLanguages}
+          searchable={false}
+          placeholder={t('common.select')}
+          emptyText={t('common.no_results')}
+        />
+      </div>
+    </SettingRow>
   )
 }
