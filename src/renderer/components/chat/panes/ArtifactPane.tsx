@@ -756,6 +756,7 @@ const ArtifactPane = ({
     expandedIds,
     searchKeyword: fileSearchKeyword,
     enableFileSearch,
+    selectedFile,
     onExpandedIdsChange: setExpandedIdsState
   })
   const { resetLazyChildren } = model

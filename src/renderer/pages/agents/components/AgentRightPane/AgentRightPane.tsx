@@ -228,6 +228,7 @@ function AgentRightPaneStateProvider({
     expandedIds: fileTreeExpandedIds,
     searchKeyword: fileTreeSearchKeyword,
     enableFileSearch: true,
+    selectedFile,
     onExpandedIdsChange: setFileTreeExpandedIds
   })
   // Stable callback for effect deps (the model object itself is new each render).

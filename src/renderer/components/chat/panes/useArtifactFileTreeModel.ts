@@ -134,6 +134,18 @@ function mergeLazyChildren(
   })
 }
 
+function indexFileTreeNodes(nodes: readonly FileTreeNode[]): Map<string, FileTreeNode> {
+  const result = new Map<string, FileTreeNode>()
+  const visit = (currentNodes: readonly FileTreeNode[]) => {
+    for (const node of currentNodes) {
+      result.set(node.id, node)
+      if (node.children?.length) visit(node.children)
+    }
+  }
+  visit(nodes)
+  return result
+}
+
 function projectDirectoryEntries(
   workspacePath: string,
   entries: Array<{ path: string; isDirectory: boolean }>
@@ -527,6 +539,7 @@ export interface UseArtifactFileTreeModelParams {
   expandedIds: ReadonlySet<string>
   searchKeyword: string
   enableFileSearch: boolean
+  selectedFile: string | null
   /** Called with the post-strip expanded set the caller should adopt. */
   onExpandedIdsChange: (next: ReadonlySet<string>) => void
 }
@@ -559,6 +572,7 @@ export function useArtifactFileTreeModel({
   expandedIds,
   searchKeyword,
   enableFileSearch,
+  selectedFile,
   onExpandedIdsChange
 }: UseArtifactFileTreeModelParams): ArtifactFileTreeModel {
   const { tree, isLoading, hasLoaded, error, refresh } = useWorkspaceFileTree(treeOpen ? workspacePath : undefined)
@@ -593,17 +607,41 @@ export function useArtifactFileTreeModel({
     return mergeFileTreeNodeLists(displayTree, searchTree)
   }, [displayTree, searchTree, trimmedFileSearch])
 
-  const nodeById = useMemo(() => {
-    const result = new Map<string, FileTreeNode>()
-    const visit = (nodes: readonly FileTreeNode[]) => {
-      for (const node of nodes) {
-        result.set(node.id, node)
-        if (node.children?.length) visit(node.children)
-      }
+  const displayNodeById = useMemo(() => indexFileTreeNodes(displayTree), [displayTree])
+  const searchableNodeById = useMemo(() => indexFileTreeNodes(searchableTree), [searchableTree])
+  const preservedSelectedSearchNodeRef = useRef<FileTreeNode | null>(null)
+
+  useEffect(() => {
+    if (!selectedFile || !workspacePath) {
+      preservedSelectedSearchNodeRef.current = null
+      return
     }
-    visit(searchableTree)
+
+    const displayNode = displayNodeById.get(selectedFile)
+    if (displayNode?.kind === 'file') {
+      preservedSelectedSearchNodeRef.current = null
+      return
+    }
+
+    const searchNode = searchableNodeById.get(selectedFile)
+    if (trimmedFileSearch && searchNode?.kind === 'file') {
+      preservedSelectedSearchNodeRef.current = searchNode
+      return
+    }
+
+    if (preservedSelectedSearchNodeRef.current?.id !== selectedFile) {
+      preservedSelectedSearchNodeRef.current = null
+    }
+  }, [displayNodeById, searchableNodeById, selectedFile, trimmedFileSearch, workspacePath])
+
+  const nodeById = useMemo(() => {
+    const result = new Map(searchableNodeById)
+    const preservedSelectedSearchNode = preservedSelectedSearchNodeRef.current
+    if (preservedSelectedSearchNode && !result.has(preservedSelectedSearchNode.id)) {
+      result.set(preservedSelectedSearchNode.id, preservedSelectedSearchNode)
+    }
     return result
-  }, [searchableTree])
+  }, [searchableNodeById])
 
   const expandedIdsWithWorkspaceRoot = useMemo<ReadonlySet<string>>(() => {
     if (!workspacePath) return expandedIds

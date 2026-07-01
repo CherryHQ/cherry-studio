@@ -29,6 +29,7 @@ function MaximizeSwapHarness({ workspacePath }: { workspacePath: string }) {
     expandedIds,
     searchKeyword,
     enableFileSearch: true,
+    selectedFile,
     onExpandedIdsChange: setExpandedIds
   })
   const view = (
@@ -779,6 +780,30 @@ describe('ArtifactPane', () => {
 
     await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/src/feature/deep-result.ts'))
     expect(screen.getByTestId('code-viewer')).toHaveTextContent('export const value = 1')
+  })
+
+  it('keeps a selected search-only deep file when search is cleared', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+    mocks.listDirectoryEntries.mockResolvedValueOnce([
+      { path: '/tmp/workspace/src/feature/deep-result.ts', isDirectory: false }
+    ])
+    mocks.fsReadText.mockResolvedValue('export const value = 1')
+
+    const { rerender } = render(
+      <ArtifactPane workspacePath="/tmp/workspace" fileTreeOpen enableFileSearch fileTreeSearchKeyword="deep" />
+    )
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-src/feature/deep-result.ts')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-src/feature/deep-result.ts'))
+
+    await waitFor(() => expect(screen.getByTestId('code-viewer')).toHaveTextContent('export const value = 1'))
+
+    rerender(<ArtifactPane workspacePath="/tmp/workspace" fileTreeOpen enableFileSearch fileTreeSearchKeyword="" />)
+
+    expect(screen.queryByTestId('tree-node-src/feature/deep-result.ts')).not.toBeInTheDocument()
+    expect(screen.getByTestId('code-viewer')).toHaveTextContent('export const value = 1')
+    expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/src/feature/deep-result.ts')
   })
 
   it('debounces deep file search requests', async () => {
