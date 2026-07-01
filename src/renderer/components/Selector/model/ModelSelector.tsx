@@ -609,7 +609,7 @@ export function ModelSelector(props: ModelSelectorProps) {
           item.groupKind === 'pinned' ? t('models.pinned') : item.provider ? getProviderDisplayName(item.provider) : ''
 
         return (
-          <div className="group flex h-7 items-center gap-1 bg-popover px-4 text-[11px] text-muted-foreground">
+          <div className="group text-(length:--font-size-body-xs) flex h-7 items-center gap-1 bg-popover px-4 text-muted-foreground">
             <span className="truncate">{groupTitle}</span>
             {item.provider && item.canNavigateToSettings && (
               <Tooltip content={t('navigate.provider_settings')} delay={500}>
@@ -695,7 +695,9 @@ export function ModelSelector(props: ModelSelectorProps) {
 
     return (
       <>
-        <span className="mr-1 text-[10px] text-muted-foreground">{t('models.filter.by_tag')}</span>
+        <span className="text-(length:--font-size-body-2xs) mr-1 text-muted-foreground">
+          {t('models.filter.by_tag')}
+        </span>
         {availableTags.map((tag) => (
           <ModelTag
             key={`filter-${tag}`}

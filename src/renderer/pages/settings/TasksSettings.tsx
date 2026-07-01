@@ -1050,7 +1050,7 @@ const TasksSettings: FC = () => {
   return (
     <div className="flex min-w-0 flex-1">
       <div
-        className="flex w-full flex-1 flex-row overflow-hidden"
+        className="flex w-full min-w-0 flex-1 flex-row overflow-hidden"
         style={{ height: 'calc(100vh - var(--navbar-height) - 6px)' }}>
         {/* Left panel: task list */}
         <Scrollbar
@@ -1115,10 +1115,12 @@ const TasksSettings: FC = () => {
               onToggleStatus={handleToggleStatus}
             />
           ) : (
-            <div className="flex flex-1 items-center justify-center text-foreground-muted text-sm">
-              {tasks.length > 0
-                ? t('settings.scheduledTasks.selectTask', 'Select a task to view details')
-                : t('settings.scheduledTasks.noTasks')}
+            <div className="flex flex-1 items-center justify-center px-6 text-center text-foreground-muted text-sm">
+              <span className="max-w-xs leading-relaxed">
+                {tasks.length > 0
+                  ? t('settings.scheduledTasks.selectTask', 'Select a task to view details')
+                  : t('settings.scheduledTasks.noTasks')}
+              </span>
             </div>
           )}
         </div>

@@ -346,7 +346,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       nextSections.push({
         key: 'pinned',
         header: (
-          <div className="group flex h-7 items-center gap-1 bg-popover px-3 text-[11px] text-muted-foreground">
+          <div className="group text-(length:--font-size-body-xs) flex h-7 items-center gap-1 bg-popover px-3 text-muted-foreground">
             <span className="truncate">{labels.pinnedTitle}</span>
           </div>
         ),
@@ -567,7 +567,9 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   const filterContent =
     tagOptions.length > 0 ? (
       <>
-        {labels.tagFilter ? <span className="mr-1 text-[10px] text-muted-foreground">{labels.tagFilter}</span> : null}
+        {labels.tagFilter ? (
+          <span className="text-(length:--font-size-body-2xs) mr-1 text-muted-foreground">{labels.tagFilter}</span>
+        ) : null}
         {tagOptions.map((tag) => {
           const active = selectedTagIds.includes(tag.name)
           return (

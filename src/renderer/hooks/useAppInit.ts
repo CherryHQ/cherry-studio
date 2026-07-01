@@ -3,6 +3,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { setInlineFilePathHomePath } from '@renderer/components/chat/messages/utils/filePath'
 import db from '@renderer/databases'
 import { useAppUpdateHandler } from '@renderer/hooks/useAppUpdate'
+import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import i18n, { setDayjsLocale } from '@renderer/i18n'
 import { defaultLanguage } from '@shared/utils/languages'
@@ -19,6 +20,7 @@ export function useAppInit() {
 
   const savedAvatar = useLiveQuery(() => db.settings.get('image://avatar'))
   const navBackgroundColor = useNavBackgroundColor()
+  const isMacTransparentWindow = useMacTransparentWindow()
 
   useEffect(() => {
     document.getElementById('spinner')?.remove()
@@ -60,8 +62,11 @@ export function useAppInit() {
   }, [language])
 
   useEffect(() => {
-    window.root.style.background = navBackgroundColor
-  }, [navBackgroundColor])
+    // In mac transparent mode the shell owns the wash (sidebar tint while the
+    // window is key, opaque sidebar when blurred — see AppShell); #root stays
+    // transparent so the native vibrancy can show through the tint.
+    window.root.style.background = isMacTransparentWindow ? 'transparent' : navBackgroundColor
+  }, [isMacTransparentWindow, navBackgroundColor])
 
   useEffect(() => {
     // set app paths

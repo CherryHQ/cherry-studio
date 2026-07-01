@@ -10,7 +10,9 @@ export const SettingRowTitleSmall = ({
   hint,
   ...rest
 }: ComponentPropsWithoutRef<typeof SettingRowTitle> & { hint?: string }) => (
-  <SettingRowTitle className={cn('min-w-0 gap-1.5 text-foreground text-sm leading-4.5', className)} {...rest}>
+  <SettingRowTitle
+    className={cn('text-(length:--font-size-body-xs) min-w-0 gap-1.5 text-foreground leading-4.5', className)}
+    {...rest}>
     <span className="min-w-0 truncate">{children}</span>
     {hint && (
       <Tooltip content={hint} placement="top" className="w-fit max-w-sm px-2.5 py-1.5 text-xs leading-relaxed">
@@ -39,6 +41,11 @@ export const SettingRow = ({ className, ...rest }: ComponentPropsWithoutRef<type
 
 export const SettingGroup = ({ className, ...rest }: ComponentPropsWithoutRef<'div'>) => (
   <div className={cn('flex w-full flex-col gap-0', className)} {...rest} />
+)
+
+// v2 settings card shell — rounded border with uniform row padding, no inter-row dividers.
+export const SettingCard = ({ className, ...rest }: ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('mt-3 rounded-xl border border-border/60 py-1.5 *:px-4 *:py-1.5', className)} {...rest} />
 )
 
 export { SettingDivider }

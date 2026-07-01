@@ -1,6 +1,5 @@
-import { Button, PageSidePanelItem, PageSidePanelSection, Slider, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, Combobox, PageSidePanelItem, PageSidePanelSection, Slider, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import Selector from '@renderer/components/Selector'
 import type { MiniAppRegionFilter } from '@shared/data/types/miniApp'
 import { Undo2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -59,10 +58,10 @@ const MiniAppDisplaySettings: FC = () => {
           title={t('settings.miniApps.region.title')}
           description={t('settings.miniApps.region.description')}
           action={
-            <Selector
-              size={14}
+            <Combobox
+              searchable={false}
               value={region}
-              onChange={(v: MiniAppRegionFilter) => setRegion(v)}
+              onChange={(value) => setRegion(value as MiniAppRegionFilter)}
               options={regionOptions}
             />
           }
@@ -83,7 +82,7 @@ const MiniAppDisplaySettings: FC = () => {
                 variant="ghost"
                 size="icon-sm"
                 onClick={handleResetCacheLimit}
-                className="shrink-0 text-muted-foreground hover:text-foreground"
+                className="shrink-0 text-foreground/80 hover:text-foreground [&_svg]:[stroke-width:1.6]"
                 aria-label={t('settings.miniApps.reset_tooltip')}>
                 <Undo2 />
               </Button>
