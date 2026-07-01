@@ -755,16 +755,14 @@ export class MessageService {
   }
 
   /**
-   * Flip the given rows to `error` in a single serialized write. Paired with
+   * Flip the given rows to `error` in a single write. Paired with
    * {@link findPendingAssistantMessages} for the boot reconcile of crash-orphaned `pending`
-   * turns. Routes through `withWriteTx` so it serializes with any other write path active
-   * during the WhenReady boot phase.
+   * turns.
    */
   markMessagesError(ids: string[]): void {
     if (ids.length === 0) return
-    application.get('DbService').withWriteTx((tx) => {
-      tx.update(messageTable).set({ status: 'error' }).where(inArray(messageTable.id, ids)).run()
-    })
+    const db = application.get('DbService').getDb()
+    db.update(messageTable).set({ status: 'error' }).where(inArray(messageTable.id, ids)).run()
   }
 
   search(query: MessageContentSearchInput) {
@@ -846,9 +844,8 @@ export class MessageService {
 
   /** Update siblingsGroupId for a single message. */
   updateSiblingsGroupId(id: string, siblingsGroupId: number): void {
-    application.get('DbService').withWriteTx((tx) => {
-      tx.update(messageTable).set({ siblingsGroupId }).where(eq(messageTable.id, id)).run()
-    })
+    const db = application.get('DbService').getDb()
+    db.update(messageTable).set({ siblingsGroupId }).where(eq(messageTable.id, id)).run()
   }
 
   /**

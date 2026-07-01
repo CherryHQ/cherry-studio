@@ -269,11 +269,10 @@ class PaintingService {
   }
 
   delete(id: string): void {
-    const dbService = application.get('DbService')
     this.getById(id)
     // painting_file_ref rows are removed by the FK cascade.
     withSqliteErrors(
-      () => dbService.withWriteTx((tx) => tx.delete(paintingTable).where(eq(paintingTable.id, id)).run()),
+      () => application.get('DbService').getDb().delete(paintingTable).where(eq(paintingTable.id, id)).run(),
       defaultHandlersFor('Painting', id)
     )
     logger.info('Deleted painting', { id })

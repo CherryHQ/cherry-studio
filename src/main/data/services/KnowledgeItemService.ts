@@ -231,15 +231,13 @@ export class KnowledgeItemService {
       })
     }
 
-    const dbService = application.get('DbService')
-    const updatedRows = dbService.withWriteTx((tx) =>
-      tx
-        .update(knowledgeItemTable)
-        .set({ status: 'failed', error: reason })
-        .where(inArray(knowledgeItemTable.status, [...KNOWLEDGE_ITEM_IN_FLIGHT_STATUSES]))
-        .returning({ id: knowledgeItemTable.id })
-        .all()
-    )
+    const db = application.get('DbService').getDb()
+    const updatedRows = db
+      .update(knowledgeItemTable)
+      .set({ status: 'failed', error: reason })
+      .where(inArray(knowledgeItemTable.status, [...KNOWLEDGE_ITEM_IN_FLIGHT_STATUSES]))
+      .returning({ id: knowledgeItemTable.id })
+      .all()
 
     if (updatedRows.length > 0) {
       logger.info('Marked interrupted knowledge items as failed', { count: updatedRows.length })
@@ -371,9 +369,8 @@ export class KnowledgeItemService {
       return []
     }
 
-    const dbService = application.get('DbService')
-    const updatedRows = dbService.withWriteTx((db) => {
-      return db.all<{ id: string; groupId: string | null }>(sql`
+    const db = application.get('DbService').getDb()
+    const updatedRows = db.all<{ id: string; groupId: string | null }>(sql`
         WITH RECURSIVE subtree AS (
           SELECT id
           FROM knowledge_item
@@ -398,7 +395,6 @@ export class KnowledgeItemService {
           ${status === 'failed' ? sql`AND status != 'deleting'` : sql``}
         RETURNING id, group_id AS "groupId"
       `)
-    })
 
     const updatedIdSet = new Set(updatedRows.map((row) => row.id))
     const updatedIds = updatedRows.map((row) => row.id)

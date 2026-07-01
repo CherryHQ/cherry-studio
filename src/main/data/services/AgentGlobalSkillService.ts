@@ -92,7 +92,7 @@ export class AgentGlobalSkillService {
   }
 
   insert(values: InsertAgentGlobalSkillRow): AgentGlobalSkillRow {
-    return application.get('DbService').withWriteTx((tx) => this.insertTx(tx, values))
+    return this.insertTx(application.get('DbService').getDb(), values)
   }
 
   insertTx(tx: DbOrTx, values: InsertAgentGlobalSkillRow): AgentGlobalSkillRow {
@@ -102,7 +102,7 @@ export class AgentGlobalSkillService {
   }
 
   update(id: string, patch: Partial<Omit<InsertAgentGlobalSkillRow, 'id' | 'createdAt' | 'updatedAt'>>): void {
-    application.get('DbService').withWriteTx((tx) => this.updateTx(tx, id, patch))
+    this.updateTx(application.get('DbService').getDb(), id, patch)
   }
 
   updateTx(
@@ -115,7 +115,7 @@ export class AgentGlobalSkillService {
 
   /** Hard delete a global-skill row. FK cascades remove the agent_skill join rows. */
   deleteById(id: string): void {
-    application.get('DbService').withWriteTx((tx) => this.deleteByIdTx(tx, id))
+    this.deleteByIdTx(application.get('DbService').getDb(), id)
   }
 
   deleteByIdTx(tx: DbOrTx, id: string): void {
@@ -141,7 +141,7 @@ export class AgentGlobalSkillService {
   }
 
   upsertJoin(agentId: string, skillId: string, isEnabled: boolean): void {
-    application.get('DbService').withWriteTx((tx) => this.upsertJoinTx(tx, agentId, skillId, isEnabled))
+    this.upsertJoinTx(application.get('DbService').getDb(), agentId, skillId, isEnabled)
   }
 
   upsertJoinTx(tx: DbOrTx, agentId: string, skillId: string, isEnabled: boolean): void {

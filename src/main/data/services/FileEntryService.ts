@@ -546,7 +546,7 @@ class FileEntryServiceImpl implements FileEntryService {
   }
 
   create(values: CreateFileEntryRow): FileEntry {
-    return this.withWriteTx((tx) => this.createTx(tx, values))
+    return this.createTx(this.getDb(), values)
   }
 
   createTx(tx: DbOrTx, values: CreateFileEntryRow): FileEntry {
@@ -572,7 +572,7 @@ class FileEntryServiceImpl implements FileEntryService {
   }
 
   update(id: FileEntryId, values: UpdateFileEntryRow): FileEntry {
-    return this.withWriteTx((tx) => this.updateTx(tx, id, values))
+    return this.updateTx(this.getDb(), id, values)
   }
 
   updateTx(tx: DbOrTx, id: FileEntryId, values: UpdateFileEntryRow): FileEntry {
@@ -603,7 +603,7 @@ class FileEntryServiceImpl implements FileEntryService {
    * flow so the (path, name) pair stays consistent under failure.
    */
   setExternalPathAndName(id: FileEntryId, externalPath: CanonicalExternalPath, name: string): FileEntry {
-    return this.withWriteTx((tx) => this.setExternalPathAndNameTx(tx, id, externalPath, name))
+    return this.setExternalPathAndNameTx(this.getDb(), id, externalPath, name)
   }
 
   setExternalPathAndNameTx(tx: DbOrTx, id: FileEntryId, externalPath: CanonicalExternalPath, name: string): FileEntry {
@@ -628,7 +628,7 @@ class FileEntryServiceImpl implements FileEntryService {
   }
 
   delete(id: FileEntryId): void {
-    this.withWriteTx((tx) => this.deleteTx(tx, id))
+    this.deleteTx(this.getDb(), id)
   }
 
   deleteTx(tx: DbOrTx, id: FileEntryId): void {

@@ -523,7 +523,7 @@ export class JobManager extends BaseService {
     }
 
     const dbService = application.get('DbService')
-    dbService.withWriteTx((tx) => jobService.setCancelRequestedTx(tx, jobId))
+    jobService.setCancelRequestedTx(dbService.getDb(), jobId)
 
     const controller = this.abortControllers.get(jobId)
     if (controller) {
@@ -1081,7 +1081,7 @@ export class JobManager extends BaseService {
         // sync with the durable state and the handler observes the failure.
         const merged = { ...row.metadata, ...patch }
         const dbService = application.get('DbService')
-        dbService.withWriteTx((tx) => jobService.setMetadataTx(tx, row.id, merged))
+        jobService.setMetadataTx(dbService.getDb(), row.id, merged)
         row.metadata = merged
       },
       reportProgress: (progress, detail) => {
@@ -1204,7 +1204,7 @@ export class JobManager extends BaseService {
     const dbService = application.get('DbService')
     let txFailed: Error | undefined
     try {
-      dbService.withWriteTx((tx) => jobService.setTerminalTx(tx, jobId, status, output, error))
+      jobService.setTerminalTx(dbService.getDb(), jobId, status, output, error)
     } catch (err) {
       txFailed = err as Error
       logger.error('finalizeJob: tx failed — synthesizing failed snapshot to release slot', { jobId, status, err })
@@ -1320,9 +1320,9 @@ export class JobManager extends BaseService {
   ): Promise<void> {
     const dbService = application.get('DbService')
     try {
-      dbService.withWriteTx((tx) => jobService.setDelayedRetryTx(tx, jobId, nextAttempt, scheduledAt, error))
+      jobService.setDelayedRetryTx(dbService.getDb(), jobId, nextAttempt, scheduledAt, error)
     } catch (retryWriteErr) {
-      // withWriteTx runs as one BEGIN IMMEDIATE transaction on the single
+      // The single-statement write commits on the one better-sqlite3
       // connection; this fallback defends against persistent failures
       // (SQLITE_CORRUPT / FULL / CONSTRAINT, driver bugs, etc.)
       // that would otherwise leave the row stuck in `running` until

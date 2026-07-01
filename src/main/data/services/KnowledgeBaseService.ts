@@ -211,11 +211,8 @@ export class KnowledgeBaseService {
       hybridAlpha: createConfig.hybridAlpha ?? null
     }
 
-    const dbService = application.get('DbService')
-    const row = dbService.withWriteTx((tx) => {
-      const [inserted] = tx.insert(knowledgeBaseTable).values(createValues).returning().all()
-      return inserted
-    })
+    const db = application.get('DbService').getDb()
+    const [row] = db.insert(knowledgeBaseTable).values(createValues).returning().all()
 
     logger.info('Created knowledge base', { id: row.id, name: row.name })
     return rowToKnowledgeBase(row)
@@ -292,16 +289,8 @@ export class KnowledgeBaseService {
       return existing
     }
 
-    const dbService = application.get('DbService')
-    const row = dbService.withWriteTx((tx) => {
-      const [updated] = tx
-        .update(knowledgeBaseTable)
-        .set(updates)
-        .where(eq(knowledgeBaseTable.id, id))
-        .returning()
-        .all()
-      return updated
-    })
+    const db = application.get('DbService').getDb()
+    const [row] = db.update(knowledgeBaseTable).set(updates).where(eq(knowledgeBaseTable.id, id)).returning().all()
 
     logger.info('Updated knowledge base', { id, changes: Object.keys(dto) })
     return rowToKnowledgeBase(row)
@@ -311,10 +300,8 @@ export class KnowledgeBaseService {
     // Verify knowledge base exists
     this.getById(id)
 
-    const dbService = application.get('DbService')
-    dbService.withWriteTx((tx) => {
-      tx.delete(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).run()
-    })
+    const db = application.get('DbService').getDb()
+    db.delete(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).run()
 
     logger.info('Deleted knowledge base', { id })
   }

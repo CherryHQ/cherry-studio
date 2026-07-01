@@ -139,12 +139,10 @@ export class JobService {
    */
 
   create(dto: InsertJobRow): JobSnapshot {
-    const dbService = application.get('DbService')
-    const result = dbService.withWriteTx((tx) =>
-      withSqliteErrors(
-        () => tx.insert(jobTable).values(dto).returning().all(),
-        defaultHandlersFor('Job', dto.id ?? '<auto>')
-      )
+    const db = application.get('DbService').getDb()
+    const result = withSqliteErrors(
+      () => db.insert(jobTable).values(dto).returning().all(),
+      defaultHandlersFor('Job', dto.id ?? '<auto>')
     )
     const row = result[0]
     if (!row) throw new Error('jobService.create returned no row')
@@ -346,8 +344,7 @@ export class JobService {
 
   resetToPendingByIds(jobIds: string[]): void {
     if (jobIds.length === 0) return
-    const dbService = application.get('DbService')
-    dbService.withWriteTx((tx) => this.resetToPendingByIdsTx(tx, jobIds))
+    this.resetToPendingByIdsTx(application.get('DbService').getDb(), jobIds)
   }
 
   cancelByIdsTx(tx: DbOrTx, jobIds: string[], error: JobError | null): void {
@@ -366,8 +363,7 @@ export class JobService {
 
   cancelByIds(jobIds: string[], error: JobError | null): void {
     if (jobIds.length === 0) return
-    const dbService = application.get('DbService')
-    dbService.withWriteTx((tx) => this.cancelByIdsTx(tx, jobIds, error))
+    this.cancelByIdsTx(application.get('DbService').getDb(), jobIds, error)
   }
 
   /**
@@ -439,8 +435,7 @@ export class JobService {
   }
 
   promoteDelayedDue(now: number): number {
-    const dbService = application.get('DbService')
-    return dbService.withWriteTx((tx) => this.promoteDelayedDueTx(tx, now))
+    return this.promoteDelayedDueTx(application.get('DbService').getDb(), now)
   }
 
   // ---------------- GC ----------------
@@ -455,8 +450,7 @@ export class JobService {
   }
 
   pruneTerminalOlderThan(cutoffMs: number): number {
-    const dbService = application.get('DbService')
-    return dbService.withWriteTx((tx) => this.pruneTerminalOlderThanTx(tx, cutoffMs))
+    return this.pruneTerminalOlderThanTx(application.get('DbService').getDb(), cutoffMs)
   }
 
   /**

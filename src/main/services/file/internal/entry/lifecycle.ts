@@ -31,7 +31,7 @@ function trashTx(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId): void {
 }
 
 export function trash(deps: FileManagerDeps, id: FileEntryId): void {
-  deps.fileEntryService.withWriteTx((tx) => trashTx(deps, tx, id))
+  deps.fileEntryService.update(id, { deletedAt: Date.now() })
 }
 
 function restoreTx(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId): FileEntry {

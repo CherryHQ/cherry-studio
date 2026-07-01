@@ -231,7 +231,7 @@ export class AgentSessionService {
     if (Object.keys(patch).length === 0) return this.getById(id)
 
     const row = withSqliteErrors(
-      () => application.get('DbService').withWriteTx((tx) => this.updateTx(tx, id, patch)),
+      () => this.updateTx(application.get('DbService').getDb(), id, patch),
       defaultHandlersFor('Session', id)
     )
     if (!row) throw DataApiErrorFactory.notFound('Session', id)

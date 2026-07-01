@@ -353,7 +353,7 @@ For initial data population (default preferences, builtin languages, preset prov
 **Required vs optional.** With better-sqlite3 every statement is atomic on its own — a lone `getDb().insert(...).run()` is a complete implicit transaction and needs no wrapper. `withWriteTx` earns its keep only when a mutation must commit **all-or-nothing across more than one statement**:
 
 - **MUST use** when composing multiple writes, or a read-then-write (validate/select then insert/update/delete), into one atomic unit — the majority of write paths here (create/update/delete that also touch join tables, purge pins/tags, reorder via neighbour reads, or cascade-delete).
-- **Optional** for a single autocommit write. Routing it through `withWriteTx` buys nothing for atomicity; use it only to keep the two-form DAO surface uniform (a thin wrapper delegating to a `*Tx` method), so the same `*Tx` can later be composed into a larger transaction.
+- **Don't use** for a single autocommit write — call `getDb()` directly, or pass `getDb()` to the write's `*Tx` form (`this.fooTx(getDb(), …)`). Routing a lone write through `withWriteTx` buys nothing for atomicity and falsely implies a multi-statement invariant. The `*Tx` form stays composable, so the same primitive can still be pulled into a larger `withWriteTx` when a caller genuinely needs multi-write atomicity.
 
 `withWriteTx` is **not** the readiness gate: `getDb()` already throws when the DB isn't ready, so single writes made outside `withWriteTx` are still guarded. The single synchronous connection serializes all access, so there is no process-wide mutex and no `SQLITE_BUSY` retry — the libsql-era serialization this wrapper originally existed for (upstream #288) is gone.
 
@@ -370,12 +370,11 @@ withWriteTx<T>(fn: (tx: DbOrTx) => T): T
 ```ts
 const dbService = application.get('DbService')
 
-// Single write
-dbService.withWriteTx((tx) =>
-  jobService.setMetadataTx(tx, jobId, merged)
-)
+// A single write does NOT use withWriteTx — go straight through getDb(),
+// or pass it to the *Tx form:
+jobService.setMetadataTx(dbService.getDb(), jobId, merged)
 
-// Compose multiple writes into one transaction
+// withWriteTx is for composing multiple writes into one atomic transaction:
 dbService.withWriteTx((tx) => {
   jobService.cancelByIdsTx(tx, ids, error)
   jobService.resetToPendingByIdsTx(tx, otherIds)
@@ -384,14 +383,14 @@ dbService.withWriteTx((tx) => {
 
 ### Two-form DAO pattern
 
-Each write method has a composable `*Tx` form and a thin non-Tx wrapper. Simple callers use the wrapper and never see `withWriteTx`; batch/recovery paths compose `*Tx` calls inside a single `withWriteTx`. See `JobService` / `JobScheduleService` for canonical examples.
+Each write method has a composable `*Tx` form and a thin non-Tx wrapper. A single-write method's wrapper passes `getDb()` to the `*Tx` form; a multi-write / read-then-write method's wrapper composes one or more `*Tx` calls inside a single `withWriteTx`. Either way the `*Tx` form stays composable, so batch/recovery paths can pull it into a larger transaction. See `JobService` / `JobScheduleService` for canonical examples.
 
 ```ts
 cancelByIdsTx(tx: DbOrTx, ids: string[], error: JobError): void { /* SQL via tx */ }
 
+// Single write → call the *Tx form with getDb() directly (no withWriteTx):
 cancelByIds(ids: string[], error: JobError): void {
-  const dbService = application.get('DbService')
-  return dbService.withWriteTx((tx) => this.cancelByIdsTx(tx, ids, error))
+  return this.cancelByIdsTx(application.get('DbService').getDb(), ids, error)
 }
 ```
 
@@ -401,7 +400,7 @@ cancelByIds(ids: string[], error: JobError): void {
 | --- | --- |
 | `fn` must be synchronous and only do DB ops — no network / file IO / handler execution | better-sqlite3 rejects a Promise-returning callback; the transaction blocks the single connection until `fn` returns |
 | Do not wrap reads | WAL mode gives readers snapshot isolation; wrapping adds needless serialization |
-| Don't wrap a single autocommit write for atomicity | one statement is already an implicit transaction; wrap only to keep the two-form DAO surface uniform |
+| Don't wrap a single autocommit write | one statement is already an implicit transaction — call `getDb()` (or the `*Tx` form) directly; `getDb()` still guards readiness |
 | Wrap tight loops in one `withWriteTx`, not per-iteration | One `BEGIN IMMEDIATE` transaction vs N |
 
 ### When to migrate existing callsites
@@ -409,7 +408,7 @@ cancelByIds(ids: string[], error: JobError): void {
 | Path | Action |
 | --- | --- |
 | Multi-statement / read-then-write mutations | Wrap in `withWriteTx` |
-| Single-statement writes | Optional — wrap only for two-form DAO uniformity |
+| Single-statement writes | Don't wrap — call `getDb()` (or the `*Tx` form) directly |
 | Boot-only writes (migrations, seeders) | Leave |
 | Pure reads | Leave |
 

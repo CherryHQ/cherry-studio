@@ -210,7 +210,7 @@ export class AgentSessionMessageService {
     if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
 
     const result = withSqliteErrors(
-      () => application.get('DbService').withWriteTx((tx) => this.deleteSessionMessageTx(tx, sessionId, messageId)),
+      () => this.deleteSessionMessageTx(database, sessionId, messageId),
       defaultHandlersFor('Message', messageId)
     )
     if (result.rowsAffected === 0) {
@@ -244,9 +244,8 @@ export class AgentSessionMessageService {
   /** Bulk-resolve the given rows to `error` — the boot reconcile of crash-orphaned `pending` rows. */
   markMessagesError(ids: string[]): void {
     if (ids.length === 0) return
-    application.get('DbService').withWriteTx((tx) => {
-      tx.update(sessionMessagesTable).set({ status: 'error' }).where(inArray(sessionMessagesTable.id, ids)).run()
-    })
+    const db = application.get('DbService').getDb()
+    db.update(sessionMessagesTable).set({ status: 'error' }).where(inArray(sessionMessagesTable.id, ids)).run()
   }
 
   private rowToEntity(row: SessionMessageRow): AgentSessionMessageEntity {

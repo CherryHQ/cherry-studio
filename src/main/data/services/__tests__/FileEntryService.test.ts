@@ -1290,7 +1290,7 @@ describe('FileEntryService', () => {
   })
 
   describe('delete', () => {
-    it('routes public write wrappers through DbService.withWriteTx', async () => {
+    it('commits single-write public wrappers directly without opening a transaction', async () => {
       const withWriteTx = MockMainDbServiceExport.dbService.withWriteTx
       withWriteTx.mockClear()
 
@@ -1311,7 +1311,10 @@ describe('FileEntryService', () => {
         'ext-tx-renamed'
       )
 
-      expect(withWriteTx).toHaveBeenCalledTimes(5)
+      // create/update/delete/setExternalPathAndName are each a single autocommit statement under
+      // better-sqlite3, so they write via getDb() directly and never wrap withWriteTx. If any grows
+      // into a multi-statement mutation it must adopt withWriteTx and update this expectation.
+      expect(withWriteTx).toHaveBeenCalledTimes(0)
     })
 
     it('removes an existing row', async () => {

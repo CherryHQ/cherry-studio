@@ -223,7 +223,7 @@ describe('PaintingService', () => {
     expect(rows.map((row) => row.id)).toEqual([third.id, first.id, second.id])
   })
 
-  it('routes painting writes through DbService.withWriteTx', async () => {
+  it('routes multi-statement painting writes through DbService.withWriteTx', async () => {
     const before = MockMainDbServiceUtils.getMockCallCounts().withWriteTx
 
     const painting = paintingService.create(p({ providerId: 'aihubmix', prompt: 'serialized writes' }))
@@ -232,7 +232,10 @@ describe('PaintingService', () => {
     paintingService.reorderBatch([{ id: painting.id, anchor: { position: 'last' } }])
     paintingService.delete(painting.id)
 
-    expect(MockMainDbServiceUtils.getMockCallCounts().withWriteTx - before).toBe(5)
+    // create/update compose multiple statements and reorder/reorderBatch are read-then-write, so
+    // they route through withWriteTx (4). delete() is a single autocommit DELETE (the FK cascade
+    // clears painting_file_ref rows) and no longer opens a transaction.
+    expect(MockMainDbServiceUtils.getMockCallCounts().withWriteTx - before).toBe(4)
   })
 
   describe('file refs', () => {

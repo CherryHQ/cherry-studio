@@ -171,8 +171,7 @@ export class JobScheduleService {
         )
       }
     }
-    const dbService = application.get('DbService')
-    return dbService.withWriteTx((tx) => this.createTx(tx, dto))
+    return this.createTx(application.get('DbService').getDb(), dto)
   }
 
   updateTx(tx: DbOrTx, id: string, patch: UpdateJobScheduleDto): JobScheduleSnapshot | null {
@@ -210,8 +209,7 @@ export class JobScheduleService {
         )
       }
     }
-    const dbService = application.get('DbService')
-    return dbService.withWriteTx((tx) => this.updateTx(tx, id, patch))
+    return this.updateTx(application.get('DbService').getDb(), id, patch)
   }
 
   setEnabledTx(tx: DbOrTx, id: string, enabled: boolean): boolean {
@@ -224,8 +222,7 @@ export class JobScheduleService {
   }
 
   setEnabled(id: string, enabled: boolean): boolean {
-    const dbService = application.get('DbService')
-    return dbService.withWriteTx((tx) => this.setEnabledTx(tx, id, enabled))
+    return this.setEnabledTx(application.get('DbService').getDb(), id, enabled)
   }
 
   deleteTx(tx: DbOrTx, id: string): boolean {
@@ -235,8 +232,7 @@ export class JobScheduleService {
   }
 
   delete(id: string): boolean {
-    const dbService = application.get('DbService')
-    return dbService.withWriteTx((tx) => this.deleteTx(tx, id))
+    return this.deleteTx(application.get('DbService').getDb(), id)
   }
 
   /**
@@ -252,8 +248,7 @@ export class JobScheduleService {
   }
 
   markFired(id: string, lastRun: number, nextRun: number | null): void {
-    const dbService = application.get('DbService')
-    dbService.withWriteTx((tx) => this.markFiredTx(tx, id, lastRun, nextRun))
+    this.markFiredTx(application.get('DbService').getDb(), id, lastRun, nextRun)
   }
 
   // ---------------- Row → Entity ----------------

@@ -329,15 +329,13 @@ export class PreferenceService extends BaseService {
 
       application
         .get('DbService')
-        .withWriteTx((tx) =>
-          tx
-            .update(preferenceTable)
-            .set({
-              value: value as any
-            })
-            .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, key)))
-            .run()
-        )
+        .getDb()
+        .update(preferenceTable)
+        .set({
+          value: value as any
+        })
+        .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, key)))
+        .run()
 
       // Update memory cache immediately — safe after type guard + cache key check
       ;(this.cache as Record<string, unknown>)[key] = value

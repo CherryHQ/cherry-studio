@@ -119,12 +119,11 @@ export class NoteService {
   deleteByPath(query: DeleteNoteQuery): void {
     withSqliteErrors(
       () =>
-        this.dbService.withWriteTx((tx) =>
-          tx
-            .delete(noteTable)
-            .where(and(eq(noteTable.rootPath, query.rootPath), pathCondition(query.path, query.recursive ?? false)))
-            .run()
-        ),
+        this.dbService
+          .getDb()
+          .delete(noteTable)
+          .where(and(eq(noteTable.rootPath, query.rootPath), pathCondition(query.path, query.recursive ?? false)))
+          .run(),
       defaultHandlersFor('Note', `${query.rootPath}:${query.path}`)
     )
   }
