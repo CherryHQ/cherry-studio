@@ -137,8 +137,8 @@ describe('WordPreviewPanel', () => {
     act(() => {
       observer!.callback(
         [
-          { target: page1, isIntersecting: false } as IntersectionObserverEntry,
-          { target: page2, isIntersecting: true } as IntersectionObserverEntry
+          { target: page1, isIntersecting: false } as unknown as IntersectionObserverEntry,
+          { target: page2, isIntersecting: true } as unknown as IntersectionObserverEntry
         ],
         observer as unknown as IntersectionObserver
       )
