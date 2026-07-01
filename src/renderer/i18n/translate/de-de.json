@@ -935,6 +935,10 @@
           "description": "Führt Shell-Befehle in deiner Umgebung aus",
           "label": "Bash"
         },
+        "CherryKbManage": {
+          "description": "Fügt Dokumente zu Ihren Wissensdatenbanken hinzu, löscht sie oder aktualisiert sie",
+          "label": "Wissen verwalten"
+        },
         "CherryKbSearch": {
           "description": "Durchsucht Ihre Wissensdatenbanken",
           "label": "Wissenskontrolle"
@@ -3162,12 +3166,22 @@
           "agent_title": "Neuer Agent",
           "assistant_title": "Neuer Assistent",
           "avatar_aria": "Avatar auswählen",
+          "back": "Zurück",
+          "capability": {
+            "import": "Fähigkeit importieren",
+            "no_skills": "Keine Fähigkeiten installiert",
+            "search": "Suchfähigkeiten"
+          },
           "description_placeholder": "Beschreibe, wofür es ist...",
-          "dialog_description": "Erstelle einen leichtgewichtigen Assistenten oder Agenten.",
-          "model_placeholder": "Wählen Sie ein Modell",
-          "model_required": "Bitte wählen Sie ein Modell",
+          "guided_progress": "Geführte Einrichtung · Schritt {{current}} von {{total}}",
           "name_placeholder": "Geben Sie einen Namen ein",
-          "name_required": "Bitte geben Sie einen Namen ein",
+          "next": "Nächster",
+          "step": {
+            "basic": "Grundinformationen",
+            "capability": "Fähigkeiten",
+            "knowledge": "Wissen",
+            "persona": "Persona"
+          },
           "submit": "Erstellen",
           "submit_failed": "Erstellen fehlgeschlagen"
         },
@@ -7439,6 +7453,7 @@
           "exa": "Neural Search-API für KI-Anwendungen, optimiert für die semantische Webabfrage.",
           "exa_mcp": "Stelle Exa-Suche Agenten über den Exa MCP Server zur Verfügung.",
           "fetch": "Integrierter URL-Abruf-Provider. Ruft Webseiteninhalte von einer URL ab, um Suchergebnisse zu erweitern.",
+          "firecrawl": "Firecrawl Crawler- und Suchdienst, optimiert dafür, Websites in Markdown zu verwandeln.",
           "jina": "Jina Reader-Such- und Lese-APIs zum Abrufen von sauberem Webinhalt.",
           "querit": "Suchdienst für KI-Anwendungen mit Web-Abruf-Ergebnissen.",
           "searxng": "Selbst hostbare kostenlose Internet-Metasuchmaschine über viele Quellen.",

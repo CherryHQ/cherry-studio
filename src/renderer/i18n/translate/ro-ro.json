@@ -935,6 +935,10 @@
           "description": "Execută comenzi shell în mediul tău",
           "label": "Bash"
         },
+        "CherryKbManage": {
+          "description": "Adaugă, șterge sau reîmprospătează documente în bazele tale de cunoștințe",
+          "label": "Gestionați cunoștințele"
+        },
         "CherryKbSearch": {
           "description": "Caută în bazele tale de cunoștințe",
           "label": "Căutare de cunoștințe"
@@ -3162,12 +3166,22 @@
           "agent_title": "Agent nou",
           "assistant_title": "Asistent Nou",
           "avatar_aria": "Alege avatar",
+          "back": "Înapoi",
+          "capability": {
+            "import": "Importare competență",
+            "no_skills": "Nicio aptitudine instalată",
+            "search": "Abilități de căutare"
+          },
           "description_placeholder": "Descrie pentru ce este...",
-          "dialog_description": "Creați un asistent sau agent ușor.",
-          "model_placeholder": "Selectați un model",
-          "model_required": "Vă rugăm să selectați un model",
+          "guided_progress": "Configurare ghidată · Pasul {{current}} din {{total}}",
           "name_placeholder": "Introduceți un nume",
-          "name_required": "Introduceți un nume",
+          "next": "Următorul",
+          "step": {
+            "basic": "Informații de bază",
+            "capability": "Abilități",
+            "knowledge": "Cunoștințe",
+            "persona": "Persoană"
+          },
           "submit": "Creează",
           "submit_failed": "Crearea a eșuat"
         },
@@ -7439,6 +7453,7 @@
           "exa": "API de căutare neuronală pentru aplicații AI, optimizat pentru recuperare semantică pe web.",
           "exa_mcp": "Expune căutarea Exa către agenți prin serverul Exa MCP.",
           "fetch": "Furnizor încorporat de preluare URL. Preia conținutul paginilor web de la o adresă URL pentru a îmbogăți rezultatele căutării.",
+          "firecrawl": "Serviciu de căutare și crawling Firecrawl, optimizat pentru a converti site-urile web în Markdown.",
           "jina": "API-urile de căutare și citire Jina Reader pentru recuperarea conținutului web curat.",
           "querit": "Serviciu de căutare pentru aplicații AI cu rezultate de recuperare web.",
           "searxng": "Motor de metacăutare gratuit pe internet, auto-găzduibil, care caută în multe surse.",

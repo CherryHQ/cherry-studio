@@ -935,6 +935,10 @@
           "description": "環境でシェルコマンドを実行します",
           "label": "Bash"
         },
+        "CherryKbManage": {
+          "description": "ナレッジベース内のドキュメントを追加、削除、または更新します",
+          "label": "ナレッジ管理"
+        },
         "CherryKbSearch": {
           "description": "ナレッジベースを検索します",
           "label": "ナレッジ検索"
@@ -3162,12 +3166,22 @@
           "agent_title": "新エージェント",
           "assistant_title": "新しいアシスタント",
           "avatar_aria": "アバターを選択",
+          "back": "戻る",
+          "capability": {
+            "import": "スキルをインポート",
+            "no_skills": "スキルがインストールされていません",
+            "search": "検索スキル"
+          },
           "description_placeholder": "それが何のためにあるのかを説明してください…",
-          "dialog_description": "軽量なアシスタントまたはエージェントを作成する",
-          "model_placeholder": "モデルを選択してください",
-          "model_required": "モデルを選択してください",
+          "guided_progress": "ガイド付きセットアップ · ステップ {{current}} / {{total}}",
           "name_placeholder": "名前を入力してください",
-          "name_required": "名前を入力してください",
+          "next": "次へ",
+          "step": {
+            "basic": "基本情報",
+            "capability": "スキル",
+            "knowledge": "知識",
+            "persona": "ペルソナ"
+          },
           "submit": "作成",
           "submit_failed": "作成に失敗しました"
         },
@@ -7439,6 +7453,7 @@
           "exa": "AIアプリ向けニューラル検索API、セマンティックWeb検索に最適化されています。",
           "exa_mcp": "Exa MCPサーバーを通じて、エージェントにExa検索を公開する。",
           "fetch": "組み込みURLフェッチプロバイダー。URLからウェブページのコンテンツを取得し、検索結果を充実させます。",
+          "firecrawl": "Firecrawlのクローラーおよび検索サービス、ウェブサイトをMarkdownに変換することに最適化されています。",
           "jina": "Jina Reader の検索および読み取り API は、クリーンな Web コンテンツを取得するためのものです。",
           "querit": "AIアプリ向けのWeb検索結果を含む検索サービス",
           "searxng": "多くのソースにまたがる、セルフホスティング可能な無料インターネットメタ検索エンジン。",

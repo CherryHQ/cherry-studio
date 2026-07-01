@@ -935,6 +935,10 @@
           "description": "Ejecuta comandos de shell en tu entorno",
           "label": "Bash"
         },
+        "CherryKbManage": {
+          "description": "Añade, elimina o actualiza documentos en tus bases de conocimiento",
+          "label": "Gestionar el conocimiento"
+        },
         "CherryKbSearch": {
           "description": "Busca en tus bases de conocimiento",
           "label": "Búsqueda de conocimiento"
@@ -3162,12 +3166,22 @@
           "agent_title": "Nuevo Agente",
           "assistant_title": "Nuevo Asistente",
           "avatar_aria": "Elegir avatar",
+          "back": "Atrás",
+          "capability": {
+            "import": "Importar habilidad",
+            "no_skills": "No hay habilidades instaladas",
+            "search": "Habilidades de búsqueda"
+          },
           "description_placeholder": "Describe para qué sirve...",
-          "dialog_description": "Crea un asistente o agente ligero.",
-          "model_placeholder": "Selecciona un modelo",
-          "model_required": "Por favor selecciona un modelo",
+          "guided_progress": "Configuración guiada · Paso {{current}} de {{total}}",
           "name_placeholder": "Introduce un nombre",
-          "name_required": "Por favor, introduce un nombre",
+          "next": "Siguiente",
+          "step": {
+            "basic": "Información básica",
+            "capability": "Habilidades",
+            "knowledge": "Conocimiento",
+            "persona": "Persona"
+          },
           "submit": "Crear",
           "submit_failed": "Creación fallida"
         },
@@ -7439,6 +7453,7 @@
           "exa": "API de búsqueda neuronal para aplicaciones de IA, optimizada para la recuperación semántica en la web.",
           "exa_mcp": "Expón la búsqueda de Exa a los agentes a través del Servidor MCP de Exa.",
           "fetch": "Proveedor de obtención de URL integrado. Obtiene el contenido de la página web desde una URL para enriquecer los resultados de búsqueda.",
+          "firecrawl": "Servicio de rastreo y búsqueda Firecrawl, optimizado para convertir sitios web en Markdown.",
           "jina": "APIs de búsqueda y lectura de Jina Reader para recuperar contenido web limpio.",
           "querit": "Servicio de búsqueda para aplicaciones de IA con resultados de recuperación web.",
           "searxng": "Motor de búsqueda metainternet gratuito autoalojable a través de muchas fuentes.",
