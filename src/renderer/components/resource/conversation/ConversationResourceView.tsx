@@ -8,9 +8,11 @@ export type ConversationResourceKind = Extract<ResourceType, 'assistant' | 'agen
 type ConversationResourceViewProps = {
   className?: string
   kind: ConversationResourceKind
+  /** Open a chat with the given assistant (e.g. after adding one from the library). Layout-aware. */
+  onOpenAssistantChat?: (assistantId: string) => void
 }
 
-export function ConversationResourceView({ className, kind }: ConversationResourceViewProps) {
+export function ConversationResourceView({ className, kind, onOpenAssistantChat }: ConversationResourceViewProps) {
   const resourceTypes = useMemo<readonly ConversationResourceKind[]>(() => [kind], [kind])
 
   return (
@@ -19,6 +21,7 @@ export function ConversationResourceView({ className, kind }: ConversationResour
       assistantCatalogEnabled={false}
       className={cn('bg-background', className)}
       defaultResourceType={kind}
+      onOpenAssistantChat={onOpenAssistantChat}
       showSidebar={false}
     />
   )

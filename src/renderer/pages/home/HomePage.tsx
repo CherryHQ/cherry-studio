@@ -622,6 +622,21 @@ const HomePage: FC = () => {
     ]
   )
 
+  // "去对话" from the assistant library (after adding a preset). The legacy navigate-to-chat no longer
+  // fits the classic/modern split, so branch on layout: classic auto-creates an empty topic and
+  // switches to it; modern drops into the draft compose with the assistant pre-selected. Both handlers
+  // already close the resource center internally.
+  const handleOpenAssistantChatFromLibrary = useCallback(
+    (assistantId: string) => {
+      if (isClassicTopicLayout) {
+        void createAndActivateEmptyTopic({ assistantId })
+      } else {
+        startDraftAssistantSelection({ assistantId })
+      }
+    },
+    [createAndActivateEmptyTopic, isClassicTopicLayout, startDraftAssistantSelection]
+  )
+
   useEffect(() => {
     void window.api.window.setMinimumSize(SECOND_MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
 
@@ -692,7 +707,12 @@ const HomePage: FC = () => {
   const resourceCenter = activeResourceViewKind
     ? {
         className: 'relative',
-        content: <ConversationResourceView kind={activeResourceViewKind} />
+        content: (
+          <ConversationResourceView
+            kind={activeResourceViewKind}
+            onOpenAssistantChat={handleOpenAssistantChatFromLibrary}
+          />
+        )
       }
     : null
 
