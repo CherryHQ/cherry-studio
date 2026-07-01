@@ -1516,11 +1516,10 @@
       "settings": "設定",
       "slash_commands": {
         "commands": {
-          "clear": "清空對話歷史",
-          "compact": "壓縮對話（可附帶聚焦指令）",
+          "clear": "開啟全新對話，清空上下文",
+          "compact": "透過總結目前對話來釋放上下文",
           "context": "以彩色網格視覺化目前上下文使用情況",
-          "cost": "顯示 token 用量統計（訂閱相關詳情見成本追蹤指南）",
-          "todos": "列出目前待辦事項"
+          "usage": "顯示工作階段成本、方案用量上限與活動統計"
         },
         "description": "Agent 工作階段斜線指令",
         "title": "斜線指令"

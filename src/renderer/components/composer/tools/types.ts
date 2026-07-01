@@ -3,6 +3,7 @@ import type { ComposerToolLauncher } from '@renderer/components/composer/toolLau
 import type { Assistant } from '@renderer/types/assistant'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
+import type { SlashCommand } from '@shared/ai/slashCommands'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { TFunction } from 'i18next'
@@ -63,13 +64,15 @@ export interface ToolContext {
   provider?: Provider
   // Session data for Agent Session scope (only available when scope is TopicType.Session).
   // Note: config fields (model/instructions/...) live on the parent agent — fetch via
-  // useAgent(session.agentId). agentType drives builtin slash command lookup.
+  // useAgent(session.agentId). agentType drives the builtin slash command fallback; slashCommands
+  // carries the live SDK catalog (custom commands included) when the runtime has reported it.
   session?: {
     agentId?: string
     sessionId?: string
     agentType?: string
     tools?: Array<{ id: string; name: string; type: string; description?: string }>
     accessiblePaths?: string[]
+    slashCommands?: SlashCommand[]
     reasoningEffort?: ThinkingOption
     onReasoningEffortChange?: (option: ThinkingOption) => void
   }

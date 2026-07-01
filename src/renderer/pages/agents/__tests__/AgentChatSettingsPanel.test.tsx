@@ -135,6 +135,7 @@ vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
 vi.mock('@renderer/data/hooks/useCache', () => ({
   useCache: () => [false],
   useSharedCache: () => [null, vi.fn()],
+  useSharedCacheValue: () => undefined,
   usePersistCache: () => [undefined, vi.fn()]
 }))
 

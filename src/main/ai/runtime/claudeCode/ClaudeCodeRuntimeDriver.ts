@@ -26,6 +26,7 @@ import {
 import { application } from '@main/core/application'
 import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
+import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
 
@@ -248,6 +249,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
+  async getSupportedCommands(): Promise<AgentSessionSlashCommand[] | null> {
+    if (!this.query) return null
+    try {
+      return await this.query.supportedCommands()
+    } catch (error) {
+      logger.warn('getSupportedCommands failed', { sessionId: this.input.sessionId, error })
+      return null
+    }
+  }
+
   close(): void {
     this.sdkInputQueue.close()
     this.abortController.abort('agent-runtime-closed')
@@ -273,6 +284,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           isCompactionSystemMessage(message) &&
           this.handleSystemControlMessage(message)
         ) {
+          continue
+        }
+
+        // Mid-session command catalog push (skills discovered in a subdirectory, etc.). Handle it
+        // ahead of the no-adapter drop so a primed (turn-less) connection still refreshes its cache.
+        if (message.type === 'system' && message.subtype === 'commands_changed') {
+          this.eventQueue.push({ type: 'supported-commands', commands: message.commands })
           continue
         }
 

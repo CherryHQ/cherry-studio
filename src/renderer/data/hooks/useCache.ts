@@ -390,6 +390,23 @@ export function useSharedCache<K extends SharedCacheKey>(
 }
 
 /**
+ * Read-only companion to {@link useSharedCache}: subscribes to a shared cache key and returns its
+ * current value WITHOUT seeding the schema default on mount.
+ *
+ * Use this for keys another process owns (e.g. a catalog the main process publishes) where the
+ * mount-time default write that `useSharedCache` performs would broadcast the default across windows
+ * and clobber the owner's value before the initial `syncSharedCacheFromMain()` lands. Returns
+ * `undefined` until a value exists in this window's shared cache.
+ */
+export function useSharedCacheValue<K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined {
+  return useSyncExternalStore(
+    useCallback((callback) => cacheService.subscribe(key, callback), [key]),
+    useCallback(() => cacheService.getShared(key), [key]),
+    useCallback(() => cacheService.getShared(key), [key]) // SSR snapshot
+  )
+}
+
+/**
  * React hook for persistent cache with localStorage
  *
  * Use this for data that needs to persist across app restarts and be shared between all windows.

@@ -76,6 +76,42 @@ describe('slashCommandsTool', () => {
     expect(t).toHaveBeenCalledWith('chat.input.slash_commands.commands.clear', 'Clear conversation history')
   })
 
+  it('prefers the live session slash commands over the builtin fallback', () => {
+    mockGetBuiltinSlashCommands.mockReturnValue([{ command: '/clear', description: 'builtin clear' }])
+
+    const launchers = slashCommandsTool.composer?.menuItems?.createItems({
+      actions: { onTextChange: vi.fn() },
+      session: {
+        agentType: 'claude-code',
+        slashCommands: [
+          { command: '/deploy', description: 'Deploy the app' },
+          { command: '/review', description: 'Review the diff' }
+        ]
+      },
+      t: (key: string, fallback?: string) => fallback || key
+    } as any)
+
+    // Live catalog wins — the builtin fallback is never consulted.
+    expect(mockGetBuiltinSlashCommands).not.toHaveBeenCalled()
+    expect(launchers?.[0].submenu).toEqual([
+      expect.objectContaining({ id: 'slash-command:/deploy', label: '/deploy', description: 'Deploy the app' }),
+      expect.objectContaining({ id: 'slash-command:/review', label: '/review', description: 'Review the diff' })
+    ])
+  })
+
+  it('falls back to the builtin list when the live session catalog is empty', () => {
+    mockGetBuiltinSlashCommands.mockReturnValue([{ command: '/clear', description: 'builtin clear' }])
+
+    const launchers = slashCommandsTool.composer?.menuItems?.createItems({
+      actions: { onTextChange: vi.fn() },
+      session: { agentType: 'claude-code', slashCommands: [] },
+      t: (key: string, fallback?: string) => fallback || key
+    } as any)
+
+    expect(mockGetBuiltinSlashCommands).toHaveBeenCalledWith('claude-code')
+    expect(launchers?.[0].submenu).toEqual([expect.objectContaining({ id: 'slash-command:/clear', label: '/clear' })])
+  })
+
   it('falls back to command descriptions when a mapped translation is missing', () => {
     mockGetBuiltinSlashCommands.mockReturnValue([{ command: '/clear', description: 'Clear conversation history' }])
     const t = vi.fn((_: string, fallback?: string) => fallback || '')

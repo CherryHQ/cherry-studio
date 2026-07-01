@@ -1516,11 +1516,10 @@
       "settings": "Settings",
       "slash_commands": {
         "commands": {
-          "clear": "Clear conversation history",
-          "compact": "Compact conversation with optional focus instructions",
+          "clear": "Start a new conversation with empty context",
+          "compact": "Free up context by summarizing the conversation so far",
           "context": "Visualize current context usage as a colored grid",
-          "cost": "Show token usage statistics (see cost tracking guide for subscription-specific details)",
-          "todos": "List current todo items"
+          "usage": "Show session cost, plan usage limits, and activity stats"
         },
         "description": "Agent session slash commands",
         "title": "Slash Commands"
