@@ -102,9 +102,11 @@ vi.mock('@data/hooks/useCache', async () => {
 
       return [
         value,
-        (nextValue: Record<string, string[]>) => {
-          mockCache.set(nextValue)
-          setValue(nextValue)
+        (nextValue: Record<string, string[]> | ((prev: Record<string, string[]>) => Record<string, string[]>)) => {
+          // Mirror the real hook: resolve a functional updater against the latest value.
+          const resolved = typeof nextValue === 'function' ? nextValue(value) : nextValue
+          mockCache.set(resolved)
+          setValue(resolved)
         }
       ]
     }

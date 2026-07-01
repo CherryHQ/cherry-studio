@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
+import * as z from 'zod'
 
 import {
   KB_LIST_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
+  kbListInputSchema,
+  kbListStrictInputSchema,
   kbSearchInputSchema,
   REPORT_ARTIFACTS_DESCRIPTION,
   REPORT_ARTIFACTS_TOOL_NAME,
@@ -33,6 +36,30 @@ describe('builtin tool contracts', () => {
 
     expect(description).toContain(WEB_SEARCH_TOOL_NAME)
     expect(description).not.toContain('web__search')
+  })
+
+  it('keeps kb_list strict-path fields in `required` so strict providers accept the schema', () => {
+    // Regression: the AI-SDK path (KnowledgeListTool) runs strict:true. An all-optional object
+    // serializes away `required` entirely, and a strict OpenAI-compatible provider then rejects the
+    // whole request ("Tool ... has invalid 'parameters' schema: None is not of type 'array'"), killing
+    // every tool call. The strict variant makes every field `.nullable()` (null = unused) so they all
+    // stay in `required` with a null option — including the outline-mode `baseId` / `maxDepth`.
+    const json = z.toJSONSchema(kbListStrictInputSchema) as { required?: unknown }
+
+    expect(Array.isArray(json.required)).toBe(true)
+    expect(json.required).toEqual(expect.arrayContaining(['query', 'groupId', 'baseId', 'maxDepth']))
+    // null is the "unused" signal for every field; an explicit all-null object must still parse.
+    expect(
+      kbListStrictInputSchema.safeParse({ query: null, groupId: null, baseId: null, maxDepth: null }).success
+    ).toBe(true)
+  })
+
+  it('lets the MCP kb_list path omit either filter', () => {
+    // The Claude Code bridge parses raw args with kbListInputSchema; an agent may omit filters
+    // entirely, so the optional shape must accept `{}` and a lone query without erroring. (Making it
+    // `.nullable()` to satisfy the strict path broke this — hence the separate strict variant.)
+    expect(kbListInputSchema.safeParse({}).success).toBe(true)
+    expect(kbListInputSchema.safeParse({ query: 'recipes' }).success).toBe(true)
   })
 
   it('validates final report artifacts', () => {

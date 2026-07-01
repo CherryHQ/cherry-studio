@@ -13,7 +13,8 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { chatMessageFileRefTable, paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { messageTable } from '@data/db/schemas/message'
@@ -337,8 +338,9 @@ export class MigrationEngine {
       { table: agentWorkspaceTable, name: 'agent_workspace' },
       { table: agentGlobalSkillTable, name: 'agent_global_skill' },
       { table: agentTable, name: 'agent' },
-      // File-domain tables — child before parent (file_ref.fileEntryId CASCADEs from file_entry)
-      { table: fileRefTable, name: 'file_ref' },
+      // File-domain tables. Migration runs with FK checks disabled, but keep ref tables before file_entry for readability.
+      { table: chatMessageFileRefTable, name: 'chat_message_file_ref' },
+      { table: paintingFileRefTable, name: 'painting_file_ref' },
       { table: fileEntryTable, name: 'file_entry' }
     ]
 

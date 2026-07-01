@@ -5,8 +5,7 @@ import {
   oauthWithAihubmix,
   oauthWithAiOnly,
   oauthWithPPIO,
-  oauthWithSiliconFlow,
-  oauthWithTokenFlux
+  oauthWithSiliconFlow
 } from '@renderer/utils/oauth'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -38,10 +37,6 @@ const OauthButton: FC<Props> = ({ provider, onSuccess, ...buttonProps }) => {
 
     if (provider.id === 'ppio') {
       void oauthWithPPIO(handleSuccess)
-    }
-
-    if (provider.id === 'tokenflux') {
-      void oauthWithTokenFlux()
     }
 
     if (provider.id === '302ai') {

@@ -637,4 +637,4 @@ Why the two differ:
 **Implication for reviewers**:
 
 - Don't copy a `${}` template from a cache key into `refresh` options. `refresh: ['/providers/${providerId}/*']` is a bug — the `${}` is left as a literal string, not interpolated. Use template literal backticks (`` `/providers/${providerId}/*` ``) or compute the key in the function-form refresh.
-- Cache same-value writes short-circuit via `lodash.isEqual` (no broadcast, no subscriber fire). DataApi `refresh` has no such short-circuit — each call triggers a refetch.
+- Cache same-value writes short-circuit via `isEqual` from es-toolkit/compat (no broadcast, no subscriber fire). DataApi `refresh` has no such short-circuit — each call triggers a refetch.

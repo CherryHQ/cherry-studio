@@ -164,16 +164,14 @@ vi.mock('@renderer/components/chat', () => ({
 }))
 
 vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
-  ChatPlacementComposer: ({
+  ChatHomePlacementComposer: ({
     assistantId,
-    isHome,
     onDraftAssistantChange,
     onNewTopic,
     onSend,
     scopeKey
   }: {
     assistantId?: string
-    isHome: boolean
     onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
     onNewTopic?: (payload?: { assistantId?: string | null }) => void | Promise<void>
     onSend: (
@@ -184,11 +182,7 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
     ) => void | Promise<void>
     scopeKey: string
   }) => (
-    <div
-      data-assistant-id={assistantId ?? ''}
-      data-home={String(isHome)}
-      data-scope-key={scopeKey}
-      data-testid="draft-composer">
+    <div data-assistant-id={assistantId ?? ''} data-scope-key={scopeKey} data-testid="draft-composer">
       <button
         type="button"
         onClick={() => onSend('hello', { userMessageParts: [{ type: 'text', text: 'hello' }] as CherryMessagePart[] })}>

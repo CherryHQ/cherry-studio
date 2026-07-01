@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "860865e1-9263-4c51-98e7-843d70ee1fd1",
+  "id": "105b4da9-7d69-4d03-9ccf-b099bb352292",
   "prevId": "5d72d904-e1ca-4832-a085-bbf3ee2a3a08",
   "tables": {
     "agent": {
@@ -500,6 +500,14 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "is_name_manually_edited": {
+          "name": "is_name_manually_edited",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
         },
         "description": {
           "name": "description",
@@ -2592,15 +2600,8 @@
           "notNull": true,
           "autoincrement": false
         },
-        "logo_key": {
-          "name": "logo_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "logo_file_id": {
-          "name": "logo_file_id",
+        "logo": {
+          "name": "logo",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -2684,17 +2685,7 @@
           "isUnique": false
         }
       },
-      "foreignKeys": {
-        "mini_app_logo_file_id_file_entry_id_fk": {
-          "name": "mini_app_logo_file_id_file_entry_id_fk",
-          "tableFrom": "mini_app",
-          "tableTo": "file_entry",
-          "columnsFrom": ["logo_file_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
@@ -3659,20 +3650,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "logo_key": {
-          "name": "logo_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "logo_file_id": {
-          "name": "logo_file_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "endpoint_configs": {
           "name": "endpoint_configs",
           "type": "text",
@@ -3763,17 +3740,7 @@
           "isUnique": false
         }
       },
-      "foreignKeys": {
-        "user_provider_logo_file_id_file_entry_id_fk": {
-          "name": "user_provider_logo_file_id_file_entry_id_fk",
-          "tableFrom": "user_provider",
-          "tableTo": "file_entry",
-          "columnsFrom": ["logo_file_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -3784,9 +3751,7 @@
   "_meta": {
     "schemas": {},
     "tables": {},
-    "columns": {
-      "\"mini_app\".\"logo\"": "\"mini_app\".\"logo_key\""
-    }
+    "columns": {}
   },
   "internal": {
     "indexes": {

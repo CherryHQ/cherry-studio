@@ -1,7 +1,7 @@
 import { usePersistCache } from '@data/hooks/useCache'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useNavigate, useSearch } from '@tanstack/react-router'
-import { omit } from 'lodash'
+import { omit } from 'es-toolkit/compat'
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useProviderDeepLinkImport } from './hooks/useProviderDeepLinkImport'

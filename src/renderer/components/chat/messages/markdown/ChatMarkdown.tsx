@@ -4,7 +4,7 @@ import { Markdown, type MarkdownSource, StreamingMarkdown, withChatPlugins } fro
 import { useMessageRenderConfig } from '@renderer/components/chat/messages/MessageListProvider'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { processLatexBrackets } from '@renderer/utils/markdown'
-import { isEmpty } from 'lodash'
+import { isEmpty } from 'es-toolkit/compat'
 import { type FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Components } from 'streamdown'

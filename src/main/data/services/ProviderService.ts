@@ -13,9 +13,8 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
-import { fileRefService } from '@data/services/FileRefService'
 import { pinService } from '@data/services/PinService'
-import { reconcileLogoSlotTx } from '@data/services/utils/logoRef'
+import { clearSingleFileRefTx, reconcileLogoSlotTx } from '@data/services/utils/logoRef'
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api'
@@ -688,9 +687,10 @@ class ProviderService {
         models.map((model) => model.id)
       )
 
-      // DB-only: drop the logo slot's file_ref (the file is preserved per the
-      // file layer's policy).
-      await fileRefService.cleanupBySourceTx(tx, logoSlot(providerId))
+      // DB-only: drop the logo slot's ref (the file is preserved per the
+      // file layer's policy). The FK cascade would also clear it on row delete;
+      // the explicit clear keeps the intent local to this flow.
+      await clearSingleFileRefTx(tx, logoSlot(providerId))
 
       const deleted = await tx
         .delete(userProviderTable)

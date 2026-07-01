@@ -1,12 +1,13 @@
 import { application } from '@application'
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { miniAppLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { miniAppTable } from '@data/db/schemas/miniApp'
 import { miniAppService } from '@data/services/MiniAppService'
 import { ErrorCode } from '@shared/data/api'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
 import { setupTestDatabase } from '@test-helpers/db'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, type Mock } from 'vitest'
 
 describe('MiniAppService', () => {
@@ -399,10 +400,7 @@ describe('MiniAppService', () => {
     }
 
     async function logoRefs(appId: string) {
-      return dbh.db
-        .select()
-        .from(fileRefTable)
-        .where(and(eq(fileRefTable.sourceType, 'mini_app_logo'), eq(fileRefTable.sourceId, appId)))
+      return dbh.db.select().from(miniAppLogoFileRefTable).where(eq(miniAppLogoFileRefTable.sourceId, appId))
     }
 
     it('binding a file logo points the slot ref at it and nulls the logoKey column', async () => {

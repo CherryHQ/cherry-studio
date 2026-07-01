@@ -656,7 +656,10 @@ const Sessions = ({
       if (!session || !trimmedName || trimmedName === session.name) return
 
       try {
-        const updatedSession = await updateSession({ id, name: trimmedName }, { showSuccessToast: false })
+        const updatedSession = await updateSession(
+          { id, name: trimmedName, isNameManuallyEdited: true },
+          { showSuccessToast: false }
+        )
         if (updatedSession) {
           window.toast.success(t('common.saved'))
         }

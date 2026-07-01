@@ -546,8 +546,10 @@ describe('AgentComposer', () => {
       />
     )
 
+    // The agent forwards attachments to its runtime as file paths and reads them with its
+    // own tools, so every file type is attachable on any model (modality is irrelevant).
     expect(mocks.derivedToolState).toEqual({
-      couldAddImageFile: false,
+      couldAddImageFile: true,
       extensions: mocks.surfaceProps?.supportedExts
     })
   })

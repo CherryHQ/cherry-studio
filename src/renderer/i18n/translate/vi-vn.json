@@ -935,6 +935,10 @@
           "description": "Thực thi các lệnh shell trong môi trường của bạn",
           "label": "Bash"
         },
+        "CherryKbManage": {
+          "description": "[to be translated]:Adds, deletes, or refreshes documents in your knowledge bases",
+          "label": "[to be translated]:Manage Knowledge"
+        },
         "CherryKbSearch": {
           "description": "Tìm kiếm trong cơ sở kiến thức của bạn",
           "label": "Tìm kiếm kiến thức"
@@ -3162,12 +3166,22 @@
           "agent_title": "Đại lý mới",
           "assistant_title": "Trợ lý mới",
           "avatar_aria": "Chọn hình đại diện",
+          "back": "[to be translated]:Back",
+          "capability": {
+            "import": "[to be translated]:Import skill",
+            "no_skills": "[to be translated]:No skills installed",
+            "search": "[to be translated]:Search skills"
+          },
           "description_placeholder": "Mô tả mục đích của nó...",
-          "dialog_description": "Tạo một trợ lý hoặc tác nhân nhẹ.",
-          "model_placeholder": "Chọn một mô hình",
-          "model_required": "Vui lòng chọn một mô hình",
+          "guided_progress": "[to be translated]:Guided setup · Step {{current}} of {{total}}",
           "name_placeholder": "Nhập tên",
-          "name_required": "Vui lòng nhập tên",
+          "next": "[to be translated]:Next",
+          "step": {
+            "basic": "[to be translated]:Basic info",
+            "capability": "[to be translated]:Skills",
+            "knowledge": "[to be translated]:Knowledge",
+            "persona": "[to be translated]:Persona"
+          },
           "submit": "Tạo",
           "submit_failed": "Tạo thất bại"
         },
@@ -4711,7 +4725,6 @@
     "baichuan": "Baichuan",
     "baidu-cloud": "Baidu Cloud",
     "burncloud": "BurnCloud",
-    "cephalon": "cephalon",
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
@@ -4767,7 +4780,6 @@
     "tencent-cloud-ti": "Tencent Cloud TI",
     "tesseract": "Tesseract",
     "together": "Cùng nhau",
-    "tokenflux": "TokenFlux",
     "vertexai": "Vertex AI",
     "voyageai": "Hành trình AI",
     "xirang": "Bang Cloud Xirang",
@@ -6466,6 +6478,8 @@
         "logo_upload_label": "Tải lên Logo",
         "name": "Tên",
         "name_placeholder": "Nhập tên",
+        "remove_confirm_description": "Xóa ứng dụng nhỏ tùy chỉnh \"{{name}}\"? Hành động này không thể hoàn tác.",
+        "remove_confirm_title": "Xóa ứng dụng mini tùy chỉnh?",
         "remove_error": "Không thể xóa ứng dụng nhỏ tùy chỉnh.",
         "remove_success": "Ứng dụng mini tùy chỉnh đã được gỡ bỏ thành công.",
         "save_error": "Không lưu được ứng dụng nhỏ tùy chỉnh.",
@@ -6494,6 +6508,7 @@
         "title": "Bộ lọc Mini Program"
       },
       "reset_tooltip": "Redefinir para o padrão",
+      "title": "Cài đặt Ứng dụng Mini",
       "visible": "Mini aplicaciones visibles"
     },
     "model": "Mô hình Mặc định",
@@ -6645,7 +6660,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
-        "sync_apply_default_in_use": "[to be translated]:Some models are in use as the default model and cannot be removed.",
+        "sync_apply_default_in_use": "Một số mô hình đang được sử dụng làm mô hình mặc định và không thể bị xóa.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",
@@ -6967,7 +6982,6 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Miền gia tốc",
-          "backup": "Miền dự phòng",
           "international": "Tên miền quốc tế"
         }
       },
@@ -7440,6 +7454,7 @@
           "exa": "API tìm kiếm thần kinh cho ứng dụng AI, được tối ưu hóa cho việc truy xuất web ngữ nghĩa.",
           "exa_mcp": "Hiển thị tìm kiếm Exa cho các tác nhân thông qua Máy chủ MCP Exa.",
           "fetch": "Nhà cung cấp tìm nạp URL tích hợp. Tìm nạp nội dung trang web từ một URL để làm phong phú kết quả tìm kiếm.",
+          "firecrawl": "[to be translated]:Firecrawl crawler and search service, optimized to turn websites into Markdown.",
           "jina": "API tìm kiếm và đọc Jina Reader để truy xuất nội dung web sạch.",
           "querit": "Dịch vụ tìm kiếm cho ứng dụng AI với kết quả truy xuất web.",
           "searxng": "Công cụ tìm kiếm meta internet miễn phí có thể tự lưu trữ trên nhiều nguồn khác nhau.",

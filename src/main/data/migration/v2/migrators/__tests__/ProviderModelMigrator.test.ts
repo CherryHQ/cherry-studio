@@ -4,7 +4,8 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { assistantTable } from '@data/db/schemas/assistant'
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -471,7 +472,10 @@ describe('ProviderModelMigrator', () => {
       expect(entry?.ext).toBe('webp')
       expect(existsSync(path.join(filesDataDir, `${withLogo.logoFileId}.webp`))).toBe(true)
 
-      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceId, 'with-logo'))
+      const refs = await dbh.db
+        .select()
+        .from(providerLogoFileRefTable)
+        .where(eq(providerLogoFileRefTable.sourceId, 'with-logo'))
       expect(refs).toHaveLength(1)
       expect(refs[0]?.fileEntryId).toBe(withLogo.logoFileId)
 

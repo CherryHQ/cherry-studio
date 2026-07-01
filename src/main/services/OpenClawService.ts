@@ -19,7 +19,7 @@ import { ENDPOINT_TYPE, parseUniqueModelId, UniqueModelIdSchema } from '@shared/
 import type { Provider as DataProvider } from '@shared/data/types/provider'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { OperationResult } from '@shared/types/codeTools'
-import { formatApiHost, hasAPIVersion, withoutTrailingSlash } from '@shared/utils/api'
+import { formatApiHost, hasApiVersion, withoutTrailingSlash } from '@shared/utils/api'
 import { isNonChatModel } from '@shared/utils/model'
 
 import { vertexAiService } from './VertexAiService'
@@ -1228,7 +1228,7 @@ export class OpenClawService extends BaseService {
     }
 
     // Skip if URL already has version (e.g., /v1, /v2, /v3)
-    if (hasAPIVersion(url)) {
+    if (hasApiVersion(url)) {
       return url
     }
 

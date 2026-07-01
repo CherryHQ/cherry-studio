@@ -9,9 +9,13 @@ import { useTabs } from '@renderer/hooks/tab'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
-import { getOrderedVisibleSidebarIcons, getSidebarMenuPath, resolveSidebarActiveItem } from '@renderer/utils/sidebar'
+import {
+  getOrderedVisibleSidebarFavorites,
+  getSidebarMenuPath,
+  resolveSidebarActiveItem
+} from '@renderer/utils/sidebar'
 import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
-import type { SidebarIcon as SidebarIconType } from '@shared/data/preference/preferenceTypes'
+import type { SidebarFavorite } from '@shared/data/preference/preferenceTypes'
 import type { Ref } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -25,7 +29,7 @@ import type { SidebarMenuItem, SidebarUser, SidebarVisibleLayout } from '../Side
 
 const noop = () => {}
 
-function getResourceListRevealSource(menuItemId: SidebarIconType): ResourceListRevealSource | null {
+function getResourceListRevealSource(menuItemId: SidebarFavorite): ResourceListRevealSource | null {
   if (menuItemId === 'assistants' || menuItemId === 'agents') return menuItemId
   return null
 }
@@ -95,7 +99,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const items = useMemo<SidebarMenuItem[]>(
     () =>
-      getOrderedVisibleSidebarIcons(sidebarFavorites).flatMap((icon) => {
+      getOrderedVisibleSidebarFavorites(sidebarFavorites).flatMap((icon) => {
         const path = getSidebarMenuPath(icon, defaultPaintingProvider)
         const Icon = SIDEBAR_ICON_COMPONENTS[icon]
         if (!path || !Icon) {
@@ -116,7 +120,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const handleNavigate = useCallback(
     (menuItemId: string) => {
-      const menuId = menuItemId as SidebarIconType
+      const menuId = menuItemId as SidebarFavorite
       const path = getSidebarMenuPath(menuId, defaultPaintingProvider)
       if (!path || activeTab?.url === path) return
 

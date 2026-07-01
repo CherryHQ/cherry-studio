@@ -935,6 +935,10 @@
           "description": "Выполняет shell-команды в вашей среде",
           "label": "Баш"
         },
+        "CherryKbManage": {
+          "description": "[to be translated]:Adds, deletes, or refreshes documents in your knowledge bases",
+          "label": "[to be translated]:Manage Knowledge"
+        },
         "CherryKbSearch": {
           "description": "Ищет в ваших базах знаний",
           "label": "Поиск знаний"
@@ -3162,12 +3166,22 @@
           "agent_title": "Новый агент",
           "assistant_title": "Новый ассистент",
           "avatar_aria": "Выберите аватар",
+          "back": "[to be translated]:Back",
+          "capability": {
+            "import": "[to be translated]:Import skill",
+            "no_skills": "[to be translated]:No skills installed",
+            "search": "[to be translated]:Search skills"
+          },
           "description_placeholder": "Опиши, для чего это нужно...",
-          "dialog_description": "Создайте лёгкого ассистента или агента.",
-          "model_placeholder": "Выберите модель",
-          "model_required": "Пожалуйста, выберите модель",
+          "guided_progress": "[to be translated]:Guided setup · Step {{current}} of {{total}}",
           "name_placeholder": "Введите имя",
-          "name_required": "Пожалуйста, введите имя",
+          "next": "[to be translated]:Next",
+          "step": {
+            "basic": "[to be translated]:Basic info",
+            "capability": "[to be translated]:Skills",
+            "knowledge": "[to be translated]:Knowledge",
+            "persona": "[to be translated]:Persona"
+          },
           "submit": "Создать",
           "submit_failed": "Создание не удалось"
         },
@@ -4711,7 +4725,6 @@
     "baichuan": "Baichuan",
     "baidu-cloud": "Baidu Cloud",
     "burncloud": "BurnCloud",
-    "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
@@ -4767,7 +4780,6 @@
     "tencent-cloud-ti": "Tencent Cloud TI",
     "tesseract": "Тессеракт",
     "together": "Together",
-    "tokenflux": "TokenFlux",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "State Cloud Xirang",
@@ -6466,6 +6478,8 @@
         "logo_upload_label": "Загрузить логотип",
         "name": "Имя",
         "name_placeholder": "Введите имя",
+        "remove_confirm_description": "Удалить пользовательское мини-приложение \"{{name}}\"? Это действие нельзя отменить.",
+        "remove_confirm_title": "Удалить пользовательский мини-приложение?",
         "remove_error": "Не удалось удалить мини-приложение.",
         "remove_success": "Мини-приложение успешно удалено.",
         "save_error": "Не удалось сохранить пользовательское мини-приложение.",
@@ -6494,6 +6508,7 @@
         "title": "Фильтрация по регионам в мини-программе"
       },
       "reset_tooltip": "Сбросить до значения по умолчанию",
+      "title": "Настройки Mini Apps",
       "visible": "Отображаемые мини-приложения"
     },
     "model": "Модель по умолчанию",
@@ -6645,7 +6660,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
-        "sync_apply_default_in_use": "[to be translated]:Some models are in use as the default model and cannot be removed.",
+        "sync_apply_default_in_use": "Некоторые модели используются как модели по умолчанию и не могут быть удалены.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",
@@ -6967,7 +6982,6 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Домен ускорения",
-          "backup": "Резервный домен",
           "international": "Международный домен"
         }
       },
@@ -7440,6 +7454,7 @@
           "exa": "API нейропоиска для ИИ-приложений, оптимизированный для семантического поиска в вебе.",
           "exa_mcp": "Предоставьте агентам доступ к поиску Exa через сервер Exa MCP.",
           "fetch": "Встроенный поставщик извлечения URL. Извлекает содержимое веб-страницы по URL для обогащения результатов поиска.",
+          "firecrawl": "[to be translated]:Firecrawl crawler and search service, optimized to turn websites into Markdown.",
           "jina": "API Jina Reader для поиска и чтения для получения чистого веб-контента.",
           "querit": "Поисковый сервис для приложений ИИ с результатами веб-поиска.",
           "searxng": "Самостоятельно размещаемый бесплатный интернет-метапоисковик по множеству источников.",

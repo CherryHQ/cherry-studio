@@ -10,6 +10,7 @@ import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
+import { registerDataService } from '@data/services/dataServiceRegistry'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
@@ -215,3 +216,7 @@ export class AgentGlobalSkillService {
 }
 
 export const agentGlobalSkillService = new AgentGlobalSkillService()
+
+// Self-register so AgentService (which would otherwise form an import cycle via the
+// create-time skill validation/join) can resolve this sibling lazily through the registry.
+registerDataService('AgentGlobalSkillService', agentGlobalSkillService)

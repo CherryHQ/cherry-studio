@@ -626,6 +626,11 @@ describe('AgentSessionRuntimeService', () => {
         modelId: 'claude-code::claude-sonnet-4-5'
       }
     })
+    expect(mocks.maybeRenameAgentSession).toHaveBeenCalledWith('agent-1', 'session-1', 'hello', {
+      id: 'assistant-1',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'hi' }]
+    })
   })
 
   it('routes runtime events from the selected driver into the active turn', async () => {

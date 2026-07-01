@@ -78,7 +78,9 @@ declare module '@tiptap/core' {
 function ComposerTokenNodeView(props: NodeViewProps & { renderToken?: ComposerTokenRenderer }) {
   const { t } = useTranslation()
   const token = normalizeComposerTokenAttrs(props.node.attrs)
+  const editor = props.editor
   const getNodePosition = props.getPos
+  const nodeSize = props.node.nodeSize
   const [isPromptVariableEditing, setPromptVariableEditing] = useState(false)
 
   const isPromptVariableEditRequestForCurrentNode = useCallback(
@@ -151,15 +153,13 @@ function ComposerTokenNodeView(props: NodeViewProps & { renderToken?: ComposerTo
     props.editor.chain().focus().setNodeSelection(position).run()
   }
 
-  const removeCurrentFileToken = useCallback(() => {
-    if (token.kind !== 'file') return
-
-    const position = typeof props.getPos === 'function' ? props.getPos() : undefined
+  const removeCurrentToken = useCallback(() => {
+    const position = typeof getNodePosition === 'function' ? getNodePosition() : undefined
     if (typeof position !== 'number') return
 
-    deleteComposerTokenRange(props.editor, position, position + props.node.nodeSize)
-    props.editor.commands.focus()
-  }, [props.editor, props.getPos, props.node.nodeSize, token.kind])
+    deleteComposerTokenRange(editor, position, position + nodeSize)
+    editor.commands.focus()
+  }, [editor, getNodePosition, nodeSize])
 
   const finishPromptVariableEdit = (
     value: string,
@@ -222,11 +222,16 @@ function ComposerTokenNodeView(props: NodeViewProps & { renderToken?: ComposerTo
       <FileComposerToken
         token={token as ActiveComposerInputToken}
         selected={props.selected}
-        onRemove={removeCurrentFileToken}
+        onRemove={removeCurrentToken}
         removeLabel={t('appMenu.delete')}
       />
     ) : (
-      <ComposerToken token={token as ActiveComposerInputToken} selected={props.selected} />
+      <ComposerToken
+        token={token as ActiveComposerInputToken}
+        selected={props.selected}
+        onRemove={removeCurrentToken}
+        removeLabel={t('appMenu.delete')}
+      />
     ))
 
   return (

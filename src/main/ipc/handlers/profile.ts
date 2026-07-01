@@ -1,5 +1,5 @@
 import { application } from '@application'
-import { fileRefService } from '@data/services/FileRefService'
+import { clearSingleFileRefTx, setSingleFileRefTx } from '@data/services/utils/logoRef'
 import { withCreatedImageEntry } from '@main/ipc/handlers/utils/entityImageBinding'
 import { tagStoredFileRef, USER_AVATAR_SOURCE_ID, userAvatarRef } from '@shared/data/types/file'
 import type { profileRequestSchemas } from '@shared/ipc/schemas/profile'
@@ -32,8 +32,7 @@ export const profileHandlers: IpcHandlersFor<typeof profileRequestSchemas> = {
       // its bind returns the post-commit callback, run outside that scope.
       const afterCommit = await withCreatedImageEntry(input.data, (fileId) =>
         db.withWriteTx(async (tx) => {
-          await fileRefService.cleanupBySourceTx(tx, AVATAR_SLOT)
-          await fileRefService.createTx(tx, { fileEntryId: fileId, ...AVATAR_SLOT, role: 'avatar' })
+          await setSingleFileRefTx(tx, AVATAR_SLOT, fileId)
           return preferences.setTx(tx, 'app.user.avatar', tagStoredFileRef(fileId))
         })
       )
@@ -45,7 +44,7 @@ export const profileHandlers: IpcHandlersFor<typeof profileRequestSchemas> = {
     // (emoji glyph, or `''` to reset to the bundled default).
     const value = input.kind === 'emoji' ? input.emoji : ''
     const afterCommit = await db.withWriteTx(async (tx) => {
-      await fileRefService.cleanupBySourceTx(tx, AVATAR_SLOT)
+      await clearSingleFileRefTx(tx, AVATAR_SLOT)
       return preferences.setTx(tx, 'app.user.avatar', value)
     })
     await afterCommit()

@@ -7,7 +7,7 @@ import { resolveStoredImageSrc } from '@renderer/utils/storedImage'
 import { clearWebviewState } from '@renderer/utils/webviewStateManager'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
-import { fileUrlToPath } from '@shared/utils/file/urlUtil'
+import { fileUrlToPath } from '@shared/utils/file/url'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('useMiniAppPopup')

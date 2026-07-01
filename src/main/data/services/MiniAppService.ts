@@ -24,8 +24,7 @@ import { miniAppLogoRef, tagStoredFileRef } from '@shared/data/types/file'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
 import { and, asc, desc, eq, gt, inArray, lt, ne } from 'drizzle-orm'
 
-import { fileRefService } from './FileRefService'
-import { reconcileLogoSlotTx } from './utils/logoRef'
+import { clearSingleFileRefTx, reconcileLogoSlotTx } from './utils/logoRef'
 import { applyMoves, generateOrderKeyBetween, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
@@ -303,9 +302,10 @@ export class MiniAppService {
             )
           }
 
-          // DB-only: drop the logo slot's file_ref (the file is preserved per the
-          // file layer's policy), then delete the row.
-          await fileRefService.cleanupBySourceTx(tx, logoSlot(appId))
+          // DB-only: drop the logo slot's ref (the file is preserved per the
+          // file layer's policy), then delete the row. The FK cascade would also
+          // clear it on row delete; the explicit clear keeps the intent local.
+          await clearSingleFileRefTx(tx, logoSlot(appId))
           await tx.delete(miniAppTable).where(eq(miniAppTable.appId, appId))
         }),
       defaultHandlersFor('MiniApp', appId)

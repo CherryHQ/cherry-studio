@@ -935,6 +935,10 @@
           "description": "Executes shell commands in your environment",
           "label": "Bash"
         },
+        "CherryKbManage": {
+          "description": "Adds, deletes, or refreshes documents in your knowledge bases",
+          "label": "Manage Knowledge"
+        },
         "CherryKbSearch": {
           "description": "Searches your knowledge bases",
           "label": "Knowledge Search"
@@ -3162,12 +3166,22 @@
           "agent_title": "New Agent",
           "assistant_title": "New Assistant",
           "avatar_aria": "Choose avatar",
+          "back": "Back",
+          "capability": {
+            "import": "Import skill",
+            "no_skills": "No skills installed",
+            "search": "Search skills"
+          },
           "description_placeholder": "Describe what it is for...",
-          "dialog_description": "Create a lightweight assistant or agent.",
-          "model_placeholder": "Select a model",
-          "model_required": "Please select a model",
+          "guided_progress": "Guided setup · Step {{current}} of {{total}}",
           "name_placeholder": "Enter a name",
-          "name_required": "Please enter a name",
+          "next": "Next",
+          "step": {
+            "basic": "Basic info",
+            "capability": "Skills",
+            "knowledge": "Knowledge",
+            "persona": "Persona"
+          },
           "submit": "Create",
           "submit_failed": "Create failed"
         },
@@ -4711,7 +4725,6 @@
     "baichuan": "Baichuan",
     "baidu-cloud": "Baidu Cloud",
     "burncloud": "BurnCloud",
-    "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
@@ -4767,7 +4780,6 @@
     "tencent-cloud-ti": "Tencent Cloud TI",
     "tesseract": "Tesseract",
     "together": "Together",
-    "tokenflux": "TokenFlux",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "State Cloud Xirang",
@@ -6970,7 +6982,6 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Acceleration domain",
-          "backup": "Backup domain",
           "international": "International domain"
         }
       },
@@ -7443,6 +7454,7 @@
           "exa": "Neural search API for AI apps, tuned for semantic web retrieval.",
           "exa_mcp": "Expose Exa search to agents through the Exa MCP Server.",
           "fetch": "Built-in URL fetch provider. Fetches web page content from a URL to enrich search results.",
+          "firecrawl": "Firecrawl crawler and search service, optimized to turn websites into Markdown.",
           "jina": "Jina Reader search and read APIs for retrieving clean web content.",
           "querit": "Search service for AI apps with web retrieval results.",
           "searxng": "Self-hostable free internet metasearch engine across many sources.",

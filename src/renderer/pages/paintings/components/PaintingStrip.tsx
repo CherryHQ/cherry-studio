@@ -1,6 +1,5 @@
 import { Button, ConfirmDialog, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import FileManager from '@renderer/services/FileManager'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
 import type { FC, UIEventHandler } from 'react'
 import { useEffect, useRef, useState } from 'react'
@@ -9,6 +8,7 @@ import { useTranslation } from 'react-i18next'
 import type { PaintingStripEntry } from '../hooks/usePaintingHistory'
 import type { PaintingData } from '../model/types/paintingData'
 import { paintingClasses } from '../paintingPrimitives'
+import { getPaintingFileUrl } from '../utils/paintingFileUrl'
 
 interface PaintingStripProps {
   selectedPaintingId?: string
@@ -32,6 +32,7 @@ const PaintingStripItem: FC<{
   deleteLabel: string
 }> = ({ painting, selected, loading, onDelete, onSelect, selectLabel, deleteLabel }) => {
   const previewFile = painting.files?.[0]
+  const previewUrl = previewFile ? getPaintingFileUrl(previewFile) : undefined
 
   return (
     <div className={cn(paintingClasses.historyItem, selected && paintingClasses.historyItemActive)}>
@@ -41,8 +42,8 @@ const PaintingStripItem: FC<{
         aria-label={selectLabel}
         onClick={() => onSelect(painting)}>
         <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-[12px]">
-          {previewFile ? (
-            <img src={FileManager.getFileUrl(previewFile)} alt="" className="h-full w-full object-cover" />
+          {previewUrl ? (
+            <img src={previewUrl} alt="" className="h-full w-full object-cover" />
           ) : loading ? (
             <span className="flex h-full w-full items-center justify-center bg-muted/60">
               <Loader2 className="size-4 animate-spin text-muted-foreground/70" />

@@ -6,10 +6,10 @@
  */
 
 import { loggerService } from '@logger'
+import { serializeError } from '@main/ai/utils/serializeError'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
-import { serializeError } from '@shared/utils/error'
 import type { UIMessageChunk } from 'ai'
 
 import { normalizeAssistantMessageCitations } from '../persistence/normalizeCitations'

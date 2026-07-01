@@ -935,6 +935,10 @@
           "description": "在你的環境中執行 Shell 命令",
           "label": "Bash"
         },
+        "CherryKbManage": {
+          "description": "新增、刪除或重新整理知識庫中的文件",
+          "label": "知識庫管理"
+        },
         "CherryKbSearch": {
           "description": "搜尋你的知識庫",
           "label": "知識庫搜尋"
@@ -3162,12 +3166,22 @@
           "agent_title": "新特務",
           "assistant_title": "新助理",
           "avatar_aria": "選擇頭像",
+          "back": "上一步",
+          "capability": {
+            "import": "匯入技能",
+            "no_skills": "未安裝技能",
+            "search": "搜尋技能"
+          },
           "description_placeholder": "描述它的用途...",
-          "dialog_description": "建立一個輕量級的助理或代理程式。",
-          "model_placeholder": "選擇模型",
-          "model_required": "請選擇一個模型",
+          "guided_progress": "引導式建立 · 第 {{current}} / {{total}} 步",
           "name_placeholder": "輸入名稱",
-          "name_required": "請輸入名稱",
+          "next": "下一步",
+          "step": {
+            "basic": "基本資訊",
+            "capability": "技能",
+            "knowledge": "知識庫",
+            "persona": "設定人格"
+          },
           "submit": "建立",
           "submit_failed": "建立失敗"
         },
@@ -4711,7 +4725,6 @@
     "baichuan": "百川",
     "baidu-cloud": "百度雲千帆",
     "burncloud": "BurnCloud",
-    "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
@@ -4767,7 +4780,6 @@
     "tencent-cloud-ti": "騰訊雲 TI",
     "tesseract": "Tesseract",
     "together": "Together",
-    "tokenflux": "TokenFlux",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "天翼雲息壤",
@@ -6970,7 +6982,6 @@
       "cherryin": {
         "api_host": {
           "acceleration": "加速網域",
-          "backup": "備用網域",
           "international": "國際網域"
         }
       },
@@ -7443,6 +7454,7 @@
           "exa": "為 AI 應用設計的神經搜尋 API，擅長語意檢索高品質網頁。",
           "exa_mcp": "透過 Exa MCP Server 將 Exa 搜尋能力暴露給智能體工具呼叫。",
           "fetch": "內建 URL 擷取供應商，用於從指定 URL 擷取網頁內容，適合補全搜尋結果正文。",
+          "firecrawl": "Firecrawl 網頁抓取與搜尋服務，支援將網頁轉換為 Markdown 格式。",
           "jina": "Jina Reader 搜尋與閱讀介面，用於檢索並提取網頁正文。",
           "querit": "面向 AI 應用的搜尋服務，提供可接入的網頁檢索結果。",
           "searxng": "可自架的免費網際網路元搜尋引擎，聚合多個搜尋來源。",

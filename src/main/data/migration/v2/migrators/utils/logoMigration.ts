@@ -20,11 +20,12 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { fileEntryTable } from '@data/db/schemas/file'
 import type { DbType } from '@data/db/types'
+import { insertSingleFileRefTx, type SingleFileRefSourceType } from '@data/services/utils/logoRef'
 import { loggerService } from '@logger'
 import { transcodeToEntityWebp } from '@main/services/file/utils/entityImageWebp'
-import type { FileEntryId, FileRefSourceType } from '@shared/data/types/file'
+import type { FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/types/file/common'
 import { v7 as uuidv7 } from 'uuid'
 
@@ -32,9 +33,9 @@ const logger = loggerService.withContext('ImageMigration')
 
 const BASE64_DATA_URL_RE = /^data:([^;,]+);base64,(.+)$/
 
-/** The single-file `file_ref` slot an image belongs to (provider/mini-app logo, or avatar). */
+/** The single-file ref slot an image belongs to (provider/mini-app logo, or avatar). */
 export interface EntityImageRef {
-  sourceType: FileRefSourceType
+  sourceType: SingleFileRefSourceType
   sourceId: string
   role: string
 }
@@ -81,12 +82,7 @@ export async function migrateBase64ImageToFileEntry(
       createdAt: now,
       updatedAt: now
     })
-    await tx.insert(fileRefTable).values({
-      fileEntryId: id,
-      sourceType: ref.sourceType,
-      sourceId: ref.sourceId,
-      role: ref.role
-    })
+    await insertSingleFileRefTx(tx, { sourceType: ref.sourceType, sourceId: ref.sourceId }, id)
     return id
   } catch (error) {
     if (written) await fs.unlink(physicalPath).catch(() => {})

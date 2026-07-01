@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   appGetMock,
-  cleanupBySourceTxMock,
-  createTxMock,
+  clearSingleFileRefTxMock,
+  setSingleFileRefTxMock,
   setTxMock,
   withWriteTxMock,
   createInternalEntryMock,
@@ -11,8 +11,8 @@ const {
   transcodeMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
-  cleanupBySourceTxMock: vi.fn(),
-  createTxMock: vi.fn(),
+  clearSingleFileRefTxMock: vi.fn(),
+  setSingleFileRefTxMock: vi.fn(),
   setTxMock: vi.fn(),
   withWriteTxMock: vi.fn(),
   createInternalEntryMock: vi.fn(),
@@ -20,8 +20,9 @@ const {
   transcodeMock: vi.fn()
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
-vi.mock('@data/services/FileRefService', () => ({
-  fileRefService: { cleanupBySourceTx: cleanupBySourceTxMock, createTx: createTxMock }
+vi.mock('@data/services/utils/logoRef', () => ({
+  clearSingleFileRefTx: clearSingleFileRefTxMock,
+  setSingleFileRefTx: setSingleFileRefTxMock
 }))
 vi.mock('@main/services/file/utils/entityImageWebp', () => ({ transcodeToEntityWebp: transcodeMock }))
 
@@ -49,8 +50,8 @@ beforeEach(() => {
     throw new Error(`Unexpected application.get(${name})`)
   })
   withWriteTxMock.mockImplementation((fn: (tx: unknown) => Promise<unknown>) => fn(TX))
-  cleanupBySourceTxMock.mockResolvedValue(0)
-  createTxMock.mockResolvedValue(undefined)
+  clearSingleFileRefTxMock.mockResolvedValue(undefined)
+  setSingleFileRefTxMock.mockResolvedValue(undefined)
   afterCommit.mockResolvedValue(undefined)
   setTxMock.mockResolvedValue(afterCommit)
   transcodeMock.mockResolvedValue(WEBP)
@@ -61,14 +62,13 @@ beforeEach(() => {
 const ctx = { senderId: null }
 
 describe('profileHandlers.set_avatar', () => {
-  it('binds the slot and writes the preference in one tx, then runs the post-commit callback', async () => {
+  it('sets the slot ref and writes the preference in one tx, then runs the post-commit callback', async () => {
     const data = new Uint8Array([9, 9, 9])
     await profileHandlers['profile.set_avatar']({ kind: 'image', data }, ctx)
 
     expect(transcodeMock).toHaveBeenCalledWith(data)
     expect(createInternalEntryMock).toHaveBeenCalledWith({ source: 'bytes', data: WEBP, name: 'image', ext: 'webp' })
-    expect(cleanupBySourceTxMock).toHaveBeenCalledWith(TX, AVATAR_SLOT)
-    expect(createTxMock).toHaveBeenCalledWith(TX, { fileEntryId: FILE_ID, ...AVATAR_SLOT, role: 'avatar' })
+    expect(setSingleFileRefTxMock).toHaveBeenCalledWith(TX, AVATAR_SLOT, FILE_ID)
     expect(setTxMock).toHaveBeenCalledWith(TX, 'app.user.avatar', `file:${FILE_ID}`)
     expect(afterCommit).toHaveBeenCalledOnce()
     expect(permanentDeleteMock).not.toHaveBeenCalled()
@@ -99,8 +99,8 @@ describe('profileHandlers.set_avatar', () => {
     await profileHandlers['profile.set_avatar']({ kind: 'emoji', emoji: '😀' }, ctx)
 
     expect(createInternalEntryMock).not.toHaveBeenCalled()
-    expect(cleanupBySourceTxMock).toHaveBeenCalledWith(TX, AVATAR_SLOT)
-    expect(createTxMock).not.toHaveBeenCalled()
+    expect(clearSingleFileRefTxMock).toHaveBeenCalledWith(TX, AVATAR_SLOT)
+    expect(setSingleFileRefTxMock).not.toHaveBeenCalled()
     expect(setTxMock).toHaveBeenCalledWith(TX, 'app.user.avatar', '😀')
     expect(afterCommit).toHaveBeenCalledOnce()
   })
@@ -109,8 +109,8 @@ describe('profileHandlers.set_avatar', () => {
     await profileHandlers['profile.set_avatar']({ kind: 'clear' }, ctx)
 
     expect(createInternalEntryMock).not.toHaveBeenCalled()
-    expect(cleanupBySourceTxMock).toHaveBeenCalledWith(TX, AVATAR_SLOT)
-    expect(createTxMock).not.toHaveBeenCalled()
+    expect(clearSingleFileRefTxMock).toHaveBeenCalledWith(TX, AVATAR_SLOT)
+    expect(setSingleFileRefTxMock).not.toHaveBeenCalled()
     expect(setTxMock).toHaveBeenCalledWith(TX, 'app.user.avatar', '')
     expect(afterCommit).toHaveBeenCalledOnce()
   })

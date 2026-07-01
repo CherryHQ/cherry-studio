@@ -20,7 +20,7 @@ import { type Assistant } from '@shared/data/types/assistant'
 import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { Base64String, URLString } from '@shared/types/file/common'
+import type { Base64String, UrlString } from '@shared/types/file/common'
 import { isEmbeddingModel, isFunctionCallingModel, isRerankModel } from '@shared/utils/model'
 import {
   type EmbeddingModelUsage,
@@ -42,10 +42,12 @@ import type { AgentLoopHooks } from './runtime/aiSdk/loop'
 import { mergeUsage, ZERO_USAGE } from './runtime/aiSdk/observers/usage'
 import { buildAgentParams } from './runtime/aiSdk/params/buildAgentParams'
 import type { RequestFeature } from './runtime/aiSdk/params/feature'
+import { skillService } from './skills/SkillService'
 import { WebContentsListener } from './streamManager/listeners/WebContentsListener'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin'
 import type { AppProviderSettingsMap } from './types'
 import type { AiBaseRequest, AiStreamRequest, AiTransportOptions, ListModelsRequest } from './types/requests'
+import { installProviderUserAgentInterceptor } from './utils/customFetch'
 import { buildImageProviderOptions, normalizeAspectRatio } from './utils/imageOptions'
 
 const logger = loggerService.withContext('AiService')
@@ -115,10 +117,10 @@ export interface AiImageResult {
  */
 export function imageInputEntryParams(
   value: string
-): { source: 'base64'; data: Base64String } | { source: 'url'; url: URLString } {
+): { source: 'base64'; data: Base64String } | { source: 'url'; url: UrlString } {
   return value.startsWith('data:')
     ? { source: 'base64', data: value as Base64String }
-    : { source: 'url', url: value as URLString }
+    : { source: 'url', url: value as UrlString }
 }
 
 /**
@@ -180,7 +182,14 @@ export class AiService extends BaseService {
   protected async onInit(): Promise<void> {
     registerBuiltinTools()
     this.registerIpcHandlers()
+    // Restore provider custom `User-Agent` headers that Chromium's net.fetch stack
+    // would otherwise overwrite (see installProviderUserAgentInterceptor).
+    this.registerDisposable(installProviderUserAgentInterceptor())
     application.get('JobManager').registerHandler('image-generation.generate', imageGenerationJobHandler)
+    // Heal the CLAUDE_CONFIG_DIR/skills mirror once at startup; fire-and-forget so it never blocks init.
+    void skillService.reconcileSkills().catch((error) => {
+      logger.error('Failed to reconcile skills', error)
+    })
     logger.info('AiService initialized')
   }
 

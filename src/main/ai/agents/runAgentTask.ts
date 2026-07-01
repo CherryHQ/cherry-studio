@@ -1,5 +1,5 @@
 /**
- * Business logic for `agent.task` jobs — owned by `AgentTaskJobHandler`.
+ * Business logic for `agent.task` jobs — owned by `agentTaskJobHandler`.
  *
  * Each fire creates a fresh agent session. Per-fire sessions are recorded in
  * `job.output.sessionId` for audit only — there is no cross-fire session

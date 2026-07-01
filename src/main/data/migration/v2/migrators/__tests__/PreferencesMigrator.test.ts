@@ -2,7 +2,8 @@ import { existsSync, mkdtempSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { userAvatarFileRefTable } from '@data/db/schemas/fileRelations'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq, sql } from 'drizzle-orm'
@@ -338,7 +339,7 @@ describe('PreferencesMigrator', () => {
       expect(entry?.origin).toBe('internal')
       expect(entry?.ext).toBe('webp')
 
-      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceType, 'user_avatar'))
+      const refs = await dbh.db.select().from(userAvatarFileRefTable)
       expect(refs).toHaveLength(1)
       expect(refs[0].fileEntryId).toBe(fileId)
       expect(refs[0].role).toBe('avatar')

@@ -935,6 +935,10 @@
           "description": "Εκτελεί εντολές κελύφους στο περιβάλλον σας",
           "label": "Bash"
         },
+        "CherryKbManage": {
+          "description": "[to be translated]:Adds, deletes, or refreshes documents in your knowledge bases",
+          "label": "[to be translated]:Manage Knowledge"
+        },
         "CherryKbSearch": {
           "description": "Αναζητά τις βάσεις γνώσης σας",
           "label": "Αναζήτηση Γνώσης"
@@ -3162,12 +3166,22 @@
           "agent_title": "Νέος Πράκτορας",
           "assistant_title": "Νέος Βοηθός",
           "avatar_aria": "Επιλέξτε άβαταρ",
+          "back": "[to be translated]:Back",
+          "capability": {
+            "import": "[to be translated]:Import skill",
+            "no_skills": "[to be translated]:No skills installed",
+            "search": "[to be translated]:Search skills"
+          },
           "description_placeholder": "Περιγράψτε για τι χρησιμεύει...",
-          "dialog_description": "Δημιούργησε έναν ελαφρύ βοηθό ή πράκτορα.",
-          "model_placeholder": "Επιλέξτε ένα μοντέλο",
-          "model_required": "Παρακαλώ επιλέξτε ένα μοντέλο",
+          "guided_progress": "[to be translated]:Guided setup · Step {{current}} of {{total}}",
           "name_placeholder": "Εισάγετε ένα όνομα",
-          "name_required": "Παρακαλώ εισάγετε ένα όνομα",
+          "next": "[to be translated]:Next",
+          "step": {
+            "basic": "[to be translated]:Basic info",
+            "capability": "[to be translated]:Skills",
+            "knowledge": "[to be translated]:Knowledge",
+            "persona": "[to be translated]:Persona"
+          },
           "submit": "Δημιουργία",
           "submit_failed": "Η δημιουργία απέτυχε"
         },
@@ -4711,7 +4725,6 @@
     "baichuan": "Παράκειμαι",
     "baidu-cloud": "Baidu Cloud Qianfan",
     "burncloud": "BurnCloud",
-    "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
@@ -4767,7 +4780,6 @@
     "tencent-cloud-ti": "Tencent Cloud TI",
     "tesseract": "Τέσσερακς",
     "together": "Together",
-    "tokenflux": "TokenFlux",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "China Telecom Xiran",
@@ -6466,6 +6478,8 @@
         "logo_upload_label": "Μεταφόρτωση Logo",
         "name": "Όνομα",
         "name_placeholder": "Παρακαλώ εισάγετε το όνομα",
+        "remove_confirm_description": "Διαγραφή προσαρμοσμένης μίνι εφαρμογής \"{{name}}\"; Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.",
+        "remove_confirm_title": "Διαγραφή προσαρμοσμένης μίνι εφαρμογής;",
         "remove_error": "Αποτυχία διαγραφής της προσαρμοσμένης εφαρμογής.",
         "remove_success": "Η προσαρμοσμένη εφαρμογή διαγράφηκε επιτυχώς.",
         "save_error": "Αποτυχία αποθήκευσης της προσαρμοσμένης εφαρμογής.",
@@ -6494,6 +6508,7 @@
         "title": "Φίλτραρισμα περιοχής για μικρές εφαρμογές"
       },
       "reset_tooltip": "Επαναφορά στις προεπιλεγμένες τιμές",
+      "title": "Ρυθμίσεις Mini Apps",
       "visible": "Εμφανιζόμενα μικροπρογράμματα"
     },
     "model": "Πρόεδρος Υπηρεσίας",
@@ -6645,7 +6660,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
-        "sync_apply_default_in_use": "[to be translated]:Some models are in use as the default model and cannot be removed.",
+        "sync_apply_default_in_use": "Κάποια μοντέλα χρησιμοποιούνται ως προεπιλεγμένα και δεν μπορούν να αφαιρεθούν.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",
@@ -6967,7 +6982,6 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Τομέας επιτάχυνσης",
-          "backup": "Τομέας αντιγράφων ασφαλείας",
           "international": "Διεθνής τομέας"
         }
       },
@@ -7440,6 +7454,7 @@
           "exa": "API νευρωνικής αναζήτησης για εφαρμογές τεχνητής νοημοσύνης, βελτιστοποιημένο για σημασιολογική ανάκτηση από τον ιστό.",
           "exa_mcp": "Κάντε διαθέσιμη την αναζήτηση Exa στους πράκτορες μέσω του διακομιστή Exa MCP.",
           "fetch": "Ενσωματωμένος πάροχος λήψης URL. Ανακτά περιεχόμενο ιστοσελίδων από ένα URL για την εμπλουτισμό των αποτελεσμάτων αναζήτησης.",
+          "firecrawl": "[to be translated]:Firecrawl crawler and search service, optimized to turn websites into Markdown.",
           "jina": "APIs αναζήτησης και ανάγνωσης Jina Reader για την ανάκτηση καθαρού περιεχομένου από τον ιστό.",
           "querit": "Υπηρεσία αναζήτησης για εφαρμογές AI με αποτελέσματα ανάκτησης από τον ιστό.",
           "searxng": "Αυτο-φιλοξενούμενη δωρεάν μηχανή μετα-αναζήτησης στο διαδίκτυο σε πολλές πηγές.",
