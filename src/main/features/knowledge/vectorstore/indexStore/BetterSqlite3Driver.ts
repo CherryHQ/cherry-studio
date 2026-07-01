@@ -49,6 +49,11 @@ function toBindable(value: SqlValue): Bindable {
  * ride WAL / busy_timeout. (Holding BEGIN across a transaction callback's own
  * event-loop yield is safe here precisely because the base lock blocks any other
  * writer from issuing a nested BEGIN.)
+ *
+ * NOTE (future KB-owner cleanup): the driver trusts callers to hold the base lock and does not
+ * self-check it. A cheap `transactionActive` reentrancy assertion in {@link transaction} could
+ * turn a forgotten lock into an explicit driver error instead of SQLite's opaque "cannot start
+ * a transaction within a transaction" — worth considering, intentionally left out of this migration.
  */
 export class BetterSqlite3Driver implements SqliteDriver {
   private closed = false

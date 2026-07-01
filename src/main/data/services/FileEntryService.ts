@@ -163,7 +163,7 @@ export interface FileEntryService {
   /**
    * Cursor-and-count list backing `GET /files/entries`. Returns
    * `{ items, total, nextCursor }` matching the DataApi cursor response shape,
-   * doing the select + count in a single round-trip via `Promise.all`.
+   * running the page select and the total count as two sequential synchronous queries.
    *
    * Defaults: `limit = 50`, `sortBy = 'createdAt'`, `sortOrder = 'asc'`.
    * Trashed filter defaults to "active only" when `inTrash` is omitted, matching

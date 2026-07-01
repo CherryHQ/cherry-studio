@@ -58,12 +58,12 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
 
     POST: async ({ params, body }) => {
       const parsed = AddProviderApiKeySchema.parse(body)
-      return await providerService.addApiKey(params.providerId, parsed.key, parsed.label)
+      return providerService.addApiKey(params.providerId, parsed.key, parsed.label)
     },
 
     PUT: async ({ params, body }) => {
       const parsed = ReplaceProviderApiKeysSchema.parse(body)
-      return await providerService.replaceApiKeys(params.providerId, parsed.keys)
+      return providerService.replaceApiKeys(params.providerId, parsed.keys)
     }
   },
 
