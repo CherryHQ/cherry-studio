@@ -1939,6 +1939,7 @@
       "to_file": "Save as Image"
     },
     "code": "Code",
+    "code_block_progress": "Generating {{language}} · {{lines}} lines · {{characters}} chars",
     "empty_preview": "No content to display",
     "generating": "Generating",
     "preview": "Preview",
