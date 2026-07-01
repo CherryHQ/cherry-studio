@@ -464,6 +464,16 @@ vi.mock('@cherrystudio/ui', () => {
       const context = React.useContext(PopoverContext)
       return context.open ? React.createElement('div', { ...props, 'data-testid': 'popover-content' }, children) : null
     },
+    ColorPicker: ({ children, value, defaultValue, onChange, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'color-picker' }, children),
+    ColorPickerSelection: (props) => React.createElement('div', { ...props, 'data-testid': 'color-picker-selection' }),
+    ColorPickerHue: (props) => React.createElement('div', { ...props, 'data-testid': 'color-picker-hue' }),
+    ColorPickerAlpha: (props) => React.createElement('div', { ...props, 'data-testid': 'color-picker-alpha' }),
+    ColorPickerEyeDropper: ({ size, ...props }) =>
+      React.createElement('button', { ...props, type: 'button', 'data-testid': 'color-picker-eye-dropper' }),
+    ColorPickerOutput: ({ size, ...props }) =>
+      React.createElement('button', { ...props, type: 'button', 'data-testid': 'color-picker-output' }),
+    ColorPickerFormat: (props) => React.createElement('div', { ...props, 'data-testid': 'color-picker-format' }),
     MenuList: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'menu-list' }, children),
     MenuDivider: (props) => React.createElement('div', { ...props, 'data-testid': 'menu-divider' }),

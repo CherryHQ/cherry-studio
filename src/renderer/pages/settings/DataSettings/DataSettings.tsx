@@ -57,7 +57,7 @@ const DataSettings: FC = () => {
   ]
 
   return (
-    <RowFlex className="flex-1">
+    <RowFlex className="min-w-0 flex-1">
       <div
         className={`flex flex-col ${settingsSubmenuScrollClassName} [&_.iconfont]:text-current [&_.iconfont]:leading-4`}>
         <PageHeader title={t('settings.data.title')} />
@@ -84,7 +84,7 @@ const DataSettings: FC = () => {
           </MenuList>
         </Scrollbar>
       </div>
-      <SettingsContentColumn theme={theme}>
+      <SettingsContentColumn theme={theme} className="min-w-0">
         {menu === 'data' && <BasicDataSettings />}
         {menu === 'webdav' && <WebDavSettings />}
         {menu === 'nutstore' && <NutstoreSettings />}

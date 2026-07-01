@@ -83,7 +83,8 @@ vi.mock('@cherrystudio/ui', () => {
     DialogFooter: passthrough('div'),
     DialogHeader: passthrough('div'),
     DialogTitle: passthrough('div'),
-    Input: passthrough('input')
+    Input: passthrough('input'),
+    Tooltip: childrenOnly
   }
 })
 

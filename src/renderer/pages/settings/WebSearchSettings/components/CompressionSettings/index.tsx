@@ -9,7 +9,7 @@ import CutoffSettings from './CutoffSettings'
 
 const settingRowClassName = 'items-center justify-between gap-6 py-1'
 const settingLabelClassName = 'min-w-0 flex-1'
-const selectTriggerClassName = 'h-8 w-56 text-sm'
+const selectTriggerClassName = 'h-8 min-w-0 max-w-56 flex-1 text-sm'
 
 const CompressionSettings = () => {
   const { t } = useTranslation()

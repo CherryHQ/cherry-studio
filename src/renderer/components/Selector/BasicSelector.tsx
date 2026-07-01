@@ -172,7 +172,7 @@ const Selector = <V extends string | number>({
           aria-selected={isSelected}
           disabled={disabled || option.disabled}
           className={cn(
-            'flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-hidden transition-colors',
+            'flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-hidden transition-colors',
             'hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground',
             'disabled:pointer-events-none disabled:opacity-50',
             level > 0 && 'pl-4'
@@ -191,7 +191,7 @@ const Selector = <V extends string | number>({
     <Popover open={open && !disabled} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
-          variant="secondary"
+          variant="ghost"
           size="sm"
           role="combobox"
           aria-label={accessibleLabel || undefined}
@@ -199,15 +199,15 @@ const Selector = <V extends string | number>({
           aria-disabled={disabled || undefined}
           tabIndex={disabled ? -1 : 0}
           className={cn(
-            'min-w-0 text-left leading-none',
-            open && !disabled && 'bg-secondary-active',
+            'min-w-0 justify-between rounded-lg bg-muted/50 text-left leading-none hover:bg-muted',
+            open && !disabled && 'bg-muted',
             disabled && 'cursor-not-allowed opacity-60',
             isPlaceholder && 'text-muted-foreground'
           )}
           onKeyDown={handleTriggerKeyDown}
           style={{ fontSize: size, ...style }}>
           <span className="min-w-0 truncate">{label}</span>
-          <ChevronDown aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
+          <ChevronDown aria-hidden="true" className="lucide-custom size-3.5 shrink-0 text-muted-foreground/40" />
         </Button>
       </PopoverTrigger>
       <PopoverContent

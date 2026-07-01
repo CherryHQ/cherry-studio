@@ -62,10 +62,10 @@ export const LanDeviceCard: FC<LanDeviceCardProps> = ({
         // Hover state
         'hover:-translate-y-px hover:border-[var(--color-primary-hover)] hover:shadow-md',
         // Focus state
-        'focus-visible:border-[var(--color-primary)] focus-visible:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]',
+        'focus-visible:border-[var(--color-primary)] focus-visible:shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary)_20%,transparent)]',
         // Connected state
         isConnected
-          ? 'border-[var(--color-primary)] bg-[rgba(24,144,255,0.04)]'
+          ? 'border-[var(--color-primary)] bg-primary/5'
           : 'border-[var(--color-border)] bg-[var(--color-background)]',
         // Disabled state
         isDisabled && 'pointer-events-none translate-y-0 opacity-70 shadow-none'

@@ -341,12 +341,12 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
 
 const toolbarButtonClassName = ({ disabled = false, active = false }: { disabled?: boolean; active?: boolean } = {}) =>
   cn(
-    'rounded shadow-none active:scale-95',
+    'rounded shadow-none active:scale-95 [&_svg]:[stroke-width:1.6]',
     disabled
       ? 'cursor-default text-foreground-muted hover:bg-transparent hover:text-foreground-muted active:scale-100'
       : active
         ? 'text-primary hover:text-primary'
-        : 'text-foreground-secondary hover:text-foreground'
+        : 'text-foreground/80 hover:text-foreground'
   )
 
 export default MinimalToolbar

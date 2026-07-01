@@ -449,7 +449,7 @@ export function SelectorShell({
                 className="flex items-center justify-between gap-3 border-border border-b px-3 py-2"
                 data-selector-shell-chrome="multi-select"
                 data-testid={multiSelect.rowTestId}>
-                <div className="flex min-w-0 flex-1 items-center gap-1 text-[10px] text-muted-foreground">
+                <div className="text-(length:--font-size-body-2xs) flex min-w-0 flex-1 items-center gap-1 text-muted-foreground">
                   <span className="truncate">{multiSelect.label}</span>
                   {multiSelect.hint ? (
                     <span className="truncate text-muted-foreground/60">{multiSelect.hint}</span>
