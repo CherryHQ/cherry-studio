@@ -1,7 +1,7 @@
-import { execSync } from 'node:child_process'
 import os from 'node:os'
 
 import { isMac, isWin } from '@main/core/platform'
+import { app } from 'electron'
 
 export const getDeviceType = () => (isMac ? 'mac' : isWin ? 'windows' : 'linux')
 
@@ -19,39 +19,27 @@ export const getCpuName = () => {
   }
 }
 
-export const getGpuNames = (): string[] => {
-  try {
-    if (isWin) {
-      // PowerShell CIM query returns one GPU name per line.
-      const output = execSync(
-        'powershell -NoProfile -Command "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name"',
-        { encoding: 'utf-8', windowsHide: true }
-      )
-      return output
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean)
-    }
+/** PCI vendor id for Intel GPUs. */
+const INTEL_GPU_VENDOR_ID = 0x8086
 
-    if (isMac) {
-      // system_profiler reports each GPU under a "Chipset Model:" entry.
-      const output = execSync('system_profiler SPDisplaysDataType', { encoding: 'utf-8' })
-      return output
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter((line) => line.startsWith('Chipset Model:'))
-        .map((line) => line.replace('Chipset Model:', '').trim())
-        .filter(Boolean)
-    }
+/** Minimal shape of the `app.getGPUInfo('basic')` result we rely on. */
+interface BasicGpuInfo {
+  gpuDevice?: Array<{ vendorId?: number }>
+}
 
-    // Linux: lspci lists VGA/3D/Display controllers.
-    const output = execSync('lspci', { encoding: 'utf-8' })
-    return output
-      .split(/\r?\n/)
-      .filter((line) => /VGA compatible controller|3D controller|Display controller/i.test(line))
-      .map((line) => line.replace(/^.*controller:\s*/i, '').trim())
-      .filter(Boolean)
-  } catch {
-    return []
-  }
+let intelGpuProbe: Promise<boolean> | undefined
+
+/**
+ * Whether the machine has an Intel GPU (required by OVMS).
+ *
+ * Uses Electron's `app.getGPUInfo('basic')`, which returns GPU info already
+ * collected by Chromium's GPU process — no subprocess, cross-platform-uniform.
+ * The result (the Promise itself) is memoized so the query runs at most once.
+ * Empty device list / software rendering / any error resolves to `false`.
+ */
+export const hasIntelGpu = (): Promise<boolean> => {
+  intelGpuProbe ??= (app.getGPUInfo('basic') as Promise<BasicGpuInfo>)
+    .then((info) => info?.gpuDevice?.some((device) => device?.vendorId === INTEL_GPU_VENDOR_ID) ?? false)
+    .catch(() => false)
+  return intelGpuProbe
 }

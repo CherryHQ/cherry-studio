@@ -7,7 +7,6 @@ export {
   onArch,
   onCpuVendor,
   onEnvVar,
-  onGpuVendor,
   onPlatform,
   when
 } from './conditions'
