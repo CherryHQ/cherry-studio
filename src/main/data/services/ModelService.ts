@@ -872,6 +872,20 @@ class ModelService {
   async delete(providerId: string, modelId: string): Promise<void> {
     assertManagedCherryAiDefaultModelMutationAllowed(providerId, modelId, `delete model ${providerId}/${modelId}`)
 
+    const uniqueModelId = createUniqueModelId(providerId, modelId)
+    {
+      const preferenceService = application.get('PreferenceService')
+      const defaultModelId = preferenceService.get('chat.default_model_id')
+      const quickModelId = preferenceService.get('feature.quick_assistant.model_id')
+      const translateModelId = preferenceService.get('feature.translate.model_id')
+      if (uniqueModelId === defaultModelId || uniqueModelId === quickModelId || uniqueModelId === translateModelId) {
+        throw DataApiErrorFactory.invalidOperation(
+          `delete model ${uniqueModelId}`,
+          'model is in use as the default model'
+        )
+      }
+    }
+
     await withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx(async (tx) => {
@@ -920,6 +934,21 @@ class ModelService {
         `delete model ${item.providerId}/${item.modelId}`
       )
       uniqueItems.set(createUniqueModelId(item.providerId, item.modelId), item)
+    }
+
+    {
+      const preferenceService = application.get('PreferenceService')
+      const defaultModelId = preferenceService.get('chat.default_model_id')
+      const quickModelId = preferenceService.get('feature.quick_assistant.model_id')
+      const translateModelId = preferenceService.get('feature.translate.model_id')
+      for (const [id, item] of uniqueItems) {
+        if (id === defaultModelId || id === quickModelId || id === translateModelId) {
+          throw DataApiErrorFactory.invalidOperation(
+            `delete model ${item.providerId}/${item.modelId}`,
+            'model is in use as the default model'
+          )
+        }
+      }
     }
 
     const ids = [...uniqueItems.keys()]

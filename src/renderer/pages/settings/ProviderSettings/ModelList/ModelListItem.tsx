@@ -32,7 +32,8 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onE
       window.toast.error(
         getModelOperationErrorMessage(error, {
           fallback: t('settings.models.manage.operation_failed'),
-          modelInUseByKnowledgeBase: t('settings.models.manage.model_in_use_by_knowledge_base')
+          modelInUseByKnowledgeBase: t('settings.models.manage.model_in_use_by_knowledge_base'),
+          modelInUseAsDefault: t('settings.models.manage.sync_apply_default_in_use')
         })
       )
     })
@@ -89,7 +90,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onE
                 size="icon-sm"
                 className="inline-flex size-5 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/35 opacity-0 shadow-none transition-opacity hover:bg-accent/50 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
                 aria-label={t('settings.models.manage.remove_model')}
-                disabled={disabled || !!model.presetModelId}
+                disabled={disabled}
                 onClick={handleDelete}>
                 <Trash2 className="size-3" />
               </Button>
