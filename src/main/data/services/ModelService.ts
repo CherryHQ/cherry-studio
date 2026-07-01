@@ -39,6 +39,27 @@ import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 const logger = loggerService.withContext('DataApi:ModelService')
 const SQLITE_INARRAY_CHUNK = 500
 
+/** Reason string for DataApiError when deleting a model currently set as a user default */
+const MODEL_IN_USE_AS_DEFAULT_REASON = 'model is in use as the default model'
+
+/** Resolve the set of UniqueModelIds currently set as user defaults (chat / quick-assistant / translate). */
+function getUserDefaultModelIds(): Set<string> {
+  const preferenceService = application.get('PreferenceService')
+  const ids = [
+    preferenceService.get('chat.default_model_id'),
+    preferenceService.get('feature.quick_assistant.model_id'),
+    preferenceService.get('feature.translate.model_id')
+  ].filter((id): id is string => typeof id === 'string' && id.length > 0)
+  return new Set(ids)
+}
+
+/** Throw INVALID_OPERATION if the model is currently set as a user default. */
+function assertModelNotUsedAsDefaultModel(uniqueModelId: string, operation: string): void {
+  if (getUserDefaultModelIds().has(uniqueModelId)) {
+    throw DataApiErrorFactory.invalidOperation(operation, MODEL_IN_USE_AS_DEFAULT_REASON)
+  }
+}
+
 function assertManagedCherryAiDefaultModelPatchAllowed(providerId: string, modelId: string, dto: UpdateModelDto): void {
   if (!isManagedCherryAiDefaultModel(providerId, modelId) || Object.keys(dto).length === 0) {
     return
@@ -382,12 +403,9 @@ class ModelService {
     // from being deleted during pull-reconcile. Deleting the user's chosen model while
     // the preference still points to it causes 404s on every readDefaultModel() call.
     const userDefaultIds = new Set<string>()
-    const preferenceService = application.get('PreferenceService')
-    const defaultModelId = preferenceService.get('chat.default_model_id')
-    const quickModelId = preferenceService.get('feature.quick_assistant.model_id')
-    const translateModelId = preferenceService.get('feature.translate.model_id')
+    const userDefaultsSet = getUserDefaultModelIds()
     for (const row of rows) {
-      if (row.id === defaultModelId || row.id === quickModelId || row.id === translateModelId) {
+      if (userDefaultsSet.has(row.id)) {
         userDefaultIds.add(row.id)
       }
     }
@@ -873,18 +891,7 @@ class ModelService {
     assertManagedCherryAiDefaultModelMutationAllowed(providerId, modelId, `delete model ${providerId}/${modelId}`)
 
     const uniqueModelId = createUniqueModelId(providerId, modelId)
-    {
-      const preferenceService = application.get('PreferenceService')
-      const defaultModelId = preferenceService.get('chat.default_model_id')
-      const quickModelId = preferenceService.get('feature.quick_assistant.model_id')
-      const translateModelId = preferenceService.get('feature.translate.model_id')
-      if (uniqueModelId === defaultModelId || uniqueModelId === quickModelId || uniqueModelId === translateModelId) {
-        throw DataApiErrorFactory.invalidOperation(
-          `delete model ${uniqueModelId}`,
-          'model is in use as the default model'
-        )
-      }
-    }
+    assertModelNotUsedAsDefaultModel(uniqueModelId, `delete model ${uniqueModelId}`)
 
     await withSqliteErrors(
       () =>
@@ -923,19 +930,8 @@ class ModelService {
       uniqueItems.set(createUniqueModelId(item.providerId, item.modelId), item)
     }
 
-    {
-      const preferenceService = application.get('PreferenceService')
-      const defaultModelId = preferenceService.get('chat.default_model_id')
-      const quickModelId = preferenceService.get('feature.quick_assistant.model_id')
-      const translateModelId = preferenceService.get('feature.translate.model_id')
-      for (const [id, item] of uniqueItems) {
-        if (id === defaultModelId || id === quickModelId || id === translateModelId) {
-          throw DataApiErrorFactory.invalidOperation(
-            `delete model ${item.providerId}/${item.modelId}`,
-            'model is in use as the default model'
-          )
-        }
-      }
+    for (const [id, item] of uniqueItems) {
+      assertModelNotUsedAsDefaultModel(id, `delete model ${item.providerId}/${item.modelId}`)
     }
 
     const ids = [...uniqueItems.keys()]

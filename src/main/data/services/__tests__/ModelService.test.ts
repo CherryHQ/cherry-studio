@@ -1050,6 +1050,31 @@ describe('ModelService.delete', () => {
     const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, targetModelId))
     expect(rows).toHaveLength(1)
   })
+
+  it('rejects deletion of a model currently set as the user default', async () => {
+    const targetModelId = createUniqueModelId('openai', 'gpt-4o')
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o', { id: targetModelId, name: 'GPT-4o' }))
+
+    const preferenceService = application.get('PreferenceService')
+    const originalGet = preferenceService.get.getMockImplementation()
+    preferenceService.get.mockImplementation((key: string) => {
+      if (key === 'chat.default_model_id') return targetModelId
+      return null
+    })
+
+    try {
+      await expect(modelService.delete('openai', 'gpt-4o')).rejects.toMatchObject({
+        code: ErrorCode.INVALID_OPERATION,
+        status: 400
+      })
+
+      const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, targetModelId))
+      expect(rows).toHaveLength(1)
+    } finally {
+      preferenceService.get.mockImplementation(originalGet)
+    }
+  })
 })
 
 describe('ModelService.bulkDelete', () => {
@@ -1234,6 +1259,43 @@ describe('ModelService.bulkDelete', () => {
 
     expect(openAiRows).toHaveLength(1)
     expect(cherryAiRows).toHaveLength(1)
+  })
+
+  it('rejects bulk delete containing a model set as the user default and rolls back other rows', async () => {
+    const defaultId = createUniqueModelId('openai', 'gpt-4o')
+    const customId = createUniqueModelId('openai', 'gpt-4o-mini')
+
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db
+      .insert(userModelTable)
+      .values([
+        modelRow('openai', 'gpt-4o', { id: defaultId, name: 'GPT-4o' }),
+        modelRow('openai', 'gpt-4o-mini', { id: customId, name: 'GPT-4o mini' })
+      ])
+
+    const preferenceService = application.get('PreferenceService')
+    const originalGet = preferenceService.get.getMockImplementation()
+    preferenceService.get.mockImplementation((key: string) => {
+      if (key === 'chat.default_model_id') return defaultId
+      return null
+    })
+
+    try {
+      await expect(
+        modelService.bulkDelete([
+          { providerId: 'openai', modelId: 'gpt-4o' },
+          { providerId: 'openai', modelId: 'gpt-4o-mini' }
+        ])
+      ).rejects.toMatchObject({
+        code: ErrorCode.INVALID_OPERATION,
+        status: 400
+      })
+
+      const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.providerId, 'openai'))
+      expect(rows.map((row) => row.id).sort()).toEqual([customId, defaultId].sort())
+    } finally {
+      preferenceService.get.mockImplementation(originalGet)
+    }
   })
 })
 
