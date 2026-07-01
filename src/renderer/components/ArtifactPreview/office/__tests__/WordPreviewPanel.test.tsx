@@ -1,14 +1,37 @@
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  fsRead: vi.fn(),
-  renderAsync: vi.fn()
-}))
+const mocks = vi.hoisted(() => {
+  class MockIntersectionObserver {
+    callback: IntersectionObserverCallback
+    observed: HTMLElement[] = []
+
+    constructor(callback: IntersectionObserverCallback) {
+      this.callback = callback
+      instances.push(this)
+    }
+
+    observe(element: Element) {
+      this.observed.push(element as HTMLElement)
+    }
+
+    unobserve() {}
+    disconnect() {}
+  }
+
+  const instances: InstanceType<typeof MockIntersectionObserver>[] = []
+
+  return {
+    fsRead: vi.fn(),
+    renderAsync: vi.fn(),
+    MockIntersectionObserver,
+    intersectionObserverInstances: instances
+  }
+})
 
 vi.mock('docx-preview', () => ({
   renderAsync: mocks.renderAsync
@@ -43,6 +66,7 @@ import WordPreviewPanel from '../WordPreviewPanel'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.intersectionObserverInstances.length = 0
   mocks.fsRead.mockResolvedValue(new Uint8Array([80, 75, 3, 4]))
   mocks.renderAsync.mockImplementation(async (_data: Uint8Array, bodyContainer: HTMLElement) => {
     bodyContainer.innerHTML = '<section>Page 1</section><section>Page 2</section>'
@@ -56,10 +80,12 @@ beforeEach(() => {
     }
   })
   HTMLElement.prototype.scrollIntoView = vi.fn()
+  vi.stubGlobal('IntersectionObserver', mocks.MockIntersectionObserver)
 })
 
 afterEach(() => {
   cleanup()
+  vi.unstubAllGlobals()
 })
 
 describe('WordPreviewPanel', () => {
@@ -95,6 +121,31 @@ describe('WordPreviewPanel', () => {
 
     await waitFor(() => expect(screen.getByTestId('docx-preview-zoom-value')).toHaveTextContent('110%'))
     expect(screen.getByTestId('docx-preview-content')).toHaveAttribute('data-zoom', '1.1')
+  })
+
+  it('tracks the current page as the topmost visible page while scrolling', async () => {
+    render(<WordPreviewPanel filePath="/tmp/report.docx" fileName="report.docx" refreshKey={0} sourceSize={1024} />)
+
+    await waitFor(() => expect(screen.getByTestId('docx-preview-page-indicator')).toHaveTextContent('1 / 2'))
+
+    const observer = mocks.intersectionObserverInstances.at(-1)
+    expect(observer).toBeDefined()
+    const [page1, page2] = observer!.observed
+    expect(page1.dataset.docxPreviewPage).toBe('1')
+    expect(page2.dataset.docxPreviewPage).toBe('2')
+
+    act(() => {
+      observer!.callback(
+        [
+          { target: page1, isIntersecting: false } as IntersectionObserverEntry,
+          { target: page2, isIntersecting: true } as IntersectionObserverEntry
+        ],
+        observer as unknown as IntersectionObserver
+      )
+    })
+
+    await waitFor(() => expect(screen.getByTestId('docx-preview-page-indicator')).toHaveTextContent('2 / 2'))
+    expect(HTMLElement.prototype.scrollIntoView).not.toHaveBeenCalled()
   })
 
   it('rejects oversized sources before reading bytes', async () => {

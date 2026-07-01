@@ -191,6 +191,36 @@ const WordPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize }: WordPr
     }
   }, [filePath, focusContainer, refreshKey, sourceSize])
 
+  useEffect(() => {
+    const scrollRoot = containerRef.current
+    const bodyContainer = bodyRef.current
+    if (!scrollRoot || !bodyContainer || pageCount <= 0) return
+
+    const pages = Array.from(bodyContainer.querySelectorAll<HTMLElement>('.docx-preview-page'))
+    if (pages.length === 0) return
+
+    const visiblePages = new Set<HTMLElement>()
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const page = entry.target as HTMLElement
+          if (entry.isIntersecting) {
+            visiblePages.add(page)
+          } else {
+            visiblePages.delete(page)
+          }
+        }
+        const topmost = pages.find((page) => visiblePages.has(page))
+        const pageNumber = topmost ? Number(topmost.dataset.docxPreviewPage) : null
+        if (pageNumber && Number.isFinite(pageNumber)) setCurrentPage(pageNumber)
+      },
+      { root: scrollRoot, threshold: [0, 0.5, 1] }
+    )
+
+    pages.forEach((page) => observer.observe(page))
+    return () => observer.disconnect()
+  }, [pageCount])
+
   if (error) {
     return <EmptyState icon={AlertCircle} title={t('common.error')} description={t('files.preview.error')} />
   }
