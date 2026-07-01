@@ -5,7 +5,7 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import { SettingCard, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const logger = loggerService.withContext('SiyuanSettings')
 
@@ -74,69 +74,67 @@ const SiyuanSettings: FC = () => {
   return (
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.siyuan.title')}</SettingTitle>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.siyuan.api_url')}</SettingRowTitle>
-        <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
-          <Input
-            type="text"
-            value={siyuanApiUrl || ''}
-            onChange={handleApiUrlChange}
-            placeholder={t('settings.data.siyuan.api_url_placeholder')}
-          />
-        </RowFlex>
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle style={{ display: 'flex', alignItems: 'center' }}>
-          <span>{t('settings.data.siyuan.token.label')}</span>
-          <InfoTooltip
-            content={t('settings.data.siyuan.token.help')}
-            placement="left"
-            iconProps={{ className: 'text-text-2 cursor-pointer ml-1' }}
-            onClick={handleSiyuanHelpClick}
-          />
-        </SettingRowTitle>
-        <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
-          <RowFlex className="w-full min-w-0 items-center gap-1.25">
+      <SettingCard>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.siyuan.api_url')}</SettingRowTitle>
+          <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
             <Input
-              type="password"
-              value={siyuanToken || ''}
-              onChange={handleTokenChange}
-              onBlur={handleTokenChange}
-              placeholder={t('settings.data.siyuan.token_placeholder')}
-              style={{ width: '100%' }}
+              type="text"
+              value={siyuanApiUrl || ''}
+              onChange={handleApiUrlChange}
+              placeholder={t('settings.data.siyuan.api_url_placeholder')}
             />
-            <Button onClick={handleCheckConnection} variant="outline" className="h-9 shrink-0">
-              {t('settings.data.siyuan.check.button')}
-            </Button>
           </RowFlex>
-        </RowFlex>
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.siyuan.box_id')}</SettingRowTitle>
-        <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
-          <Input
-            type="text"
-            value={siyuanBoxId || ''}
-            onChange={handleBoxIdChange}
-            placeholder={t('settings.data.siyuan.box_id_placeholder')}
-          />
-        </RowFlex>
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.siyuan.root_path')}</SettingRowTitle>
-        <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
-          <Input
-            type="text"
-            value={siyuanRootPath || ''}
-            onChange={handleRootPathChange}
-            placeholder={t('settings.data.siyuan.root_path_placeholder')}
-          />
-        </RowFlex>
-      </SettingRow>
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle style={{ display: 'flex', alignItems: 'center' }}>
+            <span>{t('settings.data.siyuan.token.label')}</span>
+            <InfoTooltip
+              content={t('settings.data.siyuan.token.help')}
+              placement="left"
+              iconProps={{ className: 'text-text-2 cursor-pointer ml-1' }}
+              onClick={handleSiyuanHelpClick}
+            />
+          </SettingRowTitle>
+          <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
+            <RowFlex className="w-full min-w-0 items-center gap-1.25">
+              <Input
+                type="password"
+                value={siyuanToken || ''}
+                onChange={handleTokenChange}
+                onBlur={handleTokenChange}
+                placeholder={t('settings.data.siyuan.token_placeholder')}
+                style={{ width: '100%' }}
+              />
+              <Button onClick={handleCheckConnection} variant="outline" className="h-8 shrink-0 rounded-lg">
+                {t('settings.data.siyuan.check.button')}
+              </Button>
+            </RowFlex>
+          </RowFlex>
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.siyuan.box_id')}</SettingRowTitle>
+          <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
+            <Input
+              type="text"
+              value={siyuanBoxId || ''}
+              onChange={handleBoxIdChange}
+              placeholder={t('settings.data.siyuan.box_id_placeholder')}
+            />
+          </RowFlex>
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.siyuan.root_path')}</SettingRowTitle>
+          <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
+            <Input
+              type="text"
+              value={siyuanRootPath || ''}
+              onChange={handleRootPathChange}
+              placeholder={t('settings.data.siyuan.root_path_placeholder')}
+            />
+          </RowFlex>
+        </SettingRow>
+      </SettingCard>
     </SettingGroup>
   )
 }

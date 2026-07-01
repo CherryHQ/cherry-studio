@@ -6,7 +6,7 @@ import { formatErrorMessage } from '@renderer/utils/error'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import { SettingCard, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const logger = loggerService.withContext('YuqueSettings')
 
@@ -84,47 +84,47 @@ const YuqueSettings: FC = () => {
   return (
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.yuque.title')}</SettingTitle>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.yuque.repo_url')}</SettingRowTitle>
-        <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
-          <Input
-            type="text"
-            value={yuqueUrl || ''}
-            onChange={handleYuqueRepoUrlChange}
-            placeholder={t('settings.data.yuque.repo_url_placeholder')}
-          />
-        </RowFlex>
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>
-          {t('settings.data.yuque.token')}
-          <InfoTooltip
-            content={t('settings.data.yuque.help')}
-            placement="left"
-            iconProps={{
-              className: 'text-text-2 cursor-pointer ml-1'
-            }}
-            onClick={handleYuqueHelpClick}
-          />
-        </SettingRowTitle>
-        <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
-          <RowFlex className="w-full min-w-0 items-center gap-1.25">
+      <SettingCard>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.yuque.repo_url')}</SettingRowTitle>
+          <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
             <Input
-              type="password"
-              value={yuqueToken || ''}
-              onChange={handleYuqueTokenChange}
-              onBlur={handleYuqueTokenChange}
-              placeholder={t('settings.data.yuque.token_placeholder')}
-              style={{ width: '100%' }}
+              type="text"
+              value={yuqueUrl || ''}
+              onChange={handleYuqueRepoUrlChange}
+              placeholder={t('settings.data.yuque.repo_url_placeholder')}
             />
-            <Button onClick={handleYuqueConnectionCheck} variant="outline" className="h-9 shrink-0">
-              {t('settings.data.yuque.check.button')}
-            </Button>
           </RowFlex>
-        </RowFlex>
-      </SettingRow>
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle>
+            {t('settings.data.yuque.token')}
+            <InfoTooltip
+              content={t('settings.data.yuque.help')}
+              placement="left"
+              iconProps={{
+                className: 'text-text-2 cursor-pointer ml-1'
+              }}
+              onClick={handleYuqueHelpClick}
+            />
+          </SettingRowTitle>
+          <RowFlex className="w-78.75 min-w-0 max-w-full items-center gap-1.25">
+            <RowFlex className="w-full min-w-0 items-center gap-1.25">
+              <Input
+                type="password"
+                value={yuqueToken || ''}
+                onChange={handleYuqueTokenChange}
+                onBlur={handleYuqueTokenChange}
+                placeholder={t('settings.data.yuque.token_placeholder')}
+                style={{ width: '100%' }}
+              />
+              <Button onClick={handleYuqueConnectionCheck} variant="outline" className="h-8 shrink-0 rounded-lg">
+                {t('settings.data.yuque.check.button')}
+              </Button>
+            </RowFlex>
+          </RowFlex>
+        </SettingRow>
+      </SettingCard>
     </SettingGroup>
   )
 }
