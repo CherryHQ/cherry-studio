@@ -565,6 +565,7 @@ describe('AgentComposer', () => {
 
   it('routes new session shortcuts through the explicit parent action', () => {
     const onNewSessionDraft = vi.fn()
+    const onCreateEmptySession = vi.fn()
 
     render(
       <AgentComposer
@@ -573,6 +574,7 @@ describe('AgentComposer', () => {
         sendMessage={mocks.sendMessage}
         stop={mocks.stop}
         onNewSessionDraft={onNewSessionDraft}
+        onCreateEmptySession={onCreateEmptySession}
         isStreaming={false}
       />
     )
@@ -580,6 +582,7 @@ describe('AgentComposer', () => {
     mocks.shortcutHandlers.get('topic.create')?.()
 
     expect(onNewSessionDraft).toHaveBeenCalledTimes(1)
+    expect(onCreateEmptySession).not.toHaveBeenCalled()
   })
 
   it('routes classic-layout new session shortcuts through the empty session action', () => {
@@ -605,7 +608,7 @@ describe('AgentComposer', () => {
     expect(onNewSessionDraft).not.toHaveBeenCalled()
   })
 
-  it('renders the empty session action before the tool menu and calls the explicit handler', () => {
+  it('puts the classic-layout empty session action first in the slash panel and calls the explicit handler', () => {
     mocks.sessionLayout = 'classic'
     const onCreateEmptySession = vi.fn()
 
@@ -621,19 +624,30 @@ describe('AgentComposer', () => {
     )
 
     const leftControls = screen.getByTestId('composer-left-controls')
-    const newSessionButton = within(leftControls).getByRole('button', { name: 'agent.session.new' })
     const modelButton = within(leftControls).getByRole('button', { name: /Claude Sonnet 4.5/ })
     const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
-    expect(newSessionButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(modelButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(newSessionButton.querySelector('svg')).toHaveClass('lucide-message-square-plus')
+    expect(toolMenuButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(within(leftControls).queryByRole('button', { name: 'agent.session.new' })).not.toBeInTheDocument()
 
-    fireEvent.click(newSessionButton)
+    const newSessionItem = mocks.surfaceProps?.rootPanelLeadingItems?.[0]
+    expect(newSessionItem).toEqual(
+      expect.objectContaining({
+        id: 'composer:new-session',
+        label: 'agent.session.new',
+        filterText: 'agent.session.new'
+      })
+    )
+    newSessionItem?.action?.({
+      context: {} as any,
+      action: 'enter',
+      item: newSessionItem
+    })
 
     expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps the tool menu at the far left in the modern layout', () => {
+  it('keeps the tool menu at the far left and puts the modern-layout new session action in the slash panel', () => {
+    const onNewSessionDraft = vi.fn()
     const onCreateEmptySession = vi.fn()
 
     render(
@@ -642,21 +656,36 @@ describe('AgentComposer', () => {
         sessionId="session-1"
         sendMessage={mocks.sendMessage}
         stop={mocks.stop}
+        onNewSessionDraft={onNewSessionDraft}
         onCreateEmptySession={onCreateEmptySession}
         isStreaming={false}
       />
     )
 
     const leftControls = screen.getByTestId('composer-left-controls')
-    const newSessionButton = within(leftControls).getByRole('button', { name: 'agent.session.new' })
     const agentButton = within(leftControls).getByRole('button', { name: /Agent/ })
     const modelButton = within(leftControls).getByRole('button', { name: /Claude Sonnet 4.5/ })
     const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
 
-    expect(toolMenuButton.compareDocumentPosition(newSessionButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(newSessionButton.compareDocumentPosition(agentButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(toolMenuButton.compareDocumentPosition(agentButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(agentButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(within(leftControls).queryByRole('button', { name: 'agent.session.new' })).not.toBeInTheDocument()
+
+    const newSessionItem = mocks.surfaceProps?.rootPanelLeadingItems?.[0]
+    expect(newSessionItem).toEqual(
+      expect.objectContaining({
+        id: 'composer:new-session',
+        label: 'agent.session.new'
+      })
+    )
+    newSessionItem?.action?.({
+      context: {} as any,
+      action: 'enter',
+      item: newSessionItem
+    })
+
+    expect(onNewSessionDraft).toHaveBeenCalledTimes(1)
+    expect(onCreateEmptySession).not.toHaveBeenCalled()
   })
 
   it('hides the empty session action without a handler', () => {
@@ -671,6 +700,7 @@ describe('AgentComposer', () => {
     )
 
     expect(screen.queryByRole('button', { name: 'agent.session.new' })).not.toBeInTheDocument()
+    expect(mocks.surfaceProps?.rootPanelLeadingItems).toEqual([])
   })
 
   it('passes attachment capabilities through the provider without effect mirroring', () => {

@@ -1135,7 +1135,7 @@ describe('ComposerSurface', () => {
     expect(sourceOnKeyDown).not.toHaveBeenCalled()
   })
 
-  it('appends additional items at the end of the QuickPanel root list', async () => {
+  it('places leading items before tool launchers and keeps additional items at the end of the QuickPanel root list', async () => {
     const onRootPanelOpen = vi.fn()
     render(
       <ComposerSurface
@@ -1149,6 +1149,13 @@ describe('ComposerSurface', () => {
             label: 'Generate image',
             description: 'Generate an image',
             icon: 'image'
+          }
+        ]}
+        rootPanelLeadingItems={[
+          {
+            id: 'new-topic',
+            label: 'New conversation',
+            icon: 'message-square-plus'
           }
         ]}
         rootPanelAdditionalItems={[
@@ -1185,6 +1192,7 @@ describe('ComposerSurface', () => {
     expect(mocks.quickPanelOpen).toHaveBeenCalledWith(
       expect.objectContaining({
         list: [
+          expect.objectContaining({ id: 'new-topic', label: 'New conversation' }),
           expect.objectContaining({ label: 'Generate image' }),
           expect.objectContaining({ id: 'skill:pdf', label: 'pdf', description: 'Read PDFs' })
         ]

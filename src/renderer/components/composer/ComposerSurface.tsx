@@ -134,6 +134,7 @@ export interface ComposerSurfaceProps {
   suggestionSources?: readonly ComposerSuggestionSource[]
   resourceProvider?: ComposerUnifiedPanelResourceProvider
   queueContent?: React.ReactNode
+  rootPanelLeadingItems?: readonly QuickPanelListItem[]
   rootPanelAdditionalItems?: readonly QuickPanelListItem[]
   onRootPanelOpen?: () => void
   onToolLauncherSelect?: ComposerRootPanelSelectHandler
@@ -496,6 +497,7 @@ export default function ComposerSurface({
   suggestionSources = [],
   resourceProvider,
   queueContent,
+  rootPanelLeadingItems,
   rootPanelAdditionalItems,
   onRootPanelOpen,
   onToolLauncherSelect,
@@ -777,6 +779,7 @@ export default function ComposerSurface({
     onToolLauncherSelect,
     quickPanel,
     resourceProvider,
+    rootPanelLeadingItems,
     rootPanelAdditionalItems,
     unifiedResourceItems
   })
@@ -786,6 +789,7 @@ export default function ComposerSurface({
     onToolLauncherSelect,
     quickPanel,
     resourceProvider,
+    rootPanelLeadingItems,
     rootPanelAdditionalItems,
     unifiedResourceItems
   }
@@ -802,7 +806,7 @@ export default function ComposerSurface({
       resourceItems?: readonly QuickPanelListItem[]
       triggerInfo?: QuickPanelTriggerInfo
     }): QuickPanelOpenOptions => {
-      const { getToolLaunchers, onToolLauncherSelect, quickPanel, rootPanelAdditionalItems } =
+      const { getToolLaunchers, onToolLauncherSelect, quickPanel, rootPanelAdditionalItems, rootPanelLeadingItems } =
         rootSuggestionStateRef.current
       const launchers = getToolLaunchers?.() ?? []
 
@@ -811,6 +815,7 @@ export default function ComposerSurface({
         inputAdapter,
         quickPanel,
         title: t('settings.quickPanel.title'),
+        leadingItems: rootPanelLeadingItems,
         additionalItems: rootPanelAdditionalItems,
         resourceItems,
         queryAnchor,

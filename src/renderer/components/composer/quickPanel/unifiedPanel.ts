@@ -217,6 +217,7 @@ export function createUnifiedQuickPanelOpenOptions(
     quickPanel: QuickPanelContextType
     onToolLauncherSelect?: ComposerRootPanelSelectHandler
     title?: string
+    leadingItems?: readonly QuickPanelListItem[]
     additionalItems?: readonly QuickPanelListItem[]
     resourceItems?: readonly QuickPanelListItem[]
     queryAnchor?: number
@@ -244,7 +245,13 @@ export function createUnifiedQuickPanelOpenOptions(
 
   return {
     title: options.title,
-    list: [...primaryItems, ...commandItems, ...(options.additionalItems ?? []), ...(options.resourceItems ?? [])],
+    list: [
+      ...(options.leadingItems ?? []),
+      ...primaryItems,
+      ...commandItems,
+      ...(options.additionalItems ?? []),
+      ...(options.resourceItems ?? [])
+    ],
     symbol: ComposerPanelSymbol.Root,
     queryAnchor: options.queryAnchor,
     triggerInfo: options.triggerInfo ?? { type: 'button' },
