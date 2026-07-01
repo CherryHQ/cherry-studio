@@ -625,9 +625,9 @@ function hasStreamingReasoningAfterLastTool(entries: readonly PartEntry[]): bool
 }
 
 /**
- * The big outer fold for the whole agentic process. It stays expanded while the
- * turn is active so tool activity remains readable, then collapses once the
- * message settles. The final answer renders outside, below this fold.
+ * The big outer fold for the whole agentic process. It stays collapsed by
+ * default and shows a bounded process preview while collapsed; expanding
+ * reveals the process in full. The final answer renders outside, below this fold.
  */
 const OuterProcessFold = React.memo(function OuterProcessFold({
   entries,
@@ -643,9 +643,9 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
   isProcessing: boolean
 }) {
   const { t } = useTranslation()
-  const shouldAutoExpand = isProcessing || message.status !== 'success'
-  const [isExpanded, setIsExpanded] = React.useState(() => shouldAutoExpand)
+  const [isExpanded, setIsExpanded] = React.useState(false)
   const contentId = React.useId()
+  const previewRef = React.useRef<HTMLDivElement | null>(null)
 
   const toolItems = useMemo(() => buildToolRenderItems(entries, message.id), [entries, message.id])
   const groupedEntries = useMemo(
@@ -653,6 +653,7 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
     [entries]
   )
   const showLiveProgress = (isProcessing || message.status !== 'success') && hasLiveProcessTail
+  const showPreview = !isExpanded && showLiveProgress && groupedEntries.length > 0
   const showDynamicHeader = showLiveProgress && !isExpanded
   const elapsedMs = usePlaceholderElapsedMs(showLiveProgress, message.createdAt)
   const elapsedText = showLiveProgress ? formatPlaceholderElapsed(elapsedMs, t) : undefined
@@ -661,8 +662,18 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
   const showBottomCollapseButton = isExpanded && toolCount > BOTTOM_COLLAPSE_TOOL_COUNT_THRESHOLD
 
   React.useEffect(() => {
-    setIsExpanded(shouldAutoExpand)
-  }, [shouldAutoExpand])
+    if (!showPreview) return
+
+    const preview = previewRef.current
+    if (!preview) return
+
+    if (typeof preview.scrollTo === 'function') {
+      preview.scrollTo({ top: preview.scrollHeight, behavior: 'smooth' })
+      return
+    }
+
+    preview.scrollTop = preview.scrollHeight
+  }, [groupedEntries, showPreview])
 
   const triggerClassName = [
     !showLiveProgress && '-ml-0.5',
@@ -692,9 +703,21 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
         />
       </button>
       <div aria-hidden="true" data-testid="tool-history-divider" className="my-1.5 h-px w-full bg-border-subtle" />
+      {showPreview && (
+        <div
+          ref={previewRef}
+          aria-hidden="true"
+          data-testid="tool-history-preview"
+          className="pointer-events-none h-24 w-full overflow-y-auto scroll-smooth rounded-md border border-border-subtle bg-muted/35 px-2.5 py-2 [scrollbar-width:thin]">
+          <div className="[&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper:empty]:hidden [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0!">
+            {groupedEntries.map((entry) => renderGroupedEntry(entry, message, false, false))}
+          </div>
+        </div>
+      )}
       {isExpanded && (
         <div
           id={contentId}
+          data-testid="tool-history-content"
           className="flex w-full flex-col gap-2 [&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper:empty]:hidden [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0!">
           {groupedEntries.map((entry) => renderGroupedEntry(entry, message, false, false))}
         </div>

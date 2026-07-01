@@ -1,5 +1,5 @@
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -320,11 +320,11 @@ describe('MessagePartsRenderer', () => {
       }
     ] as unknown as CherryMessagePart[])
 
-    // The live tool history starts expanded; the live header replaces the
-    // generic processing placeholder.
-    expect(screen.getByRole('button')).toHaveAttribute('aria-expanded', 'true')
+    // The live tool history stays collapsed and shows a bounded preview instead
+    // of the generic processing placeholder.
+    expect(screen.getByRole('button')).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByTestId('mock-placeholder')).toBeNull()
-    expect(screen.getByTestId('mock-message-tools')).toBeInTheDocument()
+    expect(within(screen.getByTestId('tool-history-preview')).getByTestId('mock-message-tools')).toBeInTheDocument()
   })
 
   it('shows the generating placeholder below answer text while streaming', () => {
@@ -597,6 +597,7 @@ describe('MessagePartsRenderer', () => {
     expect(screen.getAllByTestId('tool-history-divider')).toHaveLength(1)
     expect(screen.getByTestId('tool-history-divider')).toHaveClass('w-full')
     expect(screen.getByTestId('tool-history-divider').parentElement).toHaveClass('w-full')
+    expect(screen.queryByTestId('tool-history-preview')).toBeNull()
     expect(screen.getByTestId('mock-markdown').textContent).toBe('final answer')
     expect(screen.queryByText('checking project files')).toBeNull()
     expect(screen.queryByText('rewriting renderer')).toBeNull()
@@ -635,18 +636,22 @@ describe('MessagePartsRenderer', () => {
     const foldButton = screen.getByRole('button', { name: '11 tool calls' })
     expect(foldButton).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('button', { name: 'Collapse' })).toBeNull()
+    expect(screen.queryByTestId('tool-history-preview')).toBeNull()
+    expect(screen.queryByTestId('mock-message-tools')).toBeNull()
 
     fireEvent.click(foldButton)
 
     const collapseButton = screen.getByRole('button', { name: 'Collapse' })
     expect(collapseButton).toBeInTheDocument()
     expect(collapseButton.querySelector('svg')).toBeInTheDocument()
+    expect(screen.queryByTestId('tool-history-preview')).toBeNull()
     expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(11)
 
     fireEvent.click(collapseButton)
 
     expect(foldButton).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('button', { name: 'Collapse' })).toBeNull()
+    expect(screen.queryByTestId('tool-history-preview')).toBeNull()
     expect(screen.queryByTestId('mock-message-tools')).toBeNull()
   })
 
@@ -683,9 +688,16 @@ describe('MessagePartsRenderer', () => {
       msg({ status: 'pending' })
     )
 
-    // The intro + tools stay in the single outer fold while the pending message
-    // streams; the trailing answer text renders below it.
-    expect(screen.getByRole('button', { name: '2 tool calls' })).toHaveAttribute('aria-expanded', 'true')
+    // The tool calls are complete, so the collapsed fold does not show the
+    // bounded preview even while trailing text is still pending.
+    const foldButton = screen.getByRole('button', { name: '2 tool calls' })
+    expect(foldButton).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByTestId('tool-history-preview')).toBeNull()
+    expect(screen.queryByText('checking project files')).toBeNull()
+
+    fireEvent.click(foldButton)
+
+    expect(screen.queryByTestId('tool-history-preview')).toBeNull()
     expect(screen.getByText('checking project files')).toBeInTheDocument()
     expect(screen.getAllByTestId('mock-markdown').at(-1)?.textContent).toBe('rewriting renderer')
   })
@@ -764,8 +776,10 @@ describe('MessagePartsRenderer', () => {
     ] as unknown as CherryMessagePart[])
 
     const foldButton = screen.getByRole('button', { name: '2 tool calls' })
+    expect(screen.queryByTestId('tool-history-preview')).toBeNull()
     expect(screen.getByTestId('mock-markdown').textContent).toBe('final answer')
     expect(screen.queryByText('checking project files')).toBeNull()
+    expect(screen.queryByText('reading package metadata')).toBeNull()
 
     fireEvent.click(foldButton)
 
@@ -788,6 +802,7 @@ describe('MessagePartsRenderer', () => {
     ] as unknown as CherryMessagePart[])
 
     const foldButton = screen.getByRole('button', { name: '1 tool calls' })
+    expect(screen.queryByTestId('tool-history-preview')).toBeNull()
     expect(screen.queryByTestId('mock-message-tools')).toBeNull()
     expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
 
@@ -806,6 +821,7 @@ describe('MessagePartsRenderer', () => {
 
     const foldButton = screen.getByRole('button', { name: '2 tool calls' })
     expect(foldButton).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByTestId('tool-history-preview')).toBeNull()
     expect(screen.queryByTestId('mock-message-tools')).toBeNull()
     expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
 
@@ -925,15 +941,16 @@ describe('MessagePartsRenderer', () => {
     )
 
     const foldButton = screen.getByRole('button', { name: '2 tool calls · 1 second' })
-    expect(foldButton).toHaveAttribute('aria-expanded', 'true')
-    expect(foldButton.querySelector('[data-live="true"]')).toBeNull()
-    expect(foldButton.querySelector('[data-prefer-summary="true"]')).toBeInTheDocument()
+    expect(foldButton).toHaveAttribute('aria-expanded', 'false')
+    expect(foldButton.querySelector('[data-live="true"]')).toBeInTheDocument()
+    expect(foldButton.querySelector('[data-prefer-summary="true"]')).toBeNull()
     expect(foldButton.querySelector('svg')).toBeNull()
     expect(screen.queryByTestId('mock-placeholder')).toBeNull()
-    expect(screen.getAllByTestId('mock-message-tools').map((node) => node.getAttribute('data-tool-name'))).toEqual([
-      'list',
-      'read'
-    ])
+    expect(
+      within(screen.getByTestId('tool-history-preview'))
+        .getAllByTestId('mock-message-tools')
+        .map((node) => node.getAttribute('data-tool-name'))
+    ).toEqual(['list', 'read'])
   })
 
   it('renders active tool runs directly inside the expanded fold while streaming', () => {
@@ -951,13 +968,18 @@ describe('MessagePartsRenderer', () => {
     )
 
     const foldButton = screen.getByRole('button', { name: '4 tool calls · 1 second' })
-    expect(foldButton).toHaveAttribute('aria-expanded', 'true')
-    expect(foldButton.querySelector('[data-live="true"]')).toBeNull()
-    expect(foldButton.querySelector('[data-prefer-summary="true"]')).toBeInTheDocument()
+    expect(foldButton).toHaveAttribute('aria-expanded', 'false')
+    expect(foldButton.querySelector('[data-live="true"]')).toBeInTheDocument()
+    expect(foldButton.querySelector('[data-prefer-summary="true"]')).toBeNull()
     expect(screen.queryByTestId('mock-placeholder')).toBeNull()
 
     expect(screen.queryByRole('button', { name: '2 tool calls' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Working…' })).toBeNull()
+    expect(within(screen.getByTestId('tool-history-preview')).getByText('now editing')).toBeInTheDocument()
+
+    fireEvent.click(foldButton)
+
+    expect(screen.queryByTestId('tool-history-preview')).toBeNull()
     expect(screen.getByText('now editing')).toBeInTheDocument()
     expect(screen.getAllByTestId('mock-message-tools').map((node) => node.getAttribute('data-tool-name'))).toEqual([
       'list',
@@ -994,10 +1016,12 @@ describe('MessagePartsRenderer', () => {
       msg({ status: 'pending' })
     )
 
-    expect(screen.getByRole('button', { name: '1 tool calls' })).toHaveAttribute('aria-expanded', 'true')
+    const foldButton = screen.getByRole('button', { name: '1 tool calls' })
+    expect(foldButton).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getAllByTestId('tool-history-divider')).toHaveLength(1)
     expect(screen.getAllByTestId('mock-markdown').at(-1)?.textContent).toBe('final answer')
-    expect(screen.getByText('checking project files')).toBeInTheDocument()
+    expect(screen.queryByTestId('tool-history-preview')).toBeNull()
+    expect(screen.queryByText('checking project files')).toBeNull()
     expect(screen.queryByTestId('mock-placeholder')).toBeNull()
   })
 
@@ -1012,13 +1036,15 @@ describe('MessagePartsRenderer', () => {
       msg({ status: 'pending' })
     )
 
-    const foldButton = screen.getByRole('button', { name: '1 tool calls · 1 second' })
-    expect(foldButton).toHaveAttribute('aria-expanded', 'true')
-    expect(foldButton.querySelector('[data-live="true"]')).toBeNull()
-    expect(foldButton.querySelector('[data-prefer-summary="true"]')).toBeInTheDocument()
+    const foldButton = screen.getByRole('button', { name: 'Thinking... · 1 second' })
+    expect(foldButton).toHaveAttribute('aria-expanded', 'false')
+    expect(foldButton.querySelector('[data-live="true"]')).toBeInTheDocument()
+    expect(foldButton.querySelector('[data-prefer-summary="true"]')).toBeNull()
     expect(screen.queryByTestId('mock-placeholder')).toBeNull()
-    expect(screen.getByTestId('mock-message-tools').getAttribute('data-tool-name')).toBe('list')
-    expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('thinking after tool')
+    expect(within(screen.getByTestId('tool-history-preview')).getByTestId('mock-message-tools')).toHaveAttribute(
+      'data-tool-name',
+      'list'
+    )
   })
 
   // -- data-video --
