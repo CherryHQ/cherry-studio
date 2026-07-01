@@ -16,16 +16,27 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default:
-          'bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200',
+        // Brainwave 2.0 "metallic" CTA: vertical gradient + rim lighting + 1px hairline frame.
+        // Light mode (default): top #323232 → bottom #222222 with white text.
+        // Dark mode: inverted to a light gradient with dark text for the same contrast role.
+        // Pressed / focus-visible flip the gradient (concave / inset look).
+        default: cn(
+          'rounded-(--radius-lg) font-semibold leading-(--line-height-body-xs) tracking-(--letter-spacing-tight)',
+          'bg-gradient-to-b from-[var(--color-button-elevated-from)] to-[var(--color-button-elevated-to)] text-[color:var(--color-button-elevated-foreground)]',
+          'shadow-[0_2px_4px_-1px_var(--color-button-elevated-shadow),0_0_0_1px_var(--color-button-elevated-rim),inset_0_0.5px_1px_var(--color-button-elevated-highlight),inset_0_-1px_1.2px_0.35px_var(--color-button-elevated-inner-shadow)]',
+          'hover:brightness-105 hover:shadow-[0_3px_6px_-1px_var(--color-button-elevated-shadow),0_0_0_1px_var(--color-button-elevated-rim),inset_0_1px_2px_var(--color-button-elevated-highlight-hover),inset_0_-1px_1.2px_0.35px_var(--color-button-elevated-inner-shadow)]',
+          'active:from-[var(--color-button-elevated-to)] active:to-[var(--color-button-elevated-from)] active:brightness-100 active:shadow-[0_2px_4px_-1px_var(--color-button-elevated-shadow),0_0_0_1px_var(--color-button-elevated-rim),inset_0_0.5px_1px_var(--color-button-elevated-highlight),inset_0_-1px_1.2px_0.35px_var(--color-button-elevated-inner-shadow)]',
+          'focus-visible:shadow-[inset_0_0_0_1px_var(--color-button-elevated-foreground),inset_0_0.5px_1px_var(--color-button-elevated-highlight),inset_0_-1px_1.2px_0.35px_var(--color-button-elevated-inner-shadow),0_2px_4px_-1px_var(--color-button-elevated-shadow),0_0_0_1px_var(--color-button-elevated-rim)]',
+          'focus-visible:ring-0 focus-visible:border-transparent',
+          'disabled:opacity-30'
+        ),
         destructive: 'bg-destructive text-white hover:bg-destructive-hover focus-visible:ring-destructive/20',
         outline: 'border border-border bg-transparent text-foreground shadow-none hover:bg-accent',
         secondary: 'rounded-lg bg-secondary text-secondary-foreground shadow-none hover:bg-secondary-hover',
         /** Dialog primary action style: same color hierarchy as default, with a flatter v2 shell. */
-        emphasis:
-          'rounded-lg bg-neutral-900 text-white shadow-none hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200',
-        ghost: 'text-neutral-900 shadow-none hover:bg-accent hover:text-accent-foreground dark:text-neutral-100',
-        link: 'text-neutral-900 underline-offset-4 hover:text-neutral-700 hover:underline dark:text-neutral-100 dark:hover:text-neutral-300'
+        emphasis: 'rounded-lg bg-primary text-primary-foreground shadow-none hover:bg-primary-hover',
+        ghost: 'text-primary shadow-none hover:bg-accent hover:text-accent-foreground',
+        link: 'text-link underline-offset-4 hover:underline'
       },
       size: {
         default: 'min-h-7.5 gap-1.5 px-2.5 text-[13px]',
