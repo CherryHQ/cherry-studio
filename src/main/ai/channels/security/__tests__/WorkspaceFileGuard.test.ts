@@ -1,11 +1,18 @@
-import { mkdir, mkdtemp, rm, symlink, truncate, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, open, rm, symlink, truncate, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { isWorkspaceFileError, resolveWorkspaceFile, WorkspaceFileError } from '../WorkspaceFileGuard'
+
+// Wrap only `open` as a spy so a single test can simulate a file growing between
+// fstat and read; every other fs call (and open by default) stays real.
+vi.mock('node:fs/promises', async (importActual) => {
+  const actual = await importActual<typeof import('node:fs/promises')>()
+  return { ...actual, open: vi.fn(actual.open) }
+})
 
 describe('resolveWorkspaceFile', () => {
   let workspace: string
@@ -87,6 +94,22 @@ describe('resolveWorkspaceFile', () => {
     await truncate(big, MAX_FILE_SIZE_BYTES + 1)
 
     await expect(resolveWorkspaceFile(workspace, 'big.bin')).rejects.toMatchObject({
+      reason: 'too-large'
+    })
+  })
+
+  it('rejects a file that grows past the limit between stat and read', async () => {
+    await writeFile(path.join(workspace, 'growing.bin'), 'small')
+    const oversize = Buffer.allocUnsafe(MAX_FILE_SIZE_BYTES + 1)
+    // fstat reports a small size (passes the pre-read cap), but the read returns an
+    // oversize buffer — the post-read recheck must still reject it.
+    vi.mocked(open).mockResolvedValueOnce({
+      stat: async () => ({ isFile: () => true, size: 5 }),
+      readFile: async () => oversize,
+      close: async () => {}
+    } as unknown as Awaited<ReturnType<typeof open>>)
+
+    await expect(resolveWorkspaceFile(workspace, 'growing.bin')).rejects.toMatchObject({
       reason: 'too-large'
     })
   })

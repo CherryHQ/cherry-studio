@@ -456,8 +456,18 @@ class ClawServer {
       filesSent,
       errors: errors.length
     })
+
+    // A requested payload that reached nobody because every attempt failed is a failed
+    // tool call — otherwise the agent sees success while the user received nothing
+    // (unsupported adapter, platform size reject, etc.). Zero recipients with no failed
+    // attempts (no chats configured) stays a normal result.
+    const messageFailed = sanitizedMessage !== undefined && messagesSent === 0
+    const fileFailed = file !== undefined && filesSent === 0
+    const deliveryFailed = errors.length > 0 && (messageFailed || fileFailed)
+
     return {
-      content: [{ type: 'text' as const, text: parts.join(' ') }]
+      content: [{ type: 'text' as const, text: parts.join(' ') }],
+      ...(deliveryFailed ? { isError: true } : {})
     }
   }
 

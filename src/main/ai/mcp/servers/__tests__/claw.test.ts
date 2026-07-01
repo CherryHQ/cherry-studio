@@ -334,6 +334,8 @@ describe('ClawServer', () => {
       expect(mockSendMessage).not.toHaveBeenCalled()
       expect(mockSendFile).not.toHaveBeenCalled()
       expect(result.content[0].text).toContain('Message sent to 0 chat(s)')
+      // No failed attempts (nobody configured) is an informational result, not an error.
+      expect(result.isError).toBeFalsy()
     })
 
     it('should error when both message and file_path are missing', async () => {
@@ -361,6 +363,19 @@ describe('ClawServer', () => {
 
       expect(result.content[0].text).toContain('Message sent to 1 chat(s)')
       expect(result.content[0].text).toContain('rate limited')
+      // Partial success (reached at least one chat) is not a failed call.
+      expect(result.isError).toBeFalsy()
+    })
+
+    it('should mark isError when the message reaches no one', async () => {
+      mockSendMessage.mockRejectedValue(new Error('rate limited'))
+      mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100'])])
+
+      const server = createServer('agent_1')
+      const result = await callTool(server, { message: 'Test' }, 'notify')
+
+      expect(result.content[0].text).toContain('Message sent to 0 chat(s)')
+      expect(result.isError).toBe(true)
     })
 
     it('should sanitize the message before sending', async () => {
@@ -439,7 +454,7 @@ describe('ClawServer', () => {
         expect(mockSendFile).not.toHaveBeenCalled()
       })
 
-      it('should tally a per-chat sendFile failure', async () => {
+      it('should tally a per-chat sendFile failure and mark the call as failed', async () => {
         mockSendFile.mockRejectedValue(new Error('unsupported'))
         mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100'])])
         await writeFile(path.join(workspace, 'a.txt'), 'x')
@@ -449,6 +464,20 @@ describe('ClawServer', () => {
 
         expect(result.content[0].text).toContain('File "a.txt" sent to 0 chat(s)')
         expect(result.content[0].text).toContain('unsupported')
+        // The file reached nobody because every attempt failed — the agent must see an error.
+        expect(result.isError).toBe(true)
+      })
+
+      it('should not mark isError when the file reaches at least one chat', async () => {
+        mockSendFile.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('too big'))
+        mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100', '200'])])
+        await writeFile(path.join(workspace, 'a.txt'), 'x')
+
+        const server = createServer('agent_1', workspace)
+        const result = await callTool(server, { file_path: 'a.txt' }, 'notify')
+
+        expect(result.content[0].text).toContain('File "a.txt" sent to 1 chat(s)')
+        expect(result.isError).toBeFalsy()
       })
     })
   })

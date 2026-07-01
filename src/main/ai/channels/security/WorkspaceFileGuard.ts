@@ -85,6 +85,14 @@ export async function resolveWorkspaceFile(workspaceRoot: string, userPath: stri
     }
 
     const buffer = await fd.readFile()
+    // Re-check against the actual read size: the file can grow between fstat and read,
+    // so the pre-read stat cap alone could let an oversize payload through.
+    if (buffer.length > MAX_FILE_SIZE_BYTES) {
+      throw new WorkspaceFileError(
+        'too-large',
+        `File exceeds the ${MAX_FILE_SIZE_BYTES} byte limit (${buffer.length} bytes): ${userPath}`
+      )
+    }
     const filename = path.basename(requested)
     return {
       filename,
