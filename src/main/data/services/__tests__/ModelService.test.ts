@@ -1056,9 +1056,9 @@ describe('ModelService.delete', () => {
     await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
     await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o', { id: targetModelId, name: 'GPT-4o' }))
 
-    const preferenceService = application.get('PreferenceService')
-    const originalGet = preferenceService.get.getMockImplementation()
-    preferenceService.get.mockImplementation((key: string) => {
+    const prefGet = vi.mocked(application.get('PreferenceService').get)
+    const originalGet = prefGet.getMockImplementation()!
+    prefGet.mockImplementation((key: string) => {
       if (key === 'chat.default_model_id') return targetModelId
       return null
     })
@@ -1072,7 +1072,7 @@ describe('ModelService.delete', () => {
       const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, targetModelId))
       expect(rows).toHaveLength(1)
     } finally {
-      preferenceService.get.mockImplementation(originalGet)
+      prefGet.mockImplementation(originalGet)
     }
   })
 })
@@ -1273,9 +1273,9 @@ describe('ModelService.bulkDelete', () => {
         modelRow('openai', 'gpt-4o-mini', { id: customId, name: 'GPT-4o mini' })
       ])
 
-    const preferenceService = application.get('PreferenceService')
-    const originalGet = preferenceService.get.getMockImplementation()
-    preferenceService.get.mockImplementation((key: string) => {
+    const prefGet = vi.mocked(application.get('PreferenceService').get)
+    const originalGet = prefGet.getMockImplementation()!
+    prefGet.mockImplementation((key: string) => {
       if (key === 'chat.default_model_id') return defaultId
       return null
     })
@@ -1294,7 +1294,7 @@ describe('ModelService.bulkDelete', () => {
       const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.providerId, 'openai'))
       expect(rows.map((row) => row.id).sort()).toEqual([customId, defaultId].sort())
     } finally {
-      preferenceService.get.mockImplementation(originalGet)
+      prefGet.mockImplementation(originalGet)
     }
   })
 })
