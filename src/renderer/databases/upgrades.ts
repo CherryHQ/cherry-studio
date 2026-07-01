@@ -29,7 +29,7 @@ import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
 import { parseTranslateLangCode, type TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import type { Transaction } from 'dexie'
-import { isEmpty } from 'lodash'
+import { isEmpty } from 'es-toolkit/compat'
 
 import {
   createCitationBlock,

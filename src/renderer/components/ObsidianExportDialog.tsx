@@ -22,15 +22,15 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
-import type { ExportableMessage } from '@renderer/types/messageExport'
-import type { Topic } from '@renderer/types/topic'
 import {
   exportMarkdownToObsidian,
   messagesToMarkdown,
   messageToMarkdown,
   messageToMarkdownWithReasoning,
   topicToMarkdown
-} from '@renderer/utils/export'
+} from '@renderer/services/ExportService'
+import type { ExportableMessage } from '@renderer/types/messageExport'
+import type { Topic } from '@renderer/types/topic'
 import { XIcon } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 

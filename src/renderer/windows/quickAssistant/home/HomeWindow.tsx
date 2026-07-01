@@ -19,7 +19,7 @@ import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/
 import { type CherryReasoningMeta, readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
 import { IpcChannel } from '@shared/IpcChannel'
 import { defaultLanguage } from '@shared/utils/languages'
-import { isEmpty } from 'lodash'
+import { isEmpty } from 'es-toolkit/compat'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'

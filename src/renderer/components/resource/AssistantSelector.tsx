@@ -1,9 +1,9 @@
 import { loggerService } from '@logger'
-import { isSelectableAssistantModel } from '@renderer/components/resource/dialogs/form/assistantModelFilter'
 import {
-  ResourceCreateDialog,
-  type ResourceCreateDialogValues
-} from '@renderer/components/resource/dialogs/ResourceCreateDialog'
+  ResourceCreateWizard,
+  type ResourceCreateWizardValues
+} from '@renderer/components/resource/dialogs/create/ResourceCreateWizard'
+import { isSelectableAssistantModel } from '@renderer/components/resource/dialogs/form/assistantModelFilter'
 import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/components/Selector/shell/SelectorShell'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePins } from '@renderer/hooks/usePins'
@@ -168,7 +168,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
   }, [])
 
   const handleSubmitCreate = useCallback(
-    async (values: ResourceCreateDialogValues) => {
+    async (values: ResourceCreateWizardValues) => {
       let created: Assistant
       try {
         created = await createAssistant({
@@ -176,7 +176,9 @@ export function AssistantSelector(props: AssistantSelectorProps) {
             name: values.name,
             emoji: values.avatar,
             modelId: values.modelId,
-            description: values.description
+            description: values.description,
+            prompt: values.prompt,
+            knowledgeBaseIds: values.knowledgeBaseIds
           }
         })
       } catch (error) {
@@ -223,7 +225,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
   }, [refetch, t])
 
   const createDialog = (
-    <ResourceCreateDialog
+    <ResourceCreateWizard
       kind="assistant"
       open={createDialogOpen}
       isSubmitting={isCreatingAssistant}

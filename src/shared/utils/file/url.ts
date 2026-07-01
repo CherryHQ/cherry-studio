@@ -7,28 +7,16 @@
  * IPC `getPhysicalPath` / `batchGetPhysicalPaths`) — this module only handles the
  * **formatting / safety-policy layer** on top of an already-resolved path string:
  *
- * ## Phase 1 migration status
- *
- * **Already shipped here**: the implementation, the test suite, and the
- * `architecture.md §3.3 / §3.6 / §5` contract that names this module as the
- * replacement for the removed IPCs.
- *
- * **Pending**: renderer-side call-site migration. Existing `<img src>` /
- * `<video src>` consumers still go through the legacy `getSafeUrl` path; they
- * flip to `getPhysicalPath(id) → toSafeFileUrl(path, ext)` as the v1 → v2
- * FileEntry consumer migration progresses (Phase 1b / Phase 2 PR series). The
- * absence of `src/` callers today is the migration not-yet-landed state, not
- * a speculative forward-looking surface — the contract is binding and the
- * code is the final form.
- *
- * 1. `isDangerExt(ext)` — which extensions count as "dangerous" when a file
+ * 1. `normalizeExt(ext)` — normalize legacy dotted extensions (`.exe`) and v2
+ *    bare extensions (`exe`) for shared safety checks.
+ * 2. `isDangerExt(ext)` — which extensions count as "dangerous" when a file
  *    path may be handed to OS file associations (safe URL rendering wraps to
  *    the containing directory; default-open flows block the action).
- * 2. `toFileUrl(path)` — encode an absolute filesystem path into a `file://`
+ * 3. `toFileUrl(path)` — encode an absolute filesystem path into a `file://`
  *    URL (Windows drive letters, URL-encoded segments, forward-slash normalized).
- * 3. `fileUrlToPath(url)` — decode an existing `file://` URL back to a path
+ * 4. `fileUrlToPath(url)` — decode an existing `file://` URL back to a path
  *    string in renderer-safe code (including Windows drive and UNC URL forms).
- * 4. `toSafeFileUrl(path, ext)` — the composition that used to live behind
+ * 5. `toSafeFileUrl(path, ext)` — the composition that used to live behind
  *    the `getSafeUrl` IPC: apply the danger-wrap then `toFileUrl`.
  *
  * ## Why "formatting" stays in a shared module, not behind an IPC
@@ -45,7 +33,7 @@
  * access, or main-process singletons belongs in File IPC.
  */
 
-import type { FilePath, FileUrlString } from '@shared/types/file'
+import { type FilePath, type FileUrlString, SafeExtSchema } from '@shared/types/file/common'
 
 // ─── Danger extension policy ───
 
@@ -123,11 +111,31 @@ const DANGEROUS_EXTS = new Set([
 ])
 
 /**
- * Is this extension on the danger list? Case-insensitive; `null` returns `false`.
+ * Normalize a file extension for shared file safety checks.
+ *
+ * Accepts legacy dotted extensions (`.exe`) and v2 bare extensions (`exe`),
+ * strips boundary spaces / dots that can appear in filesystem paths, then
+ * accepts only a conservative bare-extension shape for safety checks.
  */
-export function isDangerExt(ext: string | null): boolean {
-  if (!ext) return false
-  return DANGEROUS_EXTS.has(ext.toLowerCase())
+export function normalizeExt(ext: string | null | undefined): string | null {
+  if (!ext) return null
+  const normalized = ext
+    .replace(/^[\s.]+/, '')
+    .replace(/[\s.]+$/, '')
+    .toLowerCase()
+
+  return SafeExtSchema.safeParse(normalized).success ? normalized : null
+}
+
+/**
+ * Is this extension on the danger list? Case-insensitive; accepts legacy dotted
+ * extensions (`.exe`) and v2 bare extensions (`exe`); `null` / `undefined`
+ * return `false`.
+ */
+export function isDangerExt(ext: string | null | undefined): boolean {
+  const normalized = normalizeExt(ext)
+  if (!normalized) return false
+  return DANGEROUS_EXTS.has(normalized)
 }
 
 // ─── Path formatting ───
@@ -212,7 +220,7 @@ export function fileUrlToPath(fileUrl: FileUrlString | URL): string {
  * File IPC `getPhysicalPath` for those cases.
  *
  * @param absolutePath Absolute filesystem path (from `getPhysicalPath` IPC).
- * @param ext File extension without leading dot (from `FileEntry.ext`), or `null`.
+ * @param ext File extension, with or without leading dot, or `null`.
  */
 export function toSafeFileUrl(absolutePath: FilePath, ext: string | null): FileUrlString {
   const effectivePath = isDangerExt(ext) ? dirnameSimple(absolutePath) : absolutePath

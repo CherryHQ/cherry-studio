@@ -656,7 +656,10 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
       const trimmedName = name.trim()
       if (!session || !trimmedName || trimmedName === session.name) return
 
-      const updatedSession = await updateSession({ id, name: trimmedName }, { showSuccessToast: false })
+      const updatedSession = await updateSession(
+        { id, name: trimmedName, isNameManuallyEdited: true },
+        { showSuccessToast: false }
+      )
       if (updatedSession) {
         window.toast.success(t('common.saved'))
       }

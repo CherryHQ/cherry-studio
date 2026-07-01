@@ -9,7 +9,7 @@ import { checkApi as runCheckApi } from '@renderer/services/ApiService'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import { serializeHealthCheckError } from '@renderer/utils/error'
 import type { Model } from '@shared/data/types/model'
-import { isEmpty } from 'lodash'
+import { isEmpty } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

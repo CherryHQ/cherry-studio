@@ -3,12 +3,13 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { fileEntryTable } from '@data/db/schemas/file'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import type { FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -18,212 +19,96 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
-const { OrphanRefScanner, runDbSweep, runFileSweep, scanOrphanEntries } = await import('../orphanSweep')
-const { tempSessionChecker } = await import('@main/services/file/orphanCheckerRegistry')
+const { runDbSweep, runFileSweep, scanOrphanEntries } = await import('../orphanSweep')
 
-describe('OrphanRefScanner', () => {
+describe('scanOrphanEntries (report-only)', () => {
   const dbh = setupTestDatabase()
 
   beforeEach(() => {
     MockMainDbServiceUtils.setDb(dbh.db)
+    MockMainCacheServiceUtils.resetMocks()
   })
 
-  async function seedEntry(id: FileEntryId): Promise<void> {
+  it('groups unreferenced entries by origin without deleting any', async () => {
+    const referenced = '019606a0-0000-7000-8000-00000000ee20' as FileEntryId
+    const orphanInternal = '019606a0-0000-7000-8000-00000000ee21' as FileEntryId
+    const orphanExternalA = '019606a0-0000-7000-8000-00000000ee22' as FileEntryId
+    const orphanExternalB = '019606a0-0000-7000-8000-00000000ee23' as FileEntryId
+
     const now = Date.now()
-    await dbh.db.insert(fileEntryTable).values({
-      id,
-      origin: 'internal',
-      name: 'n',
-      ext: 'txt',
-      size: 1,
-      externalPath: null,
-      deletedAt: null,
-      createdAt: now,
-      updatedAt: now
-    })
-  }
-
-  async function seedRef(refId: string, fileEntryId: FileEntryId, sourceId: string): Promise<void> {
-    const now = Date.now()
-    await dbh.db.insert(fileRefTable).values({
-      id: refId,
-      fileEntryId,
-      sourceType: 'temp_session',
-      sourceId,
-      role: 'pending',
-      createdAt: now,
-      updatedAt: now
-    })
-  }
-
-  describe('scanOneType', () => {
-    it('deletes file_ref rows whose sourceId is no longer alive', async () => {
-      const entryId = '019606a0-0000-7000-8000-00000000ee01' as FileEntryId
-      await seedEntry(entryId)
-      await seedRef('22222222-2222-4222-8222-000000000001', entryId, 'sess-gone-1')
-      await seedRef('22222222-2222-4222-8222-000000000002', entryId, 'sess-gone-2')
-
-      const scanner = new OrphanRefScanner({
-        fileRefService,
-        registry: { ...(registryStub() as Record<string, unknown>), temp_session: tempSessionChecker } as never
-      })
-
-      const removed = await scanner.scanOneType('temp_session')
-      expect(removed).toBe(2)
-
-      const remaining = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.fileEntryId, entryId))
-      expect(remaining).toEqual([])
-    })
-
-    it('preserves refs whose sourceId is reported alive by the checker', async () => {
-      const entryId = '019606a0-0000-7000-8000-00000000ee02' as FileEntryId
-      await seedEntry(entryId)
-      await seedRef('22222222-2222-4222-8222-000000000003', entryId, 'sess-alive')
-
-      const aliveChecker = {
-        sourceType: 'temp_session' as const,
-        checkExists: async (ids: readonly string[]) => new Set(ids)
-      }
-      const scanner = new OrphanRefScanner({
-        fileRefService,
-        registry: { ...(registryStub() as Record<string, unknown>), temp_session: aliveChecker } as never
-      })
-
-      const removed = await scanner.scanOneType('temp_session')
-      expect(removed).toBe(0)
-
-      const remaining = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.fileEntryId, entryId))
-      expect(remaining.length).toBe(1)
-    })
-
-    it('returns 0 when no refs exist for the sourceType', async () => {
-      const scanner = new OrphanRefScanner({
-        fileRefService,
-        registry: { ...(registryStub() as Record<string, unknown>), temp_session: tempSessionChecker } as never
-      })
-      expect(await scanner.scanOneType('temp_session')).toBe(0)
-    })
-  })
-
-  describe('scanAll', () => {
-    it('aggregates orphan-ref counts across every sourceType', async () => {
-      const entryId = '019606a0-0000-7000-8000-00000000ee10' as FileEntryId
-      await seedEntry(entryId)
-      // temp_session refs are always orphan (default checker returns empty Set)
-      await seedRef('22222222-2222-4222-8222-000000000010', entryId, 'sess-x')
-      await seedRef('22222222-2222-4222-8222-000000000011', entryId, 'sess-y')
-
-      const scanner = new OrphanRefScanner({
-        fileRefService,
-        registry: { ...(registryStub() as Record<string, unknown>), temp_session: tempSessionChecker } as never
-      })
-
-      const result = await scanner.scanAll()
-      expect(result.total).toBe(2)
-      expect(result.byType.temp_session).toBe(2)
-      // sourceTypes with no refs do not appear in byType (or appear as 0)
-      expect(result.byType.knowledge_item ?? 0).toBe(0)
-    })
-  })
-
-  describe('scanOrphanEntries (report-only)', () => {
-    it('groups unreferenced entries by origin without deleting any', async () => {
-      const referenced = '019606a0-0000-7000-8000-00000000ee20' as FileEntryId
-      const orphanInternal = '019606a0-0000-7000-8000-00000000ee21' as FileEntryId
-      const orphanExternalA = '019606a0-0000-7000-8000-00000000ee22' as FileEntryId
-      const orphanExternalB = '019606a0-0000-7000-8000-00000000ee23' as FileEntryId
-
-      const now = Date.now()
-      await dbh.db.insert(fileEntryTable).values([
-        {
-          id: referenced,
-          origin: 'internal',
-          name: 'r',
-          ext: 'txt',
-          size: 1,
-          externalPath: null,
-          createdAt: now,
-          updatedAt: now
-        },
-        {
-          id: orphanInternal,
-          origin: 'internal',
-          name: 'o',
-          ext: 'txt',
-          size: 1,
-          externalPath: null,
-          createdAt: now,
-          updatedAt: now
-        },
-        {
-          id: orphanExternalA,
-          origin: 'external',
-          name: 'a',
-          ext: 'txt',
-          size: null,
-          externalPath: '/abs/a.txt',
-          createdAt: now,
-          updatedAt: now
-        },
-        {
-          id: orphanExternalB,
-          origin: 'external',
-          name: 'b',
-          ext: 'txt',
-          size: null,
-          externalPath: '/abs/b.txt',
-          createdAt: now,
-          updatedAt: now
-        }
-      ])
-      await dbh.db.insert(fileRefTable).values({
-        id: '33333333-3333-4333-8333-000000000020',
-        fileEntryId: referenced,
-        sourceType: 'temp_session',
-        sourceId: 'sess-z',
-        role: 'pending',
-        createdAt: now,
-        updatedAt: now
-      })
-
-      const report = await scanOrphanEntries({ fileEntryService })
-      expect(report.total).toBe(3)
-      expect(report.byOrigin.internal).toBe(1)
-      expect(report.byOrigin.external).toBe(2)
-
-      // No deletions performed — every entry still in DB.
-      const all = await dbh.db.select().from(fileEntryTable)
-      expect(all.length).toBe(4)
-    })
-
-    it('returns zero when every entry has at least one ref', async () => {
-      const id = '019606a0-0000-7000-8000-00000000ee30' as FileEntryId
-      const now = Date.now()
-      await dbh.db.insert(fileEntryTable).values({
-        id,
+    await dbh.db.insert(fileEntryTable).values([
+      {
+        id: referenced,
         origin: 'internal',
-        name: 'x',
+        name: 'r',
         ext: 'txt',
         size: 1,
         externalPath: null,
         createdAt: now,
         updatedAt: now
-      })
-      await dbh.db.insert(fileRefTable).values({
-        id: '33333333-3333-4333-8333-000000000030',
-        fileEntryId: id,
-        sourceType: 'temp_session',
-        sourceId: 's',
-        role: 'pending',
+      },
+      {
+        id: orphanInternal,
+        origin: 'internal',
+        name: 'o',
+        ext: 'txt',
+        size: 1,
+        externalPath: null,
         createdAt: now,
         updatedAt: now
-      })
+      },
+      {
+        id: orphanExternalA,
+        origin: 'external',
+        name: 'a',
+        ext: 'txt',
+        size: null,
+        externalPath: '/abs/a.txt',
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: orphanExternalB,
+        origin: 'external',
+        name: 'b',
+        ext: 'txt',
+        size: null,
+        externalPath: '/abs/b.txt',
+        createdAt: now,
+        updatedAt: now
+      }
+    ])
+    await fileRefService.createTempSessionRef({ fileEntryId: referenced, sourceId: 'sess-z', role: 'pending' })
 
-      const report = await scanOrphanEntries({ fileEntryService })
-      expect(report.total).toBe(0)
-      expect(report.byOrigin.internal ?? 0).toBe(0)
-      expect(report.byOrigin.external ?? 0).toBe(0)
+    const report = await scanOrphanEntries({ fileEntryService, fileRefService })
+    expect(report.total).toBe(3)
+    expect(report.byOrigin.internal).toBe(1)
+    expect(report.byOrigin.external).toBe(2)
+
+    // No deletions performed — every entry still in DB.
+    const all = await dbh.db.select().from(fileEntryTable)
+    expect(all.length).toBe(4)
+  })
+
+  it('returns zero when every entry has at least one ref', async () => {
+    const id = '019606a0-0000-7000-8000-00000000ee30' as FileEntryId
+    const now = Date.now()
+    await dbh.db.insert(fileEntryTable).values({
+      id,
+      origin: 'internal',
+      name: 'x',
+      ext: 'txt',
+      size: 1,
+      externalPath: null,
+      createdAt: now,
+      updatedAt: now
     })
+    await fileRefService.createTempSessionRef({ fileEntryId: id, sourceId: 's', role: 'pending' })
+
+    const report = await scanOrphanEntries({ fileEntryService, fileRefService })
+    expect(report.total).toBe(0)
+    expect(report.byOrigin.internal ?? 0).toBe(0)
+    expect(report.byOrigin.external ?? 0).toBe(0)
   })
 })
 
@@ -232,6 +117,7 @@ describe('runDbSweep (umbrella + observability)', () => {
 
   beforeEach(() => {
     MockMainDbServiceUtils.setDb(dbh.db)
+    MockMainCacheServiceUtils.resetMocks()
   })
 
   afterEach(() => {
@@ -251,34 +137,23 @@ describe('runDbSweep (umbrella + observability)', () => {
       createdAt: now,
       updatedAt: now
     })
-    await dbh.db.insert(fileRefTable).values({
-      id: '33333333-3333-4333-8333-000000000040',
+    await fileRefService.createTempSessionRef({
       fileEntryId: entryId,
-      sourceType: 'temp_session',
       sourceId: 'sess-orphan',
-      role: 'pending',
-      createdAt: now,
-      updatedAt: now
+      role: 'pending'
     })
 
     const infoSpy = vi.spyOn(loggerService, 'info')
+    await dbh.db.delete(fileEntryTable).where(eq(fileEntryTable.id, entryId))
 
     const report = await runDbSweep({
       fileEntryService,
-      fileRefService,
-      registry: {
-        knowledge_item: { sourceType: 'knowledge_item', checkExists: async (ids) => new Set(ids) },
-        temp_session: { sourceType: 'temp_session', checkExists: async () => new Set() },
-        chat_message: { sourceType: 'chat_message', checkExists: async () => new Set() }
-      } as never
+      fileRefService
     })
 
     expect(report.outcome).toBe('completed')
     expect(report.orphanRefsByType.temp_session).toBe(1)
-    // The single orphan-entry survives only because file_ref_unique_idx
-    // and CASCADE clean it up — so after the ref delete, the entry is now
-    // unreferenced. Verify orphanEntriesByOrigin populates.
-    expect(report.orphanEntriesByOrigin.internal ?? 0).toBeGreaterThanOrEqual(1)
+    expect(report.orphanEntriesByOrigin.internal ?? 0).toBe(0)
     expect(typeof report.scanDurationMs).toBe('number')
 
     expect(infoSpy).toHaveBeenCalledWith(
@@ -290,119 +165,18 @@ describe('runDbSweep (umbrella + observability)', () => {
     )
   })
 
-  it('reports partial outcome when per-sourceType checker throws (errors isolated)', async () => {
-    const warnSpy = vi.spyOn(loggerService, 'warn')
-    const failingFileRefService = {
-      ...fileRefService,
-      listDistinctSourceIds: async () => {
-        throw new Error('boom')
-      }
-    } as typeof fileRefService
-
-    const report = await runDbSweep({
-      fileEntryService,
-      fileRefService: failingFileRefService,
-      registry: {
-        knowledge_item: { sourceType: 'knowledge_item', checkExists: async (ids) => new Set(ids) },
-        temp_session: { sourceType: 'temp_session', checkExists: async () => new Set() },
-        chat_message: { sourceType: 'chat_message', checkExists: async () => new Set() }
-      } as never
-    })
-    expect(report.outcome).toBe('partial')
-    if (report.outcome === 'partial') {
-      // scanAll iterates every sourceType in allSourceTypes (temp_session,
-      // knowledge_item, chat_message, painting) and listDistinctSourceIds
-      // throws for all of them → all four errored.
-      expect(Object.keys(report.errorsByType)).toHaveLength(4)
-      expect(report.errorsByType.temp_session).toMatch(/boom/)
-    }
-    expect(warnSpy).toHaveBeenCalledWith(
-      'orphan-sweep',
-      expect.objectContaining({ event: 'orphan-sweep', outcome: 'partial' })
-    )
-  })
-
-  it('reports partial outcome with HEALTHY sourceTypes still processed (per-type isolation, not blanket abort)', async () => {
-    // Regression: the existing "partial outcome" test (above) mocks
-    // `listDistinctSourceIds` to throw unconditionally, so every registered
-    // sourceType errors out and the per-type try/catch's survivor branch
-    // never executes. A regression that hoists the try/catch outside the
-    // for-loop (turning per-type isolation into "first error aborts the
-    // whole sweep") would silently disable orphan cleanup for healthy
-    // sourceTypes — but the existing test wouldn't catch it. This pins the
-    // mixed-outcome contract: exactly one type errors, the other completes
-    // and its orphans are still cleaned.
-    // Spy on the real instance so prototype methods (cleanupBySourceBatch,
-    // …) stay accessible; a spread `{ ...fileRefService, override }` would
-    // drop them because they live on the prototype. Cache the real
-    // implementation up-front so passthrough doesn't need mockRestore
-    // (which would dismantle the spy mid-iteration).
-    const realListDistinctSourceIds = fileRefService.listDistinctSourceIds.bind(fileRefService)
-    const listSpy = vi.spyOn(fileRefService, 'listDistinctSourceIds').mockImplementation(async (sourceType) => {
-      if (sourceType === 'knowledge_item') throw new Error('boom for ki only')
-      // temp_session passes through to the captured real implementation.
-      return realListDistinctSourceIds(sourceType)
-    })
-
-    // Plant a temp_session orphan ref so the survivor's scan has actual
-    // work to do — proves per-type isolation didn't blanket-abort.
-    const tempEntryId = '019606a0-0000-7000-8000-0000000033aa' as FileEntryId
-    await fileEntryService.create({
-      id: tempEntryId,
-      origin: 'internal',
-      name: 't',
-      ext: 'txt',
-      size: 1
-    })
-    await fileRefService.create({
-      fileEntryId: tempEntryId,
-      sourceType: 'temp_session',
-      sourceId: 'orphan-session-id',
-      role: 'pending'
-    })
-
-    const report = await runDbSweep({
-      fileEntryService,
-      fileRefService,
-      registry: {
-        knowledge_item: { sourceType: 'knowledge_item', checkExists: async (ids) => new Set(ids) },
-        // temp_session checker treats every sourceId as deleted, so the
-        // planted ref above is classified orphan and counted.
-        temp_session: { sourceType: 'temp_session', checkExists: async () => new Set() },
-        chat_message: { sourceType: 'chat_message', checkExists: async () => new Set() }
-      } as never
-    })
-
-    expect(report.outcome).toBe('partial')
-    if (report.outcome === 'partial') {
-      // ONLY knowledge_item is in errorsByType — temp_session's branch
-      // succeeded and its result was aggregated normally.
-      expect(Object.keys(report.errorsByType)).toEqual(['knowledge_item'])
-      expect(report.errorsByType.knowledge_item).toMatch(/boom for ki only/)
-    }
-    // temp_session's orphan was counted — proves the survivor branch ran.
-    expect(report.orphanRefsByType.temp_session).toBe(1)
-    expect(report.orphanRefsTotal).toBeGreaterThanOrEqual(1)
-    listSpy.mockRestore()
-  })
-
   it('reports failed outcome when an outer-level operation throws', async () => {
     const errorSpy = vi.spyOn(loggerService, 'error')
     const failingEntryService = {
-      ...fileEntryService,
       findUnreferenced: async () => {
         throw new Error('boom')
-      }
-    } as typeof fileEntryService
+      },
+      listAllIds: fileEntryService.listAllIds.bind(fileEntryService)
+    } as unknown as typeof fileEntryService
 
     const report = await runDbSweep({
       fileEntryService: failingEntryService,
-      fileRefService,
-      registry: {
-        knowledge_item: { sourceType: 'knowledge_item', checkExists: async (ids) => new Set(ids) },
-        temp_session: { sourceType: 'temp_session', checkExists: async () => new Set() },
-        chat_message: { sourceType: 'chat_message', checkExists: async () => new Set() }
-      } as never
+      fileRefService
     })
     expect(report.outcome).toBe('failed')
     if (report.outcome === 'failed') {
@@ -803,17 +577,3 @@ describe('runFileSweep (FS-level)', () => {
     expect(onDisk.isFile()).toBe(true)
   })
 })
-
-function registryStub() {
-  const allAlive = (sourceType: string) => ({
-    sourceType,
-    checkExists: async (ids: readonly string[]) => new Set(ids)
-  })
-  return {
-    chat_message: allAlive('chat_message'),
-    knowledge_item: allAlive('knowledge_item'),
-    painting: allAlive('painting'),
-    note: allAlive('note'),
-    temp_session: allAlive('temp_session')
-  } as never
-}

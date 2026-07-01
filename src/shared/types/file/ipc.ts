@@ -526,14 +526,12 @@ export interface FileIpcApi {
 
   /**
    * Open file/directory with the system default application.
-   * @phase 2 — entry-id open is wired for Files page as IpcApi route `file.open`.
-   * The full FileHandle/path variant remains type-only.
+   * @phase 2 — wired as IpcApi route `file.open` with full `FileHandle` dispatch.
    */
   open(handle: FileHandle): Promise<void>
   /**
    * Reveal file/directory in the system file manager.
-   * @phase 2 — entry-id reveal is wired for Files page as IpcApi route `file.show_in_folder`.
-   * The full FileHandle/path variant remains type-only.
+   * @phase 2 — wired as IpcApi route `file.show_in_folder` with full `FileHandle` dispatch.
    */
   showInFolder(handle: FileHandle): Promise<void>
 
@@ -643,12 +641,12 @@ export interface FileIpcApi {
 
   /**
    * Run both the FS-level orphan sweep (architecture §10) and the DB-level
-   * orphan-ref / entry sweep (§7 Layer 3) concurrently. Returns once both
-   * settle, with the DB sweep's discriminated outcome surfaced through the
-   * report's `outcome` field (`'completed'` / `'partial'` / `'failed'`).
+   * temp-session ref prune / entry report (§7 Layer 3) concurrently. Returns
+   * once both settle, with the umbrella discriminated outcome surfaced through
+   * the report's `outcome` field (`'completed'` / `'partial'` / `'failed'`).
    *
-   * The FS sweep's outcome is logged but does not bleed into the returned
-   * report — DB-only state is what the cleanup UI consumes.
+   * DB failures dominate as `failed`; FS-side partial/aborted/failed outcomes
+   * degrade the umbrella report to `partial` via `fsSweepIssue`.
    *
    * @phase 2 — wired in Batch 0 (`IpcChannel.File_RunSweep` →
    * `FileManager.registerIpcHandlers`)

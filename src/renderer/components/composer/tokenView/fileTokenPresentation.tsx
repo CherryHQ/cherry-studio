@@ -112,7 +112,7 @@ function getFileExtensionLabel(file: ComposerAttachment | undefined, fallbackLab
 
 function getFilePreviewUrl(file: ComposerAttachment | undefined) {
   if (!file?.path || file.type !== FILE_TYPE.IMAGE) return undefined
-  return toSafeFileUrl(file.path as FilePath, file.ext?.replace(/^\./, '') || null)
+  return toSafeFileUrl(file.path as FilePath, file.ext || null)
 }
 
 function getFileTokenVariant(file: ComposerAttachment | undefined, fallbackLabel: string): FileTokenVariant {

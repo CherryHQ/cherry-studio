@@ -24,7 +24,7 @@ import { getFileIconName } from '@renderer/utils/fileIconName'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { cn } from '@renderer/utils/style'
 import dayjs from 'dayjs'
-import React, { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { memo, startTransition, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { MAX_COLLAPSED_CODE_HEIGHT, SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
@@ -324,9 +324,11 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
     if (!SpecialView) return null
 
     return (
-      <SpecialView ref={specialViewRef} enableToolbar={codeImageTools}>
-        {children}
-      </SpecialView>
+      <Suspense fallback={null}>
+        <SpecialView ref={specialViewRef} enableToolbar={codeImageTools}>
+          {children}
+        </SpecialView>
+      </Suspense>
     )
   }, [children, codeImageTools, language])
 

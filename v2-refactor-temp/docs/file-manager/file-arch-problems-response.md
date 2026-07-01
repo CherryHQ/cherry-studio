@@ -284,7 +284,7 @@ renderer 不再在前端拼接 entry 对象，**类型系统层封堵"直接搓 
 ### 字段语义收敛（消除推断歧义）
 
 - `ext`（不含前导点）与 `name`（不含扩展名）在 `createInternalEntry` / `ensureExternalEntry` 内由 main 侧统一切分（见 `migration-plan.md §2.7`）
-- **`ext` 的运行期防御由 `SafeExtSchema`（`essential.ts`）集中保障**：禁前导点、禁 path separator、禁 null bytes、禁 whitespace-only——与 `SafeNameSchema` 的威胁模型对齐（都是会拼进 `{dir}/{name}.{ext}` 参与 `fs.*` 路径的字段）。类型层保持 `string | null`，不 brand、不加编译期 template literal 限制——convention first，`FileEntrySchema.parse` 是系统边界的权威检查
+- **`ext` 的运行期防御由 shared file `SafeExtSchema`（`common.ts`）集中保障**：禁前导点、禁 path separator、禁 null bytes、禁 whitespace-only——与 `SafeNameSchema` 的威胁模型对齐（都是会拼进 `{dir}/{name}.{ext}` 参与 `fs.*` 路径的字段）。类型层保持 `string | null`，不 brand、不加编译期 template literal 限制——convention first，`FileEntrySchema.parse` 是系统边界的权威检查
 - `type` 不再持久化，改为读时派生（默认按 `ext`，`getMetadata` 时可 buffer 升级，见 §2.5）
 - 推断逻辑集中在 main 的 `ops/metadata.ts`，renderer 不再自行判断 MIME / ext
 

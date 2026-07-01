@@ -64,9 +64,8 @@ export function useAppInit() {
   }, [navBackgroundColor])
 
   useEffect(() => {
-    // set files path
+    // set app paths
     void window.api.getAppInfo().then((info) => {
-      cacheService.set('app.path.files', info.filesPath)
       setInlineFilePathHomePath(info.homePath)
       cacheService.set('app.path.resources', info.resourcesPath)
     })
