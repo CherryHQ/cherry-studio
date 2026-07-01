@@ -13,6 +13,9 @@ import { AgentToolsType } from './shared/agentToolTypes'
 export const APPROVAL_REQUESTED = 'approval-requested'
 export const APPROVAL_RESPONDED = 'approval-responded'
 export const CLAUDE_AGENT_TRANSPORT = 'claude-agent'
+export const PI_AGENT_TRANSPORT = 'pi-agent'
+/** Cherry agent-runtime transports — pi tools have no bespoke renderer and fall to the generic card (D8). */
+const CHERRY_AGENT_TRANSPORTS = new Set<string>([CLAUDE_AGENT_TRANSPORT, PI_AGENT_TRANSPORT])
 const AGENT_MCP_TOOLS_PREFIX = 'mcp__'
 const AGENT_TOOL_NAMES = new Set<string>(Object.values(AgentToolsType))
 
@@ -142,7 +145,7 @@ function extractParentToolUseId(part: ToolResponsePart): string | undefined {
 function hasCherryTransport(metadata: ProviderMetadata | undefined): boolean {
   if (!isRecord(metadata)) return false
   const cherry = isRecord(metadata.cherry) ? metadata.cherry : undefined
-  return cherry?.transport === CLAUDE_AGENT_TRANSPORT
+  return typeof cherry?.transport === 'string' && CHERRY_AGENT_TRANSPORTS.has(cherry.transport)
 }
 
 function resolveToolType(part: ToolResponsePart, toolName: string, metadata?: ToolMetadata): ToolType {

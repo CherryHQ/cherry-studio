@@ -3101,6 +3101,13 @@
             "hint": "负责任务拆解和决策",
             "label": "Plan 模型"
           },
+          "runtime": {
+            "label": "运行时",
+            "option": {
+              "claude_code": "Claude Code",
+              "pi": "pi"
+            }
+          },
           "small_model": {
             "hint": "负责简单判断和格式化",
             "label": "Small 模型"

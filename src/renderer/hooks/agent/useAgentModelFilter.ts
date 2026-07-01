@@ -5,12 +5,17 @@
  * providers still run directly; other chat models are routed through the local
  * API Gateway's Anthropic-compatible `/v1/messages` surface at runtime.
  *
+ * `pi` agents run through the pi harness, which speaks only the wire protocols
+ * in `@shared/ai/piModelCompatibility` — filter to providers/models pi can
+ * drive so incompatible models are never offered (D2).
+ *
  * Default `null`-typed agents fall through to the shared "agent-friendly"
  * filter (drops embedding / rerank / image-generation models — none of
  * those make sense as chat targets).
  */
 
 import { useProviders } from '@renderer/hooks/useProvider'
+import { isPiCompatibleModel } from '@shared/ai/piModelCompatibility'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
 import { isAgentRuntimeSupportedModel, isNonChatModel } from '@shared/utils/model'
@@ -46,6 +51,10 @@ export function useAgentModelFilter(agentType: AgentType | undefined): (model: M
       if (!baseAgentFilter(model)) return false
       if (agentType === 'claude-code') {
         return isAgentRuntimeSupportedModel(model, providersById.get(model.providerId))
+      }
+      if (agentType === 'pi') {
+        const provider = providersById.get(model.providerId)
+        return provider ? isPiCompatibleModel(provider, model) : false
       }
       return true
     }

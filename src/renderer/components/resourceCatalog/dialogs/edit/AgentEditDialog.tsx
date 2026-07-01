@@ -201,6 +201,10 @@ function AgentEditDialogContent({
   modelFilter
 }: EditDialogBaseProps<AgentDetail> & { resource: AgentDetail }) {
   const { t } = useTranslation()
+  // pi agents expose a reduced config surface (D8): no plan/small-model tiers,
+  // no soul/heartbeat, no plan permission mode, and no MCP/skills tool tabs
+  // (pi's built-in tool set is not the Claude catalog rendered here).
+  const isPi = resource.type === 'pi'
   const [activeTab, setActiveTab] = useState('basic')
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
@@ -235,18 +239,24 @@ function AgentEditDialogContent({
     () => [
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
       { id: 'prompt', label: t('library.config.dialogs.edit.prompt_tab') },
-      {
-        id: 'tools',
-        label: t('library.config.dialogs.edit.tools_tab'),
-        children: [
-          { id: DEFAULT_TOOL_TAB, label: t('library.config.agent.section.tools.tab.tools') },
-          { id: 'tools.mcp', label: t('library.config.agent.section.tools.tab.mcp') },
-          { id: 'tools.skills', label: t('library.config.agent.section.tools.tab.skills') }
-        ]
-      },
+      // Tools tab is Claude-only for v1: it renders the Claude built-in catalog
+      // plus MCP/skills, none of which map to a pi agent's runtime (D8).
+      ...(isPi
+        ? []
+        : [
+            {
+              id: 'tools',
+              label: t('library.config.dialogs.edit.tools_tab'),
+              children: [
+                { id: DEFAULT_TOOL_TAB, label: t('library.config.agent.section.tools.tab.tools') },
+                { id: 'tools.mcp', label: t('library.config.agent.section.tools.tab.mcp') },
+                { id: 'tools.skills', label: t('library.config.agent.section.tools.tab.skills') }
+              ]
+            }
+          ]),
       { id: 'advanced', label: t('library.config.dialogs.edit.advanced_tab') }
     ],
-    [t]
+    [isPi, t]
   )
   const leafTabIds = useMemo(() => new Set(getLeafTabIds(tabs)), [tabs])
 
@@ -319,6 +329,7 @@ function AgentEditDialogContent({
       <TabsContent value="basic" forceMount hidden={activeTab !== 'basic'} className="m-0">
         <AgentBasicFields
           form={form}
+          isPi={isPi}
           modelFilter={modelFilter}
           portalContainer={dialogContentElement}
           modelLabels={modelLabels}
@@ -352,6 +363,7 @@ function AgentEditDialogContent({
 
 function AgentBasicFields({
   form,
+  isPi,
   modelFilter,
   portalContainer,
   modelLabels,
@@ -361,6 +373,7 @@ function AgentBasicFields({
   setEmojiPickerOpen
 }: {
   form: UseFormReturn<AgentEditFormValues>
+  isPi: boolean
   modelFilter?: (model: Model) => boolean
   portalContainer: HTMLElement | null
   modelLabels: ModelLabels
@@ -390,7 +403,7 @@ function AgentBasicFields({
           required
         />
       </div>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className={isPi ? 'grid gap-3' : 'grid gap-3 sm:grid-cols-3'}>
         <CompactModelField
           form={form}
           name="modelId"
@@ -401,28 +414,33 @@ function AgentBasicFields({
           setModelLabels={setModelLabels}
           onModelChange={(modelId) => patchAgentForm({ model: modelId ?? '' })}
         />
-        <CompactModelField
-          form={form}
-          name="planModelId"
-          label={t('library.config.agent.field.plan_model.label')}
-          allowClear
-          filter={modelFilter}
-          portalContainer={portalContainer}
-          modelLabels={modelLabels}
-          setModelLabels={setModelLabels}
-          onModelChange={(modelId) => patchAgentForm({ planModel: modelId ?? '' })}
-        />
-        <CompactModelField
-          form={form}
-          name="smallModelId"
-          label={t('library.config.agent.field.small_model.label')}
-          allowClear
-          filter={modelFilter}
-          portalContainer={portalContainer}
-          modelLabels={modelLabels}
-          setModelLabels={setModelLabels}
-          onModelChange={(modelId) => patchAgentForm({ smallModel: modelId ?? '' })}
-        />
+        {/* plan/small-model tiers are Claude-only (D8) — pi uses the primary model. */}
+        {!isPi && (
+          <CompactModelField
+            form={form}
+            name="planModelId"
+            label={t('library.config.agent.field.plan_model.label')}
+            allowClear
+            filter={modelFilter}
+            portalContainer={portalContainer}
+            modelLabels={modelLabels}
+            setModelLabels={setModelLabels}
+            onModelChange={(modelId) => patchAgentForm({ planModel: modelId ?? '' })}
+          />
+        )}
+        {!isPi && (
+          <CompactModelField
+            form={form}
+            name="smallModelId"
+            label={t('library.config.agent.field.small_model.label')}
+            allowClear
+            filter={modelFilter}
+            portalContainer={portalContainer}
+            modelLabels={modelLabels}
+            setModelLabels={setModelLabels}
+            onModelChange={(modelId) => patchAgentForm({ smallModel: modelId ?? '' })}
+          />
+        )}
       </div>
       <TextInputField
         form={form}
@@ -430,26 +448,37 @@ function AgentBasicFields({
         label={t('library.config.agent.field.description.label')}
         placeholder={t('library.config.agent.field.description.placeholder')}
       />
-      <PermissionModeField form={form} portalContainer={portalContainer} patchAgentForm={patchAgentForm} />
-      <HeartbeatSettingsField
+      <PermissionModeField
         form={form}
-        enabled={heartbeatEnabled}
-        onEnabledChange={(checked) => patchAgentForm({ heartbeatEnabled: checked })}
+        isPi={isPi}
+        portalContainer={portalContainer}
+        patchAgentForm={patchAgentForm}
       />
+      {!isPi && (
+        <HeartbeatSettingsField
+          form={form}
+          enabled={heartbeatEnabled}
+          onEnabledChange={(checked) => patchAgentForm({ heartbeatEnabled: checked })}
+        />
+      )}
     </div>
   )
 }
 
 function PermissionModeField({
   form,
+  isPi,
   portalContainer,
   patchAgentForm
 }: {
   form: UseFormReturn<AgentEditFormValues>
+  isPi: boolean
   portalContainer: HTMLElement | null
   patchAgentForm: (patch: Partial<AgentFormState>) => void
 }) {
   const { t } = useTranslation()
+  // pi has no plan mode (D8).
+  const modes = isPi ? PERMISSION_MODES.filter((mode) => mode !== 'plan') : PERMISSION_MODES
 
   return (
     <FormField
@@ -470,7 +499,7 @@ function PermissionModeField({
                 </SelectTrigger>
               </FormControl>
               <SelectContent portalContainer={portalContainer}>
-                {PERMISSION_MODES.map((mode) => (
+                {modes.map((mode) => (
                   <SelectItem key={mode} value={mode}>
                     {t(PERMISSION_MODE_LABEL_KEYS[mode])}
                   </SelectItem>

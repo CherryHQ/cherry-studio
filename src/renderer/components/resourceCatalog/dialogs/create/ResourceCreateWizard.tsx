@@ -43,6 +43,7 @@ function getDefaultValues(kind: ResourceCreateWizardKind): ResourceCreateWizardF
     avatar: getDefaultAvatar(kind),
     name: '',
     description: '',
+    agentType: 'claude-code',
     modelId: null,
     prompt: '',
     knowledgeBaseIds: [],
@@ -185,6 +186,7 @@ export function ResourceCreateWizard({
       await onSubmit({
         avatar: values.avatar,
         name: values.name.trim(),
+        agentType: values.agentType,
         modelId: values.modelId,
         description: values.description.trim(),
         prompt: values.prompt.trim(),
@@ -274,6 +276,7 @@ export function ResourceCreateWizard({
                     portalContainer={dialogContentElement}
                     fallbackAvatar={getDefaultAvatar(kind)}
                     modelFilter={modelFilter}
+                    runtimeSelectable={kind === 'agent'}
                   />
                 ) : null}
                 {currentStep.id === 'persona' ? (

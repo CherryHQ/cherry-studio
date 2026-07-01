@@ -3101,6 +3101,13 @@
             "hint": "Task decomposition and planning",
             "label": "Plan model"
           },
+          "runtime": {
+            "label": "Runtime",
+            "option": {
+              "claude_code": "Claude Code",
+              "pi": "pi"
+            }
+          },
           "small_model": {
             "hint": "Lightweight checks and formatting",
             "label": "Small model"

@@ -4,9 +4,9 @@ import {
   ResourceCreateWizard,
   type ResourceCreateWizardValues
 } from '@renderer/components/resourceCatalog/dialogs/create'
+import { buildAgentCreateBody } from '@renderer/components/resourceCatalog/dialogs/create/agentCreateBody'
 import { ConversationPickerDialog, type ConversationPickerItem } from '@renderer/components/resourceCatalog/selectors'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
-import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { Plus } from 'lucide-react'
@@ -35,7 +35,6 @@ export function AgentConversationPickerDialog({
   onSelect
 }: AgentConversationPickerDialogProps) {
   const { t } = useTranslation()
-  const modelFilter = useAgentModelFilter('claude-code')
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const { trigger: createAgent, isLoading: isCreatingAgent } = useMutation('POST', '/agents', {
     refresh: ['/agents']
@@ -73,20 +72,7 @@ export function AgentConversationPickerDialog({
   const handleSubmitCreate = useCallback(
     async (values: ResourceCreateWizardValues) => {
       try {
-        const created = await createAgent({
-          body: {
-            type: 'claude-code',
-            name: values.name,
-            model: values.modelId,
-            planModel: values.modelId,
-            smallModel: values.modelId,
-            description: values.description,
-            configuration: {
-              avatar: values.avatar,
-              permission_mode: 'bypassPermissions'
-            }
-          }
-        })
+        const created = await createAgent({ body: buildAgentCreateBody(values) })
         setCreateDialogOpen(false)
         // Start a session with the new agent so it surfaces in the rail (a fresh agent has no session
         // yet), mirroring picking an existing one.
@@ -123,7 +109,6 @@ export function AgentConversationPickerDialog({
         isSubmitting={isCreatingAgent}
         onOpenChange={setCreateDialogOpen}
         onSubmit={handleSubmitCreate}
-        modelFilter={modelFilter}
       />
     </>
   )

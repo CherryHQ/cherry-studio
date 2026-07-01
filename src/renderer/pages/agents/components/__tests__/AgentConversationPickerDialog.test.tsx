@@ -34,7 +34,18 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/create', () => ({
       <div data-testid="create-dialog" data-open={String(props.open)} data-kind={props.kind}>
         <button
           type="button"
-          onClick={() => props.onSubmit({ avatar: '🤖', name: 'New', modelId: 'p::m', description: 'desc' })}>
+          onClick={() =>
+            props.onSubmit({
+              avatar: '🤖',
+              name: 'New',
+              agentType: 'claude-code',
+              modelId: 'p::m',
+              description: 'desc',
+              prompt: 'sys',
+              knowledgeBaseIds: [],
+              skillIds: []
+            })
+          }>
           submit-create
         </button>
       </div>
@@ -95,6 +106,8 @@ describe('AgentConversationPickerDialog', () => {
           planModel: 'p::m',
           smallModel: 'p::m',
           description: 'desc',
+          instructions: 'sys',
+          skillIds: [],
           configuration: { avatar: '🤖', permission_mode: 'bypassPermissions' }
         }
       })
@@ -131,7 +144,16 @@ describe('AgentConversationPickerDialog', () => {
 
     // Submit re-throws so the wizard can surface the error; call it directly to capture the rejection.
     await expect(
-      mocks.createDialogProps.onSubmit({ avatar: '🤖', name: 'New', modelId: 'p::m', description: 'desc' })
+      mocks.createDialogProps.onSubmit({
+        avatar: '🤖',
+        name: 'New',
+        agentType: 'claude-code',
+        modelId: 'p::m',
+        description: 'desc',
+        prompt: 'sys',
+        knowledgeBaseIds: [],
+        skillIds: []
+      })
     ).rejects.toThrow('create failed')
 
     expect(screen.getByTestId('create-dialog')).toHaveAttribute('data-open', 'true')

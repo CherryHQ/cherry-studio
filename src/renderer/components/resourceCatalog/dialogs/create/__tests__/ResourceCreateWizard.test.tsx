@@ -67,6 +67,7 @@ describe('ResourceCreateWizard', () => {
     expect(onSubmit).toHaveBeenCalledWith({
       avatar: '💬',
       name: 'My Resource',
+      agentType: 'claude-code',
       modelId: 'provider::model',
       description: '',
       prompt: 'be helpful',
