@@ -24,15 +24,31 @@ function integrityCheck1(client: Client, ftsTable: string): Promise<unknown> {
   return client.execute(`INSERT INTO ${ftsTable}(${ftsTable}, rank) VALUES('integrity-check', 1)`)
 }
 
-// Model drizzle's table rebuild: a plain `CREATE TABLE ... AS SELECT *` reassigns the implicit
-// rowid (reshuffling it relative to any deleted-row holes) while copying every real column —
-// including `fts_rowid` — verbatim. The FTS vtable is untouched, so it keeps its entries keyed by
-// fts_rowid; re-running the custom SQL re-asserts the triggers on the rebuilt table.
+function quoteIdent(identifier: string): string {
+  return `"${identifier.replaceAll('"', '""')}"`
+}
+
+// Model drizzle's table rebuild without permanently replacing the production schema: copy rows
+// through a plain `CREATE TABLE ... AS SELECT *` temp table so re-inserting them reassigns the
+// implicit rowid (reshuffling it relative to any deleted-row holes) while copying every real column
+// — including `fts_rowid` — verbatim. FTS triggers are dropped during the delete/re-insert, so the
+// FTS vtable is untouched and keeps its entries keyed by fts_rowid; re-running the custom SQL
+// re-asserts the triggers on the rebuilt table.
 async function rebuildWithRowidReshuffle(client: Client, table: string, ftsStatements: string[]): Promise<void> {
+  const quotedTable = quoteIdent(table)
+  const copyTable = quoteIdent(`__fts_rebuild_${table}`)
+  const columnsResult = await client.execute(`PRAGMA table_info(${quotedTable})`)
+  const columns = columnsResult.rows.map((row) => String(row.name ?? row[1]))
+  const columnList = columns.map(quoteIdent).join(', ')
+
   await client.execute('PRAGMA foreign_keys=OFF')
-  await client.execute(`CREATE TABLE __new_${table} AS SELECT * FROM ${table}`)
-  await client.execute(`DROP TABLE ${table}`)
-  await client.execute(`ALTER TABLE __new_${table} RENAME TO ${table}`)
+  for (const stmt of ftsStatements) {
+    if (/^\s*DROP\s+TRIGGER\b/i.test(stmt)) await client.execute(stmt)
+  }
+  await client.execute(`CREATE TEMP TABLE ${copyTable} AS SELECT * FROM ${quotedTable}`)
+  await client.execute(`DELETE FROM ${quotedTable}`)
+  await client.execute(`INSERT INTO ${quotedTable} (${columnList}) SELECT ${columnList} FROM ${copyTable}`)
+  await client.execute(`DROP TABLE ${copyTable}`)
   await client.execute('PRAGMA foreign_keys=ON')
   for (const stmt of ftsStatements) await client.execute(stmt)
 }

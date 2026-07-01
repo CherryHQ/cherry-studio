@@ -113,6 +113,9 @@ export enum UpgradeChannel {
 
 export type ChatMessageStyle = 'plain' | 'bubble'
 
+/** Chat resource-list layout: 'classic' = entity rail + right resource panel, 'modern' = single sidebar. */
+export type ChatLayoutMode = 'classic' | 'modern'
+
 export type ChatMessageNavigationMode = 'none' | 'buttons' | 'anchor'
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -179,7 +182,8 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'bocha',
   'querit',
   'fetch',
-  'jina'
+  'jina',
+  'firecrawl'
 ] as const
 
 export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]

@@ -75,8 +75,7 @@ const FS_RETRY_MAX_DELAY_MS = 1500
 
 // inArray() binds one SQL variable per id; a single UPDATE over the whole degrade set would
 // overflow SQLite's bound-variable cap once a corpus accumulates enough orphaned directory items.
-// Chunk well under the cap, matching the repo convention (FileRefService / orphanCheckerRegistry /
-// ChatMigrator all use 500 on this same knowledge_item id column).
+// Chunk well under the cap, matching the repo convention (FileRefService / ChatMigrator use 500).
 const DEGRADE_UPDATE_CHUNK = 500
 
 async function retryOnTransientFsLock<T>(operation: () => Promise<T>): Promise<T> {
