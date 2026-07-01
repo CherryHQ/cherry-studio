@@ -337,7 +337,7 @@
       "tooltip": "在 Windows 上執行 Agent 需要 Git Bash。如未安裝，請從 git-scm.com 下載安裝。"
     },
     "home": {
-      "welcome_title": "今天我們該談些什麼？"
+      "welcome_title": "今天想做點什麼？"
     },
     "input": {
       "placeholder": "在這裡輸入您的訊息，使用 {{key}} 傳送 - @ 選擇路徑，/ 選擇命令",

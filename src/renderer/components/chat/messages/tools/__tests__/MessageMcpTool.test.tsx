@@ -1,5 +1,5 @@
 import type { McpToolResponse } from '@renderer/types/mcpTool'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MessageMcpTool from '../mcp/MessageMcpTool'
@@ -97,5 +97,27 @@ describe('MessageMcpTool', () => {
     expect(container.textContent).not.toContain('chat.input.pause')
     // Only the collapse header is interactive — no separate actions-bar controls.
     expect(screen.getAllByRole('button')).toHaveLength(1)
+  })
+
+  it('keeps a lightweight copy action for completed tool payloads', async () => {
+    const copyText = vi.fn()
+    mockActions.mockReturnValue({ copyText })
+
+    render(
+      <MessageMcpTool
+        toolResponse={createMcpToolResponse({
+          status: 'done',
+          response: { content: [{ type: 'text', text: 'ok' }] }
+        })}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.copy' }))
+
+    await waitFor(() => {
+      expect(copyText).toHaveBeenCalledWith(expect.stringContaining('"url": "https://example.com"'), {
+        successMessage: 'message.copied'
+      })
+    })
   })
 })

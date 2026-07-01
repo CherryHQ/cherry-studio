@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ThinkingBlock from '../ThinkingBlock'
@@ -57,16 +57,8 @@ describe('ThinkingBlock', () => {
     mockRenderConfig.thoughtAutoCollapse = false
 
     mockUseTranslation.mockReturnValue({
-      t: (key: string, params?: any) => {
-        if (key === 'chat.thinking' && params?.seconds) {
-          return `Thinking... ${params.seconds}s`
-        }
-        if (key === 'chat.deeply_thought' && params?.seconds) {
-          return `Thought for ${params.seconds}s`
-        }
-        if (key === 'chat.thinking_tokens' && params?.tokens) {
-          return `~${params.tokens} tokens`
-        }
+      t: (key: string) => {
+        if (key === 'message.tools.placeholder.thinking') return 'Thinking'
         if (key === 'common.reasoning_content') return 'Deep reasoning'
         return key
       }
@@ -157,8 +149,8 @@ describe('ThinkingBlock', () => {
     })
   })
 
-  describe('thinking time display', () => {
-    it('should display appropriate time messages based on status', () => {
+  describe('thinking status display', () => {
+    it('should display status messages without elapsed seconds', () => {
       // Completed thinking
       const completedBlock = createThinkingBlock({
         thinkingMs: 3500,
@@ -167,8 +159,8 @@ describe('ThinkingBlock', () => {
       const { unmount } = renderThinkingBlock(completedBlock)
 
       const timeText = getThinkingTimeText()
-      expect(timeText).toHaveTextContent('3.5s')
-      expect(timeText).toHaveTextContent('Thought for')
+      expect(timeText).toHaveTextContent('Deep reasoning')
+      expect(timeText).not.toHaveTextContent('3.5s')
       unmount()
 
       // Active thinking
@@ -179,18 +171,19 @@ describe('ThinkingBlock', () => {
       renderThinkingBlock(thinkingBlock)
 
       const activeTimeText = getThinkingTimeText()
-      expect(activeTimeText).toHaveTextContent('Thinking...')
+      expect(activeTimeText).toHaveTextContent('Thinking')
+      expect(activeTimeText).not.toHaveTextContent('1.0s')
     })
 
-    it('should display live estimated thinking tokens when available', () => {
+    it('should not display live estimated thinking tokens', () => {
       const thinkingBlock = createThinkingBlock({
         status: 'streaming',
         thoughtsTokens: 1234
       })
       const { rerender } = renderThinkingBlock(thinkingBlock)
 
-      expect(getThinkingTimeText()).toHaveTextContent('Thinking...')
-      expect(getThinkingTimeText()).toHaveTextContent('~1,234 tokens')
+      expect(getThinkingTimeText()).toHaveTextContent('Thinking')
+      expect(getThinkingTimeText()).not.toHaveTextContent('~1,234 tokens')
 
       rerender(
         <ThinkingBlock
@@ -202,98 +195,7 @@ describe('ThinkingBlock', () => {
         />
       )
 
-      expect(getThinkingTimeText()).toHaveTextContent('~2,048 tokens')
-    })
-
-    it('should handle extreme thinking times correctly', () => {
-      const testCases = [
-        { thinkingMs: 0, expectedTime: 'Deep reasoning' },
-        { thinkingMs: 86400000, expectedTime: '86400.0s' },
-        { thinkingMs: 259200000, expectedTime: '259200.0s' }
-      ]
-
-      testCases.forEach(({ thinkingMs, expectedTime }) => {
-        const block = createThinkingBlock({
-          thinkingMs,
-          status: 'success'
-        })
-        const { unmount } = renderThinkingBlock(block)
-        expect(getThinkingTimeText()).toHaveTextContent(expectedTime)
-        unmount()
-      })
-    })
-
-    it('should clamp invalid thinking times to a safe default', () => {
-      const testCases = [undefined, Number.NaN, Number.POSITIVE_INFINITY]
-
-      testCases.forEach((thinkingMs) => {
-        const block = createThinkingBlock({
-          thinkingMs: thinkingMs as any,
-          status: 'success'
-        })
-        const { unmount } = renderThinkingBlock(block)
-        expect(getThinkingTimeText()).toHaveTextContent('Deep reasoning')
-        unmount()
-      })
-    })
-
-    it('should calculate active thinking time dynamically using startedAt if provided', () => {
-      const baseTime = 1780913860106
-      const dateSpy = vi.spyOn(Date, 'now').mockReturnValue(baseTime)
-      const startedAt = baseTime - 4500 // 4.5 seconds ago
-
-      // 1. Initial mount with isStreaming=true
-      const block = createThinkingBlock({
-        thinkingMs: 0,
-        status: 'streaming',
-        startedAt
-      })
-      const { unmount } = renderThinkingBlock(block)
-
-      // Time should be calculated as Date.now() - startedAt = 4500ms -> 4.5s
-      expect(getThinkingTimeText()).toHaveTextContent('Thinking... 4.5s')
-
-      // 2. Advance clock by 1.2 seconds, verify it updates correctly
-      dateSpy.mockReturnValue(baseTime + 1200)
-      act(() => {
-        vi.advanceTimersByTime(1200)
-      })
-      expect(getThinkingTimeText()).toHaveTextContent('Thinking... 5.7s')
-
-      // 3. Remount (simulate changing session / component remount)
-      unmount()
-      const { unmount: unmount2 } = renderThinkingBlock(block)
-      expect(getThinkingTimeText()).toHaveTextContent('Thinking... 5.7s')
-      unmount2()
-    })
-
-    it('should keep a static time when stream is finished, even if startedAt is provided', () => {
-      const baseTime = 1780913860106
-      const dateSpy = vi.spyOn(Date, 'now').mockReturnValue(baseTime)
-      const startedAt = baseTime - 5000
-
-      // 1. Mount with status: 'success' and a fixed thinkingMs: 5000 (5.0s)
-      const block = createThinkingBlock({
-        thinkingMs: 5000,
-        status: 'success',
-        startedAt
-      })
-      const { unmount } = renderThinkingBlock(block)
-
-      expect(getThinkingTimeText()).toHaveTextContent('Thought for 5.0s')
-
-      // 2. Advance clock by 10 seconds, verify it stays at 5.0s (does not tick)
-      dateSpy.mockReturnValue(baseTime + 10000)
-      act(() => {
-        vi.advanceTimersByTime(10000)
-      })
-      expect(getThinkingTimeText()).toHaveTextContent('Thought for 5.0s')
-
-      // 3. Remount (simulate switching session back), verify it still renders 5.0s
-      unmount()
-      const { unmount: unmount2 } = renderThinkingBlock(block)
-      expect(getThinkingTimeText()).toHaveTextContent('Thought for 5.0s')
-      unmount2()
+      expect(getThinkingTimeText()).not.toHaveTextContent('~2,048 tokens')
     })
   })
 

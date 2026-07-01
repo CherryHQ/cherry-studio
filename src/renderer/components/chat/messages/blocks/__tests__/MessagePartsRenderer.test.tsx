@@ -190,8 +190,11 @@ vi.mock('../ToolBlockGroup', () => ({
       ))}
     </div>
   ),
-  ToolBlockGroupHeaderContent: ({ activityLabel, summary, items, isLiveProgress }: any) => (
-    <span data-live={String(!!isLiveProgress)}>{activityLabel ?? summary ?? `${items?.length ?? 0} tool calls`}</span>
+  ToolBlockGroupHeaderContent: ({ activityLabel, elapsedText, summary, items, isLiveProgress }: any) => (
+    <span data-live={String(!!isLiveProgress)}>
+      {activityLabel ?? summary ?? `${items?.length ?? 0} tool calls`}
+      {elapsedText ? ` · ${elapsedText}` : ''}
+    </span>
   )
 }))
 
@@ -200,7 +203,9 @@ vi.mock('../PlaceholderBlock', () => ({
   __esModule: true,
   default: ({ createdAt, status }: any) => (
     <div data-testid="mock-placeholder" data-created-at={createdAt} data-status={status} />
-  )
+  ),
+  formatPlaceholderElapsed: () => '1 second',
+  usePlaceholderElapsedMs: () => 1200
 }))
 
 // ============================================================================
@@ -312,11 +317,11 @@ describe('MessagePartsRenderer', () => {
       }
     ] as unknown as CherryMessagePart[])
 
-    expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-status', 'usingTools')
-    // The tool history collapses behind the outer fold (live header); the tool
-    // detail stays hidden until the user expands it.
-    expect(screen.getByRole('button')).toBeInTheDocument()
-    expect(screen.queryByTestId('mock-message-tools')).toBeNull()
+    // The live tool history starts expanded; the live header replaces the
+    // generic processing placeholder.
+    expect(screen.getByRole('button')).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.queryByTestId('mock-placeholder')).toBeNull()
+    expect(screen.getByTestId('mock-message-tools')).toBeInTheDocument()
   })
 
   it('shows the generating placeholder below answer text while streaming', () => {
@@ -629,7 +634,7 @@ describe('MessagePartsRenderer', () => {
     ])
   })
 
-  it('collapses the process behind the outer fold and shows trailing answer text below while streaming', () => {
+  it('expands the process behind the outer fold and shows trailing answer text below while streaming', () => {
     mockIsActiveTurnTarget.mockReturnValue(true)
     renderParts(
       [
@@ -641,11 +646,11 @@ describe('MessagePartsRenderer', () => {
       msg({ status: 'pending' })
     )
 
-    // The intro + tools fold behind the single outer fold (present throughout —
-    // never flips in/out); the trailing answer text renders below it.
-    expect(screen.getByRole('button', { name: '2 tool calls' })).toBeInTheDocument()
-    expect(screen.queryByText('checking project files')).toBeNull()
-    expect(screen.getByTestId('mock-markdown').textContent).toBe('rewriting renderer')
+    // The intro + tools stay in the single outer fold while the pending message
+    // streams; the trailing answer text renders below it.
+    expect(screen.getByRole('button', { name: '2 tool calls' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('checking project files')).toBeInTheDocument()
+    expect(screen.getAllByTestId('mock-markdown').at(-1)?.textContent).toBe('rewriting renderer')
   })
 
   it('renders bare tool runs inline when there is no final answer', () => {
@@ -691,7 +696,7 @@ describe('MessagePartsRenderer', () => {
     ])
   })
 
-  it('folds reasoning together with the tools inside a multi-tool run', () => {
+  it('filters completed reasoning from expanded multi-tool runs', () => {
     renderParts([
       { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
       { type: 'reasoning', text: 'deep thought between tools', state: 'done' },
@@ -705,7 +710,7 @@ describe('MessagePartsRenderer', () => {
 
     fireEvent.click(foldButton)
 
-    expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('deep thought between tools')
+    expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
     expect(screen.getAllByTestId('mock-message-tools').map((node) => node.getAttribute('data-tool-name'))).toEqual([
       'list',
       'read'
@@ -739,7 +744,7 @@ describe('MessagePartsRenderer', () => {
     ])
   })
 
-  it('folds a lone tool with trailing reasoning behind the fold', () => {
+  it('filters completed trailing reasoning from a lone tool fold', () => {
     renderParts([
       { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
       { type: 'reasoning', text: 'final deep thought after tool', state: 'done' }
@@ -752,10 +757,10 @@ describe('MessagePartsRenderer', () => {
     fireEvent.click(foldButton)
 
     expect(screen.getByTestId('mock-message-tools').getAttribute('data-tool-name')).toBe('list')
-    expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('final deep thought after tool')
+    expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
   })
 
-  it('folds an agent + read run with trailing reasoning into one block', () => {
+  it('filters completed trailing reasoning from an agent + read fold', () => {
     renderParts([
       { type: 'dynamic-tool', toolCallId: 'agent-a', toolName: 'Agent', state: 'output-available', output: {} },
       { type: 'dynamic-tool', toolCallId: 'read-a', toolName: 'Read', state: 'output-available', output: {} },
@@ -773,7 +778,7 @@ describe('MessagePartsRenderer', () => {
       'Agent',
       'Read'
     ])
-    expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('agent flow final thought')
+    expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
   })
 
   it('marks consecutive reasoning blocks for consistent spacing', () => {
@@ -871,7 +876,7 @@ describe('MessagePartsRenderer', () => {
     expect(container.querySelectorAll('.block-wrapper')).toHaveLength(2)
   })
 
-  it('shows a live header on the collapsed outer fold while the turn is streaming', () => {
+  it('shows a live header on the expanded outer fold while the turn is streaming', () => {
     mockIsActiveTurnTarget.mockReturnValue(true)
 
     renderParts(
@@ -883,15 +888,11 @@ describe('MessagePartsRenderer', () => {
     )
 
     const foldButton = screen.getByRole('button')
-    expect(foldButton).toHaveAttribute('aria-expanded', 'false')
+    expect(foldButton).toHaveAttribute('aria-expanded', 'true')
     // Header is in live mode (it tracks the current tool, not a static count).
     expect(foldButton.querySelector('[data-live="true"]')).toBeInTheDocument()
     expect(foldButton.querySelector('svg')).toBeNull()
-    expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-status', 'usingTools')
-    expect(screen.queryByTestId('mock-message-tools')).toBeNull()
-
-    fireEvent.click(foldButton)
-
+    expect(screen.queryByTestId('mock-placeholder')).toBeNull()
     expect(screen.getAllByTestId('mock-message-tools').map((node) => node.getAttribute('data-tool-name'))).toEqual([
       'list',
       'read'
@@ -912,7 +913,10 @@ describe('MessagePartsRenderer', () => {
       msg({ status: 'pending' })
     )
 
-    fireEvent.click(screen.getByRole('button')) // expand the outer fold
+    const foldButton = screen.getByRole('button')
+    expect(foldButton).toHaveAttribute('aria-expanded', 'true')
+    expect(foldButton.querySelector('[data-live="true"]')).toBeInTheDocument()
+    expect(screen.queryByTestId('mock-placeholder')).toBeNull()
 
     expect(screen.queryByRole('button', { name: '2 tool calls' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Working…' })).toBeNull()
@@ -925,7 +929,24 @@ describe('MessagePartsRenderer', () => {
     ])
   })
 
-  it('folds the tool history and shows the final answer below while the message is pending', () => {
+  it('hides the generating placeholder when a pending agent message already has tool calls', () => {
+    mockIsActiveTurnTarget.mockReturnValue(true)
+
+    renderParts(
+      [
+        { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
+        { type: 'text', text: 'final answer so far' }
+      ] as unknown as CherryMessagePart[],
+      msg({ status: 'pending' })
+    )
+
+    const foldButton = screen.getByRole('button', { name: '1 tool calls' })
+    expect(foldButton.querySelector('[data-live="true"]')).toBeNull()
+    expect(screen.queryByTestId('mock-placeholder')).toBeNull()
+    expect(screen.getByTestId('mock-markdown')).toHaveTextContent('final answer so far')
+  })
+
+  it('expands the tool history and shows the final answer below while the message is pending', () => {
     renderParts(
       [
         { type: 'text', text: 'checking project files' },
@@ -935,9 +956,10 @@ describe('MessagePartsRenderer', () => {
       msg({ status: 'pending' })
     )
 
-    expect(screen.getByRole('button', { name: '1 tool calls' })).toBeInTheDocument()
-    expect(screen.getByTestId('mock-markdown').textContent).toBe('final answer')
-    expect(screen.queryByText('checking project files')).toBeNull()
+    expect(screen.getByRole('button', { name: '1 tool calls' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getAllByTestId('mock-markdown').at(-1)?.textContent).toBe('final answer')
+    expect(screen.getByText('checking project files')).toBeInTheDocument()
+    expect(screen.queryByTestId('mock-placeholder')).toBeNull()
   })
 
   it('shows a thinking hint in the live fold header while reasoning streams after a tool', () => {
@@ -951,12 +973,9 @@ describe('MessagePartsRenderer', () => {
       msg({ status: 'pending' })
     )
 
-    const foldButton = screen.getByRole('button', { name: 'Thinking...' })
-    expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-status', 'thinking')
-    expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
-
-    fireEvent.click(foldButton)
-
+    const foldButton = screen.getByRole('button', { name: /Thinking\.\.\./ })
+    expect(foldButton).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.queryByTestId('mock-placeholder')).toBeNull()
     expect(screen.getByTestId('mock-message-tools').getAttribute('data-tool-name')).toBe('list')
     expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('thinking after tool')
   })

@@ -116,7 +116,7 @@ describe('getReadableToolActivity', () => {
 })
 
 describe('ToolHeader', () => {
-  it('applies a breathing icon style to active collapsed tool titles', () => {
+  it('does not render a tool icon in collapsed tool titles', () => {
     const { container } = render(
       React.createElement(ToolHeader, {
         variant: 'collapse-label',
@@ -125,13 +125,10 @@ describe('ToolHeader', () => {
       })
     )
 
-    const icon = container.querySelector('.tool-icon')
-    expect(icon).toHaveClass('animate-pulse')
-    expect(icon?.className).not.toContain('drop-shadow')
-    expect(icon?.className).not.toContain('text-(--color-primary)')
+    expect(container.querySelector('.tool-icon')).toBeNull()
   })
 
-  it('keeps completed collapsed tool title icons static', () => {
+  it('does not render a tool icon in completed collapsed tool titles', () => {
     const { container } = render(
       React.createElement(ToolHeader, {
         variant: 'collapse-label',
@@ -140,6 +137,23 @@ describe('ToolHeader', () => {
       })
     )
 
-    expect(container.querySelector('.tool-icon')).not.toHaveClass('animate-pulse')
+    expect(container.querySelector('.tool-icon')).toBeNull()
+  })
+
+  it('applies shimmer only to the main label while keeping the target text style', () => {
+    const { container } = render(
+      React.createElement(ToolHeader, {
+        args: { file_path: '/tmp/unifiedPanel.test.ts' },
+        shimmer: true,
+        status: 'invoking',
+        toolName: AgentToolsType.Read,
+        variant: 'collapse-label'
+      })
+    )
+
+    expect(container.querySelectorAll('.animation-shimmer')).toHaveLength(1)
+    expect(container.querySelector('.animation-shimmer')).toHaveTextContent('message.tools.activity.viewing')
+    expect(container.querySelector('.animation-shimmer')).not.toHaveTextContent('unifiedPanel.test.ts')
+    expect(container).toHaveTextContent('unifiedPanel.test.ts')
   })
 })

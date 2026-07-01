@@ -1,5 +1,4 @@
 import { cn } from '@renderer/utils/style'
-import { ChevronDown } from 'lucide-react'
 import { type ComponentPropsWithoutRef, type ReactNode, useEffect, useState } from 'react'
 
 export interface ToolDisclosureItem {
@@ -79,15 +78,6 @@ export function ToolDisclosure({
               )}
               onClick={() => canExpand && toggleKey(item.key)}>
               {item.label}
-              {canExpand && (
-                <ChevronDown
-                  aria-hidden="true"
-                  className={cn(
-                    'ml-auto size-4 shrink-0 text-foreground-muted opacity-70 transition-transform duration-200',
-                    isOpen && 'rotate-180'
-                  )}
-                />
-              )}
             </button>
             {canExpand && (
               <DeferredDisclosureContent

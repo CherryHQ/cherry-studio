@@ -1,5 +1,4 @@
 import { cn } from '@renderer/utils/style'
-import { ChevronDown } from 'lucide-react'
 import { type KeyboardEvent, type ReactNode, useId, useState } from 'react'
 
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
@@ -83,16 +82,6 @@ export function AgentToolDisclosure({
           onClick={isInteractive ? openOrToggle : undefined}
           onKeyDown={handleHeaderKeyDown}>
           {item.label}
-          {canExpand && (
-            <ChevronDown
-              aria-hidden="true"
-              size={16}
-              className={cn(
-                'ml-auto shrink-0 text-foreground-muted opacity-70 transition-transform duration-200',
-                isExpanded && 'rotate-180'
-              )}
-            />
-          )}
         </div>
         {canExpand && (
           <div

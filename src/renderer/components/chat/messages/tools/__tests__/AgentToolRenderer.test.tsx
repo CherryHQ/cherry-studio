@@ -422,7 +422,7 @@ describe('AgentToolRenderer', () => {
 
       // Should still render the tool component
       expect(screen.getByText('View')).toBeInTheDocument()
-      expect(screen.getByText('Error')).toHaveStyle('color: var(--color-foreground-secondary)')
+      expect(screen.getByText('Error')).toHaveStyle('color: var(--color-warning, #faad14)')
       expect(
         screen.queryAllByTestId('tooltip-content').some((element) => element.textContent === 'File not found')
       ).toBe(false)
@@ -731,7 +731,7 @@ describe('AgentToolRenderer', () => {
       expect(disclosure).toHaveClass('border-none')
       expect(disclosure).toHaveClass('bg-transparent')
       expect(disclosure).not.toHaveClass('rounded-[7px]')
-      expect(screen.getByTestId('wrench-icon')).toBeInTheDocument()
+      expect(screen.queryByTestId('wrench-icon')).toBeNull()
 
       const title = screen.getByText('tool_search · ns=mcp:tavily')
       expect(title).toHaveClass('font-normal')

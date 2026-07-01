@@ -25,7 +25,6 @@ import { convertReferencesToCitationReferences, convertReferencesToCitations } f
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ErrorPartData } from '@shared/data/types/uiParts'
 import { isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
-import { ChevronDown } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -45,7 +44,11 @@ import ErrorBlock from './ErrorBlock'
 import ImageBlock from './ImageBlock'
 import MainTextBlock from './MainTextBlock'
 import { useMessageParts, useTranslationOverlayEntry } from './MessagePartsContext'
-import PlaceholderBlock, { type PlaceholderStatus } from './PlaceholderBlock'
+import PlaceholderBlock, {
+  formatPlaceholderElapsed,
+  type PlaceholderStatus,
+  usePlaceholderElapsedMs
+} from './PlaceholderBlock'
 import ThinkingBlock from './ThinkingBlock'
 import { ToolBlockGroupContent, ToolBlockGroupHeaderContent } from './ToolBlockGroup'
 import TranslationBlock from './TranslationBlock'
@@ -222,6 +225,10 @@ function isReasoningMessagePart(part: CherryMessagePart): boolean {
   return (part.type as string) === 'reasoning' && !!(part as ReasoningUIPart).text?.trim()
 }
 
+function isCompletedReasoningMessagePart(part: CherryMessagePart): boolean {
+  return isReasoningMessagePart(part) && (part as ReasoningUIPart).state !== 'streaming'
+}
+
 function isResultPart(part: CherryMessagePart): boolean {
   const partType = part.type as string
   return isSummaryMessagePart(part) || partType === 'data-error' || partType === 'file' || partType === 'data-video'
@@ -254,6 +261,11 @@ function getProcessingPlaceholderStatus(entries: readonly PartEntry[]): Placehol
   }
 
   return 'preparing'
+}
+
+function hasProcessTail(entries: readonly PartEntry[]): boolean {
+  const lastEntry = entries.at(-1)
+  return lastEntry ? isProcessPart(lastEntry.part) : false
 }
 
 // ============================================================================
@@ -562,7 +574,13 @@ function getToolHistoryGroup(
   entries: readonly PartEntry[],
   message: MessageListItem,
   isProcessing: boolean
-): { collapsedEntries: PartEntry[]; resultEntries: PartEntry[]; toolCount: number; hasResult: boolean } | null {
+): {
+  collapsedEntries: PartEntry[]
+  resultEntries: PartEntry[]
+  toolCount: number
+  hasResult: boolean
+  hasLiveProcessTail: boolean
+} | null {
   if (message.role !== 'assistant') return null
 
   let lastToolIndex = -1
@@ -583,13 +601,14 @@ function getToolHistoryGroup(
   const collapsedEntries = entries.slice(0, collapsedEnd + 1)
   const resultEntries = entries.slice(collapsedEnd + 1)
   const hasResult = resultEntries.some((entry) => isResultPart(entry.part))
+  const hasLiveProcessTail = isProcessing && hasProcessTail(entries)
   const hasCollapsedTail = collapsedEnd > lastToolIndex
   if (message.status === 'success' && !isProcessing && !hasResult && !hasCollapsedTail) return null
 
   const toolCount = buildToolRenderItems(collapsedEntries, message.id).length
   if (toolCount === 0) return null
 
-  return { collapsedEntries, resultEntries, toolCount, hasResult }
+  return { collapsedEntries, resultEntries, toolCount, hasResult, hasLiveProcessTail }
 }
 
 /** Whether trailing reasoning after the last tool is still streaming — drives
@@ -604,34 +623,43 @@ function hasStreamingReasoningAfterLastTool(entries: readonly PartEntry[]): bool
 }
 
 /**
- * The big outer fold for the whole agentic process. Collapsed by default; while
- * the turn is live its header shows the current tool being called (the live
- * "tool change" display), settling to a "N tool calls" count once done. Only on
- * manual expand does it reveal the process in order. The final answer renders
- * outside, below this fold.
+ * The big outer fold for the whole agentic process. It stays expanded while the
+ * turn is active so tool activity remains readable, then collapses once the
+ * message settles. The final answer renders outside, below this fold.
  */
 const OuterProcessFold = React.memo(function OuterProcessFold({
   entries,
+  hasLiveProcessTail,
   message,
   toolCount,
-  hasResult,
   isProcessing
 }: {
   entries: readonly PartEntry[]
+  hasLiveProcessTail: boolean
   message: MessageListItem
   toolCount: number
-  hasResult: boolean
   isProcessing: boolean
 }) {
   const { t } = useTranslation()
-  const [isExpanded, setIsExpanded] = React.useState(false)
+  const shouldAutoExpand = isProcessing || message.status !== 'success'
+  const [isExpanded, setIsExpanded] = React.useState(() => shouldAutoExpand)
   const contentId = React.useId()
 
   const toolItems = useMemo(() => buildToolRenderItems(entries, message.id), [entries, message.id])
-  const groupedEntries = useMemo(() => groupPartEntries(entries), [entries])
-  const showLiveProgress = (isProcessing || message.status !== 'success') && !hasResult
+  const groupedEntries = useMemo(
+    () => groupPartEntries(entries.filter((entry) => !isCompletedReasoningMessagePart(entry.part))),
+    [entries]
+  )
+  const showLiveProgress = (isProcessing || message.status !== 'success') && hasLiveProcessTail
+  const elapsedMs = usePlaceholderElapsedMs(showLiveProgress, message.createdAt)
+  const elapsedText = showLiveProgress ? formatPlaceholderElapsed(elapsedMs, t) : undefined
   const activityLabel =
     showLiveProgress && hasStreamingReasoningAfterLastTool(entries) ? t('message.tools.thinkingHeader') : undefined
+
+  React.useEffect(() => {
+    setIsExpanded(shouldAutoExpand)
+  }, [shouldAutoExpand])
+
   const triggerClassName = [
     !showLiveProgress && '-ml-0.5',
     'flex min-h-7',
@@ -649,15 +677,10 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
         aria-controls={contentId}
         className={triggerClassName}
         onClick={() => setIsExpanded((expanded) => !expanded)}>
-        {!showLiveProgress && (
-          <ChevronDown
-            size={16}
-            className={`shrink-0 text-foreground-muted transition-transform duration-150 ${isExpanded ? 'rotate-180' : '-rotate-90'}`}
-          />
-        )}
         <ToolBlockGroupHeaderContent
           items={toolItems}
           activityLabel={activityLabel}
+          elapsedText={elapsedText}
           summary={t('message.tools.groupHeader', { count: toolCount })}
           isLiveProgress={showLiveProgress}
           showLatestWhenComplete={showLiveProgress}
@@ -703,6 +726,7 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
     () => (collapseEnabled ? getToolHistoryGroup(partEntries, message, isProcessing) : null),
     [collapseEnabled, partEntries, message, isProcessing]
   )
+  const hasToolGroupHeader = !!toolHistoryGroup
   const reportArtifactToolResponses = useMemo(
     () => getReportArtifactToolResponses(partEntries, message.id),
     [partEntries, message.id]
@@ -733,9 +757,9 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
         <AnimatedBlockWrapper key={`tool-history-${message.id}`} enableAnimation={false}>
           <OuterProcessFold
             entries={toolHistoryGroup.collapsedEntries}
+            hasLiveProcessTail={toolHistoryGroup.hasLiveProcessTail}
             message={message}
             toolCount={toolHistoryGroup.toolCount}
-            hasResult={toolHistoryGroup.hasResult}
             isProcessing={isProcessing}
           />
         </AnimatedBlockWrapper>
@@ -746,7 +770,7 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
           <MessageReportArtifacts toolResponses={reportArtifactToolResponses} />
         </AnimatedBlockWrapper>
       )}
-      {isProcessing && (
+      {isProcessing && !hasToolGroupHeader && (
         <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
           <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />
         </AnimatedBlockWrapper>

@@ -337,7 +337,7 @@
       "tooltip": "在 Windows 上运行智能体需要 Git Bash。如果未安装，请从 git-scm.com 下载安装。"
     },
     "home": {
-      "welcome_title": "今天想聊点什么？"
+      "welcome_title": "今天想做点什么？"
     },
     "input": {
       "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择路径， / 选择命令",
