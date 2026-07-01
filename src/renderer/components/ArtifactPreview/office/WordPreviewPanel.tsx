@@ -7,6 +7,7 @@ import { type CSSProperties, useCallback, useEffect, useRef, useState } from 're
 import { useTranslation } from 'react-i18next'
 
 import DocumentPreviewToolbar from '../DocumentPreviewToolbar'
+import { toUint8Array } from '../toUint8Array'
 
 const logger = loggerService.withContext('WordPreviewPanel')
 
@@ -25,13 +26,6 @@ interface WordPreviewPanelProps {
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
 const formatDocxZoom = (zoom: number): string => `${Math.round(zoom * 100)}%`
-
-const toDocxData = (data: unknown): Uint8Array => {
-  if (data instanceof Uint8Array) return data
-  if (data instanceof ArrayBuffer) return new Uint8Array(data)
-  if (ArrayBuffer.isView(data)) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
-  return data as Uint8Array
-}
 
 function assertSourceSize(size: number): void {
   if (size > DOCX_PREVIEW_MAX_SOURCE_BYTES) {
@@ -142,7 +136,7 @@ const WordPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize }: WordPr
       try {
         if (typeof sourceSize === 'number') assertSourceSize(sourceSize)
 
-        const docxData = toDocxData(await window.api.fs.read(filePath))
+        const docxData = toUint8Array(await window.api.fs.read(filePath))
         assertSourceSize(docxData.byteLength)
         if (!isCurrent()) return
 

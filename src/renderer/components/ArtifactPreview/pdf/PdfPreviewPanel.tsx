@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import DocumentPreviewToolbar from '../DocumentPreviewToolbar'
+import { toUint8Array } from '../toUint8Array'
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
@@ -76,13 +77,6 @@ const normalizePinchWheelDelta = (event: WheelEvent): number => {
 
 const detachDocument = (viewer: PdfJsViewer) => {
   ;(viewer.setDocument as (pdfDocument: PDFDocumentProxy | null) => void)(null)
-}
-
-const toPdfData = (data: unknown): Uint8Array => {
-  if (data instanceof Uint8Array) return data
-  if (data instanceof ArrayBuffer) return new Uint8Array(data)
-  if (ArrayBuffer.isView(data)) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
-  return data as Uint8Array
 }
 
 const PdfPreviewPanel = ({ filePath, fileName, refreshKey }: PdfPreviewPanelProps) => {
@@ -216,7 +210,7 @@ const PdfPreviewPanel = ({ filePath, fileName, refreshKey }: PdfPreviewPanelProp
 
     void (async () => {
       try {
-        const pdfData = toPdfData(await window.api.fs.read(filePath))
+        const pdfData = toUint8Array(await window.api.fs.read(filePath))
         if (cancelled) return
 
         loadingTask = getDocument({ data: pdfData })

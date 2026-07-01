@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import DocumentPreviewToolbar from '../DocumentPreviewToolbar'
+import { toUint8Array } from '../toUint8Array'
 
 const logger = loggerService.withContext('PptxPreviewPanel')
 
@@ -24,13 +25,6 @@ interface PptxPreviewPanelProps {
 }
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
-
-const toPptxData = (data: unknown): Uint8Array => {
-  if (data instanceof Uint8Array) return data
-  if (data instanceof ArrayBuffer) return new Uint8Array(data)
-  if (ArrayBuffer.isView(data)) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
-  return data as Uint8Array
-}
 
 const formatPptxZoom = (zoom: number): string => `${Math.round(zoom)}%`
 
@@ -137,7 +131,7 @@ const PptxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize }: PptxPr
       try {
         if (typeof sourceSize === 'number') assertSourceSize(sourceSize)
 
-        const pptxData = toPptxData(await window.api.fs.read(filePath))
+        const pptxData = toUint8Array(await window.api.fs.read(filePath))
         assertSourceSize(pptxData.byteLength)
         if (cancelled) return
 
