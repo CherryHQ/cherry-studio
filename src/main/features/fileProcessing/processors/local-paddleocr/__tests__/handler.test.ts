@@ -12,7 +12,7 @@ vi.mock('@main/ai/inference/InferenceHost', () => ({
   inferenceHost: { recognize: recognizeMock }
 }))
 
-vi.mock('../modelPaths', () => ({
+vi.mock('@main/ai/inference/ocrModelPaths', () => ({
   isLocalPaddleocrModelDownloaded: isLocalPaddleocrModelDownloadedMock,
   ocrModelPaths: ocrModelPathsMock
 }))

@@ -8,11 +8,7 @@ import { loggerService } from '@logger'
 import { inferenceHost } from '@main/ai/inference/InferenceHost'
 import { LOCAL_MODELS, type RemoteModelFile } from '@main/ai/inference/localModelCatalog'
 import { modelSourceOrder, resolveModelFileUrl } from '@main/ai/inference/modelSource'
-import {
-  isLocalPaddleocrModelDownloaded,
-  ocrModelDir,
-  ocrModelPaths
-} from '@main/features/fileProcessing/processors/local-paddleocr/modelPaths'
+import { isLocalPaddleocrModelDownloaded, ocrModelDir, ocrModelPaths } from '@main/ai/inference/ocrModelPaths'
 import { LocalModelDownloadService } from '@main/features/localModel/LocalModelDownloadService'
 import type { LocalModelKind } from '@shared/data/presets/localModel'
 import { app, net } from 'electron'
