@@ -51,8 +51,18 @@ class InferenceHost {
     // Inference is opt-in; a loaded 600MB+ model must never keep the app alive on quit.
     worker.unref()
     worker.on('message', (msg: InferenceResponse) => this.handleMessage(msg))
-    worker.on('error', (err) => this.failAll(err instanceof Error ? err : new Error(String(err))))
+    worker.on('error', (err) => {
+      // Ignore a superseded worker: terminate() nulled this.worker and a newer worker may
+      // be live, so its requests must not be rejected by an old worker's error.
+      if (this.worker !== worker) return
+      this.failAll(err instanceof Error ? err : new Error(String(err)))
+    })
     worker.on('exit', (code) => {
+      // Ignore a superseded worker's late exit: terminate() nulls this.worker and a new
+      // worker may already be live, so acting here would clear the new worker's reference
+      // and reject its in-flight requests. The old worker's own pending were already
+      // failed when it was torn down.
+      if (this.worker !== worker) return
       this.worker = null
       // A non-zero exit is an abnormal crash (native onnxruntime fault, OOM kill). Log it
       // unconditionally — failAll's no-op-when-idle guard below would otherwise swallow the

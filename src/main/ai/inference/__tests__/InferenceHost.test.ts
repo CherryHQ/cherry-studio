@@ -90,4 +90,53 @@ describe('InferenceHost worker exit / failAll', () => {
 
     expect(mockMainLoggerService.error.mock.calls.length).toBe(afterTerminate)
   })
+
+  it("ignores a superseded worker's late exit instead of tearing down the live worker", async () => {
+    const stale = inferenceHost.embed(['a'], SOURCE, 'org/model', 'q8')
+    const workerA = fakeWorkers.at(-1)!
+
+    // Tear down A (rejecting its own in-flight), then start a fresh request → worker B.
+    inferenceHost.terminate()
+    await expect(stale).rejects.toThrow(/terminated/)
+    const live = inferenceHost.embed(['b'], SOURCE, 'org/model', 'q8')
+    const workerB = fakeWorkers.at(-1)!
+    expect(workerB).not.toBe(workerA)
+
+    let liveRejected = false
+    void live.catch(() => {
+      liveRejected = true
+    })
+
+    // A's delayed exit must not clear B's reference or reject B's in-flight request.
+    workerA.emit('exit', 1)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(liveRejected).toBe(false)
+    // B is still the live worker: a new request reuses it, no third worker is spawned.
+    void inferenceHost.embed(['c'], SOURCE, 'org/model', 'q8').catch(() => {})
+    expect(fakeWorkers).toHaveLength(2)
+  })
+
+  it("ignores a superseded worker's late error instead of rejecting the live worker's requests", async () => {
+    const stale = inferenceHost.embed(['a'], SOURCE, 'org/model', 'q8')
+    const workerA = fakeWorkers.at(-1)!
+
+    inferenceHost.terminate()
+    await expect(stale).rejects.toThrow(/terminated/)
+    const live = inferenceHost.embed(['b'], SOURCE, 'org/model', 'q8')
+    expect(fakeWorkers.at(-1)!).not.toBe(workerA)
+
+    let liveRejected = false
+    void live.catch(() => {
+      liveRejected = true
+    })
+
+    // A superseded worker's late `error` must not reject the live worker's in-flight request.
+    workerA.emit('error', new Error('late error from A'))
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(liveRejected).toBe(false)
+  })
 })
