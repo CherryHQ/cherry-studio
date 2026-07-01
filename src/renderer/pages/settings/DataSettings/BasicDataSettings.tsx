@@ -129,7 +129,7 @@ const BasicDataSettings: React.FC = () => {
           <MigrationPathLabel>{t('settings.data.app_data.original_path')}:</MigrationPathLabel>
           <MigrationPathValue>{originalPath}</MigrationPathValue>
         </MigrationPathRow>
-        <MigrationPathRow style={{ marginTop: '16px' }}>
+        <MigrationPathRow style={{ marginBlockStart: '16px' }}>
           <MigrationPathLabel>{t('settings.data.app_data.new_path')}:</MigrationPathLabel>
           <MigrationPathValue>{newPath}</MigrationPathValue>
         </MigrationPathRow>
@@ -138,11 +138,11 @@ const BasicDataSettings: React.FC = () => {
 
     const CopyDataContent = () => (
       <div>
-        <MigrationPathRow style={{ marginTop: '20px', flexDirection: 'row', alignItems: 'center' }}>
+        <MigrationPathRow style={{ marginBlockStart: '20px', flexDirection: 'row', alignItems: 'center' }}>
           <Switch
             defaultChecked={shouldCopyData}
             onCheckedChange={(checked) => (shouldCopyData = checked)}
-            className="mr-2"
+            className="me-2"
           />
           <MigrationPathLabel style={{ fontWeight: 'normal', fontSize: '14px' }}>
             {t('settings.data.app_data.copy_data_option')}
@@ -162,7 +162,7 @@ const BasicDataSettings: React.FC = () => {
           <CopyDataContent />
           <MigrationNotice>
             <p style={{ color: 'var(--color-warning)' }}>{t('settings.data.app_data.restart_notice')}</p>
-            <p style={{ color: 'var(--color-foreground-muted)', marginTop: '8px' }}>
+            <p style={{ color: 'var(--color-foreground-muted)', marginBlockStart: '8px' }}>
               {t('settings.data.app_data.copy_time_notice')}
             </p>
           </MigrationNotice>
@@ -236,10 +236,10 @@ const BasicDataSettings: React.FC = () => {
           <PathsContent />
           <MigrationNotice>
             <p>{t('settings.data.app_data.copying')}</p>
-            <div style={{ marginTop: '12px' }}>
+            <div style={{ marginBlockStart: '12px' }}>
               <MigrationProgressBar percent={currentProgress} status="active" strokeWidth={8} />
             </div>
-            <p style={{ color: 'var(--color-warning)', marginTop: '12px', fontSize: '13px' }}>
+            <p style={{ color: 'var(--color-warning)', marginBlockStart: '12px', fontSize: '13px' }}>
               {t('settings.data.app_data.copying_warning')}
             </p>
           </MigrationNotice>
@@ -259,10 +259,10 @@ const BasicDataSettings: React.FC = () => {
             <PathsContent />
             <MigrationNotice>
               <p>{t('settings.data.app_data.copying')}</p>
-              <div style={{ marginTop: '12px' }}>
+              <div style={{ marginBlockStart: '12px' }}>
                 <MigrationProgressBar percent={Math.round(progress)} status={status} strokeWidth={8} />
               </div>
-              <p style={{ color: 'var(--color-warning)', marginTop: '12px', fontSize: '13px' }}>
+              <p style={{ color: 'var(--color-warning)', marginBlockStart: '12px', fontSize: '13px' }}>
                 {t('settings.data.app_data.copying_warning')}
               </p>
             </MigrationNotice>
@@ -356,7 +356,7 @@ const BasicDataSettings: React.FC = () => {
             <MigrationPathLabel>{t('settings.data.app_data.original_path')}:</MigrationPathLabel>
             <MigrationPathValue>{originalPath}</MigrationPathValue>
           </MigrationPathRow>
-          <MigrationPathRow style={{ marginTop: '16px' }}>
+          <MigrationPathRow style={{ marginBlockStart: '16px' }}>
             <MigrationPathLabel>{t('settings.data.app_data.new_path')}:</MigrationPathLabel>
             <MigrationPathValue>{newDataPath}</MigrationPathValue>
           </MigrationPathRow>
@@ -499,7 +499,7 @@ const BasicDataSettings: React.FC = () => {
             <Tooltip title={t('settings.data.app_data.select')}>
               <FolderOutput onClick={handleSelectAppDataPath} style={{ cursor: 'pointer' }} size={16} />
             </Tooltip>
-            <RowFlex className="ml-2 gap-1.25">
+            <RowFlex className="ms-2 gap-1.25">
               <Button onClick={() => handleOpenPath(appInfo?.appDataPath)} variant="outline">
                 {t('settings.data.app_data.open')}
               </Button>
@@ -515,7 +515,7 @@ const BasicDataSettings: React.FC = () => {
               onClick={() => handleOpenPath(appInfo?.logsPath)}>
               {appInfo?.logsPath}
             </PathText>
-            <RowFlex className="ml-2 gap-1.25">
+            <RowFlex className="ms-2 gap-1.25">
               <Button onClick={() => handleOpenPath(appInfo?.logsPath)} variant="outline">
                 {t('settings.data.app_logs.button')}
               </Button>
@@ -550,14 +550,14 @@ const BasicDataSettings: React.FC = () => {
 
 const CacheText = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
   <span
-    className={cn('ml-1.25 inline-block text-left align-middle text-foreground-muted text-xs leading-4', className)}
+    className={cn('ms-1.25 inline-block text-start align-middle text-foreground-muted text-xs leading-4', className)}
     {...props}
   />
 )
 
 const PathText = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
   <span
-    className={cn('ml-1.25 inline-block min-w-0 flex-1 cursor-pointer truncate text-right align-middle', className)}
+    className={cn('ms-1.25 inline-block min-w-0 flex-1 cursor-pointer truncate text-end align-middle', className)}
     {...props}
   />
 )
@@ -582,7 +582,7 @@ const MigrationProgressBar = ({ percent, status, strokeWidth }: MigrationProgres
           style={{ width: `${normalizedPercent}%` }}
         />
       </div>
-      <span className="min-w-10 text-right text-foreground-muted text-xs">{normalizedPercent}%</span>
+      <span className="min-w-10 text-end text-foreground-muted text-xs">{normalizedPercent}%</span>
     </div>
   )
 }

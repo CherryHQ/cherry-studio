@@ -43,7 +43,7 @@ const RecallResults = () => {
   return (
     <div className="mx-auto h-full w-full min-w-0 max-w-3xl overflow-y-auto overflow-x-hidden rounded-lg border border-border-subtle bg-card [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <RecallResultSummary />
-      <div className="min-w-0 space-y-2 p-3">
+      <div className="min-w-0 space-yb-2 p-3">
         {results.map((item, index) => (
           <RecallResultCard key={item.id} item={item} index={index} />
         ))}

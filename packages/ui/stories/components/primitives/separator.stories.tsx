@@ -27,7 +27,7 @@ type Story = StoryObj<typeof meta>
 export const Horizontal: Story = {
   render: () => (
     <div className="w-72">
-      <div className="space-y-1">
+      <div className="space-yb-1">
         <h4 className="text-sm font-medium">Radix Primitives</h4>
         <p className="text-xs text-muted-foreground">An open-source UI component library.</p>
       </div>
@@ -57,7 +57,7 @@ export const Vertical: Story = {
 
 export const CustomColor: Story = {
   render: () => (
-    <div className="w-72 space-y-3">
+    <div className="w-72 space-yb-3">
       <Separator className="bg-primary" />
       <Separator className="bg-destructive" />
       <Separator className="bg-linear-to-r from-primary via-fuchsia-500 to-destructive" />

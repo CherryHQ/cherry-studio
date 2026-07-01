@@ -556,6 +556,7 @@
       "list": {
         "title": "Задачи"
       },
+      "new": "[to be translated]:New task",
       "pin": {
         "title": "Закрепить задачу"
       },
@@ -565,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "Поисковые задачи"
+        "placeholder": "Поисковые задачи",
+        "title": "[to be translated]:Search tasks"
       },
       "unpin": {
         "title": "Открепить задачу"
@@ -934,6 +936,10 @@
         "Bash": {
           "description": "Выполняет shell-команды в вашей среде",
           "label": "Баш"
+        },
+        "CherryKbManage": {
+          "description": "[to be translated]:Adds, deletes, or refreshes documents in your knowledge bases",
+          "label": "[to be translated]:Manage Knowledge"
         },
         "CherryKbSearch": {
           "description": "Ищет в ваших базах знаний",
@@ -1977,7 +1983,7 @@
       "kimi_cli": "Командная строка помощника Kimi от Moonshot",
       "openai_codex": "Официальный CLI для генерации кода от OpenAI",
       "opencode": "Многофункциональный агент для программирования с открытым исходным кодом",
-      "qoder_cli": "Агентский инструмент командной строки для кодирования от Alibaba Qoder",
+      "qoder_cli": "[to be translated]:Alibaba Qoder's agentic command-line coding tool",
       "qwen_code": "Инструмент для программирования с открытым исходным кодом от Alibaba Tongyi"
     },
     "update_options": "Параметры обновления",
@@ -2659,7 +2665,7 @@
           "description": "Выберите существующие заметки в качестве источников базы знаний",
           "empty_description": "Выбираемые заметки появятся здесь после подключения списка реальных заметок. Пока используйте файлы, папки, URL-адреса или карты сайта.",
           "empty_title": "Заметки ещё не связаны",
-          "loading": "Загрузка заметок…"
+          "loading": "[to be translated]:Loading notes…"
         },
         "placeholder": {
           "supported_formats": "Поддерживает PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -2759,7 +2765,7 @@
     "embedding_model_required": "Требуется модель встраивания базы знаний",
     "empty": "Нет баз знаний",
     "error": {
-      "directory_not_migrated": "Не удалось перенести папку. Пожалуйста, удалите её и загрузите заново.",
+      "directory_not_migrated": "[to be translated]:Folder migration failed. Please delete it and re-upload.",
       "failed_base_unknown": "Эта база знаний не удалась при миграции. Пересоберите её и выберите новую модель встраивания.",
       "failed_to_create": "Не удалось создать базу знаний",
       "failed_to_delete": "Не удалось удалить базу знаний",
@@ -2840,7 +2846,7 @@
         "bm25": "Полнотекстовый поиск",
         "hybrid": "Гибридный поиск (рекомендуется)",
         "title": "Режим поиска",
-        "vector": "Векторный поиск"
+        "vector": "[to be translated]:Vector Search"
       },
       "separator_rule": "Правило разделителя",
       "smart_chunking": "Умное разбиение на фрагменты",
@@ -3162,12 +3168,22 @@
           "agent_title": "Новый агент",
           "assistant_title": "Новый ассистент",
           "avatar_aria": "Выберите аватар",
+          "back": "[to be translated]:Back",
+          "capability": {
+            "import": "[to be translated]:Import skill",
+            "no_skills": "[to be translated]:No skills installed",
+            "search": "[to be translated]:Search skills"
+          },
           "description_placeholder": "Опиши, для чего это нужно...",
-          "dialog_description": "Создайте лёгкого ассистента или агента.",
-          "model_placeholder": "Выберите модель",
-          "model_required": "Пожалуйста, выберите модель",
+          "guided_progress": "[to be translated]:Guided setup · Step {{current}} of {{total}}",
           "name_placeholder": "Введите имя",
-          "name_required": "Пожалуйста, введите имя",
+          "next": "[to be translated]:Next",
+          "step": {
+            "basic": "[to be translated]:Basic info",
+            "capability": "[to be translated]:Skills",
+            "knowledge": "[to be translated]:Knowledge",
+            "persona": "[to be translated]:Persona"
+          },
           "submit": "Создать",
           "submit_failed": "Создание не удалось"
         },
@@ -5256,6 +5272,7 @@
     "assistant": {
       "create_new": "Новый ассистент",
       "empty_text": "Пока нет ассистентов",
+      "filter": "[to be translated]:Filter assistants",
       "multi_hint": "(взаимоисключающий с многомодельным)",
       "multi_label": "Многопомощниковый параллелизм",
       "search_placeholder": "Поиск ассистентов…"
@@ -6435,6 +6452,12 @@
         "show_estimated_tokens": "Показывать затраты токенов",
         "title": "Настройки ввода"
       },
+      "layout": {
+        "classic": "[to be translated]:Classic",
+        "conversation": "[to be translated]:Conversation view",
+        "modern": "[to be translated]:Modern",
+        "work": "[to be translated]:Work view"
+      },
       "markdown_rendering_input_message": "Отображение ввода в формате Markdown",
       "metrics": "{{time_first_token_millsec}}ms до первого токена | {{token_speed}} tok/sec",
       "model": {
@@ -6803,7 +6826,7 @@
       "update": "Update to latest version"
     },
     "power": {
-      "prevent_sleep_when_busy": "Не давайте системе переходить в спящий режим, пока выполняются задачи."
+      "prevent_sleep_when_busy": "[to be translated]:Keep the system awake while tasks are running"
     },
     "privacy": {
       "enable_privacy_mode": "Анонимная отчетность об ошибках и статистике",
@@ -7216,7 +7239,7 @@
       },
       "clear_shortcut": "Очистить сочетание клавиш",
       "clear_topic": "Очистить все сообщения",
-      "close_tab": "Закрыть вкладку",
+      "close_tab": "[to be translated]:Close Tab",
       "conflict_with": "Уже используется \"{{name}}\"",
       "copy_last_message": "Копировать последнее сообщение",
       "edit_last_user_message": "Редактировать последнее сообщение пользователя",
@@ -7224,11 +7247,11 @@
       "enabled": "Включить",
       "exit_fullscreen": "Выйти из полноэкранного режима",
       "label": "Клавиша",
-      "move_tab_to_first": "Переместить вкладку в начало",
+      "move_tab_to_first": "[to be translated]:Move Tab to First",
       "new_topic": "Новый топик",
       "occupied_by_other_application": "Это сочетание клавиш уже используется системой или другим приложением",
-      "open_tab_in_new_window": "Открыть вкладку в новом окне",
-      "pin_tab": "Закрепить вкладку",
+      "open_tab_in_new_window": "[to be translated]:Open Tab in New Window",
+      "pin_tab": "[to be translated]:Toggle Pin Tab",
       "press_shortcut": "Нажмите сочетание клавиш",
       "quick_assistant": "Быстрый помощник",
       "rename_topic": "Переименовать топик",
@@ -7439,6 +7462,7 @@
           "exa": "API нейропоиска для ИИ-приложений, оптимизированный для семантического поиска в вебе.",
           "exa_mcp": "Предоставьте агентам доступ к поиску Exa через сервер Exa MCP.",
           "fetch": "Встроенный поставщик извлечения URL. Извлекает содержимое веб-страницы по URL для обогащения результатов поиска.",
+          "firecrawl": "[to be translated]:Firecrawl crawler and search service, optimized to turn websites into Markdown.",
           "jina": "API Jina Reader для поиска и чтения для получения чистого веб-контента.",
           "querit": "Поисковый сервис для приложений ИИ с результатами веб-поиска.",
           "searxng": "Самостоятельно размещаемый бесплатный интернет-метапоисковик по множеству источников.",

@@ -7,7 +7,7 @@ export const RESOURCE_LIST_VISUAL_ROW_CLASS = 'h-8 rounded-lg'
 export const RESOURCE_LIST_INTERACTIVE_ROW_CLASS =
   'hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring'
 
-export const RESOURCE_LIST_TEXT_START_PADDING_CLASS = 'pl-9'
+export const RESOURCE_LIST_TEXT_START_PADDING_CLASS = 'ps-9'
 
 export const RESOURCE_LIST_LEADING_SLOT_BASE_CLASS = 'flex size-6 shrink-0 items-center justify-center'
 
@@ -23,4 +23,4 @@ export const RESOURCE_LIST_SELECTED_ROW_CLASS = 'bg-sidebar-accent text-sidebar-
 
 /** Compact search input used by the right-panel presentation of the topic/session lists (classic layout). */
 export const RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS =
-  'h-8 rounded-lg border-border-subtle bg-background-subtle pl-7 pr-2 text-xs shadow-none md:text-xs placeholder:text-xs placeholder:text-foreground-muted focus-visible:border-border-hover focus-visible:bg-background focus-visible:ring-0'
+  'h-8 rounded-lg border-border-subtle bg-background-subtle ps-7 pe-2 text-xs shadow-none md:text-xs placeholder:text-xs placeholder:text-foreground-muted focus-visible:border-border-hover focus-visible:bg-background focus-visible:ring-0'

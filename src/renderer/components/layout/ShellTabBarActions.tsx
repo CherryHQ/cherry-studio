@@ -15,7 +15,7 @@ export function useShellTabBarLayout() {
   const [useSystemTitleBar] = usePreference('app.use_system_title_bar')
   const hasWindowControls = isWin || (isLinux && !useSystemTitleBar)
 
-  const rightPaddingClass = hasWindowControls ? 'pr-[184px]' : 'pr-[56px]'
+  const rightPaddingClass = hasWindowControls ? 'pe-[184px]' : 'pe-[56px]'
 
   return {
     hasWindowControls,
@@ -40,15 +40,15 @@ export function ShellTabBarActions() {
   }
 
   return (
-    <div className="absolute top-0 right-0 flex h-full items-stretch">
-      <div className="mr-2 flex items-center [-webkit-app-region:no-drag]">
+    <div className="absolute end-0 top-0 flex h-full items-stretch">
+      <div className="me-2 flex items-center [-webkit-app-region:no-drag]">
         <div className="flex items-center gap-1 rounded-[10px] px-1 py-1">
           <CommandTooltip command="app.search" label={t('globalSearch.open')} placement="bottom" delay={800}>
             <button
               type="button"
               aria-label={t('globalSearch.open')}
               onClick={handleSearchClick}
-              className="mr-1 flex h-8 w-8 items-center justify-center rounded-[8px] text-foreground/80 transition-colors hover:bg-[rgba(107,114,128,0.12)] hover:text-foreground">
+              className="me-1 flex h-8 w-8 items-center justify-center rounded-[8px] text-foreground/80 transition-colors hover:bg-[rgba(107,114,128,0.12)] hover:text-foreground">
               <Search size={16} strokeWidth={1.8} />
             </button>
           </CommandTooltip>
@@ -72,7 +72,7 @@ export function SidebarShellActions({
   if (layout === 'icon') {
     return (
       <>
-        <Tooltip placement="right" content={t(getThemeModeLabelKey(settedTheme))} delay={800}>
+        <Tooltip placement="end" content={t(getThemeModeLabelKey(settedTheme))} delay={800}>
           <button
             type="button"
             aria-label={t(getThemeModeLabelKey(settedTheme))}

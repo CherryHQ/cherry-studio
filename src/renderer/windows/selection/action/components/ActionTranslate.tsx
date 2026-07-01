@@ -316,7 +316,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
                 <span>{t('translate.detecting')}</span>
               ) : (
                 <>
-                  <span className="mr-1">
+                  <span className="me-1">
                     {detectedLanguage?.emoji || <Globe2 className="inline size-3.5 align-[-2px]" />}
                   </span>
                   <span>{detectedLanguage?.value || t('translate.detected_source')}</span>

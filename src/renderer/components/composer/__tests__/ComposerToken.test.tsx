@@ -266,7 +266,7 @@ function expectFileTokenVariant(container: HTMLElement, variant: string, iconCla
 
 function expectTokenPopoverUsesPreviewCardShell(content: HTMLElement) {
   const card = content.firstElementChild as HTMLElement
-  expect(card).toHaveClass('w-72', 'overflow-hidden', 'text-left')
+  expect(card).toHaveClass('w-72', 'overflow-hidden', 'text-start')
 
   const header = card.firstElementChild as HTMLElement
   expect(header).toHaveClass('h-20', 'items-center', 'border-border-subtle', 'border-b', 'bg-muted')
@@ -658,7 +658,7 @@ describe('ComposerToken', () => {
     expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('first line second line')
     expect(screen.getByTestId('composer-token-tooltip-content')).not.toHaveTextContent('...')
     const tooltipBody = screen.getByTestId('composer-token-tooltip-content').firstElementChild as HTMLElement
-    expect(tooltipBody).toHaveClass('whitespace-pre-wrap', 'text-left', 'overflow-hidden')
+    expect(tooltipBody).toHaveClass('whitespace-pre-wrap', 'text-start', 'overflow-hidden')
     expect(tooltipBody.className).toContain('[-webkit-line-clamp:4]')
   })
 

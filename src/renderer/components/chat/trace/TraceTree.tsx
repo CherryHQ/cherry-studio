@@ -54,7 +54,7 @@ const TraceTree: React.FC<TraceTreeProps> = ({ node, handleClick, treeData, padd
           e.preventDefault()
           handleClick(node.id)
         }}>
-        <div className="min-w-0 text-left" style={{ paddingLeft: `${paddingLeft}px` }}>
+        <div className="min-w-0 text-start" style={{ paddingInlineStart: `${paddingLeft}px` }}>
           <div className="flex min-w-0 flex-row items-center gap-1.5">
             <Button
               aria-label="Toggle"

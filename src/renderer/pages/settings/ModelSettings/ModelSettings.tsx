@@ -77,7 +77,7 @@ type ModelSettingsPanel = 'quick-model' | 'translate' | null
 
 const MODEL_SETTINGS_DRAWER_WIDTH_CLASS = '!w-[min(31.25rem,calc(100%-1rem))]'
 const TRANSLATE_DRAWER_WIDTH_CLASS = '!w-[min(31.25rem,calc(100%-1rem))]'
-const SETTINGS_DRAWER_BODY_CLASS = 'space-y-0 px-6 py-5'
+const SETTINGS_DRAWER_BODY_CLASS = 'space-yb-0 px-6 py-5'
 
 const drawerTitleClassName = 'truncate font-semibold text-foreground text-sm leading-4'
 
@@ -95,7 +95,7 @@ const renderModelSelectorTrigger = ({ model, providers, placeholder, compact }: 
       type="button"
       variant="outline"
       size={compact ? 'lg' : 'default'}
-      className={cn('min-w-0 flex-1 justify-between px-2.5 text-left font-normal', compact ? 'h-9' : 'h-7.5')}>
+      className={cn('min-w-0 flex-1 justify-between px-2.5 text-start font-normal', compact ? 'h-9' : 'h-7.5')}>
       <span className="flex min-w-0 flex-1 items-center gap-2">
         {model && icon ? (
           <icon.Avatar size={20} />

@@ -24,7 +24,7 @@ const EmojiIcon: FC<EmojiIconProps> = ({ emoji, className = '', size = 26, fontS
 
   return (
     <div
-      className={`flex items-center justify-center flex-shrink-0 relative overflow-hidden rounded-full ${fluid ? 'h-full w-full' : 'mr-1'} ${className}`}
+      className={`flex items-center justify-center flex-shrink-0 relative overflow-hidden rounded-full ${fluid ? 'h-full w-full' : 'me-1'} ${className}`}
       style={wrapperStyle}>
       <div
         aria-hidden="true"

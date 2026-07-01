@@ -290,7 +290,7 @@ const HistorySessionRow = ({
       <div className={historyBodyCellClassName} role="cell">
         <RowFlex className="min-w-0 items-center gap-2">
           <span className="flex size-5 shrink-0 items-center justify-center">
-            <EmojiIcon emoji={avatar} size={20} fontSize={12} className="mr-0 text-foreground" />
+            <EmojiIcon emoji={avatar} size={20} fontSize={12} className="me-0 text-foreground" />
           </span>
           <span className="truncate text-foreground-secondary text-xs">{sourceName}</span>
         </RowFlex>

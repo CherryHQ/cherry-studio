@@ -44,7 +44,7 @@ const MiniAppsPage: FC = () => {
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col text-foreground" onContextMenu={handleContextMenu}>
       <Navbar>
-        <NavbarCenter className="border-r-0">{t('miniApp.title')}</NavbarCenter>
+        <NavbarCenter className="border-e-0">{t('miniApp.title')}</NavbarCenter>
       </Navbar>
 
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">

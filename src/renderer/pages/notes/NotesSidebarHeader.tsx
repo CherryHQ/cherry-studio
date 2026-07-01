@@ -144,18 +144,18 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
                 <ArrowLeft size={18} />
               </div>
             </Tooltip>
-            <div className="relative ml-2 max-w-45 flex-1">
+            <div className="relative ms-2 max-w-45 flex-1">
               <Input
                 placeholder={t('knowledge.search_placeholder')}
                 value={searchKeyword}
                 onChange={(e) => onSetSearchKeyword(e.target.value)}
-                className="h-7 pr-7 text-sm"
+                className="h-7 pe-7 text-sm"
                 autoFocus
               />
               {searchKeyword && (
                 <button
                   type="button"
-                  className="-translate-y-1/2 absolute top-1/2 right-1 flex size-5 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+                  className="-translate-y-1/2 absolute end-1 top-1/2 flex size-5 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
                   onClick={() => onSetSearchKeyword('')}
                   aria-label={t('common.clear')}>
                   <X size={13} />

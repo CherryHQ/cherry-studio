@@ -29,7 +29,7 @@ export const MigrationWindowControls: React.FC = () => {
   }
 
   return (
-    <div className="absolute top-0 right-0 flex h-full items-stretch [-webkit-app-region:no-drag]">
+    <div className="absolute end-0 top-0 flex h-full items-stretch [-webkit-app-region:no-drag]">
       <Button
         type="button"
         variant="ghost"

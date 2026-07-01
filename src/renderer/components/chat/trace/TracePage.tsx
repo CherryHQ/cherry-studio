@@ -213,7 +213,7 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
                   data-testid="trace-table"
                   className="min-w-0 overflow-hidden rounded-md border border-border-subtle bg-card">
                   <div className={`${TRACE_ROW_GRID} sticky top-0 z-[2] w-full border-border border-b-[0.5px] bg-card`}>
-                    <div className="flex h-8 min-w-0 items-center bg-background-subtle px-2 text-left font-medium text-foreground-secondary text-xs max-[520px]:px-1">
+                    <div className="flex h-8 min-w-0 items-center bg-background-subtle px-2 text-start font-medium text-foreground-secondary text-xs max-[520px]:px-1">
                       <span tabIndex={0} className="min-w-0 truncate">
                         {t('trace.name')}
                       </span>

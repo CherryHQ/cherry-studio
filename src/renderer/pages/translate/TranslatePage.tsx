@@ -781,7 +781,7 @@ const TranslatePage: FC = () => {
             />
           </section>
 
-          <section className="flex min-h-0 min-w-0 flex-col border-border-muted border-t lg:border-t-0 lg:border-l">
+          <section className="flex min-h-0 min-w-0 flex-col border-border-muted border-t lg:border-s lg:border-t-0">
             <TranslateOutputPane
               ref={outputTextRef}
               translatedContent={translateOutput}

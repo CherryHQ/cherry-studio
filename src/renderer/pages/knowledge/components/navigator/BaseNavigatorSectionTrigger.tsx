@@ -14,7 +14,7 @@ const BaseNavigatorSectionTrigger = ({
       <div className="min-w-0 flex-1">
         <AccordionTrigger
           className={cn(
-            'min-w-0 justify-start gap-1.5 rounded-md py-0 text-left font-normal text-foreground-secondary leading-none hover:no-underline focus-visible:ring-0 focus-visible:ring-offset-0',
+            'min-w-0 justify-start gap-1.5 rounded-md py-0 text-start font-normal text-foreground-secondary leading-none hover:no-underline focus-visible:ring-0 focus-visible:ring-offset-0',
             '[&[data-state=closed]>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0',
             '[&>svg]:size-3.5 [&>svg]:shrink-0 [&>svg]:text-foreground-muted',
             'motion-safe:[&>svg]:duration-[150ms] motion-safe:[&>svg]:ease-[cubic-bezier(0.25,1,0.5,1)] motion-reduce:[&>svg]:transition-none'
@@ -27,7 +27,7 @@ const BaseNavigatorSectionTrigger = ({
         </AccordionTrigger>
       </div>
 
-      {actionSlot ? <div className="ml-0.5 flex size-6 shrink-0 items-center justify-center">{actionSlot}</div> : null}
+      {actionSlot ? <div className="ms-0.5 flex size-6 shrink-0 items-center justify-center">{actionSlot}</div> : null}
     </div>
   )
 }

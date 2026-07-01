@@ -73,16 +73,16 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
         <button
           type="button"
           aria-expanded={!collapsed}
-          className="flex h-full min-w-0 flex-1 items-center gap-1 text-left outline-none focus-visible:text-foreground"
+          className="flex h-full min-w-0 flex-1 items-center gap-1 text-start outline-none focus-visible:text-foreground"
           onClick={() => actions.toggleGroup(section.id)}>
-          <span className="min-w-0 truncate text-left font-semibold text-[13px] text-inherit leading-5">
+          <span className="min-w-0 truncate text-start font-semibold text-[13px] text-inherit leading-5">
             {section.label}
           </span>
         </button>
         {sectionHeaderAction && (
           <div
             className={cn(
-              'ml-auto flex shrink-0 items-center transition-opacity',
+              'ms-auto flex shrink-0 items-center transition-opacity',
               sectionHeaderActionAlwaysVisible
                 ? 'pointer-events-auto opacity-100'
                 : 'pointer-events-none opacity-0 focus-within:pointer-events-auto focus-within:opacity-100 group-hover/resource-list-section:pointer-events-auto group-hover/resource-list-section:opacity-100'
@@ -179,14 +179,14 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
           type="button"
           aria-expanded={!collapsed}
           aria-current={selected ? 'true' : undefined}
-          className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none"
+          className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-start text-inherit outline-none"
           onClick={handleClick}>
           {groupHeaderIcon && (
             <ResourceListLeadingSlot aria-hidden="true" variant="groupHeader">
               {groupHeaderIcon}
             </ResourceListLeadingSlot>
           )}
-          <span className="min-w-0 truncate text-left font-medium text-[13px] text-inherit leading-5">
+          <span className="min-w-0 truncate text-start font-medium text-[13px] text-inherit leading-5">
             {group.label}
           </span>
           <ChevronRight
@@ -198,7 +198,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
         </button>
         {groupHeaderAction && (
           <div
-            className="pointer-events-none ml-auto hidden shrink-0 items-center opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:flex focus-within:opacity-100 group-focus-within/resource-list-group:pointer-events-auto group-focus-within/resource-list-group:flex group-focus-within/resource-list-group:opacity-100 group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:flex group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:flex has-data-[state=open]:opacity-100"
+            className="pointer-events-none ms-auto hidden shrink-0 items-center opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:flex focus-within:opacity-100 group-focus-within/resource-list-group:pointer-events-auto group-focus-within/resource-list-group:flex group-focus-within/resource-list-group:opacity-100 group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:flex group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:flex has-data-[state=open]:opacity-100"
             onClick={stopEventPropagation}
             onContextMenu={stopEventPropagation}
             onPointerDown={stopEventPropagation}
@@ -238,7 +238,7 @@ export function GroupShowMore({ groupId, className, ref, style, ...props }: Grou
       ref={ref}
       style={style}
       className={cn(
-        'flex items-center justify-start pr-1.5 text-foreground',
+        'flex items-center justify-start pe-1.5 text-foreground',
         RESOURCE_LIST_ROW_HEIGHT_CLASS,
         RESOURCE_LIST_TEXT_START_PADDING_CLASS,
         className
@@ -246,7 +246,7 @@ export function GroupShowMore({ groupId, className, ref, style, ...props }: Grou
       {...props}>
       <button
         type="button"
-        className="flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-left font-medium text-[11px] text-muted-foreground/55 leading-4 transition-colors duration-150 hover:text-inherit focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
+        className="flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-start font-medium text-[11px] text-muted-foreground/55 leading-4 transition-colors duration-150 hover:text-inherit focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
         onClick={() => {
           if (canCollapseToDefault) {
             actions.collapseGroupItems(groupId)

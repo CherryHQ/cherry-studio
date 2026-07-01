@@ -159,7 +159,7 @@ const Selector = <V extends string | number>({
         return (
           <div key={String(option.value)} className="py-1">
             <div className="px-2 py-1 font-medium text-muted-foreground text-xs">{option.label}</div>
-            <div className={cn(level > 0 && 'pl-2')}>{renderOptions(option.options || [], level + 1)}</div>
+            <div className={cn(level > 0 && 'ps-2')}>{renderOptions(option.options || [], level + 1)}</div>
           </div>
         )
       }
@@ -172,10 +172,10 @@ const Selector = <V extends string | number>({
           aria-selected={isSelected}
           disabled={disabled || option.disabled}
           className={cn(
-            'flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-hidden transition-colors',
+            'flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-start text-sm outline-hidden transition-colors',
             'hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground',
             'disabled:pointer-events-none disabled:opacity-50',
-            level > 0 && 'pl-4'
+            level > 0 && 'ps-4'
           )}
           onClick={() => handleOptionSelect(option)}>
           <span className="min-w-0 flex-1 truncate">{option.label}</span>
@@ -199,7 +199,7 @@ const Selector = <V extends string | number>({
           aria-disabled={disabled || undefined}
           tabIndex={disabled ? -1 : 0}
           className={cn(
-            'min-w-0 text-left leading-none',
+            'min-w-0 text-start leading-none',
             open && !disabled && 'bg-secondary-active',
             disabled && 'cursor-not-allowed opacity-60',
             isPlaceholder && 'text-muted-foreground'

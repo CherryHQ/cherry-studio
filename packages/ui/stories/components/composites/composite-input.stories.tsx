@@ -454,7 +454,7 @@ export const SelectVariantInteractive: Story = {
     }
 
     return (
-      <div className="w-96 space-y-4">
+      <div className="w-96 space-yb-4">
         <h3 className="text-base font-semibold">Currency Converter</h3>
         <div>
           <label className="mb-1 block text-sm font-medium">Amount in USD</label>
@@ -801,7 +801,7 @@ export const EmailVariantInteractive: Story = {
     }
 
     return (
-      <div className="w-96 space-y-4">
+      <div className="w-96 space-yb-4">
         <h3 className="text-base font-semibold">Create Email Address</h3>
         <div>
           <label className="mb-1 block text-sm font-medium">Email Domain</label>
@@ -908,7 +908,7 @@ export const ValidationForm: Story = {
     }
 
     return (
-      <form onSubmit={handleSubmit} className="w-96 space-y-4">
+      <form onSubmit={handleSubmit} className="w-96 space-yb-4">
         <h3 className="text-base font-semibold">Sign Up with Validation</h3>
 
         <div>
@@ -990,7 +990,7 @@ export const SubscribeNewsletter: Story = {
     }
 
     return (
-      <div className="w-96 space-y-4">
+      <div className="w-96 space-yb-4">
         <h3 className="text-base font-semibold">Subscribe to Newsletter</h3>
         <CompositeInput
           variant="button"
@@ -1023,7 +1023,7 @@ export const SearchWithAction: Story = {
     }
 
     return (
-      <div className="w-96 space-y-4">
+      <div className="w-96 space-yb-4">
         <h3 className="text-base font-semibold">Search</h3>
         <CompositeInput
           variant="button"
@@ -1039,7 +1039,7 @@ export const SearchWithAction: Story = {
         {results.length > 0 && (
           <div className="rounded-md border p-3">
             <p className="mb-2 text-sm font-medium">Results ({results.length})</p>
-            <ul className="space-y-1">
+            <ul className="space-yb-1">
               {results.map((result, i) => (
                 <li key={i} className="text-sm text-muted-foreground">
                   {result}
@@ -1068,7 +1068,7 @@ export const PasswordReset: Story = {
     const strength = getPasswordStrength(password)
 
     return (
-      <div className="w-96 space-y-4">
+      <div className="w-96 space-yb-4">
         <h3 className="text-base font-semibold">Set New Password</h3>
         <div>
           <CompositeInput
@@ -1109,7 +1109,7 @@ export const LoginForm: Story = {
     }
 
     return (
-      <form onSubmit={handleSubmit} className="w-96 space-y-4">
+      <form onSubmit={handleSubmit} className="w-96 space-yb-4">
         <h3 className="text-base font-semibold">Login</h3>
 
         <div>
@@ -1163,7 +1163,7 @@ export const SignupForm: Story = {
     }
 
     return (
-      <form onSubmit={handleSubmit} className="w-96 space-y-4">
+      <form onSubmit={handleSubmit} className="w-96 space-yb-4">
         <h3 className="text-base font-semibold">Create Account</h3>
 
         <div>
@@ -1224,7 +1224,7 @@ export const QuickActions: Story = {
     <div className="flex w-96 flex-col gap-6">
       <div>
         <h3 className="mb-3 text-base font-semibold">Quick Actions</h3>
-        <div className="space-y-3">
+        <div className="space-yb-3">
           <CompositeInput
             variant="button"
             placeholder="Send a message..."
@@ -1327,7 +1327,7 @@ export const ContactForm: Story = {
     }
 
     return (
-      <form onSubmit={handleSubmit} className="w-96 space-y-4">
+      <form onSubmit={handleSubmit} className="w-96 space-yb-4">
         <h3 className="text-base font-semibold">Contact Us</h3>
 
         <div>
@@ -1374,13 +1374,13 @@ export const ContactForm: Story = {
 // Accessibility
 export const Accessibility: Story = {
   render: () => (
-    <div className="w-96 space-y-6">
+    <div className="w-96 space-yb-6">
       <div>
         <h3 className="mb-4 text-base font-semibold">Keyboard Navigation</h3>
         <p className="mb-4 text-sm text-muted-foreground">
           Use Tab to navigate between inputs and buttons. Press Enter in the input to trigger the button action.
         </p>
-        <div className="space-y-3">
+        <div className="space-yb-3">
           <CompositeInput
             variant="button"
             placeholder="First input..."
@@ -1418,7 +1418,7 @@ export const AllCombinations: Story = {
       {/* Small Size */}
       <div className="w-[500px]">
         <h3 className="mb-4 text-base font-semibold">Small Size (sm)</h3>
-        <div className="space-y-3">
+        <div className="space-yb-3">
           <CompositeInput variant="default" size="sm" placeholder="Default variant" />
           <CompositeInput variant="email" type="email" size="sm" placeholder="example.com" prefix="user@" />
           <CompositeInput
@@ -1455,7 +1455,7 @@ export const AllCombinations: Story = {
       {/* Medium Size */}
       <div className="w-[500px]">
         <h3 className="mb-4 text-base font-semibold">Medium Size (md) - Default</h3>
-        <div className="space-y-3">
+        <div className="space-yb-3">
           <CompositeInput variant="default" size="md" placeholder="Default variant" />
           <CompositeInput variant="email" type="email" size="md" placeholder="example.com" prefix="user@" />
           <CompositeInput
@@ -1492,7 +1492,7 @@ export const AllCombinations: Story = {
       {/* Large Size */}
       <div className="w-[500px]">
         <h3 className="mb-4 text-base font-semibold">Large Size (lg)</h3>
-        <div className="space-y-3">
+        <div className="space-yb-3">
           <CompositeInput variant="default" size="lg" placeholder="Default variant" />
           <CompositeInput variant="email" type="email" size="lg" placeholder="example.com" prefix="user@" />
           <CompositeInput

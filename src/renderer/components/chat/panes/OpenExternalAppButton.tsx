@@ -125,7 +125,7 @@ const OpenExternalAppButton = ({ workdir, filePath, className }: OpenExternalApp
         <NormalTooltip content={primaryLabel} delayDuration={500}>
           <Button
             type="button"
-            className={`h-7 w-8 min-w-8 border-r-0 p-0 ${TOOLBAR_BUTTON_CLASS}`}
+            className={`h-7 w-8 min-w-8 border-e-0 p-0 ${TOOLBAR_BUTTON_CLASS}`}
             variant="ghost"
             size="icon-sm"
             aria-label={primaryLabel}
@@ -188,7 +188,7 @@ const OpenExternalAppButton = ({ workdir, filePath, className }: OpenExternalApp
       <NormalTooltip content={primaryLabel} delayDuration={500}>
         <Button
           type="button"
-          className={`h-7 w-8 min-w-8 border-r-0 p-0 ${TOOLBAR_BUTTON_CLASS}`}
+          className={`h-7 w-8 min-w-8 border-e-0 p-0 ${TOOLBAR_BUTTON_CLASS}`}
           variant="ghost"
           size="icon-sm"
           aria-label={primaryLabel}

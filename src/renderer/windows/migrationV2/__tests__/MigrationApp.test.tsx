@@ -298,8 +298,8 @@ describe('MigrationApp', () => {
     const languageContainer = languageTrigger.closest('[data-migration-language-select]')
     const stepRail = document.querySelector('aside')
 
-    expect(languageContainer).toHaveClass('right-3')
-    expect(languageContainer).not.toHaveClass('left-3')
+    expect(languageContainer).toHaveClass('end-3')
+    expect(languageContainer).not.toHaveClass('start-3')
     expect(stepRail).not.toBeNull()
     expect(within(stepRail as HTMLElement).queryByTestId('select')).toBeNull()
   })
@@ -332,8 +332,8 @@ describe('MigrationApp', () => {
     const languageTrigger = screen.getByRole('button', { name: 'migration.language.select' })
     const languageContainer = languageTrigger.closest('[data-migration-language-select]')
 
-    expect(languageContainer).toHaveClass('left-3')
-    expect(languageContainer).not.toHaveClass('right-3')
+    expect(languageContainer).toHaveClass('start-3')
+    expect(languageContainer).not.toHaveClass('end-3')
   })
 
   it('calls the return-to-introduction action from the backup choice back button', () => {

@@ -39,7 +39,7 @@ export function Disclosure({
         {...controlledProps}>
         <AccordionItem value={itemValue} className="border-border/60">
           <AccordionTrigger className={cn('px-3 py-2 text-sm', triggerClassName)}>
-            <span className="min-w-0 text-left">
+            <span className="min-w-0 text-start">
               <span className="block truncate">{title}</span>
               {description && (
                 <span className="mt-0.5 block text-muted-foreground text-xs leading-5">{description}</span>

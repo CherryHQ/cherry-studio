@@ -352,7 +352,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
             ...itemContainerStyle,
             position: isItemActiveSticky ? 'sticky' : 'absolute',
             top: isItemActiveSticky ? stickyOffset : 0,
-            left: 0,
+            insetInlineStart: 0,
             zIndex: isItemActiveSticky ? 1000 + (100 - activeStickyIndex) : isItemSticky ? 999 : 0,
             pointerEvents: isCoveredBySticky ? 'none' : 'auto',
             ...(isItemActiveSticky && {

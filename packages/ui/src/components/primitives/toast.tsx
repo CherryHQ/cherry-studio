@@ -326,7 +326,7 @@ const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: Toast
       <button
         type="button"
         aria-label={labels.close}
-        className="-mr-1 flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        className="-me-1 flex size-5 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         onClick={(event) => {
           event.stopPropagation()
           store.remove(toast.key)
@@ -354,7 +354,7 @@ export const ToastViewport = ({
   return (
     <div
       aria-label="notifications"
-      className="-translate-x-1/2 pointer-events-none fixed top-5 left-1/2 z-[10000] flex flex-col items-center gap-2"
+      className="-translate-x-1/2 pointer-events-none fixed top-5 start-1/2 z-[10000] flex flex-col items-center gap-2"
       role="region">
       {toasts.map((toast) => (
         <ToastItem key={toast.key} labels={toastLabels} store={store} toast={toast} />

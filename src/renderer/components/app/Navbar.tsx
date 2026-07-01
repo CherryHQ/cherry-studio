@@ -31,7 +31,7 @@ const NavbarLeftContainer: FC<Props> = ({ className, ...props }) => (
 )
 
 const NavbarCenterContainer: FC<Props> = ({ className, ...props }) => (
-  <div className={cn('relative flex flex-1 items-center pl-2.5 font-bold text-foreground', className)} {...props} />
+  <div className={cn('relative flex flex-1 items-center ps-2.5 font-bold text-foreground', className)} {...props} />
 )
 
 const NavbarRightContainer: FC<Props> = ({ className, ...props }) => (
@@ -40,7 +40,7 @@ const NavbarRightContainer: FC<Props> = ({ className, ...props }) => (
 
 const NavbarMainContainer: FC<Props> = ({ className, ...props }) => (
   <div
-    className={cn('flex flex-1 flex-row items-center justify-between pl-2.5 font-bold text-foreground', className)}
+    className={cn('flex flex-1 flex-row items-center justify-between ps-2.5 font-bold text-foreground', className)}
     {...props}
   />
 )

@@ -71,7 +71,7 @@ export function FileTreeRow(props: FileTreeRowProps) {
     if (isFolder) toggleExpanded()
   }
 
-  const indent = { paddingLeft: `${depth * INDENT_STEP_PX + INDENT_BASE_PX}px` }
+  const indent = { paddingInlineStart: `${depth * INDENT_STEP_PX + INDENT_BASE_PX}px` }
 
   const row = (
     <div
@@ -83,7 +83,7 @@ export function FileTreeRow(props: FileTreeRowProps) {
       title={node.name}
       style={indent}
       className={cn(
-        'group relative flex select-none items-center gap-1.5 rounded-3xs py-1 pr-2 text-left text-sm',
+        'group relative flex select-none items-center gap-1.5 rounded-3xs py-1 pe-2 text-start text-sm',
         'transition-colors',
         isFolder
           ? 'text-foreground/75 hover:bg-accent/50 hover:text-foreground'
@@ -92,9 +92,9 @@ export function FileTreeRow(props: FileTreeRowProps) {
         isDragging && 'opacity-50',
         dragPosition === 'inside' && 'bg-primary/15 ring-1 ring-primary/40',
         dragPosition === 'before' &&
-          "before:-top-px before:absolute before:inset-x-1 before:h-0.5 before:rounded before:bg-primary before:content-['']",
+          "before:-top-px before:absolute before:inset-xi-1 before:h-0.5 before:rounded before:bg-primary before:content-['']",
         dragPosition === 'after' &&
-          "after:-bottom-px after:absolute after:inset-x-1 after:h-0.5 after:rounded after:bg-primary after:content-['']"
+          "after:-bottom-px after:absolute after:inset-xi-1 after:h-0.5 after:rounded after:bg-primary after:content-['']"
       )}>
       {isFolder ? (
         <Button

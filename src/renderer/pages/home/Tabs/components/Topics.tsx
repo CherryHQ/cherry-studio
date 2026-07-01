@@ -858,7 +858,7 @@ export function Topics({
         if (group.label !== defaultAssistant.name) return null
 
         return defaultAssistant.emoji ? (
-          <EmojiIcon emoji={defaultAssistant.emoji} size={24} fontSize={14} className="mr-0" />
+          <EmojiIcon emoji={defaultAssistant.emoji} size={24} fontSize={14} className="me-0" />
         ) : (
           <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
             <Bot size={14} />
@@ -871,7 +871,7 @@ export function Topics({
       if (!assistant) return undefined
 
       return assistant.emoji ? (
-        <EmojiIcon emoji={assistant.emoji} size={24} fontSize={14} className="mr-0" />
+        <EmojiIcon emoji={assistant.emoji} size={24} fontSize={14} className="me-0" />
       ) : (
         <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
           <Bot size={14} />
@@ -1370,13 +1370,13 @@ function TopicRow({
   // Reserve right-padding for the title sized to the resting stream indicator and hover actions.
   const trailingActionCount = (showPinAction ? 1 : 0) + (showDeleteOrStreamAction ? 1 : 0)
   const topicTrailingActionPaddingClassName = cn(
-    showDetachedStreamIndicator && 'pr-7',
+    showDetachedStreamIndicator && 'pe-7',
     trailingActionCount >= 3
-      ? 'group-focus-within:pr-16 group-hover:pr-16 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-16'
+      ? 'group-focus-within:pe-16 group-hover:pe-16 group-has-[[data-resource-list-item-actions][data-active=true]]:pe-16'
       : trailingActionCount === 2
-        ? 'group-focus-within:pr-12 group-hover:pr-12 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-12'
+        ? 'group-focus-within:pe-12 group-hover:pe-12 group-has-[[data-resource-list-item-actions][data-active=true]]:pe-12'
         : trailingActionCount === 1
-          ? 'group-focus-within:pr-7 group-hover:pr-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-7'
+          ? 'group-focus-within:pe-7 group-hover:pe-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pe-7'
           : ''
   )
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)

@@ -169,7 +169,7 @@ describe('Sidebar resize handle', () => {
     const hotZone = resizeHandle.parentElement
 
     expect(resizeHandle).toHaveClass('h-full', 'w-full', 'cursor-col-resize')
-    expect(hotZone).toHaveClass('absolute', 'inset-y-0', 'left-0', 'z-50', 'w-4')
+    expect(hotZone).toHaveClass('absolute', 'inset-yb-0', 'start-0', 'z-50', 'w-4')
     expect(hotZone).toHaveClass('[-webkit-app-region:no-drag]')
   })
 
@@ -243,7 +243,7 @@ describe('Sidebar resize handle', () => {
       />
     )
 
-    const panel = container.querySelector('.slide-in-from-left-2')
+    const panel = container.querySelector('.slide-in-from-start-2')
 
     expect(panel).toHaveClass('bg-sidebar')
     expect(panel).not.toHaveClass('bg-sidebar/70')

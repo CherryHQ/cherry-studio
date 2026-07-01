@@ -509,7 +509,7 @@ const OpenClawPage: FC = () => {
               trigger={
                 <Button variant="outline" className="w-full justify-start">
                   {selectedModel ? <ModelAvatar model={selectedModel} size={18} /> : null}
-                  <span className="flex-1 truncate text-left">
+                  <span className="flex-1 truncate text-start">
                     {selectedModel ? selectedModel.name : t('openclaw.model_config.select_model')}
                   </span>
                   <ChevronDown size={14} className="text-muted-foreground" />
@@ -525,7 +525,7 @@ const OpenClawPage: FC = () => {
               className="mt-4 rounded-lg p-3 text-xs leading-relaxed"
               style={{ background: 'var(--color-background-mute)', color: 'var(--color-text-3)' }}>
               <div className="mb-1">💡 {t('openclaw.tips.title')}</div>
-              <ul className="list-inside list-disc space-y-1">
+              <ul className="list-inside list-disc space-yb-1">
                 <li>{t('openclaw.tips.permissions')}</li>
                 <li>{t('openclaw.tips.token_usage')}</li>
               </ul>
@@ -618,7 +618,7 @@ const OpenClawPage: FC = () => {
   return (
     <div className="flex flex-1 flex-col">
       <Navbar>
-        <NavbarCenter style={{ borderRight: 'none' }}>{t('openclaw.title')}</NavbarCenter>
+        <NavbarCenter style={{ borderInlineEnd: 'none' }}>{t('openclaw.title')}</NavbarCenter>
       </Navbar>
       <div className="flex flex-1 flex-col">{renderContent()}</div>
     </div>

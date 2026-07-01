@@ -66,7 +66,7 @@ function Frame({ className, ref, ...props }: FrameProps) {
       ref={ref}
       data-resource-list-variant={meta.variant}
       className={cn(
-        'flex min-h-0 flex-1 flex-col overflow-hidden border-border border-r-[0.5px] p-1.5 text-sidebar-foreground',
+        'flex min-h-0 flex-1 flex-col overflow-hidden border-border border-e-[0.5px] p-1.5 text-sidebar-foreground',
         className
       )}
       {...props}
@@ -97,9 +97,9 @@ function Search({ className, icon, wrapperClassName, ref, ...props }: SearchProp
           value={state.query}
           onChange={(event) => actions.setQuery(event.target.value)}
           className={cn(
-            'h-7 rounded-full border border-sidebar-border bg-sidebar pr-2 text-[10px] text-sidebar-foreground shadow-none transition-colors md:text-[10px]',
+            'h-7 rounded-full border border-sidebar-border bg-sidebar pe-2 text-[10px] text-sidebar-foreground shadow-none transition-colors md:text-[10px]',
             'placeholder:text-[10px] placeholder:text-foreground-muted focus-visible:border-sidebar-ring focus-visible:ring-0',
-            searchIcon ? 'pl-6' : 'pl-2',
+            searchIcon ? 'ps-6' : 'ps-2',
             className
           )}
           {...props}
@@ -170,7 +170,7 @@ function HeaderItem({ actions, className, command, icon, label, ref, variant = '
         )}
         {...props}>
         {icon && <ItemLeadingSlot>{icon}</ItemLeadingSlot>}
-        <span className="min-w-0 flex-1 truncate text-left font-medium text-[13px] text-sidebar-foreground/70 leading-5 group-hover:text-foreground group-focus-visible:text-foreground">
+        <span className="min-w-0 flex-1 truncate text-start font-medium text-[13px] text-sidebar-foreground/70 leading-5 group-hover:text-foreground group-focus-visible:text-foreground">
           {label}
         </span>
         {command && <CommandHint command={command} />}
@@ -511,7 +511,7 @@ function ItemTitle({ className, ref, ...props }: ItemTitleProps) {
     <span
       ref={ref}
       className={cn(
-        'min-w-0 flex-1 truncate text-left font-normal text-[13px] text-sidebar-foreground/70 leading-5 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:font-medium group-data-[selected=true]:text-foreground',
+        'min-w-0 flex-1 truncate text-start font-normal text-[13px] text-sidebar-foreground/70 leading-5 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:font-medium group-data-[selected=true]:text-foreground',
         className
       )}
       {...props}
@@ -558,7 +558,7 @@ function ItemActions({ active, className, ref, ...props }: ItemActionsProps) {
       data-active={active || undefined}
       data-resource-list-item-actions="true"
       className={cn(
-        '-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex items-center gap-0 opacity-0 transition-opacity duration-150',
+        '-translate-y-1/2 pointer-events-none absolute end-1.5 top-1/2 flex items-center gap-0 opacity-0 transition-opacity duration-150',
         'focus-within:pointer-events-auto focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 data-[active=true]:pointer-events-auto data-[active=true]:opacity-100',
         className
       )}
@@ -651,7 +651,7 @@ function LoadingState({ className, ref, ...props }: LoadingStateProps) {
                 <Skeleton data-slot="skeleton" className="size-5 shrink-0 rounded-md" />
               </ResourceListLeadingSlot>
               <Skeleton data-slot="skeleton" className={cn('h-3 rounded-sm', width)} />
-              <Skeleton data-slot="skeleton" className="ml-auto size-5 shrink-0 rounded-md opacity-60" />
+              <Skeleton data-slot="skeleton" className="ms-auto size-5 shrink-0 rounded-md opacity-60" />
             </div>
           ))}
         </div>

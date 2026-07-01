@@ -43,7 +43,7 @@ const Scene = ({ side }: { side: 'left' | 'right' }) => {
             <Button onClick={() => setOpen(false)}>Save</Button>
           </div>
         }>
-        <div className="space-y-3 text-sm">
+        <div className="space-yb-3 text-sm">
           <p>Place any content here — settings, detail views, task editors.</p>
           <p className="text-muted-foreground">
             The panel traps focus while open and restores focus back to its opener when closed.
@@ -71,7 +71,7 @@ export const WithoutCloseButton: Story = {
           <Button onClick={() => setOpen(true)}>Open panel</Button>
         </div>
         <PageSidePanel open={open} onClose={() => setOpen(false)} showCloseButton={false}>
-          <div className="space-y-3 text-sm">
+          <div className="space-yb-3 text-sm">
             <p>No close button in the header — rely on the backdrop, Escape, or a custom action to dismiss.</p>
             <Button variant="outline" onClick={() => setOpen(false)}>
               Close from body

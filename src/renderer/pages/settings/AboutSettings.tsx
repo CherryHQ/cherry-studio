@@ -185,7 +185,7 @@ const AboutSettings: FC = () => {
               onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio')}
               className="relative cursor-pointer">
               {appUpdateState.downloadProgress > 0 && (
-                <div className="-top-0.5 -left-0.5 pointer-events-none absolute">
+                <div className="-top-0.5 -start-0.5 pointer-events-none absolute">
                   <CircularProgress
                     value={appUpdateState.downloadProgress}
                     size={76}

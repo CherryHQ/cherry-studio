@@ -71,7 +71,7 @@ const MultiSelectActionPopup: FC<Props> = ({
 }
 
 const Container: FC<HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
-  <div className={cn('fixed inset-x-0 bottom-0 z-300 flex items-center justify-center p-4', className)} {...props} />
+  <div className={cn('fixed inset-xi-0 bottom-0 z-300 flex items-center justify-center p-4', className)} {...props} />
 )
 
 const ActionBar: FC<HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
@@ -90,7 +90,7 @@ const ActionButtons: FC<HTMLAttributes<HTMLDivElement>> = ({ className, ...props
 )
 
 const SelectionCount: FC<HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
-  <div className={cn('shrink-0 pl-2 text-[14px] text-foreground-secondary', className)} {...props} />
+  <div className={cn('shrink-0 ps-2 text-[14px] text-foreground-secondary', className)} {...props} />
 )
 
 export default MultiSelectActionPopup

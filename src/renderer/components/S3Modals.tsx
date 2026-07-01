@@ -261,7 +261,7 @@ export function S3RestoreModal({
             filterOption={(option, search) => option.label.toLowerCase().includes(search.toLowerCase())}
           />
           {loadingFiles && (
-            <div className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2">
+            <div className="-translate-x-1/2 -translate-y-1/2 absolute start-1/2 top-1/2">
               <Spinner text={t('common.loading')} />
             </div>
           )}

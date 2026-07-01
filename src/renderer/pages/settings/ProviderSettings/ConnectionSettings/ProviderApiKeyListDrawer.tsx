@@ -181,7 +181,7 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
           {enabledCount} / {apiKeys.length} {t('settings.provider.api_key.enabled_suffix')}
         </div>
       }>
-      <div className="space-y-4">
+      <div className="space-yb-4">
         <div className={apiKeyListClasses.listWrap}>
           <Scrollbar className={apiKeyListClasses.listScroller}>
             {apiKeys.length === 0 && !draft ? (
@@ -322,7 +322,7 @@ function ApiKeyDisplayRow({ entry, saving, onEdit, onRemove, onToggleEnabled }: 
         <button
           type="button"
           title={t('settings.provider.api_key.copy')}
-          className={`${apiKeyListClasses.keyValue} block cursor-pointer text-left transition-colors hover:text-foreground`}
+          className={`${apiKeyListClasses.keyValue} block cursor-pointer text-start transition-colors hover:text-foreground`}
           onClick={handleCopy}>
           {maskApiKey(entry.key)}
         </button>

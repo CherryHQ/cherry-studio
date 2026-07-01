@@ -600,8 +600,8 @@ describe('edit dialogs', () => {
     const clearButton = screen.getByRole('button', { name: 'Model Clear' })
 
     expect(modelTrigger).toHaveClass('hover:bg-background')
-    expect(modelTrigger).not.toHaveClass('pr-7')
-    expect(clearButton).toHaveClass('right-1.5', 'rounded-full', 'bg-transparent', 'hover:bg-muted', 'opacity-0')
+    expect(modelTrigger).not.toHaveClass('pe-7')
+    expect(clearButton).toHaveClass('end-1.5', 'rounded-full', 'bg-transparent', 'hover:bg-muted', 'opacity-0')
 
     fireEvent.click(clearButton)
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))

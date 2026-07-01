@@ -49,7 +49,7 @@ const SettingsPage: FC = () => {
         isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
       )}>
       <div className="flex min-h-0 flex-1 flex-row">
-        <div className="flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col border-border border-r-[0.5px]">
+        <div className="flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col border-border border-e-[0.5px]">
           <PageHeader title={t('settings.menuGroups.appSettings')} />
           <Scrollbar className="min-h-0 flex-1 select-none">
             <MenuList className={settingsSubmenuListClassName}>
@@ -193,7 +193,7 @@ const SettingsPage: FC = () => {
           </Scrollbar>
         </div>
         <div className="flex h-full min-h-0 min-w-0 flex-1">
-          <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden text-foreground">
+          <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden border-border/40 border-s bg-white text-foreground dark:bg-background">
             <Outlet />
           </div>
         </div>

@@ -220,7 +220,7 @@ export default function HealthCheckDrawer({
                   </span>
                 </div>
               ) : null}
-              <span className="ml-auto shrink-0 text-muted-foreground/60 text-xs">
+              <span className="ms-auto shrink-0 text-muted-foreground/60 text-xs">
                 {t('settings.models.check.outcome_total', { count: modelStatuses.length })}
               </span>
             </div>
@@ -242,7 +242,7 @@ export default function HealthCheckDrawer({
                   rightCell = (
                     <Tooltip
                       content={
-                        <span className="block max-w-full whitespace-pre-wrap text-left text-[12px] leading-snug">
+                        <span className="block max-w-full whitespace-pre-wrap text-start text-[12px] leading-snug">
                           {skipReasonText}
                         </span>
                       }
@@ -286,7 +286,7 @@ export default function HealthCheckDrawer({
                     errText !== '' ? (
                       <Tooltip
                         content={
-                          <span className="block max-w-full whitespace-pre-wrap break-all text-left text-[12px] leading-snug">
+                          <span className="block max-w-full whitespace-pre-wrap break-all text-start text-[12px] leading-snug">
                             {errText}
                           </span>
                         }
@@ -342,7 +342,7 @@ export default function HealthCheckDrawer({
 
       {!showPipeline ? (
         <>
-          <div className="space-y-4">
+          <div className="space-yb-4">
             <div className="flex items-center justify-between gap-3">
               <span className="font-medium text-foreground text-sm">{t('settings.models.check.use_all_keys')}</span>
               <SegmentedControl
@@ -387,7 +387,7 @@ export default function HealthCheckDrawer({
           </div>
 
           {keyCheckMode === 'single' && hasMultipleKeys ? (
-            <div className="space-y-3 rounded-xl border border-border-muted bg-muted/20 p-4">
+            <div className="space-yb-3 rounded-xl border border-border-muted bg-muted/20 p-4">
               <div className="font-medium text-[13px] text-foreground/85">
                 {t('settings.models.check.select_api_key')}
               </div>

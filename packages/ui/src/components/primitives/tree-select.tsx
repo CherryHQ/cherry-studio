@@ -302,7 +302,7 @@ export function TreeSelect({
 
       return (
         <React.Fragment key={rowKey}>
-          <div className="flex items-center gap-1" style={{ paddingLeft: depth * 14 }}>
+          <div className="flex items-center gap-1" style={{ paddingInlineStart: depth * 14 }}>
             {hasChildren ? (
               <button
                 type="button"
@@ -322,7 +322,7 @@ export function TreeSelect({
               disabled={option.disabled}
               onClick={() => handleSelect(option)}
               className={cn(
-                'flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none transition-colors',
+                'flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-start text-sm outline-none transition-colors',
                 selected ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-accent/60',
                 option.disabled && 'pointer-events-none opacity-50',
                 option.selectable === false && 'text-muted-foreground'

@@ -11,7 +11,7 @@ const KnowledgePageShell = ({ children }: PropsWithChildren) => {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <Navbar>
-        <NavbarCenter className="border-r-0">{t('knowledge.title')}</NavbarCenter>
+        <NavbarCenter className="border-e-0">{t('knowledge.title')}</NavbarCenter>
       </Navbar>
 
       <div

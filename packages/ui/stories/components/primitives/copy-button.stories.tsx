@@ -92,10 +92,10 @@ export const Interactive: Story = {
     label: '点击复制'
   },
   render: (args) => (
-    <div className="space-y-4">
+    <div className="space-yb-4">
       <div>
         <h3 className="text-sm font-medium mb-2">不同状态的复制按钮:</h3>
-        <div className="space-y-2">
+        <div className="space-yb-2">
           <div>
             <CopyButton {...args} onClick={() => alert('已复制!')} />
           </div>
@@ -110,7 +110,7 @@ export const Interactive: Story = {
 
 export const MultipleButtons: Story = {
   render: () => (
-    <div className="space-y-4">
+    <div className="space-yb-4">
       <h3 className="text-sm font-medium mb-2">多个复制按钮组合:</h3>
       <div className="flex flex-wrap gap-4">
         <CopyButton tooltip="复制代码" label="代码" size={14} />

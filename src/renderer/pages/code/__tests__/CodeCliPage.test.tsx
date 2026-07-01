@@ -145,17 +145,7 @@ vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({ setTimeoutTimer: testState.setTimeoutTimer })
 }))
 
-vi.mock('@renderer/services/LoggerService', () => ({
-  loggerService: {
-    withContext: () => ({
-      error: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn()
-    })
-  }
-}))
-
-vi.mock('@shared/config/providers', () => ({
+vi.mock('@renderer/config/codeProviders', () => ({
   CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS: [],
   isSiliconAnthropicCompatibleModel: () => false
 }))

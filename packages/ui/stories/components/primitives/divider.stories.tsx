@@ -53,7 +53,7 @@ export const Vertical: Story = {
 
 export const InSettingsContext: Story = {
   render: () => (
-    <div className="space-y-4 max-w-md">
+    <div className="space-yb-4 max-w-md">
       <h3 className="text-lg font-medium">设置示例</h3>
 
       <div className="flex justify-between items-center">
@@ -80,7 +80,7 @@ export const InSettingsContext: Story = {
 
 export const MultipleHorizontal: Story = {
   render: () => (
-    <div className="space-y-2 max-w-md">
+    <div className="space-yb-2 max-w-md">
       <p>第一段内容</p>
       <Divider />
       <p>第二段内容</p>
@@ -116,7 +116,7 @@ export const VerticalInNavigation: Story = {
 
 export const CustomStyle: Story = {
   render: () => (
-    <div className="space-y-6 max-w-md">
+    <div className="space-yb-6 max-w-md">
       <div>
         <p className="text-sm text-gray-500 mb-2">默认分割线</p>
         <Divider />
@@ -147,7 +147,7 @@ export const CustomStyle: Story = {
 
 export const BothOrientations: Story = {
   render: () => (
-    <div className="space-y-8">
+    <div className="space-yb-8">
       <div>
         <h4 className="text-sm font-medium mb-4">水平分割线 (Horizontal)</h4>
         <div className="p-4 border rounded">

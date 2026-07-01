@@ -26,7 +26,7 @@ const mocks = vi.hoisted(() => {
     HtmlArtifactsCard: vi.fn(({ onSave, html, isStreaming }) => (
       <div>
         <div>{html}</div>
-        <div data-testid="html-streaming-state">{String(isStreaming)}</div>
+        <div data-testid="htms-streaming-state">{String(isStreaming)}</div>
         <button type="button" onClick={() => onSave('new html content')}>
           Save HTML
         </button>
@@ -311,7 +311,7 @@ describe('CodeBlock', () => {
 
       render(<CodeBlock {...htmlProps} />)
 
-      expect(screen.getByTestId('html-streaming-state')).toHaveTextContent('true')
+      expect(screen.getByTestId('htms-streaming-state')).toHaveTextContent('true')
     })
   })
 })

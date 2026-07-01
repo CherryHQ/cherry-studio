@@ -1082,7 +1082,7 @@ const McpSettings: React.FC = () => {
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    className="-ml-2 shrink-0 rounded-full"
+                    className="-ms-2 shrink-0 rounded-full"
                     aria-label={t('common.back')}
                     title={t('common.back')}
                     onClick={() => void navigate({ to: '/settings/mcp/servers' })}>

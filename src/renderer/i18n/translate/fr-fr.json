@@ -556,6 +556,7 @@
       "list": {
         "title": "Tâches"
       },
+      "new": "[to be translated]:New task",
       "pin": {
         "title": "Épingler la tâche"
       },
@@ -565,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "Tâches de recherche"
+        "placeholder": "Tâches de recherche",
+        "title": "[to be translated]:Search tasks"
       },
       "unpin": {
         "title": "Détacher la tâche"
@@ -934,6 +936,10 @@
         "Bash": {
           "description": "Exécute des commandes shell dans votre environnement",
           "label": "Bash"
+        },
+        "CherryKbManage": {
+          "description": "[to be translated]:Adds, deletes, or refreshes documents in your knowledge bases",
+          "label": "[to be translated]:Manage Knowledge"
         },
         "CherryKbSearch": {
           "description": "Recherche dans vos bases de connaissances",
@@ -1977,7 +1983,7 @@
       "kimi_cli": "Assistant en ligne de commande Kimi de Moonshot",
       "openai_codex": "CLI officiel de génération de code d’OpenAI",
       "opencode": "Agent de codage multi-modèle open-source",
-      "qoder_cli": "L'outil de codage en ligne de commande agentique d'Alibaba Qoder",
+      "qoder_cli": "[to be translated]:Alibaba Qoder's agentic command-line coding tool",
       "qwen_code": "L'outil de codage CLI open source d'Alibaba Tongyi"
     },
     "update_options": "Options de mise à jour",
@@ -2659,7 +2665,7 @@
           "description": "Sélectionner des notes existantes comme sources de base de connaissances",
           "empty_description": "Les notes sélectionnables apparaîtront ici après la connexion de la liste réelle des notes. Pour l'instant, utilisez des fichiers, des dossiers, des URL ou des plans de site.",
           "empty_title": "Les notes ne sont pas encore connectées",
-          "loading": "Chargement des notes…"
+          "loading": "[to be translated]:Loading notes…"
         },
         "placeholder": {
           "supported_formats": "Prend en charge les formats PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -2759,7 +2765,7 @@
     "embedding_model_required": "Un modèle d'embedding de base de connaissances est requis",
     "empty": "Aucune base de connaissances",
     "error": {
-      "directory_not_migrated": "Échec de la migration du dossier. Veuillez le supprimer et le télécharger à nouveau.",
+      "directory_not_migrated": "[to be translated]:Folder migration failed. Please delete it and re-upload.",
       "failed_base_unknown": "Cette base de connaissances a échoué lors de la migration. Reconstruisez-la et choisissez un nouveau modèle d'embedding.",
       "failed_to_create": "Échec de la création de la base de connaissances",
       "failed_to_delete": "Échec de la suppression de la base de connaissances",
@@ -2840,7 +2846,7 @@
         "bm25": "Recherche en texte intégral",
         "hybrid": "Recherche hybride (recommandée)",
         "title": "Mode Recherche",
-        "vector": "Recherche vectorielle"
+        "vector": "[to be translated]:Vector Search"
       },
       "separator_rule": "Règle de séparateur",
       "smart_chunking": "Découpage intelligent",
@@ -3162,12 +3168,22 @@
           "agent_title": "Nouvel agent",
           "assistant_title": "Nouvel Assistant",
           "avatar_aria": "Choisir un avatar",
+          "back": "[to be translated]:Back",
+          "capability": {
+            "import": "[to be translated]:Import skill",
+            "no_skills": "[to be translated]:No skills installed",
+            "search": "[to be translated]:Search skills"
+          },
           "description_placeholder": "Décrire à quoi cela sert...",
-          "dialog_description": "Créer un assistant ou agent léger.",
-          "model_placeholder": "Sélectionner un modèle",
-          "model_required": "Veuillez sélectionner un modèle",
+          "guided_progress": "[to be translated]:Guided setup · Step {{current}} of {{total}}",
           "name_placeholder": "Entrez un nom",
-          "name_required": "Veuillez entrer un nom",
+          "next": "[to be translated]:Next",
+          "step": {
+            "basic": "[to be translated]:Basic info",
+            "capability": "[to be translated]:Skills",
+            "knowledge": "[to be translated]:Knowledge",
+            "persona": "[to be translated]:Persona"
+          },
           "submit": "Créer",
           "submit_failed": "Échec de la création"
         },
@@ -5256,6 +5272,7 @@
     "assistant": {
       "create_new": "Nouvel Assistant",
       "empty_text": "Pas encore d'assistants",
+      "filter": "[to be translated]:Filter assistants",
       "multi_hint": "(mutuellement exclusif avec multi-modèle)",
       "multi_label": "Multi-assistant parallèle",
       "search_placeholder": "Assistant de recherche…"
@@ -6435,6 +6452,12 @@
         "show_estimated_tokens": "Afficher le nombre estimatif de tokens",
         "title": "Paramètres d'entrée"
       },
+      "layout": {
+        "classic": "[to be translated]:Classic",
+        "conversation": "[to be translated]:Conversation view",
+        "modern": "[to be translated]:Modern",
+        "work": "[to be translated]:Work view"
+      },
       "markdown_rendering_input_message": "Rendu Markdown des messages d'entrée",
       "metrics": "Latence initiale {{time_first_token_millsec}}ms | Vitesse de tokenisation {{token_speed}} tokens/s",
       "model": {
@@ -7216,7 +7239,7 @@
       },
       "clear_shortcut": "Effacer raccourci clavier",
       "clear_topic": "Vider les messages",
-      "close_tab": "Fermer l'onglet",
+      "close_tab": "[to be translated]:Close Tab",
       "conflict_with": "Déjà utilisé par \"{{name}}\"",
       "copy_last_message": "Copier le dernier message",
       "edit_last_user_message": "Éditer le dernier message utilisateur",
@@ -7224,11 +7247,11 @@
       "enabled": "activer",
       "exit_fullscreen": "Quitter le plein écran",
       "label": "Touche",
-      "move_tab_to_first": "Déplacer l'onglet en premier",
+      "move_tab_to_first": "[to be translated]:Move Tab to First",
       "new_topic": "Nouveau sujet",
       "occupied_by_other_application": "Ce raccourci est déjà utilisé par le système ou une autre application",
-      "open_tab_in_new_window": "Ouvrir l'onglet dans une nouvelle fenêtre",
-      "pin_tab": "Épingler/Désépingler l'onglet",
+      "open_tab_in_new_window": "[to be translated]:Open Tab in New Window",
+      "pin_tab": "[to be translated]:Toggle Pin Tab",
       "press_shortcut": "Appuyer sur raccourci clavier",
       "quick_assistant": "Assistant rapide",
       "rename_topic": "Renommer le sujet",
@@ -7439,6 +7462,7 @@
           "exa": "API de recherche neuronale pour applications IA, optimisée pour la récupération sémantique sur le web.",
           "exa_mcp": "Exposez la recherche Exa aux agents via le serveur MCP Exa.",
           "fetch": "Fournisseur d’extraction d’URL intégré. Récupère le contenu des pages web à partir d’une URL pour enrichir les résultats de recherche.",
+          "firecrawl": "[to be translated]:Firecrawl crawler and search service, optimized to turn websites into Markdown.",
           "jina": "APIs de recherche et de lecture Jina Reader pour récupérer du contenu web propre.",
           "querit": "Service de recherche pour applications IA avec résultats de récupération web.",
           "searxng": "Moteur de méta-recherche internet gratuit auto-hébergeable couvrant de nombreuses sources.",

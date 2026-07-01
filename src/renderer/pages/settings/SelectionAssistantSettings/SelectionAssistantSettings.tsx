@@ -130,7 +130,7 @@ const SelectionAssistantSettings: FC = () => {
             <SettingDivider />
             <SettingLabel>
               <SettingRowTitle>
-                <TriangleAlert size={14} style={{ marginRight: 4, color: 'var(--color-error-base)' }} />
+                <TriangleAlert size={14} style={{ marginInlineEnd: 4, color: 'var(--color-error-base)' }} />
                 {t('selection.settings.linux.wayland_title')}
               </SettingRowTitle>
               {linuxEnvInfo.isLinuxCompositorCompatible ? (
@@ -143,10 +143,13 @@ const SelectionAssistantSettings: FC = () => {
                     {linuxEnvInfo.isLinuxXWaylandMode ? (
                       <CircleCheck
                         size={13}
-                        style={{ color: 'var(--color-success-base)', marginRight: 6, flexShrink: 0 }}
+                        style={{ color: 'var(--color-success-base)', marginInlineEnd: 6, flexShrink: 0 }}
                       />
                     ) : (
-                      <CircleX size={13} style={{ color: 'var(--color-error-base)', marginRight: 6, flexShrink: 0 }} />
+                      <CircleX
+                        size={13}
+                        style={{ color: 'var(--color-error-base)', marginInlineEnd: 6, flexShrink: 0 }}
+                      />
                     )}
                     <span>
                       {t('selection.settings.linux.xwayland_label')}
@@ -159,10 +162,13 @@ const SelectionAssistantSettings: FC = () => {
                     {linuxEnvInfo.hasLinuxInputDeviceAccess ? (
                       <CircleCheck
                         size={13}
-                        style={{ color: 'var(--color-success-base)', marginRight: 6, flexShrink: 0 }}
+                        style={{ color: 'var(--color-success-base)', marginInlineEnd: 6, flexShrink: 0 }}
                       />
                     ) : (
-                      <CircleX size={13} style={{ color: 'var(--color-error-base)', marginRight: 6, flexShrink: 0 }} />
+                      <CircleX
+                        size={13}
+                        style={{ color: 'var(--color-error-base)', marginInlineEnd: 6, flexShrink: 0 }}
+                      />
                     )}
                     <span>
                       {t('selection.settings.linux.input_group_label')}
@@ -188,7 +194,7 @@ const SelectionAssistantSettings: FC = () => {
             <SettingRow>
               <SettingLabel>
                 <SettingRowTitle>
-                  <div style={{ marginRight: '4px' }}>{t('selection.settings.toolbar.trigger_mode.title')}</div>
+                  <div style={{ marginInlineEnd: '4px' }}>{t('selection.settings.toolbar.trigger_mode.title')}</div>
                   {/* FIXME: 没有考虑Linux？ */}
                   <Tooltip content={t(getSelectionDescriptionLabelKey(isWin ? 'windows' : isLinux ? 'linux' : 'mac'))}>
                     <QuestionIcon size={14} />
@@ -281,7 +287,7 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.window.opacity.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.window.opacity.description')}</SettingDescription>
               </SettingLabel>
-              <div style={{ marginRight: '16px' }}>{opacityValue}%</div>
+              <div style={{ marginInlineEnd: '16px' }}>{opacityValue}%</div>
               <Slider
                 className="w-25"
                 min={20}
@@ -304,7 +310,7 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>
                   {t('selection.settings.advanced.filter_mode.title')}
                   {isLinux && linuxEnvInfo?.isLinuxWaylandDisplay && (
-                    <span style={{ marginLeft: 6, display: 'inline-flex', alignItems: 'center' }}>
+                    <span style={{ marginInlineStart: 6, display: 'inline-flex', alignItems: 'center' }}>
                       （<TriangleAlert size={13} style={{ margin: '0 3px', color: 'var(--color-error-base)' }} />
                       {t('selection.settings.linux.filter_warning_text')}）
                     </span>

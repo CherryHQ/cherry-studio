@@ -17,7 +17,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({ start = 0, progress, h
           width: `${displayProgress}%`,
           height: height,
           borderRadius: height,
-          marginLeft: `${start}%`
+          marginInlineStart: `${start}%`
         }}
       />
     </div>

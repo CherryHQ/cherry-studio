@@ -75,7 +75,7 @@ const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder,
                      * via Icon.Avatar instead of being treated as a broken image URL.
                      */}
                     <LogoAvatar logo={getMiniAppsLogo(app.logo) ?? app.logo} size={16} />
-                    <span className="min-w-0 flex-1 truncate text-left text-foreground text-sm">{displayName}</span>
+                    <span className="min-w-0 flex-1 truncate text-start text-foreground text-sm">{displayName}</span>
                     <span
                       className="flex size-6 shrink-0 items-center justify-center text-muted-foreground/40"
                       aria-hidden="true">

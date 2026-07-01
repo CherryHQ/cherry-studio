@@ -386,7 +386,7 @@ const ShortcutSettings: FC = () => {
             {pendingDisplay || t('settings.shortcuts.press_shortcut')}
           </Button>
           {hasConflict && (
-            <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-red-500 text-xs">
+            <span className="absolute end-0 top-full mt-1 whitespace-nowrap text-red-500 text-xs">
               {conflictLabel ? t('settings.shortcuts.conflict_with', { name: conflictLabel }) : conflictMessage}
             </span>
           )}
@@ -429,7 +429,7 @@ const ShortcutSettings: FC = () => {
             </RowFlex>
           </RowFlex>
           {hasSystemConflict && (
-            <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-red-500 text-xs">
+            <span className="absolute end-0 top-full mt-1 whitespace-nowrap text-red-500 text-xs">
               {conflictMessage}
             </span>
           )}
@@ -449,9 +449,7 @@ const ShortcutSettings: FC = () => {
           {t('settings.shortcuts.press_shortcut')}
         </span>
         {hasSystemConflict && (
-          <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-red-500 text-xs">
-            {conflictMessage}
-          </span>
+          <span className="absolute end-0 top-full mt-1 whitespace-nowrap text-red-500 text-xs">{conflictMessage}</span>
         )}
       </div>
     )
@@ -492,7 +490,7 @@ const ShortcutSettings: FC = () => {
           !record.preference.enabled && 'opacity-60',
           !isLast && 'border-border/50 border-b'
         )}>
-        <div className="min-w-0 pr-2">
+        <div className="min-w-0 pe-2">
           <div className="truncate font-medium text-[14px] text-foreground">{record.label}</div>
         </div>
         <div className="flex min-h-9 items-center justify-end">{renderShortcutCell(record)}</div>
@@ -573,9 +571,9 @@ const ShortcutSettings: FC = () => {
 
             <div className="mb-3">
               <div className="relative w-full">
-                <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-4 text-muted-foreground" />
+                <Search className="-translate-y-1/2 pointer-events-none absolute start-3 top-1/2 size-4 text-muted-foreground" />
                 <Input
-                  className="h-9 w-full rounded-lg border-border/60 bg-background pr-3 pl-9"
+                  className="h-9 w-full rounded-lg border-border/60 bg-background ps-9 pe-3"
                   placeholder={t('settings.shortcuts.search_placeholder')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}

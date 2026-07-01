@@ -166,12 +166,12 @@ const HeaderNavbar = ({
 
     if (item.children) {
       return (
-        <div key={item.key} className="space-y-1">
+        <div key={item.key} className="space-yb-1">
           <div className="flex items-center gap-2.5 px-2.5 py-1 font-medium text-muted-foreground text-xs">
             {IconComponent && <IconComponent size={14} />}
             <span>{t(item.labelKey)}</span>
           </div>
-          <div className="pl-3">{item.children.map(renderMenuItem)}</div>
+          <div className="ps-3">{item.children.map(renderMenuItem)}</div>
         </div>
       )
     }
@@ -293,7 +293,7 @@ const HeaderNavbar = ({
           </Breadcrumb>
         </div>
       </NavbarCenter>
-      <NavbarRight className="pr-0">
+      <NavbarRight className="pe-0">
         {canShowStarButton && (
           <Tooltip title={activeNode.isStarred ? t('notes.unstar') : t('notes.star')} delay={800}>
             <div

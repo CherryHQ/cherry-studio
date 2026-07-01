@@ -15,14 +15,6 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      error: vi.fn()
-    })
-  }
-}))
-
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<object>()
 

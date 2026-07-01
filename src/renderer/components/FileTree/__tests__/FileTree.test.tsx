@@ -214,9 +214,9 @@ describe('FileTree - icon behaviour', () => {
     const markdownRow = screen.getByText('A.md').closest('[data-node-id="a"]') as HTMLElement
     const nestedRow = screen.getByText('B.md').closest('[data-node-id="b"]') as HTMLElement
 
-    expect(rootRow.style.paddingLeft).toBe('8px')
-    expect(markdownRow.style.paddingLeft).toBe('20px')
-    expect(nestedRow.style.paddingLeft).toBe('32px')
+    expect(rootRow.style.paddingInlineStart).toBe('8px')
+    expect(markdownRow.style.paddingInlineStart).toBe('20px')
+    expect(nestedRow.style.paddingInlineStart).toBe('32px')
     expect(rootRow.querySelector('span[style*="width"]')).toBeNull()
   })
 

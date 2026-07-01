@@ -27,9 +27,9 @@ const RecallHistoryList = () => {
       {historyItems.map((item) => (
         <div
           key={item.id}
-          className="group/hist flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-left transition-colors hover:bg-accent"
+          className="group/hist flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-start transition-colors hover:bg-accent"
           onClick={() => selectHistory(item)}>
-          <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left">
+          <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-start">
             <History className="size-3.5 shrink-0 text-foreground-muted" />
             <span className="min-w-0 flex-1 truncate text-foreground text-sm leading-5">{item.query}</span>
           </button>

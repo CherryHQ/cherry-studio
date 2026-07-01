@@ -223,7 +223,7 @@ describe('QuickPanelView', () => {
       )
 
       const panel = screen.getByTestId('quick-panel')
-      expect(panel).toHaveClass('right-2', 'left-2')
+      expect(panel).toHaveClass('end-2', 'start-2')
       expect(panel).not.toHaveClass('w-full')
       expect(panel).toHaveClass('-top-1')
       expect(panel.className).not.toContain('px-[35px]')

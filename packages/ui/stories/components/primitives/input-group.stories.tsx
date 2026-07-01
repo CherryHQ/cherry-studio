@@ -652,7 +652,7 @@ export const ValidationForm: Story = {
     }
 
     return (
-      <form onSubmit={handleSubmit} className="w-96 space-y-4">
+      <form onSubmit={handleSubmit} className="w-96 space-yb-4">
         <h3 className="text-base font-semibold">Payment Form with Validation</h3>
 
         <div>
@@ -846,7 +846,7 @@ export const CharacterCounter: Story = {
 // Real World Examples
 export const LoginForm: Story = {
   render: () => (
-    <div className="w-80 space-y-4">
+    <div className="w-80 space-yb-4">
       <h3 className="text-base font-semibold">Login</h3>
 
       <div>
@@ -884,7 +884,7 @@ export const LoginForm: Story = {
 
 export const PriceInput: Story = {
   render: () => (
-    <div className="w-80 space-y-4">
+    <div className="w-80 space-yb-4">
       <div>
         <label className="mb-1 block text-sm font-medium">Amount (USD)</label>
         <InputGroup>
@@ -920,7 +920,7 @@ export const UrlBuilder: Story = {
     const [protocol, setProtocol] = useState('https://')
 
     return (
-      <div className="w-96 space-y-4">
+      <div className="w-96 space-yb-4">
         <div>
           <label className="mb-1 block text-sm font-medium">Website URL</label>
           <InputGroup>
@@ -982,7 +982,7 @@ export const SearchBar: Story = {
 
 export const DateTimeInput: Story = {
   render: () => (
-    <div className="w-80 space-y-4">
+    <div className="w-80 space-yb-4">
       <div>
         <label className="mb-1 block text-sm font-medium">Event Date</label>
         <InputGroup>
@@ -1007,7 +1007,7 @@ export const DateTimeInput: Story = {
 
 export const SettingsPanel: Story = {
   render: () => (
-    <div className="w-96 space-y-4">
+    <div className="w-96 space-yb-4">
       <h3 className="text-base font-semibold">API Configuration</h3>
 
       <div>

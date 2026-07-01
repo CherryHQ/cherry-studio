@@ -159,7 +159,7 @@ const CopyButton: React.FC<{ content: string; actions?: CitationCopyActions }> =
 
   return (
     <div
-      className="-translate-y-1/2 absolute top-1/2 right-0 flex cursor-pointer items-center justify-center rounded p-1 text-foreground-secondary opacity-0 transition-opacity duration-300 hover:bg-muted hover:opacity-100 group-hover:opacity-100"
+      className="-translate-y-1/2 absolute end-0 top-1/2 flex cursor-pointer items-center justify-center rounded p-1 text-foreground-secondary opacity-0 transition-opacity duration-300 hover:bg-muted hover:opacity-100 group-hover:opacity-100"
       onClick={handleCopy}>
       {copied ? <Check size={14} /> : <Copy size={14} />}
     </div>
@@ -224,7 +224,7 @@ const WebSearchCitation: React.FC<{ citation: Citation; actions?: CitationPanelA
           {fetchedContent && <CopyButton content={fetchedContent} actions={actions} />}
         </div>
         {isLoading ? (
-          <div className="space-y-1">
+          <div className="space-yb-1">
             <Skeleton className="h-3 w-full" />
             <Skeleton className="h-3 w-2/3" />
           </div>

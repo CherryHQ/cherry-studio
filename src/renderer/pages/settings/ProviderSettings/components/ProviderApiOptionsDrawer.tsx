@@ -261,7 +261,7 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
                         event.currentTarget.blur()
                       }
                     }}
-                    className={cn(drawerClasses.input, 'h-9 w-28 shrink-0 text-right')}
+                    className={cn(drawerClasses.input, 'h-9 w-28 shrink-0 text-end')}
                   />
                 }
               />
@@ -313,7 +313,7 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
                             event.currentTarget.blur()
                           }
                         }}
-                        className={cn(drawerClasses.input, 'h-9 w-20 shrink-0 text-right')}
+                        className={cn(drawerClasses.input, 'h-9 w-20 shrink-0 text-end')}
                       />
                     }
                   />

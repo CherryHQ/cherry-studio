@@ -69,7 +69,7 @@ export const KnowledgeModelSelect = ({
               hasValue ? 'text-foreground' : 'text-muted-foreground',
               invalid && 'border-destructive aria-expanded:ring-red-600/20'
             )}>
-            <span className="min-w-0 truncate text-left">{triggerLabel}</span>
+            <span className="min-w-0 truncate text-start">{triggerLabel}</span>
             <ChevronDown className="size-4 shrink-0 opacity-50" />
           </Button>
         }

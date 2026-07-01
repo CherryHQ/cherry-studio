@@ -34,14 +34,23 @@ const {
   mockHoverCardContentProps: [] as Array<{ portalContainer?: unknown; side?: string; align?: string }>
 }))
 
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      error: mockLoggerError,
-      warn: vi.fn()
-    })
+vi.mock('@logger', async (importOriginal) => {
+  const actual = (await importOriginal()) as any
+  return {
+    ...actual,
+    loggerService: {
+      ...actual.loggerService,
+      withContext: () => ({
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: mockLoggerError,
+        verbose: vi.fn(),
+        silly: vi.fn()
+      })
+    }
   }
-}))
+})
 
 vi.mock('react-i18next', () => ({
   initReactI18next: { type: '3rdParty', init: vi.fn() },
@@ -401,7 +410,7 @@ describe('ModelSelector', () => {
 
     const option = screen.getByTestId('model-selector-item-openai::gpt-4')
     const row = option.closest('[data-model-selector-row]')
-    expect(row).toHaveClass('group', 'relative', 'rounded-[10px]', 'px-2', 'pr-0.5', 'py-1.5', 'bg-accent/70')
+    expect(row).toHaveClass('group', 'relative', 'rounded-[10px]', 'px-2', 'pe-0.5', 'py-1.5', 'bg-accent/70')
     expect(row).not.toHaveClass('bg-primary/10')
     expect(screen.getByLabelText('models.action.unpin')).toHaveClass(
       'size-4',

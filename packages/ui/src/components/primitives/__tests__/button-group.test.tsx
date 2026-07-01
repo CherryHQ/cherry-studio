@@ -20,7 +20,7 @@ describe('ButtonGroup', () => {
       </ButtonGroup>
     )
 
-    expect(screen.getByRole('group')).toHaveClass('[&>*:not(:first-child)]:-ml-px')
+    expect(screen.getByRole('group')).toHaveClass('[&>*:not(:first-child)]:-ms-px')
     expect(screen.getByRole('group')).toHaveClass('[&>[data-slot=button][data-variant=default]]:relative')
     expect(screen.getByRole('group')).toHaveClass('[&>[data-slot=button][data-variant=default]]:z-1')
   })

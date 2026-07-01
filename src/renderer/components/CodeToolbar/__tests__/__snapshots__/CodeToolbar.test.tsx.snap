@@ -3,7 +3,7 @@
 exports[`CodeToolbar > basic rendering > should match snapshot with mixed tools 1`] = `
 <div>
   <div
-    class="pointer-events-none absolute top-1 right-2 z-10 h-6"
+    class="pointer-events-none absolute end-2 top-1 z-10 h-6"
   >
     <div
       class="code-toolbar pointer-events-auto flex h-6 items-center gap-1"
@@ -44,7 +44,7 @@ exports[`CodeToolbar > basic rendering > should match snapshot with mixed tools 
 exports[`CodeToolbar > basic rendering > should match snapshot with only core tools 1`] = `
 <div>
   <div
-    class="pointer-events-none absolute top-1 right-2 z-10 h-6"
+    class="pointer-events-none absolute end-2 top-1 z-10 h-6"
   >
     <div
       class="code-toolbar pointer-events-auto flex h-6 items-center gap-1"

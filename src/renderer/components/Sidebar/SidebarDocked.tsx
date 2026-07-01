@@ -59,7 +59,7 @@ function IconDockedTabs({
                 event.stopPropagation()
                 onCloseDockedTab?.(dockedTab.id)
               }}
-              className="-right-1 -top-1 absolute z-10 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-border bg-popover text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover/dock:opacity-100">
+              className="-end-1 -top-1 absolute z-10 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-border bg-popover text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover/dock:opacity-100">
               <X size={7} />
             </button>
           </div>
@@ -77,7 +77,7 @@ function FullDockedTabs({
   onCloseDockedTab
 }: DockedTabsProps) {
   return (
-    <div className="mt-1 space-y-0.5 border-border/30 border-t px-2 pt-1 [-webkit-app-region:no-drag]">
+    <div className="mt-1 space-yb-0.5 border-border/30 border-t px-2 pt-1 [-webkit-app-region:no-drag]">
       {dockedTabs.map((dockedTab) => {
         const isActive = activeTabId === dockedTab.id
 

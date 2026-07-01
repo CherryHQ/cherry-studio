@@ -539,7 +539,7 @@ const updatePosition = (editor: Editor, element: HTMLElement) => {
     .then(({ x, y, strategy, placement }) => {
       Object.assign(element.style, {
         position: strategy,
-        left: `${x}px`,
+        insetInlineStart: `${x}px`,
         top: `${y}px`,
         width: 'max-content'
       })

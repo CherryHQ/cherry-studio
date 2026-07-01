@@ -126,3 +126,16 @@
 :root {
   background-color: unset;
 }
+
+@layer utilities {
+  .mirror-rtl {
+    display: inline-block;
+    transform: none;
+  }
+  [dir="rtl"] .mirror-rtl {
+    transform: scaleX(-1);
+  }
+  [dir="rtl"] .lucide {
+    transform: scaleX(-1);
+  }
+}

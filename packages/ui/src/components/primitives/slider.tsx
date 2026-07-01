@@ -62,7 +62,7 @@ const sliderMarkLabelVariants = cva('absolute top-0 whitespace-nowrap text-muted
 
 const sliderValueLabelVariants = cva(
   cn(
-    'absolute left-1/2 -translate-x-1/2 -translate-y-full pointer-events-none',
+    'absolute start-1/2 -translate-x-1/2 -translate-y-full pointer-events-none',
     'rounded bg-primary px-1.5 py-0.5 text-primary-foreground',
     'scale-0 opacity-0 transition-all group-hover:scale-100 group-hover:opacity-100'
   ),
@@ -161,7 +161,7 @@ function Slider({
       {sliderElement}
       <div
         data-slot="slider-marks"
-        className={cn('relative', isVertical ? 'ml-2 flex h-full flex-col justify-between' : 'mt-1.5 h-4 w-full')}>
+        className={cn('relative', isVertical ? 'ms-2 flex h-full flex-col justify-between' : 'mt-1.5 h-4 w-full')}>
         {marks.map((mark) => {
           const range = max - min
           if (range === 0) return null

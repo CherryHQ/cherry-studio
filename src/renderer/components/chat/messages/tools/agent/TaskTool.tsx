@@ -71,7 +71,7 @@ function getTaskTargetLabel(taskId: string | undefined, t: ReturnType<typeof use
 
 function TaskListView({ tasks, t }: { tasks: TaskListItem[]; t: ReturnType<typeof useTranslation>['t'] }) {
   return (
-    <div className="space-y-1.5">
+    <div className="space-yb-1.5">
       {tasks.map((task) => (
         <div key={task.id} className="flex min-w-0 items-start gap-2 rounded-md bg-muted/30 p-2">
           <div className="min-w-0 flex-1">

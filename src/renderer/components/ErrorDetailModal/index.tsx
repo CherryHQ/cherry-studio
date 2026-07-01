@@ -73,7 +73,7 @@ const truncateLargeData = (
 }
 
 const ErrorDetailContainer = ({ className, ...props }: React.ComponentProps<typeof Scrollbar>) => (
-  <Scrollbar className={cn('max-h-[60vh] pr-[5px]', className)} {...props} />
+  <Scrollbar className={cn('max-h-[60vh] pe-[5px]', className)} {...props} />
 )
 
 const ErrorDetailList = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
@@ -110,7 +110,7 @@ const StackTrace = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement
 
 const TruncatedBadge = ({ className, style, ...props }: React.HTMLAttributes<HTMLSpanElement>) => (
   <span
-    className={cn('ml-2 rounded-[4px] px-1.5 py-0.5 font-normal text-[10px] text-[var(--color-warning)]', className)}
+    className={cn('ms-2 rounded-[4px] px-1.5 py-0.5 font-normal text-[10px] text-[var(--color-warning)]', className)}
     style={{
       background: 'var(--color-warning-bg, rgba(250, 173, 20, 0.1))',
       ...style

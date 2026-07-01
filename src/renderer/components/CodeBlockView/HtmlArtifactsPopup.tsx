@@ -76,7 +76,7 @@ const CodePanel = memo<CodePanelProps>(
             keymap: true
           }}
         />
-        <div className="absolute right-4 bottom-4 z-10 flex flex-col items-center gap-1">
+        <div className="absolute end-4 bottom-4 z-10 flex flex-col items-center gap-1">
           <Tooltip content={saveLabel}>
             <Button
               variant="secondary"
@@ -143,7 +143,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
     async (to: 'file' | 'clipboard') => {
       try {
         const title = extractHtmlTitle(html)
-        const fileName = getFileNameFromHtmlTitle(title) || 'html-artifact'
+        const fileName = getFileNameFromHtmlTitle(title) || 'htms-artifact'
 
         if (to === 'file') {
           const dataUrl = await captureScrollableIframeAsDataURL(previewFrameRef)
@@ -242,7 +242,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
         className={cn(
           'grid gap-0 overflow-hidden p-0',
           isFullscreen
-            ? 'top-0! left-0! z-10000 h-screen w-screen max-w-none translate-x-0! translate-y-0! rounded-none border-0 shadow-none sm:max-w-none'
+            ? 'start-0! top-0! z-10000 h-screen w-screen max-w-none translate-x-0! translate-y-0! rounded-none border-0 shadow-none sm:max-w-none'
             : 'h-[80vh] w-[90vw] max-w-350 sm:max-w-350'
         )}>
         <div className="grid h-full min-h-0 grid-rows-[45px_minmax(0,1fr)]">
@@ -252,11 +252,11 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
               isFullscreen && '[-webkit-app-region:drag]'
             )}
             onDoubleClick={() => setIsFullscreen(!isFullscreen)}>
-            <div className={cn('min-w-0 flex-1', isFullscreen && isMac ? 'pl-20' : 'pl-3')}>
+            <div className={cn('min-w-0 flex-1', isFullscreen && isMac ? 'ps-20' : 'ps-3')}>
               <DialogTitle className="max-w-[45vw] truncate font-bold text-foreground text-sm">{title}</DialogTitle>
             </div>
 
-            <div className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 [-webkit-app-region:no-drag]">
+            <div className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 start-1/2 [-webkit-app-region:no-drag]">
               <SegmentedControl<ViewMode>
                 size="sm"
                 value={viewMode}
@@ -295,7 +295,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
             </div>
 
             <div
-              className="flex flex-1 items-center justify-end gap-2 pr-1"
+              className="flex flex-1 items-center justify-end gap-2 pe-1"
               onDoubleClick={(event) => event.stopPropagation()}>
               <Popover open={captureOpen} onOpenChange={setCaptureOpen}>
                 <Tooltip content={t('html_artifacts.capture.label')}>

@@ -240,7 +240,7 @@ function SmallMenuWithGroupsExample() {
         {groups.map((group, gi) => (
           <div key={gi}>
             <p className="px-3 pt-2 pb-1 text-[9px] leading-3 text-foreground-muted">{group.label}</p>
-            <div className="space-y-px">
+            <div className="space-yb-px">
               {group.items.map((item) => (
                 <MenuItem
                   key={item.id}

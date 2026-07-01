@@ -58,7 +58,7 @@ const HistorySourceSidebar = ({
       <Scrollbar className="min-h-0 flex-1 px-4 py-4">
         {mode === 'agent' && statusItems.length > 0 && selectedStatus && onStatusSelect && (
           <SidebarSection title={t('history.records.sidebar.status')}>
-            <div className="space-y-1">
+            <div className="space-yb-1">
               {statusItems.map((item) => (
                 <SidebarRow
                   key={item.id}
@@ -82,11 +82,11 @@ const HistorySourceSidebar = ({
             <div className="relative mb-3">
               <Search
                 size={15}
-                className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 text-foreground-muted"
+                className="-translate-y-1/2 pointer-events-none absolute start-3 top-1/2 text-foreground-muted"
               />
               <Input
                 value={assistantSearchText}
-                className="h-8 rounded-md border-border-subtle bg-card pl-8 text-xs shadow-none"
+                className="h-8 rounded-md border-border-subtle bg-card ps-8 text-xs shadow-none"
                 placeholder={t('history.records.sidebar.searchAssistant')}
                 aria-label={t('history.records.sidebar.searchAssistant')}
                 onChange={(event) => setAssistantSearchText(event.target.value)}
@@ -94,7 +94,7 @@ const HistorySourceSidebar = ({
             </div>
           )}
 
-          <div className="space-y-1">
+          <div className="space-yb-1">
             {(mode === 'assistant' ? visibleAssistantSources : sources).map((item) => (
               <SidebarRow
                 key={item.id}
@@ -136,7 +136,7 @@ const SidebarRow = ({ active, icon, label, count, onClick }: SidebarRowProps) =>
   <button
     type="button"
     className={cn(
-      'flex h-8 w-full items-center gap-2 rounded-md px-2.5 text-left text-xs leading-4 transition-colors',
+      'flex h-8 w-full items-center gap-2 rounded-md px-2.5 text-start text-xs leading-4 transition-colors',
       active
         ? 'bg-muted font-semibold text-foreground'
         : 'font-medium text-foreground-secondary hover:bg-muted hover:text-foreground'

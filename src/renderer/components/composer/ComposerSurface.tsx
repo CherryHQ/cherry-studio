@@ -919,7 +919,7 @@ export default function ComposerSurface({
                 type="button"
                 variant="link"
                 size="sm"
-                className="h-auto min-h-0 w-fit justify-start gap-0 border-0 p-0 text-left font-medium text-primary text-xs leading-4 shadow-none hover:text-primary-hover focus-visible:border-0 focus-visible:text-primary-hover focus-visible:underline focus-visible:ring-0 focus-visible:ring-offset-0"
+                className="h-auto min-h-0 w-fit justify-start gap-0 border-0 p-0 text-start font-medium text-primary text-xs leading-4 shadow-none hover:text-primary-hover focus-visible:border-0 focus-visible:text-primary-hover focus-visible:underline focus-visible:ring-0 focus-visible:ring-offset-0"
                 onMouseDown={(event) => {
                   event.preventDefault()
                   event.stopPropagation()
@@ -1375,7 +1375,7 @@ export default function ComposerSurface({
       aria-live="polite"
       aria-label={t('chat.input.editing_message')}
       data-composer-editing-badge=""
-      className="-translate-y-1/2 absolute top-0 left-3 z-4 inline-flex h-6 max-w-[180px] items-center gap-1.5 rounded-full border border-border-subtle bg-card px-2 text-foreground-secondary text-xs">
+      className="-translate-y-1/2 absolute start-3 top-0 z-4 inline-flex h-6 max-w-[180px] items-center gap-1.5 rounded-full border border-border-subtle bg-card px-2 text-foreground-secondary text-xs">
       <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-primary" />
       <span className="min-w-0 truncate font-medium">{t('chat.input.editing')}</span>
       {editingState.onLocate ? (
@@ -1385,7 +1385,7 @@ export default function ComposerSurface({
             onClick={editingState.onLocate}
             variant="ghost"
             size="icon-sm"
-            className="-mr-1 size-5 shrink-0 rounded-full text-foreground-muted hover:bg-accent hover:text-foreground"
+            className="-me-1 size-5 shrink-0 rounded-full text-foreground-muted hover:bg-accent hover:text-foreground"
             aria-label={t('chat.input.locate_editing_message')}>
             <LocateFixed size={14} />
           </Button>
@@ -1397,7 +1397,7 @@ export default function ComposerSurface({
           onClick={editingState.onCancel}
           variant="ghost"
           size="icon-sm"
-          className="-mr-1 size-5 shrink-0 rounded-full text-foreground-muted hover:bg-accent hover:text-foreground"
+          className="-me-1 size-5 shrink-0 rounded-full text-foreground-muted hover:bg-accent hover:text-foreground"
           aria-label={t('chat.input.cancel_editing')}>
           <X size={14} />
         </Button>
@@ -1416,12 +1416,12 @@ export default function ComposerSurface({
           "border-2 border-[#2ecc71] border-dashed before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[18px] before:bg-[rgba(46,204,113,0.03)] before:content-['']",
         isExpanded && 'expanded'
       )}>
-      <div data-composer-expand-corner="" className="group/expand-corner absolute top-px right-px z-4 size-8">
+      <div data-composer-expand-corner="" className="group/expand-corner absolute top-px end-px z-4 size-8">
         <span
           aria-hidden="true"
           data-composer-expand-corner-line=""
           className={cn(
-            'pointer-events-none absolute top-1 right-1 size-3 origin-top-right scale-100 rounded-tr-[16px] border-black/60 border-t-[1.5px] border-r-[1.5px] opacity-70 transition-[opacity,scale] duration-200 ease-out group-focus-within/expand-corner:scale-50 group-focus-within/expand-corner:opacity-0 group-hover/expand-corner:scale-50 group-hover/expand-corner:opacity-0 dark:border-white/60',
+            'pointer-events-none absolute top-1 end-1 size-3 origin-top-right scale-100 rounded-se--[16px] border-black/60 border-t-[1.5px] border-e-[1.5px] opacity-70 transition-[opacity,scale] duration-200 ease-out group-focus-within/expand-corner:scale-50 group-focus-within/expand-corner:opacity-0 group-hover/expand-corner:scale-50 group-hover/expand-corner:opacity-0 dark:border-white/60',
             isExpanded && 'scale-50 opacity-0'
           )}
         />
@@ -1431,7 +1431,7 @@ export default function ComposerSurface({
           variant="ghost"
           size="icon-sm"
           className={cn(
-            '-translate-y-2.5 [&_svg]:!size-3 pointer-events-none absolute top-1 right-1 size-5.5 translate-x-2.5 rotate-[-8deg] scale-80 rounded-full bg-transparent text-foreground-secondary/60 opacity-0 shadow-none transition-[opacity,translate,scale,rotate,color,background-color] duration-300 ease-out hover:bg-accent hover:text-foreground focus-visible:pointer-events-auto focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:rotate-0 focus-visible:scale-100 focus-visible:bg-accent focus-visible:text-foreground focus-visible:opacity-100 group-focus-within/expand-corner:pointer-events-auto group-focus-within/expand-corner:translate-x-0 group-focus-within/expand-corner:translate-y-0 group-focus-within/expand-corner:rotate-0 group-focus-within/expand-corner:scale-100 group-focus-within/expand-corner:bg-accent/80 group-focus-within/expand-corner:text-foreground group-focus-within/expand-corner:opacity-100 group-hover/expand-corner:pointer-events-auto group-hover/expand-corner:translate-x-0 group-hover/expand-corner:translate-y-0 group-hover/expand-corner:rotate-0 group-hover/expand-corner:scale-100 group-hover/expand-corner:bg-accent/80 group-hover/expand-corner:text-foreground group-hover/expand-corner:opacity-100',
+            '-translate-y-2.5 [&_svg]:!size-3 pointer-events-none absolute end-1 top-1 size-5.5 translate-x-2.5 rotate-[-8deg] scale-80 rounded-full bg-transparent text-foreground-secondary/60 opacity-0 shadow-none transition-[opacity,translate,scale,rotate,color,background-color] duration-300 ease-out hover:bg-accent hover:text-foreground focus-visible:pointer-events-auto focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:rotate-0 focus-visible:scale-100 focus-visible:bg-accent focus-visible:text-foreground focus-visible:opacity-100 group-focus-within/expand-corner:pointer-events-auto group-focus-within/expand-corner:translate-x-0 group-focus-within/expand-corner:translate-y-0 group-focus-within/expand-corner:rotate-0 group-focus-within/expand-corner:scale-100 group-focus-within/expand-corner:bg-accent/80 group-focus-within/expand-corner:text-foreground group-focus-within/expand-corner:opacity-100 group-hover/expand-corner:pointer-events-auto group-hover/expand-corner:translate-x-0 group-hover/expand-corner:translate-y-0 group-hover/expand-corner:rotate-0 group-hover/expand-corner:scale-100 group-hover/expand-corner:bg-accent/80 group-hover/expand-corner:text-foreground group-hover/expand-corner:opacity-100',
             isExpanded &&
               'pointer-events-auto translate-x-0 translate-y-0 rotate-0 scale-100 bg-accent/80 text-foreground opacity-100'
           )}

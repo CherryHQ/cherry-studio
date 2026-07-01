@@ -151,7 +151,7 @@ const convertToTreeData = (files: FileInfo[]): TreeSelectOption[] => {
       value: fullPath,
       isLeaf: true,
       selectable: true,
-      icon: <span style={{ marginRight: 4 }}>📄</span>
+      icon: <span style={{ marginInlineEnd: 4 }}>📄</span>
     }
 
     // 添加到父节点
@@ -418,7 +418,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
           <DialogTitle>{i18n.t('chat.topics.export.obsidian_atributes')}</DialogTitle>
         </DialogHeader>
         {error && <Alert className="mb-1" message={error} type="error" showIcon />}
-        <div className="space-y-4">
+        <div className="space-yb-4">
           <FormRow label={i18n.t('chat.topics.export.obsidian_title')}>
             <Input
               value={state.title}

@@ -170,7 +170,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
                           virtualizer.measureElement(element)
                         }
                       }}
-                      className="absolute top-0 left-0 w-full"
+                      className="absolute start-0 top-0 w-full"
                       style={{ transform: `translateY(${virtualItem.start}px)` }}>
                       <ModelListItem
                         model={model}

@@ -10,7 +10,7 @@ import { prepareCodeChanges } from './utils'
 const codeEditorGutterTheme = EditorView.theme({
   '.cm-gutters': {
     backgroundColor: 'transparent',
-    borderRight: 'none',
+    borderInlineEnd: 'none',
     color: 'var(--color-muted-foreground)'
   },
   '.cm-activeLineGutter': {

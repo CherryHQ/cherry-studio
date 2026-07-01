@@ -19,7 +19,7 @@ export const historyBodyRowClassName =
   'border-border-subtle border-b bg-card text-foreground-secondary text-sm leading-5 transition-colors hover:bg-muted data-[state=selected]:bg-muted'
 export const historyBodyCellClassName = 'flex min-w-0 items-center px-3 py-2.5'
 export const historyFixedActionCellClassName =
-  'sticky right-0 z-2 justify-center bg-inherit px-2 [border-left:0.5px_solid_var(--color-border-subtle)]'
+  'sticky end-0 z-2 justify-center bg-inherit px-2 [border-left:0.5px_solid_var(--color-border-subtle)]'
 export const historyFixedActionShadowClassName = '[box-shadow:-8px_0_12px_-12px_var(--color-border-active)]'
 
 interface HistoryVirtualTableProps<TItem> {
@@ -186,7 +186,7 @@ export const HistoryTitleButton = ({ title, onOpen }: HistoryTitleButtonProps) =
   <span
     role="button"
     tabIndex={0}
-    className="-mx-1 block w-full min-w-0 max-w-full cursor-pointer truncate rounded-sm px-1 py-0 text-left font-medium text-foreground-secondary transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+    className="-mx-1 block w-full min-w-0 max-w-full cursor-pointer truncate rounded-sm px-1 py-0 text-start font-medium text-foreground-secondary transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
     title={title}
     onClick={(event) => {
       event.stopPropagation()

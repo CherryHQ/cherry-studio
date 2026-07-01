@@ -342,7 +342,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
     const iconName = getFileIconName(`file${ext}`)
     return (
       <div className="flex h-8 items-center rounded-t-lg bg-muted px-2.5 font-bold text-foreground text-sm leading-none">
-        <Icon icon={`material-icon-theme:${iconName}`} style={{ fontSize: '1.1em', marginRight: 6 }} />
+        <Icon icon={`material-icon-theme:${iconName}`} style={{ fontSize: '1.1em', marginInlineEnd: 6 }} />
         {language.toUpperCase()}
       </div>
     )
@@ -361,7 +361,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
           !hasStatusBar && '[&_.code-viewer]:rounded-[inherit]',
           showSpecialView &&
             showSourceView &&
-            "before:-translate-x-1/2 relative before:absolute before:top-0 before:bottom-0 before:left-1/2 before:z-[1] before:w-px before:bg-muted before:content-['']"
+            "before:-translate-x-1/2 relative before:absolute before:top-0 before:bottom-0 before:start-1/2 before:z-[1] before:w-px before:bg-muted before:content-['']"
         )}>
         {showSpecialView && specialView}
         {showSourceView && sourceView}

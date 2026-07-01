@@ -161,7 +161,7 @@ describe('RightPaneHost', () => {
     const handle = container.querySelector('[data-right-pane-resize-handle]')
 
     expect(handle).toBeInTheDocument()
-    expect(handle).toHaveClass('left-0', 'cursor-col-resize')
+    expect(handle).toHaveClass('start-0', 'cursor-col-resize')
   })
 
   it('notifies when the open animation completes', () => {

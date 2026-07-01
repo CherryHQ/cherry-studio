@@ -207,7 +207,7 @@ export const AddCatalogPopover: FC<{
           size="sm"
           disabled={disabled}
           className={cn(
-            triggerPosition === 'end' && 'ml-auto',
+            triggerPosition === 'end' && 'ms-auto',
             'h-7 min-h-0 w-fit justify-start gap-1 rounded-md px-2 py-1 font-normal text-muted-foreground text-xs shadow-none hover:bg-accent/50 hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring/40 disabled:opacity-30',
             triggerClassName
           )}>

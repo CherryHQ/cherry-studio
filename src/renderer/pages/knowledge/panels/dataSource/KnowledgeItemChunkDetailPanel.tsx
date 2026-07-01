@@ -152,7 +152,7 @@ const KnowledgeItemChunkDetailPanel = ({
           />
         ) : null}
         {!isItemLoading && !isLoading && !itemError && chunks.length > 0 ? (
-          <div className="space-y-2">
+          <div className="space-yb-2">
             {chunks.map((chunk) => (
               <KnowledgeItemChunkCard key={chunk.id} chunk={chunk} />
             ))}

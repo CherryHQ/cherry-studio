@@ -120,7 +120,7 @@ function PageSidePanel({
             className={cn(
               isScopedPortal ? 'absolute' : 'fixed',
               'top-3 bottom-3 z-70 flex w-100 flex-col overflow-hidden rounded-3xl bg-card text-card-foreground shadow-xl outline-none',
-              side === 'right' ? 'right-3' : 'left-3',
+              side === 'right' ? 'end-3' : 'start-3',
               contentClassName
             )}>
             {hasHeader && (
@@ -151,7 +151,7 @@ function PageSidePanel({
                     aria-label={closeLabel}
                     data-slot="page-side-panel-close"
                     className={cn(
-                      'ml-3 shrink-0 rounded-md opacity-70 shadow-none transition-opacity hover:bg-transparent hover:opacity-100',
+                      'ms-3 shrink-0 rounded-md opacity-70 shadow-none transition-opacity hover:bg-transparent hover:opacity-100',
                       closeButtonClassName
                     )}>
                     <XIcon size={16} />
@@ -162,14 +162,14 @@ function PageSidePanel({
 
             <Scrollbar
               data-slot="page-side-panel-body"
-              className={cn('min-h-0 flex-1 space-y-4 px-6 py-4', bodyClassName)}>
+              className={cn('min-h-0 flex-1 space-yb-4 px-6 py-4', bodyClassName)}>
               {children}
             </Scrollbar>
 
             {footer && (
               <div
                 data-slot="page-side-panel-footer"
-                className={cn('shrink-0 space-y-2.5 px-6 pt-3 pb-6', footerClassName)}>
+                className={cn('shrink-0 space-yb-2.5 px-6 pt-3 pb-6', footerClassName)}>
                 {footer}
               </div>
             )}

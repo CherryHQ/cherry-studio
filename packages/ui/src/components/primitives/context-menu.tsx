@@ -39,7 +39,7 @@ const menuItemVariants = cva(
           'text-destructive focus:bg-destructive/10 focus:text-destructive dark:focus:bg-destructive/20 data-[variant=destructive]:*:[svg]:text-destructive!'
       },
       inset: {
-        true: 'pl-8',
+        true: 'ps-8',
         false: ''
       }
     },
@@ -185,7 +185,7 @@ function ContextMenuSubTrigger({
       )}
       {...props}>
       {children}
-      <ChevronRightIcon className="ml-auto size-4" />
+      <ChevronRightIcon className="ms-auto size-4" />
     </ContextMenuPrimitive.SubTrigger>
   )
 }
@@ -269,10 +269,10 @@ function ContextMenuCheckboxItem({
   return (
     <ContextMenuPrimitive.CheckboxItem
       data-slot="context-menu-checkbox-item"
-      className={cn(menuItemVariants({ inset: true }), 'pr-2', className)}
+      className={cn(menuItemVariants({ inset: true }), 'pe-2', className)}
       checked={checked}
       {...props}>
-      <span className="pointer-events-none absolute left-2 flex size-4 items-center justify-center">
+      <span className="pointer-events-none absolute start-2 flex size-4 items-center justify-center">
         <ContextMenuPrimitive.ItemIndicator>
           <CheckIcon className="size-4" />
         </ContextMenuPrimitive.ItemIndicator>
@@ -290,9 +290,9 @@ function ContextMenuRadioItem({
   return (
     <ContextMenuPrimitive.RadioItem
       data-slot="context-menu-radio-item"
-      className={cn(menuItemVariants({ inset: true }), 'pr-2', className)}
+      className={cn(menuItemVariants({ inset: true }), 'pe-2', className)}
       {...props}>
-      <span className="pointer-events-none absolute left-2 flex size-4 items-center justify-center">
+      <span className="pointer-events-none absolute start-2 flex size-4 items-center justify-center">
         <ContextMenuPrimitive.ItemIndicator>
           <CircleIcon className="size-2 fill-current" />
         </ContextMenuPrimitive.ItemIndicator>
@@ -314,7 +314,7 @@ function ContextMenuLabel({
   return (
     <ContextMenuPrimitive.Label
       data-slot="context-menu-label"
-      className={cn('px-2 py-1.5 font-medium text-sm', inset && 'pl-8', className)}
+      className={cn('px-2 py-1.5 font-medium text-sm', inset && 'ps-8', className)}
       {...props}
     />
   )
@@ -334,7 +334,7 @@ function ContextMenuShortcut({ className, ...props }: React.ComponentProps<'span
   return (
     <span
       data-slot="context-menu-shortcut"
-      className={cn('ml-auto text-xs tracking-widest text-muted-foreground', className)}
+      className={cn('ms-auto text-xs tracking-widest text-muted-foreground', className)}
       {...props}
     />
   )
@@ -378,7 +378,7 @@ function ContextMenuItemContent(props: ContextMenuItemContentProps) {
         {icon && <span className="size-4 shrink-0">{icon}</span>}
         <span className="min-w-0 flex-1 truncate">{children}</span>
       </span>
-      <span className="ml-auto flex items-center gap-1">
+      <span className="ms-auto flex items-center gap-1">
         {badge}
         {shortcut && <ContextMenuShortcut>{shortcut}</ContextMenuShortcut>}
         {hasSubmenu && <ChevronRightIcon className="size-4 text-muted-foreground" />}

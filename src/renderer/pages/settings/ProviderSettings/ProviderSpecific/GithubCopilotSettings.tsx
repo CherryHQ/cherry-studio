@@ -290,7 +290,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
                     </div>
                   </div>
                   <div className="flex min-h-6 flex-row items-center justify-between">
-                    <Input value={userCode} readOnly className="mr-2 font-mono font-semibold text-sm" />
+                    <Input value={userCode} readOnly className="me-2 font-mono font-semibold text-sm" />
                     <Button type="button" variant="secondary" onClick={handleCopyUserCode}>
                       <Copy className="size-4" />
                       {t('common.copy')}
@@ -318,7 +318,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
                     {t('settings.provider.copilot.open_verification_page')}
                   </Button>
                   {verificationUri ? (
-                    <p className="ml-1 break-all text-foreground-muted text-xs">{verificationUri}</p>
+                    <p className="ms-1 break-all text-foreground-muted text-xs">{verificationUri}</p>
                   ) : null}
                 </div>
               )}

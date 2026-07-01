@@ -223,7 +223,7 @@ function ComposerToolMenuItemContent({ icon, children, badge, hasSubmenu }: Comp
         {icon && <span className="size-4 shrink-0">{icon}</span>}
         <span className="whitespace-nowrap">{children}</span>
       </span>
-      <span className="ml-auto flex shrink-0 items-center gap-1">
+      <span className="ms-auto flex shrink-0 items-center gap-1">
         {badge}
         {hasSubmenu && <ChevronRightIcon className="size-4 text-muted-foreground" />}
       </span>

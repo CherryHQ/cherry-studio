@@ -40,10 +40,10 @@ const switchThumbVariants = cva(
   {
     variants: {
       size: {
-        xs: ['ml-[1px] size-4 data-[state=checked]:translate-x-3.5'],
-        sm: ['size-4.5 ml-[1px] data-[state=checked]:translate-x-4'],
-        md: ['size-[19px] ml-0.5 data-[state=checked]:translate-x-[21px]'],
-        lg: ['size-5 ml-[3px] data-[state=checked]:translate-x-4.5']
+        xs: ['ms-[1px] size-4 data-[state=checked]:translate-x-3.5'],
+        sm: ['size-4.5 ms-[1px] data-[state=checked]:translate-x-4'],
+        md: ['size-[19px] ms-0.5 data-[state=checked]:translate-x-[21px]'],
+        lg: ['size-5 ms-[3px] data-[state=checked]:translate-x-4.5']
       },
       loading: {
         false: null,
@@ -54,22 +54,22 @@ const switchThumbVariants = cva(
       {
         size: 'xs',
         loading: true,
-        className: 'ml-0.5 size-3.5 data-[state=checked]:translate-x-3.5'
+        className: 'ms-0.5 size-3.5 data-[state=checked]:translate-x-3.5'
       },
       {
         size: 'sm',
         loading: true,
-        className: 'size-3.5 ml-0.5 data-[state=checked]:translate-x-4.5'
+        className: 'size-3.5 ms-0.5 data-[state=checked]:translate-x-4.5'
       },
       {
         size: 'md',
         loading: true,
-        className: 'size-4 ml-1 data-[state=checked]:translate-x-5'
+        className: 'size-4 ms-1 data-[state=checked]:translate-x-5'
       },
       {
         size: 'lg',
         loading: true,
-        className: 'size-4.5 ml-1 data-[state=checked]:translate-x-4.5'
+        className: 'size-4.5 ms-1 data-[state=checked]:translate-x-4.5'
       }
     ]
   }
@@ -154,7 +154,7 @@ const DescriptionSwitch = ({
               'text-md leading-4.5': size === 'md',
               'text-lg leading-5.5': size === 'lg'
             },
-            isLeftSide && 'text-right'
+            isLeftSide && 'text-end'
           )}>
           {label}
         </p>

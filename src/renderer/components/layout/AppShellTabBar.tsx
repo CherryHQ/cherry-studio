@@ -180,7 +180,7 @@ const NormalTabButton = ({
       }}
       className={cn(
         'nodrag group relative flex h-[30px] min-w-[40px] max-w-[160px] flex-1 items-center gap-1.5 rounded-[10px] transition-all duration-150 [-webkit-app-region:no-drag]',
-        showRightClose ? 'pr-1 pl-2' : 'px-2',
+        showRightClose ? 'ps-2 pe-1' : 'px-2',
         drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
         isActive ? tone.activeClass : tone.hoverClass
       )}>
@@ -207,7 +207,7 @@ const NormalTabButton = ({
         )}
       </div>
       <span
-        className="min-w-0 flex-1 truncate text-left font-medium text-[11px] leading-none"
+        className="min-w-0 flex-1 truncate text-start font-medium text-[11px] leading-none"
         style={{ maskImage: 'linear-gradient(to right, black 80%, transparent 100%)' }}>
         {tab.title}
       </span>
@@ -227,7 +227,7 @@ const NormalTabButton = ({
             }
           }}
           className={cn(
-            'nodrag ml-auto flex h-[18px] w-[18px] shrink-0 cursor-pointer items-center justify-center rounded-sm transition-all duration-150 hover:bg-foreground/10',
+            'nodrag ms-auto flex h-[18px] w-[18px] shrink-0 cursor-pointer items-center justify-center rounded-sm transition-all duration-150 hover:bg-foreground/10',
             isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
           )}>
           <X size={10} />
@@ -487,7 +487,7 @@ export const AppShellTabBar = ({
           'relative flex h-11 w-full select-none items-center gap-1 [-webkit-app-region:drag]',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar',
           rightPaddingClass,
-          isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-3'
+          isMac ? 'ps-[env(titlebar-area-x)]' : 'ps-3'
         )}>
         {/* Tab buttons are no-drag; empty tabbar space remains available for moving the window. */}
         <div
@@ -582,7 +582,7 @@ export const AppShellTabBar = ({
               aria-label={t('title.launchpad')}
               onClick={handleOpenLaunchpad}
               className={cn(
-                'sticky right-0 ml-0.5 flex h-7 w-7 shrink-0 appearance-none items-center justify-center rounded-[10px] border-0 bg-transparent p-0 text-muted-foreground shadow-none transition-colors [-webkit-app-region:no-drag] hover:text-sidebar-foreground',
+                'sticky end-0 ms-0.5 flex h-7 w-7 shrink-0 appearance-none items-center justify-center rounded-[10px] border-0 bg-transparent p-0 text-muted-foreground shadow-none transition-colors [-webkit-app-region:no-drag] hover:text-sidebar-foreground',
                 isMacTransparentWindow ? 'hover:bg-white/50 dark:hover:bg-white/8' : 'hover:bg-sidebar-accent'
               )}>
               <Plus size={14} />

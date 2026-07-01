@@ -283,7 +283,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         <Button
           type="button"
           variant="ghost"
-          className="mr-auto px-2.5 text-destructive shadow-none hover:bg-error-bg hover:text-error-text"
+          className="me-auto px-2.5 text-destructive shadow-none hover:bg-error-bg hover:text-error-text"
           onClick={() => void handleDeleteModel()}>
           {t('common.delete')}
         </Button>
@@ -361,7 +361,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
         {showMoreSettings && (
           <ProviderSection className={drawerClasses.section}>
-            <div data-testid="provider-settings-model-more-settings" className="space-y-4">
+            <div data-testid="provider-settings-model-more-settings" className="space-yb-4">
               <div className={drawerClasses.sectionCard}>
                 <ModelCapabilityToggles
                   selectedCaps={selectedCaps}

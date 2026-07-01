@@ -27,7 +27,7 @@ const getElementOuterSize = (element: HTMLElement) => {
   const style = window.getComputedStyle(element)
 
   return {
-    width: rect.width + getCssPixelValue(style.marginLeft) + getCssPixelValue(style.marginRight),
+    width: rect.width + getCssPixelValue(style.marginInlineStart) + getCssPixelValue(style.marginInlineEnd),
     height: rect.height + getCssPixelValue(style.marginTop) + getCssPixelValue(style.marginBottom)
   }
 }

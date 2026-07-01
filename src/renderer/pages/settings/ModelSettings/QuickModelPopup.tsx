@@ -49,7 +49,7 @@ export const TopicNamingSettings = () => {
 
         <Divider className="m-0" />
 
-        <div className="space-y-2 px-3 pt-3 pb-3.5">
+        <div className="space-yb-2 px-3 pt-3 pb-3.5">
           <Flex className="min-h-7 items-center justify-between gap-2">
             <RowFlex className="min-w-0 flex-1 items-center gap-1.5">
               <div className="truncate font-medium text-foreground text-sm">

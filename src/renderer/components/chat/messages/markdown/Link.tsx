@@ -54,7 +54,7 @@ const Link: React.FC<LinkProps> = (props) => {
   const linkContent = showFavicon ? (
     <>
       <span
-        className="markdown-link-favicon mr-1 inline-flex size-4 items-center justify-center align-[-0.125em]"
+        className="markdown-link-favicon me-1 inline-flex size-4 items-center justify-center align-[-0.125em]"
         aria-hidden="true">
         <Favicon hostname={hostname} alt="" />
       </span>

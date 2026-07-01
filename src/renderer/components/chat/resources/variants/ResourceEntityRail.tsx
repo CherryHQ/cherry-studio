@@ -66,13 +66,13 @@ const ENTITY_RAIL_TITLE_CLASS =
 
 function getEntityRailTrailingActionPaddingClassName(actionCount: number) {
   if (actionCount >= 3) {
-    return 'group-focus-within:pr-16 group-hover:pr-16 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-16'
+    return 'group-focus-within:pe-16 group-hover:pe-16 group-has-[[data-resource-list-item-actions][data-active=true]]:pe-16'
   }
   if (actionCount === 2) {
-    return 'group-focus-within:pr-12 group-hover:pr-12 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-12'
+    return 'group-focus-within:pe-12 group-hover:pe-12 group-has-[[data-resource-list-item-actions][data-active=true]]:pe-12'
   }
   if (actionCount === 1) {
-    return 'group-focus-within:pr-7 group-hover:pr-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-7'
+    return 'group-focus-within:pe-7 group-hover:pe-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pe-7'
   }
   return ''
 }

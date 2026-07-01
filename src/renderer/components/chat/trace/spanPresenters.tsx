@@ -143,12 +143,12 @@ const modelPresenter: SpanPresenter = {
             <span className="mx-1 text-muted-foreground">/</span>
             <span className="text-success">{`↓${usage.completion_tokens}`}</span>
             {cachedTokens ? (
-              <span className="ml-2 text-muted-foreground">{`${t('trace.cachedTokens')} ${cachedTokens}`}</span>
+              <span className="ms-2 text-muted-foreground">{`${t('trace.cachedTokens')} ${cachedTokens}`}</span>
             ) : null}
             {reasoningTokens ? (
-              <span className="ml-2 text-muted-foreground">{`${t('trace.reasoningTokens')} ${reasoningTokens}`}</span>
+              <span className="ms-2 text-muted-foreground">{`${t('trace.reasoningTokens')} ${reasoningTokens}`}</span>
             ) : null}
-            <span className="ml-2 text-muted-foreground">{`Σ ${usage.total_tokens}`}</span>
+            <span className="ms-2 text-muted-foreground">{`Σ ${usage.total_tokens}`}</span>
           </div>
         )
       })

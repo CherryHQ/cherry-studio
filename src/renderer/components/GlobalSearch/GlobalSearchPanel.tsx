@@ -901,7 +901,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     <div className="flex h-full min-h-0 flex-col bg-background">
       <div className="shrink-0 px-5 pt-4 pb-2">
         <div className="relative">
-          <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-4 size-5 text-muted-foreground" />
+          <Search className="-translate-y-1/2 pointer-events-none absolute start-4 top-1/2 size-5 text-muted-foreground" />
           <Input
             ref={inputRef}
             value={query}
@@ -921,7 +921,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
               isListboxVisible && activeItemId ? getGlobalSearchOptionDomId(activeItemId) : undefined
             }
             spellCheck={false}
-            className="h-11 rounded-[22px] border-border-subtle bg-muted/20 pr-12 pl-12 text-[15px] shadow-none placeholder:text-muted-foreground focus-visible:ring-1"
+            className="h-11 rounded-[22px] border-border-subtle bg-muted/20 ps-12 pe-12 text-[15px] shadow-none placeholder:text-muted-foreground focus-visible:ring-1"
           />
           {query && (
             <button
@@ -932,7 +932,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
                 setPanelMode('search')
                 setMessagePreviewTarget(null)
               }}
-              className="-translate-y-1/2 absolute top-1/2 right-3 flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+              className="-translate-y-1/2 absolute end-3 top-1/2 flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
               <X className="size-4" />
             </button>
           )}

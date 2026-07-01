@@ -95,7 +95,7 @@ function WizardFooter({
 
   return (
     <div className="flex shrink-0 items-center justify-end gap-2 border-border-muted border-t px-6 py-3">
-      {rootError ? <span className="mr-auto text-destructive text-xs">{rootError}</span> : null}
+      {rootError ? <span className="me-auto text-destructive text-xs">{rootError}</span> : null}
       <Button type="button" variant="ghost" disabled={submitting} className="text-muted-foreground" onClick={onCancel}>
         {t('common.cancel')}
       </Button>
@@ -212,7 +212,7 @@ export function ResourceCreateWizard({
         className="flex h-[min(600px,76vh)] flex-col gap-0 p-0"
         onPointerDownOutside={(event) => submitting && event.preventDefault()}>
         {/* Header — avatar + title + step progress */}
-        <div className="flex shrink-0 items-center gap-3 border-border-muted border-b px-6 py-4 pr-12">
+        <div className="flex shrink-0 items-center gap-3 border-border-muted border-b px-6 py-4 pe-12">
           <HeaderAvatar control={form.control} fallback={getDefaultAvatar(kind)} />
           <div className="min-w-0">
             <DialogTitle className="truncate text-base">{title}</DialogTitle>
@@ -226,7 +226,7 @@ export function ResourceCreateWizard({
           <form onSubmit={(event) => event.preventDefault()} className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="flex min-h-0 flex-1">
               {/* Step rail */}
-              <ol className="w-44 shrink-0 space-y-1 border-border-muted border-r p-3">
+              <ol className="w-44 shrink-0 space-yb-1 border-border-muted border-r p-3">
                 {steps.map((step, index) => {
                   const done = index < stepIndex
                   const active = index === stepIndex
@@ -238,7 +238,7 @@ export function ResourceCreateWizard({
                         disabled={!clickable}
                         onClick={() => clickable && setStepIndex(index)}
                         className={cn(
-                          'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors',
+                          'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-start transition-colors',
                           active && 'bg-accent/60',
                           clickable ? 'cursor-pointer hover:bg-accent/40' : 'cursor-default'
                         )}>

@@ -185,7 +185,7 @@ export function ChatAppShell({
                 className={cn(
                   'z-10',
                   immersive.floating
-                    ? 'absolute inset-x-0 top-0 [&_[data-conversation-shell-topbar]::after]:hidden'
+                    ? 'absolute inset-xi-0 top-0 [&_[data-conversation-shell-topbar]::after]:hidden'
                     : 'relative shrink-0'
                 )}>
                 <ErrorBoundary>{topBar}</ErrorBoundary>

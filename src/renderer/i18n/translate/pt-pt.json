@@ -556,6 +556,7 @@
       "list": {
         "title": "Tarefas"
       },
+      "new": "[to be translated]:New task",
       "pin": {
         "title": "Fixar tarefa"
       },
@@ -565,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "Tarefas de pesquisa"
+        "placeholder": "Tarefas de pesquisa",
+        "title": "[to be translated]:Search tasks"
       },
       "unpin": {
         "title": "Desafixar tarefa"
@@ -934,6 +936,10 @@
         "Bash": {
           "description": "Executa comandos shell no seu ambiente",
           "label": "Bash"
+        },
+        "CherryKbManage": {
+          "description": "[to be translated]:Adds, deletes, or refreshes documents in your knowledge bases",
+          "label": "[to be translated]:Manage Knowledge"
         },
         "CherryKbSearch": {
           "description": "Pesquisa suas bases de conhecimento",
@@ -1977,7 +1983,7 @@
       "kimi_cli": "Assistente de linha de comando Kimi da Moonshot",
       "openai_codex": "CLI oficial de geração de código da OpenAI",
       "opencode": "Agente de codificação multi-modelo de código aberto",
-      "qoder_cli": "Ferramenta de codificação em linha de comando agentiva do Alibaba Qoder",
+      "qoder_cli": "[to be translated]:Alibaba Qoder's agentic command-line coding tool",
       "qwen_code": "Ferramenta de codificação CLI de código aberto da Tongyi da Alibaba"
     },
     "update_options": "Opções de atualização",
@@ -2659,7 +2665,7 @@
           "description": "Selecione notas existentes como fontes da base de conhecimento",
           "empty_description": "As notas selecionáveis aparecerão aqui após a lista de notas reais ser conectada. Por enquanto, use arquivos, pastas, URLs ou mapas do site.",
           "empty_title": "As notas ainda não estão conectadas",
-          "loading": "Carregando notas…"
+          "loading": "[to be translated]:Loading notes…"
         },
         "placeholder": {
           "supported_formats": "Suporta PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -2759,7 +2765,7 @@
     "embedding_model_required": "É necessário um modelo de incorporação da base de conhecimento",
     "empty": "Sem bases de conhecimento",
     "error": {
-      "directory_not_migrated": "Falha na migração da pasta. Por favor, exclua-a e faça o upload novamente.",
+      "directory_not_migrated": "[to be translated]:Folder migration failed. Please delete it and re-upload.",
       "failed_base_unknown": "Esta base de conhecimento falhou durante a migração. Reconstrua-a e escolha um novo modelo de incorporação.",
       "failed_to_create": "Falha ao criar a base de conhecimento",
       "failed_to_delete": "Falha ao excluir a base de conhecimento",
@@ -2840,7 +2846,7 @@
         "bm25": "Pesquisa de texto completo",
         "hybrid": "Busca Híbrida (recomendado)",
         "title": "Modo de Pesquisa",
-        "vector": "Busca Vetorial"
+        "vector": "[to be translated]:Vector Search"
       },
       "separator_rule": "Regra Separadora",
       "smart_chunking": "Fragmentação Inteligente",
@@ -3162,12 +3168,22 @@
           "agent_title": "Novo Agente",
           "assistant_title": "Novo Assistente",
           "avatar_aria": "Escolher avatar",
+          "back": "[to be translated]:Back",
+          "capability": {
+            "import": "[to be translated]:Import skill",
+            "no_skills": "[to be translated]:No skills installed",
+            "search": "[to be translated]:Search skills"
+          },
           "description_placeholder": "Descreva para que serve...",
-          "dialog_description": "Crie um assistente ou agente leve.",
-          "model_placeholder": "Selecione um modelo",
-          "model_required": "Por favor, selecione um modelo",
+          "guided_progress": "[to be translated]:Guided setup · Step {{current}} of {{total}}",
           "name_placeholder": "Insira um nome",
-          "name_required": "Por favor, insira um nome",
+          "next": "[to be translated]:Next",
+          "step": {
+            "basic": "[to be translated]:Basic info",
+            "capability": "[to be translated]:Skills",
+            "knowledge": "[to be translated]:Knowledge",
+            "persona": "[to be translated]:Persona"
+          },
           "submit": "Criar",
           "submit_failed": "Falha na criação"
         },
@@ -5256,6 +5272,7 @@
     "assistant": {
       "create_new": "Novo Assistente",
       "empty_text": "Nenhum assistente ainda",
+      "filter": "[to be translated]:Filter assistants",
       "multi_hint": "(mutualmente exclusivo com multi-modelo)",
       "multi_label": "Multi-assistente paralelo",
       "search_placeholder": "Assistentes de pesquisa…"
@@ -6435,6 +6452,12 @@
         "show_estimated_tokens": "Mostrar número estimado de tokens",
         "title": "Configurações de entrada"
       },
+      "layout": {
+        "classic": "[to be translated]:Classic",
+        "conversation": "[to be translated]:Conversation view",
+        "modern": "[to be translated]:Modern",
+        "work": "[to be translated]:Work view"
+      },
       "markdown_rendering_input_message": "Renderização de markdown na entrada de mensagens",
       "metrics": "Atraso inicial {{time_first_token_millsec}}ms | Taxa de token por segundo {{token_speed}} tokens",
       "model": {
@@ -6803,7 +6826,7 @@
       "update": "Update to latest version"
     },
     "power": {
-      "prevent_sleep_when_busy": "Mantenha o sistema ativo enquanto as tarefas estão sendo executadas"
+      "prevent_sleep_when_busy": "[to be translated]:Keep the system awake while tasks are running"
     },
     "privacy": {
       "enable_privacy_mode": "Enviar relatórios de erro e estatísticas de forma anônima",
@@ -7216,7 +7239,7 @@
       },
       "clear_shortcut": "Limpar atalho",
       "clear_topic": "Limpar mensagem",
-      "close_tab": "Fechar Aba",
+      "close_tab": "[to be translated]:Close Tab",
       "conflict_with": "Já usado por \"{{name}}\"",
       "copy_last_message": "Copiar a última mensagem",
       "edit_last_user_message": "Editar última mensagem do usuário",
@@ -7224,11 +7247,11 @@
       "enabled": "ativar",
       "exit_fullscreen": "Sair da tela cheia",
       "label": "Tecla",
-      "move_tab_to_first": "Mover Aba para o Primeiro",
+      "move_tab_to_first": "[to be translated]:Move Tab to First",
       "new_topic": "Novo tópico",
       "occupied_by_other_application": "Este atalho já está sendo usado pelo sistema ou por outro aplicativo",
-      "open_tab_in_new_window": "Abrir aba em nova janela",
-      "pin_tab": "Alternar Fixação de Aba",
+      "open_tab_in_new_window": "[to be translated]:Open Tab in New Window",
+      "pin_tab": "[to be translated]:Toggle Pin Tab",
       "press_shortcut": "Pressionar atalho",
       "quick_assistant": "Atalho de assistente",
       "rename_topic": "Renomear tópico",
@@ -7439,6 +7462,7 @@
           "exa": "API de busca neural para aplicações de IA, ajustada para recuperação semântica da web.",
           "exa_mcp": "Exponha a pesquisa Exa aos agentes por meio do Exa MCP Server.",
           "fetch": "Provedor de busca de URL integrado. Busca conteúdo de páginas web a partir de uma URL para enriquecer os resultados de pesquisa.",
+          "firecrawl": "[to be translated]:Firecrawl crawler and search service, optimized to turn websites into Markdown.",
           "jina": "APIs de pesquisa e leitura Jina Reader para recuperar conteúdo web limpo.",
           "querit": "Serviço de pesquisa para aplicativos de IA com resultados de recuperação da web.",
           "searxng": "Motor de metapesquisa de internet gratuito e auto-hospedável em várias fontes.",

@@ -484,7 +484,7 @@ export function SelectorShell({
                       aria-pressed={action.type === 'selectable' ? selected : undefined}
                       onClick={action.onClick}
                       className={cn(
-                        'relative flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+                        'relative flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-start text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50',
                         selected
                           ? 'bg-accent/70 text-foreground'
                           : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
@@ -492,7 +492,7 @@ export function SelectorShell({
                       {selected ? (
                         <span
                           aria-hidden="true"
-                          className="-translate-y-1/2 absolute top-1/2 left-0 block h-[60%] w-0.75 rounded-full bg-muted-foreground/60"
+                          className="-translate-y-1/2 absolute start-0 top-1/2 block h-[60%] w-0.75 rounded-full bg-muted-foreground/60"
                         />
                       ) : null}
                       {action.icon}

@@ -856,7 +856,7 @@ function CustomParametersField({
       </div>
 
       {value.length > 0 ? (
-        <div className="mt-2 space-y-2">
+        <div className="mt-2 space-yb-2">
           {value.map((param, index) => (
             <CustomParameterRow
               key={index}

@@ -27,7 +27,7 @@ export const CardSkeleton: Story = {
   render: () => (
     <div className="flex w-80 items-center gap-4 rounded-md border p-4">
       <Skeleton className="size-10 rounded-full" />
-      <div className="flex-1 space-y-2">
+      <div className="flex-1 space-yb-2">
         <Skeleton className="h-4 w-3/4" />
         <Skeleton className="h-3 w-1/2" />
       </div>
@@ -41,7 +41,7 @@ export const ListSkeleton: Story = {
       {[0, 1, 2, 3].map((i) => (
         <div key={i} className="flex items-center gap-3">
           <Skeleton className="size-9 rounded-md" />
-          <div className="flex-1 space-y-1.5">
+          <div className="flex-1 space-yb-1.5">
             <Skeleton className="h-3.5 w-2/3" />
             <Skeleton className="h-3 w-1/3" />
           </div>

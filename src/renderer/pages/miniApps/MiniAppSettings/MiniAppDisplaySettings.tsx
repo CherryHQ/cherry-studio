@@ -98,7 +98,7 @@ const MiniAppDisplaySettings: FC = () => {
               onValueChange={(v) => handleCacheChange(v[0])}
               showValueLabel
             />
-            <span className="w-6 text-right text-muted-foreground text-xs">{maxKeepAlive}</span>
+            <span className="w-6 text-end text-muted-foreground text-xs">{maxKeepAlive}</span>
           </div>
         </PageSidePanelItem>
       </div>

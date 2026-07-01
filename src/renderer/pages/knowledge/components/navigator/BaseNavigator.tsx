@@ -67,7 +67,7 @@ const BaseNavigator = ({
 
   return (
     <div style={{ width }} className="relative h-full min-h-0 shrink-0">
-      <aside className="flex size-full min-h-0 flex-col border-border-muted border-r">
+      <aside className="flex size-full min-h-0 flex-col border-border-muted border-e">
         <div className="flex shrink-0 items-center gap-2 p-3">
           <div className="min-w-0 flex-1">
             <BaseNavigatorSearch value={searchValue} onValueChange={setSearchValue} />

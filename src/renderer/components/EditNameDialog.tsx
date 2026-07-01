@@ -88,11 +88,11 @@ const EditNameDialog = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md gap-0 overflow-hidden rounded-2xl border-border/60 p-0">
-        <DialogHeader className="gap-0.5 border-border/40 border-b px-4 py-3 text-left">
+        <DialogHeader className="gap-0.5 border-border/40 border-b px-4 py-3 text-start">
           <DialogTitle className="leading-4">{title}</DialogTitle>
         </DialogHeader>
         <form className="flex flex-col" onSubmit={handleSubmit}>
-          <div className="space-y-1 px-4 py-3">
+          <div className="space-yb-1 px-4 py-3">
             <Label htmlFor={inputId} className="text-muted-foreground leading-4">
               {inputLabel ?? t('common.name')}
             </Label>

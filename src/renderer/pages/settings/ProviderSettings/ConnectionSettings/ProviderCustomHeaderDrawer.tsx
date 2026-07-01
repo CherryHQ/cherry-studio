@@ -344,7 +344,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
           const label = isPrimary ? t('settings.provider.api_host') : labelKey ? t(labelKey) : type
           const inputId = `provider-request-config-endpoint-${type}`
           return (
-            <div key={type} className="space-y-1.5">
+            <div key={type} className="space-yb-1.5">
               <label className="font-medium text-muted-foreground/60 text-xs" htmlFor={inputId}>
                 {label}
               </label>
@@ -389,7 +389,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
           </Popover>
         )}
 
-        <div className="space-y-2.5">
+        <div className="space-yb-2.5">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
             <span className="font-medium text-muted-foreground/60 text-xs">
               {t('settings.provider.copilot.custom_headers')}
@@ -466,7 +466,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
               </Button>
             </>
           ) : (
-            <div className="space-y-1.5">
+            <div className="space-yb-1.5">
               <textarea
                 value={jsonDraft}
                 onChange={(e) => {

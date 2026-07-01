@@ -56,7 +56,7 @@ export function FileSidebar({
           active ? 'bg-accent text-foreground' : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
         }`}>
         <Icon size={13} strokeWidth={1.5} className="shrink-0 text-muted-foreground/60" />
-        <span className="flex-1 truncate text-left text-sm">{entry.label(t)}</span>
+        <span className="flex-1 truncate text-start text-sm">{entry.label(t)}</span>
         {count !== undefined && count > 0 && <span className="text-muted-foreground/40 text-xs">{count}</span>}
       </Button>
     )
@@ -64,9 +64,9 @@ export function FileSidebar({
 
   return (
     <div className="flex w-[180px] shrink-0 select-none flex-col overflow-y-auto border-border/30 border-r">
-      <div className="space-y-[1px] px-1.5 pt-2 pb-1">{TYPE_ENTRIES.map(renderEntry)}</div>
+      <div className="space-yb-[1px] px-1.5 pt-2 pb-1">{TYPE_ENTRIES.map(renderEntry)}</div>
       <div className="mx-2.5 border-border/20 border-t" />
-      <div className="space-y-[1px] px-1.5 pt-1 pb-2">{LIBRARY_ENTRIES.map(renderEntry)}</div>
+      <div className="space-yb-[1px] px-1.5 pt-1 pb-2">{LIBRARY_ENTRIES.map(renderEntry)}</div>
     </div>
   )
 }

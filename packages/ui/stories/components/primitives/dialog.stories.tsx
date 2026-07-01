@@ -188,7 +188,7 @@ export const WithForm: Story = {
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
-            <label htmlFor="name" className="text-right text-sm font-medium">
+            <label htmlFor="name" className="text-end text-sm font-medium">
               Name
             </label>
             <input
@@ -198,7 +198,7 @@ export const WithForm: Story = {
             />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
-            <label htmlFor="email" className="text-right text-sm font-medium">
+            <label htmlFor="email" className="text-end text-sm font-medium">
               Email
             </label>
             <input
@@ -258,7 +258,7 @@ export const ScrollableContent: Story = {
           <DialogTitle>Terms of Service</DialogTitle>
           <DialogDescription>Please read the following terms carefully.</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-4 text-sm text-muted-foreground">
+        <div className="space-yb-4 py-4 text-sm text-muted-foreground">
           {Array.from({ length: 10 }, (_, i) => (
             <p key={i}>
               Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et
@@ -389,7 +389,7 @@ export const RealWorldExamples: Story = {
             <DialogTitle>Settings</DialogTitle>
             <DialogDescription>Manage your application preferences.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-yb-4 py-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium">Dark Mode</p>

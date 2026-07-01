@@ -5,14 +5,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const toastError = vi.fn()
 
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      error: vi.fn()
-    })
-  }
-}))
-
 vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
 

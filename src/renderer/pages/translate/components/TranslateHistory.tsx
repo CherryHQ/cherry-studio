@@ -276,7 +276,7 @@ const HistoryRow: FC<{
           onSelect(item.id)
         }
       }}
-      className="group relative flex w-full cursor-pointer flex-col gap-1.5 rounded-md p-2.5 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+      className="group relative flex w-full cursor-pointer flex-col gap-1.5 rounded-md p-2.5 text-start transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
       <IconButton
         size="sm"
         tone="star"
@@ -288,12 +288,12 @@ const HistoryRow: FC<{
         aria-label={t('translate.history.filter.starred')}
         aria-pressed={!!item.star}
         className={cn(
-          'absolute top-2 right-2',
+          'absolute end-2 top-2',
           !item.star && 'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100'
         )}>
         <Star size={10} className={cn(item.star && 'fill-amber-500')} />
       </IconButton>
-      <div className="flex items-center gap-1.5 pr-5">
+      <div className="flex items-center gap-1.5 pe-5">
         <span className="rounded bg-muted px-1 py-px text-muted-foreground text-xs">
           {item._sourceEmoji} {item._sourceLabel}
         </span>
@@ -301,7 +301,7 @@ const HistoryRow: FC<{
         <span className="rounded bg-primary/10 px-1 py-px text-primary text-xs">
           {item._targetEmoji} {item._targetLabel}
         </span>
-        <span className="ml-auto text-foreground-muted text-xs">{item._createdAtLabel}</span>
+        <span className="ms-auto text-foreground-muted text-xs">{item._createdAtLabel}</span>
       </div>
       <p className="line-clamp-1 text-muted-foreground text-xs">{item.sourceText}</p>
       <p className="line-clamp-1 text-foreground text-xs">{item.targetText}</p>

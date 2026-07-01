@@ -365,7 +365,7 @@ describe('MainTextBlock', () => {
         'bg-transparent',
         'px-0',
         'py-0.5',
-        'text-left'
+        'text-start'
       )
 
       fireEvent.click(button)

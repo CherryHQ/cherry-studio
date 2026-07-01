@@ -427,8 +427,8 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
   )
 
   const renderFormContent = () => (
-    <div className="space-y-4">
-      <div className="space-y-2">
+    <div className="space-yb-4">
+      <div className="space-yb-2">
         <Label>{t('chat.save.knowledge.select.base.title')}</Label>
         <Combobox
           className="w-full"
@@ -452,7 +452,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
       </div>
 
       {!isNoteMode && (
-        <div className="space-y-2">
+        <div className="space-yb-2">
           <Label>
             {t(
               isTopicMode
@@ -465,7 +465,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
               <button
                 key={option.type}
                 type="button"
-                className="flex w-full cursor-pointer items-center justify-between rounded-md border border-border p-3 text-left transition-colors hover:border-primary"
+                className="flex w-full cursor-pointer items-center justify-between rounded-md border border-border p-3 text-start transition-colors hover:border-primary"
                 onClick={() => handleContentTypeToggle(option.type)}>
                 <Flex className="items-center gap-2">
                   <CustomTag

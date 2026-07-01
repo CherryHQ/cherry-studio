@@ -144,8 +144,8 @@ export const WithForm: Story = {
           <DrawerTitle>Edit Profile</DrawerTitle>
           <DrawerDescription>Make changes to your profile here.</DrawerDescription>
         </DrawerHeader>
-        <div className="space-y-4 p-4">
-          <div className="space-y-2">
+        <div className="space-yb-4 p-4">
+          <div className="space-yb-2">
             <label htmlFor="drawer-name" className="text-sm font-medium">
               Name
             </label>
@@ -155,7 +155,7 @@ export const WithForm: Story = {
               className="h-9 w-full rounded-md border px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
-          <div className="space-y-2">
+          <div className="space-yb-2">
             <label htmlFor="drawer-email" className="text-sm font-medium">
               Email
             </label>
@@ -189,7 +189,7 @@ export const ScrollableContent: Story = {
           <DrawerTitle>Terms of Service</DrawerTitle>
           <DrawerDescription>Please read the following terms carefully.</DrawerDescription>
         </DrawerHeader>
-        <div className="max-h-[50vh] space-y-4 overflow-y-auto p-4 text-sm text-muted-foreground">
+        <div className="max-h-[50vh] space-yb-4 overflow-y-auto p-4 text-sm text-muted-foreground">
           {Array.from({ length: 10 }, (_, i) => (
             <p key={i}>
               Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et
@@ -226,7 +226,7 @@ export const NavigationDrawer: Story = {
             <button
               type="button"
               key={item}
-              className="rounded-md px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground">
+              className="rounded-md px-3 py-2 text-start text-sm hover:bg-accent hover:text-accent-foreground">
               {item}
             </button>
           ))}

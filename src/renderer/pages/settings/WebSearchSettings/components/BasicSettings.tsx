@@ -148,7 +148,7 @@ const BasicSettings: FC = () => {
             {maxResults > 20 && compressionConfig?.method === 'none' && (
               <InfoTooltip
                 content={t('settings.tool.websearch.search_max_result.tooltip')}
-                iconProps={{ size: 16, color: 'var(--color-icon)', className: 'ml-1 cursor-pointer' }}
+                iconProps={{ size: 16, color: 'var(--color-icon)', className: 'ms-1 cursor-pointer' }}
               />
             )}
           </SettingRowTitle>

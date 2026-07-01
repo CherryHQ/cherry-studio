@@ -551,15 +551,15 @@ Source: `PageHeader` from `@cherrystudio/ui`. The single component for any page 
 | Bar height | 32px | `h-8` |
 | Margin top (gap above) | 12px | `mt-3` |
 | Margin bottom (gap below) | 8px | `mb-2` |
-| Left padding (title aligns with menu item icon column) | 20px | `pl-5` |
-| Right padding (action sits 12px from the column edge) | 12px | `pr-3` |
+| Left padding (title aligns with menu item icon column) | 20px | `ps-5` |
+| Right padding (action sits 12px from the column edge) | 12px | `pe-3` |
 | Title ↔ action gap | 8px | `gap-2` |
 | Bottom border (when `bordered`) | 1px | `border-b border-border` |
 
 **Rules:**
 - Action buttons should be 24×24 (`size-6`); they sit centered inside the 32px bar.
 - Title text comes from i18next; do not hard-code strings.
-- The asymmetric padding is intentional: `pl-5` (20px) aligns the title's left edge with the icon column of menu items below — wrapper `px-2.5` (10px) + item `px-2.5` (10px) = 20px. Do not change to symmetric padding.
+- The asymmetric padding is intentional: `ps-5` (20px) aligns the title's left edge with the icon column of menu items below — wrapper `px-2.5` (10px) + item `px-2.5` (10px) = 20px. Do not change to symmetric padding.
 - Two adjacent `PageHeader` instances (left nav + right panel) are guaranteed to be vertically aligned because spacing tokens are identical; the title line box starts 20px from the column top.
 - Right-pane detail headers in two-column settings layouts **must** pass `bordered`; left sidebar headers **must not** (the menu list below them already provides visual structure). A right-pane header rendered by a non-`PageHeader` component (e.g. `ProviderHeader`, which carries a `<Switch>` plus multiple icons) must wrap itself in a container that draws an equivalent `border-b border-border` divider — see `providerDetailColumnClasses.headerContentMaxWidth` in `ProviderSettings/primitives/classNames.ts`.
 - Provider settings section headings use full `text-foreground` rather than reduced opacity. The right pane already has dense secondary helper text, badges, and inline controls; fully opaque section labels preserve scan hierarchy without introducing another local color rule.
@@ -645,6 +645,33 @@ Do **not**:
 - Modify `SettingContainer` to add max-width: it intentionally stays a plain padded scroller for nested-split pages (Data, Integration, MCP, WebSearch, FileProcessing, Channels, Skills) whose right pane is further subdivided.
 
 When embedded in a `PageSidePanel` drawer or onboarding context (e.g. `ModelSettings compact`), the page must NOT add `max-w-3xl` — the drawer width is already constrained and the centered cap would visually mis-align. Branch on the embedding flag and fall back to a plain padded container.
+
+### RTL & Logical‑CSS
+
+> **Scope** – All UI components now use *logical* CSS properties (e.g. `margin-inline-start`, `padding-block-end`) instead of physical ones. This enables automatic adaptation for LTR and RTL languages.
+
+#### Why we switched
+- **Maintainability** – One set of styles works for every language direction; no duplicated LTR/RTL rules.
+- **Consistency** – Logical properties are the sole CSS APIs referenced throughout the codebase, preventing accidental regressions.
+- **Performance** – Browsers handle direction changes natively; we avoid runtime CSS overrides.
+
+#### Core utilities
+
+| Utility | Description |
+|---------|-------------|
+| `.mirror-rtl` | Flips any element horizontally when the document has `dir="rtl"`. Used for Lucide icons and any element that should be mirrored in RTL. |
+| `[dir="rtl"] .lucide` | Automatically mirrors all Lucide icons in RTL mode. |
+| Tailwind `transform: scaleX(-1)` | Implemented in `src/renderer/assets/styles/tailwind.css` under the `.mirror-rtl` rule. |
+
+#### Usage
+1. **Apply logical properties** – Prefer Tailwind’s logical utilities. When custom CSS is needed, write `margin-inline-start`, `padding-block`, etc.
+2. **Icon mirroring** – Add `class="mirror-rtl"` to any SVG or element that must flip in RTL (e.g., navigation arrows, chevrons). No JS required.
+3. **Direction handling** – The root element receives `dir="rtl"` when the Arabic locale (`ar‑ye`) is active. All logical CSS reacts automatically.
+
+#### Migration checklist
+- Replace any `margin-left`, `margin-right`, `padding-left`, `padding-right`, `border-left`, `border-right`, etc., with their logical equivalents.
+- Add `class="mirror-rtl"` to icons that previously used custom transform rules.
+- Run `pnpm lint && pnpm test` to catch leftover physical properties.
 
 ### Spacing System
 

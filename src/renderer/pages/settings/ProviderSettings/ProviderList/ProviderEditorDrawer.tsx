@@ -591,7 +591,7 @@ function ApiKeyField({ value, onChange }: ApiKeyFieldProps) {
   const [visible, setVisible] = useState(false)
 
   return (
-    <div className="space-y-2">
+    <div className="space-yb-2">
       <label className="font-medium text-[13px] text-foreground">{t('settings.provider.api_key.label')}</label>
       <div className="relative">
         <Input
@@ -606,7 +606,7 @@ function ApiKeyField({ value, onChange }: ApiKeyFieldProps) {
           type="button"
           aria-label={t(visible ? 'settings.provider.api_key.hide_key' : 'settings.provider.api_key.show_key')}
           onClick={() => setVisible((v) => !v)}
-          className="-translate-y-1/2 absolute top-1/2 right-2 rounded-md p-1 text-muted-foreground/70 transition-colors hover:bg-accent/40 hover:text-foreground">
+          className="-translate-y-1/2 absolute end-2 top-1/2 rounded-md p-1 text-muted-foreground/70 transition-colors hover:bg-(--color-surface-fg-subtle) hover:text-foreground">
           {visible ? <EyeOff size={14} /> : <Eye size={14} />}
         </button>
       </div>

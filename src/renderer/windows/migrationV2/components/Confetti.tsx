@@ -58,7 +58,7 @@ export const Confetti: React.FC = () => {
 
   return (
     <span
-      className="migration-confetti pointer-events-none absolute top-1/2 left-1/2 z-20 overflow-visible"
+      className="migration-confetti pointer-events-none absolute top-1/2 start-1/2 z-20 overflow-visible"
       aria-hidden>
       {pieces.map((p) => (
         <span

@@ -121,7 +121,7 @@ describe('Link', () => {
     expect(anchor).toHaveClass('text-primary', 'hover:underline')
     expect(anchor).not.toHaveClass('inline-flex')
     expect(screen.getByTestId('favicon')).toHaveAttribute('data-hostname', 'domain.com')
-    expect(screen.getByTestId('favicon').parentElement).toHaveClass('markdown-link-favicon', 'mr-1')
+    expect(screen.getByTestId('favicon').parentElement).toHaveClass('markdown-link-favicon', 'me-1')
   })
 
   it('should not inject another favicon when children already include one', () => {

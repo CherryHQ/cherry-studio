@@ -257,7 +257,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       showHeaderCloseButton={!loading}
       footer={footer}>
       <div className={drawerClasses.fieldList}>
-        <div className="space-y-2">
+        <div className="space-yb-2">
           <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_id.label')}</label>
           <Input
             className={drawerClasses.input}
@@ -284,7 +284,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
             ))}
           </div>
         </div>
-        <div className="space-y-2">
+        <div className="space-yb-2">
           <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_name.label')}</label>
           <Input
             className={drawerClasses.input}
@@ -296,7 +296,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
             disabled={loading}
           />
         </div>
-        <div className="space-y-2">
+        <div className="space-yb-2">
           <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_source')}</label>
           <Select
             value={formValues.modelSource}
@@ -312,7 +312,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2">
+        <div className="space-yb-2">
           <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_task')}</label>
           <Select
             value={formValues.task}
@@ -330,7 +330,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           </Select>
         </div>
         {loading && (
-          <div className="space-y-2">
+          <div className="space-yb-2">
             <div className={drawerClasses.healthProgressTrack}>
               <div className={drawerClasses.healthProgressFill} style={{ width: `${Math.round(progress)}%` }} />
             </div>

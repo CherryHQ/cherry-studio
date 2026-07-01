@@ -112,7 +112,7 @@ export const ComposerBelowControls = ({
   return (
     <div ref={toolbarRef} className={cn(COMPOSER_TOOLBAR_CLASS, 'w-full')}>
       {renderContextControls({ side: 'bottom', iconOnly })}
-      {trailing ? <div className="ml-auto flex shrink-0">{trailing({ iconOnly })}</div> : null}
+      {trailing ? <div className="ms-auto flex shrink-0">{trailing({ iconOnly })}</div> : null}
     </div>
   )
 }

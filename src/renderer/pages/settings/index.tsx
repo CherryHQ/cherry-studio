@@ -16,7 +16,7 @@ export {
 } from '@renderer/components/SettingsPrimitives'
 
 export const settingsSubmenuScrollClassName =
-  'h-[calc(100vh-var(--navbar-height))] w-(--settings-width) border-border border-r-[0.5px]'
+  'h-[calc(100vh-var(--navbar-height))] w-(--settings-width) border-border border-e-[0.5px]'
 
 export const settingsSubmenuListClassName = 'flex flex-col gap-1 px-2.5 pb-2.5 [box-sizing:border-box]'
 

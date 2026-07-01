@@ -59,7 +59,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
 }
 
 const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof RowFlex>) => (
-  <RowFlex className={['ml-1 flex-1 items-center overflow-hidden', className].filter(Boolean).join(' ')} {...props} />
+  <RowFlex className={['ms-1 flex-1 items-center overflow-hidden', className].filter(Boolean).join(' ')} {...props} />
 )
 
 const ModelsContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Scrollbar>) => {

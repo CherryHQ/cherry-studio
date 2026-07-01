@@ -70,7 +70,7 @@ const RecallSearchBar = () => {
         {hasHistory && isHistoryOpen ? (
           <div
             data-recall-history
-            className="absolute top-full right-0 left-0 z-300 mt-1 max-h-45 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-lg [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-0.75"
+            className="absolute start-0 end-0 top-full z-300 mt-1 max-h-45 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-lg [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-0.75"
             onMouseDown={keepInputFocus}>
             <RecallHistoryList />
           </div>

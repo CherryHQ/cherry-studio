@@ -32,7 +32,7 @@ const TranslateOutputPane = ({
       <div
         ref={ref}
         onScroll={onScroll}
-        className="selectable min-h-0 flex-1 overflow-y-auto p-4 pr-12 text-base leading-relaxed">
+        className="selectable min-h-0 flex-1 overflow-y-auto p-4 pe-12 text-base leading-relaxed">
         <div className="flex min-h-full flex-col">
           {translating && !translatedContent ? (
             <div className="flex items-center gap-2 text-foreground-secondary">
@@ -53,7 +53,7 @@ const TranslateOutputPane = ({
         onClick={onCopy}
         disabled={!translatedContent}
         aria-label={t('common.copy')}
-        className="absolute top-4 right-3">
+        className="absolute end-3 top-4">
         {copied ? <Check size={14} className="text-foreground" /> : <Copy size={14} />}
       </IconButton>
       <div className="flex shrink-0 items-center px-3 py-4">

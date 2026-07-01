@@ -29,7 +29,7 @@ const HeaderNavbar: FC<HeaderNavbarProps> = ({ showSidebarControls = true, sideb
 
   return (
     <NavbarHeader
-      className='home-navbar relative after:pointer-events-none after:absolute after:top-full after:right-0 after:left-0 after:z-10 in-data-conversation-shell-topbar:after:hidden after:h-3 after:bg-linear-to-b after:from-background after:to-transparent after:content-[""]'
+      className='home-navbar relative after:pointer-events-none after:absolute after:start-0 after:end-0 after:top-full after:z-10 in-data-conversation-shell-topbar:after:hidden after:h-3 after:bg-linear-to-b after:from-background after:to-transparent after:content-[""]'
       style={{ height: 'var(--navbar-height)' }}>
       <div className="-mx-1 flex h-full min-w-0 flex-1 items-center justify-between overflow-hidden">
         <div data-navbar-left-occupant className="flex shrink-0 items-center">
@@ -55,7 +55,7 @@ const HeaderNavbar: FC<HeaderNavbarProps> = ({ showSidebarControls = true, sideb
                     tone="conversation"
                     aria-pressed={showSidebar}
                     onClick={toggleShowSidebar}
-                    style={{ marginRight: 2 }}>
+                    style={{ marginInlineEnd: 2 }}>
                     <SidebarExpandIcon />
                   </NavbarIcon>
                 </CommandTooltip>

@@ -137,7 +137,7 @@ const MessageHeader: FC<Props> = memo(
             </div>
             {actionsSlot && (
               <div
-                className={`message-header-actions pointer-events-none ml-auto flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-150 focus-within:pointer-events-auto focus-within:opacity-100 ${hiddenActionsHoverClass}`}>
+                className={`message-header-actions pointer-events-none ms-auto flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-150 focus-within:pointer-events-auto focus-within:opacity-100 ${hiddenActionsHoverClass}`}>
                 {actionsSlot}
               </div>
             )}
@@ -151,7 +151,7 @@ const MessageHeader: FC<Props> = memo(
           <Checkbox
             checked={isSelected}
             onCheckedChange={(checked) => actions.selectMessage?.(message.id, checked === true)}
-            className="absolute top-0 right-0"
+            className="absolute end-0 top-0"
           />
         )}
       </div>

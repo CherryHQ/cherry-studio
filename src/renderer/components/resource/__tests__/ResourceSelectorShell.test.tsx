@@ -659,7 +659,7 @@ describe('ResourceSelectorShell', () => {
       const tagArea = row.querySelector('[data-resource-selector-tags="1"]')
       const editButton = within(row).getByRole('button', { name: 'Edit' })
 
-      expect(row).toHaveClass('pr-0.5')
+      expect(row).toHaveClass('pe-0.5')
       expect(nameArea).toHaveTextContent('Alpha')
       expect(within(nameArea).queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
       expect(editButton).toHaveClass('size-4', 'hover:bg-transparent')

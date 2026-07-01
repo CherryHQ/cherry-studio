@@ -128,7 +128,7 @@ function TopicMessageFlowNodePreviewCard({
             </span>
           ) : null}
         </div>
-        <div className={cn('shrink-0 text-right text-foreground-muted', bodyXsTypographyClassName)}>
+        <div className={cn('shrink-0 text-end text-foreground-muted', bodyXsTypographyClassName)}>
           <div>{statusLabel}</div>
           <time dateTime={message?.createdAt ?? undefined}>{timeLabel}</time>
         </div>

@@ -93,7 +93,7 @@ const SiyuanSettings: FC = () => {
           <InfoTooltip
             content={t('settings.data.siyuan.token.help')}
             placement="left"
-            iconProps={{ className: 'text-text-2 cursor-pointer ml-1' }}
+            iconProps={{ className: 'text-text-2 cursor-pointer ms-1' }}
             onClick={handleSiyuanHelpClick}
           />
         </SettingRowTitle>

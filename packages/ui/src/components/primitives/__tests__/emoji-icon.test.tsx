@@ -32,7 +32,7 @@ describe('EmojiIcon', () => {
     const wrapper = container.firstChild as HTMLElement
 
     expect(wrapper).toHaveStyle({ width: '40px', height: '40px', fontSize: '24px' })
-    expect(wrapper).toHaveClass('mr-1')
+    expect(wrapper).toHaveClass('me-1')
     expect(wrapper).not.toHaveClass('h-full', 'w-full')
   })
 
@@ -41,7 +41,7 @@ describe('EmojiIcon', () => {
     const wrapper = container.firstChild as HTMLElement
 
     expect(wrapper).toHaveClass('h-full', 'w-full')
-    expect(wrapper).not.toHaveClass('mr-1')
+    expect(wrapper).not.toHaveClass('me-1')
     // Fluid wrapper inherits its width/height from the parent, so it must not carry inline sizing.
     expect(wrapper.style.width).toBe('')
     expect(wrapper.style.height).toBe('')

@@ -59,7 +59,7 @@ export function AssistantConversationPickerDialog({
         id: `assistant:${assistant.id}`,
         name: assistant.name,
         icon: assistant.emoji ? (
-          <EmojiIcon emoji={assistant.emoji} size={24} fontSize={14} className="mr-0" />
+          <EmojiIcon emoji={assistant.emoji} size={24} fontSize={14} className="me-0" />
         ) : (
           <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
             <Bot size={14} />
@@ -76,7 +76,7 @@ export function AssistantConversationPickerDialog({
       presets.map((preset) => ({
         id: `catalog:${preset.id}`,
         name: preset.name,
-        icon: <EmojiIcon emoji={preset.emoji || '🤖'} size={24} fontSize={14} className="mr-0" />,
+        icon: <EmojiIcon emoji={preset.emoji || '🤖'} size={24} fontSize={14} className="me-0" />,
         searchText: [preset.description, preset.prompt].filter(Boolean).join(' '),
         selection: { type: 'catalog' as const, preset }
       })),

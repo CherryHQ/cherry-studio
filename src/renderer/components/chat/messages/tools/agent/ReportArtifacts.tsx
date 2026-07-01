@@ -97,7 +97,7 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
         onClick={handlePreview}
         title={displayPath}
         aria-label={`${t('common.preview')} ${fileName}`}
-        className="flex min-h-12 min-w-0 flex-1 items-center gap-2.5 border-0 bg-transparent px-2.5 py-2 text-left disabled:cursor-default">
+        className="flex min-h-12 min-w-0 flex-1 items-center gap-2.5 border-0 bg-transparent px-2.5 py-2 text-start disabled:cursor-default">
         <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-background">
           <Icon icon={`material-icon-theme:${iconName}`} className="text-[20px]" />
         </span>
@@ -109,7 +109,7 @@ function ReportArtifactFileCard({ artifact }: { artifact: ReportArtifactView }) 
             type="button"
             aria-label={`${t('chat.input.tools.open_file')} ${fileName}`}
             onClick={handleOpenExternal}
-            className="mr-2 flex size-7 shrink-0 items-center justify-center rounded-md text-foreground-muted opacity-70 transition-colors hover:bg-background hover:text-foreground hover:opacity-100">
+            className="me-2 flex size-7 shrink-0 items-center justify-center rounded-md text-foreground-muted opacity-70 transition-colors hover:bg-background hover:text-foreground hover:opacity-100">
             <ExternalLink size={15} />
           </button>
         </Tooltip>

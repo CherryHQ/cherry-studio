@@ -269,12 +269,12 @@ export const ResourceGrid: FC<Props> = ({
       <div className="flex shrink-0 flex-col border-border-muted border-b">
         <div className="flex items-center gap-2 px-5 py-3">
           <div className="relative max-w-64 flex-1">
-            <Search size={14} className="-translate-y-1/2 absolute top-1/2 left-2.5 text-foreground-muted" />
+            <Search size={14} className="-translate-y-1/2 absolute start-2.5 top-1/2 text-foreground-muted" />
             <Input
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder={t('library.toolbar.search_placeholder')}
-              className="h-8 rounded-md border-input bg-background pr-8 pl-8 text-sm placeholder:text-foreground-muted"
+              className="h-8 rounded-md border-input bg-background ps-8 pe-8 text-sm placeholder:text-foreground-muted"
             />
             {search && (
               <Button
@@ -282,7 +282,7 @@ export const ResourceGrid: FC<Props> = ({
                 size="icon-sm"
                 aria-label={t('common.clear')}
                 onClick={() => onSearchChange('')}
-                className="-translate-y-1/2 absolute top-1/2 right-1 size-6 text-foreground-muted hover:text-foreground">
+                className="-translate-y-1/2 absolute end-1 top-1/2 size-6 text-foreground-muted hover:text-foreground">
                 <X size={12} />
               </Button>
             )}
@@ -326,7 +326,7 @@ export const ResourceGrid: FC<Props> = ({
 
         {showTagToolbar && (
           <div className="flex items-center gap-1.5 overflow-x-auto px-5 pb-3 [&::-webkit-scrollbar]:h-0">
-            <Tag size={12} className="mr-0.5 shrink-0 text-foreground-muted" />
+            <Tag size={12} className="me-0.5 shrink-0 text-foreground-muted" />
             {visibleTags.map((tag) => (
               <ContextMenu key={tag.id}>
                 <ContextMenuTrigger asChild>
@@ -514,7 +514,7 @@ function ResourceGridLoadingState({ columnCount }: { columnCount: number }) {
         <div key={index} className="rounded-lg border border-border-subtle bg-card p-3.5">
           <div className="flex items-center gap-3">
             <Skeleton className="size-10 rounded-lg" />
-            <div className="min-w-0 flex-1 space-y-2">
+            <div className="min-w-0 flex-1 space-yb-2">
               <Skeleton className="h-4 w-2/3" />
               <Skeleton className="h-3 w-full" />
             </div>
@@ -576,7 +576,7 @@ function VirtualizedResourceGrid({
             style={{
               position: 'absolute',
               top: 0,
-              left: 0,
+              insetInlineStart: 0,
               width: '100%',
               gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
               transform: `translateY(${virtualRow.start}px)`

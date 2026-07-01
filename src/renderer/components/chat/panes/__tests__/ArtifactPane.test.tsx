@@ -1003,7 +1003,7 @@ describe('ArtifactPane', () => {
     const scrollRegion = container.querySelector('[data-artifact-file-tree-scroll-region]')
 
     expect(handle).toBeInTheDocument()
-    expect(handle).toHaveClass('right-0', 'cursor-col-resize')
+    expect(handle).toHaveClass('end-0', 'cursor-col-resize')
     expect(scrollRegion).toHaveClass('overflow-y-auto', 'overflow-x-hidden')
   })
 

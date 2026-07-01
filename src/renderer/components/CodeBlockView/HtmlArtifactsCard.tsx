@@ -94,7 +94,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreami
                     <span className="shrink-0 font-bold text-green-700 dark:text-green-400">$</span>
                     <span className="wrap-break-word flex-1 whitespace-pre-wrap bg-transparent text-foreground dark:text-neutral-300">
                       {htmlContent.trim().split('\n').slice(-3).join('\n')}
-                      <span className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-green-700 dark:bg-green-400" />
+                      <span className="ms-0.5 inline-block h-4 w-0.5 animate-pulse bg-green-700 dark:bg-green-400" />
                     </span>
                   </div>
                 </div>

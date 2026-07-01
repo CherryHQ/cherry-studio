@@ -191,7 +191,7 @@ function ModelRow({
 
   const trailing =
     rowTags.length > 0 ? (
-      <div className="ml-2 flex h-4 max-w-[65%] shrink-0 items-center justify-end gap-1 overflow-hidden">
+      <div className="ms-2 flex h-4 max-w-[65%] shrink-0 items-center justify-end gap-1 overflow-hidden">
         {rowTags.map((tag) => (
           <ModelTag
             key={`${item.key}-${tag}`}
@@ -228,7 +228,7 @@ function ModelRow({
           ) : undefined
         }
         onSelect={() => onSelect(item)}
-        rootProps={{ className: 'pr-0.5' }}
+        rootProps={{ className: 'pe-0.5' }}
         optionProps={{ 'data-testid': `model-selector-item-${item.modelId}` }}>
         <span className="min-w-0 max-w-full shrink-0 truncate" title={item.model.name}>
           {item.model.name}
@@ -695,7 +695,7 @@ export function ModelSelector(props: ModelSelectorProps) {
 
     return (
       <>
-        <span className="mr-1 text-[10px] text-muted-foreground">{t('models.filter.by_tag')}</span>
+        <span className="me-1 text-[10px] text-muted-foreground">{t('models.filter.by_tag')}</span>
         {availableTags.map((tag) => (
           <ModelTag
             key={`filter-${tag}`}

@@ -45,7 +45,7 @@ const MessageAttachments: FC<Props> = ({ file }) => {
         </div>
         <button
           type="button"
-          className="min-w-0 flex-1 text-left"
+          className="min-w-0 flex-1 text-start"
           onClick={previewFile ? handlePreview : undefined}
           title={fileName}
           aria-label={fileName}>

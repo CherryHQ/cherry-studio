@@ -210,7 +210,7 @@ export function ResourceCardMenu({
                         />
                       </span>
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: colorFor(tag) }} />
-                      <span className="flex-1 truncate text-left">{tag}</span>
+                      <span className="flex-1 truncate text-start">{tag}</span>
                     </div>
                   )
                 })}

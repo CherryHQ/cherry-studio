@@ -377,7 +377,7 @@ export function GlobalSearchMessagePreviewPanel({
                     openPreviewMessage(message.id)
                   }}
                   className={cn(
-                    '-mx-3 w-[calc(100%+1.5rem)] cursor-pointer rounded-xl px-3 py-2 text-left transition-colors hover:bg-muted/35 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+                    '-mx-3 w-[calc(100%+1.5rem)] cursor-pointer rounded-xl px-3 py-2 text-start transition-colors hover:bg-muted/35 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
                     message.id === activeMessageId && 'bg-accent/55 ring-1 ring-border-active'
                   )}>
                   <div className="mb-1 font-medium text-muted-foreground text-xs">
@@ -393,7 +393,7 @@ export function GlobalSearchMessagePreviewPanel({
         )}
       </div>
 
-      <div className="pointer-events-none absolute right-0 bottom-0 left-0 flex justify-center bg-gradient-to-t from-background via-background/90 to-transparent px-4 pt-8 pb-4">
+      <div className="pointer-events-none absolute start-0 end-0 bottom-0 flex justify-center bg-gradient-to-t from-background via-background/90 to-transparent px-4 pt-8 pb-4">
         <Button
           type="button"
           variant="ghost"

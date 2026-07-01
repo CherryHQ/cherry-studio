@@ -1731,7 +1731,7 @@ describe('ResourceList', () => {
     )
 
     const viewport = screen.getByRole('listbox')
-    expect(viewport).toHaveClass('-mr-2', 'pr-2', '[scrollbar-gutter:stable]')
+    expect(viewport).toHaveClass('-me-2', 'pe-2', '[scrollbar-gutter:stable]')
     expect(viewport).toHaveAttribute('data-scrolling', 'false')
 
     fireEvent.scroll(viewport)
@@ -1781,7 +1781,7 @@ describe('ResourceList', () => {
     expect(screen.getByText('Item 5')).toBeInTheDocument()
     expect(screen.queryByText('Item 6')).not.toBeInTheDocument()
     const showMoreButton = screen.getByRole('button', { name: 'Show more' })
-    expect(showMoreButton.parentElement).toHaveClass('pl-9')
+    expect(showMoreButton.parentElement).toHaveClass('ps-9')
     expect(showMoreButton).toHaveClass('text-muted-foreground/55', 'hover:text-inherit')
     expect(showMoreButton).not.toHaveClass('opacity-[0.65]')
     expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ count: 7 }))
@@ -1828,14 +1828,14 @@ describe('ResourceList', () => {
     )
 
     const showMoreButton = screen.getByRole('button', { name: 'Show more' })
-    expect(showMoreButton.parentElement).toHaveClass('pl-2.5')
-    expect(showMoreButton.parentElement).not.toHaveClass('pl-9')
+    expect(showMoreButton.parentElement).toHaveClass('ps-2.5')
+    expect(showMoreButton.parentElement).not.toHaveClass('ps-9')
 
     fireEvent.click(showMoreButton)
 
     const collapseButton = screen.getByRole('button', { name: 'Collapse' })
-    expect(collapseButton.parentElement).toHaveClass('pl-2.5')
-    expect(collapseButton.parentElement).not.toHaveClass('pl-9')
+    expect(collapseButton.parentElement).toHaveClass('ps-2.5')
+    expect(collapseButton.parentElement).not.toHaveClass('ps-9')
   })
 
   it('toggles every group in a section from a menu item without collapsing the section', () => {
@@ -2212,11 +2212,11 @@ describe('ResourceList', () => {
     expect(screen.getByRole('button', { name: 'Assistants' })).toHaveAttribute('aria-expanded', 'false')
     expect(
       screen.getByRole('button', { name: 'Pinned' }).closest('[class*="group/resource-list-section"]')
-    ).not.toHaveClass('pl-4')
+    ).not.toHaveClass('ps-4')
     expect(screen.getByText('Alpha')).toBeInTheDocument()
     expect(
       screen.getByText('Alpha').closest('[data-resource-list-item-row="true"]')?.firstElementChild
-    ).not.toHaveClass('pl-4')
+    ).not.toHaveClass('ps-4')
     expect(screen.queryByText('Beta')).not.toBeInTheDocument()
     expect(screen.queryByText('gamma')).not.toBeInTheDocument()
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
@@ -2230,10 +2230,10 @@ describe('ResourceList', () => {
     expect(screen.getByRole('button', { name: 'topic' })).toHaveAttribute('aria-expanded', 'true')
     expect(
       screen.getByRole('button', { name: 'topic' }).closest('[class*="group/resource-list-group"]')
-    ).not.toHaveClass('pl-4')
+    ).not.toHaveClass('ps-4')
     expect(
       screen.getByText('Gamma').closest('[data-resource-list-item-row="true"]')?.firstElementChild
-    ).not.toHaveClass('pl-4')
+    ).not.toHaveClass('ps-4')
     expect(screen.getByText('Gamma').closest('[role="option"]')).toHaveAttribute('data-reveal-focus', 'true')
     const revealedInspector = JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')
     expect(revealedInspector).toMatchObject({
@@ -2520,7 +2520,7 @@ describe('ResourceList', () => {
     expect(action).toHaveClass('pointer-events-none', 'size-5')
     expect(action.closest('[data-resource-list-item-actions="true"]')).toHaveClass(
       'absolute',
-      'right-1.5',
+      'end-1.5',
       'opacity-0',
       'group-hover:opacity-100'
     )

@@ -101,7 +101,7 @@ function getHeaderMeta<TData>(columnDef: ColumnDef<TData, unknown>): DataTableCo
 
 function getAlignClass(align?: DataTableColumnMeta['align']) {
   if (align === 'center') return 'text-center'
-  if (align === 'right') return 'text-right'
+  if (align === 'right') return 'text-end'
   return undefined
 }
 

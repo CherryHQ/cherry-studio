@@ -16,7 +16,7 @@ const ToolsCallingIcon: FC<React.DetailedHTMLProps<React.HTMLAttributes<HTMLElem
           className={props.className}
           style={{
             color: 'var(--color-primary)',
-            marginRight: 6,
+            marginInlineEnd: 6,
             ...props.style
           }}
         />
