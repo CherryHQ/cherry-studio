@@ -124,11 +124,13 @@ describe('PreferenceService BootConfig routing', () => {
       const mockTx = {
         update: vi.fn().mockReturnValue({
           set: vi.fn().mockReturnValue({
-            where: vi.fn().mockResolvedValue(undefined)
+            where: vi.fn().mockReturnValue({
+              run: vi.fn().mockReturnValue(undefined)
+            })
           })
         })
       }
-      mockWithWriteTx.mockImplementation(async (fn: any) => fn(mockTx))
+      mockWithWriteTx.mockImplementation((fn: any) => fn(mockTx))
 
       await service.set(PREFERENCE_KEY, 'zh-CN')
 
@@ -143,11 +145,13 @@ describe('PreferenceService BootConfig routing', () => {
       const mockTx = {
         update: vi.fn().mockReturnValue({
           set: vi.fn().mockReturnValue({
-            where: vi.fn().mockResolvedValue(undefined)
+            where: vi.fn().mockReturnValue({
+              run: vi.fn().mockReturnValue(undefined)
+            })
           })
         })
       }
-      mockWithWriteTx.mockImplementation(async (fn: any) => fn(mockTx))
+      mockWithWriteTx.mockImplementation((fn: any) => fn(mockTx))
 
       await service.setMultiple({
         [BOOT_CONFIG_KEY]: true,

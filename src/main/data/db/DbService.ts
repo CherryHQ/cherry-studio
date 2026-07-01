@@ -1,24 +1,19 @@
 import { application } from '@application'
-import type { Client } from '@libsql/client'
-import { createClient } from '@libsql/client'
 import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
 import { BaseService, ErrorHandling, Injectable, Priority, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
-import { Mutex } from 'async-mutex'
+import Database from 'better-sqlite3'
 import { sql } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/libsql'
-import { migrate } from 'drizzle-orm/libsql/migrator'
+import { drizzle } from 'drizzle-orm/better-sqlite3'
+import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import fs from 'fs'
 import path from 'path'
-import { pathToFileURL } from 'url'
 
 import { CUSTOM_SQL_STATEMENTS } from './customSqls'
 import { seeders } from './seeding'
 import { SeedRunner } from './seeding/SeedRunner'
 import type { DbOrTx, DbType } from './types'
-
-const WRITE_BUSY_RETRY_DELAY_MS = 50
 
 const logger = loggerService.withContext('DbService')
 
@@ -42,18 +37,19 @@ const logger = loggerService.withContext('DbService')
 @Priority(10)
 @ErrorHandling('fail-fast')
 export class DbService extends BaseService {
-  private client: Client
+  private sqlite: Database.Database
   private db: DbType
   private pragmasConfigured = false
-  private readonly writeMutex = new Mutex()
 
   constructor() {
     super()
     try {
       this.ensureDatabaseIntegrity()
-      const url = pathToFileURL(application.getPath('app.database.file')).href
-      this.client = createClient({ url })
-      this.db = drizzle({ client: this.client, casing: 'snake_case' })
+      // better-sqlite3 opens a bare filesystem path (not a file: URL) and keeps a single
+      // persistent connection for the process lifetime, so the per-connection PRAGMAs set
+      // once in configurePragmas() never need replaying.
+      this.sqlite = new Database(application.getPath('app.database.file'))
+      this.db = drizzle({ client: this.sqlite, casing: 'snake_case' })
       if (DIAGNOSTICS_ENABLED) this.installSlowQueryProbe()
       logger.info('Database connection initialized', {
         dbPath: application.getPath('app.database.file')
@@ -65,29 +61,16 @@ export class DbService extends BaseService {
   }
 
   /**
-   * Opt-in (CS_DIAGNOSTICS): log any libsql call slower than 15ms with its SQL,
-   * row count, and the caller's stack (esbuild keeps function names, so the
-   * endpoint/service that issued the query is identifiable). libsql's local
-   * `file:` driver runs queries synchronously on the main thread, so a large
-   * result set blocks the loop — this pins which one. Covers single statements,
-   * batches, and interactive transactions: drizzle routes transaction statements
-   * through the tx object returned by `client.transaction()`, not the client, so
-   * each surface is wrapped.
+   * Opt-in (CS_DIAGNOSTICS): log any DB call slower than 15ms with its SQL, row
+   * count, and the caller's stack (esbuild keeps function names, so the
+   * endpoint/service that issued the query is identifiable). better-sqlite3 runs
+   * every statement synchronously on the main thread, so a large result set blocks
+   * the loop — this pins which one. drizzle compiles each query to a prepared
+   * statement on our single connection, so wrapping this connection's `prepare`
+   * (instrumenting the statement's run/get/all) and `exec` (raw multi-statement
+   * SQL such as migrations and custom DDL) covers every query through one hook.
    */
   private installSlowQueryProbe(): void {
-    type AsyncFn = (...args: unknown[]) => Promise<unknown>
-
-    const sqlOf = (stmt: unknown): string => {
-      if (typeof stmt === 'string') return stmt
-      if (Array.isArray(stmt)) return String(stmt[0] ?? '?')
-      return (stmt as { sql?: string })?.sql ?? '?'
-    }
-    const describeExecute = (args: unknown[], res: unknown): string =>
-      `rows=${(res as { rows?: unknown[] })?.rows?.length ?? '?'} sql=${sqlOf(args[0]).slice(0, 160)}`
-    const describeBatch = (args: unknown[]): string => {
-      const stmts = (args[0] as unknown[]) ?? []
-      return `batch(${stmts.length}) sql=${stmts.map(sqlOf).join('; ').slice(0, 160)}`
-    }
     const frames = (stack: string | undefined): string =>
       (stack ?? '')
         .split('\n')
@@ -96,95 +79,88 @@ export class DbService extends BaseService {
         .map((l) => l.trim())
         .join(' <- ')
 
-    // Wrap one async method in-place; time it and log when slow.
-    const instrument = (
-      target: Record<string, AsyncFn>,
-      method: string,
-      label: string,
-      describe: (args: unknown[], res: unknown) => string
-    ): void => {
-      const orig = target[method].bind(target)
-      target[method] = async (...args: unknown[]) => {
-        const callerStack = new Error().stack
-        const t0 = performance.now()
-        const res = await orig(...args)
-        const dt = performance.now() - t0
-        if (dt > SLOW_THRESHOLD_MS.dbQuery) {
-          logger.info(
-            `[Diagnostics/slow-query] ${dt.toFixed(1)}ms ${label} ${describe(args, res)} | ${frames(callerStack)}`
-          )
-        }
-        return res
+    const logSlow = (dt: number, label: string, detail: string, stack: string | undefined): void => {
+      if (dt > SLOW_THRESHOLD_MS.dbQuery) {
+        logger.info(`[Diagnostics/slow-query] ${dt.toFixed(1)}ms ${label} ${detail} | ${frames(stack)}`)
       }
     }
 
-    const client = this.client as unknown as Record<string, AsyncFn>
-    instrument(client, 'execute', 'execute', describeExecute)
-    instrument(client, 'batch', 'batch', describeBatch)
+    const describe = (method: 'run' | 'get' | 'all', res: unknown, sqlText: string): string => {
+      const rows =
+        method === 'all'
+          ? String((res as unknown[])?.length ?? '?')
+          : method === 'get'
+            ? res == null
+              ? '0'
+              : '1'
+            : `changes=${(res as { changes?: number })?.changes ?? '?'}`
+      return `${rows} sql=${sqlText}`
+    }
 
-    // Interactive transactions bypass the client wrappers above — wrap the tx
-    // object drizzle calls execute/batch on (a fresh one per transaction()).
-    const origTransaction = client.transaction.bind(client)
-    client.transaction = async (...args: unknown[]) => {
-      const tx = (await origTransaction(...args)) as Record<string, AsyncFn>
-      instrument(tx, 'execute', 'tx.execute', describeExecute)
-      instrument(tx, 'batch', 'tx.batch', describeBatch)
-      return tx
+    type AnyFn = (...args: unknown[]) => unknown
+    const sqlite = this.sqlite as unknown as { prepare: AnyFn; exec: AnyFn }
+
+    const origPrepare = sqlite.prepare.bind(sqlite)
+    sqlite.prepare = (...prepareArgs: unknown[]) => {
+      const stmt = origPrepare(...prepareArgs) as Record<string, AnyFn>
+      const sqlText = String(prepareArgs[0] ?? '?').slice(0, 160)
+      for (const method of ['run', 'get', 'all'] as const) {
+        const orig = stmt[method]
+        if (typeof orig !== 'function') continue
+        const bound = orig.bind(stmt)
+        stmt[method] = (...args: unknown[]) => {
+          const callerStack = new Error().stack
+          const t0 = performance.now()
+          const res = bound(...args)
+          logSlow(performance.now() - t0, method, describe(method, res, sqlText), callerStack)
+          return res
+        }
+      }
+      return stmt
+    }
+
+    const origExec = sqlite.exec.bind(sqlite)
+    sqlite.exec = (...execArgs: unknown[]) => {
+      const callerStack = new Error().stack
+      const t0 = performance.now()
+      const res = origExec(...execArgs)
+      logSlow(performance.now() - t0, 'exec', `sql=${String(execArgs[0] ?? '?').slice(0, 160)}`, callerStack)
+      return res
     }
   }
 
   /**
    * Lifecycle: Initialize database with WAL mode, run migrations and seeds
    */
-  protected async onInit(): Promise<void> {
-    await this.configurePragmas()
-    await this.migrateDb()
-    await new SeedRunner(this.db).runAll(seeders)
+  protected onInit(): void {
+    this.configurePragmas()
+    this.migrateDb()
+    new SeedRunner(this.db).runAll(seeders)
   }
 
   /**
-   * Configure database PRAGMAs (WAL mode, synchronous, foreign keys).
+   * Configure database PRAGMAs (WAL mode, synchronous, foreign keys, busy timeout).
    *
-   * ## Background: per-connection PRAGMAs lost after transaction()
-   *
-   * `@libsql/client`'s `Sqlite3Client.transaction()` nullifies its internal
-   * connection (`this.#db = null`) after opening a transaction. The next
-   * non-transaction operation lazily creates a **new** `Database` connection
-   * whose PRAGMAs reset to libsql compile-time defaults:
-   * - `synchronous` reverts to FULL (standard SQLite default)
-   * - `foreign_keys` stays ON — libsql is compiled with
-   *   `SQLITE_DEFAULT_FOREIGN_KEYS=1` (see libsql-ffi/build.rs), unlike standard SQLite
-   * - `journal_mode = WAL` is unaffected (persisted in the database file)
-   *
-   * ## Fix: patched setPragma() with PRAGMA replay
-   *
-   * We patched `@libsql/client` (see patches/@libsql__client@0.15.15.patch)
-   * to add `client.setPragma()`, which registers per-connection PRAGMAs and
-   * automatically replays them in `#getDb()` and `reconnect()` whenever a
-   * new connection is created. Pattern borrowed from upstream PR #328's
-   * ATTACH replay mechanism.
-   *
-   * Related upstream issues (still open, no official fix as of 0.17.2):
-   * - https://github.com/tursodatabase/libsql-client-ts/issues/229
-   * - https://github.com/tursodatabase/libsql-client-ts/issues/288
+   * better-sqlite3 keeps a single persistent connection, so each PRAGMA is set once
+   * here and holds for the process lifetime — no replay machinery is needed.
+   * `journal_mode = WAL` is additionally persisted in the database file;
+   * `synchronous = NORMAL` is WAL's safe pairing; `foreign_keys = ON` enables the
+   * schema's ON DELETE CASCADE / SET NULL; `busy_timeout` makes a brief external
+   * lock (e.g. a dev tool opening the db) wait rather than fail.
    */
-  private async configurePragmas(): Promise<void> {
+  private configurePragmas(): void {
     if (this.pragmasConfigured) {
       return
     }
 
     try {
-      // WAL mode is persisted in the database file — only needs to run once,
-      // no replay needed across connections.
-      await this.db.run(sql`PRAGMA journal_mode = WAL`)
-
-      // Per-connection PRAGMAs — use setPragma() so they are automatically
-      // replayed when @libsql/client creates a new connection after transaction().
-      this.client.setPragma('PRAGMA synchronous = NORMAL')
-      this.client.setPragma('PRAGMA foreign_keys = ON')
+      this.sqlite.pragma('journal_mode = WAL')
+      this.sqlite.pragma('synchronous = NORMAL')
+      this.sqlite.pragma('foreign_keys = ON')
+      this.sqlite.pragma('busy_timeout = 5000')
 
       this.pragmasConfigured = true
-      logger.info('Database PRAGMAs configured (WAL, synchronous, foreign_keys)')
+      logger.info('Database PRAGMAs configured (WAL, synchronous, foreign_keys, busy_timeout)')
     } catch (error) {
       logger.warn('Failed to configure database PRAGMAs', error as Error)
     }
@@ -193,13 +169,13 @@ export class DbService extends BaseService {
   /**
    * Run database migrations
    */
-  private async migrateDb(): Promise<void> {
+  private migrateDb(): void {
     try {
       const migrationsFolder = application.getPath('app.database.migrations')
-      await migrate(this.db, { migrationsFolder })
+      migrate(this.db, { migrationsFolder })
 
       // Run custom SQL that Drizzle cannot manage (triggers, virtual tables, etc.)
-      await this.runCustomMigrations()
+      this.runCustomMigrations()
 
       logger.info('Database migration completed successfully')
     } catch (error) {
@@ -217,10 +193,10 @@ export class DbService extends BaseService {
    * 2. DROP TABLE removes associated triggers
    * 3. All statements use IF NOT EXISTS, so they're idempotent
    */
-  private async runCustomMigrations(): Promise<void> {
+  private runCustomMigrations(): void {
     try {
       for (const statement of CUSTOM_SQL_STATEMENTS) {
-        await this.db.run(sql.raw(statement))
+        this.db.run(sql.raw(statement))
       }
       logger.debug('Custom migrations completed', { count: CUSTOM_SQL_STATEMENTS.length })
     } catch (error) {
@@ -241,78 +217,59 @@ export class DbService extends BaseService {
   }
 
   /**
-   * Serialized write transaction. All write paths SHOULD use this instead of
-   * `getDb().transaction()` to avoid SQLITE_BUSY caused by libsql client-ts
-   * upstream issue #288 (busy_timeout ineffective for async transactions).
+   * Composes writes into one `BEGIN IMMEDIATE` transaction. Use it when a mutation
+   * must commit all-or-nothing across more than one statement (multiple writes, or a
+   * read-then-write); a single autocommit write does not need it — better-sqlite3 runs
+   * each statement atomically on its one connection. It is not the readiness gate
+   * either: `getDb()` already throws when the DB isn't ready.
    *
-   * Defense in depth:
-   *   1. Process-wide FIFO mutex (async-mutex) serializes write transactions
-   *      so OUR writes never collide with each other. Non-cancellable —
-   *      callers MUST NOT invoke `writeMutex.cancel()`; shutdown coordinates
-   *      via service lifecycle, not lock cancellation.
-   *   2. libsql client defaults to `BEGIN IMMEDIATE` (drizzle libsql adapter
-   *      drops the config arg; libsql core sets mode="write" → BEGIN
-   *      IMMEDIATE). So a transaction acquires the write lock at BEGIN, not
-   *      lazily on first write — read-then-write tx never fails mid-way.
-   *   3. Single 50ms BUSY retry guards against transient external locks
-   *      (legacy direct `db.transaction()` callsites not yet migrated, or
-   *      external processes opening the db during dev).
+   * better-sqlite3 keeps one synchronous connection, so a transaction is
+   * inherently atomic and never interleaves with another — no process-wide mutex
+   * or BUSY retry is needed (those existed to tame libsql's async per-transaction
+   * connections, upstream issue #288). `BEGIN IMMEDIATE` takes the write lock at
+   * BEGIN, so a read-then-write transaction never fails mid-way.
    *
-   * Reads do NOT need this — WAL mode gives readers snapshot isolation that
-   * is never blocked by writers.
+   * Returns **synchronously**: better-sqlite3 runs the whole transaction on its
+   * single connection with no I/O wait, so the write has already committed by the
+   * time this returns `T`. It is intentionally NOT `async` — there is no real
+   * async work to await, and an `async` wrapper would just be libsql-era residue
+   * (the old client was async). Call it directly from `async` service methods; no
+   * `await` needed.
    *
-   * ## Concurrency semantics for callers
-   *
-   * - `acquire()` never throws; later callers wait (pending Promise) until
-   *   earlier callers release. No `SQLITE_BUSY` ever surfaces from us to the
-   *   caller unless the single retry also fails due to external interference.
-   * - FIFO ordering: enqueue order = lock-acquire order = DB write order.
+   * Reads do NOT need this — WAL mode gives readers snapshot isolation that is
+   * never blocked by writers.
    *
    * ## Invariant for `fn`
    *
-   * `fn` MUST only perform DB operations. Do NOT `await` network IO, file IO,
-   * or handler execution inside `fn` — that would starve the mutex queue.
+   * `fn` MUST be synchronous and perform only DB operations. better-sqlite3
+   * rejects a transaction function that returns a Promise, so do NOT `await`
+   * network IO, file IO, or handler execution inside `fn` — compose only DB
+   * writes here.
    *
    * @example Single write
    * ```ts
-   * await dbService.withWriteTx((tx) =>
-   *   jobService.setMetadataTx(tx, id, metadata)
-   * )
+   * dbService.withWriteTx((tx) => jobService.setMetadataTx(tx, id, metadata))
    * ```
    *
    * @example Compose multiple writes into one transaction
    * ```ts
-   * await dbService.withWriteTx(async (tx) => {
-   *   await jobService.cancelByIdsTx(tx, ids, error)
-   *   await jobService.resetToPendingByIdsTx(tx, otherIds)
+   * dbService.withWriteTx((tx) => {
+   *   jobService.cancelByIdsTx(tx, ids, error)
+   *   jobService.resetToPendingByIdsTx(tx, otherIds)
    * })
    * ```
    */
-  public async withWriteTx<T>(fn: (tx: DbOrTx) => Promise<T>): Promise<T> {
+  public withWriteTx<T>(fn: (tx: DbOrTx) => T): T {
     if (!this.isReady) {
       throw new Error('Database is not initialized, please call init() first!')
     }
-    const release = await this.writeMutex.acquire()
-    try {
-      try {
-        return await this.db.transaction(fn)
-      } catch (err) {
-        if ((err as { code?: string }).code !== 'SQLITE_BUSY') throw err
-        logger.warn('withWriteTx: SQLITE_BUSY, retrying once', {
-          delayMs: WRITE_BUSY_RETRY_DELAY_MS
-        })
-        await new Promise((resolve) => setTimeout(resolve, WRITE_BUSY_RETRY_DELAY_MS))
-        return await this.db.transaction(fn)
-      }
-    } finally {
-      release()
-    }
+    return this.db.transaction(fn, { behavior: 'immediate' })
   }
 
   /**
    * Ensure database file integrity before opening connection.
    * Handles two scenarios that cause SQLITE_IOERR_SHORT_READ:
-   * 1. Main .db file is 0 bytes (corrupt) — remove so libsql recreates it
+   * 1. Main .db file is 0 bytes (corrupt) — remove so SQLite recreates it
    * 2. Main .db file missing but orphaned -wal/-shm remain — SQLite attempts
    *    WAL recovery against an empty file and fails
    */

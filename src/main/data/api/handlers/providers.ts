@@ -24,27 +24,27 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers': {
     GET: async ({ query }) => {
       const parsed = ListProvidersQuerySchema.parse(query ?? {})
-      return await providerService.list(parsed)
+      return providerService.list(parsed)
     },
 
     POST: async ({ body }) => {
       const parsed = CreateProviderSchema.parse(body)
-      return await providerService.create(parsed)
+      return providerService.create(parsed)
     }
   },
 
   '/providers/:providerId': {
     GET: async ({ params }) => {
-      return await providerService.getByProviderId(params.providerId)
+      return providerService.getByProviderId(params.providerId)
     },
 
     PATCH: async ({ params, body }) => {
       const parsed = UpdateProviderSchema.parse(body)
-      return await providerService.update(params.providerId, parsed)
+      return providerService.update(params.providerId, parsed)
     },
 
     DELETE: async ({ params }) => {
-      await providerService.delete(params.providerId)
+      providerService.delete(params.providerId)
       return undefined
     }
   },
@@ -52,7 +52,7 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers/:providerId/api-keys': {
     GET: async ({ params, query }) => {
       const parsed = ListProviderApiKeysQuerySchema.parse(query ?? {})
-      const keys = await providerService.getApiKeys(params.providerId, parsed)
+      const keys = providerService.getApiKeys(params.providerId, parsed)
       return { keys }
     },
 
@@ -87,7 +87,7 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers/:id/order': {
     PATCH: async ({ params, body }) => {
       const parsed = OrderRequestSchema.parse(body)
-      await providerService.move(params.id, parsed)
+      providerService.move(params.id, parsed)
       return undefined
     }
   },
@@ -95,7 +95,7 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers/order:batch': {
     PATCH: async ({ body }) => {
       const parsed = OrderBatchRequestSchema.parse(body)
-      await providerService.reorder(parsed.moves)
+      providerService.reorder(parsed.moves)
       return undefined
     }
   }

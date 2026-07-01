@@ -21,9 +21,9 @@ export class DefaultAssistantSeeder implements ISeeder {
     })
   }
 
-  async run(db: DbType): Promise<void> {
-    await db.transaction(async (tx) => {
-      if (!(await this.isFreshUserDatabase(tx))) {
+  run(db: DbType): void {
+    db.transaction((tx) => {
+      if (!this.isFreshUserDatabase(tx)) {
         return
       }
 
@@ -32,30 +32,32 @@ export class DefaultAssistantSeeder implements ISeeder {
         settings: { ...DEFAULT_ASSISTANT_SEED.settings }
       } satisfies Omit<typeof assistantTable.$inferInsert, 'orderKey'>
 
-      await insertWithOrderKey(tx, assistantTable, insertValues, {
+      insertWithOrderKey(tx, assistantTable, insertValues, {
         pkColumn: assistantTable.id,
         scope: isNull(assistantTable.deletedAt)
       })
     })
   }
 
-  private async isFreshUserDatabase(tx: Pick<DbType, 'select'>): Promise<boolean> {
-    const [assistant] = await tx
+  private isFreshUserDatabase(tx: Pick<DbType, 'select'>): boolean {
+    const [assistant] = tx
       .select({ id: assistantTable.id })
       .from(assistantTable)
       .where(isNull(assistantTable.deletedAt))
       .limit(1)
+      .all()
     if (assistant) return false
 
-    const [topic] = await tx.select({ id: topicTable.id }).from(topicTable).where(isNull(topicTable.deletedAt)).limit(1)
+    const [topic] = tx.select({ id: topicTable.id }).from(topicTable).where(isNull(topicTable.deletedAt)).limit(1).all()
     if (topic) return false
 
-    const [message] = await tx
+    const [message] = tx
       .select({ id: messageTable.id })
       .from(messageTable)
       .leftJoin(topicTable, eq(messageTable.topicId, topicTable.id))
       .where(and(isNull(messageTable.deletedAt), isNull(topicTable.deletedAt)))
       .limit(1)
+      .all()
     return !message
   }
 }

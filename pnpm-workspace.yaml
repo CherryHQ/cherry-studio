@@ -51,7 +51,6 @@ patchedDependencies:
   '@ai-sdk/openai@3.0.53': patches/@ai-sdk__openai@3.0.53.patch
   '@ai-sdk/xai@3.0.83': patches/@ai-sdk__xai@3.0.83.patch
   '@ai-sdk/google@3.0.64': patches/@ai-sdk__google@3.0.64.patch
-  '@libsql/client@0.15.15': patches/@libsql__client@0.15.15.patch
   '@ai-sdk/anthropic': patches/@ai-sdk__anthropic.patch
   '@ai-sdk/deepseek@2.0.30': patches/@ai-sdk__deepseek@2.0.30.patch
   'ai@6.0.143': patches/ai@6.0.143.patch
@@ -64,6 +63,7 @@ allowBuilds:
   '@paymoapp/electron-shutdown-handler': true
   '@scarf/scarf': true
   '@swc/core': true
+  better-sqlite3: true
   canvas: true
   core-js: true
   electron: true

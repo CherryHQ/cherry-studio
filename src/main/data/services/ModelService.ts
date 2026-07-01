@@ -351,22 +351,19 @@ class ModelService {
     return { ...dtoValues, presetModelId: dto.presetModelId ?? null }
   }
 
-  private async filterReconcileRemovals(
-    providerId: string,
-    toRemove: string[],
-    db: DbType
-  ): Promise<ReconcileRemovalFilterResult> {
+  private filterReconcileRemovals(providerId: string, toRemove: string[], db: DbType): ReconcileRemovalFilterResult {
     if (toRemove.length === 0) {
       return { toRemove, presetBackedRemovalIds: new Set() }
     }
 
-    const rows = await db
+    const rows = db
       .select({
         id: userModelTable.id,
         presetModelId: userModelTable.presetModelId
       })
       .from(userModelTable)
       .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, toRemove)))
+      .all()
 
     const managedDefaultIds = new Set<string>()
     const presetBackedRemovalIds = new Set<string>()
@@ -416,7 +413,7 @@ class ModelService {
   /**
    * List models with optional filters
    */
-  async list(query: ListModelsQuery): Promise<Model[]> {
+  list(query: ListModelsQuery): Model[] {
     const db = application.get('DbService').getDb()
 
     const conditions: SQL[] = []
@@ -429,11 +426,12 @@ class ModelService {
       conditions.push(eq(userModelTable.isEnabled, query.enabled))
     }
 
-    const rows = await db
+    const rows = db
       .select()
       .from(userModelTable)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(asc(userModelTable.providerId), asc(userModelTable.orderKey))
+      .all()
 
     let models = rows.map(rowToRuntimeModel)
 
@@ -452,42 +450,40 @@ class ModelService {
       string,
       { defaultChatEndpoint?: EndpointType; reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>> }
     >()
-    models = await Promise.all(
-      models.map(async (model) => {
-        const presetId = model.presetModelId ?? model.apiModelId
-        if (!presetId) return model
-        try {
-          const { presetModel, registryOverride } = await providerRegistryService.lookupModel(
-            model.providerId,
-            presetId,
-            reasoningConfigCache
-          )
-          const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
-          const capabilities = resolveCapabilities(
-            presetModel?.capabilities,
-            registryOverride?.capabilities,
-            model.capabilities
-          )
-          const updates: Partial<Model> = {}
-          if (imageGeneration) updates.imageGeneration = imageGeneration
-          const changed =
-            capabilities.length !== model.capabilities.length ||
-            capabilities.some((c: ModelCapability, i: number) => c !== model.capabilities[i])
-          if (changed) updates.capabilities = capabilities
-          return Object.keys(updates).length > 0 ? { ...model, ...updates } : model
-        } catch (error) {
-          // A registry-lookup failure must not silently strip a model's
-          // imageGeneration / capabilities — log so a real registry/IO fault
-          // is diagnosable rather than masquerading as "model isn't image-gen".
-          logger.warn('Registry enrichment failed; serving model without registry metadata', {
-            providerId: model.providerId,
-            modelId: presetId,
-            error
-          })
-          return model
-        }
-      })
-    )
+    models = models.map((model) => {
+      const presetId = model.presetModelId ?? model.apiModelId
+      if (!presetId) return model
+      try {
+        const { presetModel, registryOverride } = providerRegistryService.lookupModel(
+          model.providerId,
+          presetId,
+          reasoningConfigCache
+        )
+        const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
+        const capabilities = resolveCapabilities(
+          presetModel?.capabilities,
+          registryOverride?.capabilities,
+          model.capabilities
+        )
+        const updates: Partial<Model> = {}
+        if (imageGeneration) updates.imageGeneration = imageGeneration
+        const changed =
+          capabilities.length !== model.capabilities.length ||
+          capabilities.some((c: ModelCapability, i: number) => c !== model.capabilities[i])
+        if (changed) updates.capabilities = capabilities
+        return Object.keys(updates).length > 0 ? { ...model, ...updates } : model
+      } catch (error) {
+        // A registry-lookup failure must not silently strip a model's
+        // imageGeneration / capabilities — log so a real registry/IO fault
+        // is diagnosable rather than masquerading as "model isn't image-gen".
+        logger.warn('Registry enrichment failed; serving model without registry metadata', {
+          providerId: model.providerId,
+          modelId: presetId,
+          error
+        })
+        return model
+      }
+    })
 
     // Post-filter by capability (JSON array column, can't filter in SQL easily)
     if (query.capability !== undefined) {
@@ -505,8 +501,8 @@ class ModelService {
    * soft fallback instead of a thrown not-found error. The caller owns the
    * domain-specific validation message; this method only returns the row.
    */
-  async findByIdTx(tx: Pick<DbType, 'select'>, id: string): Promise<Model | null> {
-    const [row] = await tx.select().from(userModelTable).where(eq(userModelTable.id, id)).limit(1)
+  findByIdTx(tx: Pick<DbType, 'select'>, id: string): Model | null {
+    const [row] = tx.select().from(userModelTable).where(eq(userModelTable.id, id)).limit(1).all()
     return row ? rowToRuntimeModel(row) : null
   }
 
@@ -528,18 +524,16 @@ class ModelService {
    * The `Tx` suffix and tx-first argument match the service-layer convention
    * for methods that may be composed inside another service's transaction.
    */
-  async getNamesByUniqueIdsTx(
-    tx: Pick<DbType, 'select'>,
-    uniqueIds: (string | null | undefined)[]
-  ): Promise<Map<string, string>> {
+  getNamesByUniqueIdsTx(tx: Pick<DbType, 'select'>, uniqueIds: (string | null | undefined)[]): Map<string, string> {
     const result = new Map<string, string>()
     const ids = Array.from(new Set(uniqueIds.filter((id): id is string => typeof id === 'string' && id.length > 0)))
     if (ids.length === 0) return result
 
-    const rows = await tx
+    const rows = tx
       .select({ id: userModelTable.id, name: userModelTable.name })
       .from(userModelTable)
       .where(inArray(userModelTable.id, ids))
+      .all()
 
     for (const row of rows) {
       if (row.name) result.set(row.id, row.name)
@@ -550,14 +544,15 @@ class ModelService {
   /**
    * Get a model by composite key (providerId + modelId)
    */
-  async getByKey(providerId: string, modelId: string): Promise<Model> {
+  getByKey(providerId: string, modelId: string): Model {
     const db = application.get('DbService').getDb()
 
-    const [row] = await db
+    const [row] = db
       .select()
       .from(userModelTable)
       .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
       .limit(1)
+      .all()
 
     if (!row) {
       throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
@@ -585,7 +580,7 @@ class ModelService {
    * the handler can resolve registry metadata without introducing a circular
    * dependency between ModelService and ProviderRegistryService.
    */
-  async create(items: CreateModelInput[]): Promise<Model[]> {
+  create(items: CreateModelInput[]): Model[] {
     if (items.length === 0) return []
     for (const { dto } of items) {
       assertManagedCherryAiDefaultModelMutationAllowed(
@@ -598,16 +593,16 @@ class ModelService {
     const db = application.get('DbService').getDb()
     const values = items.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
 
-    const rows = await withSqliteErrors(
+    const rows = withSqliteErrors(
       () =>
-        db.transaction(async (tx) => {
+        db.transaction((tx) => {
           const results: UserModelRow[] = []
           for (const providerId of new Set(values.map((value) => value.providerId))) {
             const scopedValues = values.filter((value) => value.providerId === providerId)
-            const inserted = (await insertManyWithOrderKey(tx, userModelTable, scopedValues, {
+            const inserted = insertManyWithOrderKey(tx, userModelTable, scopedValues, {
               pkColumn: userModelTable.id,
               scope: eq(userModelTable.providerId, providerId)
-            })) as UserModelRow[]
+            }) as UserModelRow[]
             results.push(...inserted)
           }
           return results
@@ -644,17 +639,18 @@ class ModelService {
   /**
    * Update an existing model
    */
-  async update(providerId: string, modelId: string, dto: UpdateModelDto): Promise<Model> {
+  update(providerId: string, modelId: string, dto: UpdateModelDto): Model {
     assertManagedCherryAiDefaultModelPatchAllowed(providerId, modelId, dto)
 
     const db = application.get('DbService').getDb()
 
     // Fetch existing row (also verifies existence)
-    const [existing] = await db
+    const [existing] = db
       .select()
       .from(userModelTable)
       .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
       .limit(1)
+      .all()
 
     if (!existing) {
       throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
@@ -684,11 +680,12 @@ class ModelService {
       return rowToRuntimeModel(existing)
     }
 
-    const [row] = await db
+    const [row] = db
       .update(userModelTable)
       .set(updates)
       .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
       .returning()
+      .all()
 
     logger.info('Updated model', { providerId, modelId, changes: Object.keys(dto) })
 
@@ -706,7 +703,7 @@ class ModelService {
    *
    * @param items handler-parsed (providerId, modelId, patch) tuples
    */
-  async bulkUpdate(items: Array<{ providerId: string; modelId: string; patch: UpdateModelDto }>): Promise<Model[]> {
+  bulkUpdate(items: Array<{ providerId: string; modelId: string; patch: UpdateModelDto }>): Model[] {
     if (items.length === 0) return []
 
     const db = application.get('DbService').getDb()
@@ -720,15 +717,16 @@ class ModelService {
       return mapping && Array.isArray(mapping) ? mapping[1] : key
     }
 
-    return await db.transaction(async (tx) => {
+    return db.transaction((tx) => {
       const results: Model[] = []
 
       for (const { providerId, modelId, patch } of items) {
-        const [existing] = await tx
+        const [existing] = tx
           .select()
           .from(userModelTable)
           .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
           .limit(1)
+          .all()
 
         if (!existing) {
           throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
@@ -753,11 +751,12 @@ class ModelService {
           continue
         }
 
-        const [row] = await tx
+        const [row] = tx
           .update(userModelTable)
           .set(updates)
           .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
           .returning()
+          .all()
 
         results.push(rowToRuntimeModel(row))
       }
@@ -780,34 +779,32 @@ class ModelService {
    * by a different provider even if it passes a `UniqueModelId` that mentions
    * one. Pins for removed models are purged in the same transaction.
    */
-  async reconcileForProvider(
-    providerId: string,
-    payload: { toAdd: CreateModelInput[]; toRemove: string[] }
-  ): Promise<Model[]> {
+  reconcileForProvider(providerId: string, payload: { toAdd: CreateModelInput[]; toRemove: string[] }): Model[] {
     if (payload.toAdd.length === 0 && payload.toRemove.length === 0) {
       return this.list({ providerId })
     }
 
     const db = application.get('DbService').getDb()
     const values = payload.toAdd.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
-    const removalFilter = await this.filterReconcileRemovals(providerId, payload.toRemove, db)
+    const removalFilter = this.filterReconcileRemovals(providerId, payload.toRemove, db)
     const toRemove = removalFilter.toRemove
 
     let actuallyDeleted = 0
     let deletedIds: string[] = []
-    const rows = await withSqliteErrors(
+    const rows = withSqliteErrors(
       () =>
-        db.transaction(async (tx) => {
+        db.transaction((tx) => {
           if (toRemove.length > 0) {
-            const deletedRows = await tx
+            const deletedRows = tx
               .delete(userModelTable)
               .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, toRemove)))
               .returning({ id: userModelTable.id })
+              .all()
             actuallyDeleted = deletedRows.length
             deletedIds = deletedRows.map((row) => row.id)
 
             if (deletedRows.length > 0) {
-              await pinService.purgeForEntitiesTx(
+              pinService.purgeForEntitiesTx(
                 tx,
                 'model',
                 deletedRows.map((row) => row.id)
@@ -819,18 +816,19 @@ class ModelService {
             // Chunk per-INSERT to stay under SQLite's compound-statement parameter limit.
             const INSERT_CHUNK_SIZE = 500
             for (let offset = 0; offset < values.length; offset += INSERT_CHUNK_SIZE) {
-              await insertManyWithOrderKey(tx, userModelTable, values.slice(offset, offset + INSERT_CHUNK_SIZE), {
+              insertManyWithOrderKey(tx, userModelTable, values.slice(offset, offset + INSERT_CHUNK_SIZE), {
                 pkColumn: userModelTable.id,
                 scope: eq(userModelTable.providerId, providerId)
               })
             }
           }
 
-          return (await tx
+          return tx
             .select()
             .from(userModelTable)
             .where(eq(userModelTable.providerId, providerId))
-            .orderBy(asc(userModelTable.orderKey))) as UserModelRow[]
+            .orderBy(asc(userModelTable.orderKey))
+            .all() as UserModelRow[]
         }),
       createModelsSqliteHandlers(values)
     )
@@ -869,22 +867,23 @@ class ModelService {
   /**
    * Delete a model
    */
-  async delete(providerId: string, modelId: string): Promise<void> {
+  delete(providerId: string, modelId: string): void {
     assertManagedCherryAiDefaultModelMutationAllowed(providerId, modelId, `delete model ${providerId}/${modelId}`)
 
-    await withSqliteErrors(
+    withSqliteErrors(
       () =>
-        application.get('DbService').withWriteTx(async (tx) => {
-          const rows = await tx
+        application.get('DbService').withWriteTx((tx) => {
+          const rows = tx
             .delete(userModelTable)
             .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
             .returning({ id: userModelTable.id })
+            .all()
 
           if (rows.length === 0) {
             throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
           }
 
-          await pinService.purgeForEntityTx(tx, 'model', rows[0].id)
+          pinService.purgeForEntityTx(tx, 'model', rows[0].id)
         }),
       deleteModelsSqliteHandlers(`${providerId}/${modelId}`)
     )
@@ -895,7 +894,7 @@ class ModelService {
   /**
    * Delete multiple models atomically.
    */
-  async bulkDelete(items: { providerId: string; modelId: string }[]): Promise<void> {
+  bulkDelete(items: { providerId: string; modelId: string }[]): void {
     if (items.length === 0) return
 
     const uniqueItems = new Map<string, { providerId: string; modelId: string }>()
@@ -911,16 +910,17 @@ class ModelService {
 
     const ids = [...uniqueItems.keys()]
 
-    await withSqliteErrors(
+    withSqliteErrors(
       () =>
-        application.get('DbService').withWriteTx(async (tx) => {
+        application.get('DbService').withWriteTx((tx) => {
           const existingIds = new Set<string>()
           for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
             const chunk = ids.slice(i, i + SQLITE_INARRAY_CHUNK)
-            const existingRows = await tx
+            const existingRows = tx
               .select({ id: userModelTable.id })
               .from(userModelTable)
               .where(inArray(userModelTable.id, chunk))
+              .all()
             for (const row of existingRows) existingIds.add(row.id)
           }
 
@@ -931,13 +931,14 @@ class ModelService {
 
           for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
             const chunk = ids.slice(i, i + SQLITE_INARRAY_CHUNK)
-            const deletedRows = await tx
+            const deletedRows = tx
               .delete(userModelTable)
               .where(inArray(userModelTable.id, chunk))
               .returning({ id: userModelTable.id })
+              .all()
 
             if (deletedRows.length > 0) {
-              await pinService.purgeForEntitiesTx(
+              pinService.purgeForEntitiesTx(
                 tx,
                 'model',
                 deletedRows.map((row) => row.id)
@@ -959,7 +960,7 @@ class ModelService {
    * Inserts new models, updates existing ones.
    * Respects `userOverrides`: fields the user has explicitly modified are not overwritten.
    */
-  async batchUpsert(models: InsertUserModelRow[]): Promise<void> {
+  batchUpsert(models: InsertUserModelRow[]): void {
     if (models.length === 0) return
     const managedModel = models.find((model) => isManagedCherryAiDefaultModel(model.providerId, model.modelId))
     if (managedModel) {
@@ -974,7 +975,7 @@ class ModelService {
 
     // Pre-fetch existing userOverrides for all affected models
     const providerIds = [...new Set(models.map((m) => m.providerId))]
-    const existingRows = await db
+    const existingRows = db
       .select({
         providerId: userModelTable.providerId,
         modelId: userModelTable.modelId,
@@ -982,6 +983,7 @@ class ModelService {
       })
       .from(userModelTable)
       .where(inArray(userModelTable.providerId, providerIds))
+      .all()
 
     const overridesMap = new Map<string, Set<string>>()
     for (const row of existingRows) {
@@ -990,7 +992,7 @@ class ModelService {
       }
     }
 
-    await db.transaction(async (tx) => {
+    db.transaction((tx) => {
       for (const model of models) {
         const userOverrides = overridesMap.get(`${model.providerId}:${model.modelId}`)
 
@@ -1021,13 +1023,13 @@ class ModelService {
           }
         }
 
-        await tx
-          .insert(userModelTable)
+        tx.insert(userModelTable)
           .values(model)
           .onConflictDoUpdate({
             target: [userModelTable.providerId, userModelTable.modelId],
             set
           })
+          .run()
       }
     })
 

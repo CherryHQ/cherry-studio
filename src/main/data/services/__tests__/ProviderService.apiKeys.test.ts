@@ -97,7 +97,7 @@ describe('ProviderService API keys', () => {
       orderKey: generateOrderKeyBetween(null, null)
     })
 
-    const provider = await providerService.getByProviderId('openai-work')
+    const provider = providerService.getByProviderId('openai-work')
 
     expect(provider.description).toBe('OpenAI - AI model provider')
     expect(provider.websites).toMatchObject({
@@ -296,14 +296,18 @@ describe('ProviderService API keys', () => {
       authConfig: null
     })
 
-    await expect(providerService.getAuthConfig('azure')).resolves.toEqual({
+    expect(providerService.getAuthConfig('azure')).toEqual({
       type: 'iam-azure',
       apiVersion: '2024-02-01'
     })
-    await expect(providerService.getAuthConfig('custom-no-auth')).resolves.toBeNull()
-    await expect(providerService.getAuthConfig('missing-provider')).rejects.toMatchObject({
-      code: ErrorCode.NOT_FOUND
-    })
+    expect(providerService.getAuthConfig('custom-no-auth')).toBeNull()
+    let err: unknown
+    try {
+      providerService.getAuthConfig('missing-provider')
+    } catch (e) {
+      err = e
+    }
+    expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
   })
 
   it('rejects API key mutations for the managed CherryAI provider', async () => {
@@ -332,14 +336,14 @@ describe('ProviderService API keys', () => {
   it('rotates enabled API keys and tolerates missing cached lastUsedKeyId', async () => {
     await seedProvider()
 
-    await expect(providerService.getRotatedApiKey('openai')).resolves.toBe('sk-a')
+    expect(providerService.getRotatedApiKey('openai')).toBe('sk-a')
     expect(MockMainCacheServiceUtils.getCacheValue('settings.provider.openai.last_used_key_id')).toBe('key-a')
 
-    await expect(providerService.getRotatedApiKey('openai')).resolves.toBe('sk-b')
+    expect(providerService.getRotatedApiKey('openai')).toBe('sk-b')
     expect(MockMainCacheServiceUtils.getCacheValue('settings.provider.openai.last_used_key_id')).toBe('key-b')
 
     MockMainCacheServiceUtils.setCacheValue('settings.provider.openai.last_used_key_id', 'deleted-key')
-    await expect(providerService.getRotatedApiKey('openai')).resolves.toBe('sk-a')
+    expect(providerService.getRotatedApiKey('openai')).toBe('sk-a')
     expect(MockMainCacheServiceUtils.getCacheValue('settings.provider.openai.last_used_key_id')).toBe('key-a')
   })
 
@@ -363,7 +367,7 @@ describe('ProviderService API keys', () => {
       ]
     })
 
-    await expect(providerService.getRotatedApiKey('single-enabled')).resolves.toBe('sk-only')
-    await expect(providerService.getRotatedApiKey('all-disabled')).resolves.toBe('')
+    expect(providerService.getRotatedApiKey('single-enabled')).toBe('sk-only')
+    expect(providerService.getRotatedApiKey('all-disabled')).toBe('')
   })
 })

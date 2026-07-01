@@ -75,8 +75,8 @@ describe('PaintingService', () => {
   }
 
   it('assigns global order keys when creating paintings and inserts new items first', async () => {
-    const first = await paintingService.create(p({ providerId: 'aihubmix', prompt: 'first' }))
-    const second = await paintingService.create(p({ providerId: 'aihubmix', prompt: 'second' }))
+    const first = paintingService.create(p({ providerId: 'aihubmix', prompt: 'first' }))
+    const second = paintingService.create(p({ providerId: 'aihubmix', prompt: 'second' }))
 
     expect(first.orderKey).toBeTruthy()
     expect(first.orderKey > second.orderKey).toBe(true)
@@ -86,8 +86,8 @@ describe('PaintingService', () => {
   })
 
   it('uses one global order sequence across providers and modes', async () => {
-    const generate = await paintingService.create(p({ providerId: 'aihubmix', prompt: 'generate' }))
-    const edit = await paintingService.create(p({ providerId: 'aihubmix', prompt: 'edit' }))
+    const generate = paintingService.create(p({ providerId: 'aihubmix', prompt: 'generate' }))
+    const edit = paintingService.create(p({ providerId: 'aihubmix', prompt: 'edit' }))
 
     expect(generate.orderKey > edit.orderKey).toBe(true)
 
@@ -96,10 +96,10 @@ describe('PaintingService', () => {
   })
 
   it('filters paintings by providerId', async () => {
-    const aihub = await paintingService.create(p({ providerId: 'aihubmix', prompt: 'aihub' }))
-    await paintingService.create(p({ providerId: 'dmxapi', prompt: 'dmxapi' }))
+    const aihub = paintingService.create(p({ providerId: 'aihubmix', prompt: 'aihub' }))
+    paintingService.create(p({ providerId: 'dmxapi', prompt: 'dmxapi' }))
 
-    const result = await paintingService.list({
+    const result = paintingService.list({
       providerId: 'aihubmix',
       limit: 20
     })
@@ -109,10 +109,10 @@ describe('PaintingService', () => {
   })
 
   it('lists all paintings without filters', async () => {
-    const first = await paintingService.create(p({ providerId: 'aihubmix', prompt: 'first' }))
-    const second = await paintingService.create(p({ providerId: 'dmxapi', prompt: 'second' }))
+    const first = paintingService.create(p({ providerId: 'aihubmix', prompt: 'first' }))
+    const second = paintingService.create(p({ providerId: 'dmxapi', prompt: 'second' }))
 
-    const result = await paintingService.list({ limit: 20 })
+    const result = paintingService.list({ limit: 20 })
 
     expect(result.items.map((item) => item.id)).toEqual([second.id, first.id])
     expect(result.total).toBe(2)
@@ -121,7 +121,7 @@ describe('PaintingService', () => {
 
   it('declares nullable model references for painting history', async () => {
     const modelId = await insertModel()
-    const painting = await paintingService.create(p({ providerId: 'aihubmix', modelId, prompt: 'with model' }))
+    const painting = paintingService.create(p({ providerId: 'aihubmix', modelId, prompt: 'with model' }))
 
     await dbh.db.delete(userModelTable).where(eq(userModelTable.id, modelId))
 
@@ -131,29 +131,29 @@ describe('PaintingService', () => {
 
   it('preserves model id regardless of whether it exists in user_model', async () => {
     const modelId = createUniqueModelId('aihubmix', 'missing-model')
-    const painting = await paintingService.create(p({ providerId: 'aihubmix', modelId, prompt: 'unknown model' }))
+    const painting = paintingService.create(p({ providerId: 'aihubmix', modelId, prompt: 'unknown model' }))
 
     expect(painting.modelId).toBe(modelId)
   })
 
   it('clears stale model reference when provider changes without an explicit model', async () => {
     const modelId = await insertModel('aihubmix', 'gpt-image-1')
-    const painting = await paintingService.create(p({ providerId: 'aihubmix', modelId, prompt: 'with model' }))
+    const painting = paintingService.create(p({ providerId: 'aihubmix', modelId, prompt: 'with model' }))
 
-    const updated = await paintingService.update(painting.id, { providerId: 'zhipu' })
+    const updated = paintingService.update(painting.id, { providerId: 'zhipu' })
 
     expect(updated.providerId).toBe('zhipu')
     expect(updated.modelId).toBeNull()
   })
 
   it("moves a painting to the first position via { position: 'first' }", async () => {
-    const first = await paintingService.create(p({ providerId: 'aihubmix', prompt: 'first' }))
-    const second = await paintingService.create(p({ providerId: 'aihubmix', prompt: 'second' }))
-    const third = await paintingService.create(p({ providerId: 'aihubmix', prompt: 'third' }))
+    const first = paintingService.create(p({ providerId: 'aihubmix', prompt: 'first' }))
+    const second = paintingService.create(p({ providerId: 'aihubmix', prompt: 'second' }))
+    const third = paintingService.create(p({ providerId: 'aihubmix', prompt: 'third' }))
 
-    await paintingService.reorder(first.id, { position: 'first' })
+    paintingService.reorder(first.id, { position: 'first' })
 
-    const result = await paintingService.list({
+    const result = paintingService.list({
       providerId: 'aihubmix',
       limit: 20
     })
@@ -161,12 +161,12 @@ describe('PaintingService', () => {
   })
 
   it('paginates painting history with cursors', async () => {
-    const first = await paintingService.create(p({ providerId: 'aihubmix', prompt: 'first' }))
-    const second = await paintingService.create(p({ providerId: 'aihubmix', prompt: 'second' }))
-    const third = await paintingService.create(p({ providerId: 'aihubmix', prompt: 'third' }))
+    const first = paintingService.create(p({ providerId: 'aihubmix', prompt: 'first' }))
+    const second = paintingService.create(p({ providerId: 'aihubmix', prompt: 'second' }))
+    const third = paintingService.create(p({ providerId: 'aihubmix', prompt: 'third' }))
 
-    const page1 = await paintingService.list({ providerId: 'aihubmix', limit: 2 })
-    const page2 = await paintingService.list({
+    const page1 = paintingService.list({ providerId: 'aihubmix', limit: 2 })
+    const page2 = paintingService.list({
       providerId: 'aihubmix',
       limit: 2,
       cursor: page1.nextCursor
@@ -190,31 +190,31 @@ describe('PaintingService', () => {
       { id: 'collide-2', providerId: 'aihubmix', prompt: 'second', orderKey: 'a0' }
     ])
 
-    const page1 = await paintingService.list({ providerId: 'aihubmix', limit: 1 })
+    const page1 = paintingService.list({ providerId: 'aihubmix', limit: 1 })
     expect(page1.items.map((item) => item.id)).toEqual(['collide-1'])
     expect(page1.nextCursor).toBe('a0:collide-1')
 
-    const page2 = await paintingService.list({ providerId: 'aihubmix', limit: 1, cursor: page1.nextCursor })
+    const page2 = paintingService.list({ providerId: 'aihubmix', limit: 1, cursor: page1.nextCursor })
     expect(page2.items.map((item) => item.id)).toEqual(['collide-2'])
     expect(page2.nextCursor).toBeUndefined()
   })
 
   it('allows anchors across providers and modes', async () => {
-    const generate = await paintingService.create(p({ providerId: 'aihubmix', prompt: 'generate' }))
-    const edit = await paintingService.create(p({ providerId: 'aihubmix', prompt: 'edit' }))
+    const generate = paintingService.create(p({ providerId: 'aihubmix', prompt: 'generate' }))
+    const edit = paintingService.create(p({ providerId: 'aihubmix', prompt: 'edit' }))
 
-    await paintingService.reorder(generate.id, { after: edit.id })
+    paintingService.reorder(generate.id, { after: edit.id })
 
     const rows = await dbh.db.select().from(paintingTable).orderBy(asc(paintingTable.orderKey))
     expect(rows.map((row) => row.id)).toEqual([edit.id, generate.id])
   })
 
   it('applies batch moves against the global order', async () => {
-    const first = await paintingService.create(p({ providerId: 'aihubmix', prompt: 'first' }))
-    const second = await paintingService.create(p({ providerId: 'aihubmix', prompt: 'second' }))
-    const third = await paintingService.create(p({ providerId: 'dmxapi', prompt: 'third' }))
+    const first = paintingService.create(p({ providerId: 'aihubmix', prompt: 'first' }))
+    const second = paintingService.create(p({ providerId: 'aihubmix', prompt: 'second' }))
+    const third = paintingService.create(p({ providerId: 'dmxapi', prompt: 'third' }))
 
-    await paintingService.reorderBatch([
+    paintingService.reorderBatch([
       { id: third.id, anchor: { position: 'first' } },
       { id: first.id, anchor: { after: third.id } }
     ])
@@ -226,11 +226,11 @@ describe('PaintingService', () => {
   it('routes painting writes through DbService.withWriteTx', async () => {
     const before = MockMainDbServiceUtils.getMockCallCounts().withWriteTx
 
-    const painting = await paintingService.create(p({ providerId: 'aihubmix', prompt: 'serialized writes' }))
-    await paintingService.update(painting.id, { prompt: 'updated' })
-    await paintingService.reorder(painting.id, { position: 'first' })
-    await paintingService.reorderBatch([{ id: painting.id, anchor: { position: 'last' } }])
-    await paintingService.delete(painting.id)
+    const painting = paintingService.create(p({ providerId: 'aihubmix', prompt: 'serialized writes' }))
+    paintingService.update(painting.id, { prompt: 'updated' })
+    paintingService.reorder(painting.id, { position: 'first' })
+    paintingService.reorderBatch([{ id: painting.id, anchor: { position: 'last' } }])
+    paintingService.delete(painting.id)
 
     expect(MockMainDbServiceUtils.getMockCallCounts().withWriteTx - before).toBe(5)
   })
@@ -242,7 +242,7 @@ describe('PaintingService', () => {
       await seedFileEntry(outputId)
       await seedFileEntry(inputId)
 
-      const painting = await paintingService.create(
+      const painting = paintingService.create(
         p({ providerId: 'aihubmix', prompt: 'with files', files: { output: [outputId], input: [inputId] } })
       )
 
@@ -251,7 +251,7 @@ describe('PaintingService', () => {
         expect.objectContaining({ fileEntryId: inputId, sourceId: painting.id, role: 'input' }),
         expect.objectContaining({ fileEntryId: outputId, sourceId: painting.id, role: 'output' })
       ])
-      await expect(paintingService.getById(painting.id)).resolves.toMatchObject({
+      expect(paintingService.getById(painting.id)).toMatchObject({
         files: { output: [outputId], input: [inputId] }
       })
     })
@@ -264,11 +264,11 @@ describe('PaintingService', () => {
       for (const id of [oldOutputId, oldInputId, newOutputId, newInputId]) {
         await seedFileEntry(id)
       }
-      const painting = await paintingService.create(
+      const painting = paintingService.create(
         p({ providerId: 'aihubmix', prompt: 'old files', files: { output: [oldOutputId], input: [oldInputId] } })
       )
 
-      const updated = await paintingService.update(painting.id, {
+      const updated = paintingService.update(painting.id, {
         files: { output: [newOutputId], input: [newInputId] }
       })
 
@@ -277,7 +277,7 @@ describe('PaintingService', () => {
         expect.objectContaining({ fileEntryId: newInputId, sourceId: painting.id, role: 'input' }),
         expect.objectContaining({ fileEntryId: newOutputId, sourceId: painting.id, role: 'output' })
       ])
-      expect(await paintingService.getById(painting.id)).toMatchObject({
+      expect(paintingService.getById(painting.id)).toMatchObject({
         files: { output: [newOutputId], input: [newInputId] }
       })
     })
@@ -288,7 +288,7 @@ describe('PaintingService', () => {
       const missingInputId = '019606a0-0000-7000-8000-00000000c303'
       await seedFileEntry(existingOutputId)
 
-      const painting = await paintingService.create(
+      const painting = paintingService.create(
         p({
           providerId: 'aihubmix',
           prompt: 'dangling files',
@@ -318,7 +318,7 @@ describe('PaintingService', () => {
 
     it('removes the painting row and its file refs in one go', async () => {
       const fileEntryId = '019606a0-0000-7000-8000-111111111111'
-      const painting = await paintingService.create(p({ providerId: 'aihubmix', prompt: 'd1' }))
+      const painting = paintingService.create(p({ providerId: 'aihubmix', prompt: 'd1' }))
       await seedFileEntry(fileEntryId)
       const now = Date.now()
       await dbh.db.insert(paintingFileRefTable).values([
@@ -326,16 +326,16 @@ describe('PaintingService', () => {
         { fileEntryId, sourceId: painting.id, role: 'input', createdAt: now, updatedAt: now }
       ])
 
-      await paintingService.delete(painting.id)
+      paintingService.delete(painting.id)
 
       expect(await paintingExists(painting.id)).toBe(false)
-      expect(await fileRefService.findBySource({ sourceType: 'painting', sourceId: painting.id })).toEqual([])
+      expect(fileRefService.findBySource({ sourceType: 'painting', sourceId: painting.id })).toEqual([])
     })
 
     it('succeeds when the painting has no file refs (today’s real path)', async () => {
-      const painting = await paintingService.create(p({ providerId: 'aihubmix', prompt: 'd3' }))
+      const painting = paintingService.create(p({ providerId: 'aihubmix', prompt: 'd3' }))
 
-      await expect(paintingService.delete(painting.id)).resolves.toBeUndefined()
+      expect(paintingService.delete(painting.id)).toBeUndefined()
       expect(await paintingExists(painting.id)).toBe(false)
     })
   })

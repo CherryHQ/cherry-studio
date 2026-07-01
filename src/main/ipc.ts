@@ -488,7 +488,7 @@ export async function registerIpc() {
       ) {
         return { success: false, error: 'Invalid toggle options' }
       }
-      const data = await skillService.toggle(options)
+      const data = skillService.toggle(options)
       return { success: true, data }
     } catch (error) {
       logger.error('Failed to toggle skill', { options, error })

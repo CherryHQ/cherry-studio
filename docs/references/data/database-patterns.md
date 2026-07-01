@@ -348,15 +348,22 @@ For initial data population (default preferences, builtin languages, preset prov
 
 ## Write Serialization (`DbService.withWriteTx`)
 
-Concurrent write paths MUST go through `application.get('DbService').withWriteTx(fn)`. libsql client-ts upstream issue [#288](https://github.com/tursodatabase/libsql-client-ts/issues/288) makes `PRAGMA busy_timeout` ineffective for async transactions, so concurrent `db.transaction()` calls reliably surface `SQLITE_BUSY`.
+`application.get('DbService').withWriteTx(fn)` runs `fn` as one synchronous `BEGIN IMMEDIATE` transaction on the single persistent connection.
+
+**Required vs optional.** With better-sqlite3 every statement is atomic on its own — a lone `getDb().insert(...).run()` is a complete implicit transaction and needs no wrapper. `withWriteTx` earns its keep only when a mutation must commit **all-or-nothing across more than one statement**:
+
+- **MUST use** when composing multiple writes, or a read-then-write (validate/select then insert/update/delete), into one atomic unit — the majority of write paths here (create/update/delete that also touch join tables, purge pins/tags, reorder via neighbour reads, or cascade-delete).
+- **Optional** for a single autocommit write. Routing it through `withWriteTx` buys nothing for atomicity; use it only to keep the two-form DAO surface uniform (a thin wrapper delegating to a `*Tx` method), so the same `*Tx` can later be composed into a larger transaction.
+
+`withWriteTx` is **not** the readiness gate: `getDb()` already throws when the DB isn't ready, so single writes made outside `withWriteTx` are still guarded. The single synchronous connection serializes all access, so there is no process-wide mutex and no `SQLITE_BUSY` retry — the libsql-era serialization this wrapper originally existed for (upstream #288) is gone.
 
 ### Signature
 
 ```ts
-withWriteTx<T>(fn: (tx: DbOrTx) => Promise<T>): Promise<T>
+withWriteTx<T>(fn: (tx: DbOrTx) => T): T
 ```
 
-Internals: process-wide FIFO mutex + libsql's default `BEGIN IMMEDIATE` + single 50 ms `SQLITE_BUSY` retry. Callers never see BUSY (unless the retry also fails — extremely rare).
+`fn` must be **synchronous** — better-sqlite3 rejects a Promise-returning transaction callback. Internals: one synchronous `BEGIN IMMEDIATE` transaction behind the `isReady` guard; the single connection serializes all access, so callers never contend.
 
 ### Usage
 
@@ -364,14 +371,14 @@ Internals: process-wide FIFO mutex + libsql's default `BEGIN IMMEDIATE` + single
 const dbService = application.get('DbService')
 
 // Single write
-await dbService.withWriteTx((tx) =>
+dbService.withWriteTx((tx) =>
   jobService.setMetadataTx(tx, jobId, merged)
 )
 
 // Compose multiple writes into one transaction
-await dbService.withWriteTx(async (tx) => {
-  await jobService.cancelByIdsTx(tx, ids, error)
-  await jobService.resetToPendingByIdsTx(tx, otherIds)
+dbService.withWriteTx((tx) => {
+  jobService.cancelByIdsTx(tx, ids, error)
+  jobService.resetToPendingByIdsTx(tx, otherIds)
 })
 ```
 
@@ -380,9 +387,9 @@ await dbService.withWriteTx(async (tx) => {
 Each write method has a composable `*Tx` form and a thin non-Tx wrapper. Simple callers use the wrapper and never see `withWriteTx`; batch/recovery paths compose `*Tx` calls inside a single `withWriteTx`. See `JobService` / `JobScheduleService` for canonical examples.
 
 ```ts
-async cancelByIdsTx(tx: DbOrTx, ids: string[], error: JobError): Promise<void> { /* SQL via tx */ }
+cancelByIdsTx(tx: DbOrTx, ids: string[], error: JobError): void { /* SQL via tx */ }
 
-async cancelByIds(ids: string[], error: JobError): Promise<void> {
+cancelByIds(ids: string[], error: JobError): void {
   const dbService = application.get('DbService')
   return dbService.withWriteTx((tx) => this.cancelByIdsTx(tx, ids, error))
 }
@@ -392,17 +399,17 @@ async cancelByIds(ids: string[], error: JobError): Promise<void> {
 
 | Rule | Rationale |
 | --- | --- |
-| `fn` must only do DB ops — no `await` on network / file IO / handler execution | Holds the global write mutex; long awaits starve the queue |
-| Do not call `writeMutex.cancel()` | Mutex is non-cancellable; shutdown coordinates via service lifecycle |
+| `fn` must be synchronous and only do DB ops — no network / file IO / handler execution | better-sqlite3 rejects a Promise-returning callback; the transaction blocks the single connection until `fn` returns |
 | Do not wrap reads | WAL mode gives readers snapshot isolation; wrapping adds needless serialization |
-| Wrap tight loops in one `withWriteTx`, not per-iteration | One acquire/release vs N |
+| Don't wrap a single autocommit write for atomicity | one statement is already an implicit transaction; wrap only to keep the two-form DAO surface uniform |
+| Wrap tight loops in one `withWriteTx`, not per-iteration | One `BEGIN IMMEDIATE` transaction vs N |
 
 ### When to migrate existing callsites
 
 | Path | Action |
 | --- | --- |
-| Concurrent write paths in hot code | Migrate |
-| Low-frequency writes (user settings, occasional CRUD) | Migrate when touching the code |
+| Multi-statement / read-then-write mutations | Wrap in `withWriteTx` |
+| Single-statement writes | Optional — wrap only for two-form DAO uniformity |
 | Boot-only writes (migrations, seeders) | Leave |
 | Pure reads | Leave |
 

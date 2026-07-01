@@ -12,7 +12,7 @@ import { DEFAULT_VERTEX_MODEL_PUBLISHERS } from '../listModels/vertex'
 // and provider-utils' getFromApi to capture the exact { url, headers } passed.
 const { getRotatedApiKeyMock, getAuthConfigMock, getAuthHeadersMock, getCopilotTokenMock, aiSdkGetFromApiMock } =
   vi.hoisted(() => ({
-    getRotatedApiKeyMock: vi.fn<(providerId: string) => Promise<string>>(),
+    getRotatedApiKeyMock: vi.fn<(providerId: string) => string>(),
     getAuthConfigMock: vi.fn(),
     getAuthHeadersMock: vi.fn(),
     getCopilotTokenMock: vi.fn(),
@@ -51,7 +51,7 @@ const { listModels } = await import('../listModels')
 
 beforeEach(() => {
   vi.clearAllMocks()
-  getRotatedApiKeyMock.mockResolvedValue('AIza-secret-key')
+  getRotatedApiKeyMock.mockReturnValue('AIza-secret-key')
   getCopilotTokenMock.mockResolvedValue({ token: 'copilot-token' })
   // listModels' getFromApi wrapper reads `value` off the provider-utils result.
   aiSdkGetFromApiMock.mockResolvedValue({
@@ -319,7 +319,7 @@ describe('listModels — vertexFetcher (per-publisher pagination)', () => {
   }
 
   beforeEach(() => {
-    getAuthConfigMock.mockResolvedValue({
+    getAuthConfigMock.mockReturnValue({
       type: 'iam-gcp',
       project: 'my-project',
       location: 'us-central1',
@@ -384,7 +384,7 @@ describe('listModels — vertexFetcher (per-publisher pagination)', () => {
   })
 
   it('returns [] when the provider is not configured with iam-gcp auth', async () => {
-    getAuthConfigMock.mockResolvedValue(null)
+    getAuthConfigMock.mockReturnValue(null)
 
     const models = await listModels(makeVertexProvider())
 

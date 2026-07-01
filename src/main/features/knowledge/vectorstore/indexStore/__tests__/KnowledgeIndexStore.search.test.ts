@@ -4,23 +4,23 @@ import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { type BetterSqlite3Driver, openBetterSqlite3IndexDriver } from '../BetterSqlite3Driver'
+import { betterSqlite3VectorIndex } from '../BetterSqlite3VectorIndex'
 import { needsLikeFallback } from '../ftsQuery'
 import { hashEmbeddingText } from '../hashing'
 import { KnowledgeIndexStore } from '../KnowledgeIndexStore'
-import { type LibsqlDriver, openLibsqlIndexDriver } from '../LibsqlDriver'
-import { libsqlVectorIndex } from '../LibsqlVectorIndex'
 import { createKnowledgeIndexSchema } from '../schema'
 
 describe('KnowledgeIndexStore.search', () => {
   let tempDir: string
-  let driver: LibsqlDriver
+  let driver: BetterSqlite3Driver
   let store: KnowledgeIndexStore
 
   beforeEach(async () => {
     tempDir = mkdtempSync(join(tmpdir(), 'cs-knowledge-search-'))
-    driver = await openLibsqlIndexDriver(join(tempDir, 'index.sqlite'))
+    driver = await openBetterSqlite3IndexDriver(join(tempDir, 'index.sqlite'))
     await createKnowledgeIndexSchema(driver)
-    store = new KnowledgeIndexStore(driver, libsqlVectorIndex)
+    store = new KnowledgeIndexStore(driver, betterSqlite3VectorIndex)
   })
 
   afterEach(async () => {
@@ -49,9 +49,10 @@ describe('KnowledgeIndexStore.search', () => {
 
   it('vector mode drops a degenerate zero-norm embedding instead of ranking it first', async () => {
     await indexMaterial('m1', 'a.md', 'apple pie', [1, 0, 0])
-    // A zero vector has undefined cosine distance (libsql returns NULL). Without the
-    // `dist IS NOT NULL` guard it sorts first under `ORDER BY dist` and scores a perfect
-    // `1 - Number(null) = 1`, outranking the real hit — so it must be excluded entirely.
+    // A zero vector has undefined cosine distance (sqlite-vec returns NaN, coerced to
+    // NULL). Without the `dist IS NOT NULL` guard it sorts first under `ORDER BY dist`
+    // and scores a perfect `1 - Number(null) = 1`, outranking the real hit — so it must
+    // be excluded entirely.
     await indexMaterial('m2', 'b.md', 'banana bread', [0, 0, 0])
 
     const matches = await store.search({ queryText: '', queryEmbedding: [1, 1, 0], mode: 'vector', topK: 10 })

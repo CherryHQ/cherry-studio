@@ -189,7 +189,7 @@ export class ChannelMessageHandler {
         logger.error('Channel message hit an orphan session', { sessionId: session.id })
         return
       }
-      const agent = await agentService.getAgent(session.agentId)
+      const agent = agentService.getAgent(session.agentId)
       if (!agent) {
         logger.error('Agent not found for session', { sessionId: session.id, agentId: session.agentId })
         return
@@ -313,8 +313,8 @@ export class ChannelMessageHandler {
         case 'new': {
           // TODO(channel-perm-override): channel.permissionMode no longer
           // applied here — config lives on agent now. Tracked separately.
-          const newSession = await this.createSessionForChannel(agentId, adapter.channelId)
-          await channelService.updateChannel(adapter.channelId, { sessionId: newSession.id })
+          const newSession = this.createSessionForChannel(agentId, adapter.channelId)
+          channelService.updateChannel(adapter.channelId, { sessionId: newSession.id })
           const trackerKey = `${agentId}:${adapter.channelId}:${command.chatId}`
           this.sessionTracker.set(trackerKey, newSession.id)
           this.evictSessionTracker()
@@ -353,7 +353,7 @@ export class ChannelMessageHandler {
           break
         }
         case 'help': {
-          const agent = await agentService.getAgent(agentId)
+          const agent = agentService.getAgent(agentId)
           const name = agent?.name ?? 'CherryClaw'
           const description = agent?.description ?? ''
           const helpText = [
@@ -486,20 +486,26 @@ export class ChannelMessageHandler {
     _chatId: string,
     trackerKey: string
   ): Promise<AgentSessionEntity | null> {
-    const channelRow = await channelService.getChannel(channelId)
-    const lookup = async (sessionId: string) => agentSessionService.getById(sessionId).catch(() => null)
+    const channelRow = channelService.getChannel(channelId)
+    const lookup = (sessionId: string) => {
+      try {
+        return agentSessionService.getById(sessionId)
+      } catch {
+        return null
+      }
+    }
 
     // Check tracker first
     const trackedId = this.sessionTracker.get(trackerKey)
     if (trackedId) {
-      const session = await lookup(trackedId)
+      const session = lookup(trackedId)
       if (session && session.agentId === agentId) {
         if (channelRow && channelRow.sessionId !== session.id) {
-          channelService
-            .updateChannel(channelId, { sessionId: session.id })
-            .catch((err) =>
-              logger.warn('Failed to sync channel-session link', err instanceof Error ? err : new Error(String(err)))
-            )
+          try {
+            channelService.updateChannel(channelId, { sessionId: session.id })
+          } catch (err) {
+            logger.warn('Failed to sync channel-session link', err instanceof Error ? err : new Error(String(err)))
+          }
         }
         return session
       }
@@ -508,7 +514,7 @@ export class ChannelMessageHandler {
 
     // Look up existing session via channel's session_id
     if (channelRow?.sessionId) {
-      const existingSession = await lookup(channelRow.sessionId)
+      const existingSession = lookup(channelRow.sessionId)
       if (existingSession && existingSession.agentId === agentId) {
         this.sessionTracker.set(trackerKey, existingSession.id)
         this.evictSessionTracker()
@@ -524,23 +530,23 @@ export class ChannelMessageHandler {
       trackerKey
     })
 
-    const newSession = await this.createSessionForChannel(agentId, channelId, channelRow ?? undefined)
-    await channelService.updateChannel(channelId, { sessionId: newSession.id })
+    const newSession = this.createSessionForChannel(agentId, channelId, channelRow ?? undefined)
+    channelService.updateChannel(channelId, { sessionId: newSession.id })
     this.sessionTracker.set(trackerKey, newSession.id)
     this.evictSessionTracker()
     return newSession
   }
 
-  private async createSessionForChannel(
+  private createSessionForChannel(
     agentId: string,
     channelId: string,
     channel?: NonNullable<Awaited<ReturnType<typeof channelService.getChannel>>>
-  ): Promise<AgentSessionEntity> {
-    const channelRow = channel ?? (await channelService.getChannel(channelId))
+  ): AgentSessionEntity {
+    const channelRow = channel ?? channelService.getChannel(channelId)
     if (!channelRow) {
       throw new Error(`Channel not found: ${channelId}`)
     }
-    return await agentSessionService.create({
+    return agentSessionService.create({
       agentId,
       name: 'Channel session',
       workspace: channelRow.workspace

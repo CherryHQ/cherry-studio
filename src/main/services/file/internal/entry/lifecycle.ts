@@ -26,16 +26,16 @@ import type { FileManagerDeps } from '../deps'
 
 const logger = loggerService.withContext('internal/entry/lifecycle')
 
-async function trashTx(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId): Promise<void> {
-  await deps.fileEntryService.updateTx(tx, id, { deletedAt: Date.now() })
+function trashTx(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId): void {
+  deps.fileEntryService.updateTx(tx, id, { deletedAt: Date.now() })
 }
 
-export async function trash(deps: FileManagerDeps, id: FileEntryId): Promise<void> {
-  await deps.fileEntryService.withWriteTx((tx) => trashTx(deps, tx, id))
+export function trash(deps: FileManagerDeps, id: FileEntryId): void {
+  deps.fileEntryService.withWriteTx((tx) => trashTx(deps, tx, id))
 }
 
-async function restoreTx(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId): Promise<FileEntry> {
-  const entry = await deps.fileEntryService.getByIdTx(tx, id)
+function restoreTx(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId): FileEntry {
+  const entry = deps.fileEntryService.getByIdTx(tx, id)
   if (entry.origin === 'external') {
     throw new Error(`restore: external entry ${id} cannot be trashed by definition; nothing to restore`)
   }
@@ -46,9 +46,9 @@ export async function restore(deps: FileManagerDeps, id: FileEntryId): Promise<F
   return deps.fileEntryService.withWriteTx((tx) => restoreTx(deps, tx, id))
 }
 
-async function permanentDeleteTx(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId): Promise<FileEntry> {
-  const entry = await deps.fileEntryService.getByIdTx(tx, id)
-  await deps.fileEntryService.deleteTx(tx, id)
+function permanentDeleteTx(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId): FileEntry {
+  const entry = deps.fileEntryService.getByIdTx(tx, id)
+  deps.fileEntryService.deleteTx(tx, id)
   return entry
 }
 
@@ -77,21 +77,21 @@ async function cleanupDeletedEntry(deps: FileManagerDeps, entry: FileEntry): Pro
 }
 
 export async function permanentDelete(deps: FileManagerDeps, id: FileEntryId): Promise<void> {
-  const entry = await deps.fileEntryService.withWriteTx((tx) => permanentDeleteTx(deps, tx, id))
+  const entry = deps.fileEntryService.withWriteTx((tx) => permanentDeleteTx(deps, tx, id))
   await cleanupDeletedEntry(deps, entry)
 }
 
-async function aggregateWriteTx<T>(
+function aggregateWriteTx<T>(
   deps: FileManagerDeps,
   ids: readonly FileEntryId[],
-  op: (tx: DbOrTx, id: FileEntryId) => Promise<T>
-): Promise<BatchMutationResult> {
+  op: (tx: DbOrTx, id: FileEntryId) => T
+): BatchMutationResult {
   const succeeded: FileEntryId[] = []
   const failed: BatchMutationResult['failed'] = []
-  await deps.fileEntryService.withWriteTx(async (tx) => {
+  deps.fileEntryService.withWriteTx((tx) => {
     for (const id of ids) {
       try {
-        await op(tx, id)
+        op(tx, id)
         succeeded.push(id)
       } catch (err) {
         // Wire format only carries `.message` (string), so the stack is lost in
@@ -105,11 +105,11 @@ async function aggregateWriteTx<T>(
   return { succeeded, failed }
 }
 
-export function batchTrash(deps: FileManagerDeps, ids: readonly FileEntryId[]): Promise<BatchMutationResult> {
+export function batchTrash(deps: FileManagerDeps, ids: readonly FileEntryId[]): BatchMutationResult {
   return aggregateWriteTx(deps, ids, (tx, id) => trashTx(deps, tx, id))
 }
 
-export function batchRestore(deps: FileManagerDeps, ids: readonly FileEntryId[]): Promise<BatchMutationResult> {
+export function batchRestore(deps: FileManagerDeps, ids: readonly FileEntryId[]): BatchMutationResult {
   return aggregateWriteTx(deps, ids, (tx, id) => restoreTx(deps, tx, id))
 }
 
@@ -118,8 +118,8 @@ export async function batchPermanentDelete(
   ids: readonly FileEntryId[]
 ): Promise<BatchMutationResult> {
   const deletedEntries: FileEntry[] = []
-  const result = await aggregateWriteTx(deps, ids, async (tx, id) => {
-    const entry = await permanentDeleteTx(deps, tx, id)
+  const result = aggregateWriteTx(deps, ids, (tx, id) => {
+    const entry = permanentDeleteTx(deps, tx, id)
     deletedEntries.push(entry)
   })
   for (const entry of deletedEntries) {
