@@ -1,4 +1,5 @@
 import type { Topic } from '@renderer/types'
+import type { BranchAnchor as PersistedBranchAnchorDto } from '@shared/data/types/branchAnchor'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -49,9 +50,32 @@ function makeBranch(overrides: Partial<Branch> = {}): Branch {
   }
 }
 
-function renderPersistence(branches: Branch[]) {
+function makePersistedAnchorDto(overrides: Partial<PersistedBranchAnchorDto> = {}): PersistedBranchAnchorDto {
+  return {
+    id: 'anchor-1',
+    parentTopicId: 'parent-topic-1',
+    branchTopicId: 'branch-topic-1',
+    messageId: 'message-1',
+    blockId: 'block-1',
+    selectedText: 'selected text',
+    selectionStart: 2,
+    selectionEnd: 15,
+    disposition: 'kept',
+    summary: null,
+    summaryUpdatedAt: null,
+    createdAt: '2026-07-01T00:00:00.000Z',
+    updatedAt: '2026-07-01T00:00:00.000Z',
+    ...overrides
+  }
+}
+
+function renderPersistence(
+  branches: Branch[],
+  callbacks: Pick<Parameters<typeof useBranchAnchorPersistence>[0], 'onAnchorCreated' | 'onAnchorDeleted'> = {}
+) {
   return renderHook(
-    ({ currentBranches }) => useBranchAnchorPersistence({ parentTopicId: 'parent-topic-1', branches: currentBranches }),
+    ({ currentBranches }) =>
+      useBranchAnchorPersistence({ parentTopicId: 'parent-topic-1', branches: currentBranches, ...callbacks }),
     { initialProps: { currentBranches: branches } }
   )
 }
@@ -100,6 +124,16 @@ describe('useBranchAnchorPersistence (P2 Step 2A)', () => {
     })
   })
 
+  it('calls onAnchorCreated with the POST response after create succeeds', async () => {
+    const onAnchorCreated = vi.fn()
+    const createdAnchor = makePersistedAnchorDto({ id: 'anchor-created' })
+    mocks.createBranchAnchor.mockResolvedValueOnce(createdAnchor)
+
+    renderPersistence([makeBranch()], { onAnchorCreated })
+
+    await waitFor(() => expect(onAnchorCreated).toHaveBeenCalledExactlyOnceWith(createdAnchor))
+  })
+
   it('handles keep-before-fork: waits until the branch topic exists', async () => {
     const keptComposeBranch = makeBranch({ topic: null, disposition: 'kept' })
     const { rerender } = renderPersistence([keptComposeBranch])
@@ -146,6 +180,18 @@ describe('useBranchAnchorPersistence (P2 Step 2A)', () => {
     expect(mocks.deleteBranchAnchor).toHaveBeenCalledWith({ params: { id: 'anchor-1' } })
   })
 
+  it('calls onAnchorDeleted after DELETE succeeds', async () => {
+    const onAnchorDeleted = vi.fn()
+    const keptBranch = makeBranch({ disposition: 'kept' })
+    const { rerender } = renderPersistence([keptBranch], { onAnchorDeleted })
+
+    await waitFor(() => expect(mocks.createBranchAnchor).toHaveBeenCalledTimes(1))
+
+    rerender({ currentBranches: [{ ...keptBranch, disposition: 'pending' }] })
+
+    await waitFor(() => expect(onAnchorDeleted).toHaveBeenCalledExactlyOnceWith('anchor-1'))
+  })
+
   it('allows the same branchTopicId to create a new anchor after successful unkeep cleanup', async () => {
     const keptBranch = makeBranch({ disposition: 'kept' })
     mocks.createBranchAnchor.mockResolvedValueOnce({ id: 'anchor-1' }).mockResolvedValueOnce({ id: 'anchor-2' })
@@ -183,12 +229,14 @@ describe('useBranchAnchorPersistence (P2 Step 2A)', () => {
 
   it('catches API failure without throwing through the hook render path', async () => {
     const error = new Error('network down')
+    const onAnchorCreated = vi.fn()
     mocks.createBranchAnchor.mockRejectedValue(error)
 
-    renderPersistence([makeBranch()])
+    renderPersistence([makeBranch()], { onAnchorCreated })
 
     await waitFor(() => expect(mocks.createBranchAnchor).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(mocks.loggerWarn).toHaveBeenCalledWith(expect.any(String), error, expect.any(Object)))
+    expect(onAnchorCreated).not.toHaveBeenCalled()
   })
 
   it('clears the create guard after POST failure so a later kept render can retry', async () => {
@@ -229,17 +277,20 @@ describe('useBranchAnchorPersistence (P2 Step 2A)', () => {
   it('keeps the anchor id after DELETE failure so a later pending lifecycle can retry cleanup', async () => {
     const error = new Error('delete failed')
     const keptBranch = makeBranch()
+    const onAnchorDeleted = vi.fn()
     mocks.deleteBranchAnchor.mockRejectedValueOnce(error).mockResolvedValueOnce(undefined)
-    const { rerender } = renderPersistence([keptBranch])
+    const { rerender } = renderPersistence([keptBranch], { onAnchorDeleted })
 
     await waitFor(() => expect(mocks.createBranchAnchor).toHaveBeenCalledTimes(1))
 
     rerender({ currentBranches: [{ ...keptBranch, disposition: 'pending' }] })
 
     await waitFor(() => expect(mocks.loggerWarn).toHaveBeenCalledWith(expect.any(String), error, expect.any(Object)))
+    expect(onAnchorDeleted).not.toHaveBeenCalled()
 
     rerender({ currentBranches: [{ ...keptBranch, disposition: 'pending' }] })
 
     await waitFor(() => expect(mocks.deleteBranchAnchor).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(onAnchorDeleted).toHaveBeenCalledExactlyOnceWith('anchor-1'))
   })
 })

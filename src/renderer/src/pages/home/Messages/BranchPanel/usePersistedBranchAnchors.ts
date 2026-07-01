@@ -28,7 +28,7 @@ interface UsePersistedBranchAnchorsResult {
   refetch: () => Promise<unknown>
 }
 
-function normalizePersistedBranchAnchor(anchor: PersistedBranchAnchorDto): PersistedBranchAnchor {
+export function normalizePersistedBranchAnchor(anchor: PersistedBranchAnchorDto): PersistedBranchAnchor {
   return {
     id: anchor.id,
     parentTopicId: anchor.parentTopicId,

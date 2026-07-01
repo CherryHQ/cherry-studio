@@ -1,6 +1,7 @@
 import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { CreateBranchAnchorDto } from '@shared/data/api/schemas/branchAnchors'
+import type { BranchAnchor as PersistedBranchAnchorDto } from '@shared/data/types/branchAnchor'
 import { useCallback, useEffect, useRef } from 'react'
 
 import {
@@ -20,9 +21,16 @@ const logger = loggerService.withContext('BranchAnchorPersistence')
 interface UseBranchAnchorPersistenceArgs {
   parentTopicId: string
   branches: Branch[]
+  onAnchorCreated?: (anchor: PersistedBranchAnchorDto) => void
+  onAnchorDeleted?: (anchorId: string) => void
 }
 
-export function useBranchAnchorPersistence({ parentTopicId, branches }: UseBranchAnchorPersistenceArgs): void {
+export function useBranchAnchorPersistence({
+  parentTopicId,
+  branches,
+  onAnchorCreated,
+  onAnchorDeleted
+}: UseBranchAnchorPersistenceArgs): void {
   const { trigger: createBranchAnchor } = useMutation('POST', '/branch-anchors')
   const { trigger: deleteBranchAnchor } = useMutation('DELETE', '/branch-anchors/:id')
   const latestDesiredKeptByTopicIdRef = useRef(new Map<string, boolean>())
@@ -38,6 +46,7 @@ export function useBranchAnchorPersistence({ parentTopicId, branches }: UseBranc
       void createBranchAnchor({ body })
         .then((anchor) => {
           markBranchAnchorCreated(branchTopicId, anchor.id)
+          onAnchorCreated?.(anchor)
           logger.debug('Created branch anchor for kept branch', {
             anchorId: anchor.id,
             branchId: latestBranchIdByTopicIdRef.current.get(branchTopicId),
@@ -58,7 +67,7 @@ export function useBranchAnchorPersistence({ parentTopicId, branches }: UseBranc
           })
         })
     },
-    [createBranchAnchor]
+    [createBranchAnchor, onAnchorCreated]
   )
 
   const startDeleteBranchAnchor = useCallback(
@@ -69,6 +78,7 @@ export function useBranchAnchorPersistence({ parentTopicId, branches }: UseBranc
       void deleteBranchAnchor({ params: { id: anchorId } })
         .then(() => {
           markBranchAnchorDeleted(branchTopicId, anchorId)
+          onAnchorDeleted?.(anchorId)
           logger.debug('Deleted branch anchor for unkept branch', {
             anchorId,
             branchId: latestBranchIdByTopicIdRef.current.get(branchTopicId),
@@ -88,7 +98,7 @@ export function useBranchAnchorPersistence({ parentTopicId, branches }: UseBranc
           })
         })
     },
-    [deleteBranchAnchor]
+    [deleteBranchAnchor, onAnchorDeleted]
   )
 
   const reconcileBranchTopic = useCallback(

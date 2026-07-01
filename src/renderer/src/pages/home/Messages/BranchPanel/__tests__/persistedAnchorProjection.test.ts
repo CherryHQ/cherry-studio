@@ -85,6 +85,33 @@ describe('projectPersistedBranchAnchorCandidates', () => {
     ])
   })
 
+  it('filters a promoted persisted anchor while its live branch is open, then projects it after close', () => {
+    const promotedAnchor = makePersistedAnchor({
+      id: 'promoted-anchor-1',
+      branchTopicId: 'live-topic-1'
+    })
+
+    expect(
+      projectPersistedBranchAnchorCandidates({
+        persistedAnchors: [promotedAnchor],
+        branches: [makeBranch({ topic: topic('live-topic-1') })]
+      })
+    ).toEqual([])
+
+    expect(
+      projectPersistedBranchAnchorCandidates({
+        persistedAnchors: [promotedAnchor],
+        branches: []
+      })
+    ).toEqual([
+      expect.objectContaining({
+        id: 'promoted-anchor-1',
+        branchId: 'persisted:promoted-anchor-1',
+        branchTopicId: 'live-topic-1'
+      })
+    ])
+  })
+
   it('assigns persisted colors after currently-live branch colors', () => {
     const candidates = projectPersistedBranchAnchorCandidates({
       persistedAnchors: [
