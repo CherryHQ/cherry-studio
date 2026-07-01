@@ -1351,6 +1351,38 @@ describe('WindowManager', () => {
       expect(ipcSend()).toHaveBeenCalledWith(id, 'window.fullscreen_changed', false)
     })
 
+    it("forwards BrowserWindow 'focus' event to a directed window.focus_changed(true)", () => {
+      const id = wm.open('default' as never)
+      const win = createdWindows[0]
+      ipcSend().mockClear()
+
+      win.emit('focus')
+
+      expect(ipcSend()).toHaveBeenCalledWith(id, 'window.focus_changed', true)
+    })
+
+    it("forwards BrowserWindow 'blur' event to a directed window.focus_changed(false)", () => {
+      const id = wm.open('default' as never)
+      const win = createdWindows[0]
+      ipcSend().mockClear()
+
+      win.emit('blur')
+
+      expect(ipcSend()).toHaveBeenCalledWith(id, 'window.focus_changed', false)
+    })
+
+    it('only forwards focus to the originating window (no cross-window leakage)', () => {
+      const idA = wm.open('default' as never)
+      const idB = wm.open('default' as never)
+      const [winA] = createdWindows
+      ipcSend().mockClear()
+
+      winA.emit('focus')
+
+      expect(ipcSend()).toHaveBeenCalledWith(idA, 'window.focus_changed', true)
+      expect(ipcSend()).not.toHaveBeenCalledWith(idB, 'window.focus_changed', expect.anything())
+    })
+
     it('only forwards events to the originating window (no cross-window leakage)', () => {
       const idA = wm.open('default' as never)
       const idB = wm.open('default' as never)

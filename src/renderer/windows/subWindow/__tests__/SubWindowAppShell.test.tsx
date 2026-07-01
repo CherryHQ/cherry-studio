@@ -44,6 +44,10 @@ async function renderSubWindowAppShell(isMac: boolean) {
   vi.doMock('@renderer/components/MiniApp/MiniAppTabsPool', () => ({
     default: () => <div data-testid="mini-app-pool" />
   }))
+  // Glass-aware sub-window chrome: mock the focus/transparency hooks so the
+  // page-side-panel-root assertions don't depend on ipcApi/window globals.
+  vi.doMock('@renderer/hooks/useWindowFocus', () => ({ default: () => true }))
+  vi.doMock('@renderer/hooks/useMacTransparentWindow', () => ({ default: () => false }))
 
   const { SubWindowAppShell } = await import('../SubWindowAppShell')
   render(<SubWindowAppShell />)

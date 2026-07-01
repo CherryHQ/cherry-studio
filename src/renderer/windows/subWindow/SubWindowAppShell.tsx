@@ -6,6 +6,8 @@ import { TITLE_BAR_HEIGHT_CLASS } from '@renderer/components/layout/titleBar'
 import MiniAppTabsPool from '@renderer/components/MiniApp/MiniAppTabsPool'
 import WindowControls, { useHasWindowControls } from '@renderer/components/WindowControls'
 import { useTabs } from '@renderer/hooks/tab'
+import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import useWindowFocus from '@renderer/hooks/useWindowFocus'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
@@ -39,6 +41,9 @@ export const SubWindowAppShell = () => {
   const { tabs, activeTabId, updateTab, openTab } = useTabs()
   const initialized = useRef(false)
   const init = useWindowInitData<SubWindowInitData>()
+  const isMacTransparentWindow = useMacTransparentWindow()
+  const isWindowFocused = useWindowFocus()
+  const isGlassActive = isMacTransparentWindow && isWindowFocused
 
   // Initialize tab from WindowManager init data (delivered via useWindowInitData).
   // First render returns `init === null`; the effect re-runs after one IPC round-trip
@@ -78,11 +83,12 @@ export const SubWindowAppShell = () => {
   }
 
   // Chat / agent pages merge the window chrome into their own navbar (ConversationShell,
-  // gated on isPageTitledRoute). Every OTHER page (mini-app, settings, files, …) has no
-  // such navbar, so without a standalone title bar the window would be undraggable — give
-  // those a fallback title bar here.
+  // gated on isPageTitledRoute). Every OTHER page (mini-app, files, …) has no such navbar,
+  // so without a standalone title bar the window would be undraggable — give those a fallback
+  // title bar + bordered frame here. (Settings frames itself internally.)
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? tabs[0]
-  const showFallbackTitleBar = !!activeTab && !isPageTitledRoute(activeTab.url)
+  const showFallbackTitleBar =
+    !!activeTab && !isPageTitledRoute(activeTab.url) && !activeTab.url.startsWith('/settings')
 
   // Windows/Linux sub-windows are frameless, so the OS draws no min/max/close. Draw them
   // ourselves in the top-right corner and publish their width as --window-controls-width so
@@ -96,35 +102,66 @@ export const SubWindowAppShell = () => {
     // the page navbar into the window title bar via the injected chrome. See ConversationShell.
     <WindowFrameProvider value={WINDOW_FRAME}>
       <div
-        className="relative flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground"
+        className={cn(
+          // `relative` anchors the Win/Linux window-controls overlay below.
+          'relative flex h-screen w-screen flex-col overflow-hidden text-foreground',
+          // Fallback (mini-app/files) frames itself with the sidebar-tinted glass. Settings/chat
+          // host their own glass-aware shell (SettingsPage / ConversationShell), so here we must
+          // NOT paint an opaque bg-background — it would sit between the macOS vibrancy and the
+          // hosted page's translucent sidebar, blocking the glass. Stay transparent in
+          // transparent-window mode and let the hosted page own the surface (incl. defocus dim).
+          showFallbackTitleBar
+            ? isGlassActive
+              ? 'bg-sidebar-translucent'
+              : 'bg-sidebar'
+            : isMacTransparentWindow
+              ? 'bg-transparent'
+              : 'bg-background'
+        )}
         style={{ '--window-controls-width': hasWindowControls ? '138px' : '0px' } as CSSProperties}>
         {showFallbackTitleBar && <SubWindowTitleBar />}
-        {/* Content Area - Multi MemoryRouter Architecture */}
-        <main className="relative flex-1 overflow-hidden bg-background">
-          {/* Route Tabs: Only render non-dormant tabs */}
-          {tabs
-            .filter((t) => t.type === 'route' && !t.isDormant)
-            .map((tab) => (
-              <TabRouter
-                key={tab.id}
-                tab={tab}
-                isActive={tab.id === activeTabId}
-                onUrlChange={(url) => handleUrlChange(tab.id, url)}
-              />
-            ))}
+        {/* Content Area - Multi MemoryRouter Architecture. Fallback (non-chat/agent, non-settings)
+            pages get the same floating bordered card as the detached settings window so every
+            torn-out page reads as a framed window; chat/agent stay full-bleed (own navbar). */}
+        <main
+          className={cn(
+            'relative flex-1 overflow-hidden',
+            showFallbackTitleBar ? 'px-1.5 pb-1.5' : isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
+          )}>
+          <div
+            className={cn(
+              'relative h-full w-full',
+              showFallbackTitleBar &&
+                cn(
+                  'overflow-hidden rounded-[16px] border-[0.5px] bg-background',
+                  isGlassActive ? 'border-frame-border-translucent' : 'border-frame-border'
+                )
+            )}>
+            {/* Route Tabs: Only render non-dormant tabs */}
+            {tabs
+              .filter((t) => t.type === 'route' && !t.isDormant)
+              .map((tab) => (
+                <TabRouter
+                  key={tab.id}
+                  tab={tab}
+                  isActive={tab.id === activeTabId}
+                  onUrlChange={(url) => handleUrlChange(tab.id, url)}
+                />
+              ))}
 
-          {/* Webview Tabs: Only render non-dormant tabs */}
-          {tabs
-            .filter((t) => t.type === 'webview' && !t.isDormant)
-            .map((tab) => (
-              <WebviewContainer key={tab.id} url={tab.url} isActive={tab.id === activeTabId} />
-            ))}
+            {/* Webview Tabs: Only render non-dormant tabs */}
+            {tabs
+              .filter((t) => t.type === 'webview' && !t.isDormant)
+              .map((tab) => (
+                <WebviewContainer key={tab.id} url={tab.url} isActive={tab.id === activeTabId} />
+              ))}
 
-          {/* Mini-app keep-alive WebView pool — needed for /app/mini-app/<id>
-              route tabs, same as the main AppShell. The cache backing the pool
-              is per-window (Memory tier) so this sub-window manages its own
-              list independently of the main window. */}
-          <MiniAppTabsPool />
+            {/* Mini-app keep-alive WebView pool — needed for /app/mini-app/<id>
+                route tabs, same as the main AppShell. The cache backing the pool
+                is per-window (Memory tier) so this sub-window manages its own
+                list independently of the main window. */}
+            <MiniAppTabsPool />
+          </div>
         </main>
 
         {/* OS window controls overlay — flush in the corner, above every title bar (z-[9999]),
