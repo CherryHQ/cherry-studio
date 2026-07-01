@@ -410,6 +410,8 @@ function hasGroupHeaderIcon<T extends ResourceListItemBase>(
   meta: ResourceListContextValue<T>['meta'],
   virtualItem: ResourceListVirtualItem<T>
 ) {
+  if (!virtualItem.group.label) return true
+
   return getGroupHeaderIconVisible(meta, virtualItem.group, virtualItem.groupCollapsed)
 }
 
