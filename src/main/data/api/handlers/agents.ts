@@ -15,6 +15,7 @@ import {
   type AgentSchemas,
   CreateAgentSchema,
   CreateTaskSchema,
+  DeleteAgentQuerySchema,
   ListAgentsQuerySchema,
   type ListQuery,
   ListQuerySchema,
@@ -68,8 +69,12 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
       return agent
     },
 
-    DELETE: async ({ params }) => {
-      const deleted = await agentService.deleteAgent(params.agentId)
+    DELETE: async ({ params, query }) => {
+      const parsed = DeleteAgentQuerySchema.safeParse(query ?? {})
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      const deleted = await agentService.deleteAgent(params.agentId, {
+        deleteSessions: parsed.data.deleteSessions === true
+      })
       if (!deleted) throw DataApiErrorFactory.notFound('Agent', params.agentId)
       return undefined
     }
