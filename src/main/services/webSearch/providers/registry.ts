@@ -4,6 +4,7 @@ import type { ApiKeyRotationState } from '../utils/provider'
 import { BochaProvider } from './api/BochaProvider'
 import { ExaProvider } from './api/ExaProvider'
 import { FetchProvider } from './api/FetchProvider'
+import { FirecrawlProvider } from './api/FirecrawlProvider'
 import { JinaProvider } from './api/JinaProvider'
 import { QueritProvider } from './api/QueritProvider'
 import { SearxngProvider } from './api/SearxngProvider'
@@ -26,5 +27,6 @@ export const WEB_SEARCH_PROVIDER_REGISTRY = {
   bocha: BochaProvider,
   querit: QueritProvider,
   fetch: FetchProvider,
-  jina: JinaProvider
+  jina: JinaProvider,
+  firecrawl: FirecrawlProvider
 } as const satisfies Record<WebSearchProvider['id'], WebSearchProviderConstructor>

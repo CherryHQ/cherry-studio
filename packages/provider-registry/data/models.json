@@ -577,7 +577,11 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 262144,
+          "min": 1
+        }
       }
     },
     {
@@ -648,6 +652,12 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 3.441
+        }
+      },
+      "reasoning": {
+        "thinkingTokenLimits": {
+          "max": 81920,
+          "min": 1
         }
       }
     },
@@ -833,7 +843,11 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 81920,
+          "min": 1
+        }
       }
     },
     {
@@ -1043,7 +1057,11 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 81920,
+          "min": 1
+        }
       }
     },
     {
@@ -1280,7 +1298,11 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 81920,
+          "min": 1
+        }
       }
     },
     {
@@ -1639,7 +1661,11 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 131072,
+          "min": 1
+        }
       }
     },
     {
@@ -1689,6 +1715,12 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 4
+        }
+      },
+      "reasoning": {
+        "thinkingTokenLimits": {
+          "max": 81920,
+          "min": 1
         }
       }
     },
@@ -1879,7 +1911,11 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 131072,
+          "min": 1
+        }
       }
     },
     {
@@ -1902,6 +1938,9 @@
           "currency": "USD",
           "perMillionTokens": 0.5
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -1946,6 +1985,9 @@
           "currency": "USD",
           "perMillionTokens": 0.24
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -1967,6 +2009,13 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.64
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 38912,
+          "min": 1
         }
       }
     },
@@ -1998,6 +2047,13 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 7.8
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 131072,
+          "min": 1
         }
       }
     },
@@ -2441,11 +2497,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.09999999999999999
+          "perMillionTokens": 0.14950000000000002
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.09999999999999999
+          "perMillionTokens": 1.495
         }
       }
     },
@@ -2832,6 +2888,42 @@
           "currency": "USD",
           "perMillionTokens": 5
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "contextWindow": 1000000,
+      "family": "claude-sonnet",
+      "id": "claude-sonnet-5",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "Claude Sonnet 5",
+      "outputModalities": ["text"],
+      "ownedBy": "anthropic",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["low", "medium", "high", "max"]
       }
     },
     {
@@ -2951,7 +3043,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["low", "medium", "high"]
+        "supportedEfforts": ["none", "auto", "low", "medium", "high"]
       }
     },
     {
@@ -3557,11 +3649,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 3
+          "perMillionTokens": 2
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 15
+          "perMillionTokens": 10
         }
       }
     },
@@ -3582,33 +3674,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 25
-        }
-      }
-    },
-    {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
-      "contextWindow": 1000000,
-      "id": "claude-opus-4-6-fast",
-      "inputModalities": ["text", "image"],
-      "metadata": {},
-      "name": "claude-opus-4-6-fast",
-      "outputModalities": ["text"],
-      "ownedBy": "anthropic",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 30
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 150
         }
       }
     },
@@ -5304,7 +5369,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none", "high", "max"]
+        "supportedEfforts": ["high", "max", "none"]
       }
     },
     {
@@ -5382,7 +5447,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none", "high", "max"]
+        "supportedEfforts": ["high", "max", "none"]
       }
     },
     {
@@ -5427,6 +5492,9 @@
           "currency": "USD",
           "perMillionTokens": 1.721
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -5564,6 +5632,9 @@
           "currency": "USD",
           "perMillionTokens": 1
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -6428,6 +6499,18 @@
       "ownedBy": "google"
     },
     {
+      "capabilities": ["embedding"],
+      "contextWindow": 8192,
+      "family": "text-embedding",
+      "id": "text-multilingual-embedding-002",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 1536,
+      "metadata": {},
+      "name": "Text Multilingual Embedding 002",
+      "outputModalities": ["vector"],
+      "ownedBy": "google"
+    },
+    {
       "capabilities": [
         "function-call",
         "reasoning",
@@ -6488,6 +6571,9 @@
           "currency": "USD",
           "perMillionTokens": 3
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["minimal", "high"]
       }
     },
     {
@@ -6514,6 +6600,9 @@
           "currency": "USD",
           "perMillionTokens": 3
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["minimal", "low", "medium", "high"]
       }
     },
     {
@@ -6590,6 +6679,18 @@
     {
       "capabilities": ["embedding"],
       "contextWindow": 8192,
+      "family": "text-embedding",
+      "id": "text-embedding-005",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 1536,
+      "metadata": {},
+      "name": "Text Embedding 005",
+      "outputModalities": ["vector"],
+      "ownedBy": "google"
+    },
+    {
+      "capabilities": ["embedding"],
+      "contextWindow": 8192,
       "family": "gemini-embedding",
       "id": "gemini-embedding-001",
       "inputModalities": ["text"],
@@ -6606,6 +6707,32 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0
+        }
+      }
+    },
+    {
+      "capabilities": ["reasoning", "image-recognition", "image-generation", "structured-output", "file-input"],
+      "contextWindow": 65536,
+      "family": "gemini",
+      "id": "gemini-3-1-flash-lite-image",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 4096,
+      "metadata": {},
+      "name": "Gemini 3.1 Flash Lite Image (Nano Banana 2 Lite)",
+      "outputModalities": ["text", "image"],
+      "ownedBy": "google",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.03
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
         }
       }
     },
@@ -8334,7 +8461,10 @@
       "metadata": {},
       "name": "LongCat Flash Thinking 2601",
       "outputModalities": ["text"],
-      "ownedBy": "meituan"
+      "ownedBy": "meituan",
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
+      }
     },
     {
       "capabilities": ["function-call"],
@@ -9041,7 +9171,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "structured-output"],
+      "capabilities": ["function-call"],
       "contextWindow": 131072,
       "family": "phi",
       "id": "phi-4-mini-instruct",
@@ -10918,11 +11048,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.66
+          "perMillionTokens": 0.55
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.41
+          "perMillionTokens": 3.1999999999999997
         }
       }
     },
@@ -11634,18 +11764,6 @@
       }
     },
     {
-      "capabilities": ["embedding"],
-      "contextWindow": 8192,
-      "family": "text-embedding",
-      "id": "text-embedding-005",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 1536,
-      "metadata": {},
-      "name": "Text Embedding 005",
-      "outputModalities": ["vector"],
-      "ownedBy": "google"
-    },
-    {
       "capabilities": ["function-call", "reasoning", "structured-output"],
       "contextWindow": 131072,
       "family": "gpt-oss",
@@ -11697,14 +11815,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "web-search"],
       "contextWindow": 128000,
       "family": "gpt",
       "id": "gpt-5-2-chat",
@@ -11727,9 +11838,6 @@
           "currency": "USD",
           "perMillionTokens": 14
         }
-      },
-      "reasoning": {
-        "supportedEfforts": ["medium"]
       }
     },
     {
@@ -11988,14 +12096,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input", "web-search"],
       "contextWindow": 128000,
       "family": "gpt",
       "id": "gpt-5-3-chat",
@@ -12018,9 +12119,6 @@
           "currency": "USD",
           "perMillionTokens": 14
         }
-      },
-      "reasoning": {
-        "supportedEfforts": ["medium"]
       }
     },
     {
@@ -12242,7 +12340,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none", "low", "medium", "high"]
+        "supportedEfforts": ["low", "medium", "high", "none"]
       }
     },
     {
@@ -12660,7 +12758,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "web-search"],
+      "capabilities": ["function-call", "image-recognition", "file-input", "web-search"],
       "contextWindow": 128000,
       "family": "gpt",
       "id": "gpt-5-1-instant",
@@ -12683,9 +12781,6 @@
           "currency": "USD",
           "perMillionTokens": 10
         }
-      },
-      "reasoning": {
-        "supportedEfforts": ["medium"]
       }
     },
     {
@@ -12721,7 +12816,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+        "supportedEfforts": ["none", "low", "medium", "high"]
       }
     },
     {
@@ -14101,7 +14196,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
+      "capabilities": ["function-call", "reasoning"],
       "contextWindow": 262144,
       "family": "step",
       "id": "step-3-5-flash",
@@ -14127,7 +14222,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none", "low", "medium", "high"]
+        "supportedEfforts": ["low", "medium", "high"]
       }
     },
     {
@@ -15103,7 +15198,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["low", "medium", "high", "none"]
+        "supportedEfforts": ["none", "low", "medium", "high"]
       }
     },
     {
@@ -15189,7 +15284,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["low", "high"]
+        "supportedEfforts": ["low", "medium", "high"]
       }
     },
     {
@@ -15316,7 +15411,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["low", "high", "medium"]
+        "supportedEfforts": ["low", "medium", "high"]
       }
     },
     {
@@ -15571,15 +15666,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.08
+          "perMillionTokens": 0.0028
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.4
+          "perMillionTokens": 0.14
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2
+          "perMillionTokens": 0.28
         }
       },
       "reasoning": {
@@ -16153,6 +16248,9 @@
           "currency": "USD",
           "perMillionTokens": 10.25
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["high"]
       }
     },
     {
@@ -16602,7 +16700,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["minimal", "low", "medium", "high"]
       }
     },
     {
@@ -16626,18 +16724,6 @@
           "perMillionTokens": 0
         }
       }
-    },
-    {
-      "id": "open-mistral-nemo",
-      "metadata": {},
-      "name": "open-mistral-nemo",
-      "ownedBy": "mistral"
-    },
-    {
-      "id": "labs-devstral-small",
-      "metadata": {},
-      "name": "labs-devstral-small",
-      "ownedBy": "mistral"
     },
     {
       "capabilities": ["image-recognition", "file-input"],
@@ -17089,12 +17175,6 @@
       }
     },
     {
-      "id": "dracarys-llama-3-1-70b-instruct",
-      "metadata": {},
-      "name": "dracarys-llama-3-1-70b-instruct",
-      "ownedBy": "nvidia"
-    },
-    {
       "capabilities": ["function-call"],
       "contextWindow": 128000,
       "id": "sarvam-m",
@@ -17157,18 +17237,6 @@
           "perMillionTokens": 0
         }
       }
-    },
-    {
-      "capabilities": ["embedding"],
-      "contextWindow": 8192,
-      "family": "text-embedding",
-      "id": "text-multilingual-embedding-002",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 1536,
-      "metadata": {},
-      "name": "Text Multilingual Embedding 002",
-      "outputModalities": ["vector"],
-      "ownedBy": "google"
     },
     {
       "capabilities": ["video-generation"],
@@ -17340,6 +17408,9 @@
           "currency": "USD",
           "perMillionTokens": 3.5
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["low", "medium", "high"]
       }
     },
     {
@@ -17403,5 +17474,5 @@
       "ownedBy": "vercel"
     }
   ],
-  "version": "2026.06.27"
+  "version": "2026.07.01"
 }

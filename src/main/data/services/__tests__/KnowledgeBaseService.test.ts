@@ -1,12 +1,9 @@
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { KnowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api'
-import type { FileEntryId } from '@shared/data/types/file'
-import { knowledgeItemSourceType, tempSessionSourceType } from '@shared/data/types/file/ref'
 import { type CreateKnowledgeBaseDto, KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -28,7 +25,6 @@ const NEWER_KNOWLEDGE_BASE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 const NEWEST_KNOWLEDGE_BASE_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 const FILE_ITEM_ID = '0198f3f2-7d60-7abc-8def-123456789abc'
 const OTHER_BASE_FILE_ITEM_ID = '0198f3f2-7d60-7abc-8def-123456789abd'
-const FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000a01' as FileEntryId
 
 describe('KnowledgeBaseService', () => {
   const dbh = setupTestDatabase()
@@ -78,17 +74,6 @@ describe('KnowledgeBaseService', () => {
     return values
   }
 
-  async function seedFileEntry() {
-    await dbh.db.insert(fileEntryTable).values({
-      id: FILE_ENTRY_ID,
-      origin: 'internal',
-      name: 'source-file',
-      ext: 'md',
-      size: 1,
-      externalPath: null
-    })
-  }
-
   async function seedFileKnowledgeItem(overrides: Partial<typeof knowledgeItemTable.$inferInsert> = {}) {
     await dbh.db.insert(knowledgeItemTable).values({
       id: FILE_ITEM_ID,
@@ -101,17 +86,6 @@ describe('KnowledgeBaseService', () => {
       },
       status: 'completed',
       error: null,
-      ...overrides
-    })
-  }
-
-  async function seedKnowledgeItemFileRef(overrides: Partial<typeof fileRefTable.$inferInsert> = {}) {
-    await dbh.db.insert(fileRefTable).values({
-      id: '11111111-1111-4111-8111-123456789abc',
-      fileEntryId: FILE_ENTRY_ID,
-      sourceType: knowledgeItemSourceType,
-      sourceId: FILE_ITEM_ID,
-      role: 'source',
       ...overrides
     })
   }
@@ -744,23 +718,11 @@ describe('KnowledgeBaseService', () => {
       expect(rows).toHaveLength(0)
     })
 
-    it('should delete knowledge item file refs when deleting a knowledge base', async () => {
+    it('should delete knowledge items when deleting a knowledge base', async () => {
       await seedKnowledgeBase()
       await seedKnowledgeBase({ id: SECOND_KNOWLEDGE_BASE_ID, name: 'Other Base' })
-      await seedFileEntry()
       await seedFileKnowledgeItem()
       await seedFileKnowledgeItem({ id: OTHER_BASE_FILE_ITEM_ID, baseId: SECOND_KNOWLEDGE_BASE_ID })
-      await seedKnowledgeItemFileRef()
-      await seedKnowledgeItemFileRef({
-        id: '22222222-2222-4222-8222-123456789abc',
-        sourceType: tempSessionSourceType,
-        sourceId: FILE_ITEM_ID,
-        role: 'pending'
-      })
-      await seedKnowledgeItemFileRef({
-        id: '33333333-3333-4333-8333-123456789abc',
-        sourceId: OTHER_BASE_FILE_ITEM_ID
-      })
 
       await service.delete(KNOWLEDGE_BASE_ID)
 
@@ -769,23 +731,8 @@ describe('KnowledgeBaseService', () => {
         .select()
         .from(knowledgeItemTable)
         .where(eq(knowledgeItemTable.id, OTHER_BASE_FILE_ITEM_ID))
-      const refRows = await dbh.db
-        .select()
-        .from(fileRefTable)
-        .where(eq(fileRefTable.id, '11111111-1111-4111-8111-123456789abc'))
-      const sameSourceIdOtherTypeRows = await dbh.db
-        .select()
-        .from(fileRefTable)
-        .where(eq(fileRefTable.id, '22222222-2222-4222-8222-123456789abc'))
-      const otherBaseRefRows = await dbh.db
-        .select()
-        .from(fileRefTable)
-        .where(eq(fileRefTable.id, '33333333-3333-4333-8333-123456789abc'))
       expect(itemRows).toHaveLength(0)
       expect(otherItemRows).toHaveLength(1)
-      expect(refRows).toHaveLength(0)
-      expect(sameSourceIdOtherTypeRows).toHaveLength(1)
-      expect(otherBaseRefRows).toHaveLength(1)
     })
 
     it('should throw NotFound when deleting a missing knowledge base', async () => {

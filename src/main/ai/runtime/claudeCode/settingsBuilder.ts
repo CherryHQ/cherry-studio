@@ -38,6 +38,11 @@ import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSd
 import { skillService } from '@main/ai/skills/SkillService'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
+import {
+  CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
+  CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES,
+  toCherryBuiltinRuntimeName
+} from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { application } from '@main/core/application'
 import { isLinux, isWin } from '@main/core/platform'
@@ -260,7 +265,6 @@ export async function buildClaudeCodeSessionSettings(
   // 1. Working directory (session-bound)
   const cwd = session.workspace.path
   await prepareClaudeCodeWorkspaceDirectory(session)
-  await skillService.reconcileAgentSkills(session.agentId, cwd)
 
   // 2. Environment variables
   const env = await buildEnvironment(provider, agent)
@@ -292,7 +296,12 @@ export async function buildClaudeCodeSessionSettings(
   // 8. Auto-approve allowlist for injected built-in MCP servers (soul/assistant only)
   const finalAllowedTools = adjustAllowedToolsForMcp(soulEnabled, isAssistant)
 
-  // 9. Build settings
+  // 9. Skills — pass the SDK skill-name whitelist (managed skills enabled for this
+  // agent + the workspace's own .claude/skills). The CLAUDE_CONFIG_DIR/skills mirror
+  // is maintained by SkillService (install/uninstall/startup), not here.
+  const skills = await buildSkillWhitelist(agent.id, cwd)
+
+  // 10. Build settings
   const settings: ClaudeCodeSettings = {
     cwd,
     env,
@@ -306,6 +315,7 @@ export async function buildClaudeCodeSessionSettings(
     allowedTools: finalAllowedTools,
     disallowedTools,
     plugins,
+    skills,
     canUseTool,
     hooks,
     approvalEmitter,
@@ -540,6 +550,35 @@ async function buildEnvironment(
   return env
 }
 
+/**
+ * Compute the SDK `Options.skills` whitelist for a session.
+ *
+ * `Options.skills` is a *filter over everything the SDK discovers* — both the
+ * managed mirror under CLAUDE_CONFIG_DIR/skills (maintained by `SkillService`)
+ * and the workspace's own `cwd/.claude/skills`. So the whitelist must list:
+ *   - the agent's enabled managed skills, and
+ *   - the workspace's project-local skills (omitting them would filter the
+ *     user's own project skills out of their session).
+ *
+ * We match by *directory name only* (`folderName` for managed skills, the
+ * `.claude/skills/<dir>` name for workspace skills). The SDK also matches the
+ * SKILL.md `name`, but that field is not unique — including it would let an
+ * enabled skill's name un-hide a different, disabled skill that happens to
+ * share it. Directory names are unique within each root, so they can't collide.
+ *
+ * Read-only: the filesystem mirror is maintained at install / uninstall /
+ * startup reconcile, never here — so concurrent session builds never race.
+ */
+export async function buildSkillWhitelist(agentId: string, cwd: string): Promise<string[]> {
+  const installedSkills = await skillService.list({ agentId })
+  const enabledNames = installedSkills.filter((skill) => skill.isEnabled).map((skill) => skill.folderName)
+
+  const workspaceSkills = await skillService.listLocal(cwd)
+  const workspaceNames = workspaceSkills.map((skill) => skill.filename)
+
+  return Array.from(new Set([...enabledNames, ...workspaceNames]))
+}
+
 async function discoverPlugins(cwd: string, agentId: string): Promise<SdkPluginConfig[] | undefined> {
   try {
     const pluginsDir = path.join(cwd, '.claude', 'plugins')
@@ -594,15 +633,19 @@ async function buildToolPermissions(
   const toolPolicySnapshot = await ensureToolPolicySnapshot(session.id, agent, {
     autoAllowRuntimeNamePrefixes: [
       // cherry-tools is injected for every session. Auto-allowing it (no per-call approval) is a
-      // deliberate decision (matches feat/chat-page): none of its tools have side effects in the
-      // main process — web_search/web_fetch read the network, kb_search/kb_list read the user's
-      // knowledge bases, report_artifacts only records a declaration. The untrusted-channel exposure
-      // this creates (approval-free kb reads + web_fetch URL egress for channel-linked sessions) is
-      // bounded by the system-level channel security policy (CHANNEL_SECURITY_PROMPT).
+      // deliberate decision (matches feat/chat-page): its READ tools have no side effects in the
+      // main process — web_search/web_fetch read the network, kb_search/kb_read/kb_list read the
+      // user's knowledge bases, report_artifacts only records a declaration. The
+      // untrusted-channel exposure this creates (approval-free reads + web_fetch URL egress for
+      // channel-linked sessions) is bounded by the system-level channel security policy
+      // (CHANNEL_SECURITY_PROMPT). The MUTATING kb_manage tool is carved out below — it modifies the
+      // user's knowledge bases, so it must go through per-call approval rather than this prefix.
       'mcp__cherry-tools__',
       ...(soulEnabled ? ['mcp__claw__'] : []),
       ...(isAssistant ? ['mcp__assistant__'] : [])
     ],
+    // Mutating cherry-tools (kb_manage) match the prefix above but must still prompt for approval.
+    autoAllowRuntimeNameExceptions: CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
     conditionContext
   })
 
@@ -984,11 +1027,13 @@ async function resolveSourceChannel(agentId: string, sessionId: string): Promise
  * Auto-approve allowlist for injected built-in MCP servers. Returns `undefined` for a plain agent
  * (Claude Code then permits all tools; cherry-tools is auto-approved via the canUseTool prefix).
  * Soul/assistant agents force an explicit allowlist so their claw/agent-memory/assistant tools pass.
+ * The read-only cherry-tools are listed explicitly (not a wildcard) so the mutating kb_manage tool is
+ * excluded from the SDK pre-approval and routed through per-call approval via canUseTool.
  */
 export function adjustAllowedToolsForMcp(soulEnabled: boolean, isAssistant: boolean): string[] | undefined {
   if (!soulEnabled && !isAssistant) return undefined
 
-  const result = ['mcp__cherry-tools__*']
+  const result = CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
   if (soulEnabled) result.push('mcp__claw__*', 'mcp__agent-memory__*')
   if (isAssistant) result.push('mcp__assistant__*')
   return result

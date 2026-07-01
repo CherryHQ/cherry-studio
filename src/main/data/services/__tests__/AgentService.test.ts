@@ -1,6 +1,9 @@
+import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -16,7 +19,7 @@ import { ErrorCode } from '@shared/data/api'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 vi.mock('@main/apiServer/services/mcp', () => ({
   mcpApiService: {
@@ -31,12 +34,6 @@ vi.mock('@main/apiServer/utils', () => ({
 vi.mock('@main/apiServer/services/models', () => ({
   modelsService: {
     getModels: vi.fn()
-  }
-}))
-
-vi.mock('@main/ai/skills/SkillService', () => ({
-  skillService: {
-    initSkillsForAgent: vi.fn()
   }
 }))
 
@@ -387,6 +384,78 @@ describe('AgentService', () => {
 
       const remaining = await pinService.listByEntityType('agent')
       expect(remaining.map((p) => p.entityId)).toEqual([otherPin.entityId])
+    })
+
+    it('deletes agent sessions atomically when requested', async () => {
+      const { id } = await insertAgent({ id: 'agent_with_sessions_001' })
+      const otherAgent = await insertAgent({ id: 'agent_with_sessions_002' })
+      await dbh.db.insert(agentWorkspaceTable).values([
+        { id: 'workspace-agent-delete-1', name: 'Workspace 1', path: '/tmp/agent-delete-1', orderKey: 'a0' },
+        { id: 'workspace-agent-delete-2', name: 'Workspace 2', path: '/tmp/agent-delete-2', orderKey: 'a1' }
+      ])
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'session-delete-with-agent',
+          agentId: id,
+          name: '',
+          workspaceId: 'workspace-agent-delete-1',
+          orderKey: 'a0'
+        },
+        {
+          id: 'session-keep-with-other-agent',
+          agentId: otherAgent.id,
+          name: '',
+          workspaceId: 'workspace-agent-delete-2',
+          orderKey: 'a1'
+        }
+      ])
+
+      const deleted = await agentService.deleteAgent(id, { deleteSessions: true })
+
+      expect(deleted).toBe(true)
+      const agentRows = await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))
+      expect(agentRows).toHaveLength(0)
+      const sessionRows = await dbh.db.select().from(agentSessionTable)
+      expect(sessionRows.map((row) => row.id)).toEqual(['session-keep-with-other-agent'])
+    })
+
+    it('rolls back the already-deleted sessions when a later delete step fails', async () => {
+      const { id } = await insertAgent({ id: 'agent_delete_rollback_001' })
+      await dbh.db
+        .insert(agentWorkspaceTable)
+        .values({ id: 'workspace-rollback-1', name: 'Workspace', path: '/tmp/agent-rollback-1', orderKey: 'a0' })
+      await dbh.db.insert(agentSessionTable).values({
+        id: 'session-rollback-1',
+        agentId: id,
+        name: '',
+        workspaceId: 'workspace-rollback-1',
+        orderKey: 'a0'
+      })
+
+      // Run the delete inside a real transaction so a mid-transaction failure rolls back;
+      // the default DbService mock just passes the callback through without one.
+      ;(application.get('DbService').withWriteTx as Mock).mockImplementationOnce(async (fn) =>
+        dbh.db.transaction(fn as never)
+      )
+      // Fail *after* deleteByAgentIdTx has already removed the session rows, so the assertions
+      // below can only pass if that earlier delete is rolled back with the agent delete.
+      const deleteAgentSpy = vi
+        .spyOn(agentService, 'deleteAgentTx')
+        .mockRejectedValueOnce(new Error('agent delete failed'))
+
+      try {
+        await expect(agentService.deleteAgent(id, { deleteSessions: true })).rejects.toThrow('agent delete failed')
+      } finally {
+        deleteAgentSpy.mockRestore()
+      }
+
+      const agentRows = await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))
+      expect(agentRows).toHaveLength(1)
+      const sessionRows = await dbh.db
+        .select()
+        .from(agentSessionTable)
+        .where(eq(agentSessionTable.id, 'session-rollback-1'))
+      expect(sessionRows).toHaveLength(1)
     })
   })
 

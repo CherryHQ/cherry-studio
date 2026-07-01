@@ -1,6 +1,11 @@
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { MockUseDataApiUtils, mockUseInfiniteQuery, mockUseInvalidateCache } from '@test-mocks/renderer/useDataApi'
+import {
+  MockUseDataApiUtils,
+  mockUseInfiniteQuery,
+  mockUseInvalidateCache,
+  mockUseMutation
+} from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -475,6 +480,54 @@ describe('useUpdateSession', () => {
     })
     expect(updated).toBeDefined()
     expect(mockToast.success).toHaveBeenCalledWith('common.update_success')
+  })
+
+  it('keeps the session PATCH refresh scoped to session caches', () => {
+    renderHook(() => useUpdateSession())
+
+    const updateMutationCall = mockUseMutation.mock.calls.find(
+      ([method, path]) => method === 'PATCH' && path === '/agent-sessions/:sessionId'
+    )
+    const refresh = updateMutationCall?.[2]?.refresh as (context: {
+      args: { params: { sessionId: string }; body?: Record<string, unknown> }
+      result: AgentSessionEntity
+    }) => string[]
+
+    expect(
+      refresh({
+        args: { params: { sessionId: 'session-1' }, body: { name: 'Renamed session' } },
+        result: createSession()
+      })
+    ).toEqual(['/agent-sessions', '/agent-sessions/session-1'])
+  })
+
+  it('refreshes workspaces through the dedicated workspace mutation', async () => {
+    const mockResult = createSession()
+    const setWorkspaceTrigger = vi.fn().mockResolvedValue(mockResult)
+    MockUseDataApiUtils.mockMutationWithTrigger('PUT', '/agent-sessions/:sessionId/workspace', setWorkspaceTrigger)
+
+    const { result } = renderHook(() => useUpdateSession())
+    const updated = await act(async () =>
+      result.current.setSessionWorkspace('session-1', { type: 'user', workspaceId: 'workspace-1' })
+    )
+
+    expect(setWorkspaceTrigger).toHaveBeenCalledWith({
+      params: { sessionId: 'session-1' },
+      body: { type: 'user', workspaceId: 'workspace-1' }
+    })
+    expect(updated).toBe(mockResult)
+
+    const workspaceMutationCall = mockUseMutation.mock.calls.find(
+      ([method, path]) => method === 'PUT' && path === '/agent-sessions/:sessionId/workspace'
+    )
+    const refresh = workspaceMutationCall?.[2]?.refresh as (context: {
+      args: { params: { sessionId: string } }
+    }) => string[]
+    expect(refresh({ args: { params: { sessionId: 'session-1' } } })).toEqual([
+      '/agent-sessions',
+      '/agent-sessions/session-1',
+      '/agent-workspaces'
+    ])
   })
 
   it('does not show success toast when showSuccessToast is false', async () => {

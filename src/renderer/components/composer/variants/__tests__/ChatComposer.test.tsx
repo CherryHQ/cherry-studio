@@ -6,7 +6,7 @@ import {
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -49,7 +49,8 @@ const mocks = vi.hoisted(() => ({
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
   ipcOn: vi.fn(),
   chatWrite: undefined as any,
-  files: undefined as any[] | undefined
+  files: undefined as any[] | undefined,
+  topicLayout: undefined as string | undefined
 }))
 
 const originalResizeObserver = globalThis.ResizeObserver
@@ -327,6 +328,16 @@ vi.mock('@renderer/components/resource', () => ({
   )
 }))
 
+vi.mock('@renderer/components/resource/dialogs/ResourceEditDialogHost', () => ({
+  ResourceEditDialogHost: ({ target, onOpenChange }: any) => (
+    <div data-testid="resource-edit-dialog-host" data-kind={target?.kind ?? ''} data-id={target?.id ?? ''}>
+      <button type="button" onClick={() => onOpenChange(false)}>
+        close edit dialog
+      </button>
+    </div>
+  )
+}))
+
 vi.mock('@renderer/utils/model', () => ({
   // Mirrors the real reconcile logic using the mocked predicates below:
   // canModelUseAssistantWebSearch = isWebSearchModel || isOpenRouterBuiltInWebSearchModel || isFunctionCallingModel.
@@ -364,7 +375,8 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'app.spell_check.enabled': true,
       'chat.message.font_size': 14,
       'chat.narrow_mode': false,
-      'chat.input.send_message_shortcut': 'Enter'
+      'chat.input.send_message_shortcut': 'Enter',
+      'topic.layout': mocks.topicLayout
     }
     return [values[key]]
   }
@@ -605,6 +617,7 @@ describe('ChatComposer', () => {
     mocks.ipcListeners.clear()
     mocks.ipcOn.mockReset()
     mocks.chatWrite = undefined
+    mocks.topicLayout = undefined
     mocks.ipcOn.mockImplementation((channel: string, listener: (_event: unknown, payload: unknown) => void) => {
       mocks.ipcListeners.set(channel, listener)
       return () => mocks.ipcListeners.delete(channel)
@@ -637,12 +650,16 @@ describe('ChatComposer', () => {
     globalThis.ResizeObserver = originalResizeObserver
   })
 
-  it('renders the tool menu before assistant and model selectors', () => {
+  it('keeps the tool menu at the far left in the modern layout', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
-    expect(screen.getByText('tool menu')).toBeInTheDocument()
-    expect(screen.getByText('Assistant 1')).toBeInTheDocument()
-    expect(screen.getByText('Model A | Provider')).toBeInTheDocument()
+    const leftControls = screen.getByTestId('composer-left-controls')
+    const assistantButton = within(leftControls).getByRole('button', { name: /Assistant 1/ })
+    const modelButton = within(leftControls).getByRole('button', { name: /Model A/ })
+    const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
+
+    expect(toolMenuButton.compareDocumentPosition(assistantButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(assistantButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
   })
 
@@ -931,6 +948,61 @@ describe('ChatComposer', () => {
     expect(screen.getByTestId('composer-below-controls')).not.toHaveTextContent('Default Assistant')
     expect(screen.getByTestId('assistant-selector')).toHaveAttribute('data-value', '')
     expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
+  })
+
+  it('hides the active assistant trigger from the toolbar in classic layout', () => {
+    mocks.topicLayout = 'classic'
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    // Old/传统 view has a left assistant rail, so the input toolbar should not duplicate the assistant trigger.
+    expect(screen.queryByTestId('assistant-selector')).not.toBeInTheDocument()
+    expect(screen.queryByText('Assistant 1')).not.toBeInTheDocument()
+    expect(screen.getByText('Model A | Provider')).toBeInTheDocument()
+    expect(screen.queryByTestId('resource-edit-dialog-host')).not.toBeInTheDocument()
+    expect(mocks.updateTopic).not.toHaveBeenCalled()
+  })
+
+  it('keeps the assistant switcher in the toolbar in the modern layout', () => {
+    mocks.topicLayout = 'modern'
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(screen.getByTestId('assistant-selector')).toBeInTheDocument()
+    expect(screen.queryByTestId('resource-edit-dialog-host')).not.toBeInTheDocument()
+  })
+
+  it('renders the classic-layout empty topic action before the tool menu and passes the selected assistant', () => {
+    mocks.topicLayout = 'classic'
+    const onCreateEmptyTopic = vi.fn()
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} onCreateEmptyTopic={onCreateEmptyTopic} />)
+
+    const leftControls = screen.getByTestId('composer-left-controls')
+    const newTopicButton = within(leftControls).getByRole('button', { name: 'chat.conversation.new' })
+    const modelButton = within(leftControls).getByRole('button', { name: /Model A/ })
+    const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
+    expect(newTopicButton.querySelector('svg')).toHaveClass('lucide-message-square-plus')
+    expect(newTopicButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(modelButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+
+    fireEvent.click(newTopicButton)
+
+    expect(onCreateEmptyTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
+  })
+
+  it('hides the empty topic action outside classic layout or without a handler', () => {
+    mocks.topicLayout = 'modern'
+    const onCreateEmptyTopic = vi.fn()
+
+    const { rerender } = render(<ChatComposer topic={topic} onSend={vi.fn()} onCreateEmptyTopic={onCreateEmptyTopic} />)
+
+    expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
+
+    mocks.topicLayout = 'classic'
+    rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
   })
 
   it('sends unlinked home topics through the default model fallback', async () => {
@@ -1291,6 +1363,21 @@ describe('ChatComposer', () => {
 
     expect(onNewTopic).toHaveBeenCalledWith(undefined)
     expect(mocks.createTopic).not.toHaveBeenCalled()
+  })
+
+  it('routes classic-layout new topic shortcuts through the empty topic action', () => {
+    mocks.topicLayout = 'classic'
+    const onNewTopic = vi.fn()
+    const onCreateEmptyTopic = vi.fn()
+
+    render(
+      <ChatComposer topic={topic} onSend={vi.fn()} onNewTopic={onNewTopic} onCreateEmptyTopic={onCreateEmptyTopic} />
+    )
+
+    mocks.commandHandlers.get('topic.create')?.()
+
+    expect(onCreateEmptyTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
+    expect(onNewTopic).not.toHaveBeenCalled()
   })
 
   it('renders selectors below the surface in draft home mode', () => {

@@ -185,7 +185,7 @@ async function downloadAndPersistImageUrls(urls: string[], signal: AbortSignal):
 
 /**
  * Best-effort delete the per-job temp input/mask FileEntries created by
- * `generateImageViaJob`. They carry no `file_ref`, so without this they would
+ * `generateImageViaJob`. They carry no FileManager ref, so without this they would
  * leak permanently (the orphan scan only reports, never deletes). Idempotent and
  * non-throwing so it is safe to call from both the handler and the IPC `finally`.
  */

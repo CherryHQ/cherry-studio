@@ -959,8 +959,8 @@ async function promoteBase64ToFileEntry(
 
   try {
     // Write physical file first. If we crash before the DB insert lands,
-    // the orphan checker won't sweep this file (no file_entry row means
-    // no DB linkage to look up). Same risk model as the rest of
+    // the file sweep can later reclaim this UUID blob because no file_entry
+    // row exists. Same risk model as the rest of
     // FileMigrator's transform path; acceptable for a migration step.
     await fs.mkdir(path.dirname(physicalPath), { recursive: true })
     await fs.writeFile(physicalPath, bytes)
