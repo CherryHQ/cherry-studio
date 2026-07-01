@@ -151,4 +151,26 @@ describe('OfficePreviewPanel', () => {
     expect(screen.getByTestId('empty-state')).toHaveTextContent('common.error')
     expect(mocks.wordPreviewPanelProps).toEqual([])
   })
+
+  it('shows an error state when the docx preview bundle fails to load', async () => {
+    vi.resetModules()
+    vi.doMock('../WordPreviewPanel', () => {
+      throw new Error('failed to fetch dynamically imported module')
+    })
+
+    const { default: FreshOfficePreviewPanel } = await import('../OfficePreviewPanel')
+
+    render(
+      <FreshOfficePreviewPanel
+        filePath="report.docx"
+        fileName="report.docx"
+        sourceFilePath="/tmp/workspace/report.docx"
+      />
+    )
+
+    expect(await screen.findByTestId('empty-state')).toHaveTextContent('common.error')
+
+    vi.doUnmock('../WordPreviewPanel')
+    vi.resetModules()
+  })
 })

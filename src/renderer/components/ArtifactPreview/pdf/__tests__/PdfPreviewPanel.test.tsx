@@ -274,6 +274,24 @@ describe('PdfPreviewPanel', () => {
     expect(viewer.style.getPropertyValue('--page-bg-color')).toBe('rgb(10, 11, 12)')
   })
 
+  it('shows an accessible loading state while the PDF is being fetched', async () => {
+    let resolveRead: ((value: Uint8Array) => void) | undefined
+    mocks.fsRead.mockReturnValueOnce(
+      new Promise<Uint8Array>((resolve) => {
+        resolveRead = resolve
+      })
+    )
+
+    render(<PdfPreviewPanel filePath="/tmp/workspace/paper.pdf" fileName="paper.pdf" refreshKey={0} />)
+
+    expect(screen.getByRole('status')).toHaveTextContent('common.loading')
+
+    await act(async () => {
+      resolveRead?.(new Uint8Array([0x25, 0x50, 0x44, 0x46]))
+      await flushPdfEffects()
+    })
+  })
+
   it('does not apply a hardcoded page background when no app background can be resolved', async () => {
     const getComputedStyleSpy = vi.spyOn(window, 'getComputedStyle').mockReturnValue({
       backgroundColor: '',
