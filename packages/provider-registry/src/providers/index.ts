@@ -52,6 +52,7 @@ import p_ph8 from './ph8'
 import p_poe from './poe'
 import p_ppio from './ppio'
 import p_qiniu from './qiniu'
+import p_radeon_cloud from './radeon-cloud'
 import p_silicon from './silicon'
 import p_sophnet from './sophnet'
 import p_stepfun from './stepfun'
@@ -69,6 +70,7 @@ import p_zhipu from './zhipu'
 /** Every provider, in registry order. Source of truth for data/providers.json + data/provider-models.json. */
 export const PROVIDERS: Provider[] = [
   p_cherryin,
+  p_radeon_cloud,
   p_silicon,
   p_aihubmix,
   p_ovms,

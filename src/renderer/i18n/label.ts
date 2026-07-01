@@ -69,6 +69,7 @@ const providerKeyMap = {
   ppio: 'provider.ppio',
   qiniu: 'provider.qiniu',
   qwenlm: 'provider.qwenlm',
+  'radeon-cloud': 'provider.radeon-cloud',
   silicon: 'provider.silicon',
   stepfun: 'provider.stepfun',
   'tencent-cloud-ti': 'provider.tencent-cloud-ti',

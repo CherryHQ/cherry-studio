@@ -4901,6 +4901,7 @@
     "ppio": "PPIO Cloud",
     "qiniu": "Qiniu Cloud KI-Inferenz",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "AMD GPU Cloud",
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",

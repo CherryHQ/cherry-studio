@@ -1,9 +1,9 @@
 import { type InsertMiniAppRow, miniAppTable } from '@data/db/schemas/miniApp'
-import { generateOrderKeySequence } from '@data/services/utils/orderKey'
+import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
-import { isNotNull } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, ne } from 'drizzle-orm'
 
-import type { DbType, ISeeder } from '../../types'
+import type { DbOrTx, DbType, ISeeder } from '../../types'
 import { hashObject } from '../hashObject'
 
 /**
@@ -19,6 +19,8 @@ export class MiniAppSeeder implements ISeeder {
   readonly description = 'Insert/refresh preset miniapp rows from PRESETS_MINI_APPS'
   readonly version: string
 
+  private readonly firstPresetMiniAppId = 'radeon-cloud'
+
   /** Pre-generated fractional-indexing keys, one per preset in declared order. */
   private readonly presetDefaultOrderKeys: ReadonlyMap<string, string>
 
@@ -30,6 +32,7 @@ export class MiniAppSeeder implements ISeeder {
 
   run(db: DbType): void {
     for (const preset of PRESETS_MINI_APPS) {
+      const isFirstPresetMissing = this.isFirstPresetMissing(db, preset.id)
       const insertRow: InsertMiniAppRow = {
         appId: preset.id,
         presetMiniAppId: preset.id,
@@ -41,7 +44,9 @@ export class MiniAppSeeder implements ISeeder {
         supportedRegions: preset.supportedRegions ?? null,
         nameKey: preset.nameKey ?? null,
         status: 'enabled',
-        orderKey: this.presetDefaultOrderKeys.get(preset.id) ?? ''
+        orderKey: isFirstPresetMissing
+          ? this.generateFirstVisibleOrderKey(db)
+          : (this.presetDefaultOrderKeys.get(preset.id) ?? '')
       }
 
       // On conflict: refresh preset display fields, but only for rows that
@@ -66,5 +71,58 @@ export class MiniAppSeeder implements ISeeder {
         })
         .run()
     }
+
+    this.applyFirstPresetOrder(db)
+  }
+
+  private isFirstPresetMissing(db: DbOrTx, presetId: string): boolean {
+    if (presetId !== this.firstPresetMiniAppId) return false
+
+    const rows = db
+      .select({ appId: miniAppTable.appId })
+      .from(miniAppTable)
+      .where(eq(miniAppTable.appId, presetId))
+      .limit(1)
+      .all()
+    return rows.length === 0
+  }
+
+  private generateFirstVisibleOrderKey(db: DbOrTx): string {
+    const [firstVisibleRow] = db
+      .select({ orderKey: miniAppTable.orderKey })
+      .from(miniAppTable)
+      .where(inArray(miniAppTable.status, ['enabled', 'pinned']))
+      .orderBy(asc(miniAppTable.orderKey))
+      .limit(1)
+      .all()
+
+    return generateOrderKeyBetween(null, firstVisibleRow?.orderKey ?? null)
+  }
+
+  private applyFirstPresetOrder(db: DbOrTx): void {
+    const [firstPresetRow] = db
+      .select({ orderKey: miniAppTable.orderKey, presetMiniAppId: miniAppTable.presetMiniAppId, status: miniAppTable.status })
+      .from(miniAppTable)
+      .where(eq(miniAppTable.appId, this.firstPresetMiniAppId))
+      .limit(1)
+      .all()
+
+    if (!firstPresetRow?.presetMiniAppId || !['enabled', 'pinned'].includes(firstPresetRow.status)) return
+
+    const [firstVisibleRow] = db
+      .select({ orderKey: miniAppTable.orderKey })
+      .from(miniAppTable)
+      .where(and(inArray(miniAppTable.status, ['enabled', 'pinned']), ne(miniAppTable.appId, this.firstPresetMiniAppId)))
+      .orderBy(asc(miniAppTable.orderKey))
+      .limit(1)
+      .all()
+
+    if (!firstVisibleRow || firstPresetRow.orderKey < firstVisibleRow.orderKey) return
+
+    db
+      .update(miniAppTable)
+      .set({ orderKey: generateOrderKeyBetween(null, firstVisibleRow.orderKey) })
+      .where(eq(miniAppTable.appId, this.firstPresetMiniAppId))
+      .run()
   }
 }

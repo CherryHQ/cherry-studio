@@ -15,6 +15,7 @@ import { type IconRef, modelIconRef, providerIconRef, useIcon } from '@cherrystu
  */
 const MINI_APP_ICON_REFS: Record<string, IconRef> = {
   application: providerIconRef('application'),
+  'radeon-cloud': providerIconRef('radeon-cloud'),
   openclaw: providerIconRef('openclaw'),
   openai: providerIconRef('openai'),
   gemini: providerIconRef('google'),

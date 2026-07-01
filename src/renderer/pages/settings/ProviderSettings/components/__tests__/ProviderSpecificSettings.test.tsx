@@ -139,17 +139,32 @@ describe('ProviderSpecificSettings', () => {
     }
   ])(
     'renders the expected provider-specific block for $providerId',
-    ({ providerId, placement, meta, expectedText, authType }: any) => {
+    ({ providerId, placement, meta, expectedText, authType, supportAuth }: any) => {
       useProviderMock.mockReturnValue({
         provider: { id: providerId, name: providerId, isEnabled: true, ...(authType ? { authType } : {}) }
       })
       useProviderMetaMock.mockReturnValue(meta)
+      if (supportAuth !== undefined) {
+        isProviderSupportAuthMock.mockReturnValue(supportAuth)
+      }
 
       render(<ProviderSpecificSettings providerId={providerId} placement={placement} />)
 
       expect(screen.getByText(expectedText)).toBeInTheDocument()
     }
   )
+
+  it('does not render AMD GPU Cloud OAuth while account login is disabled', () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'radeon-cloud', name: 'AMD GPU Cloud', isEnabled: true }
+    })
+    useProviderMetaMock.mockReturnValue({ isCherryIN: false, isDmxapi: false })
+    isProviderSupportAuthMock.mockReturnValue(false)
+
+    const { container } = render(<ProviderSpecificSettings providerId="radeon-cloud" placement="beforeAuth" />)
+
+    expect(container.textContent).not.toContain('provider-oauth-radeon-cloud')
+  })
 
   it('returns nothing when the provider is missing', () => {
     useProviderMock.mockReturnValue({
