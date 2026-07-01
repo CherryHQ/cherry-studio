@@ -240,7 +240,7 @@ describe('Sidebar resize handle', () => {
     })
   })
 
-  it('uses compact docked mini app dividers instead of full-width borders', () => {
+  it('uses equal side margins for the full docked mini app divider and centers the icon divider', () => {
     const dockedTabs = [
       {
         id: 'qwen',
@@ -262,7 +262,10 @@ describe('Sidebar resize handle', () => {
     )
     const fullDivider = fullContainer.querySelector('.sidebar-docked-divider')
 
-    expect(fullDivider).toHaveClass('w-8')
+    expect(fullDivider).toHaveClass('mx-2.5')
+    expect(fullDivider).not.toHaveClass('w-3/5')
+    expect(fullDivider).not.toHaveClass('max-w-12')
+    expect(fullDivider).not.toHaveClass('mx-auto')
     expect(fullDivider).toHaveClass('my-1.5')
     expect(fullDivider).toHaveClass('bg-border-subtle')
     expect(fullDivider?.parentElement).not.toHaveClass('border-t')
@@ -279,7 +282,10 @@ describe('Sidebar resize handle', () => {
     )
     const iconDivider = iconContainer.querySelector('.sidebar-docked-divider')
 
-    expect(iconDivider).toHaveClass('w-6')
+    expect(iconDivider).toHaveClass('w-3/5')
+    expect(iconDivider).toHaveClass('max-w-12')
+    expect(iconDivider).toHaveClass('mx-auto')
+    expect(iconDivider).not.toHaveClass('ml-2.5')
     expect(iconDivider).toHaveClass('my-1.5')
     expect(iconDivider).toHaveClass('bg-border-subtle')
     expect(iconDivider?.parentElement).not.toHaveClass('border-t')

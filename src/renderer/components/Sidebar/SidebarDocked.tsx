@@ -20,16 +20,16 @@ export function SidebarDocked({ layout, dockedTabs, ...props }: SidebarDockedPro
 
 type DockedTabsProps = Omit<SidebarDockedProps, 'layout'>
 
-function DockedDivider({ widthClass }: { widthClass: string }) {
-  return (
-    <div aria-hidden="true" className={`sidebar-docked-divider mx-auto my-1.5 h-px ${widthClass} bg-border-subtle`} />
-  )
+function DockedDivider({ layout }: { layout: SidebarVisibleLayout }) {
+  const layoutClass = layout === 'icon' ? 'mx-auto w-3/5 max-w-12' : 'mx-2.5'
+
+  return <div aria-hidden="true" className={`sidebar-docked-divider my-1.5 h-px bg-border-subtle ${layoutClass}`} />
 }
 
 function IconDockedTabs({ dockedTabs, activeTabId, onMiniAppTabClick }: DockedTabsProps) {
   return (
     <div className="mt-1 flex flex-col items-center gap-0.5 px-1.5 [-webkit-app-region:no-drag]">
-      <DockedDivider widthClass="w-6" />
+      <DockedDivider layout="icon" />
       {dockedTabs.map((dockedTab) => {
         const isActive = activeTabId === dockedTab.id
 
@@ -57,7 +57,7 @@ function IconDockedTabs({ dockedTabs, activeTabId, onMiniAppTabClick }: DockedTa
 function FullDockedTabs({ dockedTabs, activeTabId, onMiniAppTabClick }: DockedTabsProps) {
   return (
     <div className="mt-1 space-y-0.5 px-2 [-webkit-app-region:no-drag]">
-      <DockedDivider widthClass="w-8" />
+      <DockedDivider layout="full" />
       {dockedTabs.map((dockedTab) => {
         const isActive = activeTabId === dockedTab.id
 
