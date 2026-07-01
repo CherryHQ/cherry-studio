@@ -116,7 +116,7 @@ describe('QqAdapter passive reply', () => {
     const bodies = capturePostBodies()
 
     await adapter.handleGroupMessage(groupMessage('inbound-1'))
-    await adapter.sendMessage('group:g1', 'reply')
+    await adapter.sendMessage('group:g1', 'reply', { replyToMessageId: 'inbound-1' })
 
     expect(bodies).toHaveLength(1)
     expect(bodies[0].msg_id).toBe('inbound-1')
@@ -129,11 +129,39 @@ describe('QqAdapter passive reply', () => {
     const bodies = capturePostBodies()
 
     await adapter.handleGroupMessage(groupMessage('inbound-1'))
-    await adapter.sendMessage('group:g1', 'first')
-    await adapter.sendMessage('group:g1', 'second')
+    await adapter.sendMessage('group:g1', 'first', { replyToMessageId: 'inbound-1' })
+    await adapter.sendMessage('group:g1', 'second', { replyToMessageId: 'inbound-1' })
 
     expect(bodies.map((b) => b.msg_seq)).toEqual([1, 2])
     expect(bodies.every((b) => b.msg_id === 'inbound-1')).toBe(true)
+  })
+
+  it('replies against the answered msg_id, not the latest inbound for the chat', async () => {
+    const adapter = createAdapter()
+    vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
+    const bodies = capturePostBodies()
+
+    // Two inbound messages arrive; the reply to the first must not bind to the second.
+    await adapter.handleGroupMessage(groupMessage('inbound-1'))
+    await adapter.handleGroupMessage(groupMessage('inbound-2'))
+    await adapter.sendMessage('group:g1', 'answer to first', { replyToMessageId: 'inbound-1' })
+
+    expect(bodies).toHaveLength(1)
+    expect(bodies[0].msg_id).toBe('inbound-1')
+    expect(bodies[0].msg_seq).toBe(1)
+    // inbound-2's slot is untouched.
+    expect(adapter.passiveReplies.get('group:g1:inbound-2').seq).toBe(0)
+  })
+
+  it('emits the inbound messageId on the message event', async () => {
+    const adapter = createAdapter()
+    const events: any[] = []
+    adapter.on('message', (e: any) => events.push(e))
+
+    await adapter.handleGroupMessage(groupMessage('inbound-1'))
+
+    expect(events).toHaveLength(1)
+    expect(events[0].messageId).toBe('inbound-1')
   })
 
   it('keeps the C2C passive window open for 60 minutes (longer than group)', async () => {
@@ -148,9 +176,9 @@ describe('QqAdapter passive reply', () => {
       timestamp: ''
     })
     // 10 min in: would be expired for a group, still valid for C2C.
-    adapter.passiveReplies.get('c2c:u1').receivedAt = Date.now() - 10 * 60 * 1000
+    adapter.passiveReplies.get('c2c:u1:inbound-c2c').receivedAt = Date.now() - 10 * 60 * 1000
 
-    await adapter.sendMessage('c2c:u1', 'reply')
+    await adapter.sendMessage('c2c:u1', 'reply', { replyToMessageId: 'inbound-c2c' })
 
     expect(bodies).toHaveLength(1)
     expect(bodies[0].msg_id).toBe('inbound-c2c')
@@ -163,14 +191,29 @@ describe('QqAdapter passive reply', () => {
     const bodies = capturePostBodies()
 
     await adapter.handleGroupMessage(groupMessage('inbound-1'))
-    const entry = adapter.passiveReplies.get('group:g1')
-    entry.receivedAt = Date.now() - 6 * 60 * 1000
+    adapter.passiveReplies.get('group:g1:inbound-1').receivedAt = Date.now() - 6 * 60 * 1000
 
-    await adapter.sendMessage('group:g1', 'late reply')
+    await adapter.sendMessage('group:g1', 'late reply', { replyToMessageId: 'inbound-1' })
 
     expect(bodies).toHaveLength(1)
     expect(bodies[0].msg_id).toBeUndefined()
     expect(bodies[0].msg_seq).toBeUndefined()
-    expect(adapter.passiveReplies.has('group:g1')).toBe(false)
+    expect(adapter.passiveReplies.has('group:g1:inbound-1')).toBe(false)
+  })
+
+  it('stops passive replies after the 5-per-msg_id cap and falls back to active push', async () => {
+    const adapter = createAdapter()
+    vi.spyOn(adapter, 'getAccessToken').mockResolvedValue('tok')
+    const bodies = capturePostBodies()
+
+    await adapter.handleGroupMessage(groupMessage('inbound-1'))
+    // 6 separate passive sends against the same msg_id; QQ allows only 5.
+    for (let i = 0; i < 6; i++) {
+      await adapter.sendMessage('group:g1', `chunk ${i}`, { replyToMessageId: 'inbound-1' })
+    }
+
+    expect(bodies.map((b) => b.msg_seq)).toEqual([1, 2, 3, 4, 5, undefined])
+    expect(bodies[5].msg_id).toBeUndefined()
+    expect(adapter.passiveReplies.has('group:g1:inbound-1')).toBe(false)
   })
 })
