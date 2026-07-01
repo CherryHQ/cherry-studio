@@ -1,3 +1,4 @@
+import type * as FsPromises from 'node:fs/promises'
 import { mkdir, mkdtemp, open, rm, symlink, truncate, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -10,7 +11,7 @@ import { isWorkspaceFileError, resolveWorkspaceFile, WorkspaceFileError } from '
 // Wrap only `open` as a spy so a single test can simulate a file growing between
 // fstat and read; every other fs call (and open by default) stays real.
 vi.mock('node:fs/promises', async (importActual) => {
-  const actual = await importActual<typeof import('node:fs/promises')>()
+  const actual = await importActual<typeof FsPromises>()
   return { ...actual, open: vi.fn(actual.open) }
 })
 
