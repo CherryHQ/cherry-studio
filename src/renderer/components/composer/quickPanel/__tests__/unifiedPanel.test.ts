@@ -1,7 +1,7 @@
 import type { QuickPanelContextType, QuickPanelListItem } from '@renderer/components/QuickPanel'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createUnifiedQuickPanelOpenOptions } from '../unifiedPanel'
+import { createUnifiedQuickPanelOpenOptions, hasUnifiedQuickPanelRootContent } from '../unifiedPanel'
 
 const quickPanel = {
   open: vi.fn(),
@@ -22,6 +22,20 @@ const quickPanel = {
 } satisfies QuickPanelContextType
 
 const labels = (items: QuickPanelListItem[]) => items.map((item) => item.label)
+
+beforeEach(() => {
+  quickPanel.open.mockReset()
+  quickPanel.close.mockReset()
+  quickPanel.updateItemSelection.mockReset()
+  quickPanel.updateList.mockReset()
+  quickPanel.setFillToAvailableHeight.mockReset()
+  quickPanel.dispatchKeyDown.mockReset()
+  quickPanel.dispatchKeyDown.mockReturnValue(false)
+  quickPanel.getPanelGeneration.mockReset()
+  quickPanel.getPanelGeneration.mockReturnValue(0)
+  quickPanel.registerKeyDownHandler.mockReset()
+  quickPanel.registerKeyDownHandler.mockReturnValue(() => undefined)
+})
 
 describe('createUnifiedQuickPanelOpenOptions', () => {
   it('keeps system actions above resource results while preserving business order during search', () => {
@@ -83,5 +97,226 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
 
     const reversedItems = [...options.list].reverse()
     expect(options.sortFn!(reversedItems, '')).toEqual(reversedItems)
+  })
+
+  it('dispatches generated launcher actions with source and query context', () => {
+    const onToolLauncherSelect = vi.fn()
+    const inputAdapter = {
+      getText: vi.fn(() => '/ask'),
+      getCursorOffset: vi.fn(() => 4),
+      insertText: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'attachment',
+          kind: 'command',
+          label: 'Attachment',
+          icon: 'paperclip',
+          sources: ['popover']
+        },
+        {
+          id: 'slash-command',
+          kind: 'command',
+          label: 'Slash command',
+          icon: 'slash',
+          sources: ['root-panel']
+        }
+      ],
+      {
+        quickPanel,
+        inputAdapter,
+        onToolLauncherSelect,
+        queryAnchor: 0,
+        triggerInfo: { type: 'input', position: 0, originalText: '/ask' }
+      }
+    )
+    const attachment = options.list.find((item) => item.label === 'Attachment')
+    const slashCommand = options.list.find((item) => item.label === 'Slash command')
+    const actionContext = { ...quickPanel, triggerInfo: options.triggerInfo } satisfies QuickPanelContextType
+
+    attachment?.action?.({
+      action: 'enter',
+      context: actionContext,
+      item: attachment,
+      parentPanel: options,
+      queryAnchor: 0,
+      searchText: 'ask'
+    })
+    slashCommand?.action?.({
+      action: 'enter',
+      context: actionContext,
+      item: slashCommand,
+      parentPanel: options,
+      queryAnchor: 0,
+      searchText: 'ask'
+    })
+
+    expect(onToolLauncherSelect).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ id: 'attachment' }),
+      expect.objectContaining({
+        source: 'popover',
+        inputAdapter,
+        parentPanel: options,
+        queryAnchor: 0,
+        searchText: 'ask',
+        triggerInfo: { type: 'input', position: 0, originalText: '/ask' }
+      })
+    )
+    expect(onToolLauncherSelect).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ id: 'slash-command' }),
+      expect.objectContaining({
+        source: 'root-panel',
+        inputAdapter,
+        parentPanel: options,
+        queryAnchor: 0,
+        searchText: 'ask',
+        triggerInfo: { type: 'input', position: 0, originalText: '/ask' }
+      })
+    )
+  })
+
+  it('opens submenus with parent panel context and dispatches child actions', () => {
+    const onToolLauncherSelect = vi.fn()
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'thinking',
+          kind: 'group',
+          label: 'Thinking',
+          icon: 'brain',
+          sources: ['popover'],
+          submenu: [
+            {
+              id: 'thinking-low',
+              kind: 'command',
+              label: 'Low',
+              icon: 'low',
+              sources: ['root-panel']
+            }
+          ]
+        }
+      ],
+      {
+        quickPanel,
+        onToolLauncherSelect,
+        queryAnchor: 0,
+        triggerInfo: { type: 'input', position: 0, originalText: '/think' }
+      }
+    )
+    const thinking = options.list[0]
+    const actionContext = { ...quickPanel, triggerInfo: options.triggerInfo } satisfies QuickPanelContextType
+
+    thinking.action?.({
+      action: 'enter',
+      context: actionContext,
+      item: thinking,
+      parentPanel: options,
+      queryAnchor: 0,
+      searchText: 'think'
+    })
+
+    expect(quickPanel.open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Thinking',
+        symbol: 'thinking',
+        parentPanel: options,
+        queryAnchor: 0,
+        triggerInfo: { type: 'input', position: 0, originalText: '/think' },
+        list: [expect.objectContaining({ label: 'Low' })]
+      })
+    )
+
+    const childPanelOptions = vi.mocked(quickPanel.open).mock.calls[0][0]
+    const low = childPanelOptions.list[0]
+    low.action?.({
+      action: 'enter',
+      context: actionContext,
+      item: low,
+      parentPanel: options,
+      queryAnchor: 0,
+      searchText: 'think'
+    })
+
+    expect(onToolLauncherSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'thinking-low' }),
+      expect.objectContaining({
+        source: 'root-panel',
+        parentPanel: options,
+        queryAnchor: 0,
+        searchText: 'think',
+        triggerInfo: { type: 'input', position: 0, originalText: '/think' }
+      })
+    )
+  })
+
+  it('marks disabled launchers as disabled items with the disabled reason', () => {
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'disabled-tool',
+          kind: 'command',
+          label: 'Disabled tool',
+          icon: 'tool',
+          disabled: true,
+          disabledReason: 'Unavailable',
+          sources: ['root-panel']
+        }
+      ],
+      { quickPanel }
+    )
+
+    expect(options.list[0]).toEqual(
+      expect.objectContaining({
+        label: 'Disabled tool',
+        description: 'Unavailable',
+        disabled: true
+      })
+    )
+  })
+})
+
+describe('hasUnifiedQuickPanelRootContent', () => {
+  it('matches root item availability for visible launchers and static rows', () => {
+    expect(hasUnifiedQuickPanelRootContent([])).toBe(false)
+    expect(hasUnifiedQuickPanelRootContent([], { leadingItems: [{ id: 'new', label: 'New', icon: 'plus' }] })).toBe(
+      true
+    )
+    expect(
+      hasUnifiedQuickPanelRootContent([
+        {
+          id: 'hidden',
+          kind: 'command',
+          label: 'Hidden',
+          icon: 'hidden',
+          hidden: true,
+          sources: ['root-panel']
+        }
+      ])
+    ).toBe(false)
+    expect(
+      hasUnifiedQuickPanelRootContent([
+        {
+          id: 'group',
+          kind: 'group',
+          label: 'Group',
+          icon: 'group',
+          sources: [],
+          submenu: [
+            {
+              id: 'child',
+              kind: 'command',
+              label: 'Child',
+              icon: 'child',
+              sources: ['root-panel']
+            }
+          ]
+        }
+      ])
+    ).toBe(true)
   })
 })

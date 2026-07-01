@@ -211,7 +211,8 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   useComposerToolLauncherActions: () => ({
     getLaunchers: vi.fn(() => []),
     dispatchLauncher: vi.fn()
-  })
+  }),
+  useComposerToolLauncherVersion: () => 0
 }))
 
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({

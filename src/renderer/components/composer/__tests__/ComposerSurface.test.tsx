@@ -996,6 +996,35 @@ describe('ComposerSurface', () => {
     )
   })
 
+  it('marks the unified panel unavailable when the root list would be empty', async () => {
+    const renderLeftControls = (_inputAdapter: unknown, unifiedPanelControl?: { available: boolean }) =>
+      unifiedPanelControl?.available ? <button type="button">available</button> : <span>unavailable</span>
+
+    const { rerender } = render(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        getToolLaunchers={() => []}
+        renderLeftControls={renderLeftControls}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+    expect(screen.getByText('unavailable')).toBeInTheDocument()
+
+    rerender(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        getToolLaunchers={() => []}
+        rootPanelLeadingItems={[{ id: 'new-topic', label: 'New topic', icon: 'plus' }]}
+        renderLeftControls={renderLeftControls}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'available' })).toBeInTheDocument()
+  })
+
   it('hides resource items for empty unified panel searches and appends them after commands for non-empty searches', async () => {
     const resourceProvider = vi.fn(async () => [
       {
@@ -1165,6 +1194,60 @@ describe('ComposerSurface', () => {
     })
 
     expect(mocks.quickPanelUpdateList).not.toHaveBeenCalled()
+  })
+
+  it('clears unified panel resources when the resource provider rejects', async () => {
+    let rejectResourceItems: (error: Error) => void = () => undefined
+    const resourceProvider = vi.fn(
+      () =>
+        new Promise<QuickPanelListItem[]>((_resolve, reject) => {
+          rejectResourceItems = reject
+        })
+    )
+    const renderSurface = () => (
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        resourceProvider={resourceProvider}
+        getToolLaunchers={() => [
+          {
+            id: 'attachment',
+            kind: 'command',
+            label: 'Attachment',
+            icon: 'paperclip',
+            sources: ['popover']
+          }
+        ]}
+      />
+    )
+    const { rerender } = render(renderSurface())
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    mocks.docContentSize = 6
+    mocks.docTextBetween.mockReturnValue('/notes')
+    mocks.selection = { from: 6, to: 6, $to: {} }
+    mocks.quickPanelGeneration = 1
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelSymbol = '/'
+    mocks.quickPanelQueryAnchor = 0
+    mocks.quickPanelTriggerInfo = {
+      type: 'input',
+      position: 0,
+      originalText: '/notes'
+    }
+    rerender(renderSurface())
+
+    await waitFor(() => expect(resourceProvider).toHaveBeenCalledTimes(1))
+    mocks.quickPanelUpdateList.mockClear()
+    await act(async () => {
+      rejectResourceItems(new Error('search failed'))
+      await Promise.resolve()
+    })
+
+    await waitFor(() =>
+      expect(mocks.quickPanelUpdateList).toHaveBeenLastCalledWith([expect.objectContaining({ label: 'Attachment' })])
+    )
   })
 
   it('bridges external suggestion sources into QuickPanel items', async () => {

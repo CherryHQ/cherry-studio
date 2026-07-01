@@ -211,6 +211,7 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
     getLaunchers: vi.fn(() => []),
     dispatchLauncher: vi.fn()
   }),
+  useComposerToolLauncherVersion: () => 0,
   useComposerTokenReconcile: () => mocks.reconcileTokens
 }))
 

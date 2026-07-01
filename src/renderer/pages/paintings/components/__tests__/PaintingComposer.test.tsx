@@ -38,6 +38,7 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   useComposerToolState: () => ({ files: [], isExpanded: false }),
   useComposerToolDispatch: () => ({ setFiles: vi.fn(), setIsExpanded: vi.fn() }),
   useComposerToolLauncherActions: () => ({ getLaunchers: () => [], dispatchLauncher: vi.fn() }),
+  useComposerToolLauncherVersion: () => 0,
   useComposerTokenReconcile: () => vi.fn()
 }))
 
