@@ -889,27 +889,14 @@ class ModelService {
     await withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx(async (tx) => {
-          const [existing] = await tx
-            .select({ presetModelId: userModelTable.presetModelId })
-            .from(userModelTable)
-            .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
-            .limit(1)
-
-          if (!existing) {
-            throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
-          }
-
-          if (existing.presetModelId != null && existing.presetModelId !== '') {
-            throw DataApiErrorFactory.invalidOperation(
-              `delete model ${providerId}/${modelId}`,
-              'preset models cannot be directly deleted'
-            )
-          }
-
           const rows = await tx
             .delete(userModelTable)
             .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
             .returning({ id: userModelTable.id })
+
+          if (rows.length === 0) {
+            throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
+          }
 
           await pinService.purgeForEntityTx(tx, 'model', rows[0].id)
         }),
@@ -956,31 +943,19 @@ class ModelService {
     await withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx(async (tx) => {
-          // Resolve existence + presetModelId in one pass
-          const existingRows = new Map<string, string | null>()
+          const existingIds = new Set<string>()
           for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
             const chunk = ids.slice(i, i + SQLITE_INARRAY_CHUNK)
-            const rows = await tx
-              .select({ id: userModelTable.id, presetModelId: userModelTable.presetModelId })
+            const existingRows = await tx
+              .select({ id: userModelTable.id })
               .from(userModelTable)
               .where(inArray(userModelTable.id, chunk))
-            for (const row of rows) existingRows.set(row.id, row.presetModelId)
+            for (const row of existingRows) existingIds.add(row.id)
           }
 
-          const missingId = ids.find((id) => !existingRows.has(id))
+          const missingId = ids.find((id) => !existingIds.has(id))
           if (missingId) {
             throw DataApiErrorFactory.notFound('Model', missingId)
-          }
-
-          // Reject deletion of preset-backed models
-          for (const [id, presetModelId] of existingRows) {
-            if (presetModelId != null && presetModelId !== '') {
-              const item = uniqueItems.get(id)!
-              throw DataApiErrorFactory.invalidOperation(
-                `delete model ${item.providerId}/${item.modelId}`,
-                'preset models cannot be directly deleted'
-              )
-            }
           }
 
           for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
