@@ -448,6 +448,45 @@ describe('RagConfigPanel', () => {
     })
   })
 
+  it('opens the rebuild flow when a BM25-only base gains an embedding model', () => {
+    const onRestoreBase = vi.fn()
+
+    // Not `mockReturnValueOnce`: the embedding-model change event re-renders the
+    // component, which calls this mock again — a `Once` value would be consumed
+    // by that re-render and fall back to the module-level hybrid/vector default.
+    mockUseKnowledgeRagConfig.mockReturnValue({
+      initialValues: {
+        fileProcessorId: null,
+        chunkSize: '512',
+        chunkOverlap: '64',
+        chunkStrategy: 'structured',
+        chunkSeparator: '\\n\\n',
+        embeddingModelId: null,
+        rerankModelId: null,
+        documentCount: 6,
+        threshold: 0.1,
+        searchMode: 'bm25',
+        hybridAlpha: null
+      },
+      fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
+      searchModeOptions: [{ value: 'bm25', label: '全文检索' }],
+      save: mockSave,
+      isLoading: false,
+      error: undefined
+    })
+
+    renderRagConfigPanel(onRestoreBase, { embeddingModelId: null, dimensions: null, searchMode: 'bm25' })
+
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
+    expect(screen.getByRole('button', { name: '重建' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '重建' }))
+
+    expect(mockSave).not.toHaveBeenCalled()
+    expect(onRestoreBase).toHaveBeenCalledWith(expect.objectContaining({ id: 'base-1' }), {
+      embeddingModelId: 'openai::text-embedding-3-small'
+    })
+  })
+
   it('renders hover hint tooltip content for RAG field labels', () => {
     renderRagConfigPanel()
 
