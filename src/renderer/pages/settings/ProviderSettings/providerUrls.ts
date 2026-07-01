@@ -671,5 +671,16 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       docs: 'https://platform.xiaomimimo.com/#/docs/welcome',
       models: 'https://platform.xiaomimimo.com/'
     }
+  },
+  opencode: {
+    api: {
+      url: 'https://opencode.ai/zen/go/v1'
+    },
+    websites: {
+      official: 'https://opencode.ai',
+      apiKey: 'https://opencode.ai/auth',
+      docs: 'https://opencode.ai/docs/go',
+      models: 'https://opencode.ai/docs/go'
+    }
   }
 }
