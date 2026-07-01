@@ -60,6 +60,7 @@ patchedDependencies:
   onnxruntime-node@1.24.3: patches/onnxruntime-node@1.24.3.patch
 
 allowBuilds:
+  '@google/genai': false
   '@j178/prek': true
   '@paymoapp/electron-shutdown-handler': true
   '@scarf/scarf': true
@@ -87,6 +88,10 @@ supportedArchitectures:
     - current
 
 minimumReleaseAgeExclude:
+  - '@earendil-works/pi-agent-core@0.80.3'
+  - '@earendil-works/pi-ai@0.80.3'
+  - '@earendil-works/pi-coding-agent@0.80.3'
+  - '@earendil-works/pi-tui@0.80.3'
   - '@aiany/sqlite-vec-darwin-arm64@0.1.10-alpha.4.aiany.2'
   - '@aiany/sqlite-vec-darwin-x64@0.1.10-alpha.4.aiany.2'
   - '@aiany/sqlite-vec-linux-arm64@0.1.10-alpha.4.aiany.2'
