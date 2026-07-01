@@ -183,6 +183,7 @@ const WordPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize }: WordPr
     })()
 
     return () => {
+      renderTokenRef.current += 1
       bodyContainer.innerHTML = ''
       styleContainer.innerHTML = ''
     }
