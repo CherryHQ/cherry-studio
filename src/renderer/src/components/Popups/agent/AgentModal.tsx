@@ -23,7 +23,7 @@ import { parseKeyValueString, serializeKeyValueString } from '@renderer/utils/en
 import { getAnthropicSupportedProviders } from '@renderer/utils/provider'
 import type { GitBashPathInfo } from '@shared/config/constant'
 import { Button, Input, Modal, Select, Switch, Tooltip } from 'antd'
-import { Info } from 'lucide-react'
+import { ArrowUpRight, BookOpenText, Info } from 'lucide-react'
 import type { ChangeEvent, FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -401,6 +401,19 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
                     setOpen(false)
                     resolve(undefined)
                   }}
+                  extraTopItem={
+                    <DocsLinkItem
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        void window.api.openWebsite('https://docs.cherry-ai.com/advanced-basic/agent')
+                      }}>
+                      <DocsIconWrapper>
+                        <BookOpenText size={14} />
+                      </DocsIconWrapper>
+                      {t('agent.add.model.docs_link', 'Custom provider')}
+                      <ArrowUpRight size={14} />
+                    </DocsLinkItem>
+                  }
                 />
               </div>
               <SelectAgentBaseModelButton
@@ -638,6 +651,28 @@ const RequiredMark = styled.span`
 const HelpText = styled.div`
   font-size: 12px;
   color: var(--color-text-3);
+`
+
+// Documentation link styled identical to popover provider rows
+const DocsLinkItem = styled.div`
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  &:hover {
+    color: var(--color-link);
+  }
+`
+
+// Wrapper to match ProviderAvatar 20x20 size
+const DocsIconWrapper = styled.span`
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 `
 
 const LabelWithButton = styled.div`
