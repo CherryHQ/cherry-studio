@@ -227,6 +227,24 @@ export const COMMAND_DEFINITIONS = [
     keybinding: {
       defaultBinding: []
     }
+  }),
+  defineCommand({
+    id: 'tab.next',
+    titleKey: 'settings.shortcuts.next_tab',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'Tab']
+    }
+  }),
+  defineCommand({
+    id: 'tab.prev',
+    titleKey: 'settings.shortcuts.prev_tab',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'Shift', 'Tab']
+    }
   })
 ] as const satisfies readonly CommandDefinition[]
 
