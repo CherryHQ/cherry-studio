@@ -185,7 +185,8 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('lucide-react', () => ({
-  AlertCircle: (props: PropsWithChildren<React.SVGProps<SVGSVGElement>>) => <svg aria-hidden="true" {...props} />
+  AlertCircle: (props: PropsWithChildren<React.SVGProps<SVGSVGElement>>) => <svg aria-hidden="true" {...props} />,
+  Loader2: (props: PropsWithChildren<React.SVGProps<SVGSVGElement>>) => <svg aria-hidden="true" {...props} />
 }))
 
 const flushPdfEffects = async () => {

@@ -2,6 +2,7 @@ import 'pdfjs-dist/web/pdf_viewer.css'
 
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { LoadingState } from '@renderer/components/chat/primitives'
 import { AlertCircle } from 'lucide-react'
 import { getDocument, GlobalWorkerOptions, type PDFDocumentLoadingTask, type PDFDocumentProxy } from 'pdfjs-dist'
 // oxlint-disable-next-line import/default -- Vite exposes ?url imports as default asset URLs.
@@ -418,10 +419,7 @@ const PdfPreviewPanel = ({ filePath, fileName, refreshKey }: PdfPreviewPanelProp
   if (loading) {
     return (
       <div className="flex h-full w-full items-center justify-center bg-background">
-        <div className="flex items-center gap-2 text-muted-foreground text-sm">
-          <span className="size-4 animate-spin rounded-full border border-muted-foreground/30 border-t-muted-foreground" />
-          <span>{t('common.loading')}</span>
-        </div>
+        <LoadingState label={t('common.loading')} />
       </div>
     )
   }

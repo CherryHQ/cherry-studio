@@ -1,5 +1,6 @@
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { LoadingState } from '@renderer/components/chat/primitives'
 import { renderAsync } from 'docx-preview'
 import { AlertCircle } from 'lucide-react'
 import { type CSSProperties, useCallback, useEffect, useRef, useState } from 'react'
@@ -205,10 +206,7 @@ const WordPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize }: WordPr
       )}
       {loading && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-background">
-          <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            <span className="size-4 animate-spin rounded-full border border-muted-foreground/30 border-t-muted-foreground" />
-            <span>{t('common.loading')}</span>
-          </div>
+          <LoadingState label={t('common.loading')} />
         </div>
       )}
       <div

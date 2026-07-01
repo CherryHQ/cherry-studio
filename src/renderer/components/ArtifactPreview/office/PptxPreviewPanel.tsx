@@ -1,6 +1,7 @@
 import { PptxViewer, RECOMMENDED_ZIP_LIMITS } from '@aiden0z/pptx-renderer'
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { LoadingState } from '@renderer/components/chat/primitives'
 import { AlertCircle } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -257,10 +258,7 @@ const PptxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize }: PptxPr
       )}
       {loading && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-background">
-          <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            <span className="size-4 animate-spin rounded-full border border-muted-foreground/30 border-t-muted-foreground" />
-            <span>{t('common.loading')}</span>
-          </div>
+          <LoadingState label={t('common.loading')} />
         </div>
       )}
       <div
