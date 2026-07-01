@@ -363,7 +363,7 @@ describe('LaunchpadPage', () => {
     expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledWith('pinned', [docs, calculator])
   })
 
-  it('shows opened-only mini apps without including them in pinned sortable persistence', () => {
+  it('shows only launchpad-pinned mini apps, excluding opened-but-unpinned ones', () => {
     const calculator = {
       appId: 'calculator',
       name: 'Calculator',
@@ -383,6 +383,8 @@ describe('LaunchpadPage', () => {
       orderKey: 'b'
     }
     mocks.pinnedMiniApps = [calculator]
+    // scratch is opened (e.g. via the sidebar) but not added to the launchpad —
+    // launchpad membership must stay independent of what is merely opened.
     mocks.openedMiniApps = [calculator, scratch]
 
     render(<LaunchpadPage />)
@@ -391,7 +393,26 @@ describe('LaunchpadPage', () => {
 
     expect(miniAppSortable.items.map((app: { appId: string }) => app.appId)).toEqual(['calculator'])
     expect(screen.getByRole('button', { name: 'Calculator' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Scratch' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Scratch' })).not.toBeInTheDocument()
+  })
+
+  it('hides the mini apps section when only opened-but-unpinned apps exist', () => {
+    const scratch = {
+      appId: 'scratch',
+      name: 'Scratch',
+      logo: 'scratch-logo',
+      url: 'https://scratch.example.com',
+      presetMiniAppId: 'scratch',
+      status: 'enabled',
+      orderKey: 'b'
+    }
+    mocks.pinnedMiniApps = []
+    mocks.openedMiniApps = [scratch]
+
+    render(<LaunchpadPage />)
+
+    expect(screen.queryByRole('heading', { name: 'Mini Apps' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Scratch' })).not.toBeInTheDocument()
   })
 
   it('pins an app icon to the sidebar from the context menu', async () => {

@@ -83,7 +83,7 @@ export default function LaunchpadPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
-  const { pinned, openedKeepAliveMiniApps, reorderMiniAppsByStatus } = useMiniApps()
+  const { pinned, reorderMiniAppsByStatus } = useMiniApps()
   const [sidebarFavorites, setSidebarFavorites] = usePreference('ui.sidebar.favorites')
   const suppressClickUntilRef = useRef(0)
   const draggedItemIdRef = useRef<string | null>(null)
@@ -227,11 +227,6 @@ export default function LaunchpadPage() {
     [appMenuItems, visibleSidebarFavoriteSet]
   )
 
-  const openedOnlyMiniApps = useMemo(
-    () => openedKeepAliveMiniApps.filter((app) => !pinned.some((pinnedApp) => pinnedApp.appId === app.appId)),
-    [openedKeepAliveMiniApps, pinned]
-  )
-
   useEffect(() => {
     if (!optimisticPinnedMiniApps) return
 
@@ -250,7 +245,7 @@ export default function LaunchpadPage() {
     return optimisticPinnedMiniApps.map((app) => latestPinnedById.get(app.appId) ?? app)
   }, [optimisticPinnedMiniApps, pinned])
 
-  const launchpadMiniAppsVisible = displayedPinnedMiniApps.length + openedOnlyMiniApps.length > 0
+  const launchpadMiniAppsVisible = displayedPinnedMiniApps.length > 0
 
   const handleSidebarAppsSortEnd = useCallback(
     ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
@@ -344,11 +339,6 @@ export default function LaunchpadPage() {
                   onSortEnd={handleSidebarMiniAppsSortEnd}
                   renderItem={(app) => renderMiniAppItem(app)}
                 />
-                {openedOnlyMiniApps.map((app) => (
-                  <div key={app.appId} className="contents">
-                    {renderMiniAppItem(app)}
-                  </div>
-                ))}
               </div>
             </section>
           )}
