@@ -84,7 +84,7 @@ function FullDockedTabs({
         return (
           <div
             key={dockedTab.id}
-            className={`group/dock relative flex cursor-grab items-center gap-2.5 rounded-xl px-2.5 py-[6px] text-[12px] transition-all duration-150 active:cursor-grabbing ${
+            className={`group/dock text-(length:--font-size-body-xs) relative flex cursor-grab items-center gap-2.5 rounded-xl px-2.5 py-[6px] transition-all duration-150 active:cursor-grabbing ${
               isActive
                 ? 'bg-sidebar-active-bg text-foreground'
                 : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground'

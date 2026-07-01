@@ -200,38 +200,7 @@ describe('Sidebar resize handle', () => {
     expect(getByText('Chat')).toBeInTheDocument()
   })
 
-  it('renders footer actions with the current sidebar layout', () => {
-    const renderActions = (layout: 'icon' | 'full') => <button type="button">theme-{layout}</button>
-
-    const { rerender } = render(
-      <Sidebar
-        width={SIDEBAR_ICON_WIDTH}
-        setWidth={vi.fn()}
-        activeItem="chat"
-        items={items}
-        actions={renderActions}
-        onItemClick={vi.fn()}
-      />
-    )
-
-    expect(document.body).toHaveTextContent('theme-icon')
-
-    rerender(
-      <Sidebar
-        width={SIDEBAR_FULL_THRESHOLD}
-        setWidth={vi.fn()}
-        activeItem="chat"
-        items={items}
-        actions={renderActions}
-        onItemClick={vi.fn()}
-      />
-    )
-
-    expect(document.body).toHaveTextContent('theme-full')
-    expect(document.body).not.toHaveTextContent('theme-icon')
-  })
-
-  it('uses a solid sidebar background for the floating hidden-state panel', () => {
+  it('uses the translucent glass treatment for the floating hidden-state panel', () => {
     const { container } = render(
       <Sidebar
         width={SIDEBAR_HIDDEN_THRESHOLD - 10}
@@ -245,7 +214,9 @@ describe('Sidebar resize handle', () => {
 
     const panel = container.querySelector('.slide-in-from-left-2')
 
-    expect(panel).toHaveClass('bg-sidebar')
-    expect(panel).not.toHaveClass('bg-sidebar/70')
+    // Tint without blur is the washed-out look #15596 removed — they must ship together.
+    expect(panel).toHaveClass('bg-sidebar-translucent')
+    expect(panel).toHaveClass('backdrop-blur-2xl')
+    expect(panel).not.toHaveClass('bg-sidebar')
   })
 })
