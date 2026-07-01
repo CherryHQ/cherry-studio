@@ -140,6 +140,27 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     }
   }
 
+  const handleUpdate = async (tool: ManagedBinary) => {
+    const installed = binaryState?.tools[tool.name]
+    let latest = latestVersions?.[tool.name]
+
+    if (installed?.version && !latest) {
+      const fresh = await ipcApi.request('binary.latest_versions', true)
+      if (mountedRef.current) setLatestVersions(fresh)
+      latest = fresh[tool.name]
+    }
+
+    if (installed?.version && latest && !semverGt(latest, installed.version)) {
+      window.toast.success(t('settings.plugins.upToDate'))
+      return
+    }
+
+    await installTool(tool)
+
+    const freshVersions = await ipcApi.request('binary.latest_versions', true)
+    if (mountedRef.current) setLatestVersions(freshVersions)
+  }
+
   const handleAddCustomTool = async (tool: ManagedBinary) => {
     try {
       validateManagedBinary(tool)
@@ -227,7 +248,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
           const source: ToolSource = installed ? 'managed' : tool.name in bundled ? 'bundled' : 'none'
           const installedVersion = installed?.version ?? bundledVersion ?? undefined
           const latestVersion = latestVersions?.[tool.name]
-          const hasUpdate = installedVersion && latestVersion && semverGt(latestVersion, installedVersion)
+          const hasUpdate =
+            !!installed && installedVersion && latestVersion && semverGt(latestVersion, installedVersion)
           return (
             <BinaryToolPresetCard
               key={tool.name}
@@ -237,7 +259,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               latestVersion={hasUpdate ? latestVersion : undefined}
               installing={installingTools.has(tool.name)}
               onInstall={() => installTool({ name: tool.name, tool: tool.tool, version: tool.version })}
-              onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
+              onUpdate={() => handleUpdate({ name: tool.name, tool: tool.tool })}
               onOpenPath={() => openToolDir(tool.name)}
               onRemove={() => setDeleteTarget(tool.name)}
             />
@@ -261,7 +283,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
             const installed = binaryState?.tools[tool.name]
             const installedVersion = installed?.version
             const latestVersion = latestVersions?.[tool.name]
-            const hasUpdate = installedVersion && latestVersion && semverGt(latestVersion, installedVersion)
+            const hasUpdate =
+              !!installed && installedVersion && latestVersion && semverGt(latestVersion, installedVersion)
             return (
               <CustomToolCard
                 key={tool.name}
@@ -271,7 +294,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
                 latestVersion={hasUpdate ? latestVersion : undefined}
                 installing={installingTools.has(tool.name)}
                 onInstall={() => installTool(tool)}
-                onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
+                onUpdate={() => handleUpdate({ name: tool.name, tool: tool.tool })}
                 onOpenPath={() => openToolDir(tool.name)}
                 onRemove={() => setDeleteTarget(tool.name)}
               />
@@ -393,21 +416,21 @@ const BinaryToolPresetCard: FC<{
         {description}
       </p>
 
-      <div className="mt-3 flex items-center gap-3">
+      <div className="mt-3 flex min-w-0 items-center gap-3">
         <button
           type="button"
-          className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
+          className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
           onClick={() => void window.api.openWebsite(tool.repoUrl)}>
-          <ExternalLink className="size-3" />
-          {tool.repoUrl.replace('https://github.com/', '')}
+          <ExternalLink className="size-3 shrink-0" />
+          <span className="truncate">{tool.repoUrl.replace('https://github.com/', '')}</span>
         </button>
         {tool.homepage && (
           <button
             type="button"
-            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
+            className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
             onClick={() => void window.api.openWebsite(tool.homepage!)}>
-            <SquareArrowOutUpRight className="size-3" />
-            {tool.homepage.replace(/^https?:\/\//, '')}
+            <SquareArrowOutUpRight className="size-3 shrink-0" />
+            <span className="truncate">{tool.homepage.replace(/^https?:\/\//, '')}</span>
           </button>
         )}
         {present && (
@@ -416,7 +439,7 @@ const BinaryToolPresetCard: FC<{
             onClick={onOpenPath}
             aria-label={t('settings.plugins.openBinariesDir')}
             title={t('settings.plugins.openBinariesDir')}
-            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground">
+            className="inline-flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground">
             <FolderOpen className="size-3" />
           </button>
         )}

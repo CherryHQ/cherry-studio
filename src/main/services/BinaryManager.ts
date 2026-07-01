@@ -356,8 +356,12 @@ export class BinaryManager extends BaseService {
    * (e.g. mkdir failure) clears.
    */
   private getIsolatedEnv(): Promise<Record<string, string>> {
+    const currentGhToken = process.env['CHERRY_GITHUB_TOKEN']
     if (this.isolatedEnv) {
-      return Promise.resolve(this.isolatedEnv)
+      if (this.isolatedEnv['GITHUB_TOKEN'] === (currentGhToken || undefined)) {
+        return Promise.resolve(this.isolatedEnv)
+      }
+      this.isolatedEnv = null
     }
     if (!this.isolatedEnvPromise) {
       this.isolatedEnvPromise = this.buildIsolatedEnv().then(
