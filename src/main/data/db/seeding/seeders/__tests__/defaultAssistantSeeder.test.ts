@@ -63,6 +63,23 @@ describe('DefaultAssistantSeeder', () => {
     })
     expect(model?.id).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
     expect(preference?.value).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+
+    const [topic] = await dbh.db.select().from(topicTable).limit(1)
+    expect(topic?.id).toMatch(UUID_V4_PATTERN)
+    expect(topic).toMatchObject({
+      name: '',
+      assistantId: assistant.id,
+      groupId: null,
+      activeNodeId: null
+    })
+
+    const messages = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, topic.id))
+    expect(messages).toHaveLength(1)
+    expect(messages[0]).toMatchObject({
+      parentId: null,
+      role: 'root',
+      data: { parts: [] }
+    })
   })
 
   it('does not seed the default assistant when an active assistant already exists', async () => {

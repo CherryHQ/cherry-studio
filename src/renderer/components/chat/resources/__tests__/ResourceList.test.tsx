@@ -3,6 +3,7 @@ import { join } from 'node:path'
 
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { type ReactNode, useMemo, useState } from 'react'
+import type * as ReactI18next from 'react-i18next'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const animationStyles = readFileSync(join(process.cwd(), 'src/renderer/assets/styles/animation.css'), 'utf8')
@@ -36,6 +37,14 @@ const dndMocks = vi.hoisted(() => ({
   onDragOver: undefined as undefined | ((event: any) => void),
   onDragStart: undefined as undefined | ((event: any) => void),
   sortableData: new Map<string, unknown>()
+}))
+
+// Return i18n keys verbatim so assertions on component-rendered copy (e.g. the default error
+// fallback) are deterministic regardless of the ambient i18next language. Readable labels in this
+// file are supplied as props, not via t(), so this only affects internal t() calls.
+vi.mock('react-i18next', async (importOriginal) => ({
+  ...(await importOriginal<typeof ReactI18next>()),
+  useTranslation: () => ({ t: (key: string) => key })
 }))
 
 vi.mock('@tanstack/react-virtual', () => ({
@@ -2515,6 +2524,28 @@ describe('ResourceList', () => {
       'opacity-0',
       'group-hover:opacity-100'
     )
+  })
+
+  it('keeps the search icon centered against the input when the wrapper adds top spacing', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    const { container } = render(
+      <Provider items={ITEMS}>
+        <ResourceList.Frame>
+          <ResourceList.Search placeholder="Search resources" wrapperClassName="pt-1" />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const input = screen.getByPlaceholderText('Search resources')
+    const wrapper = container.querySelector('.pt-1')
+    const inputFrame = input.parentElement
+    const iconFrame = wrapper?.querySelector('.lucide-search')?.parentElement
+
+    expect(wrapper).toHaveClass('pt-1')
+    expect(inputFrame).toHaveClass('relative')
+    expect(inputFrame).not.toHaveClass('pt-1')
+    expect(iconFrame?.parentElement).toBe(inputFrame)
   })
 
   it('keeps a command HeaderItem shrinkable so its actions stay visible', () => {
