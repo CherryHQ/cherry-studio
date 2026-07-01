@@ -10,6 +10,7 @@ const setCustomToolsMock = vi.hoisted(() => vi.fn())
 const ipcMocks = vi.hoisted(() => ({
   getState: vi.fn(),
   probeBundled: vi.fn(),
+  latestVersions: vi.fn(),
   installTool: vi.fn(),
   removeTool: vi.fn(),
   getToolDir: vi.fn()
@@ -30,6 +31,8 @@ vi.mock('@renderer/ipc', () => ({
           return ipcMocks.removeTool(input)
         case 'binary.get_tool_dir':
           return ipcMocks.getToolDir(input)
+        case 'binary.latest_versions':
+          return ipcMocks.latestVersions(input)
         default:
           throw new Error(`unexpected route: ${route}`)
       }
@@ -53,6 +56,10 @@ vi.mock('@tanstack/react-router', () => ({
 
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: () => [customToolsRef.value, setCustomToolsMock]
+}))
+
+vi.mock('semver', () => ({
+  gt: vi.fn(() => true)
 }))
 
 // The shared global @cherrystudio/ui mock omits ConfirmDialog / DialogDescription
@@ -93,6 +100,7 @@ describe('EnvironmentDependencies', () => {
     customToolsRef.value = []
     ipcMocks.getState.mockResolvedValue({ tools: {} })
     ipcMocks.probeBundled.mockResolvedValue({})
+    ipcMocks.latestVersions.mockResolvedValue({})
     ipcMocks.installTool.mockResolvedValue(undefined)
     ipcMocks.removeTool.mockResolvedValue(undefined)
     ipcMocks.getToolDir.mockResolvedValue('/dir')
@@ -142,5 +150,35 @@ describe('EnvironmentDependencies', () => {
 
     await waitFor(() => expect(ipcMocks.probeBundled).toHaveBeenCalled())
     await waitFor(() => expect(container).toBeEmptyDOMElement())
+  })
+
+  it('fetches latest versions on mount', async () => {
+    ipcMocks.latestVersions.mockResolvedValue({ uv: '2.0.0' })
+    render(<EnvironmentDependencies />)
+
+    await waitFor(() => expect(ipcMocks.latestVersions).toHaveBeenCalledWith(false))
+  })
+
+  it('shows update available badge when latest version is newer', async () => {
+    ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: '1.0.0' } } })
+    ipcMocks.latestVersions.mockResolvedValue({ uv: '2.0.0' })
+    render(<EnvironmentDependencies />)
+
+    // The update badge shows the latest version (v2.0.0)
+    await waitFor(() => expect(screen.getByText('v2.0.0')).toBeInTheDocument())
+  })
+
+  it('does not show update badge when versions are equal', async () => {
+    // Override the semver mock: gt returns false (versions equal or older)
+    const { gt } = await import('semver')
+    vi.mocked(gt).mockReturnValue(false)
+
+    ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: '1.0.0' } } })
+    ipcMocks.latestVersions.mockResolvedValue({ uv: '1.0.0' })
+    render(<EnvironmentDependencies />)
+
+    await waitFor(() => expect(ipcMocks.latestVersions).toHaveBeenCalled())
+    // The latest version text should not appear (no update needed)
+    await waitFor(() => expect(screen.queryByText('v1.0.0', { exact: false })).toBeInTheDocument())
   })
 })
