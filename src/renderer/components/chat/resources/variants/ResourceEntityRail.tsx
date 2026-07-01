@@ -39,10 +39,14 @@ const ENTITY_RAIL_DEFAULT_SECTION_ID = 'resource-entity-rail:section:default'
 const ENTITY_RAIL_PINNED_GROUP_ID = 'resource-entity-rail:group:pinned'
 const ENTITY_RAIL_DEFAULT_GROUP_ID = 'resource-entity-rail:group:default'
 // When `groupByTag` is on, each tag name becomes its own collapsible section below the pinned one;
-// untagged entities collapse together under a single sentinel section.
-const ENTITY_RAIL_TAG_SECTION_PREFIX = 'resource-entity-rail:section:tag:'
-const ENTITY_RAIL_TAG_GROUP_PREFIX = 'resource-entity-rail:group:tag:'
-const ENTITY_RAIL_UNTAGGED_KEY = '__untagged__'
+// untagged entities collapse together under a distinct internal bucket.
+const ENTITY_RAIL_TAG_SECTION_PREFIX = 'resource-entity-rail:section:'
+const ENTITY_RAIL_TAG_GROUP_PREFIX = 'resource-entity-rail:group:'
+const ENTITY_RAIL_UNTAGGED_KEY = JSON.stringify(['untagged'])
+
+function getEntityRailTagBucketKey(tag: string | undefined) {
+  return tag ? JSON.stringify(['tag', tag]) : ENTITY_RAIL_UNTAGGED_KEY
+}
 
 export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionContext = unknown> = {
   addIcon?: ReactNode
@@ -199,9 +203,10 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
     () => (item) => {
       if (item.pinned) return { id: ENTITY_RAIL_PINNED_SECTION_ID, label: t('selector.common.pinned_title') }
       if (groupByTag) {
+        const tagBucketKey = getEntityRailTagBucketKey(item.tag)
         return item.tag
-          ? { id: `${ENTITY_RAIL_TAG_SECTION_PREFIX}${item.tag}`, label: item.tag }
-          : { id: `${ENTITY_RAIL_TAG_SECTION_PREFIX}${ENTITY_RAIL_UNTAGGED_KEY}`, label: t('assistants.tags.untagged') }
+          ? { id: `${ENTITY_RAIL_TAG_SECTION_PREFIX}${tagBucketKey}`, label: item.tag }
+          : { id: `${ENTITY_RAIL_TAG_SECTION_PREFIX}${tagBucketKey}`, label: t('assistants.tags.untagged') }
       }
       return { id: ENTITY_RAIL_DEFAULT_SECTION_ID, label: defaultGroupLabel ?? '' }
     },
@@ -213,7 +218,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
     () => (item) => {
       if (item.pinned) return { id: ENTITY_RAIL_PINNED_GROUP_ID, label: '' }
       if (groupByTag) {
-        return { id: `${ENTITY_RAIL_TAG_GROUP_PREFIX}${item.tag ?? ENTITY_RAIL_UNTAGGED_KEY}`, label: '' }
+        return { id: `${ENTITY_RAIL_TAG_GROUP_PREFIX}${getEntityRailTagBucketKey(item.tag)}`, label: '' }
       }
       return { id: ENTITY_RAIL_DEFAULT_GROUP_ID, label: '' }
     },

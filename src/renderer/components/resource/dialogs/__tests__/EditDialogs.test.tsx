@@ -295,6 +295,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.model_not_found': 'Model {{id}} is unavailable.',
           'library.config.basic.precise': 'Precise',
           'library.config.basic.stream_output': 'Stream output',
+          'library.config.basic.tags': 'Tags',
           'library.config.basic.tag_empty': 'No tags',
           'library.config.basic.tag_none': 'No tag',
           'library.config.basic.tag_placeholder': 'Select tag',
@@ -559,13 +560,10 @@ async function expectVariablesHelpOnHover() {
   await waitFor(() => expect(screen.getAllByText('{{date}}').length).toBeGreaterThan(0))
 }
 
-function openTagCombobox() {
-  // Single-select trigger renders the bound tag name as its display value.
-  const combobox = screen.getByText('work').closest('button')
-  if (!combobox) {
-    throw new Error('Tag combobox trigger not found')
-  }
-  fireEvent.click(combobox)
+function openTagSelect() {
+  const select = screen.getByRole('combobox', { name: 'Tags' })
+  fireEvent.pointerDown(select)
+  fireEvent.click(select)
 }
 
 describe('edit dialogs', () => {
@@ -620,8 +618,8 @@ describe('edit dialogs', () => {
     ensureTagsMock.mockResolvedValueOnce([{ id: 'tag-personal', name: 'personal', color: '#10b981' }])
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
-    openTagCombobox()
-    fireEvent.click(await screen.findByText('personal'))
+    openTagSelect()
+    fireEvent.click(await screen.findByRole('option', { name: 'personal' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => expect(ensureTagsMock).toHaveBeenCalledWith(['personal']))
@@ -636,8 +634,8 @@ describe('edit dialogs', () => {
     ensureTagsMock.mockResolvedValueOnce([])
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
-    openTagCombobox()
-    fireEvent.click(await screen.findByText('No tag'))
+    const clearButton = screen.getByRole('button', { name: 'Tags Clear' })
+    fireEvent.click(clearButton)
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => expect(ensureTagsMock).toHaveBeenCalledWith([]))
@@ -648,36 +646,13 @@ describe('edit dialogs', () => {
     })
   })
 
-  it('creates and binds a new tag typed in assistant editing', async () => {
-    ensureTagsMock.mockResolvedValueOnce([{ id: 'tag-new', name: 'new-tag', color: '#10b981' }])
+  it('limits assistant tag editing to existing tags', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
-    openTagCombobox()
-    fireEvent.change(screen.getByPlaceholderText('Search tags'), { target: { value: 'new-tag' } })
-    fireEvent.click(await screen.findByText('new-tag'))
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-
-    await waitFor(() => expect(ensureTagsMock).toHaveBeenCalledWith(['new-tag']))
-    expect(updateAssistantMock).toHaveBeenCalledWith({
-      body: expect.objectContaining({
-        tagIds: ['tag-new']
-      })
-    })
-  })
-
-  it('does not expose typed tag names beyond the server-side max length', async () => {
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
-    // Open the combobox popover (CommandInput only mounts once the trigger is active)
-    openTagCombobox()
-    const atLimit = 'y'.repeat(64) // TagNameSchema.max(64)
-    const tooLong = 'x'.repeat(65) // one over the limit — server would reject
-    const searchInput = screen.getByPlaceholderText('Search tags')
-
-    fireEvent.change(searchInput, { target: { value: tooLong } })
-    expect(screen.queryByText(tooLong)).not.toBeInTheDocument()
-
-    fireEvent.change(searchInput, { target: { value: atLimit } })
-    expect(await screen.findByText(atLimit)).toBeInTheDocument()
+    openTagSelect()
+    expect(screen.queryByPlaceholderText('Search tags')).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'No tag' })).not.toBeInTheDocument()
+    expect(screen.queryByText('new-tag')).not.toBeInTheDocument()
   })
 
   it('submits agent instructions and model changes as a PATCH', async () => {

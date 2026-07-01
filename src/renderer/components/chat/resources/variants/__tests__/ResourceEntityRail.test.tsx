@@ -294,6 +294,27 @@ describe('ResourceEntityRail', () => {
     expect(screen.getByTestId('work-a-icon')).toBeInTheDocument()
   })
 
+  it('keeps a real tag named like the untagged sentinel separate from untagged entities', () => {
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants list"
+        defaultGroupLabel="Assistants"
+        groupByTag
+        items={[
+          { id: 'sentinel-tagged', name: 'Sentinel Tagged', icon: <span />, tag: '__untagged__' },
+          { id: 'loose', name: 'Loose', icon: <span />, tag: undefined }
+        ]}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('__untagged__')).toBeInTheDocument()
+    expect(screen.getByText('assistants.tags.untagged')).toBeInTheDocument()
+  })
+
   it('ignores entity tags when groupByTag is off', () => {
     render(
       <ResourceEntityRail
