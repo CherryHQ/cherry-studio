@@ -139,7 +139,7 @@ describe('CreateKnowledgeBaseDialog', () => {
       />
     )
 
-    expect(screen.getByRole('dialog')).toHaveAttribute('data-size', 'lg')
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-size', 'sm')
     fireEvent.click(screen.getByRole('button', { name: '创建' }))
 
     await waitFor(() => expect(createBase).not.toHaveBeenCalled())
