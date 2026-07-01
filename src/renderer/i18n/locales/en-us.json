@@ -6854,6 +6854,7 @@
         "reorderFailed": "Failed to reorder prompts",
         "updateFailed": "Failed to update prompt"
       },
+      "manage": "Manage Prompts",
       "title": "Prompt Management",
       "titleLabel": "Title",
       "titlePlaceholder": "Enter prompt title",

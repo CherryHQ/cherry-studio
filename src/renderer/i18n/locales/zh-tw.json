@@ -6854,6 +6854,7 @@
         "reorderFailed": "調整提示詞順序失敗",
         "updateFailed": "更新提示詞失敗"
       },
+      "manage": "管理提示詞",
       "title": "提示詞管理",
       "titleLabel": "標題",
       "titlePlaceholder": "請輸入提示詞標題",

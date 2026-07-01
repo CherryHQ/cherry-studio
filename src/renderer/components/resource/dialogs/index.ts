@@ -23,3 +23,4 @@ export {
   validateAssistantImportUrl
 } from './import/ImportAssistantDialog'
 export { ImportSkillDialog } from './import/ImportSkillDialog'
+export { PromptManagementDialog, type PromptManagementDialogProps } from './manage/PromptManagementDialog'
