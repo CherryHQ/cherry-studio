@@ -6,6 +6,7 @@ import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { getDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
@@ -388,20 +389,28 @@ export class AgentService {
     tx.update(agentsTable).set(updateData).where(eq(agentsTable.id, id)).run()
   }
 
-  deleteAgent(id: string): boolean {
-    const agent = this.findAgentRow(id)
-
-    if (!agent) {
-      return false
-    }
-
-    // Sessions detach (agentId → NULL) via FK ON DELETE SET NULL; their rows
-    // and pins survive the agent. Wrap pin purge + agent delete in one
-    // transaction so a partial delete cannot leave dangling cross-entity
-    // rows behind. `pin` has no FK back here, so this is the only purge
-    // needed up-front. Junction table rows are cascade-deleted by FK.
+  deleteAgent(id: string, options: { deleteSessions?: boolean } = {}): boolean {
+    // By default sessions detach (agentId → NULL) via FK ON DELETE SET NULL; callers
+    // can opt into deleting them in this same transaction. `pin` has no FK back
+    // to agent, so purge it alongside the agent row. Junction table rows are
+    // cascade-deleted by FK.
     const result = withSqliteErrors(
-      () => application.get('DbService').withWriteTx((tx) => this.deleteAgentTx(tx, id)),
+      () =>
+        application.get('DbService').withWriteTx((tx) => {
+          const [agent] = tx
+            .select({ id: agentsTable.id })
+            .from(agentsTable)
+            .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
+            .limit(1)
+            .all()
+          if (!agent) return { rowsAffected: 0 }
+
+          if (options.deleteSessions === true) {
+            agentSessionService.deleteByAgentIdTx(tx, id, { validateAgent: false })
+          }
+
+          return this.deleteAgentTx(tx, id)
+        }),
       defaultHandlersFor('Agent', id)
     )
 

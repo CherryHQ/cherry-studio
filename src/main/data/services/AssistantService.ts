@@ -11,7 +11,7 @@ import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
-import type { DbType } from '@data/db/types'
+import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -25,6 +25,7 @@ import { and, asc, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'dri
 import { modelService } from './ModelService'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
+import { topicService } from './TopicService'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
@@ -88,21 +89,6 @@ function rethrowAssistantOrderError(error: unknown): never {
 export class AssistantDataService {
   private get db() {
     return application.get('DbService').getDb()
-  }
-
-  private getActiveRowById(id: string): AssistantRow {
-    const [row] = this.db
-      .select()
-      .from(assistantTable)
-      .where(and(eq(assistantTable.id, id), isNull(assistantTable.deletedAt)))
-      .limit(1)
-      .all()
-
-    if (!row) {
-      throw DataApiErrorFactory.notFound('Assistant', id)
-    }
-
-    return row
   }
 
   private getActiveRowWithModelNameById(id: string, db: Pick<DbType, 'select'> = this.db): AssistantRowWithModelName {
@@ -535,16 +521,39 @@ export class AssistantDataService {
    * Tag bindings are intentionally removed during delete, so restoring a
    * soft-deleted assistant does not restore its previous tags.
    */
-  delete(id: string): void {
-    this.getActiveRowById(id)
+  delete(id: string, options: { deleteTopics?: boolean } = {}): void {
+    const deleted = application.get('DbService').withWriteTx((tx) => {
+      const didDelete = this.deleteTx(tx, id)
+      if (!didDelete) return false
 
-    application.get('DbService').withWriteTx((tx) => {
-      tx.update(assistantTable).set({ deletedAt: Date.now() }).where(eq(assistantTable.id, id)).run()
-      tagService.purgeForEntityTx(tx, 'assistant', id)
-      pinService.purgeForEntityTx(tx, 'assistant', id)
+      if (options.deleteTopics === true) {
+        topicService.deleteByAssistantIdTx(tx, id, { validateAssistant: false })
+      }
+
+      return true
     })
 
-    logger.info('Soft-deleted assistant', { id })
+    if (!deleted) {
+      throw DataApiErrorFactory.notFound('Assistant', id)
+    }
+
+    logger.info('Soft-deleted assistant', { id, deleteTopics: options.deleteTopics === true })
+  }
+
+  deleteTx(tx: DbOrTx, id: string): boolean {
+    const [row] = tx
+      .update(assistantTable)
+      .set({ deletedAt: Date.now() })
+      .where(and(eq(assistantTable.id, id), isNull(assistantTable.deletedAt)))
+      .returning({ id: assistantTable.id })
+      .all()
+
+    if (!row) return false
+
+    tagService.purgeForEntityTx(tx, 'assistant', id)
+    pinService.purgeForEntityTx(tx, 'assistant', id)
+
+    return true
   }
 
   /**

@@ -610,7 +610,15 @@ export class TopicService {
 
   deleteByAssistantId(assistantId: string): DeleteTopicsResult {
     const dbService = application.get('DbService')
-    const deletedIds = dbService.withWriteTx((tx) => {
+    const deletedIds = dbService.withWriteTx((tx) => this.deleteByAssistantIdTx(tx, assistantId))
+
+    logger.info('Deleted assistant topics', { assistantId, count: deletedIds.length })
+
+    return { deletedIds, deletedCount: deletedIds.length }
+  }
+
+  deleteByAssistantIdTx(tx: DbOrTx, assistantId: string, options: { validateAssistant?: boolean } = {}): string[] {
+    if (options.validateAssistant ?? true) {
       const [assistant] = tx
         .select({ id: assistantTable.id })
         .from(assistantTable)
@@ -618,22 +626,18 @@ export class TopicService {
         .limit(1)
         .all()
       if (!assistant) throw DataApiErrorFactory.notFound('Assistant', assistantId)
+    }
 
-      const rows = tx
-        .select({ id: topicTable.id })
-        .from(topicTable)
-        .where(and(eq(topicTable.assistantId, assistantId), isNull(topicTable.deletedAt)))
-        .all()
+    const rows = tx
+      .select({ id: topicTable.id })
+      .from(topicTable)
+      .where(and(eq(topicTable.assistantId, assistantId), isNull(topicTable.deletedAt)))
+      .all()
 
-      return this.deleteManyByIdsTx(
-        tx,
-        rows.map((row) => row.id)
-      )
-    })
-
-    logger.info('Deleted assistant topics', { assistantId, count: deletedIds.length })
-
-    return { deletedIds, deletedCount: deletedIds.length }
+    return this.deleteManyByIdsTx(
+      tx,
+      rows.map((row) => row.id)
+    )
   }
 }
 

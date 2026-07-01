@@ -18,6 +18,7 @@ import {
   CreateAgentSessionSchema,
   DeleteAgentSessionsQuerySchema,
   ListAgentSessionsQuerySchema,
+  SetAgentSessionWorkspaceSchema,
   UpdateAgentSessionSchema
 } from '@shared/data/api/schemas/agentSessions'
 import * as z from 'zod'
@@ -61,6 +62,14 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
     DELETE: async ({ params }) => {
       agentSessionService.delete(params.sessionId)
       return undefined
+    }
+  },
+
+  '/agent-sessions/:sessionId/workspace': {
+    PUT: async ({ params, body }) => {
+      const parsed = SetAgentSessionWorkspaceSchema.safeParse(body)
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return agentSessionService.setWorkspace(params.sessionId, parsed.data)
     }
   },
 

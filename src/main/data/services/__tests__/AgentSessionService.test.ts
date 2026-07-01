@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { pinTable } from '@data/db/schemas/pin'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -58,6 +59,17 @@ describe('AgentSessionService', () => {
       agentId: 'agent-session-test',
       name,
       workspace: { type: 'user', workspaceId: workspaceId ?? workspace!.id }
+    })
+  }
+
+  async function insertSessionMessage(sessionId: string, id: string) {
+    await dbh.db.insert(agentSessionMessageTable).values({
+      id,
+      sessionId,
+      role: 'user',
+      data: { parts: [{ type: 'text', text: 'hello' }] },
+      searchableText: 'hello',
+      status: 'success'
     })
   }
 
@@ -255,17 +267,156 @@ describe('AgentSessionService', () => {
     })
   })
 
-  it('ignores workspace updates even if callers bypass the schema', async () => {
+  it('updates an empty session workspace', async () => {
     const firstWorkspace = await createWorkspace('before-switch')
     const secondWorkspace = await createWorkspace('after-switch')
     const session = await createSession('Workspace switch', firstWorkspace.id)
 
-    const updated = agentSessionService.update(session.id, {
+    const updated = agentSessionService.setWorkspace(session.id, {
+      type: 'user',
       workspaceId: secondWorkspace.id
-    } as never)
+    })
 
-    expect(updated.workspaceId).toBe(firstWorkspace.id)
-    expect(updated.workspace.path).toBe(firstWorkspace.path)
+    expect(updated.workspaceId).toBe(secondWorkspace.id)
+    expect(updated.workspace.path).toBe(secondWorkspace.path)
+  })
+
+  it('deletes the previous system workspace row when switching to a user workspace', async () => {
+    const userWorkspace = await createWorkspace('system-to-user')
+    const session = agentSessionService.create({
+      agentId: 'agent-session-test',
+      name: 'System to user',
+      workspace: { type: 'system' }
+    })
+    const previousSystemWorkspaceId = session.workspaceId
+
+    const updated = agentSessionService.setWorkspace(session.id, {
+      type: 'user',
+      workspaceId: userWorkspace.id
+    })
+
+    expect(updated.workspaceId).toBe(userWorkspace.id)
+    expect(updated.workspace.type).toBe('user')
+    const previousSystemRows = await dbh.db
+      .select()
+      .from(agentWorkspaceTable)
+      .where(eq(agentWorkspaceTable.id, previousSystemWorkspaceId))
+    expect(previousSystemRows).toHaveLength(0)
+  })
+
+  it('creates a new system workspace row when switching from a user workspace', async () => {
+    const userWorkspace = await createWorkspace('user-to-system')
+    const session = await createSession('User to system', userWorkspace.id)
+
+    const updated = agentSessionService.setWorkspace(session.id, { type: 'system' })
+
+    expect(updated.workspaceId).not.toBe(userWorkspace.id)
+    expect(updated.workspace.type).toBe('system')
+    expect(updated.workspace.path).toBe(path.join(application.getPath('feature.agents.workspaces'), session.id))
+    const [systemWorkspaceRow] = await dbh.db
+      .select()
+      .from(agentWorkspaceTable)
+      .where(eq(agentWorkspaceTable.id, updated.workspaceId))
+    expect(systemWorkspaceRow).toMatchObject({
+      id: updated.workspaceId,
+      type: 'system'
+    })
+    expect(agentWorkspaceService.getById(userWorkspace.id)).toMatchObject({
+      id: userWorkspace.id,
+      type: 'user'
+    })
+  })
+
+  it('is a no-op when re-setting an empty system session to a system workspace', async () => {
+    const session = agentSessionService.create({
+      agentId: 'agent-session-test',
+      name: 'System to system',
+      workspace: { type: 'system' }
+    })
+    const originalSystemWorkspaceId = session.workspaceId
+
+    const updated = agentSessionService.setWorkspace(session.id, { type: 'system' })
+
+    // Idempotent: the existing system workspace is already correct, so the binding must not change
+    // and no second system workspace row may be created (which would repoint the session and leak
+    // the original row + its directory).
+    expect(updated.workspaceId).toBe(originalSystemWorkspaceId)
+    expect(updated.workspace.type).toBe('system')
+    const allWorkspaceRows = await dbh.db.select().from(agentWorkspaceTable)
+    expect(allWorkspaceRows).toHaveLength(1)
+    expect(allWorkspaceRows[0]?.id).toBe(originalSystemWorkspaceId)
+  })
+
+  it('rejects workspace updates after messages are sent', async () => {
+    const firstWorkspace = await createWorkspace('before-locked-switch')
+    const secondWorkspace = await createWorkspace('after-locked-switch')
+    const session = await createSession('Locked workspace switch', firstWorkspace.id)
+    await insertSessionMessage(session.id, 'message-locks-workspace')
+
+    expect(
+      captureError(() =>
+        agentSessionService.setWorkspace(session.id, {
+          type: 'user',
+          workspaceId: secondWorkspace.id
+        })
+      )
+    ).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+
+    expect(agentSessionService.getById(session.id)).toMatchObject({
+      workspaceId: firstWorkspace.id
+    })
+  })
+
+  it('rejects switching a messaged system workspace session to a user workspace', async () => {
+    const userWorkspace = await createWorkspace('locked-system-to-user')
+    const session = agentSessionService.create({
+      agentId: 'agent-session-test',
+      name: 'Locked system workspace',
+      workspace: { type: 'system' }
+    })
+    await insertSessionMessage(session.id, 'message-locks-system-to-user')
+
+    expect(
+      captureError(() =>
+        agentSessionService.setWorkspace(session.id, {
+          type: 'user',
+          workspaceId: userWorkspace.id
+        })
+      )
+    ).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+
+    expect(agentSessionService.getById(session.id)).toMatchObject({
+      workspaceId: session.workspaceId,
+      workspace: { type: 'system' }
+    })
+    const [systemWorkspaceRow] = await dbh.db
+      .select()
+      .from(agentWorkspaceTable)
+      .where(eq(agentWorkspaceTable.id, session.workspaceId))
+    expect(systemWorkspaceRow).toMatchObject({
+      id: session.workspaceId,
+      type: 'system'
+    })
+  })
+
+  it('rejects switching a messaged user workspace session to a system workspace', async () => {
+    const userWorkspace = await createWorkspace('locked-user-to-system')
+    const session = await createSession('Locked user workspace', userWorkspace.id)
+    await insertSessionMessage(session.id, 'message-locks-user-to-system')
+
+    expect(captureError(() => agentSessionService.setWorkspace(session.id, { type: 'system' }))).toMatchObject({
+      code: ErrorCode.INVALID_OPERATION
+    })
+
+    expect(agentSessionService.getById(session.id)).toMatchObject({
+      workspaceId: userWorkspace.id,
+      workspace: { type: 'user' }
+    })
+    const systemWorkspaceRows = await dbh.db
+      .select()
+      .from(agentWorkspaceTable)
+      .where(eq(agentWorkspaceTable.type, 'system'))
+    expect(systemWorkspaceRows).toHaveLength(0)
   })
 
   it('deletes a session', async () => {
