@@ -319,7 +319,6 @@ function renderResourceGrid(props: Partial<ComponentProps<typeof ResourceGrid>> 
       activeTag={null}
       onTagFilter={vi.fn()}
       onAddTag={vi.fn()}
-      onUpdateResourceTag={vi.fn()}
       allTagNames={[]}
       allTags={[]}
       {...props}
@@ -334,7 +333,6 @@ function getResourceCardProps(overrides: Partial<ComponentProps<typeof ResourceC
     onDuplicate: vi.fn(),
     onEdit: vi.fn(),
     onExport: vi.fn(),
-    onUpdateResourceTag: vi.fn(),
     ...overrides
   }
 }
@@ -594,7 +592,6 @@ describe('ResourceCardMenu tag binding', () => {
     const pendingTags = createDeferred<Array<{ id: string; name: string }>>()
     ensureTagsMock.mockReturnValueOnce(pendingTags.promise)
     updateAssistantMock.mockResolvedValue({})
-    const onUpdateResourceTag = vi.fn()
 
     render(
       <ResourceCardMenu
@@ -603,7 +600,6 @@ describe('ResourceCardMenu tag binding', () => {
         onDuplicate={vi.fn()}
         onDelete={vi.fn()}
         onExport={vi.fn()}
-        onUpdateResourceTag={onUpdateResourceTag}
         allTagNames={['alpha', 'beta']}
       />
     )
@@ -622,7 +618,6 @@ describe('ResourceCardMenu tag binding', () => {
     await waitFor(() => {
       expect(updateAssistantMock).toHaveBeenCalledWith({ tagIds: ['tag-alpha'] })
     })
-    expect(onUpdateResourceTag).toHaveBeenCalledWith('assistant-1', 'alpha')
     expect(ensureTagsMock).toHaveBeenCalledTimes(1)
   })
 
@@ -630,7 +625,6 @@ describe('ResourceCardMenu tag binding', () => {
     const user = userEvent.setup()
     ensureTagsMock.mockResolvedValueOnce([{ id: 'tag-beta', name: 'beta' }])
     updateAssistantMock.mockResolvedValue({})
-    const onUpdateResourceTag = vi.fn()
 
     render(
       <ResourceCardMenu
@@ -639,7 +633,6 @@ describe('ResourceCardMenu tag binding', () => {
         onDuplicate={vi.fn()}
         onDelete={vi.fn()}
         onExport={vi.fn()}
-        onUpdateResourceTag={onUpdateResourceTag}
         allTagNames={['alpha', 'beta']}
       />
     )
@@ -649,7 +642,6 @@ describe('ResourceCardMenu tag binding', () => {
 
     await waitFor(() => expect(ensureTagsMock).toHaveBeenCalledWith(['beta']))
     expect(updateAssistantMock).toHaveBeenCalledWith({ tagIds: ['tag-beta'] })
-    expect(onUpdateResourceTag).toHaveBeenCalledWith('assistant-1', 'beta')
   })
 
   it('does not expose tag management for agent, skill, or prompt resources', () => {
@@ -660,7 +652,6 @@ describe('ResourceCardMenu tag binding', () => {
         onDuplicate={vi.fn()}
         onDelete={vi.fn()}
         onExport={vi.fn()}
-        onUpdateResourceTag={vi.fn()}
         allTagNames={['alpha', 'beta']}
       />
     )
@@ -674,7 +665,6 @@ describe('ResourceCardMenu tag binding', () => {
         onDuplicate={vi.fn()}
         onDelete={vi.fn()}
         onExport={vi.fn()}
-        onUpdateResourceTag={vi.fn()}
         allTagNames={['alpha', 'beta']}
       />
     )
@@ -688,7 +678,6 @@ describe('ResourceCardMenu tag binding', () => {
         onDuplicate={vi.fn()}
         onDelete={vi.fn()}
         onExport={vi.fn()}
-        onUpdateResourceTag={vi.fn()}
         allTagNames={['alpha', 'beta']}
       />
     )
@@ -704,7 +693,6 @@ describe('ResourceCardMenu tag binding', () => {
         onDuplicate={vi.fn()}
         onDelete={vi.fn()}
         onExport={vi.fn()}
-        onUpdateResourceTag={vi.fn()}
         allTagNames={[]}
       />
     )
@@ -721,7 +709,6 @@ describe('ResourceCardMenu tag binding', () => {
         onDuplicate={vi.fn()}
         onDelete={vi.fn()}
         onExport={vi.fn()}
-        onUpdateResourceTag={vi.fn()}
         allTagNames={[]}
       />
     )

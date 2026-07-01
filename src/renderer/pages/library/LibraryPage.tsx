@@ -157,7 +157,6 @@ export default function LibraryPage() {
     [tagList.tags]
   )
 
-  const noop = useCallback(() => {}, [])
   const handleClosePromptDialog = useCallback(() => {
     setPromptDialog(null)
   }, [])
@@ -476,7 +475,6 @@ export default function LibraryPage() {
               // rows; binding stays inside card/dialog tag hooks.
               await ensureTags([tagName])
             }}
-            onUpdateResourceTag={noop /* binding is executed inside FixedCardMenu via the tag hooks */}
             allTagNames={allTagNames}
             allTags={tagList.tags}
             assistantCatalog={assistantCatalogProp}

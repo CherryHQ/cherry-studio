@@ -31,7 +31,6 @@ interface ResourceCardMenuProps {
   onDuplicate: (r: ResourceItem) => void
   onDelete: (r: ResourceItem) => void
   onExport: (r: ResourceItem) => void
-  onUpdateResourceTag: (resourceId: string, tagName: string | null) => void
   allTagNames: string[]
 }
 
@@ -41,7 +40,6 @@ export function ResourceCardMenu({
   onDuplicate,
   onDelete,
   onExport,
-  onUpdateResourceTag,
   allTagNames
 }: ResourceCardMenuProps) {
   const { t } = useTranslation()
@@ -79,7 +77,6 @@ export function ResourceCardMenu({
         if (resource.type === 'assistant') {
           await updateAssistant({ tagIds })
         }
-        onUpdateResourceTag(resource.id, nextName)
       } catch (e) {
         // Roll back optimistic state on failure.
         setLocalTag(previousName)
@@ -98,7 +95,7 @@ export function ResourceCardMenu({
         setBindingPending(false)
       }
     },
-    [canBindTags, ensureTags, updateAssistant, onUpdateResourceTag, resource.id, resource.type, t]
+    [canBindTags, ensureTags, updateAssistant, resource.id, resource.type, t]
   )
 
   const toggleTag = (tag: string) => {

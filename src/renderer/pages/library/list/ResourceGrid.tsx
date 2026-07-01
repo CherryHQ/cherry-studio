@@ -69,8 +69,6 @@ interface Props {
   onTagFilter: (tagName: string | null) => void
   /** Create a new tag (POST /tags). Does not bind the tag to any resource. */
   onAddTag: (tagName: string) => Promise<void> | void
-  /** Replace the tag name for a single resource. Caller handles ensure-tag + bind. */
-  onUpdateResourceTag: (resourceId: string, tagName: string | null) => Promise<void> | void
   allTagNames: string[]
   /** Full backend tag records (id + name + color). Distinct from `allTagNames` (names only). */
   allTags: BackendTag[]
@@ -128,7 +126,6 @@ export const ResourceGrid: FC<Props> = ({
   activeTag,
   onTagFilter,
   onAddTag,
-  onUpdateResourceTag,
   allTagNames,
   allTags,
   assistantCatalog
@@ -494,7 +491,6 @@ export const ResourceGrid: FC<Props> = ({
             onDuplicate={onDuplicate}
             onEdit={onEdit}
             onExport={onExport}
-            onUpdateResourceTag={onUpdateResourceTag}
           />
         )}
       </div>
@@ -534,7 +530,6 @@ interface VirtualizedResourceGridProps {
   onDuplicate: (r: ResourceItem) => void
   onEdit: (r: ResourceItem) => void
   onExport: (r: ResourceItem) => void
-  onUpdateResourceTag: (resourceId: string, tagName: string | null) => void
 }
 
 function VirtualizedResourceGrid({
@@ -545,8 +540,7 @@ function VirtualizedResourceGrid({
   onDelete,
   onDuplicate,
   onEdit,
-  onExport,
-  onUpdateResourceTag
+  onExport
 }: VirtualizedResourceGridProps) {
   const rows = useMemo(() => {
     const nextRows: ResourceItem[][] = []
@@ -590,7 +584,6 @@ function VirtualizedResourceGrid({
                 onDuplicate={onDuplicate}
                 onEdit={onEdit}
                 onExport={onExport}
-                onUpdateResourceTag={onUpdateResourceTag}
               />
             ))}
           </div>

@@ -214,22 +214,13 @@ interface ResourceCardProps {
   onDuplicate: (resource: ResourceItem) => void
   onEdit: (resource: ResourceItem) => void
   onExport: (resource: ResourceItem) => void
-  onUpdateResourceTag: (resourceId: string, tagName: string | null) => void
 }
 
 function hasOverflowActions(resource: ResourceItem) {
   return resource.type === 'assistant'
 }
 
-export function ResourceCard({
-  resource: r,
-  allTagNames,
-  onDelete,
-  onDuplicate,
-  onEdit,
-  onExport,
-  onUpdateResourceTag
-}: ResourceCardProps) {
+export function ResourceCard({ resource: r, allTagNames, onDelete, onDuplicate, onEdit, onExport }: ResourceCardProps) {
   const { t } = useTranslation()
   const [menuOpen, setMenuOpen] = useState(false)
   const cfg = RESOURCE_TYPE_META[r.type]
@@ -294,7 +285,6 @@ export function ResourceCard({
                       onDuplicate={onDuplicate}
                       onDelete={onDelete}
                       onExport={onExport}
-                      onUpdateResourceTag={onUpdateResourceTag}
                       allTagNames={allTagNames}
                     />
                   </PopoverContent>
