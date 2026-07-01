@@ -21,10 +21,10 @@ export async function handleProvidersProtocolUrl(url: URL) {
     case '/api-keys': {
       // jsonConfig example:
       // {
-      //   "id": "tokenflux",
-      //   "baseUrl": "https://tokenflux.ai/v1",
+      //   "id": "custom-openai",
+      //   "baseUrl": "https://api.example.com/v1",
       //   "apiKey": "sk-xxxx",
-      //   "name": "TokenFlux", // optional
+      //   "name": "Custom OpenAI", // optional
       //   "type": "openai" // optional
       // }
       // cherrystudio://providers/api-keys?v=1&data={base64Encode(JSON.stringify(jsonConfig))}

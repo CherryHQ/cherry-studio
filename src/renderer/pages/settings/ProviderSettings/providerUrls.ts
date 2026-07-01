@@ -1,5 +1,4 @@
 import type { SystemProviderId } from '@renderer/types/provider'
-import { TOKENFLUX_HOST } from '@renderer/utils/oauth'
 
 type ProviderUrls = {
   api: {
@@ -552,28 +551,6 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://portal.qiniu.com/ai-inference/api-key?cps_key=1h4vzfbkxobiq',
       docs: 'https://developer.qiniu.com/aitokenapi',
       models: 'https://developer.qiniu.com/aitokenapi/12883/model-list'
-    }
-  },
-  tokenflux: {
-    api: {
-      url: TOKENFLUX_HOST
-    },
-    websites: {
-      official: TOKENFLUX_HOST,
-      apiKey: `${TOKENFLUX_HOST}/dashboard/api-keys`,
-      docs: `${TOKENFLUX_HOST}/docs`,
-      models: `${TOKENFLUX_HOST}/models`
-    }
-  },
-  cephalon: {
-    api: {
-      url: 'https://cephalon.cloud/user-center/v1/model'
-    },
-    websites: {
-      official: 'https://cephalon.cloud/share/register-landing?invite_id=jSdOYA',
-      apiKey: 'https://cephalon.cloud/api',
-      docs: 'https://cephalon.cloud/apitoken/1864244127731589124',
-      models: 'https://cephalon.cloud/model'
     }
   },
   lanyun: {
