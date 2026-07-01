@@ -235,6 +235,24 @@ describe('TraceStorageService', () => {
     expect(service['pendingEvents'].size).toBe(0)
   })
 
+  // A warm-query span can be stored before the live connection registers the trace's topic; it must
+  // still become visible + flushable once setTopicId backfills the topic (REGRESSION warm-trace-orphan).
+  it('backfills topicId onto spans stored before trace metadata so they become visible and flushable', async () => {
+    await service._doInit()
+
+    // Span arrives before any topic metadata (e.g. a prewarmed warm subprocess emitting init spans).
+    service.saveEntity(span({ id: 'warm', traceId: 'trace-x' }))
+    expect(await service.getSpans('topic-x', 'trace-x')).toEqual([])
+
+    service.setTopicId('trace-x', 'topic-x')
+
+    // Now visible …
+    expect((await service.getSpans('topic-x', 'trace-x')).map((s) => s.id)).toEqual(['warm'])
+    // … and flushed to the topic trace file (survives the memory clear on flush).
+    await service.saveSpans('topic-x')
+    expect((await service.getSpans('topic-x', 'trace-x')).map((s) => s.id)).toEqual(['warm'])
+  })
+
   // A second /v1/traces export of the same span must not drop log events already drained onto it.
   it('preserves drained log events when a later span update arrives with empty or extra events', async () => {
     await service._doInit()
