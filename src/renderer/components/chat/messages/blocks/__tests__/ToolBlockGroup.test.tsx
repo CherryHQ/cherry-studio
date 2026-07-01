@@ -126,6 +126,30 @@ describe('ToolBlockGroup', () => {
     expect(container.querySelector('svg')).toBeNull()
   })
 
+  it('shows elapsed time with the summary header', () => {
+    render(<ToolBlockGroupHeaderContent items={[items[1]]} summary="1 tool call" elapsedText="3 seconds" />)
+
+    expect(screen.getByText('1 tool call')).toBeInTheDocument()
+    expect(screen.getByText('3 seconds')).toBeInTheDocument()
+  })
+
+  it('prefers the summary when tool details are already expanded', () => {
+    render(
+      <ToolBlockGroupHeaderContent
+        items={items}
+        activityLabel="Thinking..."
+        summary="2 tool calls"
+        isLiveProgress
+        preferSummary
+        showLatestWhenComplete
+      />
+    )
+
+    expect(screen.getByText('2 tool calls')).toBeInTheDocument()
+    expect(screen.queryByText('Thinking...')).toBeNull()
+    expect(screen.queryByTestId('mock-tool-header')).toBeNull()
+  })
+
   it('can keep showing the latest tool even after current tool items have ended', () => {
     render(<ToolBlockGroupHeaderContent items={[items[1]]} summary="1 tool call" showLatestWhenComplete />)
 

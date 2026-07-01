@@ -190,9 +190,11 @@ vi.mock('../ToolBlockGroup', () => ({
       ))}
     </div>
   ),
-  ToolBlockGroupHeaderContent: ({ activityLabel, elapsedText, summary, items, isLiveProgress }: any) => (
-    <span data-live={String(!!isLiveProgress)}>
-      {activityLabel ?? summary ?? `${items?.length ?? 0} tool calls`}
+  ToolBlockGroupHeaderContent: ({ activityLabel, elapsedText, summary, items, isLiveProgress, preferSummary }: any) => (
+    <span data-live={String(!!isLiveProgress)} data-prefer-summary={String(!!preferSummary)}>
+      {preferSummary
+        ? (summary ?? `${items?.length ?? 0} tool calls`)
+        : (activityLabel ?? summary ?? `${items?.length ?? 0} tool calls`)}
       {elapsedText ? ` · ${elapsedText}` : ''}
     </span>
   )
@@ -591,6 +593,9 @@ describe('MessagePartsRenderer', () => {
     // Only the outer fold (total tool count) + the final answer show at the top level.
     const outerButton = screen.getByRole('button', { name: '4 tool calls' })
     expect(outerButton).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getAllByTestId('tool-history-divider')).toHaveLength(1)
+    expect(screen.getByTestId('tool-history-divider')).toHaveClass('w-full')
+    expect(screen.getByTestId('tool-history-divider').parentElement).toHaveClass('w-full')
     expect(screen.getByTestId('mock-markdown').textContent).toBe('final answer')
     expect(screen.queryByText('checking project files')).toBeNull()
     expect(screen.queryByText('rewriting renderer')).toBeNull()
@@ -599,6 +604,7 @@ describe('MessagePartsRenderer', () => {
     fireEvent.click(outerButton)
 
     // Expanding reveals the narration text and tool cards directly, in order.
+    expect(screen.getAllByTestId('tool-history-divider')).toHaveLength(1)
     expect(screen.getAllByTestId('mock-markdown').map((node) => node.textContent)).toEqual([
       'checking project files',
       'rewriting renderer',
@@ -876,7 +882,7 @@ describe('MessagePartsRenderer', () => {
     expect(container.querySelectorAll('.block-wrapper')).toHaveLength(2)
   })
 
-  it('shows a live header on the expanded outer fold while the turn is streaming', () => {
+  it('shows the summary header on the expanded outer fold while the turn is streaming', () => {
     mockIsActiveTurnTarget.mockReturnValue(true)
 
     renderParts(
@@ -887,10 +893,10 @@ describe('MessagePartsRenderer', () => {
       msg({ status: 'pending' })
     )
 
-    const foldButton = screen.getByRole('button')
+    const foldButton = screen.getByRole('button', { name: '2 tool calls · 1 second' })
     expect(foldButton).toHaveAttribute('aria-expanded', 'true')
-    // Header is in live mode (it tracks the current tool, not a static count).
-    expect(foldButton.querySelector('[data-live="true"]')).toBeInTheDocument()
+    expect(foldButton.querySelector('[data-live="true"]')).toBeNull()
+    expect(foldButton.querySelector('[data-prefer-summary="true"]')).toBeInTheDocument()
     expect(foldButton.querySelector('svg')).toBeNull()
     expect(screen.queryByTestId('mock-placeholder')).toBeNull()
     expect(screen.getAllByTestId('mock-message-tools').map((node) => node.getAttribute('data-tool-name'))).toEqual([
@@ -913,9 +919,10 @@ describe('MessagePartsRenderer', () => {
       msg({ status: 'pending' })
     )
 
-    const foldButton = screen.getByRole('button')
+    const foldButton = screen.getByRole('button', { name: '4 tool calls · 1 second' })
     expect(foldButton).toHaveAttribute('aria-expanded', 'true')
-    expect(foldButton.querySelector('[data-live="true"]')).toBeInTheDocument()
+    expect(foldButton.querySelector('[data-live="true"]')).toBeNull()
+    expect(foldButton.querySelector('[data-prefer-summary="true"]')).toBeInTheDocument()
     expect(screen.queryByTestId('mock-placeholder')).toBeNull()
 
     expect(screen.queryByRole('button', { name: '2 tool calls' })).toBeNull()
@@ -957,6 +964,7 @@ describe('MessagePartsRenderer', () => {
     )
 
     expect(screen.getByRole('button', { name: '1 tool calls' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getAllByTestId('tool-history-divider')).toHaveLength(1)
     expect(screen.getAllByTestId('mock-markdown').at(-1)?.textContent).toBe('final answer')
     expect(screen.getByText('checking project files')).toBeInTheDocument()
     expect(screen.queryByTestId('mock-placeholder')).toBeNull()
@@ -973,8 +981,10 @@ describe('MessagePartsRenderer', () => {
       msg({ status: 'pending' })
     )
 
-    const foldButton = screen.getByRole('button', { name: /Thinking\.\.\./ })
+    const foldButton = screen.getByRole('button', { name: '1 tool calls · 1 second' })
     expect(foldButton).toHaveAttribute('aria-expanded', 'true')
+    expect(foldButton.querySelector('[data-live="true"]')).toBeNull()
+    expect(foldButton.querySelector('[data-prefer-summary="true"]')).toBeInTheDocument()
     expect(screen.queryByTestId('mock-placeholder')).toBeNull()
     expect(screen.getByTestId('mock-message-tools').getAttribute('data-tool-name')).toBe('list')
     expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('thinking after tool')

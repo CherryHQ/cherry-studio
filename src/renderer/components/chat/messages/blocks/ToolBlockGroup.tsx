@@ -117,6 +117,7 @@ interface ToolBlockGroupHeaderContentProps {
   elapsedText?: React.ReactNode
   summary?: React.ReactNode
   isLiveProgress?: boolean
+  preferSummary?: boolean
   showLatestWhenComplete?: boolean
 }
 
@@ -127,6 +128,7 @@ export const ToolBlockGroupHeaderContent = React.memo(
     elapsedText,
     summary,
     isLiveProgress,
+    preferSummary,
     showLatestWhenComplete
   }: ToolBlockGroupHeaderContentProps) => {
     const { t } = useTranslation()
@@ -134,6 +136,10 @@ export const ToolBlockGroupHeaderContent = React.memo(
     const allCompleted = items.every((item) => isToolGroupItemCompleted(item.toolResponse.status))
     const fallbackLabel = summary ?? t('message.tools.groupHeader', { count: items.length })
     const nextCandidate = React.useMemo<ToolHeaderCandidate>(() => {
+      if (preferSummary) {
+        return { key: `summary:${String(fallbackLabel)}`, kind: 'summary', label: fallbackLabel }
+      }
+
       if (allCompleted && !showLatestWhenComplete) {
         return { key: `summary:${String(fallbackLabel)}`, kind: 'summary', label: fallbackLabel }
       }
@@ -177,7 +183,16 @@ export const ToolBlockGroupHeaderContent = React.memo(
       }
 
       return { key: `summary:${String(fallbackLabel)}`, kind: 'summary', label: fallbackLabel }
-    }, [activityLabel, allCompleted, fallbackLabel, isLiveProgress, items, partsMap, showLatestWhenComplete])
+    }, [
+      activityLabel,
+      allCompleted,
+      fallbackLabel,
+      isLiveProgress,
+      items,
+      partsMap,
+      preferSummary,
+      showLatestWhenComplete
+    ])
     const displayCandidate = useStableHeaderCandidate(nextCandidate, isLiveProgress)
     const renderWithElapsed = (content: React.ReactNode) => (
       <div className="flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden text-[13px]">
@@ -194,7 +209,7 @@ export const ToolBlockGroupHeaderContent = React.memo(
     )
 
     if (displayCandidate.kind === 'summary') {
-      return (
+      return renderWithElapsed(
         <div className="flex items-center text-[13px]">
           <span className="whitespace-nowrap font-normal text-foreground-secondary transition-colors duration-150 group-hover/completed-tool-history:text-foreground group-hover/tool-group:text-foreground">
             {displayCandidate.label}

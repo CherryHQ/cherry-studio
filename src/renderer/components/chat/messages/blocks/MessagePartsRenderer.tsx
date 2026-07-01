@@ -651,10 +651,11 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
     [entries]
   )
   const showLiveProgress = (isProcessing || message.status !== 'success') && hasLiveProcessTail
+  const showDynamicHeader = showLiveProgress && !isExpanded
   const elapsedMs = usePlaceholderElapsedMs(showLiveProgress, message.createdAt)
   const elapsedText = showLiveProgress ? formatPlaceholderElapsed(elapsedMs, t) : undefined
   const activityLabel =
-    showLiveProgress && hasStreamingReasoningAfterLastTool(entries) ? t('message.tools.thinkingHeader') : undefined
+    showDynamicHeader && hasStreamingReasoningAfterLastTool(entries) ? t('message.tools.thinkingHeader') : undefined
 
   React.useEffect(() => {
     setIsExpanded(shouldAutoExpand)
@@ -670,7 +671,7 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
     .join(' ')
 
   return (
-    <div className={`group/process-history max-w-full ${isExpanded ? 'w-full' : 'w-fit'}`}>
+    <div className="group/process-history w-full max-w-full">
       <button
         type="button"
         aria-expanded={isExpanded}
@@ -682,14 +683,16 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
           activityLabel={activityLabel}
           elapsedText={elapsedText}
           summary={t('message.tools.groupHeader', { count: toolCount })}
-          isLiveProgress={showLiveProgress}
-          showLatestWhenComplete={showLiveProgress}
+          isLiveProgress={showDynamicHeader}
+          preferSummary={isExpanded}
+          showLatestWhenComplete={showDynamicHeader}
         />
       </button>
+      <div aria-hidden="true" data-testid="tool-history-divider" className="my-1.5 h-px w-full bg-border-subtle" />
       {isExpanded && (
         <div
           id={contentId}
-          className="mt-1.5 flex w-full flex-col gap-2 [&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper:empty]:hidden [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0!">
+          className="flex w-full flex-col gap-2 [&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper:empty]:hidden [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0!">
           {groupedEntries.map((entry) => renderGroupedEntry(entry, message, false, false))}
         </div>
       )}
