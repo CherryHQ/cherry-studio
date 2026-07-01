@@ -43,6 +43,7 @@ import {
 } from './Messages/BranchPanel/branchDisposition'
 import { scheduleForkTopicDeletion } from './Messages/BranchPanel/scheduleForkTopicDeletion'
 import { useBranchAnchorPersistence } from './Messages/BranchPanel/useBranchAnchorPersistence'
+import { usePersistedBranchAnchors } from './Messages/BranchPanel/usePersistedBranchAnchors'
 import ChatNavigation from './Messages/ChatNavigation'
 import Messages from './Messages/Messages'
 import Tabs from './Tabs'
@@ -98,6 +99,8 @@ const Chat: FC<Props> = (props) => {
   const [creatingBranchId, setCreatingBranchId] = useState<string | null>(null)
 
   useBranchAnchorPersistence({ parentTopicId: props.activeTopic.id, branches })
+  // P2 Step 2C: read persisted anchors only; Step 2D decides validation and highlight restoration.
+  usePersistedBranchAnchors(props.activeTopic.id)
 
   // P1-S2b-1: a fresh anchor APPENDS to branches (S1 replace semantics is
   // dropped). The new Branch starts with `topic: null` to mirror the
