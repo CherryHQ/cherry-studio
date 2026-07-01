@@ -30,11 +30,17 @@ export const TagSelector: FC<Props> = ({ value, onChange, allTagNames, disabled,
 
     const sortedNames = Array.from(names)
     sortedNames.sort((a, b) => a.localeCompare(b, 'zh'))
-    return sortedNames.map((name) => ({
-      value: name,
-      label: name
-    }))
-  }, [allTagNames, search, value])
+    return [
+      {
+        value: '',
+        label: t('library.config.basic.tag_none')
+      },
+      ...sortedNames.map((name) => ({
+        value: name,
+        label: name
+      }))
+    ]
+  }, [allTagNames, search, t, value])
 
   return (
     <Combobox

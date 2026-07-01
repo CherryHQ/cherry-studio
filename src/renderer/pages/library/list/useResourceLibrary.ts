@@ -84,13 +84,9 @@ export function useResourceLibrary({
   // the param when nothing resolves rather than sending a 400.
   const tagIds = useMemo(() => {
     if (!assistantTagsActive) return undefined
-    const names = [activeTag].filter((x): x is string => Boolean(x))
-    if (names.length === 0) return undefined
-    const ids = names.flatMap((name) => {
-      const id = tagIdByName.get(name)
-      return id ? [id] : []
-    })
-    return ids.length > 0 ? ids : undefined
+    if (!activeTag) return undefined
+    const id = tagIdByName.get(activeTag)
+    return id ? [id] : undefined
   }, [activeTag, assistantTagsActive, tagIdByName])
 
   // Defensive guard for the rare race where the user has a chip selected but

@@ -296,7 +296,8 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.precise': 'Precise',
           'library.config.basic.stream_output': 'Stream output',
           'library.config.basic.tag_empty': 'No tags',
-          'library.config.basic.tag_placeholder': 'Select tags',
+          'library.config.basic.tag_none': 'No tag',
+          'library.config.basic.tag_placeholder': 'Select tag',
           'library.config.basic.tag_search': 'Search tags',
           'library.config.basic.mcp_mode': 'MCP Mode',
           'library.config.basic.temperature': 'Temperature',
@@ -627,6 +628,22 @@ describe('edit dialogs', () => {
     expect(updateAssistantMock).toHaveBeenCalledWith({
       body: expect.objectContaining({
         tagIds: ['tag-personal']
+      })
+    })
+  })
+
+  it('clears the assistant tag from the single-select tag field', async () => {
+    ensureTagsMock.mockResolvedValueOnce([])
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    openTagCombobox()
+    fireEvent.click(await screen.findByText('No tag'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(ensureTagsMock).toHaveBeenCalledWith([]))
+    expect(updateAssistantMock).toHaveBeenCalledWith({
+      body: expect.objectContaining({
+        tagIds: []
       })
     })
   })

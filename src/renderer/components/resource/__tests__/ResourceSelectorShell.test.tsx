@@ -891,5 +891,35 @@ describe('ResourceSelectorShell', () => {
       expect(screen.queryByRole('option', { name: /Alpha/ })).toBeInTheDocument()
       expect(screen.queryByRole('option', { name: /Beta/ })).not.toBeInTheDocument()
     })
+
+    it('uses a single active tag filter at a time', () => {
+      render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={[
+            { ...ITEMS[0], tag: 'Cherry' },
+            { ...ITEMS[1], tag: 'DEV' },
+            { ...ITEMS[2], tag: 'Cherry' }
+          ]}
+          tags={['Cherry', 'DEV']}
+          pinnedIds={[]}
+          onTogglePin={vi.fn()}
+          labels={LABELS}
+          value={null}
+          onChange={vi.fn()}
+        />
+      )
+      openPopover()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cherry' }))
+      expect(screen.queryByRole('option', { name: /Alpha/ })).toBeInTheDocument()
+      expect(screen.queryByRole('option', { name: /Gamma/ })).toBeInTheDocument()
+      expect(screen.queryByRole('option', { name: /Beta/ })).not.toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'DEV' }))
+      expect(screen.queryByRole('option', { name: /Beta/ })).toBeInTheDocument()
+      expect(screen.queryByRole('option', { name: /Alpha/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('option', { name: /Gamma/ })).not.toBeInTheDocument()
+    })
   })
 })

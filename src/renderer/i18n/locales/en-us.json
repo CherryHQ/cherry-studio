@@ -3156,6 +3156,7 @@
         "stream_output": "Stream output",
         "tag_empty": "No tags available",
         "tag_hint": "To add a new tag, use the \"+ Tag\" entry in the library top bar",
+        "tag_none": "No tag",
         "tag_placeholder": "Select tag",
         "tag_search": "Search tags",
         "tags": "Tag",
