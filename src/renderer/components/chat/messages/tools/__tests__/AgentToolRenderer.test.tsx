@@ -799,12 +799,16 @@ describe('AgentToolRenderer', () => {
 
       render(<AgentToolRenderer toolResponse={toolResponse} />)
 
-      fireEvent.click(screen.getByText('View').closest('[role="button"]')!)
+      const toolHeader = screen.getByText('View').closest('[role="button"]')!
+      expect(toolHeader).toHaveClass('w-fit')
+      expect(toolHeader).not.toHaveClass('w-full')
+
+      fireEvent.click(toolHeader)
       expect(openAgentToolFlow).not.toHaveBeenCalled()
       expect(screen.getByTestId('collapse-content-Bash')).toBeVisible()
       expect(screen.getByTestId('collapse-content-Bash')).toHaveClass('rounded-xl', 'bg-muted', 'px-4', 'py-3')
 
-      fireEvent.click(screen.getByText('View').closest('[role="button"]')!)
+      fireEvent.click(toolHeader)
       expect(screen.getByTestId('collapse-content-Bash')).not.toBeVisible()
       expect(screen.queryByRole('button', { name: 'button.collapse' })).toBeNull()
       expect(screen.queryByRole('button', { name: 'code_block.expand' })).toBeNull()

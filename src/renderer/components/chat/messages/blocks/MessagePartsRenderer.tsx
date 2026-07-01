@@ -25,6 +25,7 @@ import { convertReferencesToCitationReferences, convertReferencesToCitations } f
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ErrorPartData } from '@shared/data/types/uiParts'
 import { isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
+import { ChevronsUp } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -54,6 +55,7 @@ import { ToolBlockGroupContent, ToolBlockGroupHeaderContent } from './ToolBlockG
 import TranslationBlock from './TranslationBlock'
 
 const logger = loggerService.withContext('MessagePartsRenderer')
+const BOTTOM_COLLAPSE_TOOL_COUNT_THRESHOLD = 10
 
 // ============================================================================
 // Animation shared by message block renderers.
@@ -656,6 +658,7 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
   const elapsedText = showLiveProgress ? formatPlaceholderElapsed(elapsedMs, t) : undefined
   const activityLabel =
     showDynamicHeader && hasStreamingReasoningAfterLastTool(entries) ? t('message.tools.thinkingHeader') : undefined
+  const showBottomCollapseButton = isExpanded && toolCount > BOTTOM_COLLAPSE_TOOL_COUNT_THRESHOLD
 
   React.useEffect(() => {
     setIsExpanded(shouldAutoExpand)
@@ -695,6 +698,16 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
           className="flex w-full flex-col gap-2 [&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper:empty]:hidden [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0!">
           {groupedEntries.map((entry) => renderGroupedEntry(entry, message, false, false))}
         </div>
+      )}
+      {showBottomCollapseButton && (
+        <button
+          type="button"
+          aria-controls={contentId}
+          className="mt-2 inline-flex w-fit items-center gap-1 px-0 py-0 text-[13px] text-primary hover:text-primary/85 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+          onClick={() => setIsExpanded(false)}>
+          <ChevronsUp aria-hidden="true" className="text-current" size={14} strokeWidth={1.8} />
+          {t('common.collapse')}
+        </button>
       )}
     </div>
   )

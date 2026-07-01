@@ -97,6 +97,8 @@ describe('MessageMcpTool', () => {
     expect(container.textContent).not.toContain('chat.input.pause')
     // Only the collapse header is interactive — no separate actions-bar controls.
     expect(screen.getAllByRole('button')).toHaveLength(1)
+    expect(screen.getByRole('button')).toHaveClass('w-fit')
+    expect(screen.getByRole('button')).not.toHaveClass('w-full')
   })
 
   it('keeps a lightweight copy action for completed tool payloads', async () => {
