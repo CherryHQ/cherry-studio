@@ -21,6 +21,7 @@ const logger = loggerService.withContext('SkillAdapter')
  */
 function useSkillList(query?: ResourceListQuery): ResourceListResult<InstalledSkill> {
   const { data, isLoading, isRefreshing, error, refetch } = useQuery('/skills', {
+    enabled: query?.enabled !== false,
     query: {
       ...(query?.search ? { search: query.search } : {})
     }

@@ -1,6 +1,7 @@
 import type { ResourceType } from '@renderer/types/resourceCatalog'
 
 export interface ResourceListQuery {
+  enabled?: boolean
   /** Free-text match against name OR description (passed through to the API). */
   search?: string
   /** Union (OR) tag filter — kept if the resource is bound to ANY of these tag ids. */

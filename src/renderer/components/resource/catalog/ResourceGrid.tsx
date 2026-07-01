@@ -43,31 +43,12 @@ import type { FC, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { AssistantCatalogTabRail } from './AssistantCatalogTabRail'
-import { AssistantCatalogPresetContent, ResourceCard } from './ResourceCards'
-import {
-  ASSISTANT_CATALOG_MY_TAB,
-  type AssistantCatalogPreset,
-  type AssistantCatalogTab,
-  getAssistantPresetCatalogKey
-} from './useAssistantPresetCatalog'
+import { ResourceCard } from './ResourceCards'
 
 const logger = loggerService.withContext('ResourceGrid')
 
 const GRID_GAP_PX = 12
 const RESOURCE_CARD_ROW_ESTIMATE_PX = 92
-const ASSISTANT_PRESET_ROW_ESTIMATE_PX = 144
-
-interface AssistantCatalogGridState {
-  activeTab: string
-  tabs: AssistantCatalogTab[]
-  presets: AssistantCatalogPreset[]
-  addedAssistantPresets: Readonly<Record<string, string>>
-  onTabChange: (tabId: string) => void
-  onAddPreset: (preset: AssistantCatalogPreset) => Promise<void> | void
-  onOpenPresetChat: (assistantId: string) => void
-  onPreviewPreset: (preset: AssistantCatalogPreset) => void
-}
 
 interface Props {
   resources: ResourceItem[]
@@ -93,7 +74,6 @@ interface Props {
   allTagNames: string[]
   /** Full backend tag records (id + name + color). Distinct from `allTagNames` (names only). */
   allTags: BackendTag[]
-  assistantCatalog?: AssistantCatalogGridState
 }
 
 function getGridColumnCount(width: number) {
@@ -139,8 +119,7 @@ interface AssistantAddMenuProps {
 
 /**
  * The single "添加助手" control: one button that reveals 新建助手 / 助手库 / 导入助手 on hover.
- * The library item only appears when a handler is supplied (the resource-center page wires it;
- * the legacy inline-catalog surface keeps browsing via its own tab rail and omits it).
+ * The library item only appears when a handler is supplied.
  */
 function AssistantAddMenu({ onNew, onImport, onOpenLibrary }: AssistantAddMenuProps) {
   const { t } = useTranslation()
@@ -194,8 +173,7 @@ export const ResourceGrid: FC<Props> = ({
   onAddTag,
   onUpdateResourceTags,
   allTagNames,
-  allTags,
-  assistantCatalog
+  allTags
 }) => {
   const { t } = useTranslation()
   const { renameTag } = useRenameTag()
@@ -206,16 +184,12 @@ export const ResourceGrid: FC<Props> = ({
   const [showAllTags, setShowAllTags] = useState(false)
   const [newTagName, setNewTagName] = useState('')
   const [addingTag, setAddingTag] = useState(false)
-  const [addingPresetKeys, setAddingPresetKeys] = useState<Set<string>>(new Set())
   const [renamingTag, setRenamingTag] = useState<TagItem | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [renaming, setRenaming] = useState(false)
   const [deletingTag, setDeletingTag] = useState<TagItem | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const showingAssistantCatalogPresets =
-    Boolean(assistantCatalog) && assistantCatalog?.activeTab !== ASSISTANT_CATALOG_MY_TAB
-  const showTagToolbar =
-    activeResourceType === 'assistant' && (!assistantCatalog || assistantCatalog.activeTab === ASSISTANT_CATALOG_MY_TAB)
+  const showTagToolbar = activeResourceType === 'assistant'
   // This "unused" set is scoped to the assistant library: today user-managed
   // resource tags are only bound to assistants. If other entity types start
   // sharing `/tags`, replace this client-side difference with server-provided
@@ -307,27 +281,6 @@ export const ResourceGrid: FC<Props> = ({
     }
   }, [activeTag, deleteTag, deleting, deletingTag, onTagFilter, t])
 
-  const handleAddPreset = useCallback(
-    async (preset: AssistantCatalogPreset) => {
-      if (!assistantCatalog) return
-
-      const presetKey = getAssistantPresetCatalogKey(preset)
-      if (addingPresetKeys.has(presetKey)) return
-
-      setAddingPresetKeys((prev) => new Set(prev).add(presetKey))
-      try {
-        await assistantCatalog.onAddPreset(preset)
-      } finally {
-        setAddingPresetKeys((prev) => {
-          const next = new Set(prev)
-          next.delete(presetKey)
-          return next
-        })
-      }
-    },
-    [addingPresetKeys, assistantCatalog]
-  )
-
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 flex-col border-border-muted border-b">
@@ -376,14 +329,6 @@ export const ResourceGrid: FC<Props> = ({
             )}
           </div>
         </div>
-
-        {assistantCatalog && (
-          <AssistantCatalogTabRail
-            tabs={assistantCatalog.tabs}
-            activeTab={assistantCatalog.activeTab}
-            onTabChange={assistantCatalog.onTabChange}
-          />
-        )}
 
         {showTagToolbar && (
           <div className="flex items-center gap-1.5 overflow-x-auto px-5 pb-3 [&::-webkit-scrollbar]:h-0">
@@ -524,19 +469,7 @@ export const ResourceGrid: FC<Props> = ({
       <div
         ref={scrollRef}
         className="flex-1 overflow-y-auto px-5 py-4 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-1">
-        {showingAssistantCatalogPresets && assistantCatalog ? (
-          <VirtualizedAssistantPresetGrid
-            scrollRef={scrollRef}
-            columnCount={columnCount}
-            presets={assistantCatalog.presets}
-            search={search}
-            addingPresetKeys={addingPresetKeys}
-            addedAssistantPresets={assistantCatalog.addedAssistantPresets}
-            onAddPreset={(preset) => void handleAddPreset(preset)}
-            onOpenPresetChat={assistantCatalog.onOpenPresetChat}
-            onPreviewPreset={assistantCatalog.onPreviewPreset}
-          />
-        ) : isLoading ? (
+        {isLoading ? (
           <ResourceGridLoadingState columnCount={columnCount} />
         ) : resources.length === 0 ? (
           <EmptyState
@@ -658,62 +591,6 @@ function VirtualizedResourceGrid({
         )
       })}
     </div>
-  )
-}
-
-interface VirtualizedAssistantPresetGridProps {
-  scrollRef: RefObject<HTMLDivElement | null>
-  columnCount: number
-  presets: AssistantCatalogPreset[]
-  search: string
-  addingPresetKeys: ReadonlySet<string>
-  addedAssistantPresets: Readonly<Record<string, string>>
-  onAddPreset: (preset: AssistantCatalogPreset) => void
-  onOpenPresetChat: (assistantId: string) => void
-  onPreviewPreset: (preset: AssistantCatalogPreset) => void
-}
-
-function VirtualizedAssistantPresetGrid({
-  scrollRef,
-  columnCount,
-  presets,
-  search,
-  addingPresetKeys,
-  addedAssistantPresets,
-  onAddPreset,
-  onOpenPresetChat,
-  onPreviewPreset
-}: VirtualizedAssistantPresetGridProps) {
-  const rows = useMemo(() => {
-    const nextRows: AssistantCatalogPreset[][] = []
-    for (let i = 0; i < presets.length; i += columnCount) {
-      nextRows.push(presets.slice(i, i + columnCount))
-    }
-    return nextRows
-  }, [columnCount, presets])
-
-  const rowVirtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => ASSISTANT_PRESET_ROW_ESTIMATE_PX + GRID_GAP_PX,
-    overscan: 4
-  })
-
-  return (
-    <AssistantCatalogPresetContent
-      presets={presets}
-      search={search}
-      addingPresetKeys={addingPresetKeys}
-      addedAssistantPresets={addedAssistantPresets}
-      onAddPreset={onAddPreset}
-      onOpenPresetChat={onOpenPresetChat}
-      onPreviewPreset={onPreviewPreset}
-      virtualRows={rowVirtualizer.getVirtualItems()}
-      totalHeight={rowVirtualizer.getTotalSize()}
-      measureRow={rowVirtualizer.measureElement}
-      rows={rows}
-      columnCount={columnCount}
-    />
   )
 }
 

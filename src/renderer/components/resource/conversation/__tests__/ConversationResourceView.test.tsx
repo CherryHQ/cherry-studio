@@ -8,23 +8,11 @@ const { resourceCatalogViewMock } = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/components/resource/catalog', () => ({
-  ResourceCatalogView: (props: {
-    allowedResourceTypes: readonly string[]
-    assistantCatalogEnabled: boolean
-    className?: string
-    defaultResourceType: string
-    showSidebar: boolean
-  }) => {
+  ResourceCatalogView: (props: { className?: string; resourceType: string }) => {
     resourceCatalogViewMock(props)
 
     return (
-      <div
-        className={props.className}
-        data-assistant-catalog-enabled={String(props.assistantCatalogEnabled)}
-        data-default-resource-type={props.defaultResourceType}
-        data-show-sidebar={String(props.showSidebar)}
-        data-testid="resource-catalog-view"
-      />
+      <div className={props.className} data-resource-type={props.resourceType} data-testid="resource-catalog-view" />
     )
   }
 }))
@@ -38,14 +26,11 @@ describe('ConversationResourceView', () => {
     render(<ConversationResourceView kind="agent" className="custom-shell" />)
 
     const view = screen.getByTestId('resource-catalog-view')
-    expect(view).toHaveAttribute('data-default-resource-type', 'agent')
-    expect(view).toHaveAttribute('data-show-sidebar', 'false')
-    expect(view).toHaveAttribute('data-assistant-catalog-enabled', 'false')
+    expect(view).toHaveAttribute('data-resource-type', 'agent')
     expect(view).toHaveClass('bg-background', 'custom-shell')
     expect(resourceCatalogViewMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        allowedResourceTypes: ['agent'],
-        defaultResourceType: 'agent'
+        resourceType: 'agent'
       })
     )
   })
@@ -57,8 +42,7 @@ describe('ConversationResourceView', () => {
 
     expect(resourceCatalogViewMock).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        allowedResourceTypes: ['skill'],
-        defaultResourceType: 'skill'
+        resourceType: 'skill'
       })
     )
   })

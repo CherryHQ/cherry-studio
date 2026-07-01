@@ -7,7 +7,7 @@ import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ResourceCardMenu } from '../ResourceCardMenu'
-import { AssistantCatalogPresetContent, ResourceCard } from '../ResourceCards'
+import { ResourceCard } from '../ResourceCards'
 import { ResourceGrid } from '../ResourceGrid'
 
 const { deleteTagMock, ensureTagsMock, renameTagMock, updateAssistantMock } = vi.hoisted(() => ({
@@ -34,10 +34,6 @@ vi.mock('react-i18next', () => ({
         }) satisfies Record<string, string>
       )[key] ?? key
   })
-}))
-
-vi.mock('@renderer/components/resource/catalog/AssistantPresetGroupIcon', () => ({
-  AssistantPresetGroupIcon: () => <span />
 }))
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -525,55 +521,13 @@ describe('ResourceGrid card actions', () => {
   })
 })
 
-describe('ResourceGrid assistant catalog actions', () => {
+describe('Assistant preset preview dialog actions', () => {
   const preset = {
     id: '550e8400-e29b-41d4-a716-446655440000',
     name: 'Catalog Assistant',
     prompt: 'Prompt',
     group: ['Tools']
   }
-
-  it('adds a preset from the catalog card', async () => {
-    const user = userEvent.setup()
-    const onAddPreset = vi.fn()
-
-    render(
-      <AssistantCatalogPresetContent
-        presets={[preset]}
-        search=""
-        addingPresetKeys={new Set()}
-        addedAssistantPresets={{}}
-        onAddPreset={onAddPreset}
-        onOpenPresetChat={vi.fn()}
-        onPreviewPreset={vi.fn()}
-      />
-    )
-
-    await user.click(screen.getByRole('button', { name: '添加' }))
-    expect(onAddPreset).toHaveBeenCalledWith(preset)
-  })
-
-  it('opens chat for an added preset from the catalog card', async () => {
-    const user = userEvent.setup()
-    const onAddPreset = vi.fn()
-    const onOpenPresetChat = vi.fn()
-
-    render(
-      <AssistantCatalogPresetContent
-        presets={[preset]}
-        search=""
-        addingPresetKeys={new Set()}
-        addedAssistantPresets={{ [preset.id]: 'assistant-created' }}
-        onAddPreset={onAddPreset}
-        onOpenPresetChat={onOpenPresetChat}
-        onPreviewPreset={vi.fn()}
-      />
-    )
-
-    await user.click(screen.getByRole('button', { name: '去对话' }))
-    expect(onOpenPresetChat).toHaveBeenCalledWith('assistant-created')
-    expect(onAddPreset).not.toHaveBeenCalled()
-  })
 
   it('adds a preset from the preview dialog', async () => {
     const user = userEvent.setup()

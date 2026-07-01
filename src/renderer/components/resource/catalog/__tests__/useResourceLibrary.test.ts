@@ -53,7 +53,7 @@ function listResult(data: unknown[]) {
 function renderResourceLibrary(options: Partial<Parameters<typeof useResourceLibrary>[0]> = {}) {
   return renderHook(() =>
     useResourceLibrary({
-      sidebarFilter: { resourceType: 'assistant' },
+      resourceType: 'assistant',
       activeTag: null,
       search: '',
       sort: 'updatedAt',
@@ -62,7 +62,7 @@ function renderResourceLibrary(options: Partial<Parameters<typeof useResourceLib
   )
 }
 
-describe('useResourceLibrary model display names', () => {
+describe('useResourceLibrary', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.useAssistantList.mockReturnValue(listResult([]))
@@ -77,7 +77,7 @@ describe('useResourceLibrary model display names', () => {
     })
   })
 
-  it('uses backend-resolved model names for both assistant and agent resource cards', () => {
+  it('uses backend-resolved model names for assistant resource cards', () => {
     mocks.useAssistantList.mockReturnValue(
       listResult([
         {
@@ -86,11 +86,23 @@ describe('useResourceLibrary model display names', () => {
           description: '',
           emoji: '💬',
           modelName: 'GPT-4o',
+          tags: [],
           createdAt: '2026-04-27T00:00:00.000Z',
           updatedAt: '2026-04-27T00:00:00.000Z'
         }
       ])
     )
+
+    const { result } = renderResourceLibrary()
+
+    expect(result.current.allResources).toMatchObject([{ id: 'assistant-1', type: 'assistant', model: 'GPT-4o' }])
+    expect(mocks.useAssistantList.mock.calls[0]).toEqual([{ enabled: true }])
+    expect(mocks.useAgentList).toHaveBeenCalledWith({ enabled: false, search: undefined })
+    expect(mocks.useSkillList).toHaveBeenCalledWith({ enabled: false, search: undefined })
+    expect(mocks.usePromptList).toHaveBeenCalledWith({ enabled: false, search: undefined })
+  })
+
+  it('uses backend-resolved model names for agent resource cards', () => {
     mocks.useAgentList.mockReturnValue(
       listResult([
         {
@@ -106,10 +118,11 @@ describe('useResourceLibrary model display names', () => {
       ])
     )
 
-    const { result } = renderResourceLibrary()
+    const { result } = renderResourceLibrary({ resourceType: 'agent' })
 
-    expect(result.current.allResources.find((resource) => resource.type === 'assistant')?.model).toBe('GPT-4o')
-    expect(result.current.allResources.find((resource) => resource.type === 'agent')?.model).toBe('Claude Sonnet 4.5')
+    expect(result.current.allResources).toMatchObject([{ id: 'agent-1', type: 'agent', model: 'Claude Sonnet 4.5' }])
+    expect(mocks.useAssistantList.mock.calls[0]).toEqual([{ enabled: false }])
+    expect(mocks.useAgentList).toHaveBeenCalledWith({ enabled: true, search: undefined })
   })
 
   it('omits the agent card model when the backend cannot resolve a modelName', () => {
@@ -128,9 +141,9 @@ describe('useResourceLibrary model display names', () => {
       ])
     )
 
-    const { result } = renderResourceLibrary()
+    const { result } = renderResourceLibrary({ resourceType: 'agent' })
 
-    expect(result.current.allResources.find((resource) => resource.type === 'agent')?.model).toBeUndefined()
+    expect(result.current.allResources[0]?.model).toBeUndefined()
   })
 
   it('uses the default agent avatar for blank stored agent avatars', () => {
@@ -149,25 +162,25 @@ describe('useResourceLibrary model display names', () => {
       ])
     )
 
-    const { result } = renderResourceLibrary()
+    const { result } = renderResourceLibrary({ resourceType: 'agent' })
 
-    expect(result.current.allResources.find((resource) => resource.type === 'agent')?.avatar).toBe('🤖')
+    expect(result.current.allResources[0]?.avatar).toBe('🤖')
   })
 
-  it('does not use skill source metadata tags for resource cards', () => {
+  it('passes skill search to the backend and ignores activeTag', () => {
     mocks.useSkillList.mockReturnValue(
       listResult([
         {
-          id: 'skill-1',
+          id: 'skill-filtered',
           name: '网页摘要',
-          description: '自动提取网页核心内容',
-          folderName: 'web-summary',
+          description: '由 /skills 返回',
+          folderName: 'backend-filtered',
           source: 'marketplace',
           sourceUrl: null,
           namespace: null,
-          author: 'CherryStudio',
+          author: null,
           sourceTags: ['metadata-only'],
-          contentHash: 'hash',
+          contentHash: 'filtered-hash',
           isEnabled: false,
           createdAt: '2026-04-27T00:00:00.000Z',
           updatedAt: '2026-04-27T00:00:00.000Z'
@@ -176,101 +189,44 @@ describe('useResourceLibrary model display names', () => {
     )
 
     const { result } = renderResourceLibrary({
-      sidebarFilter: { resourceType: 'skill' }
-    })
-    const skill = result.current.allResources.find((resource) => resource.type === 'skill')
-
-    expect(skill?.tags).toEqual([])
-  })
-
-  it('passes skill search to the backend and ignores activeTag', () => {
-    mocks.useSkillList.mockImplementation((query?: ResourceListQuery) => {
-      if (query) {
-        return listResult([
-          {
-            id: 'skill-filtered',
-            name: '后端结果',
-            description: '由 /skills 返回',
-            folderName: 'backend-filtered',
-            source: 'marketplace',
-            sourceUrl: null,
-            namespace: null,
-            author: null,
-            sourceTags: [],
-            contentHash: 'filtered-hash',
-            isEnabled: false,
-            createdAt: '2026-04-27T00:00:00.000Z',
-            updatedAt: '2026-04-27T00:00:00.000Z'
-          }
-        ])
-      }
-
-      return listResult([
-        {
-          id: 'skill-base',
-          name: '网页摘要',
-          description: '自动提取网页核心内容',
-          folderName: 'web-summary',
-          source: 'marketplace',
-          sourceUrl: null,
-          namespace: null,
-          author: null,
-          sourceTags: ['metadata-only'],
-          contentHash: 'base-hash',
-          isEnabled: false,
-          createdAt: '2026-04-27T00:00:00.000Z',
-          updatedAt: '2026-04-27T00:00:00.000Z'
-        }
-      ])
-    })
-
-    const { result } = renderResourceLibrary({
-      sidebarFilter: { resourceType: 'skill' },
+      resourceType: 'skill',
       activeTag: '生产力',
       search: ' summary '
     })
 
-    expect(mocks.useSkillList.mock.calls[0]).toEqual([])
-    expect(mocks.useSkillList.mock.calls[1]).toEqual([{ search: 'summary' }])
-    expect(result.current.resources.map((resource) => resource.id)).toEqual(['skill-filtered'])
+    expect(mocks.useSkillList).toHaveBeenCalledWith({ enabled: true, search: 'summary' })
+    expect(mocks.useAssistantList.mock.calls[0]).toEqual([{ enabled: false }])
+    expect(mocks.useAssistantList.mock.calls[1]).toEqual([{ enabled: false, search: undefined, tagIds: undefined }])
+    expect(result.current.resources).toMatchObject([
+      {
+        id: 'skill-filtered',
+        type: 'skill',
+        tags: []
+      }
+    ])
   })
 
   it('maps prompt resources and forwards search without tag filters', () => {
-    mocks.usePromptList.mockImplementation((query?: ResourceListQuery) => {
-      if (query) {
-        return listResult([
-          {
-            id: 'prompt-filtered',
-            title: '日报模板',
-            content: '今日完成 ${task}',
-            orderKey: 'b',
-            createdAt: '2026-04-27T00:00:00.000Z',
-            updatedAt: '2026-04-27T00:00:00.000Z'
-          }
-        ])
-      }
-
-      return listResult([
+    mocks.usePromptList.mockReturnValue(
+      listResult([
         {
-          id: 'prompt-base',
-          title: '会议纪要',
-          content: '总结会议内容',
-          orderKey: 'a',
-          createdAt: '2026-04-26T00:00:00.000Z',
-          updatedAt: '2026-04-26T00:00:00.000Z'
+          id: 'prompt-filtered',
+          title: '日报模板',
+          content: '今日完成 ${task}',
+          orderKey: 'b',
+          createdAt: '2026-04-27T00:00:00.000Z',
+          updatedAt: '2026-04-27T00:00:00.000Z'
         }
       ])
-    })
+    )
 
     const { result } = renderResourceLibrary({
-      sidebarFilter: { resourceType: 'prompt' },
+      resourceType: 'prompt',
       activeTag: '生产力',
       search: ' 日报 '
     })
 
-    expect(mocks.usePromptList.mock.calls[0]).toEqual([])
-    expect(mocks.usePromptList.mock.calls[1]).toEqual([{ search: '日报' }])
-    expect(result.current.typeCounts.prompt).toBe(1)
+    expect(mocks.usePromptList).toHaveBeenCalledWith({ enabled: true, search: '日报' })
     expect(result.current.resources).toMatchObject([
       {
         id: 'prompt-filtered',
@@ -302,20 +258,21 @@ describe('useResourceLibrary model display names', () => {
 
     renderResourceLibrary({ activeTag: 'work' })
 
-    expect(mocks.useAssistantList.mock.calls[1]).toEqual([{ search: undefined, tagIds: ['tag-1'] }])
+    expect(mocks.useAssistantList.mock.calls[1]).toEqual([{ enabled: true, search: undefined, tagIds: ['tag-1'] }])
   })
 
   it('returns an empty list when a selected assistant tag cannot be resolved', () => {
     const { result } = renderResourceLibrary({ activeTag: 'missing' })
 
-    expect(mocks.useAssistantList.mock.calls[1]).toEqual([{ search: undefined, tagIds: undefined }])
+    expect(mocks.useAssistantList.mock.calls[1]).toEqual([{ enabled: true, search: undefined, tagIds: undefined }])
     expect(result.current.resources).toEqual([])
   })
 
   it('ignores activeTag for non-assistant resources', () => {
-    renderResourceLibrary({ sidebarFilter: { resourceType: 'agent' }, activeTag: 'work' })
+    renderResourceLibrary({ resourceType: 'agent', activeTag: 'work' })
 
-    expect(mocks.useAgentList.mock.calls[1]).toEqual([{ search: undefined }])
-    expect(mocks.useAssistantList.mock.calls[1]).toEqual([{ search: undefined, tagIds: undefined }])
+    expect(mocks.useAgentList).toHaveBeenCalledWith({ enabled: true, search: undefined })
+    expect(mocks.useAssistantList.mock.calls[0]).toEqual([{ enabled: false }])
+    expect(mocks.useAssistantList.mock.calls[1]).toEqual([{ enabled: false, search: undefined, tagIds: undefined }])
   })
 })

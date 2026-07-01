@@ -19,6 +19,7 @@
  */
 
 import { loggerService } from '@logger'
+import type { SidebarFavorite } from '@shared/data/preference/preferenceTypes'
 
 import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/ModelTransformers'
 import {
@@ -37,6 +38,23 @@ import {
 } from './TranslateTransforms'
 
 const logger = loggerService.withContext('Migration:ComplexPreferenceMappings')
+
+const SUPPORTED_SIDEBAR_FAVORITES = new Set<SidebarFavorite>([
+  'assistants',
+  'agents',
+  'paintings',
+  'translate',
+  'mini_app',
+  'knowledge',
+  'files',
+  'code_tools',
+  'notes',
+  'openclaw'
+])
+
+function isSupportedSidebarFavorite(value: unknown): value is SidebarFavorite {
+  return typeof value === 'string' && SUPPORTED_SIDEBAR_FAVORITES.has(value as SidebarFavorite)
+}
 
 // ============================================================================
 // Type Definitions
@@ -170,9 +188,14 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     },
     targetKeys: ['ui.sidebar.favorites'],
     transform: (sources) => {
-      const rewrite = (arr: unknown): unknown[] | undefined =>
-        Array.isArray(arr) ? arr.map((v) => (v === 'minapp' ? 'mini_app' : v)) : undefined
-      const addAgents = (visible: unknown[] | undefined, invisible: unknown[] | undefined): unknown[] | undefined => {
+      const rewrite = (arr: unknown): SidebarFavorite[] | undefined =>
+        Array.isArray(arr)
+          ? arr.map((v) => (v === 'minapp' ? 'mini_app' : v)).filter(isSupportedSidebarFavorite)
+          : undefined
+      const addAgents = (
+        visible: SidebarFavorite[] | undefined,
+        invisible: SidebarFavorite[] | undefined
+      ): SidebarFavorite[] | undefined => {
         if (!visible || visible.includes('agents')) {
           return visible
         }
@@ -185,7 +208,8 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
         nextVisible.splice(assistantsIndex === -1 ? nextVisible.length : assistantsIndex + 1, 0, 'agents')
         return nextVisible
       }
-      const dedup = (arr: unknown[] | undefined): unknown[] | undefined => (arr ? [...new Set(arr)] : undefined)
+      const dedup = (arr: SidebarFavorite[] | undefined): SidebarFavorite[] | undefined =>
+        arr ? [...new Set(arr)] : undefined
       const visible = rewrite(sources.visible)
       const invisible = rewrite(sources.disabled)
       const visibleWithAgents = dedup(addAgents(visible, invisible))

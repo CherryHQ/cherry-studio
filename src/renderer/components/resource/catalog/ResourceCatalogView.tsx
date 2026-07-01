@@ -2,7 +2,6 @@ import { Alert, Button } from '@cherrystudio/ui'
 import {
   AgentEditDialog,
   AssistantEditDialog,
-  AssistantPresetPreviewDialog,
   ImportAssistantDialog,
   ImportSkillDialog,
   PromptEditDialog,
@@ -13,11 +12,7 @@ import {
   SkillDetailDialog
 } from '@renderer/components/resource/dialogs'
 import { isSelectableAssistantModel } from '@renderer/components/resource/dialogs/form/assistantModelFilter'
-import {
-  DEFAULT_TAG_COLOR,
-  getRandomTagColor,
-  RESOURCE_TYPE_ORDER
-} from '@renderer/components/resource/resourceCatalogConstants'
+import { DEFAULT_TAG_COLOR, getRandomTagColor } from '@renderer/components/resource/resourceCatalogConstants'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import {
   useAgentMutations,
@@ -26,13 +21,7 @@ import {
   usePromptMutationsById
 } from '@renderer/hooks/resourceCatalog'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
-import type {
-  AgentDetail,
-  LibrarySidebarFilter,
-  ResourceItem,
-  ResourceType,
-  TagItem
-} from '@renderer/types/resourceCatalog'
+import type { AgentDetail, ResourceItem, ResourceType, TagItem } from '@renderer/types/resourceCatalog'
 import { serializeAssistantForExport } from '@renderer/utils/assistantTransfer'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
@@ -44,44 +33,19 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { AssistantLibraryDialog } from './AssistantLibraryDialog'
-import { LibrarySidebar } from './LibrarySidebar'
 import { ResourceGrid } from './ResourceGrid'
-import {
-  ASSISTANT_CATALOG_MY_TAB,
-  type AssistantCatalogPreset,
-  getAssistantPresetCatalogKey,
-  toCreateAssistantDtoFromCatalogPreset,
-  useAssistantPresetCatalog
-} from './useAssistantPresetCatalog'
 import { useResourceLibrary } from './useResourceLibrary'
 
 type EditDialogState = { kind: 'assistant'; resource: Assistant } | { kind: 'agent'; resource: AgentDetail }
 
 type PromptDialogState = { prompt: Prompt | null } | null
 
-const DEFAULT_RESOURCE_TYPE = RESOURCE_TYPE_ORDER[0]
 const DIALOG_EXIT_ANIMATION_MS = 200
 
 export type ResourceCatalogViewProps = {
-  allowedResourceTypes?: readonly ResourceType[]
-  assistantCatalogEnabled?: boolean
   className?: string
-  defaultResourceType?: ResourceType
   onOpenAssistantChat?: (assistantId: string) => void
-  showSidebar?: boolean
-}
-
-function getAllowedResourceTypes(allowedResourceTypes?: readonly ResourceType[]): ResourceType[] {
-  if (!allowedResourceTypes?.length) return RESOURCE_TYPE_ORDER
-  return RESOURCE_TYPE_ORDER.filter((type) => allowedResourceTypes.includes(type))
-}
-
-function getInitialResourceType(
-  resourceTypes: readonly ResourceType[],
-  defaultResourceType?: ResourceType
-): ResourceType {
-  if (defaultResourceType && resourceTypes.includes(defaultResourceType)) return defaultResourceType
-  return resourceTypes[0] ?? DEFAULT_RESOURCE_TYPE
+  resourceType: ResourceType
 }
 
 /**
@@ -114,23 +78,8 @@ function buildTags(resources: ResourceItem[], backendTags: Tag[], filterType?: R
     }))
 }
 
-export function ResourceCatalogView({
-  allowedResourceTypes,
-  assistantCatalogEnabled = true,
-  className,
-  defaultResourceType,
-  onOpenAssistantChat,
-  showSidebar = true
-}: ResourceCatalogViewProps) {
+export function ResourceCatalogView({ className, onOpenAssistantChat, resourceType }: ResourceCatalogViewProps) {
   const { t } = useTranslation()
-  const resourceTypes = useMemo(() => getAllowedResourceTypes(allowedResourceTypes), [allowedResourceTypes])
-  const initialResourceType = useMemo(
-    () => getInitialResourceType(resourceTypes, defaultResourceType),
-    [defaultResourceType, resourceTypes]
-  )
-  const [sidebarFilter, setSidebarFilter] = useState<LibrarySidebarFilter>(() => ({
-    resourceType: initialResourceType
-  }))
   const [search, setSearch] = useState('')
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceItem | null>(null)
@@ -144,49 +93,28 @@ export function ResourceCatalogView({
   const [assistantImportOpen, setAssistantImportOpen] = useState(false)
   const [assistantLibraryOpen, setAssistantLibraryOpen] = useState(false)
   const [skillImportOpen, setSkillImportOpen] = useState(false)
-  const [activeAssistantCatalogTab, setActiveAssistantCatalogTab] = useState(ASSISTANT_CATALOG_MY_TAB)
-  const [previewAssistantPreset, setPreviewAssistantPreset] = useState<AssistantCatalogPreset | null>(null)
-  const [previewAssistantPresetAdding, setPreviewAssistantPresetAdding] = useState(false)
-  const [addedAssistantPresets, setAddedAssistantPresets] = useState<Record<string, string>>({})
 
-  const activeResourceType = sidebarFilter.resourceType
+  const activeResourceType = resourceType
   const isAssistantLibrary = activeResourceType === 'assistant'
-  const isAssistantCatalogEnabled = assistantCatalogEnabled && isAssistantLibrary
-  const isAssistantCatalogMine = !isAssistantCatalogEnabled || activeAssistantCatalogTab === ASSISTANT_CATALOG_MY_TAB
-  // The dialog-based assistant library replaces the inline catalog on the resource-center page
-  // (its inline tab rail is disabled there); the legacy library page keeps browsing inline.
-  const assistantLibraryDialogEnabled = isAssistantLibrary && !isAssistantCatalogEnabled
-
-  useEffect(() => {
-    if (resourceTypes.includes(activeResourceType)) return
-
-    setSidebarFilter({ resourceType: initialResourceType })
-    setActiveTag(null)
-    setActiveAssistantCatalogTab(ASSISTANT_CATALOG_MY_TAB)
-  }, [activeResourceType, initialResourceType, resourceTypes])
 
   const {
     resources,
     allResources,
-    typeCounts,
     isLoading,
     error: resourceError,
     refetch
   } = useResourceLibrary({
-    sidebarFilter,
-    activeTag: isAssistantLibrary && isAssistantCatalogMine ? activeTag : null,
-    search: !isAssistantLibrary || isAssistantCatalogMine ? search : '',
+    resourceType: activeResourceType,
+    activeTag: isAssistantLibrary ? activeTag : null,
+    search,
     sort: 'name'
   })
 
-  const assistantCatalog = useAssistantPresetCatalog({
-    activeTab: activeAssistantCatalogTab,
-    search,
-    mineCount: typeCounts.assistant,
-    enabled: isAssistantCatalogEnabled
-  })
+  const assistantTagUiEnabled = isAssistantLibrary
 
-  const assistantTagUiEnabled = isAssistantLibrary && isAssistantCatalogMine
+  useEffect(() => {
+    setActiveTag(null)
+  }, [resourceType])
 
   const { createAssistant, duplicateAssistant } = useAssistantMutations()
   const { createAgent } = useAgentMutations()
@@ -247,14 +175,6 @@ export function ResourceCatalogView({
   )
 
   useEffect(() => {
-    if (!isAssistantCatalogEnabled) return
-    if (assistantCatalog.tabs.some((tab) => tab.id === activeAssistantCatalogTab)) return
-
-    setActiveTag(null)
-    setActiveAssistantCatalogTab(ASSISTANT_CATALOG_MY_TAB)
-  }, [activeAssistantCatalogTab, assistantCatalog.tabs, isAssistantCatalogEnabled])
-
-  useEffect(() => {
     if (createDialogOpen || !createDialogKind) return
 
     const timeoutId = window.setTimeout(() => setCreateDialogKind(null), DIALOG_EXIT_ANIMATION_MS)
@@ -294,63 +214,6 @@ export function ResourceCatalogView({
       }
     },
     [duplicateAssistant, refetch, t]
-  )
-
-  const addAssistantPreset = useCallback(
-    async (preset: AssistantCatalogPreset) => {
-      const assistant = await createAssistant(toCreateAssistantDtoFromCatalogPreset(preset))
-      setAddedAssistantPresets((current) => ({
-        ...current,
-        [getAssistantPresetCatalogKey(preset)]: assistant.id
-      }))
-      refetch()
-      window.toast.success(t('common.add_success'))
-      return assistant
-    },
-    [createAssistant, refetch, setAddedAssistantPresets, t]
-  )
-
-  const handleAddAssistantPreset = useCallback(
-    async (preset: AssistantCatalogPreset) => {
-      try {
-        await addAssistantPreset(preset)
-      } catch (error) {
-        window.toast.error(error instanceof Error ? error.message : t('library.assistant_catalog.add_failed'))
-      }
-    },
-    [addAssistantPreset, t]
-  )
-
-  const handlePreviewAssistantPreset = useCallback((preset: AssistantCatalogPreset) => {
-    setPreviewAssistantPreset(preset)
-  }, [])
-
-  const handleOpenAssistantPresetChat = useCallback(
-    (assistantId: string) => {
-      onOpenAssistantChat?.(assistantId)
-    },
-    [onOpenAssistantChat]
-  )
-
-  const handleAddPreviewAssistantPreset = useCallback(async () => {
-    if (!previewAssistantPreset || previewAssistantPresetAdding) return
-
-    setPreviewAssistantPresetAdding(true)
-    try {
-      await addAssistantPreset(previewAssistantPreset)
-    } catch (error) {
-      window.toast.error(error instanceof Error ? error.message : t('library.assistant_catalog.add_failed'))
-    } finally {
-      setPreviewAssistantPresetAdding(false)
-    }
-  }, [addAssistantPreset, previewAssistantPreset, previewAssistantPresetAdding, t])
-
-  const handlePreviewOpenChange = useCallback(
-    (open: boolean) => {
-      if (open || previewAssistantPresetAdding) return
-      setPreviewAssistantPreset(null)
-    },
-    [previewAssistantPresetAdding]
   )
 
   const handleDelete = useCallback((r: ResourceItem) => setDeleteConfirm(r), [])
@@ -449,55 +312,8 @@ export function ResourceCatalogView({
     refetch()
   }, [refetch])
 
-  const handleAssistantTabChange = useCallback((tabId: string) => {
-    setActiveAssistantCatalogTab(tabId)
-    setActiveTag(null)
-  }, [])
-
-  const assistantCatalogProp = useMemo(
-    () =>
-      isAssistantCatalogEnabled
-        ? {
-            activeTab: activeAssistantCatalogTab,
-            tabs: assistantCatalog.tabs,
-            presets: assistantCatalog.presets,
-            addedAssistantPresets,
-            onTabChange: handleAssistantTabChange,
-            onAddPreset: handleAddAssistantPreset,
-            onOpenPresetChat: handleOpenAssistantPresetChat,
-            onPreviewPreset: handlePreviewAssistantPreset
-          }
-        : undefined,
-    [
-      activeAssistantCatalogTab,
-      addedAssistantPresets,
-      assistantCatalog.presets,
-      assistantCatalog.tabs,
-      handleAddAssistantPreset,
-      handleAssistantTabChange,
-      handleOpenAssistantPresetChat,
-      handlePreviewAssistantPreset,
-      isAssistantCatalogEnabled
-    ]
-  )
-
   return (
     <div className={cn('flex min-h-0 flex-1 bg-background', className)}>
-      {showSidebar ? (
-        <LibrarySidebar
-          filter={sidebarFilter}
-          onFilterChange={(f) => {
-            setSidebarFilter(f)
-            setActiveTag(null)
-            if (f.resourceType !== 'assistant') {
-              setActiveAssistantCatalogTab(ASSISTANT_CATALOG_MY_TAB)
-            }
-          }}
-          resourceTypes={resourceTypes}
-          typeCounts={typeCounts}
-        />
-      ) : null}
-
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {resourceError ? (
           <div className="flex min-h-0 flex-1 items-center justify-center p-6">
@@ -529,7 +345,7 @@ export function ResourceCatalogView({
             }}
             onCreate={handleCreate}
             onImportAssistant={() => setAssistantImportOpen(true)}
-            onOpenAssistantLibrary={assistantLibraryDialogEnabled ? () => setAssistantLibraryOpen(true) : undefined}
+            onOpenAssistantLibrary={isAssistantLibrary ? () => setAssistantLibraryOpen(true) : undefined}
             tags={scopedTags}
             activeTag={activeTag}
             onTagFilter={setActiveTag}
@@ -541,7 +357,6 @@ export function ResourceCatalogView({
             onUpdateResourceTags={noop /* binding is executed inside FixedCardMenu via the tag hooks */}
             allTagNames={allTagNames}
             allTags={tagList.tags}
-            assistantCatalog={assistantCatalogProp}
           />
         )}
       </div>
@@ -554,21 +369,8 @@ export function ResourceCatalogView({
           if (!open) setSelectedSkill(null)
         }}
       />
-      <AssistantPresetPreviewDialog
-        preset={previewAssistantPreset}
-        open={Boolean(previewAssistantPreset)}
-        adding={previewAssistantPresetAdding}
-        addedAssistantId={
-          previewAssistantPreset
-            ? addedAssistantPresets[getAssistantPresetCatalogKey(previewAssistantPreset)]
-            : undefined
-        }
-        onOpenChange={handlePreviewOpenChange}
-        onAdd={handleAddPreviewAssistantPreset}
-        onOpenChat={handleOpenAssistantPresetChat}
-      />
       <ImportAssistantDialog open={assistantImportOpen} onOpenChange={setAssistantImportOpen} onImported={refetch} />
-      {assistantLibraryDialogEnabled ? (
+      {isAssistantLibrary ? (
         <AssistantLibraryDialog
           open={assistantLibraryOpen}
           onOpenChange={setAssistantLibraryOpen}

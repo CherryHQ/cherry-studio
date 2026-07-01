@@ -14,6 +14,7 @@ import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './t
  */
 function useAgentList(query?: ResourceListQuery): ResourceListResult<AgentDetail> {
   const { data, isLoading, isRefreshing, error, refetch } = useQuery('/agents', {
+    enabled: query?.enabled !== false,
     query: {
       limit: query?.limit ?? AGENTS_MAX_LIMIT,
       ...(query?.search ? { search: query.search } : {})

@@ -1,12 +1,6 @@
 import { agentAdapter, assistantAdapter, promptAdapter, skillAdapter } from '@renderer/hooks/resourceCatalog'
 import { useTagList } from '@renderer/hooks/useTags'
-import type {
-  AgentDetail,
-  LibrarySidebarFilter,
-  ResourceItem,
-  ResourceType,
-  SortKey
-} from '@renderer/types/resourceCatalog'
+import type { AgentDetail, ResourceItem, ResourceType, SortKey } from '@renderer/types/resourceCatalog'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import type { InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
@@ -22,7 +16,7 @@ function compareItems(a: ResourceItem, b: ResourceItem, sort: SortKey): number {
 }
 
 export interface UseResourceLibraryOptions {
-  sidebarFilter: LibrarySidebarFilter
+  resourceType: ResourceType
   activeTag: string | null
   search: string
   sort: SortKey
@@ -34,12 +28,11 @@ export interface UseResourceLibraryResult {
   isLoading: boolean
   isRefreshing: boolean
   error?: Error
-  typeCounts: Record<ResourceType, number>
   refetch: () => void
 }
 
 export function useResourceLibrary({
-  sidebarFilter,
+  resourceType,
   activeTag,
   search,
   sort
@@ -47,20 +40,21 @@ export function useResourceLibrary({
   const tagList = useTagList()
 
   const trimmedSearch = search.trim() || undefined
+  const isAssistant = resourceType === 'assistant'
+  const isAgent = resourceType === 'agent'
+  const isSkill = resourceType === 'skill'
+  const isPrompt = resourceType === 'prompt'
 
-  const assistantTagsActive = sidebarFilter.resourceType === 'assistant' && Boolean(activeTag)
+  const assistantTagsActive = isAssistant && Boolean(activeTag)
 
-  // Two reads per filterable type:
-  // - Base (no params): powers `typeCounts` and `allResources` so the sidebar
-  //   numbers / chip set don't collapse when the user types in the search box.
+  // Assistant needs two reads:
+  // - Base (no params): powers assistant tag chips so they don't collapse when
+  //   the user types in the search box.
   //   Also the authoritative source for tag-name → tag-id resolution below.
   // - Filtered: powers the visible grid. When `trimmedSearch`/`tagIds` are
   //   undefined the SWR key matches the base read and the call is deduped, so
   //   there's no extra network hit until the user actually filters.
-  const baseAssistants = assistantAdapter.useList()
-  const baseAgents = agentAdapter.useList()
-  const skills = skillAdapter.useList()
-  const basePrompts = promptAdapter.useList()
+  const baseAssistants = assistantAdapter.useList({ enabled: isAssistant })
 
   // Resolve assistant tag names to ids primarily from the embedded tags we already
   // have on base data — every chip the user can click was rendered from a
@@ -100,18 +94,16 @@ export function useResourceLibrary({
   // resolve, or the tag was deleted server-side). Without this, the filtered
   // query would degrade to "no tag filter" and surface every resource —
   // misleading for a user who explicitly picked a tag.
-  const hasUnresolvedTagSelection =
-    sidebarFilter.resourceType === 'assistant' && Boolean(activeTag) && tagIds === undefined
+  const hasUnresolvedTagSelection = isAssistant && Boolean(activeTag) && tagIds === undefined
 
-  const filteredAssistants = assistantAdapter.useList({ search: trimmedSearch, tagIds })
-  const filteredAgents = agentAdapter.useList({ search: trimmedSearch })
-  // Skip the filtered fetch when skills are not displayed (sidebar pinned to
-  // assistant or agent). With no args the adapter shares the same cache key
-  // as the unfiltered `skills` call above, so we don't pay an extra request.
-  const skillsVisible = sidebarFilter.resourceType === 'skill'
-  const filteredSkills = skillAdapter.useList(skillsVisible ? { search: trimmedSearch } : undefined)
-  const promptsVisible = sidebarFilter.resourceType === 'prompt'
-  const filteredPrompts = promptAdapter.useList(promptsVisible ? { search: trimmedSearch } : undefined)
+  const filteredAssistants = assistantAdapter.useList({
+    enabled: isAssistant,
+    search: isAssistant ? trimmedSearch : undefined,
+    tagIds: isAssistant ? tagIds : undefined
+  })
+  const agents = agentAdapter.useList({ enabled: isAgent, search: isAgent ? trimmedSearch : undefined })
+  const skills = skillAdapter.useList({ enabled: isSkill, search: isSkill ? trimmedSearch : undefined })
+  const prompts = promptAdapter.useList({ enabled: isPrompt, search: isPrompt ? trimmedSearch : undefined })
 
   const buildAssistantItem = useCallback((a: Assistant): ResourceItem => {
     // Defensive `?? []`: schema declares tags as required, but stale DataApi
@@ -180,41 +172,32 @@ export function useResourceLibrary({
     }
   }, [])
 
-  const allResources = useMemo<ResourceItem[]>(
-    () => [
-      ...baseAssistants.data.map(buildAssistantItem),
-      ...baseAgents.data.map(buildAgentItem),
-      ...skills.data.map(buildSkillItem),
-      ...basePrompts.data.map(buildPromptItem)
-    ],
-    [
-      baseAssistants.data,
-      baseAgents.data,
-      skills.data,
-      basePrompts.data,
-      buildAssistantItem,
-      buildAgentItem,
-      buildSkillItem,
-      buildPromptItem
-    ]
-  )
-
-  const typeCounts = useMemo<Record<ResourceType, number>>(() => {
-    const counts: Record<ResourceType, number> = { agent: 0, assistant: 0, skill: 0, prompt: 0 }
-    for (const r of allResources) counts[r.type] += 1
-    return counts
-  }, [allResources])
+  const allResources = useMemo<ResourceItem[]>(() => {
+    if (isAssistant) return baseAssistants.data.map(buildAssistantItem)
+    if (isAgent) return agents.data.map(buildAgentItem)
+    if (isPrompt) return prompts.data.map(buildPromptItem)
+    return skills.data.map(buildSkillItem)
+  }, [
+    isAssistant,
+    isAgent,
+    isPrompt,
+    baseAssistants.data,
+    agents.data,
+    skills.data,
+    prompts.data,
+    buildAssistantItem,
+    buildAgentItem,
+    buildSkillItem,
+    buildPromptItem
+  ])
 
   const filteredAssistantItems = useMemo(
     () => filteredAssistants.data.map(buildAssistantItem),
     [filteredAssistants.data, buildAssistantItem]
   )
-  const filteredAgentItems = useMemo(
-    () => filteredAgents.data.map(buildAgentItem),
-    [filteredAgents.data, buildAgentItem]
-  )
-  const skillItems = useMemo(() => filteredSkills.data.map(buildSkillItem), [filteredSkills.data, buildSkillItem])
-  const promptItems = useMemo(() => filteredPrompts.data.map(buildPromptItem), [filteredPrompts.data, buildPromptItem])
+  const agentItems = useMemo(() => agents.data.map(buildAgentItem), [agents.data, buildAgentItem])
+  const skillItems = useMemo(() => skills.data.map(buildSkillItem), [skills.data, buildSkillItem])
+  const promptItems = useMemo(() => prompts.data.map(buildPromptItem), [prompts.data, buildPromptItem])
 
   const resources = useMemo<ResourceItem[]>(() => {
     // Tag selected but unresolvable → return empty rather than degrading to
@@ -222,70 +205,75 @@ export function useResourceLibrary({
     if (hasUnresolvedTagSelection) return []
 
     let list: ResourceItem[]
-    if (sidebarFilter.resourceType === 'assistant') list = filteredAssistantItems
-    else if (sidebarFilter.resourceType === 'agent') list = filteredAgentItems
-    else if (sidebarFilter.resourceType === 'prompt') list = promptItems
+    if (isAssistant) list = filteredAssistantItems
+    else if (isAgent) list = agentItems
+    else if (isPrompt) list = promptItems
     else list = skillItems
 
     return [...list].sort((a, b) => compareItems(a, b, sort))
   }, [
     hasUnresolvedTagSelection,
-    sidebarFilter,
+    isAssistant,
+    isAgent,
+    isPrompt,
     filteredAssistantItems,
-    filteredAgentItems,
+    agentItems,
     promptItems,
     skillItems,
     sort
   ])
 
-  const isLoading =
-    baseAssistants.isLoading ||
-    filteredAssistants.isLoading ||
-    baseAgents.isLoading ||
-    filteredAgents.isLoading ||
-    skills.isLoading ||
-    filteredSkills.isLoading ||
-    basePrompts.isLoading ||
-    filteredPrompts.isLoading
-  const isRefreshing =
-    baseAssistants.isRefreshing ||
-    filteredAssistants.isRefreshing ||
-    baseAgents.isRefreshing ||
-    filteredAgents.isRefreshing ||
-    skills.isRefreshing ||
-    filteredSkills.isRefreshing ||
-    basePrompts.isRefreshing ||
-    filteredPrompts.isRefreshing
-  const error =
-    baseAssistants.error ??
-    filteredAssistants.error ??
-    baseAgents.error ??
-    filteredAgents.error ??
-    skills.error ??
-    filteredSkills.error ??
-    basePrompts.error ??
-    filteredPrompts.error
+  const isLoading = isAssistant
+    ? baseAssistants.isLoading || filteredAssistants.isLoading
+    : isAgent
+      ? agents.isLoading
+      : isPrompt
+        ? prompts.isLoading
+        : skills.isLoading
+  const isRefreshing = isAssistant
+    ? baseAssistants.isRefreshing || filteredAssistants.isRefreshing
+    : isAgent
+      ? agents.isRefreshing
+      : isPrompt
+        ? prompts.isRefreshing
+        : skills.isRefreshing
+  const error = isAssistant
+    ? (baseAssistants.error ?? filteredAssistants.error)
+    : isAgent
+      ? agents.error
+      : isPrompt
+        ? prompts.error
+        : skills.error
+
+  const baseAssistantsRefetch = baseAssistants.refetch
+  const filteredAssistantsRefetch = filteredAssistants.refetch
+  const agentsRefetch = agents.refetch
+  const skillsRefetch = skills.refetch
+  const promptsRefetch = prompts.refetch
+  const tagListRefetch = tagList.refetch
 
   const refetch = useCallback(() => {
-    baseAssistants.refetch()
-    filteredAssistants.refetch()
-    baseAgents.refetch()
-    filteredAgents.refetch()
-    skills.refetch()
-    filteredSkills.refetch()
-    basePrompts.refetch()
-    filteredPrompts.refetch()
-    tagList.refetch()
+    if (isAssistant) {
+      baseAssistantsRefetch()
+      filteredAssistantsRefetch()
+      tagListRefetch()
+    } else if (isAgent) {
+      agentsRefetch()
+    } else if (isPrompt) {
+      promptsRefetch()
+    } else {
+      skillsRefetch()
+    }
   }, [
-    baseAssistants.refetch,
-    filteredAssistants.refetch,
-    baseAgents.refetch,
-    filteredAgents.refetch,
-    skills.refetch,
-    filteredSkills.refetch,
-    basePrompts.refetch,
-    filteredPrompts.refetch,
-    tagList.refetch
+    isAssistant,
+    isAgent,
+    isPrompt,
+    baseAssistantsRefetch,
+    filteredAssistantsRefetch,
+    agentsRefetch,
+    skillsRefetch,
+    promptsRefetch,
+    tagListRefetch
   ])
 
   return {
@@ -294,7 +282,6 @@ export function useResourceLibrary({
     isLoading,
     isRefreshing,
     error,
-    typeCounts,
     refetch
   }
 }

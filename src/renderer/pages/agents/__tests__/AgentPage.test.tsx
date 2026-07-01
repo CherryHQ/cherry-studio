@@ -253,8 +253,8 @@ vi.mock('@renderer/components/chat', () => ({
 }))
 
 vi.mock('@renderer/components/resource/catalog', () => ({
-  ResourceCatalogView: ({ defaultResourceType }: { defaultResourceType: string }) => (
-    <div data-testid={`resource-catalog-${defaultResourceType}`} />
+  ResourceCatalogView: ({ resourceType }: { resourceType: string }) => (
+    <div data-testid={`resource-catalog-${resourceType}`} />
   )
 }))
 

@@ -7,6 +7,7 @@ import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './t
 
 function usePromptList(query?: ResourceListQuery): ResourceListResult<Prompt> {
   const { data, isLoading, isRefreshing, error, refetch } = useQuery('/prompts', {
+    enabled: query?.enabled !== false,
     query: {
       ...(query?.search ? { search: query.search } : {})
     }

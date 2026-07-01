@@ -38,8 +38,6 @@ export interface TagItem {
   count: number
 }
 
-export type LibrarySidebarFilter = { resourceType: ResourceType }
-
 export interface ResourceTypeUIConfig {
   icon: React.ElementType
   color: string

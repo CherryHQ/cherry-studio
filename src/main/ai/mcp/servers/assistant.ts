@@ -67,7 +67,6 @@ const ALLOWED_ROUTES = [
   '/notes',
   '/apps',
   '/code',
-  '/store',
   '/launchpad',
   '/'
 ]

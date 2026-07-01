@@ -17,6 +17,7 @@ import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './t
  */
 function useAssistantList(query?: ResourceListQuery): ResourceListResult<Assistant> {
   const { data, isLoading, isRefreshing, error, refetch } = useQuery('/assistants', {
+    enabled: query?.enabled !== false,
     query: {
       limit: query?.limit ?? ASSISTANTS_MAX_LIMIT,
       ...(query?.search ? { search: query.search } : {}),
