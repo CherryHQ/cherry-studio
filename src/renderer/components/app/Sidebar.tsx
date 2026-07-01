@@ -15,6 +15,7 @@ import {
   getOrderedVisibleSidebarFavorites,
   getSidebarMenuPath,
   getSidebarMiniAppFavoriteIds,
+  REQUIRED_SIDEBAR_FAVORITES,
   resolveSidebarActiveItem
 } from '@renderer/utils/sidebar'
 import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
@@ -30,6 +31,7 @@ import { UserAvatar } from '../Sidebar/primitives'
 import type { SidebarMenuItem, SidebarMiniAppTab, SidebarUser, SidebarVisibleLayout } from '../Sidebar/types'
 
 const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
+const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarAppId>(REQUIRED_SIDEBAR_FAVORITES)
 
 function getResourceListRevealSource(menuItemId: SidebarAppId): ResourceListRevealSource | null {
   if (menuItemId === 'assistants' || menuItemId === 'agents') return menuItemId
@@ -45,8 +47,8 @@ function getMiniAppIdFromUrl(url: string | undefined): string | undefined {
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
-  const [sidebarFavorites] = usePreference('ui.sidebar.favorites')
-  const [sidebarMiniAppFavorites] = usePreference('ui.sidebar.mini_app_favorites')
+  const [sidebarFavorites, setSidebarFavorites] = usePreference('ui.sidebar.favorites')
+  const [sidebarMiniAppFavorites, setSidebarMiniAppFavorites] = usePreference('ui.sidebar.mini_app_favorites')
   const { activeTab, updateTab, openTab } = useTabs()
   const { miniApps, pinned } = useMiniApps()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
@@ -121,6 +123,14 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     }
     return appById
   }, [miniApps, pinned])
+  const handleRemoveSidebarMiniAppFavorite = useCallback(
+    (appId: string) => {
+      void setSidebarMiniAppFavorites(sidebarMiniAppFavoriteIds.filter((favorite) => favorite !== appId)).catch(() => {
+        window.toast?.error(t('common.error'))
+      })
+    },
+    [setSidebarMiniAppFavorites, sidebarMiniAppFavoriteIds, t]
+  )
 
   const sidebarMiniAppTabs = useMemo<SidebarMiniAppTab[]>(() => {
     return sidebarMiniAppFavoriteIds.flatMap((appId) => {
@@ -136,11 +146,32 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
             id: app.appId,
             logo: app.logo,
             url: app.url
-          }
+          },
+          contextMenuItems: [
+            {
+              type: 'item',
+              id: `sidebar.remove-mini-app.${app.appId}`,
+              label: t('launchpad.unpin_from_sidebar'),
+              onSelect: () => handleRemoveSidebarMiniAppFavorite(app.appId)
+            }
+          ]
         }
       ]
     })
-  }, [openableMiniAppById, sidebarMiniAppFavoriteIds, t])
+  }, [handleRemoveSidebarMiniAppFavorite, openableMiniAppById, sidebarMiniAppFavoriteIds, t])
+
+  const handleRemoveSidebarFavorite = useCallback(
+    (favorite: SidebarAppId) => {
+      if (REQUIRED_SIDEBAR_FAVORITE_SET.has(favorite)) return
+
+      void setSidebarFavorites(
+        getOrderedVisibleSidebarFavorites(sidebarFavorites).filter((existing) => existing !== favorite)
+      ).catch(() => {
+        window.toast?.error(t('common.error'))
+      })
+    },
+    [setSidebarFavorites, sidebarFavorites, t]
+  )
 
   const items = useMemo<SidebarMenuItem[]>(
     () =>
@@ -154,11 +185,20 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           {
             id: icon,
             label: t(getSidebarIconLabelKey(icon)),
-            icon: Icon
+            icon: Icon,
+            contextMenuItems: [
+              {
+                type: 'item',
+                id: `sidebar.remove-app.${icon}`,
+                label: t('launchpad.unpin_from_sidebar'),
+                enabled: !REQUIRED_SIDEBAR_FAVORITE_SET.has(icon),
+                onSelect: () => handleRemoveSidebarFavorite(icon)
+              }
+            ]
           }
         ]
       }),
-    [defaultPaintingProvider, sidebarFavorites, t]
+    [defaultPaintingProvider, handleRemoveSidebarFavorite, sidebarFavorites, t]
   )
 
   const activeItem = resolveSidebarActiveItem(pathname)

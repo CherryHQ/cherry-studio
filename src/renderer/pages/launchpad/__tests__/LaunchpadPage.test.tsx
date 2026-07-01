@@ -125,8 +125,8 @@ vi.mock('react-i18next', () => ({
           'knowledge.title': 'Knowledge',
           'launchpad.apps': 'Apps',
           'launchpad.miniApps': 'Mini Apps',
-          'launchpad.pin_to_sidebar': 'Pin to sidebar',
-          'launchpad.unpin_from_sidebar': 'Unpin from sidebar',
+          'launchpad.pin_to_sidebar': 'Add to Sidebar',
+          'launchpad.unpin_from_sidebar': 'Remove from Sidebar',
           'miniApp.title': 'Mini Apps',
           'notes.title': 'Notes',
           'openclaw.title': 'OpenClaw',
@@ -415,26 +415,27 @@ describe('LaunchpadPage', () => {
     expect(screen.queryByRole('button', { name: 'Scratch' })).not.toBeInTheDocument()
   })
 
-  it('pins an app icon to the sidebar from the context menu', async () => {
+  it('adds an app icon to the sidebar from the context menu', async () => {
     const user = userEvent.setup()
 
     render(<LaunchpadPage />)
 
-    expect(screen.getByTestId('menu-launchpad.unpin-from-sidebar.assistants')).toHaveTextContent('Unpin from sidebar')
+    expect(screen.getByTestId('menu-launchpad.unpin-from-sidebar.assistants')).toHaveTextContent('Remove from Sidebar')
     expect(screen.getByTestId('menu-launchpad.unpin-from-sidebar.assistants')).toBeDisabled()
+    expect(screen.getByTestId('menu-launchpad.pin-to-sidebar.knowledge')).toHaveTextContent('Add to Sidebar')
 
     await user.click(screen.getByTestId('menu-launchpad.pin-to-sidebar.knowledge'))
 
     expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants'), appFavorite('knowledge')])
   })
 
-  it('unpins an existing sidebar app icon from the context menu', async () => {
+  it('removes an existing sidebar app icon from the context menu', async () => {
     const user = userEvent.setup()
     mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('knowledge')]
 
     render(<LaunchpadPage />)
 
-    expect(screen.getByTestId('menu-launchpad.unpin-from-sidebar.knowledge')).toHaveTextContent('Unpin from sidebar')
+    expect(screen.getByTestId('menu-launchpad.unpin-from-sidebar.knowledge')).toHaveTextContent('Remove from Sidebar')
 
     await user.click(screen.getByTestId('menu-launchpad.unpin-from-sidebar.knowledge'))
 

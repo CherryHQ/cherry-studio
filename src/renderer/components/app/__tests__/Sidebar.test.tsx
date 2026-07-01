@@ -35,6 +35,8 @@ const mocks = vi.hoisted(() => ({
     title: 'Chat'
   } as FakeTab | null,
   setSidebarWidth: vi.fn(),
+  setSidebarFavorites: vi.fn(() => Promise.resolve()),
+  setSidebarMiniAppFavorites: vi.fn(() => Promise.resolve()),
   showUserPopup: vi.fn(),
   sidebarWidth: 50,
   tabs: [] as FakeTab[],
@@ -58,8 +60,9 @@ vi.mock('@data/hooks/useCache', () => ({
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
     if (key === 'app.user.name') return ['JD']
-    if (key === 'ui.sidebar.favorites') return [mocks.sidebarFavorites]
-    if (key === 'ui.sidebar.mini_app_favorites') return [mocks.sidebarMiniAppFavorites]
+    if (key === 'ui.sidebar.favorites') return [mocks.sidebarFavorites, mocks.setSidebarFavorites]
+    if (key === 'ui.sidebar.mini_app_favorites')
+      return [mocks.sidebarMiniAppFavorites, mocks.setSidebarMiniAppFavorites]
     return [undefined]
   }
 }))
@@ -158,8 +161,16 @@ vi.mock('../../Sidebar', () => ({
     isFloating?: boolean
     isFloatingClosing?: boolean
     activeTabId?: string
-    dockedTabs?: Array<{ id: string; title: string }>
-    items?: Array<{ id: string; label: string }>
+    dockedTabs?: Array<{
+      id: string
+      title: string
+      contextMenuItems?: Array<{ id: string; label: string; enabled?: boolean; onSelect?: () => void }>
+    }>
+    items?: Array<{
+      id: string
+      label: string
+      contextMenuItems?: Array<{ id: string; label: string; enabled?: boolean; onSelect?: () => void }>
+    }>
     title?: string
     logo?: ReactNode
     user?: unknown
@@ -197,19 +208,40 @@ vi.mock('../../Sidebar', () => ({
               <button type="button" data-testid={`sidebar-item-${item.id}`} onClick={() => onItemClick?.(item.id)}>
                 <span>{item.label}</span>
               </button>
+              {item.contextMenuItems?.map((menuItem) => (
+                <button
+                  key={menuItem.id}
+                  type="button"
+                  data-testid={`sidebar-menu-${menuItem.id}`}
+                  disabled={menuItem.enabled === false}
+                  onClick={menuItem.onSelect}>
+                  {menuItem.label}
+                </button>
+              ))}
             </div>
           ))}
         </div>
         <div data-testid="sidebar-mini-app-section">
           {dockedTabs?.map((miniTab) => (
-            <button
-              key={miniTab.id}
-              type="button"
-              data-active={activeTabId === miniTab.id ? 'true' : 'false'}
-              data-testid={`sidebar-mini-app-${miniTab.id}`}
-              onClick={() => onMiniAppTabClick?.(miniTab.id)}>
-              {miniTab.title}
-            </button>
+            <div key={miniTab.id}>
+              <button
+                type="button"
+                data-active={activeTabId === miniTab.id ? 'true' : 'false'}
+                data-testid={`sidebar-mini-app-${miniTab.id}`}
+                onClick={() => onMiniAppTabClick?.(miniTab.id)}>
+                {miniTab.title}
+              </button>
+              {miniTab.contextMenuItems?.map((menuItem) => (
+                <button
+                  key={menuItem.id}
+                  type="button"
+                  data-testid={`sidebar-menu-${menuItem.id}`}
+                  disabled={menuItem.enabled === false}
+                  onClick={menuItem.onSelect}>
+                  {menuItem.label}
+                </button>
+              ))}
+            </div>
           ))}
         </div>
       </>
@@ -237,6 +269,10 @@ afterEach(() => {
   vi.clearAllMocks()
   mocks.sidebarFavorites = [appFavorite('assistants')]
   mocks.sidebarMiniAppFavorites = []
+  mocks.setSidebarFavorites.mockReset()
+  mocks.setSidebarFavorites.mockResolvedValue(undefined)
+  mocks.setSidebarMiniAppFavorites.mockReset()
+  mocks.setSidebarMiniAppFavorites.mockResolvedValue(undefined)
   mocks.activeTab = {
     id: 'chat',
     type: 'route',
@@ -309,6 +345,30 @@ describe('app Sidebar', () => {
     expect(labels).toEqual(['Translate', 'Chat', 'Work'])
   })
 
+  it('removes a sidebar app favorite from the context menu', () => {
+    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('knowledge'), appFavorite('files')]
+
+    render(<Sidebar />)
+
+    expect(screen.getByTestId('sidebar-menu-sidebar.remove-app.knowledge')).toHaveTextContent(
+      'launchpad.unpin_from_sidebar'
+    )
+
+    fireEvent.click(screen.getByTestId('sidebar-menu-sidebar.remove-app.knowledge'))
+
+    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants'), appFavorite('files')])
+  })
+
+  it('keeps required sidebar favorites protected in the context menu', () => {
+    render(<Sidebar />)
+
+    expect(screen.getByTestId('sidebar-menu-sidebar.remove-app.assistants')).toBeDisabled()
+
+    fireEvent.click(screen.getByTestId('sidebar-menu-sidebar.remove-app.assistants'))
+
+    expect(mocks.setSidebarFavorites).not.toHaveBeenCalled()
+  })
+
   it('renders favorite mini apps directly in the sidebar mini app section', () => {
     mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app')]
     mocks.sidebarMiniAppFavorites = [miniAppFavorite('calculator'), miniAppFavorite('weather')]
@@ -335,7 +395,22 @@ describe('app Sidebar', () => {
       Array.from(screen.getByTestId('sidebar-mini-app-section').querySelectorAll('button')).map(
         (button) => button.textContent
       )
-    ).toEqual(['Calculator', 'Weather'])
+    ).toEqual(['Calculator', 'launchpad.unpin_from_sidebar', 'Weather', 'launchpad.unpin_from_sidebar'])
+  })
+
+  it('removes a sidebar mini app favorite from the context menu', () => {
+    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app')]
+    mocks.sidebarMiniAppFavorites = [miniAppFavorite('calculator'), miniAppFavorite('weather')]
+    mocks.allApps = [
+      { appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' },
+      { appId: 'weather', name: 'Weather', logo: 'weather-logo', url: 'https://weather.example' }
+    ]
+
+    render(<Sidebar />)
+
+    fireEvent.click(screen.getByTestId('sidebar-menu-sidebar.remove-mini-app.calculator'))
+
+    expect(mocks.setSidebarMiniAppFavorites).toHaveBeenCalledWith([miniAppFavorite('weather')])
   })
 
   it('does not render mini apps unless they are sidebar favorites', () => {

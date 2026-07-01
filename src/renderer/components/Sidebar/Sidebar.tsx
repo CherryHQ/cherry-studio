@@ -61,6 +61,8 @@ export function Sidebar({
   const isMacTransparentWindow = useMacTransparentWindow()
   const { sidebarRef, startResizing } = useSidebarResize(width, setWidth, onResizePreview)
   const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const contextMenuOpenRef = useRef(false)
+  const floatingPointerInsideRef = useRef(false)
   const layout = getSidebarLayout(width)
   const showFooter = Boolean(extensionsLabel || user || onExtensionsClick || actions)
   const showSearch = Boolean(onSearchClick)
@@ -76,18 +78,47 @@ export function Sidebar({
     </div>
   )
 
-  useEffect(() => {
-    return () => {
-      if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
-    }
-  }, [])
-
   const handleDismiss = useCallback(() => {
     onDismiss?.()
   }, [onDismiss])
 
-  const menuProps = { items, activeItem, onItemClick }
-  const dockedProps = { dockedTabs, activeTabId, onMiniAppTabClick }
+  const clearHoverDismiss = useCallback(() => {
+    if (!hoverTimeout.current) return
+
+    clearTimeout(hoverTimeout.current)
+    hoverTimeout.current = null
+  }, [])
+
+  const scheduleHoverDismiss = useCallback(() => {
+    clearHoverDismiss()
+    hoverTimeout.current = setTimeout(handleDismiss, 300)
+  }, [clearHoverDismiss, handleDismiss])
+
+  useEffect(() => clearHoverDismiss, [clearHoverDismiss])
+
+  const handleContextMenuOpenChange = useCallback(
+    (open: boolean) => {
+      contextMenuOpenRef.current = open
+
+      if (open) {
+        clearHoverDismiss()
+        return
+      }
+
+      if (isFloating && !floatingPointerInsideRef.current) {
+        scheduleHoverDismiss()
+      }
+    },
+    [clearHoverDismiss, isFloating, scheduleHoverDismiss]
+  )
+
+  const menuProps = { items, activeItem, onItemClick, onContextMenuOpenChange: handleContextMenuOpenChange }
+  const dockedProps = {
+    dockedTabs,
+    activeTabId,
+    onMiniAppTabClick,
+    onContextMenuOpenChange: handleContextMenuOpenChange
+  }
   const footerProps = { user, actions, extensionsLabel, onExtensionsClick }
 
   // --- Floating sidebar ---
@@ -101,11 +132,14 @@ export function Sidebar({
           )}
           onClick={(event) => event.stopPropagation()}
           onMouseLeave={() => {
-            if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
-            hoverTimeout.current = setTimeout(handleDismiss, 300)
+            floatingPointerInsideRef.current = false
+            if (!contextMenuOpenRef.current) {
+              scheduleHoverDismiss()
+            }
           }}
           onMouseEnter={() => {
-            if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
+            floatingPointerInsideRef.current = true
+            clearHoverDismiss()
           }}>
           <div className="flex h-14 shrink-0 items-center gap-2.5 px-4 [-webkit-app-region:drag]">
             {renderLogo()}

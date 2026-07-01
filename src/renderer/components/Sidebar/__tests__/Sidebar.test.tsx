@@ -22,6 +22,38 @@ vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
   default: () => false
 }))
 
+vi.mock('@renderer/components/command', () => ({
+  CommandContextMenu: ({
+    children,
+    extraItems,
+    onOpenChange
+  }: {
+    children: ReactNode
+    extraItems: ReadonlyArray<{ id: string; label: string; enabled?: boolean; onSelect?: () => void }>
+    onOpenChange?: (open: boolean) => void
+  }) => (
+    <div data-testid="command-context-menu">
+      {children}
+      {onOpenChange && (
+        <>
+          <button type="button" data-testid="context-menu-open" onClick={() => onOpenChange(true)} />
+          <button type="button" data-testid="context-menu-close" onClick={() => onOpenChange(false)} />
+        </>
+      )}
+      {extraItems.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          data-testid={`context-menu-${item.id}`}
+          disabled={item.enabled === false}
+          onClick={item.onSelect}>
+          {item.label}
+        </button>
+      ))}
+    </div>
+  )
+}))
+
 vi.mock('@renderer/components/Icons/miniAppsLogo', () => ({
   getMiniAppsLogo: (logo?: string) => {
     if (logo !== 'qwen') return undefined
@@ -214,6 +246,69 @@ describe('Sidebar resize handle', () => {
     expect(getByText('Chat')).toBeInTheDocument()
   })
 
+  it('wires context menu actions for sidebar app items', () => {
+    const onRemove = vi.fn()
+
+    render(
+      <Sidebar
+        width={SIDEBAR_FULL_THRESHOLD}
+        setWidth={vi.fn()}
+        activeItem="chat"
+        items={[
+          {
+            ...items[0],
+            contextMenuItems: [{ type: 'item', id: 'remove-chat', label: 'Remove from Sidebar', onSelect: onRemove }]
+          }
+        ]}
+        onItemClick={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByTestId('context-menu-remove-chat'))
+
+    expect(onRemove).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the floating sidebar open while a context menu is open', () => {
+    vi.useFakeTimers()
+    const onDismiss = vi.fn()
+
+    try {
+      const { container } = render(
+        <Sidebar
+          width={SIDEBAR_FULL_THRESHOLD}
+          setWidth={vi.fn()}
+          activeItem="chat"
+          items={[
+            {
+              ...items[0],
+              contextMenuItems: [{ type: 'item', id: 'remove-chat', label: 'Remove from Sidebar', onSelect: vi.fn() }]
+            }
+          ]}
+          isFloating
+          onDismiss={onDismiss}
+          onItemClick={vi.fn()}
+        />
+      )
+
+      const panel = container.querySelector('.slide-in-from-left-2') as HTMLElement
+
+      fireEvent.mouseEnter(panel)
+      fireEvent.click(screen.getByTestId('context-menu-open'))
+      fireEvent.mouseLeave(panel)
+      vi.advanceTimersByTime(350)
+
+      expect(onDismiss).not.toHaveBeenCalled()
+
+      fireEvent.click(screen.getByTestId('context-menu-close'))
+      vi.advanceTimersByTime(350)
+
+      expect(onDismiss).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('renders full docked mini app icons directly without avatar chrome', () => {
     const { container } = render(
       <Sidebar
@@ -387,6 +482,33 @@ describe('Sidebar resize handle', () => {
     )
 
     expect(screen.getByRole('button', { name: 'Custom Tool' })).toBeInTheDocument()
+  })
+
+  it('wires context menu actions for docked mini app icons', () => {
+    const onRemove = vi.fn()
+
+    render(
+      <Sidebar
+        width={SIDEBAR_ICON_WIDTH}
+        setWidth={vi.fn()}
+        activeItem="chat"
+        items={items}
+        dockedTabs={[
+          {
+            id: 'qwen',
+            title: 'Qwen',
+            type: 'miniapp',
+            miniApp: { id: 'qwen', logo: 'qwen' },
+            contextMenuItems: [{ type: 'item', id: 'remove-qwen', label: 'Remove from Sidebar', onSelect: onRemove }]
+          }
+        ]}
+        onItemClick={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByTestId('context-menu-remove-qwen'))
+
+    expect(onRemove).toHaveBeenCalledTimes(1)
   })
 
   it('renders footer actions with the current sidebar layout', () => {
