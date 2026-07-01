@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   prompt: vi.fn(),
   abort: vi.fn(),
   dispose: vi.fn(),
+  getContextUsage: vi.fn(),
   trustGet: vi.fn(),
   createOpts: undefined as Record<string, unknown> | undefined,
   loaderOpts: undefined as Record<string, unknown> | undefined,
@@ -59,7 +60,8 @@ const fakeSession = {
   },
   prompt: mocks.prompt,
   abort: mocks.abort,
-  dispose: mocks.dispose
+  dispose: mocks.dispose,
+  getContextUsage: mocks.getContextUsage
 }
 
 const fakePi = {
@@ -127,6 +129,7 @@ beforeEach(() => {
   mocks.trustGet.mockReturnValue(false)
   mocks.prompt.mockResolvedValue(undefined)
   mocks.abort.mockResolvedValue(undefined)
+  mocks.getContextUsage.mockReturnValue(undefined)
   mocks.createAgentSession.mockImplementation(async (opts: Record<string, unknown>) => {
     mocks.createOpts = opts
     return { session: fakeSession }
@@ -183,6 +186,84 @@ describe('PiRuntimeConnection', () => {
     expect(terminal).toHaveLength(1)
     expect(events.at(-1)?.type).toBe('turn-complete')
     expect(events.some((e) => e.type === 'resume-token' && e.token === SESSION_FILE)).toBe(true)
+  })
+
+  it('reports context usage projected from pi accounting', async () => {
+    mocks.getContextUsage.mockReturnValue({ tokens: 1234, contextWindow: 200000, percent: 42 })
+    const conn = await new PiRuntimeConnection(input).start()
+    await expect(conn.getContextUsage()).resolves.toEqual({
+      categories: [],
+      totalTokens: 1234,
+      maxTokens: 200000,
+      percentage: 42,
+      model: 'm'
+    })
+  })
+
+  it('returns null context usage before pi can estimate occupancy', async () => {
+    mocks.getContextUsage.mockReturnValue(undefined)
+    const conn = await new PiRuntimeConnection(input).start()
+    await expect(conn.getContextUsage()).resolves.toBeNull()
+  })
+
+  it('emits a context-usage event on turn completion', async () => {
+    mocks.getContextUsage.mockReturnValue({ tokens: 500, contextWindow: 1000, percent: 50 })
+    const conn = await new PiRuntimeConnection(input).start()
+    const cb = mocks.subscribeCb!
+    cb({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+
+    const events = await collectUntilTerminal(conn.events)
+    const usage = events.find((e) => e.type === 'context-usage')
+    expect(usage).toBeTruthy()
+    expect((usage as Extract<AgentRuntimeEvent, { type: 'context-usage' }>).usage).toMatchObject({
+      totalTokens: 500,
+      maxTokens: 1000,
+      percentage: 50,
+      categories: []
+    })
+    // The usage event precedes turn-complete so the host caches it before closing the turn.
+    expect(events.findIndex((e) => e.type === 'context-usage')).toBeLessThan(
+      events.findIndex((e) => e.type === 'turn-complete')
+    )
+  })
+
+  it('maps pi compaction events to Cherry compaction lifecycle events', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    const cb = mocks.subscribeCb!
+    cb({ type: 'compaction_start', reason: 'threshold' } as unknown as AgentSessionEvent)
+    cb({
+      type: 'compaction_end',
+      reason: 'threshold',
+      result: { summary: 's', firstKeptEntryId: 'e', tokensBefore: 900, estimatedTokensAfter: 300 },
+      aborted: false,
+      willRetry: false
+    } as unknown as AgentSessionEvent)
+    cb({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+
+    const events = await collectUntilTerminal(conn.events)
+    const start = events.find((e) => e.type === 'compaction-start')
+    expect(start).toMatchObject({ trigger: 'auto' })
+    const complete = events.find((e) => e.type === 'compaction-complete')
+    expect(complete).toMatchObject({ anchor: { trigger: 'auto', preTokens: 900, postTokens: 300 } })
+  })
+
+  it('surfaces a failed compaction as a compaction-error event', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    const cb = mocks.subscribeCb!
+    cb({
+      type: 'compaction_end',
+      reason: 'manual',
+      result: undefined,
+      aborted: false,
+      willRetry: false,
+      errorMessage: 'context too large'
+    } as unknown as AgentSessionEvent)
+    cb({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+
+    const events = await collectUntilTerminal(conn.events)
+    const err = events.find((e) => e.type === 'compaction-error')
+    expect(err).toMatchObject({ error: 'context too large' })
+    expect(events.some((e) => e.type === 'compaction-complete')).toBe(false)
   })
 
   it('holds the turn open while an auto-retry is pending', async () => {

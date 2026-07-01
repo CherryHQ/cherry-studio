@@ -1,9 +1,17 @@
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import type { AgentSession, AgentSessionEvent, LoadExtensionsResult } from '@earendil-works/pi-coding-agent'
+import type {
+  AgentSession,
+  AgentSessionEvent,
+  CompactionResult,
+  ContextUsage,
+  LoadExtensionsResult
+} from '@earendil-works/pi-coding-agent'
 import { loggerService } from '@logger'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { application } from '@main/core/application'
+import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
+import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 
 import { toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
@@ -68,6 +76,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   private resumeToken?: string
   private lastStopReason?: string
   private closed = false
+  /** Injected model id (pi `apiModelId`), stamped on context-usage so the renderer's
+   *  per-model usage filter matches the composer's model candidates. */
+  private modelId = ''
   /** Live tool policy read by the approval extension at fire-time (plan D4). */
   private permissionMode: AgentPermissionMode = 'default'
   private disabledTools = new Set<string>()
@@ -95,6 +106,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.disabledTools = new Set(agent.disabledTools ?? [])
 
     const injection = await resolvePiProviderInjection(this.input.modelId ?? agent.model)
+    this.modelId = injection.modelId
 
     const agentDir = application.getPath('feature.agents.pi.root')
     const sessionDir = application.getPath('feature.agents.pi.sessions')
@@ -216,6 +228,17 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     return true
   }
 
+  /**
+   * Live context-window usage, read straight from pi's own accounting (no token
+   * re-derivation). Returns null before the first assistant response, when pi
+   * cannot yet estimate occupancy. The host also pulls this on `turn-complete`
+   * and `compaction-complete`, so the renderer indicator stays current.
+   */
+  async getContextUsage(): Promise<AgentSessionContextUsage | null> {
+    const usage = this.session?.getContextUsage()
+    return usage ? this.projectContextUsage(usage) : null
+  }
+
   async close(): Promise<void> {
     if (this.closed) return
     this.closed = true
@@ -246,6 +269,16 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       return
     }
 
+    if (event.type === 'compaction_start') {
+      this.eventQueue.push({ type: 'compaction-start', trigger: mapCompactionTrigger(event.reason) })
+      return
+    }
+
+    if (event.type === 'compaction_end') {
+      this.handleCompactionEnd(event)
+      return
+    }
+
     if (event.type === 'agent_end') {
       // Auto-retry pending — the loop is not actually done, so hold the turn open.
       if (event.willRetry) return
@@ -254,10 +287,36 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         const message = lastErrorMessage(event.messages)
         this.eventQueue.push({ type: 'error', error: new Error(message ?? 'pi agent turn failed') })
       } else {
+        this.emitContextUsage()
         this.eventQueue.push({ type: 'turn-complete' })
       }
       this.lastStopReason = undefined
     }
+  }
+
+  private handleCompactionEnd(event: Extract<AgentSessionEvent, { type: 'compaction_end' }>): void {
+    // Retry pending — a later compaction_end settles it (mirrors the agent_end willRetry hold).
+    if (event.willRetry) return
+    if (event.errorMessage || event.aborted) {
+      this.eventQueue.push({ type: 'compaction-error', error: event.errorMessage ?? 'pi compaction aborted' })
+      return
+    }
+    this.eventQueue.push({ type: 'compaction-complete', anchor: buildCompactionAnchor(event.reason, event.result) })
+  }
+
+  private emitContextUsage(): void {
+    const usage = this.session?.getContextUsage()
+    if (!usage) return
+    this.eventQueue.push({ type: 'context-usage', usage: this.projectContextUsage(usage) })
+  }
+
+  /** pi reports occupancy/window directly; Cherry owns per-category breakdown, which
+   *  pi cannot produce, so `categories` is always empty (plan D5 — the total bar still renders). */
+  private projectContextUsage(usage: ContextUsage): AgentSessionContextUsage {
+    const totalTokens = usage.tokens ?? 0
+    const maxTokens = usage.contextWindow
+    const percentage = usage.percent ?? (maxTokens > 0 ? Math.min(100, (totalTokens / maxTokens) * 100) : 0)
+    return { categories: [], totalTokens, maxTokens, percentage, model: this.modelId }
   }
 
   /** resume-token = pi `sessionFile` path (reopen handle for `SessionManager.open`). */
@@ -267,6 +326,25 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.resumeToken = sessionFile
     this.eventQueue.push({ type: 'resume-token', token: sessionFile })
   }
+}
+
+/** pi triggers `manual` on `compact()`, `threshold`/`overflow` automatically — Cherry's
+ *  anchor only distinguishes user-initiated from auto. */
+function mapCompactionTrigger(reason: 'manual' | 'threshold' | 'overflow'): AgentSessionCompactionTrigger {
+  return reason === 'manual' ? 'manual' : 'auto'
+}
+
+function buildCompactionAnchor(
+  reason: 'manual' | 'threshold' | 'overflow',
+  result: CompactionResult | undefined
+): AgentSessionCompactionAnchorData {
+  const anchor: AgentSessionCompactionAnchorData = {
+    trigger: mapCompactionTrigger(reason),
+    completedAt: new Date().toISOString()
+  }
+  if (typeof result?.tokensBefore === 'number') anchor.preTokens = result.tokensBefore
+  if (typeof result?.estimatedTokensAfter === 'number') anchor.postTokens = result.estimatedTokensAfter
+  return anchor
 }
 
 function lastErrorMessage(messages: unknown): string | undefined {
