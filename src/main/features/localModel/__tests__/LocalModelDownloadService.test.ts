@@ -19,6 +19,7 @@ class TestDownloadService extends LocalModelDownloadService {
   ready = false
   failWith: Error | null = null
   cleanupCalls = 0
+  cleanupError: Error | null = null
 
   protected isReady(): boolean {
     return this.ready
@@ -32,6 +33,7 @@ class TestDownloadService extends LocalModelDownloadService {
 
   protected override async cleanupAfterError(): Promise<void> {
     this.cleanupCalls++
+    if (this.cleanupError) throw this.cleanupError
   }
 
   async remove(): Promise<{ removed: boolean }> {
@@ -69,6 +71,22 @@ describe('LocalModelDownloadService', () => {
     })
     // downloading flag cleared → next getStatus no longer reports 'downloading'.
     expect(service.getStatus()).toBe('not_downloaded')
+  })
+
+  it('best-effort cleanup: a throwing cleanupAfterError neither masks the failure nor skips the error broadcast', async () => {
+    service.failWith = new Error('boom')
+    service.cleanupError = new Error('rm failed') // e.g. a Windows-locked weight file
+
+    // The caller sees the real download error, not the cleanup error.
+    await expect(service.download()).rejects.toThrow('boom')
+
+    expect(service.cleanupCalls).toBe(1)
+    // ...and the card still reaches a terminal error state despite the cleanup blowing up.
+    expect(broadcastSpy()).toHaveBeenCalledWith('local_model.download_progress', {
+      model: 'embedding',
+      status: 'error',
+      percent: 0
+    })
   })
 
   it('coalesces concurrent callers into the same in-flight download', async () => {

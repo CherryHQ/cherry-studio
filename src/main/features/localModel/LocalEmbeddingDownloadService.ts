@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
+import { loggerService } from '@logger'
 import { inferenceHost, type InferenceProgress } from '@main/ai/inference/InferenceHost'
 import { LOCAL_MODELS } from '@main/ai/inference/localModelCatalog'
 import { currentModelSource } from '@main/ai/provider/custom/localEmbedding/localEmbeddingRuntime'
@@ -11,6 +12,8 @@ import {
 } from '@main/features/localModel/localEmbeddingRegistration'
 import { LocalModelDownloadService } from '@main/features/localModel/LocalModelDownloadService'
 import type { LocalModelKind } from '@shared/data/presets/localModel'
+
+const logger = loggerService.withContext('LocalEmbeddingDownloadService')
 
 /** Repo / quantization / ready-probe file for the local embedding model. */
 const { repo: MODEL_REPO, dtype: MODEL_DTYPE, readyFile: MODEL_FILE } = LOCAL_MODELS.embedding
@@ -64,6 +67,17 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
     this.broadcast({ status: 'ready', percent: 100 })
   }
 
+  protected override async cleanupAfterError(): Promise<void> {
+    // A failed or cancelled download must not leave weights that read as `ready` while the
+    // user_model row is missing (e.g. loadEmbedding succeeded but registration failed, or a
+    // cancel left partials). Otherwise get_status reports the leftover weights as ready and
+    // selecting the model in the KB picker would trip the embeddingModelId FK. Release the
+    // worker first (loadEmbedding caches the pipeline, holding the weights open on Windows),
+    // then drop the partial/unregistered weights.
+    inferenceHost.terminate()
+    await fs.promises.rm(this.modelDir(), { recursive: true, force: true })
+  }
+
   override cancel(): void {
     super.cancel()
     // The worker may be mid-fetch; terminating it stops the download immediately.
@@ -80,7 +94,21 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
     }
     // Unload the worker first so the weights file isn't held open while we delete it.
     inferenceHost.terminate()
-    await fs.promises.rm(this.modelDir(), { recursive: true, force: true })
+    try {
+      await fs.promises.rm(this.modelDir(), { recursive: true, force: true })
+    } catch (error) {
+      // The row is gone but the weights survived (e.g. a Windows lock). Re-register so
+      // "files present ⟺ user_model row present" holds — otherwise get_status would report
+      // the leftover weights as `ready` and selecting the model would trip the
+      // knowledge_base.embeddingModelId FK. Log the deletion error first so the breadcrumb
+      // survives even if the re-register itself throws over the rethrow below.
+      logger.warn(
+        'failed to delete embedding weights on removal; re-registering to keep files and row consistent',
+        error as Error
+      )
+      await registerLocalEmbeddingModel()
+      throw error
+    }
     return { removed: true }
   }
 

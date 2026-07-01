@@ -44,6 +44,20 @@ export abstract class LocalModelDownloadService {
     return Promise.resolve()
   }
 
+  /**
+   * Run {@link cleanupAfterError} without letting it hijack the failure path: a
+   * throwing cleanup (e.g. a Windows-locked weight file the `rm` can't remove) must
+   * not mask the real download error or skip the `status: 'error'` broadcast that
+   * gives the card a terminal state.
+   */
+  private async safeCleanupAfterError(): Promise<void> {
+    try {
+      await this.cleanupAfterError()
+    } catch (cleanupError) {
+      logger.warn(`local ${this.kind} model cleanup after error failed`, cleanupError as Error)
+    }
+  }
+
   getStatus(): LocalModelStatus {
     if (this.downloading) return 'downloading'
     return this.isReady() ? 'ready' : 'not_downloaded'
@@ -67,11 +81,11 @@ export abstract class LocalModelDownloadService {
           // User-initiated cancel — not a failure. Drop partials, but stay quiet:
           // no error log and no `status: 'error'` broadcast (the cards render that
           // as "download failed"). Still rethrow so awaiting callers unwind.
-          await this.cleanupAfterError()
+          await this.safeCleanupAfterError()
           throw error
         }
         logger.error(`local ${this.kind} model download failed`, error as Error)
-        await this.cleanupAfterError()
+        await this.safeCleanupAfterError()
         this.broadcast({ status: 'error', percent: 0 })
         throw error
       } finally {

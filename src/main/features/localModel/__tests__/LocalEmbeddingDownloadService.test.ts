@@ -1,5 +1,6 @@
 import type * as NodeFs from 'node:fs'
 
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { loadEmbedding, terminate, registerLocalEmbeddingModel, unregisterMock, readdirSync, rm } = vi.hoisted(() => ({
@@ -122,6 +123,32 @@ describe('LocalEmbeddingDownloadService', () => {
       // The worker holds the weights open — release it first or the unlink fails on Windows.
       expect(terminate.mock.invocationCallOrder[0]).toBeLessThan(rm.mock.invocationCallOrder[0])
     })
+
+    it('re-registers the model when deleting the weights fails, so files and DB stay consistent', async () => {
+      unregisterMock.mockResolvedValue({ removed: true })
+      rm.mockRejectedValue(new Error('EBUSY')) // e.g. a Windows lock survives the unlink
+
+      await expect(localEmbeddingDownloadService.remove()).rejects.toThrow('EBUSY')
+
+      // Row already deleted but weights survived → re-register so the leftover weights
+      // don't read as a `ready` model with no user_model row.
+      expect(registerLocalEmbeddingModel).toHaveBeenCalledTimes(1)
+    })
+
+    it('logs the original deletion error even when the compensating re-register also fails', async () => {
+      unregisterMock.mockResolvedValue({ removed: true })
+      rm.mockRejectedValue(new Error('EBUSY'))
+      registerLocalEmbeddingModel.mockRejectedValue(new Error('db down')) // compensation fails too
+
+      await expect(localEmbeddingDownloadService.remove()).rejects.toThrow()
+
+      // The deletion breadcrumb is logged before the re-register runs, so it survives the
+      // re-register throwing over the rethrow.
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        expect.stringContaining('re-registering'),
+        expect.any(Error)
+      )
+    })
   })
 
   it('cancel aborts the in-flight download and terminates the worker', async () => {
@@ -136,11 +163,22 @@ describe('LocalEmbeddingDownloadService', () => {
     localEmbeddingDownloadService.cancel()
 
     await expect(pending).rejects.toThrow()
-    expect(terminate).toHaveBeenCalledTimes(1)
+    expect(terminate).toHaveBeenCalled()
     // A user cancel is not a failure — no error broadcast.
     expect(broadcastSpy()).not.toHaveBeenCalledWith(
       'local_model.download_progress',
       expect.objectContaining({ status: 'error' })
     )
+  })
+
+  it('cleans up the weights when registration fails, leaving no orphan ready state', async () => {
+    loadEmbedding.mockResolvedValue(undefined) // weights land on disk...
+    registerLocalEmbeddingModel.mockRejectedValue(new Error('db down')) // ...but the row write fails
+
+    await expect(localEmbeddingDownloadService.download()).rejects.toThrow('db down')
+
+    // Weights present + no user_model row would read as `ready` and trip the KB FK on select.
+    expect(terminate).toHaveBeenCalled()
+    expect(rm).toHaveBeenCalledWith(MODEL_DIR, { recursive: true, force: true })
   })
 })
