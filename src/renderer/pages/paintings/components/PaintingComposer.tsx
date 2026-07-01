@@ -8,6 +8,7 @@ import {
   useComposerTokenReconcile,
   useComposerToolDispatch,
   useComposerToolLauncherActions,
+  useComposerToolLauncherVersion,
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
 import type { ComposerDraftToken } from '@renderer/components/composer/tokens'
@@ -175,6 +176,7 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   const { files, isExpanded } = useComposerToolState()
   const { setFiles, setIsExpanded } = useComposerToolDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherActions()
+  const toolLaunchersVersion = useComposerToolLauncherVersion()
   const [text, setText] = useState(() => painting.prompt ?? '')
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
@@ -231,6 +233,7 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
         fontSize={fontSize}
         narrowMode
         getToolLaunchers={() => getLaunchers()}
+        toolLaunchersVersion={toolLaunchersVersion}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
         renderLeftControls={(inputAdapter) => (
           <ComposerToolbarControls

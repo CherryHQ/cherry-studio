@@ -333,6 +333,10 @@ export function useComposerToolLauncherActions() {
   return { getLaunchers, dispatchLauncher }
 }
 
+export function useComposerToolLauncherVersion() {
+  return useComposerToolProviderLaunchers().version
+}
+
 interface ComposerToolMenuProps {
   inputAdapter?: QuickPanelInputAdapter
   unifiedPanelControl?: ComposerUnifiedPanelControl

@@ -64,6 +64,7 @@ import {
   getComposerPositionAtTextOffset,
   getComposerSuggestionTriggerContext,
   hasComposerQuickPanelTriggerBoundary,
+  hasUnifiedQuickPanelRootContent,
   ROOT_QUICK_PANEL_ALLOWED_PREFIXES
 } from './quickPanel'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
@@ -129,6 +130,7 @@ export interface ComposerSurfaceProps {
   onActionsChange?: (actions: ComposerSurfaceActions) => void
   editingState?: ComposerSurfaceEditingState
   getToolLaunchers?: () => ComposerToolLauncher[]
+  toolLaunchersVersion?: number
   resolveSkillMarker?: (marker: string) => ComposerDraftToken | null | undefined
   resolveKnowledgeBaseMarker?: (marker: string) => ComposerDraftToken | null | undefined
   suggestionSources?: readonly ComposerSuggestionSource[]
@@ -492,6 +494,7 @@ export default function ComposerSurface({
   onActionsChange,
   editingState,
   getToolLaunchers,
+  toolLaunchersVersion,
   resolveSkillMarker,
   resolveKnowledgeBaseMarker,
   suggestionSources = [],
@@ -847,13 +850,36 @@ export default function ComposerSurface({
         return
       }
 
-      const resourceItems = await resourceProvider(trimmedQuery, {
-        inputAdapter,
-        quickPanel,
-        queryAnchor,
-        searchText: trimmedQuery,
-        triggerInfo
-      })
+      let resourceItems: QuickPanelListItem[]
+      try {
+        resourceItems = await resourceProvider(trimmedQuery, {
+          inputAdapter,
+          quickPanel,
+          queryAnchor,
+          searchText: trimmedQuery,
+          triggerInfo
+        })
+      } catch {
+        if (requestId !== unifiedResourceRequestRef.current) return
+        if (
+          quickPanel.getPanelGeneration() !== panelGeneration ||
+          !quickPanel.isVisible ||
+          quickPanel.symbol !== ComposerPanelSymbol.Root
+        ) {
+          return
+        }
+
+        setUnifiedResourceItems([])
+        quickPanel.updateList(
+          createUnifiedPanelOptions({
+            inputAdapter,
+            queryAnchor,
+            resourceItems: [],
+            triggerInfo
+          }).list
+        )
+        return
+      }
       if (requestId !== unifiedResourceRequestRef.current) return
       if (
         quickPanel.getPanelGeneration() !== panelGeneration ||
@@ -1536,9 +1562,20 @@ export default function ComposerSurface({
     void Promise.resolve(onSendDraft(draft)).finally(focusEditor)
   }, [editor, focusEditor, onSendDraft, sendDisabled, showBlockedSendReason])
 
+  const unifiedPanelAvailable = useMemo(() => {
+    // Recompute when runtime launchers register or unregister.
+    void toolLaunchersVersion
+    if (!quickPanelEnabled) return false
+
+    return hasUnifiedQuickPanelRootContent(getToolLaunchers?.() ?? [], {
+      leadingItems: rootPanelLeadingItems,
+      additionalItems: rootPanelAdditionalItems
+    })
+  }, [getToolLaunchers, quickPanelEnabled, rootPanelAdditionalItems, rootPanelLeadingItems, toolLaunchersVersion])
+
   const unifiedPanelControl = useMemo<ComposerUnifiedPanelControl>(
     () => ({
-      available: quickPanelEnabled,
+      available: unifiedPanelAvailable,
       open: () => {
         const queryAnchor = inputAdapter?.getCursorOffset?.() ?? textRef.current.length
         openUnifiedComposerPanel({
@@ -1552,7 +1589,7 @@ export default function ComposerSurface({
         inputAdapter?.focus()
       }
     }),
-    [inputAdapter, openUnifiedComposerPanel, quickPanelEnabled]
+    [inputAdapter, openUnifiedComposerPanel, unifiedPanelAvailable]
   )
 
   const quickPanelElement = quickPanelEnabled ? <QuickPanelView inputAdapter={inputAdapter} /> : null

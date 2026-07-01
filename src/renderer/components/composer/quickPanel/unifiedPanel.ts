@@ -287,6 +287,43 @@ function createUnifiedSectionItems(
   })
 }
 
+function hasUnifiedSectionItems(
+  launchers: readonly ComposerToolLauncher[],
+  source: ComposerToolLauncherSource,
+  seenLauncherIds: Set<string>
+) {
+  return launchers.some((launcher) => {
+    if (launcher.hidden || seenLauncherIds.has(launcher.id)) return false
+
+    const children = getSectionChildren(launcher, source)
+    const supportsSource = launcherSupportsSource(launcher, source)
+
+    if (!supportsSource && children.length === 0) return false
+
+    seenLauncherIds.add(launcher.id)
+    return true
+  })
+}
+
+export function hasUnifiedQuickPanelRootContent(
+  launchers: readonly ComposerToolLauncher[],
+  options: {
+    leadingItems?: readonly QuickPanelListItem[]
+    additionalItems?: readonly QuickPanelListItem[]
+    resourceItems?: readonly QuickPanelListItem[]
+  } = {}
+) {
+  if ((options.leadingItems?.length ?? 0) > 0) return true
+  if ((options.additionalItems?.length ?? 0) > 0) return true
+  if ((options.resourceItems?.length ?? 0) > 0) return true
+
+  const seenLauncherIds = new Set<string>()
+  return (
+    hasUnifiedSectionItems(launchers, 'popover', seenLauncherIds) ||
+    hasUnifiedSectionItems(launchers, 'root-panel', seenLauncherIds)
+  )
+}
+
 export function createUnifiedQuickPanelOpenOptions(
   launchers: readonly ComposerToolLauncher[],
   options: {
