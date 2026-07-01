@@ -43,11 +43,7 @@ export function ProviderHelpTextRow({ children, className }: { children: ReactNo
 export function ProviderHelpLink({ children, className, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
   return (
     <a
-      className={cn(
-        'mx-[5px] cursor-pointer text-(--color-primary) hover:underline',
-        providerSettingsTypography.label,
-        className
-      )}
+      className={cn('!text-info mx-[5px] cursor-pointer hover:underline', providerSettingsTypography.label, className)}
       {...props}>
       {children}
     </a>
