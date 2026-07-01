@@ -19,6 +19,14 @@ export interface MiniAppPreset {
 
 export const PRESETS_MINI_APPS: MiniAppPreset[] = [
   {
+    id: 'radeon-cloud',
+    name: 'AMD GPU Cloud',
+    url: 'https://radeon.anruicloud.com/',
+    logo: 'radeon-cloud',
+    bordered: true,
+    supportedRegions: ['CN', 'Global']
+  },
+  {
     id: 'openai',
     name: 'ChatGPT',
     url: 'https://chatgpt.com/',
