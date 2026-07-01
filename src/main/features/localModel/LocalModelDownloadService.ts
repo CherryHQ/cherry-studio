@@ -24,6 +24,8 @@ export interface LocalModelDownloadProgress {
 export abstract class LocalModelDownloadService {
   protected downloading = false
   protected abortController: AbortController | null = null
+  /** The single active download; concurrent callers await this same promise. */
+  private inFlight: Promise<void> | null = null
 
   /** Tags broadcasts + error logs; selects which renderer card this drives. */
   protected abstract readonly kind: LocalModelKind
@@ -48,20 +50,37 @@ export abstract class LocalModelDownloadService {
   }
 
   async download(): Promise<void> {
-    if (this.downloading) return
+    // Coalesce concurrent callers — the settings card and the KB download entry
+    // hit the same main-process singleton. Both await the SAME in-flight download,
+    // so neither resolves (→ reports ready / runs post-download work like the KB
+    // entry's select()) until it genuinely completes, past the subclass's own
+    // registration + terminal `ready` broadcast.
+    if (this.inFlight) return this.inFlight
     this.downloading = true
     this.abortController = new AbortController()
-    try {
-      await this.performDownload(this.abortController.signal)
-    } catch (error) {
-      logger.error(`local ${this.kind} model download failed`, error as Error)
-      await this.cleanupAfterError()
-      this.broadcast({ status: 'error', percent: 0 })
-      throw error
-    } finally {
-      this.downloading = false
-      this.abortController = null
-    }
+    const { signal } = this.abortController
+    this.inFlight = (async () => {
+      try {
+        await this.performDownload(signal)
+      } catch (error) {
+        if (signal.aborted) {
+          // User-initiated cancel — not a failure. Drop partials, but stay quiet:
+          // no error log and no `status: 'error'` broadcast (the cards render that
+          // as "download failed"). Still rethrow so awaiting callers unwind.
+          await this.cleanupAfterError()
+          throw error
+        }
+        logger.error(`local ${this.kind} model download failed`, error as Error)
+        await this.cleanupAfterError()
+        this.broadcast({ status: 'error', percent: 0 })
+        throw error
+      } finally {
+        this.downloading = false
+        this.abortController = null
+        this.inFlight = null
+      }
+    })()
+    return this.inFlight
   }
 
   cancel(): void {

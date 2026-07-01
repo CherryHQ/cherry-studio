@@ -26,6 +26,8 @@ const LocalEmbeddingDownloadButton = ({ onSelected }: LocalEmbeddingDownloadButt
   const [status, setStatus] = useState<LocalModelStatus>('not_downloaded')
   const [percent, setPercent] = useState(0)
   const mountedRef = useRef(true)
+  // A user cancel rejects the in-flight download too; skip the failure UI for it.
+  const cancellingRef = useRef(false)
 
   useEffect(() => {
     mountedRef.current = true
@@ -62,18 +64,20 @@ const LocalEmbeddingDownloadButton = ({ onSelected }: LocalEmbeddingDownloadButt
   const download = useCallback(async () => {
     setStatus('downloading')
     setPercent(0)
+    cancellingRef.current = false
     try {
       await ipcApi.request('local_model.download', { model: 'embedding' })
       await select()
     } catch {
-      if (mountedRef.current) {
-        setStatus('error')
-        window.toast.error(t('knowledge.rag.download_local_embedding_failed'))
-      }
+      // A user-initiated cancel rejects too — don't surface it as a failure.
+      if (cancellingRef.current || !mountedRef.current) return
+      setStatus('error')
+      window.toast.error(t('knowledge.rag.download_local_embedding_failed'))
     }
   }, [select, t])
 
   const cancel = useCallback(async () => {
+    cancellingRef.current = true
     try {
       await ipcApi.request('local_model.cancel', { model: 'embedding' })
     } finally {

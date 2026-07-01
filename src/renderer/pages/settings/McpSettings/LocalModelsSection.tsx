@@ -22,6 +22,9 @@ function useLocalModelCard(model: LocalModelKind) {
   const [percent, setPercent] = useState(0)
   const [notice, setNotice] = useState<CardNotice | null>(null)
   const mountedRef = useRef(true)
+  // A user cancel rejects the in-flight download too; this flag keeps that path
+  // from being surfaced as a download failure.
+  const cancellingRef = useRef(false)
 
   useEffect(() => {
     mountedRef.current = true
@@ -54,17 +57,21 @@ function useLocalModelCard(model: LocalModelKind) {
     setNotice(null)
     setStatus('downloading')
     setPercent(0)
+    cancellingRef.current = false
     try {
       await ipcApi.request('local_model.download', { model })
       if (mountedRef.current) setStatus('ready')
     } catch {
+      // A user-initiated cancel rejects too — don't render it as a failure.
+      if (cancellingRef.current || !mountedRef.current) return
       // Surface the failure instead of silently reverting to the download button.
-      if (mountedRef.current) setNotice('downloadFailed')
+      setNotice('downloadFailed')
       await refresh()
     }
   }
 
   const cancel = async () => {
+    cancellingRef.current = true
     try {
       await ipcApi.request('local_model.cancel', { model })
     } finally {

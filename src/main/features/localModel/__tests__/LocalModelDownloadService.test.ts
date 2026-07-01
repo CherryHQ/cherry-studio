@@ -71,21 +71,67 @@ describe('LocalModelDownloadService', () => {
     expect(service.getStatus()).toBe('not_downloaded')
   })
 
-  it('ignores a re-entrant download while one is already in flight', async () => {
+  it('coalesces concurrent callers into the same in-flight download', async () => {
     let release: () => void = () => {}
     const gate = new Promise<void>((resolve) => {
       release = resolve
     })
-    vi.spyOn(service as unknown as { performDownload: () => Promise<void> }, 'performDownload').mockReturnValue(gate)
+    const spy = vi
+      .spyOn(service as unknown as { performDownload: () => Promise<void> }, 'performDownload')
+      .mockReturnValue(gate)
 
     const first = service.download()
     expect(service.getStatus()).toBe('downloading')
-    await service.download() // second call returns immediately (guarded)
+    const second = service.download()
+
+    // The second caller must NOT resolve until the download actually finishes —
+    // otherwise it would report "ready" / run post-download work prematurely.
+    let secondSettled = false
+    void second.then(
+      () => {
+        secondSettled = true
+      },
+      () => {
+        secondSettled = true
+      }
+    )
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(secondSettled).toBe(false)
 
     release()
-    await first
-    expect(
-      vi.mocked((service as unknown as { performDownload: () => Promise<void> }).performDownload)
-    ).toHaveBeenCalledTimes(1)
+    await Promise.all([first, second])
+    expect(secondSettled).toBe(true)
+    // Still only one real download despite two callers.
+    expect(spy).toHaveBeenCalledTimes(1)
+  })
+
+  it('treats an aborted download as a cancel: cleans up and rethrows, no error log/broadcast', async () => {
+    vi.spyOn(
+      service as unknown as { performDownload: (s: AbortSignal) => Promise<void> },
+      'performDownload'
+    ).mockImplementation(
+      (signal: AbortSignal) =>
+        new Promise<void>((_resolve, reject) => {
+          signal.addEventListener(
+            'abort',
+            () => reject(signal.reason instanceof Error ? signal.reason : new Error('aborted')),
+            { once: true }
+          )
+        })
+    )
+
+    const pending = service.download()
+    service.cancel()
+    await expect(pending).rejects.toThrow()
+
+    // Partials are still cleaned up...
+    expect(service.cleanupCalls).toBe(1)
+    // ...but a user cancel must not be broadcast as a download failure.
+    expect(broadcastSpy()).not.toHaveBeenCalledWith(
+      'local_model.download_progress',
+      expect.objectContaining({ status: 'error' })
+    )
+    expect(service.getStatus()).toBe('not_downloaded')
   })
 })

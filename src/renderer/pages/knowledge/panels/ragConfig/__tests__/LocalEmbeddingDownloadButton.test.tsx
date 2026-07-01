@@ -72,26 +72,30 @@ describe('LocalEmbeddingDownloadButton', () => {
     expect(mockRefetch).toHaveBeenCalled()
   })
 
-  it('renders the live percent and cancels while downloading', async () => {
-    let resolveDownload: (() => void) | undefined
+  it('renders live percent, and cancelling neither fails nor selects', async () => {
+    let rejectDownload: ((e: Error) => void) | undefined
     mockRequest.mockImplementation((route: string) => {
       if (route === 'local_model.get_status') return Promise.resolve({ status: 'not_downloaded' })
-      if (route === 'local_model.download') return new Promise<void>((resolve) => (resolveDownload = resolve))
+      if (route === 'local_model.download') return new Promise<void>((_resolve, reject) => (rejectDownload = reject))
       return Promise.resolve()
     })
+    const onSelected = vi.fn()
 
-    render(<LocalEmbeddingDownloadButton onSelected={vi.fn()} />)
+    render(<LocalEmbeddingDownloadButton onSelected={onSelected} />)
     fireEvent.click(await screen.findByText('knowledge.rag.download_local_embedding'))
 
     act(() => progressHandler?.({ model: 'embedding', status: 'downloading', percent: 45 }))
-    const cancelButton = await screen.findByText('45%')
-    expect(cancelButton).toBeInTheDocument()
+    expect(await screen.findByText('45%')).toBeInTheDocument()
 
-    fireEvent.click(cancelButton)
+    fireEvent.click(screen.getByText('45%'))
     await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.cancel', { model: 'embedding' }))
-    expect(await screen.findByText('knowledge.rag.download_local_embedding')).toBeInTheDocument()
 
-    resolveDownload?.()
+    // Backend aborts → the in-flight download rejects. A user cancel must not show
+    // as a failure, and must not auto-select the (unfinished) model.
+    act(() => rejectDownload?.(new Error('download cancelled')))
+    await waitFor(() => expect(screen.getByText('knowledge.rag.download_local_embedding')).toBeInTheDocument())
+    expect(window.toast.error).not.toHaveBeenCalled()
+    expect(onSelected).not.toHaveBeenCalled()
   })
 
   it('offers to use an already-downloaded model without re-downloading', async () => {
