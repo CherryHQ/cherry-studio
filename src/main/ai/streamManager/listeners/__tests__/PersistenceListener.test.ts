@@ -73,6 +73,30 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     expect(payload.id).toBeUndefined()
   })
 
+  it('strips empty text/reasoning parts before the backend write', async () => {
+    const listener = makeListener('openai::gpt-4o')
+
+    const finalMessage = {
+      id: 'ignored',
+      role: 'assistant',
+      parts: [
+        { type: 'reasoning', text: 'real thought', state: 'done' },
+        { type: 'reasoning', text: '', state: 'done' },
+        { type: 'text', text: 'answer' },
+        { type: 'text', text: '   \n  ' }
+      ]
+    } as unknown as CherryUIMessage
+
+    await listener.onDone({ finalMessage, status: 'success', modelId: 'openai::gpt-4o' })
+
+    const payload = appendMessageMock.mock.calls[0][1]
+    const parts = payload.data.parts as Array<{ type: string; text: string }>
+    expect(parts).toEqual([
+      { type: 'reasoning', text: 'real thought', state: 'done' },
+      { type: 'text', text: 'answer' }
+    ])
+  })
+
   it('derives all token stats fields from finalMessage.metadata', async () => {
     const listener = makeListener()
 

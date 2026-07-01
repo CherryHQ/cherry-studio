@@ -2,7 +2,7 @@
 import { Box } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import AppModalProvider from '@renderer/components/AppModal'
-import { useAgentSessionAutoRenameSync } from '@renderer/hooks/agents/useSession'
+import { useAgentSessionAutoRenameSync } from '@renderer/hooks/agent/useSession'
 import { useAppInit } from '@renderer/hooks/useAppInit'
 import { useTopicAutoRenameSync } from '@renderer/hooks/useTopic'
 import { ipcApi } from '@renderer/ipc'

@@ -1,10 +1,10 @@
 import { usePreference } from '@data/hooks/usePreference'
+import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import { getToastUtilities, useToasts } from '@renderer/components/TopView/toast'
 import { useEffect } from 'react'
 
-import { CodeStyleProvider } from '../../context/CodeStyleProvider'
-import { ThemeProvider } from '../../context/ThemeProvider'
 import HomeWindow from './home/HomeWindow'
 
 // Initialise toast utilities once at module import (advanced-init-once). The

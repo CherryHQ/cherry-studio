@@ -1,7 +1,7 @@
 import { MenuDivider, MenuItem, MenuList, PageHeader, RowFlex } from '@cherrystudio/ui'
 import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
 import ImportMenuOptions from '@renderer/pages/settings/DataSettings/ImportMenuSettings'
 import { CloudUpload, FileText, FolderCog, FolderInput, FolderOpen, Server } from 'lucide-react'
 import type { FC } from 'react'

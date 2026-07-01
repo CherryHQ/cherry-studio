@@ -156,7 +156,7 @@ Where each file and directory belongs — read the doc for the process you're to
 Scope:
 
 - **BootConfig**: sync file-based; direct in main (pre-lifecycle), via `usePreference('BootConfig.*')` otherwise
-- **Cache**: memory / shared (cross-window) / persist tiers; memory + shared on both main and renderer; persist is renderer-only (main relays IPC but doesn't store)
+- **Cache**: memory / shared (cross-window) / persist tiers; memory + shared on both main and renderer; persist on both too but as **independent** stores (renderer = localStorage, main = JSON file at `{userData}/cache.json`), never shared — main additionally relays renderer persist sync between windows
 - **Preference**: cross-process (main + renderer); auto-syncs across windows
 - **DataApi**: SQLite-backed; no auto-sync, fetch on demand from renderer
 

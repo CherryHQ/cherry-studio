@@ -1,9 +1,9 @@
 import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
 import { Icon } from '@iconify/react'
 import { FinderIcon } from '@renderer/components/Icons/SvgIcon'
-import { isMac, isWin } from '@renderer/config/constant'
 import { getEditorIcon } from '@renderer/utils/editorUtils'
 import { getFileIconName } from '@renderer/utils/fileIconName'
+import { isMac, isWin } from '@renderer/utils/platform'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
 import { FolderOpen, MoreHorizontal } from 'lucide-react'
 import { memo, useCallback, useMemo } from 'react'
@@ -30,9 +30,12 @@ export const ClickableFilePath = memo(function ClickableFilePath({
   const ui = useOptionalMessageListUi()
   const actions = useOptionalMessageListActions()
   const openArtifactFile = interactive ? actions?.openArtifactFile : undefined
+  const openPath = interactive ? actions?.openPath : undefined
+  const isDirectory = interactive ? actions?.isDirectory : undefined
   const showInFolder = interactive ? actions?.showInFolder : undefined
   const openInExternalApp = interactive ? actions?.openInExternalApp : undefined
   const notifyError = actions?.notifyError
+  const canOpen = Boolean(openArtifactFile || openPath)
   const availableEditors = ui?.externalCodeEditors ?? []
   const hasEditorActions = Boolean(openInExternalApp && availableEditors.length > 0)
   const hasMoreActions = Boolean(showInFolder) || hasEditorActions
@@ -58,25 +61,40 @@ export const ClickableFilePath = memo(function ClickableFilePath({
   )
 
   const handleOpen = useCallback(
-    (e: React.MouseEvent | React.KeyboardEvent) => {
-      if (!openArtifactFile) return
+    async (e: React.MouseEvent | React.KeyboardEvent) => {
+      if (!canOpen) return
       e.stopPropagation()
-      // Open directly and let the preview pane report a missing / unreadable
-      // file. No check-then-act existence preflight: it was TOCTOU-prone and
-      // put error interpretation in the renderer — the open operation is the
-      // right place to surface its own failure.
-      Promise.resolve(openArtifactFile(targetPath)).catch(() => {
+      // Resolve directory-ness authoritatively (single stat on the clicked
+      // path) and route accordingly: directories open in the system file
+      // manager, files open in the in-app preview pane. The preview pane is
+      // file-only — handing it a directory just renders a "can't display"
+      // dead end. `isDirectory` is fs.stat-backed and resolves false on a
+      // missing path, so a vanished file still falls through to the preview
+      // pane, which reports its own missing / unreadable state (no TOCTOU
+      // preflight, no error interpretation in the renderer).
+      //
+      // Some surfaces (e.g. Home chat) wire only `openPath` and no preview
+      // pane — there, route everything through the system file manager so the
+      // link is never a silent dead end.
+      try {
+        const directory = isDirectory ? await isDirectory(targetPath) : false
+        if (directory || !openArtifactFile) {
+          await openPath?.(targetPath)
+        } else {
+          await openArtifactFile(targetPath)
+        }
+      } catch {
         notifyError?.(t('chat.input.tools.open_file_error', { path: targetPath }))
-      })
+      }
     },
-    [notifyError, openArtifactFile, t, targetPath]
+    [canOpen, isDirectory, notifyError, openArtifactFile, openPath, t, targetPath]
   )
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault()
-        handleOpen(e)
+        void handleOpen(e)
       }
     },
     [handleOpen]
@@ -86,14 +104,12 @@ export const ClickableFilePath = memo(function ClickableFilePath({
     <span className="inline-flex items-center gap-0.5">
       <Tooltip content={displayPath} delay={500} classNames={{ placeholder: 'flex flex-row items-center' }}>
         <span
-          role={openArtifactFile ? 'link' : undefined}
-          tabIndex={openArtifactFile ? 0 : undefined}
-          onClick={openArtifactFile ? handleOpen : undefined}
-          onKeyDown={openArtifactFile ? handleKeyDown : undefined}
+          role={canOpen ? 'link' : undefined}
+          tabIndex={canOpen ? 0 : undefined}
+          onClick={canOpen ? handleOpen : undefined}
+          onKeyDown={canOpen ? handleKeyDown : undefined}
           className={`inline-flex items-center gap-1 break-all ${
-            openArtifactFile
-              ? 'cursor-pointer text-primary hover:underline'
-              : 'cursor-default text-foreground-secondary'
+            canOpen ? 'cursor-pointer text-primary hover:underline' : 'cursor-default text-foreground-secondary'
           }`}>
           <Icon icon={`material-icon-theme:${iconName}`} className="shrink-0" style={{ fontSize: '1.1em' }} />
           {displayName ?? displayPath}

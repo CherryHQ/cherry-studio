@@ -24,6 +24,7 @@ const {
   knowledgeBaseCreateMock,
   knowledgeBaseDeleteMock,
   knowledgeBaseGetByIdMock,
+  knowledgeBaseListMock,
   knowledgeItemCreateMock,
   knowledgeItemDeleteMock,
   knowledgeItemGetDeletingRootGroupsMock,
@@ -44,6 +45,8 @@ const {
   fsStatMock,
   listMaterialUnitsMock,
   storeSearchMock,
+  getMaterialByRelativePathMock,
+  readMaterialContentMock,
   probeKnowledgeFileMock,
   probeKnowledgeSourcePathMock
 } = vi.hoisted(() => ({
@@ -58,6 +61,7 @@ const {
   knowledgeBaseCreateMock: vi.fn(),
   knowledgeBaseDeleteMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
+  knowledgeBaseListMock: vi.fn(),
   knowledgeItemCreateMock: vi.fn(),
   knowledgeItemDeleteMock: vi.fn(),
   knowledgeItemGetDeletingRootGroupsMock: vi.fn(),
@@ -78,6 +82,8 @@ const {
   fsStatMock: vi.fn(),
   listMaterialUnitsMock: vi.fn(),
   storeSearchMock: vi.fn(),
+  getMaterialByRelativePathMock: vi.fn(),
+  readMaterialContentMock: vi.fn(),
   probeKnowledgeFileMock: vi.fn(),
   probeKnowledgeSourcePathMock: vi.fn()
 }))
@@ -143,7 +149,8 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
   knowledgeBaseService: {
     create: knowledgeBaseCreateMock,
     delete: knowledgeBaseDeleteMock,
-    getById: knowledgeBaseGetByIdMock
+    getById: knowledgeBaseGetByIdMock,
+    list: knowledgeBaseListMock
   }
 }))
 
@@ -178,7 +185,7 @@ vi.mock('../utils/storage/pathStorage', async () => {
   }
 })
 
-const { KnowledgeService } = await import('../KnowledgeService')
+const { KnowledgeService, KNOWLEDGE_TREE_MAX_NODES } = await import('../KnowledgeService')
 
 const NOTE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
 const DELETING_NOTE_ITEM_ID = '0198f3f2-7d1b-7abc-8def-123456789abc'
@@ -359,10 +366,14 @@ describe('KnowledgeService', () => {
     listMock.mockResolvedValue([])
     getIndexStoreMock.mockResolvedValue({
       search: storeSearchMock,
-      listMaterialUnits: listMaterialUnitsMock
+      listMaterialUnits: listMaterialUnitsMock,
+      getMaterialByRelativePath: getMaterialByRelativePathMock,
+      readMaterialContent: readMaterialContentMock
     })
     listMaterialUnitsMock.mockResolvedValue([])
     storeSearchMock.mockResolvedValue([])
+    getMaterialByRelativePathMock.mockResolvedValue(null)
+    readMaterialContentMock.mockResolvedValue(null)
     knowledgeItemGetRootItemsByBaseIdMock.mockResolvedValue([])
     aiEmbedManyMock.mockResolvedValue({ embeddings: [[0.1, 0.2, 0.3]] })
     rerankKnowledgeSearchResultsMock.mockImplementation(async (_base, _query, results) => results)
@@ -1639,6 +1650,20 @@ describe('KnowledgeService', () => {
     })
   })
 
+  it('enriches each hit with its Concept ID (relative path) and display title for deep-read follow-up', async () => {
+    const service = new KnowledgeService()
+    const FILE_ITEM_ID = 'file-item-1'
+    knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ threshold: 0.5 }))
+    knowledgeItemGetByIdMock.mockResolvedValue(createFileItem(FILE_ITEM_ID, 'kb-1', '/docs/report.pdf', 'completed'))
+    storeSearchMock.mockResolvedValueOnce([
+      { unitId: 'chunk-1', materialId: FILE_ITEM_ID, unitIndex: 0, text: 'body', score: 0.9 }
+    ])
+
+    const [hit] = await service.search('kb-1', 'hello')
+
+    expect(hit).toMatchObject({ conceptId: 'report.pdf', title: 'report.pdf' })
+  })
+
   it('bm25 mode skips the embedding round-trip and dispatches a lexical-only store search', async () => {
     const service = new KnowledgeService()
     knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ searchMode: 'bm25', threshold: 0.5 }))
@@ -1716,6 +1741,420 @@ describe('KnowledgeService', () => {
     const results = await service.search('kb-1', 'hello')
 
     expect(results.map((result) => result.chunkId)).toEqual(['c1', 'c2'])
+  })
+
+  describe('hasAnyBase', () => {
+    it('reports true when the base count is non-zero and false when it is zero, via a single-row count', async () => {
+      const service = new KnowledgeService()
+
+      knowledgeBaseListMock.mockResolvedValueOnce({ items: [], total: 3 })
+      await expect(service.hasAnyBase()).resolves.toBe(true)
+
+      knowledgeBaseListMock.mockResolvedValueOnce({ items: [], total: 0 })
+      await expect(service.hasAnyBase()).resolves.toBe(false)
+
+      // Cheap existence check: asks for a single row, never the full list.
+      expect(knowledgeBaseListMock).toHaveBeenLastCalledWith({ page: 1, limit: 1 })
+    })
+  })
+
+  describe('readConcept', () => {
+    const CONCEPT_ID = 'docs/intro.md'
+
+    function arrangeReadable(text: string, itemBaseId = 'kb-1') {
+      getMaterialByRelativePathMock.mockResolvedValue({
+        materialId: NOTE_ITEM_ID,
+        relativePath: CONCEPT_ID
+      })
+      knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID, itemBaseId, null, 'completed'))
+      readMaterialContentMock.mockResolvedValue(text)
+    }
+
+    it('reads a whole document by its Concept ID, resolving via the store and re-validating the item', async () => {
+      const service = new KnowledgeService()
+      arrangeReadable('hello world')
+
+      const result = await service.readConcept('kb-1', CONCEPT_ID)
+
+      expect(getMaterialByRelativePathMock).toHaveBeenCalledWith(CONCEPT_ID)
+      expect(readMaterialContentMock).toHaveBeenCalledWith(NOTE_ITEM_ID)
+      expect(result).toMatchObject({
+        conceptId: CONCEPT_ID,
+        itemType: 'note',
+        totalChars: 11,
+        charStart: 0,
+        charEnd: 11,
+        content: 'hello world',
+        truncated: false
+      })
+    })
+
+    it('returns the requested [charStart, charEnd) slice without marking it truncated', async () => {
+      const service = new KnowledgeService()
+      arrangeReadable('hello world')
+
+      const result = await service.readConcept('kb-1', CONCEPT_ID, { charStart: 6, charEnd: 11 })
+
+      expect(result).toMatchObject({ charStart: 6, charEnd: 11, content: 'world', truncated: false })
+    })
+
+    it('caps an oversized read and flags it truncated so the caller can page on', async () => {
+      const service = new KnowledgeService()
+      arrangeReadable('x'.repeat(25_000))
+
+      const result = await service.readConcept('kb-1', CONCEPT_ID)
+
+      expect(result.totalChars).toBe(25_000)
+      expect(result.charStart).toBe(0)
+      expect(result.charEnd).toBe(20_000)
+      expect(result.content).toHaveLength(20_000)
+      expect(result.truncated).toBe(true)
+    })
+
+    it('pages on from the previous charEnd to read the remaining tail, no longer truncated', async () => {
+      const service = new KnowledgeService()
+      arrangeReadable('x'.repeat(25_000))
+
+      // Continue from where the capped first slice (charEnd 20_000, above) stopped.
+      const tail = await service.readConcept('kb-1', CONCEPT_ID, { charStart: 20_000 })
+
+      expect(tail.charStart).toBe(20_000)
+      expect(tail.charEnd).toBe(25_000)
+      expect(tail.content).toHaveLength(5_000)
+      expect(tail.truncated).toBe(false)
+    })
+
+    it('does not flag a read that exactly fills the cap as truncated', async () => {
+      const service = new KnowledgeService()
+      arrangeReadable('x'.repeat(20_000))
+
+      const result = await service.readConcept('kb-1', CONCEPT_ID)
+
+      expect(result.charEnd).toBe(20_000)
+      expect(result.content).toHaveLength(20_000)
+      expect(result.truncated).toBe(false)
+    })
+
+    it('throws NOT_FOUND when the Concept ID resolves to nothing', async () => {
+      const service = new KnowledgeService()
+      getMaterialByRelativePathMock.mockResolvedValue(null)
+
+      await expect(service.readConcept('kb-1', 'docs/missing.md')).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+      expect(readMaterialContentMock).not.toHaveBeenCalled()
+    })
+
+    it('throws NOT_FOUND when the resolved material belongs to another base (identity re-check)', async () => {
+      const service = new KnowledgeService()
+      arrangeReadable('hello world', 'other-base')
+
+      await expect(service.readConcept('kb-1', CONCEPT_ID)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+      expect(readMaterialContentMock).not.toHaveBeenCalled()
+    })
+
+    it('throws a distinct "Knowledge concept content" NOT_FOUND when the material has no current content', async () => {
+      const service = new KnowledgeService()
+      arrangeReadable('placeholder')
+      readMaterialContentMock.mockResolvedValue(null)
+
+      // The resource MUST be the content-missing discriminator (not the generic 'Knowledge concept'),
+      // so the tool layer steers "retry / re-indexing" rather than "verify the conceptId". This pins the
+      // service end of the three-literal coupling that conceptLookupError matches on.
+      await expect(service.readConcept('kb-1', CONCEPT_ID)).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'Knowledge concept content' }
+      })
+    })
+  })
+
+  describe('grepConcept', () => {
+    const CONCEPT_ID = 'docs/intro.md'
+
+    function arrangeReadable(text: string) {
+      getMaterialByRelativePathMock.mockResolvedValue({
+        materialId: NOTE_ITEM_ID,
+        relativePath: CONCEPT_ID
+      })
+      knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
+      readMaterialContentMock.mockResolvedValue(text)
+    }
+
+    it('returns each match with a 1-based line number, offsets, and a snippet', async () => {
+      const service = new KnowledgeService()
+      arrangeReadable('line one\nline two match\nline three match')
+
+      const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'match' })
+
+      expect(result.totalMatches).toBe(2)
+      expect(result.matches.map((m) => m.line)).toEqual([2, 3])
+      expect(result.matches[0].snippet).toContain('match')
+      expect(
+        'line one\nline two match\nline three match'.slice(result.matches[0].charStart, result.matches[0].charEnd)
+      ).toBe('match')
+    })
+
+    it('is case-insensitive by default and case-sensitive when asked', async () => {
+      const service = new KnowledgeService()
+      arrangeReadable('Foo foo FOO')
+
+      expect((await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'foo' })).totalMatches).toBe(3)
+      expect((await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'foo', ignoreCase: false })).totalMatches).toBe(
+        1
+      )
+    })
+
+    it('reports the same 1-based line for several matches on one line, with strictly ascending offsets', async () => {
+      const service = new KnowledgeService()
+      // Matches sit on row 2 (not the first line) so the assertion pins both: the line number is the shared
+      // row, and the offsets are distinct and ascending per match on that row.
+      arrangeReadable('intro\nFoo foo FOO')
+
+      const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'foo' })
+
+      expect(result.matches.map((m) => m.line)).toEqual([2, 2, 2])
+      const starts = result.matches.map((m) => m.charStart)
+      expect(starts).toEqual([...starts].sort((a, b) => a - b))
+      expect(new Set(starts).size).toBe(starts.length)
+    })
+
+    it('caps returned matches at maxMatches while still reporting the full totalMatches', async () => {
+      const service = new KnowledgeService()
+      arrangeReadable('a a a a a')
+
+      const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'a', maxMatches: 2 })
+
+      expect(result.totalMatches).toBe(5)
+      expect(result.matches).toHaveLength(2)
+    })
+
+    it('does not loop forever on a zero-width pattern', async () => {
+      const service = new KnowledgeService()
+      arrangeReadable('abc')
+
+      const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'x*' })
+
+      // 'x*' matches empty at each position (4 in "abc"); the lastIndex bump keeps it terminating.
+      expect(result.totalMatches).toBe(4)
+    })
+
+    it('matches anchors and bounds matching per line (no full-document backtracking)', async () => {
+      const service = new KnowledgeService()
+      // `^`/`$` bind to each line now that matching is line-oriented: a whole-document scan
+      // would never match `^beta$` mid-string.
+      arrangeReadable('alpha\nbeta\ngamma')
+
+      const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: '^beta$' })
+
+      expect(result.totalMatches).toBe(1)
+      expect(result.matches[0].line).toBe(2)
+    })
+
+    it('drops matches past the per-line length cap so a single line cannot freeze the scan', async () => {
+      const service = new KnowledgeService()
+      // The needle sits past CONCEPT_GREP_MAX_LINE_CHARS (2000) on one line, so the truncated
+      // line the pattern runs over never reaches it — proving the per-line evaluation is bounded.
+      arrangeReadable('x'.repeat(2100) + 'NEEDLE')
+
+      const result = await service.grepConcept('kb-1', CONCEPT_ID, { pattern: 'NEEDLE' })
+
+      expect(result.totalMatches).toBe(0)
+    })
+
+    it('throws a validation error for an invalid regular expression', async () => {
+      const service = new KnowledgeService()
+      arrangeReadable('whatever')
+
+      await expect(service.grepConcept('kb-1', CONCEPT_ID, { pattern: '(' })).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR
+      })
+    })
+
+    it('throws NOT_FOUND when the Concept ID resolves to nothing', async () => {
+      const service = new KnowledgeService()
+      getMaterialByRelativePathMock.mockResolvedValue(null)
+
+      await expect(service.grepConcept('kb-1', 'docs/missing.md', { pattern: 'x' })).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+    })
+  })
+
+  describe('getOrganizationTree', () => {
+    it('builds the groupId hierarchy as a pre-order DFS node list with conceptId for completed leaves', async () => {
+      const service = new KnowledgeService()
+      knowledgeItemGetItemsByBaseIdMock.mockResolvedValue([
+        createDirectoryItem('docs', null, 'completed'),
+        { ...createFileItem('f1', 'kb-1', '/src/report.pdf', 'completed'), groupId: 'docs' },
+        createNoteItem('root-note', 'kb-1', null, 'completed')
+      ])
+
+      const tree = await service.getOrganizationTree('kb-1')
+
+      expect(knowledgeItemGetItemsByBaseIdMock).toHaveBeenCalledWith('kb-1')
+      expect(tree).toMatchObject({ baseId: 'kb-1', totalItems: 3, truncated: false })
+      expect(tree.nodes).toEqual([
+        { depth: 0, title: 'docs', itemType: 'directory', status: 'completed', conceptId: undefined },
+        { depth: 1, title: 'report.pdf', itemType: 'file', status: 'completed', conceptId: 'report.pdf' },
+        { depth: 0, title: expect.any(String), itemType: 'note', status: 'completed', conceptId: undefined }
+      ])
+    })
+
+    it('omits conceptId for a leaf that is not completed (not readable yet)', async () => {
+      const service = new KnowledgeService()
+      knowledgeItemGetItemsByBaseIdMock.mockResolvedValue([createFileItem('f1', 'kb-1', '/a.pdf', 'idle')])
+
+      const tree = await service.getOrganizationTree('kb-1')
+
+      expect(tree.nodes[0]).toMatchObject({ depth: 0, itemType: 'file', status: 'idle' })
+      expect(tree.nodes[0].conceptId).toBeUndefined()
+    })
+
+    it('respects maxDepth, dropping folders deeper than the limit', async () => {
+      const service = new KnowledgeService()
+      knowledgeItemGetItemsByBaseIdMock.mockResolvedValue([
+        createDirectoryItem('docs', null, 'completed'),
+        createDirectoryItem('sub', 'docs', 'completed'),
+        { ...createFileItem('deep', 'kb-1', '/deep.pdf', 'completed'), groupId: 'sub' }
+      ])
+
+      const tree = await service.getOrganizationTree('kb-1', { maxDepth: 0 })
+
+      // maxDepth 0 keeps only the top level; the nested folder and its file are dropped.
+      expect(tree.nodes.map((node) => node.title)).toEqual(['docs'])
+      expect(tree.totalItems).toBe(3)
+      // maxDepth filtering must NOT set truncated — that flag is reserved for the node-cap (see JSDoc).
+      expect(tree.truncated).toBe(false)
+    })
+
+    it('caps the node list at KNOWLEDGE_TREE_MAX_NODES and flags truncated', async () => {
+      const service = new KnowledgeService()
+      // One more root leaf than the cap: every node is at depth 0, so only the cap (not maxDepth) can trim.
+      const items = Array.from({ length: KNOWLEDGE_TREE_MAX_NODES + 1 }, (_, idx) =>
+        createFileItem(`f${idx}`, 'kb-1', `/doc-${idx}.pdf`, 'completed')
+      )
+      knowledgeItemGetItemsByBaseIdMock.mockResolvedValue(items)
+
+      const tree = await service.getOrganizationTree('kb-1')
+
+      expect(tree.truncated).toBe(true)
+      expect(tree.nodes).toHaveLength(KNOWLEDGE_TREE_MAX_NODES)
+      // totalItems counts every non-deleting item, even those past the cap.
+      expect(tree.totalItems).toBe(KNOWLEDGE_TREE_MAX_NODES + 1)
+    })
+  })
+
+  describe('deleteConcepts', () => {
+    const CONCEPT_ID = 'docs/intro.md'
+
+    function arrangeResolvable(itemBaseId = 'kb-1') {
+      getMaterialByRelativePathMock.mockImplementation(async (relativePath: string) =>
+        relativePath === CONCEPT_ID ? { materialId: NOTE_ITEM_ID, relativePath: CONCEPT_ID } : null
+      )
+      knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID, itemBaseId, null, 'completed'))
+    }
+
+    it('resolves a Concept ID to its item and deletes it, reporting it applied', async () => {
+      const service = new KnowledgeService()
+      arrangeResolvable()
+
+      const result = await service.deleteConcepts('kb-1', [CONCEPT_ID])
+
+      expect(getMaterialByRelativePathMock).toHaveBeenCalledWith(CONCEPT_ID)
+      expect(knowledgeItemGetOutermostSelectedItemIdsMock).toHaveBeenCalledWith('kb-1', [NOTE_ITEM_ID])
+      expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', [NOTE_ITEM_ID], 'deleting')
+      expect(result).toEqual({ applied: [CONCEPT_ID], notFound: [] })
+    })
+
+    it('partitions unresolved Concept IDs into notFound without failing the batch', async () => {
+      const service = new KnowledgeService()
+      arrangeResolvable()
+
+      const result = await service.deleteConcepts('kb-1', [CONCEPT_ID, 'docs/missing.md'])
+
+      expect(result).toEqual({ applied: [CONCEPT_ID], notFound: ['docs/missing.md'] })
+    })
+
+    it('treats a resolved material in another base as notFound (identity re-check)', async () => {
+      const service = new KnowledgeService()
+      arrangeResolvable('other-base')
+
+      const result = await service.deleteConcepts('kb-1', [CONCEPT_ID])
+
+      expect(result).toEqual({ applied: [], notFound: [CONCEPT_ID] })
+      expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalled()
+    })
+
+    it('collapses duplicate Concept IDs to a single resolution', async () => {
+      const service = new KnowledgeService()
+      arrangeResolvable()
+
+      const result = await service.deleteConcepts('kb-1', [CONCEPT_ID, CONCEPT_ID])
+
+      expect(getMaterialByRelativePathMock).toHaveBeenCalledTimes(1)
+      expect(result).toEqual({ applied: [CONCEPT_ID], notFound: [] })
+    })
+
+    it('is a no-op deletion when nothing resolves', async () => {
+      const service = new KnowledgeService()
+
+      const result = await service.deleteConcepts('kb-1', ['docs/missing.md'])
+
+      expect(result).toEqual({ applied: [], notFound: ['docs/missing.md'] })
+      expect(enqueueMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('refreshConcepts', () => {
+    const CONCEPT_ID = 'docs/intro.md'
+
+    function arrangeResolvable(itemBaseId = 'kb-1') {
+      getMaterialByRelativePathMock.mockImplementation(async (relativePath: string) =>
+        relativePath === CONCEPT_ID ? { materialId: NOTE_ITEM_ID, relativePath: CONCEPT_ID } : null
+      )
+      knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID, itemBaseId, null, 'completed'))
+    }
+
+    it('resolves a Concept ID to its item and re-indexes it, reporting it applied', async () => {
+      const service = new KnowledgeService()
+      arrangeResolvable()
+
+      const result = await service.refreshConcepts('kb-1', [CONCEPT_ID])
+
+      expect(knowledgeItemGetOutermostSelectedItemIdsMock).toHaveBeenCalledWith('kb-1', [NOTE_ITEM_ID])
+      expect(enqueueMock.mock.calls.map((call) => call[0])).toContain('knowledge.reindex-subtree')
+      expect(result).toEqual({ applied: [CONCEPT_ID], notFound: [] })
+    })
+
+    it('partitions unresolved Concept IDs into notFound without failing the batch', async () => {
+      const service = new KnowledgeService()
+      arrangeResolvable()
+
+      const result = await service.refreshConcepts('kb-1', [CONCEPT_ID, 'docs/missing.md'])
+
+      expect(result).toEqual({ applied: [CONCEPT_ID], notFound: ['docs/missing.md'] })
+    })
+
+    it('is a no-op refresh when nothing resolves', async () => {
+      const service = new KnowledgeService()
+
+      const result = await service.refreshConcepts('kb-1', ['docs/missing.md'])
+
+      expect(result).toEqual({ applied: [], notFound: ['docs/missing.md'] })
+      expect(enqueueMock).not.toHaveBeenCalled()
+    })
+
+    it('treats a resolved material in another base as notFound (identity re-check)', async () => {
+      const service = new KnowledgeService()
+      // The relative path resolves, but the item lives in another base — refresh must not cross the
+      // identity boundary (same guard as deleteConcepts; refreshConcepts shares resolveConceptItemIds).
+      arrangeResolvable('other-base')
+
+      const result = await service.refreshConcepts('kb-1', [CONCEPT_ID])
+
+      expect(result).toEqual({ applied: [], notFound: [CONCEPT_ID] })
+      expect(enqueueMock).not.toHaveBeenCalled()
+    })
   })
 
   it('applies rerank results before applying relevance threshold', async () => {

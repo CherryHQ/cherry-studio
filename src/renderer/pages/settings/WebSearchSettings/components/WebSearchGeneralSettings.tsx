@@ -1,4 +1,4 @@
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
 import type { FC } from 'react'
 
 import { SettingsContentColumn } from '../..'

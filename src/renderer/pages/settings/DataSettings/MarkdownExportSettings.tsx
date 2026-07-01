@@ -8,7 +8,7 @@ import {
   Switch
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { FolderOpen, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'

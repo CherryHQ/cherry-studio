@@ -224,7 +224,12 @@
           "runFailed": "运行任务失败",
           "updateFailed": "更新任务失败"
         },
-        "intervalPlaceholder": "间隔（分钟）",
+        "frequency": {
+          "everyPrefix": "间隔",
+          "everySuffix": "分钟执行",
+          "label": "执行频率"
+        },
+        "intervalPlaceholder": "至少1",
         "intervalUnit": "分钟",
         "lastRun": "上次运行",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "间隔",
-          "label": "调度类型",
           "once": "一次性"
         },
-        "scheduleValue": "调度值",
         "status": {
           "active": "活跃",
           "completed": "已完成",
@@ -277,7 +280,7 @@
           "minutesAgo": "{{count}}分钟前"
         },
         "timeout": {
-          "label": "超时时间",
+          "label": "最长执行时间",
           "placeholder": "无限制"
         },
         "title": "定时任务"
@@ -553,6 +556,7 @@
       "list": {
         "title": "任务"
       },
+      "new": "新任务",
       "pin": {
         "title": "置顶任务"
       },
@@ -562,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "搜索任务"
+        "placeholder": "搜索任务",
+        "title": "搜索任务"
       },
       "unpin": {
         "title": "取消置顶任务"
@@ -932,6 +937,10 @@
           "description": "在你的环境中执行 Shell 命令",
           "label": "Bash"
         },
+        "CherryKbManage": {
+          "description": "添加、删除或刷新知识库中的文档",
+          "label": "知识库管理"
+        },
         "CherryKbSearch": {
           "description": "搜索你的知识库",
           "label": "知识库搜索"
@@ -1113,15 +1122,15 @@
   "assistants": {
     "abbr": "助手",
     "clear": {
-      "content": "清空话题会删除助手下所有话题和文件，确定要继续吗？",
+      "content": "清空对话会删除助手下所有对话和文件，确定要继续吗？",
       "menu_title": "删除助手下所有对话",
-      "title": "清空话题"
+      "title": "清空对话"
     },
     "copy": {
       "title": "复制助手"
     },
     "delete": {
-      "content": "删除助手会删除所有该助手下的话题和文件，确定要继续吗？",
+      "content": "删除助手会删除所有该助手下的对话和文件，确定要继续吗？",
       "error": {
         "remain_one": "不允许删除最后一个助手"
       },
@@ -1388,7 +1397,7 @@
         "title": "选择添加类型"
       },
       "topic": {
-        "title": "新建话题"
+        "title": "新建对话"
       }
     },
     "alerts": {
@@ -1424,7 +1433,7 @@
       "description": "你好，我是默认助手。你可以立刻开始跟我聊天",
       "name": "默认助手",
       "topic": {
-        "name": "默认话题"
+        "name": "默认对话"
       }
     },
     "history": {
@@ -1444,7 +1453,7 @@
       "auto_resize": "自动调整高度",
       "cancel_editing": "取消编辑",
       "clear": {
-        "content": "确定要清除当前会话所有消息吗？",
+        "content": "确定要清除当前对话所有消息吗？",
         "label": "清空消息",
         "title": "清空消息"
       },
@@ -1480,7 +1489,7 @@
         "context": "清除上下文"
       },
       "new_session": "新会话 {{Command}}",
-      "new_topic": "新话题 {{Command}}",
+      "new_topic": "新对话 {{Command}}",
       "paste_text_file": "粘贴到输入框",
       "pasted_text_file_name": "已粘贴的文本.txt",
       "pause": "暂停",
@@ -1547,7 +1556,7 @@
         "open_file_error": "无法打开文件: {{path}}",
         "reveal_in_finder": "在文件管理器中显示"
       },
-      "topics": "话题",
+      "topics": "对话",
       "translate": "翻译成 {{target_language}}",
       "translating": "翻译中...",
       "upload": {
@@ -1703,26 +1712,26 @@
         "knowledge": {
           "content": {
             "maintext": {
-              "description": "包括话题标题和所有消息的主要文本内容"
+              "description": "包括对话标题和所有消息的主要文本内容"
             }
           },
           "empty": {
-            "no_content": "此话题没有可保存的内容"
+            "no_content": "此对话没有可保存的内容"
           },
           "error": {
-            "save_failed": "保存话题失败，请检查知识库配置"
+            "save_failed": "保存对话失败，请检查知识库配置"
           },
-          "loading": "正在分析话题内容...",
+          "loading": "正在分析对话内容...",
           "menu_title": "保存到知识库",
           "select": {
             "content": {
               "label": "选择要保存的内容类型",
               "selected_tip": "已选择 {{count}} 项内容，来自 {{messages}} 条消息",
-              "tip": "话题将以包含完整对话上下文的形式保存到知识库"
+              "tip": "对话将以包含完整上下文的形式保存到知识库"
             }
           },
-          "success": "话题已成功保存到知识库（{{count}} 项内容）",
-          "title": "保存话题到知识库"
+          "success": "对话已成功保存到知识库（{{count}} 项内容）",
+          "title": "保存对话到知识库"
         }
       }
     },
@@ -1788,7 +1797,7 @@
     "thinking": "思考中（用时 {{seconds}} 秒）",
     "thinking_tokens": "约 {{tokens}} tokens",
     "topics": {
-      "auto_rename": "生成话题名",
+      "auto_rename": "生成对话名",
       "clear": {
         "title": "清空消息"
       },
@@ -1809,8 +1818,8 @@
       },
       "edit": {
         "placeholder": "输入新名称",
-        "title": "编辑话题名",
-        "title_tip": "提示: 双击话题名可以直接就地重命名"
+        "title": "编辑对话名",
+        "title_tip": "提示: 双击对话名可以直接就地重命名"
       },
       "empty": {
         "description": "新建一个对话后，这里会保存你的聊天记录，方便继续上下文。",
@@ -1878,47 +1887,47 @@
         "unknown_assistant": "未关联助手",
         "yesterday": "昨天"
       },
-      "list": "话题列表",
+      "list": "对话列表",
       "manage": {
         "clear_selection": "取消选择",
         "delete": {
           "confirm": {
-            "content": "确定要删除选中的 {{count}} 个话题吗？此操作不可撤销。",
-            "title": "删除话题"
+            "content": "确定要删除选中的 {{count}} 个对话吗？此操作不可撤销。",
+            "title": "删除对话"
           },
           "error": "删除失败，请重试",
           "partial_success": "成功删除 {{successCount}} 个，失败 {{failedCount}} 个",
-          "success": "已删除 {{count}} 个话题"
+          "success": "已删除 {{count}} 个对话"
         },
         "deselect_all": "取消全选",
         "error": {
-          "at_least_one": "至少需要保留一个话题"
+          "at_least_one": "至少需要保留一个对话"
         },
         "move": {
           "button": "移动",
           "placeholder": "选择目标助手",
-          "success": "已移动 {{count}} 个话题"
+          "success": "已移动 {{count}} 个对话"
         },
-        "pinned": "已固定的话题",
+        "pinned": "已固定的对话",
         "selected_count": "已选择 {{count}} 个",
-        "title": "管理话题",
-        "unpinned": "未固定的话题"
+        "title": "管理对话",
+        "unpinned": "未固定的对话"
       },
       "move_to": "移动到",
       "new": "开始新对话",
-      "pin": "固定话题",
+      "pin": "固定对话",
       "prompt": {
         "edit": {
-          "title": "编辑话题提示词"
+          "title": "编辑对话提示词"
         },
-        "label": "话题提示词",
-        "tips": "话题提示词：针对当前话题提供额外的补充提示词"
+        "label": "对话提示词",
+        "tips": "对话提示词：针对当前对话提供额外的补充提示词"
       },
       "search": {
-        "placeholder": "搜索话题...",
+        "placeholder": "搜索对话...",
         "title": "搜索"
       },
-      "title": "话题",
+      "title": "对话",
       "unpin": "取消固定"
     },
     "translate": "翻译",
@@ -2154,7 +2163,7 @@
     "subscribe": "订阅",
     "success": "成功",
     "swap": "交换",
-    "topics": "话题",
+    "topics": "对话",
     "translate_text": "翻译文本",
     "unknown": "未知",
     "unnamed": "未命名",
@@ -2496,7 +2505,7 @@
   "history": {
     "continue_chat": "继续聊天",
     "error": {
-      "topic_not_found": "话题不存在"
+      "topic_not_found": "对话不存在"
     },
     "locate": {
       "message": "定位到消息"
@@ -2568,16 +2577,16 @@
         "whole_word": "整词"
       },
       "messages": "搜索所有消息",
-      "placeholder": "搜索话题或消息...",
+      "placeholder": "搜索对话或消息...",
       "sort": {
         "newest": "最新优先",
         "oldest": "最早优先"
       },
       "topics": {
-        "empty": "没有找到相关话题，点击回车键搜索所有消息"
+        "empty": "没有找到相关对话，点击回车键搜索所有消息"
       }
     },
-    "title": "话题搜索"
+    "title": "对话搜索"
   },
   "html_artifacts": {
     "capture": {
@@ -3159,12 +3168,22 @@
           "agent_title": "新建智能体",
           "assistant_title": "新建助手",
           "avatar_aria": "选择头像",
+          "back": "上一步",
+          "capability": {
+            "import": "导入技能",
+            "no_skills": "未安装技能",
+            "search": "搜索技能"
+          },
           "description_placeholder": "描述它的用途...",
-          "dialog_description": "轻量新建助手或智能体。",
-          "model_placeholder": "选择模型",
-          "model_required": "请选择模型",
+          "guided_progress": "引导式创建 · 第 {{current}} / {{total}} 步",
           "name_placeholder": "输入名称",
-          "name_required": "请输入名称",
+          "next": "下一步",
+          "step": {
+            "basic": "基础信息",
+            "capability": "技能",
+            "knowledge": "知识库",
+            "persona": "设定人格"
+          },
           "submit": "新建",
           "submit_failed": "新建失败"
         },
@@ -3513,7 +3532,7 @@
       "excel": {
         "export": "导出 Excel 失败"
       },
-      "fetchTopicName": "话题命名失败",
+      "fetchTopicName": "对话命名失败",
       "file": {
         "process_failed": "文件 {{name}} 无法处理",
         "text_extraction_failed": "无法从 {{name}} 中提取文本"
@@ -3842,7 +3861,7 @@
       }
     },
     "topic": {
-      "added": "话题添加成功"
+      "added": "对话添加成功"
     },
     "upgrade": {
       "success": {
@@ -3873,64 +3892,6 @@
       "partial_failure": "{{count}} 个搜索结果，部分搜索失败"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "添加到启动台",
-    "add_to_sidebar": "添加到侧边栏",
-    "popup": {
-      "close": "关闭小程序",
-      "devtools": "开发者工具",
-      "goBack": "后退",
-      "goForward": "前进",
-      "minimize": "最小化小程序",
-      "openExternal": "在浏览器中打开",
-      "open_link_external_off": "当前：使用默认窗口打开链接",
-      "open_link_external_on": "当前：在浏览器中打开链接",
-      "refresh": "刷新",
-      "rightclick_copyurl": "右键复制 URL"
-    },
-    "remove_from_launchpad": "从启动台移除",
-    "remove_from_sidebar": "从侧边栏移除",
-    "sidebar": {
-      "close": {
-        "title": "关闭"
-      },
-      "closeall": {
-        "title": "关闭所有"
-      },
-      "hide": {
-        "title": "隐藏"
-      },
-      "remove_custom": {
-        "title": "删除自定义应用"
-      }
-    },
-    "title": "小程序"
-  },
-  "minapps": {
-    "ant-ling": "蚂蚁百灵",
-    "baichuan": "百小应",
-    "baidu-ai-search": "百度AI搜索",
-    "chatglm": "智谱清言",
-    "dangbei": "当贝AI",
-    "doubao": "豆包",
-    "hailuo": "海螺",
-    "ima": "ima",
-    "metaso": "秘塔AI搜索",
-    "minimax-agent": "MiniMax Agent",
-    "minimax-global": "MiniMax Agent 海外版",
-    "nami-ai": "纳米AI",
-    "nami-ai-search": "纳米AI搜索",
-    "qwen": "通义千问",
-    "sensechat": "商量",
-    "stepfun": "阶跃AI",
-    "tencent-yuanbao": "腾讯元宝",
-    "tiangong-ai": "天工AI",
-    "wanzhi": "万知",
-    "wenxin": "文心一言",
-    "wps-copilot": "WPS灵犀",
-    "xiaoyi": "小艺",
-    "zhihu": "知乎直答"
-  },
   "miniApp": {
     "add_to_launchpad": "添加到启动台",
     "add_to_sidebar": "添加到侧边栏",
@@ -3941,15 +3902,13 @@
     "hide_failed": "隐藏小程序失败",
     "pin_failed": "固定小程序失败",
     "popup": {
-      "close": "关闭小程序",
       "devtools": "开发者工具",
       "goBack": "后退",
       "goForward": "前进",
       "openExternal": "在浏览器中打开",
       "open_link_external_off": "当前：使用默认窗口打开链接",
       "open_link_external_on": "当前：在浏览器中打开链接",
-      "refresh": "刷新",
-      "rightclick_copyurl": "右键复制 URL"
+      "refresh": "刷新"
     },
     "remove_from_launchpad": "从启动台移除",
     "remove_from_sidebar": "从侧边栏移除",
@@ -3961,17 +3920,8 @@
     },
     "show_failed": "显示小程序失败",
     "sidebar": {
-      "close": {
-        "title": "关闭"
-      },
-      "closeall": {
-        "title": "关闭所有"
-      },
       "hide": {
         "title": "隐藏"
-      },
-      "remove_custom": {
-        "title": "删除自定义应用"
       }
     },
     "title": "小程序",
@@ -3991,7 +3941,6 @@
     "minimax-agent": "MiniMax Agent",
     "minimax-global": "MiniMax Agent 海外版",
     "nami-ai": "纳米AI",
-    "nami-ai-search": "纳米AI搜索",
     "qwen": "通义千问",
     "sensechat": "商量",
     "stepfun": "阶跃AI",
@@ -4777,7 +4726,6 @@
     "baichuan": "百川",
     "baidu-cloud": "百度云千帆",
     "burncloud": "BurnCloud",
-    "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
@@ -4833,7 +4781,6 @@
     "tencent-cloud-ti": "腾讯云 TI",
     "tesseract": "Tesseract",
     "together": "Together",
-    "tokenflux": "TokenFlux",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "天翼云息壤",
@@ -5325,6 +5272,7 @@
     "assistant": {
       "create_new": "新建助手",
       "empty_text": "暂无助手",
+      "filter": "筛选助手",
       "multi_hint": "（与多模型互斥）",
       "multi_label": "多助手同时回答",
       "search_placeholder": "搜索助手…"
@@ -5397,7 +5345,7 @@
       }
     },
     "advanced": {
-      "auto_switch_to_topics": "自动切换到话题",
+      "auto_switch_to_topics": "自动切换到对话",
       "title": "高级设置"
     },
     "assistant": {
@@ -6089,7 +6037,7 @@
       },
       "title": "显示",
       "topic": {
-        "title": "话题设置"
+        "title": "对话设置"
       },
       "zoom": {
         "title": "缩放设置"
@@ -6504,6 +6452,12 @@
         "show_estimated_tokens": "显示预估 Token 数",
         "title": "输入设置"
       },
+      "layout": {
+        "classic": "经典",
+        "conversation": "对话视图",
+        "modern": "现代",
+        "work": "工作视图"
+      },
       "markdown_rendering_input_message": "Markdown 渲染输入消息",
       "metrics": "首字时延 {{time_first_token_millsec}} ms | 每秒 {{token_speed}} tokens",
       "model": {
@@ -6523,37 +6477,24 @@
     "miniApps": {
       "cache_change_notice": "更改将在打开的小程序增减至设定值后生效",
       "cache_description": "设置同时保持活跃状态的小程序最大数量",
-      "cache_settings": "缓存设置",
       "cache_title": "小程序缓存数量",
       "custom": {
-        "conflicting_ids": "与默认应用 ID 冲突: {{ids}}",
-        "duplicate_ids": "发现重复的 ID: {{ids}}",
-        "edit_description": "在这里编辑自定义小应用的配置。每个应用需要包含 id、name、url 和 logo 字段",
+        "create_title": "创建自定义小程序",
         "edit_title": "编辑自定义小程序",
-        "id": "ID",
-        "id_error": "ID 是必填项",
-        "id_placeholder": "请输入 ID",
-        "logo": "Logo",
         "logo_file": "上传 Logo 文件",
-        "logo_upload_button": "上传",
         "logo_upload_error": "Logo 上传失败",
         "logo_upload_label": "上传 Logo",
-        "logo_upload_success": "Logo 上传成功",
-        "logo_url": "Logo URL",
-        "logo_url_label": "Logo URL",
-        "logo_url_placeholder": "请输入 Logo URL",
         "name": "名称",
-        "name_error": "名称是必填项",
         "name_placeholder": "请输入名称",
-        "placeholder": "请输入自定义小程序配置（JSON 格式）",
+        "remove_confirm_description": "确定要删除自定义小程序「{{name}}」吗？此操作无法撤销。",
+        "remove_confirm_title": "删除自定义小程序？",
         "remove_error": "自定义小程序删除失败",
         "remove_success": "自定义小程序删除成功",
-        "save": "保存",
         "save_error": "自定义小程序保存失败",
         "save_success": "自定义小程序保存成功",
         "title": "自定义",
         "url": "URL",
-        "url_error": "URL 是必填项",
+        "url_invalid": "请输入有效的 http、https 或 file URL",
         "url_placeholder": "请输入 URL"
       },
       "disabled": "隐藏的小程序",
@@ -6575,63 +6516,6 @@
         "title": "小程序区域筛选"
       },
       "reset_tooltip": "重置为默认值",
-      "title": "小程序设置",
-      "visible": "显示的小程序"
-    },
-    "miniapps": {
-      "cache_change_notice": "更改将在打开的小程序增减至设定值后生效",
-      "cache_description": "设置同时保持活跃状态的小程序最大数量",
-      "cache_settings": "缓存设置",
-      "cache_title": "小程序缓存数量",
-      "custom": {
-        "conflicting_ids": "与默认应用 ID 冲突: {{ids}}",
-        "duplicate_ids": "发现重复的 ID: {{ids}}",
-        "edit_description": "在这里编辑自定义小应用的配置。每个应用需要包含 id、name、url 和 logo 字段",
-        "edit_title": "编辑自定义小程序",
-        "id": "ID",
-        "id_error": "ID 是必填项",
-        "id_placeholder": "请输入 ID",
-        "logo": "Logo",
-        "logo_file": "上传 Logo 文件",
-        "logo_upload_button": "上传",
-        "logo_upload_error": "Logo 上传失败",
-        "logo_upload_label": "上传 Logo",
-        "logo_upload_success": "Logo 上传成功",
-        "logo_url": "Logo URL",
-        "logo_url_label": "Logo URL",
-        "logo_url_placeholder": "请输入 Logo URL",
-        "name": "名称",
-        "name_error": "名称是必填项",
-        "name_placeholder": "请输入名称",
-        "placeholder": "请输入自定义小程序配置（JSON 格式）",
-        "remove_error": "自定义小程序删除失败",
-        "remove_success": "自定义小程序删除成功",
-        "save": "保存",
-        "save_error": "自定义小程序保存失败",
-        "save_success": "自定义小程序保存成功",
-        "title": "自定义",
-        "url": "URL",
-        "url_error": "URL 是必填项",
-        "url_placeholder": "请输入 URL"
-      },
-      "disabled": "隐藏的小程序",
-      "display_title": "小程序显示设置",
-      "empty": "在左侧列表点击隐藏图标，小程序会移到这里",
-      "hide_app": "隐藏 {{name}}",
-      "open_link_external": {
-        "title": "在浏览器中打开新窗口链接"
-      },
-      "region": {
-        "auto": "自动检测",
-        "cn": "中国",
-        "description": "根据所在地区过滤不支持的小程序",
-        "global": "全球",
-        "title": "小程序区域筛选"
-      },
-      "reset_tooltip": "重置为默认值",
-      "show_app": "显示 {{name}}",
-      "sidebar_description": "设置侧边栏是否显示活跃的小程序",
-      "sidebar_title": "侧边栏活跃小程序显示设置",
       "title": "小程序设置",
       "visible": "显示的小程序"
     },
@@ -6827,7 +6711,7 @@
       "quick_assistant_model": "快捷助手模型",
       "quick_assistant_selection": "选择助手",
       "quick_model": {
-        "description": "执行话题命名、搜索关键字提炼等简单任务时使用的模型",
+        "description": "执行对话命名、搜索关键字提炼等简单任务时使用的模型",
         "label": "快速模型",
         "setting_title": "快速模型设置",
         "tooltip": "建议选择轻量模型，不建议选择思考模型"
@@ -6839,9 +6723,9 @@
         "pull_short": "获取模型列表"
       },
       "topic_naming": {
-        "auto": "话题自动重命名",
-        "label": "话题命名",
-        "prompt": "话题命名提示词"
+        "auto": "对话自动重命名",
+        "label": "对话命名",
+        "prompt": "对话命名提示词"
       },
       "translate_model": "翻译模型",
       "translate_model_description": "翻译服务使用的模型",
@@ -7106,7 +6990,6 @@
       "cherryin": {
         "api_host": {
           "acceleration": "加速域名",
-          "backup": "备用域名",
           "international": "国际域名"
         }
       },
@@ -7352,7 +7235,7 @@
         "chat": "消息交互",
         "general": "全局与窗口",
         "title": "快捷键分组",
-        "topic": "会话与话题"
+        "topic": "会话与对话"
       },
       "clear_shortcut": "清除快捷键",
       "clear_topic": "清空消息",
@@ -7365,13 +7248,13 @@
       "exit_fullscreen": "退出全屏",
       "label": "按键",
       "move_tab_to_first": "将标签页移到最左",
-      "new_topic": "新建话题",
+      "new_topic": "新建对话",
       "occupied_by_other_application": "该快捷键已被系统或其他应用占用",
       "open_tab_in_new_window": "在新窗口中打开标签页",
       "pin_tab": "切换置顶标签页",
       "press_shortcut": "按下快捷键",
       "quick_assistant": "快捷助手",
-      "rename_topic": "重命名话题",
+      "rename_topic": "重命名对话",
       "reset": "重置",
       "reset_defaults": "重置默认快捷键",
       "reset_defaults_confirm": "确定要重置所有快捷键吗？",
@@ -7391,7 +7274,7 @@
       "toggle_left_sidebar": "切换左侧边栏",
       "toggle_new_context": "清除上下文",
       "toggle_right_sidebar": "切换右侧边栏",
-      "toggle_show_topics": "切换话题显示",
+      "toggle_show_topics": "切换对话显示",
       "toggle_sidebar": "切换侧边栏",
       "zoom_in": "放大界面",
       "zoom_out": "缩小界面",
@@ -7579,6 +7462,7 @@
           "exa": "为 AI 应用设计的神经搜索 API，擅长语义检索高质量网页。",
           "exa_mcp": "通过 Exa MCP Server 将 Exa 搜索能力暴露给智能体工具调用。",
           "fetch": "内置 URL 获取服务商，用于从指定 URL 获取网页内容，适合补全搜索结果正文。",
+          "firecrawl": "Firecrawl 网页抓取与搜索服务，支持将网页转换为 Markdown 格式。",
           "jina": "Jina Reader 搜索与阅读接口，用于检索并提取网页正文。",
           "querit": "面向 AI 应用的搜索服务，提供可接入的网页检索结果。",
           "searxng": "可自托管的免费互联网元搜索引擎，聚合多个搜索源。",
@@ -7606,14 +7490,14 @@
       }
     },
     "topic": {
-      "pin_to_top": "固定话题置顶",
+      "pin_to_top": "固定对话置顶",
       "position": {
-        "label": "话题位置",
+        "label": "对话位置",
         "left": "左侧",
         "right": "右侧"
       },
       "show": {
-        "time": "显示话题时间"
+        "time": "显示对话时间"
       }
     },
     "translate": {

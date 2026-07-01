@@ -12,6 +12,7 @@ import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import {
   remapResourceListCollapsedGroupIds,
+  RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
   ResourceList,
   type ResourceListGroup,
   type ResourceListItemReorderPayload,
@@ -24,16 +25,18 @@ import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
-import { useCurrentTabId } from '@renderer/context/TabIdContext'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { useAgents } from '@renderer/hooks/agents/useAgent'
-import { useSessions, useUpdateSession } from '@renderer/hooks/agents/useSession'
+import { useAgents } from '@renderer/hooks/agent/useAgent'
+import { useUpdateSession } from '@renderer/hooks/agent/useSession'
+import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
+import { useCurrentTabId } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { usePins } from '@renderer/hooks/usePins'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import {
   AGENT_WORKSPACE_TYPE,
@@ -50,7 +53,6 @@ import {
   History,
   ListFilter,
   MoreHorizontal,
-  PanelLeft,
   SquarePen
 } from 'lucide-react'
 import { memo, type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -92,10 +94,12 @@ import {
 } from './workdirGroupActions'
 
 type SessionsBaseProps = {
+  agentIdFilter?: string | null
   onOpenHistoryRecords?: () => void
   onSelectItem?: () => void
   onStartDraftSession?: (defaults: DraftAgentSessionDefaults) => void | Promise<void>
   onStartMissingAgentDraft?: () => void | Promise<void>
+  presentation?: 'sidebar' | 'right-panel'
   revealRequest?: ResourceListRevealRequest
 }
 
@@ -108,7 +112,7 @@ type SessionsProps = ControlledSessionsProps
 
 const logger = loggerService.withContext('AgentSessions')
 
-const SESSION_DISPLAY_OPTIONS: AgentSessionDisplayMode[] = ['time', 'agent', 'workdir']
+const SESSION_DISPLAY_OPTIONS: AgentSessionDisplayMode[] = ['time', 'workdir']
 const SESSION_DISPLAY_LABEL_KEYS: Record<AgentSessionDisplayMode, string> = {
   agent: 'agent.session.display.agent',
   time: 'agent.session.display.time',
@@ -130,13 +134,11 @@ function SessionListOptionsMenu({
   mode,
   onChange,
   onOpenHistoryRecords,
-  onToggleSidebar,
   sectionId
 }: {
   mode: AgentSessionDisplayMode
   onChange: (mode: AgentSessionDisplayMode) => void
   onOpenHistoryRecords?: () => void
-  onToggleSidebar: () => void
   sectionId?: string
 }) {
   const { t } = useTranslation()
@@ -183,7 +185,7 @@ function SessionListOptionsMenu({
               />
             </>
           )}
-          <MenuDivider />
+          {onOpenHistoryRecords && <MenuDivider />}
           {onOpenHistoryRecords && (
             <MenuItem
               size="sm"
@@ -195,16 +197,6 @@ function SessionListOptionsMenu({
               }}
             />
           )}
-          {onOpenHistoryRecords && <MenuDivider />}
-          <MenuItem
-            size="sm"
-            icon={<PanelLeft size={16} />}
-            label={t('settings.shortcuts.toggle_left_sidebar')}
-            onClick={() => {
-              onToggleSidebar()
-              setOpen(false)
-            }}
-          />
         </MenuList>
       </PopoverContent>
     </Popover>
@@ -353,17 +345,19 @@ export function findLatestCreateSessionSeed(
 
 const Sessions = ({
   activeSessionId,
+  agentIdFilter,
   onOpenHistoryRecords,
   onSelectItem,
   onStartDraftSession,
   onStartMissingAgentDraft,
+  presentation = 'sidebar',
   revealRequest,
   setActiveSessionId: setControlledActiveSessionId
 }: SessionsProps) => {
   const { t } = useTranslation()
+  const isRightPanel = presentation === 'right-panel'
   const conversationNav = useConversationNavigation('agents')
   const [groupNow] = useState(() => new Date())
-  const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
   const [sessionExpansionTime, setSessionExpansionTime] = usePersistCache('ui.agent.session.expansion.time')
   const [sessionExpansionAgent, setSessionExpansionAgent] = usePersistCache('ui.agent.session.expansion.agent')
@@ -383,7 +377,7 @@ const Sessions = ({
     reload,
     reorderSession,
     togglePin
-  } = useSessions(undefined, { loadAll: true, pageSize: 200 })
+  } = useAgentSessionsSource()
   const currentTabId = useCurrentTabId()
   const { agents, error: agentsError, isLoading: isAgentsLoading, refetch: refetchAgents } = useAgents()
   const listRef = useRef<HTMLDivElement>(null)
@@ -409,15 +403,24 @@ const Sessions = ({
     return map
   }, [channels])
 
-  const displayMode: AgentSessionDisplayMode =
-    sessionDisplayMode === 'workdir' || sessionDisplayMode === 'agent' ? sessionDisplayMode : 'time'
+  const displayMode: AgentSessionDisplayMode = isRightPanel
+    ? 'time'
+    : sessionDisplayMode === 'workdir' || sessionDisplayMode === 'agent'
+      ? sessionDisplayMode
+      : 'time'
   const isDraggableMode = displayMode !== 'time'
-  const sessionExpansion =
-    displayMode === 'agent'
+  const [rightPanelSessionExpansion, setRightPanelSessionExpansion] = useState<string[]>([])
+  const sessionExpansion = isRightPanel
+    ? rightPanelSessionExpansion
+    : displayMode === 'agent'
       ? sessionExpansionAgent
       : displayMode === 'workdir'
         ? sessionExpansionWorkdir
         : sessionExpansionTime
+
+  useEffect(() => {
+    if (isRightPanel) setRightPanelSessionExpansion([])
+  }, [agentIdFilter, isRightPanel])
 
   const dragReady = isDraggableMode && isFullyLoaded && !isLoadingAll && !isLoadingMore && !isValidating && !isLoading
   const {
@@ -542,7 +545,20 @@ const Sessions = ({
       optimisticMove ? applyOptimisticSessionDisplayMove(baseGroupedSessions, optimisticMove) : baseGroupedSessions,
     [baseGroupedSessions, optimisticMove]
   )
-  const headerCreateSessionSeed = useMemo(() => findLatestCreateSessionSeed(groupedSessions), [groupedSessions])
+  const filteredGroupedSessions = useMemo(() => {
+    if (!isRightPanel) return groupedSessions
+    if (!agentIdFilter) return []
+    return groupedSessions.filter((session) => session.agentId === agentIdFilter)
+  }, [agentIdFilter, groupedSessions, isRightPanel])
+  const headerCreateSessionSeed = useMemo(
+    () =>
+      isRightPanel
+        ? agentIdFilter
+          ? { agentId: agentIdFilter, workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } }
+          : null
+        : findLatestCreateSessionSeed(filteredGroupedSessions),
+    [agentIdFilter, filteredGroupedSessions, isRightPanel]
+  )
 
   const sessionOrderSignature = useMemo(
     () =>
@@ -623,30 +639,85 @@ const Sessions = ({
 
   const handleSessionCollapsedStateChange = useCallback(
     (nextCollapsedIds: string[]) => {
+      if (isRightPanel) {
+        setRightPanelSessionExpansion(nextCollapsedIds)
+        return
+      }
+
       if (displayMode === 'agent') setSessionExpansionAgent(nextCollapsedIds)
       else if (displayMode === 'workdir') setSessionExpansionWorkdir(nextCollapsedIds)
       else setSessionExpansionTime(nextCollapsedIds)
     },
-    [displayMode, setSessionExpansionAgent, setSessionExpansionTime, setSessionExpansionWorkdir]
+    [displayMode, isRightPanel, setSessionExpansionAgent, setSessionExpansionTime, setSessionExpansionWorkdir]
   )
   const getCreateSessionSeedForGroup = useCallback(
     (groupId: string) =>
-      findLatestCreateSessionSeed(groupedSessions, (session) => sessionGroupBy(session)?.id === groupId),
-    [groupedSessions, sessionGroupBy]
+      findLatestCreateSessionSeed(filteredGroupedSessions, (session) => sessionGroupBy(session)?.id === groupId),
+    [filteredGroupedSessions, sessionGroupBy]
   )
-  const handleToggleSidebar = useCallback(() => {
-    void setShowSidebar(!showSidebar)
-  }, [setShowSidebar, showSidebar])
-
   const handleDeleteSession = useCallback(
     async (id: string) => {
       const success = await deleteSession(id)
-      if (success && activeSessionId === id) {
-        const remaining = sessionItems.find((s) => s.id !== id)
-        setActiveSessionId(remaining?.id ?? null)
+      if (!success || activeSessionId !== id) return
+
+      if (isRightPanel) {
+        // Classic layout is scoped to a single agent: select that agent's neighbouring session rather than
+        // the first remaining session, which could belong to another agent.
+        const index = filteredGroupedSessions.findIndex((s) => s.id === id)
+        const next =
+          index !== -1 && filteredGroupedSessions.length > 1
+            ? filteredGroupedSessions[index + 1 === filteredGroupedSessions.length ? index - 1 : index + 1]
+            : undefined
+        if (next) {
+          setActiveSessionId(next.id)
+          return
+        }
+
+        const deletedSession =
+          (index !== -1 ? filteredGroupedSessions[index] : undefined) ??
+          sessionItemsRef.current.find((session) => session.id === id)
+        const seed = deletedSession
+          ? buildCreateSessionSeed({
+              agentId: agentIdFilter ?? deletedSession.agentId,
+              workspace: deletedSession.workspace,
+              workspaceId: deletedSession.workspaceId
+            })
+          : agentIdFilter
+            ? { agentId: agentIdFilter, workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } }
+            : null
+        // Mirror the sibling create paths (createSessionFromSeed / handleRenameSession): if the
+        // draft start rejects (e.g. the user-workspace refetch fails) surface a toast and still
+        // clear the active id in `finally`, so we never strand the view on the just-deleted session.
+        try {
+          if (seed?.agentId && onStartDraftSession) {
+            await onStartDraftSession({
+              agentId: seed.agentId,
+              workspace: seed.workspace ?? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+            })
+          }
+        } catch (err) {
+          logger.error('Failed to start draft session after deleting last session', { err, sessionId: id })
+          window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+        } finally {
+          setActiveSessionId(null)
+        }
+        return
       }
+
+      const remaining = sessionItems.find((s) => s.id !== id)
+      setActiveSessionId(remaining?.id ?? null)
     },
-    [activeSessionId, deleteSession, sessionItems, setActiveSessionId]
+    [
+      activeSessionId,
+      agentIdFilter,
+      deleteSession,
+      filteredGroupedSessions,
+      isRightPanel,
+      onStartDraftSession,
+      sessionItems,
+      setActiveSessionId,
+      t
+    ]
   )
 
   const handleRenameSession = useCallback(
@@ -656,7 +727,10 @@ const Sessions = ({
       if (!session || !trimmedName || trimmedName === session.name) return
 
       try {
-        const updatedSession = await updateSession({ id, name: trimmedName }, { showSuccessToast: false })
+        const updatedSession = await updateSession(
+          { id, name: trimmedName, isNameManuallyEdited: true },
+          { showSuccessToast: false }
+        )
         if (updatedSession) {
           window.toast.success(t('common.saved'))
         }
@@ -1175,10 +1249,10 @@ const Sessions = ({
             </Tooltip>
           )}
           {canCreateSession && (
-            <Tooltip title={t('chat.conversation.new')} delay={500}>
+            <Tooltip title={t('agent.session.new')} delay={500}>
               <ResourceList.GroupHeaderActionButton
                 type="button"
-                aria-label={t('chat.conversation.new')}
+                aria-label={t('agent.session.new')}
                 disabled={creatingSession}
                 onClick={(event) => {
                   event.stopPropagation()
@@ -1218,15 +1292,15 @@ const Sessions = ({
     (section: ResourceListSection) => {
       if (section.id !== SESSION_NO_PROJECT_SECTION_ID) return null
 
-      const createSessionSeed = findLatestCreateSessionSeed(groupedSessions, isSystemWorkspaceSession)
+      const createSessionSeed = findLatestCreateSessionSeed(filteredGroupedSessions, isSystemWorkspaceSession)
       const canCreateSession = createSessionSeed !== null && agentById.has(createSessionSeed.agentId)
       if (!canCreateSession) return null
 
       return (
-        <Tooltip title={t('chat.conversation.new')} delay={500}>
+        <Tooltip title={t('agent.session.new')} delay={500}>
           <ResourceList.GroupHeaderActionButton
             type="button"
-            aria-label={t('chat.conversation.new')}
+            aria-label={t('agent.session.new')}
             disabled={creatingSession}
             onClick={(event) => {
               event.stopPropagation()
@@ -1237,7 +1311,7 @@ const Sessions = ({
         </Tooltip>
       )
     },
-    [agentById, createSessionFromSeed, creatingSession, groupedSessions, t]
+    [agentById, createSessionFromSeed, creatingSession, filteredGroupedSessions, t]
   )
 
   const getGroupHeaderIcon = useCallback(
@@ -1375,11 +1449,22 @@ const Sessions = ({
     isWorkdirMetadataLoading ||
     (displayMode === 'agent' && isAgentsLoading)
   const listValidating = isValidating || isWorkdirMetadataRefreshing
-  const visibleGroupedSessions = useMemo(() => (listLoading ? [] : groupedSessions), [groupedSessions, listLoading])
-  const listStatus = listError ? 'error' : listLoading ? 'loading' : groupedSessions.length === 0 ? 'empty' : 'idle'
+  const visibleGroupedSessions = useMemo(
+    () => (listLoading ? [] : filteredGroupedSessions),
+    [filteredGroupedSessions, listLoading]
+  )
+  const listStatus = listError
+    ? 'error'
+    : listLoading
+      ? 'loading'
+      : filteredGroupedSessions.length === 0
+        ? 'empty'
+        : 'idle'
 
   return (
     <SessionResourceList<SessionListItem>
+      key={isRightPanel ? `session-resource-panel:${agentIdFilter ?? 'blank'}` : 'session-resource-sidebar'}
+      className={cn(isRightPanel && 'h-full min-h-0 border-r-0')}
       items={visibleGroupedSessions}
       status={listStatus}
       selectedId={activeSessionId}
@@ -1412,38 +1497,47 @@ const Sessions = ({
       onGroupHeaderSelectItem={handleSelectSession}
       onReorder={handleSessionReorder}
       onCollapsedStateChange={handleSessionCollapsedStateChange}>
-      <ResourceList.Header className="gap-1">
-        <ResourceList.HeaderItem
-          type="button"
-          command="topic.create"
-          aria-label={t('agent.session.add.title')}
-          disabled={creatingSession || (!headerCreateSessionSeed && !onStartMissingAgentDraft)}
-          icon={<SquarePen />}
-          label={t('agent.session.add.title')}
-          onClick={handleHeaderCreateSession}
-          actions={
-            <SessionListOptionsMenu
-              mode={displayMode}
-              onChange={(nextMode) => void setSessionDisplayMode(nextMode)}
-              onOpenHistoryRecords={onOpenHistoryRecords}
-              onToggleSidebar={handleToggleSidebar}
-              sectionId={
-                displayMode === 'agent'
-                  ? SESSION_AGENT_SECTION_ID
-                  : displayMode === 'workdir'
-                    ? SESSION_WORKDIR_SECTION_ID
-                    : undefined
-              }
-            />
-          }
-        />
+      <ResourceList.Header className={cn('gap-1', isRightPanel && 'pb-2')}>
+        {isRightPanel ? (
+          <ResourceList.Search
+            aria-label={t('agent.session.search.title')}
+            className={RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS}
+            placeholder={t('agent.session.search.placeholder')}
+            wrapperClassName="pt-1"
+          />
+        ) : (
+          <ResourceList.HeaderItem
+            type="button"
+            command="topic.create"
+            aria-label={t('agent.session.new')}
+            disabled={creatingSession || (!headerCreateSessionSeed && !onStartMissingAgentDraft)}
+            icon={<SquarePen />}
+            label={t('agent.session.new')}
+            onClick={handleHeaderCreateSession}
+            actions={
+              <SessionListOptionsMenu
+                mode={displayMode}
+                onChange={(nextMode) => void setSessionDisplayMode(nextMode)}
+                onOpenHistoryRecords={onOpenHistoryRecords}
+                sectionId={
+                  displayMode === 'agent'
+                    ? SESSION_AGENT_SECTION_ID
+                    : displayMode === 'workdir'
+                      ? SESSION_WORKDIR_SECTION_ID
+                      : undefined
+                }
+              />
+            }
+          />
+        )}
       </ResourceList.Header>
       <SessionListBody
         activeSessionId={activeSessionId}
         channelTypeMap={channelTypeMap}
         displayMode={displayMode}
         error={listError}
-        isDraggable={itemDragReady}
+        isDraggable={itemDragReady && !isRightPanel}
+        isRightPanel={isRightPanel}
         isValidating={listValidating}
         listRef={listRef}
         onDeleteSession={handleDeleteSession}
@@ -1483,6 +1577,7 @@ interface SessionListBodyProps {
   displayMode: AgentSessionDisplayMode
   error?: unknown
   isDraggable: boolean
+  isRightPanel: boolean
   isValidating: boolean
   listRef: RefObject<HTMLDivElement | null>
   onDeleteSession: (id: string) => Promise<void>
@@ -1500,6 +1595,7 @@ function SessionListBody({
   displayMode,
   error,
   isDraggable,
+  isRightPanel,
   isValidating,
   listRef,
   onDeleteSession,
@@ -1548,7 +1644,7 @@ function SessionListBody({
     <ResourceList.Body<SessionListItem>
       listRef={listRef}
       draggable={isDraggable}
-      virtualClassName="pt-0 pb-3"
+      virtualClassName={cn('pt-0', isRightPanel ? 'pb-8' : 'pb-3')}
       errorFallback={
         <ResourceList.ErrorState>
           <div className="flex flex-col gap-2">

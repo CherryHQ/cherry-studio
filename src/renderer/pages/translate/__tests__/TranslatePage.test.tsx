@@ -80,7 +80,7 @@ vi.mock('@renderer/components/Selector/model', () => ({
   }
 }))
 
-vi.mock('@renderer/context/CodeStyleProvider', () => ({
+vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({
     shikiMarkdownIt: vi.fn().mockResolvedValue('')
   })

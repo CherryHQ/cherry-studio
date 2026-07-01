@@ -1,17 +1,42 @@
 import { loggerService } from '@logger'
-import { Readability } from '@mozilla/readability'
+import type * as ReadabilityModule from '@mozilla/readability'
 import type { WebSearchProviderResult } from '@renderer/types/webSearchProvider'
 import { createAbortPromise } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
 import { nanoid } from 'nanoid'
-import TurndownService from 'turndown'
+import type TurndownService from 'turndown'
 
 const logger = loggerService.withContext('Utils:fetch')
 
-const turndownService = new TurndownService()
 export const noContent = 'No content found'
 
 type ResponseFormat = 'markdown' | 'html' | 'text'
+
+type TurndownModule = { default: typeof TurndownService }
+
+let readabilityPromise: Promise<typeof ReadabilityModule> | undefined
+let turndownPromise: Promise<TurndownModule> | undefined
+let turndownService: TurndownService | undefined
+let turndownServicePromise: Promise<TurndownService> | undefined
+
+const loadReadability = () => {
+  readabilityPromise ??= import('@mozilla/readability')
+  return readabilityPromise
+}
+
+const getTurndownService = async () => {
+  if (turndownService) {
+    return turndownService
+  }
+
+  turndownServicePromise ??= (async () => {
+    const { default: TurndownService } = await (turndownPromise ??= import('turndown'))
+    turndownService = new TurndownService()
+    return turndownService
+  })()
+
+  return turndownServicePromise
+}
 
 /**
  * Validates if the string is a properly formatted URL
@@ -91,11 +116,13 @@ export async function fetchWebContent(
     // clearTimeout(timeoutId) // Clear the timeout if fetch completes successfully
     const parser = new DOMParser()
     const doc = parser.parseFromString(html, 'text/html')
+    const { Readability } = await loadReadability()
     const article = new Readability(doc).parse()
     // Logger.log('Parsed article:', article)
 
     switch (format) {
       case 'markdown': {
+        const turndownService = await getTurndownService()
         const markdown = turndownService.turndown(article?.content || '')
         return {
           title: article?.title || url,
@@ -169,6 +196,12 @@ export async function fetchXOEmbed(url: string): Promise<{ author: string; text:
     return null
   }
 }
+
+/**
+ * SWR cache key for an X/Twitter oEmbed fetch. Shared between the citations
+ * panel and the citation tooltip so both reuse a single cached oEmbed result.
+ */
+export const xOembedKey = (url: string) => `xOembed/${url}`
 
 export async function fetchRedirectUrl(url: string) {
   try {

@@ -44,12 +44,13 @@ export function mapAnthropicThinkingToProviderOptions(
   if (isAnthropicProvider(provider)) {
     return {
       anthropic: {
-        thinking: {
-          type: config.type,
-          budgetTokens: config.type === 'enabled' ? config.budget_tokens : undefined
-        }
-      } as AnthropicProviderOptions
-    }
+        // Type only the `thinking` field this mapper owns: `satisfies Pick<…, 'thinking'>` keeps
+        // full type checking without coupling to AnthropicProviderOptions' unrelated `fallbacks`
+        // field, whose non-JSON type would otherwise break the ProviderOptions (JSONObject) value.
+        thinking:
+          config.type === 'enabled' ? { type: 'enabled', budgetTokens: config.budget_tokens } : { type: config.type }
+      } satisfies Pick<AnthropicProviderOptions, 'thinking'>
+    } satisfies ProviderOptions
   }
 
   // Google/Gemini provider
@@ -131,12 +132,9 @@ export function mapReasoningEffortToProviderOptions(
   if (isAnthropicProvider(provider)) {
     return {
       anthropic: {
-        thinking: {
-          type: 'enabled',
-          budgetTokens: budgetMap[reasoningEffort]
-        }
-      } as AnthropicProviderOptions
-    }
+        thinking: { type: 'enabled', budgetTokens: budgetMap[reasoningEffort] }
+      } satisfies Pick<AnthropicProviderOptions, 'thinking'>
+    } satisfies ProviderOptions
   }
 
   // Google/Gemini: Map to thinkingConfig.thinkingBudget

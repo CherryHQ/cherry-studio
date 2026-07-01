@@ -224,7 +224,12 @@
           "runFailed": "無法執行任務",
           "updateFailed": "更新任務失敗"
         },
-        "intervalPlaceholder": "間隔（分鐘）",
+        "frequency": {
+          "everyPrefix": "間隔",
+          "everySuffix": "分鐘執行",
+          "label": "執行頻率"
+        },
+        "intervalPlaceholder": "至少1",
         "intervalUnit": "分鐘",
         "lastRun": "上次執行",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "間隔",
-          "label": "排程類型",
           "once": "一次性"
         },
-        "scheduleValue": "排程值",
         "status": {
           "active": "活躍",
           "completed": "已完成",
@@ -277,7 +280,7 @@
           "minutesAgo": "{{count}}分鐘前"
         },
         "timeout": {
-          "label": "逾時時間",
+          "label": "最長執行時間",
           "placeholder": "無限制"
         },
         "title": "排程任務"
@@ -553,6 +556,7 @@
       "list": {
         "title": "任務"
       },
+      "new": "新任務",
       "pin": {
         "title": "固定任務"
       },
@@ -562,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "搜尋任務"
+        "placeholder": "搜尋任務",
+        "title": "搜尋任務"
       },
       "unpin": {
         "title": "取消固定任務"
@@ -932,6 +937,10 @@
           "description": "在你的環境中執行 Shell 命令",
           "label": "Bash"
         },
+        "CherryKbManage": {
+          "description": "新增、刪除或重新整理知識庫中的文件",
+          "label": "知識庫管理"
+        },
         "CherryKbSearch": {
           "description": "搜尋你的知識庫",
           "label": "知識庫搜尋"
@@ -1113,15 +1122,15 @@
   "assistants": {
     "abbr": "助手",
     "clear": {
-      "content": "清空話題會刪除助手下所有主題和檔案，確定要繼續嗎？",
+      "content": "清空對話會刪除助手下所有對話和檔案，確定要繼續嗎？",
       "menu_title": "刪除助手下所有對話",
-      "title": "清空話題"
+      "title": "清空對話"
     },
     "copy": {
       "title": "複製助手"
     },
     "delete": {
-      "content": "刪除助手會刪除所有該助手下的話題和檔案，確定要繼續嗎？",
+      "content": "刪除助手會刪除所有該助手下的對話和檔案，確定要繼續嗎？",
       "error": {
         "remain_one": "不允許刪除最後一個助手"
       },
@@ -1388,7 +1397,7 @@
         "title": "選擇新增類型"
       },
       "topic": {
-        "title": "新增話題"
+        "title": "新增對話"
       }
     },
     "alerts": {
@@ -1424,7 +1433,7 @@
       "description": "你好，我是預設助手。你可以立即開始與我聊天",
       "name": "預設助手",
       "topic": {
-        "name": "預設話題"
+        "name": "預設對話"
       }
     },
     "history": {
@@ -1444,7 +1453,7 @@
       "auto_resize": "自動調整高度",
       "cancel_editing": "取消編輯",
       "clear": {
-        "content": "您想要清除目前話題的所有訊息嗎？",
+        "content": "您想要清除目前對話的所有訊息嗎？",
         "label": "清除",
         "title": "清除所有訊息？"
       },
@@ -1480,7 +1489,7 @@
         "context": "清除上下文"
       },
       "new_session": "新工作階段 {{Command}}",
-      "new_topic": "新話題 {{Command}}",
+      "new_topic": "新對話 {{Command}}",
       "paste_text_file": "貼到輸入框",
       "pasted_text_file_name": "已貼上的文字.txt",
       "pause": "暫停",
@@ -1547,7 +1556,7 @@
         "open_file_error": "無法開啟檔案: {{path}}",
         "reveal_in_finder": "在檔案管理器中顯示"
       },
-      "topics": "話題",
+      "topics": "對話",
       "translate": "翻譯成 {{target_language}}",
       "translating": "翻譯中...",
       "upload": {
@@ -1703,26 +1712,26 @@
         "knowledge": {
           "content": {
             "maintext": {
-              "description": "包含話題標題及所有訊息的主要文字內容"
+              "description": "包含對話標題及所有訊息的主要文字內容"
             }
           },
           "empty": {
-            "no_content": "此話題沒有可儲存的內容"
+            "no_content": "此對話沒有可儲存的內容"
           },
           "error": {
-            "save_failed": "儲存話題失敗，請檢查知識庫設定"
+            "save_failed": "儲存對話失敗，請檢查知識庫設定"
           },
-          "loading": "正在分析話題內容...",
+          "loading": "正在分析對話內容...",
           "menu_title": "儲存至知識庫",
           "select": {
             "content": {
               "label": "選擇要儲存的內容類型",
               "selected_tip": "已選擇 {{count}} 項內容，來自 {{messages}} 條訊息",
-              "tip": "話題將以包含完整對話上下文的形式儲存到知識庫"
+              "tip": "對話將以包含完整上下文的形式儲存到知識庫"
             }
           },
-          "success": "話題已成功儲存到知識庫（{{count}} 項內容）",
-          "title": "儲存話題到知識庫"
+          "success": "對話已成功儲存到知識庫（{{count}} 項內容）",
+          "title": "儲存對話到知識庫"
         }
       }
     },
@@ -1788,7 +1797,7 @@
     "thinking": "思考中（用時 {{seconds}} 秒）",
     "thinking_tokens": "約 {{tokens}} tokens",
     "topics": {
-      "auto_rename": "自動重新命名",
+      "auto_rename": "自動重新命名對話",
       "clear": {
         "title": "清空訊息"
       },
@@ -1809,8 +1818,8 @@
       },
       "edit": {
         "placeholder": "輸入新名稱",
-        "title": "編輯名稱",
-        "title_tip": "提示：雙擊話題名可以直接就地重新命名"
+        "title": "編輯對話名稱",
+        "title_tip": "提示：雙擊對話名稱可以直接就地重新命名"
       },
       "empty": {
         "description": "建立一個對話後，這裡會保存你的聊天記錄，方便之後繼續上下文。",
@@ -1878,47 +1887,47 @@
         "unknown_assistant": "未連結的助理",
         "yesterday": "昨天"
       },
-      "list": "話題列表",
+      "list": "對話列表",
       "manage": {
         "clear_selection": "取消選擇",
         "delete": {
           "confirm": {
-            "content": "確定要刪除選中的 {{count}} 個話題嗎？此操作不可撤銷。",
-            "title": "刪除話題"
+            "content": "確定要刪除選中的 {{count}} 個對話嗎？此操作不可撤銷。",
+            "title": "刪除對話"
           },
           "error": "刪除失敗，請再試一次。",
-          "partial_success": "成功刪除了 {{successCount}} 個主題，{{failedCount}} 個失敗",
-          "success": "已刪除 {{count}} 個話題"
+          "partial_success": "成功刪除了 {{successCount}} 個對話，{{failedCount}} 個失敗",
+          "success": "已刪除 {{count}} 個對話"
         },
         "deselect_all": "取消全選",
         "error": {
-          "at_least_one": "至少需要保留一個話題"
+          "at_least_one": "至少需要保留一個對話"
         },
         "move": {
           "button": "移動",
           "placeholder": "選擇目標助手",
-          "success": "已移動 {{count}} 個話題"
+          "success": "已移動 {{count}} 個對話"
         },
-        "pinned": "已固定的話題",
+        "pinned": "已固定的對話",
         "selected_count": "已選擇 {{count}} 個",
-        "title": "管理話題",
-        "unpinned": "未固定的話題"
+        "title": "管理對話",
+        "unpinned": "未固定的對話"
       },
       "move_to": "移動到",
       "new": "開始新對話",
-      "pin": "固定話題",
+      "pin": "固定對話",
       "prompt": {
         "edit": {
-          "title": "編輯話題提示詞"
+          "title": "編輯對話提示詞"
         },
-        "label": "話題提示詞",
-        "tips": "話題提示詞：針對目前話題提供額外的補充提示詞"
+        "label": "對話提示詞",
+        "tips": "對話提示詞：針對目前對話提供額外的補充提示詞"
       },
       "search": {
-        "placeholder": "搜尋話題...",
+        "placeholder": "搜尋對話...",
         "title": "搜尋"
       },
-      "title": "話題",
+      "title": "對話",
       "unpin": "取消固定"
     },
     "translate": "翻譯",
@@ -2154,7 +2163,7 @@
     "subscribe": "訂閱",
     "success": "成功",
     "swap": "交換",
-    "topics": "話題",
+    "topics": "對話",
     "translate_text": "翻譯文字",
     "unknown": "未知",
     "unnamed": "未命名",
@@ -2496,7 +2505,7 @@
   "history": {
     "continue_chat": "繼續聊天",
     "error": {
-      "topic_not_found": "話題不存在"
+      "topic_not_found": "對話不存在"
     },
     "locate": {
       "message": "定位到訊息"
@@ -2568,16 +2577,16 @@
         "whole_word": "整詞"
       },
       "messages": "搜尋所有訊息",
-      "placeholder": "搜尋話題或訊息...",
+      "placeholder": "搜尋對話或訊息...",
       "sort": {
         "newest": "最新優先",
         "oldest": "最早優先"
       },
       "topics": {
-        "empty": "沒有找到相關話題，按 Enter 鍵搜尋所有訊息"
+        "empty": "沒有找到相關對話，按 Enter 鍵搜尋所有訊息"
       }
     },
-    "title": "搜尋話題"
+    "title": "搜尋對話"
   },
   "html_artifacts": {
     "capture": {
@@ -3159,12 +3168,22 @@
           "agent_title": "新特務",
           "assistant_title": "新助理",
           "avatar_aria": "選擇頭像",
+          "back": "上一步",
+          "capability": {
+            "import": "匯入技能",
+            "no_skills": "未安裝技能",
+            "search": "搜尋技能"
+          },
           "description_placeholder": "描述它的用途...",
-          "dialog_description": "建立一個輕量級的助理或代理程式。",
-          "model_placeholder": "選擇模型",
-          "model_required": "請選擇一個模型",
+          "guided_progress": "引導式建立 · 第 {{current}} / {{total}} 步",
           "name_placeholder": "輸入名稱",
-          "name_required": "請輸入名稱",
+          "next": "下一步",
+          "step": {
+            "basic": "基本資訊",
+            "capability": "技能",
+            "knowledge": "知識庫",
+            "persona": "設定人格"
+          },
           "submit": "建立",
           "submit_failed": "建立失敗"
         },
@@ -3513,7 +3532,7 @@
       "excel": {
         "export": "匯出 Excel 失敗"
       },
-      "fetchTopicName": "話題命名失敗",
+      "fetchTopicName": "對話命名失敗",
       "file": {
         "process_failed": "檔案 {{name}} 無法處理",
         "text_extraction_failed": "無法從 {{name}} 中擷取文字"
@@ -3842,7 +3861,7 @@
       }
     },
     "topic": {
-      "added": "新話題已新增"
+      "added": "新對話已新增"
     },
     "upgrade": {
       "success": {
@@ -3873,64 +3892,6 @@
       "partial_failure": "{{count}} 個搜尋結果，部分搜尋失敗"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "新增到啟動台",
-    "add_to_sidebar": "新增到側邊欄",
-    "popup": {
-      "close": "關閉小工具",
-      "devtools": "開發者工具",
-      "goBack": "上一頁",
-      "goForward": "下一頁",
-      "minimize": "最小化小工具",
-      "openExternal": "在瀏覽器中開啟",
-      "open_link_external_off": "目前：使用預設視窗開啟連結",
-      "open_link_external_on": "目前：在瀏覽器中開啟連結",
-      "refresh": "重新整理",
-      "rightclick_copyurl": "右鍵複製 URL"
-    },
-    "remove_from_launchpad": "從啟動台移除",
-    "remove_from_sidebar": "從側邊欄移除",
-    "sidebar": {
-      "close": {
-        "title": "關閉"
-      },
-      "closeall": {
-        "title": "關閉所有"
-      },
-      "hide": {
-        "title": "隱藏"
-      },
-      "remove_custom": {
-        "title": "刪除自訂小工具"
-      }
-    },
-    "title": "小工具"
-  },
-  "minapps": {
-    "ant-ling": "Ant Ling",
-    "baichuan": "百小應",
-    "baidu-ai-search": "百度 AI 搜尋",
-    "chatglm": "智譜清言",
-    "dangbei": "當貝 AI",
-    "doubao": "豆包",
-    "hailuo": "海螺",
-    "ima": "ima",
-    "metaso": "秘塔 AI 搜尋",
-    "minimax-agent": "MiniMax Agent CN",
-    "minimax-global": "MiniMax Agent",
-    "nami-ai": "奈米 AI",
-    "nami-ai-search": "奈米 AI 搜尋",
-    "qwen": "通義千問",
-    "sensechat": "商量",
-    "stepfun": "階躍 AI",
-    "tencent-yuanbao": "騰訊元寶",
-    "tiangong-ai": "天工 AI",
-    "wanzhi": "萬知",
-    "wenxin": "文心一言",
-    "wps-copilot": "WPS 靈犀",
-    "xiaoyi": "小藝",
-    "zhihu": "知乎直答"
-  },
   "miniApp": {
     "add_to_launchpad": "新增到啟動台",
     "add_to_sidebar": "新增到側邊欄",
@@ -3941,15 +3902,13 @@
     "hide_failed": "隱藏小程式失敗",
     "pin_failed": "固定小程式失敗",
     "popup": {
-      "close": "關閉小工具",
       "devtools": "開發者工具",
       "goBack": "上一頁",
       "goForward": "下一頁",
       "openExternal": "在瀏覽器中開啟",
       "open_link_external_off": "目前：使用預設視窗開啟連結",
       "open_link_external_on": "目前：在瀏覽器中開啟連結",
-      "refresh": "重新整理",
-      "rightclick_copyurl": "右鍵複製 URL"
+      "refresh": "重新整理"
     },
     "remove_from_launchpad": "從啟動台移除",
     "remove_from_sidebar": "從側邊欄移除",
@@ -3961,17 +3920,8 @@
     },
     "show_failed": "顯示小程式失敗",
     "sidebar": {
-      "close": {
-        "title": "關閉"
-      },
-      "closeall": {
-        "title": "關閉所有"
-      },
       "hide": {
         "title": "隱藏"
-      },
-      "remove_custom": {
-        "title": "刪除自訂小工具"
       }
     },
     "title": "小工具",
@@ -3991,7 +3941,6 @@
     "minimax-agent": "MiniMax Agent CN",
     "minimax-global": "MiniMax Agent",
     "nami-ai": "奈米 AI",
-    "nami-ai-search": "奈米 AI 搜尋",
     "qwen": "通義千問",
     "sensechat": "商量",
     "stepfun": "階躍 AI",
@@ -4777,7 +4726,6 @@
     "baichuan": "百川",
     "baidu-cloud": "百度雲千帆",
     "burncloud": "BurnCloud",
-    "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
@@ -4833,7 +4781,6 @@
     "tencent-cloud-ti": "騰訊雲 TI",
     "tesseract": "Tesseract",
     "together": "Together",
-    "tokenflux": "TokenFlux",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "天翼雲息壤",
@@ -5325,6 +5272,7 @@
     "assistant": {
       "create_new": "新建助手",
       "empty_text": "暫無助手",
+      "filter": "篩選助手",
       "multi_hint": "（與多模型互斥）",
       "multi_label": "多助手同時回答",
       "search_placeholder": "搜尋助手…"
@@ -5397,7 +5345,7 @@
       }
     },
     "advanced": {
-      "auto_switch_to_topics": "自動切換到話題",
+      "auto_switch_to_topics": "自動切換到對話",
       "title": "進階設定"
     },
     "assistant": {
@@ -6089,7 +6037,7 @@
       },
       "title": "顯示",
       "topic": {
-        "title": "話題設定"
+        "title": "對話設定"
       },
       "zoom": {
         "title": "縮放設定"
@@ -6504,6 +6452,12 @@
         "show_estimated_tokens": "顯示預估 Token 數",
         "title": "輸入設定"
       },
+      "layout": {
+        "classic": "經典",
+        "conversation": "對話視圖",
+        "modern": "現代",
+        "work": "工作視圖"
+      },
       "markdown_rendering_input_message": "Markdown 渲染輸入訊息",
       "metrics": "首字延遲 {{time_first_token_millsec}} ms | 每秒 {{token_speed}} tokens",
       "model": {
@@ -6523,37 +6477,24 @@
     "miniApps": {
       "cache_change_notice": "變更會在開啟的小程式數量調整至設定值後生效",
       "cache_description": "設定同時保持活躍狀態的小程式最大數量",
-      "cache_settings": "快取設定",
       "cache_title": "小程式快取數量",
       "custom": {
-        "conflicting_ids": "與預設應用 ID 衝突：{{ids}}",
-        "duplicate_ids": "發現重複的 ID: {{ids}}",
-        "edit_description": "編輯自訂小程式設定",
+        "create_title": "建立自訂小程式",
         "edit_title": "編輯自訂小程式",
-        "id": "ID",
-        "id_error": "ID 是必填項",
-        "id_placeholder": "請輸入 ID",
-        "logo": "Logo",
         "logo_file": "上傳 Logo 檔案",
-        "logo_upload_button": "上傳",
         "logo_upload_error": "Logo 上傳失敗",
         "logo_upload_label": "上傳 Logo",
-        "logo_upload_success": "Logo 上傳成功",
-        "logo_url": "Logo URL",
-        "logo_url_label": "Logo URL",
-        "logo_url_placeholder": "請輸入 Logo URL",
         "name": "名稱",
-        "name_error": "名稱為必填欄位",
         "name_placeholder": "請輸入名稱",
-        "placeholder": "請輸入自訂小程式設定（JSON 格式）",
+        "remove_confirm_description": "確定要刪除自訂小程式「{{name}}」嗎？此操作無法復原。",
+        "remove_confirm_title": "刪除自訂小程式？",
         "remove_error": "自訂小程式刪除失敗",
         "remove_success": "自訂小程式刪除成功",
-        "save": "儲存",
         "save_error": "自訂小程式儲存失敗",
         "save_success": "自訂小程式儲存成功",
         "title": "自訂",
         "url": "URL",
-        "url_error": "URL 是必填項",
+        "url_invalid": "請輸入有效的 http、https 或 file URL",
         "url_placeholder": "請輸入 URL"
       },
       "disabled": "隱藏的小程式",
@@ -6575,63 +6516,6 @@
         "title": "小程式區域篩選"
       },
       "reset_tooltip": "重設為預設值",
-      "title": "小程式設定",
-      "visible": "顯示的小程式"
-    },
-    "miniapps": {
-      "cache_change_notice": "變更會在開啟的小程式數量調整至設定值後生效",
-      "cache_description": "設定同時保持活躍狀態的小程式最大數量",
-      "cache_settings": "快取設定",
-      "cache_title": "小程式快取數量",
-      "custom": {
-        "conflicting_ids": "與預設應用 ID 衝突：{{ids}}",
-        "duplicate_ids": "發現重複的 ID: {{ids}}",
-        "edit_description": "編輯自訂小程式設定",
-        "edit_title": "編輯自訂小程式",
-        "id": "ID",
-        "id_error": "ID 是必填項",
-        "id_placeholder": "請輸入 ID",
-        "logo": "Logo",
-        "logo_file": "上傳 Logo 檔案",
-        "logo_upload_button": "上傳",
-        "logo_upload_error": "Logo 上傳失敗",
-        "logo_upload_label": "上傳 Logo",
-        "logo_upload_success": "Logo 上傳成功",
-        "logo_url": "Logo URL",
-        "logo_url_label": "Logo URL",
-        "logo_url_placeholder": "請輸入 Logo URL",
-        "name": "名稱",
-        "name_error": "名稱為必填欄位",
-        "name_placeholder": "請輸入名稱",
-        "placeholder": "請輸入自訂小程式設定（JSON 格式）",
-        "remove_error": "自訂小程式刪除失敗",
-        "remove_success": "自訂小程式刪除成功",
-        "save": "儲存",
-        "save_error": "自訂小程式儲存失敗",
-        "save_success": "自訂小程式儲存成功",
-        "title": "自訂",
-        "url": "URL",
-        "url_error": "URL 是必填項",
-        "url_placeholder": "請輸入 URL"
-      },
-      "disabled": "隱藏的小程式",
-      "display_title": "小程式顯示設定",
-      "empty": "在左側清單點擊隱藏圖示，小程式會移到這裡",
-      "hide_app": "隱藏 {{name}}",
-      "open_link_external": {
-        "title": "在瀏覽器中開啟新視窗連結"
-      },
-      "region": {
-        "auto": "自動檢測",
-        "cn": "中國",
-        "description": "根據所在地區篩選不支援的小程式",
-        "global": "全球",
-        "title": "小程式區域篩選"
-      },
-      "reset_tooltip": "重設為預設值",
-      "show_app": "顯示 {{name}}",
-      "sidebar_description": "設定側邊欄是否顯示活躍的小程式",
-      "sidebar_title": "側邊欄活躍小程式顯示設定",
       "title": "小程式設定",
       "visible": "顯示的小程式"
     },
@@ -6827,7 +6711,7 @@
       "quick_assistant_model": "快捷助手模型",
       "quick_assistant_selection": "選擇助手",
       "quick_model": {
-        "description": "用於話題命名、搜尋關鍵字提煉等簡單任務的模型",
+        "description": "用於對話命名、搜尋關鍵字提煉等簡單任務的模型",
         "label": "快速模型",
         "setting_title": "快速模型設定",
         "tooltip": "建議選擇輕量模型，不建議選擇思考模型"
@@ -6839,9 +6723,9 @@
         "pull_short": "取得模型列表"
       },
       "topic_naming": {
-        "auto": "話題自動重新命名",
-        "label": "話題命名",
-        "prompt": "話題命名提示詞"
+        "auto": "對話自動重新命名",
+        "label": "對話命名",
+        "prompt": "對話命名提示詞"
       },
       "translate_model": "翻譯模型",
       "translate_model_description": "翻譯服務使用的模型",
@@ -7106,7 +6990,6 @@
       "cherryin": {
         "api_host": {
           "acceleration": "加速網域",
-          "backup": "備用網域",
           "international": "國際網域"
         }
       },
@@ -7352,7 +7235,7 @@
         "chat": "訊息互動",
         "general": "全域與視窗",
         "title": "快捷鍵分組",
-        "topic": "會話與話題"
+        "topic": "會話與對話"
       },
       "clear_shortcut": "清除快捷鍵",
       "clear_topic": "清除所有訊息",
@@ -7365,13 +7248,13 @@
       "exit_fullscreen": "離開全螢幕",
       "label": "按鍵",
       "move_tab_to_first": "將分頁移至最前",
-      "new_topic": "新增話題",
+      "new_topic": "新增對話",
       "occupied_by_other_application": "此快捷鍵已被系統或其他應用程式占用",
       "open_tab_in_new_window": "在新視窗中開啟分頁",
       "pin_tab": "切換釘選分頁",
       "press_shortcut": "按下快捷鍵",
       "quick_assistant": "快捷助手",
-      "rename_topic": "重新命名話題",
+      "rename_topic": "重新命名對話",
       "reset": "重設",
       "reset_defaults": "重設預設快捷鍵",
       "reset_defaults_confirm": "確定要重設所有快捷鍵嗎？",
@@ -7391,7 +7274,7 @@
       "toggle_left_sidebar": "切換左側邊欄",
       "toggle_new_context": "清除上下文",
       "toggle_right_sidebar": "切換右側邊欄",
-      "toggle_show_topics": "切換話題顯示",
+      "toggle_show_topics": "切換對話顯示",
       "toggle_sidebar": "切換側邊欄",
       "zoom_in": "放大介面",
       "zoom_out": "縮小介面",
@@ -7579,6 +7462,7 @@
           "exa": "為 AI 應用設計的神經搜尋 API，擅長語意檢索高品質網頁。",
           "exa_mcp": "透過 Exa MCP Server 將 Exa 搜尋能力暴露給智能體工具呼叫。",
           "fetch": "內建 URL 擷取供應商，用於從指定 URL 擷取網頁內容，適合補全搜尋結果正文。",
+          "firecrawl": "Firecrawl 網頁抓取與搜尋服務，支援將網頁轉換為 Markdown 格式。",
           "jina": "Jina Reader 搜尋與閱讀介面，用於檢索並提取網頁正文。",
           "querit": "面向 AI 應用的搜尋服務，提供可接入的網頁檢索結果。",
           "searxng": "可自架的免費網際網路元搜尋引擎，聚合多個搜尋來源。",
@@ -7606,14 +7490,14 @@
       }
     },
     "topic": {
-      "pin_to_top": "固定話題置頂",
+      "pin_to_top": "固定對話置頂",
       "position": {
-        "label": "話題位置",
+        "label": "對話位置",
         "left": "左側",
         "right": "右側"
       },
       "show": {
-        "time": "顯示話題時間"
+        "time": "顯示對話時間"
       }
     },
     "translate": {

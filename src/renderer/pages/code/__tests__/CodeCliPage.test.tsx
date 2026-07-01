@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { codeCLI, terminalApps } from '@shared/types/codeCli'
+import { CodeCli, TerminalApp } from '@shared/types/codeCli'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -98,7 +98,7 @@ vi.mock('@renderer/components/Selector/model', async () => {
   }
 })
 
-vi.mock('@renderer/config/constant', () => ({
+vi.mock('@renderer/utils/platform', () => ({
   isMac: false,
   isWin: false
 }))
@@ -115,9 +115,9 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
 
 vi.mock('@renderer/hooks/useCodeCli', () => ({
   useCodeCli: () => ({
-    selectedCliTool: testState.selectedCliTool as codeCLI,
+    selectedCliTool: testState.selectedCliTool as CodeCli,
     selectedModel: testState.selectedModel,
-    selectedTerminal: terminalApps.systemDefault,
+    selectedTerminal: TerminalApp.SYSTEM_DEFAULT,
     environmentVariables: '',
     directories: [],
     currentDirectory: '',
@@ -173,8 +173,8 @@ vi.mock('../components/CodeToolGallery', () => ({
     tools,
     handleSelectTool
   }: {
-    tools: Array<{ value: codeCLI; label: string }>
-    handleSelectTool: (value: codeCLI) => void
+    tools: Array<{ value: CodeCli; label: string }>
+    handleSelectTool: (value: CodeCli) => void
   }) => (
     <button type="button" onClick={() => handleSelectTool(tools[0].value)}>
       open tool
@@ -189,7 +189,7 @@ vi.mock('../components/FieldLabel', () => ({
 beforeEach(() => {
   vi.clearAllMocks()
   testState.isBunInstalled = true
-  testState.selectedCliTool = codeCLI.githubCopilotCli
+  testState.selectedCliTool = CodeCli.GITHUB_COPILOT_CLI
   testState.selectedModel = null
   testState.canLaunch = true
   testState.codeCliRun.mockResolvedValue({ success: true })
@@ -258,7 +258,7 @@ function latestModelSelectorProps() {
 
 describe('CodeCliPage', () => {
   it('uses the shared model selector for non-copilot tools and writes selected ids back', async () => {
-    testState.selectedCliTool = codeCLI.qwenCode
+    testState.selectedCliTool = CodeCli.QWEN_CODE
 
     await openCodeToolDialog()
 
@@ -277,7 +277,7 @@ describe('CodeCliPage', () => {
   })
 
   it('does not pass malformed stored model ids to the shared model selector', async () => {
-    testState.selectedCliTool = codeCLI.qwenCode
+    testState.selectedCliTool = CodeCli.QWEN_CODE
     testState.selectedModel = 'legacy-model-id'
 
     await openCodeToolDialog()
@@ -286,7 +286,7 @@ describe('CodeCliPage', () => {
   })
 
   it('keeps the code-cli provider and model filter when using the shared model selector', async () => {
-    testState.selectedCliTool = codeCLI.qwenCode
+    testState.selectedCliTool = CodeCli.QWEN_CODE
     testState.providers = [
       makeProvider('openai'),
       makeProvider('anthropic', ENDPOINT_TYPE.ANTHROPIC_MESSAGES),
@@ -326,7 +326,7 @@ describe('CodeCliPage', () => {
   })
 
   it('keeps the OpenCode provider fallback equivalent to the pre-v2 frontend filter', async () => {
-    testState.selectedCliTool = codeCLI.openCode
+    testState.selectedCliTool = CodeCli.OPEN_CODE
     testState.providers = [
       makeProvider('openai-chat', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS),
       makeProvider('new-api', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, {
@@ -356,7 +356,7 @@ describe('CodeCliPage', () => {
   })
 
   it('does not render the model selector for GitHub Copilot CLI', async () => {
-    testState.selectedCliTool = codeCLI.githubCopilotCli
+    testState.selectedCliTool = CodeCli.GITHUB_COPILOT_CLI
 
     await openCodeToolDialog()
 

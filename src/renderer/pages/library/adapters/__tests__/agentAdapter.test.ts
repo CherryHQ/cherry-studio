@@ -28,7 +28,7 @@ describe('useAgentMutationsById', () => {
       refresh: ['/agents', '/agents/*']
     })
     expect(useMutationMock).toHaveBeenCalledWith('DELETE', '/agents/agent-1', {
-      refresh: ['/agents', '/agents/*']
+      refresh: ['/agents', '/agents/*', '/pins']
     })
   })
 })

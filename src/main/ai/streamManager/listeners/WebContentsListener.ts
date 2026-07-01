@@ -28,6 +28,7 @@ interface PendingDelta {
   type: 'text-delta' | 'reasoning-delta' | 'tool-input-delta'
   identifier: string
   sourceModelId: UniqueModelId | undefined
+  anchorMessageId: string | undefined
   text: string
 }
 
@@ -54,7 +55,7 @@ export class WebContentsListener implements StreamListener {
     this.wc.once('destroyed', () => this.discardPending())
   }
 
-  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId): void {
+  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string): void {
     if (this.wc.isDestroyed()) {
       this.discardPending()
       return
@@ -62,12 +63,13 @@ export class WebContentsListener implements StreamListener {
 
     const coalescable = toCoalescable(chunk)
     if (coalescable) {
-      const next = normalizePending(coalescable, sourceModelId)
+      const next = normalizePending(coalescable, sourceModelId, anchorMessageId)
       if (
         this.pending &&
         this.pending.type === next.type &&
         this.pending.identifier === next.identifier &&
-        this.pending.sourceModelId === next.sourceModelId
+        this.pending.sourceModelId === next.sourceModelId &&
+        this.pending.anchorMessageId === next.anchorMessageId
       ) {
         this.pending.text += next.text
         if (
@@ -86,7 +88,7 @@ export class WebContentsListener implements StreamListener {
     }
 
     this.flushPending()
-    this.sendChunk(chunk, sourceModelId)
+    this.sendChunk(chunk, sourceModelId, anchorMessageId)
   }
 
   onDone(result: StreamDoneResult): void {
@@ -98,6 +100,7 @@ export class WebContentsListener implements StreamListener {
     this.emit('ai.stream_done', {
       topicId: this.topicId,
       executionId: result.modelId,
+      anchorMessageId: result.anchorMessageId,
       status: result.status,
       isTopicDone: result.isTopicDone
     })
@@ -112,6 +115,7 @@ export class WebContentsListener implements StreamListener {
     this.emit('ai.stream_done', {
       topicId: this.topicId,
       executionId: result.modelId,
+      anchorMessageId: result.anchorMessageId,
       status: result.status,
       isTopicDone: result.isTopicDone
     })
@@ -127,6 +131,7 @@ export class WebContentsListener implements StreamListener {
     this.emit('ai.stream_error', {
       topicId: this.topicId,
       executionId: result.modelId,
+      anchorMessageId: result.anchorMessageId,
       isTopicDone: result.isTopicDone,
       error: result.error
     })
@@ -146,7 +151,7 @@ export class WebContentsListener implements StreamListener {
     const p = this.pending
     if (!p) return
     this.pending = null
-    this.sendChunk(rebuildChunk(p), p.sourceModelId)
+    this.sendChunk(rebuildChunk(p), p.sourceModelId, p.anchorMessageId)
   }
 
   private discardPending(): void {
@@ -157,11 +162,12 @@ export class WebContentsListener implements StreamListener {
     this.pending = null
   }
 
-  private sendChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId): void {
+  private sendChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string): void {
     if (this.wc.isDestroyed()) return
     this.emit('ai.stream_chunk', {
       topicId: this.topicId,
       executionId: sourceModelId,
+      anchorMessageId,
       chunk
     })
   }
@@ -188,12 +194,17 @@ function toCoalescable(chunk: UIMessageChunk): CoalescableChunk | null {
   return null
 }
 
-function normalizePending(chunk: CoalescableChunk, sourceModelId: UniqueModelId | undefined): PendingDelta {
+function normalizePending(
+  chunk: CoalescableChunk,
+  sourceModelId: UniqueModelId | undefined,
+  anchorMessageId: string | undefined
+): PendingDelta {
   if (chunk.type === 'tool-input-delta') {
     return {
       type: 'tool-input-delta',
       identifier: chunk.toolCallId,
       sourceModelId,
+      anchorMessageId,
       text: chunk.inputTextDelta
     }
   }
@@ -201,6 +212,7 @@ function normalizePending(chunk: CoalescableChunk, sourceModelId: UniqueModelId 
     type: chunk.type,
     identifier: chunk.id,
     sourceModelId,
+    anchorMessageId,
     text: chunk.delta
   }
 }

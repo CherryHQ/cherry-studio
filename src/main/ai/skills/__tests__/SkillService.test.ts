@@ -6,7 +6,6 @@ import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
-import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
 import { parseSkillMetadata } from '@main/utils/markdownParser'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -278,8 +277,6 @@ describe('SkillService', () => {
 
     beforeEach(() => {
       skillService = new SkillService()
-      vi.spyOn(skillService, 'linkSkill').mockResolvedValue(undefined)
-      vi.spyOn(skillService, 'unlinkSkill').mockResolvedValue(undefined)
     })
 
     it('returns null when skill does not exist', async () => {
@@ -309,83 +306,6 @@ describe('SkillService', () => {
       const [row] = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, SKILL_ID_1))
       expect(row?.isEnabled).toBe(false)
     })
-
-    it('reverses already-applied symlinks when a later workspace fails mid-loop', async () => {
-      await seedAgent()
-      await seedSkills()
-      vi.spyOn(skillService as never, 'getAgentSessionWorkspaces').mockResolvedValue(['/ws/one', '/ws/two'])
-      // First workspace links fine; second throws → the first must be unlinked.
-      const linkSpy = vi
-        .spyOn(skillService, 'linkSkill')
-        .mockResolvedValueOnce(undefined)
-        .mockRejectedValueOnce(new Error('symlink failed'))
-      const unlinkSpy = vi.spyOn(skillService, 'unlinkSkill').mockResolvedValue(undefined)
-
-      await expect(skillService.toggle({ agentId: AGENT_ID, skillId: SKILL_ID_1, isEnabled: true })).rejects.toThrow(
-        'symlink failed'
-      )
-
-      // The successfully-linked first workspace was reversed; the failed second was not.
-      expect(unlinkSpy).toHaveBeenCalledTimes(1)
-      expect(unlinkSpy).toHaveBeenCalledWith('skill-one', '/ws/one')
-      expect(linkSpy).toHaveBeenCalledTimes(2)
-
-      // DB row reverted back to disabled.
-      const [row] = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, SKILL_ID_1))
-      expect(row?.isEnabled).toBe(false)
-    })
-
-    it('rolls back DB and throws AggregateError when symlink + rollback both fail', async () => {
-      await seedAgent()
-      await seedSkills()
-      // Patch workspace lookup to return a fake workspace so linkSkill is attempted.
-      vi.spyOn(skillService as never, 'getAgentSessionWorkspaces').mockResolvedValue(['/fake/workspace'])
-      vi.spyOn(skillService, 'linkSkill').mockRejectedValue(new Error('symlink failed'))
-      // First call (enable) succeeds; second call (rollback) fails → AggregateError
-      vi.spyOn(agentGlobalSkillService, 'upsertJoin')
-        .mockResolvedValueOnce(undefined)
-        .mockRejectedValueOnce(new Error('rollback failed'))
-
-      await expect(
-        skillService.toggle({ agentId: AGENT_ID, skillId: SKILL_ID_1, isEnabled: true })
-      ).rejects.toBeInstanceOf(AggregateError)
-    })
-  })
-
-  describe('initSkillsForAgent', () => {
-    it('creates enabled agent_skill rows for all builtin skills', async () => {
-      const skillService = new SkillService()
-      await seedAgent()
-      await seedSkills()
-
-      // Pass undefined workspace to skip symlink ops
-      await skillService.initSkillsForAgent(AGENT_ID, undefined)
-
-      const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, AGENT_ID))
-
-      // Only the builtin skill should be seeded
-      expect(rows).toHaveLength(1)
-      expect(rows[0]).toMatchObject({ skillId: SKILL_ID_BUILTIN, isEnabled: true })
-    })
-
-    it('is a no-op when no builtin skills exist', async () => {
-      const skillService = new SkillService()
-      await seedAgent()
-      // Only insert marketplace skills
-      await dbh.db.insert(agentGlobalSkillTable).values({
-        id: SKILL_ID_1,
-        name: 'skill-one',
-        folderName: 'skill-one',
-        source: 'marketplace',
-        contentHash: 'abc123',
-        isEnabled: true
-      })
-
-      await skillService.initSkillsForAgent(AGENT_ID, undefined)
-
-      const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, AGENT_ID))
-      expect(rows).toHaveLength(0)
-    })
   })
 
   describe('uninstall', () => {
@@ -404,20 +324,6 @@ describe('SkillService', () => {
       const rows = await dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, SKILL_ID_1))
       expect(rows).toHaveLength(0)
       expect(skillService['installer'].uninstall).toHaveBeenCalledOnce()
-    })
-
-    it('removes symlinks for enabled agents before deleting', async () => {
-      const skillService = new SkillService()
-      await seedAgent()
-      await seedSkills()
-      await dbh.db.insert(agentSkillTable).values({ agentId: AGENT_ID, skillId: SKILL_ID_1, isEnabled: true })
-      vi.spyOn(skillService['installer'], 'uninstall').mockResolvedValue(undefined)
-      vi.spyOn(skillService as never, 'getAgentSessionWorkspaces').mockResolvedValue(['/fake/workspace'])
-      const unlinkSpy = vi.spyOn(skillService, 'unlinkSkill').mockResolvedValue(undefined)
-
-      await skillService.uninstall(SKILL_ID_1)
-
-      expect(unlinkSpy).toHaveBeenCalledWith('skill-one', '/fake/workspace')
     })
   })
 
@@ -520,6 +426,137 @@ describe('SkillService', () => {
       expect(rows).toHaveLength(1)
       expect(rows[0]?.source).toBe('builtin')
       expect(enableSpy).toHaveBeenCalledOnce()
+    })
+  })
+
+  describe('skill mirror', () => {
+    let skillService: SkillService
+    let dataSkillsRoot: string
+    let mirrorRoot: string
+    let restoreGetPath = () => {}
+
+    beforeEach(async () => {
+      skillService = new SkillService()
+      const root = await createTempDir('skill-mirror-')
+      dataSkillsRoot = path.join(root, 'Data', 'Skills')
+      mirrorRoot = path.join(root, '.claude', 'skills')
+      await fs.promises.mkdir(dataSkillsRoot, { recursive: true })
+      await fs.promises.mkdir(mirrorRoot, { recursive: true })
+      const spy = vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+        if (key === 'feature.agents.skills') return filename ? path.join(dataSkillsRoot, filename) : dataSkillsRoot
+        if (key === 'feature.agents.claude.skills') return filename ? path.join(mirrorRoot, filename) : mirrorRoot
+        return filename ? `/mock/${key}/${filename}` : `/mock/${key}`
+      })
+      restoreGetPath = () => spy.mockRestore()
+    })
+
+    afterEach(() => {
+      restoreGetPath()
+    })
+
+    async function writeLibrarySkill(folderName: string, body = '# Skill') {
+      const dir = path.join(dataSkillsRoot, folderName)
+      await fs.promises.mkdir(dir, { recursive: true })
+      await fs.promises.writeFile(path.join(dir, 'SKILL.md'), body)
+      return dir
+    }
+
+    it('linkMirror mirrors a library skill into the Claude config dir; unlinkMirror removes it', async () => {
+      await writeLibrarySkill('pdf')
+
+      await skillService.linkMirror('pdf')
+      await expect(fs.promises.access(path.join(mirrorRoot, 'pdf', 'SKILL.md'))).resolves.toBeUndefined()
+      expect((await fs.promises.lstat(path.join(mirrorRoot, 'pdf'))).isSymbolicLink()).toBe(true)
+
+      await skillService.unlinkMirror('pdf')
+      await expect(fs.promises.access(path.join(mirrorRoot, 'pdf'))).rejects.toThrow()
+    })
+
+    it('linkMirror replaces a broken mirror symlink', async () => {
+      await writeLibrarySkill('pdf')
+      await fs.promises.symlink(path.join(dataSkillsRoot, 'missing'), path.join(mirrorRoot, 'pdf'), 'dir')
+
+      await skillService.linkMirror('pdf')
+
+      await expect(fs.promises.access(path.join(mirrorRoot, 'pdf', 'SKILL.md'))).resolves.toBeUndefined()
+      expect(await fs.promises.realpath(path.join(mirrorRoot, 'pdf'))).toBe(
+        await fs.promises.realpath(path.join(dataSkillsRoot, 'pdf'))
+      )
+    })
+
+    it('linkMirror warns and skips when the library source files are missing', async () => {
+      const warnSpy = vi.spyOn(loggerService.withContext('SkillService'), 'warn').mockImplementation(() => undefined)
+      try {
+        await skillService.linkMirror('ghost')
+        expect(warnSpy).toHaveBeenCalledWith(
+          'Skill source files missing; skipping mirror',
+          expect.objectContaining({ folderName: 'ghost' })
+        )
+        await expect(fs.promises.access(path.join(mirrorRoot, 'ghost'))).rejects.toThrow()
+      } finally {
+        warnSpy.mockRestore()
+      }
+    })
+
+    it('uninstall removes the mirror entry', async () => {
+      await seedSkills()
+      vi.spyOn(skillService['installer'], 'uninstall').mockResolvedValue(undefined)
+      const unlinkSpy = vi.spyOn(skillService, 'unlinkMirror')
+
+      await skillService.uninstall(SKILL_ID_1)
+
+      expect(unlinkSpy).toHaveBeenCalledWith('skill-one')
+    })
+
+    it('reconcileSkills heals mirrors, prunes managed orphans, leaves user-dropped skills untouched', async () => {
+      // DB skill with files → mirrored. DB skill without files → warned, not mirrored.
+      await writeLibrarySkill('skill-one')
+      await dbh.db.insert(agentGlobalSkillTable).values([
+        {
+          id: SKILL_ID_1,
+          name: 'skill-one',
+          folderName: 'skill-one',
+          source: 'marketplace',
+          contentHash: 'a',
+          isEnabled: false
+        },
+        { id: SKILL_ID_2, name: 'gone', folderName: 'gone', source: 'marketplace', contentHash: 'b', isEnabled: false }
+      ])
+
+      // Managed-orphan: a mirror symlink into Data/Skills with no DB row → pruned.
+      await writeLibrarySkill('orphan')
+      await fs.promises.symlink(path.join(dataSkillsRoot, 'orphan'), path.join(mirrorRoot, 'orphan'), 'dir')
+
+      // User-dropped real skill (has SKILL.md) → left untouched, never adopted.
+      const dropped = path.join(mirrorRoot, 'dropped')
+      await fs.promises.mkdir(dropped, { recursive: true })
+      await fs.promises.writeFile(path.join(dropped, 'SKILL.md'), '# dropped')
+
+      const warnSpy = vi.spyOn(loggerService.withContext('SkillService'), 'warn').mockImplementation(() => undefined)
+
+      try {
+        await skillService.reconcileSkills()
+
+        // heal: DB skill with files is mirrored
+        await expect(fs.promises.access(path.join(mirrorRoot, 'skill-one', 'SKILL.md'))).resolves.toBeUndefined()
+        // warn: DB skill whose source files are missing
+        expect(warnSpy).toHaveBeenCalledWith(
+          'Skill source files missing; skipping mirror',
+          expect.objectContaining({ folderName: 'gone' })
+        )
+        // user-dropped: no DB row created, files left in place
+        const droppedRow = await dbh.db
+          .select()
+          .from(agentGlobalSkillTable)
+          .where(eq(agentGlobalSkillTable.folderName, 'dropped'))
+        expect(droppedRow).toHaveLength(0)
+        await expect(fs.promises.access(path.join(mirrorRoot, 'dropped', 'SKILL.md'))).resolves.toBeUndefined()
+        await expect(fs.promises.access(path.join(dataSkillsRoot, 'dropped'))).rejects.toThrow()
+        // prune: managed-orphan mirror entry removed
+        await expect(fs.promises.access(path.join(mirrorRoot, 'orphan'))).rejects.toThrow()
+      } finally {
+        warnSpy.mockRestore()
+      }
     })
   })
 })

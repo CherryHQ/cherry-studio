@@ -109,11 +109,7 @@ vi.mock('@cherrystudio/ui', () => {
   }
 })
 
-vi.mock('@renderer/config/env', () => ({
-  AppLogo: 'logo.png'
-}))
-
-vi.mock('@renderer/config/constant', () => ({
+vi.mock('@renderer/utils/platform', () => ({
   get isMac() {
     return platformState.isMac
   }

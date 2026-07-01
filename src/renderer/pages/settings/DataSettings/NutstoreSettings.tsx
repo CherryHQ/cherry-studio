@@ -4,8 +4,8 @@ import NutstorePathPopup from '@renderer/components/Popups/NutsorePathPopup'
 import Selector from '@renderer/components/Selector'
 import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
 import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
-import { useTheme } from '@renderer/context/ThemeProvider'
 import { useNutstoreSso } from '@renderer/hooks/useNutstoreSso'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import {
   backupToNutstore,

@@ -3,13 +3,10 @@
     "prefix": "rnfc",
     "body": [
       "import { FC } from 'react'",
-      "import styled from 'styled-components'",
       "",
       "const $1: FC = () => {",
-      "  return <Container></Container>",
+      "  return <div></div>",
       "}",
-      "",
-      "const Container = styled.div``",
       "",
       "export default $1",
       ""

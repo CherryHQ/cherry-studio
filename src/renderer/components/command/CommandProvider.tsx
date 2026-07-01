@@ -1,6 +1,5 @@
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { platform } from '@renderer/config/constant'
 import {
   type CommandHandler,
   type CommandHandlerOptions,
@@ -10,6 +9,7 @@ import {
   useCommandContextSnapshot
 } from '@renderer/hooks/command'
 import { getShortcutBindingFromKeyboardEvent } from '@renderer/utils/command'
+import { platform } from '@renderer/utils/platform'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import type { ContextReader, MenuPresentationMode, SupportedPlatform } from '@shared/types/command'
 import { type CommandId, REGISTERED_KEYBINDINGS, resolveCommandByKeybinding } from '@shared/utils/command'

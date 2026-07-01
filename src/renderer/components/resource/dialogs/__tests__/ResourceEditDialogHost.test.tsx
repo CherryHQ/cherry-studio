@@ -32,11 +32,11 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistantApiById: mocks.useAssistantApiById
 }))
 
-vi.mock('@renderer/hooks/agents/useAgent', () => ({
+vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgent: mocks.useAgent
 }))
 
-vi.mock('@renderer/hooks/agents/useAgentModelFilter', () => ({
+vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelFilter: () => vi.fn(() => true)
 }))
 

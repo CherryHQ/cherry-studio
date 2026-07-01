@@ -31,7 +31,8 @@ const mocks = vi.hoisted(() => ({
   captureUrlSnapshotFileMock: vi.fn(),
   captureNoteSnapshotFileMock: vi.fn(),
   rebuildMaterialMock: vi.fn(),
-  deleteMaterialMock: vi.fn(),
+  deleteMaterialsMock: vi.fn(),
+  reclaimSpaceMock: vi.fn(),
   listExistingEmbeddingHashesMock: vi.fn(),
   embedKnowledgeTextsMock: vi.fn(),
   loggerWarnMock: vi.fn(),
@@ -63,7 +64,8 @@ export const {
   captureUrlSnapshotFileMock,
   captureNoteSnapshotFileMock,
   rebuildMaterialMock,
-  deleteMaterialMock,
+  deleteMaterialsMock,
+  reclaimSpaceMock,
   listExistingEmbeddingHashesMock,
   embedKnowledgeTextsMock,
   loggerWarnMock,
@@ -368,13 +370,15 @@ beforeEach(() => {
   prepareKnowledgeItemMock.mockResolvedValue([createNoteItem('leaf-1', 'dir-1')])
   const indexStore = {
     rebuildMaterial: rebuildMaterialMock,
-    deleteMaterial: deleteMaterialMock,
+    deleteMaterials: deleteMaterialsMock,
+    reclaimSpace: reclaimSpaceMock,
     listExistingEmbeddingHashes: listExistingEmbeddingHashesMock
   }
   getIndexStoreMock.mockResolvedValue(indexStore)
   getIndexStoreIfExistsMock.mockResolvedValue(indexStore)
   rebuildMaterialMock.mockResolvedValue(undefined)
-  deleteMaterialMock.mockResolvedValue(undefined)
+  deleteMaterialsMock.mockResolvedValue(undefined)
+  reclaimSpaceMock.mockResolvedValue({ vacuumed: false, reclaimedBytes: 0 })
   // No vectors stored yet by default → every chunk is embedded (prior behavior).
   listExistingEmbeddingHashesMock.mockResolvedValue(new Set<string>())
   embedKnowledgeTextsMock.mockImplementation(async (_base: KnowledgeBase, values: string[]) =>

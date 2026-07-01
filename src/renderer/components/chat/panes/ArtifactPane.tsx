@@ -14,7 +14,7 @@ import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 import { joinPath } from '@renderer/utils/path'
 import type { FilePath } from '@shared/types/file/common'
 import type { DirectoryTreeOptions, TreeDir, TreeDirRoot, TreeNode } from '@shared/utils/file/tree'
-import { toFileUrl } from '@shared/utils/file/urlUtil'
+import { toFileUrl } from '@shared/utils/file/url'
 import { AlertCircle, FileText, Folder, FolderOpen, Maximize2, Minimize2, RotateCw, Sparkles } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import {

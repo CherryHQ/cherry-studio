@@ -22,7 +22,6 @@ const mockLoggerError = mockMainLoggerService.error
 const { application } = await import('@application')
 const { fileEntryService } = await import('@data/services/FileEntryService')
 const { fileRefService } = await import('@data/services/FileRefService')
-const { createDefaultOrphanCheckerRegistry } = await import('@main/services/file/orphanCheckerRegistry')
 const { write, writeIfUnchanged, writeByPath } = await import('../write')
 const { createInternal, ensureExternal } = await import('../../entry/create')
 const { StaleVersionError } = await import('../../../FileManager')
@@ -72,8 +71,7 @@ describe('internal/content/write', () => {
           cacheStore.delete(id as string)
         }),
         clear: vi.fn(() => cacheStore.clear())
-      },
-      orphanRegistry: createDefaultOrphanCheckerRegistry()
+      }
     }
   })
 

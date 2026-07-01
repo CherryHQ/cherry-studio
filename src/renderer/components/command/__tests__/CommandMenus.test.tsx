@@ -25,7 +25,7 @@ vi.mock('@data/hooks/usePreference', () => ({
   useMultiplePreferences: () => [preferenceValues, vi.fn()]
 }))
 
-vi.mock('@renderer/config/constant', () => ({
+vi.mock('@renderer/utils/platform', () => ({
   isMac: true,
   platform: 'darwin'
 }))

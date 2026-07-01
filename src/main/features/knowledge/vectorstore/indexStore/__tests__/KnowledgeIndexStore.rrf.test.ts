@@ -45,6 +45,7 @@ function createFakeDriver(vectorRows: Array<Record<string, SqlValue>>, bm25Rows:
   const driver: SqliteDriver = {
     execute,
     transaction: async (fn) => fn({ execute }),
+    reclaim: async () => ({ vacuumed: false, reclaimedBytes: 0 }),
     isClosed: () => false,
     close: async () => undefined
   }

@@ -13,7 +13,7 @@ import type { SettingsPath } from '@shared/data/types/settingsPath'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ApiGatewayStatusResult } from '@shared/types/apiGateway'
 import type { S3Config, WebDavConfig } from '@shared/types/backup'
-import type { GitBashPathInfo, TerminalConfig } from '@shared/types/codeCli'
+import type { TerminalConfig } from '@shared/types/codeCli'
 import type { CodeToolsRunResult, OperationResult } from '@shared/types/codeTools'
 import type { MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/types/command'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
@@ -142,12 +142,8 @@ const api = {
   system: {
     getDeviceType: () => ipcRenderer.invoke(IpcChannel.System_GetDeviceType),
     getHostname: () => ipcRenderer.invoke(IpcChannel.System_GetHostname),
-    getCpuName: () => ipcRenderer.invoke(IpcChannel.System_GetCpuName),
-    checkGitBash: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.System_CheckGitBash),
-    getGitBashPath: (): Promise<string | null> => ipcRenderer.invoke(IpcChannel.System_GetGitBashPath),
-    getGitBashPathInfo: (): Promise<GitBashPathInfo> => ipcRenderer.invoke(IpcChannel.System_GetGitBashPathInfo),
-    setGitBashPath: (newPath: string | null): Promise<boolean> =>
-      ipcRenderer.invoke(IpcChannel.System_SetGitBashPath, newPath)
+    getCpuName: () => ipcRenderer.invoke(IpcChannel.System_GetCpuName)
+    // Git Bash is resolved in the main process (settingsBuilder); no renderer API.
   },
   devTools: {
     toggle: () => ipcRenderer.invoke(IpcChannel.System_ToggleDevTools)

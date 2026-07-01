@@ -1,4 +1,4 @@
-import { ThemeProvider } from '@renderer/context/ThemeProvider'
+import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import type { FC } from 'react'
 
 import SelectionToolbar from './SelectionToolbar'
