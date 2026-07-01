@@ -41,6 +41,7 @@ import {
   disposeBranchTopicOnClose,
   toggleDisposition
 } from './Messages/BranchPanel/branchDisposition'
+import { projectPersistedBranchAnchorCandidates } from './Messages/BranchPanel/persistedAnchorProjection'
 import { scheduleForkTopicDeletion } from './Messages/BranchPanel/scheduleForkTopicDeletion'
 import { useBranchAnchorPersistence } from './Messages/BranchPanel/useBranchAnchorPersistence'
 import { usePersistedBranchAnchors } from './Messages/BranchPanel/usePersistedBranchAnchors'
@@ -100,7 +101,7 @@ const Chat: FC<Props> = (props) => {
 
   useBranchAnchorPersistence({ parentTopicId: props.activeTopic.id, branches })
   // P2 Step 2C: read persisted anchors only; Step 2D decides validation and highlight restoration.
-  usePersistedBranchAnchors(props.activeTopic.id)
+  const { anchors: persistedBranchAnchors } = usePersistedBranchAnchors(props.activeTopic.id)
 
   // P1-S2b-1: a fresh anchor APPENDS to branches (S1 replace semantics is
   // dropped). The new Branch starts with `topic: null` to mirror the
@@ -304,9 +305,13 @@ const Chat: FC<Props> = (props) => {
         selectionStart: b.source.offsets.start,
         selectionEnd: b.source.offsets.end,
         color: b.color
-      }))
+      })),
+      persistedAnchors: projectPersistedBranchAnchorCandidates({
+        persistedAnchors: persistedBranchAnchors,
+        branches
+      })
     }),
-    [branches]
+    [branches, persistedBranchAnchors]
   )
 
   const { setTimeoutTimer } = useTimer()

@@ -489,6 +489,8 @@ describe('MainTextBlock', () => {
     const getBlockScope = (blockId: string) => document.querySelector(`[data-block-id="${blockId}"]`)
     const getInjectedSpans = (blockId: string) =>
       getBlockScope(blockId)?.querySelectorAll('span.branch-anchor-highlight') ?? []
+    const renderedMarkdownText = (content: string) => `Markdown: ${content}`
+    const textOffset = (content: string, selectedText: string) => renderedMarkdownText(content).indexOf(selectedText)
     // P1-S1: BranchAnchorContext value shape generalized to { anchors: [...] }.
     // P1-S2a: each anchor now carries `color` too (palette key, drives
     // data-hl stamp on each injected span).
@@ -497,10 +499,27 @@ describe('MainTextBlock', () => {
     // assertions below.
     const TEST_BRANCH_ID = 'test-branch-1'
     const TEST_COLOR = 'c1' as const
+    const persistedHighlight = (
+      blockId: string,
+      selectedText: string,
+      selectionStart: number,
+      selectionEnd: number,
+      id = 'persisted-anchor-1',
+      color = 'c2' as const
+    ) => ({
+      id,
+      branchTopicId: `branch-topic-${id}`,
+      branchId: `persisted:${id}` as const,
+      blockId,
+      selectedText,
+      selectionStart,
+      selectionEnd,
+      color
+    })
     const highlight = (blockId: string | null, start = 0, end = 0, branchId = TEST_BRANCH_ID, color = TEST_COLOR) =>
       blockId === null
-        ? { anchors: [] }
-        : { anchors: [{ branchId, blockId, selectionStart: start, selectionEnd: end, color }] }
+        ? { anchors: [], persistedAnchors: [] }
+        : { anchors: [{ branchId, blockId, selectionStart: start, selectionEnd: end, color }], persistedAnchors: [] }
 
     it('injects no highlight spans when no BranchAnchorContext Provider is present (main chat default)', () => {
       const block = createMainTextBlock({ id: 'blk-A', content: 'plain body text' })
@@ -568,7 +587,8 @@ describe('MainTextBlock', () => {
         anchors: [
           { branchId: 'branch-A', blockId: 'blk-A', selectionStart: 0, selectionEnd: 5, color: 'c1' as const },
           { branchId: 'branch-B', blockId: 'blk-B', selectionStart: 0, selectionEnd: 6, color: 'c3' as const }
-        ]
+        ],
+        persistedAnchors: []
       }
       render(
         <Provider store={mockStore}>
@@ -621,7 +641,7 @@ describe('MainTextBlock', () => {
       }
       const { rerender } = render(
         <Provider store={mockStore}>
-          <BranchAnchorContext value={{ anchors: [anchorA, anchorB] }}>
+          <BranchAnchorContext value={{ anchors: [anchorA, anchorB], persistedAnchors: [] }}>
             <MainTextBlock block={blockA} role="assistant" messageId="msg-1" />
             <MainTextBlock block={blockB} role="assistant" messageId="msg-1" />
           </BranchAnchorContext>
@@ -642,7 +662,7 @@ describe('MainTextBlock', () => {
       // Close A: anchors drops to [B].
       rerender(
         <Provider store={mockStore}>
-          <BranchAnchorContext value={{ anchors: [anchorB] }}>
+          <BranchAnchorContext value={{ anchors: [anchorB], persistedAnchors: [] }}>
             <MainTextBlock block={blockA} role="assistant" messageId="msg-1" />
             <MainTextBlock block={blockB} role="assistant" messageId="msg-1" />
           </BranchAnchorContext>
@@ -655,6 +675,142 @@ describe('MainTextBlock', () => {
       expect(bSpansAfter).toHaveLength(bSpansBefore.length)
       expect(bSpansAfter.map((s) => s.textContent).join('')).toBe(bTextBefore)
       for (const s of bSpansAfter) expect(s.getAttribute('data-hl')).toBe('c3')
+    })
+
+    it('valid persisted offsets inject spans with persisted data-branch-id', () => {
+      const content = 'alpha beta gamma'
+      const block = createMainTextBlock({ id: 'blk-A', content })
+      const start = textOffset(content, 'beta')
+      const persistedAnchor = persistedHighlight('blk-A', 'beta', start, start + 'beta'.length)
+
+      render(
+        <Provider store={mockStore}>
+          <BranchAnchorContext value={{ anchors: [], persistedAnchors: [persistedAnchor] }}>
+            <MainTextBlock block={block} role="assistant" messageId="msg-A" />
+          </BranchAnchorContext>
+        </Provider>
+      )
+
+      const spans = Array.from(getInjectedSpans('blk-A'))
+      expect(spans.length).toBeGreaterThan(0)
+      expect(spans.map((span) => span.textContent).join('')).toBe('beta')
+      for (const span of spans) {
+        expect(span.getAttribute('data-branch-id')).toBe('persisted:persisted-anchor-1')
+        expect(span.getAttribute('data-hl')).toBe('c2')
+      }
+    })
+
+    it('persisted offset mismatch uses unique selectedText fallback and paints the fallback range', () => {
+      const content = 'alpha beta gamma'
+      const block = createMainTextBlock({ id: 'blk-A', content })
+      const persistedAnchor = persistedHighlight('blk-A', 'beta', 0, 4)
+
+      render(
+        <Provider store={mockStore}>
+          <BranchAnchorContext value={{ anchors: [], persistedAnchors: [persistedAnchor] }}>
+            <MainTextBlock block={block} role="assistant" messageId="msg-A" />
+          </BranchAnchorContext>
+        </Provider>
+      )
+
+      const spans = Array.from(getInjectedSpans('blk-A'))
+      expect(spans.length).toBeGreaterThan(0)
+      expect(spans.map((span) => span.textContent).join('')).toBe('beta')
+      for (const span of spans) {
+        expect(span.getAttribute('data-branch-id')).toBe('persisted:persisted-anchor-1')
+      }
+    })
+
+    it('ambiguous persisted selectedText fallback does not paint', () => {
+      const block = createMainTextBlock({ id: 'blk-A', content: 'alpha beta beta gamma' })
+      const persistedAnchor = persistedHighlight('blk-A', 'beta', 0, 4)
+
+      render(
+        <Provider store={mockStore}>
+          <BranchAnchorContext value={{ anchors: [], persistedAnchors: [persistedAnchor] }}>
+            <MainTextBlock block={block} role="assistant" messageId="msg-A" />
+          </BranchAnchorContext>
+        </Provider>
+      )
+
+      expect(getInjectedSpans('blk-A')).toHaveLength(0)
+    })
+
+    it('persisted selectedText not found does not paint', () => {
+      const block = createMainTextBlock({ id: 'blk-A', content: 'alpha gamma delta' })
+      const persistedAnchor = persistedHighlight('blk-A', 'missing', 0, 4)
+
+      render(
+        <Provider store={mockStore}>
+          <BranchAnchorContext value={{ anchors: [], persistedAnchors: [persistedAnchor] }}>
+            <MainTextBlock block={block} role="assistant" messageId="msg-A" />
+          </BranchAnchorContext>
+        </Provider>
+      )
+
+      expect(getInjectedSpans('blk-A')).toHaveLength(0)
+    })
+
+    it('live and persisted anchors can coexist without sharing ids or colors', () => {
+      const blockA = createMainTextBlock({ id: 'blk-A', content: 'live block body' })
+      const blockBContent = 'alpha beta gamma'
+      const blockB = createMainTextBlock({ id: 'blk-B', content: blockBContent })
+      const persistedStart = textOffset(blockBContent, 'beta')
+      const liveAnchor = {
+        branchId: 'branch-live',
+        blockId: 'blk-A',
+        selectionStart: 0,
+        selectionEnd: 8,
+        color: 'c1' as const
+      }
+      const persistedAnchor = persistedHighlight('blk-B', 'beta', persistedStart, persistedStart + 'beta'.length)
+
+      render(
+        <Provider store={mockStore}>
+          <BranchAnchorContext value={{ anchors: [liveAnchor], persistedAnchors: [persistedAnchor] }}>
+            <MainTextBlock block={blockA} role="assistant" messageId="msg-1" />
+            <MainTextBlock block={blockB} role="assistant" messageId="msg-1" />
+          </BranchAnchorContext>
+        </Provider>
+      )
+
+      const liveSpans = Array.from(getInjectedSpans('blk-A'))
+      const persistedSpans = Array.from(getInjectedSpans('blk-B'))
+      expect(liveSpans.length).toBeGreaterThan(0)
+      expect(persistedSpans.length).toBeGreaterThan(0)
+      for (const span of liveSpans) {
+        expect(span.getAttribute('data-branch-id')).toBe('branch-live')
+        expect(span.getAttribute('data-hl')).toBe('c1')
+      }
+      for (const span of persistedSpans) {
+        expect(span.getAttribute('data-branch-id')).toBe('persisted:persisted-anchor-1')
+        expect(span.getAttribute('data-hl')).toBe('c2')
+      }
+    })
+
+    it('removes persisted spans when persisted candidates disappear', () => {
+      const content = 'alpha beta gamma'
+      const block = createMainTextBlock({ id: 'blk-A', content })
+      const start = textOffset(content, 'beta')
+      const persistedAnchor = persistedHighlight('blk-A', 'beta', start, start + 'beta'.length)
+      const { rerender } = render(
+        <Provider store={mockStore}>
+          <BranchAnchorContext value={{ anchors: [], persistedAnchors: [persistedAnchor] }}>
+            <MainTextBlock block={block} role="assistant" messageId="msg-A" />
+          </BranchAnchorContext>
+        </Provider>
+      )
+      expect(getInjectedSpans('blk-A').length).toBeGreaterThan(0)
+
+      rerender(
+        <Provider store={mockStore}>
+          <BranchAnchorContext value={{ anchors: [], persistedAnchors: [] }}>
+            <MainTextBlock block={block} role="assistant" messageId="msg-A" />
+          </BranchAnchorContext>
+        </Provider>
+      )
+
+      expect(getInjectedSpans('blk-A')).toHaveLength(0)
     })
 
     it('removes all spans when anchor context flips to non-matching (deps-change cleanup)', () => {

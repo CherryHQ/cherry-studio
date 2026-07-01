@@ -6,6 +6,7 @@ import type { RootState } from '@renderer/store'
 import { selectFormattedCitationsByBlockId } from '@renderer/store/messageBlock'
 import { type Model } from '@renderer/types'
 import type { MainTextMessageBlock, Message } from '@renderer/types/newMessage'
+import { resolvePersistedBranchAnchorRange } from '@renderer/utils/branchAnchor/persistedAnchorResolver'
 import { clearSourceHighlight, paintSourceHighlight } from '@renderer/utils/branchAnchor/sourceHighlight'
 import { determineCitationSource, withCitationTags } from '@renderer/utils/citation'
 import React, { useCallback, useEffect, useMemo, useRef } from 'react'
@@ -39,16 +40,20 @@ const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions
   // single-anchor effect. S2 will add per-branch span tagging so multiple
   // matching anchors can coexist (today's paintSourceHighlight clears the
   // document first, which is only correct at length ≤ 1).
-  const { anchors } = useBranchAnchorHighlight()
+  const { anchors, persistedAnchors } = useBranchAnchorHighlight()
   const matchingAnchors = useMemo(
     () => anchors.filter((a) => a.blockId === block.id && a.selectionStart < a.selectionEnd),
     [anchors, block.id]
+  )
+  const matchingPersistedAnchors = useMemo(
+    () => persistedAnchors.filter((a) => a.blockId === block.id && a.selectionStart < a.selectionEnd),
+    [persistedAnchors, block.id]
   )
   const blockScopeRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const el = blockScopeRef.current
-    if (!el || matchingAnchors.length === 0) return
+    if (!el || (matchingAnchors.length === 0 && matchingPersistedAnchors.length === 0)) return
     // Paint now, then again next frame: the markdown subtree is normally
     // committed by the time this effect runs, but the rAF re-paint covers
     // any late DOM commit so the registered Range points at live nodes.
@@ -59,14 +64,33 @@ const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions
     // belong to other concurrently-open branches are left intact. At S1
     // invariant length ≤ 1 this is exactly one paint and one clear, byte-
     // equivalent to the pre-S2a path.
-    const paintedBranchIds = matchingAnchors.map((a) => a.branchId)
-    for (const a of matchingAnchors) {
-      paintSourceHighlight(el, a.selectionStart, a.selectionEnd, a.branchId, a.color)
-    }
-    const raf = requestAnimationFrame(() => {
+    const paintedBranchIds = [
+      ...matchingAnchors.map((a) => a.branchId),
+      ...matchingPersistedAnchors.map((a) => a.branchId)
+    ]
+
+    const paintAnchors = () => {
       for (const a of matchingAnchors) {
         paintSourceHighlight(el, a.selectionStart, a.selectionEnd, a.branchId, a.color)
       }
+
+      for (const a of matchingPersistedAnchors) {
+        const resolution = resolvePersistedBranchAnchorRange(el, a)
+        if (resolution.status !== 'hydrated') continue
+
+        paintSourceHighlight(
+          el,
+          resolution.resolvedSelectionStart,
+          resolution.resolvedSelectionEnd,
+          a.branchId,
+          a.color
+        )
+      }
+    }
+
+    paintAnchors()
+    const raf = requestAnimationFrame(() => {
+      paintAnchors()
     })
     return () => {
       cancelAnimationFrame(raf)
@@ -74,7 +98,7 @@ const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions
         clearSourceHighlight(id)
       }
     }
-  }, [matchingAnchors, block.content])
+  }, [matchingAnchors, matchingPersistedAnchors, block.content])
 
   const rawCitations = useSelector((state: RootState) => selectFormattedCitationsByBlockId(state, citationBlockId))
 

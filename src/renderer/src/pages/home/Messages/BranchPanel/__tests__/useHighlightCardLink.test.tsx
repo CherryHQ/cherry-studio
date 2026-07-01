@@ -20,6 +20,13 @@ function Harness({ onActivate = vi.fn() }: { onActivate?: (id: string) => void }
         <span className="branch-anchor-highlight" data-branch-id="X" data-hl="c1" data-testid="span-x">
           passage
         </span>{' '}
+        <span
+          className="branch-anchor-highlight"
+          data-branch-id="persisted:anchor-1"
+          data-hl="c2"
+          data-testid="span-persisted">
+          persisted
+        </span>{' '}
         suffix
       </p>
       <div data-testid="branch-pane-scroll">
@@ -78,6 +85,19 @@ describe('useHighlightCardLink (P1-S2d card↔highlight linkage)', () => {
 
     fireEvent.click(screen.getByTestId('span-x'))
     expect(onActivate).toHaveBeenCalledExactlyOnceWith('X')
+  })
+
+  it('clicking a persisted source span does not activate or hover a branch card', () => {
+    const onActivate = vi.fn()
+    render(<Harness onActivate={onActivate} />)
+    const persistedSpan = screen.getByTestId('span-persisted')
+
+    fireEvent.mouseOver(persistedSpan)
+    fireEvent.click(persistedSpan)
+
+    expect(screen.getByTestId('hovered').textContent).toBe('')
+    expect(persistedSpan.classList.contains('is-emphasized')).toBe(false)
+    expect(onActivate).not.toHaveBeenCalled()
   })
 
   it('ignores spans inside the branch panel for the highlight→card direction (cards own that)', () => {

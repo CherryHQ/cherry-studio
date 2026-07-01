@@ -51,7 +51,9 @@ function emphasizeSpans(branchId: string | null): void {
 
 function branchIdOfSpan(target: EventTarget | null): string | null {
   if (!(target instanceof Element)) return null
-  return target.closest(SPAN_SELECTOR)?.getAttribute('data-branch-id') ?? null
+  const branchId = target.closest(SPAN_SELECTOR)?.getAttribute('data-branch-id') ?? null
+  if (branchId?.startsWith('persisted:')) return null
+  return branchId
 }
 
 function isInsidePanel(target: EventTarget | null): boolean {

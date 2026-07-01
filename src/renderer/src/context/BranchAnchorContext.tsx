@@ -36,9 +36,29 @@ export interface BranchAnchorHighlight {
   color: BranchHlColorKey
 }
 
-/** Value carried by BranchAnchorContext — list of currently-open anchors. */
+export interface PersistedBranchAnchorCandidate {
+  /** Persisted branch_anchor row id. */
+  id: string
+  /** Topic id of the persisted branch conversation. */
+  branchTopicId: string
+  /** Deterministic DOM stamp id used by sourceHighlight spans. */
+  branchId: `persisted:${string}`
+  /** blockId of the source block this persisted branch is anchored to. */
+  blockId: string
+  /** Original selected text captured with the persisted anchor. */
+  selectedText: string
+  /** Persisted char offset of the selection start within the source block. */
+  selectionStart: number
+  /** Persisted char offset of the selection end within the source block. */
+  selectionEnd: number
+  /** Palette key used when repainting the persisted source highlight. */
+  color: BranchHlColorKey
+}
+
+/** Value carried by BranchAnchorContext — open live anchors plus persisted candidates. */
 export interface BranchAnchorContextValue {
   anchors: BranchAnchorHighlight[]
+  persistedAnchors: PersistedBranchAnchorCandidate[]
 }
 
 /**
@@ -69,7 +89,7 @@ declare global {
 
 function createBranchAnchorCtxCache(): BranchAnchorCtxCache {
   return {
-    context: createContext<BranchAnchorContextValue>({ anchors: [] })
+    context: createContext<BranchAnchorContextValue>({ anchors: [], persistedAnchors: [] })
   }
 }
 
@@ -83,5 +103,9 @@ export const BranchAnchorContext: React.Context<BranchAnchorContextValue> = cach
 
 /** Reader for `MainTextBlock`. Returns the default (empty anchors) when no Provider is above. */
 export function useBranchAnchorHighlight(): BranchAnchorContextValue {
-  return use(BranchAnchorContext)
+  const value = use(BranchAnchorContext)
+  return {
+    anchors: value.anchors,
+    persistedAnchors: value.persistedAnchors ?? []
+  }
 }
