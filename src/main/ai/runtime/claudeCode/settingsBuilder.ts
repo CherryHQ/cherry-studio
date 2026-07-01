@@ -70,7 +70,7 @@ import { app } from 'electron'
 
 import type { AgentRuntimeUserInput } from '../types'
 import { detectGlobalInstall } from './dependencyGuard'
-import { toolApprovalRegistry } from './ToolApprovalRegistry'
+import { decisionToPermissionResult, toolApprovalRegistry } from './ToolApprovalRegistry'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
@@ -762,7 +762,7 @@ async function buildToolPermissions(
         toolName,
         originalInput: input,
         signal: opts.signal,
-        resolve
+        resolve: (decision) => resolve(decisionToPermissionResult(decision, input))
       })
       emit({
         type: 'tool-approval-request',
