@@ -95,10 +95,6 @@ export const SIDEBAR_APPS: readonly SidebarApp[] = [
     routePrefix: '/app/translate'
   },
   {
-    id: 'store',
-    routePrefix: '/app/library'
-  },
-  {
     id: 'mini_app',
     routePrefix: '/app/mini-app',
     exactRouteFocus: true
