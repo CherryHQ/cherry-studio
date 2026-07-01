@@ -58,7 +58,6 @@ function countCacheMarkers(params: LanguageModelV3CallOptions): number {
 async function transform(
   input: Partial<LanguageModelV3CallOptions>,
   provider = makeProvider(),
-  model = makeModel(),
   assistant?: Assistant
 ): Promise<LanguageModelV3CallOptions> {
   return transformAnthropicCacheParams(
@@ -67,7 +66,6 @@ async function transform(
       ...input
     } as LanguageModelV3CallOptions,
     provider,
-    model,
     assistant
   )
 }
@@ -110,11 +108,10 @@ describe('transformAnthropicCacheParams', () => {
     expect(countCacheMarkers(out)).toBe(0)
   })
 
-  it('does not maintain model-specific threshold guesses', async () => {
+  it('uses the configured marker threshold without local model-specific guesses', async () => {
     const out = await transform(
       { prompt: [textMessage('system', 'x '.repeat(1500))] },
-      makeProvider({ enabled: true, tokenThreshold: 1024 }),
-      makeModel({ id: 'anthropic::claude-haiku-4-5', name: 'Claude Haiku 4.5' })
+      makeProvider({ enabled: true, tokenThreshold: 1024 })
     )
 
     expect(countCacheMarkers(out)).toBe(1)
@@ -183,7 +180,6 @@ describe('transformAnthropicCacheParams', () => {
         tools: [makeTool('mcp_tool', 6000)]
       },
       makeProvider(),
-      makeModel(),
       { id: 'a1', prompt: 'Current time: {{time}}' } as Assistant
     )
 

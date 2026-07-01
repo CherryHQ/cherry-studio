@@ -11,7 +11,6 @@ export interface EffectiveAnthropicCacheSettings {
   tokenThreshold: number
   cacheSystemMessage: boolean
   cacheLastNMessages: number
-  cacheToolDefinitions: boolean
 }
 
 export function resolveAnthropicCacheSettings(provider: Pick<Provider, 'settings'>): EffectiveAnthropicCacheSettings {
@@ -21,8 +20,7 @@ export function resolveAnthropicCacheSettings(provider: Pick<Provider, 'settings
       enabled: false,
       tokenThreshold: settings.tokenThreshold ?? ANTHROPIC_CACHE_DEFAULT_TOKEN_THRESHOLD,
       cacheSystemMessage: settings.cacheSystemMessage ?? true,
-      cacheLastNMessages: settings.cacheLastNMessages ?? ANTHROPIC_CACHE_DEFAULT_LAST_N_MESSAGES,
-      cacheToolDefinitions: true
+      cacheLastNMessages: settings.cacheLastNMessages ?? ANTHROPIC_CACHE_DEFAULT_LAST_N_MESSAGES
     }
   }
 
@@ -30,7 +28,6 @@ export function resolveAnthropicCacheSettings(provider: Pick<Provider, 'settings
     enabled: true,
     tokenThreshold: settings?.tokenThreshold ?? ANTHROPIC_CACHE_DEFAULT_TOKEN_THRESHOLD,
     cacheSystemMessage: settings?.cacheSystemMessage ?? true,
-    cacheLastNMessages: settings?.cacheLastNMessages ?? ANTHROPIC_CACHE_DEFAULT_LAST_N_MESSAGES,
-    cacheToolDefinitions: true
+    cacheLastNMessages: settings?.cacheLastNMessages ?? ANTHROPIC_CACHE_DEFAULT_LAST_N_MESSAGES
   }
 }

@@ -12,7 +12,7 @@ import type { LanguageModelV3CallOptions, LanguageModelV3FunctionTool, LanguageM
 import { definePlugin } from '@cherrystudio/ai-core'
 import { resolveAnthropicCacheSettings } from '@shared/ai/anthropicCache'
 import type { Assistant } from '@shared/data/types/assistant'
-import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { estimateTokenCount } from 'tokenx'
@@ -94,7 +94,7 @@ function createCacheBreakpointBudget(): CacheBreakpointBudget {
 }
 
 function hasCacheableContent(msg: LanguageModelV3Message): boolean {
-  return typeof msg.content === 'string' ? msg.content.length > 0 : msg.content.length > 0
+  return msg.content.length > 0
 }
 
 function sortToolsForCache(tools: LanguageModelV3CallOptions['tools']): LanguageModelV3CallOptions['tools'] {
@@ -140,10 +140,8 @@ function applyToolCacheMarker(
 export async function transformAnthropicCacheParams(
   params: LanguageModelV3CallOptions,
   provider: Provider,
-  model: Model,
   assistant: Assistant | undefined
 ): Promise<LanguageModelV3CallOptions> {
-  void model
   const settings = resolveAnthropicCacheSettings(provider)
   if (!settings.enabled) return params
   if (!Array.isArray(params.prompt) || params.prompt.length === 0) return params
@@ -166,9 +164,13 @@ export async function transformAnthropicCacheParams(
     }
   }
 
-  const tools = settings.cacheToolDefinitions
-    ? applyToolCacheMarker(sortedTools, toolPrefix.markerIndex, toolPrefix.totalTokens, settings.tokenThreshold, budget)
-    : sortedTools
+  const tools = applyToolCacheMarker(
+    sortedTools,
+    toolPrefix.markerIndex,
+    toolPrefix.totalTokens,
+    settings.tokenThreshold,
+    budget
+  )
 
   if (settings.cacheLastNMessages > 0) {
     const cumsumTokens: number[] = []
@@ -201,24 +203,20 @@ export async function transformAnthropicCacheParams(
   return { ...params, prompt: messages, tools }
 }
 
-function anthropicCacheMiddleware(
-  provider: Provider,
-  model: Model,
-  assistant: Assistant | undefined
-): LanguageModelMiddleware {
+function anthropicCacheMiddleware(provider: Provider, assistant: Assistant | undefined): LanguageModelMiddleware {
   return {
     specificationVersion: 'v3',
-    transformParams: async ({ params }) => transformAnthropicCacheParams(params, provider, model, assistant)
+    transformParams: async ({ params }) => transformAnthropicCacheParams(params, provider, assistant)
   }
 }
 
-function createAnthropicCachePlugin(provider: Provider, model: Model, assistant: Assistant | undefined) {
+function createAnthropicCachePlugin(provider: Provider, assistant: Assistant | undefined) {
   return definePlugin({
     name: 'anthropic-cache',
     enforce: 'pre',
     configureContext: (context) => {
       context.middlewares = context.middlewares || []
-      context.middlewares.push(anthropicCacheMiddleware(provider, model, assistant))
+      context.middlewares.push(anthropicCacheMiddleware(provider, assistant))
     }
   })
 }
@@ -227,5 +225,5 @@ export const anthropicCacheFeature: RequestFeature = {
   name: 'anthropic-cache',
   applies: (scope) =>
     scope.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES && resolveAnthropicCacheSettings(scope.provider).enabled,
-  contributeModelAdapters: (scope) => [createAnthropicCachePlugin(scope.provider, scope.model, scope.assistant)]
+  contributeModelAdapters: (scope) => [createAnthropicCachePlugin(scope.provider, scope.assistant)]
 }
