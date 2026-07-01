@@ -291,10 +291,11 @@ type ChatComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls' 
 type ChatComposerControlsRenderer = (props: ChatComposerControlProps) => ChatComposerControlSlots
 
 const renderChatToolbarControls: ChatComposerControlsRenderer = (props) => ({
-  renderLeftControls: (inputAdapter) => (
+  renderLeftControls: (inputAdapter, unifiedPanelControl) => (
     <ComposerToolbarControls
       inputAdapter={inputAdapter}
       newConversationAction={props.newConversationAction}
+      unifiedPanelControl={unifiedPanelControl}
       // Classic layout hides the assistant trigger (switching lives in the left rail), freeing the
       // toolbar's leading slot — so the tool menu sits before the context controls. Modern layout keeps
       // the trigger, so the menu stays after.
@@ -307,9 +308,13 @@ const renderChatToolbarControls: ChatComposerControlsRenderer = (props) => ({
 })
 
 const renderChatHomeControls: ChatComposerControlsRenderer = (props) => ({
-  renderLeftControls: (inputAdapter) => (
+  renderLeftControls: (inputAdapter, unifiedPanelControl) => (
     <div className={COMPOSER_TOOLBAR_CLASS}>
-      <ComposerToolMenuControls inputAdapter={inputAdapter} newConversationAction={props.newConversationAction} />
+      <ComposerToolMenuControls
+        inputAdapter={inputAdapter}
+        newConversationAction={props.newConversationAction}
+        unifiedPanelControl={unifiedPanelControl}
+      />
     </div>
   ),
   renderBelowControls: () => (

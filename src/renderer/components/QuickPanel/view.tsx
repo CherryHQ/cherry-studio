@@ -103,7 +103,9 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   const inputQueryConsumedRef = useRef(false)
   const prevPanelGenerationRef = useRef<number | undefined>(undefined)
   const inputTriggerSymbol = ctx.triggerInfo?.originalText?.slice(0, 1)
-  const isTrackedInputPanel = Boolean(ctx.trackInputQuery && ctx.triggerInfo?.type === 'input')
+  const isTrackedInputPanel = Boolean(
+    ctx.trackInputQuery && (ctx.triggerInfo?.type === 'input' || ctx.triggerInfo?.type === 'button')
+  )
   const activeSearchText = isTrackedInputPanel ? inputSearchText : ''
   const activeSearchQuery = getInputQueryText(activeSearchText, inputTriggerSymbol)
 
@@ -397,7 +399,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return
     }
 
-    if (!isInputQueryAnchorAllowed(text, queryAnchor)) {
+    if (ctx.triggerInfo?.type === 'input' && !isInputQueryAnchorAllowed(text, queryAnchor)) {
       closePanel('input_prefix_invalid')
       return
     }
@@ -457,7 +459,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return
     }
 
-    if (!isInputQueryAnchorAllowed(text, queryAnchor)) {
+    if (ctx.triggerInfo?.type === 'input' && !isInputQueryAnchorAllowed(text, queryAnchor)) {
       closePanel('input_prefix_invalid')
       return
     }

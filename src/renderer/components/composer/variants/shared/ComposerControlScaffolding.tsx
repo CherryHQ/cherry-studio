@@ -1,5 +1,6 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { ComposerActiveToolControls, ComposerToolMenu } from '@renderer/components/composer/ComposerToolRuntime'
+import type { ComposerUnifiedPanelControl } from '@renderer/components/composer/quickPanel'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { cn } from '@renderer/utils/style'
 import { MessageSquarePlus } from 'lucide-react'
@@ -42,15 +43,17 @@ const ComposerNewConversationButton = ({ action }: { action: ComposerNewConversa
 /** The shared "+" tool menu plus the active-tool controls rendered on the composer's left. */
 export const ComposerToolMenuControls = ({
   inputAdapter,
-  newConversationAction
+  newConversationAction,
+  unifiedPanelControl
 }: {
   inputAdapter?: QuickPanelInputAdapter
   newConversationAction?: ComposerNewConversationAction
+  unifiedPanelControl?: ComposerUnifiedPanelControl
 }) => {
   return (
     <>
       {newConversationAction ? <ComposerNewConversationButton action={newConversationAction} /> : null}
-      <ComposerToolMenu inputAdapter={inputAdapter} />
+      <ComposerToolMenu inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
       <ComposerActiveToolControls inputAdapter={inputAdapter} />
     </>
   )
@@ -61,11 +64,13 @@ export const ComposerToolbarControls = ({
   inputAdapter,
   newConversationAction,
   renderContextControls,
+  unifiedPanelControl,
   toolMenuPlacement = 'afterContext'
 }: {
   inputAdapter?: QuickPanelInputAdapter
   newConversationAction?: ComposerNewConversationAction
   renderContextControls: RenderContextControls
+  unifiedPanelControl?: ComposerUnifiedPanelControl
   toolMenuPlacement?: 'beforeContext' | 'afterContext'
 }) => {
   const { iconOnly, toolbarRef } = useComposerBottomToolbarIconOnly()
@@ -74,7 +79,7 @@ export const ComposerToolbarControls = ({
   if (toolMenuPlacement === 'beforeContext') {
     return (
       <div ref={toolbarRef} className={cn(COMPOSER_TOOLBAR_CLASS, 'w-full')}>
-        <ComposerToolMenuControls inputAdapter={inputAdapter} />
+        <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
         {newConversationAction ? <ComposerNewConversationButton action={newConversationAction} /> : null}
         {contextControls}
       </div>
@@ -86,7 +91,7 @@ export const ComposerToolbarControls = ({
       <div ref={toolbarRef} className={cn(COMPOSER_TOOLBAR_CLASS, 'w-full')}>
         <ComposerNewConversationButton action={newConversationAction} />
         {contextControls}
-        <ComposerToolMenuControls inputAdapter={inputAdapter} />
+        <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
       </div>
     )
   }
@@ -94,7 +99,7 @@ export const ComposerToolbarControls = ({
   return (
     <div ref={toolbarRef} className={cn(COMPOSER_TOOLBAR_CLASS, 'w-full')}>
       {contextControls}
-      <ComposerToolMenuControls inputAdapter={inputAdapter} />
+      <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
     </div>
   )
 }

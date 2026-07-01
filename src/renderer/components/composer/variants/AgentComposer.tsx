@@ -61,7 +61,7 @@ import {
   writeAgentDraftCache
 } from './agent/agentDraftCache'
 import { AgentLabel } from './agent/AgentLabel'
-import { useAgentResourceSuggestion } from './agent/useAgentResourceSuggestion'
+import { useAgentResourceSearchProvider } from './agent/useAgentResourceSuggestion'
 import {
   agentComposerTokenId,
   agentFileToComposerToken,
@@ -553,10 +553,11 @@ type AgentComposerControlsRenderer = (props: AgentComposerControlProps) => Agent
 // Active agent sessions are bound to their agent, so the agent trigger opens edit instead of switching.
 const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => {
   return {
-    renderLeftControls: (inputAdapter) => (
+    renderLeftControls: (inputAdapter, unifiedPanelControl) => (
       <ComposerToolbarControls
         inputAdapter={inputAdapter}
         newConversationAction={props.newConversationAction}
+        unifiedPanelControl={unifiedPanelControl}
         // Classic layout hides the agent trigger (switching lives in the left rail), freeing the toolbar's
         // leading slot — so the tool menu sits before the context controls. Modern layout keeps the
         // trigger, so the menu stays after.
@@ -574,9 +575,13 @@ const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => {
 
 const renderAgentHomeControls: AgentComposerControlsRenderer = (props) => {
   return {
-    renderLeftControls: (inputAdapter) => (
+    renderLeftControls: (inputAdapter, unifiedPanelControl) => (
       <div className={COMPOSER_TOOLBAR_CLASS}>
-        <ComposerToolMenuControls inputAdapter={inputAdapter} newConversationAction={props.newConversationAction} />
+        <ComposerToolMenuControls
+          inputAdapter={inputAdapter}
+          newConversationAction={props.newConversationAction}
+          unifiedPanelControl={unifiedPanelControl}
+        />
       </div>
     ),
     renderBelowControls: () => (
@@ -965,7 +970,7 @@ const AgentComposerInner = ({
     ]
   )
 
-  const suggestionSources = useAgentResourceSuggestion({
+  const resourceProvider = useAgentResourceSearchProvider({
     accessiblePaths,
     files,
     setFiles,
@@ -1073,7 +1078,8 @@ const AgentComposerInner = ({
         narrowMode={forceNarrowLayout || narrowMode}
         onActionsChange={handleSurfaceActionsChange}
         getToolLaunchers={() => getLaunchers()}
-        suggestionSources={suggestionSources}
+        suggestionSources={[]}
+        resourceProvider={resourceProvider}
         rootPanelAdditionalItems={rootPanelSkillItems}
         onRootPanelOpen={handleRootPanelOpen}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}

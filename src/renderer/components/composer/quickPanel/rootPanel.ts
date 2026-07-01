@@ -6,13 +6,13 @@ import type {
   QuickPanelTriggerInfo
 } from '@renderer/components/QuickPanel'
 
-import type { ComposerToolLauncher } from '../toolLauncher'
+import type { ComposerToolLauncher, ComposerToolLauncherSource } from '../toolLauncher'
 import { ComposerPanelSymbol } from './symbols'
 
 export type ComposerRootPanelSelectHandler = (
   launcher: ComposerToolLauncher,
   options: {
-    source: 'root-panel'
+    source: ComposerToolLauncherSource
     inputAdapter?: QuickPanelInputAdapter
     quickPanel: QuickPanelContextType
     triggerInfo?: QuickPanelTriggerInfo

@@ -913,6 +913,133 @@ describe('ComposerSurface', () => {
     expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
   })
 
+  it('opens the unified QuickPanel from the plus control without inserting trigger text', async () => {
+    const onTextChange = vi.fn()
+    render(
+      <ComposerSurface
+        {...baseProps}
+        text="hello"
+        onTextChange={onTextChange}
+        quickPanelEnabled
+        getToolLaunchers={() => [
+          {
+            id: 'attachment',
+            kind: 'command',
+            label: 'Attachment',
+            icon: 'paperclip',
+            sources: ['popover']
+          },
+          {
+            id: 'slash-command',
+            kind: 'command',
+            label: 'Slash command',
+            icon: 'slash',
+            sources: ['root-panel']
+          },
+          {
+            id: 'both',
+            kind: 'command',
+            label: 'Both',
+            icon: 'both',
+            sources: ['popover', 'root-panel']
+          }
+        ]}
+        renderLeftControls={(_inputAdapter, unifiedPanelControl) => (
+          <button type="button" aria-label="open plus panel" onClick={() => unifiedPanelControl?.open()}>
+            plus
+          </button>
+        )}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    fireEvent.click(screen.getByRole('button', { name: 'open plus panel' }))
+
+    expect(onTextChange).not.toHaveBeenCalled()
+    expect(mocks.quickPanelOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'settings.quickPanel.title',
+        symbol: '/',
+        queryAnchor: 0,
+        triggerInfo: {
+          type: 'button',
+          position: 0
+        },
+        trackInputQuery: true,
+        list: [
+          expect.objectContaining({ label: 'Attachment' }),
+          expect.objectContaining({ label: 'Both' }),
+          expect.objectContaining({ label: 'Slash command' })
+        ]
+      })
+    )
+  })
+
+  it('hides resource items for empty unified panel searches and appends them after commands for non-empty searches', async () => {
+    const resourceProvider = vi.fn(async () => [
+      {
+        id: 'file:notes',
+        label: 'notes.md',
+        description: '/workspace/notes.md',
+        icon: 'file'
+      }
+    ])
+
+    render(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        resourceProvider={resourceProvider}
+        getToolLaunchers={() => [
+          {
+            id: 'attachment',
+            kind: 'command',
+            label: 'Attachment',
+            icon: 'paperclip',
+            sources: ['popover']
+          },
+          {
+            id: 'slash-command',
+            kind: 'command',
+            label: 'Slash command',
+            icon: 'slash',
+            sources: ['root-panel']
+          }
+        ]}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    const rootSource = mocks.editorPresetOptions.suggestionSources[0]
+    const editor = {
+      state: {
+        doc: {
+          textBetween: vi.fn(() => '')
+        }
+      }
+    }
+
+    rootSource.onActiveChange({ editor, range: { from: 1, to: 2 }, query: '', text: '/', items: [] })
+
+    expect(resourceProvider).not.toHaveBeenCalled()
+    expect(mocks.quickPanelOpen).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        list: [expect.objectContaining({ label: 'Attachment' }), expect.objectContaining({ label: 'Slash command' })]
+      })
+    )
+
+    rootSource.onActiveChange({ editor, range: { from: 1, to: 7 }, query: 'notes', text: '/notes', items: [] })
+
+    await waitFor(() => expect(resourceProvider).toHaveBeenCalledWith('notes', expect.any(Object)))
+    expect(mocks.quickPanelUpdateList).toHaveBeenLastCalledWith([
+      expect.objectContaining({ label: 'Attachment' }),
+      expect.objectContaining({ label: 'Slash command' }),
+      expect.objectContaining({ id: 'file:notes', label: 'notes.md' })
+    ])
+  })
+
   it('bridges external suggestion sources into QuickPanel items', async () => {
     const command = vi.fn()
     const sourceOnKeyDown = vi.fn(() => false)

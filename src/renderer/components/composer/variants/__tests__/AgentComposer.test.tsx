@@ -718,7 +718,7 @@ describe('AgentComposer', () => {
     expect(screen.getByText('agent/deepseek-v4-flash')).toBeInTheDocument()
   })
 
-  it('provides workspace resources through the mention suggestion source', async () => {
+  it('provides workspace resources through the unified panel resource provider', async () => {
     mocks.listDirectory.mockResolvedValue(['/workspace/docs/notes.md', '/workspace/docs/notes.md'])
 
     render(
@@ -731,15 +731,22 @@ describe('AgentComposer', () => {
       />
     )
 
-    const resourceSource = mocks.surfaceProps?.suggestionSources?.[0]
-    expect(resourceSource).toEqual(
-      expect.objectContaining({
-        char: '@',
-        pluginKey: 'agent-resource-mention-suggestion'
-      })
-    )
+    const resourceProvider = mocks.surfaceProps?.resourceProvider
+    expect(resourceProvider).toEqual(expect.any(Function))
+    expect(mocks.surfaceProps?.suggestionSources).toEqual([])
 
-    const items = await resourceSource?.items({ query: 'notes', editor: {} as any })
+    const inputAdapter = {
+      getText: vi.fn(() => ''),
+      insertText: vi.fn(),
+      insertToken: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+    const emptyItems = await resourceProvider?.('', { inputAdapter, quickPanel: {} as any })
+    expect(emptyItems).toEqual([])
+    expect(mocks.listDirectory).not.toHaveBeenCalled()
+
+    const items = await resourceProvider?.('notes', { inputAdapter, quickPanel: {} as any })
     expect(mocks.listDirectory).toHaveBeenCalledWith(
       '/workspace',
       expect.objectContaining({
@@ -750,6 +757,7 @@ describe('AgentComposer', () => {
     )
     expect(items).toHaveLength(1)
     const item = items?.[0]
+    if (!item?.id) throw new Error('Expected a resource provider item')
     expect(items?.[0]).toEqual(
       expect.objectContaining({
         id: expect.stringMatching(/^file:.+/),
@@ -758,42 +766,29 @@ describe('AgentComposer', () => {
         disabled: false
       })
     )
-    expect(item?.id).not.toContain('/workspace/docs/notes.md')
+    expect(item.id).not.toContain('/workspace/docs/notes.md')
 
-    const run = vi.fn()
-    const insertContent = vi.fn(() => ({ run }))
-    const insertComposerToken = vi.fn(() => ({ insertContent }))
-    const editor = {
-      getJSON: () => ({ type: 'doc', content: [] }),
-      chain: () => ({
-        focus: () => ({
-          insertComposerToken
-        })
-      })
-    }
+    item.action?.({ action: 'enter', context: {} as any, item, inputAdapter })
 
-    items?.[0]?.command({ editor: editor as any, range: { from: 1, to: 7 }, item: items[0], query: 'notes' })
-
-    expect(insertComposerToken).toHaveBeenCalledWith(
+    expect(inputAdapter.insertToken).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: item?.id,
+        id: item.id,
         kind: 'file',
         label: 'notes.md',
         payload: expect.objectContaining({
-          fileTokenSourceId: item?.id.slice('file:'.length),
+          fileTokenSourceId: item.id.slice('file:'.length),
           path: '/workspace/docs/notes.md'
         })
       })
     )
-    expect(insertContent).toHaveBeenCalledWith(' ')
-    expect(run).toHaveBeenCalled()
+    expect(inputAdapter.focus).toHaveBeenCalled()
 
     const setFilesUpdater = mocks.setFiles.mock.calls.at(-1)?.[0]
     expect(typeof setFilesUpdater).toBe('function')
     const selectedFile = { id: '/workspace/docs/notes.md', path: '/workspace/docs/notes.md' } as FileMetadata
     expect(setFilesUpdater([])).toEqual([
       expect.objectContaining({
-        fileTokenSourceId: item?.id.slice('file:'.length),
+        fileTokenSourceId: item.id.slice('file:'.length),
         path: '/workspace/docs/notes.md'
       })
     ])
@@ -822,7 +817,10 @@ describe('AgentComposer', () => {
       />
     )
 
-    const items = await mocks.surfaceProps?.suggestionSources?.[0]?.items({ query: 'notes', editor: {} as any })
+    const items = await mocks.surfaceProps?.resourceProvider?.('notes', {
+      inputAdapter: undefined,
+      quickPanel: {} as any
+    })
     expect(items?.[0]).toEqual(
       expect.objectContaining({
         id: expect.stringMatching(/^file:.+/),
