@@ -30,7 +30,7 @@ const ImageToolbar = ({ pan, zoom, dialog, className }: ImageToolbarProps) => {
   return (
     <div
       className={classNames(
-        'preview-toolbar absolute right-[1em] bottom-[1em] z-[5] flex flex-col items-center gap-1 [&_.ant-btn]:leading-[0]',
+        'preview-toolbar absolute right-[1em] bottom-[1em] z-[5] flex flex-col items-center gap-1',
         className
       )}
       role="toolbar"

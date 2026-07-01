@@ -67,11 +67,11 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useQuery: hookMocks.useDataApiQuery
 }))
 
-vi.mock('@renderer/hooks/agents/useAgent', () => ({
+vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgents: hookMocks.useAgents
 }))
 
-vi.mock('@renderer/hooks/agents/useSession', () => ({
+vi.mock('@renderer/hooks/agent/useSession', () => ({
   useSessions: hookMocks.useSessions,
   useUpdateSession: hookMocks.useUpdateSession
 }))
@@ -134,12 +134,12 @@ vi.mock('@renderer/components/Popups/SaveToKnowledgePopup', () => ({
   default: { showForTopic: vi.fn() }
 }))
 
-vi.mock('@renderer/utils/copy', () => ({
+vi.mock('@renderer/services/CopyService', () => ({
   copyTopicAsMarkdown: vi.fn(),
   copyTopicAsPlainText: vi.fn()
 }))
 
-vi.mock('@renderer/utils/export', () => ({
+vi.mock('@renderer/services/ExportService', () => ({
   exportMarkdownToJoplin: vi.fn(),
   exportMarkdownToSiyuan: vi.fn(),
   exportMarkdownToYuque: vi.fn(),
@@ -246,7 +246,8 @@ function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessio
     orderKey: 'a',
     createdAt: '2026-05-13T08:00:00.000Z',
     updatedAt: '2026-05-14T08:00:00.000Z',
-    ...overrides
+    ...overrides,
+    isNameManuallyEdited: overrides.isNameManuallyEdited ?? false
   }
 }
 
@@ -828,7 +829,7 @@ describe('HistoryRecordsPage agent mode', () => {
 
     await vi.waitFor(() =>
       expect(hookMocks.updateSession).toHaveBeenCalledWith(
-        { id: 'session-alpha', name: 'Renamed session' },
+        { id: 'session-alpha', name: 'Renamed session', isNameManuallyEdited: true },
         { showSuccessToast: false }
       )
     )

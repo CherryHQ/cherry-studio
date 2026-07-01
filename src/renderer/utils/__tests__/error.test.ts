@@ -1,3 +1,5 @@
+import { IpcError } from '@shared/ipc/errors'
+import { aiErrorCodes, aiErrorDetail } from '@shared/ipc/errors/ai'
 import { describe, expect, it, vi } from 'vitest'
 
 import { formatErrorMessage, getErrorDetails, isAbortError, isTimeoutError, serializeHealthCheckError } from '../error'
@@ -106,6 +108,30 @@ describe('error', () => {
     })
   })
 
+  describe('aiErrorDetail', () => {
+    const providerDetail = {
+      name: 'AI_APICallError',
+      message: '401 Unauthorized',
+      stack: null,
+      statusCode: 401,
+      responseBody: 'invalid api key'
+    }
+
+    it('recovers the serialized provider detail from an AI_REQUEST_FAILED IpcError', () => {
+      const err = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, '401 Unauthorized', providerDetail)
+      expect(aiErrorDetail(err)).toBe(providerDetail)
+    })
+
+    it('returns undefined for a plain Error', () => {
+      expect(aiErrorDetail(new Error('boom'))).toBeUndefined()
+    })
+
+    it('returns undefined for an IpcError with a different code (no mislabeling of sibling IpcErrors)', () => {
+      const err = new IpcError('VALIDATION_FAILED', 'bad input', { issues: [] })
+      expect(aiErrorDetail(err)).toBeUndefined()
+    })
+  })
+
   describe('serializeHealthCheckError', () => {
     it('preserves plain Error message instead of stringifying to an empty object', () => {
       const error = new Error('Health check failed')
@@ -116,6 +142,33 @@ describe('error', () => {
         message: 'Health check failed'
       })
       expect(result.message).not.toBe('{}')
+    })
+
+    it('recovers the rich provider detail (status/body) from an AI_REQUEST_FAILED IpcError', () => {
+      const detail = {
+        name: 'AI_APICallError',
+        message: '500 upstream error',
+        stack: null,
+        statusCode: 500,
+        responseBody: 'upstream exploded'
+      }
+      const err = new IpcError(aiErrorCodes.AI_REQUEST_FAILED, '500 upstream error', detail)
+
+      const result = serializeHealthCheckError(err)
+
+      // The exact behaviour the migration delivers: rich `data`, not the flattened `message`.
+      expect(result).toBe(detail)
+      expect(result).toMatchObject({ statusCode: 500, responseBody: 'upstream exploded' })
+    })
+
+    it('falls through to message for an IpcError with a different code (does not leak its data)', () => {
+      const err = new IpcError('VALIDATION_FAILED', 'bad input', { issues: ['x'] })
+
+      const result = serializeHealthCheckError(err)
+
+      expect(result).toMatchObject({ name: 'IpcError', message: 'bad input' })
+      // The wrong-code discriminator must not surface the sibling IpcError's `data`.
+      expect((result as Record<string, unknown>).issues).toBeUndefined()
     })
   })
 

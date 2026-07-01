@@ -66,7 +66,8 @@ function createSession(overrides: Partial<AgentSessionEntity & { pinned: boolean
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     pinned: false,
-    ...overrides
+    ...overrides,
+    isNameManuallyEdited: overrides.isNameManuallyEdited ?? false
   } satisfies AgentSessionEntity & { pinned: boolean }
 }
 

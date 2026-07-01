@@ -1,5 +1,4 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
-import { ipcMain } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AiStreamManagerConfig, StreamListener } from '../types'
@@ -69,15 +68,19 @@ async function settleDispatch(index: number): Promise<void> {
 
 // ── Tests ───────────────────────────────────────────────────────────
 
+const runOnInit = (mgr: ManagerInstance) => (mgr as unknown as { onInit(): Promise<void> }).onInit()
+
 describe('AiStreamManager.dispatch — per-topic serialization', () => {
   let mgr: ManagerInstance
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
     dispatchEvents.length = 0
     dispatchResolvers.length = 0
     findPendingAssistantMessageIds.mockResolvedValue([])
     mgr = createManager()
+    // onInit resolves the reconcile gate `dispatch` awaits, so these lock tests run normally.
+    await runOnInit(mgr)
   })
 
   afterEach(() => {
@@ -117,83 +120,13 @@ describe('AiStreamManager.dispatch — per-topic serialization', () => {
   })
 })
 
-describe('AiStreamManager IPC handlers — boundary validation', () => {
-  let mgr: ManagerInstance
-  /** channel → registered IPC listener captured from the ipcMain.handle mock. */
-  const handlers = new Map<string, (event: unknown, ...args: unknown[]) => unknown>()
-  // WebContentsListener wires once()/isDestroyed() on the sender; stub a minimal shape.
-  const fakeEvent = { sender: { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() } } as unknown
+// Request-shape validation (non-string topicId, missing trigger / userMessageParts /
+// parentAnchorId) now lives in the IpcApi router's zod parse of `aiRequestSchemas`
+// ('ai.stream_*'), not in AiStreamManager — so it is no longer unit-tested here (a thin
+// schema contract; see ipc-usage.md "Testing"). The handler→service delegation is covered
+// in `src/main/ipc/handlers/__tests__/ai.test.ts`.
 
-  beforeEach(async () => {
-    vi.clearAllMocks()
-    dispatchEvents.length = 0
-    dispatchResolvers.length = 0
-    findPendingAssistantMessageIds.mockResolvedValue([])
-    handlers.clear()
-    vi.mocked(ipcMain.handle).mockImplementation(((channel: string, listener: never) => {
-      handlers.set(channel, listener as unknown as (event: unknown, ...args: unknown[]) => unknown)
-    }) as never)
-    mgr = createManager()
-    await (mgr as unknown as { onInit(): Promise<void> }).onInit()
-  })
-
-  afterEach(() => {
-    BaseService.resetInstances()
-  })
-
-  it('rejects Ai_Stream_Open with a non-string topicId before dispatching', async () => {
-    const open = handlers.get('ai:stream:open')!
-    await expect(open(fakeEvent, { trigger: 'submit-message', userMessageParts: [], topicId: 42 })).rejects.toThrow(
-      'Invalid Ai_Stream_Open request'
-    )
-    expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
-  })
-
-  it('rejects Ai_Stream_Open with a missing trigger before dispatching', async () => {
-    const open = handlers.get('ai:stream:open')!
-    await expect(open(fakeEvent, { topicId: 't', userMessageParts: [] })).rejects.toThrow(
-      'Invalid Ai_Stream_Open request'
-    )
-    expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
-  })
-
-  it('rejects a submit-message Ai_Stream_Open missing userMessageParts', async () => {
-    const open = handlers.get('ai:stream:open')!
-    await expect(open(fakeEvent, { trigger: 'submit-message', topicId: 't' })).rejects.toThrow(
-      'Invalid Ai_Stream_Open request'
-    )
-    expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
-  })
-
-  it('rejects a regenerate-message Ai_Stream_Open missing parentAnchorId', async () => {
-    const open = handlers.get('ai:stream:open')!
-    await expect(open(fakeEvent, { trigger: 'regenerate-message', topicId: 't' })).rejects.toThrow(
-      'Invalid Ai_Stream_Open request'
-    )
-    expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
-  })
-
-  it('dispatches a well-formed submit-message Ai_Stream_Open', async () => {
-    const open = handlers.get('ai:stream:open')!
-    void open(fakeEvent, { trigger: 'submit-message', topicId: 't', userMessageParts: [] })
-    await flush()
-    expect(mockDispatchStreamRequest).toHaveBeenCalledTimes(1)
-  })
-
-  it('returns not-found for an Ai_Stream_Attach with an empty topicId', () => {
-    const attach = handlers.get('ai:stream:attach')!
-    expect(attach(fakeEvent, { topicId: '' })).toEqual({ status: 'not-found' })
-  })
-
-  it('no-ops Ai_Stream_Abort with an invalid topicId', () => {
-    const abort = handlers.get('ai:stream:abort')!
-    const abortSpy = vi.spyOn(mgr, 'abort')
-    expect(abort(fakeEvent, { topicId: 99 })).toBeUndefined()
-    expect(abortSpy).not.toHaveBeenCalled()
-  })
-})
-
-describe('AiStreamManager.onInit — boot sweep ordering', () => {
+describe('AiStreamManager.dispatch — boot reconcile gate', () => {
   let mgr: ManagerInstance
 
   beforeEach(() => {
@@ -207,25 +140,35 @@ describe('AiStreamManager.onInit — boot sweep ordering', () => {
     BaseService.resetInstances()
   })
 
-  it('flips orphaned pending → error before the Ai_Stream_Open handler is registered', async () => {
-    const order: string[] = []
+  it('does not write a placeholder until the boot reconcile finishes, so a mid-boot open cannot race it', async () => {
+    // Hold the crash-orphan reconcile in flight.
+    let finishReconcile!: () => void
+    findPendingAssistantMessageIds.mockReturnValue(
+      new Promise<string[]>((resolve) => {
+        finishReconcile = () => resolve([])
+      })
+    )
+
+    const initPromise = runOnInit(mgr)
+    // A stream opens before reconcile resolves — dispatch must stay parked on the gate.
+    const dispatchPromise = mgr.dispatch(fakeSubscriber, openReq('t'))
+    await flush()
+    expect(dispatchEvents).toEqual([])
+    expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
+
+    // Reconcile completes → the gate opens and dispatch proceeds.
+    finishReconcile()
+    await initPromise
+    await flush()
+    expect(dispatchEvents).toEqual(['start:t:0'])
+
+    await settleDispatch(0)
+    await dispatchPromise
+  })
+
+  it('flips orphaned pending rows to error during the reconcile sweep', async () => {
     findPendingAssistantMessageIds.mockResolvedValue(['stale-1', 'stale-2'])
-    markMessagesError.mockImplementation(async (ids: string[]) => {
-      order.push(`sweep:${ids.join(',')}`)
-    })
-    vi.mocked(ipcMain.handle).mockImplementation(((channel: string) => {
-      order.push(`register:${channel}`)
-    }) as never)
-
-    await (mgr as unknown as { onInit(): Promise<void> }).onInit()
-
-    // Every stale row was flipped to `error` in one serialized write...
+    await runOnInit(mgr)
     expect(markMessagesError).toHaveBeenCalledWith(['stale-1', 'stale-2'])
-    // ...and that write completed before any IPC handler — including the open
-    // handler — was registered, so a fresh open can never race the sweep.
-    const sweepIdx = order.indexOf('sweep:stale-1,stale-2')
-    const openIdx = order.findIndex((e) => e === 'register:ai:stream:open')
-    expect(sweepIdx).toBeGreaterThanOrEqual(0)
-    expect(openIdx).toBeGreaterThan(sweepIdx)
   })
 })

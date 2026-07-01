@@ -1,8 +1,16 @@
+import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
+import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSkillTable } from '@data/db/schemas/agentSkill'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+// Importing the singleton loads AgentGlobalSkillService so it self-registers in the
+// data-service registry, which createAgent resolves lazily for skill validation/join.
+import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { agentService } from '@data/services/AgentService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { pinService } from '@data/services/PinService'
@@ -11,7 +19,7 @@ import { ErrorCode } from '@shared/data/api'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 vi.mock('@main/apiServer/services/mcp', () => ({
   mcpApiService: {
@@ -26,12 +34,6 @@ vi.mock('@main/apiServer/utils', () => ({
 vi.mock('@main/apiServer/services/models', () => ({
   modelsService: {
     getModels: vi.fn()
-  }
-}))
-
-vi.mock('@main/ai/skills/SkillService', () => ({
-  skillService: {
-    initSkillsForAgent: vi.fn()
   }
 }))
 
@@ -118,6 +120,13 @@ describe('AgentService', () => {
       .onConflictDoNothing()
   }
 
+  async function insertGlobalSkill(id: string, folderName?: string): Promise<void> {
+    await dbh.db
+      .insert(agentGlobalSkillTable)
+      .values({ id, name: id, folderName: folderName ?? id, source: 'local', contentHash: `hash-${id}` })
+      .onConflictDoNothing()
+  }
+
   describe('createAgent', () => {
     it('generates a UUID v4 agent ID', async () => {
       const agent = await agentService.createAgent({
@@ -143,6 +152,23 @@ describe('AgentService', () => {
         planModel: TEST_MODEL_ID,
         smallModel: TEST_MODEL_ID
       })
+    })
+
+    it('does not mislabel non-skill FK failures as stale selected skills', async () => {
+      await expect(
+        agentService.createAgent({
+          type: 'claude-code',
+          name: 'Missing Model',
+          model: 'anthropic::missing-model'
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'Agent' },
+        message: expect.not.stringContaining('selected skill no longer exists')
+      })
+
+      const agents = await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Missing Model'))
+      expect(agents).toHaveLength(0)
     })
 
     it('places newly created agents by default orderKey sort', async () => {
@@ -261,6 +287,82 @@ describe('AgentService', () => {
     })
   })
 
+  describe('skillIds round-trip', () => {
+    it('enables the provided global skills for the new agent on create', async () => {
+      await insertGlobalSkill('skill_a')
+      await insertGlobalSkill('skill_b')
+
+      const created = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'Skill Create',
+        model: TEST_MODEL_ID,
+        skillIds: ['skill_a', 'skill_b', 'skill_a'] // duplicate is deduped
+      })
+
+      const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, created.id))
+      expect(rows.map((r) => r.skillId).sort()).toEqual(['skill_a', 'skill_b'])
+      expect(rows.every((r) => r.isEnabled)).toBe(true)
+    })
+
+    it('writes no skill rows when skillIds is omitted or empty', async () => {
+      const omitted = await agentService.createAgent({ type: 'claude-code', name: 'No Skills', model: TEST_MODEL_ID })
+      const empty = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'Empty Skills',
+        model: TEST_MODEL_ID,
+        skillIds: []
+      })
+
+      for (const id of [omitted.id, empty.id]) {
+        const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, id))
+        expect(rows).toHaveLength(0)
+      }
+    })
+
+    it('rejects with NOT_FOUND and persists no agent when a skillId does not exist', async () => {
+      await expect(
+        agentService.createAgent({
+          type: 'claude-code',
+          name: 'Bad Skill',
+          model: TEST_MODEL_ID,
+          skillIds: ['does_not_exist']
+        })
+      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+      const agents = await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Bad Skill'))
+      expect(agents).toHaveLength(0)
+    })
+
+    it('reports a stale selected skill if the FK races after pre-validation', async () => {
+      await insertGlobalSkill('skill_race')
+      const originalGetById = agentGlobalSkillService.getById.bind(agentGlobalSkillService)
+      const getByIdSpy = vi.spyOn(agentGlobalSkillService, 'getById').mockImplementationOnce(async (skillId) => {
+        const skill = await originalGetById(skillId)
+        await dbh.db.delete(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, skillId))
+        return skill
+      })
+
+      try {
+        await expect(
+          agentService.createAgent({
+            type: 'claude-code',
+            name: 'Raced Skill',
+            model: TEST_MODEL_ID,
+            skillIds: ['skill_race']
+          })
+        ).rejects.toMatchObject({
+          code: ErrorCode.INVALID_OPERATION,
+          message: expect.stringContaining('selected skill no longer exists')
+        })
+      } finally {
+        getByIdSpy.mockRestore()
+      }
+
+      const agents = await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Raced Skill'))
+      expect(agents).toHaveLength(0)
+    })
+  })
+
   describe('deleteAgent', () => {
     it('hard-deletes an agent and removes the row', async () => {
       const { id } = await insertAgent({ id: 'agent_regular_test_001' })
@@ -282,6 +384,78 @@ describe('AgentService', () => {
 
       const remaining = await pinService.listByEntityType('agent')
       expect(remaining.map((p) => p.entityId)).toEqual([otherPin.entityId])
+    })
+
+    it('deletes agent sessions atomically when requested', async () => {
+      const { id } = await insertAgent({ id: 'agent_with_sessions_001' })
+      const otherAgent = await insertAgent({ id: 'agent_with_sessions_002' })
+      await dbh.db.insert(agentWorkspaceTable).values([
+        { id: 'workspace-agent-delete-1', name: 'Workspace 1', path: '/tmp/agent-delete-1', orderKey: 'a0' },
+        { id: 'workspace-agent-delete-2', name: 'Workspace 2', path: '/tmp/agent-delete-2', orderKey: 'a1' }
+      ])
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'session-delete-with-agent',
+          agentId: id,
+          name: '',
+          workspaceId: 'workspace-agent-delete-1',
+          orderKey: 'a0'
+        },
+        {
+          id: 'session-keep-with-other-agent',
+          agentId: otherAgent.id,
+          name: '',
+          workspaceId: 'workspace-agent-delete-2',
+          orderKey: 'a1'
+        }
+      ])
+
+      const deleted = await agentService.deleteAgent(id, { deleteSessions: true })
+
+      expect(deleted).toBe(true)
+      const agentRows = await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))
+      expect(agentRows).toHaveLength(0)
+      const sessionRows = await dbh.db.select().from(agentSessionTable)
+      expect(sessionRows.map((row) => row.id)).toEqual(['session-keep-with-other-agent'])
+    })
+
+    it('rolls back the already-deleted sessions when a later delete step fails', async () => {
+      const { id } = await insertAgent({ id: 'agent_delete_rollback_001' })
+      await dbh.db
+        .insert(agentWorkspaceTable)
+        .values({ id: 'workspace-rollback-1', name: 'Workspace', path: '/tmp/agent-rollback-1', orderKey: 'a0' })
+      await dbh.db.insert(agentSessionTable).values({
+        id: 'session-rollback-1',
+        agentId: id,
+        name: '',
+        workspaceId: 'workspace-rollback-1',
+        orderKey: 'a0'
+      })
+
+      // Run the delete inside a real transaction so a mid-transaction failure rolls back;
+      // the default DbService mock just passes the callback through without one.
+      ;(application.get('DbService').withWriteTx as Mock).mockImplementationOnce(async (fn) =>
+        dbh.db.transaction(fn as never)
+      )
+      // Fail *after* deleteByAgentIdTx has already removed the session rows, so the assertions
+      // below can only pass if that earlier delete is rolled back with the agent delete.
+      const deleteAgentSpy = vi
+        .spyOn(agentService, 'deleteAgentTx')
+        .mockRejectedValueOnce(new Error('agent delete failed'))
+
+      try {
+        await expect(agentService.deleteAgent(id, { deleteSessions: true })).rejects.toThrow('agent delete failed')
+      } finally {
+        deleteAgentSpy.mockRestore()
+      }
+
+      const agentRows = await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))
+      expect(agentRows).toHaveLength(1)
+      const sessionRows = await dbh.db
+        .select()
+        .from(agentSessionTable)
+        .where(eq(agentSessionTable.id, 'session-rollback-1'))
+      expect(sessionRows).toHaveLength(1)
     })
   })
 

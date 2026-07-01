@@ -35,7 +35,7 @@
 
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
-import { isDev } from '@renderer/config/constant'
+import { isDev } from '@renderer/utils/platform'
 import type {
   ApiPath,
   BodyForPath,

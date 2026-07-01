@@ -2,9 +2,8 @@ import type { ResolvedAction } from '@renderer/components/chat/actions/actionTyp
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
+import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/services/CopyService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Topic } from '@renderer/types/topic'
-import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/utils/copy'
 import {
   exportMarkdownToJoplin,
   exportMarkdownToSiyuan,
@@ -13,7 +12,8 @@ import {
   exportTopicToNotes,
   exportTopicToNotion,
   topicToMarkdown
-} from '@renderer/utils/export'
+} from '@renderer/services/ExportService'
+import type { Topic } from '@renderer/types/topic'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import type { TFunction } from 'i18next'
 import { useCallback, useMemo } from 'react'

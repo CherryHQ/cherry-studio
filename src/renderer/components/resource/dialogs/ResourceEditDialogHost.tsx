@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
-import { useAgent } from '@renderer/hooks/agents/useAgent'
-import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
+import { useAgent } from '@renderer/hooks/agent/useAgent'
+import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAssistantApiById } from '@renderer/hooks/useAssistant'
 import { useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'

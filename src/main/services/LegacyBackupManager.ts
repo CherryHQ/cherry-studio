@@ -21,7 +21,7 @@ import { loggerService } from '@logger'
 import { WindowType } from '@main/core/window/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { S3Config, WebDavConfig } from '@shared/types/backup'
-import archiver from 'archiver'
+import { ZipArchive } from 'archiver'
 import { app } from 'electron'
 import * as fs from 'fs-extra'
 import StreamZip from 'node-stream-zip'
@@ -245,7 +245,7 @@ class BackupManager {
       // Step 5: Create ZIP archive
       const backupedFilePath = path.join(destinationPath, fileName)
       const output = fs.createWriteStream(backupedFilePath)
-      const archive = archiver('zip', {
+      const archive = new ZipArchive({
         zlib: { level: 1 }, // Use lowest compression level for speed (same as legacy backup)
         zip64: true
       })
@@ -343,7 +343,7 @@ class BackupManager {
       const output = fs.createWriteStream(backupedFilePath)
 
       // Create archiver instance, enable ZIP64 support
-      const archive = archiver('zip', {
+      const archive = new ZipArchive({
         zlib: { level: 1 }, // Use lowest compression level for speed
         zip64: true // Enable ZIP64 support for large files
       })

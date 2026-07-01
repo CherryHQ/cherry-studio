@@ -1,9 +1,14 @@
 import { loggerService } from '@logger'
-import type { ExternalAppInfo } from '@shared/types/externalApp'
-import { EXTERNAL_APPS } from '@shared/utils/externalApp'
+import type { ExternalAppConfig, ExternalAppInfo } from '@shared/types/externalApp'
 import { app } from 'electron'
 
 const logger = loggerService.withContext('ExternalAppsService')
+
+const EXTERNAL_APPS = [
+  { id: 'vscode', name: 'Visual Studio Code', protocol: 'vscode://', tags: ['code-editor'] },
+  { id: 'cursor', name: 'Cursor', protocol: 'cursor://', tags: ['code-editor'] },
+  { id: 'zed', name: 'Zed', protocol: 'zed://', tags: ['code-editor'] }
+] as const satisfies ExternalAppConfig[]
 
 class ExternalAppsService {
   private cache: { apps: ExternalAppInfo[]; timestamp: number } | null = null

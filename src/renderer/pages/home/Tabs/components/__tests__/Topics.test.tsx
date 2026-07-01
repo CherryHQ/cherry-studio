@@ -98,7 +98,7 @@ const tabsContextMocks = vi.hoisted(() => ({
   tabs: [] as Array<{ id: string; type: string; url: string }>
 }))
 
-vi.mock('@renderer/context/TabsContext', () => ({
+vi.mock('@renderer/hooks/tab', () => ({
   useOptionalTabsContext: () => ({
     openTab: tabsContextMocks.openTab,
     setActiveTab: tabsContextMocks.setActiveTab,
@@ -206,8 +206,7 @@ vi.mock('@renderer/components/Popups/SaveToKnowledgePopup', () => ({
   default: { showForTopic: vi.fn() }
 }))
 
-vi.mock('@renderer/utils/export', () => ({
-  copyTopicAsMarkdown: vi.fn(),
+vi.mock('@renderer/services/ExportService', () => ({
   exportMarkdownToJoplin: vi.fn(),
   exportMarkdownToSiyuan: vi.fn(),
   exportMarkdownToYuque: vi.fn(),
@@ -217,7 +216,7 @@ vi.mock('@renderer/utils/export', () => ({
   topicToMarkdown: vi.fn().mockResolvedValue('# topic')
 }))
 
-vi.mock('@renderer/utils/copy', () => ({
+vi.mock('@renderer/services/CopyService', () => ({
   copyTopicAsMarkdown: vi.fn(),
   copyTopicAsPlainText: vi.fn()
 }))
@@ -246,6 +245,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.group.expand_all') return 'Expand all'
       if (key === 'chat.topics.search.placeholder') return 'Search conversations'
       if (key === 'chat.topics.search.title') return 'Search conversations'
+      if (key === 'history.records.shortTitle') return 'History'
       if (key === 'chat.topics.pin') return 'Pin Conversation'
       if (key === 'chat.topics.unpin') return 'Unpin Conversation'
       if (key === 'chat.topics.auto_rename') return 'Generate conversation name'
@@ -435,19 +435,28 @@ type OnNewTopicMock = Mock<(payload?: { assistantId?: string | null }) => void>
 
 function renderTopicList({
   activeTopic = createRendererTopic(),
+  assistantIdFilter,
   onNewTopic = vi.fn(),
+  onOpenHistoryRecords = vi.fn(),
+  presentation,
   revealRequest
 }: {
   activeTopic?: Topic
+  assistantIdFilter?: string | null
   onNewTopic?: OnNewTopicMock
+  onOpenHistoryRecords?: Mock<() => void>
+  presentation?: 'sidebar' | 'right-panel'
   revealRequest?: ResourceListRevealRequest
 } = {}) {
   const setActiveTopic = vi.fn()
   const renderNode = (nextRevealRequest = revealRequest, nextActiveTopic = activeTopic) => (
     <Topics
       activeTopic={nextActiveTopic}
+      assistantIdFilter={assistantIdFilter}
       setActiveTopic={setActiveTopic}
       onNewTopic={onNewTopic}
+      onOpenHistoryRecords={onOpenHistoryRecords}
+      presentation={presentation}
       revealRequest={nextRevealRequest}
     />
   )
@@ -455,15 +464,11 @@ function renderTopicList({
   return {
     ...view,
     onNewTopic,
+    onOpenHistoryRecords,
     rerenderTopicList: (nextRevealRequest = revealRequest, nextActiveTopic = activeTopic) =>
       view.rerender(renderNode(nextRevealRequest, nextActiveTopic)),
     setActiveTopic
   }
-}
-
-function openTopicListOptions() {
-  fireEvent.click(screen.getByLabelText('Display mode'))
-  return screen.getAllByTestId('popover-content').find((element) => element.className.includes('w-44'))
 }
 
 function getTopicRow(topicName: string) {
@@ -694,6 +699,40 @@ describe('Topics', () => {
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
   })
 
+  it('shows a new conversation placeholder for empty topic names', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({
+              id: 'topic-empty',
+              name: '',
+              assistantId: 'assistant-1',
+              orderKey: 'a',
+              createdAt: '2026-01-03T01:00:00.000Z',
+              updatedAt: '2026-01-03T01:00:00.000Z'
+            })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+    const { setActiveTopic } = renderTopicList()
+
+    expect(screen.getByText('Today')).toBeInTheDocument()
+    fireEvent.click(screen.getByTitle('chat.conversation.new'))
+
+    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-empty', name: '' }))
+  })
+
   it('hides inline delete for the last remaining unpinned topic', () => {
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
@@ -767,6 +806,29 @@ describe('Topics', () => {
     ).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'chat.conversation.new' })).toHaveLength(1)
     expect(onNewTopic).not.toHaveBeenCalled()
+  })
+
+  it('uses only the redesigned search control in right panel mode', () => {
+    renderTopicList({ assistantIdFilter: 'assistant-1', presentation: 'right-panel' })
+
+    expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Display mode')).not.toBeInTheDocument()
+
+    // Behavior: the right panel exposes the search control and drops the sidebar's new/display-mode
+    // affordances. (Styling specifics intentionally not pinned here.)
+    expect(screen.getByRole('textbox', { name: 'Search conversations' })).toBeInTheDocument()
+  })
+
+  it('forces time grouping in the right panel even when the assistant display mode is stored', () => {
+    // beforeEach stores topic.tab.display_mode: 'assistant'. The classic right panel is the parent
+    // switch and must ignore the stored display mode, grouping strictly by time. The observable
+    // consequence is that assistant grouping is never engaged, so the assistants list (only needed
+    // for assistant grouping) is not fetched. Reverting `isRightPanel ? 'time' : …` would flip
+    // isAssistantDisplayMode to true here and enable that query.
+    renderTopicList({ assistantIdFilter: 'assistant-1', presentation: 'right-panel' })
+
+    const assistantsQueryCall = mockUseQuery.mock.calls.find(([path]) => path === '/assistants')
+    expect(assistantsQueryCall?.[1]).toMatchObject({ enabled: false })
   })
 
   it('pins from the trailing row button without selecting the topic', async () => {
@@ -1062,6 +1124,124 @@ describe('Topics', () => {
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-c'))
   })
 
+  it('selects the same assistant neighbouring topic after deleting the active topic in the right panel', async () => {
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({
+              id: 'topic-a1-first',
+              name: 'A1 First',
+              assistantId: 'assistant-1',
+              orderKey: 'a',
+              createdAt: '2026-01-03T01:00:00.000Z',
+              updatedAt: '2026-01-03T01:00:00.000Z'
+            }),
+            createApiTopic({
+              id: 'topic-a1-second',
+              name: 'A1 Second',
+              assistantId: 'assistant-1',
+              orderKey: 'b',
+              createdAt: '2026-01-02T01:00:00.000Z',
+              updatedAt: '2026-01-02T01:00:00.000Z'
+            }),
+            createApiTopic({
+              id: 'topic-a2-first',
+              name: 'A2 First',
+              assistantId: 'assistant-2',
+              orderKey: 'c',
+              createdAt: '2026-01-01T01:00:00.000Z',
+              updatedAt: '2026-01-01T01:00:00.000Z'
+            })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    const { setActiveTopic } = renderTopicList({
+      assistantIdFilter: 'assistant-1',
+      presentation: 'right-panel',
+      activeTopic: createRendererTopic({ id: 'topic-a1-second', assistantId: 'assistant-1', name: 'A1 Second' })
+    })
+
+    const topicRow = screen.getByText('A1 Second').closest('[role="option"]')
+    const deleteButton = within(topicRow as HTMLElement).getByLabelText('Delete')
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-second'))
+    await vi.waitFor(() =>
+      expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a1-first' }))
+    )
+    expect(setActiveTopic).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-a2-first' }))
+  })
+
+  it('starts an assistant-scoped draft after deleting the active assistant last topic in the right panel', async () => {
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({
+              id: 'topic-a1-only',
+              name: 'A1 Only',
+              assistantId: 'assistant-1',
+              orderKey: 'a',
+              createdAt: '2026-01-03T01:00:00.000Z',
+              updatedAt: '2026-01-03T01:00:00.000Z'
+            }),
+            createApiTopic({
+              id: 'topic-a2-first',
+              name: 'A2 First',
+              assistantId: 'assistant-2',
+              orderKey: 'b',
+              createdAt: '2026-01-02T01:00:00.000Z',
+              updatedAt: '2026-01-02T01:00:00.000Z'
+            })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    const { onNewTopic, setActiveTopic } = renderTopicList({
+      assistantIdFilter: 'assistant-1',
+      presentation: 'right-panel',
+      activeTopic: createRendererTopic({ id: 'topic-a1-only', assistantId: 'assistant-1', name: 'A1 Only' })
+    })
+
+    const topicRow = screen.getByText('A1 Only').closest('[role="option"]')
+    const deleteButton = within(topicRow as HTMLElement).getByLabelText('Delete')
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-only'))
+    expect(setActiveTopic).not.toHaveBeenCalled()
+    expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
+  })
+
   it('keeps topic rows compact and only renders the title field in the sidebar list', () => {
     renderTopicList()
 
@@ -1072,13 +1252,15 @@ describe('Topics', () => {
     expect(screen.queryByText(/^Prompt:/)).not.toBeInTheDocument()
   })
 
-  it('keeps inactive topic stream indicator in the action slot and opens fulfilled topics', () => {
+  it('keeps inactive topic stream indicator visible and opens fulfilled topics', () => {
     setTopicStreamCacheStatus('topic-c', 'pending')
     let view = renderTopicList()
     let setActiveTopic = view.setActiveTopic
 
     let topicRow = getTopicRow('Gamma topic')
-    let indicator = topicRow.querySelector('[data-testid="topic-stream-indicator"] .animation-pulse')
+    let indicatorRoot = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
+    let indicator = indicatorRoot?.querySelector('.animation-pulse')
+    expect(indicatorRoot).not.toHaveClass('absolute')
     expect(indicator).toHaveClass('bg-(--color-warning)')
     expect(topicRow.querySelector('[data-deleting]')).not.toBeInTheDocument()
     expect(topicStreamStatusMocks.markSeen).not.toHaveBeenCalled()
@@ -1089,7 +1271,9 @@ describe('Topics', () => {
     setActiveTopic = view.setActiveTopic
 
     topicRow = getTopicRow('Gamma topic')
-    indicator = topicRow.querySelector('[data-testid="topic-stream-indicator"] span')
+    indicatorRoot = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
+    indicator = indicatorRoot?.querySelector('span')
+    expect(indicatorRoot).not.toHaveClass('absolute')
     expect(indicator).toHaveClass('bg-(--color-success)')
     expect(indicator).not.toHaveClass('animation-pulse')
     expect(topicRow.querySelector('[data-deleting]')).not.toBeInTheDocument()
@@ -1105,6 +1289,23 @@ describe('Topics', () => {
     topicRow = getTopicRow('Gamma topic')
     expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).not.toBeInTheDocument()
     expect(topicRow.querySelector('[aria-label="Pin Conversation"]')).toBeInTheDocument()
+  })
+
+  it('positions inactive topic stream indicators at the far right in the classic layout and hides them on hover', () => {
+    setTopicStreamCacheStatus('topic-c', 'pending')
+    renderTopicList({
+      activeTopic: createRendererTopic({ id: 'topic-a', assistantId: 'assistant-1', name: 'Alpha topic' }),
+      assistantIdFilter: 'assistant-2',
+      presentation: 'right-panel'
+    })
+
+    const topicRow = getTopicRow('Gamma topic')
+    const indicator = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
+
+    expect(indicator).toBeInTheDocument()
+    expect(indicator).toHaveClass('absolute', 'right-1.5', 'group-hover:opacity-0')
+    expect(indicator?.querySelector('span')).toHaveClass('animation-pulse', 'bg-(--color-warning)')
+    expect(within(topicRow).getByLabelText('Delete')).toBeInTheDocument()
   })
 
   it('marks only completed active topic streams as seen', () => {
@@ -1220,7 +1421,7 @@ describe('Topics', () => {
     expect(screen.getByRole('button', { name: 'Collapse conversations' })).toBeInTheDocument()
   })
 
-  it('collapses assistant groups from the display options menu', async () => {
+  it('hides assistant group bulk actions from the topic options menu', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
@@ -1255,7 +1456,7 @@ describe('Topics', () => {
       mutate: vi.fn()
     })
 
-    const { rerenderTopicList } = renderTopicList({
+    renderTopicList({
       activeTopic: createRendererTopic({
         id: 'assistant-1-topic-1',
         assistantId: 'assistant-1',
@@ -1265,32 +1466,13 @@ describe('Topics', () => {
 
     expect(screen.getByText('Alpha topic 1')).toBeInTheDocument()
     expect(screen.getByText('Beta topic 1')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
-    const collapseAllButton = screen.getByRole('button', { name: 'Collapse all' })
-    expect(collapseAllButton.querySelector('svg')).toHaveClass('lucide-chevrons-down-up')
-    fireEvent.click(collapseAllButton)
-    await vi.waitFor(() => {
-      expect(getTopicGroupExpansionCache().assistant).toEqual(
-        expect.arrayContaining(['topic:assistant:assistant-1', 'topic:assistant:assistant-2'])
-      )
-    })
-    rerenderTopicList()
-
-    expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByText('Alpha topic 1')).not.toBeInTheDocument()
-    expect(screen.queryByText('Beta topic 1')).not.toBeInTheDocument()
     expect(getTopicGroupExpansionCache().assistant).not.toContain(TOPIC_ASSISTANT_SECTION_ID)
-    expect(getTopicGroupExpansionCache().assistant).toEqual(
-      expect.arrayContaining(['topic:assistant:assistant-1', 'topic:assistant:assistant-2'])
-    )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
-    const expandAllButton = screen.getByRole('button', { name: 'Expand all' })
-    expect(expandAllButton).toBeInTheDocument()
-    // Icon flips with the action: expand state shows the opposite chevrons.
-    expect(expandAllButton.querySelector('svg')).toHaveClass('lucide-chevrons-up-down')
+    // The assistant header exposes a direct history button and no bulk-action menu.
+    expect(screen.getByRole('button', { name: 'History' })).toBeInTheDocument()
+    expect(screen.queryByText('Display mode')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Collapse all' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Expand all' })).not.toBeInTheDocument()
   })
 
   it('does not show the assistant section toggle action in time display mode', () => {
@@ -1312,9 +1494,8 @@ describe('Topics', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show more conversations' }))
 
     expect(
-      screen.getAllByRole('button', { name: 'Assistant' }).some((button) => button.hasAttribute('aria-expanded'))
+      screen.queryAllByRole('button', { name: 'Assistant' }).some((button) => button.hasAttribute('aria-expanded'))
     ).toBe(false)
-    fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
     expect(screen.queryByRole('button', { name: 'Collapse all' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Collapse conversations' })).toHaveTextContent('Collapse conversations')
   })
@@ -1418,34 +1599,23 @@ describe('Topics', () => {
     expect(screen.getByRole('button', { name: 'Pinned' })).toHaveAttribute('aria-expanded', 'true')
   })
 
-  it('renders the topic header controls and persists display mode selection', () => {
-    renderTopicList()
+  it('renders the topic header history action without display mode controls', () => {
+    const { onOpenHistoryRecords } = renderTopicList()
 
     expect(screen.getByTestId('resource-list-topic')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Search conversations')).not.toBeInTheDocument()
 
     expect(screen.queryByLabelText('Manage topics')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Display mode')).not.toBeInTheDocument()
 
-    const displayModeContent = openTopicListOptions()
-    expect(displayModeContent).toHaveClass('w-44', 'p-1')
-    // Each options item now renders a leading icon.
-    expect(displayModeContent?.querySelector('svg')).not.toBeNull()
-    expect(screen.getByText('Display mode')).toHaveClass('text-xs', 'font-medium', 'text-muted-foreground')
-    // Options items rely on MenuItem's built-in `size="sm"` styling; the ad-hoc 11px override is gone.
-    expect(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Time' })).not.toHaveClass(
-      'text-[11px]'
-    )
-    expect(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Time' })).toBeInTheDocument()
-    expect(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Assistant' })).toBeInTheDocument()
-    expect(
-      within(displayModeContent as HTMLElement).queryByRole('button', { name: 'Manage topics' })
-    ).not.toBeInTheDocument()
+    // The assistant header shows a direct history button (no options popover / display-mode controls).
+    const historyButton = screen.getByRole('button', { name: 'History' })
+    expect(historyButton.querySelector('svg')).not.toBeNull()
+    expect(historyButton).not.toHaveClass('text-[11px]')
+    expect(screen.queryByText('Display mode')).not.toBeInTheDocument()
 
-    fireEvent.click(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Time' }))
-    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('time')
-
-    const nextDisplayModeContent = openTopicListOptions()
-    fireEvent.click(within(nextDisplayModeContent as HTMLElement).getByRole('button', { name: 'Assistant' }))
+    fireEvent.click(historyButton)
+    expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1)
     expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('assistant')
   })
 
@@ -1739,6 +1909,10 @@ describe('Topics', () => {
     expect(screen.getByRole('button', { name: 'Default Assistant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Beta Assistant' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Alpha Assistant' }).querySelector('[data-resource-list-leading-slot="true"]')
+        ?.firstElementChild
+    ).toHaveClass('rounded-full')
     expect(screen.queryByRole('button', { name: 'Gamma Assistant' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Unlinked Assistant' })).not.toBeInTheDocument()
     const assistantSectionButton = screen

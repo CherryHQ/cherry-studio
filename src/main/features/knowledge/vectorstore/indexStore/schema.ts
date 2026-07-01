@@ -11,10 +11,14 @@ import type { SqliteExecutor } from './types'
  *
  * Demand-first surface: tables and enum values ship together with their first
  * writer. Planned v2.x surface (material provenance relations, editable index
- * entries, watcher-driven origins/states) is NOT pre-created — since this DDL
- * replays under `IF NOT EXISTS` on every open and the index is a rebuildable
- * derived artifact, adding a table or widening a CHECK later is a zero-cost
- * additive change, while pre-created vocabulary would lock in guesses.
+ * entries, watcher-driven origins/states) is NOT pre-created, while pre-created
+ * vocabulary would lock in guesses. Adding a NEW table later is zero-cost (its
+ * `CREATE TABLE IF NOT EXISTS` simply runs on the next open). Changing an
+ * EXISTING table is NOT — `IF NOT EXISTS` is a no-op once the table exists, so a
+ * new column or a widened CHECK never reaches an already-created file. Such a
+ * change must bump {@link KNOWLEDGE_INDEX_SCHEMA_VERSION}; the store-open path
+ * then drops and recreates this rebuildable derived index (see
+ * {@link resetKnowledgeIndexSchema} and KnowledgeVectorStoreService).
  *
  * Engine portability (technical-design §5.6 / decision A1):
  * - All DDL is plain, engine-neutral SQLite — no engine-specific column types
@@ -36,9 +40,11 @@ import type { SqliteExecutor } from './types'
  *   `message.ts` pattern. `kind` is filtered via the rowid join back to
  *   `search_text`, not stored in the FTS table (so triggers stay minimal).
  * - `search_text_id` is a TEXT business primary key, so it does NOT alias the
- *   SQLite rowid. The FTS table uses `search_text`'s implicit `rowid`; callers
- *   MUST join `search_text_fts.rowid = search_text.rowid` and never treat
- *   `search_text_id` as the FTS rowid (technical-design §4.7 / §6.2).
+ *   SQLite rowid. The FTS table keys on `search_text.fts_rowid` (a stable integer
+ *   surrogate the AFTER INSERT trigger assigns), NOT the implicit `rowid`; callers
+ *   MUST join `search_text_fts.rowid = search_text.fts_rowid`. Keying on the
+ *   implicit rowid would silently desync this external-content index whenever a
+ *   VACUUM or table rebuild renumbers it (technical-design §4.7 / §6.2).
  *
  * Foreign keys: this schema relies on `ON DELETE CASCADE` / `SET NULL`. SQLite
  * enforces foreign keys only when `PRAGMA foreign_keys = ON` is set per
@@ -47,8 +53,18 @@ import type { SqliteExecutor } from './types'
  * module only declares the schema.
  */
 
-/** Bump when the schema layout changes; persisted in `meta.schema_version`. */
-export const KNOWLEDGE_INDEX_SCHEMA_VERSION = 1
+/**
+ * Bump when the physical layout of an EXISTING table changes (new column, widened
+ * CHECK, retargeted FTS content_rowid, rewritten trigger) — anything `CREATE ...
+ * IF NOT EXISTS` cannot retrofit onto an already-created file. The store-open path
+ * compares this to the stored `meta.schema_version` and, on a mismatch, drops and
+ * recreates the index (a rebuildable derived artifact) before applying the DDL.
+ * Adding a brand-new table needs no bump (its IF NOT EXISTS just runs).
+ *
+ * History: 1 → 2 — `search_text` gained the `fts_rowid` surrogate and the FTS table
+ * was re-keyed from the implicit rowid onto it (#16132-class desync fix).
+ */
+export const KNOWLEDGE_INDEX_SCHEMA_VERSION = 2
 
 /**
  * Ordered, idempotent DDL for the per-base index database. Every statement uses
@@ -124,6 +140,11 @@ export const KNOWLEDGE_INDEX_SCHEMA_STATEMENTS: readonly string[] = [
   // search_text — unified retrieval-text projection shared by FTS and embedding.
   // target_type/kind each carry a single value today (unit body text); richer
   // projections (titles, editable index entries) join the CHECKs with their writers.
+  // fts_rowid is the stable integer key search_text_fts indexes on (content_rowid='fts_rowid'),
+  // NOT the implicit rowid. It is a real column, so VACUUM and any INSERT...SELECT rebuild copy it
+  // verbatim and the external-content FTS stays aligned by construction. Nullable by design: the
+  // AFTER INSERT trigger fills it after the row exists (a NOT NULL column would reject the row
+  // before the trigger runs). Never set by app code; like rowid it is a local-only physical id.
   `CREATE TABLE IF NOT EXISTS search_text (
     search_text_id TEXT PRIMARY KEY,
     target_type TEXT NOT NULL CHECK (target_type IN ('search_unit')),
@@ -131,11 +152,16 @@ export const KNOWLEDGE_INDEX_SCHEMA_STATEMENTS: readonly string[] = [
     kind TEXT NOT NULL CHECK (kind IN ('body')),
     text TEXT NOT NULL,
     embedding_text_hash TEXT NOT NULL,
+    fts_rowid INTEGER,
     created_at INTEGER NOT NULL
   )`,
   `CREATE UNIQUE INDEX IF NOT EXISTS search_text_target_kind_idx ON search_text(target_type, target_id, kind)`,
   `CREATE INDEX IF NOT EXISTS search_text_embedding_hash_idx ON search_text(embedding_text_hash)`,
   `CREATE INDEX IF NOT EXISTS search_text_kind_idx ON search_text(kind)`,
+  // UNIQUE so its backing index makes the trigger's per-row MAX(fts_rowid)+1 an O(log N) lookup and
+  // rejects any duplicate loudly (the assignment is race-free only because the driver serializes
+  // writes through its write mutex — see LibsqlDriver).
+  `CREATE UNIQUE INDEX IF NOT EXISTS search_text_fts_rowid_uniq ON search_text(fts_rowid)`,
 
   // embedding — current embedding vector keyed by embedding-text hash.
   // vector_blob is a plain BLOB of raw little-endian float32 bytes (NOT F32_BLOB),
@@ -147,28 +173,33 @@ export const KNOWLEDGE_INDEX_SCHEMA_STATEMENTS: readonly string[] = [
   )`,
 
   // search_text_fts — external-content FTS5 over search_text.text, trigram tokenizer.
-  // Uses search_text's implicit rowid (content_rowid='rowid'); join on rowid to recover columns.
-  // NOTE (latent hazard, deferred): keying on the implicit rowid would silently desync if
-  // search_text were ever VACUUMed or rebuilt via INSERT...SELECT — the same class of bug the chat
-  // message_fts tables fixed by switching to a stable `fts_rowid` column (see schemas/message.ts).
-  // Safe today only because this derived per-base index.sqlite is never VACUUMed and has no
-  // table-rebuild/RENAME path (DDL replays via IF NOT EXISTS; rebuildMaterial is row-level). If
-  // that ever changes, migrate this table to a stable integer key too.
+  // Keys on the stable `fts_rowid` column (content_rowid='fts_rowid'), NOT the implicit rowid, so
+  // VACUUM and INSERT...SELECT rebuilds — both of which renumber the implicit rowid — keep the
+  // index aligned by construction (the same fix the chat message_fts tables use; see
+  // schemas/message.ts). Join back on fts_rowid to recover columns; `kind` is filtered via that
+  // join, not stored in the FTS table (so triggers stay minimal).
   `CREATE VIRTUAL TABLE IF NOT EXISTS search_text_fts USING fts5(
     text,
     content='search_text',
-    content_rowid='rowid',
+    content_rowid='fts_rowid',
     tokenize='trigram'
   )`,
+  // Assign fts_rowid here (not in app code) so every insert path is covered; the SELECT reads the
+  // freshly-assigned value back (NEW.fts_rowid is still NULL at AFTER INSERT time). The fts_rowid-only
+  // UPDATE does not fire search_text_au (which is scoped to UPDATE OF text).
   `CREATE TRIGGER IF NOT EXISTS search_text_ai AFTER INSERT ON search_text BEGIN
-    INSERT INTO search_text_fts(rowid, text) VALUES (NEW.rowid, NEW.text);
+    UPDATE search_text SET fts_rowid = (SELECT COALESCE(MAX(fts_rowid), 0) + 1 FROM search_text)
+      WHERE search_text_id = NEW.search_text_id;
+    INSERT INTO search_text_fts(rowid, text)
+    SELECT fts_rowid, text FROM search_text WHERE search_text_id = NEW.search_text_id;
   END`,
   `CREATE TRIGGER IF NOT EXISTS search_text_ad AFTER DELETE ON search_text BEGIN
-    INSERT INTO search_text_fts(search_text_fts, rowid, text) VALUES ('delete', OLD.rowid, OLD.text);
+    INSERT INTO search_text_fts(search_text_fts, rowid, text) VALUES ('delete', OLD.fts_rowid, OLD.text);
   END`,
+  // fts_rowid is stable across a text edit, so it is not reassigned — only the FTS row is re-keyed.
   `CREATE TRIGGER IF NOT EXISTS search_text_au AFTER UPDATE OF text ON search_text BEGIN
-    INSERT INTO search_text_fts(search_text_fts, rowid, text) VALUES ('delete', OLD.rowid, OLD.text);
-    INSERT INTO search_text_fts(rowid, text) VALUES (NEW.rowid, NEW.text);
+    INSERT INTO search_text_fts(search_text_fts, rowid, text) VALUES ('delete', OLD.fts_rowid, OLD.text);
+    INSERT INTO search_text_fts(rowid, text) VALUES (NEW.fts_rowid, NEW.text);
   END`
 ]
 
@@ -188,4 +219,40 @@ export async function createKnowledgeIndexSchema(executor: SqliteExecutor): Prom
   for (const statement of KNOWLEDGE_INDEX_SCHEMA_STATEMENTS) {
     await executor.execute(statement)
   }
+}
+
+/**
+ * DROP every object this schema creates, in child→parent order. Foreign keys are
+ * ON, so a `DROP TABLE` does an implicit row DELETE that fires FK actions:
+ * dropping a parent (e.g. `content`) while a child still references it with rows
+ * would throw, so children (`search_unit`, `material`) are dropped first. Triggers
+ * and the external-content FTS table are dropped before their base `search_text`.
+ * `IF EXISTS` keeps it a no-op on a partially-built file.
+ */
+export const KNOWLEDGE_INDEX_DROP_STATEMENTS: readonly string[] = [
+  `DROP TRIGGER IF EXISTS search_text_ai`,
+  `DROP TRIGGER IF EXISTS search_text_ad`,
+  `DROP TRIGGER IF EXISTS search_text_au`,
+  `DROP TABLE IF EXISTS search_text_fts`,
+  `DROP TABLE IF EXISTS search_text`,
+  `DROP TABLE IF EXISTS embedding`,
+  `DROP TABLE IF EXISTS search_unit`,
+  `DROP TABLE IF EXISTS material`,
+  `DROP TABLE IF EXISTS content`,
+  `DROP TABLE IF EXISTS meta`
+]
+
+/**
+ * Wipe and recreate the index schema. The per-base `index.sqlite` is a rebuildable
+ * derived artifact (its source of truth is `knowledge_item` + the raw materials), so
+ * when its stored `meta.schema_version` no longer matches {@link KNOWLEDGE_INDEX_SCHEMA_VERSION}
+ * the store-open path resets it here rather than attempting an in-place migration —
+ * the base simply re-indexes. Drops run first (autocommit per statement), then the
+ * current DDL is reapplied. Callers must restamp `meta` afterwards (the DROP removes it).
+ */
+export async function resetKnowledgeIndexSchema(executor: SqliteExecutor): Promise<void> {
+  for (const statement of KNOWLEDGE_INDEX_DROP_STATEMENTS) {
+    await executor.execute(statement)
+  }
+  await createKnowledgeIndexSchema(executor)
 }

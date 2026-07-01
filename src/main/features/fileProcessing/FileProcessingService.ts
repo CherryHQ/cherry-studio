@@ -5,8 +5,10 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { ListAvailableFileProcessorsResultSchema } from '@shared/data/types/fileProcessing'
+import type { FileHandle } from '@shared/types/file'
 
 import { resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
+import { ocrImageToText } from './ocrImageToText'
 import { processorRegistry } from './processors/registry'
 import { backgroundJobHandler } from './tasks/backgroundJobHandler'
 import { assertFileTypeSupported, getCapabilityHandler, resolveFileProcessingFileInfo } from './tasks/jobExecution'
@@ -80,6 +82,18 @@ export class FileProcessingService extends BaseService {
     })
 
     return handle.snapshot
+  }
+
+  /**
+   * OCR an image into plain text using the user's configured `image_to_text`
+   * processor — the synchronous, content-version-cached path used by the AI chat
+   * attachment flow (`attachmentRouting` / `read_file`). Keeps OCR processor /
+   * handler internals owned by this domain instead of being deep-imported from
+   * `ai/`. Throws on failure / no configured processor; callers turn that into a
+   * model-facing note.
+   */
+  ocrImage(file: FileHandle, signal?: AbortSignal): Promise<string> {
+    return ocrImageToText(file, signal)
   }
 
   listAvailableProcessors(): ListAvailableFileProcessorsResult {

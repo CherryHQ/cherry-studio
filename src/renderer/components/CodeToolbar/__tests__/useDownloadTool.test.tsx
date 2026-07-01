@@ -108,7 +108,7 @@ describe('useDownloadTool', () => {
       expectNoChildren()
     })
 
-    it('should register single download tool when showPreviewTools is true but previewRef.current is null', () => {
+    it('should register download tool with children when preview is requested before previewRef is set', () => {
       const props = createMockProps({ showPreviewTools: true, previewRef: { current: null } })
       renderHook(() => useDownloadTool(props))
 
@@ -116,11 +116,23 @@ describe('useDownloadTool', () => {
         id: 'download',
         type: 'core',
         order: 10,
-        tooltip: 'code_block.download.source', // When previewRef.current is null, showPreviewTools is false
-        onClick: expect.any(Function),
-        icon: expect.any(Object)
+        tooltip: undefined,
+        icon: expect.any(Object),
+        children: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'download',
+            tooltip: 'code_block.download.source'
+          }),
+          expect.objectContaining({
+            id: 'download-svg',
+            tooltip: 'code_block.download.svg'
+          }),
+          expect.objectContaining({
+            id: 'download-png',
+            tooltip: 'code_block.download.png'
+          })
+        ])
       })
-      expectNoChildren()
     })
 
     it('should register download tool with children when showPreviewTools is true and previewRef.current is not null', () => {
@@ -288,10 +300,16 @@ describe('useDownloadTool', () => {
         renderHook(() => useDownloadTool(props))
       }).not.toThrow()
 
-      // Should register single tool without children
       expectToolRegistration(1)
       const registeredTool = mockRegisterTool.mock.calls[0][0]
-      expect(registeredTool).not.toHaveProperty('children')
+      const downloadSvgTool = registeredTool.children?.find((child: any) => child.tooltip === 'code_block.download.svg')
+
+      expect(downloadSvgTool).toBeDefined()
+      expect(() => {
+        act(() => {
+          downloadSvgTool.onClick()
+        })
+      }).not.toThrow()
     })
 
     it('should handle download source operation failures gracefully', () => {

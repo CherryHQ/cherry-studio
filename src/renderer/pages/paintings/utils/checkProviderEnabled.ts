@@ -1,5 +1,5 @@
+import { isEmpty } from 'es-toolkit/compat'
 import i18next from 'i18next'
-import { isEmpty } from 'lodash'
 
 import { openSettingsWindow } from '../../../services/SettingsWindowService'
 import type { PaintingProviderRuntime } from '../model/types/paintingProviderRuntime'

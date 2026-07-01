@@ -5,11 +5,11 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { Code, DownloadIcon, Globe, LinkIcon, Sparkles } from 'lucide-react'
 import type { FC } from 'react'
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ClipLoader } from 'react-spinners'
 
-import HtmlArtifactsPopup from './HtmlArtifactsPopup'
+const HtmlArtifactsPopup = lazy(() => import('./HtmlArtifactsPopup'))
 
 const logger = loggerService.withContext('HtmlArtifactsCard')
 
@@ -125,14 +125,18 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreami
         </div>
       </div>
 
-      <HtmlArtifactsPopup
-        open={isPopupOpen}
-        title={title}
-        html={htmlContent}
-        onSave={onSave}
-        editable={editable}
-        onClose={() => setIsPopupOpen(false)}
-      />
+      {isPopupOpen ? (
+        <Suspense fallback={null}>
+          <HtmlArtifactsPopup
+            open={isPopupOpen}
+            title={title}
+            html={htmlContent}
+            onSave={onSave}
+            editable={editable}
+            onClose={() => setIsPopupOpen(false)}
+          />
+        </Suspense>
+      ) : null}
     </>
   )
 }

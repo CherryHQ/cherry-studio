@@ -6,6 +6,22 @@ vi.mock('i18next', () => ({
   t: (key: string) => `t(${key})`
 }))
 
+// AI stream calls go through ipcApi.request('ai.stream_*') / ipcApi.on('ai.stream_*');
+// `translate.open` stays on `window.api.translate` (not migrated). `ipcMock` is re-pointed
+// at the fresh per-test mock in beforeEach.
+const { ipcMock } = vi.hoisted(() => ({
+  ipcMock: {
+    request: (() => undefined) as (route: string, input: unknown) => unknown,
+    on: (() => () => {}) as (event: string, cb: (p: unknown) => void) => () => void
+  }
+}))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (route: string, input: unknown) => ipcMock.request(route, input),
+    on: (event: string, cb: (p: unknown) => void) => ipcMock.on(event, cb)
+  }
+}))
+
 import { translateText } from '../translateText'
 
 /**
@@ -19,7 +35,7 @@ import { translateText } from '../translateText'
  *   4. Call `window.api.translate.open({ streamId, text, targetLangCode })`
  *   5. Accumulate text-delta chunks, fire `onResponse`, resolve trimmed
  *      final text on done
- *   6. Abort via `Ai_Stream_Abort` keyed on `streamId`
+ *   6. Abort via the `ai.stream_abort` route keyed on `streamId`
  */
 
 const TARGET = {
@@ -47,7 +63,13 @@ interface MockListeners {
   error: Array<(data: { topicId: string; error?: { name?: string; message?: string } }) => void>
 }
 
-function createMocks(): { ai: MockAiApi; translate: MockTranslateApi; listeners: MockListeners } {
+function createMocks(): {
+  ai: MockAiApi
+  translate: MockTranslateApi
+  listeners: MockListeners
+  request: (route: string, input: unknown) => unknown
+  on: (event: string, cb: (p: unknown) => void) => () => void
+} {
   const listeners: MockListeners = { chunk: [], done: [], error: [] }
   const ai: MockAiApi = {
     streamAbort: vi.fn().mockResolvedValue(undefined),
@@ -77,7 +99,22 @@ function createMocks(): { ai: MockAiApi; translate: MockTranslateApi; listeners:
   const translate: MockTranslateApi = {
     open: vi.fn(async ({ streamId }: { streamId: string }) => ({ streamId }))
   }
-  return { ai, translate, listeners }
+  // ipcApi-shaped dispatchers wired to the spies above.
+  const request = (route: string, input: unknown): unknown =>
+    route === 'ai.stream_abort' ? ai.streamAbort(input) : Promise.resolve(undefined)
+  const on = (event: string, cb: (p: unknown) => void): (() => void) => {
+    switch (event) {
+      case 'ai.stream_chunk':
+        return ai.onStreamChunk(cb as never)
+      case 'ai.stream_done':
+        return ai.onStreamDone(cb as never)
+      case 'ai.stream_error':
+        return ai.onStreamError(cb as never)
+      default:
+        return () => {}
+    }
+  }
+  return { ai, translate, listeners, request, on }
 }
 
 /** Pull the renderer-generated streamId from the latest `translate.open` call. */
@@ -119,12 +156,14 @@ beforeEach(() => {
   mockAi = m.ai
   mockTranslate = m.translate
   mockListeners = m.listeners
+  ipcMock.request = m.request
+  ipcMock.on = m.on
   originalApi = (window as unknown as { api?: unknown }).api
-  ;(window as unknown as { api: { ai: MockAiApi; translate: MockTranslateApi } }).api = {
+  // Only `translate` stays on window.api; the ai stream methods go through the ipcApi mock.
+  ;(window as unknown as { api: { translate: MockTranslateApi } }).api = {
     ...((originalApi ?? {}) as object),
-    ai: mockAi,
     translate: mockTranslate
-  } as { ai: MockAiApi; translate: MockTranslateApi }
+  } as { translate: MockTranslateApi }
 })
 
 afterEach(() => {

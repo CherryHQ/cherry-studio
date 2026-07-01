@@ -32,7 +32,10 @@ export const useCopyTool = ({ showPreviewTools, previewRef, onCopySource, setToo
 
   const handleCopyImage = useCallback(() => {
     try {
-      void previewRef.current?.copy()
+      const preview = previewRef.current
+      if (!preview) return
+
+      void preview.copy()
       setCopiedImageTemporarily(true)
     } catch (error) {
       setCopiedImageTemporarily(false)
@@ -41,7 +44,7 @@ export const useCopyTool = ({ showPreviewTools, previewRef, onCopySource, setToo
   }, [previewRef, setCopiedImageTemporarily])
 
   useEffect(() => {
-    const includePreviewTools = showPreviewTools && previewRef.current !== null
+    const includePreviewTools = showPreviewTools === true
 
     const baseTool = {
       ...TOOL_SPECS.copy,

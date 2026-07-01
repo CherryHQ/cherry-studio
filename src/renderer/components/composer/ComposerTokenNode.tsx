@@ -3,11 +3,12 @@ import { AllSelection, NodeSelection } from '@tiptap/pm/state'
 import type { NodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import { type ReactNode, useCallback, useLayoutEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { type PromptVariableCommitReason, PromptVariableToken } from './PromptVariableToken'
 import type { ActiveComposerInputToken, ComposerDraftToken, PromptVariableComposerInputToken } from './tokens'
 import { normalizeComposerTokenAttrs } from './tokens'
-import { ComposerToken } from './tokenView'
+import { ComposerToken, FileComposerToken } from './tokenView'
 
 export const COMPOSER_TOKEN_NODE_NAME = 'composerToken'
 export const COMPOSER_PROMPT_VARIABLE_EDIT_EVENT = 'composer-prompt-variable-edit'
@@ -75,8 +76,11 @@ declare module '@tiptap/core' {
 }
 
 function ComposerTokenNodeView(props: NodeViewProps & { renderToken?: ComposerTokenRenderer }) {
+  const { t } = useTranslation()
   const token = normalizeComposerTokenAttrs(props.node.attrs)
+  const editor = props.editor
   const getNodePosition = props.getPos
+  const nodeSize = props.node.nodeSize
   const [isPromptVariableEditing, setPromptVariableEditing] = useState(false)
 
   const isPromptVariableEditRequestForCurrentNode = useCallback(
@@ -149,6 +153,14 @@ function ComposerTokenNodeView(props: NodeViewProps & { renderToken?: ComposerTo
     props.editor.chain().focus().setNodeSelection(position).run()
   }
 
+  const removeCurrentToken = useCallback(() => {
+    const position = typeof getNodePosition === 'function' ? getNodePosition() : undefined
+    if (typeof position !== 'number') return
+
+    deleteComposerTokenRange(editor, position, position + nodeSize)
+    editor.commands.focus()
+  }, [editor, getNodePosition, nodeSize])
+
   const finishPromptVariableEdit = (
     value: string,
     reason: PromptVariableCommitReason,
@@ -206,8 +218,20 @@ function ComposerTokenNodeView(props: NodeViewProps & { renderToken?: ComposerTo
           setPromptVariableEditing(true)
         }}
       />
+    ) : token.kind === 'file' ? (
+      <FileComposerToken
+        token={token as ActiveComposerInputToken}
+        selected={props.selected}
+        onRemove={removeCurrentToken}
+        removeLabel={t('appMenu.delete')}
+      />
     ) : (
-      <ComposerToken token={token as ActiveComposerInputToken} selected={props.selected} />
+      <ComposerToken
+        token={token as ActiveComposerInputToken}
+        selected={props.selected}
+        onRemove={removeCurrentToken}
+        removeLabel={t('appMenu.delete')}
+      />
     ))
 
   return (

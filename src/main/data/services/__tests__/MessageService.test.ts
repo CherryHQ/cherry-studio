@@ -1,6 +1,8 @@
 // Load the sibling so it self-registers in the data-service registry (prod loads it via its DataApi handler).
 import '@data/services/TopicService'
 
+import { fileEntryTable } from '@data/db/schemas/file'
+import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -13,6 +15,7 @@ import { type MessageData, type MessageRole, toContentRole } from '@shared/data/
 import { createUniqueModelId } from '@shared/data/types/model'
 import { rootRow, setupTestDatabase, withRoot } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { and, eq, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
@@ -28,10 +31,48 @@ function partsCode(content: string): MessageData {
   return { parts: [{ type: 'data-code', data: { content, language: 'ts' } }] as MessageData['parts'] }
 }
 
+function partsWithFile(fileEntryId: string, filename = `${fileEntryId}.txt`): MessageData {
+  return {
+    parts: [
+      { type: 'text', text: 'see attachment' },
+      {
+        type: 'file',
+        mediaType: 'text/plain',
+        url: `file:///tmp/${filename}`,
+        filename,
+        providerMetadata: { cherry: { fileEntryId } }
+      }
+    ] as MessageData['parts']
+  }
+}
+
+function partsWithDuplicateFile(fileEntryId: string): MessageData {
+  return {
+    parts: [
+      { type: 'text', text: 'see duplicate attachment' },
+      {
+        type: 'file',
+        mediaType: 'text/plain',
+        url: `file:///tmp/${fileEntryId}-a.txt`,
+        filename: `${fileEntryId}-a.txt`,
+        providerMetadata: { cherry: { fileEntryId } }
+      },
+      {
+        type: 'file',
+        mediaType: 'text/plain',
+        url: `file:///tmp/${fileEntryId}-b.txt`,
+        filename: `${fileEntryId}-b.txt`,
+        providerMetadata: { cherry: { fileEntryId } }
+      }
+    ] as MessageData['parts']
+  }
+}
+
 describe('MessageService', () => {
   const dbh = setupTestDatabase()
 
   beforeEach(async () => {
+    mockMainLoggerService.warn.mockClear()
     const [providerAKey, providerBKey, modelAKey, modelBKey] = generateOrderKeySequence(4)
     await dbh.db.insert(userProviderTable).values([
       { providerId: 'provider-a', name: 'Provider A', orderKey: providerAKey },
@@ -61,6 +102,17 @@ describe('MessageService', () => {
       }
     ])
   })
+
+  async function seedTopicWithRoot(topicId: string) {
+    await dbh.db.insert(topicTable).values({ id: topicId, activeNodeId: null, orderKey: 'a0' })
+    return messageService.createRootMessageTx(dbh.db, topicId)
+  }
+
+  async function seedFileEntry(id: string) {
+    await dbh.db
+      .insert(fileEntryTable)
+      .values({ id, origin: 'internal', name: `file-${id.slice(-4)}`, ext: 'txt', size: 1 })
+  }
 
   /**
    * Build a small message tree with a multi-model siblings group.
@@ -921,6 +973,138 @@ describe('MessageService', () => {
         ['a-second', 'u-second']
       ])
       expect(result.activeNodeId).toBe('a-second')
+    })
+  })
+
+  describe('chat message file refs', () => {
+    it('syncs refs when reserving a new user message with file parts', async () => {
+      const topicId = 'topic-ref-reserve'
+      const fileId = '019606a0-0000-7000-8000-00000000fa01'
+      await seedTopicWithRoot(topicId)
+      await seedFileEntry(fileId)
+
+      const { userMessage } = await messageService.createUserMessageWithPlaceholders({
+        topicId,
+        userMessage: { mode: 'create', dto: { role: 'user', data: partsWithFile(fileId), status: 'success' } },
+        placeholders: [{ role: 'assistant', data: mainText(''), status: 'pending' }]
+      })
+
+      const refs = await dbh.db
+        .select()
+        .from(chatMessageFileRefTable)
+        .where(eq(chatMessageFileRefTable.sourceId, userMessage.id))
+
+      expect(refs).toHaveLength(1)
+      expect(refs[0]).toMatchObject({ fileEntryId: fileId, sourceId: userMessage.id, role: 'attachment' })
+    })
+
+    it('replaces refs when message data changes', async () => {
+      const topicId = 'topic-ref-update'
+      const fileA = '019606a0-0000-7000-8000-00000000fa02'
+      const fileB = '019606a0-0000-7000-8000-00000000fa03'
+      await seedTopicWithRoot(topicId)
+      await seedFileEntry(fileA)
+      await seedFileEntry(fileB)
+
+      const message = await messageService.create(topicId, {
+        role: 'user',
+        data: partsWithFile(fileA),
+        status: 'success'
+      })
+      await messageService.update(message.id, { data: partsWithFile(fileB) })
+
+      const refs = await dbh.db
+        .select()
+        .from(chatMessageFileRefTable)
+        .where(eq(chatMessageFileRefTable.sourceId, message.id))
+
+      expect(refs.map((ref) => ref.fileEntryId)).toEqual([fileB])
+    })
+
+    it('syncs refs for edit-and-resend sibling messages', async () => {
+      const topicId = 'topic-ref-sibling'
+      const fileId = '019606a0-0000-7000-8000-00000000fa04'
+      await seedTopicWithRoot(topicId)
+      await seedFileEntry(fileId)
+
+      const source = await messageService.create(topicId, {
+        role: 'user',
+        data: mainText('original'),
+        status: 'success'
+      })
+      const sibling = await messageService.createSibling(source.id, partsWithFile(fileId))
+
+      const refs = await dbh.db
+        .select()
+        .from(chatMessageFileRefTable)
+        .where(eq(chatMessageFileRefTable.sourceId, sibling.id))
+
+      expect(refs).toHaveLength(1)
+      expect(refs[0]).toMatchObject({ fileEntryId: fileId, sourceId: sibling.id, role: 'attachment' })
+    })
+
+    it('drops file refs whose file_entry row is missing and keeps the message write successful', async () => {
+      const topicId = 'topic-ref-missing-entry'
+      const missingFileId = '019606a0-0000-7000-8000-00000000fa05'
+      await seedTopicWithRoot(topicId)
+
+      const message = await messageService.create(topicId, {
+        role: 'user',
+        data: partsWithFile(missingFileId),
+        status: 'success'
+      })
+
+      const refs = await dbh.db
+        .select()
+        .from(chatMessageFileRefTable)
+        .where(eq(chatMessageFileRefTable.sourceId, message.id))
+      expect(refs).toHaveLength(0)
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'Dropped chat message file refs without matching file_entry',
+        expect.objectContaining({ messageId: message.id, dropped: 1, total: 1 })
+      )
+    })
+
+    it('deduplicates repeated file parts for the same file_entry within one message', async () => {
+      const topicId = 'topic-ref-dedupe'
+      const fileId = '019606a0-0000-7000-8000-00000000fa06'
+      await seedTopicWithRoot(topicId)
+      await seedFileEntry(fileId)
+
+      const message = await messageService.create(topicId, {
+        role: 'user',
+        data: partsWithDuplicateFile(fileId),
+        status: 'success'
+      })
+
+      const refs = await dbh.db
+        .select()
+        .from(chatMessageFileRefTable)
+        .where(eq(chatMessageFileRefTable.sourceId, message.id))
+      expect(refs).toHaveLength(1)
+      expect(refs[0]).toMatchObject({ fileEntryId: fileId, sourceId: message.id, role: 'attachment' })
+    })
+
+    it('preserves existing refs when updating message metadata without data', async () => {
+      const topicId = 'topic-ref-metadata-update'
+      const fileId = '019606a0-0000-7000-8000-00000000fa07'
+      await seedTopicWithRoot(topicId)
+      await seedFileEntry(fileId)
+
+      const message = await messageService.create(topicId, {
+        role: 'user',
+        data: partsWithFile(fileId),
+        status: 'success'
+      })
+
+      await messageService.update(message.id, { status: 'error' })
+
+      const refs = await dbh.db
+        .select()
+        .from(chatMessageFileRefTable)
+        .where(eq(chatMessageFileRefTable.sourceId, message.id))
+      expect(refs).toHaveLength(1)
+      expect(refs[0]).toMatchObject({ fileEntryId: fileId, sourceId: message.id, role: 'attachment' })
     })
   })
 

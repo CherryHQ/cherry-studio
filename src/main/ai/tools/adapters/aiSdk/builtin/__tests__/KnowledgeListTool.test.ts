@@ -1,16 +1,23 @@
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import { DataApiErrorFactory } from '@shared/data/api'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const knowledgeServiceListBases = vi.fn<() => Promise<KnowledgeBase[]>>()
 const knowledgeServiceListRootItems = vi.fn<(baseId: string) => Promise<KnowledgeItem[]>>()
+// Outline mode (kb_list with a baseId) routes to getOrganizationTree.
+const knowledgeServiceGetOrganizationTree = vi.fn()
 
 vi.mock('@main/core/application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'KnowledgeService') {
-        return { listBases: knowledgeServiceListBases, listRootItems: knowledgeServiceListRootItems }
+        return {
+          listBases: knowledgeServiceListBases,
+          listRootItems: knowledgeServiceListRootItems,
+          getOrganizationTree: knowledgeServiceGetOrganizationTree
+        }
       }
       throw new Error(`unexpected service: ${name}`)
     }
@@ -148,14 +155,10 @@ function makeProcessingFileItem(id: string): KnowledgeItem {
   } as unknown as KnowledgeItem
 }
 
-function callExecute(
-  args: { query?: string; groupId?: string },
-  ctx: { assistant?: Assistant } = {}
-): Promise<unknown> {
-  const execute = entry.tool.execute as (
-    args: { query?: string; groupId?: string },
-    options: ToolExecutionOptions
-  ) => Promise<unknown>
+type ListArgs = { query?: string | null; groupId?: string | null; baseId?: string | null; maxDepth?: number | null }
+
+function callExecute(args: ListArgs, ctx: { assistant?: Assistant } = {}): Promise<unknown> {
+  const execute = entry.tool.execute as (args: ListArgs, options: ToolExecutionOptions) => Promise<unknown>
   return execute(args, {
     toolCallId: 'tc-1',
     messages: [],
@@ -171,12 +174,15 @@ describe('kb_list', () => {
   beforeEach(() => {
     knowledgeServiceListBases.mockReset()
     knowledgeServiceListRootItems.mockReset()
+    knowledgeServiceGetOrganizationTree.mockReset()
   })
 
-  it('builds an entry with the agreed namespace + defer policy', () => {
+  it('builds an entry with the agreed namespace + defer policy and is auto-approved (read-only)', () => {
     expect(entry.name).toBe(KB_LIST_TOOL_NAME)
     expect(entry.namespace).toBe('kb')
-    expect(entry.defer).toBe('auto')
+    expect(entry.defer).toBe('never')
+    // kb_list only reads — no per-call approval prompt (the auto-approve half of the carve-out).
+    expect(entry.tool.needsApproval).toBeFalsy()
   })
 
   it('returns only bases in the assistant scope when knowledgeBaseIds is non-empty', async () => {
@@ -216,6 +222,21 @@ describe('kb_list', () => {
       { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1', 'kb-2'] }) }
     )) as Array<{ id: string }>
     expect(result.map((b) => b.id)).toEqual(['kb-1'])
+  })
+
+  it('treats explicit null filters as no filter (kb_list passes null, not undefined, under strict schema)', async () => {
+    knowledgeServiceListBases.mockResolvedValue([
+      makeBase({ id: 'kb-1', groupId: 'g1' }),
+      makeBase({ id: 'kb-2', groupId: null })
+    ])
+    knowledgeServiceListRootItems.mockResolvedValue([])
+
+    const result = (await callExecute(
+      { query: null, groupId: null },
+      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1', 'kb-2'] }) }
+    )) as Array<{ id: string }>
+    // null groupId must NOT collapse to `base.groupId === null`; both bases come back.
+    expect(result.map((b) => b.id).sort()).toEqual(['kb-1', 'kb-2'])
   })
 
   it('filters by case-insensitive query against name and sampleSources', async () => {
@@ -301,23 +322,105 @@ describe('kb_list', () => {
     expect(knowledgeServiceListRootItems).not.toHaveBeenCalled()
   })
 
-  it('still lists a base when listRootItems throws (degrades to empty sampleSources)', async () => {
+  it('flags itemsUnavailable (not a fabricated empty) when listRootItems throws for a completed base', async () => {
     knowledgeServiceListBases.mockResolvedValue([makeBase({ id: 'kb-1' })])
     knowledgeServiceListRootItems.mockRejectedValue(new Error('boom'))
 
     const [base] = (await callExecute({}, { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) })) as Array<{
       id: string
       sampleSources: string[]
+      itemCount?: number
+      itemsUnavailable?: boolean
     }>
     expect(base.id).toBe('kb-1')
     expect(base.sampleSources).toEqual([])
+    // A read failure must NOT look like a genuinely empty base: signal it in-band and omit the count.
+    expect(base.itemsUnavailable).toBe(true)
+    expect(base.itemCount).toBeUndefined()
+  })
+
+  it('reports a real itemCount and no itemsUnavailable flag on a successful (empty) read', async () => {
+    knowledgeServiceListBases.mockResolvedValue([makeBase({ id: 'kb-1' })])
+    knowledgeServiceListRootItems.mockResolvedValue([])
+
+    const [base] = (await callExecute({}, { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) })) as Array<{
+      itemCount?: number
+      itemsUnavailable?: boolean
+    }>
+    expect(base.itemCount).toBe(0)
+    expect(base.itemsUnavailable).toBeUndefined()
+  })
+
+  describe('outline mode (baseId)', () => {
+    function orgTree(overrides: Record<string, unknown> = {}) {
+      return {
+        baseId: 'kb-1',
+        totalItems: 2,
+        truncated: false,
+        nodes: [
+          { depth: 0, title: 'docs', itemType: 'directory', status: 'completed', conceptId: undefined },
+          { depth: 1, title: 'report.pdf', itemType: 'file', status: 'completed', conceptId: 'report.pdf' }
+        ],
+        ...overrides
+      }
+    }
+
+    it('outlines an in-scope base, forwarding maxDepth and mapping itemType → type', async () => {
+      knowledgeServiceGetOrganizationTree.mockResolvedValue(orgTree())
+
+      const result = await callExecute(
+        { baseId: 'kb-1', maxDepth: 2 },
+        { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
+      )
+
+      expect(knowledgeServiceGetOrganizationTree).toHaveBeenCalledWith('kb-1', { maxDepth: 2 })
+      expect(result).toEqual({
+        baseId: 'kb-1',
+        totalItems: 2,
+        truncated: false,
+        nodes: [
+          { depth: 0, title: 'docs', type: 'directory', status: 'completed', conceptId: undefined },
+          { depth: 1, title: 'report.pdf', type: 'file', status: 'completed', conceptId: 'report.pdf' }
+        ]
+      })
+      // listBases must NOT run in outline mode (baseId routes to getOrganizationTree).
+      expect(knowledgeServiceListBases).not.toHaveBeenCalled()
+    })
+
+    it('returns an error and does not traverse when the base is outside the assistant scope', async () => {
+      const result = (await callExecute(
+        { baseId: 'kb-other' },
+        { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
+      )) as { error: string }
+
+      expect(result.error).toContain('kb-other')
+      expect(knowledgeServiceGetOrganizationTree).not.toHaveBeenCalled()
+    })
+
+    it('maps a NOT_FOUND base to a steer toward listing the bases', async () => {
+      knowledgeServiceGetOrganizationTree.mockRejectedValue(DataApiErrorFactory.notFound('Knowledge base', 'kb-gone'))
+
+      const result = (await callExecute(
+        { baseId: 'kb-gone' },
+        { assistant: makeAssistant({ knowledgeBaseIds: ['kb-gone'] }) }
+      )) as { error: string }
+
+      expect(result.error).toContain('kb-gone')
+      expect(result.error).toContain('kb_list')
+    })
   })
 
   describe('toModelOutput', () => {
     type ToModelOutputFn = (opts: {
       toolCallId: string
-      input: { query?: string; groupId?: string }
+      input: { query?: string | null; groupId?: string | null; baseId?: string | null }
       output: Array<{ id: string }>
+    }) => { type: string; value: unknown }
+
+    type OutlineToModelOutputFn = (opts: {
+      toolCallId: string
+      input: { baseId?: string | null }
+      output: unknown
     }) => { type: string; value: unknown }
 
     it('hints "no bases configured" when output is empty without filters', () => {
@@ -343,14 +446,60 @@ describe('kb_list', () => {
       const result = toModelOutput({ toolCallId: 'tc-1', input: {}, output })
       expect(result).toEqual({ type: 'json', value: output })
     })
+
+    it('passes an outline tree through as json (outline mode)', () => {
+      const toModelOutput = entry.tool.toModelOutput as OutlineToModelOutputFn
+      const output = {
+        baseId: 'kb-1',
+        totalItems: 1,
+        truncated: false,
+        nodes: [{ depth: 0, title: 'docs', type: 'directory', status: 'completed' }]
+      }
+      const result = toModelOutput({ toolCallId: 'tc-1', input: { baseId: 'kb-1' }, output })
+      expect(result).toEqual({ type: 'json', value: output })
+    })
+
+    it('returns an empty-base hint as text (outline mode)', () => {
+      const toModelOutput = entry.tool.toModelOutput as OutlineToModelOutputFn
+      const result = toModelOutput({
+        toolCallId: 'tc-1',
+        input: { baseId: 'kb-1' },
+        output: { baseId: 'kb-1', totalItems: 0, truncated: false, nodes: [] }
+      })
+      expect(result.type).toBe('text')
+      expect(result.value).toMatch(/no items/i)
+    })
   })
 
   describe('applies', () => {
-    it('returns true only when the assistant has at least one knowledge base id', () => {
+    it('applies only when a base exists AND one is bound to the assistant (matches kb_search/kb_read)', () => {
       const applies = entry.applies!
-      expect(applies({ assistant: undefined, mcpToolIds: new Set() })).toBe(false)
-      expect(applies({ assistant: makeAssistant({ knowledgeBaseIds: [] }), mcpToolIds: new Set() })).toBe(false)
-      expect(applies({ assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }), mcpToolIds: new Set() })).toBe(true)
+      // No base in the system → never applies, even with bound ids.
+      expect(
+        applies({
+          assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }),
+          mcpToolIds: new Set(),
+          hasAnyKnowledgeBase: false
+        })
+      ).toBe(false)
+      // A base exists but none bound (or no assistant) → does NOT apply: listing every base would be a
+      // discovery dead-end (no kb_read / kb_search to act on them) and widen the per-assistant scope.
+      expect(applies({ assistant: undefined, mcpToolIds: new Set(), hasAnyKnowledgeBase: true })).toBe(false)
+      expect(
+        applies({
+          assistant: makeAssistant({ knowledgeBaseIds: [] }),
+          mcpToolIds: new Set(),
+          hasAnyKnowledgeBase: true
+        })
+      ).toBe(false)
+      // A base exists AND is bound → applies.
+      expect(
+        applies({
+          assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }),
+          mcpToolIds: new Set(),
+          hasAnyKnowledgeBase: true
+        })
+      ).toBe(true)
     })
   })
 })

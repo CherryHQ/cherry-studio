@@ -53,8 +53,7 @@ export function useAppUpdateHandler() {
           title: t('button.update_available'),
           message: t('button.update_available', { version: releaseInfo.version }),
           timestamp: Date.now(),
-          source: 'update',
-          channel: 'system'
+          source: 'update'
         })
         updateAppUpdateState({
           checking: false,

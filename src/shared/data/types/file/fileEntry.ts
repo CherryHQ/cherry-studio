@@ -99,10 +99,11 @@
  */
 
 import type { FilePath } from '@shared/types/file/common'
+import { SafeExtSchema } from '@shared/types/file/common'
 import { canonicalizeAbsolutePath } from '@shared/utils/file/canonicalize'
 import * as z from 'zod'
 
-import { SafeExtSchema, SafeNameSchema, TimestampSchema } from './essential'
+import { SafeNameSchema, TimestampSchema } from './essential'
 
 // ─── Entry ID ───
 

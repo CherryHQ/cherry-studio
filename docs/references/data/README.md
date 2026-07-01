@@ -117,7 +117,7 @@ Use CacheService when:
 **Three tiers based on persistence needs**:
 - `useCache` (memory): Lost on app restart, per-renderer (no cross-window sync)
 - `useSharedCache` (shared): Cross-window sharing via Main; lost on restart
-- `usePersistCache` (persist): Survives app restart via localStorage (renderer-authoritative; Main only relays IPC sync)
+- `usePersistCache` (persist): Survives app restart. Renderer persists to `localStorage` (renderer-authoritative); Main persists to its own JSON file (main-authoritative, via `getPersist` / `setPersist` / `hasPersist`). The two stores are independent; Main also relays renderer persist sync between windows.
 
 ```typescript
 // Good: Temporary computed results

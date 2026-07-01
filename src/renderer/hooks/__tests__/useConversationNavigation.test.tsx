@@ -3,19 +3,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useConversationNavigation } from '../useConversationNavigation'
 
-// Drive the boundary over a fake tabs context; config/sidebar (the identity↔url registry)
+// Drive the boundary over a fake tabs context; utils/sidebar (the identity↔url registry)
 // runs for real, so these tests also lock the assistants/agents instanceKey wiring.
 const tabsMock = vi.hoisted(() => ({
   ctx: null as ReturnType<typeof makeCtx> | null,
-  emitResourceListReveal: vi.fn()
+  emitResourceListReveal: vi.fn(),
+  windowFrameMode: 'embedded' as 'embedded' | 'window'
 }))
 
-vi.mock('@renderer/context/TabsContext', () => ({
+vi.mock('@renderer/hooks/tab', () => ({
   useOptionalTabsContext: () => tabsMock.ctx
 }))
 
 vi.mock('@renderer/components/chat/resources/resourceListRevealEvents', () => ({
   emitResourceListReveal: tabsMock.emitResourceListReveal
+}))
+
+vi.mock('@renderer/components/chat/shell/WindowFrameContext', () => ({
+  useWindowFrame: () => ({ mode: tabsMock.windowFrameMode })
 }))
 
 function makeCtx(tabs: Array<{ id: string; type: string; url: string; metadata?: Record<string, unknown> }>) {
@@ -25,6 +30,7 @@ function makeCtx(tabs: Array<{ id: string; type: string; url: string; metadata?:
 beforeEach(() => {
   tabsMock.ctx = null
   tabsMock.emitResourceListReveal.mockClear()
+  tabsMock.windowFrameMode = 'embedded'
 })
 
 describe('useConversationNavigation', () => {
@@ -205,5 +211,55 @@ describe('useConversationNavigation', () => {
     // Opening elsewhere must not focus or duplicate a tab in the current window.
     expect(ctx.openTab).not.toHaveBeenCalled()
     expect(ctx.setActiveTab).not.toHaveBeenCalled()
+  })
+
+  it('openConversation routes through current tabs when embedded and tabs are available', () => {
+    const ctx = makeCtx([])
+    ctx.openTab.mockReturnValue('new-agent-tab')
+    tabsMock.ctx = ctx
+    tabsMock.windowFrameMode = 'embedded'
+    const { result } = renderHook(() => useConversationNavigation('agents'))
+
+    result.current.openConversation('s1', 'Session 1')
+
+    expect(ctx.openTab).toHaveBeenCalledWith('/app/agents', {
+      forceNew: true,
+      title: 'Session 1',
+      metadata: { instanceAppId: 'agents', instanceKey: 's1' }
+    })
+  })
+
+  it('openConversation routes to a detached window when the host frame is detached', () => {
+    const send = vi.fn()
+    ;(window as unknown as { electron: { ipcRenderer: { send: typeof send } } }).electron = {
+      ipcRenderer: { send }
+    }
+    tabsMock.ctx = makeCtx([])
+    tabsMock.windowFrameMode = 'window'
+    const { result } = renderHook(() => useConversationNavigation('agents'))
+
+    result.current.openConversation('s1', 'Session 1')
+
+    expect(send).toHaveBeenCalledTimes(1)
+    expect(send.mock.calls[0][1]).toMatchObject({
+      url: '/app/agents?sessionId=s1',
+      title: 'Session 1',
+      type: 'route',
+      metadata: { instanceAppId: 'agents', instanceKey: 's1' }
+    })
+  })
+
+  it('openConversation routes to a detached window without a tabs provider', () => {
+    const send = vi.fn()
+    ;(window as unknown as { electron: { ipcRenderer: { send: typeof send } } }).electron = {
+      ipcRenderer: { send }
+    }
+    tabsMock.ctx = null
+    const { result } = renderHook(() => useConversationNavigation('agents'))
+
+    result.current.openConversation('s1')
+
+    expect(send).toHaveBeenCalledTimes(1)
+    expect(send.mock.calls[0][1]).toMatchObject({ url: '/app/agents?sessionId=s1' })
   })
 })

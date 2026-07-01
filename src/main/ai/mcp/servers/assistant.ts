@@ -3,10 +3,13 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
+import { mcpServerService } from '@data/services/McpServerService'
+import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { app } from 'electron'
 
 const logger = loggerService.withContext('McpServer:Assistant')
@@ -270,17 +273,16 @@ class AssistantServer {
 
   private async diagnoseProviders() {
     try {
-      const { configManager } = await import('@main/services/ConfigManager')
-      const providers = configManager.get<unknown[]>('providers', [])
+      const providers = await providerService.list({})
 
-      const summary = (providers as Record<string, unknown>[]).map((p) => ({
+      const summary = providers.map((p) => ({
         id: p.id,
         name: p.name,
-        type: p.type,
-        apiHost: p.apiHost || p.anthropicApiHost || '(default)',
-        hasApiKey: !!(p.apiKey && typeof p.apiKey === 'string' && p.apiKey.length > 0),
-        enabled: p.enabled !== false,
-        modelCount: Array.isArray(p.models) ? p.models.length : 0
+        authType: p.authType,
+        endpoints: p.endpointConfigs ? Object.keys(p.endpointConfigs) : [],
+        defaultChatEndpoint: p.defaultChatEndpoint ?? null,
+        hasApiKey: p.apiKeys.length > 0,
+        enabled: p.isEnabled
       }))
 
       return {
@@ -316,9 +318,7 @@ class AssistantServer {
     }
 
     try {
-      const { configManager } = await import('@main/services/ConfigManager')
-      const providers = configManager.get<unknown[]>('providers', []) as Record<string, unknown>[]
-      const provider = providers.find((p) => p.id === providerId)
+      const provider = await providerService.getByProviderId(providerId).catch(() => null)
 
       if (!provider) {
         return {
@@ -327,10 +327,13 @@ class AssistantServer {
         }
       }
 
-      const apiKey = provider.apiKey as string | undefined
-      const apiHost = (provider.apiHost || provider.anthropicApiHost || '') as string
+      const endpointConfigs = provider.endpointConfigs ?? {}
+      const apiHost =
+        (provider.defaultChatEndpoint && endpointConfigs[provider.defaultChatEndpoint]?.baseUrl) ||
+        Object.values(endpointConfigs)[0]?.baseUrl ||
+        ''
 
-      if (!apiKey) {
+      if (provider.apiKeys.length === 0) {
         const result = {
           content: [
             {
@@ -539,14 +542,13 @@ class AssistantServer {
 
   private async diagnoseMcpStatus() {
     try {
-      const { configManager } = await import('@main/services/ConfigManager')
-      const mcpServers = configManager.get<unknown[]>('mcpServers', []) as Record<string, unknown>[]
+      const { items: mcpServers } = await mcpServerService.list({})
 
       const summary = mcpServers.map((s) => ({
         id: s.id,
         name: s.name,
-        type: s.type || 'stdio',
-        isActive: s.isActive ?? false,
+        type: s.type ?? 'stdio',
+        isActive: s.isActive,
         command: s.command,
         baseUrl: s.baseUrl
       }))
@@ -572,14 +574,19 @@ class AssistantServer {
     }
   }
 
+  /** Parse a stored UniqueModelId ("provider::modelId") into a diagnostic summary. */
+  private describeModelId(uniqueId: string | null) {
+    if (!uniqueId) return null
+    try {
+      const { providerId, modelId } = parseUniqueModelId(uniqueId as UniqueModelId)
+      return { id: uniqueId, provider: providerId, modelId }
+    } catch {
+      return { id: uniqueId, provider: '(unparseable)', modelId: '' }
+    }
+  }
+
   private async diagnoseConfig() {
     try {
-      // Default model info — still in electron-store (not yet migrated to v2)
-      const { configManager } = await import('@main/services/ConfigManager')
-      const defaultModel = configManager.get<Record<string, unknown>>('defaultModel', {})
-      const topicNamingModel = configManager.get<Record<string, unknown>>('topicNamingModel', {})
-
-      const { application } = await import('@application')
       const preferenceService = application.get('PreferenceService')
 
       const settings = {
@@ -587,10 +594,8 @@ class AssistantServer {
         theme: preferenceService.get('ui.theme_mode'),
         proxy: preferenceService.get('app.proxy.url'),
         zoomFactor: preferenceService.get('app.zoom_factor'),
-        defaultModel: defaultModel
-          ? { id: defaultModel.id, name: defaultModel.name, provider: defaultModel.provider }
-          : null,
-        topicNamingModel: topicNamingModel ? { id: topicNamingModel.id, name: topicNamingModel.name } : null,
+        defaultModel: this.describeModelId(preferenceService.get('chat.default_model_id')),
+        topicNamingModel: this.describeModelId(preferenceService.get('topic.naming.model_id')),
         tray: preferenceService.get('app.tray.enabled'),
         trayOnClose: preferenceService.get('app.tray.on_close'),
         launchToTray: preferenceService.get('app.tray.on_launch'),

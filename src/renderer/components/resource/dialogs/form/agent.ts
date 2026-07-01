@@ -2,7 +2,7 @@ import {
   DEFAULT_HEARTBEAT_ENABLED,
   DEFAULT_HEARTBEAT_INTERVAL,
   normalizePermissionMode
-} from '@renderer/hooks/agents/permissionMode'
+} from '@renderer/hooks/agent/permissionMode'
 import type { AgentDetail } from '@renderer/pages/library/types'
 import type { UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentConfiguration } from '@shared/data/types/agent'

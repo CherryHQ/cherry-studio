@@ -10,7 +10,6 @@ import type { MessageListItem } from '../types'
 const EXCLUDED_SELECTORS = [
   '.MessageFooter',
   '.code-toolbar',
-  '.ant-collapse-header',
   '.group-menu-bar',
   '.code-block',
   '.message-editor',

@@ -106,7 +106,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@renderer/context/ThemeProvider', () => ({
+vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({
     settedTheme: 'light',
     setTheme: vi.fn(),
@@ -114,7 +114,7 @@ vi.mock('@renderer/context/ThemeProvider', () => ({
   })
 }))
 
-vi.mock('@renderer/context/CodeStyleProvider', () => ({
+vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({
     activeCmTheme: 'light'
   })

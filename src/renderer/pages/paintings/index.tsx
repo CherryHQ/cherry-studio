@@ -101,6 +101,17 @@ const PaintingPage: FC = () => {
         <div className="flex h-full flex-1 flex-col">
           <div className={paintingClasses.frame}>
             <div className={paintingClasses.surface}>
+              <PaintingStrip
+                selectedPaintingId={currentPainting.id}
+                runningPaintingId={generating ? currentPainting.id : undefined}
+                items={history.items}
+                hasMore={history.hasMore}
+                loadMore={history.loadMore}
+                onDeletePainting={list.remove}
+                onSelectPainting={list.select}
+                onAddPainting={list.add}
+              />
+
               <div className={paintingClasses.centerPane}>
                 <div className={paintingClasses.centerStage}>
                   <Artboard painting={currentPainting} isLoading={generating} onCancel={onCancel} />
@@ -128,17 +139,6 @@ const PaintingPage: FC = () => {
                   </QuickPanelProvider>
                 </div>
               </div>
-
-              <PaintingStrip
-                selectedPaintingId={currentPainting.id}
-                runningPaintingId={generating ? currentPainting.id : undefined}
-                items={history.items}
-                hasMore={history.hasMore}
-                loadMore={history.loadMore}
-                onDeletePainting={list.remove}
-                onSelectPainting={list.select}
-                onAddPainting={list.add}
-              />
             </div>
           </div>
         </div>

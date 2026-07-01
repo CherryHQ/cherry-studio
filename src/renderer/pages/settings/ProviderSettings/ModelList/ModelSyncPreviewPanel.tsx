@@ -1,5 +1,5 @@
 import { Alert, Button, Checkbox } from '@cherrystudio/ui'
-import { getModelLogo } from '@renderer/config/models'
+import { getModelLogo } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { CheckCircle2, Plus, Trash2 } from 'lucide-react'

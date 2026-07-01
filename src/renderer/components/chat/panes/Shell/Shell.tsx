@@ -3,8 +3,8 @@ import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameConte
 import { CommandTooltip } from '@renderer/components/command'
 import { RightSidebarCollapseIcon, RightSidebarExpandIcon } from '@renderer/components/Icons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
-import { isMac } from '@renderer/config/constant'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { CommandId } from '@shared/utils/command/definitions'
 import { Maximize2, Minimize2, X } from 'lucide-react'
@@ -48,34 +48,61 @@ interface ShellContextValue {
   actions: ShellActions
 }
 
-const ShellContext = createContext<ShellContextValue | null>(null)
+const ShellStateContext = createContext<ShellState | null>(null)
+const ShellActionsContext = createContext<ShellActions | null>(null)
 
 function useShell(): ShellContextValue {
-  const value = use(ShellContext)
-  if (!value) throw new Error('useShell must be used within <Shell>')
-  return value
+  return {
+    state: useShellState(),
+    actions: useShellActions()
+  }
 }
 
 export function useShellActions(): ShellActions {
-  return useShell().actions
+  const actions = use(ShellActionsContext)
+  if (!actions) throw new Error('useShellActions must be used within <Shell>')
+  return actions
 }
 
 export function useShellState(): ShellState {
-  return useShell().state
+  const state = use(ShellStateContext)
+  if (!state) throw new Error('useShellState must be used within <Shell>')
+  return state
 }
 
 export function useOptionalShellState(): ShellState | undefined {
-  return use(ShellContext)?.state
+  return use(ShellStateContext) ?? undefined
 }
 
-function ShellProvider({ children, defaultTab }: { children: ReactNode; defaultTab: string }) {
-  const [open, setOpen] = useState(false)
+function ShellProvider({
+  children,
+  defaultTab,
+  defaultOpen = false,
+  onOpenChange
+}: {
+  children: ReactNode
+  defaultTab: string
+  defaultOpen?: boolean
+  /**
+   * Notified whenever the pane opens/closes. Owners that remount this provider across UI branches
+   * (e.g. the agent chat's draft→persistent handoff) use it to persist the open state into
+   * `defaultOpen` so the pane survives the remount instead of snapping shut.
+   */
+  onOpenChange?: (open: boolean) => void
+}) {
+  const [open, setOpen] = useState(defaultOpen)
   const [maximized, setMaximized] = useState(false)
   const [activeTab, setActiveTab] = useState(defaultTab)
   const [pdfLayoutPending, setPdfLayoutPending] = useState(false)
   const [pdfLayoutRefreshKey, setPdfLayoutRefreshKey] = useState(0)
   const openRef = useRef(open)
   const closeCallbacksRef = useRef<Array<() => void>>([])
+  // Held in a ref so the open/close actions stay referentially stable (no memo churn for consumers).
+  const onOpenChangeRef = useRef(onOpenChange)
+
+  useEffect(() => {
+    onOpenChangeRef.current = onOpenChange
+  }, [onOpenChange])
 
   useEffect(() => {
     openRef.current = open
@@ -98,6 +125,7 @@ function ShellProvider({ children, defaultTab }: { children: ReactNode; defaultT
     setOpen(false)
     setMaximized(false)
     setPdfLayoutPending(false)
+    onOpenChangeRef.current?.(false)
   }, [])
   const openTab = useCallback((tab: string) => {
     setActiveTab(tab)
@@ -106,6 +134,7 @@ function ShellProvider({ children, defaultTab }: { children: ReactNode; defaultT
       if (!currentOpen) setPdfLayoutPending(true)
       return true
     })
+    onOpenChangeRef.current?.(true)
   }, [])
   const toggleMaximized = useCallback(() => {
     setPdfLayoutPending(false)
@@ -116,26 +145,20 @@ function ShellProvider({ children, defaultTab }: { children: ReactNode; defaultT
     setPdfLayoutRefreshKey((key) => key + 1)
   }, [])
 
-  const value = useMemo<ShellContextValue>(
-    () => ({
-      state: { open, maximized, activeTab, pdfLayoutPending, pdfLayoutRefreshKey },
-      actions: { close, finishClose, openTab, toggleMaximized, refreshPdfLayout }
-    }),
-    [
-      activeTab,
-      close,
-      finishClose,
-      maximized,
-      open,
-      openTab,
-      pdfLayoutPending,
-      pdfLayoutRefreshKey,
-      refreshPdfLayout,
-      toggleMaximized
-    ]
+  const state = useMemo<ShellState>(
+    () => ({ open, maximized, activeTab, pdfLayoutPending, pdfLayoutRefreshKey }),
+    [activeTab, maximized, open, pdfLayoutPending, pdfLayoutRefreshKey]
+  )
+  const actions = useMemo<ShellActions>(
+    () => ({ close, finishClose, openTab, toggleMaximized, refreshPdfLayout }),
+    [close, finishClose, openTab, refreshPdfLayout, toggleMaximized]
   )
 
-  return <ShellContext value={value}>{children}</ShellContext>
+  return (
+    <ShellActionsContext value={actions}>
+      <ShellStateContext value={state}>{children}</ShellStateContext>
+    </ShellActionsContext>
+  )
 }
 
 // Docked, resizable side container. Unmounted entirely while maximized: the
@@ -232,7 +255,7 @@ function ShellToggle({
   const { t } = useTranslation()
   const pressed = state.open
   const ToggleIcon = pressed ? RightSidebarCollapseIcon : RightSidebarExpandIcon
-  const toggleLabel = t(pressed ? 'common.close_sidebar' : 'common.open_sidebar')
+  const toggleLabel = pressed ? t('common.close_sidebar') : t('common.open_sidebar')
   const handleClick = useCallback(() => {
     if (state.open) {
       actions.close()

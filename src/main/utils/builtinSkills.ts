@@ -6,7 +6,7 @@ import { loggerService } from '@logger'
 import { skillService } from '@main/ai/skills/SkillService'
 import { app } from 'electron'
 
-import { toAsarUnpackedPath } from '.'
+import { toAsarUnpackedPath } from './asar'
 
 const logger = loggerService.withContext('builtinSkills')
 

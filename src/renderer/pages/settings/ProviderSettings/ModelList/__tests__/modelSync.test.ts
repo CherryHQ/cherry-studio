@@ -9,18 +9,14 @@ vi.mock('@data/DataApiService', () => ({
   }
 }))
 
-const listModelsMock = vi.fn()
+// listModels goes through ipcApi.request('ai.list_models', …) now (Main IPC).
+const { listModelsMock } = vi.hoisted(() => ({ listModelsMock: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: (_route: string, input: unknown) => listModelsMock(input) }
+}))
 
 beforeEach(() => {
   vi.clearAllMocks()
-  // Stub the Electron preload bridge surface used by modelSync.
-  ;(globalThis as any).window = {
-    api: {
-      ai: {
-        listModels: listModelsMock
-      }
-    }
-  }
   listModelsMock.mockResolvedValue([])
 })
 

@@ -1,5 +1,5 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { throttle } from 'lodash'
+import { throttle } from 'es-toolkit/compat'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 

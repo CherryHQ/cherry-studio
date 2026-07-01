@@ -13,11 +13,15 @@ import {
   getKnowledgeVectorStoreFilePath,
   getKnowledgeVectorStoreFilePathSync
 } from '../utils/storage/pathStorage'
-import { ensureIndexMeta, hasAnyMaterial } from './indexStore/indexMeta'
+import { ensureIndexMeta, hasAnyMaterial, readIndexSchemaVersion } from './indexStore/indexMeta'
 import { KnowledgeIndexStore } from './indexStore/KnowledgeIndexStore'
 import { openLibsqlIndexDriver } from './indexStore/LibsqlDriver'
 import { libsqlVectorIndex } from './indexStore/LibsqlVectorIndex'
-import { createKnowledgeIndexSchema } from './indexStore/schema'
+import {
+  createKnowledgeIndexSchema,
+  KNOWLEDGE_INDEX_SCHEMA_VERSION,
+  resetKnowledgeIndexSchema
+} from './indexStore/schema'
 import type { SqliteDriver } from './indexStore/types'
 
 const logger = loggerService.withContext('KnowledgeVectorStoreService')
@@ -134,7 +138,26 @@ export class KnowledgeVectorStoreService extends BaseService {
     const dbPath = await getKnowledgeVectorStoreFilePath(base.id)
     const driver = await openLibsqlIndexDriver(dbPath)
     try {
-      await createKnowledgeIndexSchema(driver)
+      // An index.sqlite from an older schema layout cannot be migrated in place —
+      // `CREATE ... IF NOT EXISTS` never retrofits a new column/trigger onto an
+      // existing table. When the stored schema_version differs from the current
+      // constant, drop and recreate this rebuildable derived index so the new DDL
+      // applies cleanly; the base then re-indexes from knowledge_item. A fresh/blank
+      // file has no stored version (null) and falls through to the normal create.
+      // (A stale-version file swapped in from another base is rebuilt here rather than
+      // refused by the base_id check below — but the reset drops its rows, so no other
+      // base's data is ever served; only the explicit refusal diagnostic is skipped.)
+      const storedVersion = await readIndexSchemaVersion(driver)
+      if (storedVersion !== null && storedVersion !== KNOWLEDGE_INDEX_SCHEMA_VERSION) {
+        logger.warn('Knowledge index schema version mismatch — rebuilding the derived index', {
+          baseId: base.id,
+          storedVersion,
+          expectedVersion: KNOWLEDGE_INDEX_SCHEMA_VERSION
+        })
+        await resetKnowledgeIndexSchema(driver)
+      } else {
+        await createKnowledgeIndexSchema(driver)
+      }
       // Stamp + verify the meta identity row before handing out the store,
       // so an index.sqlite swapped in from another base is rejected here (§4.1).
       // That is the only refusal — a blank/recreated file is stamped as fresh and

@@ -17,6 +17,16 @@ vi.mock('@ai-sdk/react', () => ({
   }
 }))
 
+// stop() now fires ipcApi.request('ai.stream_abort', …); route it to a spy for assertions.
+const { streamAbortMock } = vi.hoisted(() => ({ streamAbortMock: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: async (route: string, input: unknown) =>
+      route === 'ai.stream_abort' ? streamAbortMock(input) : undefined,
+    on: () => () => {}
+  }
+}))
+
 // `useTopicStreamStatus` is driven by the shared
 // `topic.stream.statuses.${topicId}` cache entry in production. Tests
 // stub it here so each `it()` can advance the per-topic view
@@ -42,11 +52,6 @@ vi.mock('../useTopicStreamStatus', () => ({
 }))
 
 describe('useChatWithHistory', () => {
-  const doneListeners: Array<(data: { topicId: string; executionId?: string; isTopicDone?: boolean }) => void> = []
-  const errorListeners: Array<
-    (data: { topicId: string; executionId?: string; isTopicDone?: boolean; error: { message: string } }) => void
-  > = []
-
   const resumeStream = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
   const setMessages = vi.fn()
   const stop = vi.fn()
@@ -67,8 +72,6 @@ describe('useChatWithHistory', () => {
   }
 
   beforeEach(() => {
-    doneListeners.length = 0
-    errorListeners.length = 0
     statuses.clear()
 
     mockTopicStreamStatus.mockImplementation((topicId: string) => ({
@@ -97,36 +100,7 @@ describe('useChatWithHistory', () => {
       resumeStream
     })
 
-    ;(window as any).api = {
-      ...originalApi,
-      ai: {
-        ...originalApi.ai,
-        streamAbort: vi.fn().mockResolvedValue(undefined),
-        onStreamDone: vi.fn((cb: (data: { topicId: string; executionId?: string; isTopicDone?: boolean }) => void) => {
-          doneListeners.push(cb)
-          return () => {
-            const index = doneListeners.indexOf(cb)
-            if (index >= 0) doneListeners.splice(index, 1)
-          }
-        }),
-        onStreamError: vi.fn(
-          (
-            cb: (data: {
-              topicId: string
-              executionId?: string
-              isTopicDone?: boolean
-              error: { message: string }
-            }) => void
-          ) => {
-            errorListeners.push(cb)
-            return () => {
-              const index = errorListeners.indexOf(cb)
-              if (index >= 0) errorListeners.splice(index, 1)
-            }
-          }
-        )
-      }
-    }
+    ;(window as any).api = { ...originalApi }
   })
 
   afterEach(() => {
@@ -207,7 +181,7 @@ describe('useChatWithHistory', () => {
       await result.current.stop()
     })
 
-    expect((window as any).api.ai.streamAbort).toHaveBeenCalledWith({ topicId: 'topic-abort' })
+    expect(streamAbortMock).toHaveBeenCalledWith({ topicId: 'topic-abort' })
     expect(stop).toHaveBeenCalledTimes(1)
   })
 

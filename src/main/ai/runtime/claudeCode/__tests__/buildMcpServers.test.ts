@@ -99,16 +99,29 @@ function makeSession(path: string, type: 'user' | 'system' = 'user'): AgentSessi
 }
 
 describe('adjustAllowedToolsForMcp', () => {
-  it('adds the cherry-tools + claw + agent-memory wildcards in Soul Mode', () => {
-    expect(adjustAllowedToolsForMcp(true, false)).toEqual(
-      expect.arrayContaining(['mcp__cherry-tools__*', 'mcp__claw__*', 'mcp__agent-memory__*'])
+  it('lists read-only cherry-tools + claw + agent-memory in Soul Mode, excluding the mutating kb_manage', () => {
+    const allowed = adjustAllowedToolsForMcp(true, false)
+    expect(allowed).toEqual(
+      expect.arrayContaining([
+        'mcp__cherry-tools__kb_search',
+        'mcp__cherry-tools__kb_list',
+        'mcp__claw__*',
+        'mcp__agent-memory__*'
+      ])
     )
+    // The mutating kb_manage tool must NOT be pre-approved by the SDK allowlist — it requires
+    // per-call approval via canUseTool. A bare wildcard would silently re-include it.
+    expect(allowed).not.toContain('mcp__cherry-tools__kb_manage')
+    expect(allowed).not.toContain('mcp__cherry-tools__*')
   })
 
-  it('adds the cherry-tools + assistant wildcards for the Cherry Assistant', () => {
-    expect(adjustAllowedToolsForMcp(false, true)).toEqual(
-      expect.arrayContaining(['mcp__cherry-tools__*', 'mcp__assistant__*'])
+  it('lists read-only cherry-tools + assistant for the Cherry Assistant, excluding kb_manage', () => {
+    const allowed = adjustAllowedToolsForMcp(false, true)
+    expect(allowed).toEqual(
+      expect.arrayContaining(['mcp__cherry-tools__kb_search', 'mcp__cherry-tools__kb_list', 'mcp__assistant__*'])
     )
+    expect(allowed).not.toContain('mcp__cherry-tools__kb_manage')
+    expect(allowed).not.toContain('mcp__cherry-tools__*')
   })
 
   it('leaves the allowlist undefined for a plain agent (all tools permitted)', () => {

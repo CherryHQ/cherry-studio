@@ -8,7 +8,7 @@ vi.mock('@renderer/config/logger', () => ({
   default: { error: vi.fn() }
 }))
 
-vi.mock('@renderer/config/constant', () => ({
+vi.mock('@renderer/utils/platform', () => ({
   isMac: false,
   isWin: true
 }))

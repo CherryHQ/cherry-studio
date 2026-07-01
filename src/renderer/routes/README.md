@@ -76,7 +76,7 @@ This project provides two navigation methods:
 Open a new Tab or switch to an existing Tab using the `useTabs` hook:
 
 ```typescript
-import { useTabs } from '@renderer/hooks/useTabs'
+import { useTabs } from '@renderer/hooks/tab'
 
 function MyComponent() {
   const { openTab, closeTab } = useTabs()

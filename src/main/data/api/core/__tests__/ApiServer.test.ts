@@ -1,6 +1,18 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiServer } from '../ApiServer'
+
+const originalNodeEnv = process.env.NODE_ENV
+const originalDiagnostics = process.env.CS_DIAGNOSTICS
+
+afterEach(() => {
+  process.env.NODE_ENV = originalNodeEnv
+  if (originalDiagnostics === undefined) {
+    delete process.env.CS_DIAGNOSTICS
+  } else {
+    process.env.CS_DIAGNOSTICS = originalDiagnostics
+  }
+})
 
 // The constructor is private; cast to bypass for focused unit tests.
 // extractPathParams() is a pure method and depends on no injected handlers,
@@ -156,5 +168,154 @@ describe('ApiServer.extractPathParams', () => {
       expect(extract('/foo*', '/foo*')).toEqual({})
       expect(extract('/foo*', '/foo/bar')).toBeNull()
     })
+  })
+})
+
+describe('ApiServer devtools timing metadata', () => {
+  it('does not add timing metadata when devtools and diagnostics are disabled', async () => {
+    const server = new (ApiServer as any)({
+      '/providers': {
+        GET: async () => ({ ok: true })
+      }
+    })
+
+    const response = await server.handleRequest({
+      id: 'req_1',
+      method: 'GET',
+      path: '/providers',
+      metadata: { timestamp: Date.now() }
+    })
+
+    expect(response).toMatchObject({
+      id: 'req_1',
+      status: 200,
+      data: { ok: true }
+    })
+    expect(response.metadata?.duration).toBeUndefined()
+    expect(response.metadata?.handlerDuration).toBeUndefined()
+  })
+
+  it('adds request and handler durations in development mode', async () => {
+    vi.resetModules()
+    process.env.NODE_ENV = 'development'
+    const { ApiServer: DevApiServer } = await import('../ApiServer')
+    const server = new (DevApiServer as any)({
+      '/providers': {
+        GET: async () => ({ ok: true })
+      }
+    })
+
+    const response = await server.handleRequest({
+      id: 'req_2',
+      method: 'GET',
+      path: '/providers',
+      metadata: { timestamp: Date.now() }
+    })
+
+    expect(response.metadata).toMatchObject({
+      duration: expect.any(Number),
+      handlerDuration: expect.any(Number),
+      timestamp: expect.any(Number)
+    })
+  })
+
+  it('adds handler duration when a handler throws in development mode', async () => {
+    vi.resetModules()
+    process.env.NODE_ENV = 'development'
+    const { ApiServer: DevApiServer } = await import('../ApiServer')
+    const server = new (DevApiServer as any)({
+      '/providers': {
+        GET: async () => {
+          throw new Error('handler failed')
+        }
+      }
+    })
+
+    const response = await server.handleRequest({
+      id: 'req_3',
+      method: 'GET',
+      path: '/providers',
+      metadata: { timestamp: Date.now() }
+    })
+
+    expect(response).toMatchObject({
+      id: 'req_3',
+      status: 500
+    })
+    expect(response.metadata).toMatchObject({
+      duration: expect.any(Number),
+      handlerDuration: expect.any(Number),
+      timestamp: expect.any(Number)
+    })
+  })
+
+  it('does not add handler duration when middleware short-circuits in development mode', async () => {
+    vi.resetModules()
+    process.env.NODE_ENV = 'development'
+    const { DataApiErrorFactory } = await import('@shared/data/api/apiErrors')
+    const { ApiServer: DevApiServer } = await import('../ApiServer')
+    const handler = vi.fn(async () => ({ ok: true }))
+    const server = new (DevApiServer as any)({
+      '/providers': {
+        GET: handler
+      }
+    })
+
+    server.use({
+      name: 'short-circuit',
+      priority: 5,
+      execute: async (_req: any, res: any) => {
+        const error = DataApiErrorFactory.validation({ provider: ['Blocked'] }, 'Blocked by middleware')
+        res.status = error.status
+        res.error = error.toJSON()
+      }
+    })
+
+    const response = await server.handleRequest({
+      id: 'req_4',
+      method: 'GET',
+      path: '/providers',
+      metadata: { timestamp: Date.now() }
+    })
+
+    expect(handler).not.toHaveBeenCalled()
+    expect(response).toMatchObject({
+      id: 'req_4',
+      status: 422,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Blocked by middleware'
+      }
+    })
+    expect(response.metadata).toMatchObject({
+      duration: expect.any(Number),
+      timestamp: expect.any(Number)
+    })
+    expect(response.metadata?.handlerDuration).toBeUndefined()
+  })
+
+  it('adds only request duration in diagnostics mode', async () => {
+    vi.resetModules()
+    process.env.NODE_ENV = 'production'
+    process.env.CS_DIAGNOSTICS = '1'
+    const { ApiServer: DiagnosticsApiServer } = await import('../ApiServer')
+    const server = new (DiagnosticsApiServer as any)({
+      '/providers': {
+        GET: async () => ({ ok: true })
+      }
+    })
+
+    const response = await server.handleRequest({
+      id: 'req_5',
+      method: 'GET',
+      path: '/providers',
+      metadata: { timestamp: Date.now() }
+    })
+
+    expect(response.metadata).toMatchObject({
+      duration: expect.any(Number),
+      timestamp: expect.any(Number)
+    })
+    expect(response.metadata?.handlerDuration).toBeUndefined()
   })
 })

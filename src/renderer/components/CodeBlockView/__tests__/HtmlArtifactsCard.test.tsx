@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   createTempFile: vi.fn(),
   error: vi.fn(),
   HtmlArtifactsPopup: vi.fn(({ open }) => (open ? <div data-testid="html-artifacts-popup" /> : null)),
+  loadHtmlArtifactsPopup: vi.fn(),
   loggerError: vi.fn(),
   openPath: vi.fn(),
   save: vi.fn(),
@@ -46,9 +47,13 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('../HtmlArtifactsPopup', () => ({
-  default: mocks.HtmlArtifactsPopup
-}))
+vi.mock('../HtmlArtifactsPopup', () => {
+  mocks.loadHtmlArtifactsPopup()
+
+  return {
+    default: mocks.HtmlArtifactsPopup
+  }
+})
 
 describe('HtmlArtifactsCard', () => {
   const html = '<!doctype html><html><head><title>Sample Page</title></head><body>Hello</body></html>'
@@ -126,5 +131,29 @@ describe('HtmlArtifactsCard', () => {
 
     await waitFor(() => expect(mocks.error).toHaveBeenCalledWith('message.download.failed: save failed'))
     expect(mocks.success).not.toHaveBeenCalled()
+  })
+
+  it('loads and mounts the popup only after preview opens', async () => {
+    const onSave = vi.fn()
+
+    render(<HtmlArtifactsCard html={html} onSave={onSave} editable={false} />)
+
+    expect(mocks.loadHtmlArtifactsPopup).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('html-artifacts-popup')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.artifacts.button.preview' }))
+
+    expect(await screen.findByTestId('html-artifacts-popup')).toBeInTheDocument()
+    expect(mocks.loadHtmlArtifactsPopup).toHaveBeenCalledTimes(1)
+    expect(mocks.HtmlArtifactsPopup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        editable: false,
+        html,
+        onSave,
+        open: true,
+        title: 'Sample Page'
+      }),
+      undefined
+    )
   })
 })

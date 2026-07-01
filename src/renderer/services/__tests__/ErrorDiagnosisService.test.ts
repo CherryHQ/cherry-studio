@@ -11,11 +11,6 @@ vi.mock('../ModelService', () => ({
   readDefaultModel: vi.fn().mockResolvedValue(undefined)
 }))
 
-// Mock CHERRYAI_PROVIDER
-vi.mock('@renderer/config/providers', () => ({
-  CHERRYAI_PROVIDER: { id: 'cherryai', type: 'openai', apiHost: 'https://api.cherry-ai.com', models: [] }
-}))
-
 // Mock LoggerService
 vi.mock('@renderer/services/LoggerService', () => ({
   loggerService: {
@@ -39,16 +34,11 @@ function makeError(overrides: Partial<SerializedError> = {}): SerializedError {
   return { name: 'Error', message: 'test error', stack: null, ...overrides }
 }
 
-const mockListModels = vi.fn()
-Object.assign(window, {
-  api: {
-    ...(window as any).api,
-    ai: {
-      ...(window as any).api?.ai,
-      listModels: (...args: any[]) => mockListModels(...args)
-    }
-  }
-})
+// listModels goes through ipcApi.request('ai.list_models', …) now (Main IPC).
+const { mockListModels } = vi.hoisted(() => ({ mockListModels: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: (_route: string, input: unknown) => mockListModels(input) }
+}))
 
 describe('ErrorDiagnosisService', () => {
   beforeEach(() => {

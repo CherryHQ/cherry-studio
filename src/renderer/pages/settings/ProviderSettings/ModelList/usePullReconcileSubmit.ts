@@ -47,13 +47,24 @@ export function usePullReconcileSubmit({ providerId, onApplyCommitted }: UsePull
           reconciledModels.length,
           'pull_reconcile_apply'
         )
-        window.toast.success(
-          t('settings.models.manage.sync_apply_result', {
-            added: toAdd.length,
-            deprecated: 0,
-            deleted: toRemove.length
-          })
-        )
+
+        // Detect models that were skipped from removal because they're in use
+        // as default / quick / translate models.
+        const reconciledIds = new Set(reconciledModels.map((m: { id: string }) => m.id))
+        const skippedIds = toRemove.filter((id) => reconciledIds.has(id))
+        const actualDeleted = toRemove.length - skippedIds.length
+
+        if (skippedIds.length > 0) {
+          window.toast.warning(t('settings.models.manage.sync_apply_default_in_use'))
+        } else {
+          window.toast.success(
+            t('settings.models.manage.sync_apply_result', {
+              added: toAdd.length,
+              deprecated: 0,
+              deleted: actualDeleted
+            })
+          )
+        }
         onApplyCommitted()
       } catch (error) {
         logger.error('Failed to apply pull reconcile selection', { providerId, error })

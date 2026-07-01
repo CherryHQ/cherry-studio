@@ -1,8 +1,8 @@
 import { Button, Input, Slider, Switch } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Selector from '@renderer/components/Selector'
-import { useTheme } from '@renderer/context/ThemeProvider'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
+import { useTheme } from '@renderer/hooks/useTheme'
 import {
   SettingContainer,
   SettingDivider,

@@ -47,11 +47,33 @@ worktree creation — the code is already local.
 
 **Otherwise**, create a worktree:
 ```bash
+# The fetch creates local branch `pr-{number}` (no upstream tracking needed).
+# --no-track is implied by the refspec `pull/N/head:pr-N`.
 git fetch origin pull/{number}/head:pr-{number}
-git worktree add --no-track /tmp/pr-review-{number} pr-{number}
+git worktree add /tmp/pr-review-{number} pr-{number}
 cd /tmp/pr-review-{number}
 ```
-If worktree creation fails, inform the user and abort.
+
+If the fetch fails with `couldn't find remote ref`, the local `origin` is
+likely a fork (typical for contributors). Inspect remotes and retry against
+`upstream`:
+```bash
+git remote -v
+# If `origin` points to your fork and `upstream` points to the canonical
+# repo, fetch from upstream instead:
+git fetch upstream pull/{number}/head:pr-{number}
+git worktree add /tmp/pr-review-{number} pr-{number}
+cd /tmp/pr-review-{number}
+```
+If `upstream` is not configured, ask the user for the canonical remote URL
+before retrying. Do not guess.
+
+If worktree creation fails for any other reason, inform the user and abort.
+
+> **Platform note (Windows)**: After `git worktree add /tmp/pr-review-{N}`,
+> the `/tmp/...` path is not directly readable by Claude Code's Read tool
+> (which expects Windows paths). Convert with `cygpath -w /tmp/pr-review-{N}`
+> in Git Bash before passing to Read. On macOS/Linux, use the path as-is.
 
 ---
 
@@ -109,6 +131,12 @@ cd -
 git worktree remove /tmp/pr-review-{number}
 git branch -D pr-{number}
 ```
+
+> **Cleanup is best-effort.** If `git worktree remove` fails (e.g.,
+> `Permission denied` on Windows when a file handle is still open), the
+> review result is still valid — do not block on cleanup. From the main
+> repo, run `git worktree prune` to clear stale worktree references; the
+> directory can be removed manually afterward.
 
 Present results to user:
 - Summary: one paragraph describing the purpose and scope of the change.

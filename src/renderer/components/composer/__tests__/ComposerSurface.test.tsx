@@ -6,7 +6,7 @@ import {
   writeComposerRichClipboardContent
 } from '@renderer/utils/message/composerClipboard'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from 'react'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -77,11 +77,31 @@ vi.mock('@cherrystudio/ui/lib/utils', () => ({
 }))
 
 vi.mock('@renderer/components/chat/layout/ChatLayoutModeContext', () => ({
-  useChatLayoutMode: () => ({ forceWideLayout: false })
+  useChatLayoutMode: () => {
+    throw new Error('ComposerSurface should not read the chat wide-layout override')
+  }
 }))
 
 vi.mock('@renderer/components/chat/layout/NarrowLayout', () => ({
-  default: ({ children }: { children: ReactNode }) => <div data-testid="narrow-layout">{children}</div>
+  default: ({
+    children,
+    narrowMode,
+    withSidePadding,
+    style
+  }: {
+    children: ReactNode
+    narrowMode?: boolean
+    withSidePadding?: boolean
+    style?: CSSProperties
+  }) => (
+    <div
+      data-testid="narrow-layout"
+      data-narrow-mode={String(Boolean(narrowMode))}
+      data-with-side-padding={String(Boolean(withSidePadding))}
+      style={style}>
+      {children}
+    </div>
+  )
 }))
 
 vi.mock('@renderer/components/QuickPanel', () => ({
@@ -389,6 +409,13 @@ describe('ComposerSurface', () => {
     clearMockTimers()
   })
 
+  it('keeps composer narrow mode independent from chat wide-layout overrides', () => {
+    render(<ComposerSurface {...baseProps} narrowMode />)
+
+    expect(screen.getByTestId('narrow-layout')).toHaveAttribute('data-narrow-mode', 'true')
+    expect(screen.getByTestId('narrow-layout')).toHaveAttribute('data-with-side-padding', 'true')
+  })
+
   it('uses state-specific viewport-relative max heights and only fixes height when expanded', async () => {
     render(<Harness />)
 
@@ -437,8 +464,8 @@ describe('ComposerSurface', () => {
     expect(expandButton.closest('#inputbar')).toBe(inputbar)
     expect(expandButton.parentElement).toBe(corner)
     expect(inputbar).not.toHaveClass('group/inputbar')
-    expect(corner).toHaveClass('group/expand-corner', 'absolute', 'top-px', 'right-px', 'size-7')
-    expect(cornerLine).toHaveClass('top-0', 'right-0', 'size-[18px]', 'rounded-tr-[18px]')
+    expect(corner).toHaveClass('group/expand-corner', 'absolute', 'top-px', 'right-px', 'size-8')
+    expect(cornerLine).toHaveClass('top-1', 'right-1', 'size-3', 'rounded-tr-[16px]')
     expect(cornerLine).toHaveClass('border-t-[1.5px]', 'border-r-[1.5px]', 'origin-top-right')
     expect(cornerLine).toHaveClass(
       'transition-[opacity,scale]',
@@ -1128,6 +1155,47 @@ describe('ComposerSurface', () => {
     expect(mocks.insertContent).toHaveBeenCalledTimes(2)
   })
 
+  it('renders regular file tokens with a remove action', async () => {
+    const fileToken = {
+      id: 'file:file-1',
+      kind: 'file' as const,
+      label: 'notes.md',
+      payload: {
+        id: 'file-1',
+        name: 'notes.md',
+        origin_name: 'notes.md',
+        path: '/tmp/notes.md'
+      }
+    }
+
+    mocks.docDescendants.mockImplementation((visit: (node: any, position: number) => void) => {
+      visit({ type: { name: 'composerToken' }, attrs: fileToken, nodeSize: 1 }, 3)
+    })
+
+    render(<ComposerSurface {...baseProps} tokens={[fileToken]} managedTokenKinds={['file']} />)
+
+    await waitFor(() => expect(mocks.editorPresetOptions?.renderToken).toBeDefined())
+    render(
+      <>
+        {mocks.editorPresetOptions.renderToken(fileToken, {
+          selected: false,
+          nodeViewProps: { getPos: () => 3, node: { nodeSize: 1 } }
+        })}
+      </>
+    )
+
+    expect(screen.getByRole('button', { name: 'appMenu.delete' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'appMenu.delete' })).toHaveClass('size-6', 'rounded-md')
+    expect(screen.getByRole('button', { name: 'appMenu.delete' })).not.toHaveClass('size-7')
+    expect(screen.getByRole('button', { name: 'appMenu.delete' })).not.toHaveClass('rounded-full')
+    expect(screen.queryByRole('button', { name: 'chat.input.paste_text_file' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'appMenu.delete' }))
+
+    expect(mocks.transaction.delete).toHaveBeenCalledWith(3, 4)
+    expect(mocks.dispatch).toHaveBeenCalledWith(mocks.transaction)
+  })
+
   it('renders pasted text file tokens with a show-in-input action that replaces the token', async () => {
     const pastedFile = {
       id: 'file-1',
@@ -1163,8 +1231,15 @@ describe('ComposerSurface', () => {
     )
 
     const showInInputButton = screen.getByRole('button', { name: 'chat.input.paste_text_file' })
-    expect(showInInputButton).toHaveClass('min-h-0', 'w-fit', 'p-0', 'text-primary', 'hover:text-primary-hover')
-    expect(showInInputButton).not.toHaveClass('w-full', 'text-muted-foreground')
+    expect(showInInputButton).toHaveClass('h-auto', 'min-h-0', 'w-fit', 'p-0', 'text-primary')
+    expect(showInInputButton).not.toHaveClass('h-7', 'rounded-full', 'px-2.5')
+    const deleteButton = screen.getByRole('button', { name: 'appMenu.delete' })
+    expect(deleteButton).toBeInTheDocument()
+    const actionContainer = document.querySelector('[data-file-token-actions]')!
+    expect(actionContainer).toHaveClass('grid', 'grid-cols-[minmax(0,1fr)_auto]', 'gap-y-1')
+    const actionButtons = Array.from(actionContainer.querySelectorAll('button'))
+    expect(actionButtons[0]).toBe(deleteButton)
+    expect(actionButtons[1]).toBe(showInInputButton)
 
     fireEvent.click(showInInputButton)
 

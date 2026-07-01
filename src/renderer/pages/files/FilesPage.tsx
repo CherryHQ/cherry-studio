@@ -10,15 +10,14 @@ import {
 } from '@cherrystudio/ui'
 import { useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { isMac } from '@renderer/config/constant'
 import { ipcApi } from '@renderer/ipc'
+import { safeOpen } from '@renderer/utils/file/safeOpen'
+import { isMac } from '@renderer/utils/platform'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
-import { IpcError } from '@shared/ipc/errors'
-import { fileErrorCodes } from '@shared/ipc/errors/file'
 import type { OutputFor } from '@shared/ipc/types'
 import type { FilePath, FileType } from '@shared/types/file'
-import { getFileTypeByExt } from '@shared/utils/file'
-import { toSafeFileUrl } from '@shared/utils/file/urlUtil'
+import { createFileEntryHandle, getFileTypeByExt } from '@shared/utils/file'
+import { toSafeFileUrl } from '@shared/utils/file/url'
 import { Trash2, Upload, X } from 'lucide-react'
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -488,15 +487,7 @@ function FilesPage() {
 
   const handleOpen = useCallback(
     (file: FileItem) => {
-      void ipcApi.request('file.open', { id: file.id }).catch((error) => {
-        if (error instanceof IpcError && error.code === fileErrorCodes.OPEN_BLOCKED_UNSAFE_TYPE) {
-          logger.warn('Blocked unsafe default-open; falling back to show in folder', { id: file.id })
-          void ipcApi
-            .request('file.show_in_folder', { id: file.id })
-            .catch((showError) => logger.error('Failed to show blocked file in folder', showError as Error))
-          return
-        }
-        logger.error('Failed to open file', error as Error)
+      void safeOpen(createFileEntryHandle(file.id)).catch(() => {
         window.toast?.error(t('files.preview.error'))
       })
     },
@@ -504,7 +495,7 @@ function FilesPage() {
   )
 
   const handleShowInFolder = useCallback((id: string) => {
-    void ipcApi.request('file.show_in_folder', { id }).catch((error) => {
+    void ipcApi.request('file.show_in_folder', createFileEntryHandle(id)).catch((error) => {
       logger.error('Failed to show file in folder', error as Error)
     })
   }, [])

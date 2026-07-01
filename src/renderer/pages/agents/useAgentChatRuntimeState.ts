@@ -14,9 +14,11 @@ import {
 } from '@renderer/hooks/useConversationTurnController'
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { ipcApi } from '@renderer/ipc'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
+import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
@@ -292,9 +294,9 @@ export function useAgentChatRuntimeState({
         }))
       }
 
-      let result: Awaited<ReturnType<typeof window.api.ai.toolApproval.respond>>
+      let result: AiToolApprovalRespondResponse
       try {
-        result = await window.api.ai.toolApproval.respond({
+        result = await ipcApi.request('ai.respond_tool_approval', {
           approvalId,
           approved,
           reason,

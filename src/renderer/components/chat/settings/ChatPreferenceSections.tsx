@@ -2,8 +2,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider }
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import EditableNumber from '@renderer/components/EditableNumber'
 import { SettingGroup as PageSettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useTheme } from '@renderer/hooks/useTheme'
 import type { CodeStyleVarious } from '@renderer/types/app'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
@@ -162,6 +162,7 @@ const ChatPreferenceSections: FC = () => {
               label={t('settings.messages.markdown_rendering_input_message')}
             />
           </SettingRow>
+          <SettingDivider />
           <SettingRow>
             <SettingSwitch
               checked={confirmDeleteMessage}

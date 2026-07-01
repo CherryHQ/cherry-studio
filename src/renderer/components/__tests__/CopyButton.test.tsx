@@ -71,13 +71,6 @@ describe('CopyButton', () => {
     expect(copyIcon).toBeInTheDocument()
   })
 
-  it('should not render tooltip when not provided', () => {
-    render(<CopyButton textToCopy="test text" />)
-
-    // Should not have tooltip wrapper
-    expect(document.querySelector('.ant-tooltip')).not.toBeInTheDocument()
-  })
-
   it('should copy text to clipboard on click', async () => {
     const textToCopy = 'Hello World'
     mockWriteText.mockResolvedValue(undefined)
