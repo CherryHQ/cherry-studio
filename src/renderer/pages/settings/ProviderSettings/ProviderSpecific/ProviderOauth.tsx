@@ -58,7 +58,7 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
               {Icon ? (
                 <Icon.Avatar size={40} />
               ) : (
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted font-bold text-[18px]">
+                <div className="text-(length:--font-size-body-lg) flex size-10 shrink-0 items-center justify-center rounded-full bg-muted font-bold">
                   {provider.name[0]}
                 </div>
               )}
@@ -67,8 +67,8 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
                 <div className={oauthCardClasses.loggedInEmail}>{serviceDescription}</div>
               </div>
             </div>
-            {/* className="" clears OauthButton's hard-coded `rounded-full` so the emphasis variant's own radius/size matches the CherryIN login button */}
-            <OauthButton provider={{ id: provider.id }} onSuccess={setApiKey} variant="emphasis" className="" />
+            {/* className="" clears OauthButton's hard-coded `rounded-full` so the default variant's own radius/size matches the CherryIN login button */}
+            <OauthButton provider={{ id: provider.id }} onSuccess={setApiKey} variant="default" className="" />
           </div>
         </div>
       </div>
@@ -81,21 +81,25 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
       {Icon ? (
         <Icon.Avatar size={60} />
       ) : (
-        <div className="flex size-15 shrink-0 items-center justify-center rounded-full bg-muted font-bold text-[24px]">
+        <div className="text-(length:--font-size-heading-sm) flex size-15 shrink-0 items-center justify-center rounded-full bg-muted font-bold">
           {provider.name[0]}
         </div>
       )}
       <RowFlex className="gap-2.5">
-        <Button className="rounded-lg px-3 py-1.5 text-[13px] shadow-none" onClick={() => providerCharge(provider.id)}>
+        <Button
+          className="text-(length:--font-size-body-xs) rounded-lg px-3 py-1.5 shadow-none"
+          onClick={() => providerCharge(provider.id)}>
           <CircleDollarSign aria-hidden className="size-4 shrink-0 text-white" />
           {t('settings.provider.charge')}
         </Button>
-        <Button className="rounded-lg px-3 py-1.5 text-[13px] shadow-none" onClick={() => providerBills(provider.id)}>
+        <Button
+          className="text-(length:--font-size-body-xs) rounded-lg px-3 py-1.5 shadow-none"
+          onClick={() => providerBills(provider.id)}>
           <ReceiptText aria-hidden className="size-4 shrink-0 text-white" />
           {t('settings.provider.bills')}
         </Button>
       </RowFlex>
-      <div className="flex items-center gap-1.5 text-[13px] text-foreground-secondary leading-[1.35]">
+      <div className="text-(length:--font-size-body-xs) flex items-center gap-1.5 text-foreground-secondary leading-[1.35]">
         {serviceDescription}
       </div>
     </div>

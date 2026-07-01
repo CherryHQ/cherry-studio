@@ -72,18 +72,12 @@ describe('ProviderSetting', () => {
     )
   })
 
-  it('keeps the provider detail shell transparent so the settings background is continuous', () => {
-    render(<ProviderSetting providerId="openai" />)
-
-    expect(screen.getByTestId('provider-detail-shell')).not.toHaveClass('bg-background')
-    expect(screen.getByTestId('provider-detail-shell')).not.toHaveClass('bg-card')
-  })
-
-  it('renders the provider detail divider below the provider header, aligned to body content width', () => {
+  it('aligns the provider header inner wrapper to body content width without a divider', () => {
     render(<ProviderSetting providerId="openai" />)
 
     const innerWrap = screen.getByText('provider-header-openai').parentElement as HTMLElement
-    expect(innerWrap.className).toMatch(/(^|\s)border-b(\s|$)/)
+    // Divider removed by design — sections below carry their own borders.
+    expect(innerWrap.className).not.toMatch(/(^|\s)border-b(\s|$)/)
     expect(innerWrap.className).toMatch(/(^|\s)max-w-3xl(\s|$)/)
     expect(innerWrap.className).toMatch(/(^|\s)mx-auto(\s|$)/)
   })
