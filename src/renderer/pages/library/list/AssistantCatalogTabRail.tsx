@@ -26,7 +26,7 @@ export function AssistantCatalogTabRail({ tabs, activeTab, onTabChange }: Assist
         size="icon-sm"
         aria-label={t('library.assistant_catalog.scroll_left')}
         onClick={() => scrollRail(-1)}
-        className="shrink-0 rounded-full text-foreground-muted hover:text-foreground">
+        className="shrink-0 rounded-full text-foreground/80 hover:text-foreground [&_svg]:[stroke-width:1.6]">
         <ChevronLeft size={14} />
       </Button>
       <div className="relative min-w-0 flex-1">
@@ -55,7 +55,7 @@ export function AssistantCatalogTabRail({ tabs, activeTab, onTabChange }: Assist
         size="icon-sm"
         aria-label={t('library.assistant_catalog.scroll_right')}
         onClick={() => scrollRail(1)}
-        className="shrink-0 rounded-full text-foreground-muted hover:text-foreground">
+        className="shrink-0 rounded-full text-foreground/80 hover:text-foreground [&_svg]:[stroke-width:1.6]">
         <ChevronRight size={14} />
       </Button>
     </div>

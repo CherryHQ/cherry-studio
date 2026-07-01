@@ -282,7 +282,7 @@ export function ResourceCard({
                     size="icon-sm"
                     aria-label={t('common.more')}
                     onClick={(e) => e.stopPropagation()}
-                    className="text-foreground-muted opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100">
+                    className="text-foreground/80 opacity-0 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100 [&_svg]:[stroke-width:1.6]">
                     <MoreHorizontal size={12} />
                   </Button>
                 </PopoverTrigger>
@@ -311,7 +311,7 @@ export function ResourceCard({
                 size="icon-sm"
                 aria-label={r.type === 'skill' ? t('library.action.uninstall') : t('common.delete')}
                 onClick={() => onDelete(r)}
-                className="text-foreground-muted opacity-0 hover:bg-error-bg hover:text-error-text focus-visible:opacity-100 group-hover:opacity-100">
+                className="text-foreground/80 opacity-0 hover:bg-error-bg hover:text-error-text focus-visible:opacity-100 group-hover:opacity-100 [&_svg]:[stroke-width:1.6]">
                 <Trash2 size={12} className="lucide-custom" />
               </Button>
             )}

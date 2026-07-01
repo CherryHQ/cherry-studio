@@ -82,7 +82,7 @@ const DataSourcePanelHeader = ({
               size="sm"
               aria-haspopup="menu"
               aria-expanded={isSourceMenuOpen}
-              className="min-h-0 rounded-lg px-3 py-1.5 font-medium text-foreground-secondary text-sm leading-5 shadow-none hover:bg-accent hover:text-foreground">
+              className="min-h-0 rounded-lg px-3 py-1.5 font-medium text-foreground/80 text-sm leading-5 shadow-none hover:bg-accent hover:text-foreground [&_svg]:[stroke-width:1.6]">
               <Plus className="size-3.5" />
               {t('knowledge.data_source.toolbar.add')}
             </Button>

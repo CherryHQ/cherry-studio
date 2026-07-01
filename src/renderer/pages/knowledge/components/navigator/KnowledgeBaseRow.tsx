@@ -141,7 +141,7 @@ const KnowledgeBaseRow = ({
                 size="icon-sm"
                 aria-label={t('common.more')}
                 className={cn(
-                  'text-foreground-muted hover:bg-accent group-focus-within/kb:opacity-100 group-focus-within:opacity-100 group-hover/kb:opacity-100 group-hover:opacity-100',
+                  'text-foreground/80 hover:bg-accent group-focus-within/kb:opacity-100 group-focus-within:opacity-100 group-hover/kb:opacity-100 group-hover:opacity-100 [&_svg]:[stroke-width:1.6]',
                   moreMenuOpen ? 'opacity-100' : 'opacity-0'
                 )}>
                 <MoreHorizontal />

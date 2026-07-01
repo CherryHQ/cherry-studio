@@ -13,7 +13,7 @@ interface Props {
 
 const ITEM_CLASS =
   'h-8 w-full cursor-pointer gap-1.5 rounded-lg border-0 px-1.5 text-[13px] font-normal ' +
-  'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground [&_svg]:size-4 ' +
+  'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground [&_svg]:size-4 [&_svg]:text-current ' +
   'data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-foreground ' +
   'focus-visible:bg-sidebar-accent focus-visible:text-sidebar-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring'
 

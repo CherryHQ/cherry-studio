@@ -388,8 +388,8 @@ const OpenClawPage: FC = () => {
         {/* Install Path - hide when gateway is running */}
         {installPath && gatewayStatus !== 'running' && (
           <div
-            className="mb-6 flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm"
-            style={{ background: 'var(--color-background-soft)', color: 'var(--color-text-3)' }}>
+            className="mb-6 flex items-center justify-between gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm"
+            style={{ color: 'var(--color-text-3)' }}>
             <div className="min-w-0 shrink overflow-hidden">
               <div className="mb-1">{t('openclaw.installed_at')}</div>
               <div className="flex items-center gap-2">
@@ -399,7 +399,7 @@ const OpenClawPage: FC = () => {
                 <Button
                   size="icon-sm"
                   variant="ghost"
-                  className="size-4! p-0! shadow-none"
+                  className="size-4! p-0! text-foreground-muted shadow-none hover:text-foreground"
                   aria-label={t('common.copy')}
                   onClick={async () => {
                     try {
@@ -507,12 +507,14 @@ const OpenClawPage: FC = () => {
               filter={modelFilter}
               onSelect={handleModelSelect}
               trigger={
-                <Button variant="outline" className="w-full justify-start">
+                <Button
+                  variant="secondary"
+                  className="h-8 w-full justify-between gap-2 rounded-lg bg-muted/50 px-2.5 font-normal text-sm hover:bg-muted">
                   {selectedModel ? <ModelAvatar model={selectedModel} size={18} /> : null}
                   <span className="flex-1 truncate text-left">
                     {selectedModel ? selectedModel.name : t('openclaw.model_config.select_model')}
                   </span>
-                  <ChevronDown size={14} className="text-muted-foreground" />
+                  <ChevronDown size={16} className="lucide-custom text-muted-foreground/40" />
                 </Button>
               }
             />
@@ -522,8 +524,8 @@ const OpenClawPage: FC = () => {
 
             {/* Tips about OpenClaw */}
             <div
-              className="mt-4 rounded-lg p-3 text-xs leading-relaxed"
-              style={{ background: 'var(--color-background-mute)', color: 'var(--color-text-3)' }}>
+              className="mt-4 rounded-lg bg-muted/50 p-3 text-xs leading-relaxed"
+              style={{ color: 'var(--color-text-3)' }}>
               <div className="mb-1">💡 {t('openclaw.tips.title')}</div>
               <ul className="list-inside list-disc space-y-1">
                 <li>{t('openclaw.tips.permissions')}</li>
