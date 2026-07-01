@@ -4,6 +4,7 @@ import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/
 import App from '@renderer/components/MiniApp/MiniApp'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import {
   getRequiredSidebarFavoritesVisible,
@@ -12,7 +13,7 @@ import {
   sanitizeSidebarFavorites,
   SIDEBAR_FAVORITE_ORDER
 } from '@renderer/utils/sidebar'
-import type { SidebarFavorite } from '@shared/data/preference/preferenceTypes'
+import { ThemeMode, type SidebarFavorite } from '@shared/data/preference/preferenceTypes'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useMemo } from 'react'
@@ -22,18 +23,41 @@ const BASE_URL = 'https://www.cherry-ai.com/'
 
 const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarFavorite>(REQUIRED_SIDEBAR_FAVORITES)
 
-const APP_ICON_BACKGROUNDS: Record<SidebarFavorite, string> = {
-  assistants: 'linear-gradient(135deg, #111827, #4B5563)',
-  agents: 'linear-gradient(135deg, #2563EB, #38BDF8)',
-  store: 'linear-gradient(135deg, #0EA5E9, #6366F1)',
-  paintings: 'linear-gradient(135deg, #EC4899, #F472B6)',
-  translate: 'linear-gradient(135deg, #06B6D4, #0EA5E9)',
-  mini_app: 'linear-gradient(135deg, #8B5CF6, #A855F7)',
-  knowledge: 'linear-gradient(135deg, #10B981, #34D399)',
-  files: 'linear-gradient(135deg, #F59E0B, #FBBF24)',
-  code_tools: 'linear-gradient(135deg, #1F2937, #374151)',
-  notes: 'linear-gradient(135deg, #F97316, #FB923C)',
-  openclaw: 'linear-gradient(135deg, #EF4444, #B91C1C)'
+// Flat diagonal multi-hue blend (OpenAI-style) — smooth, no spherical highlight or vignette.
+const mesh = (c1: string, c2: string, c3: string) =>
+  `linear-gradient(140deg, ${c1} 0%, ${c2} 50%, ${c3} 100%)`
+
+// Grayscale film grain (SVG turbulence) layered over the gradient at low opacity + overlay blend.
+const NOISE_BG =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")"
+
+// Light: medium core (≈400) with lighter edges — colorful but not too deep. White glyph reads on the core.
+const APP_ICON_BACKGROUNDS_LIGHT: Record<SidebarFavorite, string> = {
+  assistants: mesh('#BFDBFE', '#60A5FA', '#A5B4FC'),
+  agents: mesh('#A5F3FC', '#38BDF8', '#7DD3FC'),
+  store: mesh('#99F6E4', '#2DD4BF', '#5EEAD4'),
+  paintings: mesh('#FBCFE8', '#F472B6', '#F9A8D4'),
+  translate: mesh('#BBF7D0', '#4ADE80', '#86EFAC'),
+  mini_app: mesh('#DDD6FE', '#A78BFA', '#C4B5FD'),
+  knowledge: mesh('#D9F99D', '#A3E635', '#BEF264'),
+  files: mesh('#FDE68A', '#FBBF24', '#FCD34D'),
+  code_tools: mesh('#C7D2FE', '#818CF8', '#A5B4FC'),
+  notes: mesh('#FED7AA', '#FB923C', '#FDBA74'),
+  openclaw: mesh('#FCA5A5', '#F87171', '#FCA5A5')
+}
+
+const APP_ICON_BACKGROUNDS_DARK: Record<SidebarFavorite, string> = {
+  assistants: mesh('#93C5FD', '#60A5FA', '#A5B4FC'),
+  agents: mesh('#67E8F9', '#38BDF8', '#7DD3FC'),
+  store: mesh('#5EEAD4', '#2DD4BF', '#6EE7B7'),
+  paintings: mesh('#F9A8D4', '#F472B6', '#F0ABFC'),
+  translate: mesh('#86EFAC', '#4ADE80', '#BEF264'),
+  mini_app: mesh('#C4B5FD', '#A78BFA', '#F0ABFC'),
+  knowledge: mesh('#BEF264', '#A3E635', '#6EE7B7'),
+  files: mesh('#FCD34D', '#FBBF24', '#FDBA74'),
+  code_tools: mesh('#A5B4FC', '#818CF8', '#C4B5FD'),
+  notes: mesh('#FDBA74', '#FB923C', '#FCA5A5'),
+  openclaw: mesh('#FCA5A5', '#F87171', '#FDBA74')
 }
 
 function insertSidebarFavoriteByCanonicalOrder(favorites: SidebarFavorite[], favorite: SidebarFavorite) {
@@ -68,6 +92,7 @@ function getSidebarFavoritesWithPinnedState({
 
 export default function LaunchpadPage() {
   const { t } = useTranslation()
+  const { theme } = useTheme()
   const navigate = useNavigate()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
   const { pinned, openedKeepAliveMiniApps } = useMiniApps()
@@ -154,6 +179,8 @@ export default function LaunchpadPage() {
     [pinToSidebar, t, unpinFromSidebar, visibleSidebarFavoriteSet]
   )
 
+  const appIconBackgrounds = theme === ThemeMode.dark ? APP_ICON_BACKGROUNDS_DARK : APP_ICON_BACKGROUNDS_LIGHT
+
   const appMenuItems = SIDEBAR_FAVORITE_ORDER.flatMap((icon) => {
     const Icon = SIDEBAR_ICON_COMPONENTS[icon]
     if (!Icon || !getSidebarMenuPath(icon, defaultPaintingProvider)) return []
@@ -163,7 +190,7 @@ export default function LaunchpadPage() {
         id: icon,
         icon: <Icon size={32} />,
         text: t(getSidebarIconLabelKey(icon)),
-        bgColor: APP_ICON_BACKGROUNDS[icon],
+        bgColor: appIconBackgrounds[icon],
         menuItems: getAppContextMenuItems(icon)
       }
     ]
@@ -198,9 +225,14 @@ export default function LaunchpadPage() {
                     className="group flex cursor-pointer flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center outline-none transition-transform duration-200 hover:scale-105 focus-visible:scale-105 active:scale-95">
                     <span className="relative flex size-14 items-center justify-center">
                       <span
-                        className="flex size-14 items-center justify-center rounded-2xl text-white shadow-sm [&_svg]:size-7 [&_svg]:text-white"
+                        className="relative flex size-14 items-center justify-center overflow-hidden rounded-2xl text-white shadow-sm [&_svg]:size-7 [&_svg]:text-white"
                         style={{ background: item.bgColor }}>
-                        {item.icon}
+                        <span
+                          aria-hidden
+                          className="pointer-events-none absolute inset-0 mix-blend-overlay opacity-[0.18]"
+                          style={{ backgroundImage: NOISE_BG }}
+                        />
+                        <span className="relative z-10 flex">{item.icon}</span>
                       </span>
                     </span>
                     <span className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-foreground">
