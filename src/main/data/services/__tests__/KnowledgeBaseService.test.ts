@@ -676,6 +676,25 @@ describe('KnowledgeBaseService', () => {
       expect(result.searchMode).toBe('bm25')
     })
 
+    it('allows renaming or moving a recoverable failed base despite a leftover incompatible search mode', async () => {
+      // A migration-failed base can carry a pre-BM25-only searchMode (e.g. 'hybrid')
+      // alongside a null embeddingModelId; the DB CHECK only constrains this pairing
+      // for completed bases, so a plain metadata PATCH must not resurrect that check
+      // (the no-model=>bm25 invariant is still enforced for completed bases — see
+      // "rejects switching a BM25-only base" above).
+      await seedKnowledgeBase({
+        embeddingModelId: null,
+        dimensions: null,
+        status: 'failed',
+        error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
+        searchMode: 'hybrid'
+      })
+
+      const result = await service.update(KNOWLEDGE_BASE_ID, { name: 'Renamed while failed' })
+      expect(result.name).toBe('Renamed while failed')
+      expect(result.searchMode).toBe('hybrid')
+    })
+
     it('should reject shrinking chunkSize when the existing chunkOverlap no longer fits', async () => {
       await seedKnowledgeBase({ chunkSize: 256, chunkOverlap: 120 })
 

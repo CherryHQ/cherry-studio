@@ -42,7 +42,6 @@ function validateKnowledgeBaseConfig(config: {
   chunkSeparator?: string | null
   searchMode?: string | null
   hybridAlpha?: number | null
-  embeddingModelId?: string | null
 }): Record<string, string[]> {
   const fieldErrors: Record<string, string[]> = {}
 
@@ -58,13 +57,22 @@ function validateKnowledgeBaseConfig(config: {
     fieldErrors.hybridAlpha = ['Hybrid alpha requires hybrid search mode']
   }
 
-  // Vector and hybrid retrieval need an embedding model; without one the base is
-  // BM25-only and cannot be switched to a non-bm25 search mode.
-  if (config.embeddingModelId == null && config.searchMode != null && config.searchMode !== 'bm25') {
-    fieldErrors.searchMode = ['A knowledge base without an embedding model can only use bm25 search']
-  }
-
   return fieldErrors
+}
+
+// Vector and hybrid retrieval need an embedding model; without one a base is
+// BM25-only and cannot run a non-bm25 search mode. Mirrors the `completed`-only
+// gate in `KnowledgeBaseSchema.superRefine`: a failed base's leftover searchMode
+// isn't governed by this invariant until it goes through restore, so callers
+// must only apply it to a base that is (or will become) completed.
+function validateSearchModeNeedsEmbedding(
+  embeddingModelId: string | null,
+  searchMode: string | null | undefined
+): Record<string, string[]> {
+  if (embeddingModelId == null && searchMode != null && searchMode !== 'bm25') {
+    return { searchMode: ['A knowledge base without an embedding model can only use bm25 search'] }
+  }
+  return {}
 }
 
 function rowToKnowledgeBase(row: KnowledgeBaseRow): KnowledgeBase {
@@ -194,7 +202,10 @@ export class KnowledgeBaseService {
       searchMode: usesEmbeddings ? (dto.searchMode ?? DEFAULT_KNOWLEDGE_SEARCH_MODE) : 'bm25',
       hybridAlpha: usesEmbeddings ? dto.hybridAlpha : undefined
     }
-    const createFieldErrors = validateKnowledgeBaseConfig({ ...createConfig, embeddingModelId })
+    const createFieldErrors = {
+      ...validateKnowledgeBaseConfig(createConfig),
+      ...validateSearchModeNeedsEmbedding(embeddingModelId, createConfig.searchMode)
+    }
     if (Object.keys(createFieldErrors).length > 0) {
       throw DataApiErrorFactory.validation(createFieldErrors)
     }
@@ -251,10 +262,16 @@ export class KnowledgeBaseService {
       nextConfig.hybridAlpha = null
     }
 
-    const updateFieldErrors = validateKnowledgeBaseConfig({
-      ...nextConfig,
-      embeddingModelId: existing.embeddingModelId
-    })
+    // Only a completed base is governed by the no-model=>bm25 invariant (mirrors
+    // KnowledgeBaseSchema.superRefine's own completed-only gate): a failed base
+    // may carry a leftover incompatible searchMode from before it failed/migrated,
+    // and metadata-only updates (rename, move group) must not be blocked by it.
+    const updateFieldErrors = {
+      ...validateKnowledgeBaseConfig(nextConfig),
+      ...(existing.status === 'completed'
+        ? validateSearchModeNeedsEmbedding(existing.embeddingModelId, nextConfig.searchMode)
+        : {})
+    }
     if (Object.keys(updateFieldErrors).length > 0) {
       throw DataApiErrorFactory.validation(updateFieldErrors)
     }
