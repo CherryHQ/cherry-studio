@@ -438,6 +438,7 @@ describe('ArtifactPane', () => {
   afterEach(() => {
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
+    vi.useRealTimers()
     vi.restoreAllMocks()
   })
 
@@ -704,6 +705,59 @@ describe('ArtifactPane', () => {
     expect(screen.queryByTestId('tree-node-src/old.md')).not.toBeInTheDocument()
   })
 
+  it('ignores older lazy directory requests when a newer reload wins', async () => {
+    let pushMutation:
+      | ((payload: {
+          treeId: string
+          event: { type: 'updated'; path: string; stats: { mtime: number; birthtime: number } }
+        }) => void)
+      | undefined
+    let resolveInitial: (entries: Array<{ path: string; isDirectory: boolean }>) => void = () => undefined
+    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
+    mocks.listDirectoryEntries
+      .mockReturnValueOnce(
+        new Promise<Array<{ path: string; isDirectory: boolean }>>((resolve) => {
+          resolveInitial = resolve
+        })
+      )
+      .mockResolvedValueOnce([{ path: '/tmp/workspace/src/new.md', isDirectory: false }])
+    mocks.treeOnMutation.mockImplementation((cb) => {
+      pushMutation = cb as typeof pushMutation
+      return () => {
+        pushMutation = undefined
+      }
+    })
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-src'))
+    await waitFor(() => expect(mocks.listDirectoryEntries).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(pushMutation).toBeDefined())
+
+    act(() => {
+      pushMutation?.({
+        treeId: 'tree-default',
+        event: {
+          type: 'updated',
+          path: '/tmp/workspace/src/new.md',
+          stats: { mtime: 1, birthtime: 1 }
+        }
+      })
+    })
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-src/new.md')).toBeInTheDocument())
+
+    await act(async () => {
+      resolveInitial([{ path: '/tmp/workspace/src/stale.md', isDirectory: false }])
+    })
+
+    expect(screen.getByTestId('tree-node-src/new.md')).toBeInTheDocument()
+    expect(screen.queryByTestId('tree-node-src/stale.md')).not.toBeInTheDocument()
+  })
+
   it('searches unloaded deep files and allows selecting the result', async () => {
     mockWorkspaceTree('/tmp/workspace', ['README.md'])
     mocks.listDirectoryEntries.mockResolvedValueOnce([
@@ -713,12 +767,35 @@ describe('ArtifactPane', () => {
 
     render(<ArtifactPane workspacePath="/tmp/workspace" fileTreeOpen enableFileSearch fileTreeSearchKeyword="deep" />)
 
+    await waitFor(() =>
+      expect(mocks.listDirectoryEntries).toHaveBeenCalledWith(
+        '/tmp/workspace',
+        expect.objectContaining({ recursive: true, searchPattern: 'deep', maxEntries: 200 })
+      )
+    )
     await waitFor(() => expect(screen.getByTestId('tree-node-src/feature/deep-result.ts')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-src/feature/deep-result.ts'))
 
     await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/src/feature/deep-result.ts'))
     expect(screen.getByTestId('code-viewer')).toHaveTextContent('export const value = 1')
+  })
+
+  it('debounces deep file search requests', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+    mocks.listDirectoryEntries.mockResolvedValue([])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" fileTreeOpen enableFileSearch fileTreeSearchKeyword="deep" />)
+
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(mocks.listDirectoryEntries).not.toHaveBeenCalled()
+
+    await waitFor(() =>
+      expect(mocks.listDirectoryEntries).toHaveBeenCalledWith(
+        '/tmp/workspace',
+        expect.objectContaining({ recursive: true, searchPattern: 'deep', maxEntries: 200 })
+      )
+    )
   })
 
   it('drops pending lazy directory results when the file tree closes', async () => {

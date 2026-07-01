@@ -18,6 +18,8 @@ import { getPathBasename, normalizeArtifactPaneFilePath, WORKSPACE_ROOT_ID } fro
 const logger = loggerService.withContext('useArtifactFileTreeModel')
 
 const ARTIFACT_TREE_INITIAL_MAX_DEPTH = 3
+const ARTIFACT_FILE_SEARCH_DEBOUNCE_MS = 200
+const ARTIFACT_FILE_SEARCH_MAX_ENTRIES = 200
 const WORKSPACE_TREE_OPTIONS: DirectoryTreeOptions = {
   maxDepth: ARTIFACT_TREE_INITIAL_MAX_DEPTH
 }
@@ -231,25 +233,32 @@ function useArtifactFileSearch(workspacePath: string | undefined, searchKeyword:
     const generation = searchGenerationRef.current + 1
     searchGenerationRef.current = generation
 
-    void (async () => {
-      try {
-        const entries = await window.api.file.listDirectoryEntries(workspacePath as FilePath, {
-          recursive: true,
-          maxDepth: 0,
-          includeHidden: false,
-          includeFiles: true,
-          includeDirectories: true,
-          searchPattern: trimmedSearch
-        })
-        if (generation !== searchGenerationRef.current) return
-        setSearchTree(projectDirectoryEntries(workspacePath, entries))
-      } catch (err) {
-        if (generation !== searchGenerationRef.current) return
-        const normalized = err instanceof Error ? err : new Error(String(err))
-        logger.warn(`Failed to search workspace files: ${workspacePath}`, normalized)
-        setSearchTree(null)
-      }
-    })()
+    const timeout = setTimeout(() => {
+      void (async () => {
+        try {
+          const entries = await window.api.file.listDirectoryEntries(workspacePath as FilePath, {
+            recursive: true,
+            maxDepth: 0,
+            includeHidden: false,
+            includeFiles: true,
+            includeDirectories: true,
+            maxEntries: ARTIFACT_FILE_SEARCH_MAX_ENTRIES,
+            searchPattern: trimmedSearch
+          })
+          if (generation !== searchGenerationRef.current) return
+          setSearchTree(projectDirectoryEntries(workspacePath, entries))
+        } catch (err) {
+          if (generation !== searchGenerationRef.current) return
+          const normalized = err instanceof Error ? err : new Error(String(err))
+          logger.warn(`Failed to search workspace files: ${workspacePath}`, normalized)
+          setSearchTree(null)
+        }
+      })()
+    }, ARTIFACT_FILE_SEARCH_DEBOUNCE_MS)
+
+    return () => {
+      clearTimeout(timeout)
+    }
   }, [searchKeyword, workspacePath])
 
   return searchTree
@@ -275,6 +284,7 @@ function useLazyArtifactFileTree({
   const previousTreeOpenRef = useRef(false)
   const lazyChildrenByDirIdRef = useRef<Map<string, FileTreeNode[]>>(new Map())
   const lazyLoadingDirIdsRef = useRef<Set<string>>(new Set())
+  const lazyRequestIdsByDirIdRef = useRef<Map<string, number>>(new Map())
   const lazyDirectoryWatchersRef = useRef<Map<string, LazyDirectoryWatcher>>(new Map())
   const lazyLoadGenerationRef = useRef(0)
   const currentWorkspacePathRef = useRef(workspacePath)
@@ -308,6 +318,7 @@ function useLazyArtifactFileTree({
     lazyLoadGenerationRef.current += 1
     lazyChildrenByDirIdRef.current.clear()
     lazyLoadingDirIdsRef.current.clear()
+    lazyRequestIdsByDirIdRef.current.clear()
     bumpLazyVersion()
   }, [bumpLazyVersion])
 
@@ -315,6 +326,7 @@ function useLazyArtifactFileTree({
     (options?: { clearChildren?: boolean }) => {
       lazyLoadGenerationRef.current += 1
       lazyLoadingDirIdsRef.current.clear()
+      lazyRequestIdsByDirIdRef.current.clear()
       if (options?.clearChildren) {
         lazyChildrenByDirIdRef.current.clear()
       }
@@ -333,6 +345,8 @@ function useLazyArtifactFileTree({
       lazyLoadingDirIdsRef.current.add(dirId)
       bumpLazyVersion()
       const generation = lazyLoadGenerationRef.current
+      const requestId = (lazyRequestIdsByDirIdRef.current.get(dirId) ?? 0) + 1
+      lazyRequestIdsByDirIdRef.current.set(dirId, requestId)
       const requestWorkspacePath = workspacePath
       const dirPath = joinPath(workspacePath, dirId)
 
@@ -361,6 +375,7 @@ function useLazyArtifactFileTree({
             .filter((child) => child !== null)
           if (
             generation !== lazyLoadGenerationRef.current ||
+            requestId !== lazyRequestIdsByDirIdRef.current.get(dirId) ||
             requestWorkspacePath !== currentWorkspacePathRef.current
           ) {
             return
@@ -373,9 +388,11 @@ function useLazyArtifactFileTree({
         } finally {
           if (
             generation === lazyLoadGenerationRef.current &&
+            requestId === lazyRequestIdsByDirIdRef.current.get(dirId) &&
             requestWorkspacePath === currentWorkspacePathRef.current
           ) {
             lazyLoadingDirIdsRef.current.delete(dirId)
+            lazyRequestIdsByDirIdRef.current.delete(dirId)
             bumpLazyVersion()
           }
         }
