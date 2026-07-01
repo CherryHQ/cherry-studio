@@ -46,4 +46,20 @@ describe('mergeBinaryExecutionEnv (Windows)', () => {
     expect(segments.filter((s) => s.toLowerCase() === shims.toLowerCase())).toHaveLength(1)
     expect(segments.filter((s) => s.toLowerCase() === 'c:\\windows')).toHaveLength(1)
   })
+
+  it('collapses duplicate PATH casings into one key, merging segments from all of them', () => {
+    // Windows env keys are case-insensitive: an input carrying both `Path` and
+    // `PATH` must collapse to a single key so a stale casing cannot shadow the
+    // merged value at spawn time — and no segment from either casing is lost.
+    const shims = 'C:\\data\\binary-manager\\shims'
+    const merged = mergeBinaryExecutionEnv({ Path: 'C:\\Windows', PATH: 'C:\\Other' })
+
+    const pathKeys = Object.keys(merged).filter((k) => k.toLowerCase() === 'path')
+    expect(pathKeys).toHaveLength(1) // collapsed to a single canonical key
+
+    const segments = merged[pathKeys[0]].split(';')
+    expect(segments[0]).toBe(shims) // shims still first
+    expect(segments).toContain('C:\\Windows') // kept from the `Path` casing
+    expect(segments).toContain('C:\\Other') // kept from the `PATH` casing
+  })
 })

@@ -85,8 +85,14 @@ export function mergeBinaryExecutionEnv(
   extraPathPrefixes: string[] = []
 ): Record<string, string> {
   const binaryEnv = getBinaryExecutionEnv()
-  const pathKey = Object.keys(env).find((key) => key.toLowerCase() === 'path') || (isWin ? 'Path' : 'PATH')
   const pathSeparator = isWin ? ';' : path.delimiter
+  // Windows env keys are case-insensitive, so the input can carry several PATH
+  // casings (`Path`, `PATH`). Gather segments from every one of them and collapse
+  // the output to a single key — otherwise a stale casing left untouched can
+  // shadow the merged value when the child process spawns, losing the shims-first
+  // ordering this function guarantees.
+  const pathLikeKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
+  const pathKey = pathLikeKeys[0] || (isWin ? 'Path' : 'PATH')
   // Dedup segments (first occurrence wins) so prepending the shims dir can't
   // double it up when the caller's PATH already carries it — callers like
   // shellEnv append the same tool dirs upstream. Order is load-bearing on
@@ -95,7 +101,7 @@ export function mergeBinaryExecutionEnv(
   const pathValue = [
     binaryEnv.MISE_SHIMS_DIR,
     ...extraPathPrefixes,
-    ...(env[pathKey] || env.PATH || '').split(pathSeparator)
+    ...pathLikeKeys.flatMap((key) => (env[key] || '').split(pathSeparator))
   ]
     .map((segment) => segment.trim())
     .filter((segment) => {
@@ -106,7 +112,9 @@ export function mergeBinaryExecutionEnv(
       return true
     })
     .join(pathSeparator)
-  const merged = { ...env, ...binaryEnv, [pathKey]: pathValue }
+  const merged = { ...env, ...binaryEnv }
+  for (const key of pathLikeKeys) delete merged[key]
+  merged[pathKey] = pathValue
   if (!isWin) merged.PATH = pathValue
   return merged
 }
