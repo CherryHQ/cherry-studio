@@ -116,6 +116,8 @@ export function buildPathRegistry() {
     'feature.agents.claude.root': path.join(appUserData, '.claude'), // Claude Code config (relocated from ~/.claude for Windows compat)
     'feature.agents.claude.skills': path.join(appUserData, '.claude', 'skills'), // symlinks → feature.agents.skills
     'feature.agents.channels': path.join(appUserDataData, 'Channels'),
+    'feature.agents.pi.root': path.join(appUserData, '.pi', 'agent'), // pi coding-agent home (relocated from ~/.pi/agent; Cherry-owned)
+    'feature.agents.pi.sessions': path.join(appUserData, '.pi', 'sessions'), // pi session JSONL files (Cherry-owned runtime artifacts)
     'feature.agents.workspaces': path.join(appUserDataData, 'Agents'), // per-agent workspace parent
     'feature.agents.builtin': path.join(appRootResources, 'builtin-agents'), // bundled agent templates (read-only)
 

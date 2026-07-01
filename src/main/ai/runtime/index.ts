@@ -1,4 +1,5 @@
 import './claudeCode/register'
+import './pi/register'
 
 export { runtimeDriverRegistry } from './registry'
 export type {

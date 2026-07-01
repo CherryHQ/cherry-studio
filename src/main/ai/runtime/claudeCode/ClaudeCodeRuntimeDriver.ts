@@ -1,5 +1,3 @@
-import { fileURLToPath } from 'node:url'
-
 import {
   type Options,
   type Query,
@@ -16,6 +14,7 @@ type BetaUsage = SDKResultMessage['usage']
 type SDKRuntimeSystemMessage = Extract<SDKMessage, { type: 'system' }>
 type SDKCompactionSystemMessage = SDKCompactBoundaryMessage | SDKStatusMessage
 import { loggerService } from '@logger'
+import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
@@ -47,6 +46,9 @@ import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage } from './streamAdapter
 import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
+
+// Re-exported from its relocated neutral home so existing importers/tests keep working.
+export { buildAgentUserContent }
 
 class AsyncEventQueue<T> implements AsyncIterable<T> {
   private readonly items: T[] = []
@@ -461,41 +463,6 @@ function toSdkUserMessage(
     parent_tool_use_id: null,
     session_id: resumeToken ?? ''
   }
-}
-
-/**
- * Build the user-turn content sent to the agent SDK. The agent is a filesystem agent
- * (it has no native multimodal channel here), so attached files are forwarded as their
- * absolute paths appended to the text — the agent reads them with its own tools.
- */
-export function buildAgentUserContent(message: AgentSessionMessageEntity): string {
-  const text = extractMessageText(message)
-  const paths = extractAttachmentPaths(message)
-  if (paths.length === 0) return text
-
-  const list = paths.map((path) => `- ${path}`).join('\n')
-  const section = `Attached files (read them with your tools using these absolute paths):\n${list}`
-  return text.trim() ? `${text}\n\n${section}` : section
-}
-
-function extractMessageText(message: AgentSessionMessageEntity): string {
-  return (
-    message.data?.parts
-      ?.filter((part): part is { type: 'text'; text: string } => part.type === 'text' && 'text' in part)
-      .map((part) => part.text)
-      .join('\n') ?? ''
-  )
-}
-
-/** Absolute local paths of `file://`-backed attachment parts (composer attachments). */
-function extractAttachmentPaths(message: AgentSessionMessageEntity): string[] {
-  const paths: string[] = []
-  for (const part of message.data?.parts ?? []) {
-    // `parts` is a typed `CherryMessagePart[]`, so `type === 'file'` narrows to `FileUIPart`.
-    if (part.type !== 'file' || !part.url.startsWith('file://')) continue
-    paths.push(fileURLToPath(part.url))
-  }
-  return paths
 }
 
 export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
