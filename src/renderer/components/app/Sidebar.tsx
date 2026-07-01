@@ -209,12 +209,33 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       const app = openableMiniAppById.get(appId)
       if (!app) return
 
-      openTab(`${MINI_APP_ROUTE_PREFIX}${app.appId}`, {
-        title: app.nameKey ? t(app.nameKey) : app.name,
+      const path = `${MINI_APP_ROUTE_PREFIX}${app.appId}`
+      if (activeTab?.url === path) return
+
+      const title = app.nameKey ? t(app.nameKey) : app.name
+
+      if (activeTab?.isPinned) {
+        openTab(path, { forceNew: true, title, icon: app.logo })
+        return
+      }
+
+      if (activeTab) {
+        updateTab(activeTab.id, {
+          url: path,
+          title,
+          icon: app.logo,
+          metadata: clearTabInstanceMetadata(activeTab.metadata)
+        })
+        return
+      }
+
+      openTab(path, {
+        forceNew: true,
+        title,
         icon: app.logo
       })
     },
-    [openableMiniAppById, openTab, t]
+    [activeTab, openableMiniAppById, openTab, t, updateTab]
   )
 
   // Common props shared between normal and floating sidebar

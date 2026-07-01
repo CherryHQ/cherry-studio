@@ -369,18 +369,70 @@ describe('app Sidebar', () => {
     expect(screen.queryByTestId('sidebar-mini-app-calculator')).not.toBeInTheDocument()
   })
 
-  it('opens a mini app tab from the sidebar mini app section', () => {
+  it('reuses the active tab from the sidebar mini app section', () => {
     mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app')]
     mocks.sidebarMiniAppFavorites = [miniAppFavorite('calculator')]
     mocks.allApps = [{ appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }]
+    mocks.activeTab = {
+      id: 'chat',
+      type: 'route',
+      url: '/app/chat?topicId=t-1',
+      title: 'Topic',
+      icon: 'emoji:🍒',
+      metadata: { instanceAppId: 'assistants', instanceKey: 't-1', keep: true }
+    }
+
+    render(<Sidebar />)
+    fireEvent.click(screen.getByTestId('sidebar-mini-app-calculator'))
+
+    expect(mocks.updateTab).toHaveBeenCalledWith('chat', {
+      url: '/app/mini-app/calculator',
+      title: 'Calculator',
+      icon: 'calculator-logo',
+      metadata: { keep: true }
+    })
+    expect(mocks.openTab).not.toHaveBeenCalled()
+  })
+
+  it('does nothing when the active tab is already on the target mini app route', () => {
+    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app')]
+    mocks.sidebarMiniAppFavorites = [miniAppFavorite('calculator')]
+    mocks.allApps = [{ appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }]
+    mocks.activeTab = {
+      id: 'calculator-tab',
+      type: 'route',
+      url: '/app/mini-app/calculator',
+      title: 'Calculator'
+    }
+
+    render(<Sidebar />)
+    fireEvent.click(screen.getByTestId('sidebar-mini-app-calculator'))
+
+    expect(mocks.updateTab).not.toHaveBeenCalled()
+    expect(mocks.openTab).not.toHaveBeenCalled()
+  })
+
+  it('opens a forced mini app tab when the active tab is pinned', () => {
+    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app')]
+    mocks.sidebarMiniAppFavorites = [miniAppFavorite('calculator')]
+    mocks.allApps = [{ appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }]
+    mocks.activeTab = {
+      id: 'chat',
+      type: 'route',
+      url: '/app/chat',
+      title: 'Chat',
+      isPinned: true
+    }
 
     render(<Sidebar />)
     fireEvent.click(screen.getByTestId('sidebar-mini-app-calculator'))
 
     expect(mocks.openTab).toHaveBeenCalledWith('/app/mini-app/calculator', {
+      forceNew: true,
       title: 'Calculator',
       icon: 'calculator-logo'
     })
+    expect(mocks.updateTab).not.toHaveBeenCalled()
   })
 
   it('does nothing when the active tab is already on the target route', () => {
