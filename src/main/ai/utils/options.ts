@@ -106,6 +106,10 @@ function getVerbosity(model: Model, provider: Provider): OpenAIVerbosity {
   return undefined
 }
 
+function resolveProviderOptionsKey(rawProviderId: string, actualProvider: Provider): string {
+  return rawProviderId === 'openai-compatible' ? actualProvider.id : rawProviderId
+}
+
 export function extractAiSdkStandardParams(customParams: Record<string, any>): {
   standardParams: Partial<Record<AiSdkParam, any>>
   providerParams: Record<string, any>
@@ -130,6 +134,7 @@ export function buildCapabilityProviderOptions(
   capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
 ): Record<string, Record<string, JSONValue>> {
   const rawProviderId = getAiSdkProviderId(actualProvider, model)
+  const providerOptionsKey = resolveProviderOptionsKey(rawProviderId, actualProvider)
   const serviceTier = getServiceTier(model, actualProvider)
   const textVerbosity = getVerbosity(model, actualProvider)
 
@@ -187,7 +192,7 @@ export function buildCapabilityProviderOptions(
     case 'openai-compatible':
     default:
       providerSpecificOptions = buildGenericProviderOptions(
-        rawProviderId,
+        providerOptionsKey,
         assistant,
         model,
         capabilities,
@@ -195,8 +200,8 @@ export function buildCapabilityProviderOptions(
       )
       providerSpecificOptions = {
         ...providerSpecificOptions,
-        [rawProviderId]: {
-          ...providerSpecificOptions[rawProviderId],
+        [providerOptionsKey]: {
+          ...providerSpecificOptions[providerOptionsKey],
           serviceTier,
           textVerbosity
         }
@@ -224,22 +229,23 @@ export function mergeCustomProviderParameters(
 ): Record<string, Record<string, JSONValue>> {
   const actualAiSdkProviderIds = Object.keys(providerOptions)
   const primaryAiSdkProviderId = actualAiSdkProviderIds[0]
+  const normalizedProviderParams = { ...providerParams }
 
-  if (primaryAiSdkProviderId === 'openai-compatible' && 'reasoning_effort' in providerParams) {
-    if (!('reasoningEffort' in providerParams)) {
-      providerParams.reasoningEffort = providerParams.reasoning_effort
+  if (rawProviderId === 'openai-compatible' && 'reasoning_effort' in normalizedProviderParams) {
+    if (!('reasoningEffort' in normalizedProviderParams)) {
+      normalizedProviderParams.reasoningEffort = normalizedProviderParams.reasoning_effort
     }
-    delete providerParams.reasoning_effort
+    delete normalizedProviderParams.reasoning_effort
   }
 
   let result = providerOptions
-  for (const key of Object.keys(providerParams)) {
+  for (const key of Object.keys(normalizedProviderParams)) {
     if (actualAiSdkProviderIds.includes(key)) {
       result = {
         ...result,
         [key]: {
           ...result[key],
-          ...providerParams[key]
+          ...normalizedProviderParams[key]
         }
       }
     } else if (key === rawProviderId && !actualAiSdkProviderIds.includes(rawProviderId)) {
@@ -248,7 +254,7 @@ export function mergeCustomProviderParameters(
           ...result,
           [key]: {
             ...result[key],
-            ...providerParams[key]
+            ...normalizedProviderParams[key]
           }
         }
       } else {
@@ -256,7 +262,7 @@ export function mergeCustomProviderParameters(
           ...result,
           [primaryAiSdkProviderId]: {
             ...result[primaryAiSdkProviderId],
-            ...providerParams[key]
+            ...normalizedProviderParams[key]
           }
         }
       }
@@ -265,7 +271,7 @@ export function mergeCustomProviderParameters(
         ...result,
         [primaryAiSdkProviderId]: {
           ...result[primaryAiSdkProviderId],
-          [key]: providerParams[key]
+          [key]: normalizedProviderParams[key]
         }
       }
     }
@@ -416,7 +422,7 @@ function buildOllamaProviderOptions(
 }
 
 function buildGenericProviderOptions(
-  providerId: string,
+  providerOptionsKey: string,
   assistant: Assistant,
   model: Model,
   capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
@@ -432,7 +438,7 @@ function buildGenericProviderOptions(
     providerOptions = merge({}, providerOptions, getWebSearchParams(model))
   }
 
-  return { [providerId]: providerOptions }
+  return { [providerOptionsKey]: providerOptions }
 }
 
 function buildAIGatewayOptions(

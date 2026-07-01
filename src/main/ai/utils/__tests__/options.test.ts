@@ -98,6 +98,19 @@ describe('mergeCustomProviderParameters', () => {
     })
   })
 
+  it('renames `reasoning_effort` under the actual OpenAI-compatible provider options key', () => {
+    const initial = { 'some-relay': {} }
+    const result = mergeCustomProviderParameters(
+      initial as Record<string, Record<string, never>>,
+      { reasoning_effort: 'high' },
+      'openai-compatible'
+    )
+
+    expect(result).toEqual({
+      'some-relay': { reasoningEffort: 'high' }
+    })
+  })
+
   it('does NOT clobber existing reasoningEffort with renamed reasoning_effort', () => {
     const initial = { 'openai-compatible': {} }
     const result = mergeCustomProviderParameters(
@@ -184,5 +197,55 @@ describe('buildCapabilityProviderOptions', () => {
     })
 
     expect(result.openai.reasoningSummary).toBe('detailed')
+  })
+
+  it('keys reasoning options by the actual provider id for custom OpenAI-compatible providers', () => {
+    const assistant = {
+      settings: {
+        reasoning_effort: 'high'
+      }
+    } as Assistant
+    const model = {
+      id: 'some-relay::gpt-oss-120b',
+      providerId: 'some-relay',
+      name: 'gpt-oss-120b',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        supportedEfforts: ['low', 'medium', 'high']
+      },
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    } as unknown as Model
+    const provider = {
+      id: 'some-relay',
+      name: 'Some Relay',
+      apiFeatures: {
+        arrayContent: true,
+        streamOptions: true,
+        developerRole: false,
+        serviceTier: false,
+        verbosity: false,
+        enableThinking: true
+      },
+      apiKeys: [],
+      authType: 'api-key',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          adapterFamily: 'openai-compatible'
+        }
+      },
+      settings: {},
+      isEnabled: true
+    } as Provider
+
+    const result = buildCapabilityProviderOptions(assistant, model, provider, {
+      enableReasoning: true,
+      enableWebSearch: false,
+      enableGenerateImage: false
+    })
+
+    expect(result).toEqual({
+      'some-relay': { reasoningEffort: 'high', serviceTier: undefined, textVerbosity: undefined }
+    })
   })
 })
