@@ -6,7 +6,10 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { generateSignature } from '@main/ai/provider/cherryai'
 import { isMac, isWin } from '@main/core/platform'
-import { listDirectory as searchListDirectory } from '@main/services/file/tree/search'
+import {
+  listDirectory as searchListDirectory,
+  listDirectoryEntries as searchListDirectoryEntries
+} from '@main/services/file/tree/search'
 import { regionService } from '@main/services/RegionService'
 import { extractPdfText } from '@main/utils/pdf'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
@@ -358,6 +361,9 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.File_IsTextFile, fileManager.isTextFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_IsDirectory, fileManager.isDirectory.bind(fileManager))
   ipcMain.handle(IpcChannel.File_ListDirectory, (_e, dirPath, options) => searchListDirectory(dirPath, options))
+  ipcMain.handle(IpcChannel.File_ListDirectoryEntries, (_e, dirPath, options) =>
+    searchListDirectoryEntries(dirPath, options)
+  )
   ipcMain.handle(IpcChannel.File_CheckFileName, fileManager.fileNameGuard.bind(fileManager))
   ipcMain.handle(IpcChannel.File_ValidateNotesDirectory, fileManager.validateNotesDirectory.bind(fileManager))
   ipcMain.handle(IpcChannel.File_BatchUploadMarkdown, fileManager.batchUploadMarkdownFiles.bind(fileManager))
