@@ -22,7 +22,7 @@ export function useConfigMetadata(selectedCliTool: CodeCli) {
     const map = new Map<string, UniqueModelId>()
     for (const model of allModels) {
       if (isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) continue
-      if (!map.has(model.providerId)) map.set(model.providerId, model.id as UniqueModelId)
+      if (!map.has(model.providerId)) map.set(model.providerId, model.id)
     }
     return map
   }, [allModels])

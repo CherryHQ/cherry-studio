@@ -31,19 +31,17 @@ const OPENCODE_CONFIG_PATH = '~/.config/opencode/opencode.json'
  * Top-level keys Cherry manages inside ~/.claude/settings.json. Cleared on
  * config switch so each config is self-contained (no leakage across configs).
  */
-const CLAUDE_MANAGED_TOP_LEVEL_KEYS = ['attribution'] as const
+const CLAUDE_MANAGED_TOP_LEVEL_KEYS = ['attribution', 'permissions'] as const
 /**
  * env keys Cherry manages inside the `env` block of ~/.claude/settings.json.
  * Must cover everything ClaudeConfigFields can write plus the credentials
  * injected here — a missing entry leaks the previous config's value on switch.
  */
 const CLAUDE_MANAGED_ENV_KEYS = [
-  // Credentials + request model injected here
   'ANTHROPIC_BASE_URL',
   'ANTHROPIC_MODEL',
   'ANTHROPIC_API_KEY',
   'ANTHROPIC_AUTH_TOKEN',
-  // Model role mapping (each role writes both _MODEL and _MODEL_NAME)
   'ANTHROPIC_DEFAULT_SONNET_MODEL',
   'ANTHROPIC_DEFAULT_SONNET_MODEL_NAME',
   'ANTHROPIC_DEFAULT_OPUS_MODEL',
@@ -52,11 +50,19 @@ const CLAUDE_MANAGED_ENV_KEYS = [
   'ANTHROPIC_DEFAULT_FABLE_MODEL_NAME',
   'ANTHROPIC_DEFAULT_HAIKU_MODEL',
   'ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME',
-  // Quick-option toggles
   'ENABLE_TOOL_SEARCH',
   'CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS',
   'CLAUDE_CODE_EFFORT_LEVEL',
-  'DISABLE_AUTOUPDATER'
+  'DISABLE_AUTOUPDATER',
+  'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC',
+  'CLAUDE_CODE_MAX_OUTPUT_TOKENS',
+  'CLAUDE_CODE_DISABLE_BUNDLED_SKILLS',
+  'DISABLE_COMPACT',
+  'CLAUDE_CODE_DISABLE_1M_CONTEXT',
+  'CLAUDE_CODE_MAX_CONTEXT_TOKENS',
+  'CLAUDE_CODE_DISABLE_TERMINAL_TITLE',
+  'DISABLE_EXTRA_USAGE_COMMAND',
+  'CLAUDE_CODE_ATTRIBUTION_HEADER'
 ] as const
 
 const OPENCODE_SCHEMA = 'https://opencode.ai/config.json'
@@ -163,6 +169,12 @@ async function writeClaude(
 interface CodexConfigOptions {
   goalMode?: boolean
   remoteCompaction?: boolean
+  disableResponseStorage?: boolean
+  modelReasoningEffort?: string
+  modelVerbosity?: string
+  modelContextWindow?: number
+  modelAutoCompactTokenLimit?: number
+  personality?: string
 }
 
 /** Apply the codex config to ~/.codex/config.toml + ~/.codex/auth.json (merged).
@@ -211,8 +223,6 @@ async function writeCodex(
     ...cleaned,
     model,
     model_provider: providerKey,
-    model_reasoning_effort: 'high',
-    disable_response_storage: true,
     model_providers: {
       ...preservedProviders,
       [providerKey]: {
@@ -223,6 +233,31 @@ async function writeCodex(
         requires_openai_auth: true
       }
     }
+  }
+
+  // User-configured top-level keys — apply only when explicitly set.
+  if (options.modelReasoningEffort) {
+    merged.model_reasoning_effort = options.modelReasoningEffort
+  }
+
+  if (options.disableResponseStorage) {
+    merged.disable_response_storage = true
+  }
+
+  if (options.modelVerbosity) {
+    merged.model_verbosity = options.modelVerbosity
+  }
+
+  if (options.modelContextWindow) {
+    merged.model_context_window = options.modelContextWindow
+  }
+
+  if (options.modelAutoCompactTokenLimit) {
+    merged.model_auto_compact_token_limit = options.modelAutoCompactTokenLimit
+  }
+
+  if (options.personality) {
+    merged.personality = options.personality
   }
 
   if (options.goalMode) {
@@ -243,10 +278,14 @@ async function writeCodex(
   logger.info(`Applied Codex config to ${absPath} + ${authAbsPath}`)
 }
 
-/** Per-config OpenCode model options read from the user-edited config blob. */
+/** Per-config OpenCode options read from the user-edited config blob. */
 interface OpenCodeModelOptions {
   reasoning: boolean
   supportsReasoningEffort: boolean
+  reasoningEffort?: string
+  thinkingBudgetTokens?: number
+  autoCompact?: boolean
+  maxTurns?: number
 }
 
 /** Apply the opencode config to ~/.config/opencode/opencode.json (merged). */
@@ -264,10 +303,17 @@ async function writeOpenCode(
   if (options.reasoning) {
     modelConfig.reasoning = true
     if (isAnthropic) {
-      modelConfig.options = { thinking: { budgetTokens: 10000, type: 'enabled' } }
+      const budgetTokens = options.thinkingBudgetTokens ?? 10000
+      modelConfig.options = { thinking: { budgetTokens, type: 'enabled' } }
     } else if (options.supportsReasoningEffort) {
-      modelConfig.options = { reasoningEffort: 'medium' }
+      modelConfig.options = { reasoningEffort: options.reasoningEffort || 'medium' }
     }
+  } else if (!isAnthropic && options.reasoningEffort) {
+    // Reasoning effort can be set even without the reasoning toggle.
+    modelConfig.options = { reasoningEffort: options.reasoningEffort }
+  } else if (isAnthropic && options.thinkingBudgetTokens) {
+    modelConfig.reasoning = true
+    modelConfig.options = { thinking: { budgetTokens: options.thinkingBudgetTokens, type: 'enabled' } }
   }
 
   const providerKey = `${CHERRY_PROVIDER_PREFIX}${providerName}`
@@ -286,6 +332,15 @@ async function writeOpenCode(
     ...existing,
     provider: { ...preservedProviders, [providerKey]: cherryProvider }
   }
+
+  // Top-level config keys — apply only when explicitly set.
+  if (options.autoCompact) {
+    merged.autoCompact = true
+  }
+  if (options.maxTurns) {
+    merged.maxTurns = options.maxTurns
+  }
+
   const absPath = await resolveAbs(OPENCODE_CONFIG_PATH)
   await window.api.file.write(absPath, `${JSON.stringify(merged, null, 2)}\n`)
   logger.info(`Applied OpenCode config to ${absPath}`)
@@ -361,7 +416,14 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<void> 
         { apiKey, baseUrl, providerName, model, wireApi },
         {
           goalMode: blob.goalMode === true,
-          remoteCompaction: blob.remoteCompaction === true
+          remoteCompaction: blob.remoteCompaction === true,
+          disableResponseStorage: blob.disableResponseStorage === true,
+          modelReasoningEffort: typeof blob.modelReasoningEffort === 'string' ? blob.modelReasoningEffort : undefined,
+          modelVerbosity: typeof blob.modelVerbosity === 'string' ? blob.modelVerbosity : undefined,
+          modelContextWindow: typeof blob.modelContextWindow === 'number' ? blob.modelContextWindow : undefined,
+          modelAutoCompactTokenLimit:
+            typeof blob.modelAutoCompactTokenLimit === 'number' ? blob.modelAutoCompactTokenLimit : undefined,
+          personality: typeof blob.personality === 'string' ? blob.personality : undefined
         }
       )
       return
@@ -377,17 +439,19 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<void> 
       }
       const absPath = await resolveAbs(OPENCODE_CONFIG_PATH)
       const existing = parseJsonSafe(await readExternal(absPath))
-      const env =
-        configBlob && typeof configBlob.env === 'object' && configBlob.env
-          ? (configBlob.env as Record<string, any>)
-          : {}
+      const blob = configBlob && typeof configBlob === 'object' ? (configBlob as Record<string, any>) : {}
+      const env = blob.env && typeof blob.env === 'object' ? (blob.env as Record<string, any>) : {}
       await writeOpenCode(
         existing,
         provider,
         { apiKey, baseUrl, model, isAnthropic },
         {
           reasoning: env.OPENCODE_REASONING === 'true',
-          supportsReasoningEffort: modelSupportsReasoningEffort(modelRecord)
+          supportsReasoningEffort: modelSupportsReasoningEffort(modelRecord),
+          reasoningEffort: typeof blob.reasoningEffort === 'string' ? blob.reasoningEffort : undefined,
+          thinkingBudgetTokens: typeof blob.thinkingBudgetTokens === 'number' ? blob.thinkingBudgetTokens : undefined,
+          autoCompact: blob.autoCompact === true,
+          maxTurns: typeof blob.maxTurns === 'number' ? blob.maxTurns : undefined
         }
       )
       return

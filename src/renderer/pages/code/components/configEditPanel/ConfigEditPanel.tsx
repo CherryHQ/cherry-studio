@@ -18,6 +18,7 @@ import { useTranslation } from 'react-i18next'
 
 import { ClaudeConfigFields } from './tools/ClaudeConfigFields'
 import { CodexConfigFields } from './tools/CodexConfigFields'
+import { OpenCodeConfigFields } from './tools/OpenCodeConfigFields'
 
 export interface ConfigEditPanelProps {
   open: boolean
@@ -117,6 +118,8 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
         return <ClaudeConfigFields config={config} onChange={setConfig} />
       case CodeCli.OPENAI_CODEX:
         return <CodexConfigFields config={config} onChange={setConfig} />
+      case CodeCli.OPEN_CODE:
+        return <OpenCodeConfigFields config={config} onChange={setConfig} />
       default:
         return null
     }

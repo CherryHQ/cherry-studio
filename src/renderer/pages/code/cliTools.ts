@@ -1,7 +1,7 @@
 import type { IconComponent } from '@cherrystudio/ui/icons'
 import { ClaudeCode, Nousresearch, OpenaiCodex, Openclaw, OpenCode } from '@cherrystudio/ui/icons'
-import type { Provider } from '@shared/data/types/provider'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 
 export const CLI_TOOLS = [

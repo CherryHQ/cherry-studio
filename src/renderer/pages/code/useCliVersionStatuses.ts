@@ -2,7 +2,7 @@ import { ipcApi } from '@renderer/ipc'
 import { useIpcOn } from '@renderer/ipc/useIpcOn'
 import { loggerService } from '@renderer/services/LoggerService'
 import type { BinaryState } from '@shared/data/preference/preferenceTypes'
-import { CodeCli } from '@shared/types/codeCli'
+import type { CodeCli } from '@shared/types/codeCli'
 import { useEffect, useRef, useState } from 'react'
 
 import { CLI_BINARY_NAMES } from './cliTools'

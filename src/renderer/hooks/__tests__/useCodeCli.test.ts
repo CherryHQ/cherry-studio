@@ -159,7 +159,7 @@ describe('useCodeCli', () => {
       })
 
       expect(mockSetter).toHaveBeenCalledTimes(2)
-      const lastWrite = mockSetter.mock.calls[1][0] as CodeCliConfigs
+      const lastWrite = mockSetter.mock.calls[1][0]
       const toolState = lastWrite[CodeCli.CLAUDE_CODE]
       expect(toolState.providers['anthropic']).toBeDefined()
       expect(toolState.current).toBe('anthropic')

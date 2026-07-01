@@ -5,7 +5,7 @@
  * per-provider configs (`CodeCliToolState`) stored via the preference key
  * `feature.code_cli.configs`. Schemas here validate the runtime preference
  * value; per-provider model/api params are resolved from Cherry's provider
- * data at "enable" time (see `renderer/services/codeCli.ts`).
+ * data at "enable" time (see `renderer/pages/code/injectCliConfig.ts`).
  */
 
 import { CODE_CLI_IDS } from '@shared/data/preference/preferenceTypes'
