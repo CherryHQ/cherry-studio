@@ -136,6 +136,15 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   setTopicId(traceId: string, topicId: string): void {
     if (!this.isActivated) return
     this.store.registerTraceMeta(traceId, { topicId })
+    // Backfill spans stored before this trace's topic was known — e.g. spans a prewarmed warm query
+    // exported before the live connection reached prepareTrace(). Without this they keep an undefined
+    // topicId and stay invisible to getSpans()/flushTrace(), which both filter on topicId === query.
+    for (const span of this.store.getSpans({ traceId })) {
+      if (span.topicId) continue
+      span.topicId = topicId
+      this.applyTraceMeta(span)
+      this.store.setSpan(span)
+    }
   }
 
   saveEntity(entity: SpanEntity) {
