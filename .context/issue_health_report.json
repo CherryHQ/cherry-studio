@@ -1,36 +1,39 @@
 {
-  "generated_at": "2026-06-30",
+  "generated_at": "2026-07-01",
   "repository": "CherryHQ/cherry-studio",
-  "methodology": "Open issue total from GitHub search (total_count=951). Age buckets from page-by-page analysis and search queries. Health classification based on updatedAt recency.",
+  "methodology": "Open issue total from GitHub search (total_count=935). Age buckets estimated from API sample analysis and delta tracking. Health classification based on updatedAt recency.",
 
   "summary": {
-    "total_open": 951,
+    "total_open": 935,
+    "delta_from_yesterday": -16,
     "active": {
-      "count": 150,
-      "pct": "15.8%",
-      "definition": "updatedAt within last 7 days (since 2026-06-23)",
-      "note": "Estimated from page analyses: page 1 had 93/100 active, page 2 had 9/100 active"
+      "count": 145,
+      "pct": "15.5%",
+      "definition": "updatedAt within last 7 days (since 2026-06-24)",
+      "note": "Stable vs yesterday after 3 new issues + batch inactive closures offsetting each other"
     },
     "aging": {
-      "count_estimated": 416,
-      "pct_estimated": "43.7%",
+      "count_estimated": 417,
+      "pct_estimated": "44.6%",
       "definition": "updatedAt 7–30 days ago",
-      "note": "Estimated: 951 - 150 (active) - 385 (stale) = 416"
+      "note": "Estimated: 935 - 145 (active) - 373 (stale) = 417"
     },
     "stale_and_zombie": {
-      "count": 385,
-      "pct": "40.5%",
-      "definition": "updatedAt more than 30 days ago (before 2026-05-31)",
-      "note": "Carried from yesterday — stale count is stable (no major triage sweep today)"
+      "count": 373,
+      "pct": "39.9%",
+      "definition": "updatedAt more than 30 days ago (before 2026-06-01)",
+      "note": "Decreased from 385 yesterday — 12 stale issues swept in today's 01:13 UTC inactive-label batch close"
     }
   },
 
   "triage_backlog": {
     "needs_triage": 5,
-    "needs_repro": 55,
+    "needs_repro": 50,
     "needs_more_info": 6,
-    "no_label": 95,
-    "total_action_required": 161
+    "no_label": 88,
+    "total_action_required": 149,
+    "delta_from_yesterday": -12,
+    "note": "Improvements driven by today's stale sweep reducing needs-repro and no-label pools"
   },
 
   "critical_items": [
@@ -43,7 +46,19 @@
       "assignee": "kangfenmao",
       "status": "open / in progress",
       "impact": "Users syncing via Nutstore/WebDAV backup lose agents/sessions silently",
-      "labels": ["needs-triage", "Data"]
+      "labels": ["needs-triage", "Data"],
+      "note": "May be partially addressed by PR #16626 (better-sqlite3 removes write-mutex issues)"
+    },
+    {
+      "number": 16610,
+      "title": "[Bug]: Adding a folder with thousands of files to a knowledge base crashes the main process",
+      "severity": "CRASH",
+      "category": "Bug",
+      "status": "open — no P1 label, no assignee",
+      "impact": "Main process crash on large-folder KB import",
+      "labels": ["Data"],
+      "created_at": "2026-06-30",
+      "note": "Should be escalated to P1 — crash-level KB ingestion bug"
     },
     {
       "number": 15409,
@@ -53,7 +68,7 @@
       "status": "open (FIX SHIPPED in v1.9.11 via PR #15410)",
       "fix_pr": 15410,
       "fix_version": "v1.9.11",
-      "note": "Issue remains open despite being fixed — should be closed",
+      "note": "Should be closed — fix is live",
       "labels": ["needs-triage", "inactive"]
     },
     {
@@ -64,6 +79,15 @@
       "status": "open / needs triage",
       "impact": "CommonJS consumers and TypeScript declaration resolution broken for published package",
       "labels": ["needs-triage"]
+    },
+    {
+      "number": 15423,
+      "title": "[CRITICAL/Data Loss]: Total Wipe of All Chat Sessions due to Monolithic IndexedDB & Full Disk",
+      "severity": "DATA LOSS",
+      "category": "Bug",
+      "status": "open — labeled inactive, but not resolved",
+      "labels": ["Data", "inactive"],
+      "note": "Labeled inactive by bot, but underlying risk exists; IndexedDB is v1 legacy — should verify if v2 DataApi migration resolves this"
     },
     {
       "number": 15983,
@@ -82,14 +106,14 @@
       "labels": ["Planned", "P1", "feature", "UI/UX"],
       "milestone": "v2.4.0",
       "status": "planned",
-      "age_days": 54
+      "age_days": 55
     },
     {
       "number": 13608,
       "title": "[Bug]: xiaomi mimo response only displays the last line",
       "labels": ["P1", "Models"],
       "status": "open — no assignee",
-      "age_days": 104
+      "age_days": 105
     },
     {
       "number": 13193,
@@ -97,46 +121,68 @@
       "labels": ["P1", "Models"],
       "assignee": "DeJeune",
       "status": "open — assigned",
-      "age_days": 118
+      "age_days": 119
     }
   ],
 
   "label_health_signals": {
-    "no_label_issues": 95,
-    "needs_repro_open": 55,
+    "no_label_issues": 88,
+    "needs_repro_open": 50,
     "needs_more_info_open": 6,
     "needs_triage_open": 5,
     "prd_issues": 13,
-    "internal_team_issues_sampled": 42,
+    "internal_team_issues_sampled": 4,
+    "inactive_label_open": 45,
     "blocked_v2_open": 2
   },
 
-  "unlabeled_ratio": "10.0%",
-  "internal_driven_pct": "~21% (42/200 sampled have internal_team label)",
-  "needs_repro_pct": "5.8% (55/951 open issues awaiting reproduction)",
+  "unlabeled_ratio": "9.4%",
+  "inactive_labeled_ratio": "~13% (many inactive issues await final stale-close)",
+  "needs_repro_pct": "5.3% (50/935 open issues awaiting reproduction)",
 
-  "notable_new_2026_06_30": [
-    {
-      "number": 16598,
-      "title": "[Feature]: Make reasoning-effort control data-driven from ProviderRegistry",
-      "author": "DeJeune",
-      "type": "ARCHITECTURAL",
-      "note": "Detailed SSoT violation analysis — reasoning UI and injector use parallel heuristic ID-regex paths instead of registry descriptor. Failure modes A (control disabled), B (selection not serialized), C (silent coercion), D (empty descriptor). Proposed 5-step remediation.",
-      "labels": []
-    },
-    {
-      "type": "BATCH_CLOSE",
-      "note": "15 issues batch-closed 2026-06-30 around 01:08 UTC with 'inactive' label (numbers #15181–#15197 range)"
-    }
-  ],
+  "today_2026_07_01_signals": {
+    "new_issues": [
+      {
+        "number": 16620,
+        "title": "[Feature]: Group Conversation Anchors by Turn (User Question as Title, AI Reply as Preview)",
+        "author": "SiinXu",
+        "labels": ["UI/UX"],
+        "type": "FEATURE SPEC",
+        "note": "Well-specified UX improvement with verification criteria; related to #9643, #7238"
+      },
+      {
+        "number": 16623,
+        "title": "[Bug]: Thinking/Reasoning settings are insufficient",
+        "author": "oooskarrr",
+        "labels": ["UI/UX", "Models"],
+        "type": "BUG / COMMUNITY VALIDATION",
+        "note": "Directly validates architectural SSoT concern in #16598 (DeJeune, 2026-06-30); user can't set reasoning effort for new models (M3, Sonnet 5, GLM-5.2)"
+      },
+      {
+        "number": 16627,
+        "title": "[Bug]: Selection Assistant fails in Foxit PDF Editor due to clipboard write delay",
+        "author": "Snowbird8",
+        "labels": ["UI/UX"],
+        "type": "BUG",
+        "note": "Detailed root cause analysis included — Foxit packs rich-text format on clipboard copy with 200–500ms delay; suggests configurable clipboard read timeout in Selection Assistant settings"
+      }
+    ],
+    "resolved_bugs": [
+      { "number": 16619, "title": "MiniMax M3 API returns 'invalid thinking.type: enabled'", "closed_at": "2026-07-01T10:13Z" },
+      { "number": 16624, "title": "Minimax's M3 model cannot modify thinking mode", "closed_at": "2026-07-01T10:12Z" }
+    ],
+    "batch_stale_close_count": 12,
+    "internal_feature_triage_close_count": 6
+  },
 
   "recommendations": [
-    "Close #15409 — OAuth fix is already shipped in v1.9.11",
-    "Escalate #15316 (agents.db backup corruption) — active data integrity issue in milestone v1.9.8",
-    "Triage #15826 (@cherrystudio/ai-core CJS exports) — affects external package consumers",
-    "Label #16598 (reasoning SSoT) — high-quality architectural proposal from DeJeune, needs triage",
-    "Sweep 95 no-label issues — 10% of open issues have zero categorization",
-    "Review 55 needs-repro issues — up from 25 sampled yesterday, actual count now confirmed at 55",
-    "Resolve P1 #13193 (Azure OpenAI 404) — assigned to DeJeune, 118 days old"
+    "Escalate #16610 to P1 — crash-level KB folder import bug, currently unlabeled",
+    "Close #15409 — OAuth fix shipped in v1.9.11; issue is stale and confusing",
+    "Label + prioritize #16598 (reasoning SSoT) — now corroborated by user report #16623",
+    "Review PR #16626 (libsql → better-sqlite3) urgently — major arch change with win-arm64 caveat",
+    "Resolve P1 #13193 (Azure OpenAI 404) — assigned to DeJeune, 119 days old",
+    "Sweep 88 no-label issues — 9.4% of open backlog unclassified",
+    "Verify #15423 (IndexedDB data wipe) against v2 DataApi migration — may be resolved by v2",
+    "Close/lock #16583 (prompt injection attempt) — still open from 2026-06-29"
   ]
 }

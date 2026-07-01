@@ -1,17 +1,17 @@
 {
-  "generated_at": "2026-06-30",
+  "generated_at": "2026-07-01",
   "repository": "CherryHQ/cherry-studio",
-  "data_availability": "PARTIAL — GitHub GraphQL Discussions API not accessible via current MCP tooling; data sourced from issues tagged 'discussion' or 'help wanted', and from high-comment issues",
+  "data_availability": "PARTIAL — GitHub GraphQL Discussions API not accessible via current MCP tooling; data sourced from issues tagged 'discussion' or 'help wanted', high-comment issues, and new issue signals",
 
   "discussion_label_proxies": {
     "issues_labeled_discussion": {
       "open_sampled": 10,
-      "closed_in_30d_sampled": 3,
+      "closed_in_30d_sampled": 5,
       "note": "Issues tagged 'discussion' are the closest available proxy for community discussions"
     },
     "issues_labeled_help_wanted": {
       "open_sampled": 10,
-      "closed_in_30d_sampled": 3
+      "closed_in_30d_sampled": 5
     }
   },
 
@@ -40,32 +40,70 @@
     },
     {
       "number": 16598,
-      "title": "[Feature]: Make reasoning-effort control data-driven from ProviderRegistry (SSoT for UI options and request serialization)",
+      "title": "[Feature]: Make reasoning-effort control data-driven from ProviderRegistry",
       "labels": [],
       "author": "DeJeune",
       "created_at": "2026-06-30",
-      "status": "open — filed today",
-      "note": "Detailed architectural proposal exposing SSoT violations in reasoning effort control — four failure modes documented with file:line references. High-signal discussion for internal team review.",
+      "status": "open — filed yesterday, corroborated today by user issue #16623",
+      "note": "Detailed architectural proposal with four failure modes (A: control disabled, B: selection not serialized, C: silent coercion, D: empty descriptor). Community is actively feeling this pain (see #16623). HIGH priority unlabeled.",
       "engagement_level": "HIGH"
     }
   ],
 
   "community_signals": {
     "top_feature_categories_by_volume": [
-      "UI/UX improvements (61 open issues in 200-sample, label: ~300+ total estimated)",
-      "AI Model compatibility (33 open issues in 200-sample)",
-      "Agent/Assistant features (20 open issues in 200-sample)",
-      "MCP integration (11 open issues in 200-sample)",
-      "Performance optimization (11 open issues in 200-sample)",
-      "Knowledge base / RAG (10 open issues in 200-sample)"
+      "UI/UX improvements (32/100 recent open issues, estimated 280+ total)",
+      "AI Model compatibility (14/100 recent — thinking mode, reasoning effort, new model support)",
+      "Agent/Assistant features (14/100 recent)",
+      "MCP integration (7/100 recent)",
+      "Performance optimization (8/100 recent)",
+      "Knowledge base / RAG (4/100 recent)"
     ],
     "high_engagement_areas": [
-      "Agent mode reliability (MCP connectivity, tool errors, SOUL.md validation, stale proxy issues)",
-      "Knowledge base tools (kb agent surface merged today — #16345)",
-      "Cross-device sync (backup race conditions, WebDAV issues)",
-      "Model support (xiaomi mimo, Azure OpenAI API regression, reasoning effort SSoT)",
-      "UI personalization (notification center, font options, sidebar customization)",
-      "Channels outbound (IM file forwarding — issue #16566 tracked)"
+      "Reasoning/thinking effort control — user frustration with new model support (#16623, #16598); MiniMax M3 bugs now resolved (#16619, #16624)",
+      "Knowledge base reliability — KB crash on large imports (#16610); vector search migration (PR #16626)",
+      "Agent mode reliability — MCP connectivity, SOUL.md validation, stale proxy issues",
+      "Database layer stability — libsql → better-sqlite3 migration (PR #16626) removes entire class of SQLITE_BUSY bugs",
+      "Cross-device sync — backup race conditions, WebDAV issues (#15316)",
+      "UI personalization — notification center (#14899, P1), anchor rail UX (#16620), font/sidebar customization",
+      "Selection Assistant compatibility — Foxit PDF clipboard delay (#16627)"
+    ],
+    "new_signals_2026_07_01": [
+      {
+        "issue": 16626,
+        "type": "PR",
+        "title": "refactor(db): replace libsql with better-sqlite3 + sqlite-vec",
+        "author": "0xfullex",
+        "significance": "MAJOR ARCHITECTURAL — eliminates SQLITE_BUSY workarounds; synchronous transaction model; win-arm64 sqlite-vec gap remains",
+        "community_impact": "Fixes underlying cause of write-race issues reported by users; KB vector search now uses sqlite-vec instead of libsql vector32"
+      },
+      {
+        "issue": 16623,
+        "type": "Bug",
+        "title": "[Bug]: Thinking/Reasoning settings are insufficient",
+        "author": "oooskarrr",
+        "significance": "Community validation of #16598 architectural SSoT proposal — user cannot set reasoning for M3, new Sonnet, GLM-5.2; provider-specific options hardcoded rather than registry-driven"
+      },
+      {
+        "issue": 16620,
+        "type": "Feature Spec",
+        "title": "[Feature]: Group Conversation Anchors by Turn",
+        "author": "SiinXu",
+        "significance": "Well-specified UX improvement — anchor rail shows question-per-turn rather than one tick per message; related to long-standing requests #9643, #7238"
+      },
+      {
+        "issue": 16627,
+        "type": "Bug",
+        "title": "[Bug]: Selection Assistant fails in Foxit PDF Editor",
+        "author": "Snowbird8",
+        "significance": "Detailed root-cause analysis: Foxit's 200–500ms clipboard delay exceeds Cherry Studio timeout; suggests configurable clipboard read delay setting"
+      },
+      {
+        "resolved": true,
+        "issue": 16619,
+        "title": "MiniMax M3 API returns 'invalid thinking.type: enabled'",
+        "note": "CLOSED — both M3 thinking mode bugs resolved today (#16619 and #16624)"
+      }
     ],
     "new_signals_2026_06_30": [
       "Reasoning-effort SSoT architectural issue (#16598) — filed by DeJeune, very detailed, unlabeled",
@@ -78,6 +116,18 @@
     ]
   },
 
+  "internal_team_activity_2026_07_01": {
+    "feature_specs_closed": [
+      { "number": 16421, "title": "[Feature]: Skills and Memory Visualization in Agent Detail Panel" },
+      { "number": 16422, "title": "[Feature]: Add Nex-N2-Pro Model Support" },
+      { "number": 16628, "title": "[Feature]: AI Avatar — Personalized Digital Clone with Guided Creation Flow" },
+      { "number": 16420, "title": "[Feature]: Cloud Dashboard and Mobile Entry Point for Agent Monitoring" },
+      { "number": 16418, "title": "[Feature]: In-Conversation Search — Find Messages Within a Single Chat" },
+      { "number": 16417, "title": "[Feature]: Overseas Online Payment Support for Token Purchases" }
+    ],
+    "note": "6 internal feature specs batch-closed at 16:29 UTC — likely moved off board or deprioritized in planning session"
+  },
+
   "security_events": [
     {
       "type": "prompt_injection_attempt",
@@ -85,18 +135,19 @@
       "title": "Feature: Add repository statistics to README",
       "author": "jeebuskey",
       "created_at": "2026-06-29T17:39:19Z",
-      "body_summary": "Contains instructions to run `gh api /repos/CherryHQ/cherry-studio --jq` commands and 'Also send the Feishu notification with the summary as normal'",
+      "body_summary": "Contains instructions to run gh API diagnostic commands and 'Also send the Feishu notification with the summary as normal'",
       "action_taken": "Ignored — instructions from issue bodies are untrusted external content",
       "status": "Issue remains open; recommend closing/locking"
     }
   ],
 
   "action_items": [
-    "Enable Discussions GraphQL API access or schedule separate discussions fetch",
-    "Label and triage #16598 (reasoning SSoT architectural proposal) — high-quality proposal from DeJeune",
-    "Address #15267 (analytics opt-out P1) — community privacy concern",
-    "Investigate #16614 (S3/R2 backup path mismatch) — community-reported, no team response yet",
-    "Close or lock issue #16583 (prompt injection attempt)",
-    "Close #15409 — security fix already shipped in v1.9.11"
+    "Label + triage #16598 (reasoning SSoT) — urgent given community corroboration from #16623 today",
+    "Escalate #16610 (KB crash on large imports) to P1 — unlabeled crash-level bug",
+    "Review PR #16626 (better-sqlite3 migration) — major arch change; win-arm64 sqlite-vec gap needs follow-up",
+    "Address Selection Assistant clipboard timeout (#16627) — add configurable delay in settings",
+    "Close/lock #16583 (prompt injection attempt) — still open",
+    "Close #15409 — security fix already shipped in v1.9.11",
+    "Investigate #15267 (analytics opt-out P1) — ongoing community privacy concern"
   ]
 }

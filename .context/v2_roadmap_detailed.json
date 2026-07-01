@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-30",
+  "generated_at": "2026-07-01",
   "repository": "CherryHQ/cherry-studio",
 
   "v2_branch_status": {
@@ -7,7 +7,15 @@
     "merge_completed_approximately": "2026-W22 (week of May 26 – June 1, 2026)",
     "active_dev_branch": "main",
     "open_prs_targeting_v2": 0,
-    "merged_prs_30d_total": 295,
+    "historical_v2_prs": {
+      "total_in_dataset": 100,
+      "merged": 34,
+      "closed_without_merge": 66,
+      "latest_merge_date": "2026-05-28",
+      "top_v2_contributor": "eeee0717 (24 of 34 merged PRs)",
+      "v2_work_themes": ["knowledge base infrastructure", "web search → main process migration", "DataApi/Preference data layer adoption", "vector store schema"]
+    },
+    "merged_prs_30d_total_on_main": 295,
     "merge_rate_type_breakdown": {
       "fix": 52,
       "feat": 18,
@@ -22,7 +30,7 @@
     "v2.0.0": {
       "status": "overdue",
       "due_on": "2026-04-30",
-      "days_overdue": 61,
+      "days_overdue": 62,
       "open_issues": 24,
       "closed_issues": 109,
       "completion_pct": 82
@@ -49,6 +57,22 @@
 
   "active_v2_workstreams_on_main": [
     {
+      "name": "Database Engine Migration (libsql → better-sqlite3 + sqlite-vec)",
+      "type": "Core Infrastructure",
+      "lead": "0xfullex",
+      "status": "OPEN FOR REVIEW — major PR filed today",
+      "open_prs": [
+        {
+          "number": 16626,
+          "title": "refactor(db): replace libsql with better-sqlite3 + sqlite-vec",
+          "created_at": "2026-07-01",
+          "significance": "MAJOR — synchronous single-connection model; removes async-mutex, SQLITE_BUSY retry (#288), pragma-replay patch; 1179 files / 13727 tests pass; split ABI (Node for test, Electron for app)",
+          "caveat": "Windows ARM64: no sqlite-vec vec0.dll prebuild — KB vector search unavailable on win-arm64 until follow-up"
+        }
+      ],
+      "related_test_artifact": "v0.0.0-libsql.win.arm.test draft release — Windows ARM64 sqlite-vec compatibility testing"
+    },
+    {
       "name": "UI Design System v2 Overhaul (SiinXu)",
       "type": "UI/UX Refactor",
       "lead": "SiinXu",
@@ -67,39 +91,64 @@
         "#16512 — refactor(pages): v2 re-skin pages + quick-assistant [12/13]",
         "#16513 — shared component re-skin + legacy-css-var governance [13/13]"
       ],
-      "status": "all drafts — being developed in sequence"
+      "status": "all drafts — being developed in stacked sequence",
+      "new_feature_spec": { "number": 16620, "title": "Group Conversation Anchors by Turn", "filed_by": "SiinXu", "date": "2026-07-01" }
     },
     {
       "name": "Knowledge Base Enhancement",
       "type": "Feature",
       "lead": "eeee0717, LWWZH",
-      "merged_today_2026_06_30": [
-        "#16345 — feat(knowledge): add agent tool surface for knowledge bases (kb_list/kb_search/kb_read/kb_manage) — MERGED 2026-06-30",
-        "#16564 — fix(knowledge): filter rag file processors by configured keys — MERGED 2026-06-30"
+      "recently_merged": [
+        "#16345 — feat(knowledge): add agent tool surface (kb_list/kb_search/kb_read/kb_manage) — merged 2026-06-30",
+        "#16564 — fix(knowledge): filter rag file processors by configured keys — merged 2026-06-30"
       ],
       "open_prs": [
         "#16486 — file-name search to knowledge base index",
         "#16407 — local embedding and PaddleOCR (draft)",
         "#16443 — e2e data-testid hooks + agent-e2e spec (draft)"
       ],
-      "status": "active — major feature merged today (kb_list/kb_search/kb_read/kb_manage agent tools)"
+      "open_issues": [
+        { "number": 16610, "title": "[Bug]: Adding a folder with thousands of files crashes the main process", "severity": "CRASH", "labeled": "Data", "note": "Needs P1 escalation" }
+      ],
+      "status": "active — KB agent tools merged; crash bug open; vector store migrating to sqlite-vec via PR #16626"
+    },
+    {
+      "name": "Reasoning/Thinking Effort SSoT",
+      "type": "Architecture / Bug Fix",
+      "lead": "DeJeune (proposal), unassigned",
+      "status": "URGENT — community pain confirmed today",
+      "tracking_issues": [
+        {
+          "number": 16598,
+          "title": "Make reasoning-effort control data-driven from ProviderRegistry",
+          "filed_by": "DeJeune",
+          "date": "2026-06-30",
+          "detail": "4 failure modes documented: A=control disabled for unlisted models, B=selection lost in serialization, C=silent coercion, D=empty descriptor. Proposed 5-step remediation."
+        },
+        {
+          "number": 16623,
+          "title": "[Bug]: Thinking/Reasoning settings are insufficient",
+          "filed_by": "oooskarrr",
+          "date": "2026-07-01",
+          "detail": "Community corroboration — cannot set reasoning for new Sonnet, GLM-5.2, M3; only GPT and some Anthropic models work correctly"
+        }
+      ],
+      "note": "No PR yet — unblocked architectural fix needed before next model release cycle"
     },
     {
       "name": "Agent Runtime / SDK Integration",
       "type": "Core Feature",
       "lead": "DeJeune, vaayne",
-      "merged_today_2026_06_30": [
-        "#16602 — fix(migration): always publish mcpServerIdMapping for empty server list — MERGED 2026-06-30"
+      "recently_merged": [
+        "#16602 — fix(migration): always publish mcpServerIdMapping for empty server list — merged 2026-06-30"
       ],
       "open_prs": [
         "#16462 — AI SDK v7 migration plan and design docs (draft)",
         "#16492 — OAuth runtime provider registry (vaayne)",
-        "#16283 — login-based providers: Claude Code, OpenAI Codex, Grok"
+        "#16283 — login-based providers: Claude Code, OpenAI Codex, Grok",
+        "#16579 — feat(agents): separate agent root directory and personality/author (draft, DeJeune)"
       ],
-      "open_issues": [
-        "#16598 — Make reasoning-effort control data-driven from ProviderRegistry (SSoT architectural issue, filed by DeJeune 2026-06-30)"
-      ],
-      "status": "active — MCP migration fix merged; reasoning SSoT issue newly filed"
+      "status": "active"
     },
     {
       "name": "IPC Migration to IpcApi",
@@ -107,20 +156,20 @@
       "lead": "Pleasurecruise",
       "open_prs": [
         "#16397 — migrate runtime IPC to IpcApi",
-        "#16554 — binary.latest_versions IPC"
+        "#16554 — binary.latest_versions IPC",
+        "#16491 — refactor(code-cli): persist provider configs to native CLI files (draft)"
       ],
-      "status": "open PRs, no merges today"
+      "status": "open PRs in progress"
     },
     {
       "name": "Composer UX Improvements",
       "type": "Feature/UX",
       "lead": "zhangjiadi225, DeJeune",
-      "merged_today_2026_06_30": [
-        "#16596 — feat(composer): add hover remove popover to skill and knowledge tokens — MERGED 2026-06-30"
+      "recently_merged": [
+        "#16596 — feat(composer): add hover remove popover to skill and knowledge tokens — merged 2026-06-30"
       ],
       "open_prs": [
-        "#16429 — feat(composer): add input history navigation",
-        "#16489 — refactor(settings): remove standalone settings window"
+        "#16429 — feat(composer): add input history navigation"
       ],
       "status": "active"
     },
@@ -129,9 +178,10 @@
       "type": "Refactor",
       "lead": "DeJeune",
       "open_prs": [
+        "#16488 — refactor(settings): reorganize into 6 discriminating groups (draft)",
         "#16489 — refactor(settings): remove standalone settings window"
       ],
-      "status": "open PR — updated today"
+      "status": "open drafts"
     },
     {
       "name": "Channels — outbound file forwarding",
@@ -139,24 +189,42 @@
       "lead": "DeJeune (issue), vaayne (assignee)",
       "tracking_issue": 16566,
       "status": "filed 2026-06-29, no PR yet"
+    },
+    {
+      "name": "Paintings — Infinite Canvas",
+      "type": "New Feature",
+      "lead": "DeJeune",
+      "open_prs": [
+        "#16444 — feat(paintings): infinite canvas paint mode with React Flow (draft)"
+      ],
+      "status": "draft, speculative"
+    },
+    {
+      "name": "Windows Bundled Git",
+      "type": "Platform",
+      "lead": "vaayne",
+      "open_prs": [
+        "#16402 — feat(bundled-git): ship MinGit on Windows as system-git fallback (draft)"
+      ],
+      "related_test_artifact": "v0.0.0-mingit-test draft release",
+      "status": "draft — platform compatibility testing ongoing"
     }
   ],
 
   "v2_data_layer": {
-    "removing": ["Dexie (in progress)", "ElectronStore (removed)", "Redux (removed)"],
-    "adopting": ["Cache", "Preference", "DataApi (SQLite + Drizzle)"],
-    "migration_status": "in cleanup/adoption phase on main"
+    "removing": ["Dexie (in progress)", "ElectronStore (removed)", "Redux (removed)", "libsql (PR #16626 in review)"],
+    "adopting": ["Cache", "Preference", "DataApi (SQLite + Drizzle)", "better-sqlite3 + sqlite-vec (PR #16626)"],
+    "migration_status": "in cleanup/adoption phase — libsql removal is the next major step"
   },
 
   "v2_ui_layer": {
     "adopting": "@cherrystudio/ui (Shadcn UI + Tailwind CSS)",
-    "overhaul": "SiinXu's 13-PR design system chain covers all major UI surfaces"
+    "overhaul": "SiinXu's 13-PR design system chain covers all major UI surfaces (all drafts)"
   },
 
   "vercel_ai_sdk_v7_tracking": {
     "tracking_issue": 14022,
     "current_version": "ai@^6.x + 17 @ai-sdk/* packages",
-    "v7_milestone_status": "55% complete (44/79 closed as of April 2026)",
     "migration_doc_pr": 16462,
     "key_breaking_changes": [
       "CallSettings → ModelCallOptions + RequestOptions",
@@ -164,14 +232,16 @@
       "experimental_context → runtimeContext",
       "CJS exports removed (pure ESM in v7)",
       "TelemetrySettings → TelemetryOptions"
-    ]
+    ],
+    "status": "design doc PR open (#16462, draft)"
   },
 
   "release_status": {
     "latest_public": "v1.9.11",
     "published_at": "2026-06-07",
     "draft": "v1.9.12",
-    "note": "v2.0.0 not yet released; public releases still on v1.9.x branch. v2.0.0 milestone 61 days overdue."
+    "test_artifacts": ["v0.0.0-mingit-test", "v0.0.0-libsql.win.arm.test"],
+    "note": "v2.0.0 not yet released (62 days overdue); public releases still on v1.9.x. v1.9.12 in draft. MiniMax M3 thinking mode bugs closed today — included in next release?"
   },
 
   "top_merged_contributors_30d": [

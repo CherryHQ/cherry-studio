@@ -1,109 +1,159 @@
 {
-  "generated_at": "2026-06-30",
-  "data_source": "GitHub API via MCP (mcp__github__*), sampled 200 of 951 open issues across 2 pages",
+  "generated_at": "2026-07-01",
+  "data_source": "GitHub API via MCP (mcp__github__*); search API for totals; 100-item pages for detail analysis",
   "repository": "CherryHQ/cherry-studio",
 
   "open_issues": {
-    "total": 951,
-    "no_label_count": 95,
-    "needs_repro_count": 55,
+    "total": 935,
+    "delta_from_yesterday": -16,
+    "delta_note": "Closed: ~10 inactive (01:13 UTC stale sweep) + 6 internal_team (16:29 UTC team triage); Opened: 3 new today",
+    "no_label_count": 88,
+    "needs_repro_count": 50,
     "needs_more_info_count": 6,
     "needs_triage_count": 5,
     "p1_open_active": 3,
     "p1_active_list": [
-      { "number": 14899, "title": "[Feature]: Unified Notification Center", "labels": ["Planned", "P1", "feature", "UI/UX"], "milestone": "v2.4.0" },
-      { "number": 13608, "title": "[Bug]: xiaomi mimo response only displays the last line", "labels": ["P1", "Models"] },
-      { "number": 13193, "title": "[Bug]: [AI_APICallError: Resource not found, default use responses API]", "labels": ["P1", "Models"], "assignee": "DeJeune" }
+      { "number": 14899, "title": "[Feature]: Unified Notification Center", "labels": ["Planned", "P1", "feature", "UI/UX"], "milestone": "v2.4.0", "age_days": 55 },
+      { "number": 13608, "title": "[Bug]: xiaomi mimo response only displays the last line", "labels": ["P1", "Models"], "age_days": 105 },
+      { "number": 13193, "title": "[Bug]: [AI_APICallError: Resource not found, default use responses API]", "labels": ["P1", "Models"], "assignee": "DeJeune", "age_days": 119 }
+    ],
+    "high_severity_unlabeled_p1": [
+      { "number": 16610, "title": "[Bug]: Adding a folder with thousands of files to a knowledge base crashes the main process", "labels": ["Data"], "note": "Crash-level severity, not labeled P1 but should be" },
+      { "number": 15423, "title": "[CRITICAL/Data Loss]: Total Wipe of All Chat Sessions due to Monolithic IndexedDB & Full Disk", "labels": ["Data", "inactive"], "note": "Critical data-loss — labeled inactive but unresolved" }
     ],
     "needs_triage_list": [
-      { "number": 15983, "title": "[Bug]: MCP/Skill references in Agent SOUL.md lack automatic validation", "labels": ["MCP", "needs-triage"], "note": "no fix yet" },
-      { "number": 15826, "title": "@cherrystudio/ai-core CJS/type exports point to missing dist files", "labels": ["needs-triage"], "note": "package publishing issue" },
-      { "number": 15409, "title": "[Bug]: CherryIN OAuth flow can be completed by a different renderer sender", "labels": ["needs-triage", "inactive"], "note": "FIXED in v1.9.11 via PR #15410 — issue open but resolved" },
-      { "number": 15316, "title": "[Bug]: agents.db backup races with concurrent writes, producing corrupted restores", "labels": ["needs-triage", "Data"], "milestone": "v1.9.8", "assignee": "kangfenmao", "note": "data integrity — hotfix candidate" },
-      { "number": 14022, "title": "[Feature]: Track Vercel AI SDK v7 features and migration plan", "labels": ["needs-triage"], "note": "internal tracking issue by DeJeune" }
+      { "number": 15983, "title": "[Bug]: MCP/Skill references in Agent SOUL.md lack automatic validation", "labels": ["MCP", "needs-triage"] },
+      { "number": 15826, "title": "@cherrystudio/ai-core CJS/type exports point to missing dist files", "labels": ["needs-triage"] },
+      { "number": 15409, "title": "[Bug]: CherryIN OAuth flow can be completed by a different renderer sender", "labels": ["needs-triage", "inactive"], "note": "FIXED in v1.9.11 via PR #15410 — should be closed" },
+      { "number": 15316, "title": "[Bug]: agents.db backup races with concurrent writes, producing corrupted restores", "labels": ["needs-triage", "Data"], "milestone": "v1.9.8", "assignee": "kangfenmao" },
+      { "number": 14022, "title": "[Feature]: Track Vercel AI SDK v7 features and migration plan", "labels": ["needs-triage"] }
     ],
-    "label_frequency_sampled_200": {
-      "UI/UX": 61,
-      "internal_team": 42,
-      "Models": 33,
-      "Assistant": 20,
-      "feature": 25,
-      "prd": 13,
-      "needs-repro": 14,
-      "MCP": 11,
-      "Performance": 11,
-      "RAG": 10,
-      "help wanted": 10,
-      "discussion": 10,
-      "Connectivity": 6,
-      "needs-more-info": 8,
-      "Data": 6,
-      "Agent": 5,
-      "BUG": 2,
-      "Blocked: v2": 2,
-      "needs-triage": 1
+    "label_frequency_sampled_100_recent": {
+      "inactive": 45,
+      "UI/UX": 32,
+      "Assistant": 14,
+      "Models": 14,
+      "needs-repro": 10,
+      "Performance": 8,
+      "MCP": 7,
+      "Data": 5,
+      "internal_team": 4,
+      "help wanted": 4,
+      "discussion": 4,
+      "RAG": 4,
+      "feature": 4,
+      "needs-more-info": 3,
+      "Connectivity": 2,
+      "prd": 2,
+      "P2": 1,
+      "P3": 1,
+      "needs-triage": 1,
+      "Agent": 1,
+      "BUG": 1,
+      "Docs": 1
     },
     "age_distribution": {
-      "lt_7_days": 150,
-      "7_to_30_days": 416,
-      "gt_30_days": 385,
-      "note": "lt_7_days from GitHub search; 7_to_30_days estimated as 951 - 150 - 385"
+      "lt_7_days": 145,
+      "7_to_30_days": 417,
+      "gt_30_days": 373,
+      "note": "Estimated: active ~145 (stable vs yesterday after 3 new + batch closures of stale); stale bucket down ~12 from inactive sweep"
     },
     "notable_issues": [
-      { "number": 6505, "title": "Long-running FAQ/feedback mega-thread", "comments": 362, "note": "most commented open issue" },
+      { "number": 6505, "title": "Long-running FAQ/feedback mega-thread", "comments": 362, "note": "Most commented open issue — acts as community FAQ hub" },
       { "number": 15316, "title": "agents.db backup race condition — data integrity hotfix", "priority": "HIGH", "milestone": "v1.9.8" },
-      { "number": 16598, "title": "[Feature]: Make reasoning-effort control data-driven from ProviderRegistry", "author": "DeJeune", "note": "Detailed architectural proposal filed today — SSoT violation in reasoning UI/injector path" }
+      { "number": 16598, "title": "[Feature]: Make reasoning-effort control data-driven from ProviderRegistry", "author": "DeJeune", "note": "Architectural SSoT proposal — now corroborated by user bug #16623 filed today" },
+      { "number": 16610, "title": "[Bug]: KB folder with thousands of files crashes main process", "labels": ["Data"], "note": "Crash-level — no P1 label yet" },
+      { "number": 16623, "title": "[Bug]: Thinking/Reasoning settings are insufficient", "author": "oooskarrr", "created_at": "2026-07-01", "note": "User corroboration of architectural SSoT issue #16598" }
+    ],
+    "closures_today_2026_07_01": {
+      "inactive_stale_sweep_01_13_utc": ["#9943", "#14981", "#15191", "#15198", "#15199", "#15200", "#15206", "#15209", "#15210", "#15219", "#15220", "#15222"],
+      "internal_team_triage_16_29_utc": [
+        { "number": 16421, "title": "[Feature]: Skills and Memory Visualization in Agent Detail Panel" },
+        { "number": 16422, "title": "[Feature]: Add Nex-N2-Pro Model Support" },
+        { "number": 16628, "title": "[Feature]: AI Avatar — Personalized Digital Clone with Guided Creation Flow" },
+        { "number": 16420, "title": "[Feature]: Cloud Dashboard and Mobile Entry Point for Agent Monitoring" },
+        { "number": 16418, "title": "[Feature]: In-Conversation Search — Find Messages Within a Single Chat" },
+        { "number": 16417, "title": "[Feature]: Overseas Online Payment Support for Token Purchases" }
+      ],
+      "resolved_bugs": [
+        { "number": 16619, "title": "[Bug]: MiniMax M3 API returns 'invalid thinking.type: enabled' with Official MiniMax" },
+        { "number": 16624, "title": "Minimax's M3 model cannot modify thinking mode" }
+      ]
+    },
+    "new_issues_today_2026_07_01": [
+      { "number": 16620, "title": "[Feature]: Group Conversation Anchors by Turn (User Question as Title, AI Reply as Preview)", "author": "SiinXu", "labels": ["UI/UX"] },
+      { "number": 16623, "title": "[Bug]: Thinking/Reasoning settings are insufficient", "author": "oooskarrr", "labels": ["UI/UX", "Models"] },
+      { "number": 16627, "title": "[Bug]: Selection Assistant Panel Fails to Appear When Using Foxit PDF Editor Due to Copy Delay", "author": "Snowbird8", "labels": ["UI/UX"] }
     ]
   },
 
   "open_prs": {
-    "total": 294,
+    "total": 296,
     "by_base_branch": {
-      "main": 79,
-      "v1": 7,
+      "main": 281,
+      "v1": 4,
       "v2": 0,
-      "stacked_feature_branches": 15
+      "stacked_feature_branches": 11
     },
-    "draft_count_of_recent_100": 12,
-    "unlabeled_count": 97,
+    "draft_count_of_recent_100": 9,
+    "ready_to_merge_count": 11,
+    "unlabeled_count_of_recent_100": 85,
     "age_distribution": {
-      "lt_7_days": 84,
-      "7_to_30_days": 16,
+      "lt_7_days": 100,
+      "7_to_30_days": 0,
       "gt_30_days": 0,
-      "note": "From most-recently-updated 100 PRs; oldest open PR is #16183 (2026-06-18)"
+      "note": "Top 100 by updatedAt — all updated within last 7 days"
     },
+    "notable_new_prs_2026_07_01": [
+      {
+        "number": 16626,
+        "title": "refactor(db): replace libsql with better-sqlite3 + sqlite-vec",
+        "author": "0xfullex",
+        "state": "open",
+        "significance": "MAJOR — eliminates entire class of libsql workarounds (async-mutex, SQLITE_BUSY retry #288, pragma-replay patch); synchronous single-connection model; 1179 files / 13727 tests pass locally",
+        "caveat": "Windows ARM64: no sqlite-vec vec0.dll prebuild available yet — KB vector search unavailable on win-arm64 until follow-up",
+        "created_at": "2026-07-01T10:26:37Z"
+      }
+    ],
     "notable_workstreams": [
       {
         "name": "SiinXu UI Design System v2 Overhaul",
-        "pr_count": 13,
-        "description": "13-part stacked PR chain refactoring design tokens, primitives, composites, sidebar, window shell, settings pages, and shared components",
+        "pr_count": 12,
+        "description": "12-part stacked PR chain (#16104 + #16502–#16513) refactoring design tokens, primitives, composites, sidebar, window shell, settings pages, shared components",
         "lead": "SiinXu",
-        "status": "draft — in progress",
-        "pr_range": "#16502–#16513 + #16104",
-        "base_branches": "stacked (each PR bases on the previous one)"
+        "status": "draft — #16513 is final in chain"
       },
       {
-        "name": "jd/resource-list-config stack",
-        "pr_count": 2,
-        "description": "Resource catalog/dialog refactor stacked PRs",
-        "lead": "zhangjiadi225",
-        "status": "open, active review"
+        "name": "Database Engine Migration (libsql → better-sqlite3)",
+        "pr_count": 1,
+        "description": "PR #16626 replaces async libsql with synchronous better-sqlite3 + sqlite-vec; removes write-mutex / BUSY-retry workarounds",
+        "lead": "0xfullex",
+        "status": "open for review — major architectural change"
       }
     ],
     "top_contributors_open": [
-      { "author": "DeJeune", "open_prs": 20 },
-      { "author": "SiinXu", "open_prs": 13 },
-      { "author": "kangfenmao", "open_prs": 7 },
-      { "author": "vaayne", "open_prs": 6 },
-      { "author": "eeee0717", "open_prs": 6 }
+      { "author": "DeJeune", "open_prs": 18 },
+      { "author": "SiinXu", "open_prs": 12 },
+      { "author": "vaayne", "open_prs": 8 },
+      { "author": "Pleasurecruise", "open_prs": 6 },
+      { "author": "eeee0717", "open_prs": 5 },
+      { "author": "zhangjiadi225", "open_prs": 5 },
+      { "author": "kangfenmao", "open_prs": 4 },
+      { "author": "GeorgeDong32", "open_prs": 4 },
+      { "author": "he-yufeng", "open_prs": 4 }
+    ],
+    "v1_open_prs": [
+      { "number": 16520, "title": "fix(websearch): allow different queries to perform new searches", "author": "Raymond8196" },
+      { "number": 16458, "title": "feat(models): add doubao-seed-2-1 and doubao-seed-evolving models", "author": "GeorgeDong32" },
+      { "number": 16448, "title": "fix(notes): sync view mode to settings changes", "author": "GeorgeDong32" },
+      { "number": 16102, "title": "fix: inject custom provider params at fetch layer", "author": "Raymond8196", "labels": ["v1"] }
     ]
   },
 
   "merged_prs_30d": {
     "total": 295,
-    "items_sampled": 100,
-    "last_7d": 100,
-    "note": "All 100 items in API sample were merged within last 7 days; 295 total merged since 2026-06-01",
+    "note": "From yesterday's data; today's merged PRs not yet quantified (agents processed open PR snapshot)",
+    "last_7d_estimate": 100,
     "top_authors": [
       { "author": "DeJeune", "count": 29 },
       { "author": "zhangjiadi225", "count": 12 },
@@ -121,56 +171,59 @@
       "refactor": 18,
       "other": 7,
       "chore": 3,
-      "docs": 2,
-      "test": 0
-    },
-    "notable_today_2026_06_30": [
-      "fix(switch): use valid svg dimensions for thumb icon (#16592)",
-      "feat(websearch): add firecrawl web search provider (#16344)",
-      "feat(rich-editor): add diagram preview rendering in code blocks (#16309)",
-      "fix(page-side-panel): scope portal via usePortalContainer, drop the root marker (#16555)",
-      "refactor(provider): remove tokenflux providers (#16518)",
-      "fix(migration): always publish mcpServerIdMapping for empty server list (#16602)",
-      "feat(composer): add hover remove popover to skill and knowledge tokens (#16596)",
-      "feat(knowledge): add agent tool surface for knowledge bases (kb_list/kb_search/kb_read/kb_manage) (#16345)",
-      "fix(knowledge): filter rag file processors by configured keys (#16564)",
-      "refactor(file-ref): split persistent ref ownership (#16532)"
-    ]
+      "docs": 2
+    }
   },
 
   "closed_issues_30d": {
-    "total_count": 397,
+    "total_count": 418,
+    "delta_from_yesterday": 21,
     "search_window": "closed:>2026-06-01",
     "api_sample_size": 100,
-    "closed_in_7d": 40,
-    "avg_time_to_close_days": 7.37,
-    "dominant_close_reason": "inactive stale sweep (15 issues batch-closed 2026-06-30 ~01:08 UTC with inactive label)",
-    "top_labels_on_closed": ["UI/UX (30)", "internal_team (27)", "Assistant (16)", "inactive (14)", "feature (11)", "Models (10)", "Performance (7)", "prd (7)", "MCP (6)", "needs-more-info (6)"],
-    "most_commented_closed": [
-      { "number": 14996, "title": "[Bug]: Using Qwen/Gemma local models to create agents frequently encounters 'content not found'", "comments": 9 },
-      { "number": 15051, "title": "[Bug]: Cannot select any model while trying to create a new Agent", "comments": 6 },
-      { "number": 14800, "title": "[Bug]: Cherry's agent stops with errors when using LM Studio local models", "comments": 5 }
+    "avg_time_to_close_days": 38.99,
+    "dominant_close_reason": "inactive stale sweep — 59/100 sampled issues carried 'inactive' label; many were batch-closed by bot",
+    "top_labels_on_closed_sample": {
+      "inactive": 59,
+      "UI/UX": 29,
+      "Models": 18,
+      "Assistant": 17,
+      "internal_team": 14,
+      "Performance": 8,
+      "MCP": 7,
+      "help wanted": 5,
+      "discussion": 5,
+      "needs-repro": 4,
+      "RAG": 4
+    },
+    "notable_closures_today_2026_07_01": [
+      { "number": 16619, "title": "[Bug]: MiniMax M3 API returns 'invalid thinking.type: enabled'", "note": "RESOLVED" },
+      { "number": 16624, "title": "Minimax's M3 model cannot modify thinking mode", "note": "RESOLVED" }
     ]
   },
 
   "milestones": {
-    "v2.0.0": { "open": 24, "closed": 109, "due": "2026-04-30", "status": "overdue by 61 days" },
-    "v2.1.0": { "open": 29, "closed": 4, "status": "active" },
-    "v2.2.0": { "open": 38, "closed": 7, "status": "active" },
-    "v2.4.0": { "open": 21, "closed": 3, "status": "active" }
+    "v2.0.0": { "open": 24, "closed": 109, "due": "2026-04-30", "status": "overdue by 62 days", "completion_pct": 82 },
+    "v2.1.0": { "open": 29, "closed": 4, "status": "active", "completion_pct": 12 },
+    "v2.2.0": { "open": 38, "closed": 7, "status": "active", "completion_pct": 16 },
+    "v2.4.0": { "open": 21, "closed": 3, "status": "active", "completion_pct": 12 }
   },
 
   "releases": {
     "latest_stable": "v1.9.11",
     "latest_stable_date": "2026-06-07",
     "in_draft": "v1.9.12",
+    "test_artifacts": [
+      "v0.0.0-mingit-test (draft) — Windows bundled Git testing",
+      "v0.0.0-libsql.win.arm.test (draft) — Windows ARM64 libsql/sqlite-vec compatibility testing (related to PR #16626)"
+    ],
     "previous": "v1.9.9 (2026-06-02)"
   },
 
   "v2_branch_status": {
     "status": "merged into main — no active v2 branch",
-    "last_merge_week": "2026-W22 (~May 31, 2026)",
+    "last_merge_week": "2026-W22 (~May 28, 2026)",
     "open_prs_targeting_v2": 0,
+    "historical_v2_prs": { "total_closed": 100, "merged": 34, "closed_without_merge": 66 },
     "note": "main is now the active development branch for v2 features"
   },
 
