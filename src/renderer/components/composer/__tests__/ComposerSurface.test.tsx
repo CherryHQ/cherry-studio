@@ -1,3 +1,4 @@
+import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { COMPOSER_FILE_KIND } from '@renderer/types/file'
 import {
   COMPOSER_CLIPBOARD_FRAGMENT_MIME,
@@ -23,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   setContent: vi.fn(),
   setNodeSelection: vi.fn(),
   chainRun: vi.fn(),
+  docContentSize: 0,
   docDescendants: vi.fn(),
   docTextBetween: vi.fn(),
   focus: vi.fn(),
@@ -38,9 +40,12 @@ const mocks = vi.hoisted(() => ({
   editorPresetOptions: undefined as any,
   quickPanelClose: vi.fn(),
   quickPanelDispatchKeyDown: vi.fn(),
+  quickPanelGeneration: 0,
   quickPanelIsVisible: false,
   quickPanelOpen: vi.fn(),
+  quickPanelQueryAnchor: undefined as number | undefined,
   quickPanelSymbol: '',
+  quickPanelTriggerInfo: undefined as any,
   quickPanelUpdateList: vi.fn(),
   selection: { from: 1 } as any,
   transaction: undefined as any
@@ -109,9 +114,12 @@ vi.mock('@renderer/components/QuickPanel', () => ({
   useQuickPanel: () => ({
     close: mocks.quickPanelClose,
     dispatchKeyDown: mocks.quickPanelDispatchKeyDown,
+    getPanelGeneration: () => mocks.quickPanelGeneration,
     isVisible: mocks.quickPanelIsVisible,
     open: mocks.quickPanelOpen,
+    queryAnchor: mocks.quickPanelQueryAnchor,
     symbol: mocks.quickPanelSymbol,
+    triggerInfo: mocks.quickPanelTriggerInfo,
     updateList: mocks.quickPanelUpdateList
   })
 }))
@@ -178,6 +186,11 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
           return mocks.transaction
         },
         doc: {
+          content: {
+            get size() {
+              return mocks.docContentSize
+            }
+          },
           descendants: mocks.docDescendants,
           textBetween: mocks.docTextBetween
         }
@@ -355,6 +368,7 @@ describe('ComposerSurface', () => {
     mocks.setContent.mockReset()
     mocks.setNodeSelection.mockReset()
     mocks.chainRun.mockReset()
+    mocks.docContentSize = 0
     mocks.docDescendants.mockReset()
     mocks.docTextBetween.mockReset()
     mocks.docTextBetween.mockReturnValue('')
@@ -378,9 +392,12 @@ describe('ComposerSurface', () => {
     mocks.editorPresetOptions = undefined
     mocks.quickPanelClose.mockReset()
     mocks.quickPanelDispatchKeyDown.mockReset()
+    mocks.quickPanelGeneration = 0
     mocks.quickPanelIsVisible = false
     mocks.quickPanelOpen.mockReset()
+    mocks.quickPanelQueryAnchor = undefined
     mocks.quickPanelSymbol = ''
+    mocks.quickPanelTriggerInfo = undefined
     mocks.quickPanelUpdateList.mockReset()
     mocks.selection = { from: 1, to: 1, $to: {} }
     mocks.transaction = {
@@ -989,7 +1006,7 @@ describe('ComposerSurface', () => {
       }
     ])
 
-    render(
+    const { rerender } = render(
       <ComposerSurface
         {...baseProps}
         quickPanelEnabled
@@ -1035,12 +1052,119 @@ describe('ComposerSurface', () => {
 
     rootSource.onActiveChange({ editor, range: { from: 1, to: 7 }, query: 'notes', text: '/notes', items: [] })
 
-    await waitFor(() => expect(resourceProvider).toHaveBeenCalledWith('notes', expect.any(Object)))
+    mocks.docContentSize = 6
+    mocks.docTextBetween.mockReturnValue('/notes')
+    mocks.selection = { from: 6, to: 6, $to: {} }
+    mocks.quickPanelGeneration = 1
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelSymbol = '/'
+    mocks.quickPanelQueryAnchor = 0
+    mocks.quickPanelTriggerInfo = {
+      type: 'input',
+      position: 0,
+      originalText: '/notes'
+    }
+    rerender(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        resourceProvider={resourceProvider}
+        getToolLaunchers={() => [
+          {
+            id: 'attachment',
+            kind: 'command',
+            label: 'Attachment',
+            icon: 'paperclip',
+            sources: ['popover']
+          },
+          {
+            id: 'slash-command',
+            kind: 'command',
+            label: 'Slash command',
+            icon: 'slash',
+            sources: ['root-panel']
+          }
+        ]}
+      />
+    )
+
+    await waitFor(() => expect(resourceProvider).toHaveBeenCalledTimes(1))
+    expect(resourceProvider).toHaveBeenCalledWith('notes', expect.any(Object))
     expect(mocks.quickPanelUpdateList).toHaveBeenLastCalledWith([
       expect.objectContaining({ label: 'Attachment' }),
       expect.objectContaining({ label: 'Slash command' }),
       expect.objectContaining({ id: 'file:notes', label: 'notes.md' })
     ])
+  })
+
+  it('ignores resource search results after the root panel generation changes', async () => {
+    let resolveResourceItems: (items: QuickPanelListItem[]) => void = () => undefined
+    const resourceProvider = vi.fn(
+      () =>
+        new Promise<QuickPanelListItem[]>((resolve) => {
+          resolveResourceItems = resolve
+        })
+    )
+
+    const { rerender } = render(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        resourceProvider={resourceProvider}
+        getToolLaunchers={() => [
+          {
+            id: 'attachment',
+            kind: 'command',
+            label: 'Attachment',
+            icon: 'paperclip',
+            sources: ['popover']
+          }
+        ]}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    mocks.docContentSize = 6
+    mocks.docTextBetween.mockReturnValue('/notes')
+    mocks.selection = { from: 6, to: 6, $to: {} }
+    mocks.quickPanelGeneration = 1
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelSymbol = '/'
+    mocks.quickPanelQueryAnchor = 0
+    mocks.quickPanelTriggerInfo = {
+      type: 'input',
+      position: 0,
+      originalText: '/notes'
+    }
+
+    rerender(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        resourceProvider={resourceProvider}
+        getToolLaunchers={() => [
+          {
+            id: 'attachment',
+            kind: 'command',
+            label: 'Attachment',
+            icon: 'paperclip',
+            sources: ['popover']
+          }
+        ]}
+      />
+    )
+
+    await waitFor(() => expect(resourceProvider).toHaveBeenCalledTimes(1))
+    mocks.quickPanelUpdateList.mockClear()
+
+    mocks.quickPanelGeneration = 2
+    await act(async () => {
+      resolveResourceItems([{ id: 'file:notes', label: 'notes.md', icon: 'file' }])
+      await Promise.resolve()
+    })
+
+    expect(mocks.quickPanelUpdateList).not.toHaveBeenCalled()
   })
 
   it('bridges external suggestion sources into QuickPanel items', async () => {

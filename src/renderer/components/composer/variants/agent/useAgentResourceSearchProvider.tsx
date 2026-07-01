@@ -33,6 +33,17 @@ const createAttachmentFromPath = (filePath: string): ComposerAttachment => {
   }
 }
 
+const createStablePathHash = (value: string) => {
+  let hash = 0
+  for (let index = 0; index < value.length; index++) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0
+  }
+  return hash.toString(36)
+}
+
+const createAgentResourceItemId = (filePath: string) =>
+  `agent-resource:${createStablePathHash(filePath.replace(/\\/g, '/'))}`
+
 const getRelativePath = (filePath: string, accessiblePaths: readonly string[]) => {
   const normalizedFilePath = filePath.replace(/\\/g, '/')
 
@@ -133,7 +144,7 @@ export function useAgentResourceSearchProvider({
             currentFile.path === filePath || agentComposerTokenId.file(currentFile) === token.id
 
           return {
-            id: token.id,
+            id: createAgentResourceItemId(filePath),
             label: relativePath,
             description: filePath,
             icon: <Folder size={16} />,

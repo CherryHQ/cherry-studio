@@ -52,10 +52,10 @@ import {
   updateSelectedPromptVariableToken
 } from './promptVariables'
 import {
-  type ComposerRootPanelSelectHandler,
   type ComposerSuggestionSource,
   type ComposerUnifiedPanelControl,
   type ComposerUnifiedPanelResourceProvider,
+  type ComposerUnifiedPanelSelectHandler,
   createComposerSuggestionQuickPanelItem,
   createUnifiedQuickPanelOpenOptions,
   getComposerCursorTextOffset,
@@ -137,7 +137,7 @@ export interface ComposerSurfaceProps {
   rootPanelLeadingItems?: readonly QuickPanelListItem[]
   rootPanelAdditionalItems?: readonly QuickPanelListItem[]
   onRootPanelOpen?: () => void
-  onToolLauncherSelect?: ComposerRootPanelSelectHandler
+  onToolLauncherSelect?: ComposerUnifiedPanelSelectHandler
   renderLeftControls?: (
     inputAdapter?: QuickPanelInputAdapter,
     unifiedPanelControl?: ComposerUnifiedPanelControl
@@ -840,6 +840,7 @@ export default function ComposerSurface({
       const trimmedQuery = searchText.trim()
       const requestId = ++unifiedResourceRequestRef.current
       const { quickPanel, resourceProvider } = rootSuggestionStateRef.current
+      const panelGeneration = quickPanel.getPanelGeneration()
 
       if (!resourceProvider || trimmedQuery.length === 0) {
         setUnifiedResourceItems([])
@@ -854,6 +855,13 @@ export default function ComposerSurface({
         triggerInfo
       })
       if (requestId !== unifiedResourceRequestRef.current) return
+      if (
+        quickPanel.getPanelGeneration() !== panelGeneration ||
+        !quickPanel.isVisible ||
+        quickPanel.symbol !== ComposerPanelSymbol.Root
+      ) {
+        return
+      }
 
       setUnifiedResourceItems(resourceItems)
       quickPanel.updateList(
@@ -873,13 +881,11 @@ export default function ComposerSurface({
       inputAdapter,
       queryAnchor,
       requestRootPanelOpen = true,
-      searchText,
       triggerInfo
     }: {
       inputAdapter?: QuickPanelInputAdapter
       queryAnchor?: number
       requestRootPanelOpen?: boolean
-      searchText?: string
       triggerInfo?: QuickPanelTriggerInfo
     }) => {
       const { onRootPanelOpen, quickPanel } = rootSuggestionStateRef.current
@@ -895,14 +901,8 @@ export default function ComposerSurface({
           triggerInfo
         })
       )
-      void loadUnifiedResourceItems({
-        inputAdapter,
-        queryAnchor,
-        searchText: searchText ?? getComposerUnifiedPanelSearchText(inputAdapter, queryAnchor, triggerInfo),
-        triggerInfo
-      })
     },
-    [createUnifiedPanelOptions, loadUnifiedResourceItems]
+    [createUnifiedPanelOptions]
   )
 
   const rootSuggestionSource = useMemo<ComposerSuggestionSource>(
@@ -950,7 +950,6 @@ export default function ComposerSurface({
           inputAdapter: createComposerInputAdapter(editor),
           queryAnchor,
           requestRootPanelOpen: false,
-          searchText: query,
           triggerInfo
         })
       },
@@ -1545,7 +1544,6 @@ export default function ComposerSurface({
         openUnifiedComposerPanel({
           inputAdapter,
           queryAnchor,
-          searchText: '',
           triggerInfo: {
             type: 'button',
             position: queryAnchor

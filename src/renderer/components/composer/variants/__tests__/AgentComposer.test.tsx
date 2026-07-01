@@ -790,7 +790,7 @@ describe('AgentComposer', () => {
     if (!item?.id) throw new Error('Expected a resource provider item')
     expect(items?.[0]).toEqual(
       expect.objectContaining({
-        id: expect.stringMatching(/^file:.+/),
+        id: expect.stringMatching(/^agent-resource:.+/),
         label: 'docs/notes.md',
         description: '/workspace/docs/notes.md',
         disabled: false
@@ -798,15 +798,18 @@ describe('AgentComposer', () => {
     )
     expect(item.id).not.toContain('/workspace/docs/notes.md')
 
+    const refreshedItems = await resourceProvider?.('notes', { inputAdapter, quickPanel: {} as any })
+    expect(refreshedItems?.[0]?.id).toBe(item.id)
+
     item.action?.({ action: 'enter', context: {} as any, item, inputAdapter })
 
     expect(inputAdapter.insertToken).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: item.id,
+        id: expect.stringMatching(/^file:.+/),
         kind: 'file',
         label: 'notes.md',
         payload: expect.objectContaining({
-          fileTokenSourceId: item.id.slice('file:'.length),
+          fileTokenSourceId: expect.any(String),
           path: '/workspace/docs/notes.md'
         })
       })
@@ -818,7 +821,7 @@ describe('AgentComposer', () => {
     const selectedFile = { id: '/workspace/docs/notes.md', path: '/workspace/docs/notes.md' } as FileMetadata
     expect(setFilesUpdater([])).toEqual([
       expect.objectContaining({
-        fileTokenSourceId: item.id.slice('file:'.length),
+        fileTokenSourceId: expect.any(String),
         path: '/workspace/docs/notes.md'
       })
     ])
@@ -853,7 +856,7 @@ describe('AgentComposer', () => {
     })
     expect(items?.[0]).toEqual(
       expect.objectContaining({
-        id: expect.stringMatching(/^file:.+/),
+        id: expect.stringMatching(/^agent-resource:.+/),
         disabled: true
       })
     )

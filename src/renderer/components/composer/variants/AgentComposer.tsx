@@ -61,7 +61,7 @@ import {
   writeAgentDraftCache
 } from './agent/agentDraftCache'
 import { AgentLabel } from './agent/AgentLabel'
-import { useAgentResourceSearchProvider } from './agent/useAgentResourceSuggestion'
+import { useAgentResourceSearchProvider } from './agent/useAgentResourceSearchProvider'
 import {
   agentComposerTokenId,
   agentFileToComposerToken,

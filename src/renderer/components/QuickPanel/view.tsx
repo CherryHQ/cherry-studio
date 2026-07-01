@@ -424,7 +424,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return
     }
 
-    if (!isInputQueryCursorAtEnd(text, cursorOffset)) {
+    if (ctx.triggerInfo?.type === 'input' && !isInputQueryCursorAtEnd(text, cursorOffset)) {
       closePanel('input_cursor_invalid')
       return
     }
@@ -480,7 +480,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return
     }
 
-    if (!isInputQueryCursorAtEnd(text, cursorOffset)) {
+    if (ctx.triggerInfo?.type === 'input' && !isInputQueryCursorAtEnd(text, cursorOffset)) {
       closePanel('input_cursor_invalid')
       return
     }

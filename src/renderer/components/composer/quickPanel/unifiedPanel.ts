@@ -8,7 +8,6 @@ import type {
 } from '@renderer/components/QuickPanel'
 
 import type { ComposerToolLauncher, ComposerToolLauncherSource } from '../toolLauncher'
-import type { ComposerRootPanelSelectHandler } from './rootPanel'
 import { ComposerPanelSymbol } from './symbols'
 
 export type ComposerUnifiedPanelSection = 'primary-tools' | 'commands' | 'resources'
@@ -42,6 +41,19 @@ export interface ComposerUnifiedPanelControl {
   available: boolean
   open: () => void
 }
+
+export type ComposerUnifiedPanelSelectHandler = (
+  launcher: ComposerToolLauncher,
+  options: {
+    source: ComposerToolLauncherSource
+    inputAdapter?: QuickPanelInputAdapter
+    quickPanel: QuickPanelContextType
+    triggerInfo?: QuickPanelTriggerInfo
+    parentPanel?: QuickPanelOpenOptions
+    queryAnchor?: number
+    searchText?: string
+  }
+) => void
 
 function createQuickPanelWithParent(
   quickPanel: QuickPanelContextType,
@@ -175,7 +187,7 @@ function createUnifiedPanelListItem(
     source: ComposerToolLauncherSource
     inputAdapter?: QuickPanelInputAdapter
     quickPanel: QuickPanelContextType
-    onToolLauncherSelect?: ComposerRootPanelSelectHandler
+    onToolLauncherSelect?: ComposerUnifiedPanelSelectHandler
     getRootPanelOptions?: () => QuickPanelOpenOptions
   }
 ): QuickPanelListItem {
@@ -218,7 +230,7 @@ function openUnifiedPanelSubmenu(
   options: {
     inputAdapter?: QuickPanelInputAdapter
     quickPanel: QuickPanelContextType
-    onToolLauncherSelect?: ComposerRootPanelSelectHandler
+    onToolLauncherSelect?: ComposerUnifiedPanelSelectHandler
     getRootPanelOptions?: () => QuickPanelOpenOptions
     parentPanel?: QuickPanelOpenOptions
     queryAnchor?: number
@@ -250,7 +262,7 @@ function createUnifiedSectionItems(
     seenLauncherIds: Set<string>
     inputAdapter?: QuickPanelInputAdapter
     quickPanel: QuickPanelContextType
-    onToolLauncherSelect?: ComposerRootPanelSelectHandler
+    onToolLauncherSelect?: ComposerUnifiedPanelSelectHandler
     getRootPanelOptions?: () => QuickPanelOpenOptions
   }
 ) {
@@ -280,7 +292,7 @@ export function createUnifiedQuickPanelOpenOptions(
   options: {
     inputAdapter?: QuickPanelInputAdapter
     quickPanel: QuickPanelContextType
-    onToolLauncherSelect?: ComposerRootPanelSelectHandler
+    onToolLauncherSelect?: ComposerUnifiedPanelSelectHandler
     title?: string
     leadingItems?: readonly QuickPanelListItem[]
     additionalItems?: readonly QuickPanelListItem[]

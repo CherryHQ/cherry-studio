@@ -1002,6 +1002,25 @@ describe('ChatComposer', () => {
     expect(onCreateEmptyTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
   })
 
+  it('disables the classic-layout empty topic slash action while the assistant is loading', () => {
+    mocks.topicLayout = 'classic'
+    mocks.assistantLoading = true
+    const onCreateEmptyTopic = vi.fn()
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} onCreateEmptyTopic={onCreateEmptyTopic} />)
+
+    expect(mocks.surfaceProps?.rootPanelLeadingItems?.[0]).toEqual(
+      expect.objectContaining({
+        id: 'composer:new-conversation',
+        disabled: true
+      })
+    )
+
+    mocks.commandHandlers.get('topic.create')?.()
+
+    expect(onCreateEmptyTopic).not.toHaveBeenCalled()
+  })
+
   it('puts the modern-layout new topic action first in the slash panel', () => {
     mocks.topicLayout = 'modern'
     const onNewTopic = vi.fn()
