@@ -1,7 +1,13 @@
-import { MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
+import { MenuDivider, MenuItem, MenuList } from '@cherrystudio/ui'
+import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
 import { McpLogo } from '@renderer/components/Icons'
+import { SubWindowTitle } from '@renderer/components/layout/SubWindowTitle'
+import { TITLE_BAR_HEIGHT_CLASS } from '@renderer/components/layout/titleBar'
 import Scrollbar from '@renderer/components/Scrollbar'
+import WindowControls from '@renderer/components/WindowControls'
+import { isMac } from '@renderer/utils/platform'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import useWindowFocus from '@renderer/hooks/useWindowFocus'
 import { cn } from '@renderer/utils/style'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import {
@@ -38,21 +44,47 @@ const SettingsPage: FC = () => {
   const { pathname } = location
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
+  const isWindowFocused = useWindowFocus()
+  const isGlassActive = isMacTransparentWindow && isWindowFocused
+  const { mode, chrome } = useWindowFrame()
+  const isDetached = mode === 'window'
 
   const isActive = (path: string) => pathname === path || pathname.startsWith(`${path}/`)
   const go = (path: string) => navigate({ to: path })
+
+  const titleBar = (
+    <div
+      className={cn(
+        'flex shrink-0 items-center [-webkit-app-region:drag]',
+        TITLE_BAR_HEIGHT_CLASS,
+        isMac ? 'pl-[max(env(titlebar-area-x),1.25rem)]' : 'pl-5',
+        isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
+      )}>
+      <SubWindowTitle className="min-w-0 flex-1" />
+      {chrome?.titleTrailing && (
+        <div className="flex shrink-0 items-center gap-0.5 [-webkit-app-region:no-drag]">{chrome.titleTrailing}</div>
+      )}
+      <WindowControls />
+    </div>
+  )
 
   return (
     <div
       className={cn(
         'flex min-h-0 flex-1 flex-col',
-        isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
+        isDetached ? (isGlassActive ? 'bg-sidebar-translucent' : 'bg-sidebar') : 'bg-background'
       )}>
+      {/* Detached windows get a full-width draggable title strip so the whole top
+       * edge (over both the nav column and the content card) can move the window. */}
+      {isDetached && titleBar}
       <div className="flex min-h-0 flex-1 flex-row">
-        <div className="flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col border-border border-r-[0.5px]">
-          <PageHeader title={t('settings.menuGroups.appSettings')} />
+        <div
+          className={cn(
+            'flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col',
+            !isDetached && 'border-border border-r-[0.5px]'
+          )}>
           <Scrollbar className="min-h-0 flex-1 select-none">
-            <MenuList className={settingsSubmenuListClassName}>
+            <MenuList className={cn(settingsSubmenuListClassName, 'pt-2')}>
               <MenuItem
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
@@ -192,8 +224,13 @@ const SettingsPage: FC = () => {
             </MenuList>
           </Scrollbar>
         </div>
-        <div className="flex h-full min-h-0 min-w-0 flex-1">
-          <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden text-foreground">
+        <div className={cn('flex h-full min-h-0 min-w-0 flex-1', isDetached && 'pr-1.5 pb-1.5')}>
+          <div
+            className={cn(
+              'flex min-h-0 min-w-0 flex-1 overflow-hidden bg-background text-foreground',
+              isDetached && 'rounded-[16px] border-[0.5px]',
+              isDetached && (isGlassActive ? 'border-frame-border-translucent' : 'border-frame-border')
+            )}>
             <Outlet />
           </div>
         </div>

@@ -20,13 +20,21 @@ import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useModelById } from '@renderer/hooks/useModel'
+import i18n from '@renderer/i18n'
 import type { Assistant, AssistantSettings } from '@renderer/types/assistant'
 import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@renderer/utils/model'
 import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type { CreateAssistantDto, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
+import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
+import {
+  DEFAULT_ASSISTANT_EMOJI,
+  DEFAULT_ASSISTANT_NAME,
+  DEFAULT_ASSISTANT_PROMPT
+} from '@shared/data/presets/defaultAssistant'
+import { DEFAULT_ASSISTANT_ID, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import { type UniqueModelId } from '@shared/data/types/model'
-import { useCallback, useRef } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('useAssistant')
 
@@ -230,4 +238,56 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
     updateAssistant,
     updateAssistantSettings
   }
+}
+
+// ─── Default-assistant composition (ported from main for settings sites) ──────
+
+const DEFAULT_ASSISTANT_TIMESTAMP = new Date(0).toISOString()
+
+/**
+ * Pure runtime composition of the default assistant. v2 has no `id='default'`
+ * row in SQLite; the default assistant is always synthesized from a static
+ * template plus the caller-supplied `modelId`.
+ */
+export function composeDefaultAssistant(modelId: UniqueModelId | null): Assistant {
+  return {
+    id: DEFAULT_ASSISTANT_ID,
+    name: i18n.t('chat.default.name'),
+    emoji: DEFAULT_ASSISTANT_EMOJI,
+    prompt: DEFAULT_ASSISTANT_PROMPT,
+    description: '',
+    settings: DEFAULT_ASSISTANT_SETTINGS,
+    modelId,
+    orderKey: '',
+    modelName: null,
+    mcpServerIds: [],
+    knowledgeBaseIds: [],
+    tags: [],
+    createdAt: DEFAULT_ASSISTANT_TIMESTAMP,
+    updatedAt: DEFAULT_ASSISTANT_TIMESTAMP
+  }
+}
+
+export function isSeededDefaultAssistant(assistant: Assistant): boolean {
+  return (
+    assistant.name === DEFAULT_ASSISTANT_NAME &&
+    assistant.emoji === DEFAULT_ASSISTANT_EMOJI &&
+    assistant.prompt === DEFAULT_ASSISTANT_PROMPT &&
+    assistant.modelId === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+  )
+}
+
+export function resolveDefaultAssistantOption(assistants: readonly Assistant[], fallback: Assistant): Assistant {
+  return assistants.find(isSeededDefaultAssistant) ?? fallback
+}
+
+/**
+ * Returns the runtime-composed default-assistant template. For UI sites that
+ * render the "Default" preset card or seed a new assistant from the template.
+ */
+export function useDefaultAssistant(): { assistant: Assistant } {
+  const [defaultModelId] = usePreference('chat.default_model_id')
+  const modelId = (defaultModelId ?? null) as UniqueModelId | null
+  const assistant = useMemo(() => composeDefaultAssistant(modelId), [modelId])
+  return { assistant }
 }
