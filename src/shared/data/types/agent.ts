@@ -22,4 +22,4 @@ export type { InstalledSkill } from '../api/schemas/skills'
 // Core agent types (plain aliases for non-Zod consumers)
 // ============================================================================
 
-export type AgentType = 'claude-code'
+export type AgentType = 'claude-code' | 'pi'

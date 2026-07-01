@@ -3,7 +3,7 @@ import { defaultConfiguration } from '@renderer/hooks/agent/agentConfiguration'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import type { PermissionMode } from '@renderer/types/agent'
-import { permissionModeCards } from '@renderer/utils/agent'
+import { getPermissionModeCards } from '@renderer/utils/agent'
 import { FolderPen, Pointer, RefreshCcw, Route } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo } from 'react'
@@ -34,6 +34,8 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
   // Permission mode lives on the agent — sessions are pure instances. Approval is governed
   // solely by the permission mode (the per-tool allow-list was removed).
   const currentMode = agent?.configuration?.permission_mode ?? 'default'
+  // pi agents have no plan mode (D8) — offer only the modes their runtime honors.
+  const cards = useMemo(() => getPermissionModeCards(sessionContext?.agentType), [sessionContext?.agentType])
 
   const handleSelectMode = useCallback(
     (nextMode: PermissionMode) => {
@@ -52,11 +54,11 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
     [currentMode, agent, agentId, updateAgent]
   )
 
-  const modeCard = permissionModeCards.find((card) => card.mode === currentMode)
+  const modeCard = cards.find((card) => card.mode === currentMode)
   const tooltipTitle = modeCard ? t(modeCard.titleKey, modeCard.titleFallback) : ''
   const modeSubmenu = useMemo(
     () =>
-      permissionModeCards.map((card, index) => ({
+      cards.map((card, index) => ({
         id: `permission-mode-${card.mode}`,
         kind: 'command' as const,
         sources: ['popover'] as const,
@@ -67,7 +69,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
         active: card.mode === currentMode,
         action: () => handleSelectMode(card.mode)
       })),
-    [currentMode, handleSelectMode, t]
+    [cards, currentMode, handleSelectMode, t]
   )
 
   useEffect(() => {

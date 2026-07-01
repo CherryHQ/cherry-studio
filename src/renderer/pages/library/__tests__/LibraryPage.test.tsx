@@ -223,6 +223,7 @@ vi.mock('@renderer/components/resource/dialogs', () => ({
     onSubmit: (values: {
       avatar: string
       name: string
+      agentType: 'claude-code' | 'pi'
       modelId: string
       description: string
       prompt: string
@@ -239,6 +240,7 @@ vi.mock('@renderer/components/resource/dialogs', () => ({
             void onSubmit({
               avatar: kind === 'assistant' ? '💬' : '🤖',
               name: `${kind} name`,
+              agentType: 'claude-code',
               modelId: 'provider::model',
               description: `${kind} description`,
               prompt: `${kind} prompt`,

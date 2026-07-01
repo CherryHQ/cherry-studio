@@ -40,9 +40,9 @@ export type FeishuChannelConfig = {
 
 // ------------------ Type guards ------------------
 export const isAgentType = (type: unknown): type is AgentType => {
-  // Mirror the shared `AgentType = 'claude-code'` literal — kept inline so the
-  // guard stays a pure runtime check without dragging the zod schema in.
-  return type === 'claude-code'
+  // Mirror the shared `AgentType = 'claude-code' | 'pi'` literals — kept inline
+  // so the guard stays a pure runtime check without dragging the zod schema in.
+  return type === 'claude-code' || type === 'pi'
 }
 
 export const isAgentEntity = (value: unknown): value is AgentEntity => {

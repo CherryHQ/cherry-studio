@@ -1,5 +1,5 @@
 import type { PermissionModeCard } from '@renderer/types/agent'
-import type { AgentConfiguration } from '@shared/data/types/agent'
+import type { AgentConfiguration, AgentType } from '@shared/data/types/agent'
 
 export const DEFAULT_AGENT_AVATAR = '🤖'
 
@@ -46,3 +46,13 @@ export const permissionModeCards: PermissionModeCard[] = [
     caution: true
   }
 ]
+
+/**
+ * Permission-mode cards offered for an agent type. `pi` has no plan mode
+ * (deferred — see plan D8), so it drops the `plan` card; every other type
+ * keeps the full set.
+ */
+export function getPermissionModeCards(agentType: AgentType | string | undefined): PermissionModeCard[] {
+  if (agentType === 'pi') return permissionModeCards.filter((card) => card.mode !== 'plan')
+  return permissionModeCards
+}

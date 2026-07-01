@@ -6,6 +6,7 @@ import {
   type ResourceCreateWizardKind,
   type ResourceCreateWizardValues
 } from '@renderer/components/resource/dialogs'
+import { buildAgentCreateBody } from '@renderer/components/resource/dialogs/create/agentCreateBody'
 import { isSelectableAssistantModel } from '@renderer/components/resource/dialogs/form/assistantModelFilter'
 import { ImportSkillDialog } from '@renderer/components/resource/dialogs/ImportSkillDialog'
 import PromptEditDialog from '@renderer/components/resource/dialogs/PromptEditDialog'
@@ -130,7 +131,9 @@ export default function LibraryPage() {
 
   const { createAssistant, duplicateAssistant } = useAssistantMutations()
   const { createAgent } = useAgentMutations()
-  const agentModelFilter = useAgentModelFilter('claude-code')
+  // The edit dialog's model picker must match the agent's own runtime, not a
+  // fixed claude-code filter, or a pi agent would be offered incompatible models.
+  const agentEditModelFilter = useAgentModelFilter(editDialog?.kind === 'agent' ? editDialog.resource.type : undefined)
   const { createPrompt } = usePromptMutations()
   const promptDialogPrompt = promptDialog?.prompt ?? null
   const { updatePrompt } = usePromptMutationsById(promptDialogPrompt?.id ?? '')
@@ -355,21 +358,7 @@ export default function LibraryPage() {
             knowledgeBaseIds: values.knowledgeBaseIds
           })
         } else {
-          await createAgent({
-            type: 'claude-code',
-            name: values.name,
-            model: values.modelId,
-            planModel: values.modelId,
-            smallModel: values.modelId,
-            description: values.description,
-            instructions: values.prompt,
-            skillIds: values.skillIds,
-            configuration: {
-              avatar: values.avatar,
-              permission_mode: 'bypassPermissions',
-              soul_enabled: true
-            }
-          })
+          await createAgent(buildAgentCreateBody(values))
         }
 
         setCreateDialogOpen(false)
@@ -509,7 +498,7 @@ export default function LibraryPage() {
         kind={createDialogKind ?? 'assistant'}
         open={createDialogOpen}
         isSubmitting={creatingResource}
-        modelFilter={createDialogKind === 'agent' ? agentModelFilter : isSelectableAssistantModel}
+        modelFilter={createDialogKind === 'agent' ? undefined : isSelectableAssistantModel}
         onOpenChange={handleCreateDialogOpenChange}
         onSubmit={handleSubmitCreateResource}
       />
@@ -526,7 +515,7 @@ export default function LibraryPage() {
         <AgentEditDialog
           open={editDialogOpen}
           resource={editDialog.resource}
-          modelFilter={agentModelFilter}
+          modelFilter={agentEditModelFilter}
           onOpenChange={handleEditDialogOpenChange}
           onSaved={handleEditSaved}
         />
