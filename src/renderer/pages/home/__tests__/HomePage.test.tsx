@@ -193,8 +193,20 @@ vi.mock('@renderer/components/chat', () => ({
 }))
 
 vi.mock('@renderer/components/resource/catalog', () => ({
-  ResourceCatalogView: ({ resourceType }: { resourceType: string }) => (
-    <div data-testid={`resource-catalog-${resourceType}`} />
+  ResourceCatalogView: ({
+    onOpenAssistantChat,
+    resourceType
+  }: {
+    onOpenAssistantChat?: (assistantId: string) => void
+    resourceType: string
+  }) => (
+    <div data-testid={`resource-catalog-${resourceType}`}>
+      {resourceType === 'assistant' && (
+        <button type="button" onClick={() => onOpenAssistantChat?.('assistant-2')}>
+          Go to chat with assistant 2
+        </button>
+      )}
+    </div>
   )
 }))
 
@@ -647,6 +659,37 @@ describe('HomePage', () => {
     expect(screen.getByTestId('resource-catalog-assistant')).toBeInTheDocument()
     expect(screen.getByTestId('home-conversation-page-shell')).toBeInTheDocument()
     expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
+  })
+
+  it('starts a modern-layout draft from the inline assistant catalog go-to-chat action', async () => {
+    homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.assistant' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Go to chat with assistant 2' }))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('draft-composer')).toHaveAttribute('data-assistant-id', 'assistant-2')
+    )
+    expect(screen.queryByTestId('resource-catalog-assistant')).not.toBeInTheDocument()
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
+  it('creates an empty classic-layout topic from the inline assistant catalog go-to-chat action', async () => {
+    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
+    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-2' })
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.assistant' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Go to chat with assistant 2' }))
+
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
+    expect(screen.queryByTestId('resource-catalog-assistant')).not.toBeInTheDocument()
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created')
+    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
   })
 
   it('restores and records the classic-layout topic right pane open state from cache', () => {

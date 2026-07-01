@@ -61,9 +61,9 @@ export function useConversationResourceView<TKind extends ConversationResourceKi
       icon: definition.icon,
       id: definition.id,
       label: definition.label,
-      onSelect: () => open(definition.kind)
+      onSelect: () => (activeKind === definition.kind ? close() : open(definition.kind))
     }))
-  }, [activeKind, definitions, disabled, open])
+  }, [activeKind, close, definitions, disabled, open])
 
   return {
     activeKind,

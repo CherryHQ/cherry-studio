@@ -32,6 +32,27 @@ describe('useConversationResourceView', () => {
     expect(result.current.menuItems?.[0]?.active).toBe(true)
   })
 
+  it('closes the active resource center view when selecting the active menu item again', () => {
+    const { result } = renderHook(() =>
+      useConversationResourceView({
+        conversationKey: 'session:one',
+        definitions
+      })
+    )
+
+    act(() => {
+      void result.current.menuItems?.[0]?.onSelect()
+    })
+    expect(result.current.activeKind).toBe('agent')
+
+    act(() => {
+      void result.current.menuItems?.[0]?.onSelect()
+    })
+
+    expect(result.current.activeKind).toBeNull()
+    expect(result.current.menuItems?.[0]?.active).toBe(false)
+  })
+
   it('invalidates the active resource view when the conversation key changes', () => {
     const { result, rerender } = renderHook(
       ({ conversationKey }) =>
