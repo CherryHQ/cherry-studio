@@ -142,4 +142,16 @@ describe('PptxPreviewPanel', () => {
     expect(mocks.fsRead).not.toHaveBeenCalled()
     expect(mocks.open).not.toHaveBeenCalled()
   })
+
+  it('destroys the viewer when open() rejects on a malformed file', async () => {
+    mocks.open.mockImplementationOnce(() => {
+      throw new Error('corrupt pptx')
+    })
+
+    render(<PptxPreviewPanel filePath="/tmp/bad.pptx" fileName="bad.pptx" refreshKey={0} sourceSize={1024} />)
+
+    expect(await screen.findByTestId('empty-state')).toHaveTextContent('files.preview.error')
+    expect(mocks.viewerInstances).toHaveLength(1)
+    expect(mocks.destroy).toHaveBeenCalledTimes(1)
+  })
 })

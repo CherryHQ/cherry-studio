@@ -192,6 +192,11 @@ const PptxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize }: PptxPr
         focusContainer()
       } catch (loadError) {
         if (cancelled) return
+        if (viewerRef.current === viewer) {
+          viewerRef.current = null
+        }
+        viewer?.destroy()
+        container.innerHTML = ''
         const normalized = loadError instanceof Error ? loadError : new Error(String(loadError))
         logger.error(`Failed to load PPTX: ${filePath}`, normalized)
         setError(normalized)
