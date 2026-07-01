@@ -124,4 +124,34 @@ describe('WordPreviewPanel', () => {
     await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(2))
     expect(screen.getAllByText('Page 1')).toHaveLength(1)
   })
+
+  it('does not let a stale render blank a newer render sharing the same container', async () => {
+    let resolveStaleRender: (() => void) | undefined
+    const staleRenderGate = new Promise<void>((resolve) => {
+      resolveStaleRender = resolve
+    })
+    let renderCount = 0
+    mocks.renderAsync.mockImplementation(async (_data: Uint8Array, bodyContainer: HTMLElement) => {
+      renderCount += 1
+      if (renderCount === 1) {
+        await staleRenderGate
+        bodyContainer.innerHTML = '<section>Stale</section>'
+        return
+      }
+      bodyContainer.innerHTML = '<section>Fresh</section>'
+    })
+
+    const { rerender } = render(
+      <WordPreviewPanel filePath="/tmp/report.docx" fileName="report.docx" refreshKey={0} sourceSize={1024} />
+    )
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
+
+    rerender(<WordPreviewPanel filePath="/tmp/report.docx" fileName="report.docx" refreshKey={1} sourceSize={1024} />)
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.getByTestId('docx-preview-content')).toHaveTextContent('Fresh'))
+
+    resolveStaleRender?.()
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(2))
+    expect(screen.getByTestId('docx-preview-content')).toHaveTextContent('Fresh')
+  })
 })

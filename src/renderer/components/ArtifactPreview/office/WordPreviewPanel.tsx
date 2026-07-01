@@ -54,6 +54,7 @@ const WordPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize }: WordPr
   const [currentPage, setCurrentPage] = useState(0)
   const [pageCount, setPageCount] = useState(0)
   const [zoom, setZoom] = useState(DOCX_PREVIEW_DEFAULT_ZOOM)
+  const renderTokenRef = useRef(0)
 
   const focusContainer = useCallback(() => {
     containerRef.current?.focus({ preventScroll: true })
@@ -97,14 +98,24 @@ const WordPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize }: WordPr
     const styleContainer = styleRef.current
     if (!bodyContainer || !styleContainer) return
 
-    let cancelled = false
+    const token = ++renderTokenRef.current
+    const isCurrent = () => renderTokenRef.current === token
     setError(null)
     setLoading(true)
     setCurrentPage(0)
     setPageCount(0)
     setZoom(DOCX_PREVIEW_DEFAULT_ZOOM)
-    bodyContainer.innerHTML = ''
-    styleContainer.innerHTML = ''
+
+    // docx-preview writes directly into the containers it's given, and renderAsync() can't be
+    // aborted mid-flight. Rendering into an off-screen staging pair (rather than the shared,
+    // visible containers) means a stale render can never clobber a newer one that finished first -
+    // the stale output is simply discarded once isCurrent() comes back false.
+    const stagingHost = document.createElement('div')
+    stagingHost.style.cssText = 'position:fixed;top:0;left:-99999px;visibility:hidden;'
+    const stagingBody = document.createElement('div')
+    const stagingStyle = document.createElement('div')
+    stagingHost.append(stagingStyle, stagingBody)
+    document.body.appendChild(stagingHost)
 
     void (async () => {
       try {
@@ -112,9 +123,9 @@ const WordPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize }: WordPr
 
         const docxData = toDocxData(await window.api.fs.read(filePath))
         assertSourceSize(docxData.byteLength)
-        if (cancelled) return
+        if (!isCurrent()) return
 
-        await renderAsync(docxData, bodyContainer, styleContainer, {
+        await renderAsync(docxData, stagingBody, stagingStyle, {
           className: 'docx-preview',
           inWrapper: true,
           breakPages: true,
@@ -126,34 +137,33 @@ const WordPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize }: WordPr
           useBase64URL: true,
           renderAltChunks: false
         })
-        if (cancelled) {
-          bodyContainer.innerHTML = ''
-          styleContainer.innerHTML = ''
-          return
-        }
+        if (!isCurrent()) return
 
-        const pages = getRenderedPages(bodyContainer)
+        const pages = getRenderedPages(stagingBody)
         pages.forEach((page, index) => {
           page.id = `docx-preview-page-${index + 1}`
           page.dataset.docxPreviewPage = String(index + 1)
           page.classList.add('docx-preview-page')
         })
+        bodyContainer.replaceChildren(...stagingBody.childNodes)
+        styleContainer.replaceChildren(...stagingStyle.childNodes)
+
         const nextPageCount = Math.max(pages.length, 1)
         setPageCount(nextPageCount)
         setCurrentPage(nextPageCount > 0 ? 1 : 0)
         focusContainer()
       } catch (loadError) {
-        if (cancelled) return
+        if (!isCurrent()) return
         const normalized = loadError instanceof Error ? loadError : new Error(String(loadError))
         logger.error(`Failed to load DOCX: ${filePath}`, normalized)
         setError(normalized)
       } finally {
-        if (!cancelled) setLoading(false)
+        if (isCurrent()) setLoading(false)
+        stagingHost.remove()
       }
     })()
 
     return () => {
-      cancelled = true
       bodyContainer.innerHTML = ''
       styleContainer.innerHTML = ''
     }
