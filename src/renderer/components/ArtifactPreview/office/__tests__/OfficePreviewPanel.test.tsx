@@ -41,34 +41,10 @@ vi.mock('@cherrystudio/ui', () => ({
     </button>
   ),
   Tooltip: ({ children }: PropsWithChildren<{ content: string }>) => <>{children}</>,
-  EmptyState: ({
-    title,
-    description,
-    actionLabel,
-    onAction,
-    secondaryLabel,
-    onSecondary
-  }: {
-    title?: string
-    description?: string
-    actionLabel?: string
-    onAction?: () => void
-    secondaryLabel?: string
-    onSecondary?: () => void
-  }) => (
+  EmptyState: ({ title, description }: { title?: string; description?: string }) => (
     <div data-testid="empty-state">
       <span>{title}</span>
       <span>{description}</span>
-      {actionLabel && (
-        <button type="button" onClick={onAction}>
-          {actionLabel}
-        </button>
-      )}
-      {secondaryLabel && (
-        <button type="button" onClick={onSecondary}>
-          {secondaryLabel}
-        </button>
-      )}
     </div>
   )
 }))
@@ -79,10 +55,8 @@ vi.mock('@cherrystudio/ui/lib/utils', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: { extension?: string; name?: string }) => {
+    t: (key: string, options?: { extension?: string }) => {
       if (key === 'agent.preview_pane.office.title') return `unsupported ${options?.extension ?? ''}`
-      if (key === 'common.open_in') return `open in ${options?.name ?? ''}`
-      if (key === 'agent.preview_pane.default_app') return 'default app'
       return key
     }
   })
@@ -102,14 +76,25 @@ afterEach(() => {
 
 describe('OfficePreviewPanel', () => {
   it.each(['legacy.doc', 'slides.ppt'])('shows unsupported state for legacy Office format %s', (fileName) => {
-    render(<OfficePreviewPanel filePath={fileName} fileName={fileName} onOpenExternal={vi.fn()} />)
+    render(<OfficePreviewPanel filePath={fileName} fileName={fileName} />)
 
     expect(screen.getByTestId('empty-state')).toHaveTextContent(`unsupported .${fileName.split('.').at(-1)}`)
-    expect(screen.getByRole('button', { name: 'open in default app' })).toBeInTheDocument()
     expect(mocks.wordPreviewPanelProps).toEqual([])
     expect(mocks.pptxPreviewPanelProps).toEqual([])
     expect(mocks.wordPreviewPanelModuleLoadCount).toBe(0)
     expect(mocks.pptxPreviewPanelModuleLoadCount).toBe(0)
+  })
+
+  it('renders the actions slot for the unsupported-format empty state', () => {
+    render(
+      <OfficePreviewPanel
+        filePath="legacy.doc"
+        fileName="legacy.doc"
+        actions={<button type="button">Open externally</button>}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Open externally' })).toBeInTheDocument()
   })
 
   it('renders docx files with the dedicated Word preview panel', async () => {
@@ -161,10 +146,9 @@ describe('OfficePreviewPanel', () => {
   })
 
   it('shows an error when a supported relative file is missing an absolute source path', () => {
-    render(<OfficePreviewPanel filePath="report.docx" fileName="report.docx" onOpenExternal={vi.fn()} />)
+    render(<OfficePreviewPanel filePath="report.docx" fileName="report.docx" />)
 
     expect(screen.getByTestId('empty-state')).toHaveTextContent('common.error')
-    expect(screen.getByRole('button', { name: 'open in default app' })).toBeInTheDocument()
     expect(mocks.wordPreviewPanelProps).toEqual([])
   })
 })

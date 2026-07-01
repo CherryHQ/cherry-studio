@@ -28,7 +28,6 @@ const mocks = vi.hoisted(() => ({
     sourceFilePath?: string
     sourceSize?: number
     refreshKey?: number
-    onOpenExternal?: () => void
   }>,
   officePreviewPanelModuleLoadCount: 0,
   pdfPreviewPanelModuleLoadCount: 0,
@@ -230,7 +229,6 @@ vi.mock('@renderer/components/ArtifactPreview/office/OfficePreviewPanel', () => 
       sourceFilePath?: string
       sourceSize?: number
       refreshKey?: number
-      onOpenExternal?: () => void
     }) => {
       mocks.officePreviewPanelProps.push(props)
       return (

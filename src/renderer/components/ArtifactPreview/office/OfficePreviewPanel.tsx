@@ -23,7 +23,6 @@ export interface OfficePreviewPanelProps {
   className?: string
   refreshKey?: number
   actions?: ReactNode
-  onOpenExternal?: () => void
 }
 
 let wordPreviewPanelPromise: Promise<OfficeDocumentPreviewPanel> | null = null
@@ -71,15 +70,7 @@ function isAbsoluteFilePath(filePath: string): boolean {
   return filePath.startsWith('/') || /^[A-Za-z]:[\\/]/.test(filePath)
 }
 
-function UnsupportedOfficePreview({
-  extension,
-  actions,
-  onOpenExternal
-}: {
-  extension: string
-  actions?: ReactNode
-  onOpenExternal?: () => void
-}) {
+function UnsupportedOfficePreview({ extension, actions }: { extension: string; actions?: ReactNode }) {
   const { t } = useTranslation()
   return (
     <EmptyState
@@ -87,27 +78,14 @@ function UnsupportedOfficePreview({
       title={t('agent.preview_pane.office.title', { extension: extension ? `.${extension}` : '' })}
       description={t('agent.preview_pane.office.description')}
       actions={actions}
-      actionLabel={
-        !actions && onOpenExternal ? t('common.open_in', { name: t('agent.preview_pane.default_app') }) : undefined
-      }
-      onAction={!actions ? onOpenExternal : undefined}
     />
   )
 }
 
-function OfficePreviewError({ actions, onOpenExternal }: { actions?: ReactNode; onOpenExternal?: () => void }) {
+function OfficePreviewError({ actions }: { actions?: ReactNode }) {
   const { t } = useTranslation()
   return (
-    <EmptyState
-      icon={AlertCircle}
-      title={t('common.error')}
-      description={t('files.preview.error')}
-      actions={actions}
-      actionLabel={
-        !actions && onOpenExternal ? t('common.open_in', { name: t('agent.preview_pane.default_app') }) : undefined
-      }
-      onAction={!actions ? onOpenExternal : undefined}
-    />
+    <EmptyState icon={AlertCircle} title={t('common.error')} description={t('files.preview.error')} actions={actions} />
   )
 }
 
@@ -169,8 +147,7 @@ export function OfficePreviewPanel({
   sourceSize,
   className,
   refreshKey = 0,
-  actions,
-  onOpenExternal
+  actions
 }: OfficePreviewPanelProps) {
   const extension = getPreviewExtension(filePath, fileName)
   const displayName = getFileDisplayName(filePath, fileName)
@@ -180,7 +157,7 @@ export function OfficePreviewPanel({
   if (!supported) {
     return (
       <div className={cn('flex h-full min-h-[320px] min-w-0 flex-col bg-background', className)}>
-        <UnsupportedOfficePreview extension={extension} actions={actions} onOpenExternal={onOpenExternal} />
+        <UnsupportedOfficePreview extension={extension} actions={actions} />
       </div>
     )
   }
@@ -188,7 +165,7 @@ export function OfficePreviewPanel({
   if (!previewFilePath) {
     return (
       <div className={cn('flex h-full min-h-[320px] min-w-0 flex-col bg-background', className)}>
-        <OfficePreviewError actions={actions} onOpenExternal={onOpenExternal} />
+        <OfficePreviewError actions={actions} />
       </div>
     )
   }
