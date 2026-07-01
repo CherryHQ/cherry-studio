@@ -41,7 +41,10 @@ function getRenderedPages(body: HTMLElement): HTMLElement[] {
 
 // docx-preview writes a hyperlink relationship's target straight onto the anchor's href with no
 // protocol filtering, so a crafted `javascript:` link would otherwise execute in this renderer on click.
-const UNSAFE_HYPERLINK_PROTOCOLS = new Set(['javascript:', 'vbscript:', 'data:', 'file:'])
+// Allowlist the safe schemes and strip everything else (fail closed): anything the URL parser rejects
+// or that isn't explicitly safe loses its href. Relative and in-document links (e.g. `#bookmark`) inherit
+// the base's https: scheme, so they resolve to a safe protocol and are preserved.
+const SAFE_HYPERLINK_PROTOCOLS = new Set(['http:', 'https:', 'mailto:'])
 
 function sanitizeHyperlinks(body: HTMLElement): void {
   body.querySelectorAll<HTMLAnchorElement>('a[href]').forEach((anchor) => {
@@ -52,7 +55,7 @@ function sanitizeHyperlinks(body: HTMLElement): void {
     } catch {
       protocol = null
     }
-    if (protocol && UNSAFE_HYPERLINK_PROTOCOLS.has(protocol)) {
+    if (!protocol || !SAFE_HYPERLINK_PROTOCOLS.has(protocol)) {
       anchor.removeAttribute('href')
     }
     anchor.setAttribute('rel', 'noopener noreferrer')

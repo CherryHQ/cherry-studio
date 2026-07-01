@@ -163,12 +163,14 @@ describe('WordPreviewPanel', () => {
     expect(mocks.renderAsync).not.toHaveBeenCalled()
   })
 
-  it('strips dangerous hyperlink protocols and hardens remaining links', async () => {
+  it('allows only safe hyperlink protocols and hardens remaining links', async () => {
     mocks.renderAsync.mockImplementationOnce(async (_data: Uint8Array, bodyContainer: HTMLElement) => {
       bodyContainer.innerHTML =
         '<section>' +
         '<a href="javascript:alert(1)" id="malicious">malicious</a>' +
+        '<a href="unknownscheme:payload" id="exotic">exotic</a>' +
         '<a href="https://example.com" id="safe">safe</a>' +
+        '<a href="#bookmark" id="internal">internal</a>' +
         '</section>'
     })
 
@@ -180,9 +182,19 @@ describe('WordPreviewPanel', () => {
     expect(malicious).not.toHaveAttribute('href')
     expect(malicious).toHaveAttribute('rel', 'noopener noreferrer')
 
+    // Anything outside the allowlist is stripped, even unknown schemes the denylist would have missed.
+    const exotic = screen.getByText('exotic')
+    expect(exotic).not.toHaveAttribute('href')
+    expect(exotic).toHaveAttribute('rel', 'noopener noreferrer')
+
     const safe = screen.getByText('safe')
     expect(safe).toHaveAttribute('href', 'https://example.com')
     expect(safe).toHaveAttribute('rel', 'noopener noreferrer')
+
+    // In-document bookmarks inherit the base https: scheme, so they survive the allowlist.
+    const internal = screen.getByText('internal')
+    expect(internal).toHaveAttribute('href', '#bookmark')
+    expect(internal).toHaveAttribute('rel', 'noopener noreferrer')
   })
 
   it('cleans and re-renders when refreshKey changes', async () => {
