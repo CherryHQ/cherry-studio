@@ -1,11 +1,17 @@
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const installFromZip = vi.fn()
 const installFromDirectory = vi.fn()
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof CherryStudioUi>()
+  return actual
+})
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -20,6 +26,23 @@ vi.mock('@renderer/hooks/useSkills', () => ({
 import { ImportSkillDialog } from '../ImportSkillDialog'
 
 const toastError = vi.fn()
+
+beforeAll(() => {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as any
+  if (!HTMLElement.prototype.hasPointerCapture) {
+    HTMLElement.prototype.hasPointerCapture = () => false
+  }
+  if (!HTMLElement.prototype.releasePointerCapture) {
+    HTMLElement.prototype.releasePointerCapture = () => {}
+  }
+  if (!HTMLElement.prototype.setPointerCapture) {
+    HTMLElement.prototype.setPointerCapture = () => {}
+  }
+})
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -38,6 +61,19 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('ImportSkillDialog', () => {
+  it('closes when clicking the overlay while idle', () => {
+    const onOpenChange = vi.fn()
+
+    render(<ImportSkillDialog open onOpenChange={onOpenChange} />)
+
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
+    expect(overlay).toBeInTheDocument()
+
+    fireEvent.click(overlay!)
+
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
   it('shows the failure inline without a second toast (the install hook already toasts)', async () => {
     const user = userEvent.setup()
     installFromZip.mockRejectedValue(new Error('corrupt archive'))

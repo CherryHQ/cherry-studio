@@ -155,7 +155,10 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
       onOpenChange={(v) => {
         if (!v && !installing) close()
       }}>
-      <DialogContent className="overflow-hidden">
+      <DialogContent
+        closeOnOverlayClick={!installing}
+        className="overflow-hidden"
+        onPointerDownOutside={(event) => installing && event.preventDefault()}>
         {/* Header */}
         <div>
           <div>

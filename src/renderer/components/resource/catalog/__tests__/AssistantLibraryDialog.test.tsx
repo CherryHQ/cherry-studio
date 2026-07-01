@@ -35,29 +35,55 @@ vi.mock('@renderer/components/resource/dialogs', () => ({
   AssistantPresetPreviewDialog: ({ open }: { open: boolean }) => (open ? <div data-testid="preset-preview" /> : null)
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Dialog: ({ children, open }: { children?: ReactNode; open?: boolean }) => (open ? <>{children}</> : null),
-  DialogContent: ({ children, ...props }: ComponentProps<'div'>) => <div {...props}>{children}</div>,
-  DialogHeader: ({ children }: { children?: ReactNode }) => <header>{children}</header>,
-  DialogTitle: ({ children }: { children?: ReactNode }) => <h2>{children}</h2>,
-  EmptyState: ({ title }: { title?: string }) => <div data-testid="empty-state">{title}</div>,
-  Input: (props: ComponentProps<'input'>) => <input {...props} />,
-  Button: ({
-    children,
-    loading,
-    size,
-    variant,
-    ...props
-  }: ComponentProps<'button'> & { loading?: boolean; size?: string; variant?: string }) => {
-    void size
-    void variant
-    return (
-      <button type="button" data-loading={loading ? 'true' : undefined} {...props}>
-        {children}
-      </button>
-    )
+vi.mock('@cherrystudio/ui', () => {
+  let dialogOnOpenChange: ((open: boolean) => void) | undefined
+
+  return {
+    Dialog: ({
+      children,
+      onOpenChange,
+      open
+    }: {
+      children?: ReactNode
+      onOpenChange?: (open: boolean) => void
+      open?: boolean
+    }) => {
+      dialogOnOpenChange = onOpenChange
+      return open ? <>{children}</> : null
+    },
+    DialogContent: ({
+      children,
+      closeOnOverlayClick,
+      ...props
+    }: ComponentProps<'div'> & { closeOnOverlayClick?: boolean }) => (
+      <>
+        {closeOnOverlayClick && (
+          <button type="button" data-testid="dialog-overlay" onClick={() => dialogOnOpenChange?.(false)} />
+        )}
+        <div {...props}>{children}</div>
+      </>
+    ),
+    DialogHeader: ({ children }: { children?: ReactNode }) => <header>{children}</header>,
+    DialogTitle: ({ children }: { children?: ReactNode }) => <h2>{children}</h2>,
+    EmptyState: ({ title }: { title?: string }) => <div data-testid="empty-state">{title}</div>,
+    Input: (props: ComponentProps<'input'>) => <input {...props} />,
+    Button: ({
+      children,
+      loading,
+      size,
+      variant,
+      ...props
+    }: ComponentProps<'button'> & { loading?: boolean; size?: string; variant?: string }) => {
+      void size
+      void variant
+      return (
+        <button type="button" data-loading={loading ? 'true' : undefined} {...props}>
+          {children}
+        </button>
+      )
+    }
   }
-}))
+})
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -71,6 +97,15 @@ function renderDialog(props: Partial<ComponentProps<typeof AssistantLibraryDialo
 }
 
 describe('AssistantLibraryDialog', () => {
+  it('allows closing from the overlay', () => {
+    const onOpenChange = vi.fn()
+    renderDialog({ onOpenChange })
+
+    screen.getByTestId('dialog-overlay').click()
+
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
   it('renders the title, an "全部" tab plus categories, and every preset as a list row', async () => {
     renderDialog()
 

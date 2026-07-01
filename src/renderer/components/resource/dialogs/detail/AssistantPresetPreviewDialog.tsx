@@ -50,7 +50,11 @@ export function AssistantPresetPreviewDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* Fixed height + a single scroll region (the body). The prompt block must NOT scroll on its
           own, or the dialog shows nested scrollbars. */}
-      <DialogContent size="xl" className="flex h-[min(600px,76vh)] flex-col gap-0 overflow-hidden p-0">
+      <DialogContent
+        closeOnOverlayClick={!adding}
+        size="xl"
+        className="flex h-[min(600px,76vh)] flex-col gap-0 overflow-hidden p-0"
+        onPointerDownOutside={(event) => adding && event.preventDefault()}>
         <DialogHeader className="shrink-0 border-border-muted border-b px-5 pt-5 pr-12 pb-4 text-left">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-base">
