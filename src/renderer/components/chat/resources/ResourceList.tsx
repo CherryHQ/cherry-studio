@@ -97,9 +97,9 @@ function Search({ className, icon, wrapperClassName, ref, ...props }: SearchProp
           value={state.query}
           onChange={(event) => actions.setQuery(event.target.value)}
           className={cn(
-            'h-7 rounded-full border border-sidebar-border bg-sidebar pr-2 text-[10px] text-sidebar-foreground shadow-none transition-colors md:text-[10px]',
+            'h-7 rounded-full border border-sidebar-border bg-sidebar pe-2 text-[10px] text-sidebar-foreground shadow-none transition-colors md:text-[10px]',
             'placeholder:text-[10px] placeholder:text-foreground-muted focus-visible:border-sidebar-ring focus-visible:ring-0',
-            searchIcon ? 'pl-6' : 'pl-2',
+            searchIcon ? 'ps-6' : 'ps-2',
             className
           )}
           {...props}

@@ -96,7 +96,7 @@ export function AssistantResourceList({
         orderKey: assistant.orderKey,
         pinned: assistantPinnedIdSet.has(assistant.id),
         icon: assistant.emoji ? (
-          <EmojiIcon emoji={assistant.emoji} size={24} fontSize={14} className="mr-0" />
+          <EmojiIcon emoji={assistant.emoji} size={24} fontSize={14} className="me-0" />
         ) : (
           <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
             <Bot size={14} />

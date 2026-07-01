@@ -556,6 +556,7 @@
       "list": {
         "title": "Sarcini"
       },
+      "new": "[to be translated]:New task",
       "pin": {
         "title": "Fixează sarcina"
       },
@@ -565,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "Căutare sarcini"
+        "placeholder": "Căutare sarcini",
+        "title": "[to be translated]:Search tasks"
       },
       "unpin": {
         "title": "Anulați fixarea sarcinii"
@@ -934,6 +936,10 @@
         "Bash": {
           "description": "Execută comenzi shell în mediul tău",
           "label": "Bash"
+        },
+        "CherryKbManage": {
+          "description": "[to be translated]:Adds, deletes, or refreshes documents in your knowledge bases",
+          "label": "[to be translated]:Manage Knowledge"
         },
         "CherryKbSearch": {
           "description": "Caută în bazele tale de cunoștințe",
@@ -3162,12 +3168,22 @@
           "agent_title": "Agent nou",
           "assistant_title": "Asistent Nou",
           "avatar_aria": "Alege avatar",
+          "back": "[to be translated]:Back",
+          "capability": {
+            "import": "[to be translated]:Import skill",
+            "no_skills": "[to be translated]:No skills installed",
+            "search": "[to be translated]:Search skills"
+          },
           "description_placeholder": "Descrie pentru ce este...",
-          "dialog_description": "Creați un asistent sau agent ușor.",
-          "model_placeholder": "Selectați un model",
-          "model_required": "Vă rugăm să selectați un model",
+          "guided_progress": "[to be translated]:Guided setup · Step {{current}} of {{total}}",
           "name_placeholder": "Introduceți un nume",
-          "name_required": "Introduceți un nume",
+          "next": "[to be translated]:Next",
+          "step": {
+            "basic": "[to be translated]:Basic info",
+            "capability": "[to be translated]:Skills",
+            "knowledge": "[to be translated]:Knowledge",
+            "persona": "[to be translated]:Persona"
+          },
           "submit": "Creează",
           "submit_failed": "Crearea a eșuat"
         },
@@ -5256,6 +5272,7 @@
     "assistant": {
       "create_new": "Asistent Nou",
       "empty_text": "Niciun asistent încă",
+      "filter": "[to be translated]:Filter assistants",
       "multi_hint": "(exclusiv în mod reciproc cu multi-model)",
       "multi_label": "Asistenți multipli în paralel",
       "search_placeholder": "Asistenți de căutare…"
@@ -6435,6 +6452,12 @@
         "show_estimated_tokens": "Afișează numărul estimat de tokeni",
         "title": "Setări intrare"
       },
+      "layout": {
+        "classic": "[to be translated]:Classic",
+        "conversation": "[to be translated]:Conversation view",
+        "modern": "[to be translated]:Modern",
+        "work": "[to be translated]:Work view"
+      },
       "markdown_rendering_input_message": "Randare Markdown mesaj intrare",
       "metrics": "{{time_first_token_millsec}}ms până la primul token | {{token_speed}} tok/sec",
       "model": {
@@ -7439,6 +7462,7 @@
           "exa": "API de căutare neuronală pentru aplicații AI, optimizat pentru recuperare semantică pe web.",
           "exa_mcp": "Expune căutarea Exa către agenți prin serverul Exa MCP.",
           "fetch": "Furnizor încorporat de preluare URL. Preia conținutul paginilor web de la o adresă URL pentru a îmbogăți rezultatele căutării.",
+          "firecrawl": "[to be translated]:Firecrawl crawler and search service, optimized to turn websites into Markdown.",
           "jina": "API-urile de căutare și citire Jina Reader pentru recuperarea conținutului web curat.",
           "querit": "Serviciu de căutare pentru aplicații AI cu rezultate de recuperare web.",
           "searxng": "Motor de metacăutare gratuit pe internet, auto-găzduibil, care caută în multe surse.",

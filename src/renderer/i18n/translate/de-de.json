@@ -556,6 +556,7 @@
       "list": {
         "title": "Aufgaben"
       },
+      "new": "[to be translated]:New task",
       "pin": {
         "title": "Aufgabe anheften"
       },
@@ -565,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "Suchaufgaben"
+        "placeholder": "Suchaufgaben",
+        "title": "[to be translated]:Search tasks"
       },
       "unpin": {
         "title": "Aufgabe lösen"
@@ -934,6 +936,10 @@
         "Bash": {
           "description": "Führt Shell-Befehle in deiner Umgebung aus",
           "label": "Bash"
+        },
+        "CherryKbManage": {
+          "description": "[to be translated]:Adds, deletes, or refreshes documents in your knowledge bases",
+          "label": "[to be translated]:Manage Knowledge"
         },
         "CherryKbSearch": {
           "description": "Durchsucht Ihre Wissensdatenbanken",
@@ -3162,12 +3168,22 @@
           "agent_title": "Neuer Agent",
           "assistant_title": "Neuer Assistent",
           "avatar_aria": "Avatar auswählen",
+          "back": "[to be translated]:Back",
+          "capability": {
+            "import": "[to be translated]:Import skill",
+            "no_skills": "[to be translated]:No skills installed",
+            "search": "[to be translated]:Search skills"
+          },
           "description_placeholder": "Beschreibe, wofür es ist...",
-          "dialog_description": "Erstelle einen leichtgewichtigen Assistenten oder Agenten.",
-          "model_placeholder": "Wählen Sie ein Modell",
-          "model_required": "Bitte wählen Sie ein Modell",
+          "guided_progress": "[to be translated]:Guided setup · Step {{current}} of {{total}}",
           "name_placeholder": "Geben Sie einen Namen ein",
-          "name_required": "Bitte geben Sie einen Namen ein",
+          "next": "[to be translated]:Next",
+          "step": {
+            "basic": "[to be translated]:Basic info",
+            "capability": "[to be translated]:Skills",
+            "knowledge": "[to be translated]:Knowledge",
+            "persona": "[to be translated]:Persona"
+          },
           "submit": "Erstellen",
           "submit_failed": "Erstellen fehlgeschlagen"
         },
@@ -5256,6 +5272,7 @@
     "assistant": {
       "create_new": "Neuer Assistent",
       "empty_text": "Noch keine Assistenten",
+      "filter": "[to be translated]:Filter assistants",
       "multi_hint": "(gegenseitig ausschließend mit Multi-Modell)",
       "multi_label": "Multi-Assistent-Parallel",
       "search_placeholder": "Suchassistenten…"
@@ -6435,6 +6452,12 @@
         "show_estimated_tokens": "Geschätzte Token-Anzahl anzeigen",
         "title": "Eingabeeinstellungen"
       },
+      "layout": {
+        "classic": "[to be translated]:Classic",
+        "conversation": "[to be translated]:Conversation view",
+        "modern": "[to be translated]:Modern",
+        "work": "[to be translated]:Work view"
+      },
       "markdown_rendering_input_message": "Markdown-Rendering-Eingabenachricht",
       "metrics": "Erste Zeichen-Verzögerung {{time_first_token_millsec}} ms | pro Sekunde {{token_speed}} Token",
       "model": {
@@ -7439,6 +7462,7 @@
           "exa": "Neural Search-API für KI-Anwendungen, optimiert für die semantische Webabfrage.",
           "exa_mcp": "Stelle Exa-Suche Agenten über den Exa MCP Server zur Verfügung.",
           "fetch": "Integrierter URL-Abruf-Provider. Ruft Webseiteninhalte von einer URL ab, um Suchergebnisse zu erweitern.",
+          "firecrawl": "[to be translated]:Firecrawl crawler and search service, optimized to turn websites into Markdown.",
           "jina": "Jina Reader-Such- und Lese-APIs zum Abrufen von sauberem Webinhalt.",
           "querit": "Suchdienst für KI-Anwendungen mit Web-Abruf-Ergebnissen.",
           "searxng": "Selbst hostbare kostenlose Internet-Metasuchmaschine über viele Quellen.",

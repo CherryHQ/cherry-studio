@@ -138,13 +138,13 @@ const ConversationShellTopBar = ({ isWindow, leftPaneOpen, leading, topRightTool
         !maximized &&
           (isWindow
             ? topRightToolReserve === 'history'
-              ? 'pr-[calc(12.5rem+var(--window-controls-width,0px))]'
-              : 'pr-[calc(7rem+var(--window-controls-width,0px))]'
+              ? 'pe-[calc(12.5rem+var(--window-controls-width,0px))]'
+              : 'pe-[calc(7rem+var(--window-controls-width,0px))]'
             : topRightToolReserve === 'history'
-              ? 'pr-[156px]'
+              ? 'pe-[156px]'
               : topRightToolReserve === 'double'
-                ? 'pr-[76px]'
-                : 'pr-11')
+                ? 'pe-[76px]'
+                : 'pe-11')
       )}>
       {leading}
       {children}

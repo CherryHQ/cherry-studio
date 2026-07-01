@@ -107,7 +107,7 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message, multiModelMessageSty
               className="hidden truncate whitespace-nowrap px-2 py-0.5 text-foreground-muted opacity-0 outline-text transition-opacity duration-200 ease-out group-hover:block group-hover:opacity-100"
               style={{
                 fontSize: `${16 - heading.level}px`,
-                paddingLeft: `${(heading.level - miniLevel) * 8}px`
+                paddingInlineStart: `${(heading.level - miniLevel) * 8}px`
               }}>
               {heading.text}
             </div>

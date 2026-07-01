@@ -49,7 +49,7 @@ export function AgentConversationPickerDialog({
             emoji={getAgentAvatarFromConfiguration(agent.configuration)}
             size={24}
             fontSize={14}
-            className="mr-0"
+            className="me-0"
           />
         ),
         agentId: agent.id

@@ -556,6 +556,7 @@
       "list": {
         "title": "Tareas"
       },
+      "new": "[to be translated]:New task",
       "pin": {
         "title": "Anclar tarea"
       },
@@ -565,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "Tareas de búsqueda"
+        "placeholder": "Tareas de búsqueda",
+        "title": "[to be translated]:Search tasks"
       },
       "unpin": {
         "title": "Desanclar tarea"
@@ -934,6 +936,10 @@
         "Bash": {
           "description": "Ejecuta comandos de shell en tu entorno",
           "label": "Bash"
+        },
+        "CherryKbManage": {
+          "description": "[to be translated]:Adds, deletes, or refreshes documents in your knowledge bases",
+          "label": "[to be translated]:Manage Knowledge"
         },
         "CherryKbSearch": {
           "description": "Busca en tus bases de conocimiento",
@@ -3162,12 +3168,22 @@
           "agent_title": "Nuevo Agente",
           "assistant_title": "Nuevo Asistente",
           "avatar_aria": "Elegir avatar",
+          "back": "[to be translated]:Back",
+          "capability": {
+            "import": "[to be translated]:Import skill",
+            "no_skills": "[to be translated]:No skills installed",
+            "search": "[to be translated]:Search skills"
+          },
           "description_placeholder": "Describe para qué sirve...",
-          "dialog_description": "Crea un asistente o agente ligero.",
-          "model_placeholder": "Selecciona un modelo",
-          "model_required": "Por favor selecciona un modelo",
+          "guided_progress": "[to be translated]:Guided setup · Step {{current}} of {{total}}",
           "name_placeholder": "Introduce un nombre",
-          "name_required": "Por favor, introduce un nombre",
+          "next": "[to be translated]:Next",
+          "step": {
+            "basic": "[to be translated]:Basic info",
+            "capability": "[to be translated]:Skills",
+            "knowledge": "[to be translated]:Knowledge",
+            "persona": "[to be translated]:Persona"
+          },
           "submit": "Crear",
           "submit_failed": "Creación fallida"
         },
@@ -5256,6 +5272,7 @@
     "assistant": {
       "create_new": "Nuevo Asistente",
       "empty_text": "Aún no hay asistentes",
+      "filter": "[to be translated]:Filter assistants",
       "multi_hint": "(mutualmente excluyente con multi-modelo)",
       "multi_label": "Asistente múltiple en paralelo",
       "search_placeholder": "Asistentes de búsqueda…"
@@ -6435,6 +6452,12 @@
         "show_estimated_tokens": "Mostrar número estimado de tokens",
         "title": "Configuración de entrada"
       },
+      "layout": {
+        "classic": "[to be translated]:Classic",
+        "conversation": "[to be translated]:Conversation view",
+        "modern": "[to be translated]:Modern",
+        "work": "[to be translated]:Work view"
+      },
       "markdown_rendering_input_message": "Renderizar mensajes de entrada en Markdown",
       "metrics": "Retraso inicial {{time_first_token_millsec}}ms | {{token_speed}} tokens por segundo",
       "model": {
@@ -7439,6 +7462,7 @@
           "exa": "API de búsqueda neuronal para aplicaciones de IA, optimizada para la recuperación semántica en la web.",
           "exa_mcp": "Expón la búsqueda de Exa a los agentes a través del Servidor MCP de Exa.",
           "fetch": "Proveedor de obtención de URL integrado. Obtiene el contenido de la página web desde una URL para enriquecer los resultados de búsqueda.",
+          "firecrawl": "[to be translated]:Firecrawl crawler and search service, optimized to turn websites into Markdown.",
           "jina": "APIs de búsqueda y lectura de Jina Reader para recuperar contenido web limpio.",
           "querit": "Servicio de búsqueda para aplicaciones de IA con resultados de recuperación web.",
           "searxng": "Motor de búsqueda metainternet gratuito autoalojable a través de muchas fuentes.",

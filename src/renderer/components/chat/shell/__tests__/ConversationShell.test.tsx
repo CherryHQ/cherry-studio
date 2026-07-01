@@ -118,7 +118,7 @@ describe('ConversationShell', () => {
     )
 
     const topBarWrapper = screen.getByTestId('top-bar').parentElement
-    expect(topBarWrapper).toHaveClass('pr-[156px]')
+    expect(topBarWrapper).toHaveClass('pe-[156px]')
 
     fireEvent.click(screen.getByRole('button', { name: '对话 6' }))
 

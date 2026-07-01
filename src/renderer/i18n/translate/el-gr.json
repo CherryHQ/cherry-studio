@@ -556,6 +556,7 @@
       "list": {
         "title": "Εργασίες"
       },
+      "new": "[to be translated]:New task",
       "pin": {
         "title": "Καρφίτσωμα εργασίας"
       },
@@ -565,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "Αναζήτηση εργασιών"
+        "placeholder": "Αναζήτηση εργασιών",
+        "title": "[to be translated]:Search tasks"
       },
       "unpin": {
         "title": "Ξεκαρφίτσωσε την εργασία"
@@ -934,6 +936,10 @@
         "Bash": {
           "description": "Εκτελεί εντολές κελύφους στο περιβάλλον σας",
           "label": "Bash"
+        },
+        "CherryKbManage": {
+          "description": "[to be translated]:Adds, deletes, or refreshes documents in your knowledge bases",
+          "label": "[to be translated]:Manage Knowledge"
         },
         "CherryKbSearch": {
           "description": "Αναζητά τις βάσεις γνώσης σας",
@@ -3162,12 +3168,22 @@
           "agent_title": "Νέος Πράκτορας",
           "assistant_title": "Νέος Βοηθός",
           "avatar_aria": "Επιλέξτε άβαταρ",
+          "back": "[to be translated]:Back",
+          "capability": {
+            "import": "[to be translated]:Import skill",
+            "no_skills": "[to be translated]:No skills installed",
+            "search": "[to be translated]:Search skills"
+          },
           "description_placeholder": "Περιγράψτε για τι χρησιμεύει...",
-          "dialog_description": "Δημιούργησε έναν ελαφρύ βοηθό ή πράκτορα.",
-          "model_placeholder": "Επιλέξτε ένα μοντέλο",
-          "model_required": "Παρακαλώ επιλέξτε ένα μοντέλο",
+          "guided_progress": "[to be translated]:Guided setup · Step {{current}} of {{total}}",
           "name_placeholder": "Εισάγετε ένα όνομα",
-          "name_required": "Παρακαλώ εισάγετε ένα όνομα",
+          "next": "[to be translated]:Next",
+          "step": {
+            "basic": "[to be translated]:Basic info",
+            "capability": "[to be translated]:Skills",
+            "knowledge": "[to be translated]:Knowledge",
+            "persona": "[to be translated]:Persona"
+          },
           "submit": "Δημιουργία",
           "submit_failed": "Η δημιουργία απέτυχε"
         },
@@ -5256,6 +5272,7 @@
     "assistant": {
       "create_new": "Νέος Βοηθός",
       "empty_text": "Κανένας βοηθός ακόμα",
+      "filter": "[to be translated]:Filter assistants",
       "multi_hint": "(αμοιβαία αποκλειόμενο με πολλαπλά μοντέλα)",
       "multi_label": "Παράλληλος πολλαπλών βοηθών",
       "search_placeholder": "Αναζήτηση βοηθών…"
@@ -6435,6 +6452,12 @@
         "show_estimated_tokens": "Εμφάνιση εκτιμώμενου αριθμού token",
         "title": "Ρυθμίσεις εισαγωγής"
       },
+      "layout": {
+        "classic": "[to be translated]:Classic",
+        "conversation": "[to be translated]:Conversation view",
+        "modern": "[to be translated]:Modern",
+        "work": "[to be translated]:Work view"
+      },
       "markdown_rendering_input_message": "Markdown Rendering Input Message",
       "metrics": "Χρόνος πρώτου χαρακτήρα {{time_first_token_millsec}}ms | {{token_speed}} tokens ανά δευτερόλεπτο",
       "model": {
@@ -7439,6 +7462,7 @@
           "exa": "API νευρωνικής αναζήτησης για εφαρμογές τεχνητής νοημοσύνης, βελτιστοποιημένο για σημασιολογική ανάκτηση από τον ιστό.",
           "exa_mcp": "Κάντε διαθέσιμη την αναζήτηση Exa στους πράκτορες μέσω του διακομιστή Exa MCP.",
           "fetch": "Ενσωματωμένος πάροχος λήψης URL. Ανακτά περιεχόμενο ιστοσελίδων από ένα URL για την εμπλουτισμό των αποτελεσμάτων αναζήτησης.",
+          "firecrawl": "[to be translated]:Firecrawl crawler and search service, optimized to turn websites into Markdown.",
           "jina": "APIs αναζήτησης και ανάγνωσης Jina Reader για την ανάκτηση καθαρού περιεχομένου από τον ιστό.",
           "querit": "Υπηρεσία αναζήτησης για εφαρμογές AI με αποτελέσματα ανάκτησης από τον ιστό.",
           "searxng": "Αυτο-φιλοξενούμενη δωρεάν μηχανή μετα-αναζήτησης στο διαδίκτυο σε πολλές πηγές.",

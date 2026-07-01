@@ -101,7 +101,7 @@ export function AgentResourceList({
             emoji={getAgentAvatarFromConfiguration(agent.configuration)}
             size={24}
             fontSize={14}
-            className="mr-0"
+            className="me-0"
           />
         )
       })),

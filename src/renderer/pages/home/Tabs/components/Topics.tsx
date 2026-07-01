@@ -1370,7 +1370,7 @@ function TopicRow({
   // Reserve right-padding for the title sized to the resting stream indicator and hover actions.
   const trailingActionCount = (showPinAction ? 1 : 0) + (showDeleteOrStreamAction ? 1 : 0)
   const topicTrailingActionPaddingClassName = cn(
-    showDetachedStreamIndicator && 'pr-7',
+    showDetachedStreamIndicator && 'pe-7',
     trailingActionCount >= 3
       ? 'group-focus-within:pe-16 group-hover:pe-16 group-has-[[data-resource-list-item-actions][data-active=true]]:pe-16'
       : trailingActionCount === 2

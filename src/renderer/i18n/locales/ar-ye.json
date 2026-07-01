@@ -224,6 +224,11 @@
           "runFailed": "فشل تشغيل المهمة",
           "updateFailed": "فشل تحديث المهمة"
         },
+        "frequency": {
+          "everyPrefix": "كل",
+          "everySuffix": "دقائق",
+          "label": "تكرار التنفيذ"
+        },
         "intervalPlaceholder": "الفاصل بالدقائق",
         "intervalUnit": "دقيقة",
         "lastRun": "آخر تشغيل",
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "فاصل زمني",
-          "label": "نوع الجدول",
           "once": "مرة واحدة"
         },
-        "scheduleValue": "قيمة الجدول",
         "status": {
           "active": "نشط",
           "completed": "مكتمل",
@@ -553,6 +556,7 @@
       "list": {
         "title": "مهام"
       },
+      "new": "مهمة جديدة",
       "pin": {
         "title": "تثبيت المهمة"
       },
@@ -562,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "بحث عن مهام"
+        "placeholder": "بحث عن مهام",
+        "title": "ابحث عن مهام"
       },
       "unpin": {
         "title": "إلغاء تثبيت المهمة"
@@ -931,6 +936,10 @@
         "Bash": {
           "description": "ينفذ أوامر سطر الأوامر (Shell) في بيئتك",
           "label": "باش"
+        },
+        "CherryKbManage": {
+          "description": "يضيف، يحذف أو يُحدّث المستندات في قواعد المعرفة الخاصة بك",
+          "label": "إدارة المعرفة"
         },
         "CherryKbSearch": {
           "description": "يبحث في قواعد معرفتك",
@@ -2345,6 +2354,7 @@
   "files": {
     "actions": "الإجراءات",
     "all": "كافة الملفات",
+    "audio": "صوت",
     "batch_delete": "حذف جماعي",
     "batch_operation": "تحديد الكل",
     "count": "ملفات",
@@ -2358,22 +2368,52 @@
       },
       "title": "حذف الملف"
     },
+    "delete_or_remove": "حذف / إزالة",
     "document": "مستند",
+    "drag_upload": "اسحب الملفات للرفع",
     "edit": "عدّل",
+    "empty": {
+      "no_match_description": "لا توجد ملفات تطابق الفلاتر الحالية",
+      "no_match_title": "لم يتم العثور على ملفات مطابقة"
+    },
     "error": {
-      "open_path": "فشل فتح المسار {{path}}"
+      "delete_failed": "فشل حذف الملفات",
+      "delete_partial_failed": "بعض الملفات لم تُحذف",
+      "import_failed": "فشل استيراد الملفات",
+      "import_partial_failed": "بعض الملفات لم تُستورد",
+      "open_path": "فشل فتح المسار {{path}}",
+      "rename_failed": "فشل إعادة تسمية الملف",
+      "restore_failed": "فشل استعادة الملفات",
+      "restore_partial_failed": "بعض الملفات لم تُستعاد"
     },
     "file": "ملف",
+    "footer_count": "{{count}} ملف",
+    "footer_selected_count": "{{count}} محدد",
     "image": "صورة",
+    "missing": "مفقود",
+    "modified_at": "تم التعديل في",
     "name": "الاسم",
     "open": "افتح",
+    "other": "أخرى",
+    "permanent_delete": "حذف نهائي",
+    "permanent_delete_confirm": {
+      "description": "سيتم حذف {{count}} ملف(ات) نهائيًا. لا يمكن التراجع عن هذا الإجراء.",
+      "title": "حذف الملفات نهائيًا؟"
+    },
     "preview": {
       "error": "فشل فتح الملف"
     },
+    "remove_from_library": "إزالة من المكتبة",
+    "rename": "إعادة تسمية",
+    "restore": "استعادة",
+    "selected_count": "{{count}} ملف محدد",
+    "show_in_folder": "إظهار في المجلد",
     "size": "الحجم",
     "text": "نص",
     "title": "ملفات",
-    "type": "النوع"
+    "trash": "سلة المهملات",
+    "type": "النوع",
+    "video": "فيديو"
   },
   "globalSearch": {
     "clear": "مسح البحث",
@@ -3128,12 +3168,22 @@
           "agent_title": "وكيل جديد",
           "assistant_title": "مساعد جديد",
           "avatar_aria": "اختر صورة رمزية",
+          "back": "عودة",
+          "capability": {
+            "import": "استيراد مهارة",
+            "no_skills": "لا توجد مهارات مثبتة",
+            "search": "بحث عن مهارات"
+          },
           "description_placeholder": "صف الغرض من هذا العنصر...",
-          "dialog_description": "أنشئ مساعدًا أو وكيلًا خفيفًا.",
-          "model_placeholder": "اختر نموذجًا",
-          "model_required": "يرجى اختيار نموذج",
+          "guided_progress": "إعداد موجه · الخطوة {{current}} من {{total}}",
           "name_placeholder": "أدخل اسمًا",
-          "name_required": "يرجى إدخال اسم",
+          "next": "التالي",
+          "step": {
+            "basic": "معلومات أساسية",
+            "capability": "المهارات",
+            "knowledge": "المعرفة",
+            "persona": "الشخصية"
+          },
           "submit": "إنشاء",
           "submit_failed": "فشل الإنشاء"
         },
@@ -3842,64 +3892,6 @@
       "partial_failure": "{{count}} نتيجة بحث، فشل بعضها"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "أضف إلى منصة الإطلاق",
-    "add_to_sidebar": "أضف إلى الشريط الجانبي",
-    "popup": {
-      "close": "أغلق MinApp",
-      "devtools": "أدوات المطور",
-      "goBack": "عُد للخلف",
-      "goForward": "تقدم للأمام",
-      "minimize": "صغّر MinApp",
-      "openExternal": "افتح في المتصفح",
-      "open_link_external_off": "الحالي: فتح الروابط في النافذة الافتراضية",
-      "open_link_external_on": "الحالي: فتح الروابط في المتصفح",
-      "refresh": "تحديث",
-      "rightclick_copyurl": "انقر بزر الماوس الأيمن لنسخ الرابط"
-    },
-    "remove_from_launchpad": "أزل من منصة الإطلاق",
-    "remove_from_sidebar": "أزل من الشريط الجانبي",
-    "sidebar": {
-      "close": {
-        "title": "أغلق"
-      },
-      "closeall": {
-        "title": "أغلق الكل"
-      },
-      "hide": {
-        "title": "إخفاءِ"
-      },
-      "remove_custom": {
-        "title": "حذف التطبيق المخصص"
-      }
-    },
-    "title": "تطبيقات"
-  },
-  "minapps": {
-    "ant-ling": "Ant Ling",
-    "baichuan": "Baichuan",
-    "baidu-ai-search": "Baidu AI Search",
-    "chatglm": "ChatGLM",
-    "dangbei": "Dangbei",
-    "doubao": "Doubao",
-    "hailuo": "Hailuo",
-    "ima": "ima",
-    "metaso": "Metaso",
-    "minimax-agent": "Minimax Agent CN",
-    "minimax-global": "Minimax Agent",
-    "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI Search",
-    "qwen": "Qwen",
-    "sensechat": "SenseChat",
-    "stepfun": "Stepfun",
-    "tencent-yuanbao": "Yuanbao",
-    "tiangong-ai": "Skywork",
-    "wanzhi": "Wanzhi",
-    "wenxin": "ERNIE",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "Xiaoyi",
-    "zhihu": "Zhihu"
-  },
   "miniApp": {
     "add_to_launchpad": "أضف إلى منصة الإطلاق",
     "add_to_sidebar": "أضف إلى الشريط الجانبي",
@@ -3910,15 +3902,13 @@
     "hide_failed": "فشل إخفاء التطبيق المصغر",
     "pin_failed": "فشل تثبيت التطبيق المصغر",
     "popup": {
-      "close": "أغلق MiniApp",
       "devtools": "أدوات المطور",
       "goBack": "عُد للخلف",
       "goForward": "تقدم للأمام",
       "openExternal": "افتح في المتصفح",
       "open_link_external_off": "الحالي: فتح الروابط في النافذة الافتراضية",
       "open_link_external_on": "الحالي: فتح الروابط في المتصفح",
-      "refresh": "تحديث",
-      "rightclick_copyurl": "انقر بزر الماوس الأيمن لنسخ الرابط"
+      "refresh": "تحديث"
     },
     "remove_from_launchpad": "أزل من منصة الإطلاق",
     "remove_from_sidebar": "أزل من الشريط الجانبي",
@@ -3930,17 +3920,8 @@
     },
     "show_failed": "فشل إظهار التطبيق المصغر",
     "sidebar": {
-      "close": {
-        "title": "أغلق"
-      },
-      "closeall": {
-        "title": "أغلق الكل"
-      },
       "hide": {
         "title": "إخفاء"
-      },
-      "remove_custom": {
-        "title": "حذف التطبيق المخصص"
       }
     },
     "title": "التطبيق المصغر",
@@ -3960,7 +3941,6 @@
     "minimax-agent": "Minimax Agent CN",
     "minimax-global": "Minimax Agent",
     "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
     "sensechat": "SenseChat",
     "stepfun": "Stepfun",
@@ -4746,7 +4726,6 @@
     "baichuan": "Baichuan",
     "baidu-cloud": "Baidu Cloud",
     "burncloud": "BurnCloud",
-    "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
@@ -4802,7 +4781,6 @@
     "tencent-cloud-ti": "Tencent Cloud TI",
     "tesseract": "Tesseract",
     "together": "Together",
-    "tokenflux": "TokenFlux",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "State Cloud Xirang",
@@ -5294,6 +5272,7 @@
     "assistant": {
       "create_new": "مساعد جديد",
       "empty_text": "لا يوجد مساعدين بعد",
+      "filter": "تصفية المساعدين",
       "multi_hint": "(يتعارض مع النموذج المتعدد)",
       "multi_label": "متعدد المساعدين بشكل متوازٍ",
       "search_placeholder": "البحث عن المساعدين…"
@@ -6469,11 +6448,15 @@
         "confirm_delete_message": "أكد قبل حذف الرسائل",
         "confirm_regenerate_message": "أكد قبل إعادة توليد الرسائل",
         "enable_quick_triggers": "فعّل مشغلات / و @",
-        "paste_long_text_as_file": "الصق النص الطويل كملف",
-        "paste_long_text_threshold": "طول النص الطويل الملصق",
         "send_shortcuts": "اختصارات الإرسال",
         "show_estimated_tokens": "إظهار الرموز (Tokens) التقديرية",
         "title": "إعدادات الإدخال"
+      },
+      "layout": {
+        "classic": "كلاسيكي",
+        "conversation": "عرض المحادثة",
+        "modern": "حديث",
+        "work": "عرض العمل"
       },
       "markdown_rendering_input_message": "معالجة رسالة الإدخال بصيغة Markdown",
       "metrics": "{{time_first_token_millsec}}ملي ثانية حتى أول رمز | {{token_speed}} رمز/ثانية",
@@ -6494,37 +6477,24 @@
     "miniApps": {
       "cache_change_notice": "ستطبق التغييرات عندما يصل عدد التطبيقات المصغّرة المفتوحة إلى القيمة المحددة",
       "cache_description": "حدد الحد الأقصى لعدد التطبيقات المصغّرة النشطة التي تبقى في الذاكرة",
-      "cache_settings": "إعدادات الذاكرة المؤقتة",
       "cache_title": "حد الذاكرة المؤقتة للتطبيقات المصغّرة",
       "custom": {
-        "conflicting_ids": "معرفات متضاربة مع التطبيقات الافتراضية: {{ids}}",
-        "duplicate_ids": "تم العثور على معرفات مكررة: {{ids}}",
-        "edit_description": "عدّل تكوين التطبيق المصغّر المخصص هنا. يجب أن يتضمن كل تطبيق حقول id وname وurl وlogo.",
+        "create_title": "إنشاء تطبيق مصغر مخصص",
         "edit_title": "تعديل التطبيق المصغّر المخصص",
-        "id": "المعرف",
-        "id_error": "المعرف مطلوب.",
-        "id_placeholder": "أدخل المعرف",
-        "logo": "الشعار",
         "logo_file": "رفع ملف الشعار",
-        "logo_upload_button": "رفع",
         "logo_upload_error": "فشل رفع الشعار.",
         "logo_upload_label": "رفع الشعار",
-        "logo_upload_success": "تم رفع الشعار بنجاح.",
-        "logo_url": "رابط الشعار",
-        "logo_url_label": "رابط الشعار",
-        "logo_url_placeholder": "أدخل رابط الشعار",
         "name": "الاسم",
-        "name_error": "الاسم مطلوب.",
         "name_placeholder": "أدخل الاسم",
-        "placeholder": "أدخل تكوين التطبيق المصغّر المخصص (تنسيق JSON)",
+        "remove_confirm_description": "حذف التطبيق المصغر المخصص \"{{name}}\"؟ لا يمكن التراجع عن هذا الإجراء.",
+        "remove_confirm_title": "حذف التطبيق المصغر المخصص؟",
         "remove_error": "فشل إزالة التطبيق المصغّر المخصص.",
         "remove_success": "تم إزالة التطبيق المصغّر المخصص بنجاح.",
-        "save": "حفظ",
         "save_error": "فشل حفظ التطبيق المصغّر المخصص.",
         "save_success": "تم حفظ التطبيق المصغّر المخصص بنجاح.",
         "title": "مخصص",
         "url": "الرابط",
-        "url_error": "الرابط مطلوب.",
+        "url_invalid": "أدخل عنوان URL صالح (http أو https أو file).",
         "url_placeholder": "أدخل الرابط"
       },
       "disabled": "التطبيقات المصغّرة المخفية",
@@ -6548,63 +6518,6 @@
       "reset_tooltip": "إعادة تعيين إلى الافتراضي",
       "title": "إعدادات التطبيقات المصغّرة",
       "visible": "التطبيقات المصغّرة المرئية"
-    },
-    "miniapps": {
-      "cache_change_notice": "ستطبق التغييرات عندما يصل عدد التطبيقات المصغرة المفتوحة إلى القيمة المحددة",
-      "cache_description": "حدد الحد الأقصى للتطبيقات المصغرة النشطة في الذاكرة",
-      "cache_settings": "إعدادات التخزين المؤقت",
-      "cache_title": "حد التخزين المؤقت للتطبيق المصغر",
-      "custom": {
-        "conflicting_ids": "معرفات متعارضة مع التطبيقات الافتراضية: {{ids}}",
-        "duplicate_ids": "تم العثور على معرفات مكررة: {{ids}}",
-        "edit_description": "عدل تهيئة التطبيق المصغر المخصص هنا. يجب أن يتضمن كل تطبيق حقول المعرف والاسم والرابط والشعار.",
-        "edit_title": "تعديل التطبيق المصغر المخصص",
-        "id": "المعرف",
-        "id_error": "المعرف مطلوب.",
-        "id_placeholder": "أدخل المعرف",
-        "logo": "الشعار",
-        "logo_file": "ارفع ملف الشعار",
-        "logo_upload_button": "رفع",
-        "logo_upload_error": "فشل رفع الشعار.",
-        "logo_upload_label": "ارفع الشعار",
-        "logo_upload_success": "تم رفع الشعار بنجاح.",
-        "logo_url": "رابط الشعار",
-        "logo_url_label": "رابط الشعار",
-        "logo_url_placeholder": "أدخل رابط الشعار",
-        "name": "الاسم",
-        "name_error": "الاسم مطلوب.",
-        "name_placeholder": "أدخل الاسم",
-        "placeholder": "أدخل تهيئة التطبيق المصغر المخصص (صيغة JSON)",
-        "remove_error": "فشل حذف التطبيق المصغر المخصص.",
-        "remove_success": "تم حذف التطبيق المصغر المخصص بنجاح.",
-        "save": "حفظ",
-        "save_error": "فشل حفظ التطبيق المصغر المخصص.",
-        "save_success": "تم حفظ التطبيق المصغر المخصص بنجاح.",
-        "title": "مخصص",
-        "url": "رابط (URL)",
-        "url_error": "الرابط مطلوب.",
-        "url_placeholder": "أدخل الرابط"
-      },
-      "disabled": "التطبيقات المصغرة المخفية",
-      "display_title": "إعدادات عرض التطبيقات المصغرة",
-      "empty": "اسحب التطبيقات المصغرة من اليسار لإخفائها",
-      "hide_app": "إخفاء {{name}}",
-      "open_link_external": {
-        "title": "افتح روابط النوافذ الجديدة في المتصفح"
-      },
-      "region": {
-        "auto": "كشف تلقائي",
-        "cn": "الصين",
-        "description": "تصفية البرامج المصغرة غير المدعومة بناءً على المنطقة",
-        "global": "عالمي",
-        "title": "مصفاة البرامج المصغرة"
-      },
-      "reset_tooltip": "استعادة الافتراضي",
-      "show_app": "إظهار {{name}}",
-      "sidebar_description": "إظهار التطبيقات المصغرة النشطة في الشريط الجانبي",
-      "sidebar_title": "عرض التطبيقات المصغرة النشطة في الشريط الجانبي",
-      "title": "إعدادات التطبيقات المصغرة",
-      "visible": "التطبيقات المصغرة المرئية"
     },
     "model": "النموذج الافتراضي",
     "models": {
@@ -6755,6 +6668,7 @@
         "sync_added_metric": "{{count}} نماذج جديدة",
         "sync_added_section": "نماذج جديدة",
         "sync_apply_changes": "طبق التغييرات",
+        "sync_apply_default_in_use": "بعض النماذج مستخدمة كنموذج افتراضي ولا يمكن إزالتها.",
         "sync_apply_result": "أُضيف {{added}}، أُهمل {{deprecated}}، حُذف {{deleted}}.",
         "sync_empty_added": "لم يتم العثور على نماذج upstream جديدة.",
         "sync_empty_missing": "لم يتم العثور على نماذج محلية غير متاحة.",
@@ -7076,7 +6990,6 @@
       "cherryin": {
         "api_host": {
           "acceleration": "نطاق التسريع",
-          "backup": "النطاق الاحتياطي",
           "international": "النطاق الدولي"
         }
       },
@@ -7549,6 +7462,7 @@
           "exa": "واجهة بحث عصبية لتطبيقات الذكاء الاصطناعي، مضبوطة للاسترجاع الدلالي من الويب.",
           "exa_mcp": "عرّض بحث Exa للوكلاء عبر خادم Exa MCP.",
           "fetch": "مزود جلب الروابط المدمج. يجلب محتوى صفحة الويب من رابط لإثراء نتائج البحث.",
+          "firecrawl": "خدمة الزاحف والبحث Firecrawl، مُحسّنة لتحويل المواقع إلى صيغة Markdown.",
           "jina": "واجهتا بحث وقراءة من Jina Reader لاسترجاع محتوى وب نظيف.",
           "querit": "خدمة بحث لتطبيقات الذكاء الاصطناعي مع نتائج استرجاع من الويب.",
           "searxng": "محرك بحث شامل مجاني قابل للاستضافة الذاتية عبر مصادر متعددة.",
