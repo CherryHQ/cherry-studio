@@ -340,7 +340,7 @@
       "welcome_title": "今天我們該談些什麼？"
     },
     "input": {
-      "placeholder": "在這裡輸入您的訊息，使用 {{key}} 傳送 - @ 選擇路徑，/ 選擇命令",
+      "placeholder": "輸入訊息，按 {{key}} 傳送，輸入 / 搜尋路徑或指令",
       "soul_placeholder": "幫我連接微信"
     },
     "list": {
@@ -1493,7 +1493,7 @@
       "paste_text_file": "貼到輸入框",
       "pasted_text_file_name": "已貼上的文字.txt",
       "pause": "暫停",
-      "placeholder": "在此輸入您的訊息，按 {{key}} 傳送 - @ 選擇模型，/ 包含工具",
+      "placeholder": "輸入訊息，按 {{key}} 傳送，輸入 / 選擇工具或操作",
       "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
       "resource_panel": {
         "categories": {
@@ -1504,7 +1504,7 @@
         "description": "從檔案、智能體或技能中選擇",
         "loading": "載入中...",
         "no_file_found": {
-          "description": "可存取目錄中無可用檔案",
+          "description": "目前工作區沒有可搜尋的檔案",
           "label": "找不到檔案"
         },
         "no_items_found": {
@@ -6447,7 +6447,7 @@
       "input": {
         "confirm_delete_message": "刪除訊息前確認",
         "confirm_regenerate_message": "重新產生訊息前確認",
-        "enable_quick_triggers": "啟用 / 和 @ 觸發快捷選單",
+        "enable_quick_triggers": "啟用 / 觸發輸入快捷面板",
         "send_shortcuts": "傳送快捷鍵",
         "show_estimated_tokens": "顯示預估 Token 數",
         "title": "輸入設定"
@@ -7197,10 +7197,10 @@
         "unknownServer": "未知的 MCP 伺服器"
       },
       "multiple": "多選",
-      "noResult": "未找到結果",
+      "noResult": "沒有相符項目",
       "page": "翻頁",
       "select": "選擇",
-      "title": "快捷選單"
+      "title": "輸入快捷面板"
     },
     "quickPhrase": {
       "add": "新增短語",

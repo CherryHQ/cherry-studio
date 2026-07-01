@@ -378,7 +378,7 @@ export const ComposerToolMenu = ({ unifiedPanelControl }: ComposerToolMenuProps)
     <button
       type="button"
       className="flex size-[30px] shrink-0 items-center justify-center rounded-full text-foreground-secondary transition-colors hover:bg-accent hover:text-foreground"
-      aria-label={t('common.add')}
+      aria-label={t('settings.quickPanel.title')}
       onClick={() => unifiedPanelControl.open()}>
       <Plus size={18} />
     </button>

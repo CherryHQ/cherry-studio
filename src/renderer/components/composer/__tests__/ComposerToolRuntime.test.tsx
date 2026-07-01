@@ -331,7 +331,7 @@ describe('ComposerToolMenu', () => {
 
     renderRuntime([], <ComposerToolMenu unifiedPanelControl={{ available: true, open: openUnifiedPanel }} />)
 
-    fireEvent.click(screen.getByLabelText('common.add'))
+    fireEvent.click(screen.getByLabelText('settings.quickPanel.title'))
 
     expect(openUnifiedPanel).toHaveBeenCalledTimes(1)
   })
@@ -339,7 +339,7 @@ describe('ComposerToolMenu', () => {
   it('does not render the plus trigger when the unified panel is unavailable', () => {
     renderRuntime([], <ComposerToolMenu unifiedPanelControl={{ available: false, open: vi.fn() }} />)
 
-    expect(screen.queryByLabelText('common.add')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('settings.quickPanel.title')).not.toBeInTheDocument()
   })
 })
 
