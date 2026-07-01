@@ -170,7 +170,7 @@ const TaskScheduleControls: FC<{
               min={1}
               value={value.value}
               onChange={(e) => onChange({ ...value, value: e.target.value })}
-              onBlur={() => commitTrigger()}
+              onBlur={() => commitTrigger('interval', value.value)}
               placeholder={t('agent.cherryClaw.tasks.intervalPlaceholder')}
               disabled={disabled}
               className="w-24"
@@ -200,7 +200,7 @@ const TaskScheduleControls: FC<{
           <UIInput
             value={value.value}
             onChange={(e) => onChange({ ...value, value: e.target.value })}
-            onBlur={() => commitTrigger()}
+            onBlur={() => commitTrigger('cron', value.value)}
             placeholder={t('agent.cherryClaw.tasks.cronPlaceholder')}
             disabled={disabled}
             className="w-72 max-w-full"

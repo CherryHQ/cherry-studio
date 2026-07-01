@@ -34,12 +34,6 @@ vi.mock('@main/apiServer/services/models', () => ({
   }
 }))
 
-vi.mock('@main/ai/skills/SkillService', () => ({
-  skillService: {
-    initSkillsForAgent: vi.fn()
-  }
-}))
-
 // Mock workspace seeding — filesystem ops not needed in unit tests
 vi.mock('@main/ai/agents/cherryclaw/seedWorkspace', () => ({
   seedWorkspaceTemplates: vi.fn()

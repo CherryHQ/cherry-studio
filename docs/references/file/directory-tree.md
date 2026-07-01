@@ -14,7 +14,7 @@
 
 | Primitive | Resource | State | Backing | Lifecycle |
 |---|---|---|---|---|
-| FileManager | `FileEntry` rows (internal + external) + content bytes | DB + filesystem | `file_entry` / `file_ref` SQLite tables | always-on `WhenReady` service |
+| FileManager | `FileEntry` rows (internal + external) + content bytes | DB + filesystem | `file_entry` + file association tables | always-on `WhenReady` service |
 | DirectoryTreeBuilder | In-memory `TreeDirRoot` mirror + chokidar watcher | Pure runtime | None — FS is the source of truth | per-`(rootPath, options)`; refcounted |
 
 Neither subsumes the other:

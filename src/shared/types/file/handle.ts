@@ -14,7 +14,7 @@
  * cache lookup, no identity-tracked ops). Picking a form is the caller's
  * decision, driven by which subsystem they want in the loop.
  *
- * Distinct from `FileRef` (the file_ref table, which links business entities
+ * Distinct from `FileRef` (the association shape linking business entities
  * like chat_message to FileEntry).
  *
  * The runtime factories and type guards (`createFilePathHandle`,
