@@ -189,6 +189,43 @@ describe('FilesPage keyboard rename', () => {
     expect(screen.queryByDisplayValue('report.md')).not.toBeInTheDocument()
   })
 
+  it('does not start inline rename for a missing selected file', async () => {
+    ipcMocks.request.mockImplementation((route: string) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({ [externalEntry.id]: 'missing' })
+      return Promise.resolve({})
+    })
+    renderFilesPage([externalEntry])
+
+    expect(await screen.findByText('files.missing')).toBeInTheDocument()
+    selectFileAt(0)
+    fireEvent.keyDown(document, { key: 'F2' })
+
+    expect(screen.queryByDisplayValue('external.txt')).not.toBeInTheDocument()
+  })
+
+  it('does not start inline rename for a selected trash file', () => {
+    mockFileStats(statsForEntries([trashedEntry]))
+    mockUseInfiniteQuery.mockImplementation((_path, options) => ({
+      pages: (options?.query as { inTrash?: boolean } | undefined)?.inTrash ? [{ items: [trashedEntry] }] : [],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }))
+    render(<FilesPage />)
+
+    fireEvent.click(screen.getByText('files.trash'))
+    selectFileAt(0)
+    fireEvent.keyDown(document, { key: 'Enter' })
+
+    expect(screen.queryByDisplayValue('trashed.txt')).not.toBeInTheDocument()
+  })
+
   it('does not call rename when inline rename value is unchanged', () => {
     renderFilesPage()
 

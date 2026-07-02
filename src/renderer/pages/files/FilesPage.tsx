@@ -154,6 +154,10 @@ function stripCurrentExtension(name: string, format: string): string {
   return name.toLowerCase().endsWith(suffix.toLowerCase()) ? name.slice(0, -suffix.length) : name
 }
 
+function canStartInlineRename(file: FileItem | undefined): file is FileItem {
+  return Boolean(file && !file.trashed && !file.isMissing)
+}
+
 function toFileItem(
   entry: FileEntry,
   metadataById: FileMetadataById,
@@ -850,12 +854,16 @@ function FilesPage() {
       }
       if ((e.key === 'F2' || (isMac && e.key === 'Enter')) && selectedIds.size === 1) {
         e.preventDefault()
-        startInlineRename([...selectedIds][0])
+        const selectedId = [...selectedIds][0]
+        const selectedFile = files.find((file) => file.id === selectedId)
+        if (!canStartInlineRename(selectedFile)) return
+
+        startInlineRename(selectedFile.id)
       }
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [selectedIds, handleDelete, renamingId, startInlineRename])
+  }, [files, selectedIds, handleDelete, renamingId, startInlineRename])
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
