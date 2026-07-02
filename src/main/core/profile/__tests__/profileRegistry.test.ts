@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -5,8 +7,10 @@ import {
   DEFAULT_PROFILE_ID,
   findEntry,
   generateProfileId,
+  type ProfileEntry,
   type ProfileRegistry,
   renameProfile,
+  resolveProfileRoots,
   setActive
 } from '../profileRegistry'
 
@@ -59,5 +63,24 @@ describe('registry transforms (pure)', () => {
   it('setActive repoints activeProfileId', () => {
     expect(setActive(base, 'aBcDeF12').activeProfileId).toBe('aBcDeF12')
     expect(base.activeProfileId).toBe(DEFAULT_PROFILE_ID) // input untouched
+  })
+})
+
+describe('resolveProfileRoots', () => {
+  const userData = '/mock/userData'
+  const cherryHome = '/mock/.cherrystudio'
+
+  it('maps the default profile to the legacy roots (Data under userData, credentials under cherry home)', () => {
+    const entry: ProfileEntry = { id: DEFAULT_PROFILE_ID, dataDir: DEFAULT_PROFILE_ID, name: 'Default', createdAt: 0 }
+    expect(resolveProfileRoots(entry, userData, cherryHome)).toEqual({
+      profileRoot: userData,
+      credentialRoot: cherryHome
+    })
+  })
+
+  it('isolates a non-default profile: both roots under <userData>/<dataDir>', () => {
+    const entry: ProfileEntry = { id: 'aBcDeF12', dataDir: 'Profiles/aBcDeF12', name: 'Work', createdAt: 1 }
+    const root = path.join(userData, 'Profiles/aBcDeF12')
+    expect(resolveProfileRoots(entry, userData, cherryHome)).toEqual({ profileRoot: root, credentialRoot: root })
   })
 })

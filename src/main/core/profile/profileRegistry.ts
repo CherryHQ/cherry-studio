@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { customAlphabet } from 'nanoid'
 
 /**
@@ -50,4 +52,28 @@ export function renameProfile(registry: ProfileRegistry, id: string, name: strin
 /** Repoint the active profile. Caller ensures `id` names an existing profile. */
 export function setActive(registry: ProfileRegistry, id: string): ProfileRegistry {
   return { ...registry, activeProfileId: id }
+}
+
+/** On-disk roots for a profile: the Data/DB base and the per-identity credential base. */
+export interface ProfileRoots {
+  readonly profileRoot: string
+  readonly credentialRoot: string
+}
+
+/**
+ * Map a profile to its on-disk roots. The default profile resolves to the legacy
+ * locations — `legacyUserData` for the Data subtree + DB, `legacyCherryHome` for
+ * credentials — so existing data is read in place (RFC §4.7). Every other profile
+ * isolates both roots under `<legacyUserData>/<dataDir>` (dataDir = `Profiles/<id>`).
+ */
+export function resolveProfileRoots(
+  entry: ProfileEntry,
+  legacyUserData: string,
+  legacyCherryHome: string
+): ProfileRoots {
+  if (entry.id === DEFAULT_PROFILE_ID) {
+    return { profileRoot: legacyUserData, credentialRoot: legacyCherryHome }
+  }
+  const root = path.join(legacyUserData, entry.dataDir)
+  return { profileRoot: root, credentialRoot: root }
 }
