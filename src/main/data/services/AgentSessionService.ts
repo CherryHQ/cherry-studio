@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto'
 import { application } from '@application'
 import { agentTable as agentsTable } from '@data/db/schemas/agent'
 import { type AgentSessionRow as SessionRow, agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
@@ -20,7 +21,7 @@ import type {
   ListAgentSessionsQuery,
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
-import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
+import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import { and, asc, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
@@ -237,6 +238,67 @@ export class AgentSessionService {
     return row
   }
 
+  /**
+   * Replace a session's workspace. Only an empty session (no messages) may
+   * change its workspace; once a conversation has started the binding is
+   * permanent. Lives on `PUT /agent-sessions/:id/workspace` rather than the
+   * generic PATCH because it creates/deletes the backing system workspace row.
+   */
+  async setWorkspace(id: string, source: AgentSessionWorkspaceSource): Promise<AgentSessionEntity> {
+    await withSqliteErrors(
+      () => application.get('DbService').withWriteTx((tx) => this.setWorkspaceTx(tx, id, source)),
+      defaultHandlersFor('Session', id)
+    )
+    return await this.getById(id)
+  }
+
+  async setWorkspaceTx(tx: DbOrTx, id: string, source: AgentSessionWorkspaceSource): Promise<void> {
+    const current = await this.getJoinedSessionRowTx(tx, id)
+    // The workspace binding is locked the moment a session has any message.
+    await this.assertSessionHasNoMessagesTx(tx, id)
+
+    if (source.type === AGENT_WORKSPACE_TYPE.USER) {
+      const workspace = await agentWorkspaceService.getRowByIdTx(tx, source.workspaceId)
+      if (workspace.id === current.session.workspaceId) return
+      // Repoint first, then drop the old system workspace so the session FK never dangles.
+      await tx.update(sessionsTable).set({ workspaceId: workspace.id }).where(eq(sessionsTable.id, id))
+      if (current.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) {
+        await agentWorkspaceService.deleteByIdTx(tx, current.session.workspaceId)
+      }
+      return
+    }
+
+    // Target is a system workspace; an existing system workspace is already correct.
+    if (current.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) return
+    const workspace = await agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: id })
+    await tx.update(sessionsTable).set({ workspaceId: workspace.id }).where(eq(sessionsTable.id, id))
+  }
+
+  private async getJoinedSessionRowTx(tx: DbOrTx, id: string): Promise<JoinedSessionRow> {
+    const [row] = await tx
+      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .from(sessionsTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .where(eq(sessionsTable.id, id))
+      .limit(1)
+    if (!row) throw DataApiErrorFactory.notFound('Session', id)
+    return row
+  }
+
+  private async assertSessionHasNoMessagesTx(tx: DbOrTx, sessionId: string): Promise<void> {
+    const [message] = await tx
+      .select({ id: agentSessionMessageTable.id })
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.sessionId, sessionId))
+      .limit(1)
+    if (message) {
+      throw DataApiErrorFactory.invalidOperation(
+        'update session workspace',
+        'workspace cannot be changed after messages are sent'
+      )
+    }
+  }
+
   private async insertTx(
     tx: DbOrTx,
     values: {
@@ -303,25 +365,29 @@ export class AgentSessionService {
   }
 
   async deleteByAgentId(agentId: string): Promise<DeleteAgentSessionsResult> {
-    const deletedIds = await application.get('DbService').withWriteTx(async (tx) => {
+    const deletedIds = await application.get('DbService').withWriteTx((tx) => this.deleteByAgentIdTx(tx, agentId))
+
+    logger.info('Deleted agent sessions', { agentId, count: deletedIds.length })
+    return { deletedIds }
+  }
+
+  async deleteByAgentIdTx(tx: DbOrTx, agentId: string, options: { validateAgent?: boolean } = {}): Promise<string[]> {
+    if (options.validateAgent ?? true) {
       const [agent] = await tx
         .select({ id: agentsTable.id })
         .from(agentsTable)
         .where(and(eq(agentsTable.id, agentId), isNull(agentsTable.deletedAt)))
         .limit(1)
       if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
+    }
 
-      const rows = await tx
-        .select({ session: sessionsTable, workspace: agentWorkspaceTable })
-        .from(sessionsTable)
-        .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-        .where(eq(sessionsTable.agentId, agentId))
+    const rows = await tx
+      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .from(sessionsTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .where(eq(sessionsTable.agentId, agentId))
 
-      return await this.cascadeDeleteSessionRowsTx(tx, rows)
-    })
-
-    logger.info('Deleted agent sessions', { agentId, count: deletedIds.length })
-    return { deletedIds }
+    return await this.cascadeDeleteSessionRowsTx(tx, rows)
   }
 
   private async cascadeDeleteSessionRowsTx(tx: DbOrTx, rows: JoinedSessionRow[]): Promise<string[]> {

@@ -19,7 +19,12 @@
  */
 
 import { application } from '@application'
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { fileEntryTable } from '@data/db/schemas/file'
+import {
+  chatMessageFileRefTable,
+  paintingFileRefTable,
+  type PersistentFileRefSourceType
+} from '@data/db/schemas/fileRelations'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
@@ -32,6 +37,7 @@ import {
   InternalEntrySchema,
   SafeNameSchema
 } from '@shared/data/types/file'
+import { chatMessageSourceType, paintingSourceType } from '@shared/data/types/file/ref'
 import { and, asc, count, eq, isNotNull, isNull, type SQL, sql, type SQLWrapper } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 import * as z from 'zod'
@@ -180,17 +186,17 @@ export interface FileEntryService {
   getStats(): Promise<FileEntryStats>
 
   /**
-   * Active (non-trashed) entries with zero `file_ref` rows pointing at them.
-   * Used by Phase 1b.4 OrphanRefScanner's report-only entry pass — see
-   * file-manager-architecture §7.1 (default policy is "preserve").
+   * Active (non-trashed) entries with zero persistent association rows pointing
+   * at them. Temp-session refs live in CacheService and are filtered by the
+   * orphan-sweep layer.
    *
    * Un-parseable rows are skipped with a warning (see `rowToFileEntrySafe`).
    */
   findUnreferenced(query?: { origin?: FileEntryOrigin }): Promise<FileEntry[]>
 
   /**
-   * All entry ids regardless of trashed state — backs the Phase 1b.4 startup
-   * file sweep, which needs to know which on-disk UUID files have a DB row
+   * All entry ids regardless of trashed state — backs the on-demand orphan
+   * sweep, which needs to know which on-disk UUID files have a DB row
    * (active or trashed; both are out of scope for unlink).
    */
   listAllIds(): Promise<Set<FileEntryId>>
@@ -223,7 +229,7 @@ export interface FileEntryService {
     name: string
   ): Promise<FileEntry>
 
-  /** Remove the row (CASCADE drops dependent `file_ref`s). No-op if already gone. */
+  /** Remove the row (CASCADE drops dependent persistent file refs). No-op if already gone. */
   delete(id: FileEntryId): Promise<void>
 
   /** Tx-scoped variant of `delete` for composing write flows. */
@@ -510,12 +516,21 @@ class FileEntryServiceImpl implements FileEntryService {
   }
 
   async findUnreferenced(query: { origin?: FileEntryOrigin } = {}): Promise<FileEntry[]> {
-    const conditions: SQL[] = [isNull(fileEntryTable.deletedAt), isNull(fileRefTable.id)]
+    const persistentRefAbsenceConditions = {
+      [chatMessageSourceType]: () =>
+        sql`NOT EXISTS (SELECT 1 FROM ${chatMessageFileRefTable} WHERE ${chatMessageFileRefTable.fileEntryId} = ${fileEntryTable.id})`,
+      [paintingSourceType]: () =>
+        sql`NOT EXISTS (SELECT 1 FROM ${paintingFileRefTable} WHERE ${paintingFileRefTable.fileEntryId} = ${fileEntryTable.id})`
+    } satisfies Record<PersistentFileRefSourceType, () => SQL>
+
+    const conditions: SQL[] = [
+      isNull(fileEntryTable.deletedAt),
+      ...Object.values(persistentRefAbsenceConditions).map((buildCondition) => buildCondition())
+    ]
     if (query.origin) conditions.push(eq(fileEntryTable.origin, query.origin))
     const rows = await this.getDb()
       .select({ entry: fileEntryTable })
       .from(fileEntryTable)
-      .leftJoin(fileRefTable, eq(fileRefTable.fileEntryId, fileEntryTable.id))
       .where(and(...conditions))
       .orderBy(asc(fileEntryTable.createdAt))
     return rows.map((r) => rowToFileEntrySafe(r.entry)).filter((e): e is FileEntry => e !== null)

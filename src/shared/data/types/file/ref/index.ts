@@ -12,12 +12,11 @@
  * 2. In this file: import the three symbols (source type literal, roles tuple,
  *    schema) and add the source type literal to `allSourceTypes`, then add the
  *    schema to the `FileRefSchema` discriminated union
- * 3. Register a `SourceTypeChecker` in `OrphanRefScanner` (main-side) — the
- *    registry type `Record<FileRefSourceType, SourceTypeChecker>` compile-time
- *    enforces that every sourceType has a checker; missing one = type error
- * 4. In the owning business service's delete flow, call
- *    `fileRefService.cleanupBySource(sourceType, sourceId)` — the pull-model
- *    cleanup. OrphanRefScanner is the safety net for missed paths.
+ * 3. Back the persistent variant with an FK-constrained association table so
+ *    deleting the owning source cascades refs at the database layer. If the
+ *    relationship can be replaced without deleting the source (for example,
+ *    editing a painting's input/output files), explicitly delete + insert the
+ *    affected association rows in that update flow.
  *
  * ## No global role aggregation
  *
@@ -38,14 +37,6 @@ import {
   chatMessageSourceType
 } from './chatMessage'
 import {
-  type KnowledgeItemFileRefRole,
-  knowledgeItemFileRefSchema,
-  knowledgeItemRefFields,
-  knowledgeItemRoles,
-  knowledgeItemRoleSchema,
-  knowledgeItemSourceType
-} from './knowledgeItem'
-import {
   paintingFileRefSchema,
   paintingRefFields,
   paintingRoles,
@@ -54,38 +45,31 @@ import {
 } from './painting'
 import { tempSessionFileRefSchema, tempSessionRefFields, tempSessionRoles, tempSessionSourceType } from './tempSession'
 
-// ─── SourceType type (load-bearing — keys the OrphanRefScanner registry) ───
+// ─── SourceType type (load-bearing — keys DataApi/query validation) ───
 
 /**
  * All currently-registered FileRef source types — the complete type union.
  *
  * The tuple form is required so `FileRefSourceType` infers as a union of
- * string literals rather than `string` — this lets `Record<FileRefSourceType, …>`
- * enforce exhaustive coverage at compile time. OrphanRefScanner's checker
- * registry uses this property: a new variant in `allSourceTypes` without a
- * matching `SourceTypeChecker` is a compile error.
+ * string literals rather than `string`. DataApi handlers and query facades use
+ * the same tuple for runtime validation and discriminated-union narrowing.
  *
  * ## Currently registered variants
  *
- * - `temp_session` — transient paste/draft refs (`./tempSession.ts`).
+ * - `temp_session` — transient paste/draft refs (`./tempSession.ts`), backed by
+ *   main-process CacheService memory instead of SQLite.
  * - `chat_message` — refs from migrated chat message attachments (`./chatMessage.ts`).
- * - `knowledge_item` — refs from `knowledge_item` rows (`./knowledgeItem.ts`).
- *   `role='source'` marks the user-provided source file; `role='processed_artifact'`
- *   marks a Cherry-owned derived file used for indexing.
  * - `painting` — refs from `painting` rows (`./painting.ts`), roles
- *   `output`/`input`. `PaintingService` owns ref removal on delete; ref
- *   creation is done by the separate v1→v2 file-data-migration PR (paintings
- *   still create/resolve files via the v1 file system in the renderer).
+ *   `output`/`input`.
  *
  * Other business domains (note) deliberately do NOT appear here. They will be
  * added when their owning DB tables migrate to v2 — at which point each
- * variant gains its tuple entry, its `createRefSchema` variant, AND its
- * `SourceTypeChecker` in one PR. Keeping those three surfaces in lockstep
- * prevents the "type declared but schema unaware" gap.
+ * variant gains its tuple entry, its `createRefSchema` variant, and its
+ * FK-constrained association table in one PR. Keeping those surfaces in
+ * lockstep prevents the "type declared but schema unaware" gap.
  */
 export const allSourceTypes = [
   tempSessionSourceType,
-  knowledgeItemSourceType,
   chatMessageSourceType,
   paintingSourceType
 ] as const satisfies readonly string[]
@@ -109,7 +93,6 @@ export const FileRefSourceTypeSchema = z.enum(allSourceTypes)
  */
 export const FileRefSchema = z.discriminatedUnion('sourceType', [
   tempSessionFileRefSchema,
-  knowledgeItemFileRefSchema,
   chatMessageFileRefSchema,
   paintingFileRefSchema
 ])
@@ -123,12 +106,6 @@ export {
   chatMessageRoles,
   chatMessageRoleSchema,
   chatMessageSourceType,
-  type KnowledgeItemFileRefRole,
-  knowledgeItemFileRefSchema,
-  knowledgeItemRefFields,
-  knowledgeItemRoles,
-  knowledgeItemRoleSchema,
-  knowledgeItemSourceType,
   paintingFileRefSchema,
   paintingRefFields,
   paintingRoles,
