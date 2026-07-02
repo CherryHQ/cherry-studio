@@ -71,24 +71,24 @@ export class SkillService {
   }
 
   /** Enable or disable a skill for a specific agent. */
-  async toggle(options: SkillToggleOptions): Promise<InstalledSkill | null> {
-    const skill = await agentGlobalSkillService.getById(options.skillId)
+  toggle(options: SkillToggleOptions): InstalledSkill | null {
+    const skill = agentGlobalSkillService.getById(options.skillId)
     if (!skill) return null
 
-    await agentGlobalSkillService.upsertJoin(options.agentId, options.skillId, options.isEnabled)
+    agentGlobalSkillService.upsertJoin(options.agentId, options.skillId, options.isEnabled)
 
     return { ...skill, isEnabled: options.isEnabled }
   }
 
   /** Enable a skill across every existing agent. Used when a new builtin skill is installed. */
-  async enableForAllAgents(skillId: string): Promise<void> {
-    const agentIds = await agentGlobalSkillService.upsertJoinForAllAgents(skillId, true)
+  enableForAllAgents(skillId: string): void {
+    const agentIds = agentGlobalSkillService.upsertJoinForAllAgents(skillId, true)
 
     logger.info('Enabled skill for all agents', { skillId, agentCount: agentIds.length })
   }
 
   async readFile(skillId: string, filename: string): Promise<string | null> {
-    const skill = await agentGlobalSkillService.getById(skillId)
+    const skill = agentGlobalSkillService.getById(skillId)
     if (!skill) return null
 
     const skillRoot = this.getSkillStoragePath(skill.folderName)
@@ -105,7 +105,7 @@ export class SkillService {
   }
 
   async listFiles(skillId: string): Promise<SkillFileNode[]> {
-    const skill = await agentGlobalSkillService.getById(skillId)
+    const skill = agentGlobalSkillService.getById(skillId)
     if (!skill) return []
 
     const skillRoot = this.getSkillStoragePath(skill.folderName)
@@ -117,7 +117,7 @@ export class SkillService {
   }
 
   async uninstallByFolderName(folderName: string): Promise<void> {
-    const skill = await agentGlobalSkillService.getByFolderName(folderName)
+    const skill = agentGlobalSkillService.getByFolderName(folderName)
     if (!skill) {
       throw new Error(`Skill not found by folder name: ${folderName}`)
     }
@@ -138,7 +138,7 @@ export class SkillService {
   }
 
   async uninstall(skillId: string): Promise<void> {
-    const skill = await agentGlobalSkillService.getById(skillId)
+    const skill = agentGlobalSkillService.getById(skillId)
     if (!skill) {
       throw new Error(`Skill not found: ${skillId}`)
     }
@@ -147,7 +147,7 @@ export class SkillService {
     const skillPath = this.getSkillStoragePath(skill.folderName)
     await this.installer.uninstall(skillPath)
     await this.unlinkMirror(skill.folderName)
-    await agentGlobalSkillService.deleteById(skillId)
+    agentGlobalSkillService.deleteById(skillId)
     logger.info('Skill uninstalled', { skillId, folderName: skill.folderName })
   }
 
@@ -377,7 +377,7 @@ export class SkillService {
     const isInPlace = path.resolve(path.dirname(skillDir)) === skillsRoot
     const folderName = isInPlace ? path.basename(skillDir) : this.sanitizeFolderName(metadata.filename)
 
-    const existing = await agentGlobalSkillService.getByFolderName(folderName)
+    const existing = agentGlobalSkillService.getByFolderName(folderName)
 
     const contentHash = await this.installer.computeContentHash(skillDir)
     const destPath = this.getSkillStoragePath(folderName)
@@ -390,14 +390,14 @@ export class SkillService {
 
     if (existing) {
       // Update metadata in-place to preserve the skill ID and its agent_skills rows.
-      await agentGlobalSkillService.update(existing.id, {
+      agentGlobalSkillService.update(existing.id, {
         name: metadata.name,
         description: metadata.description ?? null,
         author: metadata.author ?? null,
         tags,
         contentHash
       })
-      const updated = (await agentGlobalSkillService.getById(existing.id))!
+      const updated = agentGlobalSkillService.getById(existing.id)!
       logger.info('Skill updated', { id: existing.id, name: metadata.name, folderName, source })
       return updated
     }
@@ -406,7 +406,7 @@ export class SkillService {
 
     let inserted: InstalledSkill | undefined
     try {
-      const insertedRow = await agentGlobalSkillService.insert({
+      const insertedRow = agentGlobalSkillService.insert({
         name: metadata.name,
         description: metadata.description ?? null,
         folderName,
@@ -418,7 +418,7 @@ export class SkillService {
         contentHash,
         isEnabled: false
       })
-      inserted = (await agentGlobalSkillService.getById(insertedRow.id)) ?? undefined
+      inserted = agentGlobalSkillService.getById(insertedRow.id) ?? undefined
     } catch (error) {
       try {
         await this.installer.uninstall(destPath)
@@ -437,7 +437,7 @@ export class SkillService {
     }
 
     if (isBuiltin) {
-      await this.enableForAllAgents(inserted.id)
+      this.enableForAllAgents(inserted.id)
     }
 
     logger.info('Skill installed', { id: inserted.id, name: metadata.name, folderName, source })
@@ -666,7 +666,7 @@ export class SkillService {
    * so concurrent session builds only read this directory.
    */
   async reconcileSkills(): Promise<void> {
-    const all = await agentGlobalSkillService.listAll()
+    const all = agentGlobalSkillService.listAll()
     const known = new Set(all.map((s) => s.folderName))
 
     for (const skill of all) {
@@ -759,7 +759,7 @@ export class SkillService {
    *   every existing agent via `enableForAllAgents`.
    */
   async syncBuiltinSkill(folderName: string, destPath: string, filesUpdated: boolean): Promise<void> {
-    const existing = await agentGlobalSkillService.getByFolderName(folderName)
+    const existing = agentGlobalSkillService.getByFolderName(folderName)
     if (existing && !filesUpdated) return
 
     const metadata = await parseSkillMetadata(destPath, folderName, 'skills')
@@ -767,7 +767,7 @@ export class SkillService {
     const tags = metadata.tags ?? []
 
     if (existing) {
-      await agentGlobalSkillService.update(existing.id, {
+      agentGlobalSkillService.update(existing.id, {
         name: metadata.name,
         description: metadata.description ?? null,
         author: metadata.author ?? null,
@@ -775,7 +775,7 @@ export class SkillService {
         contentHash
       })
     } else {
-      const inserted = await agentGlobalSkillService.insert({
+      const inserted = agentGlobalSkillService.insert({
         name: metadata.name,
         description: metadata.description ?? null,
         folderName,
@@ -787,7 +787,7 @@ export class SkillService {
         contentHash,
         isEnabled: false
       })
-      await this.enableForAllAgents(inserted.id)
+      this.enableForAllAgents(inserted.id)
     }
 
     await this.linkMirror(folderName)
