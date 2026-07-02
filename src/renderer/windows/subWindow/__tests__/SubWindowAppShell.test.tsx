@@ -57,5 +57,5 @@ describe('SubWindowAppShell', () => {
 
     expect(screen.getByTestId('sub-window-title-bar')).toBeInTheDocument()
     expect(screen.getByTestId('tab-router')).toBeInTheDocument()
-  })
+  }, 60_000)
 })

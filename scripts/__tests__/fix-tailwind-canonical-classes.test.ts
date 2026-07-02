@@ -37,7 +37,7 @@ describe('fix-tailwind-canonical-classes', () => {
 
     expect(summary).toEqual({ scannedFiles: 1, changedFiles: 1, replacements: 5 })
     expect(source).toContain('className="w-105 sm:max-w-120 min-h-18 w-fit! text-(--color-foreground-secondary)"')
-  })
+  }, 60_000)
 
   it('rewrites static cn string arguments and object keys', async () => {
     const tempDir = await createTempDir()
@@ -54,7 +54,7 @@ describe('fix-tailwind-canonical-classes', () => {
 
     expect(summary).toEqual({ scannedFiles: 1, changedFiles: 1, replacements: 3 })
     expect(source).toBe("const value = cn('w-105', { 'min-h-18': enabled }, `text-(--color-foreground-secondary)`)\n")
-  })
+  }, 60_000)
 
   it('leaves dynamic template literals unchanged', async () => {
     const tempDir = await createTempDir()

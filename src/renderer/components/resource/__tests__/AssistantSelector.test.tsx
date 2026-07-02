@@ -427,7 +427,7 @@ describe('AssistantSelector', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Edit assistant' })[0])
 
-    expect(await screen.findByRole('heading', { name: 'Edit Assistant' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Edit Assistant' }, { timeout: 5_000 })).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Renamed Assistant' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))

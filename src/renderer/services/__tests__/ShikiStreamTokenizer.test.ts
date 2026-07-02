@@ -1,5 +1,5 @@
+import { getHighlighter } from '@renderer/utils/shiki'
 import type { HighlighterCore } from 'shiki'
-import { createHighlighter } from 'shiki'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { ShikiStreamTokenizer } from '../ShikiStreamTokenizer'
@@ -10,10 +10,7 @@ import {
 } from './helpers/ShikiStreamTokenizer.helper'
 
 describe('ShikiStreamTokenizer', () => {
-  const highlighterPromise = createHighlighter({
-    langs: ['typescript'],
-    themes: ['one-light']
-  })
+  const highlighterPromise = getHighlighter(['typescript'], ['one-light'])
 
   let highlighter: HighlighterCore | null = null
   let tokenizer: ShikiStreamTokenizer
