@@ -429,6 +429,10 @@ export class JobManager extends BaseService implements ProfileActivatable {
     this.finishedResolvers.clear()
     this.inFlightExecuted.clear()
     this.abortControllers.clear()
+
+    // Drop this profile's job state/progress from the shared cache so a reloaded
+    // renderer does not re-sync the previous profile's job rows (keys are per-job-id).
+    application.get('CacheService').deleteSharedByPrefix([JOB_STATE_KEY_PREFIX, JOB_PROGRESS_KEY_PREFIX])
   }
 
   /** Re-run startup recovery for the newly-active profile (no boot quiet window). Called by ProfileService after activate-all. */

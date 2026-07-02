@@ -152,6 +152,17 @@ export class MockMainCacheService {
     return true
   })
 
+  public deleteSharedByPrefix = vi.fn((prefixes: readonly string[]): number => {
+    let deleted = 0
+    for (const key of [...mockSharedCache.keys()]) {
+      if (prefixes.some((prefix) => key.startsWith(prefix))) {
+        this.deleteShared(key as SharedCacheKey)
+        deleted++
+      }
+    }
+    return deleted
+  })
+
   // ============ Persist Cache Methods ============
   // Faithful to the real main persist tier: getPersist returns the stored
   // override else the schema default (never undefined), setPersist installs an

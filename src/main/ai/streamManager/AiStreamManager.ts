@@ -289,6 +289,9 @@ export class AiStreamManager extends BaseService implements ProfileActivatable {
   /** Abort the previous profile's in-flight streams and wait for their loops to settle. */
   async onProfileDeactivate(): Promise<void> {
     await this.abortAllStreams('profile-switch')
+    // Drop this profile's per-topic stream status from the shared cache so a
+    // reloaded renderer does not re-sync the previous profile's topic statuses.
+    application.get('CacheService').deleteSharedByPrefix(['topic.stream.'])
   }
 
   /** Abort every live stream and await its execution loops. */

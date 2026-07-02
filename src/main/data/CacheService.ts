@@ -453,6 +453,26 @@ export class CacheService extends BaseService {
   }
 
   /**
+   * Delete every shared-cache entry whose key starts with one of the given
+   * prefixes, broadcasting each removal. Used on profile switch to drop
+   * per-profile-derived entries (e.g. `jobs.state.<id>`, `topic.stream.<id>`) so a
+   * reloaded renderer does not re-sync the previous profile's data. Owners call
+   * this from onProfileDeactivate with the template prefixes they own.
+   * @returns the number of entries deleted
+   */
+  deleteSharedByPrefix(prefixes: readonly string[]): number {
+    let deleted = 0
+    for (const key of [...this.sharedCache.keys()]) {
+      if (prefixes.some((prefix) => key.startsWith(prefix))) {
+        // Concrete key derived from a SharedCacheKey template; deleteShared broadcasts the removal.
+        this.deleteShared(key as SharedCacheKey)
+        deleted++
+      }
+    }
+    return deleted
+  }
+
+  /**
    * Subscribe to internal cache changes for an exact key.
    *
    * Fire semantics:
