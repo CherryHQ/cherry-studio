@@ -15,4 +15,16 @@ describe('KnowledgeVectorStoreService profile activation', () => {
     await svc.onProfileDeactivate()
     expect(close).toHaveBeenCalledTimes(1)
   })
+
+  it('marks profileSwitching across the deactivate window so getIndexStore refuses to reopen', async () => {
+    const svc = new KnowledgeVectorStoreService()
+    vi.spyOn(svc as unknown as { closeAllStores: () => Promise<void> }, 'closeAllStores').mockResolvedValue(undefined)
+
+    await svc.onProfileDeactivate()
+    // getIndexStore checks this flag after the cache-hit branch and throws while set.
+    expect(svc['profileSwitching']).toBe(true)
+
+    svc.onProfileActivate()
+    expect(svc['profileSwitching']).toBe(false)
+  })
 })

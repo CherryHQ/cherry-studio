@@ -48,6 +48,12 @@ export class KnowledgeVectorStoreService extends BaseService implements ProfileA
   // getIndexStore call for the same base can ever observe an in-flight open, and a
   // failed open never gets cached (the throw happens before .set() below runs).
   private instanceCache = new Map<string, KnowledgeIndexStore>()
+  // True between onProfileDeactivate and the next onProfileActivate. getIndexStore refuses
+  // to open during this window: the stores were just closed and the path slot has not
+  // repointed, so a live knowledge-lookup tool (on a stream/agent-run being aborted) would
+  // otherwise reopen the PREVIOUS profile's index against the old path and orphan a handle
+  // this switch never closes. Checked synchronously at the call, so no reset race.
+  private profileSwitching = false
 
   /** Open (or reuse) the base's index store, ensuring its schema exists. */
   async getIndexStore(base: KnowledgeBase): Promise<KnowledgeIndexStore> {
@@ -57,6 +63,13 @@ export class KnowledgeVectorStoreService extends BaseService implements ProfileA
     if (cached) {
       logger.debug('Reusing cached knowledge index store', { baseId: base.id })
       return cached
+    }
+
+    if (this.profileSwitching) {
+      throw DataApiErrorFactory.invalidOperation(
+        'openKnowledgeIndexStore',
+        'A profile switch is in progress — the index stores are closed'
+      )
     }
 
     const store = this.openIndexStore(base)
@@ -106,11 +119,14 @@ export class KnowledgeVectorStoreService extends BaseService implements ProfileA
     await this.closeAllStores()
   }
 
-  /** No per-profile resource to acquire — index stores open on demand. */
-  onProfileActivate(): void {}
+  /** Re-open the switch window: index stores open on demand for the new profile. */
+  onProfileActivate(): void {
+    this.profileSwitching = false
+  }
 
   /** Close the previous profile's index stores (they point at its KnowledgeBase files). */
   async onProfileDeactivate(): Promise<void> {
+    this.profileSwitching = true
     await this.closeAllStores()
   }
 
