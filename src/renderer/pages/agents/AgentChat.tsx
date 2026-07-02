@@ -6,11 +6,7 @@ import {
   EmptyState
 } from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
-import {
-  type ResourcePaneConfig,
-  ResourcePaneCountButton,
-  type ResourcePaneCountButtonProps
-} from '@renderer/components/chat/panes/Shell'
+import type { ResourcePaneConfig } from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
 import { AgentHomeComposer, MissingAgentHomeComposer } from '@renderer/components/composer/variants/AgentComposer'
@@ -93,7 +89,6 @@ interface AgentChatProps {
   replacingDraftWorkspace?: boolean
   replacingSessionWorkspace?: boolean
   resourcePane?: ResourcePaneConfig | null
-  resourcePaneCount?: ResourcePaneCountButtonProps
   resourcePaneRevealRequest?: ResourceListRevealRequest
   sessionPaneOpen?: boolean
   onSessionPaneOpenChange?: (open: boolean) => void
@@ -129,7 +124,6 @@ const AgentChat = ({
   replacingDraftWorkspace,
   replacingSessionWorkspace,
   resourcePane,
-  resourcePaneCount,
   resourcePaneRevealRequest,
   sessionPaneOpen,
   onSessionPaneOpenChange
@@ -167,11 +161,10 @@ const AgentChat = ({
   const draftConversationKey = draftAgentConversation ? getDraftConversationKey(draftAgentConversation) : null
   const resourcePaneTopRightTool = resourcePane ? (
     <>
-      {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} />}
+      <AgentRightPane.Shortcuts />
       <AgentRightPane.FilesToggle />
     </>
   ) : undefined
-  const resourcePaneTopRightToolReserve = resourcePaneCount ? 'history' : 'single'
 
   useEffect(() => {
     const conversationId = draftConversationKey
@@ -257,7 +250,7 @@ const AgentChat = ({
           panePosition={panePosition}
           onPaneCollapse={onPaneCollapse}
           topRightTool={resourcePaneTopRightTool}
-          topRightToolReserve={resourcePaneTopRightToolReserve}
+          topRightToolReserve="double"
           center={<ConversationCenterState state="loading" />}
           centerOverlay={resourcePane ? <AgentRightPane.MaximizedOverlay /> : undefined}
           rightPane={<AgentRightPane.Host />}
@@ -349,7 +342,7 @@ const AgentChat = ({
             />
           }
           topRightTool={resourcePaneTopRightTool}
-          topRightToolReserve={resourcePaneTopRightToolReserve}
+          topRightToolReserve="double"
           center={
             <ConversationStageCenter
               placement="home"
@@ -402,7 +395,7 @@ const AgentChat = ({
             />
           }
           topRightTool={resourcePaneTopRightTool}
-          topRightToolReserve={resourcePaneTopRightToolReserve}
+          topRightToolReserve="double"
           center={
             <ConversationStageCenter
               placement="home"
@@ -487,7 +480,6 @@ const AgentChat = ({
       onLocateMessageHandled={onLocateMessageHandled}
       onPaneCollapse={onPaneCollapse}
       resourcePane={resourcePane}
-      resourcePaneCount={resourcePaneCount}
       resourcePaneRevealRequest={resourcePaneRevealRequest}
       sessionPaneOpen={sessionPaneOpen}
       onSessionPaneOpenChange={onSessionPaneOpenChange}
@@ -546,7 +538,6 @@ interface AgentChatSessionFrameProps {
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   workspaceChanging?: boolean
   resourcePane?: ResourcePaneConfig | null
-  resourcePaneCount?: ResourcePaneCountButtonProps
   resourcePaneRevealRequest?: ResourceListRevealRequest
   sessionPaneOpen?: boolean
   onSessionPaneOpenChange?: (open: boolean) => void
@@ -581,7 +572,6 @@ const AgentChatSessionFrame = ({
   onWorkspaceChange,
   workspaceChanging,
   resourcePane,
-  resourcePaneCount,
   resourcePaneRevealRequest,
   sessionPaneOpen,
   onSessionPaneOpenChange
@@ -711,12 +701,11 @@ const AgentChatSessionFrame = ({
         }
         topRightTool={
           <>
-            {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} />}
-            <AgentRightPane.InfoCard />
+            <AgentRightPane.Shortcuts />
             <AgentRightPane.FilesToggle />
           </>
         }
-        topRightToolReserve={resourcePaneCount ? 'history' : 'double'}
+        topRightToolReserve={resourcePane ? 'quint' : 'quad'}
         center={
           <ConversationStageCenter
             placement="docked"

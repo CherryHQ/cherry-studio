@@ -1,4 +1,4 @@
-import { ResourcePaneCountButton, Shell } from '@renderer/components/chat/panes/Shell'
+import { Shell } from '@renderer/components/chat/panes/Shell'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import type * as ConstantConfig from '@renderer/utils/platform'
 import { fireEvent, render, screen } from '@testing-library/react'
@@ -105,24 +105,72 @@ describe('ConversationShell', () => {
     expect(topRightTool).not.toHaveClass('w-7.5')
   })
 
-  it('opens the resource pane from the history count button and hides the navbar cluster', () => {
+  it('lays out a quad top-right tool cluster', () => {
+    const { container } = render(
+      <ConversationShell
+        topBar={<div data-testid="top-bar" />}
+        topRightTool={
+          <>
+            <button type="button">one</button>
+            <button type="button">two</button>
+            <button type="button">three</button>
+            <button type="button">four</button>
+          </>
+        }
+        topRightToolReserve="quad"
+        center={<div />}
+      />
+    )
+
+    const topBarWrapper = screen.getByTestId('top-bar').parentElement
+    const topRightTool = container.querySelector('[data-navbar-right-occupant]')
+    expect(topBarWrapper).toHaveClass('pr-[140px]')
+    expect(topRightTool).toHaveClass('gap-0.5')
+  })
+
+  it('lays out a quint top-right tool cluster', () => {
+    const { container } = render(
+      <ConversationShell
+        topBar={<div data-testid="top-bar" />}
+        topRightTool={
+          <>
+            <button type="button">one</button>
+            <button type="button">two</button>
+            <button type="button">three</button>
+            <button type="button">four</button>
+            <button type="button">five</button>
+          </>
+        }
+        topRightToolReserve="quint"
+        center={<div />}
+      />
+    )
+
+    const topBarWrapper = screen.getByTestId('top-bar').parentElement
+    const topRightTool = container.querySelector('[data-navbar-right-occupant]')
+    expect(topBarWrapper).toHaveClass('pr-[172px]')
+    expect(topRightTool).toHaveClass('gap-0.5')
+  })
+
+  it('opens the right-pane tab from a shortcut and hides the navbar cluster', () => {
     render(
       <Shell defaultTab="resources">
         <ConversationShell
           topBar={<div data-testid="top-bar" />}
-          topRightTool={<ResourcePaneCountButton label="对话" count={6} />}
-          topRightToolReserve="history"
+          topRightTool={
+            <Shell.TabShortcut tab="resources" label="对话" icon={<span data-testid="resource-shortcut-icon" />} />
+          }
           center={<div />}
         />
       </Shell>
     )
 
     const topBarWrapper = screen.getByTestId('top-bar').parentElement
-    expect(topBarWrapper).toHaveClass('pr-[156px]')
+    expect(topBarWrapper).toHaveClass('pr-11')
 
-    fireEvent.click(screen.getByRole('button', { name: '对话 6' }))
+    fireEvent.click(screen.getByRole('button', { name: '对话' }))
 
-    expect(screen.queryByRole('button', { name: '对话 6' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '对话' })).not.toBeInTheDocument()
   })
 
   it('uses normal title-bar padding when the left pane is open in window mode', () => {

@@ -5,6 +5,7 @@ import {
   ResourcePaneLocateOpener,
   ResourcePanePanel,
   ResourcePaneProvider,
+  ResourcePaneShortcut,
   ResourcePaneTab,
   Shell,
   useResourcePane,
@@ -229,8 +230,31 @@ function TopicRightPaneToggle() {
   )
 }
 
+function TopicRightPaneShortcuts({ topicId }: { topicId?: string }) {
+  const { t } = useTranslation()
+  const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
+  const hasBranchPanel = !!topicId
+
+  return (
+    <>
+      <ResourcePaneShortcut />
+      {hasBranchPanel && (
+        <Shell.TabShortcut
+          tab="branch"
+          label={t('chat.message.flow.title')}
+          icon={<GitBranch className="size-3.5" />}
+        />
+      )}
+      {hasBranchPanel && enableDeveloperMode && (
+        <Shell.TabShortcut tab="trace" label={t('trace.label')} icon={<Activity className="size-3.5" />} />
+      )}
+    </>
+  )
+}
+
 export const TopicRightPane = Object.assign(TopicRightPaneProvider, {
   Host: TopicRightPaneHost,
   MaximizedOverlay: TopicRightPaneMaximizedOverlay,
-  Toggle: TopicRightPaneToggle
+  Toggle: TopicRightPaneToggle,
+  Shortcuts: TopicRightPaneShortcuts
 })

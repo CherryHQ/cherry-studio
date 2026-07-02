@@ -9,7 +9,7 @@ import { cn } from '@renderer/utils/style'
 import type { CommandId } from '@shared/utils/command/definitions'
 import { Maximize2, Minimize2, X } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import type { ReactNode } from 'react'
+import type { ComponentProps, MouseEvent, ReactNode } from 'react'
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -295,6 +295,56 @@ function ShellToggle({
   )
 }
 
+function ShellTabShortcut({
+  tab,
+  label,
+  icon,
+  disabled = false,
+  tooltip = label,
+  className,
+  onClick,
+  ...buttonProps
+}: Omit<ComponentProps<typeof NavbarIcon>, 'aria-label' | 'children' | 'onClick'> & {
+  tab: string
+  label: string
+  icon: ReactNode
+  tooltip?: ReactNode | false
+  onClick?: (event: MouseEvent<HTMLButtonElement>) => void
+}) {
+  const { state, actions } = useShell()
+  const handleClick = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      onClick?.(event)
+      if (event.defaultPrevented) return
+      actions.openTab(tab)
+    },
+    [actions, onClick, tab]
+  )
+
+  if (state.open || state.maximized) return null
+
+  const button = (
+    <NavbarIcon
+      {...buttonProps}
+      tone="conversation"
+      className={cn('[&_svg]:!size-3.5 shrink-0', className)}
+      disabled={disabled}
+      aria-label={label}
+      data-shell-tab-shortcut={tab}
+      onClick={handleClick}>
+      {icon}
+    </NavbarIcon>
+  )
+
+  if (tooltip === false) return button
+
+  return (
+    <Tooltip content={tooltip} delay={800}>
+      {button}
+    </Tooltip>
+  )
+}
+
 function ShellTabs({ children }: { children: ReactNode }) {
   const { state, actions } = useShell()
   return (
@@ -444,6 +494,7 @@ export const Shell = Object.assign(ShellProvider, {
   Host: ShellHost,
   MaximizedOverlay: ShellMaximizedOverlay,
   Toggle: ShellToggle,
+  TabShortcut: ShellTabShortcut,
   Tabs: ShellTabs,
   TabList: ShellTabList,
   Tab: ShellTab,

@@ -18,7 +18,7 @@ export interface ConversationShellProps {
   panePosition?: ChatPanePosition
   topBar?: ReactNode
   topRightTool?: ReactNode
-  topRightToolReserve?: 'single' | 'double' | 'history'
+  topRightToolReserve?: 'single' | 'double' | 'triple' | 'quad' | 'quint'
   center: ReactNode
   sidePanel?: ReactNode
   centerOverlay?: ReactNode
@@ -111,8 +111,24 @@ type TopBarProps = {
   isWindow: boolean
   leftPaneOpen: boolean
   leading?: ReactNode
-  topRightToolReserve: 'single' | 'double' | 'history'
+  topRightToolReserve: 'single' | 'double' | 'triple' | 'quad' | 'quint'
   children?: ReactNode
+}
+
+const EMBEDDED_TOP_RIGHT_RESERVE_CLASS: Record<TopBarProps['topRightToolReserve'], string> = {
+  single: 'pr-11',
+  double: 'pr-[76px]',
+  triple: 'pr-[108px]',
+  quad: 'pr-[140px]',
+  quint: 'pr-[172px]'
+}
+
+const WINDOW_TOP_RIGHT_RESERVE_CLASS: Record<TopBarProps['topRightToolReserve'], string> = {
+  single: 'pr-[calc(7rem+var(--window-controls-width,0px))]',
+  double: 'pr-[calc(9rem+var(--window-controls-width,0px))]',
+  triple: 'pr-[calc(11rem+var(--window-controls-width,0px))]',
+  quad: 'pr-[calc(13rem+var(--window-controls-width,0px))]',
+  quint: 'pr-[calc(15rem+var(--window-controls-width,0px))]'
 }
 
 const ConversationShellTopBar = ({ isWindow, leftPaneOpen, leading, topRightToolReserve, children }: TopBarProps) => {
@@ -137,14 +153,8 @@ const ConversationShellTopBar = ({ isWindow, leftPaneOpen, leading, topRightTool
         // plus the OS window controls corner on frameless Win/Linux (--window-controls-width, 0px elsewhere).
         !maximized &&
           (isWindow
-            ? topRightToolReserve === 'history'
-              ? 'pr-[calc(12.5rem+var(--window-controls-width,0px))]'
-              : 'pr-[calc(7rem+var(--window-controls-width,0px))]'
-            : topRightToolReserve === 'history'
-              ? 'pr-[156px]'
-              : topRightToolReserve === 'double'
-                ? 'pr-[76px]'
-                : 'pr-11')
+            ? WINDOW_TOP_RIGHT_RESERVE_CLASS[topRightToolReserve]
+            : EMBEDDED_TOP_RIGHT_RESERVE_CLASS[topRightToolReserve])
       )}>
       {leading}
       {children}

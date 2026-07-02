@@ -1,7 +1,7 @@
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import type { ResourcePaneConfig, ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
+import type { ResourcePaneConfig } from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { AgentResourceList } from '@renderer/components/chat/resources/variants/AgentResourceList'
@@ -814,13 +814,6 @@ const AgentPage = () => {
   const panePosition = 'left'
   // Classic layout = entity rail + right session panel; modern layout = the single sidebar (AgentSidePanel).
   const activeResourceAgentId = visibleSession?.agentId ?? visibleDraftSession?.agentId ?? null
-  const sessionResourcePaneCount: ResourcePaneCountButtonProps | undefined =
-    isClassicSessionLayout && activeResourceAgentId
-      ? {
-          label: t('agent.session.list.title'),
-          count: classicLayoutSessions.filter((session) => session.agentId === activeResourceAgentId).length
-        }
-      : undefined
   const createAndActivateEmptySession = useCallback(async () => {
     const agentId = activeResourceAgentId
     if (!agentId) return
@@ -953,7 +946,6 @@ const AgentPage = () => {
           replacingDraftWorkspace={replacingDraftWorkspace}
           replacingSessionWorkspace={replacingSessionWorkspace}
           resourcePane={resourcePane}
-          resourcePaneCount={sessionResourcePaneCount}
           resourcePaneRevealRequest={sessionRevealRequest}
           sessionPaneOpen={isClassicSessionLayout ? sessionPaneOpen : undefined}
           onSessionPaneOpenChange={isClassicSessionLayout ? setSessionPaneOpen : undefined}

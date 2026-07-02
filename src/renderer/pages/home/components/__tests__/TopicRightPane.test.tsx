@@ -150,6 +150,44 @@ describe('TopicRightPane', () => {
     expect(screen.getByRole('button', { name: /chat\.topics\.title/ })).toBeInTheDocument()
   })
 
+  it('shows top shortcuts for the stable right-pane tabs while closed', () => {
+    render(
+      <TopicRightPane
+        resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}>
+        <TopicRightPane.Shortcuts topicId="topic-a" />
+        <TopicRightPane.Host topicId="topic-a" traceId="trace-a" />
+      </TopicRightPane>
+    )
+
+    expect(screen.getByRole('button', { name: 'chat.topics.title' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'chat.message.flow.title' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'trace.label' })).toBeInTheDocument()
+
+    const branchShortcut = document.querySelector('[data-shell-tab-shortcut="branch"]')
+    expect(branchShortcut).toBeInTheDocument()
+
+    fireEvent.click(branchShortcut as HTMLElement)
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(document.querySelector('[data-shell-tab-shortcut="branch"]')).toBeNull()
+  })
+
+  it('hides the top trace shortcut when developer mode is off', () => {
+    developerModeEnabled.mockReturnValue(false)
+
+    render(
+      <TopicRightPane
+        resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}>
+        <TopicRightPane.Shortcuts topicId="topic-a" />
+        <TopicRightPane.Host topicId="topic-a" traceId="trace-a" />
+      </TopicRightPane>
+    )
+
+    expect(screen.getByRole('button', { name: 'chat.topics.title' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'chat.message.flow.title' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'trace.label' })).toBeNull()
+  })
+
   it('resets the open resource tab when the resource pane is removed', () => {
     const { rerender } = render(
       <TopicRightPane

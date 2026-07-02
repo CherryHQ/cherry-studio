@@ -395,6 +395,67 @@ describe('Shell.Toggle', () => {
   })
 })
 
+describe('Shell.TabShortcut', () => {
+  beforeEach(() => {
+    shortcutHandlers.clear()
+    rightPaneHostMock.notifyReservedSpaceUnavailableOnOpen = false
+  })
+
+  it('opens the requested tab and hides itself while the pane is open', () => {
+    render(
+      <Shell defaultTab="files">
+        <Shell.TabShortcut tab="status" label="Status" icon={<span data-testid="status-icon" />} />
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    expect(screen.getByRole('button', { name: 'Status' })).toBeInTheDocument()
+    expect(screen.getByTestId('status-icon')).toBeInTheDocument()
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:files:false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Status' }))
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:status:false')
+    expect(screen.queryByRole('button', { name: 'Status' })).toBeNull()
+  })
+
+  it('forwards button props for composed triggers', () => {
+    const onPointerEnter = vi.fn()
+
+    render(
+      <Shell defaultTab="files">
+        <Shell.TabShortcut
+          tab="status"
+          label="Status"
+          icon={<span data-testid="status-icon" />}
+          data-hover-card-trigger="true"
+          onPointerEnter={onPointerEnter}
+        />
+      </Shell>
+    )
+
+    const shortcut = screen.getByRole('button', { name: 'Status' })
+
+    expect(shortcut).toHaveAttribute('data-hover-card-trigger', 'true')
+
+    fireEvent.pointerEnter(shortcut)
+
+    expect(onPointerEnter).toHaveBeenCalled()
+  })
+
+  it('stays hidden when the pane mounts open', () => {
+    render(
+      <Shell defaultTab="files" defaultOpen>
+        <Shell.TabShortcut tab="files" label="Files" icon={<span data-testid="files-icon" />} />
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:false')
+    expect(screen.queryByRole('button', { name: 'Files' })).toBeNull()
+  })
+})
+
 describe('Shell.Host', () => {
   it('caps the docked right pane width so the conversation center keeps its minimum usable width', () => {
     render(

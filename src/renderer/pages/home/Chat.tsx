@@ -5,7 +5,6 @@ import { loggerService } from '@logger'
 import { type ChatPanePosition, ConversationShell } from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/messages/flow/topicMessageFlowLiveTree'
-import { ResourcePaneCountButton, type ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
 import type { ContentSearchRef } from '@renderer/components/ContentSearch'
 import { ContentSearch } from '@renderer/components/ContentSearch'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
@@ -40,7 +39,6 @@ interface Props {
   locateMessageId?: string
   onLocateMessageHandled?: () => void
   onPaneCollapse?: () => void
-  resourcePaneCount?: ResourcePaneCountButtonProps
 }
 
 const Chat: FC<Props> = (props) => {
@@ -223,11 +221,11 @@ const Chat: FC<Props> = (props) => {
       }
       topRightTool={
         <>
-          {props.resourcePaneCount && <ResourcePaneCountButton {...props.resourcePaneCount} />}
+          <TopicRightPane.Shortcuts topicId={props.activeTopic.id} />
           <TopicRightPane.Toggle />
         </>
       }
-      topRightToolReserve={props.resourcePaneCount ? 'history' : 'single'}
+      topRightToolReserve="quad"
       sidePanel={
         <CitationsPanel
           open={citationsPanelOpen}

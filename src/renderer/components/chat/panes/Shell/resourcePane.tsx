@@ -43,6 +43,14 @@ export function ResourcePaneTab() {
   )
 }
 
+/** Shared top-bar shortcut for the `resources` right-pane tab. Renders nothing outside classic layout. */
+export function ResourcePaneShortcut() {
+  const config = useResourcePane()
+  if (!config) return null
+
+  return <Shell.TabShortcut tab={RESOURCE_PANE_TAB} label={config.label} icon={<List className="size-3.5" />} />
+}
+
 /** Shared `resources` tab panel. Renders nothing outside classic layout. Place inside `Shell.Tabs`. */
 export function ResourcePanePanel() {
   const config = useResourcePane()
