@@ -108,8 +108,11 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   }, [refreshState])
 
   useEffect(() => {
+    // Update-version data is only rendered in the full view; mini mode (mounted
+    // by McpServersList) skips the fetch to avoid hitting rate-limited registries.
+    if (mini) return
     void fetchLatestVersions(false)
-  }, [fetchLatestVersions])
+  }, [fetchLatestVersions, mini])
 
   useIpcOn('binary.state_changed', (state) => {
     setBinaryState(state)
@@ -156,9 +159,6 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     }
 
     await installTool(tool)
-
-    const freshVersions = await ipcApi.request('binary.latest_versions', true)
-    if (mountedRef.current) setLatestVersions(freshVersions)
   }
 
   const handleAddCustomTool = async (tool: ManagedBinary) => {

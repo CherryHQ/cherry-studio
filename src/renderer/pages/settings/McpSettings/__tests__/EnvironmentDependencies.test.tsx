@@ -159,6 +159,14 @@ describe('EnvironmentDependencies', () => {
     await waitFor(() => expect(ipcMocks.latestVersions).toHaveBeenCalledWith(false))
   })
 
+  it('does not fetch latest versions in mini mode', async () => {
+    render(<EnvironmentDependencies mini />)
+
+    // Mini mode mounts without rendering update-version UI, so the fetch must be skipped.
+    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+    expect(ipcMocks.latestVersions).not.toHaveBeenCalled()
+  })
+
   it('shows update available badge when latest version is newer', async () => {
     ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: '1.0.0' } } })
     ipcMocks.latestVersions.mockResolvedValue({ uv: '2.0.0' })
