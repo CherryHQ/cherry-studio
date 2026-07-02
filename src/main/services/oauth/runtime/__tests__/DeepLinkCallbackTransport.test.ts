@@ -65,6 +65,31 @@ describe('DeepLinkCallbackTransport', () => {
     expect(transport.consumeCallback(new URL(`${REDIRECT_URI}?state=known-state&code=code`))).not.toBeNull()
   })
 
+  // When the user denies consent the provider redirects back with an `error`
+  // (and usually an `error_description`); surface that as a thrown error so the
+  // flow reports failure rather than silently succeeding with no code.
+  it('throws with the error_description when the user denies the request', () => {
+    const transport = new DeepLinkCallbackTransport({ redirectUri: REDIRECT_URI })
+    registerFlow(transport)
+
+    expect(() =>
+      transport.consumeCallback(
+        new URL(`${REDIRECT_URI}?state=state&error=access_denied&error_description=User%20denied%20access`)
+      )
+    ).toThrow('User denied access')
+    // The denied flow is consumed, so a replayed callback is treated as unknown.
+    expect(transport.consumeCallback(new URL(`${REDIRECT_URI}?state=state&code=code`))).toBeNull()
+  })
+
+  it('falls back to the raw error code when no description is provided', () => {
+    const transport = new DeepLinkCallbackTransport({ redirectUri: REDIRECT_URI })
+    registerFlow(transport)
+
+    expect(() => transport.consumeCallback(new URL(`${REDIRECT_URI}?state=state&error=access_denied`))).toThrow(
+      'access_denied'
+    )
+  })
+
   // The result carries the user's API keys, so it must reach exactly the flow's
   // initiator via point-to-point IpcApi send — never a broadcast.
   it('sends the consumed result point-to-point to the initiator window', () => {
@@ -75,6 +100,17 @@ describe('DeepLinkCallbackTransport', () => {
     expect(ipcApiServiceMock.send).toHaveBeenCalledWith('settings-window', 'oauth.deep_link_result', {
       state: 'state',
       apiKeys: 'k1,k2'
+    })
+  })
+
+  it('sends an error result to the initiator without any apiKeys field', () => {
+    const transport = new DeepLinkCallbackTransport({ redirectUri: REDIRECT_URI })
+
+    transport.sendConsumedResult('state', 'settings-window', { error: 'boom' })
+
+    expect(ipcApiServiceMock.send).toHaveBeenCalledWith('settings-window', 'oauth.deep_link_result', {
+      state: 'state',
+      error: 'boom'
     })
   })
 })

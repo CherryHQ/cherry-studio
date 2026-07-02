@@ -392,6 +392,23 @@ describe('OAuthRuntimeService', () => {
     expect(h.deepLinkTransportMock.sendConsumedResult).toHaveBeenCalledWith('st', 'win-1', { error: 'boom' })
   })
 
+  // User-denies path: the transport throws while consuming (error param in the
+  // callback), which also deletes the pending flow. The initiator window id is
+  // read BEFORE consume, so the initiator is still notified of the failure.
+  it('notifies the initiator when the callback is a denied/error redirect', async () => {
+    await service.startDeepLinkFlow('win-1', 'cherryin', {})
+    h.deepLinkTransportMock.consumeCallback.mockImplementation(() => {
+      throw new Error('User denied access')
+    })
+
+    await service.handleDeepLinkCallback(new URL('app://cb?state=st&error=access_denied'))
+
+    expect(h.deepLinkTransportMock.getInitiatorWindowId).toHaveBeenCalledWith('st')
+    expect(h.deepLinkTransportMock.sendConsumedResult).toHaveBeenCalledWith('st', 'win-1', {
+      error: 'User denied access'
+    })
+  })
+
   // M1: the post-persist side effect (CherryIN's API-key fetch) runs AFTER the
   // token is stored, so a transient failure there keeps the minted token rather
   // than discarding it and forcing the user through the whole flow again.
