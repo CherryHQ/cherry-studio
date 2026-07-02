@@ -138,7 +138,7 @@ function AssistantAddMenu({ onNew, onImport, onOpenLibrary }: AssistantAddMenuPr
           <ChevronDown size={12} className="opacity-70" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-44 rounded-md p-1">
+      <PopoverContent align="end" className="w-fit min-w-32 rounded-xl p-1.5">
         <MenuList className="gap-0.5">
           <MenuItem
             icon={<Plus size={14} />}
@@ -429,7 +429,7 @@ export const ResourceGrid: FC<Props> = ({
           onOpenChange={(open) => {
             if (!open && !renaming) setRenamingTag(null)
           }}>
-          <DialogContent className="max-w-sm rounded-xl">
+          <DialogContent size="sm">
             <DialogHeader>
               <DialogTitle>{t('common.rename')}</DialogTitle>
             </DialogHeader>

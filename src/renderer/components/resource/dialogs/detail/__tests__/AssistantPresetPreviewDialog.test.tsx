@@ -64,4 +64,26 @@ describe('AssistantPresetPreviewDialog overlay close', () => {
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
+
+  it('keeps the dialog open when clicking the overlay while adding', () => {
+    const onOpenChange = vi.fn()
+
+    render(
+      <AssistantPresetPreviewDialog
+        preset={preset}
+        open
+        adding
+        onOpenChange={onOpenChange}
+        onAdd={vi.fn()}
+        onOpenChat={vi.fn()}
+      />
+    )
+
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
+    expect(overlay).toBeInTheDocument()
+
+    fireEvent.click(overlay!)
+
+    expect(onOpenChange).not.toHaveBeenCalled()
+  })
 })

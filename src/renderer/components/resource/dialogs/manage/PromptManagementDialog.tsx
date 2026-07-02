@@ -121,7 +121,7 @@ export function PromptManagementDialog({ open, onOpenChange }: PromptManagementD
   return (
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="flex h-[min(640px,78vh)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[720px]">
+        <DialogContent size="xl" className="flex h-[min(640px,78vh)] flex-col gap-0 overflow-hidden p-0">
           <DialogHeader className="shrink-0 px-5 pt-5 pb-3">
             <DialogTitle>{t('settings.prompts.title')}</DialogTitle>
           </DialogHeader>

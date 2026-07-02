@@ -659,6 +659,7 @@ export function Topics({
     (isAssistantDisplayMode && (isAssistantsLoading || isAssistantPinsLoading))
   const visibleFilteredTopics = useMemo(() => (listLoading ? [] : filteredTopics), [filteredTopics, listLoading])
   const listStatus = listError ? 'error' : listLoading ? 'loading' : filteredTopics.length === 0 ? 'empty' : 'idle'
+  const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
   const openAssistantEditor = useCallback((assistantId: string) => {
     setEditDialogTarget({ kind: 'assistant', id: assistantId })
   }, [])
@@ -1044,7 +1045,7 @@ export function Topics({
         className={cn(isRightPanel && 'h-full min-h-0 border-r-0')}
         items={visibleFilteredTopics}
         status={listStatus}
-        selectedId={activeTopic?.id}
+        selectedId={hasActiveResourceMenuItem ? null : activeTopic?.id}
         groupBy={topicGroupBy}
         sectionBy={topicSectionBy}
         collapsedState={collapsedTopicState}

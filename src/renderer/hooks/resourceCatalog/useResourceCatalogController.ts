@@ -1,26 +1,22 @@
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
 import type { AgentDetail, ResourceItem, ResourceType, TagItem } from '@renderer/types/resourceCatalog'
 import { serializeAssistantForExport } from '@renderer/utils/assistantTransfer'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { DEFAULT_TAG_COLOR, getRandomTagColor } from '@renderer/utils/resourceTags'
 import type { InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { UniqueModelId } from '@shared/data/types/model'
-import type { Prompt } from '@shared/data/types/prompt'
 import type { Tag } from '@shared/data/types/tag'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAgentMutations } from './agentAdapter'
 import { useAssistantMutations } from './assistantAdapter'
-import { usePromptMutations, usePromptMutationsById } from './promptAdapter'
 import { useResourceLibrary } from './useResourceLibrary'
 
 type EditDialogState = { kind: 'assistant'; resource: Assistant } | { kind: 'agent'; resource: AgentDetail }
 
-type PromptDialogState = { prompt: Prompt | null } | null
-
 type ResourceCreateWizardKind = 'assistant' | 'agent'
+type ResourceCatalogControllerType = Extract<ResourceType, 'assistant' | 'agent' | 'skill'>
 
 type ResourceCreateWizardValues = {
   avatar: string
@@ -66,7 +62,7 @@ function buildTags(resources: ResourceItem[], backendTags: Tag[], filterType?: R
     }))
 }
 
-export function useResourceCatalogController(resourceType: ResourceType) {
+export function useResourceCatalogController(resourceType: ResourceCatalogControllerType) {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const [activeTag, setActiveTag] = useState<string | null>(null)
@@ -76,7 +72,6 @@ export function useResourceCatalogController(resourceType: ResourceType) {
   const [editDialog, setEditDialog] = useState<EditDialogState | null>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [creatingResource, setCreatingResource] = useState(false)
-  const [promptDialog, setPromptDialog] = useState<PromptDialogState>(null)
   const [selectedSkill, setSelectedSkill] = useState<InstalledSkill | null>(null)
   const [assistantImportOpen, setAssistantImportOpen] = useState(false)
   const [assistantLibraryOpen, setAssistantLibraryOpen] = useState(false)
@@ -103,9 +98,6 @@ export function useResourceCatalogController(resourceType: ResourceType) {
 
   const { createAssistant, duplicateAssistant } = useAssistantMutations()
   const { createAgent } = useAgentMutations()
-  const { createPrompt } = usePromptMutations()
-  const promptDialogPrompt = promptDialog?.prompt ?? null
-  const { updatePrompt } = usePromptMutationsById(promptDialogPrompt?.id ?? '')
   const { ensureTags } = useEnsureTags({ getDefaultColor: getRandomTagColor })
   const tagList = useTagList()
 
@@ -117,36 +109,6 @@ export function useResourceCatalogController(resourceType: ResourceType) {
   const allTagNames = useMemo(
     () => tagList.tags.map((tag) => tag.name).sort((a, b) => a.localeCompare(b, 'zh')),
     [tagList.tags]
-  )
-
-  const handleClosePromptDialog = useCallback(() => {
-    setPromptDialog(null)
-  }, [])
-
-  const handlePromptDialogSave = useCallback(
-    async (data: { title: string; content: string }) => {
-      const prompt = promptDialogPrompt
-
-      try {
-        if (prompt) {
-          await updatePrompt(data)
-        } else {
-          await createPrompt(data)
-        }
-
-        refetch()
-        setPromptDialog(null)
-      } catch (error) {
-        window.toast.error(
-          formatErrorMessageWithPrefix(
-            error,
-            t(prompt ? 'settings.prompts.errors.updateFailed' : 'settings.prompts.errors.createFailed')
-          )
-        )
-        throw error
-      }
-    },
-    [createPrompt, promptDialogPrompt, refetch, t, updatePrompt]
   )
 
   useEffect(() => {
@@ -172,8 +134,6 @@ export function useResourceCatalogController(resourceType: ResourceType) {
       setEditDialogOpen(true)
     } else if (resource.type === 'skill') {
       setSelectedSkill(resource.raw)
-    } else if (resource.type === 'prompt') {
-      setPromptDialog({ prompt: resource.raw })
     }
   }, [])
 
@@ -218,8 +178,6 @@ export function useResourceCatalogController(resourceType: ResourceType) {
       setCreateDialogOpen(true)
     } else if (type === 'skill') {
       setSkillImportOpen(true)
-    } else if (type === 'prompt') {
-      setPromptDialog({ prompt: null })
     }
   }, [])
 
@@ -318,8 +276,6 @@ export function useResourceCatalogController(resourceType: ResourceType) {
       deleteConfirm,
       editDialog,
       editDialogOpen,
-      promptDialogOpen: promptDialog !== null,
-      promptDialogPrompt,
       selectedSkill,
       skillImportOpen,
       setAssistantImportOpen,
@@ -327,11 +283,9 @@ export function useResourceCatalogController(resourceType: ResourceType) {
       setDeleteConfirm,
       setSelectedSkill,
       setSkillImportOpen,
-      handleClosePromptDialog,
       handleCreateDialogOpenChange,
       handleEditDialogOpenChange,
       handleEditSaved,
-      handlePromptDialogSave,
       handleSubmitCreateResource
     }
   }

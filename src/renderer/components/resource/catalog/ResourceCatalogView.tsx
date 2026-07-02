@@ -4,7 +4,6 @@ import {
   AssistantEditDialog,
   ImportAssistantDialog,
   ImportSkillDialog,
-  PromptEditDialog,
   ResourceCreateWizard,
   ResourceDeleteConfirmDialog,
   SkillDetailDialog
@@ -20,10 +19,12 @@ import { useTranslation } from 'react-i18next'
 import { AssistantLibraryDialog } from './AssistantLibraryDialog'
 import { ResourceGrid } from './ResourceGrid'
 
+type ResourceCatalogViewType = Extract<ResourceType, 'assistant' | 'agent' | 'skill'>
+
 export type ResourceCatalogViewProps = {
   className?: string
   onOpenAssistantChat?: (assistantId: string) => void
-  resourceType: ResourceType
+  resourceType: ResourceCatalogViewType
   toolbarLeading?: ReactNode
 }
 
@@ -119,12 +120,6 @@ export function ResourceCatalogView({
           onSaved={dialogs.handleEditSaved}
         />
       ) : null}
-      <PromptEditDialog
-        open={dialogs.promptDialogOpen}
-        prompt={dialogs.promptDialogPrompt}
-        onSave={dialogs.handlePromptDialogSave}
-        onCancel={dialogs.handleClosePromptDialog}
-      />
     </div>
   )
 }

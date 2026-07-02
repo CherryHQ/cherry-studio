@@ -10,10 +10,19 @@ const createAssistantMock = vi.fn(async () => ({ id: 'assistant-1' }))
 const toastSuccess = vi.fn()
 const toastError = vi.fn()
 
-const presetsFixture = [
-  { id: 'p1', name: 'Web Generator', description: 'Build a web page', group: ['Featured'] },
-  { id: 'p2', name: 'Chain of Thought', prompt: 'thinking protocol', group: ['Featured'] }
-]
+const assistantCatalogMocks = vi.hoisted(() => ({
+  presetsFixture: [
+    { id: 'p1', name: 'Web Generator', description: 'Build a web page', group: ['Featured'] },
+    { id: 'p2', name: 'Chain of Thought', prompt: 'thinking protocol', group: ['Featured'] }
+  ],
+  state: {
+    isLoading: false,
+    presets: [
+      { id: 'p1', name: 'Web Generator', description: 'Build a web page', group: ['Featured'] },
+      { id: 'p2', name: 'Chain of Thought', prompt: 'thinking protocol', group: ['Featured'] }
+    ]
+  }
+}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en-US' } })
@@ -27,7 +36,7 @@ vi.mock('@renderer/hooks/useAssistantCatalogPresets', async (importOriginal) => 
   const actual = await importOriginal<typeof AssistantCatalogPresetsModule>()
   return {
     ...actual,
-    useAssistantCatalogPresets: () => ({ isLoading: false, presets: presetsFixture })
+    useAssistantCatalogPresets: () => assistantCatalogMocks.state
   }
 })
 
@@ -67,6 +76,7 @@ vi.mock('@cherrystudio/ui', () => {
     DialogTitle: ({ children }: { children?: ReactNode }) => <h2>{children}</h2>,
     EmptyState: ({ title }: { title?: string }) => <div data-testid="empty-state">{title}</div>,
     Input: (props: ComponentProps<'input'>) => <input {...props} />,
+    Skeleton: (props: ComponentProps<'div'>) => <div data-testid="skeleton" {...props} />,
     Button: ({
       children,
       loading,
@@ -87,6 +97,8 @@ vi.mock('@cherrystudio/ui', () => {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  assistantCatalogMocks.state.isLoading = false
+  assistantCatalogMocks.state.presets = assistantCatalogMocks.presetsFixture
   Object.assign(window, { toast: { ...window.toast, success: toastSuccess, error: toastError } })
 })
 
@@ -131,6 +143,17 @@ describe('AssistantLibraryDialog', () => {
     expect(within(tabs).getByText('Featured')).toBeInTheDocument()
     // The catalog's "我的" tab is dropped in the library dialog.
     expect(within(tabs).queryByText('Mine')).not.toBeInTheDocument()
+  })
+
+  it('shows a loading skeleton instead of the empty state while presets load', () => {
+    assistantCatalogMocks.state.isLoading = true
+    assistantCatalogMocks.state.presets = []
+
+    renderDialog()
+
+    expect(screen.getByTestId('assistant-library-loading')).toBeInTheDocument()
+    expect(screen.getAllByTestId('skeleton')).not.toHaveLength(0)
+    expect(screen.queryByTestId('empty-state')).not.toBeInTheDocument()
   })
 
   it('adds a preset via createAssistant and swaps the row action to "go to chat"', async () => {

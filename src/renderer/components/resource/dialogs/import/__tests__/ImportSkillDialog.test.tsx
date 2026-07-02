@@ -74,6 +74,28 @@ describe('ImportSkillDialog', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
+  it('keeps the dialog open when clicking the overlay while installing', async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    let resolveInstall: (value: unknown) => void = () => {}
+    installFromZip.mockReturnValue(new Promise((resolve) => (resolveInstall = resolve)))
+
+    render(<ImportSkillDialog open onOpenChange={onOpenChange} />)
+
+    await user.click(screen.getByRole('button', { name: 'settings.skills.installFromZip' }))
+    await waitFor(() => expect(installFromZip).toHaveBeenCalledWith('/tmp/broken.zip'))
+
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
+    expect(overlay).toBeInTheDocument()
+
+    fireEvent.click(overlay!)
+
+    expect(onOpenChange).not.toHaveBeenCalled()
+
+    resolveInstall(undefined)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'settings.skills.installFromZip' })).toBeEnabled())
+  })
+
   it('shows the failure inline without a second toast (the install hook already toasts)', async () => {
     const user = userEvent.setup()
     installFromZip.mockRejectedValue(new Error('corrupt archive'))

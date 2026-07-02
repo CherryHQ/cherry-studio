@@ -1464,6 +1464,7 @@ const Sessions = ({
       : filteredGroupedSessions.length === 0
         ? 'empty'
         : 'idle'
+  const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
 
   return (
     <SessionResourceList<SessionListItem>
@@ -1471,7 +1472,7 @@ const Sessions = ({
       className={cn(isRightPanel && 'h-full min-h-0 border-r-0')}
       items={visibleGroupedSessions}
       status={listStatus}
-      selectedId={activeSessionId}
+      selectedId={hasActiveResourceMenuItem ? null : activeSessionId}
       groupBy={sessionGroupBy}
       sectionBy={sessionSectionBy}
       collapsedState={collapsedSessionState}

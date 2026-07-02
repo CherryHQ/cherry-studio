@@ -89,7 +89,7 @@ export function ResourceCard({ resource: r, allTagNames, onDelete, onDuplicate, 
                     side="bottom"
                     align="end"
                     sideOffset={6}
-                    className="w-40 rounded-lg border-border p-1"
+                    className="w-fit min-w-32 rounded-xl border-border p-1.5"
                     onClick={(e) => e.stopPropagation()}>
                     <ResourceCardMenu
                       resource={r}
