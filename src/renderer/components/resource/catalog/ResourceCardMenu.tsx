@@ -189,6 +189,7 @@ export function ResourceCardMenu({
                       aria-disabled={bindingPending || undefined}
                       onClick={() => toggleTag(tag)}
                       onKeyDown={(e) => {
+                        if (e.target !== e.currentTarget) return
                         if (bindingPending) return
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault()

@@ -1,7 +1,7 @@
 import type * as AssistantCatalogPresetsModule from '@renderer/hooks/useAssistantCatalogPresets'
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ComponentProps, ReactNode } from 'react'
+import { type ComponentProps, type ReactNode, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AssistantLibraryDialog } from '../AssistantLibraryDialog'
@@ -96,6 +96,19 @@ function renderDialog(props: Partial<ComponentProps<typeof AssistantLibraryDialo
   return render(<AssistantLibraryDialog open onOpenChange={vi.fn()} onAssistantAdded={vi.fn()} {...props} />)
 }
 
+function ControlledAssistantLibraryDialog(props: Partial<ComponentProps<typeof AssistantLibraryDialog>> = {}) {
+  const [open, setOpen] = useState(true)
+
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)}>
+        open library
+      </button>
+      <AssistantLibraryDialog open={open} onOpenChange={setOpen} onAssistantAdded={vi.fn()} {...props} />
+    </>
+  )
+}
+
 describe('AssistantLibraryDialog', () => {
   it('allows closing from the overlay', () => {
     const onOpenChange = vi.fn()
@@ -134,5 +147,24 @@ describe('AssistantLibraryDialog', () => {
     expect(onAssistantAdded).toHaveBeenCalledTimes(1)
     expect(toastSuccess).toHaveBeenCalledWith('common.add_success')
     expect(await screen.findByText('library.assistant_catalog.go_to_chat')).toBeInTheDocument()
+  })
+
+  it('clears added preset actions when the dialog closes', async () => {
+    const user = userEvent.setup()
+    render(<ControlledAssistantLibraryDialog />)
+
+    await screen.findByText('Web Generator')
+    await user.click(screen.getAllByText('library.assistant_catalog.add')[0])
+
+    expect(await screen.findByText('library.assistant_catalog.go_to_chat')).toBeInTheDocument()
+
+    await user.click(screen.getByTestId('dialog-overlay'))
+    await waitFor(() => expect(screen.queryByTestId('assistant-library-dialog')).not.toBeInTheDocument())
+
+    await user.click(screen.getByRole('button', { name: 'open library' }))
+
+    expect(await screen.findByText('Web Generator')).toBeInTheDocument()
+    expect(screen.queryByText('library.assistant_catalog.go_to_chat')).not.toBeInTheDocument()
+    expect(screen.getAllByText('library.assistant_catalog.add')).toHaveLength(2)
   })
 })

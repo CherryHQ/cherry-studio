@@ -84,6 +84,7 @@ export function AssistantLibraryDialog({
     if (open) return
     setSearch('')
     setActiveTab(LIBRARY_ALL_TAB)
+    setAddedAssistantPresets({})
     setPreviewPreset(null)
   }, [open])
 

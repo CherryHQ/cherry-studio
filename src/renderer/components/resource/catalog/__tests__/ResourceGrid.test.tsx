@@ -86,6 +86,7 @@ vi.mock('@cherrystudio/ui', async () => {
       onCheckedChange?: (checked: boolean) => void
       size?: string
     }) => {
+      const { onKeyDown, ...buttonProps } = props
       void size
       return (
         <button
@@ -93,7 +94,11 @@ vi.mock('@cherrystudio/ui', async () => {
           role="checkbox"
           aria-checked={checked}
           onClick={() => onCheckedChange?.(!checked)}
-          {...props}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') event.preventDefault()
+            onKeyDown?.(event)
+          }}
+          {...buttonProps}
         />
       )
     },
@@ -598,6 +603,32 @@ describe('ResourceCardMenu tag binding', () => {
   beforeEach(() => {
     ensureTagsMock.mockReset()
     updateAssistantMock.mockReset()
+  })
+
+  it('does not let nested checkbox keyboard events toggle a tag through the row', async () => {
+    const user = userEvent.setup()
+    ensureTagsMock.mockResolvedValue([{ id: 'tag-alpha', name: 'alpha' }])
+    updateAssistantMock.mockResolvedValue({})
+
+    render(
+      <ResourceCardMenu
+        resource={createAssistantResource()}
+        onClose={vi.fn()}
+        onDuplicate={vi.fn()}
+        onDelete={vi.fn()}
+        onExport={vi.fn()}
+        onUpdateResourceTags={vi.fn()}
+        allTagNames={['alpha']}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: /library.action.manage_tags/ }))
+    screen.getByRole('checkbox').focus()
+
+    await user.keyboard('[Enter]')
+
+    expect(ensureTagsMock).not.toHaveBeenCalled()
+    expect(updateAssistantMock).not.toHaveBeenCalled()
   })
 
   it('blocks a second tag write while the first one is still pending', async () => {
