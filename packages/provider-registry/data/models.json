@@ -1,6 +1,60 @@
 {
   "models": [
     {
+      "capabilities": ["function-call", "reasoning", "image-recognition"],
+      "contextWindow": 512000,
+      "description": "Grok Build is xAI's agentic coding model, available through the SuperGrok subscription via the Grok CLI proxy.",
+      "family": "grok",
+      "id": "grok-build",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 30000,
+      "name": "Grok Build",
+      "openWeights": false,
+      "outputModalities": ["text"],
+      "ownedBy": "xai",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        }
+      }
+    },
+    {
+      "capabilities": ["function-call", "image-recognition"],
+      "contextWindow": 200000,
+      "description": "Composer 2.5 Fast is xAI's fast coding model, available through the SuperGrok subscription via the Grok CLI proxy.",
+      "family": "grok",
+      "id": "grok-composer-2.5-fast",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 30000,
+      "name": "Composer 2.5 Fast",
+      "openWeights": false,
+      "outputModalities": ["text"],
+      "ownedBy": "xai",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 3
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 15
+        }
+      }
+    },
+    {
       "capabilities": ["embedding"],
       "contextWindow": 512,
       "family": "text-embedding",

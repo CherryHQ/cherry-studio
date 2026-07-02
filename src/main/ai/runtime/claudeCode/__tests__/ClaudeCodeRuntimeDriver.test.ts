@@ -480,6 +480,33 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('logs non-salvage SDK failures before surfacing the runtime error', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    queryQueue.push({ type: 'system', subtype: 'init', session_id: 'resume-init' })
+    await events.next()
+    void connection.send({ message: userMessage() })
+    await events.next()
+
+    queryQueue.push({ type: 'result', subtype: 'error_during_execution', session_id: 'resume-init', usage: {} })
+
+    await expect(events.next()).resolves.toMatchObject({ value: { type: 'chunk', chunk: { type: 'finish' } } })
+    await expect(events.next()).resolves.toMatchObject({ value: { type: 'error' } })
+    expect(mockMainLoggerService.error).toHaveBeenCalledWith(
+      'Claude Code query loop failed',
+      expect.objectContaining({ sessionId: 'session-1', modelId: 'sonnet-sdk', error: expect.any(Error) })
+    )
+    void connection.close()
+  })
+
   it('warns and drops turn-complete when a result arrives with no active turn', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
