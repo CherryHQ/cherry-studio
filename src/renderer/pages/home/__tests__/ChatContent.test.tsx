@@ -850,7 +850,7 @@ describe('ChatContent', () => {
     })
 
     await waitFor(() => {
-      expect(refresh).toHaveBeenCalledTimes(2)
+      expect(refresh).toHaveBeenCalledTimes(1)
       expect(onBranchLiveStateChange).toHaveBeenLastCalledWith(null)
     })
   })

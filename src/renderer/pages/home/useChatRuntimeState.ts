@@ -153,7 +153,6 @@ export function useChatRuntimeState({
   const {
     overlay,
     liveAssistants,
-    disposeOverlay,
     reset: resetOverlay
   } = useExecutionOverlay(topic.id, branchActiveExecutions, messages, {
     onFinish: (executionId, event) => finishRef.current?.(executionId, event)
@@ -162,8 +161,8 @@ export function useChatRuntimeState({
   // Deterministic overlay→DB handoff at terminal (see hook docs). The overlay's
   // `onFinish` is suppressed when an execution leaves `activeExecutions`, so a
   // torn-down turn's live card would otherwise override the finalized DB row.
-  // Refresh-then-dispose off the status edge; branch-rollback/bookkeeping stays
-  // in `handleExecutionFinish`. Excludes awaiting-approval (card must remain).
+  // Refresh-then-reset off the status edge; branch bookkeeping stays in
+  // `handleExecutionFinish`. Excludes awaiting-approval (card must remain).
   useTopicOverlayHandoffOnTerminal(topic.id, async () => {
     try {
       await refresh()
@@ -300,15 +299,12 @@ export function useChatRuntimeState({
         try {
           if (isError || !message.parts?.length) {
             await cache.rollbackBranch()
-          } else {
-            await refresh()
           }
           await invalidateCache(treeCachePath)
         } catch (err) {
           logger.warn('failed to reconcile topic branch flow after execution finish', err as Error)
         } finally {
           finishedBranchExecutionIdsRef.current.add(executionId)
-          disposeOverlay(message.id)
           setBranchLiveExecutions((current) => current.filter((execution) => execution.executionId !== executionId))
           const hasRemainingExecutions = branchActiveExecutions.some(
             (execution) => !finishedBranchExecutionIdsRef.current.has(execution.executionId)
@@ -323,7 +319,7 @@ export function useChatRuntimeState({
         }
       })()
     },
-    [branchActiveExecutions, cache, disposeOverlay, invalidateCache, onBranchLiveStateChange, refresh, topic.id]
+    [branchActiveExecutions, cache, invalidateCache, onBranchLiveStateChange, topic.id]
   )
   finishRef.current = handleExecutionFinish
 

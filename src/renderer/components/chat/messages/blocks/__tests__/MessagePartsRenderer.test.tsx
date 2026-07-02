@@ -832,6 +832,37 @@ describe('MessagePartsRenderer', () => {
     ])
   })
 
+  it('shows the collapsed preview while awaiting approval even if the persisted message row is success', () => {
+    mockIsActiveTurnTarget.mockReturnValue(true)
+    mockTopicStreamState.status = 'awaiting-approval'
+    mockTopicStreamState.isPending = false
+
+    renderParts(
+      [
+        { type: 'reasoning', text: 'checking market source', state: 'done' },
+        { type: 'dynamic-tool', toolCallId: 'fetch-a', toolName: 'fetchTxt', state: 'output-available', output: {} },
+        { type: 'reasoning', text: 'retrying with headers', state: 'done' },
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'ask',
+          toolName: 'AskUserQuestion',
+          state: 'input-available',
+          input: { questions: [{ header: 'fetchTxt', question: 'Allow this Claude tool?', options: [] }] }
+        }
+      ] as unknown as CherryMessagePart[],
+      msg({ status: 'success' })
+    )
+
+    expect(screen.getByRole('button', { name: /1 tool calls/ })).toHaveAttribute('aria-expanded', 'false')
+    const preview = screen.getByTestId('tool-history-preview')
+    expect(within(preview).getByTestId('mock-message-tools')).toHaveAttribute('data-tool-name', 'fetchTxt')
+    expect(within(preview).queryByText('Allow this Claude tool?')).toBeNull()
+    expect(screen.getAllByTestId('mock-message-tools').map((node) => node.getAttribute('data-tool-name'))).toEqual([
+      'fetchTxt',
+      'AskUserQuestion'
+    ])
+  })
+
   it('moves the final answer below the collapsed toolgroup after the active turn completes', () => {
     mockIsActiveTurnTarget.mockReturnValue(true)
 
@@ -1080,7 +1111,7 @@ describe('MessagePartsRenderer', () => {
     ])
   })
 
-  it('filters completed reasoning from expanded multi-tool runs', () => {
+  it('keeps completed reasoning inside expanded multi-tool runs', () => {
     renderParts([
       { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
       { type: 'reasoning', text: 'deep thought between tools', state: 'done' },
@@ -1094,7 +1125,7 @@ describe('MessagePartsRenderer', () => {
 
     fireEvent.click(foldButton)
 
-    expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
+    expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('deep thought between tools')
     expect(screen.getAllByTestId('mock-message-tools').map((node) => node.getAttribute('data-tool-name'))).toEqual([
       'list',
       'read'
@@ -1130,7 +1161,7 @@ describe('MessagePartsRenderer', () => {
     ])
   })
 
-  it('filters completed trailing reasoning from a lone tool fold', () => {
+  it('keeps completed trailing reasoning inside a lone tool fold', () => {
     renderParts([
       { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
       { type: 'reasoning', text: 'final deep thought after tool', state: 'done' }
@@ -1144,10 +1175,10 @@ describe('MessagePartsRenderer', () => {
     fireEvent.click(foldButton)
 
     expect(screen.getByTestId('mock-message-tools').getAttribute('data-tool-name')).toBe('list')
-    expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
+    expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('final deep thought after tool')
   })
 
-  it('filters completed trailing reasoning from an agent + read fold', () => {
+  it('keeps completed trailing reasoning inside an agent + read fold', () => {
     renderParts([
       { type: 'dynamic-tool', toolCallId: 'agent-a', toolName: 'Agent', state: 'output-available', output: {} },
       { type: 'dynamic-tool', toolCallId: 'read-a', toolName: 'Read', state: 'output-available', output: {} },
@@ -1166,7 +1197,7 @@ describe('MessagePartsRenderer', () => {
       'Agent',
       'Read'
     ])
-    expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
+    expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('agent flow final thought')
   })
 
   it('folds a single completed reasoning block behind a completed reasoning header', () => {

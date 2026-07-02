@@ -230,7 +230,6 @@ function getPreviewGroupedEntries(entries: readonly PartEntry[], limit: number):
 
   for (let index = entries.length - 1; index >= 0; index--) {
     const entry = entries[index]
-    if (isCompletedReasoningMessagePart(entry.part)) continue
 
     const latestGroup = reversedGroups[reversedGroups.length - 1]
     if (Array.isArray(latestGroup) && canJoinPreviewGroup(entry, latestGroup[0])) {
@@ -273,10 +272,6 @@ function isSummaryMessagePart(part: CherryMessagePart): boolean {
 
 function isReasoningMessagePart(part: CherryMessagePart): boolean {
   return (part.type as string) === 'reasoning' && !!(part as ReasoningUIPart).text?.trim()
-}
-
-function isCompletedReasoningMessagePart(part: CherryMessagePart): boolean {
-  return isReasoningMessagePart(part) && (part as ReasoningUIPart).state !== 'streaming'
 }
 
 function isFoldableToolPart(part: CherryMessagePart): boolean {
@@ -695,7 +690,6 @@ function getToolHistoryGroup(
   hasResult: boolean
   hasLiveProcessTail: boolean
   summaryType: 'tools' | 'thinking'
-  showCompletedReasoning: boolean
 } | null {
   if (message.role !== 'assistant') return null
 
@@ -707,8 +701,7 @@ function getToolHistoryGroup(
       toolCount: 0,
       hasResult: singleReasoningGroup.resultEntries.some((entry) => isResultPart(entry.part)),
       hasLiveProcessTail: isActiveTurnProcessing,
-      summaryType: 'thinking',
-      showCompletedReasoning: true
+      summaryType: 'thinking'
     }
   }
 
@@ -753,8 +746,7 @@ function getToolHistoryGroup(
     toolCount,
     hasResult,
     hasLiveProcessTail,
-    summaryType: 'tools',
-    showCompletedReasoning: false
+    summaryType: 'tools'
   }
 }
 
@@ -780,8 +772,7 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
   message,
   toolCount,
   isProcessing,
-  summary,
-  showCompletedReasoning
+  summary
 }: {
   entries: readonly PartEntry[]
   hasLiveProcessTail: boolean
@@ -789,7 +780,6 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
   toolCount: number
   isProcessing: boolean
   summary: React.ReactNode
-  showCompletedReasoning: boolean
 }) {
   const { t } = useTranslation()
   const [isExpanded, setIsExpanded] = React.useState(false)
@@ -799,10 +789,7 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
   const wasPreviewVisibleRef = React.useRef(false)
   const shouldSmoothPreviewScrollRef = React.useRef(false)
 
-  const renderableEntries = useMemo(
-    () => (showCompletedReasoning ? entries : entries.filter((entry) => !isCompletedReasoningMessagePart(entry.part))),
-    [entries, showCompletedReasoning]
-  )
+  const renderableEntries = entries
   const showLiveProgress = isProcessing && hasLiveProcessTail
   const shouldHoldPreview = isProcessing
   const wasHoldingPreviewRef = React.useRef(shouldHoldPreview)
@@ -968,7 +955,7 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
   // consumers do not over-scope topic-level stream status to user messages.
   const isProcessing = useIsActiveTurnTarget(message)
   const isActiveTurnProcessing =
-    isProcessing && message.status !== 'success' && (topicStreamStatus === undefined || topicTurnState.isTurnActive)
+    isProcessing && (topicStreamStatus === undefined ? message.status !== 'success' : topicTurnState.isTurnActive)
 
   const partEntries = useMemo(
     () => messageParts.flatMap((part, index) => (hasPartParentToolCallId(part) ? [] : [{ part, index }])),
@@ -1045,7 +1032,6 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
                 ? t(isActiveTurnProcessing ? 'message.tools.thinkingHeader' : 'common.reasoning_content')
                 : t('message.tools.groupHeader', { count: toolHistoryGroup.toolCount })
             }
-            showCompletedReasoning={toolHistoryGroup.showCompletedReasoning}
           />
         </AnimatedBlockWrapper>
       )}
