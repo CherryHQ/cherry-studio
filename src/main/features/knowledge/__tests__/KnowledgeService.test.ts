@@ -1286,17 +1286,17 @@ describe('KnowledgeService', () => {
       }
     ])
 
-    const workflowService = (
+    const ingestionService = (
       service as unknown as {
-        workflowService: {
+        ingestionService: {
           scheduleItem(baseId: string, itemId: string, parentJobId?: string | null): Promise<void>
         }
       }
-    ).workflowService
+    ).ingestionService
 
     // The processed-artifact reservation guard must treat the note snapshot as occupied (it lives
     // under `raw/` too), so it refuses the colliding `.md` output instead of overwriting it on disk.
-    await expect(workflowService.scheduleItem('kb-1', 'file-1')).rejects.toThrow(
+    await expect(ingestionService.scheduleItem('kb-1', 'file-1')).rejects.toThrow(
       'Knowledge file already exists: source.md'
     )
     expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
@@ -1351,14 +1351,14 @@ describe('KnowledgeService', () => {
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: 'doc2x' }))
     knowledgeItemGetByIdMock.mockReturnValueOnce(processingFile)
 
-    const workflowService = (
+    const ingestionService = (
       service as unknown as {
-        workflowService: {
+        ingestionService: {
           scheduleItem(baseId: string, itemId: string, parentJobId?: string | null): Promise<void>
         }
       }
-    ).workflowService
-    await workflowService.scheduleItem('kb-1', 'file-1', 'reindex-job')
+    ).ingestionService
+    await ingestionService.scheduleItem('kb-1', 'file-1', 'reindex-job')
 
     expect(fileProcessingStartJobMock).toHaveBeenCalledWith(
       {
@@ -1400,15 +1400,15 @@ describe('KnowledgeService', () => {
       throw new Error('check enqueue failed')
     })
 
-    const workflowService = (
+    const ingestionService = (
       service as unknown as {
-        workflowService: {
+        ingestionService: {
           scheduleItem(baseId: string, itemId: string, parentJobId?: string | null): Promise<void>
         }
       }
-    ).workflowService
+    ).ingestionService
 
-    await expect(workflowService.scheduleItem('kb-1', 'file-1')).rejects.toThrow('check enqueue failed')
+    await expect(ingestionService.scheduleItem('kb-1', 'file-1')).rejects.toThrow('check enqueue failed')
 
     expect(fileProcessingStartJobMock).toHaveBeenCalled()
     expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-file-processing-check-enqueue-failed')
@@ -1424,15 +1424,15 @@ describe('KnowledgeService', () => {
     })
     cancelMock.mockRejectedValueOnce(new Error('cancel failed'))
 
-    const workflowService = (
+    const ingestionService = (
       service as unknown as {
-        workflowService: {
+        ingestionService: {
           scheduleItem(baseId: string, itemId: string, parentJobId?: string | null): Promise<void>
         }
       }
-    ).workflowService
+    ).ingestionService
 
-    await expect(workflowService.scheduleItem('kb-1', 'file-1')).rejects.toThrow('check enqueue failed')
+    await expect(ingestionService.scheduleItem('kb-1', 'file-1')).rejects.toThrow('check enqueue failed')
     expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-file-processing-check-enqueue-failed')
   })
 
@@ -1442,14 +1442,14 @@ describe('KnowledgeService', () => {
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: 'doc2x' }))
     knowledgeItemGetByIdMock.mockReturnValueOnce(processingFile)
 
-    const workflowService = (
+    const ingestionService = (
       service as unknown as {
-        workflowService: {
+        ingestionService: {
           scheduleItem(baseId: string, itemId: string, parentJobId?: string | null): Promise<void>
         }
       }
-    ).workflowService
-    await workflowService.scheduleItem('kb-1', 'file-1', 'reindex-job')
+    ).ingestionService
+    await ingestionService.scheduleItem('kb-1', 'file-1', 'reindex-job')
 
     expect(enqueueMock).toHaveBeenCalledWith(
       'knowledge.index-documents',
@@ -1466,9 +1466,9 @@ describe('KnowledgeService', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-04-08T00:00:00.000Z'))
     const service = new KnowledgeService()
-    const workflowService = (
+    const ingestionService = (
       service as unknown as {
-        workflowService: {
+        ingestionService: {
           scheduleFileProcessingCheck(
             baseId: string,
             itemId: string,
@@ -1477,9 +1477,9 @@ describe('KnowledgeService', () => {
           ): Promise<void>
         }
       }
-    ).workflowService
+    ).ingestionService
 
-    await workflowService.scheduleFileProcessingCheck('kb-1', 'file-1', 'fp-job-1', {
+    await ingestionService.scheduleFileProcessingCheck('kb-1', 'file-1', 'fp-job-1', {
       pollRound: 1,
       firstScheduledAt: Date.parse('2026-04-08T00:00:00.000Z'),
       parentJobId: 'check-job-0'

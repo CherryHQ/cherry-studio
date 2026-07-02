@@ -8,13 +8,13 @@ import {
   type CreateKnowledgeBaseDto,
   type KnowledgeAddItemInput,
   KnowledgeAddItemInputSchema,
-  type KnowledgeAddItemsResult,
   type KnowledgeBase,
   type KnowledgeItem,
   type RestoreKnowledgeBaseDto,
   type RestoreKnowledgeBaseResult
 } from '@shared/data/types/knowledge'
 
+import type { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionService'
 import { classifyKnowledgeItemSource } from '../items'
 import type { KnowledgeLockManager } from '../KnowledgeLockManager'
 import { getKnowledgeBaseFilePath } from '../storage/pathStorage'
@@ -30,14 +30,11 @@ import {
 const logger = loggerService.withContext('Knowledge:BaseAdmin')
 const KNOWLEDGE_JOB_TYPE_SET = new Set<string>(KNOWLEDGE_JOB_TYPES)
 
-/** The add-items entry `restoreBase` feeds the restored items through (the facade's guarded add flow). */
-type AddKnowledgeItemsFn = (baseId: string, items: KnowledgeAddItemInput[]) => Promise<KnowledgeAddItemsResult>
-
 /** Knowledge base lifecycle: create (with rollback), delete, restore, and list — everything about the base row + its on-disk artifacts, not about items. */
 export class KnowledgeBaseAdminService {
   constructor(
     private readonly knowledgeLockManager: KnowledgeLockManager,
-    private readonly addItems: AddKnowledgeItemsFn
+    private readonly ingestionService: KnowledgeIngestionService
   ) {}
 
   async createBase(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
@@ -150,7 +147,7 @@ export class KnowledgeBaseAdminService {
     const inputs = restorableRootItems.map((item) => this.toRestoreRuntimeInput(sourceBase.id, item))
     const restoredBase = await this.createBase(createDto)
     try {
-      await this.addItems(restoredBase.id, inputs)
+      await this.ingestionService.addItems(restoredBase.id, inputs)
     } catch (error) {
       try {
         await this.deleteBase(restoredBase.id)

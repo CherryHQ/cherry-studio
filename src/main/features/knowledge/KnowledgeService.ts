@@ -9,7 +9,6 @@ import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges
 import {
   type CreateKnowledgeBaseDto,
   getKnowledgeItemDisplayTitle,
-  KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED,
   type KnowledgeAddConflictStrategy,
   type KnowledgeAddItemInput,
   type KnowledgeAddItemsResult,
@@ -30,28 +29,20 @@ import { KnowledgeBaseAdminService } from './base/KnowledgeBaseAdminService'
 import { embedKnowledgeQuery } from './indexing/embed'
 import { toMaterialRelativePath } from './indexing/materialFields'
 import { rerankKnowledgeSearchResults } from './indexing/rerank'
-import { classifyKnowledgeItemSource } from './items'
+import { KnowledgeIngestionService } from './ingestion/KnowledgeIngestionService'
 import { KnowledgeLockManager } from './KnowledgeLockManager'
-import { KnowledgeWorkflowService } from './KnowledgeWorkflowService'
 import { applyRelevanceThreshold, getInitialSearchScoreKind, withSearchRanks } from './query/search'
 import { createCheckFileProcessingResultJobHandler } from './tasks/checkFileProcessingResultJobHandler'
 import { createDeleteSubtreeJobHandler } from './tasks/deleteSubtreeJobHandler'
 import { createIndexDocumentsJobHandler } from './tasks/indexDocumentsJobHandler'
 import { createPrepareRootJobHandler } from './tasks/prepareRootJobHandler'
 import { createReindexSubtreeJobHandler } from './tasks/reindexSubtreeJobHandler'
-import {
-  knowledgeDeleteSubtreeIdempotencyKey,
-  knowledgeQueueName,
-  toKnowledgeBaseId,
-  toKnowledgeItemId,
-  toKnowledgeItemIds
-} from './types'
+import { toKnowledgeBaseId, toKnowledgeItemId } from './types'
 import type { KnowledgeIndexStore } from './vectorstore/indexStore/KnowledgeIndexStore'
 import type { KnowledgeIndexSearchMatch } from './vectorstore/indexStore/model'
 
 const logger = loggerService.withContext('KnowledgeService')
 const SEARCH_TOKEN_PATTERN = /[\p{L}\p{N}_]+/u
-const DELETE_RECOVERY_ROOT_CHUNK_SIZE = 500
 /**
  * Fetch this many × the requested result count as index candidates. The index
  * store only filters by material state; the item-visibility filter (missing /
@@ -61,7 +52,6 @@ const DELETE_RECOVERY_ROOT_CHUNK_SIZE = 500
 const KNOWLEDGE_SEARCH_OVERFETCH_FACTOR = 5
 /** Hard ceiling on fetched candidates, bounding the brute-force vector scan and rerank cost regardless of topK. */
 const KNOWLEDGE_SEARCH_CANDIDATE_CAP = 200
-const REINDEX_ALLOWED_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
 
 /** Max characters {@link KnowledgeService.readConcept} returns in one slice, so a large document can't flood the agent's context. */
 const CONCEPT_READ_MAX_CHARS = 20_000
@@ -265,32 +255,30 @@ function scanConceptMatches(
 @DependsOn(['KnowledgeVectorStoreService', 'JobManager', 'FileProcessingService'])
 export class KnowledgeService extends BaseService {
   private readonly knowledgeLockManager = new KnowledgeLockManager()
-  private readonly workflowService = new KnowledgeWorkflowService(this.knowledgeLockManager)
-  private readonly baseAdmin = new KnowledgeBaseAdminService(this.knowledgeLockManager, (baseId, items) =>
-    this.addItems(baseId, items)
-  )
+  private readonly ingestionService = new KnowledgeIngestionService(this.knowledgeLockManager)
+  private readonly baseAdmin = new KnowledgeBaseAdminService(this.knowledgeLockManager, this.ingestionService)
 
   protected onInit(): void {
     const jobManager = application.get('JobManager')
     jobManager.registerHandler(
       'knowledge.prepare-root',
-      createPrepareRootJobHandler(this.knowledgeLockManager, this.workflowService)
+      createPrepareRootJobHandler(this.knowledgeLockManager, this.ingestionService)
     )
     jobManager.registerHandler('knowledge.index-documents', createIndexDocumentsJobHandler(this.knowledgeLockManager))
     jobManager.registerHandler(
       'knowledge.check-file-processing-result',
-      createCheckFileProcessingResultJobHandler(this.knowledgeLockManager, this.workflowService)
+      createCheckFileProcessingResultJobHandler(this.knowledgeLockManager, this.ingestionService)
     )
     jobManager.registerHandler('knowledge.delete-subtree', createDeleteSubtreeJobHandler(this.knowledgeLockManager))
     jobManager.registerHandler(
       'knowledge.reindex-subtree',
-      createReindexSubtreeJobHandler(this.knowledgeLockManager, this.workflowService)
+      createReindexSubtreeJobHandler(this.knowledgeLockManager, this.ingestionService)
     )
   }
 
   protected async onAllReady(): Promise<void> {
-    this.recoverDeletingItems()
-    this.recoverInterruptedItems()
+    this.ingestionService.recoverDeletingItems()
+    this.ingestionService.recoverInterruptedItems()
   }
 
   async createBase(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
@@ -310,29 +298,15 @@ export class KnowledgeService extends BaseService {
     items: KnowledgeAddItemInput[],
     conflictStrategy?: KnowledgeAddConflictStrategy
   ): Promise<KnowledgeAddItemsResult> {
-    assertBaseCanRunRuntimeOperation(baseId, 'addItems')
-    return await this.workflowService.addItems(baseId, items, conflictStrategy)
+    return await this.ingestionService.addItems(baseId, items, conflictStrategy)
   }
 
   async deleteItems(baseId: string, itemIds: string[]): Promise<void> {
-    const rootItemIds = knowledgeItemService.getOutermostSelectedItemIds(baseId, itemIds)
-    if (rootItemIds.length === 0) {
-      return
-    }
-
-    await this.workflowService.deleteItems(baseId, rootItemIds)
+    await this.ingestionService.deleteItems(baseId, itemIds)
   }
 
   async reindexItems(baseId: string, itemIds: string[]): Promise<void> {
-    assertBaseCanRunRuntimeOperation(baseId, 'reindexItems')
-    const rootItemIds = knowledgeItemService.getOutermostSelectedItemIds(baseId, itemIds)
-    if (rootItemIds.length === 0) {
-      return
-    }
-
-    await this.assertSubtreesCanReindex(baseId, rootItemIds)
-
-    await this.workflowService.reindexItems(baseId, rootItemIds)
+    await this.ingestionService.reindexItems(baseId, itemIds)
   }
 
   /**
@@ -818,69 +792,6 @@ export class KnowledgeService extends BaseService {
     }
   }
 
-  /**
-   * Park items stranded mid-indexing by an app quit / restart at `failed`.
-   *
-   * Indexing handlers declare `recovery: 'abandon'`, so an interrupted job is
-   * cancelled rather than silently resumed on the next launch — a deliberate
-   * quit must not auto-spend the (paid) embedding API. The job side is handled
-   * by JobManager's startup recovery; this closes the item side. The common case
-   * (handler settled the abort as cancelled) is already flipped to `failed` by
-   * the job's onSettled; this is the boot-time safety net for the stragglers
-   * onSettled lost the race to write (process exited first) or never ran (hard
-   * kill / crash). Marking them `failed` clears the perpetual spinner and makes
-   * them reindexable so the user can finish them on demand.
-   */
-  private recoverInterruptedItems(): void {
-    try {
-      const failedCount = knowledgeItemService.failInterruptedItems(KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED)
-      if (failedCount > 0) {
-        logger.info('Recovered interrupted knowledge items', { count: failedCount })
-      }
-    } catch (error) {
-      logger.error('Failed to recover interrupted knowledge items', error as Error)
-    }
-  }
-
-  private recoverDeletingItems(): void {
-    let deletingRootGroups: Awaited<ReturnType<typeof knowledgeItemService.getDeletingRootGroups>>
-    try {
-      deletingRootGroups = knowledgeItemService.getDeletingRootGroups()
-    } catch (error) {
-      logger.error('Failed to scan deleting knowledge items for recovery', error as Error)
-      return
-    }
-
-    if (deletingRootGroups.length === 0) {
-      return
-    }
-
-    const jobManager = application.get('JobManager')
-    for (const { baseId, rootItemIds } of deletingRootGroups) {
-      for (let i = 0; i < rootItemIds.length; i += DELETE_RECOVERY_ROOT_CHUNK_SIZE) {
-        const rootItemIdChunk = rootItemIds.slice(i, i + DELETE_RECOVERY_ROOT_CHUNK_SIZE)
-        try {
-          jobManager.enqueue(
-            'knowledge.delete-subtree',
-            { baseId, rootItemIds: rootItemIdChunk },
-            {
-              idempotencyKey: knowledgeDeleteSubtreeIdempotencyKey(
-                toKnowledgeBaseId(baseId),
-                toKnowledgeItemIds(rootItemIdChunk)
-              ),
-              queue: knowledgeQueueName(toKnowledgeBaseId(baseId))
-            }
-          )
-        } catch (error) {
-          logger.error('Failed to enqueue recovered knowledge delete cleanup', error as Error, {
-            baseId,
-            rootItemIds: rootItemIdChunk
-          })
-        }
-      }
-    }
-  }
-
   private async getRootItemsInBase(baseId: string, itemIds: string[]): Promise<KnowledgeItem[]> {
     const rootIds = [...new Set(itemIds)]
     const items = await Promise.all(rootIds.map((itemId) => knowledgeItemService.getById(itemId)))
@@ -923,75 +834,4 @@ export class KnowledgeService extends BaseService {
       )
     }
   }
-
-  private async assertSubtreesCanReindex(baseId: string, rootItemIds: string[]): Promise<void> {
-    const blockingStatusCounts = new Map<KnowledgeItemStatus, number>()
-    const missingSourceItemIds: string[] = []
-    const unverifiableSourceItemIds: string[] = []
-
-    for (const rootItemId of rootItemIds) {
-      const subtreeItems = knowledgeItemService.getSubtreeItems(baseId, [rootItemId], { includeRoots: true })
-
-      // Reindex deletes the subtree's vectors before re-reading the source (reindexSubtreeJobHandler),
-      // so a root whose source is gone would lose its vectors with nothing to rebuild from — reject up
-      // front. Only the root's own source matters: a directory is rescanned from data.source and its
-      // children recreated (never read from their raw/ files), a file leaf reads its own raw/ file, and
-      // note/url always rebuild from the DB / network. A v1-migrated folder child reindexed on its own
-      // is a file root whose raw/ file never existed, so this rejects it too. Distinguish a genuinely
-      // missing source (delete-and-re-add) from one we could not verify (transient/permission error,
-      // which should retry rather than be destroyed).
-      const root = subtreeItems.find((item) => item.id === rootItemId)
-      if (root) {
-        const sourceState = await classifyKnowledgeItemSource(baseId, root)
-        if (sourceState === 'missing') {
-          missingSourceItemIds.push(rootItemId)
-        } else if (sourceState === 'unverifiable') {
-          unverifiableSourceItemIds.push(rootItemId)
-        }
-      }
-
-      for (const item of subtreeItems) {
-        if (REINDEX_ALLOWED_STATUSES.has(item.status)) {
-          continue
-        }
-
-        blockingStatusCounts.set(item.status, (blockingStatusCounts.get(item.status) ?? 0) + 1)
-      }
-    }
-
-    if (missingSourceItemIds.length > 0) {
-      throw DataApiErrorFactory.validation(
-        {
-          item: [`Knowledge item source no longer exists on disk for ${missingSourceItemIds.length} item(s)`]
-        },
-        'Cannot reindex a knowledge item whose source file or folder no longer exists; delete it and add it again to rebuild'
-      )
-    }
-
-    if (unverifiableSourceItemIds.length > 0) {
-      throw DataApiErrorFactory.validation(
-        {
-          item: [`Could not verify the knowledge item source on disk for ${unverifiableSourceItemIds.length} item(s)`]
-        },
-        'Could not verify the knowledge item source (it may be temporarily unavailable); please try again'
-      )
-    }
-
-    if (blockingStatusCounts.size === 0) {
-      return
-    }
-
-    const statusSummary = [...blockingStatusCounts.entries()]
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([status, count]) => `${status}=${count}`)
-      .join(', ')
-
-    throw DataApiErrorFactory.validation(
-      {
-        item: [`Knowledge item subtree is still running or being deleted: ${statusSummary}`]
-      },
-      'Cannot reindex knowledge item until the entire subtree is completed or failed'
-    )
-  }
-
 }

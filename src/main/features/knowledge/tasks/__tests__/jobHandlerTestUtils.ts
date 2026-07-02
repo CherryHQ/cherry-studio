@@ -342,7 +342,7 @@ export const knowledgeLockManager = {
   withBaseMutationLock: vi.fn(async (_baseId: string, task: () => Promise<unknown>) => await task())
 }
 
-export const workflowService = {
+export const ingestionService = {
   scheduleFileProcessingCheck: vi.fn(),
   scheduleIndexing: vi.fn(),
   scheduleItem: scheduleItemMock
@@ -400,7 +400,7 @@ beforeEach(() => {
   probeKnowledgeFileMock.mockResolvedValue('readable')
   probeKnowledgeSourcePathMock.mockResolvedValue('readable')
   cancelMock.mockResolvedValue({ outcome: 'cancelled' })
-  workflowService.scheduleFileProcessingCheck.mockResolvedValue(undefined)
-  workflowService.scheduleIndexing.mockResolvedValue(undefined)
+  ingestionService.scheduleFileProcessingCheck.mockResolvedValue(undefined)
+  ingestionService.scheduleIndexing.mockResolvedValue(undefined)
   scheduleItemMock.mockResolvedValue({ id: 'scheduled-job' })
 })

@@ -7,7 +7,7 @@ import type { JobContext, JobHandler } from '@main/core/job/types'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
 import type { KnowledgeLockManager } from '../KnowledgeLockManager'
-import type { KnowledgeWorkflowService } from '../KnowledgeWorkflowService'
+import type { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionService'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
 import { markUnscheduledKnowledgeItemsFailed } from '../ingestion/statusCleanup'
 import { deleteKnowledgeItemVectors } from '../cleanup/vectorCleanup'
@@ -21,7 +21,7 @@ const logger = loggerService.withContext('Knowledge:PrepareRootJobHandler')
 
 export function createPrepareRootJobHandler(
   knowledgeLockManager: KnowledgeLockManager,
-  workflowService: KnowledgeWorkflowService
+  ingestionService: KnowledgeIngestionService
 ): JobHandler<KnowledgePrepareRootPayload> {
   return {
     // Don't auto-resume on restart — a deliberate app quit must not re-spend the
@@ -56,7 +56,7 @@ export function createPrepareRootJobHandler(
       // Source expansion creates child items, so it runs under the base mutation lock.
       const leafItems = await scanRootItem(ctx, knowledgeLockManager)
       // Child indexing is scheduled after expansion succeeds so partial scans do not enqueue stale leaves.
-      await enqueueLeafItems(ctx, leafItems, workflowService)
+      await enqueueLeafItems(ctx, leafItems, ingestionService)
     },
 
     async onSettled(event) {
@@ -150,7 +150,7 @@ async function scanRootItem(
 async function enqueueLeafItems(
   ctx: JobContext<KnowledgePrepareRootPayload>,
   leafItems: KnowledgeItem[],
-  workflowService: KnowledgeWorkflowService
+  ingestionService: KnowledgeIngestionService
 ): Promise<void> {
   const { baseId } = ctx.input
 
@@ -160,7 +160,7 @@ async function enqueueLeafItems(
   for (const [index, leaf] of leafItems.entries()) {
     ctx.signal.throwIfAborted()
     try {
-      await workflowService.scheduleItem(baseIdInput, toKnowledgeItemId(leaf.id), ctx.jobId)
+      await ingestionService.scheduleItem(baseIdInput, toKnowledgeItemId(leaf.id), ctx.jobId)
       completedSchedulingLeafIds.add(leaf.id)
     } catch (error) {
       markUnscheduledLeafItemsFailed(baseId, leafItems, completedSchedulingLeafIds, error)

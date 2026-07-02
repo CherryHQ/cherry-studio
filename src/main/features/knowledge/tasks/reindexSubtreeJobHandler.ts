@@ -9,7 +9,7 @@ import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED, type KnowledgeItemStatus } from '@shared/data/types/knowledge'
 
 import type { KnowledgeLockManager } from '../KnowledgeLockManager'
-import type { KnowledgeWorkflowService } from '../KnowledgeWorkflowService'
+import type { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionService'
 import {
   KNOWLEDGE_ACTIVE_JOB_LIMIT,
   KNOWLEDGE_ACTIVE_JOB_STATUSES,
@@ -29,7 +29,7 @@ const REINDEX_RECOVERY_ACTIVE_STATUSES = new Set<KnowledgeItemStatus>(['preparin
 
 export function createReindexSubtreeJobHandler(
   knowledgeLockManager: KnowledgeLockManager,
-  workflowService: KnowledgeWorkflowService
+  ingestionService: KnowledgeIngestionService
 ): JobHandler<KnowledgeReindexSubtreePayload> {
   return {
     // Don't auto-resume on restart — a deliberate app quit must not re-spend the
@@ -133,7 +133,7 @@ export function createReindexSubtreeJobHandler(
       try {
         for (const item of resetResult.roots) {
           ctx.signal.throwIfAborted()
-          await workflowService.scheduleItem(toKnowledgeBaseId(baseId), toKnowledgeItemId(item.id), ctx.jobId)
+          await ingestionService.scheduleItem(toKnowledgeBaseId(baseId), toKnowledgeItemId(item.id), ctx.jobId)
           completedSchedulingRootIds.add(item.id)
         }
       } catch (error) {

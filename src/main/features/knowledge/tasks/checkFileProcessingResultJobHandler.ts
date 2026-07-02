@@ -13,7 +13,7 @@ import {
 import { isTerminalStatus, type JobSnapshot } from '@shared/data/api/schemas/jobs'
 
 import type { KnowledgeLockManager } from '../KnowledgeLockManager'
-import type { KnowledgeWorkflowService } from '../KnowledgeWorkflowService'
+import type { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionService'
 import { knowledgeQueueName, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
 import { toKnowledgeRelativePath } from '../storage/pathStorage'
 import type { KnowledgeCheckFileProcessingResultPayload } from './jobTypes'
@@ -27,7 +27,7 @@ const FILE_PROCESSING_ITEM_UNAVAILABLE_CANCEL_REASON = 'knowledge-file-processin
 
 export function createCheckFileProcessingResultJobHandler(
   knowledgeLockManager: KnowledgeLockManager,
-  workflowService: KnowledgeWorkflowService
+  ingestionService: KnowledgeIngestionService
 ): JobHandler<KnowledgeCheckFileProcessingResultPayload> {
   return {
     // Don't auto-resume on restart — a deliberate app quit must not re-spend the
@@ -78,7 +78,7 @@ export function createCheckFileProcessingResultJobHandler(
         }
 
         const nextPollRound = ctx.input.pollRound + 1
-        await workflowService.scheduleFileProcessingCheck(
+        await ingestionService.scheduleFileProcessingCheck(
           toKnowledgeBaseId(baseId),
           toKnowledgeItemId(itemId),
           fileProcessingJobId,
@@ -114,7 +114,7 @@ export function createCheckFileProcessingResultJobHandler(
         }
 
         knowledgeItemService.updateIndexedRelativePath(itemId, indexedRelativePath)
-        await workflowService.scheduleIndexing(
+        await ingestionService.scheduleIndexing(
           toKnowledgeBaseId(baseId),
           toKnowledgeItemId(itemId),
           workflowParentJobId
