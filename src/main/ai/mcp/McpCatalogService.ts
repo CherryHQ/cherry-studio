@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, Injectable, Phase, type ProfileActivatable, ServicePhase } from '@main/core/lifecycle'
 import { withSpanFunc } from '@mcp-trace/trace-core'
 import type { Tool as SDKTool } from '@modelcontextprotocol/sdk/types'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
@@ -68,7 +68,7 @@ function withCache<T extends unknown[], R>(
 @Injectable('McpCatalogService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['McpRuntimeService'])
-export class McpCatalogService extends BaseService {
+export class McpCatalogService extends BaseService implements ProfileActivatable {
   private prewarmCancelled = false
 
   protected async onInit(): Promise<void> {
@@ -88,6 +88,17 @@ export class McpCatalogService extends BaseService {
   }
 
   protected async onStop(): Promise<void> {
+    this.prewarmCancelled = true
+  }
+
+  /** Re-arm and prewarm the new profile's active MCP server tools (mirrors onReady). */
+  onProfileActivate(): void {
+    this.prewarmCancelled = false
+    void this.prewarmActiveServerTools()
+  }
+
+  /** Cancel any in-flight prewarm of the previous profile's tools. */
+  onProfileDeactivate(): void {
     this.prewarmCancelled = true
   }
 
