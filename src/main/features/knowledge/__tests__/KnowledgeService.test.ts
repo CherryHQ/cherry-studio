@@ -780,6 +780,70 @@ describe('KnowledgeService', () => {
     )
   })
 
+  it("drops a BM25-only source base's pinned searchMode when restore adds an embedding model", async () => {
+    // A BM25-only source's searchMode is pinned to 'bm25' by the no-model invariant.
+    // Carrying it over into a base that now has an embedding model would leave
+    // semantic search silently disabled despite paying for the full embedding
+    // backfill; create() must see undefined here so it applies its own default.
+    const service = new KnowledgeService()
+    const sourceBase = createBase({ id: 'source-kb', embeddingModelId: null, dimensions: null, searchMode: 'bm25' })
+    const restoredBase = createBase({ id: 'restored-kb', embeddingModelId: 'provider::new', dimensions: 6 })
+    knowledgeBaseGetByIdMock.mockReturnValueOnce(sourceBase)
+    knowledgeBaseCreateMock.mockReturnValueOnce(restoredBase)
+    knowledgeItemGetRootItemsByBaseIdMock.mockReturnValueOnce([])
+
+    await expect(
+      service.restoreBase({
+        sourceBaseId: 'source-kb',
+        name: 'Restored KB',
+        embeddingModelId: 'provider::new',
+        dimensions: 6
+      })
+    ).resolves.toEqual({ base: restoredBase, skippedMissingSourceCount: 0 })
+
+    expect(knowledgeBaseCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        embeddingModelId: 'provider::new',
+        dimensions: 6,
+        searchMode: undefined,
+        hybridAlpha: undefined
+      })
+    )
+  })
+
+  it("carries over a source base's searchMode and hybridAlpha when it already had an embedding model", async () => {
+    const service = new KnowledgeService()
+    const sourceBase = createBase({
+      id: 'source-kb',
+      embeddingModelId: 'provider::embed',
+      dimensions: 3,
+      searchMode: 'hybrid',
+      hybridAlpha: 0.6
+    })
+    const restoredBase = createBase({ id: 'restored-kb', embeddingModelId: 'provider::embed', dimensions: 3 })
+    knowledgeBaseGetByIdMock.mockReturnValueOnce(sourceBase)
+    knowledgeBaseCreateMock.mockReturnValueOnce(restoredBase)
+    knowledgeItemGetRootItemsByBaseIdMock.mockReturnValueOnce([])
+
+    await expect(
+      service.restoreBase({
+        sourceBaseId: 'source-kb',
+        name: 'Restored KB',
+        embeddingModelId: 'provider::embed',
+        dimensions: 3
+      })
+    ).resolves.toEqual({ base: restoredBase, skippedMissingSourceCount: 0 })
+
+    expect(knowledgeBaseCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        embeddingModelId: 'provider::embed',
+        dimensions: 3,
+        searchMode: 'hybrid',
+        hybridAlpha: 0.6
+      })
+    )
+  })
+
   it('surfaces restored base id when restore item failure cleanup also fails', async () => {
     const service = new KnowledgeService()
     const sourceBase = createBase({ id: 'source-kb', embeddingModelId: 'provider::embed', dimensions: 3 })
@@ -1708,10 +1772,10 @@ describe('KnowledgeService', () => {
     const service = new KnowledgeService()
     // A BM25-only base has no embedding model/dimensions; a lingering non-bm25 mode
     // must not trigger an embedding round-trip the base can't satisfy.
-    knowledgeBaseGetByIdMock.mockResolvedValue(
+    knowledgeBaseGetByIdMock.mockReturnValue(
       createBase({ embeddingModelId: null, dimensions: null, searchMode: 'hybrid' })
     )
-    knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
+    knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
     storeSearchMock.mockResolvedValueOnce([
       { unitId: 'c1', materialId: NOTE_ITEM_ID, unitIndex: 0, text: 'hit', score: 3.2 }
     ])

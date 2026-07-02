@@ -360,6 +360,14 @@ export class KnowledgeService extends BaseService {
   async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<RestoreKnowledgeBaseResult> {
     const sourceBase = knowledgeBaseService.getById(dto.sourceBaseId)
 
+    // Restore always supplies an embedding model (RestoreKnowledgeBaseSchema requires
+    // it). A BM25-only source's searchMode is pinned to 'bm25' by the no-model
+    // invariant, so carrying it over would leave the restored base's semantic search
+    // silently disabled despite it now paying for the full embedding backfill. Drop
+    // it (and the always-null hybridAlpha) so create() applies its own hybrid
+    // default; a source that already had a model keeps its existing preference.
+    const gainsEmbeddings = sourceBase.embeddingModelId === null
+
     const createDto: CreateKnowledgeBaseDto = {
       name: dto.name?.trim() ?? sourceBase.name,
       dimensions: dto.dimensions,
@@ -370,8 +378,8 @@ export class KnowledgeService extends BaseService {
       chunkOverlap: sourceBase.chunkOverlap,
       threshold: sourceBase.threshold,
       documentCount: sourceBase.documentCount,
-      searchMode: sourceBase.searchMode,
-      hybridAlpha: sourceBase.hybridAlpha,
+      searchMode: gainsEmbeddings ? undefined : sourceBase.searchMode,
+      hybridAlpha: gainsEmbeddings ? undefined : sourceBase.hybridAlpha,
       groupId: sourceBase.groupId ?? undefined
     }
 
