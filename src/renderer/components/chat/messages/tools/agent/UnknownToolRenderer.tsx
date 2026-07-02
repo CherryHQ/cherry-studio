@@ -1,8 +1,8 @@
-import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { Wrench } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { ToolArgsTable } from '../shared/ArgsTable'
+import { parseMcpToolResultContent } from '../shared/mcpToolResult'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { ToolHeader } from './GenericTools'
 
@@ -28,11 +28,11 @@ const getToolDisplayName = (name: string) => {
  * Returns null if the output is not a valid CallToolResult.
  */
 function extractMcpText(output: unknown): string | null {
-  const result = CallToolResultSchema.safeParse(output)
-  if (!result.success) return null
+  const content = parseMcpToolResultContent(output)
+  if (!content) return null
 
   const textParts: string[] = []
-  for (const item of result.data.content) {
+  for (const item of content) {
     if (item.type === 'text' && item.text) {
       textParts.push(item.text)
     }
