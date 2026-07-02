@@ -1,5 +1,6 @@
 import { MenuItem } from '@cherrystudio/ui'
 import { CommandContextMenu } from '@renderer/components/command'
+import { assertNever } from '@shared/utils/assertNever'
 import type { ReactNode } from 'react'
 
 import { ActiveIndicator, SidebarTabIcon } from './primitives'
@@ -52,8 +53,26 @@ function EntryContextMenu({
   )
 }
 
+function getEntryLabel(entry: SidebarEntry): string {
+  switch (entry.kind) {
+    case 'app':
+      return entry.label
+    case 'miniapp':
+      return entry.title
+    default:
+      return assertNever(entry)
+  }
+}
+
 function isEntryActive(entry: SidebarEntry, activeItem: string, activeTabId?: string): boolean {
-  return entry.kind === 'app' ? activeItem === entry.id : activeTabId === entry.id
+  switch (entry.kind) {
+    case 'app':
+      return activeItem === entry.id
+    case 'miniapp':
+      return activeTabId === entry.id
+    default:
+      return assertNever(entry)
+  }
 }
 
 function handleEntryClick(
@@ -61,19 +80,29 @@ function handleEntryClick(
   onItemClick: ListProps['onItemClick'],
   onMiniAppTabClick?: (id: string) => void
 ) {
-  if (entry.kind === 'app') {
-    void onItemClick(entry.id)
-    return
+  switch (entry.kind) {
+    case 'app':
+      void onItemClick(entry.id)
+      return
+    case 'miniapp':
+      onMiniAppTabClick?.(entry.id)
+      return
+    default:
+      assertNever(entry)
   }
-  onMiniAppTabClick?.(entry.id)
 }
 
 function EntryIcon({ entry, size, miniAppSize }: { entry: SidebarEntry; size: number; miniAppSize: 'md' | 'lg' }) {
-  if (entry.kind === 'app') {
-    const Icon = entry.icon
-    return <Icon size={size} strokeWidth={1.6} />
+  switch (entry.kind) {
+    case 'app': {
+      const Icon = entry.icon
+      return <Icon size={size} strokeWidth={1.6} />
+    }
+    case 'miniapp':
+      return <SidebarTabIcon tab={entry} size={size} strokeWidth={1.6} miniAppSize={miniAppSize} />
+    default:
+      return assertNever(entry)
   }
-  return <SidebarTabIcon tab={entry} size={size} strokeWidth={1.6} miniAppSize={miniAppSize} />
 }
 
 function IconList({
@@ -93,7 +122,7 @@ function IconList({
       className="flex flex-col items-center gap-0.5 px-1.5 [-webkit-app-region:no-drag]">
       {(entry, guardClick) => {
         const isActive = isEntryActive(entry, activeItem, activeTabId)
-        const label = entry.kind === 'app' ? entry.label : entry.title
+        const label = getEntryLabel(entry)
 
         return (
           <SidebarTooltip key={entry.id} content={label}>
@@ -135,7 +164,7 @@ function FullList({
       className="space-y-0.5 px-2 [-webkit-app-region:no-drag]">
       {(entry, guardClick: SidebarClickGuard) => {
         const isActive = isEntryActive(entry, activeItem, activeTabId)
-        const label = entry.kind === 'app' ? entry.label : entry.title
+        const label = getEntryLabel(entry)
 
         return (
           <div key={entry.id} className="relative">

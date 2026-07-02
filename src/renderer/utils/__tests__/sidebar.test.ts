@@ -108,6 +108,18 @@ describe('sidebar config helpers', () => {
     ).toEqual([appFavorite('translate'), miniAppFavorite('calculator'), appFavorite('assistants')])
   })
 
+  it('preserves extra per-item fields through normalization (non-lossy round-trip)', () => {
+    // Future per-item params must survive the normalize round-trip instead of being
+    // rebuilt away from just the id.
+    const appWithExtra = { type: 'app', id: 'assistants', badge: 3 } as unknown as SidebarFavoriteItem
+    const miniWithExtra = { type: 'mini_app', id: 'calculator', color: '#fff' } as unknown as SidebarFavoriteItem
+
+    expect(getSidebarFavoriteItems([appWithExtra, miniWithExtra])).toEqual([
+      { type: 'app', id: 'assistants', badge: 3 },
+      { type: 'mini_app', id: 'calculator', color: '#fff' }
+    ])
+  })
+
   it('resolves menu paths and active items with the paintings provider route', () => {
     expect(getSidebarMenuPath('paintings', 'zhipu')).toBe('/app/paintings/zhipu')
     expect(resolveSidebarActiveItem('/app/paintings/zhipu')).toBe('paintings')

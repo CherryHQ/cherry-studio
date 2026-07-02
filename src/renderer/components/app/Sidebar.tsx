@@ -21,6 +21,8 @@ import {
   resolveSidebarActiveItem
 } from '@renderer/utils/sidebar'
 import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
+import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
+import { assertNever } from '@shared/utils/assertNever'
 import type { Ref } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -44,6 +46,18 @@ function getMiniAppIdFromUrl(url: string | undefined): string | undefined {
   if (!url?.startsWith(MINI_APP_ROUTE_PREFIX)) return undefined
   const appId = url.slice(MINI_APP_ROUTE_PREFIX.length).split(/[/?#]/, 1)[0]
   return appId || undefined
+}
+
+/** Map a rendered sidebar entry back to its persisted favorites item. */
+function entryToFavorite(entry: SidebarEntry): SidebarFavoriteItem {
+  switch (entry.kind) {
+    case 'app':
+      return createSidebarAppFavorite(entry.id as SidebarAppId)
+    case 'miniapp':
+      return createSidebarMiniAppFavorite(entry.id)
+    default:
+      return assertNever(entry)
+  }
 }
 
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
@@ -135,55 +149,60 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const entries = useMemo<SidebarEntry[]>(
     () =>
       favorites.flatMap((favorite): SidebarEntry[] => {
-        if (favorite.type === 'app') {
-          const icon = favorite.id
-          const path = getSidebarMenuPath(icon, defaultPaintingProvider)
-          const Icon = SIDEBAR_ICON_COMPONENTS[icon]
-          if (!path || !Icon) return []
+        switch (favorite.type) {
+          case 'app': {
+            const icon = favorite.id
+            const path = getSidebarMenuPath(icon, defaultPaintingProvider)
+            const Icon = SIDEBAR_ICON_COMPONENTS[icon]
+            if (!path || !Icon) return []
 
-          return [
-            {
-              kind: 'app',
-              id: icon,
-              label: t(getSidebarIconLabelKey(icon)),
-              icon: Icon,
-              contextMenuItems: [
-                {
-                  type: 'item',
-                  id: `sidebar.remove-app.${icon}`,
-                  label: t('launchpad.unpin_from_sidebar'),
-                  enabled: !REQUIRED_SIDEBAR_FAVORITE_SET.has(icon),
-                  onSelect: () => handleRemoveSidebarFavorite(icon)
-                }
-              ]
-            }
-          ]
-        }
-
-        const app = openableMiniAppById.get(favorite.id)
-        if (!app) return []
-
-        return [
-          {
-            kind: 'miniapp',
-            id: app.appId,
-            title: app.nameKey ? t(app.nameKey) : app.name,
-            type: 'miniapp',
-            miniApp: {
-              id: app.appId,
-              logo: app.logo,
-              url: app.url
-            },
-            contextMenuItems: [
+            return [
               {
-                type: 'item',
-                id: `sidebar.remove-mini-app.${app.appId}`,
-                label: t('launchpad.unpin_from_sidebar'),
-                onSelect: () => removeMiniApp(app.appId)
+                kind: 'app',
+                id: icon,
+                label: t(getSidebarIconLabelKey(icon)),
+                icon: Icon,
+                contextMenuItems: [
+                  {
+                    type: 'item',
+                    id: `sidebar.remove-app.${icon}`,
+                    label: t('launchpad.unpin_from_sidebar'),
+                    enabled: !REQUIRED_SIDEBAR_FAVORITE_SET.has(icon),
+                    onSelect: () => handleRemoveSidebarFavorite(icon)
+                  }
+                ]
               }
             ]
           }
-        ]
+          case 'mini_app': {
+            const app = openableMiniAppById.get(favorite.id)
+            if (!app) return []
+
+            return [
+              {
+                kind: 'miniapp',
+                id: app.appId,
+                title: app.nameKey ? t(app.nameKey) : app.name,
+                type: 'miniapp',
+                miniApp: {
+                  id: app.appId,
+                  logo: app.logo,
+                  url: app.url
+                },
+                contextMenuItems: [
+                  {
+                    type: 'item',
+                    id: `sidebar.remove-mini-app.${app.appId}`,
+                    label: t('launchpad.unpin_from_sidebar'),
+                    onSelect: () => removeMiniApp(app.appId)
+                  }
+                ]
+              }
+            ]
+          }
+          default:
+            return assertNever(favorite)
+        }
       }),
     [favorites, defaultPaintingProvider, handleRemoveSidebarFavorite, openableMiniAppById, removeMiniApp, t]
   )
@@ -194,13 +213,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const handleReorder = useCallback(
     ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
       const nextEntries = arrayMove(entries, oldIndex, newIndex)
-      reorderFavorites(
-        nextEntries.map((entry) =>
-          entry.kind === 'app'
-            ? createSidebarAppFavorite(entry.id as SidebarAppId)
-            : createSidebarMiniAppFavorite(entry.id)
-        )
-      )
+      reorderFavorites(nextEntries.map(entryToFavorite))
     },
     [entries, reorderFavorites]
   )

@@ -223,15 +223,24 @@ function getSidebarFavoriteKey(favorite: SidebarFavoriteItem): string {
 }
 
 function normalizeSidebarFavoriteItem(favorite: SidebarFavoriteItem): SidebarFavoriteItem | undefined {
-  if (favorite.type === 'app') {
-    return isSidebarAppId(favorite.id) ? createSidebarAppFavorite(favorite.id) : undefined
+  // Preserve the original item (spread) rather than rebuilding it from its id, so
+  // any future per-item fields survive the normalize round-trip instead of being
+  // silently dropped. Only the id is validated per type.
+  switch (favorite.type) {
+    case 'app':
+      return isSidebarAppId(favorite.id) ? { ...favorite } : undefined
+    case 'mini_app':
+      return favorite.id ? { ...favorite } : undefined
+    default: {
+      // Untrusted storage boundary: an unknown type (corrupt or written by a newer
+      // build) is dropped, not thrown, so a downgrade never crashes. The `never`
+      // binding still makes adding a SidebarFavoriteItem variant a compile error
+      // here until a case is added above.
+      const _exhaustive: never = favorite
+      void _exhaustive
+      return undefined
+    }
   }
-
-  if (favorite.type === 'mini_app') {
-    return favorite.id ? createSidebarMiniAppFavorite(favorite.id) : undefined
-  }
-
-  return undefined
 }
 
 /** Normalize and dedupe the stored favorites into valid, ordered tagged items. */
