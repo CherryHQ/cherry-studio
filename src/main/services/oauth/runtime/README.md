@@ -8,14 +8,16 @@ or before wiring a new OAuth consumer through it.
 
 This runtime drives the PKCE authorization-code flow for providers whose
 credential the app itself holds and refreshes: **Codex, Grok CLI, CherryIN**. It
-owns the flow (authorize → callback → token exchange → persist → refresh) and
-nothing else.
+owns the flow (authorize → callback → token exchange → persist → refresh) plus
+the provider's enablement: a successful sign-in flips the provider `isEnabled`
+on, and logout flips it off (and resets `authConfig` to `api-key`).
 
-It is **provider-scoped**, not a general OAuth system. The one hard coupling is
-storage: tokens persist into the *provider's* `authConfig` row in SQLite
-(`ProviderAuthConfigOAuthTokenStore` → `providerService.update(providerId, …)`).
-A non-provider entity (an MCP server, a cloud-sync account) cannot reuse this
-runtime without its own `OAuthTokenStore` backend.
+It is **provider-scoped**, not a general OAuth system. The hard coupling is to
+the *provider* row in SQLite: tokens persist into that row's `authConfig`
+(`ProviderAuthConfigOAuthTokenStore` → `providerService.update(providerId, …)`),
+and the same `providerService.update` toggles `isEnabled` on sign-in/logout. A
+non-provider entity (an MCP server, a cloud-sync account) cannot reuse this
+runtime without its own `OAuthTokenStore` backend and its own enablement model.
 
 Other OAuth/auth flows in the app are deliberately **separate** and do not share
 this code — they are different protocols or SDK-driven, and folding them in would
@@ -38,7 +40,10 @@ Three pieces, all keyed by `providerId`:
 
 - **`OAuthRuntimeService`** — lifecycle service; the public surface
   (`signIn` / `startDeepLinkFlow` / `getValidAccessToken` / `logout` /
-  `hasToken` / `getAccount`). Entity-agnostic except for the injected token store.
+  `hasToken` / `getAccount`). Entity-agnostic except for the token store, which
+  it constructs internally today (`new ProviderAuthConfigOAuthTokenStore()`)
+  rather than taking by injection — the `OAuthTokenStore` interface is the seam
+  a future consumer would inject through (see "Extending").
 - **Transports** — how the authorization code comes back:
   - `LoopbackCallbackTransport` — spins a localhost HTTP server (Codex, Grok).
   - `DeepLinkCallbackTransport` — waits for a `cherrystudio://` deep link, then
