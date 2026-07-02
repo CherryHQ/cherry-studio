@@ -1340,13 +1340,20 @@ describe('AgentComposer', () => {
   it('restores the current draft, files, and skill tokens when sending a new agent message fails', async () => {
     mocks.availableSkills = [pdfSkill]
     mocks.draftText = 'draft message'
-    mocks.draftTokens = [
-      {
-        ...pdfSkillToken,
-        index: 0,
-        textOffset: 0
-      }
-    ]
+    const skillToken = {
+      ...pdfSkillToken,
+      index: 0,
+      textOffset: 0
+    }
+    const fileToken = {
+      id: `file:${file.fileTokenSourceId}`,
+      kind: 'file',
+      label: file.name,
+      payload: file,
+      index: 1,
+      textOffset: mocks.draftText.length
+    } as ComposerSerializedToken
+    mocks.draftTokens = [skillToken, fileToken]
     mocks.files = [file]
     mocks.sendMessage.mockRejectedValueOnce(new Error('send failed'))
 
@@ -1365,7 +1372,7 @@ describe('AgentComposer', () => {
     })
 
     await waitFor(() => {
-      expect(mocks.surfaceProps?.draftTokens).toEqual(mocks.draftTokens)
+      expect(mocks.surfaceProps?.draftTokens).toEqual([skillToken])
     })
 
     fireEvent.click(screen.getByText('send'))
@@ -1378,24 +1385,12 @@ describe('AgentComposer', () => {
     expect(mocks.setFiles).toHaveBeenCalledWith([])
     expect(mocks.setFiles).toHaveBeenLastCalledWith([file])
     expect(mocks.surfaceProps?.text).toBe('draft message')
-    expect(mocks.surfaceProps?.draftTokens).toEqual([
-      {
-        ...pdfSkillToken,
-        index: 0,
-        textOffset: 0
-      }
-    ])
+    expect(mocks.surfaceProps?.draftTokens).toEqual([skillToken])
     expect(cacheService.setCasual).toHaveBeenLastCalledWith(
       'agent-session-draft-agent-1',
       {
         text: 'draft message',
-        tokens: [
-          {
-            ...pdfSkillToken,
-            index: 0,
-            textOffset: 0
-          }
-        ]
+        tokens: [skillToken]
       },
       86400000
     )

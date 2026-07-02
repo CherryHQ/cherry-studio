@@ -45,6 +45,12 @@ describe('buildComposerQueuedPayload', () => {
     expect(result).toBeNull()
   })
 
+  it('returns null for a text draft whose file token has not reached the editor draft yet', () => {
+    const result = buildComposerQueuedPayload(draft('summarize this', []), { files: [file('a')], fileTokenId })
+
+    expect(result).toBeNull()
+  })
+
   it('attaches only files still present as draft tokens', () => {
     const kept = file('a')
     const removed = file('b')

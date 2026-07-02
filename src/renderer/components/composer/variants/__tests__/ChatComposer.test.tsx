@@ -1111,6 +1111,21 @@ describe('ChatComposer', () => {
     expect(mocks.toastError).not.toHaveBeenCalledWith('chat.input.send_failed')
   })
 
+  it('does not submit a text draft before a newly attached file token is reflected in the editor', async () => {
+    mocks.files = [{ fileTokenSourceId: 'src-1', name: 'doc.pdf', path: '/tmp/doc.pdf' } as any]
+    const onSend = vi.fn().mockResolvedValue(undefined)
+
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'summarize this', tokens: [] })
+    })
+
+    expect(onSend).not.toHaveBeenCalled()
+    expect(mocks.files).toHaveLength(1)
+    expect(mocks.toastError).not.toHaveBeenCalledWith('chat.input.send_failed')
+  })
+
   it('keeps a steered follow-up in the dock and toasts when its manual send fails', async () => {
     mocks.topicPending = true
     const onSend = vi.fn().mockResolvedValue(undefined)
@@ -2305,6 +2320,45 @@ describe('ChatComposer', () => {
     expect(editMessage).not.toHaveBeenCalled()
     expect(resend).not.toHaveBeenCalled()
     await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+  })
+
+  it('does not fork and resend an edited file-only draft before the file token is reflected in the editor', async () => {
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const resend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend }
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={[{ type: 'text', text: 'old' }] as any} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+
+    act(() => {
+      mocks.files = [{ fileTokenSourceId: 'src-1', name: 'doc.pdf', path: '/tmp/doc.pdf' } as any]
+      mocks.surfaceProps?.onTextChange('')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe(''))
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: '', tokens: [] })
+    })
+
+    expect(forkAndResend).not.toHaveBeenCalled()
+    expect(editMessage).not.toHaveBeenCalled()
+    expect(resend).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1')
+    expect(mocks.toastError).not.toHaveBeenCalledWith('message.error.operation_unavailable')
   })
 
   it('keeps editing when the edited message fork and resend fails', async () => {

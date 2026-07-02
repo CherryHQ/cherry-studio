@@ -33,6 +33,7 @@ export function buildComposerQueuedPayload(
   const text = draft.text.trim()
   const tokenIds = getComposerTokenIds(draft.tokens)
   const attachedFiles = files.filter((file) => tokenIds.has(fileTokenId(file)))
+  if (hasOnlyUnsyncedComposerAttachments(files, attachedFiles)) return null
   if (requireText ? !text : !text && attachedFiles.length === 0) return null
 
   const userMessageParts = createComposerUserMessageParts(draft)
@@ -43,4 +44,8 @@ export function buildComposerQueuedPayload(
     userMessageParts,
     ...extra?.(tokenIds, attachedFiles)
   }
+}
+
+export function hasOnlyUnsyncedComposerAttachments(files: ComposerAttachment[], attachedFiles: ComposerAttachment[]) {
+  return files.length > 0 && attachedFiles.length === 0
 }
