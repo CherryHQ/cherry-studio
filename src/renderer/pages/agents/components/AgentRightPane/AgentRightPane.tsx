@@ -4,13 +4,31 @@ import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/compon
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import { resolveInlineFilePath } from '@renderer/components/chat/messages/utils/filePath'
-import ArtifactPane, {
+import {
   ArtifactFilePreview,
+  ArtifactPaneView,
   isOfficeDocumentFile,
   resolveArtifactPaneFileSelection
 } from '@renderer/components/chat/panes/ArtifactPane'
 import OpenExternalAppButton from '@renderer/components/chat/panes/OpenExternalAppButton'
-import { Shell, useShellActions, useShellState } from '@renderer/components/chat/panes/Shell'
+import {
+  RESOURCE_PANE_TAB,
+  type ResourcePaneConfig,
+  ResourcePaneLocateOpener,
+  ResourcePanePanel,
+  ResourcePaneProvider,
+  ResourcePaneTab,
+  Shell,
+  useResourcePane,
+  useShellActions,
+  useShellState
+} from '@renderer/components/chat/panes/Shell'
+import {
+  type ArtifactFileTreeModel,
+  isSelectableFileNode,
+  useArtifactFileTreeModel
+} from '@renderer/components/chat/panes/useArtifactFileTreeModel'
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
 import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import NavbarIcon from '@renderer/components/NavbarIcon'
@@ -107,6 +125,8 @@ interface AgentRightPaneMeta {
   agentName?: string
   agentAvatar?: string
   modelFallback?: ModelSnapshot
+  filesEnabled?: boolean
+  statusEnabled?: boolean
 }
 
 interface AgentRightPaneState {
@@ -141,6 +161,12 @@ interface AgentRightPaneContextValue {
 
 interface AgentRightPaneProviderProps extends AgentRightPaneMeta {
   children: ReactNode
+  /** In classic layout the session list mounts as the first right-pane tab; null leaves files/status/flow. */
+  resourcePane?: ResourcePaneConfig | null
+  revealRequest?: ResourceListRevealRequest
+  defaultOpen?: boolean
+  /** Persist open state across the per-branch Shell remount (draft→persistent handoff). */
+  onOpenChange?: (open: boolean) => void
   workspacePath?: string
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
@@ -151,6 +177,17 @@ const AgentRightPaneContext = createContext<AgentRightPaneContextValue | null>(n
 function useAgentRightPane(): AgentRightPaneContextValue {
   const value = use(AgentRightPaneContext)
   if (!value) throw new Error('useAgentRightPane must be used within <AgentRightPane>')
+  return value
+}
+
+// The workspace file-tree model lives in its own context so its frequent
+// updates (every lazy-load tick produces a fresh `filteredTree`) only re-render
+// the files panel, not the status/flow/info panels reading the main context.
+const AgentFileTreeModelContext = createContext<ArtifactFileTreeModel | null>(null)
+
+function useAgentFileTreeModel(): ArtifactFileTreeModel {
+  const value = use(AgentFileTreeModelContext)
+  if (!value) throw new Error('useAgentFileTreeModel must be used within <AgentRightPane>')
   return value
 }
 
@@ -169,7 +206,9 @@ function AgentRightPaneStateProvider({
   agentId,
   agentName,
   agentAvatar,
-  modelFallback
+  filesEnabled = true,
+  modelFallback,
+  statusEnabled = true
 }: AgentRightPaneProviderProps) {
   const { activeTab } = useShellState()
   const { openTab } = useShellActions()
@@ -180,6 +219,20 @@ function AgentRightPaneStateProvider({
   const [fileTreeExpandedIds, setFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
   const previousWorkspacePathRef = useRef(workspacePath)
+
+  // Built once here (the provider survives the Host↔Overlay maximize swap), so
+  // maximize/minimize no longer remounts + rematerializes the workspace tree.
+  const fileTreeModel = useArtifactFileTreeModel({
+    workspacePath,
+    treeOpen: fileTreeOpen,
+    expandedIds: fileTreeExpandedIds,
+    searchKeyword: fileTreeSearchKeyword,
+    enableFileSearch: true,
+    selectedFile,
+    onExpandedIdsChange: setFileTreeExpandedIds
+  })
+  // Stable callback for effect deps (the model object itself is new each render).
+  const { resetLazyChildren: resetFileTreeLazyChildren } = fileTreeModel
 
   const activeFlowToolCallId = getFlowToolCallId(activeTab)
   const activeFlowTab = activeFlowToolCallId
@@ -227,8 +280,19 @@ function AgentRightPaneStateProvider({
     setFilePreview(null)
     setFileTreeExpandedIds(new Set())
     setFileTreeSearchKeyword('')
+    // The lazy-children map now lives in the surviving provider, so its reset on
+    // workspace change must be explicit (previously it rode the pane remount).
+    resetFileTreeLazyChildren()
     if (activeTab === FILE_PREVIEW_TAB) openTab('files')
-  }, [activeTab, openTab, workspacePath])
+  }, [activeTab, resetFileTreeLazyChildren, openTab, workspacePath])
+
+  // Drop a selection that no longer resolves to a file in the loaded tree
+  // (e.g. the watcher reported it removed).
+  useEffect(() => {
+    if (!selectedFile || !fileTreeModel.hasLoaded) return
+    if (isSelectableFileNode(fileTreeModel.nodeById, selectedFile)) return
+    setSelectedFile(null)
+  }, [fileTreeModel.hasLoaded, fileTreeModel.nodeById, selectedFile])
   const closeFilePreview = useCallback(() => {
     if (activeTab === FILE_PREVIEW_TAB) openTab('files')
     setFilePreview(null)
@@ -265,7 +329,17 @@ function AgentRightPaneStateProvider({
         setFileTreeExpandedIds,
         setFileTreeSearchKeyword
       },
-      meta: { sessionId, sessionName, traceId, agentId, agentName, agentAvatar, modelFallback }
+      meta: {
+        sessionId,
+        sessionName,
+        traceId,
+        agentId,
+        agentName,
+        agentAvatar,
+        filesEnabled,
+        modelFallback,
+        statusEnabled
+      }
     }),
     [
       activeFlowTab,
@@ -277,6 +351,7 @@ function AgentRightPaneStateProvider({
       fileTreeExpandedIds,
       fileTreeOpen,
       fileTreeSearchKeyword,
+      filesEnabled,
       filePreview,
       flow,
       flowTabs,
@@ -286,41 +361,55 @@ function AgentRightPaneStateProvider({
       selectedFile,
       sessionId,
       sessionName,
+      statusEnabled,
       status,
       traceId,
       workspacePath
     ]
   )
 
-  return <AgentRightPaneContext value={value}>{children}</AgentRightPaneContext>
+  return (
+    <AgentRightPaneContext value={value}>
+      <AgentFileTreeModelContext value={fileTreeModel}>{children}</AgentFileTreeModelContext>
+    </AgentRightPaneContext>
+  )
 }
 
 function AgentRightPaneProvider(props: AgentRightPaneProviderProps) {
-  const { children, ...rest } = props
+  const { children, resourcePane, revealRequest, defaultOpen = false, onOpenChange, ...rest } = props
+  const shellModeKey = resourcePane ? 'resource-pane' : 'files-pane'
+
   return (
-    <Shell defaultTab="files">
-      <AgentRightPaneStateProvider {...rest}>{children}</AgentRightPaneStateProvider>
+    <Shell
+      key={shellModeKey}
+      defaultTab={resourcePane ? RESOURCE_PANE_TAB : 'files'}
+      defaultOpen={defaultOpen}
+      onOpenChange={onOpenChange}>
+      <ResourcePaneProvider value={resourcePane ?? null}>
+        <ResourcePaneLocateOpener revealRequest={revealRequest} />
+        <AgentRightPaneStateProvider {...rest}>{children}</AgentRightPaneStateProvider>
+      </ResourcePaneProvider>
     </Shell>
   )
 }
 
 function AgentRightPaneFilesPanel() {
   const { state, actions } = useAgentRightPane()
+  const model = useAgentFileTreeModel()
   const shellState = useShellState()
   return (
-    <ArtifactPane
+    <ArtifactPaneView
       workspacePath={state.workspacePath}
       pdfLayoutPending={shellState.pdfLayoutPending}
-      selectedFile={state.selectedFile}
-      onSelectedFileChange={actions.setSelectedFile}
-      fileTreeOpen={state.fileTreeOpen}
-      onFileTreeOpenChange={actions.setFileTreeOpen}
-      fileTreeExpandedIds={state.fileTreeExpandedIds}
-      onFileTreeExpandedIdsChange={actions.setFileTreeExpandedIds}
-      fileTreeSearchKeyword={state.fileTreeSearchKeyword}
-      onFileTreeSearchKeywordChange={actions.setFileTreeSearchKeyword}
       pdfLayoutRefreshKey={shellState.pdfLayoutRefreshKey}
       enableFileSearch
+      model={model}
+      selectedFile={state.selectedFile}
+      onSelectedFileChange={actions.setSelectedFile}
+      treeOpen={state.fileTreeOpen}
+      onTreeOpenChange={actions.setFileTreeOpen}
+      searchKeyword={state.fileTreeSearchKeyword}
+      onSearchKeywordChange={actions.setFileTreeSearchKeyword}
     />
   )
 }
@@ -521,25 +610,32 @@ function AgentRightPaneSurface() {
   const isWindow = mode === 'window'
   const incompleteTasks = state.status.tasks.filter((task) => task.status !== 'completed').length
   const traceTopicId = meta.sessionId ? buildAgentSessionTopicId(meta.sessionId) : ''
+  const hasFiles = meta.filesEnabled !== false
+  const resourcePane = useResourcePane()
+  const hasStatus = meta.statusEnabled !== false
+  const hasTrace = enableDeveloperMode && !!traceTopicId
 
   // Mirror TopicRightPaneSurface: while open, the pane absorbs the navbar's right cluster
   // (sub-window controls + pane toggle) so they don't overlap this header.
   const tabListTrailing = (
     <>
       {isWindow ? chrome?.titleTrailing : null}
-      <AgentRightPaneFilesToggle />
+      {(resourcePane || hasFiles) && <AgentRightPaneFilesToggle />}
     </>
   )
 
   return (
     <Shell.Tabs>
       <Shell.TabList extraTrailing={tabListTrailing}>
-        <Shell.Tab
-          value="files"
-          icon={state.selectedFile ? <FileText className="size-3.5" /> : <FolderOpen className="size-3.5" />}>
-          {state.selectedFile ? getFilePreviewTitle(state.selectedFile) : t('agent.right_pane.tabs.files')}
-        </Shell.Tab>
-        {state.filePreview && (
+        <ResourcePaneTab />
+        {hasFiles && (
+          <Shell.Tab
+            value="files"
+            icon={state.selectedFile ? <FileText className="size-3.5" /> : <FolderOpen className="size-3.5" />}>
+            {state.selectedFile ? getFilePreviewTitle(state.selectedFile) : t('agent.right_pane.tabs.files')}
+          </Shell.Tab>
+        )}
+        {hasFiles && state.filePreview && (
           <Shell.Tab
             value={FILE_PREVIEW_TAB}
             icon={<FileText className="size-3.5" />}
@@ -556,28 +652,33 @@ function AgentRightPaneSurface() {
             {flowTab.title}
           </Shell.Tab>
         ))}
-        <Shell.Tab
-          value="status"
-          icon={<Activity className="size-3.5" />}
-          badge={
-            incompleteTasks > 0 ? (
-              <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[10px] leading-3">
-                {incompleteTasks}
-              </Badge>
-            ) : undefined
-          }>
-          {t('agent.right_pane.tabs.status')}
-        </Shell.Tab>
-        {enableDeveloperMode && (
+        {hasStatus && (
+          <Shell.Tab
+            value="status"
+            icon={<Activity className="size-3.5" />}
+            badge={
+              incompleteTasks > 0 ? (
+                <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[10px] leading-3">
+                  {incompleteTasks}
+                </Badge>
+              ) : undefined
+            }>
+            {t('agent.right_pane.tabs.status')}
+          </Shell.Tab>
+        )}
+        {hasTrace && (
           <Shell.Tab value="trace" icon={<Waypoints className="size-3.5" />}>
             {t('trace.label')}
           </Shell.Tab>
         )}
       </Shell.TabList>
-      <Shell.Panel value="files" forceMount>
-        <AgentRightPaneFilesPanel />
-      </Shell.Panel>
-      {state.filePreview && (
+      <ResourcePanePanel />
+      {hasFiles && (
+        <Shell.Panel value="files" forceMount>
+          <AgentRightPaneFilesPanel />
+        </Shell.Panel>
+      )}
+      {hasFiles && state.filePreview && (
         <Shell.Panel value={FILE_PREVIEW_TAB}>
           <AgentFilePreviewPanel preview={state.filePreview} />
         </Shell.Panel>
@@ -587,10 +688,12 @@ function AgentRightPaneSurface() {
           <AgentRightPaneFlowPanel tab={flowTab} />
         </Shell.Panel>
       ))}
-      <Shell.Panel value="status" className="overflow-auto">
-        <AgentAgentRightPaneStatusPanel />
-      </Shell.Panel>
-      {enableDeveloperMode && (
+      {hasStatus && (
+        <Shell.Panel value="status" className="overflow-auto">
+          <AgentAgentRightPaneStatusPanel />
+        </Shell.Panel>
+      )}
+      {hasTrace && (
         <Shell.Panel value="trace">
           <TracePane payload={{ topicId: traceTopicId, traceId: meta.traceId ?? '' }} />
         </Shell.Panel>
@@ -615,9 +718,16 @@ function AgentRightPaneMaximizedOverlay() {
   )
 }
 
-function AgentRightPaneFilesToggle({ disabled }: { disabled?: boolean }) {
+function AgentRightPaneFilesToggle() {
   const isActiveTab = useIsActiveTab()
-  return <Shell.Toggle tab="files" command="topic.sidebar.toggle" commandEnabled={isActiveTab} disabled={disabled} />
+  const resourcePane = useResourcePane()
+  return (
+    <Shell.Toggle
+      tab={resourcePane ? RESOURCE_PANE_TAB : 'files'}
+      command="topic.sidebar.toggle"
+      commandEnabled={isActiveTab}
+    />
+  )
 }
 
 function SubagentStatusIcon({ status }: { status: AgentSubagent['status'] }) {
@@ -766,9 +876,10 @@ function AgentRightPaneInfoCardBody() {
 // Shown only in the collapsed state (rendered into ConversationShell's topRightTool, which the shell
 // suppresses while the pane is open/maximized). Hover previews the session; click expands to Status.
 function AgentRightPaneInfoCard({ disabled }: { disabled?: boolean }) {
+  const { meta } = useAgentRightPane()
   const { openTab } = useShellActions()
   const { t } = useTranslation()
-  if (disabled) return null
+  if (disabled || meta.statusEnabled === false) return null
   return (
     <HoverCard openDelay={150} closeDelay={100}>
       <HoverCardTrigger asChild>
