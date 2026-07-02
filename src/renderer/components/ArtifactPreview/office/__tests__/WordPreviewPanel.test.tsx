@@ -348,4 +348,34 @@ describe('WordPreviewPanel', () => {
     await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(2))
     expect(screen.getByTestId('docx-preview-content')).toHaveTextContent('Fresh')
   })
+
+  it('discards a render that resolves after the panel unmounts', async () => {
+    let resolvePendingRender: (() => void) | undefined
+    const pendingRenderGate = new Promise<void>((resolve) => {
+      resolvePendingRender = resolve
+    })
+    let stagingBody: HTMLElement | undefined
+    mocks.renderAsync.mockImplementation(async (_data: Uint8Array, bodyContainer: HTMLElement) => {
+      stagingBody = bodyContainer
+      await pendingRenderGate
+      bodyContainer.innerHTML = '<section>Late render</section>'
+    })
+
+    const { unmount } = render(
+      <WordPreviewPanel filePath="/tmp/report.docx" fileName="report.docx" refreshKey={0} sourceSize={1024} />
+    )
+    await waitFor(() => expect(mocks.renderAsync).toHaveBeenCalledTimes(1))
+
+    // Unmount bumps the render token, so the in-flight render must fail isCurrent() when it resolves.
+    unmount()
+    await act(async () => {
+      resolvePendingRender?.()
+      await pendingRenderGate
+    })
+
+    // renderAsync writes into the off-screen staging body; a superseded render never moves those
+    // nodes into the (now-detached) visible container, so they stay in staging and no post-unmount
+    // DOM/state commit occurs.
+    await waitFor(() => expect(stagingBody?.querySelector('section')).toHaveTextContent('Late render'))
+  })
 })
