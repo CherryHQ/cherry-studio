@@ -67,15 +67,19 @@ vi.mock('@cherrystudio/ui', () => ({
   PageSidePanel: ({
     children,
     header,
+    headerClassName,
     open
   }: {
     children: React.ReactNode
     header?: React.ReactNode
+    headerClassName?: string
     open?: boolean
   }) =>
     open ? (
       <div>
-        {header}
+        <div data-testid="page-side-panel-header" className={headerClassName}>
+          {header}
+        </div>
         {children}
       </div>
     ) : null
@@ -178,6 +182,12 @@ describe('TranslateHistory', () => {
     expect(screen.getByText('hello')).toBeInTheDocument()
     expect(screen.getByText('bye')).toBeInTheDocument()
     expect(translateHistoryMock.useTranslateHistory).toHaveBeenCalledTimes(1)
+  })
+
+  it('localizes compact header spacing to the translate history drawer', () => {
+    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+
+    expect(screen.getByTestId('page-side-panel-header')).toHaveClass('pb-0')
   })
 
   it('opens detail and supports reuse', () => {

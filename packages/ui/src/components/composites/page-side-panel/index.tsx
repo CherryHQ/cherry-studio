@@ -126,7 +126,7 @@ function PageSidePanel({
             {hasHeader && (
               <div
                 data-slot="page-side-panel-header"
-                className={cn('flex shrink-0 items-center justify-between px-6 pt-6', headerClassName)}>
+                className={cn('flex shrink-0 items-center justify-between px-6 pt-6 pb-3', headerClassName)}>
                 <div id={headerContent ? headerId : undefined} className="min-w-0 flex flex-1 items-center">
                   {headerContent}
                 </div>

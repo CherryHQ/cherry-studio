@@ -187,6 +187,7 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
         open={isOpen}
         onClose={handleClose}
         header={header}
+        headerClassName="pb-0"
         closeLabel={t('translate.close')}
         bodyClassName="flex min-h-0 flex-col">
         <div className="flex min-h-0 flex-1 flex-col gap-3">
