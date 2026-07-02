@@ -392,13 +392,16 @@ describe('ClawServer', () => {
 
     describe('file forwarding', () => {
       let workspace: string
+      let outside: string
 
       beforeEach(async () => {
         workspace = await mkdtemp(path.join(tmpdir(), 'claw-notify-'))
+        outside = await mkdtemp(path.join(tmpdir(), 'claw-outside-'))
       })
 
       afterEach(async () => {
         await rm(workspace, { recursive: true, force: true })
+        await rm(outside, { recursive: true, force: true })
       })
 
       it('should forward a workspace file to each chat', async () => {
@@ -433,11 +436,31 @@ describe('ClawServer', () => {
         expect(result.content[0].text).toContain('File "a.txt" sent to 1 chat(s)')
       })
 
-      it('should reject a path outside the workspace before dispatch', async () => {
+      it('should mark isError when the message lands but the file reaches no one', async () => {
+        mockSendMessage.mockResolvedValue(undefined)
+        mockSendFile.mockRejectedValue(new Error('unsupported'))
         mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100'])])
+        await writeFile(path.join(workspace, 'a.txt'), 'x')
 
         const server = createServer('agent_1', workspace)
-        const result = await callTool(server, { file_path: '../../etc/passwd' }, 'notify')
+        const result = await callTool(server, { message: 'see attached', file_path: 'a.txt' }, 'notify')
+
+        expect(result.content[0].text).toContain('Message sent to 1 chat(s)')
+        expect(result.content[0].text).toContain('File "a.txt" sent to 0 chat(s)')
+        // A requested file that reached nobody is a failed delivery even though the message got through.
+        expect(result.isError).toBe(true)
+      })
+
+      it('should reject a path outside the workspace before dispatch', async () => {
+        mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100'])])
+        // Use a real file in a sibling temp dir (not a fixed OS path like /etc/passwd)
+        // so the assertion is deterministic across platforms and CI sandboxes.
+        const secret = path.join(outside, 'secret.txt')
+        await writeFile(secret, 'top secret')
+        const escape = path.relative(workspace, secret)
+
+        const server = createServer('agent_1', workspace)
+        const result = await callTool(server, { file_path: escape }, 'notify')
 
         expect(result.isError).toBe(true)
         expect(mockSendFile).not.toHaveBeenCalled()

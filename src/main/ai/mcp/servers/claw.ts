@@ -93,7 +93,7 @@ const CRON_TOOL: Tool = {
 const NOTIFY_TOOL: Tool = {
   name: 'notify',
   description:
-    'Send a notification to the user through connected channels (e.g. Telegram). Provide a message, a file to forward from your workspace, or both. Use this to proactively deliver task results, status updates, or produced files. Note: WeChat can only forward image files.',
+    'Send a notification to the user through connected channels (e.g. Telegram). Provide a message, a file to forward from your workspace, or both. Use this to proactively deliver task results, status updates, or produced files. File support by channel: Telegram/Feishu forward any file; WeChat images only; Discord/Slack/QQ do not support files yet (a file_path to those returns an error).',
   inputSchema: {
     type: 'object',
     properties: {
@@ -110,7 +110,10 @@ const NOTIFY_TOOL: Tool = {
         type: 'string',
         description: 'Optional: send to a specific channel only (omit to send to all notify-enabled channels)'
       }
-    }
+    },
+    // Enforce "message or file_path" so MCP clients can pre-validate; the handler re-checks
+    // the trimmed values (empty strings must still be rejected).
+    anyOf: [{ required: ['message'] }, { required: ['file_path'] }]
   }
 }
 
@@ -384,12 +387,6 @@ class ClawServer {
       throw new McpError(ErrorCode.InvalidParams, "Provide 'message', 'file_path', or both for notify")
     }
 
-    // Resolve the file once before dispatch so a bad path fails fast (one error,
-    // not one per chat). Guard errors surface as a clean isError result via the
-    // CallTool catch.
-    const file = filePath ? await resolveWorkspaceFile(this.workspacePath, filePath) : undefined
-    const sanitizedMessage = message ? sanitizeChannelOutput(message).text : undefined
-
     const targetChannelId = args.channel_id
     let adapters = application.get('ChannelManager').getAgentAdapters(this.agentId)
 
@@ -408,6 +405,13 @@ class ClawServer {
       }
     }
 
+    // Resolve the file once before dispatch so a bad path fails fast (one error,
+    // not one per chat). Guard errors surface as a clean isError result via the
+    // CallTool catch. Done after the no-adapters guard so we don't read up to
+    // 100MB off disk only to discover there's nowhere to send it.
+    const file = filePath ? await resolveWorkspaceFile(this.workspacePath, filePath) : undefined
+    const sanitizedMessage = message ? sanitizeChannelOutput(message).text : undefined
+
     let messagesSent = 0
     let filesSent = 0
     const errors: string[] = []
@@ -415,11 +419,13 @@ class ClawServer {
     const recordError = (adapter: ChannelAdapter, chatId: string, what: string, err: unknown) => {
       const errMsg = err instanceof Error ? err.message : String(err)
       errors.push(`${adapter.channelId}/${chatId} (${what}): ${errMsg}`)
+      // Log the raw error, not just its message, so the SDK's cause chain and any
+      // attached `response` payload survive to the logs for diagnosis.
       logger.warn(`Failed to send ${what} via notify`, {
         agentId: this.agentId,
         channelId: adapter.channelId,
         chatId,
-        error: errMsg
+        error: err
       })
     }
 
