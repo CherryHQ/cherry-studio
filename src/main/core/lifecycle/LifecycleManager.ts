@@ -9,7 +9,9 @@ import {
   type ServiceSpan
 } from '@main/core/diagnostics'
 
+import type { BaseService } from './BaseService'
 import { DependencyResolver, type PhaseAdjustment } from './DependencyResolver'
+import { isProfileActivatable, type ProfileActivationContext } from './profileActivation'
 import { ServiceContainer } from './ServiceContainer'
 import {
   isActivatable,
@@ -336,6 +338,43 @@ export class LifecycleManager extends EventEmitter {
    */
   public getInitializationOrder(): string[] {
     return [...this.initializationOrder]
+  }
+
+  /**
+   * Profile-activation participants, in initialization order (dependencies first,
+   * so `DbService` leads). Only already-instantiated services are considered —
+   * matching the two-tier boot, which activates each phase's participants once
+   * that phase has appended them to the order.
+   */
+  public getProfileParticipants(): BaseService[] {
+    const participants: BaseService[] = []
+    for (const name of this.initializationOrder) {
+      const instance = this.container.getInstance(name)
+      if (instance && isProfileActivatable(instance)) participants.push(instance)
+    }
+    return participants
+  }
+
+  /**
+   * Activate `ctx.profileId` across all participants in forward order
+   * (`DbService` first). Sequential; throws on the first participant that fails,
+   * leaving the rest of the switch to the caller's rollback (RFC §4.4 step 4).
+   */
+  public async activateProfile(ctx: ProfileActivationContext): Promise<void> {
+    for (const participant of this.getProfileParticipants()) {
+      await participant._doProfileActivate(ctx)
+    }
+  }
+
+  /**
+   * Release the current profile across all participants in reverse order
+   * (writers first, `DbService` last). Sequential; throws on the first failure
+   * (RFC §4.4 step 2 stop-on-throw).
+   */
+  public async deactivateProfile(): Promise<void> {
+    for (const participant of this.getProfileParticipants().reverse()) {
+      await participant._doProfileDeactivate()
+    }
   }
 
   /**
