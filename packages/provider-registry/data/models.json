@@ -17992,6 +17992,93 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "video-recognition"],
+      "contextWindow": 256000,
+      "description": "The next-generation flagship model advancing toward production-grade intelligence. Doubao-Seed-2.1-Pro delivers comprehensive upgrades in Coding, Agent, and multimodal capabilities, featuring stronger autonomous planning, long-chain execution, and dynamic repair abilities to handle real-world complex enterprise tasks.",
+      "id": "doubao-seed-2-1-pro-260628",
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 256000,
+      "name": "Doubao-Seed-2.1-Pro",
+      "openWeights": false,
+      "outputModalities": ["text"],
+      "ownedBy": "bytedance",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.18
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.88
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.4
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["minimal", "low", "medium", "high"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "video-recognition"],
+      "contextWindow": 256000,
+      "description": "Doubao-Seed-2.1-Turbo balances quality and cost efficiency. It delivers comprehensive upgrades in Coding, Agent, and multimodal capabilities, featuring stronger autonomous planning, long-chain execution, and dynamic repair abilities to handle real-world complex enterprise tasks.",
+      "id": "doubao-seed-2-1-turbo-260628",
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 256000,
+      "name": "Doubao-Seed-2.1-Turbo",
+      "openWeights": false,
+      "outputModalities": ["text"],
+      "ownedBy": "bytedance",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.09
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.44
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.2
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["minimal", "low", "medium", "high"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "video-recognition"],
+      "contextWindow": 256000,
+      "description": "Doubao-Seed-Evolving is designed for Coding and Agent scenarios with continuous weekly upgrades. It provides the latest capabilities through a unified model ID, enabling efficient delivery of complex tasks.",
+      "id": "doubao-seed-evolving",
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 256000,
+      "name": "Doubao-Seed-Evolving",
+      "openWeights": false,
+      "outputModalities": ["text"],
+      "ownedBy": "bytedance",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.18
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.88
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.4
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["minimal", "low", "medium", "high"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "video-recognition"],
       "contextWindow": 128000,
       "description": "The new generation Wenxin model, Wenxin 5.0, is a native full-modal large model that adopts native full-modal unified modeling technology, jointly modeling text, images, audio, and video, possessing comprehensive full-modal capabilities. Wenxin 5.0's basic abilities are comprehensively upgraded, performing excellently on benchmark test sets, especially in multimodal understanding, instruction compliance, creative writing, factual accuracy, intelligent agent planning, and tool application.",
       "id": "ernie-5-0-thinking-preview",
