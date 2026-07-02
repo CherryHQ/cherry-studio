@@ -235,6 +235,18 @@ describe('FeishuAdapter', () => {
     expect(mockImCreate).not.toHaveBeenCalled()
   })
 
+  it('sendFile() throws when the image upload returns no image_key', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+    mockImageCreate.mockResolvedValueOnce(null)
+
+    const data = Buffer.from('png-bytes').toString('base64')
+    await expect(
+      adapter.sendFile('oc_123', { filename: 'chart.png', data, media_type: 'image/png', size: 9 })
+    ).rejects.toThrow('(no image_key)')
+    expect(mockImCreate).not.toHaveBeenCalled()
+  })
+
   it('sendFile() propagates a failure when the message post fails after a successful upload', async () => {
     const adapter = createAdapter()
     await adapter.connect()
