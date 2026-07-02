@@ -6,6 +6,14 @@
  * sqlite-vec today) with zero user migration. Only the driver and VectorIndex
  * adapters are engine-specific; everything above them — the schema DDL
  * (schema.ts) and the store's queries — is shared, engine-neutral SQL.
+ *
+ * Synchronous by design, mirroring `DbService.withWriteTx` (src/main/data/db/DbService.ts):
+ * better-sqlite3 is a single synchronous connection with no I/O wait, so an `async`
+ * surface here would be pure libsql-era residue. It is not just cosmetic — a
+ * transaction callback that actually awaits real async work would yield the event
+ * loop while `BEGIN`..`COMMIT` is open, letting an unrelated read on the same
+ * connection observe uncommitted rows. A synchronous `transaction<T>(fn: (tx) => T): T`
+ * makes that categorically impossible: `fn` runs to completion in one JS turn.
  */
 
 /** A value bindable to a statement parameter or read back from a result column. */
@@ -13,11 +21,13 @@ export type SqlValue = string | number | bigint | boolean | Uint8Array | ArrayBu
 
 export interface SqlQueryResult {
   rows: Array<Record<string, SqlValue>>
+  /** Rows inserted/updated/deleted by this statement (0 for a read). */
+  changes: number
 }
 
 /** Runs a single statement. Implemented by both the driver and a transaction handle. */
 export interface SqliteExecutor {
-  execute(sql: string, args?: SqlValue[]): Promise<SqlQueryResult>
+  execute(sql: string, args?: SqlValue[]): SqlQueryResult
 }
 
 /** A handle valid only inside SqliteDriver.transaction(); same surface as the driver. */
@@ -33,11 +43,13 @@ export interface SqliteReclaimOutcome {
 
 export interface SqliteDriver extends SqliteExecutor {
   /**
-   * Run `fn` inside a single write transaction. Commits when `fn` resolves,
-   * rolls back and rethrows when it rejects — preserving the atomic-replace
+   * Run `fn` inside a single write transaction. Commits when `fn` returns,
+   * rolls back and rethrows when it throws — preserving the atomic-replace
    * semantics rebuildMaterial relies on (no mixed old/new rows ever visible).
+   * `fn` MUST be synchronous — the better-sqlite3 backing implementation throws
+   * if it returns a Promise (see BetterSqlite3Driver).
    */
-  transaction<T>(fn: (tx: SqliteTransaction) => Promise<T>): Promise<T>
+  transaction<T>(fn: (tx: SqliteTransaction) => T): T
   /**
    * Return free space left by deletes to the OS: always checkpoint+truncate the
    * WAL, and VACUUM the main file when its freelist has grown large (both a big
@@ -49,7 +61,7 @@ export interface SqliteDriver extends SqliteExecutor {
    * driver's writes; the VACUUM blocks the calling thread for the whole-file
    * rewrite, which is why the threshold gates it to large deletes.
    */
-  reclaim(preVacuumStatements?: readonly string[]): Promise<SqliteReclaimOutcome>
+  reclaim(preVacuumStatements?: readonly string[]): SqliteReclaimOutcome
   /**
    * Whether {@link close} has been called. Lets a caller tell an operation that
    * failed because the store was closed mid-flight (concurrent base deletion or
@@ -57,7 +69,7 @@ export interface SqliteDriver extends SqliteExecutor {
    * instead of leaking an opaque driver error.
    */
   isClosed(): boolean
-  close(): Promise<void>
+  close(): void
 }
 
 /** One brute-force vector match: an embedding row and its distance to the query. */

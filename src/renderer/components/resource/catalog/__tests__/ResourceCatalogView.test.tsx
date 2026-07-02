@@ -92,7 +92,6 @@ function createController(resourceError?: Error) {
       onOpenAssistantLibrary: vi.fn(),
       onSearchChange: vi.fn(),
       onTagFilter: vi.fn(),
-      onUpdateResourceTags: vi.fn(),
       resources: [],
       search: '',
       tags: []

@@ -65,7 +65,8 @@ vi.mock('@renderer/components/VirtualList', () => {
     return rows
   }
 
-  const GroupedVirtualList = ({
+  const GroupedVirtualListContent = ({
+    dragEnabled,
     ref,
     className,
     groups,
@@ -91,6 +92,7 @@ vi.mock('@renderer/components/VirtualList', () => {
         }}
         role={role}
         className={className}
+        data-draggable={dragEnabled ? 'true' : 'false'}
         {...scrollerProps}>
         {rows.map((row, index) => {
           if (row.type === 'group-header') {
@@ -114,8 +116,8 @@ vi.mock('@renderer/components/VirtualList', () => {
   return {
     buildGroupedVirtualRows,
     DynamicVirtualList: () => null,
-    GroupedSortableVirtualList: GroupedVirtualList,
-    GroupedVirtualList
+    GroupedSortableVirtualList: (props) => <GroupedVirtualListContent {...props} dragEnabled />,
+    GroupedVirtualList: (props) => <GroupedVirtualListContent {...props} dragEnabled={false} />
   }
 })
 
@@ -290,6 +292,88 @@ describe('ResourceEntityRail', () => {
     expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]')).not.toBeNull()
     expect(screen.getByTestId('assistant-b-icon')).toBeInTheDocument()
     expect(screen.getByTestId('assistant-a-icon')).toBeInTheDocument()
+  })
+
+  it('groups non-pinned entities into per-tag sections while keeping pinned on top', () => {
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants list"
+        defaultGroupLabel="Assistants"
+        groupByTag
+        items={[
+          { id: 'pinned-tagged', name: 'Pinned Tagged', icon: <span />, pinned: true, tag: 'work' },
+          { id: 'work-a', name: 'Work A', icon: <span data-testid="work-a-icon" />, tag: 'work' },
+          { id: 'home-a', name: 'Home A', icon: <span />, tag: 'home' },
+          { id: 'loose', name: 'Loose', icon: <span />, tag: undefined }
+        ]}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onReorder={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    )
+
+    // Pinned section stays on top; non-pinned entities split into tag sections + an untagged section.
+    expect(screen.getByText('selector.common.pinned_title')).toBeInTheDocument()
+    expect(screen.getByText('work')).toBeInTheDocument()
+    expect(screen.getByText('home')).toBeInTheDocument()
+    expect(screen.getByText('assistants.tags.untagged')).toBeInTheDocument()
+    expect(
+      Array.from(
+        screen.getByRole('listbox', { name: 'Assistants list' }).querySelectorAll('button[aria-expanded]')
+      ).map((header) => header.textContent)
+    ).toEqual(['selector.common.pinned_title', 'assistants.tags.untagged', 'work', 'home'])
+    // A pinned entity stays under the pinned section even though it carries a tag — its tag must not
+    // spawn a second "work" header.
+    expect(screen.getAllByText('work')).toHaveLength(1)
+    // The flat default "Assistants" header never appears while grouping by tag.
+    expect(screen.queryByText('Assistants')).not.toBeInTheDocument()
+    expect(screen.getByTestId('work-a-icon')).toBeInTheDocument()
+    expect(screen.getByRole('listbox', { name: 'Assistants list' })).toHaveAttribute('data-draggable', 'false')
+  })
+
+  it('keeps a real tag named like the untagged sentinel separate from untagged entities', () => {
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants list"
+        defaultGroupLabel="Assistants"
+        groupByTag
+        items={[
+          { id: 'sentinel-tagged', name: 'Sentinel Tagged', icon: <span />, tag: '__untagged__' },
+          { id: 'loose', name: 'Loose', icon: <span />, tag: undefined }
+        ]}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('__untagged__')).toBeInTheDocument()
+    expect(screen.getByText('assistants.tags.untagged')).toBeInTheDocument()
+  })
+
+  it('ignores entity tags when groupByTag is off', () => {
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants list"
+        defaultGroupLabel="Assistants"
+        items={[
+          { id: 'work-a', name: 'Work A', icon: <span />, tag: 'work' },
+          { id: 'home-a', name: 'Home A', icon: <span />, tag: 'home' }
+        ]}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onReorder={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByText('work')).not.toBeInTheDocument()
+    expect(screen.queryByText('home')).not.toBeInTheDocument()
+    expect(screen.queryByText('assistants.tags.untagged')).not.toBeInTheDocument()
   })
 
   it('renders a flat list with no section header when nothing is pinned', () => {

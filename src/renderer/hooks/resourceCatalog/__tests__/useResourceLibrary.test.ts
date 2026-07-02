@@ -167,6 +167,33 @@ describe('useResourceLibrary', () => {
     expect(result.current.allResources[0]?.avatar).toBe('🤖')
   })
 
+  it('does not use skill source metadata tags for resource cards', () => {
+    mocks.useSkillList.mockReturnValue(
+      listResult([
+        {
+          id: 'skill-1',
+          name: '网页摘要',
+          description: '自动提取网页核心内容',
+          folderName: 'web-summary',
+          source: 'marketplace',
+          sourceUrl: null,
+          namespace: null,
+          author: 'CherryStudio',
+          sourceTags: ['metadata-only'],
+          contentHash: 'hash',
+          isEnabled: false,
+          createdAt: '2026-04-27T00:00:00.000Z',
+          updatedAt: '2026-04-27T00:00:00.000Z'
+        }
+      ])
+    )
+
+    const { result } = renderResourceLibrary({ resourceType: 'skill' })
+    const skill = result.current.allResources.find((resource) => resource.type === 'skill')
+
+    expect(skill?.tag).toBeUndefined()
+  })
+
   it('passes skill search to the backend and ignores activeTag', () => {
     mocks.useSkillList.mockReturnValue(
       listResult([
@@ -179,7 +206,7 @@ describe('useResourceLibrary', () => {
           sourceUrl: null,
           namespace: null,
           author: null,
-          sourceTags: ['metadata-only'],
+          sourceTags: [],
           contentHash: 'filtered-hash',
           isEnabled: false,
           createdAt: '2026-04-27T00:00:00.000Z',
@@ -197,13 +224,7 @@ describe('useResourceLibrary', () => {
     expect(mocks.useSkillList).toHaveBeenCalledWith({ enabled: true, search: 'summary' })
     expect(mocks.useAssistantList.mock.calls[0]).toEqual([{ enabled: false }])
     expect(mocks.useAssistantList.mock.calls[1]).toEqual([{ enabled: false, search: undefined, tagIds: undefined }])
-    expect(result.current.resources).toMatchObject([
-      {
-        id: 'skill-filtered',
-        type: 'skill',
-        tags: []
-      }
-    ])
+    expect(result.current.resources.map((resource) => resource.id)).toEqual(['skill-filtered'])
   })
 
   it('maps prompt resources and forwards search without tag filters', () => {
@@ -233,8 +254,7 @@ describe('useResourceLibrary', () => {
         type: 'prompt',
         name: '日报模板',
         description: '今日完成 ${task}',
-        avatar: 'Aa',
-        tags: []
+        avatar: 'Aa'
       }
     ])
   })

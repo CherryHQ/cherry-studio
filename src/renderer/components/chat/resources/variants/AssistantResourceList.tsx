@@ -1,3 +1,4 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import EmojiIcon from '@renderer/components/EmojiIcon'
@@ -9,7 +10,7 @@ import { usePins } from '@renderer/hooks/usePins'
 import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { Bot, Edit3, PinIcon, PinOffIcon, Plus, Trash2 } from 'lucide-react'
+import { Bot, Edit3, PinIcon, PinOffIcon, Plus, Tags, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -22,6 +23,7 @@ const logger = loggerService.withContext('AssistantResourceList')
 
 const ASSISTANT_ENTITY_EDIT_ACTION_ID = 'assistant-entity.edit'
 const ASSISTANT_ENTITY_TOGGLE_PIN_ACTION_ID = 'assistant-entity.toggle-pin'
+const ASSISTANT_ENTITY_TOGGLE_TAG_GROUPING_ACTION_ID = 'assistant-entity.toggle-tag-grouping'
 const ASSISTANT_ENTITY_DELETE_ACTION_ID = 'assistant-entity.delete'
 
 type AssistantResourceListProps = {
@@ -49,6 +51,8 @@ export function AssistantResourceList({
   onActiveAssistantDeleted
 }: AssistantResourceListProps) {
   const { t } = useTranslation()
+  const [assistantSortType, setAssistantSortType] = usePreference('assistant.tab.sort_type')
+  const isTagGrouping = assistantSortType === 'tags'
   const {
     assistants,
     isLoading: isAssistantsLoading,
@@ -92,6 +96,7 @@ export function AssistantResourceList({
         name: assistant.name,
         orderKey: assistant.orderKey,
         pinned: assistantPinnedIdSet.has(assistant.id),
+        tag: assistant.tags?.[0]?.name,
         icon: assistant.emoji ? (
           <EmojiIcon emoji={assistant.emoji} size={24} fontSize={14} className="mr-0" />
         ) : (
@@ -225,6 +230,15 @@ export function AssistantResourceList({
           children: []
         },
         {
+          id: ASSISTANT_ENTITY_TOGGLE_TAG_GROUPING_ACTION_ID,
+          label: isTagGrouping ? t('assistants.tags.ungroup') : t('assistants.tags.group_by'),
+          icon: <Tags size={14} />,
+          order: 25,
+          danger: false,
+          availability: { visible: true, enabled: true },
+          children: []
+        },
+        {
           id: ASSISTANT_ENTITY_DELETE_ACTION_ID,
           label: t('assistants.delete.title'),
           icon: <Trash2 size={14} className="lucide-custom text-destructive" />,
@@ -236,7 +250,7 @@ export function AssistantResourceList({
         }
       ]
     },
-    [assistantPinnedIdSet, deletingAssistantId, isAssistantPinActionDisabled, t]
+    [assistantPinnedIdSet, deletingAssistantId, isAssistantPinActionDisabled, isTagGrouping, t]
   )
 
   const handleContextMenuAction = useCallback(
@@ -249,11 +263,15 @@ export function AssistantResourceList({
         void handleToggleAssistantPin(item.id)
         return
       }
+      if (action.id === ASSISTANT_ENTITY_TOGGLE_TAG_GROUPING_ACTION_ID) {
+        void setAssistantSortType(isTagGrouping ? 'list' : 'tags')
+        return
+      }
       if (action.id === ASSISTANT_ENTITY_DELETE_ACTION_ID) {
         void handleDeleteAssistant(item.id)
       }
     },
-    [handleDeleteAssistant, handleToggleAssistantPin, openAssistantEditor]
+    [handleDeleteAssistant, handleToggleAssistantPin, isTagGrouping, openAssistantEditor, setAssistantSortType]
   )
 
   return (
@@ -265,6 +283,7 @@ export function AssistantResourceList({
         status={listStatus}
         ariaLabel={t('assistants.abbr')}
         defaultGroupLabel={t('assistants.abbr')}
+        groupByTag={isTagGrouping}
         addIcon={<Plus />}
         addLabel={t('chat.add.assistant.title')}
         onAdd={onAddAssistant ?? (() => onStartDraftAssistant(null))}

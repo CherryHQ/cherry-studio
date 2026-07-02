@@ -1333,12 +1333,14 @@
       "add": "添加标签",
       "delete": "删除标签",
       "deleteConfirm": "确定要删除这个标签吗？",
+      "group_by": "按照标签分组",
       "manage": "标签管理",
       "modify": "修改标签",
       "none": "暂无标签",
       "settings": {
         "title": "标签设置"
       },
+      "ungroup": "关闭标签分组",
       "untagged": "未分组"
     },
     "title": "助手",
@@ -4772,6 +4774,7 @@
     "ollama": "Ollama",
     "open-mineru": "Open MinerU",
     "openai": "OpenAI",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",

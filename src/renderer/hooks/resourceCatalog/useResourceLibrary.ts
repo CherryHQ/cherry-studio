@@ -84,13 +84,9 @@ export function useResourceLibrary({
   // the param when nothing resolves rather than sending a 400.
   const tagIds = useMemo(() => {
     if (!assistantTagsActive) return undefined
-    const names = [activeTag].filter((x): x is string => Boolean(x))
-    if (names.length === 0) return undefined
-    const ids = names.flatMap((name) => {
-      const id = tagIdByName.get(name)
-      return id ? [id] : []
-    })
-    return ids.length > 0 ? ids : undefined
+    if (!activeTag) return undefined
+    const id = tagIdByName.get(activeTag)
+    return id ? [id] : undefined
   }, [activeTag, assistantTagsActive, tagIdByName])
 
   // Defensive guard for the rare race where the user has a chip selected but
@@ -110,10 +106,10 @@ export function useResourceLibrary({
   const prompts = promptAdapter.useList({ enabled: isPrompt, search: isPrompt ? trimmedSearch : undefined })
 
   const buildAssistantItem = useCallback((a: Assistant): ResourceItem => {
-    // Defensive `?? []`: schema declares tags as required, but stale DataApi
-    // cache or a row from a code path that bypasses the embed helper can
-    // still hand us undefined here. `.map` would throw.
-    const tags = a.tags ?? []
+    // Defensive optional access: schema declares tags as required, but stale DataApi
+    // cache or a row from a code path that bypasses the embed helper can still hand
+    // us undefined here.
+    const tag = a.tags?.[0]
     return {
       id: a.id,
       type: 'assistant',
@@ -123,7 +119,7 @@ export function useResourceLibrary({
       // Embedded by AssistantService.list via JOIN on user_model; null when the
       // bound model row was removed.
       model: a.modelName ?? undefined,
-      tags: tags.map((t) => t.name),
+      tag: tag?.name,
       createdAt: a.createdAt,
       updatedAt: a.updatedAt,
       raw: a
@@ -138,7 +134,6 @@ export function useResourceLibrary({
       description: a.description ?? '',
       avatar: getAgentAvatarFromConfiguration(a.configuration),
       model: a.modelName ?? undefined,
-      tags: [],
       createdAt: a.createdAt,
       updatedAt: a.updatedAt,
       raw: a
@@ -155,7 +150,6 @@ export function useResourceLibrary({
       avatar: '⚡',
       // Skill metadata tags from SKILL.md live on `sourceTags`; the outer
       // resource-library user tag concept is assistant-only.
-      tags: [],
       createdAt: s.createdAt,
       updatedAt: s.updatedAt,
       raw: s
@@ -169,7 +163,6 @@ export function useResourceLibrary({
       name: p.title,
       description: p.content.replace(/\s+/g, ' ').trim(),
       avatar: 'Aa',
-      tags: [],
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,
       raw: p

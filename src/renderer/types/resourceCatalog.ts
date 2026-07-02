@@ -19,17 +19,16 @@ interface ResourceItemBase<TType extends ResourceType, TRaw> {
   description: string
   avatar: string
   model?: string
-  tags: string[]
   createdAt: string
   updatedAt: string
   raw: TRaw
 }
 
 export type ResourceItem =
-  | ResourceItemBase<'assistant', Assistant>
-  | ResourceItemBase<'agent', AgentDetail>
-  | ResourceItemBase<'skill', InstalledSkill>
-  | ResourceItemBase<'prompt', Prompt>
+  | (ResourceItemBase<'assistant', Assistant> & { tag?: string })
+  | (ResourceItemBase<'agent', AgentDetail> & { tag?: never })
+  | (ResourceItemBase<'skill', InstalledSkill> & { tag?: never })
+  | (ResourceItemBase<'prompt', Prompt> & { tag?: never })
 
 export interface TagItem {
   id: string
