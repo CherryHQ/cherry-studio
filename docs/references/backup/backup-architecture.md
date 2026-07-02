@@ -98,7 +98,7 @@ flowchart LR
 | `producerAppVersion` | **app** 版本（`package.json`） | ❌ 仅诊断/错误提示 |
 
 - `schemaMigrationId` 取 producer 最末 migration 的 `when`(folderMillis)——drizzle migrate 按 folderMillis 决定增量、**非** tag 词典序，故比对以 folderMillis 为权威，tag（如 `0005_lyrical_galactus`）仅诊断。
-- **release 转换点须 `backupFormatVersion` major bump**：CLAUDE.md 规定 release 前 `migrations/sqlite-drizzle/` 会清空并重生成成一条全新 clean initial migration（开发期 migration 是 throwaway）。此举换掉整条 chain、打断 migrate-forward 依赖的连续性——旧备份的 `schemaMigrationId` 指向已被替换的旧 chain，migrate-forward 会拿新 clean initial 的 `CREATE TABLE` 去撞 backup.sqlite 里已建好的表（`table already exists`）。故在该 release 版本点 major bump formatVersion，让旧格式备份在门禁直接被拒，而非走到必失败的 migrate-forward。
+- **release 转换点须 `backupFormatVersion` major bump**：CLAUDE.md 规定 release 前 `resources/database/drizzle/`（#16626 起的 migrations 目录，原 `migrations/sqlite-drizzle/`）会清空并重生成成一条全新 clean initial migration（开发期 migration 是 throwaway）。此举换掉整条 chain、打断 migrate-forward 依赖的连续性——旧备份的 `schemaMigrationId` 指向已被替换的旧 chain，migrate-forward 会拿新 clean initial 的 `CREATE TABLE` 去撞 backup.sqlite 里已建好的表（`table already exists`）。故在该 release 版本点 major bump formatVersion，让旧格式备份在门禁直接被拒，而非走到必失败的 migrate-forward。
 - `producerAppVersion` 不进门禁：`schemaMigrationId` 偏序已蕴含 app 版本偏序，它仅用于用户可见的错误提示。
 
 每个域由一个 `BackupContributor` 表示：
@@ -373,15 +373,15 @@ flowchart TB
 
    - **格式校验**：`backupFormatVersion` major bump = 不兼容 → 拒绝 + 明确错误
    - **schema 比对**（以 `schemaMigrationId` 的 `when`(folderMillis) 为权威序，**非 tag 词典序**——drizzle migrate 按 folderMillis 决定增量），三种状态：
-     - **老备份**（consumer chain 前缀含 producer 末端）→ **migrate-forward**：对 `backup.sqlite` 在**独立 libsql client**（非 live `DbService.client`，避免污染 live 连接）跑 drizzle `migrate` 到 consumer 末条——因 VACUUM INTO 连带复制了 producer 的 `__drizzle_migrations`，migrator 自动只应用 producer 之后的增量
+     - **老备份**（consumer chain 前缀含 producer 末端）→ **migrate-forward**：对 `backup.sqlite` 在**独立 better-sqlite3 Database 连接**（非 live `DbService.sqlite`，避免污染 live 连接）跑 drizzle `migrate` 到 consumer 末条——因 VACUUM INTO 连带复制了 producer 的 `__drizzle_migrations`，migrator 自动只应用 producer 之后的增量
      - **新备份 / 跨分支分叉**（producer 末端不在 consumer chain 上）→ **拒绝**，提示升级 app
      - **等同** → 直接导入
    - **失败善后**：migrate-forward 失败（备份损坏 / migration SQL 执行失败）= 门禁失败，中止恢复、保留 live DB 原状（未触碰）、删临时 `backup.sqlite`，**不触发 step 4 整库回滚**（因 live DB 未变），并向用户报错「备份无法恢复：文件损坏或版本不受支持」
-   - migrate-forward 跑 release migration chain（`migrations/sqlite-drizzle` 正式产物），不碰开发期 drift；跨分支表集差异（`agent_task` vs `painting`/`agent_workspace`，§四）由 chain 位置识别并经 migrate-forward 消解
+   - migrate-forward 跑 release migration chain（`resources/database/drizzle` 正式产物，#16626 起路径），不碰开发期 drift；跨分支表集差异（`agent_task` vs `painting`/`agent_workspace`，§四）由 chain 位置识别并经 migrate-forward 消解
 1. **RESTORE BARRIER** acquire（静默 WhenReady DB writers + 阻塞 renderer mutation，全程）后用 VACUUM INTO 建快照（须事务外，持 withExclusiveAccess 写锁）
 2. contributor restoreResources 文件 IO 在 withWriteTx 之外、之前
 3. 仅 DB 行导入在 withWriteTx 内
-4. 失败整库回滚是应用级动作（libsql 持连接无法替换文件）：checkpoint(TRUNCATE) 后关连接，再安全文件提升（integrity_check + fsync+rename 原子替换 live .sqlite + 删 stale -wal/-shm + rename-aside 回退），最后重连
+4. 失败整库回滚是应用级动作（SQLite 单连接持文件锁——better-sqlite3 亦然，无法直接 rename 替换文件）：checkpoint(TRUNCATE) 后关连接，再安全文件提升（integrity_check + fsync+rename 原子替换 live .sqlite + 删 stale -wal/-shm + rename-aside 回退），最后重连
 
 本方案将 RestoreRecoveryPoint（整库 DB pre-snapshot + restore journal + 受影响文件快照）作为 in-scope 必交付项（现状 createSnapshot 已用 VACUUM INTO 建 pre-restore-snapshot，但仅创建不使用：失败仅 warn 继续、无回滚/撤销/journal/文件快照；本方案补齐持锁快照 + 回滚 + journal + 文件快照 + 失败阻塞）。**snapshot 创建失败 SHALL 阻塞恢复**（现状 warn 继续，属 breaking）。**合并语义下首要价值是「撤销成功恢复」**（用户回退），其次才是失败回滚。contributor 不负责整库快照与回滚。
 
@@ -390,7 +390,7 @@ flowchart TB
 > [!IMPORTANT]
 > 恢复写事务内 PRAGMA defer_foreign_keys=ON（非 foreign_keys=OFF——后者在事务内是 SQLite 文档明确的 no-op，且 DbService 每次 reconnect 重放 foreign_keys=ON）。`defer_foreign_keys` 仅延迟 FK 约束 *enforcement* 到 COMMIT（COMMIT 前 `foreign_key_check` 验证整图一致），**不**禁用 ON DELETE *actions*（CASCADE/SET NULL 仍立即触发）——故 importer 须遵守「OVERWRITE 行级整替换走 **upsert（`ON CONFLICT(identityKey) DO UPDATE`）**、不 DELETE parent 行；显式 cascade（DELETE_ROW）只删 **leaf/junction 行**（其下无 ON DELETE child action）」，避免与 SQLite ON DELETE 双触发。ReferenceKind 须忠实复刻 schema onDelete（cascade/restrict 转 owning/junction、set null/no action 转 optional、set default 拒绝），由 不变量 19 校验。（注：ON DELETE RESTRICT 不可被 defer_foreign_keys 推迟、永远立即报错，与 NO ACTION 不同；本架构 importer 只删 leaf/junction，RESTRICT 实践中不触发。）DB 写走 DbService.withWriteTx（fn 内仅 DB ops，文件恢复已在事务外）。
 >
-> **恢复安全三件套（针对 PR #12659 review B1/B2/B3）**：① RESTORE BARRIER（应用级写屏障，区别于逐事务 writeMutex）静默 WhenReady DB writers + 阻塞 renderer mutation，跨 snapshot-文件-DB-promote 全程；② 安全文件提升 rollback 序列防 WAL sidecar replay 覆盖快照；③ journal 持久状态机（6 态）+ on-boot crash recovery + completed 门；**recoverOnBoot 作为 `DbService.onInit` 内 `migrateDb` 之前的 gate**（目标态：在 `DbService.ts:139` onInit 中插入 recovery gate，使顺序为 configurePragmas → **recovery gate** → migrateDb → seeders；当前 onInit 仅前三步无 gate）——journal 存在非终态条目时先跑补偿回滚（live DB 经 `DbService.restoreDbFromSnapshot` 整库回滚；覆盖文件从 `fileSnapshots` 恢复到 pre-restore，与 runtime rollback 对称、不经 RSM）再放行 migrateDb，避免 migrateDb/seeders 碰半恢复 DB；回滚快照 schema 可能旧于 consumer，放行后 migrateDb 复用 step 0 migrate-forward 机制推进。
+> **恢复安全三件套（针对 PR #12659 review B1/B2/B3）**：① RESTORE BARRIER（应用级写屏障，区别于逐事务 `withWriteTx`——better-sqlite3 单连接同步，writeMutex 已随 #16626 移除，写序列化 by construction）静默 WhenReady DB writers + 阻塞 renderer mutation，跨 snapshot-文件-DB-promote 全程；② 安全文件提升 rollback 序列防 WAL sidecar replay 覆盖快照；③ journal 持久状态机（6 态）+ on-boot crash recovery + completed 门；**recoverOnBoot 作为 `DbService.onInit` 内 `migrateDb` 之前的 gate**（目标态：在 `DbService.ts:139` onInit 中插入 recovery gate，使顺序为 configurePragmas → **recovery gate** → migrateDb → seeders；当前 onInit 仅前三步无 gate）——journal 存在非终态条目时先跑补偿回滚（live DB 经 `DbService.restoreDbFromSnapshot` 整库回滚；覆盖文件从 `fileSnapshots` 恢复到 pre-restore，与 runtime rollback 对称、不经 RSM）再放行 migrateDb，避免 migrateDb/seeders 碰半恢复 DB；回滚快照 schema 可能旧于 consumer，放行后 migrateDb 复用 step 0 migrate-forward 机制推进。
 >
 > **Upstream prerequisites（gating）**：依赖 DbService 新增 `withExclusiveAccess`（事务外持锁建快照）+ `restoreDbFromSnapshot`（**整库回滚组合 API**，含 checkpoint/close/safe-promote/reconnect/校验；rollback + recoverOnBoot 两入口共享，消 drift）+ `verifyLiveDb`（completed 门）+ PreferenceService.reloadFromDb + DataApiService.armMutationGate/disarmMutationGate + PreferenceService.armWriteGate/disarmWriteGate（RESTORE BARRIER gate），须先合 upstream API PR 再合 backup 实现。
 >
