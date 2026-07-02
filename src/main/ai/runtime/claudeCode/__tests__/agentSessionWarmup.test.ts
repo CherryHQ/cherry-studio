@@ -133,6 +133,32 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
   })
 
+  it('injects the Ollama dummy token for direct Anthropic routing when no API key is configured', async () => {
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'ollama::qwen3:14b' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'ollama',
+      presetProviderId: 'ollama',
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'http://localhost:11434' } }
+    })
+    mocks.getModelByKey.mockReturnValue({ id: 'qwen3:14b', apiModelId: 'qwen3:14b' })
+    mocks.getRotatedApiKey.mockReturnValue('')
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.sdkModelId).toBe('qwen3:14b')
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_BASE_URL: 'http://localhost:11434',
+      ANTHROPIC_API_KEY: 'ollama',
+      ANTHROPIC_AUTH_TOKEN: 'ollama',
+      ANTHROPIC_MODEL: 'qwen3:14b',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'qwen3:14b',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'qwen3:14b',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'qwen3:14b'
+    })
+    expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
+  })
+
   it('routes non-Anthropic provider models through the local API gateway', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',

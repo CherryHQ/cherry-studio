@@ -10,7 +10,7 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost } from '@shared/utils/api'
-import { isGeminiProvider } from '@shared/utils/provider'
+import { isGeminiProvider, isOllamaProvider } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
@@ -18,6 +18,8 @@ import { withDeepSeek1mSuffix } from './deepseekContext'
 import { createClaudeCodeQueryOptions } from './queryOptions'
 import { buildClaudeCodeSessionSettings } from './settingsBuilder'
 import type { ClaudeCodeSettings } from './types'
+
+const OLLAMA_CLAUDE_CODE_AUTH_TOKEN = 'ollama'
 
 export interface ClaudeCodeAgentSessionQueryRequest extends WarmQueryRequest {
   settings: ClaudeCodeSettings
@@ -126,9 +128,11 @@ async function resolveClaudeCodeRuntimeRoute(
   }
 
   const anthropicBaseUrl = resolveAnthropicBaseUrl(primaryProvider, primaryBaseUrl)
+  const providerApiKey = providerService.getRotatedApiKey(primaryProvider.id)
+  const runtimeApiKey = providerApiKey || (isOllamaProvider(primaryProvider) ? OLLAMA_CLAUDE_CODE_AUTH_TOKEN : '')
   return {
     baseUrl: anthropicBaseUrl,
-    apiKey: providerService.getRotatedApiKey(primaryProvider.id),
+    apiKey: runtimeApiKey,
     modelIds: {
       primary: withDeepSeek1mSuffix(primaryRef.apiModelId, anthropicBaseUrl),
       opus: withDeepSeek1mSuffix(opusRef.apiModelId, anthropicBaseUrl),
