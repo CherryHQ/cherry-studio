@@ -413,6 +413,16 @@ export type SharedCacheKey = {
  * Mirrors InferUseCacheValue: resolves template instances back to the schema
  * entry that defines them, so concrete keys still get precise value types.
  */
+/**
+ * One-shot sessionStorage flag the main process sets on the main window before a
+ * profile-switch reload (RFC §4.5). The renderer's persist cache reads it on boot
+ * to drop the previous profile's persisted values (which hold per-profile ids —
+ * last_used_*, pinned tabs, recent items). Shared so setter (main) and reader
+ * (renderer) cannot drift; sessionStorage survives the reload within the same
+ * webContents, so the flag is readable on boot.
+ */
+export const PROFILE_SWITCH_PERSIST_FLAG = 'cs:profile-switch'
+
 export type InferSharedCacheValue<K extends string> = {
   [S in keyof SharedCacheSchema]: K extends ProcessKey<S & string> ? SharedCacheSchema[S] : never
 }[keyof SharedCacheSchema]

@@ -169,3 +169,32 @@ describe('renderer CacheService equality semantics', () => {
     })
   })
 })
+
+describe('renderer CacheService profile-switch persist reset (RFC §4.5)', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    sessionStorage.clear()
+  })
+
+  it('drops the previous profile persist cache when the profile-switch flag is set', async () => {
+    localStorage.setItem('cs_cache_persist', JSON.stringify({ 'ui.chat.last_used_topic_id': 'stale-topic' }))
+    sessionStorage.setItem('cs:profile-switch', '1')
+
+    const service = await createService()
+
+    // Stale per-profile value dropped → back to default (null).
+    expect(service.getPersist('ui.chat.last_used_topic_id')).toBeNull()
+    // One-shot flag consumed.
+    expect(sessionStorage.getItem('cs:profile-switch')).toBeNull()
+    // localStorage rewritten with defaults (no stale value survives).
+    const persisted = JSON.parse(localStorage.getItem('cs_cache_persist') ?? '{}')
+    expect(persisted['ui.chat.last_used_topic_id']).toBeNull()
+  })
+
+  it('loads the persisted cache normally when the flag is absent', async () => {
+    localStorage.setItem('cs_cache_persist', JSON.stringify({ 'ui.chat.last_used_topic_id': 'kept-topic' }))
+
+    const service = await createService()
+    expect(service.getPersist('ui.chat.last_used_topic_id')).toBe('kept-topic')
+  })
+})

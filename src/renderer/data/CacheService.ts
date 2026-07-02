@@ -26,7 +26,7 @@ import type {
   SharedCacheKey,
   UseCacheKey
 } from '@shared/data/cache/cacheSchemas'
-import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
+import { DefaultRendererPersistCache, PROFILE_SWITCH_PERSIST_FLAG } from '@shared/data/cache/cacheSchemas'
 import type {
   CacheEntry,
   CacheEntryDetail,
@@ -970,6 +970,22 @@ export class CacheService {
     // First, initialize with default values
     for (const [key, defaultValue] of Object.entries(DefaultRendererPersistCache)) {
       this.persistCache.set(key as RendererPersistCacheKey, defaultValue)
+    }
+
+    // Profile-switch reload (RFC §4.5): the main process set a one-shot flag
+    // before reloading us onto the new profile. Drop the previous profile's
+    // persisted cache and start from the defaults seeded above so per-profile ids
+    // (last_used_*, pinned tabs, recent items) do not leak across the switch.
+    try {
+      if (sessionStorage.getItem(PROFILE_SWITCH_PERSIST_FLAG) === '1') {
+        sessionStorage.removeItem(PROFILE_SWITCH_PERSIST_FLAG)
+        localStorage.removeItem(STORAGE_PERSIST_KEY)
+        this.savePersistCache()
+        logger.info('Persist cache reset for profile switch')
+        return
+      }
+    } catch (error) {
+      logger.warn('Failed to check profile-switch flag; continuing with normal persist load', error as Error)
     }
 
     try {

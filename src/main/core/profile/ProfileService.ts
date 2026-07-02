@@ -98,7 +98,7 @@ export class ProfileService extends BaseService {
     // Post-commit (step 6–7): the profile has switched; renderer reset is
     // best-effort and does not roll back.
     try {
-      this.resetRenderer()
+      await this.resetRenderer()
     } catch (error) {
       logger.error('Renderer reset after profile switch failed', error as Error, { targetId })
     }
@@ -132,7 +132,9 @@ export class ProfileService extends BaseService {
     }
   }
 
-  private resetRenderer(): void {
-    application.get('MainWindowService').reloadMainWindow()
+  private resetRenderer(): Promise<void> {
+    // Reload the main window onto the new profile, clearing its persisted cache so
+    // per-profile ids do not leak across the switch (RFC §4.5).
+    return application.get('MainWindowService').reloadMainWindow({ clearPersistCache: true })
   }
 }

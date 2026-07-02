@@ -6,6 +6,7 @@ import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } fro
 import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
+import { PROFILE_SWITCH_PERSIST_FLAG } from '@shared/data/cache/cacheSchemas'
 import { IpcChannel } from '@shared/IpcChannel'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import type { BrowserWindow } from 'electron'
@@ -115,11 +116,27 @@ export class MainWindowService extends BaseService {
    * renderer onto the newly-active profile (RFC §4.5): a reload discards all
    * in-memory renderer state so it re-reads the new profile's data. No-op if the
    * main window is not currently open.
+   *
+   * With `clearPersistCache`, a one-shot flag is set in the renderer's
+   * sessionStorage (which survives the reload in the same webContents) before
+   * reloading, so the renderer's persist cache also drops the previous profile's
+   * localStorage values on boot — otherwise per-profile ids (last_used_*, pinned
+   * tabs, recent items) would leak across the switch.
    */
-  public reloadMainWindow(): void {
-    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      this.mainWindow.reload()
+  public async reloadMainWindow(options?: { clearPersistCache?: boolean }): Promise<void> {
+    const win = this.mainWindow
+    if (!win || win.isDestroyed()) return
+    if (options?.clearPersistCache) {
+      try {
+        await win.webContents.executeJavaScript(
+          `try { sessionStorage.setItem(${JSON.stringify(PROFILE_SWITCH_PERSIST_FLAG)}, '1') } catch {}`,
+          true
+        )
+      } catch (error) {
+        logger.warn('Failed to set profile-switch persist flag before reload', error as Error)
+      }
     }
+    win.reload()
   }
 
   private registerActivateHandler() {
