@@ -5,30 +5,30 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { splitTextWithOffsets } from '../../../utils/indexing/splitter'
+import { openBetterSqlite3IndexDriver } from '../BetterSqlite3Driver'
+import { betterSqlite3VectorIndex } from '../BetterSqlite3VectorIndex'
 import { hashEmbeddingText } from '../hashing'
 import { KnowledgeIndexStore } from '../KnowledgeIndexStore'
-import { openLibsqlIndexDriver } from '../LibsqlDriver'
-import { libsqlVectorIndex } from '../LibsqlVectorIndex'
 import type { RebuildMaterialInput } from '../model'
 import { createKnowledgeIndexSchema } from '../schema'
 
 /**
- * End-to-end store round-trip over a real libsql database: take real text, chunk
+ * End-to-end store round-trip over a real better-sqlite3 database: take real text, chunk
  * it with the production splitter (so units carry real offsets), then rebuild →
  * list → search. This ties the splitter and store together — the unit tests
  * hand-pick offset ranges, so this is the only check that the §5.3 slice invariant
  * survives the actual chunker and that all three search modes return the
  * material's indexed units.
  */
-describe('KnowledgeIndexStore integration (real libsql)', () => {
+describe('KnowledgeIndexStore integration (real better-sqlite3)', () => {
   let tempDir: string
   let store: KnowledgeIndexStore
 
   beforeEach(async () => {
     tempDir = mkdtempSync(join(tmpdir(), 'cs-knowledge-integration-'))
-    const driver = await openLibsqlIndexDriver(join(tempDir, 'index.sqlite'))
+    const driver = await openBetterSqlite3IndexDriver(join(tempDir, 'index.sqlite'))
     await createKnowledgeIndexSchema(driver)
-    store = new KnowledgeIndexStore(driver, libsqlVectorIndex)
+    store = new KnowledgeIndexStore(driver, betterSqlite3VectorIndex)
   })
 
   afterEach(async () => {

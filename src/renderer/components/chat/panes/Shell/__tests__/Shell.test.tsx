@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ComponentProps, CSSProperties, ReactNode } from 'react'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CHAT_CENTER_MIN_USABLE_WIDTH } from '../../../shell/paneLayout'
@@ -165,6 +165,14 @@ function OpenTraceButton() {
   )
 }
 
+function ShellActionsRenderCounter() {
+  useShellActions()
+  const renderCountRef = useRef(0)
+  renderCountRef.current += 1
+
+  return <output data-testid="shell-actions-render-count">{renderCountRef.current}</output>
+}
+
 function ToggleMaximizedButton() {
   const actions = useShellActions()
 
@@ -304,6 +312,36 @@ describe('Shell.Toggle', () => {
 
     expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:false')
     expect(screen.getByRole('button', { name: 'common.close_sidebar' })).toHaveAttribute('data-state', 'open')
+  })
+
+  it('can mount open on the default tab', () => {
+    render(
+      <Shell defaultTab="files" defaultOpen>
+        <Shell.Toggle tab="files" command="topic.sidebar.toggle" />
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:false')
+    expect(screen.getByRole('button', { name: 'common.close_sidebar' })).toHaveAttribute('data-state', 'open')
+  })
+
+  it('does not rerender actions-only consumers when shell state changes', () => {
+    render(
+      <Shell defaultTab="files">
+        <OpenTraceButton />
+        <ShellActionsRenderCounter />
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    expect(screen.getByTestId('shell-actions-render-count')).toHaveTextContent('1')
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:files:false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'open trace' }))
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:trace:false')
+    expect(screen.getByTestId('shell-actions-render-count')).toHaveTextContent('1')
   })
 
   it('closes the open pane with the right sidebar shortcut', () => {

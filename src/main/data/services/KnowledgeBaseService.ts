@@ -103,7 +103,7 @@ export class KnowledgeBaseService {
     return application.get('DbService').getDb()
   }
 
-  async search(query: { q: string; limit: number; updatedAtFrom?: number }): Promise<KnowledgeBaseEntitySearchItem[]> {
+  search(query: { q: string; limit: number; updatedAtFrom?: number }): KnowledgeBaseEntitySearchItem[] {
     const conditions: SQL[] = []
     const search = buildSearchPredicate(query.q)
     if (search) conditions.push(search)
@@ -111,7 +111,7 @@ export class KnowledgeBaseService {
       conditions.push(gte(knowledgeBaseTable.updatedAt, query.updatedAtFrom))
     }
 
-    const rows = await this.db
+    const rows = this.db
       .select({
         id: knowledgeBaseTable.id,
         name: knowledgeBaseTable.name,
@@ -121,6 +121,7 @@ export class KnowledgeBaseService {
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(knowledgeBaseTable.updatedAt), asc(knowledgeBaseTable.id))
       .limit(query.limit)
+      .all()
 
     return rows.map((row) => ({
       type: 'knowledge-base',
@@ -131,7 +132,7 @@ export class KnowledgeBaseService {
     }))
   }
 
-  async list(query: ListKnowledgeBasesQuery): Promise<OffsetPaginationResponse<KnowledgeBaseListItem>> {
+  list(query: ListKnowledgeBasesQuery): OffsetPaginationResponse<KnowledgeBaseListItem> {
     const { page, limit } = query
     const offset = (page - 1) * limit
     const conditions: SQL[] = []
@@ -150,24 +151,27 @@ export class KnowledgeBaseService {
       name: knowledgeBaseTable.name
     } as const
     const sortColumn = sortByToColumn[sortBy]
-    const [rows, [{ count }]] = await Promise.all([
-      this.db
-        .select({
-          base: knowledgeBaseTable,
-          itemCount: sqlCount(knowledgeItemTable.id)
-        })
-        .from(knowledgeBaseTable)
-        .leftJoin(
-          knowledgeItemTable,
-          and(eq(knowledgeItemTable.baseId, knowledgeBaseTable.id), ne(knowledgeItemTable.status, 'deleting'))
-        )
-        .groupBy(knowledgeBaseTable.id)
-        .where(whereClause)
-        .orderBy(orderFn(sortColumn), orderFn(knowledgeBaseTable.id))
-        .limit(limit)
-        .offset(offset),
-      this.db.select({ count: sql<number>`count(*)` }).from(knowledgeBaseTable).where(whereClause)
-    ])
+    const rows = this.db
+      .select({
+        base: knowledgeBaseTable,
+        itemCount: sqlCount(knowledgeItemTable.id)
+      })
+      .from(knowledgeBaseTable)
+      .leftJoin(
+        knowledgeItemTable,
+        and(eq(knowledgeItemTable.baseId, knowledgeBaseTable.id), ne(knowledgeItemTable.status, 'deleting'))
+      )
+      .groupBy(knowledgeBaseTable.id)
+      .where(whereClause)
+      .orderBy(orderFn(sortColumn), orderFn(knowledgeBaseTable.id))
+      .limit(limit)
+      .offset(offset)
+      .all()
+    const [{ count }] = this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(knowledgeBaseTable)
+      .where(whereClause)
+      .all()
 
     return {
       items: rows.map((row) => ({
@@ -179,8 +183,8 @@ export class KnowledgeBaseService {
     }
   }
 
-  async getById(id: string): Promise<KnowledgeBase> {
-    const [row] = await this.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).limit(1)
+  getById(id: string): KnowledgeBase {
+    const [row] = this.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).limit(1).all()
 
     if (!row) {
       throw DataApiErrorFactory.notFound('KnowledgeBase', id)
@@ -189,7 +193,7 @@ export class KnowledgeBaseService {
     return rowToKnowledgeBase(row)
   }
 
-  async create(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
+  create(dto: CreateKnowledgeBaseDto): KnowledgeBase {
     // An embedding model is optional. Without one the base is BM25-only: it stores
     // no dimensions and is forced to lexical search regardless of any requested mode.
     const embeddingModelId = dto.embeddingModelId?.trim() || null
@@ -229,18 +233,15 @@ export class KnowledgeBaseService {
       hybridAlpha: createConfig.hybridAlpha ?? null
     }
 
-    const dbService = application.get('DbService')
-    const row = await dbService.withWriteTx(async (tx) => {
-      const [inserted] = await tx.insert(knowledgeBaseTable).values(createValues).returning()
-      return inserted
-    })
+    const db = application.get('DbService').getDb()
+    const [row] = db.insert(knowledgeBaseTable).values(createValues).returning().all()
 
     logger.info('Created knowledge base', { id: row.id, name: row.name })
     return rowToKnowledgeBase(row)
   }
 
-  async update(id: string, dto: UpdateKnowledgeBaseDto): Promise<KnowledgeBase> {
-    const existing = await this.getById(id)
+  update(id: string, dto: UpdateKnowledgeBaseDto): KnowledgeBase {
+    const existing = this.getById(id)
 
     const nextConfig: {
       chunkSize: number
@@ -319,28 +320,19 @@ export class KnowledgeBaseService {
       return existing
     }
 
-    const dbService = application.get('DbService')
-    const row = await dbService.withWriteTx(async (tx) => {
-      const [updated] = await tx
-        .update(knowledgeBaseTable)
-        .set(updates)
-        .where(eq(knowledgeBaseTable.id, id))
-        .returning()
-      return updated
-    })
+    const db = application.get('DbService').getDb()
+    const [row] = db.update(knowledgeBaseTable).set(updates).where(eq(knowledgeBaseTable.id, id)).returning().all()
 
     logger.info('Updated knowledge base', { id, changes: Object.keys(dto) })
     return rowToKnowledgeBase(row)
   }
 
-  async delete(id: string): Promise<void> {
+  delete(id: string): void {
     // Verify knowledge base exists
-    await this.getById(id)
+    this.getById(id)
 
-    const dbService = application.get('DbService')
-    await dbService.withWriteTx(async (tx) => {
-      await tx.delete(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id))
-    })
+    const db = application.get('DbService').getDb()
+    db.delete(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id)).run()
 
     logger.info('Deleted knowledge base', { id })
   }

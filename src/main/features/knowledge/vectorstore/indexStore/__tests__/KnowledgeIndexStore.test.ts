@@ -4,10 +4,10 @@ import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { type BetterSqlite3Driver, openBetterSqlite3IndexDriver } from '../BetterSqlite3Driver'
+import { betterSqlite3VectorIndex } from '../BetterSqlite3VectorIndex'
 import { hashEmbeddingText } from '../hashing'
 import { KnowledgeIndexStore } from '../KnowledgeIndexStore'
-import { type LibsqlDriver, openLibsqlIndexDriver } from '../LibsqlDriver'
-import { libsqlVectorIndex } from '../LibsqlVectorIndex'
 import type { RebuildMaterialInput } from '../model'
 import { createKnowledgeIndexSchema } from '../schema'
 
@@ -36,14 +36,14 @@ function buildInput(
 
 describe('KnowledgeIndexStore', () => {
   let tempDir: string
-  let driver: LibsqlDriver
+  let driver: BetterSqlite3Driver
   let store: KnowledgeIndexStore
 
   beforeEach(async () => {
     tempDir = mkdtempSync(join(tmpdir(), 'cs-knowledge-store-'))
-    driver = await openLibsqlIndexDriver(join(tempDir, 'index.sqlite'))
+    driver = await openBetterSqlite3IndexDriver(join(tempDir, 'index.sqlite'))
     await createKnowledgeIndexSchema(driver)
-    store = new KnowledgeIndexStore(driver, libsqlVectorIndex)
+    store = new KnowledgeIndexStore(driver, betterSqlite3VectorIndex)
   })
 
   afterEach(async () => {

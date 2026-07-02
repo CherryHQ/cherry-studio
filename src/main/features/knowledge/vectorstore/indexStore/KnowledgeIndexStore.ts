@@ -27,8 +27,8 @@ const DELETE_YIELD_BUDGET_MS = 50
 
 /**
  * Engine-neutral store over a per-base `index.sqlite`. Written once; the storage
- * engine is swapped by injecting a different {@link SqliteDriver} (libsql today,
- * better-sqlite3 + sqlite-vec later) — see knowledge-technical-design.md §5.6.
+ * engine is swapped by injecting a different {@link SqliteDriver} (better-sqlite3
+ * + sqlite-vec today) — see knowledge-technical-design.md §5.6.
  *
  * Retrieval (BM25 + brute-force vector + RRF) applies no material-level filter
  * here; the knowledge_item-level filter (existence / lifecycle status) lives in
@@ -187,8 +187,8 @@ export class KnowledgeIndexStore {
    *
    * Batching the GC removes the super-linear cost, but the per-material row
    * deletes are still linear in chunks: each `search_text` delete fires the FTS
-   * delete trigger, which the libsql driver runs synchronously on the main
-   * process. Tens of thousands of rows still sum to a multi-second block, and
+   * delete trigger, which the driver runs synchronously on the main process.
+   * Tens of thousands of rows still sum to a multi-second block, and
    * because Electron drives the window from this same loop that block IS the
    * macOS beachball (the renderer thread never stalls). So the loop yields to the
    * OS message pump whenever it has run for {@link DELETE_YIELD_BUDGET_MS}: the

@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -149,6 +149,29 @@ describe('createDirectoryWatcher', () => {
     await writeFile(path.join(dir, '.DS_Store'), 'noise')
     await new Promise((r) => setTimeout(r, 600))
     expect(seen.find((e) => (e.kind === 'add' || e.kind === 'change') && e.path?.endsWith('.DS_Store'))).toBeUndefined()
+    await w.close()
+  })
+
+  it('limits recursive watching to maxDepth when provided', async () => {
+    const nestedDir = path.join(dir, 'nested')
+    await mkdir(nestedDir)
+
+    const w = createDirectoryWatcher(dir as FilePath, { maxDepth: 0, stabilityThresholdMs: 0 })
+    await waitForReady(w)
+
+    const seen: WatcherEvent[] = []
+    const off = w.onEvent((e) => seen.push(e))
+
+    const rootFile = path.join(dir, 'root.txt') as FilePath
+    const nestedFile = path.join(nestedDir, 'nested.txt') as FilePath
+    await writeFile(rootFile, 'root')
+    await waitForEvent(w, (e) => e.kind === 'add' && e.path === rootFile, 8000)
+
+    await writeFile(nestedFile, 'nested')
+    await new Promise((r) => setTimeout(r, 400))
+
+    expect(seen.some((e) => e.kind === 'add' && e.path === nestedFile)).toBe(false)
+    off()
     await w.close()
   })
 
