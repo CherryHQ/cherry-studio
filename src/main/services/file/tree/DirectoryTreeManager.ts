@@ -314,7 +314,17 @@ export class DirectoryTreeManager extends BaseService implements ProfileActivata
 
     const bucket = this.byWebContents.get(consumer.webContentsId)
     bucket?.delete(treeId)
-    if (bucket && bucket.size === 0) this.byWebContents.delete(consumer.webContentsId)
+    if (bucket && bucket.size === 0) {
+      this.byWebContents.delete(consumer.webContentsId)
+      // Last tree for this webContents is gone — sever its 'destroyed' listener so a
+      // later create re-registers exactly one. Otherwise, on the session-long main
+      // window, each create→dispose-last→create cycle orphans the prior handler.
+      const tracked = this.destroyedListeners.get(consumer.webContentsId)
+      if (tracked) {
+        if (!tracked.sender.isDestroyed()) tracked.sender.off('destroyed', tracked.handler)
+        this.destroyedListeners.delete(consumer.webContentsId)
+      }
+    }
 
     if (shared.consumers.size === 0 && shared.state === 'active') {
       this.transitionToDraining(shared)
