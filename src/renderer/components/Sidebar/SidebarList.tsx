@@ -33,6 +33,11 @@ export function SidebarList({ layout, ...props }: SidebarListProps) {
 
 type ListProps = Omit<SidebarListProps, 'layout'>
 
+function getSidebarNavTestId(entry: ResolvedSidebarEntry): string {
+  const id = entry.key.split(':').at(-1) ?? entry.key
+  return `sidebar-nav-${id}`
+}
+
 function EntryContextMenu({
   children,
   items,
@@ -66,6 +71,7 @@ function IconList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
             <EntryContextMenu items={entry.contextMenuItems} onOpenChange={onContextMenuOpenChange}>
               <button
                 type="button"
+                data-testid={getSidebarNavTestId(entry)}
                 aria-label={entry.label}
                 onClick={guardClick(entry.key, entry.onOpen)}
                 className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150 ${
@@ -102,6 +108,7 @@ function FullList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
                 icon={entry.renderIcon(16, 'md')}
                 label={entry.label}
                 active={isActive}
+                data-testid={getSidebarNavTestId(entry)}
                 onClick={guardClick(entry.key, entry.onOpen)}
                 className="rounded-xl data-[active=true]:bg-sidebar-active-bg"
               />
