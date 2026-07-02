@@ -1515,7 +1515,13 @@ export default function ComposerSurface({
   ])
 
   useEffect(() => {
-    if (!isRootQuickPanelVisible || !resourceProvider || !inputAdapter) return
+    if (!isRootQuickPanelVisible || !inputAdapter) return
+
+    if (!resourceProvider) {
+      unifiedResourceRequestRef.current += 1
+      setUnifiedResourceItems((items) => (items.length === 0 ? items : []))
+      return
+    }
 
     const syncResourceItems = () => {
       void loadUnifiedResourceItems({

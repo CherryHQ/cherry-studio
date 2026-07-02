@@ -45,7 +45,10 @@ const mocks = vi.hoisted(() => ({
   sessionLayout: undefined as string | undefined,
   runtimeHostProps: undefined as
     | { assistant?: { modelId?: string | null }; model?: Model; session?: { agentId?: string } }
-    | undefined
+    | undefined,
+  sessionWorkspaceId: 'workspace-1',
+  sessionWorkspaceName: 'Workspace 1',
+  sessionWorkspacePath: '/workspace'
 }))
 
 const originalResizeObserver = globalThis.ResizeObserver
@@ -267,13 +270,13 @@ vi.mock('@renderer/hooks/agent/useSession', () => ({
       id: 'session-1',
       agentId: 'agent-1',
       name: 'Session',
-      accessiblePaths: ['/workspace'],
-      workspaceId: 'workspace-1',
+      accessiblePaths: [mocks.sessionWorkspacePath],
+      workspaceId: mocks.sessionWorkspaceId,
       workspace: {
-        id: 'workspace-1',
+        id: mocks.sessionWorkspaceId,
         type: 'user',
-        name: 'Workspace 1',
-        path: '/workspace',
+        name: mocks.sessionWorkspaceName,
+        path: mocks.sessionWorkspacePath,
         orderKey: 'a0',
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z'
@@ -478,6 +481,9 @@ describe('AgentComposer', () => {
     mocks.surfaceProps = undefined
     mocks.derivedToolState = undefined
     mocks.runtimeHostProps = undefined
+    mocks.sessionWorkspaceId = 'workspace-1'
+    mocks.sessionWorkspaceName = 'Workspace 1'
+    mocks.sessionWorkspacePath = '/workspace'
     mocks.sessionLayout = undefined
     mocks.shortcutHandlers.clear()
     mocks.shortcutOptions.clear()
@@ -828,6 +834,38 @@ describe('AgentComposer', () => {
     ])
     expect(setFilesUpdater([selectedFile])).toBeInstanceOf(Array)
     expect(setFilesUpdater([selectedFile])).toHaveLength(1)
+  })
+
+  it('changes the unified panel resource provider when the workspace scope changes', () => {
+    const { rerender } = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const firstResourceProvider = mocks.surfaceProps?.resourceProvider
+    expect(firstResourceProvider).toEqual(expect.any(Function))
+
+    mocks.sessionWorkspaceId = 'workspace-2'
+    mocks.sessionWorkspaceName = 'Workspace 2'
+    mocks.sessionWorkspacePath = '/workspace-2'
+
+    rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.surfaceProps?.resourceProvider).toEqual(expect.any(Function))
+    expect(mocks.surfaceProps?.resourceProvider).not.toBe(firstResourceProvider)
   })
 
   it('marks already selected workspace resources as disabled', async () => {

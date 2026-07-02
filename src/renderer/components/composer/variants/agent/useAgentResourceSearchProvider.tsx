@@ -84,7 +84,7 @@ export function useAgentResourceSearchProvider({
   const resourceProvider = useMemo<ComposerUnifiedPanelResourceProvider>(
     () =>
       async (query, { inputAdapter }) => {
-        const { accessiblePaths, files, setFiles, t } = resourceSuggestionStateRef.current
+        const { files, setFiles, t } = resourceSuggestionStateRef.current
         const searchPattern = query.trim()
         if (!enabled || searchPattern.length === 0) return []
 
@@ -161,7 +161,7 @@ export function useAgentResourceSearchProvider({
           }
         })
       },
-    [enabled]
+    [accessiblePaths, enabled]
   )
 
   return useMemo(() => (enabled ? resourceProvider : undefined), [enabled, resourceProvider])

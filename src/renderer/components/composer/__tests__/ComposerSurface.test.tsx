@@ -1250,6 +1250,64 @@ describe('ComposerSurface', () => {
     )
   })
 
+  it('ignores pending unified resource results after the resource provider becomes unavailable', async () => {
+    let resolveResourceItems: (items: QuickPanelListItem[]) => void = () => undefined
+    const resourceProvider = vi.fn(
+      () =>
+        new Promise<QuickPanelListItem[]>((resolve) => {
+          resolveResourceItems = resolve
+        })
+    )
+    const renderSurface = (provider?: ComposerSurfaceProps['resourceProvider']) => (
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        resourceProvider={provider}
+        getToolLaunchers={() => [
+          {
+            id: 'attachment',
+            kind: 'command',
+            label: 'Attachment',
+            icon: 'paperclip',
+            sources: ['popover']
+          }
+        ]}
+      />
+    )
+    const { rerender } = render(renderSurface(resourceProvider))
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    mocks.docContentSize = 6
+    mocks.docTextBetween.mockReturnValue('/notes')
+    mocks.selection = { from: 6, to: 6, $to: {} }
+    mocks.quickPanelGeneration = 1
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelSymbol = '/'
+    mocks.quickPanelQueryAnchor = 0
+    mocks.quickPanelTriggerInfo = {
+      type: 'input',
+      position: 0,
+      originalText: '/notes'
+    }
+    rerender(renderSurface(resourceProvider))
+
+    await waitFor(() => expect(resourceProvider).toHaveBeenCalledTimes(1))
+
+    rerender(renderSurface(undefined))
+    await act(async () => {
+      await Promise.resolve()
+    })
+    mocks.quickPanelUpdateList.mockClear()
+
+    await act(async () => {
+      resolveResourceItems([{ id: 'file:notes', label: 'notes.md', icon: 'file' }])
+      await Promise.resolve()
+    })
+
+    expect(mocks.quickPanelUpdateList).not.toHaveBeenCalled()
+  })
+
   it('bridges external suggestion sources into QuickPanel items', async () => {
     const command = vi.fn()
     const sourceOnKeyDown = vi.fn(() => false)
