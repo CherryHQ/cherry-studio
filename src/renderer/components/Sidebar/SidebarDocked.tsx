@@ -3,6 +3,7 @@ import { CommandContextMenu } from '@renderer/components/command'
 import type { ReactNode } from 'react'
 
 import { ActiveIndicator, SidebarTabIcon } from './primitives'
+import { SidebarSortableList } from './SidebarSortableList'
 import { SidebarTooltip } from './Tooltip'
 import type { SidebarTab, SidebarVisibleLayout } from './types'
 
@@ -11,6 +12,7 @@ export interface SidebarDockedProps {
   dockedTabs: SidebarTab[]
   activeTabId?: string
   onMiniAppTabClick?: (tabId: string) => void
+  onReorder?: (event: { oldIndex: number; newIndex: number }) => void
   onContextMenuOpenChange?: (open: boolean) => void
 }
 
@@ -47,59 +49,79 @@ function DockedDivider({ layout }: { layout: SidebarVisibleLayout }) {
   return <div aria-hidden="true" className={`sidebar-docked-divider my-1.5 h-px bg-border-subtle ${layoutClass}`} />
 }
 
-function IconDockedTabs({ dockedTabs, activeTabId, onMiniAppTabClick, onContextMenuOpenChange }: DockedTabsProps) {
+function IconDockedTabs({
+  dockedTabs,
+  activeTabId,
+  onMiniAppTabClick,
+  onReorder,
+  onContextMenuOpenChange
+}: DockedTabsProps) {
   return (
-    <div className="mt-1 flex flex-col items-center gap-0.5 px-1.5 [-webkit-app-region:no-drag]">
+    <div className="mt-1 px-1.5 [-webkit-app-region:no-drag]">
       <DockedDivider layout="icon" />
-      {dockedTabs.map((dockedTab) => {
-        const isActive = activeTabId === dockedTab.id
+      <SidebarSortableList
+        items={dockedTabs}
+        itemKey="id"
+        onReorder={onReorder}
+        className="flex flex-col items-center gap-0.5">
+        {(dockedTab, guardClick) => {
+          const isActive = activeTabId === dockedTab.id
 
-        return (
-          <SidebarTooltip key={dockedTab.id} content={dockedTab.title}>
-            <DockedContextMenu items={dockedTab.contextMenuItems} onOpenChange={onContextMenuOpenChange}>
-              <button
-                type="button"
-                aria-label={dockedTab.title}
-                onClick={() => onMiniAppTabClick?.(dockedTab.id)}
-                className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150 ${
-                  isActive
-                    ? 'bg-sidebar-active-bg text-foreground'
-                    : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
-                }`}>
-                {isActive && <ActiveIndicator className="rounded-full" />}
-                <SidebarTabIcon tab={dockedTab} size={18} strokeWidth={1.6} miniAppSize="lg" />
-              </button>
-            </DockedContextMenu>
-          </SidebarTooltip>
-        )
-      })}
+          return (
+            <SidebarTooltip key={dockedTab.id} content={dockedTab.title}>
+              <DockedContextMenu items={dockedTab.contextMenuItems} onOpenChange={onContextMenuOpenChange}>
+                <button
+                  type="button"
+                  aria-label={dockedTab.title}
+                  onClick={guardClick(() => onMiniAppTabClick?.(dockedTab.id))}
+                  className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150 ${
+                    isActive
+                      ? 'bg-sidebar-active-bg text-foreground'
+                      : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                  }`}>
+                  {isActive && <ActiveIndicator className="rounded-full" />}
+                  <SidebarTabIcon tab={dockedTab} size={18} strokeWidth={1.6} miniAppSize="lg" />
+                </button>
+              </DockedContextMenu>
+            </SidebarTooltip>
+          )
+        }}
+      </SidebarSortableList>
     </div>
   )
 }
 
-function FullDockedTabs({ dockedTabs, activeTabId, onMiniAppTabClick, onContextMenuOpenChange }: DockedTabsProps) {
+function FullDockedTabs({
+  dockedTabs,
+  activeTabId,
+  onMiniAppTabClick,
+  onReorder,
+  onContextMenuOpenChange
+}: DockedTabsProps) {
   return (
-    <div className="mt-1 space-y-0.5 px-2 [-webkit-app-region:no-drag]">
+    <div className="mt-1 px-2 [-webkit-app-region:no-drag]">
       <DockedDivider layout="full" />
-      {dockedTabs.map((dockedTab) => {
-        const isActive = activeTabId === dockedTab.id
+      <SidebarSortableList items={dockedTabs} itemKey="id" onReorder={onReorder} className="space-y-0.5">
+        {(dockedTab, guardClick) => {
+          const isActive = activeTabId === dockedTab.id
 
-        return (
-          <div key={dockedTab.id} className="relative">
-            <DockedContextMenu items={dockedTab.contextMenuItems} onOpenChange={onContextMenuOpenChange}>
-              <MenuItem
-                variant="ghost"
-                icon={<SidebarTabIcon tab={dockedTab} size={16} strokeWidth={1.6} miniAppSize="md" />}
-                label={dockedTab.title}
-                active={isActive}
-                onClick={() => onMiniAppTabClick?.(dockedTab.id)}
-                className="rounded-xl data-[active=true]:bg-sidebar-active-bg"
-              />
-            </DockedContextMenu>
-            {isActive && <ActiveIndicator className="rounded-xl" />}
-          </div>
-        )
-      })}
+          return (
+            <div key={dockedTab.id} className="relative">
+              <DockedContextMenu items={dockedTab.contextMenuItems} onOpenChange={onContextMenuOpenChange}>
+                <MenuItem
+                  variant="ghost"
+                  icon={<SidebarTabIcon tab={dockedTab} size={16} strokeWidth={1.6} miniAppSize="md" />}
+                  label={dockedTab.title}
+                  active={isActive}
+                  onClick={guardClick(() => onMiniAppTabClick?.(dockedTab.id))}
+                  className="rounded-xl data-[active=true]:bg-sidebar-active-bg"
+                />
+              </DockedContextMenu>
+              {isActive && <ActiveIndicator className="rounded-xl" />}
+            </div>
+          )
+        }}
+      </SidebarSortableList>
     </div>
   )
 }

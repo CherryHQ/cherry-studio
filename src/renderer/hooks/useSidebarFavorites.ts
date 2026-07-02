@@ -5,6 +5,7 @@ import {
   getSidebarMiniAppFavoriteIds,
   removeSidebarMiniApp,
   reorderSidebarApps,
+  reorderSidebarMiniApps,
   setSidebarAppPinned,
   toggleSidebarMiniApp
 } from '@renderer/utils/sidebar'
@@ -44,6 +45,10 @@ export function useSidebarFavorites() {
   )
   const toggleMiniApp = useCallback((id: string) => persist(toggleSidebarMiniApp(favorites, id)), [favorites, persist])
   const removeMiniApp = useCallback((id: string) => persist(removeSidebarMiniApp(favorites, id)), [favorites, persist])
+  const reorderMiniApps = useCallback(
+    (orderedIds: readonly string[]) => persist(reorderSidebarMiniApps(favorites, orderedIds)),
+    [favorites, persist]
+  )
 
-  return { appFavorites, miniAppFavoriteIds, setAppPinned, reorderApps, toggleMiniApp, removeMiniApp }
+  return { appFavorites, miniAppFavoriteIds, setAppPinned, reorderApps, toggleMiniApp, removeMiniApp, reorderMiniApps }
 }

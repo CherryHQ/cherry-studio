@@ -33,6 +33,8 @@ export interface SidebarProps {
   onSearchClick?: () => void
   onExtensionsClick?: () => void
   onMiniAppTabClick?: (tabId: string) => void
+  onItemsReorder?: (event: { oldIndex: number; newIndex: number }) => void
+  onMiniAppTabsReorder?: (event: { oldIndex: number; newIndex: number }) => void
   onDismiss?: () => void
 }
 
@@ -56,6 +58,8 @@ export function Sidebar({
   onSearchClick,
   onExtensionsClick,
   onMiniAppTabClick,
+  onItemsReorder,
+  onMiniAppTabsReorder,
   onDismiss
 }: SidebarProps) {
   const isMacTransparentWindow = useMacTransparentWindow()
@@ -112,11 +116,18 @@ export function Sidebar({
     [clearHoverDismiss, isFloating, scheduleHoverDismiss]
   )
 
-  const menuProps = { items, activeItem, onItemClick, onContextMenuOpenChange: handleContextMenuOpenChange }
+  const menuProps = {
+    items,
+    activeItem,
+    onItemClick,
+    onReorder: onItemsReorder,
+    onContextMenuOpenChange: handleContextMenuOpenChange
+  }
   const dockedProps = {
     dockedTabs,
     activeTabId,
     onMiniAppTabClick,
+    onReorder: onMiniAppTabsReorder,
     onContextMenuOpenChange: handleContextMenuOpenChange
   }
   const footerProps = { user, actions, extensionsLabel, onExtensionsClick }

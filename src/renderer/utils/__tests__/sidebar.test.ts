@@ -10,6 +10,7 @@ import {
   getSidebarMiniAppFavoriteIds,
   removeSidebarMiniApp,
   reorderSidebarApps,
+  reorderSidebarMiniApps,
   resolveSidebarActiveItem,
   setSidebarAppPinned,
   SIDEBAR_FAVORITE_ORDER,
@@ -162,5 +163,33 @@ describe('sidebar favorites mutations', () => {
         'calculator'
       )
     ).toEqual([appFavorite('assistants'), miniAppFavorite('weather')])
+  })
+
+  it('reorders the mini app zone and keeps apps before it', () => {
+    expect(
+      reorderSidebarMiniApps(
+        [appFavorite('assistants'), miniAppFavorite('calculator'), miniAppFavorite('weather')],
+        ['weather', 'calculator']
+      )
+    ).toEqual([appFavorite('assistants'), miniAppFavorite('weather'), miniAppFavorite('calculator')])
+  })
+
+  it('keeps mini apps missing from a partial reorder at the end', () => {
+    expect(
+      reorderSidebarMiniApps(
+        [
+          appFavorite('assistants'),
+          miniAppFavorite('calculator'),
+          miniAppFavorite('weather'),
+          miniAppFavorite('stale')
+        ],
+        ['weather', 'calculator']
+      )
+    ).toEqual([
+      appFavorite('assistants'),
+      miniAppFavorite('weather'),
+      miniAppFavorite('calculator'),
+      miniAppFavorite('stale')
+    ])
   })
 })

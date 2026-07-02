@@ -368,3 +368,30 @@ export function removeSidebarMiniApp(
     getSidebarMiniAppFavoriteIds(favorites).filter((existing) => existing !== id)
   )
 }
+
+/**
+ * Reorder the mini app zone to `orderedIds`, preserving apps. Mini apps missing
+ * from the list (e.g. hidden ones still stored as favorites) are kept at the end
+ * so a reorder of the visible subset never drops the rest.
+ */
+export function reorderSidebarMiniApps(
+  favorites: readonly SidebarFavoriteItem[] | undefined,
+  orderedIds: readonly string[]
+): SidebarFavoriteItem[] {
+  const currentIds = getSidebarMiniAppFavoriteIds(favorites)
+  const currentSet = new Set(currentIds)
+  const seen = new Set<string>()
+  const reordered: string[] = []
+
+  for (const id of orderedIds) {
+    if (currentSet.has(id) && !seen.has(id)) {
+      seen.add(id)
+      reordered.push(id)
+    }
+  }
+  for (const id of currentIds) {
+    if (!seen.has(id)) reordered.push(id)
+  }
+
+  return rebuildSidebarFavorites(getOrderedVisibleSidebarFavorites(favorites), reordered)
+}

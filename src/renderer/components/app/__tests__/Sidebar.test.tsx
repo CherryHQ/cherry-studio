@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -44,7 +44,9 @@ const mocks = vi.hoisted(() => ({
   sidebarMiniAppFavorites: [] as SidebarFavoriteItem[],
   allApps: [] as FakeMiniApp[],
   visibleMiniApps: null as FakeMiniApp[] | null,
-  pinnedMiniApps: [] as FakeMiniApp[]
+  pinnedMiniApps: [] as FakeMiniApp[],
+  onItemsReorder: undefined as ((event: { oldIndex: number; newIndex: number }) => void) | undefined,
+  onMiniAppTabsReorder: undefined as ((event: { oldIndex: number; newIndex: number }) => void) | undefined
 }))
 
 vi.mock('@data/hooks/useCache', () => ({
@@ -147,6 +149,8 @@ vi.mock('../../Sidebar', () => ({
     onHoverChange,
     onItemClick,
     onMiniAppTabClick,
+    onItemsReorder,
+    onMiniAppTabsReorder,
     activeTabId,
     dockedTabs,
     items,
@@ -180,8 +184,12 @@ vi.mock('../../Sidebar', () => ({
     onHoverChange?: (hovering: boolean) => void
     onItemClick?: (id: string) => void
     onMiniAppTabClick?: (id: string) => void
-  }) =>
-    isFloating ? (
+    onItemsReorder?: (event: { oldIndex: number; newIndex: number }) => void
+    onMiniAppTabsReorder?: (event: { oldIndex: number; newIndex: number }) => void
+  }) => {
+    mocks.onItemsReorder = onItemsReorder
+    mocks.onMiniAppTabsReorder = onMiniAppTabsReorder
+    return isFloating ? (
       <div
         className={isFloatingClosing ? 'slide-out-to-left-2 animate-out' : 'slide-in-from-left-2 animate-in'}
         data-testid="floating-sidebar">
@@ -245,6 +253,7 @@ vi.mock('../../Sidebar', () => ({
         </div>
       </>
     )
+  }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -411,6 +420,41 @@ describe('app Sidebar', () => {
       appFavorite('assistants'),
       appFavorite('mini_app'),
       miniAppFavorite('weather')
+    ])
+  })
+
+  it('reorders sidebar app favorites within the app zone, preserving mini apps', () => {
+    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('knowledge'), appFavorite('files')]
+    mocks.sidebarMiniAppFavorites = [miniAppFavorite('calculator')]
+    mocks.allApps = [{ appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }]
+
+    render(<Sidebar />)
+    act(() => mocks.onItemsReorder?.({ oldIndex: 2, newIndex: 0 }))
+
+    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([
+      appFavorite('files'),
+      appFavorite('assistants'),
+      appFavorite('knowledge'),
+      miniAppFavorite('calculator')
+    ])
+  })
+
+  it('reorders sidebar mini app favorites within the mini app zone, preserving apps', () => {
+    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app')]
+    mocks.sidebarMiniAppFavorites = [miniAppFavorite('calculator'), miniAppFavorite('weather')]
+    mocks.allApps = [
+      { appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' },
+      { appId: 'weather', name: 'Weather', logo: 'weather-logo', url: 'https://weather.example' }
+    ]
+
+    render(<Sidebar />)
+    act(() => mocks.onMiniAppTabsReorder?.({ oldIndex: 1, newIndex: 0 }))
+
+    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([
+      appFavorite('assistants'),
+      appFavorite('mini_app'),
+      miniAppFavorite('weather'),
+      miniAppFavorite('calculator')
     ])
   })
 

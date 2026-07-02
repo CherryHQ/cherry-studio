@@ -1,5 +1,6 @@
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
+import { arrayMove } from '@dnd-kit/sortable'
 import { SIDEBAR_ICON_COMPONENTS } from '@renderer/components/app/sidebarIcons'
 import {
   emitResourceListReveal,
@@ -42,7 +43,8 @@ function getMiniAppIdFromUrl(url: string | undefined): string | undefined {
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
-  const { appFavorites, miniAppFavoriteIds, setAppPinned, removeMiniApp } = useSidebarFavorites()
+  const { appFavorites, miniAppFavoriteIds, setAppPinned, removeMiniApp, reorderApps, reorderMiniApps } =
+    useSidebarFavorites()
   const { activeTab, updateTab, openTab } = useTabs()
   const { miniApps, pinned } = useMiniApps()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
@@ -178,6 +180,22 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     [appFavorites, defaultPaintingProvider, handleRemoveSidebarFavorite, t]
   )
 
+  // Each zone reorders independently: indices are into the rendered items, and
+  // arrayMove yields the new id order for the matching favorites partition.
+  const handleReorderApps = useCallback(
+    ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
+      reorderApps(arrayMove(items, oldIndex, newIndex).map((item) => item.id))
+    },
+    [items, reorderApps]
+  )
+
+  const handleReorderMiniApps = useCallback(
+    ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
+      reorderMiniApps(arrayMove(sidebarMiniAppTabs, oldIndex, newIndex).map((tab) => tab.id))
+    },
+    [sidebarMiniAppTabs, reorderMiniApps]
+  )
+
   const activeItem = resolveSidebarActiveItem(pathname)
 
   const handleNavigate = useCallback(
@@ -267,7 +285,9 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     ),
     dockedTabs: sidebarMiniAppTabs,
     onItemClick: handleNavigate,
-    onMiniAppTabClick: handleOpenMiniAppTab
+    onMiniAppTabClick: handleOpenMiniAppTab,
+    onItemsReorder: handleReorderApps,
+    onMiniAppTabsReorder: handleReorderMiniApps
   }
 
   return (

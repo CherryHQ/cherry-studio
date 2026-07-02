@@ -1,5 +1,6 @@
 import { Sortable } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { arrayMove } from '@dnd-kit/sortable'
 import { SIDEBAR_ICON_COMPONENTS } from '@renderer/components/app/sidebarIcons'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import App from '@renderer/components/MiniApp/MiniApp'
@@ -35,17 +36,6 @@ const APP_ICON_BACKGROUNDS: Record<SidebarAppId, string> = {
   openclaw: 'linear-gradient(135deg, #EF4444, #B91C1C)'
 }
 
-function reorderByIndex<T>(items: readonly T[], oldIndex: number, newIndex: number): T[] {
-  if (oldIndex === newIndex) return [...items]
-
-  const nextItems = [...items]
-  const [movedItem] = nextItems.splice(oldIndex, 1)
-  if (movedItem === undefined) return [...items]
-
-  nextItems.splice(newIndex, 0, movedItem)
-  return nextItems
-}
-
 function hasSameMiniAppIdSet(left: readonly MiniAppType[], right: readonly MiniAppType[]): boolean {
   if (left.length !== right.length) return false
 
@@ -62,7 +52,7 @@ export default function LaunchpadPage() {
   const navigate = useNavigate()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
   const { pinned, reorderMiniAppsByStatus } = useMiniApps()
-  const { appFavorites, setAppPinned, reorderApps } = useSidebarFavorites()
+  const { appFavorites, setAppPinned, reorderApps, reorderMiniApps } = useSidebarFavorites()
   const suppressClickUntilRef = useRef(0)
   const draggedItemIdRef = useRef<string | null>(null)
   const miniAppReorderRequestIdRef = useRef(0)
@@ -210,7 +200,7 @@ export default function LaunchpadPage() {
 
   const handleSidebarAppsSortEnd = useCallback(
     ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
-      const nextItems = reorderByIndex(pinnedAppMenuItems, oldIndex, newIndex)
+      const nextItems = arrayMove(pinnedAppMenuItems, oldIndex, newIndex)
       reorderApps(nextItems.map((item) => item.id))
     },
     [pinnedAppMenuItems, reorderApps]
@@ -218,9 +208,13 @@ export default function LaunchpadPage() {
 
   const handleSidebarMiniAppsSortEnd = useCallback(
     ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
-      const nextItems = reorderByIndex(displayedPinnedMiniApps, oldIndex, newIndex)
+      const nextItems = arrayMove(displayedPinnedMiniApps, oldIndex, newIndex)
       const reorderRequestId = ++miniAppReorderRequestIdRef.current
       setOptimisticPinnedMiniApps(nextItems)
+
+      // Keep the sidebar favorites zone in sync: it orders mini apps by their
+      // position in `ui.sidebar.favorites`, independent of the mini-app orderKey.
+      reorderMiniApps(nextItems.map((app) => app.appId))
 
       void reorderMiniAppsByStatus('pinned', nextItems)
         .then(() => {
@@ -235,7 +229,7 @@ export default function LaunchpadPage() {
           window.toast?.error(t('miniApp.reorder_failed'))
         })
     },
-    [displayedPinnedMiniApps, reorderMiniAppsByStatus, t]
+    [displayedPinnedMiniApps, reorderMiniApps, reorderMiniAppsByStatus, t]
   )
 
   const renderAppMenuItem = (item: (typeof appMenuItems)[number]) => (

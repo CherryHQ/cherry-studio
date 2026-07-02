@@ -146,6 +146,7 @@ vi.mock('react-i18next', () => ({
 import LaunchpadPage from '../LaunchpadPage'
 
 const appFavorite = (id: SidebarAppId): SidebarFavoriteItem => ({ type: 'app', id })
+const miniAppFavorite = (id: string): SidebarFavoriteItem => ({ type: 'mini_app', id })
 
 afterEach(() => {
   cleanup()
@@ -313,7 +314,7 @@ describe('LaunchpadPage', () => {
       orderKey: 'b'
     }
     mocks.pinnedMiniApps = [calculator, docs]
-    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app')]
+    mocks.sidebarFavorites = [appFavorite('assistants'), miniAppFavorite('calculator'), miniAppFavorite('docs')]
 
     render(<LaunchpadPage />)
 
@@ -327,7 +328,12 @@ describe('LaunchpadPage', () => {
     })
 
     expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledWith('pinned', [docs, calculator])
-    expect(mocks.setSidebarFavorites).not.toHaveBeenCalled()
+    // The sidebar favorites zone mirrors the launchpad drop order.
+    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([
+      appFavorite('assistants'),
+      miniAppFavorite('docs'),
+      miniAppFavorite('calculator')
+    ])
   })
 
   it('keeps pinned mini apps in dropped order while reorder is pending', () => {
