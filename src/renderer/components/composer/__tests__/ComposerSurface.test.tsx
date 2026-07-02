@@ -1613,6 +1613,43 @@ describe('ComposerSurface', () => {
     })
   })
 
+  it('refreshes the open root panel on launcher version bump even when the display signature is unchanged', async () => {
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelSymbol = '/'
+    mocks.stabilizeEditor = true
+    // Display fields stay identical across renders: the launcher re-registers with a new action payload
+    // (e.g. the MCP status launcher after a status/scope change), which only bumps toolLaunchersVersion.
+    // The open panel must still refresh so it does not keep the stale action closure.
+    const getToolLaunchers = () => [
+      {
+        id: 'mcp',
+        kind: 'panel' as const,
+        label: 'MCP',
+        description: 'MCP servers',
+        icon: 'server',
+        sources: ['popover'] as const
+      }
+    ]
+
+    const { rerender } = render(
+      <ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={getToolLaunchers} toolLaunchersVersion={1} />
+    )
+
+    await waitFor(() => {
+      expect(mocks.quickPanelUpdateList).toHaveBeenCalledWith([expect.objectContaining({ label: 'MCP' })])
+    })
+
+    mocks.quickPanelUpdateList.mockClear()
+
+    rerender(
+      <ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={getToolLaunchers} toolLaunchersVersion={2} />
+    )
+
+    await waitFor(() => {
+      expect(mocks.quickPanelUpdateList).toHaveBeenCalledWith([expect.objectContaining({ label: 'MCP' })])
+    })
+  })
+
   it('syncs external managed file and skill tokens into the editor document', async () => {
     const fileToken = {
       id: 'file:file-1',

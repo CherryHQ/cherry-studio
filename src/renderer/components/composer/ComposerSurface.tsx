@@ -1537,7 +1537,10 @@ export default function ComposerSurface({
       queryAnchor: rootQuickPanelQueryAnchor,
       triggerInfo: rootQuickPanelTriggerInfo
     }).list
-    const nextListSignature = getQuickPanelItemsSignature(nextList)
+    // Fold the launcher registry version into the dedup key so a launcher that re-registers with an
+    // identical display signature but a different action payload (e.g. the MCP status launcher after a
+    // status/scope change) still refreshes the open root panel instead of keeping its stale action closure.
+    const nextListSignature = `${toolLaunchersVersion}${getQuickPanelItemsSignature(nextList)}`
     if (unifiedPanelListSignatureRef.current === nextListSignature) return
     unifiedPanelListSignatureRef.current = nextListSignature
     currentQuickPanel.updateList(nextList)
