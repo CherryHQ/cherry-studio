@@ -2417,11 +2417,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.08
+          "perMillionTokens": 0.117
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.5
+          "perMillionTokens": 0.45499999999999996
         }
       }
     },
@@ -2448,20 +2448,20 @@
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
       "contextWindow": 131072,
-      "id": "qwen3-30b-a3b-thinking",
+      "id": "qwen3-30b-a3b",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "qwen3-30b-a3b-thinking",
+      "name": "qwen3-30b-a3b",
       "outputModalities": ["text"],
       "ownedBy": "alibaba",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.08
+          "perMillionTokens": 0.13
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.39999999999999997
+          "perMillionTokens": 1.56
         }
       }
     },
@@ -2482,46 +2482,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.19305
-        }
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 262144,
-      "id": "qwen3-235b-a22b-thinking",
-      "inputModalities": ["text"],
-      "metadata": {},
-      "name": "qwen3-235b-a22b-thinking",
-      "outputModalities": ["text"],
-      "ownedBy": "alibaba",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.14950000000000002
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 1.495
-        }
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 131072,
-      "id": "qwen3-30b-a3b",
-      "inputModalities": ["text"],
-      "metadata": {},
-      "name": "qwen3-30b-a3b",
-      "outputModalities": ["text"],
-      "ownedBy": "alibaba",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.12
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.5
         }
       }
     },
@@ -3007,6 +2967,39 @@
       }
     },
     {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "contextWindow": 1000000,
+      "family": "claude-fable",
+      "id": "claude-fable-5",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "Claude Fable 5",
+      "outputModalities": ["text"],
+      "ownedBy": "anthropic",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 12.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 50
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["low", "medium", "high", "max"]
+      }
+    },
+    {
       "capabilities": [
         "function-call",
         "reasoning",
@@ -3378,39 +3371,6 @@
           "currency": "USD",
           "perMillionTokens": 15
         }
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 1000000,
-      "family": "claude-fable",
-      "id": "claude-fable-5",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 128000,
-      "metadata": {},
-      "name": "Claude Fable 5",
-      "outputModalities": ["text"],
-      "ownedBy": "anthropic",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 1
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 12.5
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 10
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 50
-        }
-      },
-      "reasoning": {
-        "supportedEfforts": ["low", "medium", "high", "max"]
       }
     },
     {
@@ -5802,11 +5762,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.19999999999999998
+          "perMillionTokens": 0.24
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.77
+          "perMillionTokens": 0.8999999999999999
         }
       }
     },
@@ -7015,7 +6975,7 @@
       }
     },
     {
-      "capabilities": ["audio-generation", "web-search"],
+      "capabilities": ["audio-generation"],
       "contextWindow": 8192,
       "family": "gemini-flash",
       "id": "gemini-2-5-flash-preview-tts",
@@ -7187,7 +7147,7 @@
       }
     },
     {
-      "capabilities": ["audio-generation", "web-search"],
+      "capabilities": ["audio-generation"],
       "contextWindow": 8192,
       "family": "gemini-flash",
       "id": "gemini-2-5-pro-preview-tts",
@@ -7417,7 +7377,7 @@
       }
     },
     {
-      "capabilities": ["audio-generation", "web-search"],
+      "capabilities": ["audio-generation"],
       "contextWindow": 32768,
       "family": "gemini-pro",
       "id": "gemini-2-5-pro-tts",
@@ -7439,7 +7399,7 @@
       }
     },
     {
-      "capabilities": ["audio-generation", "web-search"],
+      "capabilities": ["audio-generation"],
       "contextWindow": 32768,
       "family": "gemini-flash",
       "id": "gemini-2-5-flash-tts",
@@ -8396,10 +8356,10 @@
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
       "contextWindow": 32768,
-      "id": "lfm-2-5-1-2b-thinking",
+      "id": "lfm-2-5-1-2b",
       "inputModalities": ["text"],
       "metadata": {},
-      "name": "lfm-2-5-1-2b-thinking",
+      "name": "lfm-2-5-1-2b",
       "outputModalities": ["text"],
       "ownedBy": "liquidai",
       "pricing": {
@@ -8455,7 +8415,7 @@
       "capabilities": ["reasoning"],
       "contextWindow": 32768,
       "family": "longcat",
-      "id": "longcat-flash-thinking",
+      "id": "longcat-flash",
       "inputModalities": ["text"],
       "maxOutputTokens": 32768,
       "metadata": {},
@@ -9673,14 +9633,15 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-recognition", "file-input"],
-      "contextWindow": 128000,
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "contextWindow": 262144,
       "family": "mistral-medium",
-      "id": "mistral",
+      "id": "mistral-medium",
       "inputModalities": ["text", "image"],
-      "maxOutputTokens": 64000,
+      "maxOutputTokens": 262144,
       "metadata": {},
       "name": "Mistral Medium 3.1",
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "mistral",
       "pricing": {
@@ -9692,6 +9653,9 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "high"]
       }
     },
     {
@@ -9928,7 +9892,7 @@
       "capabilities": ["function-call", "reasoning"],
       "contextWindow": 128000,
       "family": "magistral-medium",
-      "id": "magistral",
+      "id": "magistral-medium",
       "inputModalities": ["text"],
       "maxOutputTokens": 16384,
       "metadata": {},
@@ -10128,32 +10092,6 @@
           "currency": "USD",
           "perMillionTokens": 2
         }
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 262144,
-      "family": "mistral-medium",
-      "id": "mistral-medium",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 262144,
-      "metadata": {},
-      "name": "Mistral Medium 3.5",
-      "openWeights": true,
-      "outputModalities": ["text"],
-      "ownedBy": "mistral",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 1.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 7.5
-        }
-      },
-      "reasoning": {
-        "supportedEfforts": ["none", "high"]
       }
     },
     {
@@ -11048,11 +10986,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.55
+          "perMillionTokens": 0.66
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.1999999999999997
+          "perMillionTokens": 3.41
         }
       }
     },
@@ -11449,26 +11387,6 @@
       "inputModalities": ["text", "image"],
       "metadata": {},
       "name": "nemotron-3-5-content-safety",
-      "outputModalities": ["text"],
-      "ownedBy": "nvidia",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0
-        }
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "audio-recognition", "video-recognition"],
-      "contextWindow": 256000,
-      "id": "nemotron-3-nano-omni-30b-a3b-reasoning",
-      "inputModalities": ["text", "audio", "image", "video"],
-      "metadata": {},
-      "name": "nemotron-3-nano-omni-30b-a3b-reasoning",
       "outputModalities": ["text"],
       "ownedBy": "nvidia",
       "pricing": {
@@ -12040,7 +11958,7 @@
       }
     },
     {
-      "capabilities": ["audio-recognition", "web-search"],
+      "capabilities": ["audio-recognition"],
       "family": "gpt",
       "id": "gpt-4o-transcribe",
       "inputModalities": ["audio"],
@@ -12230,7 +12148,7 @@
       }
     },
     {
-      "capabilities": ["audio-recognition", "web-search"],
+      "capabilities": ["audio-recognition"],
       "family": "o-mini",
       "id": "gpt-4o-mini-transcribe",
       "inputModalities": ["audio"],
@@ -14227,31 +14145,6 @@
     },
     {
       "capabilities": ["function-call", "reasoning"],
-      "contextWindow": 32768,
-      "id": "step-1-32k",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 32768,
-      "metadata": {},
-      "name": "Step 1 (32K)",
-      "outputModalities": ["text"],
-      "ownedBy": "stepfun",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.41
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 2.05
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 9.59
-        }
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning"],
       "contextWindow": 16384,
       "id": "step-2-16k",
       "inputModalities": ["text"],
@@ -14272,6 +14165,41 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 16.44
+        }
+      }
+    },
+    {
+      "capabilities": ["audio-generation"],
+      "family": "step",
+      "id": "step-tts-2",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Step TTS 2",
+      "outputModalities": ["audio"],
+      "ownedBy": "stepfun"
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 32768,
+      "id": "step-1-32k",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 32768,
+      "metadata": {},
+      "name": "Step 1 (32K)",
+      "outputModalities": ["text"],
+      "ownedBy": "stepfun",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.41
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.05
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 9.59
         }
       }
     },
@@ -17239,6 +17167,26 @@
       }
     },
     {
+      "capabilities": ["audio-generation"],
+      "family": "step",
+      "id": "stepaudio-2-5-tts",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "StepAudio 2.5 TTS",
+      "outputModalities": ["audio"],
+      "ownedBy": "stepfun"
+    },
+    {
+      "capabilities": ["audio-recognition"],
+      "family": "step",
+      "id": "stepaudio-2-5-asr",
+      "inputModalities": ["audio"],
+      "metadata": {},
+      "name": "StepAudio 2.5 ASR",
+      "outputModalities": ["text"],
+      "ownedBy": "stepfun"
+    },
+    {
       "capabilities": ["video-generation"],
       "family": "veo",
       "id": "veo-3-1-generate-001",
@@ -17474,5 +17422,5 @@
       "ownedBy": "vercel"
     }
   ],
-  "version": "2026.07.01"
+  "version": "f3aa40d6c14fa452"
 }

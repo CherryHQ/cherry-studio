@@ -9,6 +9,7 @@
  *     tsx scripts/generate-catalog.ts --write    # write both JSON files
  *     tsx scripts/generate-catalog.ts --report   # also dump /tmp/gen-*.txt review files
  */
+import { createHash } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -38,9 +39,19 @@ const PROVIDERS_PATH = path.join(__dirname, '../data/providers.json')
 const PROVIDER_MODELS_PATH = path.join(__dirname, '../data/provider-models.json')
 const WRITE = process.argv.includes('--write')
 const REPORT = process.argv.includes('--report')
-// Stamp generated files with the generation date (YYYY.MM.DD). Upstream (models.dev/OpenRouter) is read
-// live by default; set MODELSDEV_CACHE / OPENROUTER_CACHE to a local file to cache it during dev.
-const VERSION = new Date().toISOString().slice(0, 10).replace(/-/g, '.')
+// Each artifact's `version` is a hash of its own (version-less, key-sorted) content: equal content ⇒
+// equal version, ANY content change ⇒ new version. Seeders (`PresetProviderSeeder` via `SeedRunner`)
+// skip when the journal version matches, so a date stamp would let a same-day regeneration change
+// content without changing version — and the seed would silently never run. Upstream (models.dev/
+// OpenRouter) is read live by default; set MODELSDEV_CACHE / OPENROUTER_CACHE to cache it during dev.
+const contentVersion = (body: unknown): string =>
+  createHash('sha256').update(JSON.stringify(body)).digest('hex').slice(0, 16)
+
+/** Key-sort `body`, stamp `version: contentVersion(body)`, and serialize — the single write shape. */
+const stampAndSerialize = (body: Record<string, unknown>): string => {
+  const sorted = sortKeys(body)
+  return JSON.stringify(sortKeys({ ...sorted, version: contentVersion(sorted) }), null, 2) + '\n'
+}
 
 // Canonicalization (`canonOf`) + prefix matching (`prefixHit`) live in `./canonicalize` so they can be
 // unit-tested / reused without running this script's generation IIFE.
@@ -214,9 +225,13 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
   // which of its models carry it, as DATA, via `webSearch` id-prefixes. Union onto upstream capabilities.
   const creatorWebSearch = new Map(CREATORS.map((l) => [l.id, l.webSearch ?? []]))
   for (const m of models.values()) {
-    // An image-generation model never inherits a text sibling's web search just for sharing its prefix
-    // (`gpt-5-image*` ride the `gpt-5` prefix). web-search is a text capability — skip the image rows.
+    // web-search is a TEXT-CHAT capability: a non-chat SKU never inherits it just for sharing a chat
+    // sibling's prefix. Skip image rows (`gpt-5-image*` ride `gpt-5`; they output text too, so the
+    // modality gate alone won't catch them) and any row that doesn't converse in text on both sides —
+    // TTS (text→audio) and transcription (audio→text). Hand-listed capabilities are unaffected.
     if ((m.capabilities ?? []).includes('image-generation')) continue
+    if (!(m.inputModalities ?? ['text']).includes('text') || !(m.outputModalities ?? ['text']).includes('text'))
+      continue
     if ((creatorWebSearch.get(m.ownedBy) ?? []).some((p) => prefixHit(m.id, p)))
       m.capabilities = [...new Set([...(m.capabilities ?? []), 'web-search'])]
   }
@@ -228,13 +243,12 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
  * `fetchModels` / `overrides` are dropped), with `description` templated as `"{name} - AI model provider"`.
  * Array order follows PROVIDERS; `sortKeys` orders each provider's keys.
  */
-function buildProviders(): { providers: ProviderEntry[]; version: string } {
+function buildProviders(): ProviderEntry[] {
   // oxlint-disable-next-line no-unused-vars
-  const providers = PROVIDERS.map(({ modelsDevProvider, fetchModels, overrides, ...conn }) => ({
+  return PROVIDERS.map(({ modelsDevProvider, fetchModels, overrides, ...conn }) => ({
     ...conn,
     description: `${conn.name} - AI model provider`
   }))
-  return { providers, version: VERSION }
 }
 
 /**
@@ -244,7 +258,7 @@ function buildProviders(): { providers: ProviderEntry[]; version: string } {
  * `modelsDevProvider`, one row per served model carrying that listing's PRICING. `modelId` resolves to a
  * base row or is standalone with a `name`.
  */
-function buildProviderModels(md: ModelsDevApi, baseIds: Set<string>): { root: any; rows: number } {
+function buildProviderModels(md: ModelsDevApi, baseIds: Set<string>): { overrides: any[] } {
   const seen = new Set<string>()
   const rows: any[] = []
   const variantsKey = (o: any): string => (o.modelVariants ?? []).slice().sort().join(',')
@@ -283,7 +297,7 @@ function buildProviderModels(md: ModelsDevApi, baseIds: Set<string>): { root: an
     }
   }
   rows.sort((a, b) => `${a.providerId} ${a.modelId}`.localeCompare(`${b.providerId} ${b.modelId}`))
-  return { root: { overrides: rows, version: VERSION }, rows: rows.length }
+  return { overrides: rows }
 }
 
 void (async () => {
@@ -324,14 +338,14 @@ void (async () => {
     const { metadata, ...rest } = m
     return { ...rest, ...(metadata ? { metadata } : {}) }
   })
-  fs.writeFileSync(MODELS_PATH, JSON.stringify(sortKeys({ models: list, version: VERSION }), null, 2) + '\n')
+  fs.writeFileSync(MODELS_PATH, stampAndSerialize({ models: list }))
   console.log(`\nWROTE ${MODELS_PATH} (${list.length} models).`)
 
   const providers = buildProviders()
-  fs.writeFileSync(PROVIDERS_PATH, JSON.stringify(sortKeys(providers), null, 2) + '\n')
-  console.log(`WROTE ${PROVIDERS_PATH} (${providers.providers.length} providers).`)
+  fs.writeFileSync(PROVIDERS_PATH, stampAndSerialize({ providers }))
+  console.log(`WROTE ${PROVIDERS_PATH} (${providers.length} providers).`)
 
   const pm = buildProviderModels(md, new Set(models.keys()))
-  fs.writeFileSync(PROVIDER_MODELS_PATH, JSON.stringify(sortKeys(pm.root), null, 2) + '\n')
-  console.log(`WROTE ${PROVIDER_MODELS_PATH} (${pm.rows} rows).`)
+  fs.writeFileSync(PROVIDER_MODELS_PATH, stampAndSerialize(pm))
+  console.log(`WROTE ${PROVIDER_MODELS_PATH} (${pm.overrides.length} rows).`)
 })()

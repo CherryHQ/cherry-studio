@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
+import { canonOf } from '../../scripts/canonicalize'
 import { ModelListSchema } from '../schemas/model'
 import { ProviderModelListSchema } from '../schemas/provider-models'
 
@@ -23,10 +24,13 @@ const models = modelsRaw.models as Array<{
   contextWindow?: number
   maxOutputTokens?: number
   capabilities?: string[]
+  inputModalities?: string[]
+  outputModalities?: string[]
 }>
 const overrides = providerModelsRaw.overrides as Array<{
   providerId: string
   modelId: string
+  apiModelId?: string
   name?: string
 }>
 
@@ -51,6 +55,13 @@ describe('catalog invariants (data/*.json)', () => {
     expect(ids.filter((id) => JUNK.test(id))).toEqual([])
   })
 
+  // Canonicalization must be idempotent on the artifact itself: a base id the canonicalizer would
+  // still fold (id !== canonOf(id)) means a variant/date row leaked through a non-fixpoint strip pass
+  // and coexists with (or shadows) its true base row.
+  it('every base id is a canonicalization fixpoint (id === canonOf(id))', () => {
+    expect(ids.filter((id) => canonOf(id) !== id)).toEqual([])
+  })
+
   it('every override resolves to a base row or carries a standalone name', () => {
     const broken = overrides
       .filter((o) => !baseIds.has(o.modelId) && !o.name)
@@ -69,6 +80,34 @@ describe('catalog invariants (data/*.json)', () => {
       .map((m) => m.id)
       .filter((id) => !WEB_SEARCH_IMAGE_ALLOWLIST.has(id))
     expect(offenders).toEqual([])
+  })
+
+  // web-search is a text-chat capability: a model that doesn't converse in text on both sides (TTS is
+  // text→audio, transcription is audio→text, embedders output vector) must never carry it. The generator
+  // gates prefix-inherited web-search by modality; this catches any row slipping back in.
+  it('no non-text-chat model carries web-search (tts / transcription / embedding)', () => {
+    const offenders = models
+      .filter((m) => m.capabilities?.includes('web-search'))
+      .filter(
+        (m) => !(m.inputModalities ?? ['text']).includes('text') || !(m.outputModalities ?? ['text']).includes('text')
+      )
+      .map((m) => m.id)
+    expect(offenders).toEqual([])
+  })
+
+  // The loader's canonical override index (`overrideByKey`) resolves a duplicated key to the self
+  // variant (`apiModelId === modelId`) — see registry-loader.ts `buildOverrideIndex`. A duplicated key
+  // with NO self variant makes the winning override file-order-dependent, so forbid it.
+  it('every duplicated providerId::modelId key contains a self variant', () => {
+    const byKey = new Map<string, Array<(typeof overrides)[number]>>()
+    for (const o of overrides) {
+      const key = `${o.providerId}::${o.modelId}`
+      byKey.set(key, [...(byKey.get(key) ?? []), o])
+    }
+    const orderDependent = [...byKey.entries()]
+      .filter(([, rows]) => rows.length > 1 && !rows.some((r) => (r.apiModelId ?? r.modelId) === r.modelId))
+      .map(([key]) => key)
+    expect(orderDependent).toEqual([])
   })
 
   it('maxOutputTokens never exceeds contextWindow', () => {

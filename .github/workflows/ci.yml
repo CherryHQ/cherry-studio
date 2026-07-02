@@ -51,7 +51,7 @@ jobs:
               - 'patches/**'
 
   catalog-hand-edit-check:
-    # provider-registry data/*.json are GENERATED from src/labs + src/provider. Catch a hand-edit:
+    # provider-registry data/*.json are GENERATED from src/creators + src/providers. Catch a hand-edit:
     # if the data changed but no source under src/ or scripts/ did, the JSON was edited directly.
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
@@ -73,7 +73,7 @@ jobs:
       - name: Reject hand-edited catalog
         if: steps.filter.outputs.data == 'true' && steps.filter.outputs.source == 'false'
         run: |
-          echo "::error::packages/provider-registry/data/*.json changed but no src/ or scripts/ change — that's a hand-edit. The data files are generated: edit src/labs|src/provider and run \`pnpm --filter @cherrystudio/provider-registry generate\`, then commit. Never hand-edit data/*.json."
+          echo "::error::packages/provider-registry/data/*.json changed but no src/ or scripts/ change — that's a hand-edit. The data files are generated: edit src/creators|src/providers and run \`pnpm --filter @cherrystudio/provider-registry generate\`, then commit. Never hand-edit data/*.json."
           exit 1
 
   changeset-check:

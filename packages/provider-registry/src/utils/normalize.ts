@@ -80,7 +80,9 @@ export const HYPHEN_VARIANT_SUFFIXES = [
   '-low',
   '-high',
   '-minimal',
-  '-medium',
+  // NOTE: `-medium` is intentionally NOT here — it's a real model-tier name (`mistral-medium`,
+  // `devstral-medium`), so stripping it as a reasoning-effort variant eats the tier and produces
+  // bogus stems (`mistral`, `devstral`).
   '-nothink',
   '-no-think',
   '-ssvip',
@@ -251,6 +253,21 @@ export function stripDateSnapshot(modelId: string): string {
   return modelId.replace(/@.*$/, '').replace(DATE_SNAPSHOT_PATTERN, '')
 }
 
+/**
+ * Iterate variant → quantization → date stripping to a fixpoint. A single pass is order-dependent —
+ * a trailing date shields an inner variant from the `endsWith` check (`…-thinking-2507` only exposes
+ * `-thinking` after the date is gone) — so without the loop canonicalization is not idempotent.
+ * SHARED by the build canonicalizer (`scripts/canonicalize.ts`) and the runtime resolver below.
+ */
+export function stripVariantQuantDateSuffixes(modelId: string): string {
+  let result = modelId
+  for (;;) {
+    const next = stripDateSnapshot(stripQuantization(stripVariantSuffixes(result)))
+    if (next === result) return result
+    result = next
+  }
+}
+
 export function extractParameterSize(modelId: string): string | undefined {
   const match = modelId.match(PARAMETER_SIZE_PATTERN)
   return match ? match[1].toLowerCase() : undefined
@@ -273,10 +290,13 @@ export function normalizeModelId(modelId: string): string {
   baseName = stripBedrockVendorPrefix(baseName)
   baseName = stripBedrockRevision(baseName)
   baseName = expandKnownPrefixes(baseName)
-  baseName = stripVariantSuffixes(baseName)
-  baseName = stripQuantization(baseName)
-  baseName = stripDateSnapshot(baseName)
-  baseName = stripParameterSize(baseName)
+  // Parameter size joins the fixpoint loop too: stripping `-30b` can expose a variant suffix and
+  // vice versa, so iterate the whole strip stage until stable.
+  for (;;) {
+    const next = stripParameterSize(stripVariantQuantDateSuffixes(baseName))
+    if (next === baseName) break
+    baseName = next
+  }
   baseName = normalizeVersionSeparators(baseName)
   // Underscores are an interchangeable separator (HF-style `bce-embedding-base_v1`). The catalog folds
   // them to `-` (every base id is dash-only), so fold here too or such ids would never resolve.

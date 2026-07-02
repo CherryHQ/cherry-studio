@@ -451,14 +451,6 @@ export default defineProvider({
         input: { currency: 'USD', perMillionTokens: 0.15 },
         output: { currency: 'USD', perMillionTokens: 0.35 }
       }
-    },
-    {
-      modelId: 'gpt-oss-120b',
-      apiModelId: 'openai.gpt-oss-120b-1:0',
-      pricing: {
-        input: { currency: 'USD', perMillionTokens: 0.15 },
-        output: { currency: 'USD', perMillionTokens: 0.6 }
-      }
     }
   ]
 })

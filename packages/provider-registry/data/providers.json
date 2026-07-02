@@ -270,29 +270,6 @@
       "name": "302.AI"
     },
     {
-      "apiFeatures": {
-        "arrayContent": false
-      },
-      "defaultChatEndpoint": "openai-chat-completions",
-      "description": "Cephalon - AI model provider",
-      "endpointConfigs": {
-        "openai-chat-completions": {
-          "adapterFamily": "openai-compatible",
-          "baseUrl": "https://cephalon.cloud/user-center/v1/model"
-        }
-      },
-      "id": "cephalon",
-      "metadata": {
-        "website": {
-          "apiKey": "https://cephalon.cloud/api",
-          "docs": "https://cephalon.cloud/",
-          "models": "https://cephalon.cloud/model",
-          "official": "https://cephalon.cloud/"
-        }
-      },
-      "name": "Cephalon"
-    },
-    {
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "LANYUN - AI model provider",
       "endpointConfigs": {
@@ -849,6 +826,9 @@
       "name": "MiniMax"
     },
     {
+      "apiFeatures": {
+        "serviceTier": true
+      },
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "Groq - AI model provider",
       "endpointConfigs": {
@@ -1080,6 +1060,46 @@
         }
       },
       "name": "Xirang"
+    },
+    {
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "hunyuan - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.hunyuan.cloud.tencent.com"
+        }
+      },
+      "id": "hunyuan",
+      "metadata": {
+        "website": {
+          "apiKey": "https://console.cloud.tencent.com/hunyuan/api-key",
+          "docs": "https://cloud.tencent.com/document/product/1729/111007",
+          "models": "https://cloud.tencent.com/document/product/1729/104753",
+          "official": "https://cloud.tencent.com/product/hunyuan"
+        }
+      },
+      "name": "hunyuan"
+    },
+    {
+      "defaultChatEndpoint": "openai-chat-completions",
+      "description": "Tencent Cloud TI - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://api.lkeap.cloud.tencent.com"
+        }
+      },
+      "id": "tencent-cloud-ti",
+      "metadata": {
+        "website": {
+          "apiKey": "https://console.cloud.tencent.com/lkeap/api",
+          "docs": "https://cloud.tencent.com/document/product/1772",
+          "models": "https://console.cloud.tencent.com/tione/v2/aimarket",
+          "official": "https://cloud.tencent.com/product/ti"
+        }
+      },
+      "name": "Tencent Cloud TI"
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -1369,5 +1389,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "2026.07.01"
+  "version": "0544e8f799859c83"
 }

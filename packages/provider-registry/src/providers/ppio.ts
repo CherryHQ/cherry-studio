@@ -237,6 +237,9 @@ export default openaiCompatible({
       apiModelId: 'qwen/qwen3-235b-a22b-thinking-2507',
       limits: { maxOutputTokens: 114688 },
       modelId: 'qwen3-235b-a22b-thinking',
+      // The canonicalizer folds `-thinking` into the base line, so this id is no longer a base row —
+      // keep the distinctly-priced thinking SKU selectable as a named standalone.
+      name: 'Qwen3 235B A22B Thinking 2507',
       modelVariants: ['235b'],
       pricing: { input: { currency: 'CNY', perMillionTokens: 2 }, output: { currency: 'CNY', perMillionTokens: 20 } }
     },

@@ -8,7 +8,6 @@ import p_azure_openai from './azure-openai'
 import p_baichuan from './baichuan'
 import p_baidu_cloud from './baidu-cloud'
 import p_burncloud from './burncloud'
-import p_cephalon from './cephalon'
 import p_cerebras from './cerebras'
 import p_cherryin from './cherryin'
 import p_copilot from './copilot'
@@ -24,6 +23,7 @@ import p_gpustack from './gpustack'
 import p_grok from './grok'
 import p_groq from './groq'
 import p_huggingface from './huggingface'
+import p_hunyuan from './hunyuan'
 import p_hyperbolic from './hyperbolic'
 import p_infini from './infini'
 import p_jina from './jina'
@@ -52,6 +52,7 @@ import p_qiniu from './qiniu'
 import p_silicon from './silicon'
 import p_sophnet from './sophnet'
 import p_stepfun from './stepfun'
+import p_tencent_cloud_ti from './tencent-cloud-ti'
 import p_together from './together'
 import p_tokenhub from './tokenhub'
 import type { Provider } from './types'
@@ -76,7 +77,6 @@ export const PROVIDERS: Provider[] = [
   p_aionly,
   p_burncloud,
   p_302ai,
-  p_cephalon,
   p_lanyun,
   p_ph8,
   p_sophnet,
@@ -113,6 +113,8 @@ export const PROVIDERS: Provider[] = [
   p_perplexity,
   p_modelscope,
   p_xirang,
+  p_hunyuan,
+  p_tencent_cloud_ti,
   p_tokenhub,
   p_baidu_cloud,
   p_gpustack,

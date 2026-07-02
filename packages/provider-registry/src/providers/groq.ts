@@ -10,6 +10,9 @@ export default defineProvider({
       baseUrl: 'https://api.groq.com/openai'
     }
   },
+  apiFeatures: {
+    serviceTier: true
+  },
   metadata: {
     website: {
       apiKey: 'https://console.groq.com/keys',
