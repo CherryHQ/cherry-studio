@@ -74,7 +74,7 @@ export function Sidebar({
     <div
       className={cn(
         'flex shrink-0 items-center justify-center overflow-hidden *:h-full *:w-full',
-        size === 'sm' ? 'size-8 rounded-lg' : 'size-9 rounded-lg'
+        size === 'sm' ? 'size-6 rounded-md' : 'size-8 rounded-lg'
       )}>
       {logoNode}
     </div>
@@ -100,7 +100,7 @@ export function Sidebar({
       <div className="fixed inset-0 z-40" onClick={handleDismiss}>
         <div
           className={cn(
-            'slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-43.5 animate-in select-none flex-col rounded-r-sm rounded-br-2xl bg-sidebar shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200 [-webkit-app-region:drag]',
+            'slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-43.5 animate-in select-none flex-col rounded-r-2xl bg-sidebar-translucent shadow-[0_4px_40px_var(--color-sidebar-glass-shadow)] backdrop-blur-2xl backdrop-saturate-150 duration-200 [-webkit-app-region:drag]',
             isMac && 'pt-[env(titlebar-area-height)]'
           )}
           onClick={(event) => event.stopPropagation()}
@@ -163,9 +163,8 @@ export function Sidebar({
               onHoverChange?.(false)
               startResizing(event)
             }}
-            className="group/handle h-full w-full cursor-col-resize">
-            <div className="ml-0.5 h-full w-0.5 rounded-full bg-primary/30 opacity-0 transition-opacity group-hover/handle:opacity-100" />
-          </div>
+            className="h-full w-full cursor-col-resize"
+          />
         </div>
       </div>
     )
@@ -182,9 +181,9 @@ export function Sidebar({
         'group/sidebar relative z-20 flex h-full shrink-0 select-none flex-col [-webkit-app-region:drag]',
         isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
       )}>
-      {/* Header */}
+      {/* Header — matches AppShellTabBar h-11 (44px) so the logo aligns vertically with the tab bar row. */}
       <div
-        className={`flex shrink-0 items-center [-webkit-app-region:drag] ${layout === 'full' ? 'h-14 gap-2.5 px-4' : 'h-14 justify-center'}`}>
+        className={`flex shrink-0 items-center [-webkit-app-region:drag] ${layout === 'full' ? 'h-11 gap-2.5 px-4' : 'h-11 justify-center'}`}>
         {renderLogo(layout === 'icon' ? 'sm' : 'default')}
         {layout === 'full' && <span className="truncate text-sidebar-foreground text-sm">{title}</span>}
       </div>
@@ -207,7 +206,7 @@ export function Sidebar({
                 type="button"
                 onClick={onSearchClick}
                 className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
-                <Search size={16} strokeWidth={1.6} />
+                <Search size={18} strokeWidth={1.6} />
               </button>
             </SidebarTooltip>
           </div>
@@ -229,9 +228,8 @@ export function Sidebar({
       {/* Resize handle */}
       <div
         onMouseDown={startResizing}
-        className="group/handle absolute top-0 right-0 bottom-0 z-50 w-0.75 cursor-col-resize [-webkit-app-region:no-drag]">
-        <div className="h-full w-full bg-primary/20 opacity-0 transition-opacity group-hover/handle:opacity-100" />
-      </div>
+        className="absolute top-0 right-0 bottom-0 z-50 w-0.75 cursor-col-resize [-webkit-app-region:no-drag]"
+      />
     </div>
   )
 }
