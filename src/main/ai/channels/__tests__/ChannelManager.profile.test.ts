@@ -20,9 +20,12 @@ describe('ChannelManager profile activation', () => {
     expect(stop).toHaveBeenCalledTimes(1)
   })
 
-  it('does not also start at boot via onReady (would double-start with the first profile activation)', () => {
+  it('does not also start at boot via onReady (would double-start with the first profile activation)', async () => {
     // start() is profile-scoped and runs only from onProfileActivate; a boot onReady
     // that also start()s would connect every active channel twice and leak adapters.
-    expect((ChannelManager.prototype as unknown as { onReady?: unknown }).onReady).toBeUndefined()
+    const svc = new ChannelManager()
+    const start = vi.spyOn(svc, 'start').mockResolvedValue(undefined)
+    await (svc as unknown as { onReady: () => Promise<void> }).onReady()
+    expect(start).not.toHaveBeenCalled()
   })
 })
