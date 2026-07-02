@@ -253,145 +253,178 @@ export function getSidebarFavoriteItems(favorites: readonly SidebarFavoriteItem[
   return items
 }
 
-function sanitizeSidebarFavorites(favorites: readonly SidebarFavoriteItem[] | undefined): SidebarAppId[] {
-  return getSidebarFavoriteItems(favorites).flatMap((favorite) => (favorite.type === 'app' ? [favorite.id] : []))
-}
-
 /** Mini app sidebar favorites: an ordered, deduped list of mini app ids. */
 export function getSidebarMiniAppFavoriteIds(favorites: readonly SidebarFavoriteItem[] | undefined): string[] {
   return getSidebarFavoriteItems(favorites).flatMap((favorite) => (favorite.type === 'mini_app' ? [favorite.id] : []))
 }
 
+/**
+ * The full ordered, deduped sidebar list — apps and mini apps interleaved in
+ * their stored order. Required apps missing from storage are prepended so they
+ * are always visible. This is the single source of truth the sidebar renders
+ * from; every mutation below operates on this list in place, preserving the
+ * mixed order instead of segregating apps before mini apps.
+ */
+export function getOrderedVisibleSidebarFavoriteItems(
+  favorites: readonly SidebarFavoriteItem[] | undefined
+): SidebarFavoriteItem[] {
+  const items = getSidebarFavoriteItems(favorites)
+  const missingRequired = REQUIRED_SIDEBAR_FAVORITES.filter(
+    (id) => !items.some((item) => item.type === 'app' && item.id === id)
+  ).map(createSidebarAppFavorite)
+
+  return [...missingRequired, ...items]
+}
+
+/** The app zone projected out of the mixed list (built-in app ids, in order). */
 export function getOrderedVisibleSidebarFavorites(
   favorites: readonly SidebarFavoriteItem[] | undefined
 ): SidebarAppId[] {
-  const visible = sanitizeSidebarFavorites(favorites)
-
-  for (const favorite of REQUIRED_SIDEBAR_FAVORITES) {
-    if (visible.includes(favorite)) continue
-
-    const favoriteOrder = SIDEBAR_FAVORITE_ORDER.indexOf(favorite)
-    const insertIndex = visible.findIndex(
-      (visibleFavorite) => SIDEBAR_FAVORITE_ORDER.indexOf(visibleFavorite) > favoriteOrder
-    )
-    visible.splice(insertIndex === -1 ? visible.length : insertIndex, 0, favorite)
-  }
-
-  return visible
+  return getOrderedVisibleSidebarFavoriteItems(favorites).flatMap((favorite) =>
+    favorite.type === 'app' ? [favorite.id] : []
+  )
 }
 
 // --- Favorites mutations -----------------------------------------------------
 //
-// The favorites preference stores apps and mini apps in one array. Each mutation
-// touches a single partition and re-merges the other untouched, so callers never
-// have to remember to preserve the partition they didn't change. The canonical
-// storage order is apps-first (in visible order) followed by mini apps; the two
-// sidebar zones render from their own partition, so cross-zone order is irrelevant.
+// The favorites preference stores apps and mini apps interleaved in one ordered
+// array. Every mutation operates on the full mixed list (`getOrderedVisible-
+// SidebarFavoriteItems`) in place: adds append to the end of the whole list,
+// removes filter out, and reorders permute their target items while leaving the
+// other type's items exactly where they sit. This keeps the sidebar's mixed
+// order intact across any mutation, whichever surface (sidebar or launchpad)
+// triggered it.
 
-/** Recombine the two partitions into the canonical apps-first storage order. */
-function rebuildSidebarFavorites(
-  appIds: readonly SidebarAppId[],
-  miniAppIds: readonly string[]
+/**
+ * Reorder the whole sidebar list to `orderedItems` (a permutation of the visible
+ * favorites). Unknown items are dropped and any stored favorite missing from the
+ * list (e.g. a stale mini app id) is kept at the end so a partial order never
+ * silently loses favorites.
+ */
+export function reorderSidebarFavorites(
+  favorites: readonly SidebarFavoriteItem[] | undefined,
+  orderedItems: readonly SidebarFavoriteItem[]
 ): SidebarFavoriteItem[] {
-  return [...appIds.map(createSidebarAppFavorite), ...miniAppIds.map(createSidebarMiniAppFavorite)]
+  const items = getOrderedVisibleSidebarFavoriteItems(favorites)
+  const byKey = new Map(items.map((item) => [getSidebarFavoriteKey(item), item]))
+  const seen = new Set<string>()
+  const reordered: SidebarFavoriteItem[] = []
+
+  for (const requested of orderedItems) {
+    const key = getSidebarFavoriteKey(requested)
+    const item = byKey.get(key)
+    if (item && !seen.has(key)) {
+      seen.add(key)
+      reordered.push(item)
+    }
+  }
+  for (const item of items) {
+    if (!seen.has(getSidebarFavoriteKey(item))) reordered.push(item)
+  }
+
+  return reordered
 }
 
 /**
- * Pin or unpin a built-in app, preserving mini app favorites. Unpinning a
- * required app is a no-op — required apps are always visible.
+ * Pin or unpin a built-in app, preserving everything else in place. Pinning
+ * appends to the end of the list; unpinning a required app is a no-op — required
+ * apps are always visible.
  */
 export function setSidebarAppPinned(
   favorites: readonly SidebarFavoriteItem[] | undefined,
   id: SidebarAppId,
   pinned: boolean
 ): SidebarFavoriteItem[] {
-  const currentApps = getOrderedVisibleSidebarFavorites(favorites)
-  const miniAppIds = getSidebarMiniAppFavoriteIds(favorites)
+  const items = getOrderedVisibleSidebarFavoriteItems(favorites)
+  const isTarget = (item: SidebarFavoriteItem) => item.type === 'app' && item.id === id
 
-  if (!pinned && REQUIRED_SIDEBAR_FAVORITES.includes(id)) {
-    return rebuildSidebarFavorites(currentApps, miniAppIds)
+  if (!pinned) {
+    if (REQUIRED_SIDEBAR_FAVORITES.includes(id)) return items
+    return items.filter((item) => !isTarget(item))
   }
 
-  const nextApps = currentApps.filter((app) => app !== id)
-  if (pinned) nextApps.push(id)
-
-  return rebuildSidebarFavorites(nextApps, miniAppIds)
+  if (items.some(isTarget)) return items
+  return [...items, createSidebarAppFavorite(id)]
 }
 
 /**
- * Reorder the app zone to `orderedAppIds` (a permutation of the visible apps),
- * preserving mini apps. Unknown ids are dropped and any visible app missing from
- * the list is kept at the end so a partial order never silently loses favorites.
+ * Reorder the app subsequence to `orderedAppIds`, leaving mini apps in place.
+ * App slots keep their positions in the list; only the app ids filling them are
+ * permuted. Unknown ids are dropped and any visible app missing from the list is
+ * kept at the end of the app order so a partial order never loses favorites.
  */
 export function reorderSidebarApps(
   favorites: readonly SidebarFavoriteItem[] | undefined,
   orderedAppIds: readonly string[]
 ): SidebarFavoriteItem[] {
-  const currentApps = getOrderedVisibleSidebarFavorites(favorites)
-  const currentSet = new Set(currentApps)
+  const items = getOrderedVisibleSidebarFavoriteItems(favorites)
+  const currentAppIds = items.flatMap((item) => (item.type === 'app' ? [item.id] : []))
+  const currentSet = new Set(currentAppIds)
   const seen = new Set<SidebarAppId>()
-  const reordered: SidebarAppId[] = []
+  const nextAppIds: SidebarAppId[] = []
 
   for (const id of orderedAppIds) {
     if (isSidebarAppId(id) && currentSet.has(id) && !seen.has(id)) {
       seen.add(id)
-      reordered.push(id)
+      nextAppIds.push(id)
     }
   }
-  for (const id of currentApps) {
-    if (!seen.has(id)) reordered.push(id)
+  for (const id of currentAppIds) {
+    if (!seen.has(id)) nextAppIds.push(id)
   }
 
-  return rebuildSidebarFavorites(reordered, getSidebarMiniAppFavoriteIds(favorites))
+  let cursor = 0
+  return items.map((item) => (item.type === 'app' ? createSidebarAppFavorite(nextAppIds[cursor++]) : item))
 }
 
-/** Toggle a mini app favorite, preserving apps. Adding appends to the mini app zone. */
+/** Toggle a mini app favorite, preserving everything else. Adding appends to the end. */
 export function toggleSidebarMiniApp(
   favorites: readonly SidebarFavoriteItem[] | undefined,
   id: string
 ): SidebarFavoriteItem[] {
-  const miniAppIds = getSidebarMiniAppFavoriteIds(favorites)
-  const nextMiniAppIds = miniAppIds.includes(id)
-    ? miniAppIds.filter((existing) => existing !== id)
-    : [...miniAppIds, id]
+  const items = getOrderedVisibleSidebarFavoriteItems(favorites)
+  const isTarget = (item: SidebarFavoriteItem) => item.type === 'mini_app' && item.id === id
 
-  return rebuildSidebarFavorites(getOrderedVisibleSidebarFavorites(favorites), nextMiniAppIds)
+  if (items.some(isTarget)) return items.filter((item) => !isTarget(item))
+  return [...items, createSidebarMiniAppFavorite(id)]
 }
 
-/** Remove a mini app favorite, preserving everything else. */
+/** Remove a mini app favorite, preserving everything else in place. */
 export function removeSidebarMiniApp(
   favorites: readonly SidebarFavoriteItem[] | undefined,
   id: string
 ): SidebarFavoriteItem[] {
-  return rebuildSidebarFavorites(
-    getOrderedVisibleSidebarFavorites(favorites),
-    getSidebarMiniAppFavoriteIds(favorites).filter((existing) => existing !== id)
+  return getOrderedVisibleSidebarFavoriteItems(favorites).filter(
+    (item) => !(item.type === 'mini_app' && item.id === id)
   )
 }
 
 /**
- * Reorder the mini app zone to `orderedIds`, preserving apps. Mini apps missing
- * from the list (e.g. hidden ones still stored as favorites) are kept at the end
- * so a reorder of the visible subset never drops the rest.
+ * Reorder the mini app subsequence to `orderedIds`, leaving apps in place. Mini
+ * app slots keep their positions; only the ids filling them are permuted. Mini
+ * apps missing from the list (e.g. hidden ones still stored as favorites) are
+ * kept at the end of the mini app order so a partial reorder never drops the rest.
  */
 export function reorderSidebarMiniApps(
   favorites: readonly SidebarFavoriteItem[] | undefined,
   orderedIds: readonly string[]
 ): SidebarFavoriteItem[] {
-  const currentIds = getSidebarMiniAppFavoriteIds(favorites)
+  const items = getOrderedVisibleSidebarFavoriteItems(favorites)
+  const currentIds = items.flatMap((item) => (item.type === 'mini_app' ? [item.id] : []))
   const currentSet = new Set(currentIds)
   const seen = new Set<string>()
-  const reordered: string[] = []
+  const nextIds: string[] = []
 
   for (const id of orderedIds) {
     if (currentSet.has(id) && !seen.has(id)) {
       seen.add(id)
-      reordered.push(id)
+      nextIds.push(id)
     }
   }
   for (const id of currentIds) {
-    if (!seen.has(id)) reordered.push(id)
+    if (!seen.has(id)) nextIds.push(id)
   }
 
-  return rebuildSidebarFavorites(getOrderedVisibleSidebarFavorites(favorites), reordered)
+  let cursor = 0
+  return items.map((item) => (item.type === 'mini_app' ? createSidebarMiniAppFavorite(nextIds[cursor++]) : item))
 }

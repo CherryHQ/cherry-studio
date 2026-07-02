@@ -35,6 +35,12 @@ export interface SidebarRouteTab {
 
 export type SidebarTab = SidebarRouteTab | SidebarMiniAppTab
 
+/**
+ * A single sidebar list row — a built-in app or a mini app — rendered together in
+ * one continuous, drag-reorderable list. `kind` discriminates which fields apply.
+ */
+export type SidebarEntry = ({ kind: 'app' } & SidebarMenuItem) | ({ kind: 'miniapp' } & SidebarMiniAppTab)
+
 export type SidebarLayout = 'hidden' | 'icon' | 'full'
 
 export type SidebarVisibleLayout = Exclude<SidebarLayout, 'hidden'>

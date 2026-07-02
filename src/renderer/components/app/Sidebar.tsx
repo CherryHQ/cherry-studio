@@ -13,7 +13,13 @@ import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
-import { getSidebarMenuPath, REQUIRED_SIDEBAR_FAVORITES, resolveSidebarActiveItem } from '@renderer/utils/sidebar'
+import {
+  createSidebarAppFavorite,
+  createSidebarMiniAppFavorite,
+  getSidebarMenuPath,
+  REQUIRED_SIDEBAR_FAVORITES,
+  resolveSidebarActiveItem
+} from '@renderer/utils/sidebar'
 import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
 import type { Ref } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
@@ -24,7 +30,7 @@ import UserPopup from '../Popups/UserPopup'
 import { Sidebar as UISidebar } from '../Sidebar'
 import { getSidebarDisplayWidth, getSidebarLayout, normalizeSidebarWidth } from '../Sidebar/constants'
 import { UserAvatar } from '../Sidebar/primitives'
-import type { SidebarMenuItem, SidebarMiniAppTab, SidebarUser, SidebarVisibleLayout } from '../Sidebar/types'
+import type { SidebarEntry, SidebarUser, SidebarVisibleLayout } from '../Sidebar/types'
 
 const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
 const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarAppId>(REQUIRED_SIDEBAR_FAVORITES)
@@ -43,8 +49,7 @@ function getMiniAppIdFromUrl(url: string | undefined): string | undefined {
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
-  const { appFavorites, miniAppFavoriteIds, setAppPinned, removeMiniApp, reorderApps, reorderMiniApps } =
-    useSidebarFavorites()
+  const { favorites, setAppPinned, removeMiniApp, reorderFavorites } = useSidebarFavorites()
   const { activeTab, updateTab, openTab } = useTabs()
   const { miniApps, pinned, reorderMiniAppsByStatus } = useMiniApps()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
@@ -116,34 +121,6 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     return appById
   }, [miniApps, pinned])
 
-  const sidebarMiniAppTabs = useMemo<SidebarMiniAppTab[]>(() => {
-    return miniAppFavoriteIds.flatMap((appId) => {
-      const app = openableMiniAppById.get(appId)
-      if (!app) return []
-
-      return [
-        {
-          id: app.appId,
-          title: app.nameKey ? t(app.nameKey) : app.name,
-          type: 'miniapp',
-          miniApp: {
-            id: app.appId,
-            logo: app.logo,
-            url: app.url
-          },
-          contextMenuItems: [
-            {
-              type: 'item',
-              id: `sidebar.remove-mini-app.${app.appId}`,
-              label: t('launchpad.unpin_from_sidebar'),
-              onSelect: () => removeMiniApp(app.appId)
-            }
-          ]
-        }
-      ]
-    })
-  }, [removeMiniApp, openableMiniAppById, miniAppFavoriteIds, t])
-
   const handleRemoveSidebarFavorite = useCallback(
     (favorite: SidebarAppId) => {
       if (REQUIRED_SIDEBAR_FAVORITE_SET.has(favorite)) return
@@ -152,60 +129,90 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     [setAppPinned]
   )
 
-  const items = useMemo<SidebarMenuItem[]>(
+  // One continuous list: built-in apps and mini apps interleaved in their stored
+  // favorites order. Unrenderable apps (no route/icon) and stale mini apps (no
+  // matching installed mini app) are dropped here but stay in the preference.
+  const entries = useMemo<SidebarEntry[]>(
     () =>
-      appFavorites.flatMap((icon) => {
-        const path = getSidebarMenuPath(icon, defaultPaintingProvider)
-        const Icon = SIDEBAR_ICON_COMPONENTS[icon]
-        if (!path || !Icon) {
-          return []
+      favorites.flatMap((favorite): SidebarEntry[] => {
+        if (favorite.type === 'app') {
+          const icon = favorite.id
+          const path = getSidebarMenuPath(icon, defaultPaintingProvider)
+          const Icon = SIDEBAR_ICON_COMPONENTS[icon]
+          if (!path || !Icon) return []
+
+          return [
+            {
+              kind: 'app',
+              id: icon,
+              label: t(getSidebarIconLabelKey(icon)),
+              icon: Icon,
+              contextMenuItems: [
+                {
+                  type: 'item',
+                  id: `sidebar.remove-app.${icon}`,
+                  label: t('launchpad.unpin_from_sidebar'),
+                  enabled: !REQUIRED_SIDEBAR_FAVORITE_SET.has(icon),
+                  onSelect: () => handleRemoveSidebarFavorite(icon)
+                }
+              ]
+            }
+          ]
         }
+
+        const app = openableMiniAppById.get(favorite.id)
+        if (!app) return []
+
         return [
           {
-            id: icon,
-            label: t(getSidebarIconLabelKey(icon)),
-            icon: Icon,
+            kind: 'miniapp',
+            id: app.appId,
+            title: app.nameKey ? t(app.nameKey) : app.name,
+            type: 'miniapp',
+            miniApp: {
+              id: app.appId,
+              logo: app.logo,
+              url: app.url
+            },
             contextMenuItems: [
               {
                 type: 'item',
-                id: `sidebar.remove-app.${icon}`,
+                id: `sidebar.remove-mini-app.${app.appId}`,
                 label: t('launchpad.unpin_from_sidebar'),
-                enabled: !REQUIRED_SIDEBAR_FAVORITE_SET.has(icon),
-                onSelect: () => handleRemoveSidebarFavorite(icon)
+                onSelect: () => removeMiniApp(app.appId)
               }
             ]
           }
         ]
       }),
-    [appFavorites, defaultPaintingProvider, handleRemoveSidebarFavorite, t]
+    [favorites, defaultPaintingProvider, handleRemoveSidebarFavorite, openableMiniAppById, removeMiniApp, t]
   )
 
-  // Each zone reorders independently: indices are into the rendered items, and
-  // arrayMove yields the new id order for the matching favorites partition.
-  const handleReorderApps = useCallback(
+  // A single drag reorders the whole mixed list. arrayMove yields the new order,
+  // which we persist as tagged favorites. Mini apps also mirror their new relative
+  // order into the mini-app order keys so the launchpad (which sorts by orderKey,
+  // not the favorites list) stays in sync.
+  const handleReorder = useCallback(
     ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
-      reorderApps(arrayMove(items, oldIndex, newIndex).map((item) => item.id))
-    },
-    [items, reorderApps]
-  )
+      const nextEntries = arrayMove(entries, oldIndex, newIndex)
+      reorderFavorites(
+        nextEntries.map((entry) =>
+          entry.kind === 'app'
+            ? createSidebarAppFavorite(entry.id as SidebarAppId)
+            : createSidebarMiniAppFavorite(entry.id)
+        )
+      )
 
-  const handleReorderMiniApps = useCallback(
-    ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
-      const orderedIds = arrayMove(sidebarMiniAppTabs, oldIndex, newIndex).map((tab) => tab.id)
-      reorderMiniApps(orderedIds)
-
-      // Mirror the new order into the mini apps' order keys so the launchpad,
-      // which sorts by orderKey rather than by the sidebar favorites list, stays
-      // in sync. Sidebar tabs are always visible (enabled or pinned) apps.
-      const orderedApps = orderedIds.flatMap((id) => {
-        const app = openableMiniAppById.get(id)
+      const orderedMiniApps = nextEntries.flatMap((entry) => {
+        if (entry.kind !== 'miniapp') return []
+        const app = openableMiniAppById.get(entry.id)
         return app ? [app] : []
       })
-      void reorderMiniAppsByStatus('visible', orderedApps).catch(() => {
+      void reorderMiniAppsByStatus('visible', orderedMiniApps).catch(() => {
         window.toast?.error(t('miniApp.reorder_failed'))
       })
     },
-    [sidebarMiniAppTabs, reorderMiniApps, openableMiniAppById, reorderMiniAppsByStatus, t]
+    [entries, reorderFavorites, openableMiniAppById, reorderMiniAppsByStatus, t]
   )
 
   const activeItem = resolveSidebarActiveItem(pathname)
@@ -289,17 +296,15 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const sidebarProps = {
     activeItem,
     activeTabId: activeMiniAppId,
-    items,
+    entries,
     title: sidebarUser.name,
     logo: sidebarLogo,
     actions: (footerLayout: SidebarVisibleLayout) => (
       <SidebarShellActions layout={footerLayout} onSettingsClick={handleOpenSettingsTab} />
     ),
-    dockedTabs: sidebarMiniAppTabs,
     onItemClick: handleNavigate,
     onMiniAppTabClick: handleOpenMiniAppTab,
-    onItemsReorder: handleReorderApps,
-    onMiniAppTabsReorder: handleReorderMiniApps
+    onEntriesReorder: handleReorder
   }
 
   return (

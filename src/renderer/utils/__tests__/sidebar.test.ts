@@ -4,12 +4,14 @@ import { Library } from 'lucide-react'
 import { describe, expect, it } from 'vitest'
 
 import {
+  getOrderedVisibleSidebarFavoriteItems,
   getOrderedVisibleSidebarFavorites,
   getSidebarFavoriteItems,
   getSidebarMenuPath,
   getSidebarMiniAppFavoriteIds,
   removeSidebarMiniApp,
   reorderSidebarApps,
+  reorderSidebarFavorites,
   reorderSidebarMiniApps,
   resolveSidebarActiveItem,
   setSidebarAppPinned,
@@ -60,6 +62,28 @@ describe('sidebar config helpers', () => {
     ).toEqual(['translate', 'assistants', 'agents'])
   })
 
+  it('returns the full mixed list interleaved in stored order with required apps forced in', () => {
+    expect(
+      getOrderedVisibleSidebarFavoriteItems([
+        appFavorite('translate'),
+        miniAppFavorite('calculator'),
+        appFavorite('agents')
+      ])
+    ).toEqual([
+      appFavorite('assistants'),
+      appFavorite('translate'),
+      miniAppFavorite('calculator'),
+      appFavorite('agents')
+    ])
+  })
+
+  it('does not prepend a required app that is already present at any position', () => {
+    expect(getOrderedVisibleSidebarFavoriteItems([miniAppFavorite('calculator'), appFavorite('assistants')])).toEqual([
+      miniAppFavorite('calculator'),
+      appFavorite('assistants')
+    ])
+  })
+
   it('reads mini app favorite ids from typed sidebar favorites', () => {
     expect(
       getSidebarMiniAppFavoriteIds([
@@ -105,11 +129,11 @@ describe('sidebar config helpers', () => {
 })
 
 describe('sidebar favorites mutations', () => {
-  it('pins an app to the end while preserving mini apps', () => {
+  it('pins an app to the very end of the mixed list', () => {
     expect(setSidebarAppPinned([appFavorite('assistants'), miniAppFavorite('calculator')], 'knowledge', true)).toEqual([
       appFavorite('assistants'),
-      appFavorite('knowledge'),
-      miniAppFavorite('calculator')
+      miniAppFavorite('calculator'),
+      appFavorite('knowledge')
     ])
   })
 
@@ -191,5 +215,52 @@ describe('sidebar favorites mutations', () => {
       miniAppFavorite('calculator'),
       miniAppFavorite('stale')
     ])
+  })
+
+  it('reordering apps leaves interleaved mini apps in their slots', () => {
+    expect(
+      reorderSidebarApps(
+        [appFavorite('assistants'), miniAppFavorite('calculator'), appFavorite('knowledge')],
+        ['knowledge', 'assistants']
+      )
+    ).toEqual([appFavorite('knowledge'), miniAppFavorite('calculator'), appFavorite('assistants')])
+  })
+
+  it('reordering mini apps leaves interleaved apps in their slots', () => {
+    expect(
+      reorderSidebarMiniApps(
+        [miniAppFavorite('calculator'), appFavorite('assistants'), miniAppFavorite('weather')],
+        ['weather', 'calculator']
+      )
+    ).toEqual([miniAppFavorite('weather'), appFavorite('assistants'), miniAppFavorite('calculator')])
+  })
+})
+
+describe('reorderSidebarFavorites (mixed cross-type reorder)', () => {
+  it('reorders apps and mini apps together into any interleaved order', () => {
+    expect(
+      reorderSidebarFavorites(
+        [appFavorite('assistants'), appFavorite('knowledge'), miniAppFavorite('calculator')],
+        [miniAppFavorite('calculator'), appFavorite('assistants'), appFavorite('knowledge')]
+      )
+    ).toEqual([miniAppFavorite('calculator'), appFavorite('assistants'), appFavorite('knowledge')])
+  })
+
+  it('keeps stored favorites missing from a partial order at the end', () => {
+    expect(
+      reorderSidebarFavorites(
+        [appFavorite('assistants'), miniAppFavorite('calculator'), miniAppFavorite('stale')],
+        [miniAppFavorite('calculator'), appFavorite('assistants')]
+      )
+    ).toEqual([miniAppFavorite('calculator'), appFavorite('assistants'), miniAppFavorite('stale')])
+  })
+
+  it('drops requested items that are not stored favorites', () => {
+    expect(
+      reorderSidebarFavorites(
+        [appFavorite('assistants'), miniAppFavorite('calculator')],
+        [miniAppFavorite('ghost'), miniAppFavorite('calculator'), appFavorite('assistants')]
+      )
+    ).toEqual([miniAppFavorite('calculator'), appFavorite('assistants')])
   })
 })

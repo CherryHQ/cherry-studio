@@ -46,8 +46,7 @@ const mocks = vi.hoisted(() => ({
   allApps: [] as FakeMiniApp[],
   visibleMiniApps: null as FakeMiniApp[] | null,
   pinnedMiniApps: [] as FakeMiniApp[],
-  onItemsReorder: undefined as ((event: { oldIndex: number; newIndex: number }) => void) | undefined,
-  onMiniAppTabsReorder: undefined as ((event: { oldIndex: number; newIndex: number }) => void) | undefined
+  onEntriesReorder: undefined as ((event: { oldIndex: number; newIndex: number }) => void) | undefined
 }))
 
 vi.mock('@data/hooks/useCache', () => ({
@@ -151,11 +150,9 @@ vi.mock('../../Sidebar', () => ({
     onHoverChange,
     onItemClick,
     onMiniAppTabClick,
-    onItemsReorder,
-    onMiniAppTabsReorder,
+    onEntriesReorder,
     activeTabId,
-    dockedTabs,
-    items,
+    entries,
     title,
     logo,
     user,
@@ -166,14 +163,11 @@ vi.mock('../../Sidebar', () => ({
     isFloating?: boolean
     isFloatingClosing?: boolean
     activeTabId?: string
-    dockedTabs?: Array<{
+    entries?: Array<{
+      kind: 'app' | 'miniapp'
       id: string
-      title: string
-      contextMenuItems?: Array<{ id: string; label: string; enabled?: boolean; onSelect?: () => void }>
-    }>
-    items?: Array<{
-      id: string
-      label: string
+      label?: string
+      title?: string
       contextMenuItems?: Array<{ id: string; label: string; enabled?: boolean; onSelect?: () => void }>
     }>
     title?: string
@@ -186,11 +180,14 @@ vi.mock('../../Sidebar', () => ({
     onHoverChange?: (hovering: boolean) => void
     onItemClick?: (id: string) => void
     onMiniAppTabClick?: (id: string) => void
-    onItemsReorder?: (event: { oldIndex: number; newIndex: number }) => void
-    onMiniAppTabsReorder?: (event: { oldIndex: number; newIndex: number }) => void
+    onEntriesReorder?: (event: { oldIndex: number; newIndex: number }) => void
   }) => {
-    mocks.onItemsReorder = onItemsReorder
-    mocks.onMiniAppTabsReorder = onMiniAppTabsReorder
+    mocks.onEntriesReorder = onEntriesReorder
+    // The real UISidebar renders one mixed list; the tests still assert per-type
+    // ordering, so split the single `entries` prop back into the two sections by
+    // `kind` (relative order within each kind is preserved).
+    const items = entries?.filter((entry) => entry.kind === 'app')
+    const dockedTabs = entries?.filter((entry) => entry.kind === 'miniapp')
     return isFloating ? (
       <div
         className={isFloatingClosing ? 'slide-out-to-left-2 animate-out' : 'slide-in-from-left-2 animate-in'}
@@ -427,13 +424,14 @@ describe('app Sidebar', () => {
     ])
   })
 
-  it('reorders sidebar app favorites within the app zone, preserving mini apps', () => {
+  it('reorders sidebar favorites through a single mixed drag', () => {
     mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('knowledge'), appFavorite('files')]
     mocks.sidebarMiniAppFavorites = [miniAppFavorite('calculator')]
     mocks.allApps = [{ appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }]
 
     render(<Sidebar />)
-    act(() => mocks.onItemsReorder?.({ oldIndex: 2, newIndex: 0 }))
+    // Mixed list is [assistants, knowledge, files, calculator]; drag files to front.
+    act(() => mocks.onEntriesReorder?.({ oldIndex: 2, newIndex: 0 }))
 
     expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([
       appFavorite('files'),
@@ -443,7 +441,7 @@ describe('app Sidebar', () => {
     ])
   })
 
-  it('reorders sidebar mini app favorites within the mini app zone, preserving apps', () => {
+  it('drag-reorders a mini app across built-in apps and mirrors the order key', () => {
     mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app')]
     mocks.sidebarMiniAppFavorites = [miniAppFavorite('calculator'), miniAppFavorite('weather')]
     mocks.allApps = [
@@ -452,7 +450,8 @@ describe('app Sidebar', () => {
     ]
 
     render(<Sidebar />)
-    act(() => mocks.onMiniAppTabsReorder?.({ oldIndex: 1, newIndex: 0 }))
+    // Mixed list is [assistants, mini_app, calculator, weather]; drag weather above calculator.
+    act(() => mocks.onEntriesReorder?.({ oldIndex: 3, newIndex: 2 }))
 
     expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([
       appFavorite('assistants'),
@@ -463,6 +462,22 @@ describe('app Sidebar', () => {
     // The mini apps' order keys mirror the drop order so the launchpad, which
     // sorts by orderKey, stays in sync with the sidebar.
     expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledWith('visible', [mocks.allApps[1], mocks.allApps[0]])
+  })
+
+  it('drag-reorders a mini app above a built-in app, interleaving the two types', () => {
+    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app')]
+    mocks.sidebarMiniAppFavorites = [miniAppFavorite('calculator')]
+    mocks.allApps = [{ appId: 'calculator', name: 'Calculator', logo: 'calculator-logo', url: 'https://calc.example' }]
+
+    render(<Sidebar />)
+    // Mixed list is [assistants, mini_app, calculator]; drag calculator to the very top.
+    act(() => mocks.onEntriesReorder?.({ oldIndex: 2, newIndex: 0 }))
+
+    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([
+      miniAppFavorite('calculator'),
+      appFavorite('assistants'),
+      appFavorite('mini_app')
+    ])
   })
 
   it('does not render mini apps unless they are sidebar favorites', () => {

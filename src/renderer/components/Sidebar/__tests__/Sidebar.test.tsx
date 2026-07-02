@@ -12,7 +12,7 @@ import {
   SIDEBAR_MAX_WIDTH
 } from '../constants'
 import { Sidebar } from '../Sidebar'
-import type { SidebarMenuItem } from '../types'
+import type { SidebarEntry, SidebarMenuItem, SidebarMiniAppTab } from '../types'
 
 vi.mock('../Tooltip', () => ({
   SidebarTooltip: ({ children }: { children: ReactNode }) => children
@@ -68,6 +68,9 @@ vi.mock('@renderer/components/Icons/miniAppsLogo', () => ({
   }
 }))
 
+const appEntry = (item: SidebarMenuItem): SidebarEntry => ({ kind: 'app', ...item })
+const miniEntry = (tab: SidebarMiniAppTab): SidebarEntry => ({ kind: 'miniapp', ...tab })
+
 const items: SidebarMenuItem[] = [
   {
     id: 'chat',
@@ -75,6 +78,7 @@ const items: SidebarMenuItem[] = [
     icon: Search
   }
 ]
+const entries: SidebarEntry[] = items.map(appEntry)
 
 const INTERMEDIATE_WIDTH = SIDEBAR_ICON_WIDTH + 30
 
@@ -87,7 +91,7 @@ function dragResizeFrom(width: number, moves: number | number[]) {
       width={width}
       setWidth={setWidth}
       activeItem="chat"
-      items={items}
+      entries={entries}
       onItemClick={vi.fn()}
       onHoverChange={onHoverChange}
       onResizePreview={onResizePreview}
@@ -107,7 +111,13 @@ function dragResizeFrom(width: number, moves: number | number[]) {
 describe('Sidebar resize handle', () => {
   it('keeps the existing handle width and opts out of window drag regions', () => {
     const { container } = render(
-      <Sidebar width={SIDEBAR_ICON_WIDTH} setWidth={vi.fn()} activeItem="chat" items={items} onItemClick={vi.fn()} />
+      <Sidebar
+        width={SIDEBAR_ICON_WIDTH}
+        setWidth={vi.fn()}
+        activeItem="chat"
+        entries={entries}
+        onItemClick={vi.fn()}
+      />
     )
 
     const resizeHandle = container.querySelector('.cursor-col-resize')
@@ -181,7 +191,13 @@ describe('Sidebar resize handle', () => {
 
   it('renders intermediate widths with icon layout without menu text', () => {
     const { container, queryByText } = render(
-      <Sidebar width={INTERMEDIATE_WIDTH} setWidth={vi.fn()} activeItem="chat" items={items} onItemClick={vi.fn()} />
+      <Sidebar
+        width={INTERMEDIATE_WIDTH}
+        setWidth={vi.fn()}
+        activeItem="chat"
+        entries={entries}
+        onItemClick={vi.fn()}
+      />
     )
 
     expect(container.firstElementChild).toHaveStyle({ width: `${INTERMEDIATE_WIDTH}px` })
@@ -206,7 +222,7 @@ describe('Sidebar resize handle', () => {
         width={SIDEBAR_HIDDEN_THRESHOLD - 10}
         setWidth={vi.fn()}
         activeItem="chat"
-        items={items}
+        entries={entries}
         onItemClick={vi.fn()}
       />
     )
@@ -237,7 +253,7 @@ describe('Sidebar resize handle', () => {
         width={SIDEBAR_FULL_THRESHOLD}
         setWidth={vi.fn()}
         activeItem="chat"
-        items={items}
+        entries={entries}
         onItemClick={vi.fn()}
       />
     )
@@ -254,11 +270,11 @@ describe('Sidebar resize handle', () => {
         width={SIDEBAR_FULL_THRESHOLD}
         setWidth={vi.fn()}
         activeItem="chat"
-        items={[
-          {
+        entries={[
+          appEntry({
             ...items[0],
             contextMenuItems: [{ type: 'item', id: 'remove-chat', label: 'Remove from Sidebar', onSelect: onRemove }]
-          }
+          })
         ]}
         onItemClick={vi.fn()}
       />
@@ -279,11 +295,11 @@ describe('Sidebar resize handle', () => {
           width={SIDEBAR_FULL_THRESHOLD}
           setWidth={vi.fn()}
           activeItem="chat"
-          items={[
-            {
+          entries={[
+            appEntry({
               ...items[0],
               contextMenuItems: [{ type: 'item', id: 'remove-chat', label: 'Remove from Sidebar', onSelect: vi.fn() }]
-            }
+            })
           ]}
           isFloating
           onDismiss={onDismiss}
@@ -315,14 +331,14 @@ describe('Sidebar resize handle', () => {
         width={SIDEBAR_FULL_THRESHOLD}
         setWidth={vi.fn()}
         activeItem="chat"
-        items={items}
-        dockedTabs={[
-          {
+        entries={[
+          ...entries,
+          miniEntry({
             id: 'qwen',
             title: 'Qwen',
             type: 'miniapp',
             miniApp: { id: 'qwen', logo: 'qwen' }
-          }
+          })
         ]}
         onItemClick={vi.fn()}
       />
@@ -335,55 +351,40 @@ describe('Sidebar resize handle', () => {
     })
   })
 
-  it('uses equal side margins for the full docked mini app divider and centers the icon divider', () => {
-    const dockedTabs = [
-      {
-        id: 'qwen',
-        title: 'Qwen',
-        type: 'miniapp' as const,
-        miniApp: { id: 'qwen', logo: 'qwen' }
-      }
-    ]
+  it('renders apps and mini apps as one continuous list with no divider between them', () => {
+    const dockedTab: SidebarMiniAppTab = {
+      id: 'qwen',
+      title: 'Qwen',
+      type: 'miniapp',
+      miniApp: { id: 'qwen', logo: 'qwen' }
+    }
+    const mixedEntries = [...entries, miniEntry(dockedTab)]
 
-    const { container: fullContainer } = render(
+    const { container: fullContainer, getByText } = render(
       <Sidebar
         width={SIDEBAR_FULL_THRESHOLD}
         setWidth={vi.fn()}
         activeItem="chat"
-        items={items}
-        dockedTabs={dockedTabs}
+        entries={mixedEntries}
         onItemClick={vi.fn()}
       />
     )
-    const fullDivider = fullContainer.querySelector('.sidebar-docked-divider')
 
-    expect(fullDivider).toHaveClass('mx-2.5')
-    expect(fullDivider).not.toHaveClass('w-3/5')
-    expect(fullDivider).not.toHaveClass('max-w-12')
-    expect(fullDivider).not.toHaveClass('mx-auto')
-    expect(fullDivider).toHaveClass('my-1.5')
-    expect(fullDivider).toHaveClass('bg-border-subtle')
-    expect(fullDivider?.parentElement).not.toHaveClass('border-t')
+    expect(fullContainer.querySelector('.sidebar-docked-divider')).not.toBeInTheDocument()
+    expect(getByText('Chat')).toBeInTheDocument()
+    expect(getByText('Qwen')).toBeInTheDocument()
 
     const { container: iconContainer } = render(
       <Sidebar
         width={SIDEBAR_ICON_WIDTH}
         setWidth={vi.fn()}
         activeItem="chat"
-        items={items}
-        dockedTabs={dockedTabs}
+        entries={mixedEntries}
         onItemClick={vi.fn()}
       />
     )
-    const iconDivider = iconContainer.querySelector('.sidebar-docked-divider')
 
-    expect(iconDivider).toHaveClass('w-3/5')
-    expect(iconDivider).toHaveClass('max-w-12')
-    expect(iconDivider).toHaveClass('mx-auto')
-    expect(iconDivider).not.toHaveClass('ml-2.5')
-    expect(iconDivider).toHaveClass('my-1.5')
-    expect(iconDivider).toHaveClass('bg-border-subtle')
-    expect(iconDivider?.parentElement).not.toHaveClass('border-t')
+    expect(iconContainer.querySelector('.sidebar-docked-divider')).not.toBeInTheDocument()
   })
 
   it('uses the same full row sizing and hover styles for docked mini apps as sidebar menu items', () => {
@@ -392,14 +393,14 @@ describe('Sidebar resize handle', () => {
         width={SIDEBAR_FULL_THRESHOLD}
         setWidth={vi.fn()}
         activeItem="chat"
-        items={items}
-        dockedTabs={[
-          {
+        entries={[
+          ...entries,
+          miniEntry({
             id: 'qwen',
             title: 'Qwen',
             type: 'miniapp',
             miniApp: { id: 'qwen', logo: 'qwen' }
-          }
+          })
         ]}
         onItemClick={vi.fn()}
       />
@@ -418,14 +419,14 @@ describe('Sidebar resize handle', () => {
         setWidth={vi.fn()}
         activeItem="chat"
         activeTabId="qwen"
-        items={items}
-        dockedTabs={[
-          {
+        entries={[
+          ...entries,
+          miniEntry({
             id: 'qwen',
             title: 'Qwen',
             type: 'miniapp',
             miniApp: { id: 'qwen', logo: 'qwen' }
-          }
+          })
         ]}
         onItemClick={vi.fn()}
       />
@@ -441,14 +442,14 @@ describe('Sidebar resize handle', () => {
         width={SIDEBAR_ICON_WIDTH}
         setWidth={vi.fn()}
         activeItem="chat"
-        items={items}
-        dockedTabs={[
-          {
+        entries={[
+          ...entries,
+          miniEntry({
             id: 'qwen',
             title: 'Qwen',
             type: 'miniapp',
             miniApp: { id: 'qwen', logo: 'qwen' }
-          }
+          })
         ]}
         onItemClick={vi.fn()}
       />
@@ -468,14 +469,14 @@ describe('Sidebar resize handle', () => {
         width={SIDEBAR_ICON_WIDTH}
         setWidth={vi.fn()}
         activeItem="chat"
-        items={items}
-        dockedTabs={[
-          {
+        entries={[
+          ...entries,
+          miniEntry({
             id: 'custom',
             title: 'Custom Tool',
             type: 'miniapp',
             miniApp: { id: 'custom' }
-          }
+          })
         ]}
         onItemClick={vi.fn()}
       />
@@ -492,15 +493,15 @@ describe('Sidebar resize handle', () => {
         width={SIDEBAR_ICON_WIDTH}
         setWidth={vi.fn()}
         activeItem="chat"
-        items={items}
-        dockedTabs={[
-          {
+        entries={[
+          ...entries,
+          miniEntry({
             id: 'qwen',
             title: 'Qwen',
             type: 'miniapp',
             miniApp: { id: 'qwen', logo: 'qwen' },
             contextMenuItems: [{ type: 'item', id: 'remove-qwen', label: 'Remove from Sidebar', onSelect: onRemove }]
-          }
+          })
         ]}
         onItemClick={vi.fn()}
       />
@@ -519,7 +520,7 @@ describe('Sidebar resize handle', () => {
         width={SIDEBAR_ICON_WIDTH}
         setWidth={vi.fn()}
         activeItem="chat"
-        items={items}
+        entries={entries}
         actions={renderActions}
         onItemClick={vi.fn()}
       />
@@ -532,7 +533,7 @@ describe('Sidebar resize handle', () => {
         width={SIDEBAR_FULL_THRESHOLD}
         setWidth={vi.fn()}
         activeItem="chat"
-        items={items}
+        entries={entries}
         actions={renderActions}
         onItemClick={vi.fn()}
       />
@@ -548,7 +549,7 @@ describe('Sidebar resize handle', () => {
         width={SIDEBAR_HIDDEN_THRESHOLD - 10}
         setWidth={vi.fn()}
         activeItem="chat"
-        items={items}
+        entries={entries}
         isFloating
         onItemClick={vi.fn()}
       />
