@@ -1333,12 +1333,14 @@
       "add": "Tag hinzufügen",
       "delete": "Tag löschen",
       "deleteConfirm": "Möchten Sie diesen Tag wirklich löschen?",
+      "group_by": "[to be translated]:Group by tag",
       "manage": "Tags verwalten",
       "modify": "Tag ändern",
       "none": "Keine Tags vorhanden",
       "settings": {
         "title": "Tag-Einstellungen"
       },
+      "ungroup": "[to be translated]:Turn off tag grouping",
       "untagged": "Nicht gruppiert"
     },
     "title": "Assistent",
@@ -4764,6 +4766,7 @@
     "ollama": "Ollama",
     "open-mineru": "Open MinerU",
     "openai": "OpenAI",
+    "opencode": "[to be translated]:OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
@@ -6243,6 +6246,9 @@
         "button": "Server abrufen",
         "success": "MCP-Server erfolgreich abgerufen"
       },
+      "filter": {
+        "label": "[to be translated]:Filter"
+      },
       "findMore": "Mehr MCP",
       "headers": "Request-Header",
       "headersTooltip": "Benutzerdefinierte Request-Header für HTTP-Anfragen",
@@ -6283,6 +6289,7 @@
       "noDescriptionAvailable": "Keine Beschreibung",
       "noLogs": "Noch keine Protokolle",
       "noServers": "Server nicht konfiguriert",
+      "notInstalled": "[to be translated]:Not installed",
       "not_support": "Modell nicht unterstützt",
       "npx_list": {
         "actions": "Aktionen",
@@ -6318,6 +6325,7 @@
         "title": "Externes MCP ausführen?"
       },
       "provider": "Anbieter",
+      "providerNotFound": "[to be translated]:MCP provider not found",
       "providerPlaceholder": "Anbietername",
       "providerUrl": "Anbieter-Website",
       "providers": "Anbieter",
@@ -6364,13 +6372,6 @@
         "getToken": "API-Token abrufen",
         "getTokenDescription": "Persönlichen API-Token aus Ihrem Konto abrufen",
         "noServersAvailable": "Keine MCP-Server verfügbar",
-        "providerDescriptions": {
-          "302ai": "302.AI-Plattform MCP-Dienst",
-          "bailian": "Alibaba Cloud Bailian Platform MCP-Dienst",
-          "lanyun": "Lanyun Technology Cloud Platform MCP-Dienst",
-          "mcprouter": "MCP-Router-Plattform MCP-Service",
-          "modelscope": "ModelScope-Plattform MCP-Dienst"
-        },
         "selectProvider": "Anbieter auswählen:",
         "setToken": "Ihren Token eingeben",
         "success": "MCP-Server erfolgreich synchronisiert",
