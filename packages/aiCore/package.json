@@ -1,6 +1,6 @@
 {
   "name": "@cherrystudio/ai-core",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Cherry Studio AI Core - Unified AI Provider Interface Based on Vercel AI SDK",
   "main": "dist/index.cjs",
   "module": "dist/index.mjs",
@@ -19,7 +19,15 @@
     "test:watch": "vitest",
     "prepublishOnly": "pnpm build"
   },
-  "keywords": ["ai", "sdk", "openai", "anthropic", "google", "cherry-studio", "vercel-ai-sdk"],
+  "keywords": [
+    "ai",
+    "sdk",
+    "openai",
+    "anthropic",
+    "google",
+    "cherry-studio",
+    "vercel-ai-sdk"
+  ],
   "author": "Cherry Studio",
   "license": "MIT",
   "repository": {
@@ -60,7 +68,9 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.mts",
