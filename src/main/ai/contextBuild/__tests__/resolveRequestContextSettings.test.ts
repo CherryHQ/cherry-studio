@@ -5,7 +5,7 @@ vi.mock('@application', () => ({
   application: { get: () => ({ get: mockPrefGet }) }
 }))
 
-const mockResolveCompressionModel = vi.fn(async (_id: string) => ({ id: 'compression-model' }) as never)
+const mockResolveCompressionModel = vi.fn(async (id: string) => ({ id }) as never)
 // Lazy wrapper so the hoisted vi.mock factory doesn't read the const before it initializes.
 vi.mock('../resolveCompressionModel', () => ({
   resolveCompressionModel: (id: string) => mockResolveCompressionModel(id)
