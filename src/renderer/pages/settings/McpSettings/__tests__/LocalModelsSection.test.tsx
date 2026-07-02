@@ -105,4 +105,16 @@ describe('LocalModelsSection', () => {
       ).toBeInTheDocument()
     )
   })
+
+  it('hides the whole section once both cards report unsupported (e.g. Intel Mac)', async () => {
+    mockRequest.mockImplementation((route: string) => {
+      if (route === 'local_model.get_status') return Promise.resolve({ status: 'unsupported' })
+      return Promise.resolve()
+    })
+
+    render(<LocalModelsSection />)
+
+    // Offering a download that can only fail is worse than a brief blank section.
+    await waitFor(() => expect(screen.queryAllByRole('listitem')).toHaveLength(0))
+  })
 })

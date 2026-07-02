@@ -2,6 +2,7 @@ import { Worker } from 'node:worker_threads'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { isDarwinX64 } from '@main/core/platform'
 
 import type { InferenceModelSource, InferenceRequest, InferenceResponse, OcrModelPaths } from './inferenceProtocol'
 import { inferenceWorkerSource } from './inferenceWorkerSource'
@@ -47,6 +48,16 @@ class InferenceHost {
 
   private ensureWorker(): Worker {
     if (this.worker) return this.worker
+    // Last line of defense: the settings/KB cards already hide on Intel Mac (see
+    // LocalModelDownloadService.getStatus), but this is the single spawn point
+    // every caller (embed/loadEmbedding/recognize, including the OCR agent tool)
+    // funnels through, so anything that reaches it programmatically fails fast
+    // instead of loading a worker that will crash on the missing native binding.
+    if (isDarwinX64) {
+      throw new Error(
+        'Local model inference is not supported on Intel Mac (darwin x64) — onnxruntime-node ships no darwin-x64 binding.'
+      )
+    }
     const worker = new Worker(inferenceWorkerSource, { eval: true })
     // Inference is opt-in; a loaded 600MB+ model must never keep the app alive on quit.
     worker.unref()

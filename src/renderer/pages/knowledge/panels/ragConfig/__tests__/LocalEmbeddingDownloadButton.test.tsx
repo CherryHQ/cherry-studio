@@ -98,6 +98,17 @@ describe('LocalEmbeddingDownloadButton', () => {
     expect(onSelected).not.toHaveBeenCalled()
   })
 
+  it('renders nothing when the platform is unsupported (e.g. Intel Mac)', async () => {
+    stubStatus('unsupported')
+
+    render(<LocalEmbeddingDownloadButton onSelected={vi.fn()} />)
+
+    await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.get_status', { model: 'embedding' }))
+    // Offering a download that can only fail is worse than showing nothing.
+    expect(screen.queryByText('knowledge.rag.download_local_embedding')).not.toBeInTheDocument()
+    expect(screen.queryByText('knowledge.rag.use_local_embedding')).not.toBeInTheDocument()
+  })
+
   it('offers to use an already-downloaded model without re-downloading', async () => {
     stubStatus('ready')
     const onSelected = vi.fn()

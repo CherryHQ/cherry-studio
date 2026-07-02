@@ -37,6 +37,10 @@ vi.mock('@main/features/localModel/localEmbeddingRegistration', () => ({
   unregisterLocalEmbeddingModelIfUnused: unregisterMock
 }))
 
+// Pin to a supported platform so the ready probe is deterministic regardless of
+// the machine this runs on (see LocalModelDownloadService.darwinX64.test.ts for the gate).
+vi.mock('@main/core/platform', () => ({ isDarwinX64: false }))
+
 const { application } = await import('@application')
 const { localEmbeddingDownloadService } = await import('../LocalEmbeddingDownloadService')
 

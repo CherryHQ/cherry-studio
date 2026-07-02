@@ -26,6 +26,10 @@ vi.mock('node:worker_threads', () => ({
   })
 }))
 
+// Pin to a supported platform so this suite is deterministic regardless of the
+// machine it runs on (see InferenceHost.darwinX64.test.ts for the gate itself).
+vi.mock('@main/core/platform', () => ({ isDarwinX64: false }))
+
 // Import the SUT after the worker mock is declared (it constructs a Worker lazily on first send).
 const { inferenceHost } = await import('../InferenceHost')
 

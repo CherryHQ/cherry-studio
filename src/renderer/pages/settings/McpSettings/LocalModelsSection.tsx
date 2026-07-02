@@ -207,6 +207,11 @@ const LocalModelsSection: FC = () => {
   const embedding = useLocalModelCard('embedding')
   const ocr = useLocalModelCard('ocr')
 
+  // Both models share the same inference runtime, so they're unsupported together
+  // (e.g. Intel Mac — onnxruntime-node ships no darwin-x64 binding). Hide the
+  // whole section rather than offering a download that would fail.
+  if (embedding.status === 'unsupported' && ocr.status === 'unsupported') return null
+
   return (
     <div className="min-w-0">
       <h2 className="font-semibold text-[15px] text-foreground leading-6">{t('settings.plugins.localModels.title')}</h2>

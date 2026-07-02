@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { isDarwinX64 } from '@main/core/platform'
 import type { LocalModelKind, LocalModelStatus } from '@shared/data/presets/localModel'
 
 const logger = loggerService.withContext('LocalModelDownloadService')
@@ -59,11 +60,22 @@ export abstract class LocalModelDownloadService {
   }
 
   getStatus(): LocalModelStatus {
+    // Unconditional on Intel Mac — the cards hide instead of offering a
+    // download that would fail once it reaches the inference worker.
+    if (isDarwinX64) return 'unsupported'
     if (this.downloading) return 'downloading'
     return this.isReady() ? 'ready' : 'not_downloaded'
   }
 
   async download(): Promise<void> {
+    // Guard here too, not just in getStatus(): the settings/KB cards hide on
+    // Intel Mac, but OCR's performDownload is a plain file fetch that never
+    // touches the inference worker, so without this it would happily write
+    // unusable weights to disk (and even get promoted as the default OCR
+    // engine) for any caller that reaches `download()` directly.
+    if (isDarwinX64) {
+      throw new Error(`Local ${this.kind} model download is not supported on Intel Mac (darwin x64).`)
+    }
     // Coalesce concurrent callers — the settings card and the KB download entry
     // hit the same main-process singleton. Both await the SAME in-flight download,
     // so neither resolves (→ reports ready / runs post-download work like the KB

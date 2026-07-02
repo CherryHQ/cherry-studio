@@ -88,6 +88,12 @@ const LocalEmbeddingDownloadButton = ({ onSelected }: LocalEmbeddingDownloadButt
     }
   }, [])
 
+  if (status === 'unsupported') {
+    // e.g. Intel Mac — onnxruntime-node ships no darwin-x64 binding. Hide rather
+    // than offering a download that would fail once it reaches the worker.
+    return null
+  }
+
   if (status === 'downloading') {
     return (
       <Button

@@ -22,6 +22,10 @@ vi.mock('@main/ai/inference/InferenceHost', () => ({
   inferenceHost: { terminate: vi.fn() }
 }))
 
+// Pin to a supported platform so download() is deterministic regardless of the
+// machine this runs on (see LocalModelDownloadService.darwinX64.test.ts for the gate).
+vi.mock('@main/core/platform', () => ({ isDarwinX64: false }))
+
 // The download streams weights to disk; stub the fs writes so the byte-counting
 // (min-size guard) runs without touching the real filesystem.
 vi.mock('node:fs', async () => {

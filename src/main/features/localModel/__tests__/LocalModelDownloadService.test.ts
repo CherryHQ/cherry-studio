@@ -5,6 +5,10 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
+// Pin to a supported platform so this suite is deterministic regardless of the
+// machine it runs on (see LocalModelDownloadService.darwinX64.test.ts for the gate).
+vi.mock('@main/core/platform', () => ({ isDarwinX64: false }))
+
 const { application } = await import('@application')
 const { LocalModelDownloadService } = await import('../LocalModelDownloadService')
 
