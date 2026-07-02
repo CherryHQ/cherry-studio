@@ -342,6 +342,41 @@ describe('QuickPanelView', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it('does not delete existing composer text after a button-triggered cursor move', async () => {
+    const captureDispatch = vi.fn()
+    const action = vi.fn()
+    const deleteTriggerRange = vi.fn()
+    let cursorOffset = 5
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => 'keep existing text',
+      getCursorOffset: () => cursorOffset,
+      insertText: vi.fn(),
+      deleteTriggerRange,
+      focus: vi.fn()
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={inputAdapter}
+          items={[{ id: 'action', label: 'Action', icon: 'a', action }]}
+          queryAnchor={5}
+          triggerInfo={{ type: 'button', position: 5 }}
+          trackInputQuery
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Action')
+
+    cursorOffset = 14
+    fireEvent.click(screen.getByText('Action'))
+
+    expect(action).toHaveBeenCalledTimes(1)
+    expect(deleteTriggerRange).not.toHaveBeenCalled()
+  })
+
   // 集成测试验证 context 的 fill 标志 + DOM 几何测量把高度喂给了 getQuickPanelHeights；
   // 具体数值由 heights.test.ts 的纯单测覆盖，这里不写死像素。
   const measuredItems: QuickPanelListItem[] = Array.from({ length: 10 }, (_, index) => ({

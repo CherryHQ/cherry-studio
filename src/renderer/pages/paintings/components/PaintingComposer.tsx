@@ -235,9 +235,10 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
         getToolLaunchers={() => getLaunchers()}
         toolLaunchersVersion={toolLaunchersVersion}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
-        renderLeftControls={(inputAdapter) => (
+        renderLeftControls={(inputAdapter, unifiedPanelControl) => (
           <ComposerToolbarControls
             inputAdapter={inputAdapter}
+            unifiedPanelControl={unifiedPanelControl}
             renderContextControls={() => (
               <>
                 <PaintingModelSelector

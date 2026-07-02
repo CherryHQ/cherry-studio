@@ -274,8 +274,13 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
     if (cursorOffset <= queryAnchor) return
 
+    if (ctx.triggerInfo?.type === 'button') {
+      const currentInputQuery = text.slice(queryAnchor, cursorOffset)
+      if (!activeSearchQuery || currentInputQuery !== activeSearchQuery) return
+    }
+
     inputAdapter.deleteTriggerRange({ from: queryAnchor, to: cursorOffset })
-  }, [ctx.queryAnchor, inputAdapter])
+  }, [activeSearchQuery, ctx.queryAnchor, ctx.triggerInfo?.type, inputAdapter])
 
   const consumeInputQueryOnce = useCallback(() => {
     if (inputQueryConsumedRef.current) return
