@@ -89,7 +89,6 @@ export type AgentSessionDisplayMode = 'time' | 'agent' | 'workdir'
 export type SidebarFavorite =
   | 'assistants'
   | 'agents'
-  | 'store'
   | 'paintings'
   | 'translate'
   | 'mini_app'

@@ -2,7 +2,7 @@ import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrame
 import { useCommandHandler } from '@renderer/hooks/command'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -98,7 +98,13 @@ vi.mock('@renderer/hooks/resourceViewSources', () => ({
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
-  useCommandHandler: vi.fn()
+  useCommandHandler: vi.fn(),
+  useResolvedCommand: () => ({
+    enabled: true,
+    execute: vi.fn(),
+    label: 'Toggle sidebar',
+    shortcutLabel: ''
+  })
 }))
 
 vi.mock('@data/hooks/usePreference', async () => {
@@ -237,6 +243,41 @@ vi.mock('@renderer/hooks/useConversationNavigation', () => ({
   })
 }))
 
+vi.mock('@renderer/components/chat', () => ({
+  ConversationPageShell: ({
+    center,
+    pane,
+    paneOpen,
+    topBar
+  }: {
+    center?: { content?: ReactNode }
+    pane?: ReactNode
+    paneOpen?: boolean
+    topBar?: ReactNode
+  }) => (
+    <section data-testid="agent-conversation-page-shell">
+      <output data-testid="resource-pane-open">{String(paneOpen)}</output>
+      {topBar}
+      {pane}
+      {center?.content}
+    </section>
+  ),
+  ConversationShell: ({ center, pane }: { center?: ReactNode; pane?: ReactNode }) => (
+    <section data-testid="agent-conversation-shell">
+      {pane}
+      {center}
+    </section>
+  )
+}))
+
+vi.mock('@renderer/components/resource/catalog', () => ({
+  ResourceCatalogView: ({ resourceType, toolbarLeading }: { resourceType: string; toolbarLeading?: ReactNode }) => (
+    <div data-testid={`resource-catalog-${resourceType}`}>
+      {toolbarLeading && <div data-testid="resource-toolbar-leading">{toolbarLeading}</div>}
+    </div>
+  )
+}))
+
 vi.mock('@renderer/hooks/tab', () => ({
   useCurrentTab: () => agentPageMocks.currentTab,
   useCurrentTabId: () => 'agent-tab',
@@ -326,7 +367,7 @@ vi.mock('../AgentChat', () => ({
     onSessionPaneOpenChange?: (open: boolean) => void
     onPaneCollapse?: () => void
   }) => (
-    <section>
+    <section data-testid="agent-chat">
       <output data-testid="active-session">{activeSession?.id ?? ''}</output>
       <output data-testid="active-session-loading">{String(Boolean(activeSessionLoading))}</output>
       <output data-testid="draft-session">{draftConversation?.agentId ?? ''}</output>
@@ -400,6 +441,18 @@ vi.mock('../AgentChat', () => ({
   )
 }))
 
+vi.mock('../components/AgentChatNavbar', () => ({
+  default: ({ onSidebarToggle }: { onSidebarToggle?: () => void }) => (
+    <div data-testid="agent-chat-navbar">
+      {onSidebarToggle && (
+        <button type="button" onClick={onSidebarToggle}>
+          Toggle sidebar
+        </button>
+      )}
+    </div>
+  )
+}))
+
 vi.mock('../AgentSidePanel', () => ({
   default: ({
     activeSessionId,
@@ -407,6 +460,7 @@ vi.mock('../AgentSidePanel', () => ({
     onStartDraftSession,
     onStartMissingAgentDraft,
     revealRequest,
+    resourceMenuItems,
     setActiveSessionId
   }: any) => {
     return (
@@ -444,6 +498,11 @@ vi.mock('../AgentSidePanel', () => ({
           }>
           Start panel draft
         </button>
+        {resourceMenuItems?.map((item: { id: string; label: ReactNode; onSelect: () => void | Promise<void> }) => (
+          <button key={item.id} type="button" onClick={() => void item.onSelect()}>
+            {item.label}
+          </button>
+        ))}
       </div>
     )
   }
@@ -453,11 +512,13 @@ vi.mock('@renderer/components/chat/resources/variants/AgentResourceList', () => 
   AgentResourceList: ({
     activeAgentId,
     onAddAgent,
-    onActiveAgentDeleted
+    onActiveAgentDeleted,
+    resourceMenuItems
   }: {
     activeAgentId?: string | null
     onAddAgent?: () => void | Promise<void>
     onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
+    resourceMenuItems?: Array<{ id: string; label: ReactNode; onSelect: () => void | Promise<void> }>
   }) => (
     <div data-active-agent-id={activeAgentId ?? ''} data-testid="agent-resource-list">
       <button type="button" onClick={() => void onAddAgent?.()}>
@@ -466,6 +527,11 @@ vi.mock('@renderer/components/chat/resources/variants/AgentResourceList', () => 
       <button type="button" onClick={() => void onActiveAgentDeleted?.(activeAgentId ?? '')}>
         Delete active agent
       </button>
+      {resourceMenuItems?.map((item) => (
+        <button key={item.id} type="button" onClick={() => void item.onSelect()}>
+          {item.label}
+        </button>
+      ))}
     </div>
   )
 }))
@@ -558,6 +624,39 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('session-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
     expect(screen.getByTestId('session-pane-open')).toHaveTextContent('true')
     expect(screen.queryByTestId('agent-side-panel')).not.toBeInTheDocument()
+  })
+
+  it('renders the agent resource view outside AgentChat runtime', () => {
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.agent' }))
+
+    expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-conversation-page-shell')).toBeInTheDocument()
+    expect(screen.queryByTestId('agent-chat')).not.toBeInTheDocument()
+  })
+
+  it('keeps a sidebar toggle beside agent resource search so a collapsed pane can be reopened', async () => {
+    agentPageMocks.showSidebar = true
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.agent' }))
+
+    const shell = screen.getByTestId('agent-conversation-page-shell')
+    expect(within(shell).getByTestId('resource-pane-open')).toHaveTextContent('true')
+
+    const toolbarLeading = within(shell).getByTestId('resource-toolbar-leading')
+
+    // Collapse the pane from the resource toolbar toggle, then confirm the toggle survives the collapse.
+    fireEvent.click(within(toolbarLeading).getByRole('button'))
+    await waitFor(() => expect(within(shell).getByTestId('resource-pane-open')).toHaveTextContent('false'))
+
+    fireEvent.click(within(toolbarLeading).getByRole('button'))
+    await waitFor(() => expect(within(shell).getByTestId('resource-pane-open')).toHaveTextContent('true'))
   })
 
   it('restores and records the classic-layout agent right pane open state from cache', () => {

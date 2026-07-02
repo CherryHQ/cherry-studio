@@ -86,9 +86,9 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
-async function renderPopup(source: MessageExportView) {
-  const { default: SaveToKnowledgePopup } = await import('../SaveToKnowledgePopup')
+import SaveToKnowledgePopup from '../SaveToKnowledgePopup'
 
+function renderPopup(source: MessageExportView) {
   const promise = SaveToKnowledgePopup.show({ source: { type: 'message', data: source } })
   const rendered = mocks.TopView.show.mock.calls[0][0] as React.ReactNode
 
@@ -156,7 +156,7 @@ describe('SaveToKnowledgePopup', () => {
   })
 
   it('saves resolvable files and warns about failed files', async () => {
-    const { promise } = await renderPopup(
+    const { promise } = renderPopup(
       createMessageWithFiles([createFile('/tmp/ok.pdf', 'ok'), createFile('bad.pdf', 'bad')])
     )
 

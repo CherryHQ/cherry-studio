@@ -197,7 +197,7 @@ describe('ComplexPreferenceMappings', () => {
       })
     })
 
-    it('should append agents when assistants is absent', () => {
+    it('should drop removed store favorite and append agents when assistants is absent', () => {
       const mapping = getComplexMappingById('sidebar_favorites_migrate')!
       const result = mapping.transform({
         visible: ['store', 'translate'],
@@ -205,7 +205,7 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.favorites': ['store', 'translate', 'agents']
+        'ui.sidebar.favorites': ['translate', 'agents']
       })
     })
 
@@ -243,7 +243,6 @@ describe('ComplexPreferenceMappings', () => {
         'ui.sidebar.favorites': [
           'assistants',
           'agents',
-          'store',
           'paintings',
           'translate',
           'mini_app',
@@ -277,7 +276,6 @@ describe('ComplexPreferenceMappings', () => {
         'ui.sidebar.favorites': [
           'assistants',
           'agents',
-          'store',
           'paintings',
           'translate',
           'mini_app',
@@ -310,7 +308,6 @@ describe('ComplexPreferenceMappings', () => {
         'ui.sidebar.favorites': [
           'assistants',
           'agents',
-          'store',
           'paintings',
           'translate',
           'mini_app',

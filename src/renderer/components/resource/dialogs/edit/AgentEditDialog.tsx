@@ -16,9 +16,9 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import PromptEditorField from '@renderer/components/PromptEditorField'
+import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
-import { useAgentMutationsById } from '@renderer/pages/library/adapters/agentAdapter'
-import type { AgentDetail } from '@renderer/pages/library/types'
+import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import {
   CLAUDE_TOOL_CATEGORIES,
   type ClaudeToolCategory,

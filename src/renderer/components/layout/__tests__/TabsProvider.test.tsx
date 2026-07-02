@@ -20,10 +20,21 @@ const PINNED_FILES_TAB: Tab = {
   isPinned: true
 }
 
+const LEGACY_LIBRARY_PINNED_TAB: Tab = {
+  id: 'library',
+  type: 'route',
+  url: '/app/library?resourceType=assistant',
+  title: 'Library',
+  lastAccessTime: 0,
+  isDormant: false,
+  isPinned: true
+}
+
 // Stable reference: re-renders are then driven only by the i18n.language change,
 // not by a fresh pinnedTabs identity — which is what makes the test catch a dropped
 // i18n.language dependency in the tabs useMemo.
-const STABLE_PINNED: [Tab[], () => void] = [[PINNED_FILES_TAB], vi.fn()]
+let pinnedTabsValue: Tab[] = [PINNED_FILES_TAB]
+const setPinnedTabsMock = vi.fn()
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -36,7 +47,7 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
-  usePersistCache: () => STABLE_PINNED
+  usePersistCache: () => [pinnedTabsValue, setPinnedTabsMock]
 }))
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -82,6 +93,11 @@ function PinnedRouteTitle() {
   return <div data-testid="files-title">{tabs.find((tab) => tab.id === 'files')?.title}</div>
 }
 
+function TabIds() {
+  const { tabs } = useTabsContext()
+  return <div data-testid="tab-ids">{tabs.map((tab) => tab.id).join(',')}</div>
+}
+
 // Materializes a pinned tab from "init" the way a detached sub-window re-creates its tab.
 function PinnedTabMaterializer() {
   const { tabs, openTab } = useTabsContext()
@@ -98,6 +114,7 @@ function PinnedTabMaterializer() {
 
 beforeEach(() => {
   currentLanguage = 'en'
+  pinnedTabsValue = [PINNED_FILES_TAB]
 })
 
 afterEach(() => {
@@ -163,7 +180,7 @@ describe('TabsProvider', () => {
     // list — but it must keep isPinned so Tab_Attach carries the pinned state back…
     await waitFor(() => expect(screen.getByTestId('detached-pinned')).toHaveTextContent('true'))
     // …without ever writing the shared pinned-tabs cache from this window.
-    expect(STABLE_PINNED[1]).not.toHaveBeenCalled()
+    expect(setPinnedTabsMock).not.toHaveBeenCalled()
   })
 
   it('routes an isPinned tab into the persistent pinned list in the main window', async () => {
@@ -173,6 +190,27 @@ describe('TabsProvider', () => {
       </TabsProvider>
     )
 
-    await waitFor(() => expect(STABLE_PINNED[1]).toHaveBeenCalled())
+    await waitFor(() => expect(setPinnedTabsMock).toHaveBeenCalled())
+  })
+
+  it('drops legacy assistant-library pinned tabs when restoring the main tab list', async () => {
+    pinnedTabsValue = [LEGACY_LIBRARY_PINNED_TAB, PINNED_FILES_TAB]
+
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'home',
+          type: 'route',
+          url: '/app/chat',
+          title: '',
+          lastAccessTime: 0,
+          isDormant: false
+        }}>
+        <TabIds />
+      </TabsProvider>
+    )
+
+    expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home')
+    await waitFor(() => expect(setPinnedTabsMock).toHaveBeenCalledWith([PINNED_FILES_TAB]))
   })
 })
