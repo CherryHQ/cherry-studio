@@ -350,12 +350,12 @@ For initial data population (default preferences, builtin languages, preset prov
 
 `application.get('DbService').withWriteTx(fn)` runs `fn` as one synchronous `BEGIN IMMEDIATE` transaction on the single persistent connection.
 
-**Required vs optional.** With better-sqlite3 every statement is atomic on its own — a lone `getDb().insert(...).run()` is a complete implicit transaction and needs no wrapper. `withWriteTx` earns its keep only when a mutation must commit **all-or-nothing across more than one statement**:
+**When it earns its keep.** With better-sqlite3 every statement is atomic on its own — a lone `getDb().insert(...).run()` is a complete implicit transaction and needs no wrapper. A transaction earns its keep only when a mutation must commit **all-or-nothing across more than one statement**:
 
-- **MUST use** when composing multiple writes, or a read-then-write (validate/select then insert/update/delete), into one atomic unit — the majority of write paths here (create/update/delete that also touch join tables, purge pins/tags, reorder via neighbour reads, or cascade-delete).
+- **Use it** when composing multiple writes, or a read-then-write (validate/select then insert/update/delete), into one atomic unit — the majority of write paths here (create/update/delete that also touch join tables, purge pins/tags, reorder via neighbour reads, or cascade-delete). The premise is **atomicity** (rollback across statements), not serialization: the single synchronous connection already serializes every write by construction.
 - **Don't use** for a single autocommit write — call `getDb()` directly, or pass `getDb()` to the write's `*Tx` form (`this.fooTx(getDb(), …)`). Routing a lone write through `withWriteTx` buys nothing for atomicity and falsely implies a multi-statement invariant. The `*Tx` form stays composable, so the same primitive can still be pulled into a larger `withWriteTx` when a caller genuinely needs multi-write atomicity.
 
-`withWriteTx` is **not** the readiness gate: `getDb()` already throws when the DB isn't ready, so single writes made outside `withWriteTx` are still guarded. The single synchronous connection serializes all access, so there is no process-wide mutex and no `SQLITE_BUSY` retry — the libsql-era serialization this wrapper originally existed for (upstream #288) is gone.
+**`withWriteTx` vs `db.transaction()`.** `withWriteTx(fn)` is a thin wrapper over `getDb().transaction(fn, { behavior: 'immediate' })` behind the `isReady` guard. `BEGIN IMMEDIATE` takes the write lock up front, which only matters when a second connection writes concurrently; the main DB uses one connection, so it behaves identically to a plain `db.transaction(fn)`. Prefer `withWriteTx` as the conventional, greppable write seam with the correct write-intent default — but a direct `db.transaction()` is **equivalent** for atomicity and not an error. `withWriteTx` is **not** the readiness gate: `getDb()` already throws when the DB isn't ready, so writes made outside `withWriteTx` are still guarded. The single synchronous connection serializes all access, so there is no process-wide mutex and no `SQLITE_BUSY` retry — the libsql-era serialization this wrapper originally existed for (upstream #288) is gone.
 
 ### Signature
 
@@ -407,7 +407,7 @@ cancelByIds(ids: string[], error: JobError): void {
 
 | Path | Action |
 | --- | --- |
-| Multi-statement / read-then-write mutations | Wrap in `withWriteTx` |
+| Multi-statement / read-then-write mutations | Wrap in a transaction — `withWriteTx` (preferred) or a direct `db.transaction()` |
 | Single-statement writes | Don't wrap — call `getDb()` (or the `*Tx` form) directly |
 | Boot-only writes (migrations, seeders) | Leave |
 | Pure reads | Leave |

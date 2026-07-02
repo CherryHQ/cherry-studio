@@ -11,13 +11,13 @@
     "node": ">=24.11.1 <24.16.0"
   },
   "scripts": {
-    "start": "electron-vite preview",
+    "start": "pnpm rebuild:electron && electron-vite preview",
     "download:binaries": "node scripts/download-binaries.js",
     "rebuild:electron": "electron-rebuild --force --only better-sqlite3",
     "rebuild:node": "pnpm rebuild better-sqlite3",
     "dev": "pnpm rebuild:electron && pnpm download:binaries && dotenv electron-vite dev",
-    "dev:watch": "dotenv electron-vite dev -- -w",
-    "debug": "dotenv -- electron-vite -- --inspect --sourcemap --remote-debugging-port=9222",
+    "dev:watch": "pnpm rebuild:electron && dotenv electron-vite dev -- -w",
+    "debug": "pnpm rebuild:electron && dotenv -- electron-vite -- --inspect --sourcemap --remote-debugging-port=9222",
     "build": "npm run typecheck && electron-vite build",
     "build:check": "pnpm lint && pnpm docs:check-links && pnpm test",
     "build:unpack": "dotenv npm run build && electron-builder --dir",

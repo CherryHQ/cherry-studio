@@ -27,7 +27,7 @@ A row stuck in `running` (e.g. the `spawnExecute` fallback chain swallowed a DB 
 
 ## Other services using `withWriteTx`
 
-`DbService.withWriteTx` is reserved for multi-statement / read-then-write mutations; single writes go through `getDb()` directly (see [Write Serialization](../data/database-patterns.md#write-serialization-dbservicewithwritetx)). JobService / JobScheduleService follow this split across their hot write paths.
+`DbService.withWriteTx` is the conventional wrapper for multi-statement / read-then-write mutations (a direct `db.transaction()` is equivalent under the single synchronous connection); single writes go through `getDb()` directly (see [Write Serialization](../data/database-patterns.md#write-serialization-dbservicewithwritetx)). JobService / JobScheduleService follow this split across their hot write paths.
 
 Reads do NOT need `withWriteTx` — WAL gives readers snapshot isolation, never blocked by writers.
 

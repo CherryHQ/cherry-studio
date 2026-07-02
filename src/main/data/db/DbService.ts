@@ -223,11 +223,17 @@ export class DbService extends BaseService {
    * each statement atomically on its one connection. It is not the readiness gate
    * either: `getDb()` already throws when the DB isn't ready.
    *
-   * better-sqlite3 keeps one synchronous connection, so a transaction is
-   * inherently atomic and never interleaves with another — no process-wide mutex
-   * or BUSY retry is needed (those existed to tame libsql's async per-transaction
-   * connections, upstream issue #288). `BEGIN IMMEDIATE` takes the write lock at
-   * BEGIN, so a read-then-write transaction never fails mid-way.
+   * The premise is **atomicity**, not serialization. better-sqlite3 keeps one
+   * synchronous connection, so a transaction runs to completion in a single JS turn
+   * and can never interleave with another write — writes serialize by construction,
+   * with no process-wide mutex or BUSY retry (those tamed libsql's async
+   * per-transaction connections, upstream issue #288). This is a thin wrapper over
+   * `db.transaction(fn, { behavior: 'immediate' })`: `BEGIN IMMEDIATE` takes the write
+   * lock up front, which matters only if a second connection ever writes concurrently
+   * — with today's single connection it behaves identically to a plain
+   * `db.transaction(fn)`, so it is the correct write-intent default, not a live
+   * necessity. A direct `db.transaction()` is therefore equivalent for atomicity;
+   * `withWriteTx` is the conventional, greppable write seam.
    *
    * Returns **synchronously**: better-sqlite3 runs the whole transaction on its
    * single connection with no I/O wait, so the write has already committed by the

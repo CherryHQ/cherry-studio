@@ -231,9 +231,9 @@ export function classifySqliteError(e: unknown): SqliteConstraint | null {
 export function withSqliteErrors<T>(operation: () => T, handlers: SqliteErrorHandlers): T {
   try {
     const result = operation()
-    // A thenable result defers its error past this synchronous try/catch — either an async
-    // operation (e.g. one wrapping the async `DbService.withWriteTx`) or a not-yet-executed
-    // drizzle query builder. Adopt it as a promise so the same classification maps its
+    // A thenable result defers its error past this synchronous try/catch — either a genuinely
+    // async operation or a not-yet-executed drizzle query builder (`DbService.withWriteTx` runs
+    // synchronously, so it is not a source). Adopt it as a promise so the same classification maps its
     // rejection. A plain synchronous result (rows array, RunResult, mapped object) skips this.
     if (result != null && typeof (result as { then?: unknown }).then === 'function') {
       return Promise.resolve(result).catch((e: unknown) => mapSqliteError(e, handlers)) as T
