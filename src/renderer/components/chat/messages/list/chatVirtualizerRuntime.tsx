@@ -594,9 +594,7 @@ export function useChatVirtualizerRuntime<T>({
         // Drive the scroll frame-by-frame (RAF) rather than native
         // `behavior: 'smooth'`: virtua remeasures items entering the viewport
         // and compensates scrollTop, which cancels a native animation mid-flight.
-        if (!smoothScroll.isAnimating()) {
-          smoothScroll.scrollTo(() => 0)
-        }
+        smoothScroll.scrollTo(() => 0)
       } else {
         smoothScroll.cancel()
         el.scrollTop = 0
