@@ -3,7 +3,13 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import type { PathKey, PathMap } from '@main/core/paths'
-import { buildPathRegistry, shouldAutoEnsure } from '@main/core/paths/pathRegistry'
+import {
+  buildAppPathRegistry,
+  buildDefaultProfilePathRegistry,
+  buildProfilePathRegistry,
+  shouldAutoEnsure
+} from '@main/core/paths/pathRegistry'
+import { isProfilePathKey } from '@main/core/paths/profileKeys'
 import { isDev, isLinux, isMac, isPortable, isWin } from '@main/core/platform'
 import { bootConfigService } from '@main/data/bootConfig'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -17,6 +23,11 @@ import { Phase, type ServiceConstructor, ServiceInitError } from '../lifecycle/t
 import type { ServiceRegistry } from './serviceRegistry'
 
 const logger = loggerService.withContext('Lifecycle')
+
+/** The frozen app-level path slot (keys constant across profiles). */
+type AppPathMap = ReturnType<typeof buildAppPathRegistry>
+/** The per-profile path slot (keys rooted at the active profile). */
+type ProfilePathMap = ReturnType<typeof buildProfilePathRegistry>
 
 /** Hold with opaque ID for cross-process identification */
 interface QuitPreventionHold extends Disposable {
@@ -41,13 +52,18 @@ export class Application {
   private ipcQuitHolds = new Map<string, QuitPreventionHold>()
 
   /**
-   * Frozen path registry. `null` until `bootstrap()` is invoked, after
-   * which it persists for the entire process lifetime — `shutdown()` does
-   * NOT clear it, so `getPath()` remains callable from `onStop()` /
-   * `onDestroy()` cleanup paths and from logger/dialog code that runs
-   * during shutdown.
+   * App-level path slot — the keys whose value is constant across profiles.
+   * Frozen once by `initPathRegistry()` and never cleared, so `getPath()`
+   * remains callable from `onStop()` / `onDestroy()` and shutdown code.
    */
-  private pathMap: PathMap | null = null
+  private appPathMap: AppPathMap | null = null
+
+  /**
+   * Per-profile path slot — the keys rooted at the active profile
+   * (`isProfilePathKey`). Installed by preboot (Seam A) and repointed on every
+   * profile switch, so unlike `appPathMap` it is mutable.
+   */
+  private profilePathMap: ProfilePathMap | null = null
 
   /**
    * Cache of PathKeys whose directory has already been auto-ensured.
@@ -135,11 +151,28 @@ export class Application {
    * their own ad-hoc path logic and do not consume the registry either.
    */
   public initPathRegistry(): void {
-    if (this.pathMap !== null) {
+    if (this.appPathMap !== null) {
       throw new Error('initPathRegistry() called twice — path registry is already initialized')
     }
-    this.pathMap = buildPathRegistry()
-    logger.debug(`Path registry initialized with ${Object.keys(this.pathMap).length} entries`)
+    this.appPathMap = buildAppPathRegistry()
+    // Install the default-profile slot unless preboot (Seam A) already installed
+    // one for the active profile, so app boot resolves profile paths either way.
+    if (this.profilePathMap === null) this.profilePathMap = buildDefaultProfilePathRegistry()
+    logger.debug('Path registry initialized (app + profile slots)')
+  }
+
+  /**
+   * Install or repoint the per-profile path slot to the given roots. Called by
+   * preboot with the active profile's roots (Seam A) and by the profile switch
+   * when the active profile changes (RFC §4.4 step 3). The app slot is untouched.
+   */
+  public setProfilePathRegistry(profileRoot: string, credentialRoot: string): void {
+    this.profilePathMap = buildProfilePathRegistry(profileRoot, credentialRoot)
+    // Repointing changes where the profile dirs live; drop their auto-ensure
+    // cache so the new profile's directories are created on next access.
+    for (const key of [...this.ensuredKeys]) {
+      if (isProfilePathKey(key)) this.ensuredKeys.delete(key)
+    }
   }
 
   /**
@@ -168,7 +201,7 @@ export class Application {
     // call initPathRegistry() and would push the failure to the first
     // getPath() call deep inside service startup, where the diagnostic
     // is much harder to read.
-    if (this.pathMap === null) {
+    if (this.appPathMap === null) {
       throw new Error(
         'Path registry not initialized. Call application.initPathRegistry() ' +
           'after resolveUserDataLocation() in main/index.ts before invoking bootstrap().'
@@ -679,15 +712,26 @@ export class Application {
    *                 deeper path you're constructing.
    */
   public getPath(key: PathKey, filename?: string): string {
-    if (this.pathMap === null) {
-      throw new Error(
-        `application.getPath('${key}') called before application.initPathRegistry() ran. ` +
-          `Ensure all app.setPath() calls finish, then invoke application.initPathRegistry() ` +
-          `from main/index.ts preboot before any service uses the path registry.`
-      )
+    let base: string
+    if (isProfilePathKey(key)) {
+      if (this.profilePathMap === null) {
+        throw new Error(
+          `application.getPath('${key}') is a per-profile path but the profile slot is not installed. ` +
+            `Ensure preboot resolves the active profile (setProfilePathRegistry / initPathRegistry) ` +
+            `before any per-profile path is read.`
+        )
+      }
+      base = this.profilePathMap[key]
+    } else {
+      if (this.appPathMap === null) {
+        throw new Error(
+          `application.getPath('${key}') called before application.initPathRegistry() ran. ` +
+            `Ensure all app.setPath() calls finish, then invoke application.initPathRegistry() ` +
+            `from main/index.ts preboot before any service uses the path registry.`
+        )
+      }
+      base = this.appPathMap[key]
     }
-
-    const base = this.pathMap[key]
 
     // Lazy auto-ensure: on first access of an opt-in key, mkdir the
     // relevant directory so callers can immediately read/write without
@@ -751,7 +795,20 @@ export class Application {
     if (process.env.NODE_ENV !== 'test') {
       throw new Error('__setPathMapForTesting may only be called in tests')
     }
-    this.pathMap = map
+    if (map === null) {
+      this.appPathMap = null
+      this.profilePathMap = null
+    } else {
+      // Partition the combined map into the app and profile slots.
+      const app: Record<string, string> = {}
+      const profile: Record<string, string> = {}
+      for (const key of Object.keys(map) as PathKey[]) {
+        if (isProfilePathKey(key)) profile[key] = map[key]
+        else app[key] = map[key]
+      }
+      this.appPathMap = app as unknown as AppPathMap
+      this.profilePathMap = profile as unknown as ProfilePathMap
+    }
     // Clear the auto-ensure cache so each test starts from a clean state.
     // Without this, a key that was already mkdir'd in a previous test
     // would silently skip mkdir in the next test, breaking call-count

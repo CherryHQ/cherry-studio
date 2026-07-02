@@ -108,15 +108,28 @@ describe('Application.getPath', () => {
 
   describe('pre-bootstrap throw guard', () => {
     it('throws a clear error when pathMap is null (pre-initPathRegistry)', () => {
-      // Temporarily reset pathMap to simulate the pre-initPathRegistry state.
+      // Temporarily reset both path slots to simulate the pre-initPathRegistry state.
       app.__setPathMapForTesting(null)
-      expect(() => app.getPath('feature.files.data')).toThrowError(
-        /called before application\.initPathRegistry\(\) ran/
-      )
+      // App-level key → the app slot guard; profile key → the profile slot guard.
+      expect(() => app.getPath('cherry.home')).toThrowError(/called before application\.initPathRegistry\(\) ran/)
+      expect(() => app.getPath('feature.files.data')).toThrowError(/profile path but the profile slot is not installed/)
       // Restore the mock for any subsequent test that runs in the same
       // describe (the beforeEach also restores it, but we want this case
       // to leave the state clean for any in-flight observation).
       app.__setPathMapForTesting(buildPathRegistry())
+    })
+  })
+
+  describe('per-profile path routing', () => {
+    it('repoints only the profile slot on setProfilePathRegistry, leaving app keys intact', () => {
+      const appBinBefore = app.getPath('cherry.bin')
+      app.setProfilePathRegistry('/mock/Profiles/work', '/mock/Profiles/work')
+      // Profile keys now root at the new profile...
+      expect(app.getPath('feature.files.data')).toBe('/mock/Profiles/work/Data/Files')
+      expect(app.getPath('app.database.file')).toBe('/mock/Profiles/work/cherrystudio.sqlite')
+      expect(app.getPath('feature.trace')).toBe('/mock/Profiles/work/trace')
+      // ...while an app-level key is untouched.
+      expect(app.getPath('cherry.bin')).toBe(appBinBefore)
     })
   })
 
