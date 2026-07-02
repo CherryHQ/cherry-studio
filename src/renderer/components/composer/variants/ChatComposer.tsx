@@ -75,7 +75,7 @@ import {
   ComposerToolMenuControls
 } from './shared/ComposerControlScaffolding'
 import { type AddNewTopicPayload, emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
-import { buildComposerQueuedPayload, hasOnlyUnsyncedComposerAttachments } from './shared/composerQueuedPayload'
+import { buildComposerQueuedPayload, hasUnsyncedComposerAttachments } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useLatest } from './shared/useLatest'
@@ -798,7 +798,7 @@ const ChatComposerInner = ({
     async (draft: ComposerSerializedDraft) => {
       const tokenIds = getComposerTokenIds(draft.tokens)
       const payloadFiles = files.filter((file) => tokenIds.has(chatComposerTokenId.file(file)))
-      if (hasOnlyUnsyncedComposerAttachments(files, payloadFiles)) return null
+      if (hasUnsyncedComposerAttachments(files, payloadFiles)) return null
 
       const originalFilePartsByTokenId = editingOriginalFilePartsByTokenIdRef.current
 

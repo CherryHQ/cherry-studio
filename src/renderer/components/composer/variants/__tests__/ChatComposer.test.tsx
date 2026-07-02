@@ -1126,6 +1126,35 @@ describe('ChatComposer', () => {
     expect(mocks.toastError).not.toHaveBeenCalledWith('chat.input.send_failed')
   })
 
+  it('does not submit a text draft while only some attached file tokens are reflected in the editor', async () => {
+    const syncedFile = { fileTokenSourceId: 'src-1', name: 'first.pdf', path: '/tmp/first.pdf' } as any
+    const unsyncedFile = { fileTokenSourceId: 'src-2', name: 'second.pdf', path: '/tmp/second.pdf' } as any
+    mocks.files = [syncedFile, unsyncedFile]
+    const onSend = vi.fn().mockResolvedValue(undefined)
+
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({
+        text: 'summarize these',
+        tokens: [
+          {
+            id: 'file:src-1',
+            kind: 'file',
+            label: 'first.pdf',
+            payload: syncedFile,
+            index: 0,
+            textOffset: 0
+          } as ComposerSerializedToken
+        ]
+      })
+    })
+
+    expect(onSend).not.toHaveBeenCalled()
+    expect(mocks.files).toEqual([syncedFile, unsyncedFile])
+    expect(mocks.toastError).not.toHaveBeenCalledWith('chat.input.send_failed')
+  })
+
   it('keeps a steered follow-up in the dock and toasts when its manual send fails', async () => {
     mocks.topicPending = true
     const onSend = vi.fn().mockResolvedValue(undefined)
@@ -2352,6 +2381,59 @@ describe('ChatComposer', () => {
 
     await act(async () => {
       await mocks.surfaceProps?.onSendDraft({ text: '', tokens: [] })
+    })
+
+    expect(forkAndResend).not.toHaveBeenCalled()
+    expect(editMessage).not.toHaveBeenCalled()
+    expect(resend).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1')
+    expect(mocks.toastError).not.toHaveBeenCalledWith('message.error.operation_unavailable')
+  })
+
+  it('does not fork and resend an edited draft while only some attached file tokens are reflected in the editor', async () => {
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const resend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend }
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const syncedFile = { fileTokenSourceId: 'src-1', name: 'first.pdf', path: '/tmp/first.pdf' } as any
+    const unsyncedFile = { fileTokenSourceId: 'src-2', name: 'second.pdf', path: '/tmp/second.pdf' } as any
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={[{ type: 'text', text: 'old' }] as any} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+
+    act(() => {
+      mocks.files = [syncedFile, unsyncedFile]
+      mocks.surfaceProps?.onTextChange('')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe(''))
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({
+        text: '',
+        tokens: [
+          {
+            id: 'file:src-1',
+            kind: 'file',
+            label: 'first.pdf',
+            payload: syncedFile,
+            index: 0,
+            textOffset: 0
+          } as ComposerSerializedToken
+        ]
+      })
     })
 
     expect(forkAndResend).not.toHaveBeenCalled()

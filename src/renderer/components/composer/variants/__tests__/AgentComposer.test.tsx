@@ -1256,6 +1256,46 @@ describe('AgentComposer', () => {
     expect(mocks.setFiles).toHaveBeenLastCalledWith([])
   })
 
+  it('does not send while only some attached file tokens are reflected in the editor', async () => {
+    const secondFile = {
+      id: 'file-2',
+      fileTokenSourceId: 'source-file-2',
+      name: 'summary.md',
+      origin_name: 'summary.md',
+      path: '/tmp/summary.md'
+    } as FileMetadata
+    mocks.files = [file, secondFile]
+    mocks.draftTokens = [
+      {
+        id: `file:${file.fileTokenSourceId}`,
+        kind: 'file',
+        label: file.name,
+        payload: file,
+        index: 0,
+        textOffset: mocks.draftText.length
+      } as ComposerSerializedToken
+    ]
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('send'))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(mocks.setFiles).not.toHaveBeenCalledWith([])
+    expect(mocks.files).toEqual([file, secondFile])
+  })
+
   it('blocks sends while the parent session is switching', () => {
     render(
       <AgentComposer
