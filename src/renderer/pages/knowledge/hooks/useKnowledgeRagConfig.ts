@@ -7,7 +7,7 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { KnowledgeRagConfigFormValues, KnowledgeSelectOption } from '../types'
+import type { KnowledgeRagConfigFormValues } from '../types'
 import { buildKnowledgeRagConfigPatch, createKnowledgeRagConfigFormValues, normalizeKnowledgeError } from '../utils'
 
 const logger = loggerService.withContext('useKnowledgeRagConfig')
@@ -51,20 +51,6 @@ export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
       }))
   }, [fileProcessorOverrides, t])
 
-  const searchModeOptions = useMemo<KnowledgeSelectOption[]>(() => {
-    const bm25Option = { value: 'bm25', label: t('knowledge.rag.search_mode.bm25') }
-    // Vector/hybrid retrieval needs an embedding model; a BM25-only base searches lexically only.
-    if (base.embeddingModelId === null) {
-      return [bm25Option]
-    }
-
-    return [
-      { value: 'hybrid', label: t('knowledge.rag.search_mode.hybrid') },
-      { value: 'vector', label: t('knowledge.rag.search_mode.vector') },
-      bm25Option
-    ]
-  }, [t, base.embeddingModelId])
-
   const save = async (values: KnowledgeRagConfigFormValues) => {
     const patch = buildKnowledgeRagConfigPatch(initialValues, values)
 
@@ -86,7 +72,6 @@ export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
   return {
     initialValues,
     fileProcessorOptions,
-    searchModeOptions,
     save,
     isLoading,
     error
