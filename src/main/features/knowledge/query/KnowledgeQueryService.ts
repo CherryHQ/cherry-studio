@@ -8,7 +8,7 @@ import type { KnowledgeItem, KnowledgeItemChunk, KnowledgeSearchResult } from '@
 import { getKnowledgeItemDisplayTitle, isCompletedVectorKnowledgeBase } from '@shared/data/types/knowledge'
 import { estimateTokenCount } from 'tokenx'
 
-import { assertBaseCanRunRuntimeOperation } from '../base/guards'
+import { assertBaseCanRunRuntimeOperation } from '../baseGuards'
 import { embedKnowledgeQuery } from '../indexing/embed'
 import { rerankKnowledgeSearchResults } from '../indexing/rerank'
 import { toKnowledgeBaseId, toKnowledgeItemId } from '../types'

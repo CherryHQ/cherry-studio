@@ -29,7 +29,8 @@ orchestration, and it lives in `ingestion/` and `tasks/`.
 | Directory | Role |
 | --- | --- |
 | `KnowledgeService.ts` | Lifecycle facade: registers job handlers, runs boot recovery, delegates every public method. No domain logic. |
-| `base/` | Base lifecycle: create (with rollback), delete, restore, list + the shared failed-base guard (`guards.ts`). |
+| `KnowledgeBaseAdminService.ts` | Base lifecycle: create (with rollback), delete, restore, list. |
+| `baseGuards.ts` | Shared failed-base guard, used by both the write and read side. |
 | `ingestion/` | Write-side orchestration: admission checks, item creation, add-conflict resolution, job enqueueing, boot recovery. |
 | `sources/` | Input stage: directory expansion, url fetch (Jina reader), url/note snapshot capture, OKF frontmatter. |
 | `readers/` | Preprocess stage: file → markdown/text `Document[]` readers (pdf/docx/epub/…). |
@@ -37,8 +38,8 @@ orchestration, and it lives in `ingestion/` and `tasks/`.
 | `vectorstore/` | Persist stage: per-base `index.sqlite` lifecycle (`KnowledgeVectorStoreService`) and the store itself (`indexStore/`, synchronous better-sqlite3 driver). |
 | `query/` | Read side: hybrid search with visibility filtering (`KnowledgeQueryService`), Concept ID tool surface (`KnowledgeConceptService`). |
 | `tasks/` | Job handlers — the pipeline executors (see below). |
-| `cleanup/` | Subtree purge (vectors + files + rows) and index space reclamation. |
-| `storage/` | `raw/` path allocation: collision-free names, reservation, base file paths. |
+| `subtreePurge.ts` / `vectorCleanup.ts` | Subtree purge (vectors + files + rows) and index space reclamation — shared by ingestion and the delete/reindex/prepare-root handlers. |
+| `pathStorage.ts` | `raw/` path allocation: collision-free names, reservation, base file paths. |
 | `items.ts` / `types.ts` / `types/` | Shared item predicates + source probing; branded ids, queue names, idempotency keys. |
 
 ## Jobs

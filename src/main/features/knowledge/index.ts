@@ -15,7 +15,7 @@ export {
   collectKnowledgeReservedRelativePaths,
   needsProcessedArtifactReservation,
   reserveImportedFileRelativePath
-} from './storage/pathStorage'
+} from './pathStorage'
 export { createKnowledgeIndexStoreAtPath } from './vectorstore/indexStore/createIndexStore'
 export { hashEmbeddingText } from './vectorstore/indexStore/hashing'
 export type { RebuildMaterialInput } from './vectorstore/indexStore/model'

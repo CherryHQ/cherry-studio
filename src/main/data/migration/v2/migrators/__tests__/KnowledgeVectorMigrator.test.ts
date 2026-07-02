@@ -73,7 +73,7 @@ function createTempRoot() {
 }
 
 // Mirrors the runtime vector store layout in
-// src/main/features/knowledge/storage/pathStorage.ts: {root}/{baseId}/.cherry/index.sqlite.
+// src/main/features/knowledge/pathStorage.ts: {root}/{baseId}/.cherry/index.sqlite.
 // Read-back assertions use this so they fail if the migrator ever writes to a path the runtime
 // would not open — the exact bug this regression guards against.
 function runtimeVectorStorePath(baseId: string): string {

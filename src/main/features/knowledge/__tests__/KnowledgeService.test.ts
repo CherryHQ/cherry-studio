@@ -10,7 +10,7 @@ import {
 } from '@shared/data/types/knowledge'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type * as PathStorage from '../storage/pathStorage'
+import type * as PathStorage from '../pathStorage'
 
 const {
   cancelManyMock,
@@ -177,8 +177,8 @@ vi.mock('../indexing/rerank', () => ({
   rerankKnowledgeSearchResults: rerankKnowledgeSearchResultsMock
 }))
 
-vi.mock('../storage/pathStorage', async () => {
-  const actual = await vi.importActual<typeof PathStorage>('../storage/pathStorage')
+vi.mock('../pathStorage', async () => {
+  const actual = await vi.importActual<typeof PathStorage>('../pathStorage')
   return {
     ...actual,
     copyFileIntoKnowledgeBaseAt: copyFileIntoKnowledgeBaseAtMock,

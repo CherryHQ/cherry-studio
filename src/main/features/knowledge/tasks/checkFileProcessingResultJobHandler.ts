@@ -15,7 +15,7 @@ import { isTerminalStatus, type JobSnapshot } from '@shared/data/api/schemas/job
 import type { KnowledgeLockManager } from '../KnowledgeLockManager'
 import type { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionService'
 import { knowledgeQueueName, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
-import { toKnowledgeRelativePath } from '../storage/pathStorage'
+import { toKnowledgeRelativePath } from '../pathStorage'
 import type { KnowledgeCheckFileProcessingResultPayload } from './jobTypes'
 import { cancelJobOrThrow } from './utils/cancel'
 import { isDataApiNotFoundError, markKnowledgeItemFailedOnSettled } from './utils/settled'

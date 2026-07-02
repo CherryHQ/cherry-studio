@@ -8,7 +8,7 @@ import type { CompletedKnowledgeBase, KnowledgeBase } from '@shared/data/types/k
 import { isCompletedKnowledgeBase } from '@shared/data/types/knowledge'
 
 import { isIndexableKnowledgeItem } from '../items'
-import { deleteKnowledgeBaseDir, getKnowledgeVectorStoreFilePathSync } from '../storage/pathStorage'
+import { deleteKnowledgeBaseDir, getKnowledgeVectorStoreFilePathSync } from '../pathStorage'
 import { createKnowledgeIndexStoreAtPath } from './indexStore/createIndexStore'
 import type { KnowledgeIndexStore } from './indexStore/KnowledgeIndexStore'
 

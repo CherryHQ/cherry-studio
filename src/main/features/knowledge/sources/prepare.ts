@@ -9,7 +9,7 @@ import {
 
 import type { IndexableKnowledgeItem } from '../types/items'
 import { isContainerKnowledgeItem, isIndexableKnowledgeItem } from '../items'
-import { collectKnowledgeReservedRelativePaths } from '../storage/pathStorage'
+import { collectKnowledgeReservedRelativePaths } from '../pathStorage'
 import { expandDirectoryOwnerToTree, type ExpandedDirectoryNode } from './directory'
 
 const logger = loggerService.withContext('KnowledgePrepare')

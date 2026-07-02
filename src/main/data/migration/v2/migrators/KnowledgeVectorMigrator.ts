@@ -38,7 +38,7 @@ import {
 const logger = loggerService.withContext('KnowledgeVectorMigrator')
 
 // Runtime vector store + material layout — source of truth:
-// src/main/features/knowledge/utils/storage/pathStorage.ts
+// src/main/features/knowledge/pathStorage.ts
 // (CHERRY_META_DIR / VECTOR_STORE_FILE / MATERIAL_ROOT_DIR). Runtime opens
 // {knowledgeBaseDir}/{baseId}/.cherry/index.sqlite by the migrated (new) base id, and resolves
 // every material's bytes at {knowledgeBaseDir}/{baseId}/raw/{relativePath}, so the migrator must

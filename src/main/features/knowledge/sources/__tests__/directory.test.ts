@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type * as PathStorage from '../../storage/pathStorage'
+import type * as PathStorage from '../../pathStorage'
 
 const copyFileIntoKnowledgeBaseAtMock = vi.hoisted(() =>
   vi.fn(async (_baseId: string, _externalPath: string, relativePath: string) => relativePath)
@@ -15,8 +15,8 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
-vi.mock('../../storage/pathStorage', async () => {
-  const actual = await vi.importActual<typeof PathStorage>('../../storage/pathStorage')
+vi.mock('../../pathStorage', async () => {
+  const actual = await vi.importActual<typeof PathStorage>('../../pathStorage')
   return {
     ...actual,
     copyFileIntoKnowledgeBaseAt: copyFileIntoKnowledgeBaseAtMock

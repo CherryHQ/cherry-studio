@@ -7,8 +7,8 @@ import type { JobHandler } from '@main/core/job/types'
 
 import type { KnowledgeLockManager } from '../KnowledgeLockManager'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId } from '../types'
-import { cancelActiveKnowledgeSubtreeJobs, purgeKnowledgeSubtreeWithinLock } from '../cleanup/subtreePurge'
-import { reclaimKnowledgeIndexSpace } from '../cleanup/vectorCleanup'
+import { cancelActiveKnowledgeSubtreeJobs, purgeKnowledgeSubtreeWithinLock } from '../subtreePurge'
+import { reclaimKnowledgeIndexSpace } from '../vectorCleanup'
 import type { KnowledgeDeleteSubtreePayload } from './jobTypes'
 
 const logger = loggerService.withContext('Knowledge:DeleteSubtreeJobHandler')

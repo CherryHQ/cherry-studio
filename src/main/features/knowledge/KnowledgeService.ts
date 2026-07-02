@@ -14,7 +14,7 @@ import type {
   RestoreKnowledgeBaseResult
 } from '@shared/data/types/knowledge'
 
-import { KnowledgeBaseAdminService } from './base/KnowledgeBaseAdminService'
+import { KnowledgeBaseAdminService } from './KnowledgeBaseAdminService'
 import { KnowledgeIngestionService } from './ingestion/KnowledgeIngestionService'
 import { KnowledgeLockManager } from './KnowledgeLockManager'
 import type {
@@ -34,7 +34,7 @@ import { createReindexSubtreeJobHandler } from './tasks/reindexSubtreeJobHandler
 /**
  * Facade of the knowledge feature: registers the job handlers, runs boot-time
  * recovery, and delegates every public operation to the module that owns it —
- * base lifecycle (base/), write-side orchestration (ingestion/), and the read
+ * base lifecycle (KnowledgeBaseAdminService), write-side orchestration (ingestion/), and the read
  * side (query/). Holds no domain logic of its own.
  */
 @Injectable('KnowledgeService')

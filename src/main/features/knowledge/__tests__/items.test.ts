@@ -1,15 +1,15 @@
 import type { KnowledgeItem, KnowledgeItemOf } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type * as PathStorage from '../storage/pathStorage'
+import type * as PathStorage from '../pathStorage'
 
 const { probeKnowledgeFileMock, probeKnowledgeSourcePathMock } = vi.hoisted(() => ({
   probeKnowledgeFileMock: vi.fn(),
   probeKnowledgeSourcePathMock: vi.fn()
 }))
 
-vi.mock('../storage/pathStorage', async () => {
-  const actual = await vi.importActual<typeof PathStorage>('../storage/pathStorage')
+vi.mock('../pathStorage', async () => {
+  const actual = await vi.importActual<typeof PathStorage>('../pathStorage')
   return {
     ...actual,
     probeKnowledgeFile: probeKnowledgeFileMock,
