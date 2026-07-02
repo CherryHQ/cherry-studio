@@ -46,7 +46,7 @@ export const fileHandlers: HandlersFor<FileSchemas> = {
   '/files/entries/ref-counts': {
     GET: async ({ query }) => {
       const { entryIds } = RefCountsQuerySchema.parse(query)
-      const counts = await fileRefService.countByEntryIds(entryIds)
+      const counts = fileRefService.countByEntryIds(entryIds)
       return entryIds.map((id) => ({ entryId: id, refCount: counts.get(id) ?? 0 }))
     }
   },

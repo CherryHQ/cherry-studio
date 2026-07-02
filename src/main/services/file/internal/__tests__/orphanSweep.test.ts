@@ -78,9 +78,9 @@ describe('scanOrphanEntries (report-only)', () => {
         updatedAt: now
       }
     ])
-    await fileRefService.createTempSessionRef({ fileEntryId: referenced, sourceId: 'sess-z', role: 'pending' })
+    fileRefService.createTempSessionRef({ fileEntryId: referenced, sourceId: 'sess-z', role: 'pending' })
 
-    const report = await scanOrphanEntries({ fileEntryService, fileRefService })
+    const report = scanOrphanEntries({ fileEntryService, fileRefService })
     expect(report.total).toBe(3)
     expect(report.byOrigin.internal).toBe(1)
     expect(report.byOrigin.external).toBe(2)
@@ -103,9 +103,9 @@ describe('scanOrphanEntries (report-only)', () => {
       createdAt: now,
       updatedAt: now
     })
-    await fileRefService.createTempSessionRef({ fileEntryId: id, sourceId: 's', role: 'pending' })
+    fileRefService.createTempSessionRef({ fileEntryId: id, sourceId: 's', role: 'pending' })
 
-    const report = await scanOrphanEntries({ fileEntryService, fileRefService })
+    const report = scanOrphanEntries({ fileEntryService, fileRefService })
     expect(report.total).toBe(0)
     expect(report.byOrigin.internal ?? 0).toBe(0)
     expect(report.byOrigin.external ?? 0).toBe(0)
@@ -137,7 +137,7 @@ describe('runDbSweep (umbrella + observability)', () => {
       createdAt: now,
       updatedAt: now
     })
-    await fileRefService.createTempSessionRef({
+    fileRefService.createTempSessionRef({
       fileEntryId: entryId,
       sourceId: 'sess-orphan',
       role: 'pending'
@@ -146,7 +146,7 @@ describe('runDbSweep (umbrella + observability)', () => {
     const infoSpy = vi.spyOn(loggerService, 'info')
     await dbh.db.delete(fileEntryTable).where(eq(fileEntryTable.id, entryId))
 
-    const report = await runDbSweep({
+    const report = runDbSweep({
       fileEntryService,
       fileRefService
     })
@@ -168,13 +168,13 @@ describe('runDbSweep (umbrella + observability)', () => {
   it('reports failed outcome when an outer-level operation throws', async () => {
     const errorSpy = vi.spyOn(loggerService, 'error')
     const failingEntryService = {
-      findUnreferenced: async () => {
+      findUnreferenced: () => {
         throw new Error('boom')
       },
       listAllIds: fileEntryService.listAllIds.bind(fileEntryService)
     } as unknown as typeof fileEntryService
 
-    const report = await runDbSweep({
+    const report = runDbSweep({
       fileEntryService: failingEntryService,
       fileRefService
     })
@@ -477,7 +477,7 @@ describe('runFileSweep (FS-level)', () => {
 
   it('returns failed outcome when listAllIds throws (DB unavailable mid-startup)', async () => {
     const failingEntryService = {
-      listAllIds: async () => {
+      listAllIds: () => {
         throw new Error('db-down')
       }
     } as unknown as typeof fileEntryService
@@ -558,7 +558,7 @@ describe('runFileSweep (FS-level)', () => {
     const trashedId = '019606a0-0000-7000-8000-0000000fa2ed' as FileEntryId
     const trashedPath = path.join(filesDir, `${trashedId}.txt`)
     // 1) Create the entry as if a Cherry-owned write committed,
-    await fileEntryService.create({
+    fileEntryService.create({
       id: trashedId,
       origin: 'internal',
       name: 'doomed-if-filter-creeps-in',
@@ -567,7 +567,7 @@ describe('runFileSweep (FS-level)', () => {
     })
     await writeFile(trashedPath, 'x')
     // 2) Move to trash via the service (sets deletedAt; row stays in DB).
-    await fileEntryService.update(trashedId, { deletedAt: Date.now() })
+    fileEntryService.update(trashedId, { deletedAt: Date.now() })
 
     const report = await runFileSweep({ fileEntryService })
     expect(report.outcome).toBe('completed')

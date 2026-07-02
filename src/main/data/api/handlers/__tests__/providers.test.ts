@@ -57,7 +57,7 @@ describe('providerHandlers', () => {
 
   describe('/providers', () => {
     it('accepts a minimal create payload without DB-managed fields', async () => {
-      createMock.mockResolvedValueOnce({
+      createMock.mockReturnValueOnce({
         id: 'custom-provider',
         name: 'CherryAI',
         defaultChatEndpoint: 'openai-chat-completions',
@@ -101,7 +101,7 @@ describe('providerHandlers', () => {
   describe('/providers/:providerId', () => {
     it('delegates PATCH to providerService.update with parsed body', async () => {
       const updated = { id: 'openai', isEnabled: false }
-      updateMock.mockResolvedValueOnce(updated)
+      updateMock.mockReturnValueOnce(updated)
 
       const result = await providerHandlers['/providers/:providerId'].PATCH({
         params: { providerId: 'openai' },
@@ -124,7 +124,7 @@ describe('providerHandlers', () => {
     })
 
     it('delegates DELETE to providerService.delete', async () => {
-      deleteMock.mockResolvedValueOnce(undefined)
+      deleteMock.mockReturnValueOnce(undefined)
 
       const result = await providerHandlers['/providers/:providerId'].DELETE({
         params: { providerId: 'openai' }
@@ -141,7 +141,7 @@ describe('providerHandlers', () => {
         { id: 'enabled-key', key: 'sk-enabled', isEnabled: true },
         { id: 'disabled-key', key: 'sk-disabled', isEnabled: false, label: 'Backup' }
       ]
-      getApiKeysMock.mockResolvedValueOnce(keys)
+      getApiKeysMock.mockReturnValueOnce(keys)
 
       const result = await providerHandlers['/providers/:providerId/api-keys'].GET({
         params: { providerId: 'openai' }
@@ -153,7 +153,7 @@ describe('providerHandlers', () => {
 
     it('forwards ?enabled=true to the service so callers can request enabled keys only', async () => {
       const enabledKeys = [{ id: 'enabled-key', key: 'sk-enabled', isEnabled: true }]
-      getApiKeysMock.mockResolvedValueOnce(enabledKeys)
+      getApiKeysMock.mockReturnValueOnce(enabledKeys)
 
       const result = await providerHandlers['/providers/:providerId/api-keys'].GET({
         params: { providerId: 'openai' },
@@ -215,7 +215,7 @@ describe('providerHandlers', () => {
   describe('/providers/:providerId/auth-config', () => {
     it('delegates GET to providerService.getAuthConfig', async () => {
       const authConfig = { type: 'bearer', token: 'token' }
-      getAuthConfigMock.mockResolvedValueOnce(authConfig)
+      getAuthConfigMock.mockReturnValueOnce(authConfig)
 
       const result = await providerHandlers['/providers/:providerId/auth-config'].GET({
         params: { providerId: 'vertexai' }

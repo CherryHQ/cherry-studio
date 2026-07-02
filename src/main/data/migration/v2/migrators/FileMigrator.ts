@@ -317,8 +317,8 @@ export class FileMigrator extends BaseMigrator {
       for (let i = 0; i < this.preparedEntries.length; i += BATCH_SIZE) {
         const batch = this.preparedEntries.slice(i, i + BATCH_SIZE)
 
-        await ctx.db.transaction(async (tx) => {
-          await tx.insert(fileEntryTable).values(batch)
+        ctx.db.transaction((tx) => {
+          tx.insert(fileEntryTable).values(batch).run()
         })
 
         processed += batch.length
@@ -347,7 +347,7 @@ export class FileMigrator extends BaseMigrator {
     const errors: ValidationError[] = []
 
     try {
-      const result = await ctx.db.select({ count: sql<number>`count(*)` }).from(fileEntryTable).get()
+      const result = ctx.db.select({ count: sql<number>`count(*)` }).from(fileEntryTable).get()
       const targetCount = result?.count ?? 0
       const expectedCount = this.preparedEntries.length
 
