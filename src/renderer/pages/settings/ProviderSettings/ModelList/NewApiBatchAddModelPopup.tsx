@@ -13,13 +13,14 @@ import {
   SelectValue
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { useTopViewClose } from '@renderer/components/Popups/useTopViewClose'
 import { TopView } from '@renderer/components/TopView'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
@@ -34,7 +35,7 @@ interface ShowParams {
 }
 
 interface Props extends ShowParams {
-  resolve: (data: any) => void
+  resolve: () => void
 }
 
 type FieldType = {
@@ -45,24 +46,16 @@ type FieldType = {
 
 const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels }) => {
   const [open, setOpen] = useState(true)
-  const resolvedRef = useRef(false)
   const [endpointType, setEndpointType] = useState<EndpointType>(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
   const [submitting, setSubmitting] = useState(false)
+  const [closing, setClosing] = useState(false)
   const { createModels } = useModelMutations()
   const { models: existingModels } = useModels({ providerId: provider.id })
   const { t } = useTranslation()
-
-  const closeWithResult = (data: any) => {
-    if (resolvedRef.current) {
-      return
-    }
-    resolvedRef.current = true
-    setOpen(false)
-    resolve(data)
-  }
+  const close = useTopViewClose({ onClosingChange: setClosing, resolve, setOpen, topViewKey: TopViewKey })
 
   const onCancel = () => {
-    closeWithResult({})
+    close()
   }
 
   const onAddModel = async (values: FieldType) => {
@@ -95,7 +88,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
     try {
       setSubmitting(true)
       if (await onAddModel({ provider: provider.id, endpointType })) {
-        closeWithResult({})
+        close()
       }
     } catch (error) {
       logger.error('Failed to batch add models', { providerId: provider.id, error })
@@ -140,10 +133,10 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onCancel} disabled={submitting}>
+          <Button variant="outline" onClick={onCancel} disabled={submitting || closing}>
             {t('common.cancel')}
           </Button>
-          <Button disabled={submitting} onClick={() => void onSubmit()}>
+          <Button disabled={submitting || closing} onClick={() => void onSubmit()}>
             {t('settings.models.add.add_model')}
           </Button>
         </DialogFooter>
@@ -152,23 +145,16 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
   )
 }
 
+const TopViewKey = 'NewApiBatchAddModelPopup'
+
 export default class NewApiBatchAddModelPopup {
   static topviewId = 0
   static hide() {
-    TopView.hide('NewApiBatchAddModelPopup')
+    TopView.hide(TopViewKey)
   }
   static show(props: ShowParams) {
-    return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(v) => {
-            resolve(v)
-            this.hide()
-          }}
-        />,
-        'NewApiBatchAddModelPopup'
-      )
+    return new Promise<void>((resolve) => {
+      TopView.show(<PopupContainer {...props} resolve={resolve} />, TopViewKey)
     })
   }
 }

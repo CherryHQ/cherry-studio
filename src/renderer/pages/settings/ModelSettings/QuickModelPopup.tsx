@@ -17,6 +17,7 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { ResetIcon } from '@renderer/components/Icons'
+import { useTopViewClose } from '@renderer/components/Popups/useTopViewClose'
 import { TopView } from '@renderer/components/TopView'
 import { CircleHelp } from 'lucide-react'
 import { useCallback, useState } from 'react'
@@ -25,7 +26,7 @@ import { useTranslation } from 'react-i18next'
 import { SettingSubtitle } from '..'
 
 interface Props {
-  resolve: (data: any) => void
+  resolve: () => void
 }
 
 export const TopicNamingSettings = () => {
@@ -94,10 +95,10 @@ export const TopicNamingSettings = () => {
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
+  const close = useTopViewClose({ resolve, setOpen, topViewKey: TopViewKey })
 
   const closePopup = () => {
-    setOpen(false)
-    resolve({})
+    close()
   }
 
   TopicNamingModalPopup.hide = closePopup
@@ -131,16 +132,8 @@ export default class TopicNamingModalPopup {
     TopView.hide(TopViewKey)
   }
   static show() {
-    return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          resolve={(v) => {
-            resolve(v)
-            TopView.hide(TopViewKey)
-          }}
-        />,
-        TopViewKey
-      )
+    return new Promise<void>((resolve) => {
+      TopView.show(<PopupContainer resolve={resolve} />, TopViewKey)
     })
   }
 }

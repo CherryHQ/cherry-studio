@@ -29,10 +29,7 @@ export default class ObsidianExportPopup {
           rawContent={options.rawContent}
           obsidianTags={''}
           open={true}
-          resolve={(v) => {
-            resolve(v)
-            ObsidianExportPopup.hide()
-          }}
+          resolve={resolve}
         />,
         'ObsidianExportPopup'
       )

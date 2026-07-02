@@ -4,39 +4,35 @@ import { TopView } from '@renderer/components/TopView'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import { ipcApi } from '@renderer/ipc'
 import type { ReleaseNoteInfo, UpdateInfo } from 'builder-util-runtime'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Streamdown } from 'streamdown'
 
+import { useTopViewClose } from './useTopViewClose'
+
 const logger = loggerService.withContext('UpdateDialog')
-const CLOSE_ANIMATION_MS = 200
 
 interface ShowParams {
   releaseInfo: UpdateInfo | null
 }
 
 interface Props extends ShowParams {
-  resolve: (data: any) => void
+  resolve: () => void
 }
 
 const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(true)
   const [isInstalling, setIsInstalling] = useState(false)
-  const resolvedRef = useRef(false)
   const { updateAppUpdateState } = useAppUpdateState()
+  const closeTopView = useTopViewClose({ resolve, setOpen, topViewKey: TopViewKey })
+  const closePopup = () => closeTopView()
+
   useEffect(() => {
     if (releaseInfo) {
       logger.info('Update dialog opened', { version: releaseInfo.version })
     }
   }, [releaseInfo])
-
-  const closePopup = () => {
-    if (resolvedRef.current) return
-    resolvedRef.current = true
-    setOpen(false)
-    window.setTimeout(() => resolve({}), CLOSE_ANIMATION_MS)
-  }
 
   const handleInstall = async () => {
     setIsInstalling(true)
@@ -116,17 +112,8 @@ export default class UpdateDialogPopup {
     TopView.hide(TopViewKey)
   }
   static show(props: ShowParams) {
-    return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(v) => {
-            resolve(v)
-            TopView.hide(TopViewKey)
-          }}
-        />,
-        TopViewKey
-      )
+    return new Promise<void>((resolve) => {
+      TopView.show(<PopupContainer {...props} resolve={resolve} />, TopViewKey)
     })
   }
 }

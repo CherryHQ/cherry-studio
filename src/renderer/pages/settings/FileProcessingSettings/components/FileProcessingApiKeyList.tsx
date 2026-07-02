@@ -1,6 +1,7 @@
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { EditIcon } from '@renderer/components/Icons'
+import { useTopViewClose } from '@renderer/components/Popups/useTopViewClose'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { TopView } from '@renderer/components/TopView'
 import { cn } from '@renderer/utils/style'
@@ -255,17 +256,8 @@ interface PopupProps extends ShowParams {
 const PopupContainer: FC<PopupProps> = ({ processorId, apiKeys, onSetApiKeys, title, resolve }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
-  const resolvedRef = useRef(false)
-
-  const closePopup = () => {
-    if (resolvedRef.current) {
-      return
-    }
-
-    resolvedRef.current = true
-    setOpen(false)
-    resolve(null)
-  }
+  const closeTopView = useTopViewClose({ resolve, setOpen, topViewKey: TopViewKey })
+  const closePopup = () => closeTopView(null)
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => (nextOpen ? setOpen(true) : closePopup())}>
@@ -284,16 +276,7 @@ const TopViewKey = 'FileProcessingApiKeyListPopup'
 export class FileProcessingApiKeyListPopup {
   static show(props: ShowParams) {
     return new Promise<unknown>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(value) => {
-            resolve(value)
-            TopView.hide(TopViewKey)
-          }}
-        />,
-        TopViewKey
-      )
+      TopView.show(<PopupContainer {...props} resolve={resolve} />, TopViewKey)
     })
   }
 }

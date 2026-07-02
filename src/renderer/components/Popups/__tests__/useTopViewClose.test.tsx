@@ -97,4 +97,29 @@ describe('useTopViewClose', () => {
 
     expect(calls).toEqual(['setOpen', 'afterClose', 'resolve', 'hide'])
   })
+
+  it('reports closing state until the close settles', () => {
+    vi.useFakeTimers()
+    const onClosingChange = vi.fn()
+    const resolve = vi.fn()
+    const setOpen = vi.fn()
+
+    const { result } = renderHook(() =>
+      useTopViewClose({ onClosingChange, resolve, setOpen, topViewKey: 'test-popup' })
+    )
+
+    act(() => {
+      result.current('done')
+    })
+
+    expect(onClosingChange).toHaveBeenCalledTimes(1)
+    expect(onClosingChange).toHaveBeenCalledWith(true)
+
+    act(() => {
+      vi.advanceTimersByTime(TOP_VIEW_CLOSE_ANIMATION_MS)
+    })
+
+    expect(onClosingChange).toHaveBeenCalledTimes(2)
+    expect(onClosingChange).toHaveBeenLastCalledWith(false)
+  })
 })

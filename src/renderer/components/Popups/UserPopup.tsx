@@ -27,11 +27,10 @@ import { useTranslation } from 'react-i18next'
 
 import EmojiPicker from '../EmojiPicker'
 import { TopView } from '../TopView'
-
-const CLOSE_ANIMATION_MS = 200
+import { useTopViewClose } from './useTopViewClose'
 
 interface Props {
-  resolve: (data: any) => void
+  resolve: () => void
 }
 
 type AvatarPopoverView = 'menu' | 'emoji'
@@ -45,13 +44,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { t } = useTranslation()
   const avatar = useAvatar()
-
-  const closeDialog = () => {
-    setOpen(false)
-    window.setTimeout(() => {
-      resolve({})
-    }, CLOSE_ANIMATION_MS)
-  }
+  const closeTopView = useTopViewClose({ resolve, setOpen, topViewKey: 'UserPopup' })
+  const closeDialog = () => closeTopView()
 
   const onOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
@@ -187,16 +181,8 @@ export default class UserPopup {
     TopView.hide('UserPopup')
   }
   static show() {
-    return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          resolve={(v) => {
-            resolve(v)
-            this.hide()
-          }}
-        />,
-        'UserPopup'
-      )
+    return new Promise<void>((resolve) => {
+      TopView.show(<PopupContainer resolve={resolve} />, 'UserPopup')
     })
   }
 }

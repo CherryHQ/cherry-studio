@@ -1,5 +1,6 @@
 import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { useTopViewClose } from '@renderer/components/Popups/useTopViewClose'
 import { TopView } from '@renderer/components/TopView'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { Provider } from '@shared/data/types/provider'
@@ -18,7 +19,7 @@ interface ShowParams {
 }
 
 interface Props extends ShowParams {
-  resolve: (data: any) => unknown
+  resolve: () => void
 }
 
 type OvmsDownloadTask = 'embeddings' | 'image_generation' | 'rerank' | 'text_generation'
@@ -101,8 +102,10 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
     task: 'text_generation'
   })
   const [error, setError] = useState<string | null>(null)
+  const [closing, setClosing] = useState(false)
   const { t } = useTranslation()
   const { setIntervalTimer, clearIntervalTimer, setTimeoutTimer } = useTimer()
+  const close = useTopViewClose({ onClosingChange: setClosing, resolve, setOpen, topViewKey: TopViewKey })
 
   const getPresetTooltipLabel = (model: PresetModel) =>
     `${model.modelName} (${t(OVMS_DOWNLOAD_TASK_LABEL_KEYS[model.task])})`
@@ -183,8 +186,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       }
       return
     }
-    setOpen(false)
-    resolve({})
+    close()
   }
 
   const onFinish = async () => {
@@ -216,8 +218,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       if (result.success) {
         stopFakeProgress(true) // Complete the progress bar
         window.toast.success(t('ovms.download.success_desc', { modelName: modelName, modelId: modelId }))
-        setOpen(false)
-        resolve({})
+        close()
       } else {
         stopFakeProgress(false) // Reset progress on error
         logger.error(`Download failed, is it cancelled? ${cancelled}`)
@@ -240,10 +241,14 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
 
   const footer = (
     <div className={drawerClasses.footer}>
-      <Button variant={loading ? 'default' : 'outline'} type="button" onClick={() => void onCancel()}>
+      <Button
+        variant={loading ? 'default' : 'outline'}
+        type="button"
+        disabled={closing}
+        onClick={() => void onCancel()}>
         {loading ? t('common.cancel') : t('common.cancel')}
       </Button>
-      <Button disabled={loading} onClick={() => void onFinish()}>
+      <Button disabled={loading || closing} onClick={() => void onFinish()}>
         {t('ovms.download.button')}
       </Button>
     </div>
@@ -345,23 +350,16 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   )
 }
 
+const TopViewKey = 'DownloadOvmsModelPopup'
+
 export default class DownloadOvmsModelPopup {
   static topviewId = 0
   static hide() {
-    TopView.hide('DownloadOvmsModelPopup')
+    TopView.hide(TopViewKey)
   }
   static show(props: ShowParams) {
-    return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(v) => {
-            resolve(v)
-            this.hide()
-          }}
-        />,
-        'DownloadOvmsModelPopup'
-      )
+    return new Promise<void>((resolve) => {
+      TopView.show(<PopupContainer {...props} resolve={resolve} />, TopViewKey)
     })
   }
 }

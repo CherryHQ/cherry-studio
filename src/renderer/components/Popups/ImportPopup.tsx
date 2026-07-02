@@ -10,34 +10,25 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { importChatGPTConversations } from '@renderer/services/import'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TopView } from '../TopView'
+import { useTopViewClose } from './useTopViewClose'
 
 const logger = loggerService.withContext('ImportPopup')
 
-interface PopupResult {
-  success?: boolean
-}
-
 interface Props {
-  resolve: (data: PopupResult) => void
+  resolve: () => void
 }
 
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
   const [selecting, setSelecting] = useState(false)
   const [importing, setImporting] = useState(false)
-  const resolvedRef = useRef(false)
+  const [closing, setClosing] = useState(false)
   const { t } = useTranslation()
-
-  useEffect(() => {
-    if (open || resolvedRef.current) return
-
-    resolvedRef.current = true
-    resolve({})
-  }, [open, resolve])
+  const close = useTopViewClose({ onClosingChange: setClosing, resolve, setOpen, topViewKey: TopViewKey })
 
   const onOk = async () => {
     setSelecting(true)
@@ -68,14 +59,14 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             messages: result.messagesCount
           })
         )
-        setOpen(false)
+        close()
       } else {
         window.toast.error(result.error || t('import.chatgpt.error.unknown'))
       }
     } catch (error) {
       logger.error('ChatGPT import failed:', error as Error)
       window.toast.error(t('import.chatgpt.error.unknown'))
-      setOpen(false)
+      close()
     } finally {
       setSelecting(false)
       setImporting(false)
@@ -83,7 +74,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   }
 
   const onCancel = () => {
-    setOpen(false)
+    close()
   }
 
   ImportPopup.hide = onCancel
@@ -125,10 +116,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           </div>
         )}
         <DialogFooter>
-          <Button variant="outline" disabled={selecting || importing} onClick={onCancel}>
+          <Button variant="outline" disabled={selecting || importing || closing} onClick={onCancel}>
             {t('common.cancel')}
           </Button>
-          <Button loading={selecting} disabled={importing} onClick={onOk}>
+          <Button loading={selecting} disabled={importing || closing} onClick={onOk}>
             {t('import.chatgpt.button')}
           </Button>
         </DialogFooter>
@@ -145,16 +136,8 @@ export default class ImportPopup {
     TopView.hide(TopViewKey)
   }
   static show() {
-    return new Promise<PopupResult>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          resolve={(v) => {
-            resolve(v)
-            TopView.hide(TopViewKey)
-          }}
-        />,
-        TopViewKey
-      )
+    return new Promise<void>((resolve) => {
+      TopView.show(<PopupContainer resolve={resolve} />, TopViewKey)
     })
   }
 }

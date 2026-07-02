@@ -21,6 +21,7 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { useTopViewClose } from '@renderer/components/Popups/useTopViewClose'
 import i18n from '@renderer/i18n'
 import {
   exportMarkdownToObsidian,
@@ -192,6 +193,8 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
   const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const [exportReasoning, setExportReasoning] = useState(false)
+  const [openState, setOpen] = useState(open)
+  const closeDialog = useTopViewClose({ resolve, setOpen, topViewKey: 'ObsidianExportPopup' })
 
   useEffect(() => {
     if (files.length > 0) {
@@ -287,18 +290,15 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       folder: state.folder,
       vault: selectedVault
     })
-    setOpen(false)
-    resolve(true)
+    closeDialog(true)
   }
 
-  const [openState, setOpen] = useState(open)
   useEffect(() => {
     setOpen(open)
   }, [open])
 
   const handleCancel = () => {
-    setOpen(false)
-    resolve(false)
+    closeDialog(false)
   }
 
   const handleChange = (key: string, value: any) => {

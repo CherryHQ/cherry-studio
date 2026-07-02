@@ -1,31 +1,24 @@
 import { CodeEditor, Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 
 import { TopView } from '../TopView'
-
-const CLOSE_ANIMATION_MS = 200
+import { useTopViewClose } from './useTopViewClose'
 
 interface Props {
   text: string
   title: string
   extension?: string
-  resolve: (data: any) => void
+  resolve: () => void
 }
 
 const PopupContainer: React.FC<Props> = ({ text, title, extension, resolve }) => {
   const [open, setOpen] = useState(true)
-  const resolvedRef = useRef(false)
   const [fontSize] = usePreference('chat.message.font_size')
   const { activeCmTheme } = useCodeStyle()
-
-  const closePopup = () => {
-    if (resolvedRef.current) return
-    resolvedRef.current = true
-    setOpen(false)
-    window.setTimeout(() => resolve({}), CLOSE_ANIMATION_MS)
-  }
+  const closeTopView = useTopViewClose({ resolve, setOpen, topViewKey: 'TextFilePreviewPopup' })
+  const closePopup = () => closeTopView()
 
   const onOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
@@ -72,17 +65,9 @@ export default class TextFilePreviewPopup {
     TopView.hide('TextFilePreviewPopup')
   }
   static show(text: string, title: string, extension?: string) {
-    return new Promise<any>((resolve) => {
+    return new Promise<void>((resolve) => {
       TopView.show(
-        <PopupContainer
-          text={text}
-          title={title}
-          extension={extension}
-          resolve={(v) => {
-            resolve(v)
-            TopView.hide('TextFilePreviewPopup')
-          }}
-        />,
+        <PopupContainer text={text} title={title} extension={extension} resolve={resolve} />,
         'TextFilePreviewPopup'
       )
     })
