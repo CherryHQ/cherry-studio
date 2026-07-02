@@ -2,7 +2,7 @@
  * Document → plain text extraction for the AI `read_file` tool.
  *
  * Single home for "turn a non-image, non-natively-consumable file into text":
- *   - `pdf`                          → `extractPdfText` (`@shared/utils/pdf`)
+ *   - `pdf`                          → `extractPdfText` (`@main/utils/pdf`)
  *   - `doc`                          → `word-extractor`
  *   - `docx/pptx/xlsx/xls/od*`       → `officeparser`
  *   - everything else (text / code)  → encoding-detected decode
@@ -12,9 +12,9 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { decodeTextWithAutoEncoding } from '@main/utils/file'
+import { extractPdfText } from '@main/utils/pdf'
 import type { FileEntryId } from '@shared/data/types/file'
 import { documentExts } from '@shared/utils/file'
-import { extractPdfText } from '@shared/utils/pdf'
 import officeParser from 'officeparser'
 import WordExtractor from 'word-extractor'
 

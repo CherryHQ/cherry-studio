@@ -8,10 +8,9 @@ export const useRecentEmojis = () => {
 
   const pushRecent = useCallback(
     (emoji: string) => {
-      const next = [emoji, ...recent.filter((item) => item !== emoji)].slice(0, MAX_RECENT_EMOJIS)
-      setRecent(next)
+      setRecent((prev) => [emoji, ...prev.filter((item) => item !== emoji)].slice(0, MAX_RECENT_EMOJIS))
     },
-    [recent, setRecent]
+    [setRecent]
   )
 
   const clearRecent = useCallback(() => {

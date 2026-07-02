@@ -105,8 +105,8 @@ describe('useProviderConnectionCheck', () => {
       commitInputApiKeyNow: commitInputApiKeyNowMock
     })
     useProviderEndpointsMock.mockReturnValue({
-      apiHost: 'https://open.cherryin.cc',
-      anthropicApiHost: 'https://anthropic.cherryin.cc'
+      apiHost: 'https://open.cherryin.net',
+      anthropicApiHost: 'https://open.cherryin.net'
     })
   })
 

@@ -1,4 +1,4 @@
-import { MenuDivider, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { useCache, usePersistCache } from '@data/hooks/useCache'
@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import {
+  RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
   ResourceList,
   type ResourceListItemReorderPayload,
   type ResourceListReorderPayload,
@@ -21,6 +22,7 @@ import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
+import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
@@ -31,8 +33,7 @@ import {
   getTopicMessages,
   mapApiTopicToRendererTopic,
   startTopicRenaming,
-  useTopicMutations,
-  useTopics
+  useTopicMutations
 } from '@renderer/hooks/useTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
@@ -42,21 +43,9 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import dayjs from 'dayjs'
-import { findIndex } from 'lodash'
-import {
-  Bot,
-  ChevronsDownUp,
-  ChevronsUpDown,
-  Clock,
-  History,
-  ListFilter,
-  MoreHorizontal,
-  PinIcon,
-  SquarePen,
-  Trash2,
-  XIcon
-} from 'lucide-react'
-import type { MouseEvent, ReactNode, RefObject } from 'react'
+import { findIndex } from 'es-toolkit/compat'
+import { Bot, History, MoreHorizontal, PinIcon, SquarePen, Trash2, XIcon } from 'lucide-react'
+import type { MouseEvent, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -94,17 +83,12 @@ const logger = loggerService.withContext('Topics')
 
 interface Props {
   activeTopic?: Topic
+  assistantIdFilter?: string | null
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onOpenHistoryRecords?: () => void
+  presentation?: 'sidebar' | 'right-panel'
   revealRequest?: ResourceListRevealRequest
   setActiveTopic: (topic: Topic) => void
-}
-
-const TOPIC_DISPLAY_OPTIONS: TopicDisplayMode[] = ['time', 'assistant']
-
-const TOPIC_DISPLAY_ICONS: Record<TopicDisplayMode, ReactNode> = {
-  time: <Clock size={16} />,
-  assistant: <Bot size={16} />
 }
 
 function buildCreateTopicPayload(
@@ -151,76 +135,20 @@ function resolveAssistantIdForTopicGroup(
   return assistantId
 }
 
-function TopicListOptionsMenu({
-  mode,
-  onChange,
-  onOpenHistoryRecords,
-  sectionId
-}: {
-  mode: TopicDisplayMode
-  onChange: (mode: TopicDisplayMode) => void
-  onOpenHistoryRecords?: () => void
-  sectionId?: string
-}) {
+function TopicHistoryButton({ onOpenHistoryRecords }: { onOpenHistoryRecords?: () => void }) {
   const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
+
+  if (!onOpenHistoryRecords) return null
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <ResourceList.HeaderActionButton type="button" aria-label={t('chat.topics.display.title')}>
-          <ListFilter className="block" />
-        </ResourceList.HeaderActionButton>
-      </PopoverTrigger>
-      <PopoverContent align="end" side="bottom" sideOffset={4} className="w-44 p-1">
-        <MenuList>
-          <div className="px-2.5 py-1 font-medium text-muted-foreground text-xs">{t('chat.topics.display.title')}</div>
-          {TOPIC_DISPLAY_OPTIONS.map((option) => (
-            <MenuItem
-              key={option}
-              size="sm"
-              icon={TOPIC_DISPLAY_ICONS[option]}
-              label={t(`chat.topics.display.${option}`)}
-              active={mode === option}
-              onClick={() => {
-                onChange(option)
-                setOpen(false)
-              }}
-            />
-          ))}
-          {sectionId && (
-            <>
-              <MenuDivider />
-              <ResourceList.SectionToggleMenuItem
-                size="sm"
-                expandIcon={<ChevronsUpDown size={16} />}
-                collapseIcon={<ChevronsDownUp size={16} />}
-                sectionId={sectionId}
-                expandLabel={t('chat.topics.group.expand_all')}
-                collapseLabel={t('chat.topics.group.collapse_all')}
-                onClick={() => {
-                  setOpen(false)
-                }}
-              />
-            </>
-          )}
-          {onOpenHistoryRecords && (
-            <>
-              <MenuDivider />
-              <MenuItem
-                size="sm"
-                icon={<History size={16} />}
-                label={t('history.records.shortTitle')}
-                onClick={() => {
-                  onOpenHistoryRecords()
-                  setOpen(false)
-                }}
-              />
-            </>
-          )}
-        </MenuList>
-      </PopoverContent>
-    </Popover>
+    <Tooltip title={t('history.records.shortTitle')} delay={500}>
+      <ResourceList.HeaderActionButton
+        type="button"
+        aria-label={t('history.records.shortTitle')}
+        onClick={onOpenHistoryRecords}>
+        <History className="block" />
+      </ResourceList.HeaderActionButton>
+    </Tooltip>
   )
 }
 
@@ -269,8 +197,17 @@ function AssistantGroupMoreMenu({
   )
 }
 
-export function Topics({ activeTopic, onNewTopic, onOpenHistoryRecords, revealRequest, setActiveTopic }: Props) {
+export function Topics({
+  activeTopic,
+  assistantIdFilter,
+  onNewTopic,
+  onOpenHistoryRecords,
+  presentation = 'sidebar',
+  revealRequest,
+  setActiveTopic
+}: Props) {
   const { t } = useTranslation()
+  const isRightPanel = presentation === 'right-panel'
   const tabs = useOptionalTabsContext()
   const conversationNav = useConversationNavigation('assistants')
   const [groupNow] = useState(() => dayjs())
@@ -281,7 +218,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistoryRecords, revealRe
     deleteTopicsByAssistantId,
     refreshTopics
   } = useTopicMutations()
-  const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
+  const [topicDisplayMode] = usePreference('topic.tab.display_mode')
   const [topicExpansionTime, setTopicExpansionTime] = usePersistCache('ui.topic.expansion.time')
   const [topicExpansionAssistant, setTopicExpansionAssistant] = usePersistCache('ui.topic.expansion.assistant')
   const [renamingTopics] = useCache('topic.renaming')
@@ -299,9 +236,18 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistoryRecords, revealRe
     siyuan: 'data.export.menus.siyuan',
     yuque: 'data.export.menus.yuque'
   })
-  const displayMode = topicDisplayMode ?? 'time'
+  const displayMode = isRightPanel ? 'time' : (topicDisplayMode ?? 'time')
   const isAssistantDisplayMode = displayMode === 'assistant'
-  const topicExpansion = isAssistantDisplayMode ? topicExpansionAssistant : topicExpansionTime
+  const [rightPanelTopicExpansion, setRightPanelTopicExpansion] = useState<string[]>([])
+  const topicExpansion = isRightPanel
+    ? rightPanelTopicExpansion
+    : isAssistantDisplayMode
+      ? topicExpansionAssistant
+      : topicExpansionTime
+
+  useEffect(() => {
+    if (isRightPanel) setRightPanelTopicExpansion([])
+  }, [assistantIdFilter, isRightPanel])
 
   const {
     isLoading: isTopicPinsLoading,
@@ -325,7 +271,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistoryRecords, revealRe
   } = usePins('assistant', { enabled: isAssistantDisplayMode })
   const assistantPinnedIdSet = useMemo(() => new Set(assistantPinnedIds), [assistantPinnedIds])
   const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
-  const { topics: apiTopics, isLoadingAll, isFullyLoaded, error } = useTopics({ loadAll: true })
+  const { topics: apiTopics, isLoadingAll, isFullyLoaded, error } = useAssistantTopicsSource()
   const {
     assistants,
     isLoading: isAssistantsLoading,
@@ -519,12 +465,26 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistoryRecords, revealRe
         return
       }
 
-      if (topic.id === activeTopic?.id && topics.length > 1) {
-        const index = findIndex(topics, (candidate) => candidate.id === topic.id)
-        setActiveTopic(topics[index + 1 === topics.length ? index - 1 : index + 1])
+      if (topic.id !== activeTopic?.id) return
+
+      // The classic-layout right panel is scoped to a single assistant, so select that assistant's
+      // neighbouring topic instead of the global next one (which could belong to another assistant).
+      const selectionList = isRightPanel
+        ? topics.filter((candidate) => candidate.assistantId === assistantIdFilter)
+        : topics
+      if (selectionList.length <= 1) {
+        if (isRightPanel) {
+          await onNewTopic?.({ assistantId: assistantIdFilter ?? topic.assistantId ?? null })
+        }
+        return
       }
+
+      const index = findIndex(selectionList, (candidate) => candidate.id === topic.id)
+      if (index === -1) return
+
+      setActiveTopic(selectionList[index + 1 === selectionList.length ? index - 1 : index + 1])
     },
-    [activeTopic?.id, removeTopic, setActiveTopic, t, topics]
+    [activeTopic?.id, assistantIdFilter, isRightPanel, onNewTopic, removeTopic, setActiveTopic, t, topics]
   )
 
   const handleDeleteTopicClick = useCallback((topicId: string, event: MouseEvent) => {
@@ -654,10 +614,19 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistoryRecords, revealRe
     [baseGroupedTopics, optimisticMove, topicGroupBy]
   )
 
-  const filteredTopics = groupedTopics
+  const filteredTopics = useMemo(() => {
+    if (!isRightPanel) return groupedTopics
+    if (!assistantIdFilter) return []
+    return groupedTopics.filter((topic) => topic.assistantId === assistantIdFilter)
+  }, [assistantIdFilter, groupedTopics, isRightPanel])
   const headerCreateTopicPayload = useMemo(
-    () => (isAssistantDisplayMode ? findLatestCreateTopicPayload(filteredTopics, undefined, assistantById) : undefined),
-    [assistantById, filteredTopics, isAssistantDisplayMode]
+    () =>
+      isRightPanel
+        ? { assistantId: assistantIdFilter ?? null }
+        : isAssistantDisplayMode
+          ? findLatestCreateTopicPayload(filteredTopics, undefined, assistantById)
+          : undefined,
+    [assistantById, assistantIdFilter, filteredTopics, isAssistantDisplayMode, isRightPanel]
   )
   const getCreateTopicPayloadForGroup = useCallback(
     (groupId: string) =>
@@ -891,7 +860,9 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistoryRecords, revealRe
         return defaultAssistant.emoji ? (
           <EmojiIcon emoji={defaultAssistant.emoji} size={24} fontSize={14} className="mr-0" />
         ) : (
-          <Bot size={14} />
+          <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
+            <Bot size={14} />
+          </span>
         )
       }
 
@@ -902,7 +873,9 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistoryRecords, revealRe
       return assistant.emoji ? (
         <EmojiIcon emoji={assistant.emoji} size={24} fontSize={14} className="mr-0" />
       ) : (
-        <Bot size={14} />
+        <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
+          <Bot size={14} />
+        </span>
       )
     },
     [assistantById, defaultAssistant.emoji, defaultAssistant.name, isAssistantDisplayMode]
@@ -911,10 +884,15 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistoryRecords, revealRe
   const collapsedTopicState = topicExpansion
   const handleTopicCollapsedStateChange = useCallback(
     (nextCollapsedIds: string[]) => {
+      if (isRightPanel) {
+        setRightPanelTopicExpansion(nextCollapsedIds)
+        return
+      }
+
       if (isAssistantDisplayMode) setTopicExpansionAssistant(nextCollapsedIds)
       else setTopicExpansionTime(nextCollapsedIds)
     },
-    [isAssistantDisplayMode, setTopicExpansionAssistant, setTopicExpansionTime]
+    [isAssistantDisplayMode, isRightPanel, setTopicExpansionAssistant, setTopicExpansionTime]
   )
   const canDragTopicItem = useCallback(
     ({ item }: { item: Topic }) => isAssistantDisplayMode && !item.pinned,
@@ -1058,6 +1036,8 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistoryRecords, revealRe
   return (
     <>
       <TopicResourceList<Topic>
+        key={isRightPanel ? `topic-resource-panel:${assistantIdFilter ?? 'blank'}` : 'topic-resource-sidebar'}
+        className={cn(isRightPanel && 'h-full min-h-0 border-r-0')}
         items={visibleFilteredTopics}
         status={listStatus}
         selectedId={activeTopic?.id}
@@ -1087,25 +1067,25 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistoryRecords, revealRe
         onGroupHeaderSelectItem={handleGroupHeaderSelectTopic}
         onReorder={handleTopicReorder}
         onCollapsedStateChange={handleTopicCollapsedStateChange}>
-        <ResourceList.Header className="gap-1">
-          <ResourceList.HeaderItem
-            type="button"
-            command="topic.create"
-            aria-label={t('chat.conversation.new')}
-            icon={<SquarePen />}
-            label={t('chat.conversation.new')}
-            onClick={() => void onNewTopic?.(headerCreateTopicPayload)}
-            actions={
-              <>
-                <TopicListOptionsMenu
-                  mode={displayMode}
-                  onChange={(nextMode) => void setTopicDisplayMode(nextMode)}
-                  onOpenHistoryRecords={onOpenHistoryRecords}
-                  sectionId={isAssistantDisplayMode ? TOPIC_ASSISTANT_SECTION_ID : undefined}
-                />
-              </>
-            }
-          />
+        <ResourceList.Header className={cn('gap-1', isRightPanel && 'pb-2')}>
+          {isRightPanel ? (
+            <ResourceList.Search
+              aria-label={t('chat.topics.search.title')}
+              className={RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS}
+              placeholder={t('chat.topics.search.placeholder')}
+              wrapperClassName="pt-1"
+            />
+          ) : (
+            <ResourceList.HeaderItem
+              type="button"
+              command="topic.create"
+              aria-label={t('chat.conversation.new')}
+              icon={<SquarePen />}
+              label={t('chat.conversation.new')}
+              onClick={() => void onNewTopic?.(headerCreateTopicPayload)}
+              actions={<TopicHistoryButton onOpenHistoryRecords={onOpenHistoryRecords} />}
+            />
+          )}
         </ResourceList.Header>
 
         <TopicListBody
@@ -1115,6 +1095,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistoryRecords, revealRe
           exportMenuOptions={exportMenuOptions as TopicExportMenuOptions}
           isNewlyRenamed={isNewlyRenamed}
           isRenaming={isRenaming}
+          isRightPanel={isRightPanel}
           listRef={listRef}
           notesPath={notesPath}
           onAutoRename={handleAutoRename}
@@ -1128,7 +1109,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistoryRecords, revealRe
           onRequestTopicImageAction={handleTopicImageAction}
           onSwitchTopic={setActiveTopic}
           topicsLength={topics.length}
-          variant={isAssistantDisplayMode ? 'draggable' : 'plain'}
+          variant={isAssistantDisplayMode && !isRightPanel ? 'draggable' : 'plain'}
         />
       </TopicResourceList>
 
@@ -1225,6 +1206,7 @@ interface TopicListBodyProps {
   exportMenuOptions: TopicExportMenuOptions
   isNewlyRenamed: (topicId: string) => boolean
   isRenaming: (topicId: string) => boolean
+  isRightPanel: boolean
   listRef: RefObject<HTMLDivElement | null>
   notesPath: string
   onAutoRename: (topic: Topic) => Promise<void>
@@ -1252,6 +1234,7 @@ function TopicListBody(props: TopicListBodyProps) {
     exportMenuOptions,
     isNewlyRenamed,
     isRenaming,
+    isRightPanel,
     listRef,
     notesPath,
     onAutoRename,
@@ -1276,6 +1259,7 @@ function TopicListBody(props: TopicListBodyProps) {
       exportMenuOptions,
       isNewlyRenamed,
       isRenaming,
+      isRightPanel,
       notesPath,
       onAutoRename,
       onClearMessages,
@@ -1296,6 +1280,7 @@ function TopicListBody(props: TopicListBodyProps) {
       exportMenuOptions,
       isNewlyRenamed,
       isRenaming,
+      isRightPanel,
       notesPath,
       onAutoRename,
       onClearMessages,
@@ -1317,7 +1302,7 @@ function TopicListBody(props: TopicListBodyProps) {
     <ResourceList.Body<Topic>
       listRef={listRef}
       draggable={variant === 'draggable'}
-      virtualClassName="pt-0 pb-3"
+      virtualClassName={cn('pt-0', isRightPanel ? 'pb-8' : 'pb-3')}
       errorFallback={<ResourceList.ErrorState message={t('error.boundary.default.message')} />}
       emptyFallback={
         <ResourceList.EmptyState
@@ -1346,6 +1331,7 @@ function TopicRow({
   exportMenuOptions,
   isNewlyRenamed,
   isRenaming,
+  isRightPanel,
   notesPath,
   onAutoRename,
   onClearMessages,
@@ -1365,7 +1351,8 @@ function TopicRow({
   const rowState = useResourceListRowState(topic.id)
   const streamStatus = useTopicListStreamStatus(topic.id)
   const isActive = topic.id === activeTopic?.id
-  const topicName = topic.name.replace('`', '')
+  const topicDisplayName = topic.name.trim() ? topic.name : t('chat.conversation.new')
+  const topicName = topicDisplayName.replace('`', '')
   const nameAnimationClassName = isRenaming(topic.id)
     ? 'animation-shimmer'
     : isNewlyRenamed(topic.id)
@@ -1377,10 +1364,13 @@ function TopicRow({
   const showLeadingSlot = displayMode !== 'time' && !topic.pinned
   const isConfirmingDeletion = deletingTopicId === topic.id
   const canDeleteTopic = topicsLength > 1 && !topic.pinned
-  const showDeleteOrStreamAction = hasTopicStreamIndicator || canDeleteTopic
-  // Reserve right-padding for the title sized to the hover actions and stream indicator.
+  const showDetachedStreamIndicator = isRightPanel && hasTopicStreamIndicator
+  const showInlineStreamIndicator = hasTopicStreamIndicator && !showDetachedStreamIndicator
+  const showDeleteOrStreamAction = showInlineStreamIndicator || canDeleteTopic
+  // Reserve right-padding for the title sized to the resting stream indicator and hover actions.
   const trailingActionCount = (showPinAction ? 1 : 0) + (showDeleteOrStreamAction ? 1 : 0)
-  const topicTrailingActionPaddingClassName =
+  const topicTrailingActionPaddingClassName = cn(
+    showDetachedStreamIndicator && 'pr-7',
     trailingActionCount >= 3
       ? 'group-focus-within:pr-16 group-hover:pr-16 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-16'
       : trailingActionCount === 2
@@ -1388,6 +1378,7 @@ function TopicRow({
         : trailingActionCount === 1
           ? 'group-focus-within:pr-7 group-hover:pr-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-7'
           : ''
+  )
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
   const startInlineRename = useCallback(() => actions.startRename(topic.id), [actions, topic.id])
   const startMenuRename = useCallback(() => setRenameDialogOpen(true), [])
@@ -1438,7 +1429,10 @@ function TopicRow({
           {topicName}
         </ResourceList.ItemTitle>
       )}
-      <ResourceList.ItemActions active={hasTopicStreamIndicator || isConfirmingDeletion}>
+      {showDetachedStreamIndicator && (
+        <TopicStreamIndicator detached isFulfilled={isTopicStreamFulfilled} isPending={isTopicStreamPending} />
+      )}
+      <ResourceList.ItemActions active={showInlineStreamIndicator || isConfirmingDeletion}>
         {showPinAction && (
           <Tooltip title={topic.pinned ? t('chat.topics.unpin') : t('chat.topics.pin')} delay={500}>
             <ResourceList.ItemAction
@@ -1452,7 +1446,7 @@ function TopicRow({
             </ResourceList.ItemAction>
           </Tooltip>
         )}
-        {hasTopicStreamIndicator ? (
+        {showInlineStreamIndicator ? (
           <TopicStreamIndicator isFulfilled={isTopicStreamFulfilled} isPending={isTopicStreamPending} />
         ) : canDeleteTopic ? (
           <Tooltip title={t('common.delete')} delay={500}>
@@ -1495,33 +1489,33 @@ function TopicRow({
   )
 }
 
-const TopicStreamIndicator = ({ isFulfilled, isPending }: { isFulfilled: boolean; isPending: boolean }) => {
+const TopicStreamIndicator = ({
+  detached = false,
+  isFulfilled,
+  isPending
+}: {
+  detached?: boolean
+  isFulfilled: boolean
+  isPending: boolean
+}) => {
   const dotClassName = cn(
     'size-1.25 rounded-full',
     isPending ? 'animation-pulse bg-(--color-warning)' : 'bg-(--color-success)'
   )
 
-  if (isPending) {
-    return (
-      <span
-        aria-hidden="true"
-        className="flex size-5 shrink-0 items-center justify-center"
-        data-testid="topic-stream-indicator">
-        <span className={dotClassName} />
-      </span>
-    )
-  }
+  if (!isPending && !isFulfilled) return null
 
-  if (isFulfilled) {
-    return (
-      <span
-        aria-hidden="true"
-        className="flex size-5 shrink-0 items-center justify-center opacity-100 group-hover:opacity-100"
-        data-testid="topic-stream-indicator">
-        <span className={dotClassName} />
-      </span>
-    )
-  }
-
-  return null
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        'flex size-5 shrink-0 items-center justify-center',
+        detached &&
+          '-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 opacity-100 transition-opacity duration-150 group-focus-within:opacity-0 group-hover:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0',
+        !detached && isFulfilled && 'opacity-100 group-hover:opacity-100'
+      )}
+      data-testid="topic-stream-indicator">
+      <span className={dotClassName} />
+    </span>
+  )
 }

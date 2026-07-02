@@ -113,8 +113,11 @@ vi.mock('@renderer/services/MessagesService', () => ({
   getMessageTitle: vi.fn()
 }))
 
+vi.mock('@renderer/services/ExportService', () => ({
+  messageToMarkdown: vi.fn()
+}))
+
 vi.mock('@renderer/utils/export', () => ({
-  messageToMarkdown: vi.fn(),
   messageToPlainText: vi.fn(() => 'plain text')
 }))
 

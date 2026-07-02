@@ -33,7 +33,7 @@ vi.mock('word-extractor', () => ({
 }))
 
 const { extractPdfTextMock } = vi.hoisted(() => ({ extractPdfTextMock: vi.fn<() => Promise<string>>() }))
-vi.mock('@shared/utils/pdf', () => ({ extractPdfText: extractPdfTextMock }))
+vi.mock('@main/utils/pdf', () => ({ extractPdfText: extractPdfTextMock }))
 
 const { decodeTextMock } = vi.hoisted(() => ({ decodeTextMock: vi.fn<() => string>() }))
 vi.mock('@main/utils/file', () => ({ decodeTextWithAutoEncoding: decodeTextMock }))

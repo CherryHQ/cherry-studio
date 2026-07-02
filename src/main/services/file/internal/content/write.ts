@@ -31,7 +31,7 @@ import type { FileManagerDeps } from '../deps'
 const logger = loggerService.withContext('file/internal/write')
 
 export async function write(deps: FileManagerDeps, id: FileEntryId, data: string | Uint8Array): Promise<FileVersion> {
-  const entry = await deps.fileEntryService.getById(id)
+  const entry = deps.fileEntryService.getById(id)
   const physical = resolvePhysicalPath(entry)
   await atomicWriteFile(physical, data)
   // The atomic write committed; everything below is post-commit metadata
@@ -45,7 +45,7 @@ export async function write(deps: FileManagerDeps, id: FileEntryId, data: string
     const s = await fsStat(physical)
     const version: FileVersion = { mtime: s.modifiedAt, size: s.size }
     if (entry.origin === 'internal') {
-      await deps.fileEntryService.update(id, { size: version.size })
+      deps.fileEntryService.update(id, { size: version.size })
     }
     deps.versionCache.set(id, version)
     return version
@@ -62,7 +62,7 @@ export async function writeIfUnchanged(
   expected: FileVersion,
   expectedContentHash?: string
 ): Promise<FileVersion> {
-  const entry = await deps.fileEntryService.getById(id)
+  const entry = deps.fileEntryService.getById(id)
   const physical = resolvePhysicalPath(entry)
   let next: FileVersion
   try {
@@ -80,7 +80,7 @@ export async function writeIfUnchanged(
   // failed".
   try {
     if (entry.origin === 'internal') {
-      await deps.fileEntryService.update(id, { size: next.size })
+      deps.fileEntryService.update(id, { size: next.size })
     }
     deps.versionCache.set(id, next)
     return next
@@ -90,8 +90,8 @@ export async function writeIfUnchanged(
   }
 }
 
-export async function createWriteStream(deps: FileManagerDeps, id: FileEntryId): Promise<AtomicWriteStream> {
-  const entry = await deps.fileEntryService.getById(id)
+export function createWriteStream(deps: FileManagerDeps, id: FileEntryId): AtomicWriteStream {
+  const entry = deps.fileEntryService.getById(id)
   const physical = resolvePhysicalPath(entry)
   const stream = createAtomicWriteStream(physical)
   stream.once('finish', async () => {
@@ -99,7 +99,7 @@ export async function createWriteStream(deps: FileManagerDeps, id: FileEntryId):
       const s = await fsStat(physical)
       const version: FileVersion = { mtime: s.modifiedAt, size: s.size }
       if (entry.origin === 'internal') {
-        await deps.fileEntryService.update(id, { size: version.size })
+        deps.fileEntryService.update(id, { size: version.size })
       }
       deps.versionCache.set(id, version)
     } catch (err) {

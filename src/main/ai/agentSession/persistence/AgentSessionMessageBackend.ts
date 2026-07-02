@@ -37,11 +37,11 @@ export class AgentSessionMessageBackend implements PersistenceBackend {
     this.afterPersist = opts.afterPersist
   }
 
-  async persistAssistant(input: PersistAssistantInput): Promise<void> {
+  persistAssistant(input: PersistAssistantInput): void {
     const { finalMessage, status, stats } = input
     const parts = finalizeInterruptedParts((finalMessage?.parts ?? []) as CherryMessagePart[], status)
     const runtimeResumeToken = this.getRuntimeResumeToken()
-    await agentSessionMessageService.saveMessage({
+    agentSessionMessageService.saveMessage({
       sessionId: this.opts.sessionId,
       ...(runtimeResumeToken ? { runtimeResumeToken } : {}),
       message: {

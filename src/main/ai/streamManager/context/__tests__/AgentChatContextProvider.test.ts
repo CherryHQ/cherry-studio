@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   saveMessage: vi.fn(),
   saveMessages: vi.fn(),
+  maybeRenameAgentSessionFromFirstUserMessage: vi.fn(),
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
   runtimeBeginTurn: vi.fn(),
@@ -33,7 +34,10 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
 }))
 
 vi.mock('@main/services/TopicNamingService', () => ({
-  topicNamingService: { maybeRenameAgentSession: mocks.maybeRenameAgentSession }
+  topicNamingService: {
+    maybeRenameAgentSessionFromFirstUserMessage: mocks.maybeRenameAgentSessionFromFirstUserMessage,
+    maybeRenameAgentSession: mocks.maybeRenameAgentSession
+  }
 }))
 
 vi.mock('@main/core/application', () => ({
@@ -78,15 +82,15 @@ describe('AgentChatContextProvider', () => {
       validateSession: mocks.runtimeValidateSession,
       listAvailableTools: vi.fn().mockResolvedValue([])
     })
-    mocks.getSession.mockResolvedValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp' } })
-    mocks.ensureTraceId.mockResolvedValue('a'.repeat(32))
-    mocks.getAgent.mockResolvedValue({
+    mocks.getSession.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp' } })
+    mocks.ensureTraceId.mockReturnValue('a'.repeat(32))
+    mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
       model: 'anthropic::claude-sonnet',
       modelName: 'Claude Sonnet'
     })
-    mocks.saveMessage.mockImplementation(async ({ sessionId, message }) => ({
+    mocks.saveMessage.mockImplementation(({ sessionId, message }) => ({
       id: message.id,
       sessionId,
       role: message.role,
@@ -100,7 +104,7 @@ describe('AgentChatContextProvider', () => {
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z'
     }))
-    mocks.saveMessages.mockImplementation(async ({ sessionId, messages }) =>
+    mocks.saveMessages.mockImplementation(({ sessionId, messages }) =>
       messages.map((message) => ({
         id: message.id,
         sessionId,
@@ -215,9 +219,31 @@ describe('AgentChatContextProvider', () => {
     expect(prepared.listeners).toEqual([subscriber])
   })
 
+  it('triggers first-user-message session rename after submit-message persists the user row', async () => {
+    const subscriber = makeSubscriber()
+    mocks.runtimeIsSessionBusy.mockReturnValue(false)
+
+    await provider.prepareDispatch(subscriber, openReq({ userMessageParts: [{ type: 'text', text: 'hello session' }] }))
+
+    expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).toHaveBeenCalledWith('session-1', {
+      parts: [{ type: 'text', text: 'hello session' }]
+    })
+  })
+
+  it('triggers first-user-message session rename after busy submit-message persists the user row', async () => {
+    const subscriber = makeSubscriber()
+    mocks.runtimeIsSessionBusy.mockReturnValue(true)
+
+    await provider.prepareDispatch(subscriber, openReq({ userMessageParts: [{ type: 'text', text: 'busy hello' }] }))
+
+    expect(mocks.maybeRenameAgentSessionFromFirstUserMessage).toHaveBeenCalledWith('session-1', {
+      parts: [{ type: 'text', text: 'busy hello' }]
+    })
+  })
+
   it('rejects agent sessions without a registered runtime driver', async () => {
     runtimeDriverRegistry.clearForTest()
-    mocks.getAgent.mockResolvedValue({ id: 'agent-1', type: 'custom-runtime', model: 'anthropic::claude-sonnet' })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'custom-runtime', model: 'anthropic::claude-sonnet' })
 
     await expect(provider.prepareDispatch(makeSubscriber(), openReq())).rejects.toThrow(
       'Unsupported agent runtime type: custom-runtime'

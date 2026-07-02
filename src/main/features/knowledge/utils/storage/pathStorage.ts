@@ -43,12 +43,12 @@ export function getKnowledgeBaseMetaDir(baseId: string): FilePath {
   return path.join(getKnowledgeBaseDir(baseId), CHERRY_META_DIR) as FilePath
 }
 
-export async function getKnowledgeVectorStoreFilePath(baseId: string): Promise<FilePath> {
-  const metaDir = getKnowledgeBaseMetaDir(baseId)
-  await ensureDir(metaDir)
-  return getKnowledgeVectorStoreFilePathSync(baseId)
-}
-
+/**
+ * The base's index.sqlite path. No `ensureDir` here — `openBetterSqlite3IndexDriver`
+ * (BetterSqlite3Driver.ts) already `mkdirSync`s the parent `.cherry/` dir itself before
+ * opening, so a caller that only needs the path (not a guaranteed-existing directory)
+ * does not need to duplicate that work.
+ */
 export function getKnowledgeVectorStoreFilePathSync(baseId: string): FilePath {
   const metaDir = getKnowledgeBaseMetaDir(baseId)
   return path.join(metaDir, VECTOR_STORE_FILE) as FilePath

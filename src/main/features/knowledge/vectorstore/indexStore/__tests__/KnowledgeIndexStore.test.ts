@@ -4,10 +4,10 @@ import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { type BetterSqlite3Driver, openBetterSqlite3IndexDriver } from '../BetterSqlite3Driver'
+import { betterSqlite3VectorIndex } from '../BetterSqlite3VectorIndex'
 import { hashEmbeddingText } from '../hashing'
 import { KnowledgeIndexStore } from '../KnowledgeIndexStore'
-import { type LibsqlDriver, openLibsqlIndexDriver } from '../LibsqlDriver'
-import { libsqlVectorIndex } from '../LibsqlVectorIndex'
 import type { RebuildMaterialInput } from '../model'
 import { createKnowledgeIndexSchema } from '../schema'
 
@@ -35,14 +35,14 @@ function buildInput(
 
 describe('KnowledgeIndexStore', () => {
   let tempDir: string
-  let driver: LibsqlDriver
+  let driver: BetterSqlite3Driver
   let store: KnowledgeIndexStore
 
-  beforeEach(async () => {
+  beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), 'cs-knowledge-store-'))
-    driver = await openLibsqlIndexDriver(join(tempDir, 'index.sqlite'))
-    await createKnowledgeIndexSchema(driver)
-    store = new KnowledgeIndexStore(driver, libsqlVectorIndex)
+    driver = openBetterSqlite3IndexDriver(join(tempDir, 'index.sqlite'))
+    createKnowledgeIndexSchema(driver)
+    store = new KnowledgeIndexStore(driver, betterSqlite3VectorIndex)
   })
 
   afterEach(async () => {
@@ -50,16 +50,14 @@ describe('KnowledgeIndexStore', () => {
     rmSync(tempDir, { recursive: true, force: true })
   })
 
-  const count = async (table: string) => Number((await driver.execute(`SELECT COUNT(*) AS n FROM ${table}`)).rows[0].n)
+  const count = async (table: string) => Number(driver.execute(`SELECT COUNT(*) AS n FROM ${table}`).rows[0].n)
 
   const ftsMatchCount = async (term: string) =>
-    (
-      await driver.execute(
-        `SELECT st.search_text_id AS id
-         FROM search_text_fts JOIN search_text st ON st.fts_rowid = search_text_fts.rowid
-         WHERE search_text_fts MATCH ?`,
-        [term]
-      )
+    driver.execute(
+      `SELECT st.search_text_id AS id
+       FROM search_text_fts JOIN search_text st ON st.fts_rowid = search_text_fts.rowid
+       WHERE search_text_fts MATCH ?`,
+      [term]
     ).rows.length
 
   // The reliable external-content desync detector: the default `integrity-check` does NOT compare
@@ -86,7 +84,7 @@ describe('KnowledgeIndexStore', () => {
     expect(await count('search_unit')).toBe(2)
     expect(await count('search_text')).toBe(2)
 
-    const material = await driver.execute(`SELECT current_content_hash FROM material WHERE material_id = ?`, ['m1'])
+    const material = driver.execute(`SELECT current_content_hash FROM material WHERE material_id = ?`, ['m1'])
     expect(material.rows[0].current_content_hash).not.toBeNull()
   })
 
@@ -112,7 +110,7 @@ describe('KnowledgeIndexStore', () => {
     // Corrupt the store: drop the body row out from under the unit. The same
     // damage silently excludes the unit from search (INNER JOIN); the list lane
     // must fail loudly rather than add a third symptom (existing-but-empty chunk).
-    await driver.execute(`DELETE FROM search_text WHERE target_type = 'search_unit' AND kind = 'body'`)
+    driver.execute(`DELETE FROM search_text WHERE target_type = 'search_unit' AND kind = 'body'`)
 
     await expect(store.listMaterialUnits('m1')).rejects.toThrow('missing the body text for unit')
   })
@@ -321,7 +319,7 @@ describe('KnowledgeIndexStore', () => {
     // single GC pass — the path a folder delete takes (one deleteMaterials over N files).
     await store.deleteMaterials(['m1', 'm2', 'm1'])
 
-    expect((await driver.execute(`SELECT material_id FROM material`)).rows.map((r) => r.material_id)).toEqual(['m3'])
+    expect(driver.execute(`SELECT material_id FROM material`).rows.map((r) => r.material_id)).toEqual(['m3'])
     expect(await store.listMaterialUnits('m1')).toEqual([])
     expect(await store.listMaterialUnits('m2')).toEqual([])
     // The single end-of-batch GC must sweep m2's now-orphaned body/embedding/content while
@@ -417,7 +415,7 @@ describe('KnowledgeIndexStore', () => {
 
     expect(outcome.vacuumed).toBe(true)
     expect(outcome.reclaimedBytes).toBeGreaterThan(0)
-    await expect(ftsIntegrityCheck()).resolves.toBeDefined()
+    expect(ftsIntegrityCheck()).toBeDefined()
     // The survivor stays both keyword- and vector-reachable after the rewrite.
     expect(await ftsMatchCount('knowledge')).toBe(1)
     expect((await store.search({ queryText: 'knowledge', mode: 'bm25', topK: 10 })).map((h) => h.materialId)).toEqual([
@@ -466,7 +464,7 @@ describe('KnowledgeIndexStore', () => {
     // VACUUM renumbers implicit rowids; assert the external-content FTS did NOT desync. Keyed on the
     // stable fts_rowid it stays aligned by construction — verified with the reliable integrity check
     // (the default integrity-check would pass even on a desync).
-    await expect(ftsIntegrityCheck()).resolves.toBeDefined()
+    expect(ftsIntegrityCheck()).toBeDefined()
   })
 
   it('keeps search_text_fts aligned after a rowid-reshuffling rebuild (fts_rowid keying)', async () => {
@@ -485,23 +483,23 @@ describe('KnowledgeIndexStore', () => {
     // Reshuffle the implicit rowid exactly as a table rebuild / VACUUM does: copy the table (new
     // contiguous rowids, dropping the hole) while carrying fts_rowid verbatim, then re-assert the
     // dropped indexes + triggers. The FTS vtable is untouched, so it stays keyed by fts_rowid.
-    await driver.execute('PRAGMA foreign_keys=OFF')
-    await driver.execute('CREATE TABLE __new_search_text AS SELECT * FROM search_text')
-    await driver.execute('DROP TABLE search_text')
-    await driver.execute('ALTER TABLE __new_search_text RENAME TO search_text')
-    await driver.execute('PRAGMA foreign_keys=ON')
-    await createKnowledgeIndexSchema(driver)
+    driver.execute('PRAGMA foreign_keys=OFF')
+    driver.execute('CREATE TABLE __new_search_text AS SELECT * FROM search_text')
+    driver.execute('DROP TABLE search_text')
+    driver.execute('ALTER TABLE __new_search_text RENAME TO search_text')
+    driver.execute('PRAGMA foreign_keys=ON')
+    createKnowledgeIndexSchema(driver)
 
     // fts_rowid was copied through the rebuild, so the index stays aligned: the reliable check passes
     // and the survivors resolve to the right materials (a rowid-keyed index would return wrong/empty).
-    await expect(ftsIntegrityCheck()).resolves.toBeDefined()
+    expect(ftsIntegrityCheck()).toBeDefined()
     expect((await store.search({ queryText: 'cherry', mode: 'bm25', topK: 10 })).map((h) => h.materialId)).toEqual([
       'm3'
     ])
     expect((await store.search({ queryText: 'date', mode: 'bm25', topK: 10 })).map((h) => h.materialId)).toEqual(['m4'])
     // The reshuffle reassigned implicit rowids while leaving fts_rowid untouched and unique.
     expect(await count('search_text')).toBe(3)
-    expect(Number((await driver.execute(`SELECT COUNT(DISTINCT fts_rowid) AS n FROM search_text`)).rows[0].n)).toBe(3)
+    expect(Number(driver.execute(`SELECT COUNT(DISTINCT fts_rowid) AS n FROM search_text`).rows[0].n)).toBe(3)
   })
 
   it('integrity-check,1 catches a NULL fts_rowid desync (and proves the detector is live)', async () => {
@@ -513,8 +511,8 @@ describe('KnowledgeIndexStore', () => {
     // now references a key the content row no longer carries. This both guards that hazard AND is the
     // positive control that ftsIntegrityCheck() really throws on a desync — every other use of it in
     // this suite asserts it resolves, so without this case those assertions could pass vacuously.
-    await driver.execute(`UPDATE search_text SET fts_rowid = NULL`)
-    await expect(ftsIntegrityCheck()).rejects.toThrow()
+    driver.execute(`UPDATE search_text SET fts_rowid = NULL`)
+    expect(() => ftsIntegrityCheck()).toThrow()
   })
 
   it('reuses a freed fts_rowid without leaving a stale FTS entry', async () => {
@@ -527,14 +525,14 @@ describe('KnowledgeIndexStore', () => {
     await store.rebuildMaterial('m3', buildInput('charlie cherry body', [[0, 19]], 'c.md'))
 
     // m3 holds the current MAX fts_rowid. Delete it to free that rowid.
-    const maxBefore = Number((await driver.execute(`SELECT MAX(fts_rowid) AS m FROM search_text`)).rows[0].m)
+    const maxBefore = Number(driver.execute(`SELECT MAX(fts_rowid) AS m FROM search_text`).rows[0].m)
     await store.deleteMaterials(['m3'])
     expect(await ftsMatchCount('cherry')).toBe(0)
 
     // The next insert's MAX(fts_rowid)+1 reuses the value m3 just vacated.
     await store.rebuildMaterial('m4', buildInput('delta dragon body', [[0, 17]], 'd.md'))
     const reused = Number(
-      (await driver.execute(`SELECT fts_rowid FROM search_text WHERE text LIKE 'delta%'`)).rows[0].fts_rowid
+      driver.execute(`SELECT fts_rowid FROM search_text WHERE text LIKE 'delta%'`).rows[0].fts_rowid
     )
     expect(reused).toBe(maxBefore) // landed on the exact physical rowid m3 had held
 
@@ -544,7 +542,7 @@ describe('KnowledgeIndexStore', () => {
       'm4'
     ])
     expect(await ftsMatchCount('cherry')).toBe(0)
-    await expect(ftsIntegrityCheck()).resolves.toBeDefined()
+    expect(ftsIntegrityCheck()).toBeDefined()
   })
 
   it('keeps a shared embedding reachable for the other material after rebuilding the one that introduced it', async () => {
@@ -601,5 +599,51 @@ describe('KnowledgeIndexStore', () => {
 
   it('listExistingEmbeddingHashes returns an empty set for empty input', async () => {
     expect((await store.listExistingEmbeddingHashes([])).size).toBe(0)
+  })
+
+  describe('deep-read lookups', () => {
+    it('resolves a material by its relative path (the Concept ID) and returns null for an unknown path', async () => {
+      await store.rebuildMaterial('m1', buildInput('hello world', [[0, 11]], 'docs/intro.md'))
+
+      const ref = await store.getMaterialByRelativePath('docs/intro.md')
+      expect(ref).not.toBeNull()
+      expect(ref?.materialId).toBe('m1')
+      expect(ref?.relativePath).toBe('docs/intro.md')
+
+      expect(await store.getMaterialByRelativePath('docs/missing.md')).toBeNull()
+    })
+
+    it('reads back the full content text a material was indexed from', async () => {
+      const text = 'the quick brown fox jumps over the lazy dog'
+      await store.rebuildMaterial(
+        'm1',
+        buildInput(text, [
+          [0, 19],
+          [20, text.length]
+        ])
+      )
+
+      expect(await store.readMaterialContent('m1')).toBe(text)
+    })
+
+    it('keeps content readable as the exact source the units were sliced from', async () => {
+      const text = 'alpha beta gamma'
+      await store.rebuildMaterial(
+        'm1',
+        buildInput(text, [
+          [0, 5],
+          [6, 10]
+        ])
+      )
+
+      const content = await store.readMaterialContent('m1')
+      for (const unit of await store.listMaterialUnits('m1')) {
+        expect(content?.slice(unit.charStart, unit.charEnd)).toBe(unit.text)
+      }
+    })
+
+    it('returns null content for an unknown material', async () => {
+      expect(await store.readMaterialContent('nope')).toBeNull()
+    })
   })
 })

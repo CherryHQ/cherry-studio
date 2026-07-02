@@ -29,11 +29,11 @@ declare module '@main/core/job/jobRegistry' {
   }
 }
 
-const logger = loggerService.withContext('AgentTaskJobHandler')
+const logger = loggerService.withContext('agentTaskJobHandler')
 
 const RECENT_TERMINAL_WINDOW = 3
 
-export const AgentTaskJobHandler: JobHandler<AgentTaskInput> = {
+export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
   /**
    * 'retry': non-terminal jobs from a previous run are re-pended on startup
    * so the recovered job dispatches against the latest agent configuration.
@@ -66,7 +66,7 @@ export const AgentTaskJobHandler: JobHandler<AgentTaskInput> = {
   async onSettled(event) {
     if (event.status !== 'failed' || !event.scheduleId) return
 
-    const recent = await jobService.listRecentTerminalByScheduleId(event.scheduleId, RECENT_TERMINAL_WINDOW)
+    const recent = jobService.listRecentTerminalByScheduleId(event.scheduleId, RECENT_TERMINAL_WINDOW)
     if (recent.length < RECENT_TERMINAL_WINDOW) return
     if (!recent.every((j) => j.status === 'failed')) return
 

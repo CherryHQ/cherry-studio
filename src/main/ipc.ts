@@ -6,13 +6,16 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { generateSignature } from '@main/ai/provider/cherryai'
 import { isMac, isWin } from '@main/core/platform'
-import { listDirectory as searchListDirectory } from '@main/services/file/tree/search'
+import {
+  listDirectory as searchListDirectory,
+  listDirectoryEntries as searchListDirectoryEntries
+} from '@main/services/file/tree/search'
 import { regionService } from '@main/services/RegionService'
+import { extractPdfText } from '@main/utils/pdf'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Notification } from '@shared/types/notification'
-import { extractPdfText } from '@shared/utils/pdf'
 import { app, BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
 
@@ -28,10 +31,10 @@ import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/nutstore/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { vertexAiService } from './services/VertexAiService'
-import { calculateDirectorySize } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import { isSafeExternalUrl } from './utils/externalUrlSafety'
 import { hasWritePermission, isPathInside, untildify } from './utils/file'
+import { getDirectorySize } from './utils/fileOperations'
 import { getCpuName, getDeviceType, getHostname } from './utils/system'
 import { compress, decompress } from './utils/zip'
 
@@ -58,7 +61,6 @@ export async function registerIpc() {
     isPackaged: app.isPackaged,
     appPath: application.getPath('app.root'),
     homePath: application.getPath('sys.home'),
-    filesPath: application.getPath('feature.files.data'),
     notesPath: application.getPath('feature.notes.data'),
     configPath: application.getPath('cherry.config'),
     appDataPath: application.getPath('app.userdata'),
@@ -179,7 +181,7 @@ export async function registerIpc() {
     logger.info(`Calculating cache size for path: ${cachePath}`)
 
     try {
-      const sizeInBytes = await calculateDirectorySize(cachePath)
+      const sizeInBytes = await getDirectorySize(cachePath)
       const sizeInMB = (sizeInBytes / (1024 * 1024)).toFixed(2)
       return `${sizeInMB}`
     } catch (error: any) {
@@ -359,6 +361,9 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.File_IsTextFile, fileManager.isTextFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_IsDirectory, fileManager.isDirectory.bind(fileManager))
   ipcMain.handle(IpcChannel.File_ListDirectory, (_e, dirPath, options) => searchListDirectory(dirPath, options))
+  ipcMain.handle(IpcChannel.File_ListDirectoryEntries, (_e, dirPath, options) =>
+    searchListDirectoryEntries(dirPath, options)
+  )
   ipcMain.handle(IpcChannel.File_CheckFileName, fileManager.fileNameGuard.bind(fileManager))
   ipcMain.handle(IpcChannel.File_ValidateNotesDirectory, fileManager.validateNotesDirectory.bind(fileManager))
   ipcMain.handle(IpcChannel.File_BatchUploadMarkdown, fileManager.batchUploadMarkdownFiles.bind(fileManager))
@@ -489,7 +494,7 @@ export async function registerIpc() {
       ) {
         return { success: false, error: 'Invalid toggle options' }
       }
-      const data = await skillService.toggle(options)
+      const data = skillService.toggle(options)
       return { success: true, data }
     } catch (error) {
       logger.error('Failed to toggle skill', { options, error })

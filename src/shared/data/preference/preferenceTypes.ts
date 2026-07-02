@@ -113,6 +113,9 @@ export enum UpgradeChannel {
 
 export type ChatMessageStyle = 'plain' | 'bubble'
 
+/** Chat resource-list layout: 'classic' = entity rail + right resource panel, 'modern' = single sidebar. */
+export type ChatLayoutMode = 'classic' | 'modern'
+
 export type ChatMessageNavigationMode = 'none' | 'buttons' | 'anchor'
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -179,7 +182,8 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'bocha',
   'querit',
   'fetch',
-  'jina'
+  'jina',
+  'firecrawl'
 ] as const
 
 export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]
@@ -237,9 +241,9 @@ export interface WebSearchProvider {
 // CodeCLI Types
 // ============================================================================
 
-import { codeCLI } from '@shared/types/codeCli'
+import { CodeCli } from '@shared/types/codeCli'
 
-export const CODE_CLI_IDS = Object.values(codeCLI) as unknown as readonly [
+export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
   'qwen-code',
   'claude-code',
   'gemini-cli',
@@ -256,7 +260,7 @@ export type CodeCliOverride = {
   enabled?: boolean
   modelId?: string | null
   envVars?: string
-  /** Terminal app name — should match `terminalApps` enum values */
+  /** Terminal app name — should match `TerminalApp` enum values */
   terminal?: string
   currentDirectory?: string
   directories?: string[]

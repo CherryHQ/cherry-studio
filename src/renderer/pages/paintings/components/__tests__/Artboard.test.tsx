@@ -8,10 +8,8 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('@renderer/services/FileManager', () => ({
-  default: {
-    getFileUrl: (file: FileMetadata) => `https://files.test/${file.id}.png`
-  }
+vi.mock('@renderer/utils/image', () => ({
+  convertImageToPng: vi.fn()
 }))
 
 const { default: Artboard } = await import('../Artboard')
@@ -69,8 +67,20 @@ describe('Artboard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'preview.next' }))
 
-    expect(image).toHaveAttribute('src', 'https://files.test/image-2.png')
+    expect(image).toHaveAttribute('src', 'file:///tmp/image-2.png')
     expect(image.style.transform).toBe('translate(0px, 0px) scale(1) rotate(0deg)')
+  })
+
+  it('shows copy and download actions from the generated image context menu', () => {
+    render(<Artboard painting={makePainting()} isLoading={false} onCancel={vi.fn()} />)
+
+    const image = document.querySelector('img') as HTMLImageElement
+
+    fireEvent.contextMenu(image)
+
+    expect(screen.getByRole('button', { name: 'common.copy' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'preview.copy.src' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.download' })).toBeInTheDocument()
   })
 
   it('ignores non-left-button image drag attempts', () => {

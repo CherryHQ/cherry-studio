@@ -556,6 +556,7 @@
       "list": {
         "title": "Tarefas"
       },
+      "new": "Nova tarefa",
       "pin": {
         "title": "Fixar tarefa"
       },
@@ -565,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "Tarefas de pesquisa"
+        "placeholder": "Tarefas de pesquisa",
+        "title": "Pesquisar tarefas"
       },
       "unpin": {
         "title": "Desafixar tarefa"
@@ -934,6 +936,10 @@
         "Bash": {
           "description": "Executa comandos shell no seu ambiente",
           "label": "Bash"
+        },
+        "CherryKbManage": {
+          "description": "Adiciona, exclui ou atualiza documentos em suas bases de conhecimento",
+          "label": "Gerenciar Conhecimento"
         },
         "CherryKbSearch": {
           "description": "Pesquisa suas bases de conhecimento",
@@ -1327,12 +1333,14 @@
       "add": "Adicionar etiqueta",
       "delete": "Excluir etiqueta",
       "deleteConfirm": "Tem certeza de que deseja excluir esta etiqueta?",
+      "group_by": "[to be translated]:Group by tag",
       "manage": "Gerenciar etiquetas",
       "modify": "Modificar etiqueta",
       "none": "Nenhuma etiqueta no momento",
       "settings": {
         "title": "Configuração de Etiquetas"
       },
+      "ungroup": "[to be translated]:Turn off tag grouping",
       "untagged": "Não agrupado"
     },
     "title": "Assistente",
@@ -3162,12 +3170,22 @@
           "agent_title": "Novo Agente",
           "assistant_title": "Novo Assistente",
           "avatar_aria": "Escolher avatar",
+          "back": "Voltar",
+          "capability": {
+            "import": "Importar habilidade",
+            "no_skills": "Nenhuma habilidade instalada",
+            "search": "Habilidades de pesquisa"
+          },
           "description_placeholder": "Descreva para que serve...",
-          "dialog_description": "Crie um assistente ou agente leve.",
-          "model_placeholder": "Selecione um modelo",
-          "model_required": "Por favor, selecione um modelo",
+          "guided_progress": "Configuração guiada · Passo {{current}} de {{total}}",
           "name_placeholder": "Insira um nome",
-          "name_required": "Por favor, insira um nome",
+          "next": "Próximo",
+          "step": {
+            "basic": "Informações básicas",
+            "capability": "Habilidades",
+            "knowledge": "Conhecimento",
+            "persona": "Persona"
+          },
           "submit": "Criar",
           "submit_failed": "Falha na criação"
         },
@@ -4710,7 +4728,6 @@
     "baichuan": "BaiChuan",
     "baidu-cloud": "Nuvem Baidu",
     "burncloud": "BurnCloud",
-    "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
@@ -4749,6 +4766,7 @@
     "ollama": "Ollama",
     "open-mineru": "MinerU Aberto",
     "openai": "OpenAI",
+    "opencode": "[to be translated]:OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV (NPU) OCR",
@@ -4766,7 +4784,6 @@
     "tencent-cloud-ti": "Nuvem TI da Tencent",
     "tesseract": "Tesseract",
     "together": "Juntos",
-    "tokenflux": "TokenFlux",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "XiRang do Nuvem Telecom",
@@ -5258,6 +5275,7 @@
     "assistant": {
       "create_new": "Novo Assistente",
       "empty_text": "Nenhum assistente ainda",
+      "filter": "Assistentes de filtro",
       "multi_hint": "(mutualmente exclusivo com multi-modelo)",
       "multi_label": "Multi-assistente paralelo",
       "search_placeholder": "Assistentes de pesquisa…"
@@ -6307,7 +6325,7 @@
         "title": "Executar MCP externo?"
       },
       "provider": "Fornecedor",
-      "providerNotFound": "MCP provider not found",
+      "providerNotFound": "[to be translated]:MCP provider not found",
       "providerPlaceholder": "Nome do Fornecedor",
       "providerUrl": "URL do Fornecedor",
       "providers": "Fornecedores",
@@ -6435,6 +6453,12 @@
         "show_estimated_tokens": "Mostrar número estimado de tokens",
         "title": "Configurações de entrada"
       },
+      "layout": {
+        "classic": "Clássico",
+        "conversation": "Vista de conversa",
+        "modern": "Moderno",
+        "work": "Vista de trabalho"
+      },
       "markdown_rendering_input_message": "Renderização de markdown na entrada de mensagens",
       "metrics": "Atraso inicial {{time_first_token_millsec}}ms | Taxa de token por segundo {{token_speed}} tokens",
       "model": {
@@ -6463,8 +6487,8 @@
         "logo_upload_label": "Enviar Logo",
         "name": "Nome",
         "name_placeholder": "Digite o nome",
-        "remove_confirm_description": "[to be translated]:Delete custom mini app \"{{name}}\"? This action cannot be undone.",
-        "remove_confirm_title": "[to be translated]:Delete custom mini app?",
+        "remove_confirm_description": "Excluir miniaplicativo personalizado \"{{name}}\"? Esta ação não pode ser desfeita.",
+        "remove_confirm_title": "Excluir miniaplicativo personalizado?",
         "remove_error": "Falha ao excluir o aplicativo personalizado.",
         "remove_success": "Aplicativo personalizado excluído com sucesso.",
         "save_error": "Falha ao salvar o aplicativo personalizado.",
@@ -6493,7 +6517,7 @@
         "title": "Filtro de área do mini programa"
       },
       "reset_tooltip": "Redefinir para os valores padrão",
-      "title": "[to be translated]:Mini Apps Settings",
+      "title": "Configurações dos Mini Apps",
       "visible": "Mini Aplicativos Visíveis"
     },
     "model": "Modelo padrão",
@@ -6645,7 +6669,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
-        "sync_apply_default_in_use": "[to be translated]:Some models are in use as the default model and cannot be removed.",
+        "sync_apply_default_in_use": "Alguns modelos estão em uso como modelo padrão e não podem ser removidos.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",
@@ -6967,7 +6991,6 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Domínio de aceleração",
-          "backup": "Domínio de backup",
           "international": "Domínio internacional"
         }
       },
@@ -7440,6 +7463,7 @@
           "exa": "API de busca neural para aplicações de IA, ajustada para recuperação semântica da web.",
           "exa_mcp": "Exponha a pesquisa Exa aos agentes por meio do Exa MCP Server.",
           "fetch": "Provedor de busca de URL integrado. Busca conteúdo de páginas web a partir de uma URL para enriquecer os resultados de pesquisa.",
+          "firecrawl": "Serviço de crawler e busca Firecrawl, otimizado para transformar websites em Markdown.",
           "jina": "APIs de pesquisa e leitura Jina Reader para recuperar conteúdo web limpo.",
           "querit": "Serviço de pesquisa para aplicativos de IA com resultados de recuperação da web.",
           "searxng": "Motor de metapesquisa de internet gratuito e auto-hospedável em várias fontes.",

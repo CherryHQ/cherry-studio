@@ -176,9 +176,9 @@ Current persisted `knowledge_base` columns include:
 2. Workflow service marks selected root subtrees `deleting` under the base mutation lock.
 3. Workflow service enqueues `knowledge.delete-subtree`.
 4. The delete job cancels active jobs touching the subtree.
-5. Under the base mutation lock, the delete job deletes leaf vectors, clears Knowledge file refs, and hard-deletes item rows.
+5. Under the base mutation lock, the delete job deletes leaf vectors, deletes Knowledge-owned raw files, and hard-deletes item rows.
 
-The item row delete path clears Knowledge `file_ref` rows for the full deletion subtree before deleting rows. This is required because `file_ref.sourceId` is polymorphic and cannot cascade from `knowledge_item`.
+Knowledge files are managed by the Knowledge workflow under the base `raw/` directory. The create/index path does not register FileManager refs, so delete has no separate FileManager ref cleanup step.
 
 If enqueueing `knowledge.delete-subtree` fails after rows are marked `deleting`, rows remain `deleting`. Startup recovery scans deleting roots and re-enqueues cleanup jobs best-effort.
 
@@ -204,7 +204,7 @@ delete-base(baseId)
 
 If vector artifact deletion fails, the SQLite base row is preserved so the user can retry deletion. If SQLite deletion fails after vector artifacts were deleted, orchestration throws an `invalidOperation` because the cross-store cleanup cannot be rolled back.
 
-Knowledge delete/reindex workflows detach Knowledge-owned `FileRef` rows but do not actively remove detached `FileEntry` rows. Unreferenced file entries are left to the file module's orphan handling policy.
+Knowledge files are owned by the Knowledge workflow under its raw/vector storage and are not registered as FileManager `FileRef` rows. Delete/reindex cleanup stays within Knowledge-owned storage and metadata.
 
 ## Base Restore
 
@@ -279,8 +279,8 @@ Current `KnowledgeSearchResult` includes:
 
 ### Current Retrieval Cost Assumption
 
-The current v2 implementation intentionally does not create a vector index and does not use `vector_top_k`.
-Similarity search scans the `embedding` rows directly and sorts by the engine's scalar cosine distance (`vector_distance_cos` on libsql).
+The current v2 implementation intentionally does not create a vector index and does not use an indexed approximate-nearest-neighbor lookup.
+Similarity search scans the `embedding` rows directly and sorts by the engine's scalar cosine distance (`vec_distance_cosine` on sqlite-vec, with the query vector bound as a raw little-endian float32 BLOB).
 
 This means retrieval cost scales roughly linearly with the number of vector rows in a single knowledge base.
 That tradeoff is currently accepted because it keeps the runtime path simpler for expected near-term corpus sizes.

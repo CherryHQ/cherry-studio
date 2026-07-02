@@ -1,10 +1,9 @@
+import type { ExecutionTerminal } from '@renderer/services/aiTransport'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-import type { ExecutionTerminal } from '../../transport/TopicStreamSubscription'
 
 // ── Controllable fake TopicStreamSubscription ───────────────────────────
 const { fake } = vi.hoisted(() => {

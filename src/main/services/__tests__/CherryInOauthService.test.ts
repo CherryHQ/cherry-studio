@@ -204,13 +204,13 @@ describe('CherryInOauthService', () => {
   })
 
   it('saves tokens into provider auth config and preserves the prior refresh token when none is returned', async () => {
-    providerServiceMocks.getAuthConfig.mockResolvedValue({
+    providerServiceMocks.getAuthConfig.mockReturnValue({
       type: 'oauth',
       clientId: 'existing-client',
       accessToken: 'old-access',
       refreshToken: 'old-refresh'
     })
-    providerServiceMocks.update.mockResolvedValue(undefined)
+    providerServiceMocks.update.mockReturnValue(undefined)
 
     await cherryInOauthService.saveToken({} as Electron.IpcMainInvokeEvent, 'new-access')
 
@@ -225,7 +225,9 @@ describe('CherryInOauthService', () => {
   })
 
   it('fails token saves without overwriting auth config when the current auth config cannot be read', async () => {
-    providerServiceMocks.getAuthConfig.mockRejectedValue(new Error('sqlite busy'))
+    providerServiceMocks.getAuthConfig.mockImplementation(() => {
+      throw new Error('sqlite busy')
+    })
 
     await expect(cherryInOauthService.saveToken({} as Electron.IpcMainInvokeEvent, 'new-access')).rejects.toThrow(
       'Failed to save OAuth token'
@@ -235,7 +237,7 @@ describe('CherryInOauthService', () => {
   })
 
   it('reads the access token from provider auth config', async () => {
-    providerServiceMocks.getAuthConfig.mockResolvedValue({
+    providerServiceMocks.getAuthConfig.mockReturnValue({
       type: 'oauth',
       clientId: 'client-id',
       accessToken: 'oauth-access',
@@ -246,7 +248,7 @@ describe('CherryInOauthService', () => {
   })
 
   it('maps balance/profile data and leaves monthly metrics null when those fields are unavailable', async () => {
-    providerServiceMocks.getAuthConfig.mockResolvedValue({
+    providerServiceMocks.getAuthConfig.mockReturnValue({
       type: 'oauth',
       clientId: 'client-id',
       accessToken: 'oauth-access',
@@ -296,7 +298,7 @@ describe('CherryInOauthService', () => {
   })
 
   it('maps flat profile responses without treating them as missing wrapped data', async () => {
-    providerServiceMocks.getAuthConfig.mockResolvedValue({
+    providerServiceMocks.getAuthConfig.mockReturnValue({
       type: 'oauth',
       clientId: 'client-id',
       accessToken: 'oauth-access',
@@ -338,13 +340,13 @@ describe('CherryInOauthService', () => {
   })
 
   it('deduplicates concurrent token refreshes after simultaneous unauthorized responses', async () => {
-    providerServiceMocks.getAuthConfig.mockResolvedValue({
+    providerServiceMocks.getAuthConfig.mockReturnValue({
       type: 'oauth',
       clientId: 'client-id',
       accessToken: 'expired-access',
       refreshToken: 'refresh-token'
     })
-    providerServiceMocks.update.mockResolvedValue(undefined)
+    providerServiceMocks.update.mockReturnValue(undefined)
 
     let releaseRefresh!: () => void
     const refreshGate = new Promise<void>((resolve) => {
@@ -432,7 +434,7 @@ describe('CherryInOauthService', () => {
   })
 
   it('exposes balance API HTTP failures in the thrown error message', async () => {
-    providerServiceMocks.getAuthConfig.mockResolvedValue({
+    providerServiceMocks.getAuthConfig.mockReturnValue({
       type: 'oauth',
       clientId: 'client-id',
       accessToken: 'oauth-access',
@@ -452,13 +454,13 @@ describe('CherryInOauthService', () => {
   })
 
   it('clears the OAuth session and throws OAuthSessionExpired when 401 hits with no refresh token', async () => {
-    providerServiceMocks.getAuthConfig.mockResolvedValue({
+    providerServiceMocks.getAuthConfig.mockReturnValue({
       type: 'oauth',
       clientId: 'client-id',
       accessToken: 'oauth-access',
       refreshToken: null
     })
-    providerServiceMocks.update.mockResolvedValue(undefined)
+    providerServiceMocks.update.mockReturnValue(undefined)
     vi.mocked(net.fetch).mockResolvedValue({
       ok: false,
       status: 401,
@@ -474,13 +476,13 @@ describe('CherryInOauthService', () => {
 
   it('logs 401 response details when refresh succeeds but the retry is still unauthorized', async () => {
     const errorSpy = vi.spyOn(mockMainLoggerService, 'error').mockImplementation(() => {})
-    providerServiceMocks.getAuthConfig.mockResolvedValue({
+    providerServiceMocks.getAuthConfig.mockReturnValue({
       type: 'oauth',
       clientId: 'client-id',
       accessToken: 'oauth-access-token',
       refreshToken: 'refresh-token'
     })
-    providerServiceMocks.update.mockResolvedValue(undefined)
+    providerServiceMocks.update.mockReturnValue(undefined)
     vi.mocked(net.fetch).mockImplementation(async (url) => {
       const urlString = String(url)
       if (urlString.endsWith('/oauth2/token')) {
@@ -578,8 +580,8 @@ describe('CherryInOauthService', () => {
     // refactor that re-orders the save before the keys-validation would
     // silently leak a usable accessToken into SQLite while the user-visible
     // flow throws, leaving hasToken() true.
-    providerServiceMocks.getAuthConfig.mockResolvedValue(null)
-    providerServiceMocks.update.mockResolvedValue(undefined)
+    providerServiceMocks.getAuthConfig.mockReturnValue(null)
+    providerServiceMocks.update.mockReturnValue(undefined)
     vi.mocked(net.fetch).mockImplementation(async (url) => {
       const urlString = String(url)
       if (urlString.endsWith('/oauth2/token')) {
@@ -656,13 +658,13 @@ describe('CherryInOauthService', () => {
   })
 
   it('clears auth config back to api-key mode on logout', async () => {
-    providerServiceMocks.getAuthConfig.mockResolvedValue({
+    providerServiceMocks.getAuthConfig.mockReturnValue({
       type: 'oauth',
       clientId: 'client-id',
       accessToken: 'oauth-access',
       refreshToken: 'oauth-refresh'
     })
-    providerServiceMocks.update.mockResolvedValue(undefined)
+    providerServiceMocks.update.mockReturnValue(undefined)
     vi.mocked(net.fetch).mockResolvedValue({
       ok: true,
       status: 200,

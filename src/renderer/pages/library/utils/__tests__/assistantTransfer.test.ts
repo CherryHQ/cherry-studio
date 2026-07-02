@@ -60,7 +60,7 @@ describe('assistantTransfer', () => {
       {
         name: '写作助手',
         emoji: '✍️',
-        group: ['写作', '生产力'],
+        group: ['写作'],
         prompt: 'You are helpful',
         description: '擅长写作润色',
         regularPhrases: [],
@@ -89,10 +89,7 @@ describe('assistantTransfer', () => {
     // modelId is intentionally not part of the DTO — the backend fills it from
     // the `chat.default_model_id` preference during create.
     expect(draft.dto.modelId).toBeUndefined()
-    expect(draft.tags).toEqual([
-      { name: '写作', color: null },
-      { name: '生产力', color: null }
-    ])
+    expect(draft.tags).toEqual([{ name: '写作', color: null }])
   })
 
   it('ignores v2-only fields from imported content and still uses legacy defaults', () => {

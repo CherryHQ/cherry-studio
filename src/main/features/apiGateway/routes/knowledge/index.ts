@@ -25,7 +25,7 @@ const logger = loggerService.withContext('KnowledgeRoutes')
 export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
   .get(
     '/',
-    async ({ query }) => {
+    ({ query }) => {
       // Gateway exposes a true offset/limit; the data service is page-based
       // (offset = (page-1)*limit), so a non-page-aligned offset can't be expressed
       // as a single page. Fetch the window from the start and slice the exact range.
@@ -34,7 +34,7 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
       const limit = query.limit ?? 20
       const offset = query.offset ?? 0
 
-      const { items, total } = await knowledgeBaseService.list({ page: 1, limit: offset + limit })
+      const { items, total } = knowledgeBaseService.list({ page: 1, limit: offset + limit })
       return { knowledge_bases: items.slice(offset, offset + limit), total }
     },
     {
@@ -51,27 +51,25 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
       // Resolve target bases: the requested ids (must exist) or every base.
       let targetBases: { id: string; name: string }[]
       if (knowledge_base_ids?.length) {
-        const resolved = await Promise.all(
-          knowledge_base_ids.map((id) =>
-            knowledgeBaseService
-              .getById(id)
-              .then((base) => ({ id: base.id, name: base.name }))
-              // Only a genuine "not found" maps to null (→ filtered out); real
-              // service/DB failures must propagate so they aren't misreported as 404.
-              .catch((error: unknown) => {
-                if (error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND) {
-                  return null
-                }
-                throw error
-              })
-          )
-        )
+        const resolved = knowledge_base_ids.map((id) => {
+          try {
+            const base = knowledgeBaseService.getById(id)
+            return { id: base.id, name: base.name }
+          } catch (error: unknown) {
+            // Only a genuine "not found" maps to null (→ filtered out); real
+            // service/DB failures must propagate so they aren't misreported as 404.
+            if (error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND) {
+              return null
+            }
+            throw error
+          }
+        })
         targetBases = resolved.filter((base): base is { id: string; name: string } => base !== null)
         if (targetBases.length === 0) {
           throw DataApiErrorFactory.notFound('KnowledgeBase', knowledge_base_ids.join(', '))
         }
       } else {
-        const { items } = await knowledgeBaseService.list({ page: 1, limit: 1000 })
+        const { items } = knowledgeBaseService.list({ page: 1, limit: 1000 })
         targetBases = items.map((base) => ({ id: base.id, name: base.name }))
         if (targetBases.length === 0) {
           return {

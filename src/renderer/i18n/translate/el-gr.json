@@ -556,6 +556,7 @@
       "list": {
         "title": "Εργασίες"
       },
+      "new": "Νέα εργασία",
       "pin": {
         "title": "Καρφίτσωμα εργασίας"
       },
@@ -565,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "Αναζήτηση εργασιών"
+        "placeholder": "Αναζήτηση εργασιών",
+        "title": "Αναζήτηση εργασιών"
       },
       "unpin": {
         "title": "Ξεκαρφίτσωσε την εργασία"
@@ -934,6 +936,10 @@
         "Bash": {
           "description": "Εκτελεί εντολές κελύφους στο περιβάλλον σας",
           "label": "Bash"
+        },
+        "CherryKbManage": {
+          "description": "Προσθέτει, διαγράφει ή ανανεώνει έγγραφα στις βάσεις γνώσης σας",
+          "label": "Διαχείριση Γνώσης"
         },
         "CherryKbSearch": {
           "description": "Αναζητά τις βάσεις γνώσης σας",
@@ -1327,12 +1333,14 @@
       "add": "Προσθήκη ετικέτας",
       "delete": "Διαγραφή ετικέτας",
       "deleteConfirm": "Είστε βέβαιοι ότι θέλετε να διαγράψετε αυτήν την ετικέτα;",
+      "group_by": "[to be translated]:Group by tag",
       "manage": "Διαχείριση ετικετών",
       "modify": "Επεξεργασία ετικέτας",
       "none": "Δεν υπάρχουν προς το παρόν ετικέτες",
       "settings": {
         "title": "Ρυθμίσεις Ετικέτας"
       },
+      "ungroup": "[to be translated]:Turn off tag grouping",
       "untagged": "Αχαρακτήριστο"
     },
     "title": "Βοηθός",
@@ -3162,12 +3170,22 @@
           "agent_title": "Νέος Πράκτορας",
           "assistant_title": "Νέος Βοηθός",
           "avatar_aria": "Επιλέξτε άβαταρ",
+          "back": "Πίσω",
+          "capability": {
+            "import": "Εισαγωγή δεξιοτήτων",
+            "no_skills": "Δεν έχουν εγκατασταθεί δεξιότητες",
+            "search": "Δεξιότητες αναζήτησης"
+          },
           "description_placeholder": "Περιγράψτε για τι χρησιμεύει...",
-          "dialog_description": "Δημιούργησε έναν ελαφρύ βοηθό ή πράκτορα.",
-          "model_placeholder": "Επιλέξτε ένα μοντέλο",
-          "model_required": "Παρακαλώ επιλέξτε ένα μοντέλο",
+          "guided_progress": "Οδηγός ρύθμισης · Βήμα {{current}} από {{total}}",
           "name_placeholder": "Εισάγετε ένα όνομα",
-          "name_required": "Παρακαλώ εισάγετε ένα όνομα",
+          "next": "Επόμενο",
+          "step": {
+            "basic": "Βασικές πληροφορίες",
+            "capability": "Δεξιότητες",
+            "knowledge": "Γνώση",
+            "persona": "Πρόσωπο"
+          },
           "submit": "Δημιουργία",
           "submit_failed": "Η δημιουργία απέτυχε"
         },
@@ -4710,7 +4728,6 @@
     "baichuan": "Παράκειμαι",
     "baidu-cloud": "Baidu Cloud Qianfan",
     "burncloud": "BurnCloud",
-    "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
@@ -4749,6 +4766,7 @@
     "ollama": "Ollama",
     "open-mineru": "Ανοιχτό MinerU",
     "openai": "OpenAI",
+    "opencode": "[to be translated]:OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
@@ -4766,7 +4784,6 @@
     "tencent-cloud-ti": "Tencent Cloud TI",
     "tesseract": "Τέσσερακς",
     "together": "Together",
-    "tokenflux": "TokenFlux",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "China Telecom Xiran",
@@ -5258,6 +5275,7 @@
     "assistant": {
       "create_new": "Νέος Βοηθός",
       "empty_text": "Κανένας βοηθός ακόμα",
+      "filter": "Φίλτρο βοηθών",
       "multi_hint": "(αμοιβαία αποκλειόμενο με πολλαπλά μοντέλα)",
       "multi_label": "Παράλληλος πολλαπλών βοηθών",
       "search_placeholder": "Αναζήτηση βοηθών…"
@@ -6307,7 +6325,7 @@
         "title": "Εκτέλεση εξωτερικού MCP;"
       },
       "provider": "Πάροχος",
-      "providerNotFound": "MCP provider not found",
+      "providerNotFound": "[to be translated]:MCP provider not found",
       "providerPlaceholder": "Όνομα παρόχου",
       "providerUrl": "URL Παρόχου",
       "providers": "Πάροχοι",
@@ -6435,6 +6453,12 @@
         "show_estimated_tokens": "Εμφάνιση εκτιμώμενου αριθμού token",
         "title": "Ρυθμίσεις εισαγωγής"
       },
+      "layout": {
+        "classic": "Κλασικός",
+        "conversation": "Προβολή συνομιλίας",
+        "modern": "Σύγχρονος",
+        "work": "Προβολή εργασίας"
+      },
       "markdown_rendering_input_message": "Markdown Rendering Input Message",
       "metrics": "Χρόνος πρώτου χαρακτήρα {{time_first_token_millsec}}ms | {{token_speed}} tokens ανά δευτερόλεπτο",
       "model": {
@@ -6463,8 +6487,8 @@
         "logo_upload_label": "Μεταφόρτωση Logo",
         "name": "Όνομα",
         "name_placeholder": "Παρακαλώ εισάγετε το όνομα",
-        "remove_confirm_description": "[to be translated]:Delete custom mini app \"{{name}}\"? This action cannot be undone.",
-        "remove_confirm_title": "[to be translated]:Delete custom mini app?",
+        "remove_confirm_description": "Διαγραφή προσαρμοσμένης μίνι εφαρμογής \"{{name}}\"; Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.",
+        "remove_confirm_title": "Διαγραφή προσαρμοσμένης μίνι εφαρμογής;",
         "remove_error": "Αποτυχία διαγραφής της προσαρμοσμένης εφαρμογής.",
         "remove_success": "Η προσαρμοσμένη εφαρμογή διαγράφηκε επιτυχώς.",
         "save_error": "Αποτυχία αποθήκευσης της προσαρμοσμένης εφαρμογής.",
@@ -6493,7 +6517,7 @@
         "title": "Φίλτραρισμα περιοχής για μικρές εφαρμογές"
       },
       "reset_tooltip": "Επαναφορά στις προεπιλεγμένες τιμές",
-      "title": "[to be translated]:Mini Apps Settings",
+      "title": "Ρυθμίσεις Mini Apps",
       "visible": "Εμφανιζόμενα μικροπρογράμματα"
     },
     "model": "Πρόεδρος Υπηρεσίας",
@@ -6645,7 +6669,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
-        "sync_apply_default_in_use": "[to be translated]:Some models are in use as the default model and cannot be removed.",
+        "sync_apply_default_in_use": "Κάποια μοντέλα χρησιμοποιούνται ως προεπιλεγμένα και δεν μπορούν να αφαιρεθούν.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",
@@ -6967,7 +6991,6 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Τομέας επιτάχυνσης",
-          "backup": "Τομέας αντιγράφων ασφαλείας",
           "international": "Διεθνής τομέας"
         }
       },
@@ -7440,6 +7463,7 @@
           "exa": "API νευρωνικής αναζήτησης για εφαρμογές τεχνητής νοημοσύνης, βελτιστοποιημένο για σημασιολογική ανάκτηση από τον ιστό.",
           "exa_mcp": "Κάντε διαθέσιμη την αναζήτηση Exa στους πράκτορες μέσω του διακομιστή Exa MCP.",
           "fetch": "Ενσωματωμένος πάροχος λήψης URL. Ανακτά περιεχόμενο ιστοσελίδων από ένα URL για την εμπλουτισμό των αποτελεσμάτων αναζήτησης.",
+          "firecrawl": "Υπηρεσία ανίχνευσης και αναζήτησης Firecrawl, βελτιστοποιημένη για τη μετατροπή ιστότοπων σε Markdown.",
           "jina": "APIs αναζήτησης και ανάγνωσης Jina Reader για την ανάκτηση καθαρού περιεχομένου από τον ιστό.",
           "querit": "Υπηρεσία αναζήτησης για εφαρμογές AI με αποτελέσματα ανάκτησης από τον ιστό.",
           "searxng": "Αυτο-φιλοξενούμενη δωρεάν μηχανή μετα-αναζήτησης στο διαδίκτυο σε πολλές πηγές.",
