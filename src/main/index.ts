@@ -12,6 +12,7 @@
 import '@main/data/bootConfig'
 
 import { application, serviceList } from '@application'
+import { installActiveProfilePathRegistry } from '@main/core/preboot/activeProfile'
 // Preboot phase — order matters. See core/preboot/README.md.
 import { configureChromiumFlags } from '@main/core/preboot/chromiumFlags'
 import { initCrashTelemetry } from '@main/core/preboot/crashTelemetry'
@@ -24,6 +25,9 @@ resolveUserDataLocation()
 requireSingleInstance()
 configureChromiumFlags()
 initCrashTelemetry()
+// Seam A: install the active profile's path slot before the registry is frozen,
+// so per-profile paths resolve to the profile the process is booting into.
+installActiveProfilePathRegistry()
 // Freeze the path registry — bootstrap() asserts this completed.
 application.initPathRegistry()
 
