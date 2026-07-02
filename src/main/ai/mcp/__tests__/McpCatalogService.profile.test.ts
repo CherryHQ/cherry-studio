@@ -22,4 +22,19 @@ describe('McpCatalogService profile activation', () => {
     svc.onProfileActivate()
     expect(prewarm).toHaveBeenCalledTimes(1)
   })
+
+  it('marks profileSwitching across the deactivate window so shared-cache writes are suppressed', () => {
+    const svc = new McpCatalogService()
+    vi.spyOn(
+      svc as unknown as { prewarmActiveServerTools: () => Promise<void> },
+      'prewarmActiveServerTools'
+    ).mockResolvedValue(undefined)
+
+    svc.onProfileDeactivate()
+    // writeToolsCache / the listToolsForServer status writes early-return while this is set.
+    expect(svc['profileSwitching']).toBe(true)
+
+    svc.onProfileActivate()
+    expect(svc['profileSwitching']).toBe(false)
+  })
 })

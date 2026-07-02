@@ -73,6 +73,10 @@ export class McpCatalogService extends BaseService implements ProfileActivatable
   // generation and stops when it changes, so a single shared boolean cannot be
   // reset by the next profile's activate and un-cancel the previous loop.
   private prewarmGeneration = 0
+  // True between onProfileDeactivate and the next onProfileActivate. Suppresses shared-cache
+  // writes during that window so an in-flight refreshTools/listTools settling after the
+  // deactivate prefix-clear does not re-populate the previous profile's tool defs/status.
+  private profileSwitching = false
 
   protected async onInit(): Promise<void> {
     this.registerDisposable(
@@ -95,11 +99,13 @@ export class McpCatalogService extends BaseService implements ProfileActivatable
 
   /** Prewarm the new profile's active MCP server tools (mirrors onReady). */
   onProfileActivate(): void {
+    this.profileSwitching = false
     void this.prewarmActiveServerTools()
   }
 
   /** Cancel the previous profile's in-flight prewarm and drop its cached tool defs. */
   onProfileDeactivate(): void {
+    this.profileSwitching = true
     this.prewarmGeneration++ // supersede the previous profile's prewarm generation
     // Drop this profile's per-server tool cache so a reloaded renderer does not
     // re-sync it (keys are per-profile serverIds, no TTL).
@@ -111,6 +117,11 @@ export class McpCatalogService extends BaseService implements ProfileActivatable
   }
 
   private writeToolsCache(serverId: string, tools: McpTool[]): void {
+    // Skip during a profile switch: onProfileDeactivate cleared the mcp.tools prefix, and an
+    // in-flight refreshTools/listTools settling here would re-populate the previous profile's
+    // tool defs into the shared cache and broadcast them to the reloaded renderer. (Prewarm
+    // writes additionally carry a generation guard for the bound-to-next-profile window.)
+    if (this.profileSwitching) return
     application.get('CacheService').setShared(mcpToolsCacheKey(serverId), tools)
   }
 
@@ -168,8 +179,12 @@ export class McpCatalogService extends BaseService implements ProfileActivatable
     // A prewarm batch can be parked on a slow server across a profile switch; if this
     // generation was superseded, skip the shared-cache/status writes so a stale batch
     // does not re-populate mcp.tools/mcp.status after onProfileDeactivate cleared them.
+    // Skip the shared-cache/status writes during a profile switch or when this prewarm
+    // generation was superseded — either way the write would leak the previous profile's
+    // per-server state into the reloaded renderer.
     const superseded = (): boolean =>
-      options.prewarmGeneration !== undefined && options.prewarmGeneration !== this.prewarmGeneration
+      this.profileSwitching ||
+      (options.prewarmGeneration !== undefined && options.prewarmGeneration !== this.prewarmGeneration)
 
     if (!server.isActive) {
       if (!superseded()) {
