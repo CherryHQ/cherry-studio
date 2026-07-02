@@ -42,14 +42,7 @@ vi.mock('@renderer/i18n/label', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) =>
-      (
-        ({
-          'knowledge.rag.search_mode.hybrid': '混合检索（推荐）',
-          'knowledge.rag.search_mode.vector': '向量检索',
-          'knowledge.rag.search_mode.bm25': '全文检索'
-        }) as Record<string, string>
-      )[key] ?? key
+    t: (key: string) => key
   })
 }))
 
@@ -106,11 +99,6 @@ describe('useKnowledgeRagConfig', () => {
     const { result } = renderHook(() => useKnowledgeRagConfig(base))
 
     expect(result.current.fileProcessorOptions).toEqual([{ value: 'paddleocr', label: 'PaddleOCR' }])
-    expect(result.current.searchModeOptions).toEqual([
-      { value: 'hybrid', label: '混合检索（推荐）' },
-      { value: 'vector', label: '向量检索' },
-      { value: 'bm25', label: '全文检索' }
-    ])
     expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('mineru')
     expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('doc2x')
     expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('mistral')

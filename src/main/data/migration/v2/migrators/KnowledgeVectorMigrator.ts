@@ -240,6 +240,8 @@ function buildMigratedRebuildInput(
       text: joinMigratedChunkText(chunks)
     },
     units,
+    // v1 bases always carried embeddings, so a migrated base is a vector base.
+    usesEmbeddings: true,
     embeddings: [...embeddingByHash.entries()].map(([embeddingTextHash, vector]) => ({ embeddingTextHash, vector }))
   }
 
@@ -982,10 +984,10 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // fresh uuid dir, the runtime never opens a store mid-migration, and the catch below wipes a
         // partial on a caught failure. A crash-orphaned dir is never referenced by a knowledge_base row
         // so it is never mounted (it is dead disk, the same as the rename path produced).
-        const driver = await openBetterSqlite3IndexDriver(plan.targetDbPath)
+        const driver = openBetterSqlite3IndexDriver(plan.targetDbPath)
         try {
-          await createKnowledgeIndexSchema(driver)
-          await ensureIndexMeta(driver, { baseId: plan.baseId })
+          createKnowledgeIndexSchema(driver)
+          ensureIndexMeta(driver, { baseId: plan.baseId })
           const store = new KnowledgeIndexStore(driver, betterSqlite3VectorIndex)
 
           for (const material of plan.materials) {
@@ -998,11 +1000,11 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           // Fold the WAL back into the main db file so the committed pages are durable in index.sqlite
           // itself (the WAL is not guaranteed to be checkpointed on close); the runtime then opens a
           // self-contained store.
-          await driver.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+          driver.execute('PRAGMA wal_checkpoint(TRUNCATE)')
         } finally {
           // Close so the file handle is released (a leaked handle would block a re-run's
           // removeIndexStoreFiles and the later base-dir deletion on Windows).
-          await driver.close()
+          driver.close()
         }
         // Build + close succeeded: the complete store sits at its runtime path. A later failure
         // (snapshot-pin) leaves it present and searchable, so it must NOT be wiped or marked failed.
@@ -1166,11 +1168,11 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // busy_timeout=5000, so this re-read of the just-built store waits out a transient Windows lock
         // (Defender / indexer scanning the freshly-written file) instead of throwing SQLITE_BUSY /
         // EACCES and failing validation for an already-correct store.
-        const driver = await openBetterSqlite3IndexDriver(plan.targetDbPath)
+        const driver = openBetterSqlite3IndexDriver(plan.targetDbPath)
         try {
-          const materialCount = await this.tableCount(driver, 'material')
-          const unitCount = await this.tableCount(driver, 'search_unit')
-          const embeddingCount = await this.tableCount(driver, 'embedding')
+          const materialCount = this.tableCount(driver, 'material')
+          const unitCount = this.tableCount(driver, 'search_unit')
+          const embeddingCount = this.tableCount(driver, 'embedding')
           targetCount += unitCount
 
           this.pushCountMismatch(errors, plan.baseId, 'material', plan.materials.length, materialCount)
@@ -1180,7 +1182,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           // Every unit's body search_text must resolve to a stored embedding, or that
           // unit is silently absent from vector search. This is the migration-time
           // form of the rebuild self-heal invariant (knowledge-technical-design.md §10).
-          const uncovered = await driver.execute(
+          const uncovered = driver.execute(
             `SELECT count(*) AS count FROM search_text st
                   LEFT JOIN embedding e ON e.embedding_text_hash = st.embedding_text_hash
                   WHERE e.embedding_text_hash IS NULL`
@@ -1195,7 +1197,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
             })
           }
         } finally {
-          await driver.close()
+          driver.close()
         }
       }
 
@@ -1234,8 +1236,8 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     }
   }
 
-  private async tableCount(driver: BetterSqlite3Driver, table: string): Promise<number> {
-    const result = await driver.execute(`SELECT count(*) AS count FROM ${table}`)
+  private tableCount(driver: BetterSqlite3Driver, table: string): number {
+    const result = driver.execute(`SELECT count(*) AS count FROM ${table}`)
     return Number(result.rows[0]?.count ?? 0)
   }
 

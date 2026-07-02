@@ -1326,6 +1326,46 @@ describe('AgentComposer', () => {
     expect(mocks.setFiles).toHaveBeenLastCalledWith([])
   })
 
+  it('does not send while only some attached file tokens are reflected in the editor', async () => {
+    const secondFile = {
+      id: 'file-2',
+      fileTokenSourceId: 'source-file-2',
+      name: 'summary.md',
+      origin_name: 'summary.md',
+      path: '/tmp/summary.md'
+    } as FileMetadata
+    mocks.files = [file, secondFile]
+    mocks.draftTokens = [
+      {
+        id: `file:${file.fileTokenSourceId}`,
+        kind: 'file',
+        label: file.name,
+        payload: file,
+        index: 0,
+        textOffset: mocks.draftText.length
+      } as ComposerSerializedToken
+    ]
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('send'))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(mocks.sendMessage).not.toHaveBeenCalled()
+    expect(mocks.setFiles).not.toHaveBeenCalledWith([])
+    expect(mocks.files).toEqual([file, secondFile])
+  })
+
   it('blocks sends while the parent session is switching', () => {
     render(
       <AgentComposer
@@ -1410,13 +1450,20 @@ describe('AgentComposer', () => {
   it('restores the current draft, files, and skill tokens when sending a new agent message fails', async () => {
     mocks.availableSkills = [pdfSkill]
     mocks.draftText = 'draft message'
-    mocks.draftTokens = [
-      {
-        ...pdfSkillToken,
-        index: 0,
-        textOffset: 0
-      }
-    ]
+    const skillToken = {
+      ...pdfSkillToken,
+      index: 0,
+      textOffset: 0
+    }
+    const fileToken = {
+      id: `file:${file.fileTokenSourceId}`,
+      kind: 'file',
+      label: file.name,
+      payload: file,
+      index: 1,
+      textOffset: mocks.draftText.length
+    } as ComposerSerializedToken
+    mocks.draftTokens = [skillToken, fileToken]
     mocks.files = [file]
     mocks.sendMessage.mockRejectedValueOnce(new Error('send failed'))
 
@@ -1435,7 +1482,7 @@ describe('AgentComposer', () => {
     })
 
     await waitFor(() => {
-      expect(mocks.surfaceProps?.draftTokens).toEqual(mocks.draftTokens)
+      expect(mocks.surfaceProps?.draftTokens).toEqual([skillToken])
     })
 
     fireEvent.click(screen.getByText('send'))
@@ -1448,24 +1495,12 @@ describe('AgentComposer', () => {
     expect(mocks.setFiles).toHaveBeenCalledWith([])
     expect(mocks.setFiles).toHaveBeenLastCalledWith([file])
     expect(mocks.surfaceProps?.text).toBe('draft message')
-    expect(mocks.surfaceProps?.draftTokens).toEqual([
-      {
-        ...pdfSkillToken,
-        index: 0,
-        textOffset: 0
-      }
-    ])
+    expect(mocks.surfaceProps?.draftTokens).toEqual([skillToken])
     expect(cacheService.setCasual).toHaveBeenLastCalledWith(
       'agent-session-draft-agent-1',
       {
         text: 'draft message',
-        tokens: [
-          {
-            ...pdfSkillToken,
-            index: 0,
-            textOffset: 0
-          }
-        ]
+        tokens: [skillToken]
       },
       86400000
     )

@@ -1333,12 +1333,14 @@
       "add": "Add Tag",
       "delete": "Delete Tag",
       "deleteConfirm": "Are you sure to delete this tag?",
+      "group_by": "Group by tag",
       "manage": "Tag Management",
       "modify": "Modify Tag",
       "none": "No tags",
       "settings": {
         "title": "Tag Settings"
       },
+      "ungroup": "Turn off tag grouping",
       "untagged": "Untagged"
     },
     "title": "Assistants",
@@ -2796,7 +2798,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} sources",
-      "documents_count": "{{count}} documents",
       "updated_at": "Updated {{time}}"
     },
     "name_required": "Knowledge base name is required",
@@ -3154,9 +3155,9 @@
         "stream_output": "Stream output",
         "tag_empty": "No tags available",
         "tag_hint": "To add a new tag, use the \"+ Tag\" entry in the library top bar",
-        "tag_placeholder": "Select tags",
+        "tag_placeholder": "Select tag",
         "tag_search": "Search tags",
-        "tags": "Tags",
+        "tags": "Tag",
         "temperature": "Temperature",
         "title": "Basic settings",
         "top_p": "Top-P",
@@ -4764,6 +4765,7 @@
     "ollama": "Ollama",
     "open-mineru": "Open MinerU",
     "openai": "OpenAI",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",

@@ -23,13 +23,21 @@ interface MessageNavigationProps {
   containerId: string
   messages: MessageListItem[]
   scrollToMessageId: (messageId: string) => void
+  scrollToTop: () => void
+  scrollToBottom: () => void
 }
 
 const getScrollContainer = (container: HTMLElement | null): HTMLElement | null => {
   return container?.querySelector<HTMLElement>('[data-message-virtual-list-scroller]') ?? container
 }
 
-const MessageNavigation: FC<MessageNavigationProps> = ({ containerId, messages, scrollToMessageId }) => {
+const MessageNavigation: FC<MessageNavigationProps> = ({
+  containerId,
+  messages,
+  scrollToMessageId,
+  scrollToTop,
+  scrollToBottom
+}) => {
   const { t } = useTranslation()
   const [isVisible, setIsVisible] = useState(false)
   const timerKey = 'hide'
@@ -72,16 +80,6 @@ const MessageNavigation: FC<MessageNavigationProps> = ({ containerId, messages, 
     isHoveringNavigationRef.current = false
     scheduleHide(500)
   }, [scheduleHide])
-
-  const scrollToTop = () => {
-    const scrollContainer = getScrollContainer(document.getElementById(containerId))
-    scrollContainer?.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-
-  const scrollToBottom = () => {
-    const scrollContainer = getScrollContainer(document.getElementById(containerId))
-    scrollContainer?.scrollTo({ top: scrollContainer.scrollHeight, behavior: 'smooth' })
-  }
 
   const getCurrentVisibleIndex = (direction: 'up' | 'down') => {
     const userMessages = messages.filter((message) => message.role === 'user')
