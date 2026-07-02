@@ -47,6 +47,8 @@ describe('MessageWebSearchToolTitle', () => {
     expect(screen.getByText('Cherry Studio')).toBeInTheDocument()
     expect(screen.getByText('No search results found')).toBeInTheDocument()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    // No result block (and so no e2e anchor) when the search returned nothing.
+    expect(screen.queryByTestId('message-websearch-result')).not.toBeInTheDocument()
   })
 
   it('uses the compact tool-row text while searching', () => {
@@ -92,6 +94,10 @@ describe('MessageWebSearchToolTitle', () => {
     const header = screen.getByRole('button')
     expect(within(header).getByText('Cherry Studio')).toBeInTheDocument()
     expect(within(header).getByText('1 search results')).toBeInTheDocument()
+
+    // Stable e2e anchor for "a web search completed and rendered results" (count exposed for diagnostics).
+    const resultBlock = screen.getByTestId('message-websearch-result')
+    expect(resultBlock).toHaveAttribute('data-result-count', '1')
 
     fireEvent.click(header)
 
