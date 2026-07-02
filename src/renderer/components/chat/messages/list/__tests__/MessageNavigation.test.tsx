@@ -68,7 +68,13 @@ describe('MessageNavigation', () => {
             <div id="message-user-2" />
           </div>
         </div>
-        <MessageNavigation containerId="messages" messages={messages} scrollToMessageId={scrollToMessageId} />
+        <MessageNavigation
+          containerId="messages"
+          messages={messages}
+          scrollToMessageId={scrollToMessageId}
+          scrollToTop={vi.fn()}
+          scrollToBottom={vi.fn()}
+        />
       </>
     )
 
@@ -86,5 +92,31 @@ describe('MessageNavigation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'chat.navigation.prev' }))
 
     expect(scrollToMessageId).toHaveBeenCalledWith('user-3')
+  })
+
+  it('delegates the top and bottom buttons to the runtime scroll callbacks', () => {
+    const scrollToTop = vi.fn()
+    const scrollToBottom = vi.fn()
+
+    render(
+      <>
+        <div id="messages">
+          <div data-message-virtual-list-scroller />
+        </div>
+        <MessageNavigation
+          containerId="messages"
+          messages={[createMessage('user-1', 'user')]}
+          scrollToMessageId={vi.fn()}
+          scrollToTop={scrollToTop}
+          scrollToBottom={scrollToBottom}
+        />
+      </>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.navigation.top' }))
+    expect(scrollToTop).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.navigation.bottom' }))
+    expect(scrollToBottom).toHaveBeenCalledTimes(1)
   })
 })

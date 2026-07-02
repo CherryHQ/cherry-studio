@@ -36,6 +36,7 @@ import { useSmoothScrollAnimation } from './useSmoothScrollAnimation'
 
 export interface MessageVirtualListHandle {
   scrollToBottom(behavior?: ScrollBehavior): void
+  scrollToTop(behavior?: ScrollBehavior): void
   scrollToKey(key: string, align?: 'start' | 'center' | 'end'): void
   isAtBottom(): boolean
   getScrollElement(): HTMLElement | null
@@ -582,10 +583,33 @@ export function useChatVirtualizerRuntime<T>({
     [anchor, atBottom, hideScrollToBottomButton, smoothScroll]
   )
 
+  const scrollToTop = useCallback(
+    (behavior: ScrollBehavior = 'instant') => {
+      // Explicit scroll-to-top releases any anchor pin — the caller wants the
+      // absolute top of the loaded content, not the pinned user-message position.
+      anchor.release()
+      const el = scrollerRef.current
+      if (!el) return
+      if (behavior === 'smooth') {
+        // Drive the scroll frame-by-frame (RAF) rather than native
+        // `behavior: 'smooth'`: virtua remeasures items entering the viewport
+        // and compensates scrollTop, which cancels a native animation mid-flight.
+        if (!smoothScroll.isAnimating()) {
+          smoothScroll.scrollTo(() => 0)
+        }
+      } else {
+        smoothScroll.cancel()
+        el.scrollTop = 0
+      }
+    },
+    [anchor, smoothScroll]
+  )
+
   useImperativeHandle(
     handleRef,
     (): MessageVirtualListHandle => ({
       scrollToBottom,
+      scrollToTop,
       scrollToKey: (key, align = 'start') => {
         const handle = vlistHandleRef.current
         const idx = findDataIndexByKey(key)
@@ -596,7 +620,7 @@ export function useChatVirtualizerRuntime<T>({
       isAtBottom: atBottom.isAtBottom,
       getScrollElement: () => scrollerRef.current
     }),
-    [anchor, atBottom.isAtBottom, findDataIndexByKey, scrollToBottom]
+    [anchor, atBottom.isAtBottom, findDataIndexByKey, scrollToBottom, scrollToTop]
   )
 
   return {
