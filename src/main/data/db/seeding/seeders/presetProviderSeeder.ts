@@ -2,10 +2,13 @@ import { application } from '@application'
 import type { ProtoProviderConfig } from '@cherrystudio/provider-registry'
 import { buildRuntimeEndpointConfigs, ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
+import { applyMoves } from '@data/services/utils/orderKey'
 import type { AuthConfig } from '@shared/data/types/provider'
+import { inArray } from 'drizzle-orm'
 
-import type { DbType, ISeeder } from '../../types'
+import type { DbOrTx, DbType, ISeeder } from '../../types'
 
 /**
  * Registry entries for vertexai/azure-openai are skeletons (no defaultChatEndpoint,
@@ -78,6 +81,10 @@ export class PresetProviderSeeder implements ISeeder {
   readonly name = 'presetProvider'
   readonly description = 'Insert preset provider configurations'
 
+  private readonly preferredProviderOrder = {
+    'radeon-cloud': { after: 'cherryin' }
+  }
+
   private _loader?: RegistryLoader
 
   private getLoader(): RegistryLoader {
@@ -107,6 +114,25 @@ export class PresetProviderSeeder implements ISeeder {
 
     const rows = rawProviders.map(toDbRow)
 
-    await db.transaction((tx) => providerService.batchUpsertTx(tx, rows))
+    await db.transaction(async (tx) => {
+      await providerService.batchUpsertTx(tx, rows, { preferredProviderOrder: this.preferredProviderOrder })
+      await this.applyPreferredProviderOrder(tx)
+    })
+  }
+
+  private async applyPreferredProviderOrder(tx: DbOrTx): Promise<void> {
+    for (const [providerId, preferredOrder] of Object.entries(this.preferredProviderOrder)) {
+      const ids = [providerId, preferredOrder.after]
+      const rows = await tx
+        .select({ providerId: userProviderTable.providerId })
+        .from(userProviderTable)
+        .where(inArray(userProviderTable.providerId, ids))
+      const existingIds = new Set(rows.map((row) => row.providerId))
+      if (!ids.every((id) => existingIds.has(id))) continue
+
+      await applyMoves(tx, userProviderTable, [{ id: providerId, anchor: { after: preferredOrder.after } }], {
+        pkColumn: userProviderTable.providerId
+      })
+    }
   }
 }

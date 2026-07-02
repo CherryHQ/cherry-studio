@@ -1,5 +1,5 @@
 {
-  "version": "2026.06.27",
+  "version": "2026.06.30",
   "providers": [
     {
       "id": "cherryin",
@@ -22,6 +22,26 @@
           "apiKey": "https://open.cherryin.ai/console/token",
           "docs": "https://docs.cherryin.ai/zh/docs",
           "models": "https://open.cherryin.ai/pricing"
+        }
+      }
+    },
+    {
+      "id": "radeon-cloud",
+      "name": "AMD GPU Cloud",
+      "description": "AMD GPU Cloud - OpenAI-compatible AI inference provider from AMD",
+      "defaultChatEndpoint": "openai-chat-completions",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "baseUrl": "https://api.radeon.anruicloud.com/v1",
+          "adapterFamily": "openai-compatible"
+        }
+      },
+      "metadata": {
+        "website": {
+          "official": "https://radeon.anruicloud.com/",
+          "apiKey": "https://radeon.anruicloud.com/profile",
+          "docs": "https://radeon.anruicloud.com/",
+          "models": "https://radeon.anruicloud.com/"
         }
       }
     },

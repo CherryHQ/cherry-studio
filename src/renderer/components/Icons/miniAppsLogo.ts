@@ -48,6 +48,7 @@ import {
   Perplexity,
   Poe,
   Qwen,
+  RadeonCloud,
   Sensetime,
   Silicon,
   Step,
@@ -72,6 +73,8 @@ export function getMiniAppsLogo(LogoId: string | undefined): CompoundIcon | unde
   switch (LogoId.toLowerCase()) {
     case 'application':
       return Application
+    case 'radeon-cloud':
+      return RadeonCloud
     case 'openclaw':
       return Openclaw
     case 'openai':

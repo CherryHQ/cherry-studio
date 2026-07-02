@@ -14,7 +14,12 @@ import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteError
 import type { DbType } from '@data/db/types'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
-import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
+import {
+  applyMoves,
+  generateOrderKeyBetween,
+  insertManyWithOrderKey,
+  insertWithOrderKey
+} from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -29,7 +34,7 @@ import type {
   RuntimeApiFeatures
 } from '@shared/data/types/provider'
 import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
-import { and, asc, eq, sql, type SQLWrapper } from 'drizzle-orm'
+import { and, asc, eq, gt, sql, type SQLWrapper } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('DataApi:ProviderService')
@@ -324,17 +329,61 @@ class ProviderService {
     logger.info('Batch upserted providers', { insertedCount })
   }
 
-  async batchUpsertTx(tx: Pick<DbType, 'select' | 'insert'>, providers: NewUserProviderInput[]): Promise<number> {
+  async batchUpsertTx(
+    tx: Pick<DbType, 'select' | 'insert'>,
+    providers: NewUserProviderInput[],
+    options: { preferredProviderOrder?: Record<string, { after: string }> } = {}
+  ): Promise<number> {
     const existing = await tx.select({ providerId: userProviderTable.providerId }).from(userProviderTable)
     const existingIds = new Set(existing.map((row) => row.providerId))
     const newProviders = providers.filter((provider) => !existingIds.has(provider.providerId))
 
     if (newProviders.length === 0) return 0
 
-    await insertManyWithOrderKey(tx, userProviderTable, newProviders, {
-      pkColumn: userProviderTable.providerId
-    })
-    return newProviders.length
+    let insertedCount = 0
+    const appendedProviders: NewUserProviderInput[] = []
+    const preferredProviderOrder = options.preferredProviderOrder ?? {}
+
+    for (const provider of newProviders) {
+      const preferredOrder = preferredProviderOrder[provider.providerId]
+      if (!preferredOrder || !existingIds.has(preferredOrder.after)) {
+        appendedProviders.push(provider)
+        continue
+      }
+
+      const [anchor] = await tx
+        .select({ orderKey: userProviderTable.orderKey })
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, preferredOrder.after))
+        .limit(1)
+      if (!anchor) {
+        appendedProviders.push(provider)
+        continue
+      }
+
+      const [successor] = await tx
+        .select({ orderKey: userProviderTable.orderKey })
+        .from(userProviderTable)
+        .where(gt(userProviderTable.orderKey, anchor.orderKey))
+        .orderBy(asc(userProviderTable.orderKey))
+        .limit(1)
+
+      await tx.insert(userProviderTable).values({
+        ...provider,
+        orderKey: generateOrderKeyBetween(anchor.orderKey, successor?.orderKey ?? null)
+      })
+      insertedCount++
+      existingIds.add(provider.providerId)
+    }
+
+    if (appendedProviders.length > 0) {
+      await insertManyWithOrderKey(tx, userProviderTable, appendedProviders, {
+        pkColumn: userProviderTable.providerId
+      })
+      insertedCount += appendedProviders.length
+    }
+
+    return insertedCount
   }
 
   /**
