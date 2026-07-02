@@ -26,7 +26,14 @@
 import { randomUUID } from 'node:crypto'
 
 import { loggerService } from '@logger'
-import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import {
+  BaseService,
+  type Disposable,
+  Injectable,
+  Phase,
+  type ProfileActivatable,
+  ServicePhase
+} from '@main/core/lifecycle'
 import { AbsolutePathSchema } from '@shared/data/types/file'
 import { IpcChannel } from '@shared/IpcChannel'
 import {
@@ -155,7 +162,7 @@ function canonicalizeOptions(options: DirectoryTreeOptions | undefined): string 
 
 @Injectable('DirectoryTreeManager')
 @ServicePhase(Phase.WhenReady)
-export class DirectoryTreeManager extends BaseService {
+export class DirectoryTreeManager extends BaseService implements ProfileActivatable {
   /** treeId → consumer. One row per `File_TreeCreate` call still alive. */
   private readonly consumers = new Map<string, Consumer>()
   /** Shared builder by `builderKey`. One row per *underlying* watcher. */
@@ -182,6 +189,16 @@ export class DirectoryTreeManager extends BaseService {
   }
 
   protected override async onStop(): Promise<void> {
+    await this.disposeAll()
+  }
+
+  /** Re-arm after a switch so builders/watchers can be created for the new profile's dirs. */
+  onProfileActivate(): void {
+    this.disposed = false
+  }
+
+  /** Tear down every watcher on the previous profile's workspace dirs (disposeAll sets `disposed`). */
+  async onProfileDeactivate(): Promise<void> {
     await this.disposeAll()
   }
 
