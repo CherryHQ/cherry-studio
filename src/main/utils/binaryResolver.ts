@@ -11,11 +11,8 @@ import { getBinarySearchDirs } from './binaryEnv'
  * `binaryEnv.getBinarySearchDirs()` (mise shims first, then `cherry.bin`).
  */
 
-export async function getBinaryName(name: string): Promise<string> {
-  if (isWin) {
-    return `${name}.exe`
-  }
-  return name
+export function getBinaryName(name: string): string {
+  return isWin ? `${name}.exe` : name
 }
 
 export async function getBinaryPath(name?: string): Promise<string> {
@@ -25,7 +22,7 @@ export async function getBinaryPath(name?: string): Promise<string> {
     return application.getPath('cherry.bin')
   }
 
-  const binaryName = await getBinaryName(name)
+  const binaryName = getBinaryName(name)
   for (const dir of searchDirs) {
     const candidate = path.join(dir, binaryName)
     if (fs.existsSync(candidate)) {

@@ -39,7 +39,7 @@ vi.mock('@main/services/RegionService', () => ({
 }))
 
 vi.mock('@main/utils/binaryResolver', () => ({
-  getBinaryName: vi.fn().mockResolvedValue('bun'),
+  getBinaryName: vi.fn().mockReturnValue('bun'),
   getBinaryPath: vi.fn().mockResolvedValue('/mock/bin/tool'),
   isBinaryExists: vi.fn().mockResolvedValue(false)
 }))

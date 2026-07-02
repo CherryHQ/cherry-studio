@@ -4,7 +4,7 @@ import { execFileSync, spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 
-import { getShellEnv, refreshShellEnv } from './shellEnv'
+import { getShellEnv } from './shellEnv'
 
 /**
  * Resolution for arbitrary executables in the user's environment — locating
@@ -363,18 +363,6 @@ function getCommonGitRoots(): string[] {
     path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git'),
     ...(process.env.LOCALAPPDATA ? [path.join(process.env.LOCALAPPDATA, 'Programs', 'Git')] : [])
   ]
-}
-
-/**
- * Check if git is available in the user's environment
- * Refreshes shell env cache to detect newly installed Git
- * @returns Object with availability status and path to git executable
- */
-export async function checkGitAvailable(): Promise<{ available: boolean; path: string | null }> {
-  await refreshShellEnv()
-  const gitPath = await findExecutableInEnv('git')
-  logger.debug(`git check result: ${gitPath ? `found at ${gitPath}` : 'not found'}`)
-  return { available: gitPath !== null, path: gitPath }
 }
 
 /**

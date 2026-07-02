@@ -464,14 +464,27 @@ describe('BinaryManager', () => {
       expect(mockExecFileAsync).toHaveBeenCalledTimes(1)
     })
 
-    it('returns empty array when the registry command fails (e.g. mise too old for --json)', async () => {
+    it('rejects when the registry command fails (e.g. mise too old for --json)', async () => {
+      // Must propagate, not swallow to []: the renderer's search-error UI only
+      // fires on the IPC rejection; a resolved [] would render as a silently
+      // empty dropdown reading "no such tool".
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
 
       mockExecFileAsync.mockRejectedValue(new Error('unexpected argument --json'))
 
-      await expect(service.searchRegistry('fd')).resolves.toEqual([])
+      await expect(service.searchRegistry('fd')).rejects.toThrow('unexpected argument --json')
+    })
+
+    it('rejects when the registry returns malformed JSON', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      mockExecFileAsync.mockResolvedValue({ stdout: 'not json', stderr: '' })
+
+      await expect(service.searchRegistry('fd')).rejects.toThrow()
     })
   })
 
@@ -563,6 +576,24 @@ describe('BinaryManager', () => {
         const env = await (service as any).buildIsolatedEnv()
 
         expect(env['GITHUB_TOKEN']).toBe('ghp_opt_in')
+      } finally {
+        process.env = original
+      }
+    })
+
+    it('composes PATH as mise shims → mise dir → inherited PATH, in that order', async () => {
+      // Pins the extraPathPrefixes contract: buildIsolatedEnv folds its
+      // [MISE_SHIMS_DIR, miseDir, existing] merge into mergeBinaryExecutionEnv,
+      // and the shims-first / mise-dir-second ordering is load-bearing so a
+      // re-exec'd child mise resolves against the isolated shims.
+      const original = { ...process.env }
+      try {
+        process.env['PATH'] = '/usr/bin:/bin'
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/bin/mise'
+        const env = await (service as any).buildIsolatedEnv()
+
+        expect(env['PATH'].split(':')).toEqual(['/mock/feature.binary.data/shims', '/mock/bin', '/usr/bin', '/bin'])
       } finally {
         process.env = original
       }

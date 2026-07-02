@@ -8,10 +8,35 @@ import path from 'path'
  * of how the base env is obtained. Two scenarios consume these: the **execution**
  * path (running installed binaries; see `shellEnv.ts`, which captures the user's
  * real shell env first) and the **install** path (the mise install subprocess;
- * see `BinaryManager.buildIsolatedEnv`, which isolates the user's env). Kept as a
- * dependency-free leaf so both can share the primitives without pulling in the
- * other's machinery.
+ * see `BinaryManager.buildIsolatedEnv`, which isolates the user's env). Kept
+ * free of `shellEnv` / `BinaryManager` imports so both can share these
+ * primitives without pulling in the other's machinery.
  */
+
+/**
+ * Collapse a list of PATH segments to unique entries, first occurrence wins.
+ * On Windows the compare is case-insensitive (the filesystem is), so `C:\Foo`
+ * and `c:\foo` fold together; elsewhere it is case-sensitive. Blank segments
+ * are dropped. Order is preserved — never sorted — because it is load-bearing
+ * on Windows, where the shims dir must stay ahead of the system PATH.
+ *
+ * The single home for this canonicalization: both `mergeBinaryExecutionEnv`
+ * here and `shellEnv.appendCherryToolDirsToPath` run it back-to-back on the
+ * same PATH during shell capture, so they must agree byte-for-byte.
+ */
+export function dedupePathSegments(segments: string[]): string[] {
+  const seen = new Set<string>()
+  const unique: string[] = []
+  for (const segment of segments) {
+    const trimmed = segment.trim()
+    if (!trimmed) continue
+    const canonical = isWin ? path.normalize(trimmed).toLowerCase() : path.normalize(trimmed)
+    if (seen.has(canonical)) continue
+    seen.add(canonical)
+    unique.push(trimmed)
+  }
+  return unique
+}
 
 /** Root dir for all Cherry-managed binary state (mise data, shims, isolated home). */
 function binaryDataDir(): string {
@@ -93,25 +118,15 @@ export function mergeBinaryExecutionEnv(
   // ordering this function guarantees.
   const pathLikeKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
   const pathKey = pathLikeKeys[0] || (isWin ? 'Path' : 'PATH')
-  // Dedup segments (first occurrence wins) so prepending the shims dir can't
-  // double it up when the caller's PATH already carries it — callers like
-  // shellEnv append the same tool dirs upstream. Order is load-bearing on
-  // Windows, so we keep first occurrence rather than sorting.
-  const seen = new Set<string>()
-  const pathValue = [
+  // Shims dir first, then any caller prefixes, then the incoming PATH — deduped
+  // (first occurrence wins) so prepending the shims dir can't double it up when
+  // the caller's PATH already carries it (shellEnv appends the same tool dirs
+  // upstream).
+  const pathValue = dedupePathSegments([
     binaryEnv.MISE_SHIMS_DIR,
     ...extraPathPrefixes,
     ...pathLikeKeys.flatMap((key) => (env[key] || '').split(pathSeparator))
-  ]
-    .map((segment) => segment.trim())
-    .filter((segment) => {
-      if (!segment) return false
-      const canonical = isWin ? path.normalize(segment).toLowerCase() : path.normalize(segment)
-      if (seen.has(canonical)) return false
-      seen.add(canonical)
-      return true
-    })
-    .join(pathSeparator)
+  ]).join(pathSeparator)
   const merged = { ...env, ...binaryEnv }
   for (const key of pathLikeKeys) delete merged[key]
   merged[pathKey] = pathValue

@@ -1,9 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
-import chardet from 'chardet'
 import { type ChildProcess, spawn, type SpawnOptions } from 'child_process'
-import iconv from 'iconv-lite'
 import path from 'path'
 
 import { getShellEnv } from './shellEnv'
@@ -83,24 +81,6 @@ export function crossPlatformSpawn(
     return spawn(quotedCommand, args, { ...baseOptions, shell: true })
   }
   return spawn(command, args, baseOptions)
-}
-
-/**
- * Decode a Buffer from a shell process.
- * On Chinese Windows, cmd.exe outputs in the OEM code page (typically GBK/CP936).
- * Uses chardet to detect the actual encoding and iconv-lite to decode.
- */
-export function decodeBufferFromShell(buf: Buffer): string {
-  if (!isWin) return buf.toString('utf8')
-  const detected = chardet.detect(buf)
-  if (detected && detected !== 'UTF-8') {
-    try {
-      return iconv.decode(buf, detected)
-    } catch {
-      return buf.toString('utf8')
-    }
-  }
-  return buf.toString('utf8')
 }
 
 /**

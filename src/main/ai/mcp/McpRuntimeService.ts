@@ -1106,8 +1106,8 @@ export class McpRuntimeService extends BaseService {
 
   public async getInstallInfo() {
     const dir = await getBinaryPath()
-    const uvName = await getBinaryName('uv')
-    const bunName = await getBinaryName('bun')
+    const uvName = getBinaryName('uv')
+    const bunName = getBinaryName('bun')
     const uvPath = path.join(dir, uvName)
     const bunPath = path.join(dir, bunName)
     return { dir, uvPath, bunPath }

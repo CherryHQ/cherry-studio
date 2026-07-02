@@ -1,11 +1,9 @@
-import path from 'node:path'
-
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
 import { execFileSync, spawn } from 'child_process'
 
-import { getBinarySearchDirs, mergeBinaryExecutionEnv } from './binaryEnv'
+import { dedupePathSegments, getBinarySearchDirs, mergeBinaryExecutionEnv } from './binaryEnv'
 
 const logger = loggerService.withContext('ShellEnv')
 
@@ -23,32 +21,11 @@ const appendCherryToolDirsToPath = (env: Record<string, string>) => {
   const canonicalPathKey = pathKeys[0] || (isWin ? 'Path' : 'PATH')
   const existingPathValue = env[canonicalPathKey] || env.PATH || ''
 
-  const normaliseSegment = (segment: string) => {
-    const normalized = path.normalize(segment)
-    return isWin ? normalized.toLowerCase() : normalized
-  }
-
-  const uniqueSegments: string[] = []
-  const seenSegments = new Set<string>()
-  const pushIfUnique = (segment: string) => {
-    if (!segment) {
-      return
-    }
-    const canonicalSegment = normaliseSegment(segment)
-    if (!seenSegments.has(canonicalSegment)) {
-      seenSegments.add(canonicalSegment)
-      uniqueSegments.push(segment)
-    }
-  }
-
-  existingPathValue
-    .split(pathSeparator)
-    .map((segment) => segment.trim())
-    .forEach(pushIfUnique)
-
-  cherryToolDirs.forEach(pushIfUnique)
-
-  const updatedPath = uniqueSegments.join(pathSeparator)
+  // Existing segments first, tool dirs appended — dedup keeps an already-present
+  // tool dir at its original position instead of moving it to the tail.
+  const updatedPath = dedupePathSegments([...existingPathValue.split(pathSeparator), ...cherryToolDirs]).join(
+    pathSeparator
+  )
 
   if (pathKeys.length > 0) {
     pathKeys.forEach((key) => {
@@ -378,6 +355,10 @@ export async function getShellEnv(): Promise<Record<string, string>> {
  */
 export async function refreshShellEnv(): Promise<Record<string, string>> {
   if (inflight) {
+    // Reusing a capture that started before the event prompting this refresh
+    // (e.g. a tool install completing mid-flight). Acceptable because downstream
+    // lookups hit the filesystem live; logged so the reuse is observable.
+    logger.debug('refreshShellEnv reusing in-flight shell capture instead of re-spawning')
     return { ...(await inflight) }
   }
   cachedEnv = null

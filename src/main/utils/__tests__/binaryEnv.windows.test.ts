@@ -27,10 +27,17 @@ vi.mock('path')
 import { mergeBinaryExecutionEnv } from '../binaryEnv'
 
 describe('mergeBinaryExecutionEnv (Windows)', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    // Route join/normalize to the REAL win32 implementations so the dedup's
+    // canonicalization is exercised against actual Windows path semantics
+    // (backslash/forward-slash folding, `..` collapse) on a posix CI host —
+    // an identity stub would let separator variants slip through untested.
+    // vi.importActual bypasses the module-level `vi.mock('path')` (which would
+    // otherwise auto-mock win32 too, returning undefined).
     vi.clearAllMocks()
-    vi.mocked(path.join).mockImplementation((...args) => args.join('\\'))
-    vi.mocked(path.normalize).mockImplementation((p) => p)
+    const { win32 } = await vi.importActual<typeof import('path')>('path')
+    vi.mocked(path.join).mockImplementation((...args) => win32.join(...args))
+    vi.mocked(path.normalize).mockImplementation((p) => win32.normalize(p))
   })
 
   it('dedups PATH segments case-insensitively and keeps the prepended shims dir first', () => {
@@ -61,5 +68,17 @@ describe('mergeBinaryExecutionEnv (Windows)', () => {
     expect(segments[0]).toBe(shims) // shims still first
     expect(segments).toContain('C:\\Windows') // kept from the `Path` casing
     expect(segments).toContain('C:\\Other') // kept from the `PATH` casing
+  })
+
+  it('folds forward-slash and backslash spellings of the same dir via real normalize', () => {
+    // win32.normalize turns `C:/Windows` into `C:\Windows`, so the two spellings
+    // canonicalize to one entry — a case the old identity-normalize stub missed.
+    // Dedup keeps the first original spelling, so `C:/Windows` survives.
+    const shims = 'C:\\data\\binary-manager\\shims'
+    const { Path } = mergeBinaryExecutionEnv({
+      Path: 'C:/Windows;C:\\Windows'
+    })
+
+    expect(Path.split(';')).toEqual([shims, 'C:/Windows'])
   })
 })

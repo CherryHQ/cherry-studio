@@ -25,7 +25,7 @@ describe('getBinaryPath', () => {
   })
 
   it('returns the mise shim path when that binary exists, preferring it over cherry.bin', async () => {
-    const binaryName = await getBinaryName('bun')
+    const binaryName = getBinaryName('bun')
     vi.mocked(fs.existsSync).mockReturnValue(true)
 
     const result = await getBinaryPath('bun')
@@ -36,7 +36,7 @@ describe('getBinaryPath', () => {
   })
 
   it('falls back to the cherry.bin path when the binary exists only there', async () => {
-    const binaryName = await getBinaryName('bun')
+    const binaryName = getBinaryName('bun')
     vi.mocked(fs.existsSync).mockImplementation((p) => p === `${binDir}/${binaryName}`)
 
     const result = await getBinaryPath('bun')
@@ -45,7 +45,7 @@ describe('getBinaryPath', () => {
   })
 
   it('falls back to the bare name (resolved via system PATH) when the binary is absent', async () => {
-    const binaryName = await getBinaryName('bun')
+    const binaryName = getBinaryName('bun')
     vi.mocked(fs.existsSync).mockReturnValue(false)
 
     const result = await getBinaryPath('bun')

@@ -11,7 +11,7 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { isWin } from '@main/core/platform'
 import { regionService } from '@main/services/RegionService'
 import { getBinaryIsolatedHomeEnv, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
-import { getBinaryPath } from '@main/utils/binaryResolver'
+import { getBinaryName, getBinaryPath } from '@main/utils/binaryResolver'
 import type { BinaryState, ManagedBinary, ToolInstallState } from '@shared/data/preference/preferenceTypes'
 import { PRESETS_BINARY_TOOLS, TOOL_KEY_RE, validateManagedBinary } from '@shared/data/presets/binaryTools'
 import { Mutex } from 'async-mutex'
@@ -60,10 +60,10 @@ const MISE_PASSTHROUGH_ENV = [
 // True for any pin that does not pick a single concrete version — floating pins
 // like "latest" / "stable" / "lts" / "1" / "1.2" that mise accepts but that don't
 // resolve to one version we can persist and compare. semver.valid() returns null
-// for all of them. A leading-"v" form like "v1.2.3" IS concrete; it gets
-// normalized (via semverValid) wherever it's stored or compared, so it round-trips
-// against mise's bare resolved version instead of reinstalling or skipping an
-// upgrade every boot.
+// for all of them. A leading-"v" form like "v1.2.3" IS concrete; the pin is
+// compared normalized (via semverValid — see the reconcile skip check), so it
+// round-trips against mise's bare resolved version instead of reinstalling or
+// skipping an upgrade every boot.
 function isFloatingVersion(v?: string): boolean {
   return !v || semverValid(v) === null
 }
@@ -83,8 +83,6 @@ const BUNDLED_TOOLS: Array<{ name: string; binaries: string[]; versionFile: stri
   { name: 'uv', binaries: ['uv', 'uvx'], versionFile: '.uv-version' },
   { name: 'rg', binaries: ['rg'], versionFile: '.rg-version' }
 ]
-
-const withExe = (name: string): string => (isWin ? `${name}.exe` : name)
 
 // Re-exported from the shared module so existing main-process call sites and
 // tests keep importing it from here.
@@ -177,7 +175,7 @@ export class BinaryManager extends BaseService {
     const result: Record<string, string | null> = {}
     // Skip mise (internal infrastructure); probe by the first expected binary.
     for (const tool of BUNDLED_TOOLS.filter((t) => !t.internal)) {
-      if (!fs.existsSync(path.join(binDir, withExe(tool.binaries[0])))) continue
+      if (!fs.existsSync(path.join(binDir, getBinaryName(tool.binaries[0])))) continue
       result[tool.name] = this.readVersionMarker(path.join(binDir, tool.versionFile))
     }
     return result
@@ -191,7 +189,7 @@ export class BinaryManager extends BaseService {
 
     for (const tool of BUNDLED_TOOLS) {
       try {
-        const binaries = tool.binaries.map(withExe)
+        const binaries = tool.binaries.map((bin) => getBinaryName(bin))
         const versionPath = path.join(bundledDir, tool.versionFile)
         const bundledVersion = this.readVersionMarker(versionPath)
         if (!bundledVersion) {
@@ -245,7 +243,7 @@ export class BinaryManager extends BaseService {
   }
 
   private findMiseBin(): string | null {
-    const binaryName = withExe('mise')
+    const binaryName = getBinaryName('mise')
 
     const cherryBin = path.join(application.getPath('cherry.bin'), binaryName)
     if (fs.existsSync(cherryBin)) {
@@ -593,9 +591,11 @@ export class BinaryManager extends BaseService {
       registry = await this.loadRegistry()
     } catch (err) {
       // A mise too old for `registry --json` (rejects the flag) or a malformed
-      // dump must not throw out of search — degrade to no results.
+      // dump rejects here. Log and rethrow so the IPC route rejects and the
+      // renderer's search-error UI surfaces it — swallowing to [] would render a
+      // silently empty dropdown that reads as "no such tool in the registry".
       logger.warn('Failed to load mise registry', err as Error)
-      return []
+      throw err
     }
     const q = query.toLowerCase()
     return registry.filter((entry) => entry.name.toLowerCase().includes(q)).slice(0, 50)
