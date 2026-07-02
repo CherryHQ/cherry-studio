@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next'
 
 import { PlaceholderShimmerText } from '../blocks/PlaceholderShimmerText'
 import { type ToolStatus, ToolStatusIndicator, useIsStreaming } from './agent/GenericTools'
-import { colorizeShellOutput, shellColorPalettes } from './agent/TerminalOutput'
+import { colorizeShellOutput, shellColorPalettes, TERMINAL_SURFACE_CLASS } from './agent/TerminalOutput'
 import { AgentToolsType } from './agent/types'
 
 type Translate = (key: string, options?: Record<string, string>) => string
@@ -533,7 +533,7 @@ const CommandPreview = ({ fullText, text }: { fullText: string; text: string }) 
       title={fullText}
       className={[
         "hidden min-w-0 max-w-[clamp(6rem,42vw,32rem)] shrink-[2] truncate rounded px-1.5 py-0.5 font-['Menlo','Monaco','Courier_New',monospace] text-[12px] leading-4 sm:block",
-        isLightTheme ? 'bg-[#f5f5f5] text-[#1e1e1e]' : 'bg-[#1e1e1e] text-[#d4d4d4]'
+        TERMINAL_SURFACE_CLASS
       ].join(' ')}>
       <Ansi>{colorized}</Ansi>
     </code>

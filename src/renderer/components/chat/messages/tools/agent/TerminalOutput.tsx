@@ -34,6 +34,9 @@ const light = {
 
 type ColorPalette = typeof dark
 export const shellColorPalettes = { dark, light }
+export const TERMINAL_SURFACE_CLASS = 'bg-[#f5f5f5] text-[#1e1e1e] dark:bg-[#1e1e1e] dark:text-[#d4d4d4]'
+const TERMINAL_LINK_CLASS =
+  '[&_a]:text-[#0366d6]! [&_a:hover]:text-[#0550ae]! [&_[role=link]]:text-[#0366d6]! [&_[role=link]:hover]:text-[#0550ae]! dark:[&_a]:text-[#569cd6]! dark:[&_a:hover]:text-[#7cb9e8]! dark:[&_a:hover]:decoration-solid dark:[&_[role=link]]:text-[#569cd6]! dark:[&_[role=link]:hover]:text-[#7cb9e8]! dark:[&_[role=link]:hover]:decoration-solid'
 
 const ERROR_LINE_RE = /^(error|Error|ERROR|FAIL|FAILED|fatal|Fatal|FATAL)\b/
 const WARNING_LINE_RE = /^(warning|Warning|WARNING|WARN)\b/
@@ -313,21 +316,15 @@ export const TerminalOutput = memo(function TerminalOutput({
   )
 })
 
-export const TerminalContainer = ({ className, style, ...props }: ComponentPropsWithoutRef<'div'>) => {
-  const { theme } = useTheme()
-  const isLightTheme = theme === ThemeMode.light
-
-  return (
-    <div
-      className={cn(
-        "m-0 overflow-y-auto whitespace-pre-wrap break-all rounded-md px-2.5 py-2 font-['Menlo','Monaco','Courier_New',monospace] text-xs leading-normal [&_a]:underline [&_a]:decoration-dotted [&_a]:underline-offset-2 **:[[role=link]]:underline **:[[role=link]]:decoration-dotted **:[[role=link]]:underline-offset-2",
-        isLightTheme
-          ? 'bg-[#f5f5f5] text-[#1e1e1e] [&_[role=link]:hover]:text-[#0550ae]! [&_[role=link]]:text-[#0366d6]! [&_a:hover]:text-[#0550ae]! [&_a]:text-[#0366d6]! **:[[role=link]]:text-[#0366d6]!'
-          : 'bg-[#1e1e1e] text-[#d4d4d4] [&_[role=link]:hover]:text-[#7cb9e8]! [&_[role=link]:hover]:decoration-solid [&_a:hover]:text-[#7cb9e8]! [&_a:hover]:decoration-solid [&_a]:text-[#569cd6]! **:[[role=link]]:text-[#569cd6]!',
-        className
-      )}
-      style={{ maxHeight: '15rem', ...style }}
-      {...props}
-    />
-  )
-}
+export const TerminalContainer = ({ className, style, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn(
+      "m-0 overflow-y-auto whitespace-pre-wrap break-all rounded-md px-2.5 py-2 font-['Menlo','Monaco','Courier_New',monospace] text-xs leading-normal [&_a]:underline [&_a]:decoration-dotted [&_a]:underline-offset-2 **:[[role=link]]:underline **:[[role=link]]:decoration-dotted **:[[role=link]]:underline-offset-2",
+      TERMINAL_SURFACE_CLASS,
+      TERMINAL_LINK_CLASS,
+      className
+    )}
+    style={{ maxHeight: '15rem', ...style }}
+    {...props}
+  />
+)

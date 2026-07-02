@@ -4,6 +4,7 @@ import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { McpToolResponse } from '@renderer/types/mcpTool'
+import { ShieldCheck } from 'lucide-react'
 import { parse as parsePartialJson } from 'partial-json'
 import type { ComponentPropsWithoutRef, FC } from 'react'
 import { memo, useEffect, useMemo, useState } from 'react'
@@ -118,6 +119,15 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
                 <CircularProgress value={Number((progress * 100)?.toFixed(0))} size={13} strokeWidth={2} />
               ) : (
                 <ToolStatusIndicator status={getEffectiveStatus(status, willAwaitApproval)} hasError={hasError} />
+              )}
+              {autoApproved && (
+                <Tooltip content={t('message.tools.autoApproveEnabled')}>
+                  <span
+                    aria-label={t('message.tools.autoApproveEnabled')}
+                    className="flex h-5 items-center text-success">
+                    <ShieldCheck aria-hidden="true" size={13} strokeWidth={1.8} />
+                  </span>
+                </Tooltip>
               )}
               {(isDone || isError) && copyText && (
                 <Tooltip content={t('common.copy')} delay={500}>

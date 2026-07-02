@@ -190,7 +190,7 @@ describe('ToolHeader', () => {
     expect(commandPreview.querySelector('span')).toHaveTextContent('pnpm')
   })
 
-  it('uses light command preview colors in light theme', () => {
+  it('uses CSS theme variants for command preview colors', () => {
     render(
       React.createElement(ToolHeader, {
         args: { command: 'gh pr view 16600 --json title' },
@@ -203,11 +203,11 @@ describe('ToolHeader', () => {
     const commandPreview = screen.getByTestId('tool-command-preview')
     expect(commandPreview.className).toContain('bg-[#f5f5f5]')
     expect(commandPreview.className).toContain('text-[#1e1e1e]')
-    expect(commandPreview.className).not.toContain('bg-[#1e1e1e]')
-    expect(commandPreview.className).not.toContain('text-[#d4d4d4]')
+    expect(commandPreview.className).toContain('dark:bg-[#1e1e1e]')
+    expect(commandPreview.className).toContain('dark:text-[#d4d4d4]')
   })
 
-  it('uses dark command preview colors in dark theme', () => {
+  it('keeps shell highlighting when command preview uses the dark palette', () => {
     mockThemeState.theme = 'dark'
 
     render(
@@ -220,10 +220,7 @@ describe('ToolHeader', () => {
     )
 
     const commandPreview = screen.getByTestId('tool-command-preview')
-    expect(commandPreview.className).toContain('bg-[#1e1e1e]')
-    expect(commandPreview.className).toContain('text-[#d4d4d4]')
-    expect(commandPreview.className).not.toContain('bg-[#f5f5f5]')
-    expect(commandPreview.className).not.toContain('text-[#1e1e1e]')
+    expect(commandPreview.querySelector('span')).toBeInTheDocument()
   })
 
   it('truncates long bash command information in tool call labels', () => {

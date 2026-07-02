@@ -61,7 +61,6 @@ const BOTTOM_COLLAPSE_TOOL_COUNT_THRESHOLD = 10
 const TOOL_HISTORY_PREVIEW_ENTRY_LIMIT = 10
 const TOOL_HISTORY_REASONING_DISPLAY_LIMIT = 3
 const TRAILING_RESULT_RELEASE_DELAY_MS = 2000
-const TERMINAL_TOOL_STATES = new Set(['output-available', 'output-error', 'output-denied'])
 
 // ============================================================================
 // Animation shared by message block renderers.
@@ -292,14 +291,6 @@ function isReasoningMessagePart(part: CherryMessagePart): boolean {
 function isFoldableToolPart(part: CherryMessagePart): boolean {
   if (!isToolUIPart(part)) return false
   return !isAskUserQuestionToolName((part as { toolName?: string }).toolName)
-}
-
-function hasUnfinishedToolCall(entries: readonly PartEntry[]): boolean {
-  return entries.some(({ part }) => {
-    if (!isFoldableToolPart(part)) return false
-    const state = (part as { state?: string }).state
-    return !state || !TERMINAL_TOOL_STATES.has(state)
-  })
 }
 
 function isTrailingHoldPart(part: CherryMessagePart): boolean {
@@ -723,14 +714,8 @@ function getToolHistoryGroup(
     collapsedEnd = index
   }
 
-  const hasUnfinishedTools = hasUnfinishedToolCall(entries.slice(0, collapsedEnd + 1))
   if (shouldHoldTrailingResult) {
     collapsedEnd = entries.length - 1
-  } else if (hasUnfinishedTools) {
-    for (let index = lastToolIndex + 1; index < entries.length; index++) {
-      if (!isProcessPart(entries[index].part)) break
-      collapsedEnd = index
-    }
   }
 
   const collapsedEntries = entries.slice(0, collapsedEnd + 1)
