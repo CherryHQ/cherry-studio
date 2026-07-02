@@ -75,10 +75,9 @@ vi.mock('../providerDefinitions', () => ({
   }
 }))
 
-import { OAuthHttpError } from '@main/utils/oauth/PkceOAuthClient'
-
 import { OAuthTransientError } from '../../errors'
 import { OAuthRuntimeService } from '../OAuthRuntimeService'
+import { OAuthHttpError } from '../PkceOAuthClient'
 
 function seedOAuth(id: string, authConfig: Record<string, unknown>): void {
   h.providerStore.set(id, { authConfig: { type: 'oauth', clientId: 'x', ...authConfig } })

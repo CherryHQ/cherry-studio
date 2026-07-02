@@ -1,7 +1,6 @@
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { OAuthHttpError } from '@main/utils/oauth/PkceOAuthClient'
 import type { WindowId } from '@shared/ipc/types'
 import { shell } from 'electron'
 
@@ -9,6 +8,7 @@ import { describeOAuthError, OAuthServiceError, OAuthTransientError } from '../e
 import { DeepLinkCallbackTransport } from './DeepLinkCallbackTransport'
 import { LoopbackCallbackTransport } from './LoopbackCallbackTransport'
 import { ProviderAuthConfigOAuthTokenStore } from './OAuthTokenStore'
+import { OAuthHttpError } from './PkceOAuthClient'
 import { oauthProviderDefinitions } from './providerDefinitions'
 import type {
   OAuthAccount,

@@ -1,6 +1,6 @@
-import { PkceOAuthClient } from '@main/utils/oauth/PkceOAuthClient'
 import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
 
+import { PkceOAuthClient } from '../PkceOAuthClient'
 import type { OAuthRuntimeProviderDefinition } from '../types'
 
 const CODEX_CONFIG = {

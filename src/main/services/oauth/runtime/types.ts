@@ -1,4 +1,4 @@
-import type { PkceOAuthClient } from '@main/utils/oauth/PkceOAuthClient'
+import type { PkceOAuthClient } from './PkceOAuthClient'
 
 export interface OAuthAccount {
   /** Provider account id associated with the OAuth session, when available. */

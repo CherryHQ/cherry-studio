@@ -1,9 +1,9 @@
-import { PkceOAuthClient } from '@main/utils/oauth/PkceOAuthClient'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { net } from 'electron'
 
 import { ApiKeysResponseSchema, CHERRYIN_CONFIG, validateCherryInApiHost } from '../../CherryInOAuthConfig'
 import { OAuthServiceError } from '../../errors'
+import { PkceOAuthClient } from '../PkceOAuthClient'
 import type { OAuthRuntimeProviderContext, OAuthRuntimeProviderDefinition } from '../types'
 
 function resolveCherryInContext(context?: OAuthRuntimeProviderContext): { oauthServer: string; apiHost: string } {

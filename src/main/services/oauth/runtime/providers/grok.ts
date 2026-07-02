@@ -1,11 +1,11 @@
 import { randomBytes } from 'node:crypto'
 
-import { PkceOAuthClient } from '@main/utils/oauth/PkceOAuthClient'
 import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
 import { net } from 'electron'
 import * as z from 'zod'
 
 import { OAuthServiceError } from '../../errors'
+import { PkceOAuthClient } from '../PkceOAuthClient'
 import type { OAuthRuntimeProviderDefinition } from '../types'
 
 const GROK_CONFIG = {
