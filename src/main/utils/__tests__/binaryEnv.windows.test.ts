@@ -1,3 +1,4 @@
+import type * as NodePath from 'path'
 import path from 'path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -35,7 +36,7 @@ describe('mergeBinaryExecutionEnv (Windows)', () => {
     // vi.importActual bypasses the module-level `vi.mock('path')` (which would
     // otherwise auto-mock win32 too, returning undefined).
     vi.clearAllMocks()
-    const { win32 } = await vi.importActual<typeof import('path')>('path')
+    const { win32 } = await vi.importActual<typeof NodePath>('path')
     vi.mocked(path.join).mockImplementation((...args) => win32.join(...args))
     vi.mocked(path.normalize).mockImplementation((p) => win32.normalize(p))
   })
