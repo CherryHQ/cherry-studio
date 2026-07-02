@@ -821,6 +821,6 @@ export const DB_FTS_VIRTUAL_TABLES = {
 
 // 5. Generation metadata for diagnostics. Excluded from byte-for-byte CHECK.
 export const BACKUP_REFS_META = {
-  generatedAt: '2026-06-30T17:18:29.115Z',
-  schemaCommit: '366ff3ea10'
+  generatedAt: '2026-07-02T05:36:48.510Z',
+  schemaCommit: '6b44477c15'
 } as const
