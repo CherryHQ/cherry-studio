@@ -137,7 +137,7 @@ export class CodeCliService extends BaseService {
       case CodeCli.QWEN_CODE:
         return { name: 'qwen', tool: 'npm:@qwen-code/qwen-code' }
       case CodeCli.KIMI_CODE:
-        return { name: 'kimi', tool: 'npm:kimi-code' }
+        return { name: 'kimi', tool: 'npm:@moonshot-ai/kimi-code' }
       case CodeCli.QODER_CLI:
         return { name: 'qoderclicn', tool: 'npm:@qodercn-ai/qoderclicn' }
       case CodeCli.GITHUB_COPILOT_CLI:

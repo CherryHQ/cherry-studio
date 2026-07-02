@@ -18,7 +18,10 @@ import { useTranslation } from 'react-i18next'
 
 import { ClaudeConfigFields } from './tools/ClaudeConfigFields'
 import { CodexConfigFields } from './tools/CodexConfigFields'
+import { GeminiConfigFields } from './tools/GeminiConfigFields'
+import { KimiConfigFields } from './tools/KimiConfigFields'
 import { OpenCodeConfigFields } from './tools/OpenCodeConfigFields'
+import { QwenConfigFields } from './tools/QwenConfigFields'
 
 export interface ConfigEditPanelProps {
   open: boolean
@@ -78,7 +81,7 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
   const endpointRow: ReactNode = (
     <div className="flex items-center gap-2 rounded-lg border border-border/40 bg-accent/15 px-3 py-2">
       <span className="h-2 w-2 shrink-0 rounded-full bg-success" />
-      <span className="shrink-0 text-xs font-medium text-foreground">{getProviderDisplayName(provider)}</span>
+      <span className="shrink-0 font-medium text-foreground text-xs">{getProviderDisplayName(provider)}</span>
       <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground/45">
         {endpointUrl || t('code.endpoint_default')}
       </span>
@@ -120,6 +123,12 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
         return <CodexConfigFields config={config} onChange={setConfig} />
       case CodeCli.OPEN_CODE:
         return <OpenCodeConfigFields config={config} onChange={setConfig} />
+      case CodeCli.GEMINI_CLI:
+        return <GeminiConfigFields config={config} onChange={setConfig} />
+      case CodeCli.QWEN_CODE:
+        return <QwenConfigFields config={config} onChange={setConfig} />
+      case CodeCli.KIMI_CODE:
+        return <KimiConfigFields config={config} onChange={setConfig} />
       default:
         return null
     }

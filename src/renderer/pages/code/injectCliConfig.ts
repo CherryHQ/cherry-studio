@@ -1,6 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
-import type { Model } from '@shared/data/types/model'
+import type { EndpointType, Model } from '@shared/data/types/model'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
@@ -175,20 +175,44 @@ function firstApiKey(keys: ApiKeyEntry[] | undefined): string {
 interface OpenCodeNpmInfo {
   npm: string
   providerType: 'anthropic' | 'google' | 'openai' | 'openai-compatible'
+  endpointType: EndpointType
 }
 
-function resolveOpenCodeNpmInfo(provider: Provider): OpenCodeNpmInfo {
-  if (provider.endpointConfigs?.['google-generate-content']?.baseUrl) {
-    return { npm: '@ai-sdk/google', providerType: 'google' }
+const OPEN_CODE_ENDPOINTS: readonly EndpointType[] = [
+  'google-generate-content',
+  'anthropic-messages',
+  'openai-responses',
+  'openai-chat-completions'
+]
+
+function toOpenCodeNpmInfo(endpointType: EndpointType): OpenCodeNpmInfo {
+  switch (endpointType) {
+    case 'google-generate-content':
+      return { npm: '@ai-sdk/google', providerType: 'google', endpointType }
+    case 'anthropic-messages':
+      return { npm: '@ai-sdk/anthropic', providerType: 'anthropic', endpointType }
+    case 'openai-responses':
+      return { npm: '@ai-sdk/openai', providerType: 'openai', endpointType }
+    default:
+      return { npm: '@ai-sdk/openai-compatible', providerType: 'openai-compatible', endpointType }
   }
-  if (provider.endpointConfigs?.['anthropic-messages']?.baseUrl) {
-    return { npm: '@ai-sdk/anthropic', providerType: 'anthropic' }
-  }
-  if (provider.endpointConfigs?.['openai-responses']?.baseUrl) {
-    return { npm: '@ai-sdk/openai', providerType: 'openai' }
-  }
-  // openai-chat-completions or any unrecognised → openai-compatible
-  return { npm: '@ai-sdk/openai-compatible', providerType: 'openai-compatible' }
+}
+
+/** Determine the OpenCode AI SDK package and the matching endpoint to read. */
+function resolveOpenCodeNpmInfo(provider: Provider, modelEndpointTypes?: EndpointType[]): OpenCodeNpmInfo {
+  const hasEndpoint = (type: EndpointType) => Boolean(provider.endpointConfigs?.[type]?.baseUrl)
+  const isSupported = (type: EndpointType | undefined): type is EndpointType =>
+    Boolean(type && OPEN_CODE_ENDPOINTS.includes(type))
+
+  const endpointType =
+    modelEndpointTypes?.find((type) => isSupported(type) && hasEndpoint(type)) ??
+    (isSupported(provider.defaultChatEndpoint) && hasEndpoint(provider.defaultChatEndpoint)
+      ? provider.defaultChatEndpoint
+      : undefined) ??
+    OPEN_CODE_ENDPOINTS.find(hasEndpoint) ??
+    'openai-chat-completions'
+
+  return toOpenCodeNpmInfo(endpointType)
 }
 
 /** Whether a model advertises reasoning-effort support (shapes opencode's
@@ -451,6 +475,84 @@ async function writeOpenCode(
 /** Gemini env keys Cherry manages inside ~/.gemini/.env (cleared on switch). */
 const GEMINI_MANAGED_ENV_KEYS = ['GEMINI_API_KEY', 'GOOGLE_GEMINI_BASE_URL'] as const
 
+const GEMINI_MANAGED_SETTINGS_KEYS = {
+  general: ['vimMode', 'preferredEditor', 'defaultApprovalMode', 'checkpointing'] as const,
+  ui: ['hideBanner'] as const,
+  privacy: ['usageStatisticsEnabled'] as const,
+  model: ['maxSessionTurns', 'compressionThreshold'] as const,
+  context: ['fileName', 'includeDirectories'] as const,
+  tools: ['exclude'] as const,
+  advanced: ['excludedEnvVars'] as const
+} as const
+
+const QWEN_MANAGED_SETTINGS_KEYS = {
+  general: ['vimMode', 'preferredEditor', 'enableAutoUpdate', 'outputLanguage', 'cleanupPeriodDays'] as const,
+  ui: ['hideBanner'] as const,
+  privacy: ['usageStatisticsEnabled'] as const,
+  tools: ['approvalMode'] as const,
+  context: ['fileName'] as const,
+  permissions: ['autoMode'] as const
+} as const
+
+const KIMI_MANAGED_TOP_LEVEL_KEYS = [
+  'default_permission_mode',
+  'default_plan_mode',
+  'merge_all_available_skills',
+  'telemetry'
+] as const
+
+const KIMI_MANAGED_SECTION_KEYS = {
+  thinking: ['enabled', 'effort'] as const,
+  loop_control: ['max_steps_per_turn', 'max_retries_per_step', 'reserved_context_size'] as const,
+  background: ['max_running_tasks', 'keep_alive_on_exit'] as const,
+  experimental: ['micro_compaction'] as const
+} as const
+
+type ManagedSettingsKeys = Record<string, readonly string[]>
+
+function asRecord(value: unknown): Record<string, any> {
+  return value && typeof value === 'object' ? (value as Record<string, any>) : {}
+}
+
+function applyManagedJsonSettings(
+  target: Record<string, any>,
+  source: Record<string, any>,
+  managedKeys: ManagedSettingsKeys
+): void {
+  for (const [section, keys] of Object.entries(managedKeys)) {
+    const nextSection = { ...asRecord(target[section]) }
+    for (const key of keys) delete nextSection[key]
+
+    const sourceSection = asRecord(source[section])
+    for (const key of keys) {
+      if (sourceSection[key] !== undefined) nextSection[key] = sourceSection[key]
+    }
+
+    if (Object.keys(nextSection).length > 0) target[section] = nextSection
+    else delete target[section]
+  }
+}
+
+function applyManagedTomlSettings(target: Record<string, any>, source: Record<string, any>): void {
+  for (const key of KIMI_MANAGED_TOP_LEVEL_KEYS) {
+    delete target[key]
+    if (source[key] !== undefined) target[key] = source[key]
+  }
+
+  for (const [section, keys] of Object.entries(KIMI_MANAGED_SECTION_KEYS)) {
+    const nextSection = { ...asRecord(target[section]) }
+    for (const key of keys) delete nextSection[key]
+
+    const sourceSection = asRecord(source[section])
+    for (const key of keys) {
+      if (sourceSection[key] !== undefined) nextSection[key] = sourceSection[key]
+    }
+
+    if (Object.keys(nextSection).length > 0) target[section] = nextSection
+    else delete target[section]
+  }
+}
+
 /** Parse a dotenv file into an ordered key→value map, preserving entry order. */
 function parseDotenv(content: string): Map<string, string> {
   const out = new Map<string, string>()
@@ -473,7 +575,8 @@ function parseDotenv(content: string): Map<string, string> {
 async function writeGemini(
   envMap: Map<string, string>,
   settings: Record<string, any>,
-  resolved: { apiKey: string; baseUrl: string; model: string }
+  resolved: { apiKey: string; baseUrl: string; model: string },
+  configBlob: Record<string, any>
 ): Promise<void> {
   const envAbsPath = await resolveAbs(GEMINI_ENV_PATH)
   for (const key of GEMINI_MANAGED_ENV_KEYS) envMap.delete(key)
@@ -483,6 +586,7 @@ async function writeGemini(
   await window.api.file.write(envAbsPath, envBody)
 
   const settingsAbsPath = await resolveAbs(GEMINI_SETTINGS_PATH)
+  applyManagedJsonSettings(settings, configBlob, GEMINI_MANAGED_SETTINGS_KEYS)
   settings.model = {
     ...(settings.model && typeof settings.model === 'object' ? settings.model : {}),
     name: resolved.model
@@ -496,25 +600,20 @@ const CHERRY_PREFIX = 'cherry-'
 
 /** Apply qwen-code config to ~/.qwen/settings.json (merged).
  *
- * Qwen Code keys models under a protocol bucket (`modelProviders.openai`),
- * not a provider name. Cherry marks its entries with a `CHERRY_*` envKey so a
- * config switch strips the previous config without touching user models. */
+ * Qwen Code v0.19+ expects `modelProviders.<protocol>` to be a flat array of
+ * model objects. Cherry marks its entry with a `CHERRY_*` envKey so a config
+ * switch strips the previous config without touching user models. */
 async function writeQwen(
   existing: Record<string, any>,
-  resolved: { apiKey: string; baseUrl: string; model: string; modelLabel: string }
+  resolved: { apiKey: string; baseUrl: string; model: string; modelLabel: string },
+  configBlob: Record<string, any>
 ): Promise<void> {
   const envKey = 'CHERRY_QWEN_API_KEY'
-  const openaiBucket: Record<string, any> =
-    existing.modelProviders?.openai && typeof existing.modelProviders.openai === 'object'
-      ? { ...(existing.modelProviders.openai as Record<string, any>) }
-      : { protocol: 'openai' }
-  if (!openaiBucket.protocol) openaiBucket.protocol = 'openai'
-  const existingModels = Array.isArray(openaiBucket.models) ? [...openaiBucket.models] : []
+  const existingModels = Array.isArray(existing.modelProviders?.openai) ? [...existing.modelProviders.openai] : []
   const userModels = existingModels.filter(
     (m) => !(m && typeof m === 'object' && typeof m.envKey === 'string' && m.envKey.startsWith('CHERRY_'))
   )
   userModels.push({ id: resolved.model, name: resolved.modelLabel, baseUrl: resolved.baseUrl, envKey })
-  openaiBucket.models = userModels
 
   const existingEnv =
     existing.env && typeof existing.env === 'object' ? { ...(existing.env as Record<string, any>) } : {}
@@ -525,7 +624,7 @@ async function writeQwen(
 
   const merged = {
     ...existing,
-    modelProviders: { ...existing.modelProviders, openai: openaiBucket },
+    modelProviders: { ...existing.modelProviders, openai: userModels },
     env: existingEnv,
     security: {
       ...existing.security,
@@ -533,6 +632,7 @@ async function writeQwen(
     },
     model: { name: resolved.model }
   }
+  applyManagedJsonSettings(merged, configBlob, QWEN_MANAGED_SETTINGS_KEYS)
 
   const absPath = await resolveAbs(QWEN_CONFIG_PATH)
   await window.api.file.write(absPath, `${JSON.stringify(merged, null, 2)}\n`)
@@ -542,10 +642,15 @@ async function writeQwen(
 /** Apply kimi-code config to ~/.kimi-code/config.toml (merged).
  *
  * Cherry owns one provider+model pair under `cherry-<provider>` tables; a
- * switch strips any prior `cherry-*` providers/models before writing. */
+ * switch strips any prior `cherry-*` providers/models before writing.
+ *
+ * Kimi Code v0.22+ requires `max_context_size` on every `[models.<name>]`
+ * entry (positive integer). When Cherry Studio doesn't have the context
+ * window in its model catalog we fall back to 128000. */
 async function writeKimi(
   existing: Record<string, any>,
-  resolved: { apiKey: string; baseUrl: string; model: string; modelKey: string }
+  resolved: { apiKey: string; baseUrl: string; model: string; modelKey: string; maxContextSize: number },
+  configBlob: Record<string, any>
 ): Promise<void> {
   const providerTable =
     existing.providers && typeof existing.providers === 'object'
@@ -561,9 +666,14 @@ async function writeKimi(
   for (const k of Object.keys(modelsTable)) {
     if (k.startsWith(CHERRY_PREFIX)) delete modelsTable[k]
   }
-  modelsTable[resolved.modelKey] = { provider: resolved.modelKey, model: resolved.model }
+  modelsTable[resolved.modelKey] = {
+    provider: resolved.modelKey,
+    model: resolved.model,
+    max_context_size: resolved.maxContextSize
+  }
 
   const merged = { ...existing, default_model: resolved.modelKey, providers: providerTable, models: modelsTable }
+  applyManagedTomlSettings(merged, configBlob)
 
   const absPath = await resolveAbs(KIMI_CONFIG_PATH)
   await window.api.file.write(absPath, stringifyToml(merged))
@@ -655,18 +765,8 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<unknow
       return
     }
     case CodeCli.OPEN_CODE: {
-      const npmInfo = resolveOpenCodeNpmInfo(provider)
-      // Pick the primary endpoint to source the baseUrl from, in priority order
-      // matching resolveOpenCodeNpmInfo: google → anthropic → responses → chat.
-      const endpointType =
-        npmInfo.providerType === 'google'
-          ? 'google-generate-content'
-          : npmInfo.providerType === 'anthropic'
-            ? 'anthropic-messages'
-            : npmInfo.providerType === 'openai'
-              ? 'openai-responses'
-              : (provider.defaultChatEndpoint ?? 'openai-chat-completions')
-      const rawUrl = provider.endpointConfigs?.[endpointType]?.baseUrl ?? ''
+      const npmInfo = resolveOpenCodeNpmInfo(provider, modelRecord?.endpointTypes)
+      const rawUrl = provider.endpointConfigs?.[npmInfo.endpointType]?.baseUrl ?? ''
       const baseUrl = formatApiHost(rawUrl)
       if (!apiKey || !baseUrl) {
         throw new Error('OpenCode config is missing required fields (apiKey/baseUrl)')
@@ -696,11 +796,10 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<unknow
       if (!apiKey) {
         throw new Error('Gemini CLI config is missing the API key')
       }
-      const envAbsPath = await resolveAbs(GEMINI_ENV_PATH)
-      const settingsAbsPath = await resolveAbs(GEMINI_SETTINGS_PATH)
-      const envMap = parseDotenv(await readExternal(envAbsPath))
-      const settings = await readValidatedJson(settingsAbsPath, 'Gemini CLI settings')
-      await writeGemini(envMap, settings, { apiKey, baseUrl, model })
+      const envMap = parseDotenv(await readExternal(await resolveAbs(GEMINI_ENV_PATH)))
+      const settings = await readValidatedJson(await resolveAbs(GEMINI_SETTINGS_PATH), 'Gemini CLI settings')
+      const blob = configBlob && typeof configBlob === 'object' ? (configBlob as Record<string, any>) : {}
+      await writeGemini(envMap, settings, { apiKey, baseUrl, model }, blob)
       return
     }
     case CodeCli.QWEN_CODE: {
@@ -714,7 +813,8 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<unknow
       const absPath = await resolveAbs(QWEN_CONFIG_PATH)
       const existing = await readValidatedJson(absPath, 'Qwen Code config')
       const modelLabel = modelRecord?.name ?? model
-      await writeQwen(existing, { apiKey, baseUrl, model, modelLabel })
+      const blob = configBlob && typeof configBlob === 'object' ? (configBlob as Record<string, any>) : {}
+      await writeQwen(existing, { apiKey, baseUrl, model, modelLabel }, blob)
       return
     }
     case CodeCli.KIMI_CODE: {
@@ -729,7 +829,9 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<unknow
       const existing = await readValidatedToml(absPath, 'Kimi Code config')
       const providerName = sanitizeProviderName(provider.name, provider.id)
       const modelKey = `${CHERRY_PREFIX}${providerName}`
-      await writeKimi(existing, { apiKey, baseUrl, model, modelKey })
+      const maxContextSize = modelRecord?.contextWindow ?? 128000
+      const blob = configBlob && typeof configBlob === 'object' ? (configBlob as Record<string, any>) : {}
+      await writeKimi(existing, { apiKey, baseUrl, model, modelKey, maxContextSize }, blob)
       return
     }
     default:
@@ -821,6 +923,7 @@ export async function clearCliConfig(args: ClearCliConfigArgs): Promise<void> {
       await window.api.file.write(envAbsPath, `${[...envMap.entries()].map(([k, v]) => `${k}=${v}`).join('\n')}\n`)
       const settingsAbsPath = await resolveAbs(GEMINI_SETTINGS_PATH)
       const settings = await readValidatedJson(settingsAbsPath, 'Gemini CLI settings')
+      applyManagedJsonSettings(settings, {}, GEMINI_MANAGED_SETTINGS_KEYS)
       if (settings.model && typeof settings.model === 'object') {
         delete settings.model.name
         if (Object.keys(settings.model as Record<string, any>).length === 0) delete settings.model
@@ -839,15 +942,13 @@ export async function clearCliConfig(args: ClearCliConfigArgs): Promise<void> {
         }
         next.env = env
       }
-      if (next.modelProviders?.openai && typeof next.modelProviders.openai === 'object') {
-        const bucket: Record<string, any> = { ...(next.modelProviders.openai as Record<string, any>) }
-        if (Array.isArray(bucket.models)) {
-          bucket.models = bucket.models.filter(
-            (m: any) => !(m && typeof m === 'object' && typeof m.envKey === 'string' && m.envKey.startsWith('CHERRY_'))
-          )
-        }
-        next.modelProviders = { ...(next.modelProviders as Record<string, any>), openai: bucket }
+      if (Array.isArray(next.modelProviders?.openai)) {
+        const filtered = next.modelProviders.openai.filter(
+          (m: any) => !(m && typeof m === 'object' && typeof m.envKey === 'string' && m.envKey.startsWith('CHERRY_'))
+        )
+        next.modelProviders = { ...next.modelProviders, openai: filtered }
       }
+      applyManagedJsonSettings(next, {}, QWEN_MANAGED_SETTINGS_KEYS)
       delete next.model
       await window.api.file.write(absPath, `${JSON.stringify(next, null, 2)}\n`)
       return
@@ -865,6 +966,7 @@ export async function clearCliConfig(args: ClearCliConfigArgs): Promise<void> {
           next[table] = cleaned
         }
       }
+      applyManagedTomlSettings(next, {})
       delete next.default_model
       await window.api.file.write(absPath, stringifyToml(next))
       return

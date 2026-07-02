@@ -72,7 +72,7 @@ export const CLI_TOOL_PRESETS: CliToolPreset[] = [
     descriptionKey: 'code.tool_description.kimi_cli',
     repoUrl: 'https://github.com/MoonshotAI/kimi-code',
     homepage: 'https://github.com/MoonshotAI/kimi-code#readme',
-    miseTool: 'npm:kimi-code'
+    miseTool: 'npm:@moonshot-ai/kimi-code'
   },
   {
     id: CodeCli.QODER_CLI,

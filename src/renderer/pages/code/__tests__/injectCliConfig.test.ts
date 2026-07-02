@@ -34,6 +34,15 @@ const openaiCompatProvider = {
   defaultChatEndpoint: 'openai-chat-completions'
 } as unknown as Provider
 
+const geminiProvider = {
+  id: 'gemini',
+  name: 'Gemini',
+  endpointConfigs: {
+    'google-generate-content': { baseUrl: 'https://generativelanguage.googleapis.com' }
+  },
+  defaultChatEndpoint: 'google-generate-content'
+} as unknown as Provider
+
 /** Responses-capable provider — the only kind Codex can target (its binary
  * rejects `wire_api = "chat"`). */
 const codexProvider = {
@@ -450,6 +459,156 @@ describe('injectCliConfig', () => {
 
       const parsed = JSON.parse(opencodeWrite().content)
       expect(parsed.provider['cherry-DeepSeek'].options.baseURL).toBe('https://api.deepseek.com/v1')
+    })
+
+    it('uses the model endpoint type and matching baseURL for mixed providers', async () => {
+      const mixedProvider = {
+        id: 'mixed',
+        name: 'Mixed',
+        endpointConfigs: {
+          'anthropic-messages': { baseUrl: 'https://anthropic.example.com' },
+          'openai-chat-completions': { baseUrl: 'https://chat.example.com/v1' }
+        },
+        defaultChatEndpoint: 'anthropic-messages'
+      } as unknown as Provider
+
+      mockGet({
+        '/providers/mixed': () => mixedProvider,
+        '/providers/mixed/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => ({ id: 'gpt-compatible', endpointTypes: ['openai-chat-completions'] })
+      })
+
+      await injectCliConfig({ cliTool: CodeCli.OPEN_CODE, modelId: 'mixed::gpt-compatible' })
+
+      const provider = JSON.parse(opencodeWrite().content).provider['cherry-Mixed']
+      expect(provider.npm).toBe('@ai-sdk/openai-compatible')
+      expect(provider.options.baseURL).toBe('https://chat.example.com/v1')
+    })
+  })
+
+  describe('gemini-cli (~/.gemini/.env + settings.json)', () => {
+    const findWrite = (suffix: string) => writes.find((w) => w.path.endsWith(suffix))!
+
+    it('applies advanced settings from the config blob', async () => {
+      mockGet({
+        '/providers/gemini': () => geminiProvider,
+        '/providers/gemini/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await injectCliConfig({
+        cliTool: CodeCli.GEMINI_CLI,
+        modelId: 'gemini::gemini-2.5-pro',
+        configBlob: {
+          general: { vimMode: true, defaultApprovalMode: 'auto_edit' },
+          ui: { hideBanner: true },
+          privacy: { usageStatisticsEnabled: false },
+          model: { maxSessionTurns: 10 },
+          context: { fileName: ['GEMINI.md', 'AGENTS.md'], includeDirectories: ['../shared'] },
+          tools: { exclude: ['write_file'] },
+          advanced: { excludedEnvVars: ['DEBUG'] }
+        }
+      })
+
+      expect(findWrite('.env').content).toContain('GEMINI_API_KEY=sk-secret')
+      const settings = JSON.parse(findWrite('settings.json').content)
+      expect(settings.general).toMatchObject({ vimMode: true, defaultApprovalMode: 'auto_edit' })
+      expect(settings.ui.hideBanner).toBe(true)
+      expect(settings.privacy.usageStatisticsEnabled).toBe(false)
+      expect(settings.model).toMatchObject({ name: 'gemini-2.5-pro', maxSessionTurns: 10 })
+      expect(settings.context).toEqual({ fileName: ['GEMINI.md', 'AGENTS.md'], includeDirectories: ['../shared'] })
+      expect(settings.tools.exclude).toEqual(['write_file'])
+      expect(settings.advanced.excludedEnvVars).toEqual(['DEBUG'])
+    })
+  })
+
+  describe('qwen-code (~/.qwen/settings.json)', () => {
+    it('applies advanced settings from the config blob', async () => {
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => ({ id: 'deepseek-chat', name: 'DeepSeek Chat' })
+      })
+
+      await injectCliConfig({
+        cliTool: CodeCli.QWEN_CODE,
+        modelId: 'deepseek::deepseek-chat',
+        configBlob: {
+          general: { vimMode: true, enableAutoUpdate: false, outputLanguage: 'zh-CN', cleanupPeriodDays: 7 },
+          ui: { hideBanner: true },
+          privacy: { usageStatisticsEnabled: false },
+          tools: { approvalMode: 'auto' },
+          context: { fileName: ['QWEN.md', 'AGENTS.md'] },
+          permissions: {
+            autoMode: {
+              classifyAllShell: true,
+              hints: { allow: ['Run local tests'], softDeny: ['Touch production DB'] }
+            }
+          }
+        }
+      })
+
+      const parsed = JSON.parse(written!.content)
+      expect(parsed.general).toMatchObject({
+        vimMode: true,
+        enableAutoUpdate: false,
+        outputLanguage: 'zh-CN',
+        cleanupPeriodDays: 7
+      })
+      expect(parsed.ui.hideBanner).toBe(true)
+      expect(parsed.privacy.usageStatisticsEnabled).toBe(false)
+      expect(parsed.tools.approvalMode).toBe('auto')
+      expect(parsed.context.fileName).toEqual(['QWEN.md', 'AGENTS.md'])
+      expect(parsed.permissions.autoMode).toEqual({
+        classifyAllShell: true,
+        hints: { allow: ['Run local tests'], softDeny: ['Touch production DB'] }
+      })
+      expect(parsed.modelProviders.openai[0]).toMatchObject({
+        id: 'deepseek-chat',
+        name: 'DeepSeek Chat',
+        baseUrl: 'https://api.deepseek.com/v1',
+        envKey: 'CHERRY_QWEN_API_KEY'
+      })
+    })
+  })
+
+  describe('kimi-code (~/.kimi-code/config.toml)', () => {
+    it('applies advanced settings from the config blob', async () => {
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => ({ id: 'deepseek-chat', contextWindow: 65536 })
+      })
+
+      await injectCliConfig({
+        cliTool: CodeCli.KIMI_CODE,
+        modelId: 'deepseek::deepseek-chat',
+        configBlob: {
+          default_permission_mode: 'auto',
+          default_plan_mode: true,
+          telemetry: false,
+          thinking: { enabled: true, effort: 'high' },
+          loop_control: { max_steps_per_turn: 12, max_retries_per_step: 2, reserved_context_size: 50000 },
+          background: { max_running_tasks: 4, keep_alive_on_exit: true },
+          experimental: { micro_compaction: true }
+        }
+      })
+
+      const { parse: parseToml } = await import('smol-toml')
+      const parsed = parseToml(written!.content) as Record<string, any>
+      expect(parsed.default_model).toBe('cherry-DeepSeek')
+      expect(parsed.default_permission_mode).toBe('auto')
+      expect(parsed.default_plan_mode).toBe(true)
+      expect(parsed.telemetry).toBe(false)
+      expect(parsed.thinking).toEqual({ enabled: true, effort: 'high' })
+      expect(parsed.loop_control).toEqual({
+        max_steps_per_turn: 12,
+        max_retries_per_step: 2,
+        reserved_context_size: 50000
+      })
+      expect(parsed.background).toEqual({ max_running_tasks: 4, keep_alive_on_exit: true })
+      expect(parsed.experimental).toEqual({ micro_compaction: true })
+      expect(parsed.models['cherry-DeepSeek'].max_context_size).toBe(65536)
     })
   })
 
