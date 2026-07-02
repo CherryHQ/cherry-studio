@@ -2,11 +2,9 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { beforeAll, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { loadTailwindDesignSystem, processPath, runCli } from '../fix-tailwind-canonical-classes'
-
-let designSystem: Awaited<ReturnType<typeof loadTailwindDesignSystem>>
 
 async function createTempDir(): Promise<string> {
   return fs.mkdtemp(path.join(os.tmpdir(), 'tailwind-canonical-'))
@@ -20,10 +18,6 @@ async function writeSource(tempDir: string, relativePath: string, source: string
 }
 
 describe('fix-tailwind-canonical-classes', () => {
-  beforeAll(async () => {
-    designSystem = await loadTailwindDesignSystem()
-  }, 60_000)
-
   it('rewrites canonical Tailwind suggestions in JSX className strings', async () => {
     const tempDir = await createTempDir()
     const filePath = await writeSource(
@@ -37,6 +31,7 @@ describe('fix-tailwind-canonical-classes', () => {
 `
     )
 
+    const designSystem = await loadTailwindDesignSystem()
     const summary = await processPath(tempDir, designSystem)
     const source = await fs.readFile(filePath, 'utf8')
 
@@ -53,6 +48,7 @@ describe('fix-tailwind-canonical-classes', () => {
 `
     )
 
+    const designSystem = await loadTailwindDesignSystem()
     const summary = await processPath(filePath, designSystem)
     const source = await fs.readFile(filePath, 'utf8')
 
@@ -69,6 +65,7 @@ describe('fix-tailwind-canonical-classes', () => {
 `
     )
 
+    const designSystem = await loadTailwindDesignSystem()
     const summary = await processPath(filePath, designSystem)
     const source = await fs.readFile(filePath, 'utf8')
 
