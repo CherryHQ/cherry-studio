@@ -1,6 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { BaseService, DependsOn, Injectable, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, Injectable, type ProfileActivatable, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
 import { isDev } from '@main/core/platform'
 import { bootConfigService } from '@main/data/bootConfig'
@@ -187,9 +187,11 @@ const DefaultScope = 'default'
 @Injectable('PreferenceService')
 @ServicePhase(Phase.BeforeReady)
 @DependsOn(['DbService'])
-export class PreferenceService extends BaseService {
+export class PreferenceService extends BaseService implements ProfileActivatable {
   private windowSubscriptions = new Map<number, Set<string>>() // windowId -> Set<keys>
-  private cache: PreferenceDefaultScopeType = DefaultPreferences.default
+  // A per-instance clone — never the shared DefaultPreferences.default reference,
+  // which set()/loadCache() would otherwise mutate process-wide.
+  private cache: PreferenceDefaultScopeType = structuredClone(DefaultPreferences.default)
 
   // Custom notifier for main process change notifications
   private notifier = new PreferenceNotifier()
@@ -199,25 +201,50 @@ export class PreferenceService extends BaseService {
   }
 
   /**
-   * Lifecycle: Load preferences from database into memory cache
+   * Lifecycle: app-level setup only. The per-profile cache is loaded on profile
+   * activation — the DB is not open during onInit (it opens in the same tier-1
+   * activation, DbService first).
    */
-  protected async onInit(): Promise<void> {
+  protected onInit(): void {
+    this.setupWindowCleanup()
+  }
+
+  /**
+   * Load the active profile's preferences into the cache, then re-notify
+   * main-process subscribers so they observe the new profile's values (a no-op on
+   * boot when nothing has subscribed yet; on a switch the renderer reloads and
+   * re-subscribes, but in-process subscribers rely on this).
+   */
+  async onProfileActivate(): Promise<void> {
+    await this.loadCache()
+    for (const key of this.notifier.getSubscribedKeys()) {
+      this.notifier.notify(key, this.get(key as UnifiedPreferenceKeyType), undefined)
+    }
+  }
+
+  /** Release: reset the cache to defaults so the next profile starts clean. */
+  onProfileDeactivate(): void {
+    this.cache = structuredClone(DefaultPreferences.default)
+  }
+
+  /** Load default-scope preferences from the active profile's DB into the cache. */
+  private async loadCache(): Promise<void> {
     try {
       const db = application.get('DbService').getDb()
       const results = await db.select().from(preferenceTable).where(eq(preferenceTable.scope, DefaultScope))
 
-      // Update cache with database values, keeping defaults for missing keys
+      // Start from a fresh default clone (re-activation may follow a reset) and
+      // overlay stored values, keeping defaults for missing keys.
+      this.cache = structuredClone(DefaultPreferences.default)
       for (const result of results) {
         const key = result.key
         if (key in this.cache) {
           this.cache[key] = result.value
         }
       }
-
-      this.setupWindowCleanup()
-      logger.info(`Preference cache initialized with ${results.length} values`)
+      logger.info(`Preference cache loaded with ${results.length} values`)
     } catch (error) {
-      logger.error('Failed to initialize preference cache:', error as Error)
+      logger.error('Failed to load preference cache:', error as Error)
       throw error
     }
   }
