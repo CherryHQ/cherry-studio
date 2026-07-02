@@ -17,6 +17,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { LanguageModelMiddleware } from 'ai'
 import { estimateTokenCount } from 'tokenx'
 
+import { VOLATILE_PROMPT_VARIABLES } from '../../../../../utils/prompt'
 import type { RequestFeature } from '../feature'
 
 const MAX_CACHE_BREAKPOINTS = 4
@@ -26,7 +27,7 @@ const cacheProviderOptions = {
 
 function hasVolatilePromptVariables(assistant: Assistant | undefined): boolean {
   const prompt = assistant?.prompt
-  return Boolean(prompt?.includes('{{time}}') || prompt?.includes('{{datetime}}'))
+  return Boolean(prompt && VOLATILE_PROMPT_VARIABLES.some((variable) => prompt.includes(variable)))
 }
 
 function estimateContentTokens(content: LanguageModelV3Message['content']): number {
