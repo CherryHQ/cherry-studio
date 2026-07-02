@@ -134,10 +134,10 @@ export async function emptyTrash(deps: FileManagerDeps): Promise<BatchMutationRe
   const failed: BatchMutationResult['failed'] = []
 
   await deps.fileEntryService.withWriteTx(async (tx) => {
-    const entries = await deps.fileEntryService.findManyTx(tx, { origin: 'internal', inTrash: true })
+    const entries = deps.fileEntryService.findManyTx(tx, { origin: 'internal', inTrash: true })
     for (const entry of entries) {
       try {
-        const deletedEntry = await permanentDeleteTx(deps, tx, entry.id)
+        const deletedEntry = permanentDeleteTx(deps, tx, entry.id)
         deletedEntries.push(deletedEntry)
         succeeded.push(entry.id)
       } catch (err) {

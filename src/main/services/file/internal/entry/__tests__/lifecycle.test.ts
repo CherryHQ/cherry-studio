@@ -237,8 +237,8 @@ describe('internal/entry/lifecycle', () => {
       const restored = await makeInternal()
       const active = await makeInternal()
       const external = await makeExternal()
-      await trash(deps, trashed)
-      await trash(deps, restored)
+      trash(deps, trashed)
+      trash(deps, restored)
       await restore(deps, restored)
       const findManySpy = vi.spyOn(deps.fileEntryService, 'findMany')
       const withWriteTx = MockMainDbServiceExport.dbService.withWriteTx
@@ -249,10 +249,10 @@ describe('internal/entry/lifecycle', () => {
       expect(withWriteTx).toHaveBeenCalledTimes(1)
       expect(findManySpy).not.toHaveBeenCalled()
       expect(result).toEqual({ succeeded: [trashed], failed: [] })
-      expect(await fileEntryService.findById(trashed)).toBeNull()
-      expect(await fileEntryService.findById(restored)).not.toBeNull()
-      expect(await fileEntryService.findById(active)).not.toBeNull()
-      expect(await fileEntryService.findById(external)).not.toBeNull()
+      expect(fileEntryService.findById(trashed)).toBeNull()
+      expect(fileEntryService.findById(restored)).not.toBeNull()
+      expect(fileEntryService.findById(active)).not.toBeNull()
+      expect(fileEntryService.findById(external)).not.toBeNull()
     })
 
     it('composes each batch DB write loop inside one serialized write tx', async () => {
