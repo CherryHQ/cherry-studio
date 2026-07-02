@@ -65,6 +65,7 @@ vi.mock('../db/schemas/preference', () => ({
 
 const BOOT_CONFIG_KEY = 'BootConfig.app.disable_hardware_acceleration' as const
 const PREFERENCE_KEY = 'app.language' as const
+const AVATAR_PREFERENCE_KEY = 'app.user.avatar' as const
 
 describe('PreferenceService BootConfig routing', () => {
   let service: any
@@ -136,7 +137,7 @@ describe('PreferenceService BootConfig routing', () => {
     })
   })
 
-  describe('setTx()', () => {
+  describe('writeUserAvatarPreferenceTx()', () => {
     const makeTx = () => ({
       update: vi.fn().mockReturnValue({
         set: vi.fn().mockReturnValue({
@@ -145,21 +146,18 @@ describe('PreferenceService BootConfig routing', () => {
       })
     })
 
-    it('writes through the provided tx and defers the cache update to the returned callback', async () => {
+    it('writes only the avatar preference through the provided tx and defers cache sync', async () => {
       const mockTx = makeTx()
 
-      const afterCommit = await service.setTx(mockTx, PREFERENCE_KEY, 'zh-CN')
+      const afterCommit = await service.writeUserAvatarPreferenceTx(mockTx, 'file:avatar-id')
 
-      // DB write happened inside the caller tx, but the cache is untouched until commit
       expect(mockTx.update).toHaveBeenCalled()
-      expect(service.get(PREFERENCE_KEY)).toBe(DefaultPreferences.default[PREFERENCE_KEY])
+      expect(mockWithWriteTx).not.toHaveBeenCalled()
+      expect(service.get(AVATAR_PREFERENCE_KEY)).toBe(DefaultPreferences.default[AVATAR_PREFERENCE_KEY])
 
       await afterCommit()
-      expect(service.get(PREFERENCE_KEY)).toBe('zh-CN')
-    })
-
-    it('throws for a BootConfig key (file-backed, outside the DB tx)', async () => {
-      await expect(service.setTx(makeTx(), BOOT_CONFIG_KEY, true)).rejects.toThrow()
+      expect(service.get(AVATAR_PREFERENCE_KEY)).toBe('file:avatar-id')
+      expect(service.get(PREFERENCE_KEY)).toBe(DefaultPreferences.default[PREFERENCE_KEY])
     })
   })
 

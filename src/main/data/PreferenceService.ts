@@ -28,6 +28,7 @@ import { preferenceTable } from './db/schemas/preference'
 import type { DbType } from './db/types'
 
 const logger = loggerService.withContext('PreferenceService')
+const USER_AVATAR_PREFERENCE_KEY = 'app.user.avatar' satisfies PreferenceKeyType
 
 /**
  * Preference statistics summary
@@ -349,39 +350,33 @@ export class PreferenceService extends BaseService {
   }
 
   /**
-   * Transaction-aware single-key write for tx-composition (tx-first, `Tx`
-   * suffix — same convention as `FileRefService.cleanupBySourceTx`). Writes the
-   * preference row inside the caller's write tx and returns a **post-commit**
-   * callback that updates the memory cache and broadcasts the change. The caller
-   * MUST run the callback only after the tx commits, so a rolled-back tx never
-   * leaves the cache/listeners ahead of the database.
+   * Avatar-only transaction composition hook. Writes `app.user.avatar` inside
+   * the caller's tx and returns a post-commit cache/broadcast callback.
    *
-   * Only DB-backed preference keys are supported; BootConfig keys (file-backed,
-   * outside the DB tx) throw — use `set()` for those.
+   * This intentionally stays narrower than a generic preference transaction
+   * writer: the only current owner that needs this composition is the profile
+   * avatar flow, because `user_avatar_file_ref` and the preference row must
+   * commit together.
    */
-  public async setTx<K extends UnifiedPreferenceKeyType>(
-    tx: Pick<DbType, 'update'>,
-    key: K,
-    value: UnifiedPreferenceType[K]
-  ): Promise<() => Promise<void>> {
-    if (!isPreferenceKey(key)) {
-      throw new Error(`setTx only supports DB-backed preference keys; ${key} is a BootConfig key — use set()`)
-    }
-    if (!(key in this.cache)) {
-      throw new Error(`Preference ${key} not found in cache`)
+  public async writeUserAvatarPreferenceTx(tx: Pick<DbType, 'update'>, value: string): Promise<() => Promise<void>> {
+    if (!(USER_AVATAR_PREFERENCE_KEY in this.cache)) {
+      throw new Error(`Preference ${USER_AVATAR_PREFERENCE_KEY} not found in cache`)
     }
 
-    const oldValue = this.cache[key]
+    const oldValue = this.cache[USER_AVATAR_PREFERENCE_KEY]
 
     await tx
       .update(preferenceTable)
-      .set({ value: value as any })
-      .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, key)))
+      .set({ value })
+      .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, USER_AVATAR_PREFERENCE_KEY)))
 
     return async () => {
-      // Update memory cache immediately — safe after type guard + cache key check
-      ;(this.cache as Record<string, unknown>)[key] = value
-      await this.notifyChange(key, value, oldValue)
+      if (isEqual(oldValue, value)) {
+        return
+      }
+
+      ;(this.cache as Record<string, unknown>)[USER_AVATAR_PREFERENCE_KEY] = value
+      await this.notifyChange(USER_AVATAR_PREFERENCE_KEY, value, oldValue)
     }
   }
 

@@ -4,7 +4,7 @@ const {
   appGetMock,
   clearSingleFileRefTxMock,
   setSingleFileRefTxMock,
-  setTxMock,
+  writeUserAvatarPreferenceTxMock,
   withWriteTxMock,
   createInternalEntryMock,
   permanentDeleteMock,
@@ -13,7 +13,7 @@ const {
   appGetMock: vi.fn(),
   clearSingleFileRefTxMock: vi.fn(),
   setSingleFileRefTxMock: vi.fn(),
-  setTxMock: vi.fn(),
+  writeUserAvatarPreferenceTxMock: vi.fn(),
   withWriteTxMock: vi.fn(),
   createInternalEntryMock: vi.fn(),
   permanentDeleteMock: vi.fn(),
@@ -34,7 +34,7 @@ const WEBP = Buffer.from([1, 2, 3])
 // Sentinel tx object handed to the tx-scoped methods (which are all mocked).
 const TX = { __tx: true }
 
-const preferences = { setTx: setTxMock }
+const preferences = { writeUserAvatarPreferenceTx: writeUserAvatarPreferenceTxMock }
 // withWriteTx runs the caller's fn with the sentinel tx and returns its result.
 const dbService = { withWriteTx: withWriteTxMock }
 const fileManager = { createInternalEntry: createInternalEntryMock, permanentDelete: permanentDeleteMock }
@@ -53,7 +53,7 @@ beforeEach(() => {
   clearSingleFileRefTxMock.mockResolvedValue(undefined)
   setSingleFileRefTxMock.mockResolvedValue(undefined)
   afterCommit.mockResolvedValue(undefined)
-  setTxMock.mockResolvedValue(afterCommit)
+  writeUserAvatarPreferenceTxMock.mockResolvedValue(afterCommit)
   transcodeMock.mockResolvedValue(WEBP)
   createInternalEntryMock.mockResolvedValue({ id: FILE_ID })
   permanentDeleteMock.mockResolvedValue(undefined)
@@ -69,13 +69,13 @@ describe('profileHandlers.set_avatar', () => {
     expect(transcodeMock).toHaveBeenCalledWith(data)
     expect(createInternalEntryMock).toHaveBeenCalledWith({ source: 'bytes', data: WEBP, name: 'image', ext: 'webp' })
     expect(setSingleFileRefTxMock).toHaveBeenCalledWith(TX, AVATAR_SLOT, FILE_ID)
-    expect(setTxMock).toHaveBeenCalledWith(TX, 'app.user.avatar', `file:${FILE_ID}`)
+    expect(writeUserAvatarPreferenceTxMock).toHaveBeenCalledWith(TX, `file:${FILE_ID}`)
     expect(afterCommit).toHaveBeenCalledOnce()
     expect(permanentDeleteMock).not.toHaveBeenCalled()
   })
 
   it('compensates (permanentDelete) when the tx fails, and skips the post-commit callback', async () => {
-    setTxMock.mockRejectedValueOnce(new Error('tx write failed'))
+    writeUserAvatarPreferenceTxMock.mockRejectedValueOnce(new Error('tx write failed'))
 
     await expect(
       profileHandlers['profile.set_avatar']({ kind: 'image', data: new Uint8Array([1]) }, ctx)
@@ -101,7 +101,7 @@ describe('profileHandlers.set_avatar', () => {
     expect(createInternalEntryMock).not.toHaveBeenCalled()
     expect(clearSingleFileRefTxMock).toHaveBeenCalledWith(TX, AVATAR_SLOT)
     expect(setSingleFileRefTxMock).not.toHaveBeenCalled()
-    expect(setTxMock).toHaveBeenCalledWith(TX, 'app.user.avatar', '😀')
+    expect(writeUserAvatarPreferenceTxMock).toHaveBeenCalledWith(TX, '😀')
     expect(afterCommit).toHaveBeenCalledOnce()
   })
 
@@ -111,7 +111,7 @@ describe('profileHandlers.set_avatar', () => {
     expect(createInternalEntryMock).not.toHaveBeenCalled()
     expect(clearSingleFileRefTxMock).toHaveBeenCalledWith(TX, AVATAR_SLOT)
     expect(setSingleFileRefTxMock).not.toHaveBeenCalled()
-    expect(setTxMock).toHaveBeenCalledWith(TX, 'app.user.avatar', '')
+    expect(writeUserAvatarPreferenceTxMock).toHaveBeenCalledWith(TX, '')
     expect(afterCommit).toHaveBeenCalledOnce()
   })
 })

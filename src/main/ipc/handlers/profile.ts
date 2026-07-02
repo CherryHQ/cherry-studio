@@ -32,8 +32,9 @@ export const profileHandlers: IpcHandlersFor<typeof profileRequestSchemas> = {
       // its bind returns the post-commit callback, run outside that scope.
       const afterCommit = await withCreatedImageEntry(input.data, (fileId) =>
         db.withWriteTx(async (tx) => {
+          const value = tagStoredFileRef(fileId)
           await setSingleFileRefTx(tx, AVATAR_SLOT, fileId)
-          return preferences.setTx(tx, 'app.user.avatar', tagStoredFileRef(fileId))
+          return preferences.writeUserAvatarPreferenceTx(tx, value)
         })
       )
       await afterCommit()
@@ -45,7 +46,7 @@ export const profileHandlers: IpcHandlersFor<typeof profileRequestSchemas> = {
     const value = input.kind === 'emoji' ? input.emoji : ''
     const afterCommit = await db.withWriteTx(async (tx) => {
       await clearSingleFileRefTx(tx, AVATAR_SLOT)
-      return preferences.setTx(tx, 'app.user.avatar', value)
+      return preferences.writeUserAvatarPreferenceTx(tx, value)
     })
     await afterCommit()
   }
