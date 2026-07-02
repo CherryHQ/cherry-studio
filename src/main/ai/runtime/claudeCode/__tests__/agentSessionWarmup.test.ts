@@ -169,13 +169,13 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
   })
 
   it('pins cross-provider plan/small models onto the primary for an external-cli (claude-code) agent instead of routing through the gateway', async () => {
-    mocks.getAgent.mockResolvedValue({
+    mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       model: 'claude-code::sonnet',
       planModel: 'openai::gpt-plan',
       smallModel: 'other::small'
     })
-    mocks.getProviderByProviderId.mockImplementation(async (providerId: string) =>
+    mocks.getProviderByProviderId.mockImplementation((providerId: string) =>
       providerId === 'claude-code'
         ? {
             id: 'claude-code',
@@ -187,11 +187,11 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
             endpointConfigs: { 'openai-chat-completions': { baseUrl: `https://${providerId}.example.com` } }
           }
     )
-    mocks.getModelByKey.mockImplementation(async (_providerId: string, modelId: string) => ({
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
       id: modelId,
       apiModelId: `${modelId}-api`
     }))
-    mocks.getLastRuntimeResumeToken.mockResolvedValue(null)
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
     const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
 
