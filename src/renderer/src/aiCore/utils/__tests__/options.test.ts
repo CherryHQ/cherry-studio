@@ -1435,5 +1435,152 @@ describe('options utils', () => {
         })
       })
     })
+
+    describe('customProviderParams (issue #16041)', () => {
+      it('should return customProviderParams for fetch-layer injection', async () => {
+        const { getCustomParameters } = await import('../reasoning')
+
+        const openaiProvider: Provider = {
+          id: SystemProviderIds.openai,
+          name: 'OpenAI',
+          type: 'openai-response',
+          apiKey: 'test-key',
+          apiHost: 'https://api.openai.com/v1',
+          isSystem: true
+        } as Provider
+
+        vi.mocked(getCustomParameters).mockReturnValue({
+          n: 3,
+          enable_search: true,
+          store: false
+        })
+
+        const result = buildProviderOptions(mockAssistant, mockModel, openaiProvider, {
+          enableReasoning: false,
+          enableWebSearch: false,
+          enableGenerateImage: false
+        })
+
+        // customProviderParams should contain the raw provider-specific params
+        expect(result.customProviderParams).toBeDefined()
+        expect(result.customProviderParams).toHaveProperty('n', 3)
+        expect(result.customProviderParams).toHaveProperty('enable_search', true)
+        expect(result.customProviderParams).toHaveProperty('store', false)
+      })
+
+      it('should return empty customProviderParams when no custom params are set', () => {
+        const openaiProvider: Provider = {
+          id: SystemProviderIds.openai,
+          name: 'OpenAI',
+          type: 'openai-response',
+          apiKey: 'test-key',
+          apiHost: 'https://api.openai.com/v1',
+          isSystem: true
+        } as Provider
+
+        const result = buildProviderOptions(mockAssistant, mockModel, openaiProvider, {
+          enableReasoning: false,
+          enableWebSearch: false,
+          enableGenerateImage: false
+        })
+
+        expect(result.customProviderParams).toEqual({})
+      })
+
+      it('should exclude AI SDK standard params from customProviderParams', async () => {
+        const { getCustomParameters } = await import('../reasoning')
+
+        const openaiProvider: Provider = {
+          id: SystemProviderIds.openai,
+          name: 'OpenAI',
+          type: 'openai-response',
+          apiKey: 'test-key',
+          apiHost: 'https://api.openai.com/v1',
+          isSystem: true
+        } as Provider
+
+        vi.mocked(getCustomParameters).mockReturnValue({
+          topK: 40,
+          seed: 42,
+          n: 3 // non-standard → should appear in customProviderParams
+        })
+
+        const result = buildProviderOptions(mockAssistant, mockModel, openaiProvider, {
+          enableReasoning: false,
+          enableWebSearch: false,
+          enableGenerateImage: false
+        })
+
+        // Standard params go to standardParams, not customProviderParams
+        expect(result.customProviderParams).toHaveProperty('n', 3)
+        expect(result.customProviderParams).not.toHaveProperty('topK')
+        expect(result.customProviderParams).not.toHaveProperty('seed')
+      })
+
+      it('should keep raw snake_case params for fetch-layer injection before adapter normalization', async () => {
+        const { getCustomParameters } = await import('../reasoning')
+
+        const openAICompatibleProvider = {
+          id: 'openai-compatible',
+          name: 'OpenAI Compatible',
+          type: 'openai',
+          apiKey: 'test-key',
+          apiHost: 'https://example.com/v1',
+          models: [] as Model[]
+        } as Provider
+
+        const openAICompatibleModel: Model = {
+          id: 'custom-reasoning-model',
+          name: 'Custom Reasoning Model',
+          provider: 'openai-compatible'
+        } as Model
+
+        vi.mocked(getCustomParameters).mockReturnValue({
+          reasoning_effort: 'high'
+        })
+
+        const result = buildProviderOptions(mockAssistant, openAICompatibleModel, openAICompatibleProvider, {
+          enableReasoning: false,
+          enableWebSearch: false,
+          enableGenerateImage: false
+        })
+
+        expect(result.providerOptions['openai-compatible']).toHaveProperty('reasoningEffort', 'high')
+        expect(result.customProviderParams).toHaveProperty('reasoning_effort', 'high')
+        expect(result.customProviderParams).not.toHaveProperty('reasoningEffort')
+      })
+
+      it('should exclude provider-scoped option objects from fetch-layer injection', async () => {
+        const { getCustomParameters } = await import('../reasoning')
+
+        const openaiProvider: Provider = {
+          id: SystemProviderIds.openai,
+          name: 'OpenAI',
+          type: 'openai-response',
+          apiKey: 'test-key',
+          apiHost: 'https://api.openai.com/v1',
+          isSystem: true
+        } as Provider
+
+        vi.mocked(getCustomParameters).mockReturnValue({
+          openai: {
+            openaiSpecific: 'openai_value'
+          },
+          n: 3
+        })
+
+        const result = buildProviderOptions(mockAssistant, mockModel, openaiProvider, {
+          enableReasoning: false,
+          enableWebSearch: false,
+          enableGenerateImage: false
+        })
+
+        expect(result.providerOptions.openai).toMatchObject({
+          openaiSpecific: 'openai_value',
+          n: 3
+        })
+        expect(result.customProviderParams).toEqual({ n: 3 })
+      })
+    })
   })
 })
