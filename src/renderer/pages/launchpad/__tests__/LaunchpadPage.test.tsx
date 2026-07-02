@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import type { SidebarAppId } from '@renderer/utils/sidebar'
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -292,7 +292,7 @@ describe('LaunchpadPage', () => {
     expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/mini-app/calculator' })
   })
 
-  it('sorts pinned mini apps through the mini app order API', () => {
+  it('sorts pinned mini apps through the mini app order API', async () => {
     const calculator = {
       appId: 'calculator',
       name: 'Calculator',
@@ -320,7 +320,10 @@ describe('LaunchpadPage', () => {
 
     expect(miniAppSortable.items.map((app: { appId: string }) => app.appId)).toEqual(['calculator', 'docs'])
 
-    miniAppSortable.onSortEnd({ oldIndex: 0, newIndex: 1 })
+    await act(async () => {
+      miniAppSortable.onSortEnd({ oldIndex: 0, newIndex: 1 })
+      await Promise.resolve()
+    })
 
     expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledWith('pinned', [docs, calculator])
     expect(mocks.setSidebarFavorites).not.toHaveBeenCalled()
@@ -361,6 +364,56 @@ describe('LaunchpadPage', () => {
 
     expect(latestMiniAppSortable.items.map((app: { appId: string }) => app.appId)).toEqual(['docs', 'calculator'])
     expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledWith('pinned', [docs, calculator])
+  })
+
+  it('clears the optimistic mini app order after successful reorder refresh', async () => {
+    const calculator = {
+      appId: 'calculator',
+      name: 'Calculator',
+      logo: 'calc-logo',
+      url: 'https://example.com',
+      presetMiniAppId: 'calculator',
+      status: 'pinned',
+      orderKey: 'a'
+    }
+    const docs = {
+      appId: 'docs',
+      name: 'Docs',
+      logo: 'docs-logo',
+      url: 'https://docs.example.com',
+      presetMiniAppId: 'docs',
+      status: 'pinned',
+      orderKey: 'b'
+    }
+    let resolveReorder: () => void = () => undefined
+    const reorderPromise = new Promise<void>((resolve) => {
+      resolveReorder = resolve
+    })
+    mocks.pinnedMiniApps = [calculator, docs]
+    mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app')]
+    mocks.reorderMiniAppsByStatus.mockReturnValue(reorderPromise)
+
+    render(<LaunchpadPage />)
+
+    const miniAppSortable = mocks.sortableCalls.find((call) => call.itemKey === 'appId')
+
+    act(() => {
+      miniAppSortable.onSortEnd({ oldIndex: 0, newIndex: 1 })
+    })
+
+    const pendingMiniAppSortable = mocks.sortableCalls.filter((call) => call.itemKey === 'appId').at(-1)
+
+    expect(pendingMiniAppSortable.items.map((app: { appId: string }) => app.appId)).toEqual(['docs', 'calculator'])
+
+    await act(async () => {
+      resolveReorder()
+      await reorderPromise
+    })
+
+    await waitFor(() => {
+      const refreshedMiniAppSortable = mocks.sortableCalls.filter((call) => call.itemKey === 'appId').at(-1)
+      expect(refreshedMiniAppSortable.items.map((app: { appId: string }) => app.appId)).toEqual(['calculator', 'docs'])
+    })
   })
 
   it('shows only launchpad-pinned mini apps, excluding opened-but-unpinned ones', () => {

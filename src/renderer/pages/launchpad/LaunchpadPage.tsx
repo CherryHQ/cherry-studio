@@ -87,6 +87,7 @@ export default function LaunchpadPage() {
   const [sidebarFavorites, setSidebarFavorites] = usePreference('ui.sidebar.favorites')
   const suppressClickUntilRef = useRef(0)
   const draggedItemIdRef = useRef<string | null>(null)
+  const miniAppReorderRequestIdRef = useRef(0)
   const [optimisticPinnedMiniApps, setOptimisticPinnedMiniApps] = useState<MiniAppType[] | null>(null)
 
   const orderedVisibleSidebarFavorites = useMemo(
@@ -261,12 +262,21 @@ export default function LaunchpadPage() {
   const handleSidebarMiniAppsSortEnd = useCallback(
     ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
       const nextItems = reorderByIndex(displayedPinnedMiniApps, oldIndex, newIndex)
+      const reorderRequestId = ++miniAppReorderRequestIdRef.current
       setOptimisticPinnedMiniApps(nextItems)
 
-      void reorderMiniAppsByStatus('pinned', nextItems).catch(() => {
-        setOptimisticPinnedMiniApps(null)
-        window.toast?.error(t('miniApp.reorder_failed'))
-      })
+      void reorderMiniAppsByStatus('pinned', nextItems)
+        .then(() => {
+          if (miniAppReorderRequestIdRef.current === reorderRequestId) {
+            setOptimisticPinnedMiniApps(null)
+          }
+        })
+        .catch(() => {
+          if (miniAppReorderRequestIdRef.current === reorderRequestId) {
+            setOptimisticPinnedMiniApps(null)
+          }
+          window.toast?.error(t('miniApp.reorder_failed'))
+        })
     },
     [displayedPinnedMiniApps, reorderMiniAppsByStatus, t]
   )
