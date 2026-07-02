@@ -257,7 +257,7 @@ describe('ChannelMessageHandler', () => {
       text: 'Hi'
     })
 
-    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'workspace is missing')
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'workspace is missing', { replyToMessageId: undefined })
     expect(adapter.onStreamError).not.toHaveBeenCalled()
   })
 
@@ -295,7 +295,7 @@ describe('ChannelMessageHandler', () => {
 
     expect(mockPrepareClaudeCodeWorkspaceDirectory).toHaveBeenCalledWith(session)
     expect(mockStartAgentSessionRun).not.toHaveBeenCalled()
-    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'workspace is missing')
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'workspace is missing', { replyToMessageId: undefined })
   })
 
   it('skips final send when adapter handles stream completion', async () => {
@@ -354,8 +354,14 @@ describe('ChannelMessageHandler', () => {
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', longText)
   })
 
-  it('handleCommand /new creates a new session', async () => {
+  it('handleCommand /new creates a new session in the channel-bound workspace', async () => {
     const adapter = createMockAdapter()
+    vi.mocked(channelService.getChannel).mockResolvedValueOnce({
+      id: 'channel-1',
+      sessionId: null,
+      permissionMode: null,
+      workspace: { type: 'user', workspaceId: 'workspace-bound' }
+    } as any)
     vi.mocked(agentSessionService.create).mockResolvedValueOnce({ id: 'new-session' } as any)
 
     await channelMessageHandler.handleCommand(adapter, {
@@ -368,9 +374,9 @@ describe('ChannelMessageHandler', () => {
     expect(agentSessionService.create).toHaveBeenCalledWith({
       agentId: 'agent-1',
       name: 'Channel session',
-      workspace: { type: 'system' }
+      workspace: { type: 'user', workspaceId: 'workspace-bound' }
     })
-    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'New session created.')
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'New session created.', { replyToMessageId: undefined })
   })
 
   it('handleCommand /compact sends /compact as message content', async () => {
@@ -445,7 +451,8 @@ describe('ChannelMessageHandler', () => {
 
     expect(adapter.sendMessage).toHaveBeenCalledWith(
       'oc_123',
-      'Current chat ID: `oc_123`\n\nAdd this value to `allow_ids` in settings to receive notifications.'
+      'Current chat ID: `oc_123`\n\nAdd this value to `allow_ids` in settings to receive notifications.',
+      { replyToMessageId: undefined }
     )
   })
 
