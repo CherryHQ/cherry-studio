@@ -172,6 +172,10 @@ export class DirectoryTreeManager extends BaseService implements ProfileActivata
   private readonly inflight = new Map<string, Promise<SharedBuilder>>()
   /** webContentsId → set of treeIds, so we can drop them on contents-destroyed. */
   private readonly byWebContents = new Map<number, Set<string>>()
+  // One 'destroyed' listener per webContents, tracked so disposeAll can .off it on a
+  // profile switch — the main window's webContents survives the reload, so otherwise
+  // each switch would leave another listener + disposable behind.
+  private readonly destroyedListeners = new Map<number, { sender: WebContents; handler: () => void }>()
   /**
    * Set by `onStop()` (and the `disposeAll()` test seam) to short-circuit
    * any builder that finishes its asynchronous `createDirectoryTree` call
@@ -182,7 +186,11 @@ export class DirectoryTreeManager extends BaseService implements ProfileActivata
    * lifecycle (`state` stays at `Created`), so an `isReady`-based check
    * would treat the service as "shut down" before its first use.
    */
-  private disposed = false
+  // Monotonic generation bumped on every teardown. An in-flight createDirectoryTree
+  // captures it and bails if it changed while awaiting, so a scan that resolves after
+  // a profile switch re-armed the manager cannot register a stale watcher — a boolean
+  // that flips back to false on activate would reopen that window.
+  private disposeGeneration = 0
 
   protected override async onInit(): Promise<void> {
     this.registerIpcHandlers()
@@ -192,12 +200,10 @@ export class DirectoryTreeManager extends BaseService implements ProfileActivata
     await this.disposeAll()
   }
 
-  /** Re-arm after a switch so builders/watchers can be created for the new profile's dirs. */
-  onProfileActivate(): void {
-    this.disposed = false
-  }
+  /** No re-arm needed — builders open on demand; staleness is handled by disposeGeneration. */
+  onProfileActivate(): void {}
 
-  /** Tear down every watcher on the previous profile's workspace dirs (disposeAll sets `disposed`). */
+  /** Tear down every watcher on the previous profile's workspace dirs (disposeAll bumps the generation). */
   async onProfileDeactivate(): Promise<void> {
     await this.disposeAll()
   }
@@ -284,16 +290,13 @@ export class DirectoryTreeManager extends BaseService implements ProfileActivata
     if (!bucket) {
       bucket = new Set()
       this.byWebContents.set(sender.id, bucket)
-      // Track the listener so onStop's _cleanupDisposables can `.off` it
-      // even when the renderer never gets destroyed. Without this the
-      // closure holds `this` alive through the EventEmitter slot for the
-      // lifetime of the webContents, which can outlast the manager.
+      // Track the listener so disposeAll (profile switch or onStop) can `.off` it
+      // even when the renderer never gets destroyed. Without this the closure holds
+      // `this` alive through the EventEmitter slot for the lifetime of the
+      // webContents, which can outlast the manager and accumulate across switches.
       const handler = (): void => this.disposeAllForWebContents(sender.id)
       sender.once('destroyed', handler)
-      this.registerDisposable(() => {
-        if (sender.isDestroyed()) return
-        sender.off('destroyed', handler)
-      })
+      this.destroyedListeners.set(sender.id, { sender, handler })
     }
     bucket.add(treeId)
 
@@ -320,6 +323,8 @@ export class DirectoryTreeManager extends BaseService implements ProfileActivata
   }
 
   disposeAllForWebContents(webContentsId: number): void {
+    // The 'once' listener already fired and auto-removed; drop its tracking entry.
+    this.destroyedListeners.delete(webContentsId)
     const bucket = this.byWebContents.get(webContentsId)
     if (!bucket) return
     const ids = Array.from(bucket)
@@ -338,7 +343,7 @@ export class DirectoryTreeManager extends BaseService implements ProfileActivata
    * left hanging — important on `onStop` paths that race process exit.
    */
   async disposeAll(): Promise<void> {
-    this.disposed = true
+    this.disposeGeneration++
     for (const treeId of Array.from(this.consumers.keys())) {
       this.dispose(treeId)
     }
@@ -357,6 +362,13 @@ export class DirectoryTreeManager extends BaseService implements ProfileActivata
     // `acquireBuilder`. Clearing here keeps the map from holding the
     // dangling promises.
     this.inflight.clear()
+    // Sever the per-webContents 'destroyed' listeners. The main window's webContents
+    // survives a switch reload, so leaving them registered would pile up a listener
+    // (and formerly a BaseService disposable) on every switch until process exit.
+    for (const { sender, handler } of this.destroyedListeners.values()) {
+      if (!sender.isDestroyed()) sender.off('destroyed', handler)
+    }
+    this.destroyedListeners.clear()
     await Promise.all(drains)
   }
 
@@ -372,15 +384,18 @@ export class DirectoryTreeManager extends BaseService implements ProfileActivata
     const pending = this.inflight.get(key)
     if (pending) return pending
 
+    const generation = this.disposeGeneration
     const promise = (async () => {
       try {
         const builder = await createDirectoryTree(rootPath, options)
-        // If the registry was torn down while we were awaiting the build,
-        // dispose the freshly-created builder so its watcher / FDs don't
-        // outlive `onStop` and surface as an orphan.
-        if (this.disposed) {
+        // If the registry was torn down (onStop or a profile switch) while we were
+        // awaiting the build, dispose the freshly-created builder so its watcher /
+        // FDs don't outlive the teardown and surface as an orphan. Comparing the
+        // captured generation (not a boolean that a later activate resets) means a
+        // switch which re-armed the manager afterwards cannot reopen this window.
+        if (this.disposeGeneration !== generation) {
           await Promise.resolve(builder.dispose()).catch((err) =>
-            logger.warn('builder.dispose after onStop failed', err as Error)
+            logger.warn('builder.dispose after teardown failed', err as Error)
           )
           throw new DirectoryTreeStoppedError()
         }

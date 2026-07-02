@@ -1,5 +1,5 @@
 import { BaseService } from '@main/core/lifecycle'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import { DirectoryTreeManager } from '../DirectoryTreeManager'
 
@@ -8,15 +8,18 @@ beforeEach(() => {
 })
 
 describe('DirectoryTreeManager profile activation', () => {
-  it('disposes all watchers on deactivate and re-arms on activate', async () => {
+  it('bumps the dispose generation on deactivate and does not reset it on activate', async () => {
     const svc = new DirectoryTreeManager()
-    const disposeAll = vi.spyOn(svc, 'disposeAll').mockResolvedValue()
+    const genBefore = svc['disposeGeneration']
 
     await svc.onProfileDeactivate()
-    expect(disposeAll).toHaveBeenCalledTimes(1)
+    // Teardown advanced the generation so a builder that resolves later bails.
+    expect(svc['disposeGeneration']).toBe(genBefore + 1)
 
-    svc['disposed'] = true
     svc.onProfileActivate()
-    expect(svc['disposed']).toBe(false)
+    // Activate must NOT reset the generation — a boolean that flips back to false
+    // would reopen the window for a stale in-flight scan to register a cross-profile
+    // watcher (the round-3 finding). The generation only ever moves forward.
+    expect(svc['disposeGeneration']).toBe(genBefore + 1)
   })
 })

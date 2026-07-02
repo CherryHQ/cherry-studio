@@ -92,6 +92,13 @@ function makeSender(id: number) {
       if (event === 'destroyed') destroyedListeners.push(listener)
       return sender as unknown as EventEmitter
     },
+    off: (event: string, listener: () => void) => {
+      if (event === 'destroyed') {
+        const idx = destroyedListeners.indexOf(listener)
+        if (idx >= 0) destroyedListeners.splice(idx, 1)
+      }
+      return sender as unknown as EventEmitter
+    },
     fireDestroyed: () => {
       destroyed = true
       for (const l of destroyedListeners.splice(0)) l()
