@@ -2,7 +2,14 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
-import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import {
+  type Activatable,
+  BaseService,
+  Injectable,
+  Phase,
+  type ProfileActivatable,
+  ServicePhase
+} from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ApiGatewayConfig, ApiGatewayStatusResult } from '@shared/types/apiGateway'
 import { v4 as uuidv4 } from 'uuid'
@@ -13,7 +20,7 @@ const logger = loggerService.withContext('ApiGatewayService')
 
 @Injectable('ApiGatewayService')
 @ServicePhase(Phase.WhenReady)
-export class ApiGatewayService extends BaseService implements Activatable {
+export class ApiGatewayService extends BaseService implements Activatable, ProfileActivatable {
   private apiGateway: ApiGateway | null = null
   /** Latest desired running state — the `enabled` preference, or the boot auto-start decision. */
   private desiredEnabled = false
@@ -55,10 +62,23 @@ export class ApiGatewayService extends BaseService implements Activatable {
     )
   }
 
-  protected async onReady(): Promise<void> {
+  /**
+   * Reconcile the gateway to the active profile's desired state. Runs on boot
+   * (tier-2, after the DB is open) and on every switch, so boot and switch share
+   * one path — the gateway serves DB-backed data, so it must reconcile once the
+   * profile's DB is bound, not in onReady before tier activation.
+   */
+  onProfileActivate(): Promise<void> {
     this.desiredEnabled = this.shouldAutoStart()
     this.reconciler.request()
-    await this.reconciler.flush()
+    return this.reconciler.flush()
+  }
+
+  /** Stop the gateway before the profile's DB closes (it serves DB-backed data). */
+  onProfileDeactivate(): Promise<void> {
+    this.desiredEnabled = false
+    this.reconciler.request()
+    return this.reconciler.flush()
   }
 
   async onActivate(): Promise<void> {
