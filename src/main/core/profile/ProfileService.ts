@@ -116,6 +116,13 @@ export class ProfileService extends BaseService {
     } catch (error) {
       logger.error('Profile switch: job recovery failed', error as Error, { profileId })
     }
+    // After the job queue is re-armed, recover the new profile's interrupted/deleting
+    // knowledge items (deleting-item recovery enqueues jobs, so it must follow the above).
+    try {
+      application.get('KnowledgeService').recoverActiveProfile()
+    } catch (error) {
+      logger.error('Profile switch: knowledge recovery failed', error as Error, { profileId })
+    }
   }
 
   private repointPaths(entry: ProfileEntry): void {

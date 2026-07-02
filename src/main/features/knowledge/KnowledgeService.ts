@@ -291,6 +291,15 @@ export class KnowledgeService extends BaseService {
   }
 
   protected async onAllReady(): Promise<void> {
+    this.recoverActiveProfile()
+  }
+
+  /**
+   * Re-run interrupted/deleting knowledge item recovery for the active profile.
+   * Called on boot (onAllReady) AND after a profile switch (ProfileService.runRecovery),
+   * so switching into a profile with stuck items recovers them without an app restart.
+   */
+  recoverActiveProfile(): void {
     this.recoverDeletingItems()
     this.recoverInterruptedItems()
   }

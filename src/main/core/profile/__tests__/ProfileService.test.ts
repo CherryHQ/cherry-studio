@@ -29,6 +29,13 @@ vi.mock('@application', () => ({
           }
         }
       }
+      if (name === 'KnowledgeService') {
+        return {
+          recoverActiveProfile: () => {
+            h.calls.push('recover-knowledge')
+          }
+        }
+      }
       if (name === 'WindowManager') {
         return { suspendPool: () => 0, getWindowsByType: () => [], getWindowId: () => undefined, close: () => true }
       }
@@ -77,6 +84,7 @@ describe('ProfileService.switchProfile', () => {
       'repoint:/userData/Profiles/work',
       'activate:work',
       'recover',
+      'recover-knowledge',
       'commit',
       'reload'
     ])
@@ -99,7 +107,8 @@ describe('ProfileService.switchProfile', () => {
       'repoint:/userData/Profiles/work',
       'repoint:/userData', // rollback repoints to the default (previous) root
       'activate:default',
-      'recover' // rollback re-arms the restored profile, symmetric with the happy path
+      'recover', // rollback re-arms the restored profile, symmetric with the happy path
+      'recover-knowledge'
     ])
     expect(h.calls).not.toContain('commit')
     expect(svc.isSwitching()).toBe(false)
