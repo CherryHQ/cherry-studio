@@ -146,12 +146,9 @@ function getLauncherPreferredSource(launcher: ComposerToolLauncher): ComposerToo
   return launcherSupportsSource(launcher, 'popover') ? 'popover' : 'root-panel'
 }
 
-function getUnifiedChildren(launcher: ComposerToolLauncher, seenLauncherIds?: ReadonlySet<string>) {
+function getUnifiedChildren(launcher: ComposerToolLauncher) {
   return (launcher.submenu ?? []).filter(
-    (item) =>
-      !item.hidden &&
-      !seenLauncherIds?.has(item.id) &&
-      (launcherSupportsSource(item, 'popover') || launcherSupportsSource(item, 'root-panel'))
+    (item) => !item.hidden && (launcherSupportsSource(item, 'popover') || launcherSupportsSource(item, 'root-panel'))
   )
 }
 
@@ -159,15 +156,8 @@ function getSectionChildren(launcher: ComposerToolLauncher, source: ComposerTool
   return (launcher.submenu ?? []).filter((item) => !item.hidden && launcherSupportsSource(item, source))
 }
 
-function getLauncherTreeSearchText(launcher: ComposerToolLauncher, seenLauncherIds = new Set<string>()): string {
-  if (seenLauncherIds.has(launcher.id)) return ''
-
-  const nextSeenLauncherIds = new Set(seenLauncherIds)
-  nextSeenLauncherIds.add(launcher.id)
-
-  const childText = getUnifiedChildren(launcher, nextSeenLauncherIds).map((child) =>
-    getLauncherTreeSearchText(child, nextSeenLauncherIds)
-  )
+function getLauncherTreeSearchText(launcher: ComposerToolLauncher): string {
+  const childText = getUnifiedChildren(launcher).map(getLauncherTreeSearchText)
   return [getLauncherSearchText(launcher), ...childText].filter(Boolean).join(' ')
 }
 
@@ -199,12 +189,9 @@ function createUnifiedPanelListItem(
     quickPanel: QuickPanelContextType
     onToolLauncherSelect?: ComposerUnifiedPanelSelectHandler
     getRootPanelOptions?: () => QuickPanelOpenOptions
-    ancestorLauncherIds?: ReadonlySet<string>
   }
 ): QuickPanelListItem {
-  const nextAncestorLauncherIds = new Set(options.ancestorLauncherIds)
-  nextAncestorLauncherIds.add(launcher.id)
-  const children = getUnifiedChildren(launcher, nextAncestorLauncherIds)
+  const children = getUnifiedChildren(launcher)
 
   return {
     label: launcher.label,
@@ -214,20 +201,13 @@ function createUnifiedPanelListItem(
     isSelected: launcher.active,
     isMenu: launcher.kind === 'panel' || launcher.kind === 'group' || children.length > 0,
     disabled: launcher.disabled,
-    filterText: getLauncherTreeSearchText(launcher, new Set(options.ancestorLauncherIds)),
+    filterText: getLauncherTreeSearchText(launcher),
     action: ({ context, parentPanel: actionParentPanel, queryAnchor, searchText }) => {
       const parentPanel = actionParentPanel ?? options.getRootPanelOptions?.()
       const triggerInfo = context.triggerInfo ?? options.quickPanel.triggerInfo
 
       if (children.length > 0) {
-        openUnifiedPanelSubmenu(launcher, {
-          ...options,
-          ancestorLauncherIds: nextAncestorLauncherIds,
-          parentPanel,
-          queryAnchor,
-          searchText,
-          triggerInfo
-        })
+        openUnifiedPanelSubmenu(launcher, { ...options, parentPanel, queryAnchor, searchText, triggerInfo })
         return
       }
 
@@ -256,15 +236,11 @@ function openUnifiedPanelSubmenu(
     queryAnchor?: number
     searchText?: string
     triggerInfo?: QuickPanelTriggerInfo
-    ancestorLauncherIds?: ReadonlySet<string>
   }
 ) {
-  const nextAncestorLauncherIds = new Set(options.ancestorLauncherIds)
-  nextAncestorLauncherIds.add(launcher.id)
-  const childItems = getUnifiedChildren(launcher, nextAncestorLauncherIds).map((child) =>
+  const childItems = getUnifiedChildren(launcher).map((child) =>
     createUnifiedPanelListItem(child, {
       ...options,
-      ancestorLauncherIds: nextAncestorLauncherIds,
       source: getLauncherPreferredSource(child)
     })
   )
@@ -304,7 +280,6 @@ function createUnifiedSectionItems(
         { ...launcher, submenu: getUnifiedChildren(launcher) },
         {
           ...options,
-          ancestorLauncherIds: new Set(),
           source: options.source
         }
       )

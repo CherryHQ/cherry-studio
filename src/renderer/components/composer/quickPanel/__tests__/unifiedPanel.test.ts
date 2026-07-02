@@ -1,7 +1,6 @@
 import type { QuickPanelContextType, QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ComposerToolLauncher } from '../../toolLauncher'
 import { createUnifiedQuickPanelOpenOptions, hasUnifiedQuickPanelRootContent } from '../unifiedPanel'
 
 const quickPanel = {
@@ -251,49 +250,6 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
         queryAnchor: 0,
         searchText: 'think',
         triggerInfo: { type: 'input', position: 0, originalText: '/think' }
-      })
-    )
-  })
-
-  it('ignores submenu cycles while building and opening launcher items', () => {
-    const cyclicParent: ComposerToolLauncher = {
-      id: 'cyclic-parent',
-      kind: 'group',
-      label: 'Parent',
-      icon: 'parent',
-      sources: ['popover'],
-      submenu: []
-    }
-    const cyclicChild: ComposerToolLauncher = {
-      id: 'cyclic-child',
-      kind: 'group',
-      label: 'Child',
-      icon: 'child',
-      sources: ['popover'],
-      submenu: [cyclicParent]
-    }
-    cyclicParent.submenu = [cyclicChild]
-
-    const options = createUnifiedQuickPanelOpenOptions([cyclicParent], { quickPanel })
-    const actionContext = { ...quickPanel, triggerInfo: options.triggerInfo } satisfies QuickPanelContextType
-
-    expect(options.list).toHaveLength(1)
-    expect(options.list[0]).toEqual(expect.objectContaining({ label: 'Parent' }))
-    expect(options.list[0].filterText).toContain('Parent')
-    expect(options.list[0].filterText).toContain('Child')
-    expect(() =>
-      options.list[0].action?.({
-        action: 'enter',
-        context: actionContext,
-        item: options.list[0],
-        parentPanel: options,
-        queryAnchor: 0,
-        searchText: ''
-      })
-    ).not.toThrow()
-    expect(quickPanel.open).toHaveBeenCalledWith(
-      expect.objectContaining({
-        list: [expect.objectContaining({ label: 'Child' })]
       })
     )
   })
