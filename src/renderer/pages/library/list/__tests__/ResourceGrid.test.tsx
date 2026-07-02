@@ -624,6 +624,47 @@ describe('ResourceCardMenu tag binding', () => {
     expect(ensureTagsMock).toHaveBeenCalledTimes(1)
   })
 
+  it('uses roving focus for tag picker radio items', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <ResourceCardMenu
+        resource={createAssistantResource()}
+        onClose={vi.fn()}
+        onDuplicate={vi.fn()}
+        onDelete={vi.fn()}
+        onExport={vi.fn()}
+        allTagNames={['alpha', 'beta', 'gamma']}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: /library.action.manage_tags/ }))
+
+    const alpha = screen.getByRole('menuitemradio', { name: 'alpha' })
+    const beta = screen.getByRole('menuitemradio', { name: 'beta' })
+    const gamma = screen.getByRole('menuitemradio', { name: 'gamma' })
+
+    expect(alpha).toHaveAttribute('tabindex', '0')
+    expect(beta).toHaveAttribute('tabindex', '-1')
+
+    alpha.focus()
+    expect(alpha).toHaveFocus()
+
+    await user.keyboard('{ArrowDown}')
+    expect(beta).toHaveFocus()
+
+    await waitFor(() => {
+      expect(alpha).toHaveAttribute('tabindex', '-1')
+      expect(beta).toHaveAttribute('tabindex', '0')
+    })
+
+    await user.keyboard('{End}')
+    expect(gamma).toHaveFocus()
+
+    await user.keyboard('{Home}')
+    expect(alpha).toHaveFocus()
+  })
+
   it('replaces the current assistant tag when a different tag is selected', async () => {
     const user = userEvent.setup()
     ensureTagsMock.mockResolvedValueOnce([{ id: 'tag-beta', name: 'beta' }])
