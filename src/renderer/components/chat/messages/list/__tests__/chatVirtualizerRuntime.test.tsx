@@ -591,6 +591,54 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
+  it('replaces an in-flight smooth scroll when scrolling to bottom', () => {
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        handle = nextHandle
+      }
+      let scrollTop = 800
+      render(
+        <RuntimeDomProbe
+          items={['message-a']}
+          handleRef={handleRef}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      setElementMetric(scroller, 'scrollHeight', () => 1200)
+      setElementMetric(scroller, 'clientHeight', () => 400)
+
+      act(() => {
+        handle!.scrollToTop('smooth')
+      })
+      raf.tick()
+      const topScrollProgress = scrollTop
+      expect(topScrollProgress).toBeLessThan(800)
+
+      act(() => {
+        handle!.scrollToBottom('smooth')
+      })
+      raf.tick()
+      expect(scrollTop).toBeGreaterThan(topScrollProgress)
+
+      raf.tick(50)
+      expect(scrollTop).toBe(800)
+    } finally {
+      raf.restore()
+    }
+  })
+
   it('resets bottom-follow state when pinning a message to the viewport top', () => {
     let runtime: ChatVirtualizerRuntime<string> | undefined
     let handle: MessageVirtualListHandle | null = null

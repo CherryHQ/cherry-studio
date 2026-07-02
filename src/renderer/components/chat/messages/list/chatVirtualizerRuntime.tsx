@@ -567,12 +567,10 @@ export function useChatVirtualizerRuntime<T>({
       if (!el) return
       const target = getRealBottom(el, anchor.spacerHeight)
       if (behavior === 'smooth') {
-        if (!smoothScroll.isAnimating()) {
-          smoothScroll.scrollTo(() => {
-            const current = scrollerRef.current
-            return current ? getRealBottom(current, bottomFollowInsetRef.current) : 0
-          })
-        }
+        smoothScroll.scrollTo(() => {
+          const current = scrollerRef.current
+          return current ? getRealBottom(current, bottomFollowInsetRef.current) : 0
+        })
       } else {
         smoothScroll.cancel()
         el.scrollTop = target
