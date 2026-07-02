@@ -23,6 +23,7 @@ import {
   type RestoreKnowledgeBaseDto,
   type RestoreKnowledgeBaseResult
 } from '@shared/data/types/knowledge'
+import { isCompletedVectorKnowledgeBase } from '@shared/data/types/knowledge'
 import { estimateTokenCount } from 'tokenx'
 
 import { KnowledgeLockManager } from './KnowledgeLockManager'
@@ -359,6 +360,14 @@ export class KnowledgeService extends BaseService {
   async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<RestoreKnowledgeBaseResult> {
     const sourceBase = knowledgeBaseService.getById(dto.sourceBaseId)
 
+    // Restore always supplies an embedding model (RestoreKnowledgeBaseSchema requires
+    // it). A BM25-only source's searchMode is pinned to 'bm25' by the no-model
+    // invariant, so carrying it over would leave the restored base's semantic search
+    // silently disabled despite it now paying for the full embedding backfill. Drop
+    // it (and the always-null hybridAlpha) so create() applies its own hybrid
+    // default; a source that already had a model keeps its existing preference.
+    const gainsEmbeddings = sourceBase.embeddingModelId === null
+
     const createDto: CreateKnowledgeBaseDto = {
       name: dto.name?.trim() ?? sourceBase.name,
       dimensions: dto.dimensions,
@@ -369,8 +378,8 @@ export class KnowledgeService extends BaseService {
       chunkOverlap: sourceBase.chunkOverlap,
       threshold: sourceBase.threshold,
       documentCount: sourceBase.documentCount,
-      searchMode: sourceBase.searchMode,
-      hybridAlpha: sourceBase.hybridAlpha,
+      searchMode: gainsEmbeddings ? undefined : sourceBase.searchMode,
+      hybridAlpha: gainsEmbeddings ? undefined : sourceBase.hybridAlpha,
       groupId: sourceBase.groupId ?? undefined
     }
 
@@ -494,7 +503,9 @@ export class KnowledgeService extends BaseService {
 
     const base = knowledgeBaseService.getById(baseId)
     // Stored search mode and the index store's mode are the same enum now, so no mapping.
-    const mode = base.searchMode
+    // Vector/hybrid retrieval needs an embedding model; a base without one is BM25-only
+    // regardless of its stored preference.
+    const mode = isCompletedVectorKnowledgeBase(base) ? base.searchMode : 'bm25'
     // BM25 is lexical only; skip the embedding round-trip when the query won't use it.
     const queryEmbedding = mode === 'bm25' ? undefined : await embedKnowledgeQuery(base, query)
 

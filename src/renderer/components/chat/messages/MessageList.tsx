@@ -173,6 +173,16 @@ const MessageList = () => {
     messageListRef.current?.scrollToBottom('instant')
   }, [])
 
+  // Navigation buttons scroll through the virtua-aware runtime handle (smooth,
+  // remeasure-safe) rather than a raw scrollTo on the virtualized scroller.
+  const navigateToTop = useCallback(() => {
+    messageListRef.current?.scrollToTop('smooth')
+  }, [])
+
+  const navigateToBottom = useCallback(() => {
+    messageListRef.current?.scrollToBottom('smooth')
+  }, [])
+
   const scrollToMessageById = useCallback((messageId: string) => {
     const target = messageByIdRef.current.get(messageId)
     if (!target) return
@@ -559,7 +569,13 @@ const MessageList = () => {
         <MessageOutline message={activeOutlineMessage} multiModelMessageStyle={activeOutline.multiModelMessageStyle} />
       )}
       {messageNavigation === 'buttons' && (
-        <MessageNavigation containerId="messages" messages={messages} scrollToMessageId={scrollToMessageById} />
+        <MessageNavigation
+          containerId="messages"
+          messages={messages}
+          scrollToMessageId={scrollToMessageById}
+          scrollToTop={navigateToTop}
+          scrollToBottom={navigateToBottom}
+        />
       )}
       {meta.selectionLayer && (
         <SelectionBox

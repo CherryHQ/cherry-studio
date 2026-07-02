@@ -18,6 +18,7 @@ import {
 } from '../types'
 
 const scrollToBottom = vi.fn()
+const scrollToTop = vi.fn()
 const scrollToKey = vi.fn()
 const messageVirtualListMocks = vi.hoisted(() => ({
   deferScrollContainerReady: false,
@@ -179,6 +180,7 @@ vi.mock('../list/MessageVirtualList', async () => {
         handleRef as Ref<MessageVirtualListHandle>,
         () => ({
           scrollToBottom,
+          scrollToTop,
           scrollToKey,
           isAtBottom: () => false,
           getScrollElement: () => messageVirtualListMocks.scrollElement
@@ -259,6 +261,7 @@ const renderMessageList = (messages: MessageListItem[]) =>
 describe('MessageList', () => {
   beforeEach(() => {
     scrollToBottom.mockClear()
+    scrollToTop.mockClear()
     scrollToKey.mockClear()
     vi.mocked(captureScrollable).mockReset()
     vi.mocked(captureScrollableAsDataURL).mockReset()
