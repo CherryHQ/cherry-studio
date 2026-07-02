@@ -2,7 +2,7 @@ import fs from 'node:fs'
 
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, Injectable, Phase, type ProfileActivatable, ServicePhase } from '@main/core/lifecycle'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CompletedKnowledgeBase, KnowledgeBase } from '@shared/data/types/knowledge'
 import { isCompletedKnowledgeBase } from '@shared/data/types/knowledge'
@@ -42,7 +42,7 @@ function assertVectorStoreReadyBase(base: KnowledgeBase): asserts base is Comple
  */
 @Injectable('KnowledgeVectorStoreService')
 @ServicePhase(Phase.WhenReady)
-export class KnowledgeVectorStoreService extends BaseService {
+export class KnowledgeVectorStoreService extends BaseService implements ProfileActivatable {
   // Opening a store (better-sqlite3 connect + schema + meta) is fully synchronous
   // (see openIndexStore), so it runs to completion in one JS turn — no concurrent
   // getIndexStore call for the same base can ever observe an in-flight open, and a
@@ -103,8 +103,20 @@ export class KnowledgeVectorStoreService extends BaseService {
   }
 
   protected async onStop(): Promise<void> {
+    await this.closeAllStores()
+  }
+
+  /** No per-profile resource to acquire — index stores open on demand. */
+  onProfileActivate(): void {}
+
+  /** Close the previous profile's index stores (they point at its KnowledgeBase files). */
+  async onProfileDeactivate(): Promise<void> {
+    await this.closeAllStores()
+  }
+
+  private async closeAllStores(): Promise<void> {
     const storeCount = this.instanceCache.size
-    logger.info('Stopping knowledge index stores', { storeCount })
+    logger.info('Closing knowledge index stores', { storeCount })
 
     try {
       for (const [baseId, store] of this.instanceCache.entries()) {
@@ -116,7 +128,7 @@ export class KnowledgeVectorStoreService extends BaseService {
       }
     } finally {
       this.instanceCache.clear()
-      logger.info('Stopped knowledge index stores', { storeCount })
+      logger.info('Closed knowledge index stores', { storeCount })
     }
   }
 
