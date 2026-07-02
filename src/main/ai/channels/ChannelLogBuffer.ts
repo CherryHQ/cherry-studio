@@ -28,4 +28,8 @@ export class ChannelLogBuffer {
   remove(channelId: string) {
     this.logs.delete(channelId)
   }
+
+  clear() {
+    this.logs.clear()
+  }
 }

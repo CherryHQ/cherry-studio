@@ -58,7 +58,7 @@ export class ChannelManager extends BaseService implements ProfileActivatable {
   private readonly adapters = new Map<string, ChannelAdapter>() // key: `${agentId}:${channelId}`
   private readonly qrWaiters = new Map<
     string,
-    { resolve: (url: string) => void; timer: ReturnType<typeof setTimeout> }
+    { resolve: (url: string) => void; reject: (err: Error) => void; timer: ReturnType<typeof setTimeout> }
   >()
   private readonly channelLogs = new ChannelLogBuffer()
   private readonly channelStatuses = new Map<string, ChannelStatusEvent>()
@@ -116,6 +116,16 @@ export class ChannelManager extends BaseService implements ProfileActivatable {
     )
     await Promise.all(disconnects)
     this.adapters.clear()
+    // Clear the previous profile's residue so a switch does not accumulate its
+    // channel status/logs, and reject any in-flight QR waiter instead of leaving
+    // its 30s timer and pending promise dangling.
+    for (const { reject, timer } of this.qrWaiters.values()) {
+      clearTimeout(timer)
+      reject(new Error('Channel manager stopped'))
+    }
+    this.qrWaiters.clear()
+    this.channelStatuses.clear()
+    this.channelLogs.clear()
     logger.info('Channel manager stopped')
   }
 
@@ -130,7 +140,7 @@ export class ChannelManager extends BaseService implements ProfileActivatable {
         this.qrWaiters.delete(key)
         reject(new Error('Timed out waiting for QR code'))
       }, timeoutMs)
-      this.qrWaiters.set(key, { resolve, timer })
+      this.qrWaiters.set(key, { resolve, reject, timer })
     })
   }
 
