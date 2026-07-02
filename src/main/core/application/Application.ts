@@ -11,11 +11,13 @@ import {
 } from '@main/core/paths/pathRegistry'
 import { isProfilePathKey } from '@main/core/paths/profileKeys'
 import { isDev, isLinux, isMac, isPortable, isWin } from '@main/core/platform'
+import { resolveBootProfile } from '@main/core/profile/profileStore'
 import { bootConfigService } from '@main/data/bootConfig'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, dialog, ipcMain } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
+import type { ProfileActivationContext } from '../lifecycle'
 import type { Disposable } from '../lifecycle/event'
 import { LifecycleManager } from '../lifecycle/LifecycleManager'
 import { ServiceContainer } from '../lifecycle/ServiceContainer'
@@ -237,8 +239,20 @@ export class Application {
       // Setup Electron event handlers after app is ready
       this.setupElectronHandlers()
 
+      // Profile activation tier 1 (boot = first activation): bind the BeforeReady
+      // participants (DbService, Preference) to the boot profile now, before the
+      // WhenReady phase opens the main window, so the window's first data reads
+      // hit an open DB.
+      const bootProfileId = resolveBootProfile().id
+      await this.activateProfile({ profileId: bootProfileId })
+
       // 3. WhenReady phase - services requiring Electron API
       await this.lifecycleManager.startPhase(Phase.WhenReady)
+
+      // Profile activation tier 2: bind the WhenReady participants now that they
+      // exist. Tier-1 participants are already bound, so this converges (the
+      // per-service activate is idempotent for the same profile).
+      await this.activateProfile({ profileId: bootProfileId })
 
       this.isBootstrapped = true
 
@@ -684,6 +698,21 @@ export class Application {
    */
   public async deactivate<K extends keyof ServiceRegistry>(name: K): Promise<void> {
     return this.lifecycleManager.deactivate(name)
+  }
+
+  /** Bind every profile participant to `ctx.profileId` (forward order). See LifecycleManager.activateProfile. */
+  public async activateProfile(ctx: ProfileActivationContext): Promise<void> {
+    return this.lifecycleManager.activateProfile(ctx)
+  }
+
+  /** Release the current profile across every participant (reverse order). See LifecycleManager.deactivateProfile. */
+  public async deactivateProfile(): Promise<void> {
+    return this.lifecycleManager.deactivateProfile()
+  }
+
+  /** The profile-activation participants in initialization order (DbService first). */
+  public getProfileParticipants(): ReturnType<LifecycleManager['getProfileParticipants']> {
+    return this.lifecycleManager.getProfileParticipants()
   }
 
   /**
