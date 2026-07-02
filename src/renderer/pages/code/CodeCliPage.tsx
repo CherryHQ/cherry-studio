@@ -1,73 +1,38 @@
-import {
-  Button,
-  Checkbox,
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  Label,
-  SelectDropdown,
-  Textarea
-} from '@cherrystudio/ui'
-import { dataApiService } from '@data/DataApiService'
-import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
-import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-// Direct `Selector/model` path: the `Selector` barrel's nested `export *` isn't
-// resolved by tsgo on main's program (resolves on feat's); transitional, reverts
-// to the barrel once main converges with feat.
-import { ModelSelector } from '@renderer/components/Selector/model'
+import { ConfirmDialog } from '@cherrystudio/ui'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
-import { useModels } from '@renderer/hooks/useModel'
-import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
-import { useTimer } from '@renderer/hooks/useTimer'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
-import {
-  CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS,
-  isSiliconAnthropicCompatibleModel
-} from '@renderer/pages/code/codeProviders'
 import { loggerService } from '@renderer/services/LoggerService'
-import { EFFORT_RATIO } from '@renderer/types/reasoning'
-import { isMac, isWin } from '@renderer/utils/platform'
-import { getThinkingBudget } from '@shared/ai/reasoningBudget'
-import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import type { ApiKeyEntry } from '@shared/data/types/provider'
-import type { TerminalConfig } from '@shared/types/codeCli'
-import { CodeCli, TerminalApp } from '@shared/types/codeCli'
-import {
-  isEmbeddingModel,
-  isReasoningModel,
-  isRerankModel,
-  isSupportedReasoningEffortModel,
-  isSupportedThinkingTokenClaudeModel,
-  isTextToImageModel
-} from '@shared/utils/model'
-import { isAnthropicProvider, isOpenAIProvider } from '@shared/utils/provider'
-import { Check, ChevronDown, FolderOpen } from 'lucide-react'
+import { CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
+import type { UniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+import type { CodeCli } from '@shared/types/codeCli'
+import { useNavigate } from '@tanstack/react-router'
+import { ExternalLink } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  CLI_TOOL_PROVIDER_MAP,
-  CLI_TOOLS,
-  generateToolEnvironment,
-  isOpenCodeProvider,
-  OPENAI_CODEX_SUPPORTED_PROVIDERS,
-  parseEnvironmentVariables
-} from '.'
-import { CodeToolGallery } from './components/CodeToolGallery'
-import { FieldLabel } from './components/FieldLabel'
-import type { CodeToolMeta } from './components/types'
+import { CLI_TOOLS, PROVIDERLESS_CLI_TOOLS } from './cliTools'
+import { CodeCliSidebar } from './components/CodeCliSidebar'
+import { ConfigEditPanel } from './components/configEditPanel/ConfigEditPanel'
+import { ConfigList } from './components/ConfigList'
+import { LaunchDialog } from './components/LaunchDialog'
+import { VersionStatusCard } from './components/VersionStatusCard'
+import { clearCliConfig, injectCliConfig } from './injectCliConfig'
+import type { CodeToolMeta, VersionStatus } from './types'
+import { useAvailableTerminals } from './useAvailableTerminals'
+import { useBinaryActions } from './useBinaryActions'
+import { useCliVersionStatuses } from './useCliVersionStatuses'
+import { useConfigMetadata } from './useConfigMetadata'
 
 const logger = loggerService.withContext('CodeCliPage')
 
 type CliToolOption = (typeof CLI_TOOLS)[number]
-type LaunchStatus = 'idle' | 'launching' | 'success'
+
+const CLI_TOOL_IDS = CLI_TOOLS.map((tool) => tool.value)
 
 const toMeta = (tool: CliToolOption): CodeToolMeta => ({
   id: tool.value,
@@ -75,627 +40,321 @@ const toMeta = (tool: CliToolOption): CodeToolMeta => ({
   icon: tool.icon
 })
 
-interface TerminalItem {
-  id: string
-  name: string
-}
-
 const CodeCliPage: FC = () => {
   const { t } = useTranslation()
-  const { providers } = useProviders()
-  const { models } = useModels()
-  const providerMap = useMemo(() => new Map(providers.map((p) => [p.id, p])), [providers])
-  const [isBunInstalled, setIsBunInstalled] = usePersistCache('feature.mcp.is_bun_installed')
+  const [, setIsBunInstalled] = usePersistCache('feature.mcp.is_bun_installed')
   const {
     selectedCliTool,
-    selectedModel,
-    selectedTerminal,
-    environmentVariables,
-    directories,
-    currentDirectory,
-    canLaunch,
-    setCliTool,
-    setModel,
+    currentToolState,
+    currentProviderId,
+    currentProviderConfig,
+    providerConfigs,
+    directory,
+    upsertProviderConfig,
+    setCurrentProvider,
+    reorderProviders,
+    selectTool,
     setTerminal,
-    setEnvVars,
-    setCurrentDir,
-    removeDir,
-    selectFolder
+    selectFolder,
+    selectedTerminal
   } = useCodeCli()
-  const { setTimeoutTimer } = useTimer()
 
-  const { maxTokens, reasoning_effort } = DEFAULT_ASSISTANT_SETTINGS
+  const { install, upgrade, remove, installingTools, upgradingTools } = useBinaryActions()
+  const availableTerminals = useAvailableTerminals()
+  const { providers } = useProviders()
+  const { filterProviders, makeModelFilter, resolveProviderMeta, firstModelByProvider } =
+    useConfigMetadata(selectedCliTool)
+  const navigate = useNavigate()
 
-  const [launchStatus, setLaunchStatus] = useState<LaunchStatus>('idle')
-  const [isInstallingBun, setIsInstallingBun] = useState(false)
-  const [autoUpdateToLatest, setAutoUpdateToLatest] = useState(false)
-  const [availableTerminals, setAvailableTerminals] = useState<TerminalConfig[]>([])
-  const [terminalCustomPaths, setTerminalCustomPaths] = useState<Record<string, string>>({})
-
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [modelSelectorPortalContainer, setModelSelectorPortalContainer] = useState<HTMLDivElement | null>(null)
-
-  const rawModelId = useCallback((m: Model) => m.apiModelId ?? parseUniqueModelId(m.id).modelId, [])
-
-  const modelPredicate = useCallback(
-    (m: Model) => {
-      if (isEmbeddingModel(m) || isRerankModel(m) || isTextToImageModel(m)) {
-        return false
-      }
-
-      if (m.providerId === CHERRYAI_PROVIDER_ID) {
-        return false
-      }
-
-      const provider = providerMap.get(m.providerId)
-      if (!provider) {
-        return false
-      }
-
-      const eps = m.endpointTypes ?? []
-      const id = rawModelId(m)
-
-      if (selectedCliTool === CodeCli.CLAUDE_CODE) {
-        if (eps.length) {
-          return eps.includes('anthropic-messages')
-        }
-        if (m.providerId === 'silicon') {
-          return isSiliconAnthropicCompatibleModel(id)
-        }
-        if (isAnthropicProvider(provider)) {
-          return true
-        }
-        return id.includes('claude') || CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS.includes(m.providerId)
-      }
-
-      if (selectedCliTool === CodeCli.GEMINI_CLI) {
-        if (eps.length) {
-          return eps.includes('google-generate-content')
-        }
-        return id.includes('gemini')
-      }
-
-      if (selectedCliTool === CodeCli.OPENAI_CODEX) {
-        if (eps.length) {
-          return eps.includes('openai-chat-completions') || eps.includes('openai-responses')
-        }
-        if (isOpenAIProvider(provider)) {
-          return true
-        }
-        return id.includes('openai') || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(m.providerId)
-      }
-
-      if (selectedCliTool === CodeCli.GITHUB_COPILOT_CLI || selectedCliTool === CodeCli.QODER_CLI) {
-        return false
-      }
-
-      if (selectedCliTool === CodeCli.QWEN_CODE) {
-        if (eps.length) {
-          return eps.includes('openai-chat-completions') || eps.includes('openai-responses')
-        }
-        return true
-      }
-
-      if (selectedCliTool === CodeCli.OPEN_CODE) {
-        if (eps.length) {
-          return (
-            eps.includes('openai-chat-completions') ||
-            eps.includes('openai-responses') ||
-            eps.includes('anthropic-messages')
-          )
-        }
-        return isOpenCodeProvider(provider)
-      }
-
-      return true
-    },
-    [selectedCliTool, providerMap, rawModelId]
-  )
-
-  const availableProviders = useMemo(() => {
-    const filterFn = CLI_TOOL_PROVIDER_MAP[selectedCliTool]
-    return filterFn ? filterFn(providers) : []
-  }, [providers, selectedCliTool])
-
-  const allowedProviderIds = useMemo(
-    () => new Set(availableProviders.map((provider) => provider.id)),
-    [availableProviders]
-  )
-
-  const codeCliModelFilter = useCallback(
-    (model: Model) => allowedProviderIds.has(model.providerId) && modelPredicate(model),
-    [allowedProviderIds, modelPredicate]
-  )
-
-  const selectedModelValue = useMemo(
-    () => (isUniqueModelId(selectedModel) ? selectedModel : undefined),
-    [selectedModel]
-  )
-
-  const selectedModelRecord = useMemo(
-    () =>
-      selectedModelValue
-        ? models.find((model) => model.id === selectedModelValue && codeCliModelFilter(model))
-        : undefined,
-    [codeCliModelFilter, models, selectedModelValue]
-  )
-
-  const selectedModelProvider = selectedModelRecord ? providerMap.get(selectedModelRecord.providerId) : undefined
-
-  const renderModelSelectorTrigger = () => (
-    <button
-      type="button"
-      className="group flex h-9 w-full items-center justify-between rounded-md border border-border-muted bg-transparent px-3 text-sm transition-colors hover:bg-muted/30 data-[state=open]:border-foreground! data-[state=open]:ring-1 data-[state=open]:ring-foreground/10!">
-      <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
-        {selectedModelRecord ? (
-          <>
-            <ModelAvatar model={selectedModelRecord} size={18} />
-            <span className="truncate text-foreground">{selectedModelRecord.name || selectedModelRecord.id}</span>
-            {selectedModelProvider && (
-              <span className="shrink-0 text-muted-foreground text-xs">
-                {getProviderDisplayName(selectedModelProvider)}
-              </span>
-            )}
-          </>
-        ) : (
-          <span className="truncate text-muted-foreground/50">{t('code.model_placeholder')}</span>
-        )}
-      </div>
-      <ChevronDown
-        size={12}
-        className="ml-2 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180"
-      />
-    </button>
-  )
-
-  const terminalItems = useMemo<TerminalItem[]>(
-    () => availableTerminals.map((terminal) => ({ id: terminal.id, name: terminal.name })),
-    [availableTerminals]
-  )
-
-  const directoryItems = useMemo(() => directories.map((dir) => ({ id: dir })), [directories])
-
-  const resolveModel = useCallback(
-    (modelIdStr: string): Model | null => {
-      const model = models.find((m) => m.id === modelIdStr)
-      if (model) return model
-      logger.warn(`Model not found for ID: ${modelIdStr}`)
-      return null
-    },
-    [models]
-  )
-
-  const handleModelChange = (modelId: UniqueModelId | undefined) => {
-    if (!modelId) {
-      setModel(null).catch((err) => logger.error('Failed to clear model:', err as Error))
-      return
-    }
-    setModel(modelId).catch((err) => logger.error('Failed to set model:', err as Error))
-  }
-
-  const handleRemoveDirectory = (directory: string) => {
-    removeDir(directory).catch((err) => logger.error('Failed to remove directory:', err as Error))
-  }
-
-  const checkBunInstallation = useCallback(async () => {
-    try {
-      const bunExists = await window.api.isBinaryExist('bun')
-      setIsBunInstalled(bunExists)
-    } catch (error) {
-      logger.error('Failed to check bun installation status:', error as Error)
-    }
-  }, [setIsBunInstalled])
-
-  const loadAvailableTerminals = useCallback(async () => {
-    if (!isMac && !isWin) return
-
-    try {
-      const terminals = await window.api.codeCli.getAvailableTerminals()
-      setAvailableTerminals(terminals)
-      logger.info('Available terminals loaded', {
-        count: terminals.length,
-        names: terminals.map((ti) => ti.name)
-      })
-    } catch (error) {
-      logger.error('Failed to load available terminals:', error as Error)
-      setAvailableTerminals([])
-    }
-  }, [])
-
-  const handleInstallBun = async () => {
-    try {
-      setIsInstallingBun(true)
-      await ipcApi.request('binary.install_tool', { name: 'bun', tool: 'bun' })
-      setIsBunInstalled(true)
-      window.toast.success(t('settings.mcp.installSuccess'))
-    } catch (error) {
-      logger.error('Failed to install bun:', error as Error)
-      const message = error instanceof Error ? error.message : String(error)
-      window.toast.error(`${t('settings.mcp.installError')}: ${message}`)
-    } finally {
-      setIsInstallingBun(false)
-      setTimeoutTimer('handleInstallBun', checkBunInstallation, 1000)
-    }
-  }
-
-  const validateLaunch = (): { isValid: boolean; message?: string } => {
-    // Qoder runs via its `#!/usr/bin/env node` shebang (Node ≥20), not Bun, so it isn't gated on Bun.
-    const needsBun = selectedCliTool !== CodeCli.QODER_CLI
-    if (!canLaunch || (needsBun && !isBunInstalled)) {
-      return {
-        isValid: false,
-        message: needsBun && !isBunInstalled ? t('code.launch.bun_required') : t('code.launch.validation_error')
-      }
-    }
-
-    if (!selectedModel && selectedCliTool !== CodeCli.GITHUB_COPILOT_CLI && selectedCliTool !== CodeCli.QODER_CLI) {
-      return { isValid: false, message: t('code.model_required') }
-    }
-
-    return { isValid: true }
-  }
-
-  const prepareLaunchEnvironment = async (): Promise<{
-    env: Record<string, string>
-  } | null> => {
-    if (selectedCliTool === CodeCli.GITHUB_COPILOT_CLI || selectedCliTool === CodeCli.QODER_CLI) {
-      const userEnv = parseEnvironmentVariables(environmentVariables)
-      return { env: userEnv }
-    }
-
-    if (!selectedModel) return null
-
-    const resolvedModel = resolveModel(selectedModel)
-    if (!resolvedModel) return null
-
-    const modelProvider = providerMap.get(resolvedModel.providerId)
-    if (!modelProvider) {
-      logger.warn(`Provider not found for model: ${resolvedModel.id}`)
-      return null
-    }
-
-    const isAnthropic = isAnthropicProvider(modelProvider)
-    const defaultEndpoint = modelProvider.defaultChatEndpoint ?? 'openai-chat-completions'
-    const baseUrl = modelProvider.endpointConfigs?.[defaultEndpoint]?.baseUrl ?? ''
-    const anthropicBaseUrl = modelProvider.endpointConfigs?.['anthropic-messages']?.baseUrl
-
-    let apiKey = ''
-    try {
-      const { keys } = (await dataApiService.get(`/providers/${modelProvider.id}/api-keys`)) as {
-        keys: ApiKeyEntry[]
-      }
-      apiKey = keys.find((k) => k.isEnabled)?.key ?? keys[0]?.key ?? ''
-    } catch (error) {
-      logger.error(`Failed to load api keys for provider: ${modelProvider.id}`, error as Error)
-    }
-
-    const id = resolvedModel.apiModelId ?? parseUniqueModelId(resolvedModel.id).modelId
-    const reasoning = {
-      isReasoning: isReasoningModel(resolvedModel),
-      supportsReasoningEffort: isSupportedReasoningEffortModel(resolvedModel),
-      budgetTokens: isSupportedThinkingTokenClaudeModel(resolvedModel)
-        ? getThinkingBudget(maxTokens, reasoning_effort, id, EFFORT_RATIO, { fallbackOnUnknown: true })
-        : undefined
-    }
-
-    const { env: toolEnv } = generateToolEnvironment({
-      tool: selectedCliTool,
-      rawModelId: id,
-      modelName: resolvedModel.name,
-      endpointType: resolvedModel.endpointTypes?.[0],
-      providerId: modelProvider.id,
-      fancyProviderName: getProviderDisplayName(modelProvider),
-      isAnthropic,
-      anthropicBaseUrl,
-      apiKey,
-      baseUrl,
-      reasoning
+  const supportedProviders = useMemo(() => {
+    const filtered = filterProviders(providers)
+    const entries = new Map(Object.entries(currentToolState.providers))
+    // Sort by explicit sortIndex; providers without one appear at the end.
+    return [...filtered].sort((a, b) => {
+      const ai = entries.get(a.id)?.sortIndex
+      const bi = entries.get(b.id)?.sortIndex
+      if (ai !== undefined && bi !== undefined) return ai - bi
+      if (ai !== undefined) return -1
+      if (bi !== undefined) return 1
+      return 0
     })
+  }, [filterProviders, providers, currentToolState])
 
-    const userEnv = parseEnvironmentVariables(environmentVariables)
+  const handleReorder = useCallback(
+    (nextProviders: Provider[]) => {
+      void reorderProviders(nextProviders.map((p) => p.id))
+    },
+    [reorderProviders]
+  )
 
-    return { env: { ...toolEnv, ...userEnv } }
-  }
+  const enabledProvider = currentProviderId ? supportedProviders.find((p) => p.id === currentProviderId) : undefined
 
-  const executeLaunch = async (env: Record<string, string>): Promise<boolean> => {
-    const resolvedModel = selectedModel ? resolveModel(selectedModel) : null
-    if (selectedCliTool !== CodeCli.GITHUB_COPILOT_CLI && selectedCliTool !== CodeCli.QODER_CLI && !resolvedModel) {
-      logger.warn('Cannot launch: model could not be resolved')
-      window.toast.error(t('code.model_required'))
-      return false
-    }
-    const modelId =
-      selectedCliTool === CodeCli.GITHUB_COPILOT_CLI || selectedCliTool === CodeCli.QODER_CLI || !resolvedModel
-        ? ''
-        : (resolvedModel.apiModelId ?? parseUniqueModelId(resolvedModel.id).modelId)
+  const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
+  const [launchOpen, setLaunchOpen] = useState(false)
+  const [launching, setLaunching] = useState(false)
+  const [removeTarget, setRemoveTarget] = useState<CodeCli | null>(null)
+  const openConfigurePanel = useCallback((provider: Provider) => setEditingProvider(provider), [])
+  const closePanel = useCallback(() => setEditingProvider(null), [])
 
-    const runOptions = {
-      autoUpdateToLatest,
-      terminal: selectedTerminal
-    }
-
-    try {
-      const result = await window.api.codeCli.run(selectedCliTool, modelId, currentDirectory, env, runOptions)
-      if (result && result.success) {
-        setLaunchStatus('success')
-        setTimeoutTimer(
-          'launchSuccess',
-          () => {
-            setLaunchStatus((current) => (current === 'success' ? 'idle' : current))
-          },
-          2500
-        )
-        window.toast.success(t('code.launch.success'))
-        return true
-      }
-      window.toast.error(result?.message || t('code.launch.error'))
-      return false
-    } catch (error) {
-      logger.error('codeTools.run failed:', error as Error)
-      window.toast.error(t('code.launch.error'))
-      return false
-    }
-  }
-
-  const handleSetCustomPath = async (terminalId: string) => {
-    try {
-      const result = await window.api.file.select({
-        properties: ['openFile'],
-        filters: [
-          { name: 'Executable', extensions: ['exe'] },
-          { name: 'All Files', extensions: ['*'] }
-        ]
+  const handlePanelSubmit = useCallback(
+    async (values: { modelId: UniqueModelId; config?: Record<string, unknown> }) => {
+      if (!editingProvider) return
+      await upsertProviderConfig(editingProvider.id, {
+        modelId: values.modelId,
+        ...(values.config ? { config: values.config } : {})
       })
-
-      if (result && result.length > 0) {
-        const path = result[0].path
-        await window.api.codeCli.setCustomTerminalPath(terminalId, path)
-        setTerminalCustomPaths((prev) => ({ ...prev, [terminalId]: path }))
-        window.toast.success(t('code.custom_path_set'))
-        void loadAvailableTerminals()
+      logger.info('Updated CLI provider config', { toolId: selectedCliTool, providerId: editingProvider.id })
+      // Re-apply to the native file when editing the currently active provider.
+      if (currentProviderId === editingProvider.id) {
+        try {
+          await injectCliConfig({
+            cliTool: selectedCliTool,
+            modelId: values.modelId,
+            configBlob: values.config
+          })
+        } catch (err) {
+          logger.error('Failed to inject CLI config on edit:', err as Error)
+          window.toast.error(t('code.apply_failed'))
+        }
       }
-    } catch (error) {
-      logger.error('Failed to set custom terminal path:', error as Error)
-      window.toast.error(t('code.custom_path_error'))
+    },
+    [editingProvider, selectedCliTool, currentProviderId, upsertProviderConfig, t]
+  )
+
+  const handleToggleCurrent = useCallback(
+    (provider: Provider) => {
+      const isEnabling = currentProviderId !== provider.id
+      void (async () => {
+        if (!isEnabling) {
+          try {
+            await clearCliConfig({ cliTool: selectedCliTool })
+          } catch (err) {
+            logger.error('Failed to clear CLI config on disable:', err as Error)
+            window.toast.error(t('code.apply_failed'))
+          }
+          await setCurrentProvider(null)
+          return
+        }
+        // Ensure the provider has a config + modelId before injecting. Auto-pick
+        // the provider's first enabled model when the user hasn't configured one.
+        let cfg = providerConfigs[provider.id]
+        let modelId = cfg?.modelId
+        if (!modelId) {
+          const firstModel = firstModelByProvider.get(provider.id)
+          if (!firstModel) {
+            window.toast.error(t('code.no_model_for_provider'))
+            return
+          }
+          modelId = firstModel
+          await upsertProviderConfig(provider.id, { modelId: firstModel })
+          cfg = providerConfigs[provider.id]
+        }
+        // Inject first; only mark as current on success so the UI never shows a
+        // provider as active while its native file failed to write.
+        try {
+          await injectCliConfig({
+            cliTool: selectedCliTool,
+            modelId,
+            configBlob: cfg?.config
+          })
+          await setCurrentProvider(provider.id)
+        } catch (err) {
+          logger.error('Failed to inject CLI config on enable:', err as Error)
+          window.toast.error(t('code.apply_failed'))
+        }
+      })()
+    },
+    [
+      currentProviderId,
+      selectedCliTool,
+      firstModelByProvider,
+      providerConfigs,
+      upsertProviderConfig,
+      setCurrentProvider,
+      t
+    ]
+  )
+
+  const handleSelectFolder = useCallback(async () => {
+    try {
+      await selectFolder()
+    } catch (err) {
+      logger.error('Failed to select folder:', err as Error)
     }
-  }
+  }, [selectFolder])
 
-  const handleLaunch = async () => {
-    const validation = validateLaunch()
-
-    if (!validation.isValid) {
-      window.toast.warning(validation.message || t('code.launch.validation_error'))
+  // The native config file is written at "enable" time, not here — launch only
+  // opens a terminal running the CLI in the provider's directory. Provider-less
+  // tools (qoder / copilot) launch with a directory only.
+  const handleLaunch = useCallback(async () => {
+    const isProviderless = PROVIDERLESS_CLI_TOOLS.has(selectedCliTool)
+    if (!directory || (!isProviderless && !enabledProvider)) {
+      window.toast.error(t('code.folder_placeholder'))
       return
     }
-
-    setLaunchStatus('launching')
-
+    const { providerId, modelId: rawModelId } =
+      currentProviderConfig && isUniqueModelId(currentProviderConfig.modelId)
+        ? parseUniqueModelId(currentProviderConfig.modelId)
+        : { providerId: '', modelId: currentProviderConfig?.modelId ?? '' }
     try {
-      const result = await prepareLaunchEnvironment()
-      if (!result) {
-        window.toast.error(t('code.model_required'))
-        setLaunchStatus('idle')
-        return
+      setLaunching(true)
+      const runResult = await ipcApi.request('code_cli.run', {
+        cliTool: selectedCliTool,
+        model: rawModelId,
+        providerId,
+        directory,
+        env: {},
+        options: { terminal: selectedTerminal ?? undefined }
+      })
+      if (!runResult.success) {
+        window.toast.error(runResult.message)
+      } else {
+        setLaunchOpen(false)
       }
-
-      const launched = await executeLaunch(result.env)
-      if (!launched) {
-        setLaunchStatus('idle')
-      }
-    } catch (error) {
-      logger.error('start code tools failed:', error as Error)
+    } catch (err) {
+      logger.error('Failed to launch CLI tool:', err as Error)
       window.toast.error(t('code.launch.error'))
-      setLaunchStatus('idle')
+    } finally {
+      setLaunching(false)
     }
-  }
-
-  useEffect(() => {
-    void checkBunInstallation()
-  }, [checkBunInstallation])
-
-  useEffect(() => {
-    void loadAvailableTerminals()
-  }, [loadAvailableTerminals])
-
-  const handleSelectTool = async (tool: CodeCli) => {
-    if (tool !== selectedCliTool) {
-      try {
-        await setCliTool(tool)
-      } catch (err) {
-        logger.error('Failed to set CLI tool:', err as Error)
-        window.toast.error(t('common.error'))
-        return
-      }
-    }
-    setDialogOpen(true)
-  }
+  }, [enabledProvider, currentProviderConfig, directory, selectedCliTool, selectedTerminal, t])
 
   const activeTool = useMemo<CliToolOption | undefined>(
     () => CLI_TOOLS.find((ti) => ti.value === selectedCliTool),
     [selectedCliTool]
   )
+  const isProviderlessTool = PROVIDERLESS_CLI_TOOLS.has(selectedCliTool)
+  const canLaunch = isProviderlessTool || !!enabledProvider
   const activeMeta = activeTool ? toMeta(activeTool) : null
+  const statuses = useCliVersionStatuses(CLI_TOOL_IDS)
+  const versionStatus: VersionStatus = statuses[selectedCliTool] ?? { installed: false, canUpgrade: false }
+  const cliPreset = CLI_TOOL_PRESET_MAP[selectedCliTool]
 
-  const needsWindowsCustomPath =
-    isWin &&
-    !!selectedTerminal &&
-    selectedTerminal !== TerminalApp.CMD &&
-    selectedTerminal !== TerminalApp.POWERSHELL &&
-    selectedTerminal !== TerminalApp.WINDOWS_TERMINAL
-
-  const activeToolValue = dialogOpen ? selectedCliTool : undefined
-  const isLaunching = launchStatus === 'launching'
-  const launchSuccess = launchStatus === 'success'
+  // Refresh the shared MCP bun-presence cache once on mount (MCP relies on it).
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const bunExists = await window.api.isBinaryExist('bun')
+        if (!cancelled) setIsBunInstalled(bunExists)
+      } catch (error) {
+        logger.error('Failed to check bun installation status:', error as Error)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [setIsBunInstalled])
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden text-foreground">
-      <Navbar>
-        <NavbarCenter className="border-r-0">{t('code.title')}</NavbarCenter>
-      </Navbar>
-
-      <div className="relative flex min-h-0 flex-1 flex-col">
-        <CodeToolGallery
+      <div className="flex min-h-0 flex-1">
+        {/* Left sidebar: CLI tools list */}
+        <CodeCliSidebar
           tools={CLI_TOOLS}
-          isBunInstalled={!!isBunInstalled}
-          isInstallingBun={isInstallingBun}
-          handleInstallBun={handleInstallBun}
-          activeToolValue={activeToolValue}
-          handleSelectTool={handleSelectTool}
+          selectedCliTool={selectedCliTool}
+          onSelectTool={selectTool}
           toMeta={toMeta}
+          statuses={statuses}
+          installingTools={installingTools}
+          upgradingTools={upgradingTools}
         />
 
-        {activeMeta && (
-          <Dialog open={dialogOpen} onOpenChange={(next) => !next && setDialogOpen(false)}>
-            <DialogContent aria-describedby={undefined}>
-              <div ref={setModelSelectorPortalContainer} className="contents">
-                <DialogHeader>
-                  <DialogTitle>{activeMeta.label}</DialogTitle>
-                </DialogHeader>
+        {/* Right content */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {activeMeta ? (
+            <div className="scrollbar-thin flex-1 overflow-y-auto px-6 py-5">
+              <div className="mx-auto max-w-2xl space-y-5">
+                {/* Version status card */}
+                {cliPreset && (
+                  <VersionStatusCard
+                    toolId={selectedCliTool}
+                    toolName={activeMeta.label}
+                    status={versionStatus}
+                    onInstall={() => void install(selectedCliTool)}
+                    onUpgrade={() => void upgrade(selectedCliTool)}
+                    onRemove={() => setRemoveTarget(selectedCliTool)}
+                    onLaunch={() => setLaunchOpen(true)}
+                    canLaunch={canLaunch}
+                    launching={launching}
+                    isInstalling={installingTools.has(selectedCliTool)}
+                    isUpgrading={upgradingTools.has(selectedCliTool)}
+                  />
+                )}
 
-                <div className="flex flex-col gap-4">
-                  {selectedCliTool !== CodeCli.GITHUB_COPILOT_CLI && selectedCliTool !== CodeCli.QODER_CLI && (
-                    <div>
-                      <FieldLabel hint={t('code.model_hint')}>{t('code.model')}</FieldLabel>
-                      <ModelSelector
-                        multiple={false}
-                        selectionType="id"
-                        value={selectedModelValue}
-                        onSelect={handleModelChange}
-                        filter={codeCliModelFilter}
-                        showTagFilter={false}
-                        portalContainer={modelSelectorPortalContainer}
-                        trigger={renderModelSelectorTrigger()}
-                      />
-                    </div>
-                  )}
-
-                  <div>
-                    <FieldLabel hint={t('code.working_directory_hint')}>{t('code.working_directory')}</FieldLabel>
-                    <div className="flex items-center gap-2">
-                      <div className="min-w-0 flex-1">
-                        <SelectDropdown
-                          items={directoryItems}
-                          selectedId={currentDirectory || null}
-                          onSelect={(id) => void setCurrentDir(id)}
-                          onRemove={handleRemoveDirectory}
-                          removeLabel={t('common.delete')}
-                          emptyText={t('common.none')}
-                          placeholder={t('code.folder_placeholder')}
-                          triggerClassName="data-[state=open]:border-foreground! data-[state=open]:ring-foreground/10!"
-                          renderTriggerLeading={<FolderOpen size={11} className="shrink-0 text-muted-foreground" />}
-                          renderSelected={(item) => (
-                            <span className="truncate font-mono text-foreground">{item.id}</span>
-                          )}
-                          renderItem={(item, isSelected) => (
-                            <>
-                              <FolderOpen
-                                size={11}
-                                className={isSelected ? 'shrink-0 text-foreground' : 'shrink-0 text-muted-foreground'}
-                              />
-                              <span className="flex-1 truncate font-mono">{item.id}</span>
-                              {isSelected && <Check size={11} className="shrink-0 text-foreground" />}
-                            </>
-                          )}
-                        />
-                      </div>
-                      <Button variant="secondary" size="lg" onClick={() => void selectFolder()} className="shrink-0">
-                        {t('code.select_folder')}
-                      </Button>
-                    </div>
+                {/* Enabled-provider list */}
+                {isProviderlessTool ? (
+                  <div className="rounded-lg border border-border/40 bg-accent/10 px-4 py-3 text-xs text-muted-foreground">
+                    {t('code.providerless_hint')}
                   </div>
-
-                  {(isMac || isWin) && terminalItems.length > 0 && (
-                    <div>
-                      <FieldLabel hint={t('code.terminal_hint')}>{t('code.terminal')}</FieldLabel>
-                      <SelectDropdown
-                        items={terminalItems}
-                        selectedId={selectedTerminal}
-                        onSelect={setTerminal}
-                        placeholder={t('code.terminal_placeholder')}
-                        triggerClassName="data-[state=open]:border-foreground! data-[state=open]:ring-foreground/10!"
-                        renderSelected={(item) => <span className="truncate text-foreground">{item.name}</span>}
-                        renderItem={(item, isSelected) => (
-                          <div className="flex items-center gap-2">
-                            <span className="flex-1">{item.name}</span>
-                            {isSelected && <Check size={11} className="shrink-0 text-foreground" />}
-                          </div>
-                        )}
-                      />
-                      {needsWindowsCustomPath && (
-                        <div className="mt-2 flex min-w-0 items-center gap-2">
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => handleSetCustomPath(selectedTerminal)}
-                            className="text-muted-foreground shadow-none hover:text-foreground">
-                            <FolderOpen size={10} />
-                            {t('code.set_custom_path')}
-                          </Button>
-                          <span className="min-w-0 flex-1 truncate text-muted-foreground text-xs">
-                            {terminalCustomPaths[selectedTerminal]
-                              ? `${t('code.custom_path')}: ${terminalCustomPaths[selectedTerminal]}`
-                              : t('code.custom_path_required')}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  <div>
-                    <FieldLabel hint={t('code.env_vars_help')}>{t('code.environment_variables')}</FieldLabel>
-                    <Textarea.Input
-                      value={environmentVariables}
-                      onValueChange={setEnvVars}
-                      rows={4}
-                      placeholder={'KEY1=value1\nKEY2=value2'}
-                      className="min-h-24 resize-none rounded-md border-input px-3 py-2 font-mono text-xs shadow-none placeholder:text-muted-foreground focus-visible:border-foreground focus-visible:ring-2 focus-visible:ring-foreground/10 md:text-xs [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-0.75"
+                ) : (
+                  <>
+                    <ConfigList
+                      providers={supportedProviders}
+                      providerConfigs={providerConfigs}
+                      currentProviderId={currentProviderId}
+                      resolveMeta={resolveProviderMeta}
+                      onConfigure={openConfigurePanel}
+                      onToggleCurrent={handleToggleCurrent}
+                      onReorder={handleReorder}
                     />
-                  </div>
 
-                  <div className="flex items-center gap-2 pt-1">
-                    <Checkbox
-                      id="code-cli-auto-update"
-                      size="sm"
-                      checked={autoUpdateToLatest}
-                      onCheckedChange={(v) => setAutoUpdateToLatest(v === true)}
-                      className="border-input hover:bg-accent data-[state=checked]:border-foreground data-[state=checked]:bg-foreground data-[state=checked]:text-background [&_[data-slot=checkbox-indicator]>svg]:stroke-background [&_[data-slot=checkbox-indicator]>svg]:text-background"
-                    />
-                    <Label
-                      htmlFor="code-cli-auto-update"
-                      className="cursor-pointer font-normal text-muted-foreground text-sm hover:text-foreground">
-                      {t('code.auto_update_to_latest')}
-                    </Label>
-                  </div>
-                </div>
-
-                <DialogFooter>
-                  <DialogClose asChild>
-                    <Button variant="outline" disabled={isLaunching}>
-                      {t('common.cancel')}
-                    </Button>
-                  </DialogClose>
-                  <Button
-                    variant="emphasis"
-                    onClick={handleLaunch}
-                    loading={isLaunching}
-                    disabled={!canLaunch || (selectedCliTool !== CodeCli.QODER_CLI && !isBunInstalled) || isLaunching}>
-                    {launchSuccess ? (
-                      <>
-                        <Check size={14} />
-                        <span>{t('code.launch.launched')}</span>
-                      </>
-                    ) : isLaunching ? (
-                      t('code.launching')
-                    ) : (
-                      t('code.launch.label')
-                    )}
-                  </Button>
-                </DialogFooter>
+                    <button
+                      type="button"
+                      onClick={() => void navigate({ to: '/settings/provider' })}
+                      className="flex w-full items-center justify-center gap-1 rounded-xl border border-border/50 border-dashed py-2 text-xs text-muted-foreground/55 transition-colors hover:border-border hover:text-foreground">
+                      {t('code.add_provider_hint')}
+                      <ExternalLink size={10} />
+                    </button>
+                  </>
+                )}
               </div>
-            </DialogContent>
-          </Dialog>
-        )}
+            </div>
+          ) : (
+            <div className="flex flex-1 items-center justify-center text-muted-foreground/50 text-sm">
+              {t('code.select_tool_to_start')}
+            </div>
+          )}
+        </div>
       </div>
+
+      <LaunchDialog
+        open={launchOpen}
+        onClose={() => setLaunchOpen(false)}
+        toolName={activeMeta?.label ?? ''}
+        directory={directory}
+        terminals={availableTerminals}
+        selectedTerminal={selectedTerminal}
+        onSelectFolder={() => void handleSelectFolder()}
+        onSelectTerminal={(terminal) => void setTerminal(terminal)}
+        onLaunch={() => void handleLaunch()}
+        launching={launching}
+      />
+
+      <ConfirmDialog
+        open={!!removeTarget}
+        onOpenChange={(open) => !open && setRemoveTarget(null)}
+        title={t('settings.plugins.removeConfirmTitle')}
+        description={t('settings.plugins.removeConfirmMessage', { name: activeMeta?.label ?? '' })}
+        destructive
+        onConfirm={async () => {
+          if (removeTarget) await remove(removeTarget)
+        }}
+      />
+
+      {/* Configure dialog */}
+      {editingProvider && (
+        <ConfigEditPanel
+          open={true}
+          onClose={closePanel}
+          cliTool={selectedCliTool}
+          provider={editingProvider}
+          providerConfig={providerConfigs[editingProvider.id] ?? null}
+          defaultModelId={firstModelByProvider.get(editingProvider.id)}
+          modelFilter={makeModelFilter(editingProvider.id)}
+          onSubmit={handlePanelSubmit}
+        />
+      )}
     </div>
   )
 }

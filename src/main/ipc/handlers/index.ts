@@ -4,9 +4,11 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
 import { aiHandlers } from './ai'
 import { appHandlers } from './app'
 import { binaryHandlers } from './binary'
+import { codeCliHandlers } from './codeCli'
 import { fileHandlers } from './file'
 import { fileProcessingHandlers } from './fileProcessing'
 import { knowledgeHandlers } from './knowledge'
+import { openclawHandlers } from './openclaw'
 import { selectionHandlers } from './selection'
 import { webSearchHandlers } from './webSearch'
 import { windowHandlers } from './window'
@@ -23,7 +25,9 @@ import { windowHandlers } from './window'
 export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...aiHandlers,
   ...appHandlers,
+  ...openclawHandlers,
   ...binaryHandlers,
+  ...codeCliHandlers,
   ...fileHandlers,
   ...fileProcessingHandlers,
   ...knowledgeHandlers,

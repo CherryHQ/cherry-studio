@@ -336,13 +336,6 @@ export enum IpcChannel {
   // ExternalApps
   ExternalApps_DetectInstalled = 'external-apps:detect-installed',
 
-  // CodeCli
-  CodeCli_Run = 'code-cli:run',
-  CodeCli_GetAvailableTerminals = 'code-cli:get-available-terminals',
-  CodeCli_SetCustomTerminalPath = 'code-cli:set-custom-terminal-path',
-  CodeCli_GetCustomTerminalPath = 'code-cli:get-custom-terminal-path',
-  CodeCli_RemoveCustomTerminalPath = 'code-cli:remove-custom-terminal-path',
-
   // OVMS
   Ovms_IsSupported = 'ovms:is-supported',
   Ovms_AddModel = 'ovms:add-model',
@@ -377,21 +370,6 @@ export enum IpcChannel {
   LanTransfer_ClientEvent = 'lan-transfer:client-event',
   LanTransfer_SendFile = 'lan-transfer:send-file',
   LanTransfer_CancelTransfer = 'lan-transfer:cancel-transfer',
-
-  // OpenClaw
-  OpenClaw_CheckInstalled = 'openclaw:check-installed',
-  OpenClaw_Install = 'openclaw:install',
-  OpenClaw_Uninstall = 'openclaw:uninstall',
-  OpenClaw_InstallProgress = 'openclaw:install-progress',
-  OpenClaw_StartGateway = 'openclaw:start-gateway',
-  OpenClaw_StopGateway = 'openclaw:stop-gateway',
-  OpenClaw_GetStatus = 'openclaw:get-status',
-  OpenClaw_CheckHealth = 'openclaw:check-health',
-  OpenClaw_GetDashboardUrl = 'openclaw:get-dashboard-url',
-  OpenClaw_SyncConfig = 'openclaw:sync-config',
-  OpenClaw_GetChannels = 'openclaw:get-channels',
-  OpenClaw_CheckUpdate = 'openclaw:check-update',
-  OpenClaw_PerformUpdate = 'openclaw:perform-update',
 
   // Analytics
   Analytics_TrackTokenUsage = 'analytics:track-token-usage',

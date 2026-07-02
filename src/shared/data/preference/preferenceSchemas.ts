@@ -323,7 +323,7 @@ export interface PreferenceSchemas {
     // target-key-definitions/complex/complex
     'feature.binary.tools': PreferenceTypes.ManagedBinary[]
     // target-key-definitions/complex/complex
-    'feature.code_cli.overrides': PreferenceTypes.CodeCliOverrides
+    'feature.code_cli.configs': PreferenceTypes.CodeCliConfigs
     // redux/preprocess/defaultProvider
     'feature.file_processing.default_document_to_markdown': PreferenceTypes.FileProcessorId | null
     // redux/ocr/imageProviderId
@@ -635,7 +635,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.api_gateway.host': '127.0.0.1',
     'feature.api_gateway.port': 23333,
     'feature.binary.tools': [] as PreferenceTypes.ManagedBinary[],
-    'feature.code_cli.overrides': {} as PreferenceTypes.CodeCliOverrides,
+    'feature.code_cli.configs': {} as PreferenceTypes.CodeCliConfigs,
     'feature.file_processing.default_document_to_markdown': null,
     'feature.file_processing.default_image_to_text': null,
     'feature.file_processing.overrides': {} as PreferenceTypes.FileProcessorOverrides,

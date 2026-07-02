@@ -118,10 +118,6 @@ export const SIDEBAR_APPS: readonly SidebarApp[] = [
   {
     id: 'notes',
     routePrefix: '/app/notes'
-  },
-  {
-    id: 'openclaw',
-    routePrefix: '/app/openclaw'
   }
 ]
 

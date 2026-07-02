@@ -21,18 +21,20 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
+import { modelService } from '@main/data/services/ModelService'
+import { providerService } from '@main/data/services/ProviderService'
 import { regionService } from '@main/services/RegionService'
-import { getFunctionalKeys, parseJSONC } from '@main/utils/jsonc'
 import { getBinaryExecutionEnv, getBinaryPath, isBinaryExists } from '@main/utils/process'
 import { removeEnvProxy } from '@main/utils/shell-env'
-import { IpcChannel } from '@shared/IpcChannel'
+import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { CodeCli, TerminalApp, type TerminalConfig, type TerminalConfigWithCommand } from '@shared/types/codeCli'
 import type { CodeToolsRunResult } from '@shared/types/codeTools'
 import { spawn } from 'child_process'
-import semver from 'semver'
 import { promisify } from 'util'
 
 import { sanitizeEnvForLogging } from './envRedaction'
+import { writeHermesConfig } from './hermesConfig'
 import {
   MACOS_TERMINALS,
   MACOS_TERMINALS_WITH_COMMANDS,
@@ -64,47 +66,14 @@ export class CodeCliService extends BaseService {
   private customTerminalPaths: Map<string, string> = new Map() // Store user-configured terminal paths
   private readonly CACHE_DURATION = 1000 * 60 * 30 // 30 minutes cache
   private readonly TERMINALS_CACHE_DURATION = 1000 * 60 * 5 // 5 minutes cache for terminals
-  private openCodeCleanupTimers: Map<string, NodeJS.Timeout> = new Map() // Track cleanup timers by directory for debounce
-  private openCodeConfigBackups: Map<string, string | null> = new Map() // Store raw backup content of opencode.json
 
   protected async onInit(): Promise<void> {
-    this.registerIpcHandlers()
     if (isMac || isWin) {
       void this.preloadTerminals()
     }
   }
 
-  private registerIpcHandlers(): void {
-    this.ipcHandle(
-      IpcChannel.CodeCli_Run,
-      (
-        event,
-        cliTool: string,
-        model: string,
-        directory: string,
-        env: Record<string, string>,
-        options?: { autoUpdateToLatest?: boolean; terminal?: string }
-      ) => this.run(event, cliTool, model, directory, env, options)
-    )
-    this.ipcHandle(IpcChannel.CodeCli_GetAvailableTerminals, () => this.getAvailableTerminalsForPlatform())
-    this.ipcHandle(IpcChannel.CodeCli_SetCustomTerminalPath, (_, terminalId: string, path: string) =>
-      this.setCustomTerminalPath(terminalId, path)
-    )
-    this.ipcHandle(IpcChannel.CodeCli_GetCustomTerminalPath, (_, terminalId: string) =>
-      this.getCustomTerminalPath(terminalId)
-    )
-    this.ipcHandle(IpcChannel.CodeCli_RemoveCustomTerminalPath, (_, terminalId: string) =>
-      this.removeCustomTerminalPath(terminalId)
-    )
-  }
-
   protected async onStop(): Promise<void> {
-    for (const [configPath, timer] of this.openCodeCleanupTimers) {
-      clearTimeout(timer)
-      logger.info(`Cleared cleanup timer for: ${configPath}`)
-    }
-    this.openCodeCleanupTimers.clear()
-    this.openCodeConfigBackups.clear()
     this.versionCache.clear()
     this.terminalsCache = null
     this.customTerminalPaths.clear()
@@ -128,20 +97,24 @@ export class CodeCliService extends BaseService {
     switch (cliTool) {
       case CodeCli.CLAUDE_CODE:
         return '@anthropic-ai/claude-code'
-      case CodeCli.GEMINI_CLI:
-        return '@google/gemini-cli'
       case CodeCli.OPENAI_CODEX:
         return '@openai/codex'
+      case CodeCli.OPEN_CODE:
+        return 'opencode-ai'
+      case CodeCli.OPENCLAW:
+        return 'openclaw'
+      case CodeCli.HERMES:
+        return 'hermes-agent'
+      case CodeCli.GEMINI_CLI:
+        return '@google/gemini-cli'
       case CodeCli.QWEN_CODE:
         return '@qwen-code/qwen-code'
+      case CodeCli.KIMI_CODE:
+        return 'kimi-code'
       case CodeCli.QODER_CLI:
         return '@qodercn-ai/qoderclicn'
       case CodeCli.GITHUB_COPILOT_CLI:
         return '@github/copilot'
-      case CodeCli.KIMI_CLI:
-        return 'kimi-cli'
-      case CodeCli.OPEN_CODE:
-        return 'opencode-ai'
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
     }
@@ -151,20 +124,24 @@ export class CodeCliService extends BaseService {
     switch (cliTool) {
       case CodeCli.CLAUDE_CODE:
         return { name: 'claude', tool: 'claude' }
-      case CodeCli.GEMINI_CLI:
-        return { name: 'gemini', tool: 'npm:@google/gemini-cli' }
       case CodeCli.OPENAI_CODEX:
         return { name: 'codex', tool: 'codex' }
+      case CodeCli.OPEN_CODE:
+        return { name: 'opencode', tool: 'opencode' }
+      case CodeCli.OPENCLAW:
+        return { name: 'openclaw', tool: 'npm:openclaw' }
+      case CodeCli.HERMES:
+        return { name: 'hermes', tool: 'pipx:hermes-agent' }
+      case CodeCli.GEMINI_CLI:
+        return { name: 'gemini', tool: 'npm:@google/gemini-cli' }
       case CodeCli.QWEN_CODE:
         return { name: 'qwen', tool: 'npm:@qwen-code/qwen-code' }
+      case CodeCli.KIMI_CODE:
+        return { name: 'kimi', tool: 'npm:kimi-code' }
       case CodeCli.QODER_CLI:
         return { name: 'qoderclicn', tool: 'npm:@qodercn-ai/qoderclicn' }
       case CodeCli.GITHUB_COPILOT_CLI:
         return { name: 'copilot', tool: 'npm:@github/copilot' }
-      case CodeCli.KIMI_CLI:
-        return { name: 'kimi', tool: 'pipx:kimi-cli' }
-      case CodeCli.OPEN_CODE:
-        return { name: 'opencode', tool: 'opencode' }
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
     }
@@ -174,270 +151,27 @@ export class CodeCliService extends BaseService {
     switch (cliTool) {
       case CodeCli.CLAUDE_CODE:
         return 'claude'
-      case CodeCli.GEMINI_CLI:
-        return 'gemini'
       case CodeCli.OPENAI_CODEX:
         return 'codex'
+      case CodeCli.OPEN_CODE:
+        return 'opencode'
+      case CodeCli.OPENCLAW:
+        return 'openclaw'
+      case CodeCli.HERMES:
+        return 'hermes'
+      case CodeCli.GEMINI_CLI:
+        return 'gemini'
       case CodeCli.QWEN_CODE:
         return 'qwen'
+      case CodeCli.KIMI_CODE:
+        return 'kimi'
       case CodeCli.QODER_CLI:
         return 'qoderclicn'
       case CodeCli.GITHUB_COPILOT_CLI:
         return 'copilot'
-      case CodeCli.KIMI_CLI:
-        return 'kimi'
-      case CodeCli.OPEN_CODE:
-        return 'opencode'
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
     }
-  }
-
-  /**
-   * Generate opencode.json config file for OpenCode CLI
-   * Merge approach:
-   * 1. Parse existing config (if any) with JSONC support
-   * 2. Merge CherryStudio provider into provider object
-   * 3. Preserve other fields like $schema, model, etc.
-   */
-  private async generateOpenCodeConfig(
-    directory: string,
-    model: { id: string; name: string },
-    baseUrl: string,
-    isReasoning: boolean,
-    supportsReasoningEffort: boolean,
-    budgetTokens: number | undefined,
-    providerType: string,
-    providerName: string,
-    endpointType: string
-  ): Promise<string> {
-    const configPath = path.join(directory, 'opencode.json')
-
-    // Determine npm package based on endpoint type (model-level) then provider type (fallback)
-    let npmPackage = '@ai-sdk/openai-compatible'
-    if (endpointType === 'anthropic' || (!endpointType && providerType === 'anthropic')) {
-      npmPackage = '@ai-sdk/anthropic'
-    } else if (endpointType === 'openai-response' || (!endpointType && providerType === 'openai-response')) {
-      npmPackage = '@ai-sdk/openai'
-    }
-
-    // Build model config - NO limit field (cannot determine output capacity)
-    const modelConfig: Record<string, any> = {
-      name: model.name
-    }
-
-    // Add reasoning config based on endpoint type and provider type
-    if (isReasoning) {
-      modelConfig.reasoning = true
-      if (endpointType === 'anthropic' || (!endpointType && providerType === 'anthropic')) {
-        // Anthropic style: thinking with budgetTokens
-        modelConfig.options = {
-          thinking: {
-            budgetTokens: budgetTokens ?? 10000, // Use passed budget or fallback to default
-            type: 'enabled'
-          }
-        }
-      } else if (supportsReasoningEffort) {
-        // OpenAI style: only add reasoningEffort if model supports it
-        modelConfig.options = {
-          reasoningEffort: 'medium'
-        }
-      }
-      // else: model is a reasoning model but doesn't support reasoningEffort - don't add options
-    }
-
-    // Dynamic provider key to avoid race conditions between different providers
-    const dynamicProviderKey = `Cherry-${providerName}`
-    const dynamicProviderName = `Cherry-${providerName}`
-
-    // Parse existing config (if any) with JSONC support
-    let existingConfig: Record<string, any> | null = null
-    let backupContent: string | null = null
-    if (fs.existsSync(configPath)) {
-      const rawContent = fs.readFileSync(configPath, 'utf8')
-      // Parse and clean backup to only preserve non-Cherry content
-      const existingConfigForBackup = parseJSONC(rawContent)
-      if (existingConfigForBackup && typeof existingConfigForBackup === 'object') {
-        // Remove any existing Cherry-* providers from backup
-        if (existingConfigForBackup.provider && typeof existingConfigForBackup.provider === 'object') {
-          const providers = existingConfigForBackup.provider as Record<string, any>
-          const cherryKeys = Object.keys(providers).filter((key) => key.startsWith('Cherry-'))
-          for (const key of cherryKeys) {
-            delete providers[key]
-          }
-          // If provider object becomes empty, remove it
-          if (Object.keys(providers).length === 0) {
-            delete existingConfigForBackup.provider
-          }
-          // Check if config is empty after cleaning
-          const functionalKeys = getFunctionalKeys(existingConfigForBackup)
-          if (functionalKeys.length > 0) {
-            backupContent = JSON.stringify(existingConfigForBackup, null, 2)
-          } else {
-            backupContent = null // Backup was all Cherry content, nothing to preserve
-          }
-        } else {
-          backupContent = rawContent
-        }
-      } else {
-        backupContent = rawContent
-      }
-      existingConfig = JSON.parse(JSON.stringify(existingConfigForBackup))
-      logger.info('Parsed existing opencode.json config')
-    }
-    this.openCodeConfigBackups.set(configPath, backupContent)
-
-    // config with env variable Build CherryStudio provider reference for security
-    const envVarKey = `OPENCODE_API_KEY_${providerName.toUpperCase().replace(/[-.]/g, '_')}`
-    const cherryProviderConfig = {
-      npm: npmPackage,
-      name: dynamicProviderName,
-      options: { apiKey: `{env:${envVarKey}}`, baseURL: baseUrl },
-      models: { [model.id]: modelConfig }
-    }
-
-    // Merge into existing config or create new one
-    let finalConfig: Record<string, any>
-    if (existingConfig && typeof existingConfig === 'object') {
-      // Deep merge: preserve existing fields, add Cherry provider
-      finalConfig = { ...existingConfig }
-      if (!finalConfig.provider || typeof finalConfig.provider !== 'object') {
-        finalConfig.provider = {}
-      }
-      // Merge Cherry provider into existing providers
-      finalConfig.provider = {
-        ...finalConfig.provider,
-        [dynamicProviderKey]: cherryProviderConfig
-      }
-    } else {
-      // No existing config, create fresh one
-      finalConfig = {
-        $schema: 'https://opencode.ai/config.json',
-        provider: {
-          [dynamicProviderKey]: cherryProviderConfig
-        }
-      }
-    }
-
-    fs.writeFileSync(configPath, JSON.stringify(finalConfig, null, 2), 'utf8')
-    logger.info(`Wrote opencode.json at: ${configPath} (merged: ${existingConfig !== null})`)
-
-    return configPath
-  }
-
-  /**
-   * Schedule cleanup of opencode.json config file after 60 seconds (debounce mode)
-   * Precise cleanup approach:
-   * - Parse current config
-   * - Remove only providers starting with "Cherry-"
-   * - Keep all other providers and fields
-   * - If provider object becomes empty, remove it
-   */
-  private scheduleOpenCodeConfigCleanup(configPath: string): void {
-    // Cancel any existing timer for this directory (debounce)
-    const existingTimer = this.openCodeCleanupTimers.get(configPath)
-    if (existingTimer) {
-      clearTimeout(existingTimer)
-      logger.info(`Cancelled previous cleanup timer for: ${configPath}`)
-    }
-
-    // Schedule new cleanup
-    const timer = setTimeout(
-      () => {
-        this.openCodeCleanupTimers.delete(configPath)
-
-        try {
-          // Check if file still exists
-          if (!fs.existsSync(configPath)) {
-            logger.info(`opencode.json already deleted: ${configPath}`)
-            this.openCodeConfigBackups.delete(configPath)
-            return
-          }
-
-          // Get backup content
-          const backupContent = this.openCodeConfigBackups.get(configPath) ?? null
-
-          // Parse current config
-          const currentContent = fs.readFileSync(configPath, 'utf8')
-          const currentConfig = parseJSONC(currentContent)
-
-          if (!currentConfig || typeof currentConfig !== 'object') {
-            // Invalid config, fall back to backup or deletion
-            if (backupContent !== null) {
-              fs.writeFileSync(configPath, backupContent, 'utf8')
-              logger.info(`Restored original opencode.json (invalid current config): ${configPath}`)
-            } else {
-              fs.unlinkSync(configPath)
-              logger.info(`Deleted opencode.json (invalid config, no backup): ${configPath}`)
-            }
-            this.openCodeConfigBackups.delete(configPath)
-            return
-          }
-
-          // Remove Cherry-* providers from current config
-          if (currentConfig.provider && typeof currentConfig.provider === 'object') {
-            const providers = currentConfig.provider as Record<string, any>
-            const keysToDelete = Object.keys(providers).filter((key) => key.startsWith('Cherry-'))
-
-            if (keysToDelete.length > 0) {
-              for (const key of keysToDelete) {
-                delete providers[key]
-              }
-
-              // If provider object becomes empty, remove it
-              if (Object.keys(providers).length === 0) {
-                delete currentConfig.provider
-              }
-
-              // Check if config is now "empty" (only contains non-functional fields like $schema)
-              const remainingKeys = getFunctionalKeys(currentConfig)
-              if (remainingKeys.length === 0) {
-                // Config is essentially empty after cleanup
-                // Check if backup also has no functional content
-                let backupHasFunctionalContent = false
-                if (backupContent !== null) {
-                  try {
-                    const backupConfig = parseJSONC(backupContent)
-                    if (backupConfig && typeof backupConfig === 'object') {
-                      const backupKeys = getFunctionalKeys(backupConfig)
-                      backupHasFunctionalContent = backupKeys.length > 0
-                    }
-                  } catch {
-                    // Parse failed, treat as no functional content
-                  }
-                }
-
-                if (backupHasFunctionalContent && backupContent !== null) {
-                  // Restore original content (it had functional content)
-                  fs.writeFileSync(configPath, backupContent, 'utf8')
-                  logger.info(`Restored original opencode.json (config empty after cleanup): ${configPath}`)
-                } else {
-                  // No backup or backup had no functional content, delete the file
-                  fs.unlinkSync(configPath)
-                  logger.info(`Deleted opencode.json (config empty after cleanup): ${configPath}`)
-                }
-              } else {
-                // Write back the cleaned config
-                fs.writeFileSync(configPath, JSON.stringify(currentConfig, null, 2), 'utf8')
-                logger.info(`Removed ${keysToDelete.length} Cherry-* provider(s) from opencode.json: ${configPath}`)
-              }
-            } else {
-              logger.info(`No Cherry-* providers found in opencode.json: ${configPath}`)
-            }
-          } else {
-            logger.info(`No provider object in opencode.json: ${configPath}`)
-          }
-
-          // Clean up backup
-          this.openCodeConfigBackups.delete(configPath)
-        } catch (error) {
-          logger.warn(`Failed to cleanup opencode.json: ${error}`)
-        }
-      },
-      5 * 60 * 1000
-    ) // 5 minutes timeout
-
-    this.openCodeCleanupTimers.set(configPath, timer)
   }
 
   /**
@@ -849,10 +583,66 @@ export class CodeCliService extends BaseService {
     }
   }
 
+  /**
+   * Write provider credentials for the tools whose injection still lives in
+   * main at launch time (hermes, openclaw). The file-based tools
+   * (claude-code / codex / opencode) are injected from the renderer at
+   * "enable config" time. API keys are never stored in Preference.
+   */
+  private async resolveAndApplyConfig(cliTool: string, model: string, providerId: string): Promise<void> {
+    const provider = await providerService.getByProviderId(providerId)
+    const apiKeys = await providerService.getApiKeys(providerId, { enabled: true })
+    const apiKey = apiKeys[0]?.key ?? ''
+
+    switch (cliTool) {
+      case CodeCli.HERMES: {
+        const isAnthropic = !!provider.endpointConfigs?.['anthropic-messages']?.baseUrl
+        const endpointType = isAnthropic
+          ? 'anthropic-messages'
+          : (provider.defaultChatEndpoint ?? 'openai-chat-completions')
+        const baseUrl = this.getEndpointBaseUrl(provider, endpointType)
+        const providerName = this.sanitizeProviderName(provider.name, provider.id)
+        let modelRecord: Model | null = null
+        try {
+          modelRecord = await modelService.getByKey(providerId, model)
+        } catch {
+          /* use defaults */
+        }
+        await writeHermesConfig({
+          apiKey,
+          baseUrl,
+          apiMode: isAnthropic ? 'anthropic_messages' : 'chat_completions',
+          model,
+          modelName: modelRecord?.name ?? model,
+          providerName
+        })
+        return
+      }
+      case CodeCli.OPENCLAW: {
+        // OpenClaw config is synced via OpenClawService, not a file writer.
+        await application.get('OpenClawService').syncConfig(`${providerId}::${model}`)
+        return
+      }
+      default:
+        return
+    }
+  }
+
+  /** Get the primary chat endpoint base URL for a provider. */
+  private getEndpointBaseUrl(provider: Provider, endpointType: string): string {
+    return provider.endpointConfigs?.[endpointType]?.baseUrl ?? ''
+  }
+
+  /** Sanitize a provider display name for use in config file keys. */
+  private sanitizeProviderName(name: string, fallback: string): string {
+    const sanitized = name.replace(/[^a-zA-Z0-9_\s.-]/g, '').replace(/\s+/g, '-')
+    return sanitized || fallback
+  }
+
   async run(
-    _: Electron.IpcMainInvokeEvent,
     cliTool: string,
-    _model: string,
+    model: string,
+    providerId: string,
     directory: string,
     env: Record<string, string>,
     options: { autoUpdateToLatest?: boolean; terminal?: string } = {}
@@ -870,6 +660,18 @@ export class CodeCliService extends BaseService {
         success: false,
         message: errorMessage,
         command: ''
+      }
+    }
+
+    // hermes/openclaw only — claude-code/codex/opencode are injected from the renderer.
+    // qoder and copilot start directly — no provider config writing needed.
+    if (cliTool === CodeCli.HERMES || cliTool === CodeCli.OPENCLAW) {
+      try {
+        await this.resolveAndApplyConfig(cliTool, model, providerId)
+      } catch (error) {
+        const message = `Failed to write ${cliTool} config: ${error instanceof Error ? error.message : String(error)}`
+        logger.error(message, error as Error)
+        return { success: false, message, command: '' }
       }
     }
 
@@ -906,11 +708,26 @@ export class CodeCliService extends BaseService {
       return { success: false, message, command: '' }
     }
 
-    // Get installed version (needed for qwen-code auth-type check and optional auto-update)
-    let installedVersion: string | null = null
+    // OpenClaw starts as a background gateway, not a terminal process
+    if (cliTool === CodeCli.OPENCLAW) {
+      try {
+        const gatewayResult = await application.get('OpenClawService').startGateway()
+        if (!gatewayResult.success) {
+          return { success: false, message: gatewayResult.message || 'Failed to start OpenClaw gateway', command: '' }
+        }
+        const dashboardUrl = application.get('OpenClawService').getDashboardUrl()
+        logger.info(`OpenClaw gateway started, dashboard: ${dashboardUrl}`)
+        return { success: true, message: 'OpenClaw gateway started', command: dashboardUrl }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        logger.error('Failed to start OpenClaw gateway:', error as Error)
+        return { success: false, message: `Failed to start OpenClaw gateway: ${errorMessage}`, command: '' }
+      }
+    }
+
+    // Optional auto-update
     try {
       const versionInfo = await this.getVersionInfo(cliTool)
-      installedVersion = versionInfo.installed
       if (options.autoUpdateToLatest && versionInfo.needsUpdate) {
         logger.info(`Auto-updating ${cliTool} from ${versionInfo.installed} to ${versionInfo.latest}`)
         await this.updatePackage(cliTool)
@@ -967,65 +784,18 @@ export class CodeCliService extends BaseService {
     const executablePath = await getBinaryPath(executableName)
     let baseCommand = `"${executablePath}"`
 
-    // Special handling for qwen-code: add --auth-type openai for version >= 0.12.3
-    if (cliTool === CodeCli.QWEN_CODE) {
-      // Use semver for proper version comparison (handles v-prefix, prereleases, etc.)
-      const coerced = semver.coerce(installedVersion)
-      const needsAuthType = installedVersion && coerced && semver.gte(coerced, '0.12.3')
-      if (needsAuthType) {
-        baseCommand = `${baseCommand} --auth-type openai`
-        logger.info(`qwen-code version ${installedVersion} >= 0.12.3, using --auth-type openai`)
-      } else {
-        logger.info(`qwen-code version ${installedVersion || 'unknown'} < 0.12.3, not using --auth-type`)
-      }
-    }
-
-    // Add configuration parameters for OpenAI Codex using command line args
-    if (cliTool === CodeCli.OPENAI_CODEX && env.CHERRY_CODEX_PROVIDER_ID) {
-      const providerId = env.CHERRY_CODEX_PROVIDER_ID
-      const providerName = env.CHERRY_CODEX_PROVIDER_NAME || providerId
-      const normalizedBaseUrl = env.CHERRY_CODEX_BASE_URL.replace(/\/$/, '')
-      const model = _model
-      // All Codex providers use Cherry- prefix to avoid conflicts with built-in provider IDs
-      const cherryProviderKey = `Cherry-${providerName.replace(/\./g, '-')}`
-      const configParams = [
-        `--config model_provider="${cherryProviderKey}"`,
-        `--config model_providers.${cherryProviderKey}.name="${providerName}"`,
-        `--config model_providers.${cherryProviderKey}.base_url="${normalizedBaseUrl}"`,
-        `--config model_providers.${cherryProviderKey}.env_key="CHERRY_CODEX_API_KEY"`,
-        `--config model_providers.${cherryProviderKey}.wire_api="responses"`,
-        `--config model="${model}"`
-      ]
-      baseCommand = `${baseCommand} ${configParams.join(' ')}`
-    }
-
-    // Special handling for OpenCode: generate config file and add --model flag
+    // OpenCode reads its provider from the opencode.json written above; here we only select the model
+    // at launch (matching the written provider key) and disable its own auto-update.
     if (cliTool === CodeCli.OPEN_CODE) {
-      const baseUrl = env.OPENCODE_BASE_URL
-      const modelId = _model
-      const modelName = env.OPENCODE_MODEL_NAME || modelId
-      const isReasoning = env.OPENCODE_MODEL_IS_REASONING === 'true'
-      const supportsReasoningEffort = env.OPENCODE_MODEL_SUPPORTS_REASONING_EFFORT === 'true'
-      const budgetTokens = env.OPENCODE_MODEL_BUDGET_TOKENS ? Number(env.OPENCODE_MODEL_BUDGET_TOKENS) : undefined
-      const providerType = env.OPENCODE_PROVIDER_TYPE || 'openai-compatible'
-      const providerName = env.OPENCODE_PROVIDER_NAME || 'Studio'
-      const endpointType = env.OPENCODE_MODEL_ENDPOINT_TYPE || ''
-
-      const configPath = await this.generateOpenCodeConfig(
-        directory,
-        { id: modelId, name: modelName },
-        baseUrl,
-        isReasoning,
-        supportsReasoningEffort,
-        budgetTokens,
-        providerType,
-        providerName,
-        endpointType
-      )
-      this.scheduleOpenCodeConfigCleanup(configPath)
-
-      // Add --model flag with dynamic provider prefix to avoid race conditions
-      baseCommand = `${baseCommand} --model Cherry-${providerName}/${modelId}`
+      let providerName = 'Studio'
+      try {
+        const provider = await providerService.getByProviderId(providerId)
+        providerName = this.sanitizeProviderName(provider.name, provider.id)
+      } catch {
+        /* keep default */
+      }
+      baseCommand = `${baseCommand} --model cherry-${providerName}/${model}`
+      env.OPENCODE_DISABLE_AUTOUPDATE = 'true'
     }
 
     switch (platform) {

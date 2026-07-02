@@ -2,9 +2,11 @@ import type { RouteDef } from '../define'
 import { type AiEventSchemas, aiRequestSchemas } from './ai'
 import { appRequestSchemas } from './app'
 import { type BinaryEventSchemas, binaryRequestSchemas } from './binary'
+import { codeCliRequestSchemas } from './codeCli'
 import { fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
 import { knowledgeRequestSchemas } from './knowledge'
+import { openclawRequestSchemas } from './openclaw'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
 import { webSearchRequestSchemas } from './webSearch'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
@@ -19,7 +21,9 @@ import { type WindowEventSchemas, windowRequestSchemas } from './window'
 export const ipcRequestSchemas = {
   ...aiRequestSchemas,
   ...appRequestSchemas,
+  ...openclawRequestSchemas,
   ...binaryRequestSchemas,
+  ...codeCliRequestSchemas,
   ...fileRequestSchemas,
   ...fileProcessingRequestSchemas,
   ...knowledgeRequestSchemas,

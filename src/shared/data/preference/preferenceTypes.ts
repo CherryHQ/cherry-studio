@@ -244,29 +244,46 @@ export interface WebSearchProvider {
 import { CodeCli } from '@shared/types/codeCli'
 
 export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
-  'qwen-code',
   'claude-code',
-  'gemini-cli',
   'openai-codex',
+  'opencode',
+  'openclaw',
+  'hermes',
+  'gemini-cli',
+  'qwen-code',
+  'kimi-code',
   'qoder-cli',
-  'github-copilot-cli',
-  'kimi-cli',
-  'opencode'
+  'github-copilot-cli'
 ]
 
 export type CodeCliId = (typeof CODE_CLI_IDS)[number]
 
-export type CodeCliOverride = {
-  enabled?: boolean
-  modelId?: string | null
-  envVars?: string
-  /** Terminal app name — should match `TerminalApp` enum values */
+/** A per-tool provider entry, keyed by providerId in `CodeCliToolState.providers`. */
+export interface CliProviderConfig {
+  /** Unique model id ("providerId::modelId"). */
+  modelId: string
+  /** User-edited tool-specific config blob. */
+  config?: Record<string, unknown>
+  /** Sort order in the provider list (lower = first). */
+  sortIndex?: number
+  createdAt?: number
+}
+
+/** Per-CLI-tool state: per-provider configs (keyed by providerId) + the active one. */
+export interface CodeCliToolState {
+  providers: Record<string, CliProviderConfig>
+  /** Currently enabled providerId (single-select). */
+  current: string | null
+  /** Terminal app — matches `terminalApps` values. */
   terminal?: string
-  currentDirectory?: string
+  /** Working directory for this CLI tool (shared across all its providers). */
+  directory?: string
+  /** Most-recently-used working directories (MRU, tool-level). */
   directories?: string[]
 }
 
-export type CodeCliOverrides = Partial<Record<CodeCliId, CodeCliOverride>>
+/** Preference value for `feature.code_cli.configs`. */
+export type CodeCliConfigs = Record<CodeCliId, CodeCliToolState>
 
 // ============================================================================
 // WebSearch Compression Types (v2 - Flattened)

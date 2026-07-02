@@ -18,7 +18,6 @@ const routeTitleKeys: Record<string, string> = {
   '/app/files': 'title.files',
   '/app/code': 'title.code',
   '/app/notes': 'title.notes',
-  '/app/openclaw': 'title.openclaw',
   '/settings': 'title.settings'
 }
 

@@ -85,46 +85,12 @@ export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
     homepage: 'https://ntn.dev'
   },
   {
-    name: 'claude',
-    displayName: 'Claude Code',
-    tool: 'claude',
-    icon: 'simple-icons:claude',
-    repoUrl: 'https://github.com/anthropics/claude-code',
-    homepage: 'https://docs.anthropic.com/en/docs/claude-code'
-  },
-  {
-    name: 'codex',
-    displayName: 'Codex',
-    tool: 'codex',
-    icon: 'simple-icons:openai',
-    repoUrl: 'https://github.com/openai/codex'
-  },
-  {
     name: 'pi',
     displayName: 'Pi',
     tool: 'pi',
     repoUrl: 'https://github.com/earendil-works/pi',
     homepage: 'https://pi.dev'
-  },
-  {
-    name: 'opencode',
-    displayName: 'OpenCode',
-    tool: 'opencode',
-    repoUrl: 'https://github.com/anomalyco/opencode',
-    homepage: 'https://opencode.ai'
-  },
-  {
-    name: 'hermes',
-    displayName: 'Hermes Agent',
-    tool: 'pipx:hermes-agent',
-    repoUrl: 'https://github.com/NousResearch/hermes-agent',
-    homepage: 'https://hermes-agent.nousresearch.com'
-  },
-  {
-    name: 'openclaw',
-    displayName: 'OpenClaw',
-    tool: 'npm:openclaw',
-    repoUrl: 'https://github.com/openclaw/openclaw',
-    homepage: 'https://docs.openclaw.ai'
   }
+  // CLI code tools (claude, codex, opencode, hermes, openclaw) are managed
+  // in the Code CLI page instead of here.
 ]
