@@ -13,6 +13,7 @@ const windowManager = {
   setFullScreen: vi.fn(() => true),
   isMaximized: vi.fn(() => true),
   isFullScreen: vi.fn(() => false),
+  isFocused: vi.fn(() => true),
   getInitData: vi.fn(() => ({ path: '/settings/provider' }))
 }
 
@@ -43,11 +44,13 @@ describe('windowHandlers', () => {
     expect(windowManager.setFullScreen).toHaveBeenCalledWith('w1', true)
   })
 
-  it('is_maximized / is_full_screen return the queried boolean for the caller window', async () => {
+  it('is_maximized / is_full_screen / is_focused return the queried boolean for the caller window', async () => {
     expect(await windowHandlers['window.is_maximized'](undefined, ctx('w1'))).toBe(true)
     expect(await windowHandlers['window.is_full_screen'](undefined, ctx('w1'))).toBe(false)
+    expect(await windowHandlers['window.is_focused'](undefined, ctx('w1'))).toBe(true)
     expect(windowManager.isMaximized).toHaveBeenCalledWith('w1')
     expect(windowManager.isFullScreen).toHaveBeenCalledWith('w1')
+    expect(windowManager.isFocused).toHaveBeenCalledWith('w1')
   })
 
   it('get_init_data returns the stored init data for the caller window', async () => {
@@ -68,8 +71,10 @@ describe('windowHandlers', () => {
   it('queries fall back to the legacy "no window" defaults when senderId is null', async () => {
     expect(await windowHandlers['window.is_maximized'](undefined, ctx(null))).toBe(false)
     expect(await windowHandlers['window.is_full_screen'](undefined, ctx(null))).toBe(false)
+    expect(await windowHandlers['window.is_focused'](undefined, ctx(null))).toBe(false)
     expect(await windowHandlers['window.get_init_data'](undefined, ctx(null))).toBeNull()
     expect(windowManager.isMaximized).not.toHaveBeenCalled()
+    expect(windowManager.isFocused).not.toHaveBeenCalled()
     expect(windowManager.getInitData).not.toHaveBeenCalled()
   })
 })

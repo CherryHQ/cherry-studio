@@ -16,6 +16,10 @@ vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
   default: () => false
 }))
 
+vi.mock('@renderer/hooks/useWindowFocus', () => ({
+  default: () => true
+}))
+
 vi.mock('@renderer/hooks/command', () => ({
   useCommandHandler: (command: string, handler: () => void) => {
     mocks.commandHandlers.set(command, handler)

@@ -1,9 +1,11 @@
 import { Alert, Button } from '@cherrystudio/ui'
+import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import TopViewContainer from '@renderer/components/TopView'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import useWindowFocus from '@renderer/hooks/useWindowFocus'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import i18n from '@renderer/i18n'
 import { routeTree } from '@renderer/routeTree.gen'
@@ -73,6 +75,7 @@ function useSettingsWindowFormControlText() {
 function SettingsApp({ initialPath }: { initialPath: string }): React.ReactElement {
   const shellStyle = { '--navbar-height': '0px', '--settings-width': '200px' } as CSSProperties
   const isMacTransparentWindow = useMacTransparentWindow()
+  const isWindowFocused = useWindowFocus()
 
   // Apply form control text size overrides to body so portals (Dialog/Popover/Drawer)
   // rendered outside the settings shell div also get the correct text size.
@@ -86,12 +89,25 @@ function SettingsApp({ initialPath }: { initialPath: string }): React.ReactEleme
             <TopViewContainer>
               <div
                 className={cn(
-                  'flex h-screen w-screen overflow-hidden text-foreground',
+                  'flex h-screen w-screen overflow-hidden text-foreground transition-colors duration-200',
                   settingsWindowFormControlTextClassName,
-                  isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
+                  // Glass only while the window is key — see AppShell.
+                  isMacTransparentWindow && isWindowFocused ? 'bg-sidebar-translucent' : 'bg-sidebar'
                 )}
                 style={shellStyle}>
-                <SettingsWindowRouter initialPath={initialPath} />
+                <WindowFrameProvider
+                  value={{
+                    mode: 'window',
+                    chrome: {
+                      titleLeading: (
+                        <span className="min-w-0 flex-1 truncate font-medium text-[13px] text-foreground/80">
+                          {i18n.t('settings.title')}
+                        </span>
+                      )
+                    }
+                  }}>
+                  <SettingsWindowRouter initialPath={initialPath} />
+                </WindowFrameProvider>
               </div>
             </TopViewContainer>
           </CommandProvider>
