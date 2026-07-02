@@ -38,16 +38,17 @@ export class NoteService {
     return this.dbService.getDb()
   }
 
-  async listByRoot(rootPath: string): Promise<Note[]> {
-    const rows = await this.db
+  listByRoot(rootPath: string): Note[] {
+    const rows = this.db
       .select()
       .from(noteTable)
       .where(eq(noteTable.rootPath, rootPath))
       .orderBy(asc(noteTable.path))
+      .all()
     return rows.map(rowToNote)
   }
 
-  async upsert(dto: UpsertNoteDto): Promise<Note | null> {
+  upsert(dto: UpsertNoteDto): Note | null {
     const updateValues: Partial<Pick<NoteRow, 'isStarred' | 'isExpanded'>> = {}
     if (dto.isStarred !== undefined) {
       updateValues.isStarred = dto.isStarred
@@ -62,39 +63,41 @@ export class NoteService {
     }
     if (dto.isStarred === false && dto.isExpanded === false) {
       // `null` means the row no longer exists; deleting an already-absent row is still a successful patch.
-      await this.deleteByPath({ rootPath: dto.rootPath, path: dto.path })
+      this.deleteByPath({ rootPath: dto.rootPath, path: dto.path })
       return null
     }
 
-    const row = await withSqliteErrors(
+    const row = withSqliteErrors(
       () =>
-        this.dbService.withWriteTx(async (tx) => {
-          const [existing] = await tx
+        this.dbService.withWriteTx((tx) => {
+          const [existing] = tx
             .select()
             .from(noteTable)
             .where(and(eq(noteTable.rootPath, dto.rootPath), eq(noteTable.path, dto.path)))
             .limit(1)
+            .all()
 
           const nextIsStarred = dto.isStarred ?? existing?.isStarred ?? false
           const nextIsExpanded = dto.isExpanded ?? existing?.isExpanded ?? false
 
           if (!nextIsStarred && !nextIsExpanded) {
             if (existing) {
-              await tx.delete(noteTable).where(eq(noteTable.id, existing.id))
+              tx.delete(noteTable).where(eq(noteTable.id, existing.id)).run()
             }
             return null
           }
 
           if (existing) {
-            const [updated] = await tx
+            const [updated] = tx
               .update(noteTable)
               .set(updateValues)
               .where(eq(noteTable.id, existing.id))
               .returning()
+              .all()
             return updated
           }
 
-          const [inserted] = await tx
+          const [inserted] = tx
             .insert(noteTable)
             .values({
               rootPath: dto.rootPath,
@@ -103,6 +106,7 @@ export class NoteService {
               isExpanded: nextIsExpanded
             })
             .returning()
+            .all()
 
           return inserted
         }),
@@ -112,26 +116,27 @@ export class NoteService {
     return row ? rowToNote(row) : null
   }
 
-  async deleteByPath(query: DeleteNoteQuery): Promise<void> {
-    await withSqliteErrors(
+  deleteByPath(query: DeleteNoteQuery): void {
+    withSqliteErrors(
       () =>
-        this.dbService.withWriteTx((tx) =>
-          tx
-            .delete(noteTable)
-            .where(and(eq(noteTable.rootPath, query.rootPath), pathCondition(query.path, query.recursive ?? false)))
-        ),
+        this.dbService
+          .getDb()
+          .delete(noteTable)
+          .where(and(eq(noteTable.rootPath, query.rootPath), pathCondition(query.path, query.recursive ?? false)))
+          .run(),
       defaultHandlersFor('Note', `${query.rootPath}:${query.path}`)
     )
   }
 
-  async rewritePath(dto: RewriteNotePathDto): Promise<{ updated: number }> {
+  rewritePath(dto: RewriteNotePathDto): { updated: number } {
     return withSqliteErrors(
       () =>
-        this.dbService.withWriteTx(async (tx) => {
-          const rows = await tx
+        this.dbService.withWriteTx((tx) => {
+          const rows = tx
             .select()
             .from(noteTable)
             .where(and(eq(noteTable.rootPath, dto.rootPath), pathCondition(dto.fromPath, dto.recursive ?? false)))
+            .all()
 
           if (rows.length === 0) {
             return { updated: 0 }
@@ -146,8 +151,7 @@ export class NoteService {
 
           // Destination rows can pre-exist for ordinary renames or retry recovery; remove them before the
           // CASE update so the unique (root_path, path) index does not reject the move.
-          await tx
-            .delete(noteTable)
+          tx.delete(noteTable)
             .where(
               and(
                 eq(noteTable.rootPath, dto.rootPath),
@@ -155,13 +159,14 @@ export class NoteService {
                 not(inArray(noteTable.id, sourceIds))
               )
             )
+            .run()
 
           const pathCase = sql<string>`CASE ${noteTable.id} ${sql.join(
             rewrites.map((rewrite) => sql`WHEN ${rewrite.id} THEN ${rewrite.path}`),
             sql` `
           )} ELSE ${noteTable.path} END`
 
-          await tx.update(noteTable).set({ path: pathCase }).where(inArray(noteTable.id, sourceIds))
+          tx.update(noteTable).set({ path: pathCase }).where(inArray(noteTable.id, sourceIds)).run()
 
           return { updated: rows.length }
         }),

@@ -124,7 +124,11 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   // layer. Best-effort — if unavailable, proceed without provider options.
   let provider: Provider | undefined = config.provider
   if (!provider) {
-    provider = await providerService.getByProviderId(providerId).catch(() => undefined)
+    try {
+      provider = providerService.getByProviderId(providerId)
+    } catch {
+      provider = undefined
+    }
   }
   const providerOptions = provider ? converter.extractProviderOptions(provider, params) : undefined
 

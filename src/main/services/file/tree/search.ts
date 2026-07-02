@@ -19,7 +19,7 @@ import * as path from 'node:path'
 
 import { loggerService } from '@logger'
 import { getBinaryExecutionEnv, getBinaryPath } from '@main/utils/process'
-import type { DirectoryListOptions, FilePath } from '@shared/types/file'
+import type { DirectoryEntry, DirectoryListOptions, FilePath } from '@shared/types/file'
 
 import { defaultRipgrepGlobArgs } from './gitignore'
 
@@ -512,4 +512,30 @@ export async function listDirectory(dirPath: FilePath | string, options?: Direct
   }
 
   return listDirectoryWithRipgrep(resolvedPath, mergedOptions)
+}
+
+/**
+ * Like {@link listDirectory}, but classifies each entry as file vs directory in
+ * the same round trip. Lets renderer callers (e.g. the artifact file tree's
+ * lazy expansion) avoid a follow-up `isDirectory` IPC per entry — the `stat`s
+ * happen here, batched on the main side, instead of N renderer→main calls.
+ */
+export async function listDirectoryEntries(
+  dirPath: FilePath | string,
+  options?: DirectoryListOptions
+): Promise<DirectoryEntry[]> {
+  const paths = await listDirectory(dirPath, options)
+  const entries = await Promise.all(
+    paths.map(async (entryPath) => {
+      try {
+        const stat = await fs.promises.stat(entryPath)
+        return { path: entryPath as FilePath, isDirectory: stat.isDirectory() }
+      } catch {
+        // Entry vanished between listing and stat — drop it (matches the
+        // renderer's old per-entry isDirectory failure handling).
+        return null
+      }
+    })
+  )
+  return entries.filter((entry): entry is DirectoryEntry => entry !== null)
 }
