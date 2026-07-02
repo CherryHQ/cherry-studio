@@ -24,4 +24,31 @@ describe('JobManager profile activation', () => {
     await svc.recoverActiveProfile()
     expect(flow).toHaveBeenCalledTimes(1)
   })
+
+  it('waits for a recovery-dispatched in-flight job (inFlightExecuted, no finishedResolver) before returning', async () => {
+    const svc = new JobManager()
+    const jobId = 'recovery-job'
+    let releaseExecuted!: () => void
+    const executed = new Promise<void>((resolve) => {
+      releaseExecuted = resolve
+    })
+    // A recovery-dispatched job populates abortControllers + inFlightExecuted but NEVER
+    // finishedResolvers — draining on finishedResolvers would settle instantly and let its
+    // finalizeJob write into the next profile's DB after the switch.
+    svc['abortControllers'].set(jobId, new AbortController())
+    svc['inFlightExecuted'].set(jobId, executed)
+
+    let settled = false
+    const deactivate = svc.onProfileDeactivate().then(() => {
+      settled = true
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+    // Must still be waiting on the executing handler, not returned.
+    expect(settled).toBe(false)
+
+    releaseExecuted()
+    await deactivate
+    expect(settled).toBe(true)
+  })
 })

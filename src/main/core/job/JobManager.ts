@@ -410,9 +410,15 @@ export class JobManager extends BaseService implements ProfileActivatable {
     this.scheduleDisposables.clear()
 
     if (inFlight.length > 0) {
+      // Drain on inFlightExecuted (as cancel() does), NOT finishedResolvers: a job
+      // dispatched by recovery populates only abortControllers + inFlightExecuted and
+      // never builds a finishedResolver, so waiting on finishedResolvers would settle
+      // instantly and let its finalizeJob write a terminal row into the NEXT profile's
+      // DB after the switch repoints DbService. inFlightExecuted resolves after the
+      // handler's finally (post-finalizeJob), so waiting on it guarantees no post-close write.
       const pending = inFlight
-        .map((id) => this.finishedResolvers.get(id)?.promise)
-        .filter((p): p is Promise<JobSnapshot> => p !== undefined)
+        .map((id) => this.inFlightExecuted.get(id))
+        .filter((p): p is Promise<void> => p !== undefined)
       const timeout = new Promise<'timeout'>((resolve) =>
         setTimeout(() => resolve('timeout'), Application.SHUTDOWN_TIMEOUT_MS)
       )
