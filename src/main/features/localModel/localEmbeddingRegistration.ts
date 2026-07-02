@@ -86,20 +86,24 @@ function createLocalEmbeddingModelRow(): LocalEmbeddingModelRow {
  * model if its row already exists.
  */
 export async function registerLocalEmbeddingModel(): Promise<void> {
-  await application.get('DbService').withWriteTx(async (tx) => {
-    const insertedProviderCount = await providerService.batchUpsertTx(tx, [createLocalEmbeddingProviderRow()])
+  // better-sqlite3's transaction runs synchronously; the callback must stay sync
+  // (drizzle reads execute via `.all()`, not `await`) or the write would commit
+  // before any awaited work ran.
+  application.get('DbService').withWriteTx((tx) => {
+    const insertedProviderCount = providerService.batchUpsertTx(tx, [createLocalEmbeddingProviderRow()])
     if (insertedProviderCount > 0) {
       logger.info('Registered local embedding provider', { providerId: LOCAL_EMBEDDING_PROVIDER_ID })
     }
 
-    const [existing] = await tx
+    const [existing] = tx
       .select({ id: userModelTable.id })
       .from(userModelTable)
       .where(eq(userModelTable.id, LOCAL_EMBEDDING_UNIQUE_MODEL_ID))
       .limit(1)
+      .all()
     if (existing) return
 
-    await insertManyWithOrderKey(tx, userModelTable, [createLocalEmbeddingModelRow()], {
+    insertManyWithOrderKey(tx, userModelTable, [createLocalEmbeddingModelRow()], {
       pkColumn: userModelTable.id,
       scope: eq(userModelTable.providerId, LOCAL_EMBEDDING_PROVIDER_ID)
     })
@@ -119,18 +123,20 @@ export async function registerLocalEmbeddingModel(): Promise<void> {
  * @returns whether the rows were removed.
  */
 export async function unregisterLocalEmbeddingModelIfUnused(): Promise<{ removed: boolean }> {
-  return application.get('DbService').withWriteTx(async (tx) => {
-    const [inUse] = await tx
+  // Sync callback — see registerLocalEmbeddingModel for why (better-sqlite3 tx).
+  return application.get('DbService').withWriteTx((tx) => {
+    const [inUse] = tx
       .select({ id: knowledgeBaseTable.id })
       .from(knowledgeBaseTable)
       .where(eq(knowledgeBaseTable.embeddingModelId, LOCAL_EMBEDDING_UNIQUE_MODEL_ID))
       .limit(1)
+      .all()
     if (inUse) {
       logger.info('Kept local embedding registration — still used by a knowledge base')
       return { removed: false }
     }
 
-    await tx.delete(userProviderTable).where(eq(userProviderTable.providerId, LOCAL_EMBEDDING_PROVIDER_ID))
+    tx.delete(userProviderTable).where(eq(userProviderTable.providerId, LOCAL_EMBEDDING_PROVIDER_ID)).run()
     logger.info('Unregistered local embedding provider/model')
     return { removed: true }
   })
