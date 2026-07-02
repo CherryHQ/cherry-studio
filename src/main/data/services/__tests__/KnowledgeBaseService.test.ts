@@ -366,7 +366,7 @@ describe('KnowledgeBaseService', () => {
     })
 
     it('creates a BM25-only base when no embedding model is provided', async () => {
-      const result = await service.create({ name: 'Lexical Base' })
+      const result = service.create({ name: 'Lexical Base' })
 
       expect(result.embeddingModelId).toBeNull()
       expect(result.dimensions).toBeNull()
@@ -381,7 +381,7 @@ describe('KnowledgeBaseService', () => {
     })
 
     it('forces BM25 search mode without an embedding model even when another mode is requested', async () => {
-      const result = await service.create({ name: 'Lexical Base', searchMode: 'hybrid' })
+      const result = service.create({ name: 'Lexical Base', searchMode: 'hybrid' })
 
       expect(result.embeddingModelId).toBeNull()
       expect(result.searchMode).toBe('bm25')
@@ -529,7 +529,7 @@ describe('KnowledgeBaseService', () => {
         })
       ).resolves.toBeDefined()
 
-      await expect(service.getById(KNOWLEDGE_BASE_ID)).resolves.toMatchObject({
+      expect(service.getById(KNOWLEDGE_BASE_ID)).toMatchObject({
         embeddingModelId: null,
         dimensions: null,
         status: 'completed',
@@ -676,7 +676,13 @@ describe('KnowledgeBaseService', () => {
     it('rejects switching a BM25-only base (no embedding model) to a non-bm25 search mode', async () => {
       await seedKnowledgeBase({ embeddingModelId: null, dimensions: null, searchMode: 'bm25' })
 
-      await expect(service.update(KNOWLEDGE_BASE_ID, { searchMode: 'vector' })).rejects.toMatchObject({
+      let err: unknown
+      try {
+        service.update(KNOWLEDGE_BASE_ID, { searchMode: 'vector' })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
         details: {
           fieldErrors: {
@@ -686,7 +692,7 @@ describe('KnowledgeBaseService', () => {
       })
 
       // A no-op bm25 update on the same base is still accepted.
-      const result = await service.update(KNOWLEDGE_BASE_ID, { searchMode: 'bm25' })
+      const result = service.update(KNOWLEDGE_BASE_ID, { searchMode: 'bm25' })
       expect(result.searchMode).toBe('bm25')
     })
 
@@ -704,7 +710,7 @@ describe('KnowledgeBaseService', () => {
         searchMode: 'hybrid'
       })
 
-      const result = await service.update(KNOWLEDGE_BASE_ID, { name: 'Renamed while failed' })
+      const result = service.update(KNOWLEDGE_BASE_ID, { name: 'Renamed while failed' })
       expect(result.name).toBe('Renamed while failed')
       expect(result.searchMode).toBe('hybrid')
     })

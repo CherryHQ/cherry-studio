@@ -132,14 +132,14 @@ describe('index-documents job handler', () => {
   it('skips embedding entirely for a BM25-only base and writes only lexical text', async () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
     // A base without an embedding model is BM25-only: no dimensions, lexical search.
-    knowledgeBaseGetByIdMock.mockResolvedValue({
+    knowledgeBaseGetByIdMock.mockReturnValue({
       ...createBase(),
       embeddingModelId: null,
       dimensions: null,
       searchMode: 'bm25'
     })
-    knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
-    knowledgeItemUpdateStatusMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
+    knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
+    knowledgeItemUpdateStatusMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
     loadKnowledgeItemDocumentsMock.mockResolvedValueOnce(distinctDocuments())
 
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
