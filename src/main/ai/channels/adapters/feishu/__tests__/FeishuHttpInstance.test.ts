@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createElectronHttpInstance } from '../FeishuHttpInstance'
+import { createFeishuHttpInstance } from '../FeishuHttpInstance'
 
 function okResponse(payload: unknown = { code: 0 }) {
   return {
@@ -13,7 +13,7 @@ function okResponse(payload: unknown = { code: 0 }) {
   } as unknown as Response
 }
 
-describe('createElectronHttpInstance', () => {
+describe('createFeishuHttpInstance', () => {
   const fetchMock = vi.fn()
 
   beforeEach(() => {
@@ -26,7 +26,7 @@ describe('createElectronHttpInstance', () => {
   })
 
   it('builds a multipart FormData from a plain object with a Buffer field', async () => {
-    const http = createElectronHttpInstance()
+    const http = createFeishuHttpInstance()
 
     await http.post(
       'https://open.feishu.cn/open-apis/im/v1/images',
@@ -51,7 +51,7 @@ describe('createElectronHttpInstance', () => {
   })
 
   it('serializes a plain object as JSON when not multipart', async () => {
-    const http = createElectronHttpInstance()
+    const http = createFeishuHttpInstance()
 
     await http.post('https://open.feishu.cn/open-apis/im/v1/messages', { msg_type: 'text' })
 
@@ -61,7 +61,7 @@ describe('createElectronHttpInstance', () => {
   })
 
   it('passes a string body through unchanged', async () => {
-    const http = createElectronHttpInstance()
+    const http = createFeishuHttpInstance()
 
     await http.post('https://example.com', 'raw-body')
 
@@ -79,7 +79,7 @@ describe('createElectronHttpInstance', () => {
       text: async () => JSON.stringify({ msg: 'invalid file' })
     } as unknown as Response)
 
-    const http = createElectronHttpInstance()
+    const http = createFeishuHttpInstance()
 
     await expect(http.post('https://example.com', { a: 1 })).rejects.toThrow('Feishu HTTP 400: invalid file')
   })

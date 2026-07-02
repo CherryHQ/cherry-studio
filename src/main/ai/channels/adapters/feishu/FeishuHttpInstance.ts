@@ -9,7 +9,7 @@ import type * as Lark from '@larksuiteoapi/node-sdk'
  * sometimes sends GET requests with a body and non-ASCII header values,
  * both of which Electron's net.fetch rejects.
  */
-export function createElectronHttpInstance(): Lark.HttpInstance {
+export function createFeishuHttpInstance(): Lark.HttpInstance {
   async function doRequest(method: string, url: string, data?: unknown, opts?: Record<string, any>): Promise<any> {
     const headers: Record<string, string> = { ...opts?.headers }
     let body: string | FormData | undefined

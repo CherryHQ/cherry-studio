@@ -231,8 +231,21 @@ describe('FeishuAdapter', () => {
 
     await expect(
       adapter.sendFile('oc_123', { filename: 'a.bin', data: '', media_type: 'application/octet-stream', size: 0 })
-    ).rejects.toThrow('Feishu file upload returned no file_key')
+    ).rejects.toThrow('(no file_key)')
     expect(mockImCreate).not.toHaveBeenCalled()
+  })
+
+  it('sendFile() propagates a failure when the message post fails after a successful upload', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+    mockImCreate.mockRejectedValueOnce(new Error('permission denied'))
+
+    const data = Buffer.from('pdf-bytes').toString('base64')
+    await expect(
+      adapter.sendFile('oc_123', { filename: 'report.pdf', data, media_type: 'application/pdf', size: 9 })
+    ).rejects.toThrow('permission denied')
+    // Upload succeeded; the failure is on the message post, so the upload was still attempted.
+    expect(mockFileCreate).toHaveBeenCalled()
   })
 
   it('onTextUpdate() creates streaming card and updates content via CardKit', async () => {

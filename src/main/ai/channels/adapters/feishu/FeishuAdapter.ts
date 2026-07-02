@@ -11,7 +11,7 @@ import { isSlashCommand } from '../../constants'
 import { FlushController } from '../../FlushController'
 import { FILE_EXTENSION_MIME_MAP, splitMessage } from '../../utils'
 import { registrationBegin, registrationPoll } from './FeishuAppRegistration'
-import { createElectronHttpInstance } from './FeishuHttpInstance'
+import { createFeishuHttpInstance } from './FeishuHttpInstance'
 
 const FEISHU_MAX_LENGTH = 4000
 
@@ -407,7 +407,7 @@ class FeishuAdapter extends ChannelAdapter {
       appSecret: this.appSecret,
       appType: Lark.AppType.SelfBuild,
       domain: larkDomain,
-      httpInstance: createElectronHttpInstance()
+      httpInstance: createFeishuHttpInstance()
     })
 
     const eventDispatcher = new Lark.EventDispatcher({
@@ -567,12 +567,20 @@ class FeishuAdapter extends ChannelAdapter {
     //
     // NOTE: unlike `im.message.create`, the SDK's upload endpoints return the
     // unwrapped data object ({image_key} / {file_key}) — not a {code,msg,data}
-    // envelope — so they must NOT go through `ensureFeishuSuccess`. A failed
-    // upload resolves to null, which we surface as a missing-key error.
+    // envelope — so they must NOT go through `ensureFeishuSuccess`. Two failure
+    // shapes exist: an HTTP error rejects (the http instance surfaces status +
+    // detail), while an HTTP 200 carrying a business error (code != 0, e.g. an
+    // oversize image) resolves to null after the SDK discards code/msg — so for
+    // that path we log and throw an enriched, cause-hinting error ourselves.
     if (file.media_type.startsWith('image/')) {
       const uploaded = await this.client.im.image.create({ data: { image_type: 'message', image: buffer } })
       const imageKey = uploaded?.image_key
-      if (!imageKey) throw new Error('Feishu image upload returned no image_key')
+      if (!imageKey) {
+        this.log.warn('Feishu image upload returned no image_key', { chatId, filename: file.filename, size: file.size })
+        throw new Error(
+          `Feishu rejected the image upload for "${file.filename}" (no image_key) — likely over Feishu's image size limit (~10MB) or the bot lacks image-send capability`
+        )
+      }
 
       ensureFeishuSuccess(
         await this.client.im.message.create({
@@ -586,7 +594,12 @@ class FeishuAdapter extends ChannelAdapter {
         data: { file_type: 'stream', file_name: file.filename, file: buffer }
       })
       const fileKey = uploaded?.file_key
-      if (!fileKey) throw new Error('Feishu file upload returned no file_key')
+      if (!fileKey) {
+        this.log.warn('Feishu file upload returned no file_key', { chatId, filename: file.filename, size: file.size })
+        throw new Error(
+          `Feishu rejected the file upload for "${file.filename}" (no file_key) — likely over Feishu's file size limit (~30MB) or the bot lacks file-send capability`
+        )
+      }
 
       ensureFeishuSuccess(
         await this.client.im.message.create({
