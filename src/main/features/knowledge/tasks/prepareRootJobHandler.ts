@@ -42,7 +42,7 @@ export function createPrepareRootJobHandler(
 
       ctx.signal.throwIfAborted()
       // Validate the container before destructive cleanup; delete-base/delete-items can remove it first.
-      const item = await loadPrepareRootItemOrSkip(ctx)
+      const item = loadPrepareRootItemOrSkip(ctx)
       if (!item) {
         return
       }
@@ -65,12 +65,12 @@ export function createPrepareRootJobHandler(
   }
 }
 
-async function loadPrepareRootItemOrSkip(ctx: JobContext<KnowledgePrepareRootPayload>): Promise<KnowledgeItem | null> {
+function loadPrepareRootItemOrSkip(ctx: JobContext<KnowledgePrepareRootPayload>): KnowledgeItem | null {
   const { baseId, itemId } = ctx.input
 
   try {
-    await knowledgeBaseService.getById(baseId)
-    const item = await knowledgeItemService.getById(itemId)
+    knowledgeBaseService.getById(baseId)
+    const item = knowledgeItemService.getById(itemId)
 
     if (item.status === 'deleting') {
       logger.info('Skipping prepare-root for deleting item', { baseId, itemId, jobId: ctx.jobId })
@@ -95,8 +95,8 @@ async function deletePreviousLeafExpansion(
   knowledgeLockManager: KnowledgeLockManager
 ): Promise<void> {
   await knowledgeLockManager.withBaseMutationLock(baseId, async () => {
-    const base = await knowledgeBaseService.getById(baseId)
-    const descendants = await knowledgeItemService.getSubtreeItems(baseId, [itemId])
+    const base = knowledgeBaseService.getById(baseId)
+    const descendants = knowledgeItemService.getSubtreeItems(baseId, [itemId])
     const removableDescendants = descendants.filter((item) => item.status !== 'deleting')
     const removableDescendantIds = removableDescendants.map((item) => item.id)
     const removableLeafIds = removableDescendants.filter(isIndexableKnowledgeItem).map((item) => item.id)
@@ -104,7 +104,7 @@ async function deletePreviousLeafExpansion(
     await deleteKnowledgeItemVectors(base, removableLeafIds)
     // Best-effort: a file-removal failure must not abort the row deletion below.
     await deleteKnowledgeItemFilesBestEffort(baseId, removableDescendants, { baseId, itemId })
-    await knowledgeItemService.deleteItemsByIds(baseId, removableDescendantIds)
+    knowledgeItemService.deleteItemsByIds(baseId, removableDescendantIds)
   })
 }
 
@@ -117,7 +117,7 @@ async function scanRootItem(
   return await knowledgeLockManager.withBaseMutationLock(baseId, async () => {
     let currentItem: KnowledgeItem
     try {
-      currentItem = await knowledgeItemService.getById(itemId)
+      currentItem = knowledgeItemService.getById(itemId)
     } catch (error) {
       if (isDataApiNotFoundError(error)) {
         logger.info('Skipping prepare-root for missing item before expansion', { baseId, itemId, jobId: ctx.jobId })
@@ -141,7 +141,7 @@ async function scanRootItem(
       signal: ctx.signal
     })
     if (leaves.length > 0) {
-      await knowledgeItemService.updateStatus(itemId, 'processing')
+      knowledgeItemService.updateStatus(itemId, 'processing')
     }
     return leaves
   })
@@ -163,7 +163,7 @@ async function enqueueLeafItems(
       await workflowService.scheduleItem(baseIdInput, toKnowledgeItemId(leaf.id), ctx.jobId)
       completedSchedulingLeafIds.add(leaf.id)
     } catch (error) {
-      await markUnscheduledLeafItemsFailed(baseId, leafItems, completedSchedulingLeafIds, error)
+      markUnscheduledLeafItemsFailed(baseId, leafItems, completedSchedulingLeafIds, error)
       throw error
     }
     reportKnowledgeProgress(ctx, 50 + Math.round(((index + 1) / Math.max(leafItems.length, 1)) * 50), {
@@ -176,14 +176,14 @@ async function enqueueLeafItems(
   reportKnowledgeProgress(ctx, 100, { stage: 'done', currentFile: leafItems.length, totalFiles: leafItems.length })
 }
 
-async function markUnscheduledLeafItemsFailed(
+function markUnscheduledLeafItemsFailed(
   baseId: string,
   leafItems: KnowledgeItem[],
   completedSchedulingLeafIds: Set<string>,
   originalError: unknown
-): Promise<void> {
+): void {
   const message = originalError instanceof Error ? originalError.message : String(originalError)
-  await markUnscheduledKnowledgeItemsFailed({
+  markUnscheduledKnowledgeItemsFailed({
     baseId,
     items: leafItems,
     completedItemIds: completedSchedulingLeafIds,

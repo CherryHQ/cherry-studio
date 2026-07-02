@@ -11,12 +11,12 @@ How the SQLite database is **built at boot and evolved over time**. Scope: drizz
 | # | Step | Notes |
 |---|---|---|
 | 1 | `ensureDatabaseIntegrity()` (constructor) | Deletes a 0-byte `.db` and orphaned `-wal`/`-shm` sidecars to avoid `SQLITE_IOERR_SHORT_READ`. Opening the DB can delete files. |
-| 2 | `configurePragmas()` | `journal_mode=WAL` via `db.run()` (persisted in the file, once); `synchronous=NORMAL` + `foreign_keys=ON` via patched `client.setPragma()` (per-connection — see below). |
+| 2 | `configurePragmas()` | `journal_mode=WAL` via `db.run()` (persisted in the file, once); `synchronous=NORMAL` + `foreign_keys=ON` set once on the single persistent connection (see below). |
 | 3 | `migrate()` | Applies un-applied drizzle migrations from `migrations/sqlite-drizzle/`. |
 | 4 | `runCustomMigrations()` | Replays `CUSTOM_SQL_STATEMENTS` (FTS vtables + triggers) — **every boot**, unconditionally. |
 | 5 | `SeedRunner.runAll(seeders)` | Runs on the just-migrated schema; a schema change a seeder relies on must land in the migration first. See [database-seeding-guide.md](./database-seeding-guide.md). |
 
-**libsql per-connection PRAGMA replay.** `@libsql/client`'s `transaction()` nullifies its connection; the next op opens a fresh connection that resets per-connection PRAGMAs (`synchronous`→FULL; `foreign_keys` stays ON only because libsql is compiled `SQLITE_DEFAULT_FOREIGN_KEYS=1`). A one-shot `PRAGMA foreign_keys=ON` would silently revert at the first transaction boundary, so the repo patches `@libsql/client` (`patches/@libsql__client@*.patch`) to add `client.setPragma()`, which re-applies them on every reconnect. `WAL` is exempt (persisted in the file).
+**Single persistent connection — PRAGMAs set once.** better-sqlite3 keeps **one connection** open for the whole process, so the per-connection PRAGMAs (`synchronous=NORMAL`, `foreign_keys=ON`) are applied a single time in `configurePragmas()` and stay in effect — there is no transaction-boundary reconnect that could reset them, and no per-statement replay machinery is needed. `WAL` is also set once and persisted in the file.
 
 ## 2. Drizzle migrations
 
@@ -57,7 +57,7 @@ Drizzle cannot manage **virtual tables (FTS5) or triggers**, so they are NOT in 
 
 ### Cost: O(1) metadata, ~0.1 ms — do NOT gate it on "did a migration run"
 
-Re-running the whole FTS custom-SQL set is **~0.1 ms and independent of row count** (measured with `@libsql/client`: 0.11 ms on an empty DB, 0.13 ms at 50k rows). It is pure metadata — `CREATE VIRTUAL TABLE IF NOT EXISTS` (skipped if present) + `DROP/CREATE TRIGGER` (touch only `sqlite_master`); it does **not** touch rows, re-tokenize, or rebuild any index.
+Re-running the whole FTS custom-SQL set is **~0.1 ms and independent of row count** (measured with better-sqlite3: 0.11 ms on an empty DB, 0.13 ms at 50k rows). It is pure metadata — `CREATE VIRTUAL TABLE IF NOT EXISTS` (skipped if present) + `DROP/CREATE TRIGGER` (touch only `sqlite_master`); it does **not** touch rows, re-tokenize, or rebuild any index.
 
 Gating it on "did drizzle apply a migration this boot" would save nothing measurable **and break correctness**: trigger/vtable definitions live here, not in migrations, so a release can change a **trigger body** (e.g. the searchable-text extraction or the `fts_rowid` wiring) with **no schema migration** — re-asserting every boot is exactly what makes that body change take effect on existing DBs. The real condition for re-running is "the definition changed **or** a rebuild dropped it", not "a migration ran"; cheap unconditional re-assertion covers both without detecting either. (Gating safely would require versioning the custom SQL — a per-statement state-tracking mechanism whose complexity isn't worth ~0.1 ms.)
 
@@ -104,7 +104,9 @@ A table rebuild (drizzle's `INSERT…SELECT` drops the implicit rowid) **and `VA
 
 ## 5. Testing the build
 
-`setupTestDatabase()` runs the **real** production migrations + `CUSTOM_SQL_STATEMENTS`, so the test schema is byte-identical to production — hand-writing `CREATE TABLE` in tests is banned. Raw SQL / PRAGMA / FTS `MATCH` go through `dbh.client.execute`; the rebuild regression lives in `ftsRebuild.test.ts`. See [testing/database-testing.md](../testing/database-testing.md).
+`setupTestDatabase()` runs the **real** production migrations + `CUSTOM_SQL_STATEMENTS` on a real better-sqlite3 connection, so the test schema is byte-identical to production — hand-writing `CREATE TABLE` in tests is banned. Raw SQL / PRAGMA / FTS `MATCH` go through the handle's raw connection `dbh.sqlite` (`dbh.sqlite.prepare(...).all()` / `.exec(...)` / `.pragma(...)`); the rebuild regression lives in `ftsRebuild.test.ts`. See [testing/database-testing.md](../testing/database-testing.md).
+
+**Native-module ABI note.** better-sqlite3 is **not** an N-API module (unlike the repo's other native deps), so its build is ABI-specific. Tests run under system Node, so the module is kept at the **Node ABI** (`pnpm install`'s default); the `main` Vitest project's `pretest:main` hook runs `pnpm rebuild:node` to guarantee it before `pnpm test:main`. `pnpm dev` and packaging flip it to the **Electron ABI** (`pnpm rebuild:electron`, `--force`). Each flip is a cached restore (~0.3s/~2s, not a recompile) and happens automatically (pretest before tests, `dev` before the app); if you use `pnpm test:watch` / an IDE's Vitest right after `pnpm dev`, run `pnpm rebuild:node` first. CI is unaffected — each job installs fresh (Node ABI) under system Node. See [testing/database-testing.md](../testing/database-testing.md).
 
 ## 6. Gotchas (quick reference)
 
@@ -120,6 +122,6 @@ A table rebuild (drizzle's `INSERT…SELECT` drops the implicit rowid) **and `VA
 | FTS keys on `fts_rowid`, not `rowid` | Implicit rowid reshuffles on rebuild/VACUUM → silent desync. |
 | Default `integrity-check` is unreliable | Use `integrity-check, 1` for external-content FTS. |
 | `fts_rowid` is local-only | Never back it up; restore through the trigger. |
-| Concurrent writes use `withWriteTx` | Not `db.transaction()` — concurrent libsql async transactions surface `SQLITE_BUSY`. |
+| Multi-statement writes use a transaction | `withWriteTx` is the conventional wrapper (a direct `db.transaction()` is equivalent) — each runs as one synchronous transaction; the single connection serializes writes by construction. |
 | Packaged migrations need `extraResources` | Works in dev, fails packaged if not shipped. |
-| Per-connection PRAGMAs need `setPragma` | `transaction()` recycles the connection; one-shot PRAGMAs revert. |
+| PRAGMAs set once on one connection | better-sqlite3 keeps a single persistent connection, so `synchronous`/`foreign_keys` are set once at boot and never revert. |

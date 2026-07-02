@@ -70,7 +70,7 @@ export class FileProcessingService extends BaseService {
 
     const type = handler.mode === 'background' ? 'file-processing.background' : 'file-processing.remote-poll'
     const jobManager = application.get('JobManager')
-    const handle = await jobManager.enqueue(type, payload, options.parentId ? { parentId: options.parentId } : {})
+    const handle = jobManager.enqueue(type, payload, options.parentId ? { parentId: options.parentId } : {})
 
     logger.debug('Enqueued file processing job', {
       jobId: handle.id,

@@ -88,14 +88,14 @@ function makeModel(id: UniqueModelId, contextWindow = 4000) {
 const DEFAULT_MODEL_ID = createUniqueModelId('openai', 'gpt-4o')
 
 vi.mock('../modelResolution', () => ({
-  resolveAssistantModelId: vi.fn(async () => ({
+  resolveAssistantModelId: vi.fn(() => ({
     assistantId: undefined,
     defaultModelId: 'openai::gpt-4o' as UniqueModelId
   })),
-  resolveModels: vi.fn(async (ids: string[] | undefined) =>
+  resolveModels: vi.fn((ids: string[] | undefined) =>
     (ids ?? ['openai::gpt-4o']).map((id) => makeModel(id as UniqueModelId))
   ),
-  resolvePersistentSiblingsGroupId: vi.fn(async () => 1)
+  resolvePersistentSiblingsGroupId: vi.fn(() => 1)
 }))
 
 vi.mock('../../../observability', () => ({
@@ -105,8 +105,8 @@ vi.mock('../../../observability', () => ({
 
 vi.mock('@data/services/TopicService', () => ({
   topicService: {
-    getById: vi.fn(async () => ({ id: 'topic-1', assistantId: undefined, activeNodeId: 'u1', orderKey: 'a0' })),
-    ensureTraceId: vi.fn(async () => 'trace-1')
+    getById: vi.fn(() => ({ id: 'topic-1', assistantId: undefined, activeNodeId: 'u1', orderKey: 'a0' })),
+    ensureTraceId: vi.fn(() => 'trace-1')
   }
 }))
 
@@ -180,10 +180,10 @@ function makeSubscriber() {
  *  Returns `{ messages, prepared }` where messages is the first model's request messages array. */
 async function makeHistory(anchorId: string, models = [DEFAULT_MODEL_ID]) {
   const { resolveModels } = await import('../modelResolution')
-  vi.mocked(resolveModels).mockResolvedValueOnce(models.map((id) => makeModel(id)))
+  vi.mocked(resolveModels).mockReturnValueOnce(models.map((id) => makeModel(id)))
   // Mock createUserMessageWithPlaceholders so prepareDispatch doesn't need a real DB.
   const { messageService } = await import('@main/data/services/MessageService')
-  vi.mocked(messageService.createUserMessageWithPlaceholders).mockResolvedValueOnce({
+  vi.mocked(messageService.createUserMessageWithPlaceholders).mockReturnValueOnce({
     userMessage: fakeMsg('anchor', 'user', 'q') as any,
     placeholders: models.map((_, i) => fakeMsg(`ph${i}`, 'assistant', '') as any)
   })
@@ -214,7 +214,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
       fakeMsg('a1', 'assistant', 'hi'),
       fakeMsg('u2', 'user', 'how are you')
     ]
-    mockGetPathToNode.mockResolvedValue(path)
+    mockGetPathToNode.mockReturnValue(path)
     compressionOn()
 
     const { messages } = await makeHistory('u2')
@@ -242,7 +242,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
       fakeMsg('a2', 'assistant', BIG),
       fakeMsg('u3', 'user', BIG)
     ]
-    mockGetPathToNode.mockResolvedValue(path)
+    mockGetPathToNode.mockReturnValue(path)
     compressionOn({}) // compressionModel is truthy ({} is a valid non-null model)
 
     const { messages } = await makeHistory('u3')
@@ -273,7 +273,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
       fakeMsg('a2', 'assistant', 'new answer'),
       fakeMsg('u3', 'user', 'latest question')
     ]
-    mockGetPathToNode.mockResolvedValue(path)
+    mockGetPathToNode.mockReturnValue(path)
     compressionOn()
 
     const { messages } = await makeHistory('u3')
@@ -303,7 +303,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
       fakeMsg('u4', 'user', 'q4'),
       fakeMsg('u5', 'user', 'q5')
     ]
-    mockGetPathToNode.mockResolvedValue(path)
+    mockGetPathToNode.mockReturnValue(path)
     compressionOn()
 
     const { messages } = await makeHistory('u5')
@@ -411,16 +411,16 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
       fakeMsg('a2', 'assistant', MED),
       fakeMsg('u3', 'user', TRAIL)
     ]
-    mockGetPathToNode.mockResolvedValue(path)
+    mockGetPathToNode.mockReturnValue(path)
     compressionOn({})
 
     // Use a model with contextWindow=10000
     const { resolveModels } = await import('../modelResolution')
     const MODEL_ID_10K = createUniqueModelId('openai', 'gpt-4o-10k')
-    vi.mocked(resolveModels).mockResolvedValueOnce([makeModel(MODEL_ID_10K, 10_000)])
+    vi.mocked(resolveModels).mockReturnValueOnce([makeModel(MODEL_ID_10K, 10_000)])
     // Also patch createUserMessageWithPlaceholders for this one-off model id
     const { messageService } = await import('@main/data/services/MessageService')
-    vi.mocked(messageService.createUserMessageWithPlaceholders).mockResolvedValueOnce({
+    vi.mocked(messageService.createUserMessageWithPlaceholders).mockReturnValueOnce({
       userMessage: fakeMsg('anchor', 'user', 'q') as any,
       placeholders: [fakeMsg('ph0', 'assistant', '') as any]
     })
@@ -440,7 +440,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     // No row carries contextTokens → estimateContext falls back to estimateTotal (full tokenx).
     // Tiny messages → full tokenx well under threshold → no compaction.
     const path = [fakeMsg('u1', 'user', 'hello'), fakeMsg('a1', 'assistant', 'hi'), fakeMsg('u2', 'user', 'goodbye')]
-    mockGetPathToNode.mockResolvedValue(path)
+    mockGetPathToNode.mockReturnValue(path)
     compressionOn()
 
     const { messages } = await makeHistory('u2')
@@ -520,7 +520,7 @@ describe('in-loop vs turn-start compaction — no double-compact', () => {
       fakeMsg('a2', 'assistant', BIG),
       fakeMsg('u3', 'user', BIG)
     ]
-    mockGetPathToNode.mockResolvedValue(path)
+    mockGetPathToNode.mockReturnValue(path)
     compressionOn({})
 
     const { messages: servedRows } = await makeHistory('u3')

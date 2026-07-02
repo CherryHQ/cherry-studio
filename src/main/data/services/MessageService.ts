@@ -194,26 +194,27 @@ function extractChatMessageFileEntryIds(data: MessageData | null | undefined): s
   return ids
 }
 
-async function selectExistingFileEntryIdsTx(tx: DbOrTx, ids: readonly string[]): Promise<Set<string>> {
+function selectExistingFileEntryIdsTx(tx: DbOrTx, ids: readonly string[]): Set<string> {
   const existing = new Set<string>()
   for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
     const chunk = ids.slice(i, i + SQLITE_INARRAY_CHUNK)
-    const rows = await tx
+    const rows = tx
       .select({ id: fileEntryTable.id })
       .from(fileEntryTable)
       .where(inArray(fileEntryTable.id, chunk))
+      .all()
     for (const row of rows) existing.add(row.id)
   }
   return existing
 }
 
-async function replaceChatMessageFileRefsTx(tx: DbOrTx, messageId: string, data: MessageData): Promise<void> {
-  await tx.delete(chatMessageFileRefTable).where(eq(chatMessageFileRefTable.sourceId, messageId))
+function replaceChatMessageFileRefsTx(tx: DbOrTx, messageId: string, data: MessageData): void {
+  tx.delete(chatMessageFileRefTable).where(eq(chatMessageFileRefTable.sourceId, messageId)).run()
 
   const fileEntryIds = extractChatMessageFileEntryIds(data)
   if (fileEntryIds.length === 0) return
 
-  const existingIds = await selectExistingFileEntryIdsTx(tx, fileEntryIds)
+  const existingIds = selectExistingFileEntryIdsTx(tx, fileEntryIds)
   const now = Date.now()
   const rows: Array<typeof chatMessageFileRefTable.$inferInsert> = []
   for (const fileEntryId of fileEntryIds) {
@@ -230,7 +231,9 @@ async function replaceChatMessageFileRefsTx(tx: DbOrTx, messageId: string, data:
   }
 
   for (let i = 0; i < rows.length; i += SQLITE_INSERT_CHUNK) {
-    await tx.insert(chatMessageFileRefTable).values(rows.slice(i, i + SQLITE_INSERT_CHUNK))
+    tx.insert(chatMessageFileRefTable)
+      .values(rows.slice(i, i + SQLITE_INSERT_CHUNK))
+      .run()
   }
 }
 
@@ -279,11 +282,11 @@ type MessageContentSearchInput = {
 }
 
 export class MessageService {
-  async purgeByTopicIdsTx(tx: Pick<DbType, 'delete'>, topicIds: string[]): Promise<void> {
+  purgeByTopicIdsTx(tx: Pick<DbType, 'delete'>, topicIds: string[]): void {
     const uniqueTopicIds = Array.from(new Set(topicIds))
     if (uniqueTopicIds.length === 0) return
 
-    await tx.delete(messageTable).where(inArray(messageTable.topicId, uniqueTopicIds))
+    tx.delete(messageTable).where(inArray(messageTable.topicId, uniqueTopicIds)).run()
   }
 
   /**
@@ -294,15 +297,12 @@ export class MessageService {
    * 2. Uses CTE to get tree nodes within depth limit (single query)
    * 3. Fetches additional nodes for active path if beyond depth limit
    */
-  async getTree(
-    topicId: string,
-    options: { rootId?: string; nodeId?: string; depth?: number } = {}
-  ): Promise<TreeResponse> {
+  getTree(topicId: string, options: { rootId?: string; nodeId?: string; depth?: number } = {}): TreeResponse {
     const db = application.get('DbService').getDb()
     const { depth = 1 } = options
 
     // Get topic to verify existence and get activeNodeId
-    const [topic] = await db.select().from(topicTable).where(eq(topicTable.id, topicId)).limit(1)
+    const [topic] = db.select().from(topicTable).where(eq(topicTable.id, topicId)).limit(1).all()
 
     if (!topic) {
       throw DataApiErrorFactory.notFound('Topic', topicId)
@@ -313,7 +313,7 @@ export class MessageService {
     // Build active path via CTE (single query)
     const activePath = new Set<string>()
     if (activeNodeId) {
-      const pathRows = await db.all<{ id: string; parent_id: string | null }>(sql`
+      const pathRows = db.all<{ id: string; parent_id: string | null }>(sql`
         WITH RECURSIVE path AS (
           SELECT id, parent_id FROM message WHERE id = ${activeNodeId} AND deleted_at IS NULL
           UNION ALL
@@ -331,11 +331,12 @@ export class MessageService {
     // The virtual root (the single parentId-null row) is structural and never
     // rendered. Drop it from the active path; its children — the first-turn
     // messages — are the logical roots of the flow canvas.
-    const [rootRow] = await db
+    const [rootRow] = db
       .select({ id: messageTable.id })
       .from(messageTable)
       .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.parentId), isNull(messageTable.deletedAt)))
       .limit(1)
+      .all()
     const virtualRootId = rootRow?.id ?? null
     if (virtualRootId) {
       activePath.delete(virtualRootId)
@@ -352,18 +353,17 @@ export class MessageService {
     const rootIds = explicitRootId
       ? [explicitRootId]
       : virtualRootId
-        ? (
-            await db
-              .select({ id: messageTable.id, createdAt: messageTable.createdAt })
-              .from(messageTable)
-              .where(
-                and(
-                  eq(messageTable.topicId, topicId),
-                  eq(messageTable.parentId, virtualRootId),
-                  isNull(messageTable.deletedAt)
-                )
+        ? db
+            .select({ id: messageTable.id, createdAt: messageTable.createdAt })
+            .from(messageTable)
+            .where(
+              and(
+                eq(messageTable.topicId, topicId),
+                eq(messageTable.parentId, virtualRootId),
+                isNull(messageTable.deletedAt)
               )
-          )
+            )
+            .all()
             .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))
             .map((row) => row.id)
         : []
@@ -379,7 +379,7 @@ export class MessageService {
     // Recursive CTE returns ID + depth only (single-word columns are
     // casing-safe). Full rows are fetched via ORM below for camelCase mapping.
     // See docs/references/data/database-patterns.md.
-    const treeDepthRows = await db.all<{ id: string; tree_depth: number }>(sql`
+    const treeDepthRows = db.all<{ id: string; tree_depth: number }>(sql`
       WITH RECURSIVE tree AS (
         SELECT id, 0 as tree_depth FROM message
         WHERE id IN (${sql.join(
@@ -398,7 +398,7 @@ export class MessageService {
     const baseTreeRows =
       treeDepthRows.length === 0
         ? []
-        : await db
+        : db
             .select()
             .from(messageTable)
             .where(
@@ -407,6 +407,7 @@ export class MessageService {
                 treeDepthRows.map((r) => r.id)
               )
             )
+            .all()
 
     const treeRows: Array<typeof messageTable.$inferSelect & { treeDepth: number }> = baseTreeRows.map((r) => ({
       ...r,
@@ -418,10 +419,11 @@ export class MessageService {
     const missingActivePathIds = [...activePath].filter((id) => !treeNodeIds.has(id))
 
     if (missingActivePathIds.length > 0) {
-      const additionalRows = await db
+      const additionalRows = db
         .select()
         .from(messageTable)
         .where(and(inArray(messageTable.id, missingActivePathIds), isNull(messageTable.deletedAt)))
+        .all()
       for (const row of additionalRows) {
         treeRows.push({ ...row, treeDepth: maxDepth + 1 })
         treeNodeIds.add(row.id)
@@ -432,7 +434,7 @@ export class MessageService {
     // Get all children of active path nodes that we haven't loaded yet
     const activePathArray = [...activePath]
     if (activePathArray.length > 0 && treeNodeIds.size > 0) {
-      const childrenRows = await db
+      const childrenRows = db
         .select()
         .from(messageTable)
         .where(
@@ -445,6 +447,7 @@ export class MessageService {
             )})`
           )
         )
+        .all()
 
       for (const row of childrenRows) {
         if (!treeNodeIds.has(row.id)) {
@@ -454,10 +457,11 @@ export class MessageService {
       }
     } else if (activePathArray.length > 0) {
       // No tree nodes loaded yet, just get all children of active path
-      const childrenRows = await db
+      const childrenRows = db
         .select()
         .from(messageTable)
         .where(and(inArray(messageTable.parentId, activePathArray), isNull(messageTable.deletedAt)))
+        .all()
 
       for (const row of childrenRows) {
         if (!treeNodeIds.has(row.id)) {
@@ -586,15 +590,15 @@ export class MessageService {
    * 1. First request (no cursor) → returns msg80-99, nextCursor=msg80.id
    * 2. Second request (cursor=msg80.id) → returns msg60-79, nextCursor=msg60.id
    */
-  async getBranchMessages(
+  getBranchMessages(
     topicId: string,
     options: { nodeId?: string; cursor?: string; limit?: number; includeSiblings?: boolean } = {}
-  ): Promise<BranchMessagesResponse> {
+  ): BranchMessagesResponse {
     const db = application.get('DbService').getDb()
     const { cursor, limit = DEFAULT_LIMIT, includeSiblings = true } = options
 
     // Get topic
-    const [topic] = await db.select().from(topicTable).where(eq(topicTable.id, topicId)).limit(1)
+    const [topic] = db.select().from(topicTable).where(eq(topicTable.id, topicId)).limit(1).all()
 
     if (!topic) {
       throw DataApiErrorFactory.notFound('Topic', topicId)
@@ -602,11 +606,12 @@ export class MessageService {
 
     // Authoritative first-turn signal for renderers (pagination-independent): a message is a
     // first turn iff its parentId === this root id. Looked up once, returned in the response.
-    const [rootRow] = await db
+    const [rootRow] = db
       .select({ id: messageTable.id })
       .from(messageTable)
       .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.parentId), isNull(messageTable.deletedAt)))
       .limit(1)
+      .all()
     const rootId = rootRow?.id ?? null
 
     const nodeId = options.nodeId || topic.activeNodeId
@@ -616,7 +621,7 @@ export class MessageService {
       return { items: [], nextCursor: undefined, activeNodeId: null, assistantId: topic.assistantId, rootId }
     }
 
-    const fullPath = await this.getPathRowsToNodeTx(db, nodeId, { topicId })
+    const fullPath = this.getPathRowsToNodeTx(db, nodeId, { topicId })
 
     // Apply pagination
     let startIndex = 0
@@ -670,10 +675,11 @@ export class MessageService {
           )
         )
 
-        const siblingsRows = await db
+        const siblingsRows = db
           .select()
           .from(messageTable)
           .where(and(isNull(messageTable.deletedAt), or(...orConditions)))
+          .all()
 
         for (const row of siblingsRows) {
           const key = groupKeyFor(row.parentId, row.siblingsGroupId ?? 0)
@@ -716,14 +722,15 @@ export class MessageService {
   /**
    * Get a single message by ID
    */
-  async getById(id: string): Promise<Message> {
+  getById(id: string): Message {
     const db = application.get('DbService').getDb()
 
-    const [row] = await db
+    const [row] = db
       .select()
       .from(messageTable)
       .where(and(eq(messageTable.id, id), isNull(messageTable.deletedAt)))
       .limit(1)
+      .all()
 
     if (!row) {
       throw DataApiErrorFactory.notFound('Message', id)
@@ -736,53 +743,52 @@ export class MessageService {
    * Ids of assistant rows still in `pending` — used by the boot reconcile of crash-orphaned turns.
    * Selects only `id` (reconcile just flips them to `error`); backed by `message_status_idx`.
    */
-  async findPendingAssistantMessageIds(): Promise<string[]> {
+  findPendingAssistantMessageIds(): string[] {
     const db = application.get('DbService').getDb()
-    const rows = await db
+    const rows = db
       .select({ id: messageTable.id })
       .from(messageTable)
       .where(
         and(eq(messageTable.role, 'assistant'), eq(messageTable.status, 'pending'), isNull(messageTable.deletedAt))
       )
+      .all()
     return rows.map((row) => row.id)
   }
 
   /**
-   * Flip the given rows to `error` in a single serialized write. Paired with
+   * Flip the given rows to `error` in a single write. Paired with
    * {@link findPendingAssistantMessages} for the boot reconcile of crash-orphaned `pending`
-   * turns. Routes through `withWriteTx` so it serializes with any other write path active
-   * during the WhenReady boot phase.
+   * turns.
    */
-  async markMessagesError(ids: string[]): Promise<void> {
+  markMessagesError(ids: string[]): void {
     if (ids.length === 0) return
-    await application.get('DbService').withWriteTx(async (tx) => {
-      await tx.update(messageTable).set({ status: 'error' }).where(inArray(messageTable.id, ids))
-    })
+    const db = application.get('DbService').getDb()
+    db.update(messageTable).set({ status: 'error' }).where(inArray(messageTable.id, ids)).run()
   }
 
-  /** Persist the durable compaction summary onto a message row. Serialized via withWriteTx. */
-  async setCompactionSummary(id: string, summary: string): Promise<void> {
-    await application.get('DbService').withWriteTx(async (tx) => {
-      await tx.update(messageTable).set({ compactionSummary: summary }).where(eq(messageTable.id, id))
+  /** Persist the durable compaction summary onto a message row. Serialized via withWriteTx (sync). */
+  setCompactionSummary(id: string, summary: string): void {
+    application.get('DbService').withWriteTx((tx) => {
+      tx.update(messageTable).set({ compactionSummary: summary }).where(eq(messageTable.id, id)).run()
     })
     logger.info('Set message compactionSummary', { id, length: summary.length })
   }
 
-  async search(query: MessageContentSearchInput) {
+  search(query: MessageContentSearchInput) {
     const db = application.get('DbService').getDb()
     const topicConditionForMessageAlias = query.topicId ? sql`message.topic_id = ${query.topicId}` : sql`1 = 1`
 
-    return await searchWithCursor<MessageSearchRow, TopicMessageContentSearchItem>({
+    return searchWithCursor<MessageSearchRow, TopicMessageContentSearchItem>({
       q: query.q,
       limit: query.limit,
       cursor: query.cursor,
       createdAtFrom: query.createdAtFrom,
       cursorConfig: MESSAGE_SEARCH_CURSOR_CONFIG,
-      fetchRows: async ({ ftsConditions, cursor, createdAtFromMs, offset, chunkSize }: SearchFetchContext) => {
+      fetchRows: ({ ftsConditions, cursor, createdAtFromMs, offset, chunkSize }: SearchFetchContext) => {
         const createdAtConditionForMessageAlias =
           createdAtFromMs !== undefined ? sql`message.created_at >= ${createdAtFromMs}` : sql`1 = 1`
 
-        return await db.all<MessageSearchRow>(sql`
+        return db.all<MessageSearchRow>(sql`
           SELECT
             message.id,
             message.topic_id AS "topicId",
@@ -835,20 +841,20 @@ export class MessageService {
   }
 
   /** Get all children of a message (messages whose parentId = given id). */
-  async getChildrenByParentId(parentId: string): Promise<Message[]> {
+  getChildrenByParentId(parentId: string): Message[] {
     const db = application.get('DbService').getDb()
-    const rows = await db
+    const rows = db
       .select()
       .from(messageTable)
       .where(and(eq(messageTable.parentId, parentId), isNull(messageTable.deletedAt)))
+      .all()
     return rows.map(rowToMessage)
   }
 
   /** Update siblingsGroupId for a single message. */
-  async updateSiblingsGroupId(id: string, siblingsGroupId: number): Promise<void> {
-    await application.get('DbService').withWriteTx(async (tx) => {
-      await tx.update(messageTable).set({ siblingsGroupId }).where(eq(messageTable.id, id))
-    })
+  updateSiblingsGroupId(id: string, siblingsGroupId: number): void {
+    const db = application.get('DbService').getDb()
+    db.update(messageTable).set({ siblingsGroupId }).where(eq(messageTable.id, id)).run()
   }
 
   /**
@@ -869,9 +875,9 @@ export class MessageService {
    * - First-turn messages hang off the topic's virtual root, so editing / resending
    *   the first user turn creates an ordinary sibling under that root — no special case.
    */
-  async createSibling(sourceId: string, data: MessageData): Promise<Message> {
-    return await application.get('DbService').withWriteTx(async (tx) => {
-      const [source] = await tx.select().from(messageTable).where(eq(messageTable.id, sourceId)).limit(1)
+  createSibling(sourceId: string, data: MessageData): Message {
+    return application.get('DbService').withWriteTx((tx) => {
+      const [source] = tx.select().from(messageTable).where(eq(messageTable.id, sourceId)).limit(1).all()
       if (!source) {
         throw DataApiErrorFactory.notFound('Message', sourceId)
       }
@@ -888,10 +894,10 @@ export class MessageService {
       let siblingsGroupId = source.siblingsGroupId ?? 0
       if (siblingsGroupId === 0) {
         siblingsGroupId = Date.now()
-        await tx.update(messageTable).set({ siblingsGroupId }).where(eq(messageTable.id, sourceId))
+        tx.update(messageTable).set({ siblingsGroupId }).where(eq(messageTable.id, sourceId)).run()
       }
 
-      const [row] = await tx
+      const [row] = tx
         .insert(messageTable)
         .values({
           topicId: source.topicId,
@@ -902,10 +908,11 @@ export class MessageService {
           siblingsGroupId
         })
         .returning()
-      await replaceChatMessageFileRefsTx(tx, row.id, data)
+        .all()
+      replaceChatMessageFileRefsTx(tx, row.id, data)
 
       const topicService = getDataService('TopicService')
-      await topicService.setActiveNodeTx(tx, source.topicId, row.id, { assumeValid: true })
+      topicService.setActiveNodeTx(tx, source.topicId, row.id, { assumeValid: true })
 
       logger.info('Created sibling message', {
         sourceId,
@@ -929,11 +936,12 @@ export class MessageService {
    * `role = 'root'` and `parentId IS NULL` are equivalent, with this method (and the
    * migrator) as the sole writers of both.
    */
-  async createRootMessageTx(tx: DbOrTx, topicId: string): Promise<string> {
-    const [row] = await tx
+  createRootMessageTx(tx: DbOrTx, topicId: string): string {
+    const [row] = tx
       .insert(messageTable)
       .values({ topicId, parentId: null, role: 'root', data: { parts: [] }, status: 'success', siblingsGroupId: 0 })
       .returning({ id: messageTable.id })
+      .all()
     return row.id
   }
 
@@ -942,12 +950,13 @@ export class MessageService {
    * eagerly at topic creation, so message-creation paths just read it. Throws if absent
    * — a missing root means a topic-creation path failed to call {@link createRootMessageTx}.
    */
-  async getRootMessageIdTx(tx: DbOrTx, topicId: string): Promise<string> {
-    const [row] = await tx
+  getRootMessageIdTx(tx: DbOrTx, topicId: string): string {
+    const [row] = tx
       .select({ id: messageTable.id })
       .from(messageTable)
       .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.parentId), isNull(messageTable.deletedAt)))
       .limit(1)
+      .all()
     if (!row) {
       throw DataApiErrorFactory.invalidOperation('resolve root message', `Topic ${topicId} has no virtual root`)
     }
@@ -963,11 +972,11 @@ export class MessageService {
    * - Message insertion
    * - Topic activeNodeId update
    */
-  async create(topicId: string, dto: CreateMessageDto): Promise<Message> {
-    return await application.get('DbService').withWriteTx(async (tx) => {
+  create(topicId: string, dto: CreateMessageDto): Message {
+    return application.get('DbService').withWriteTx((tx) => {
       // Step 1: Verify topic exists and fetch its current state.
       // We need the topic to check activeNodeId for parentId auto-resolution.
-      const [topic] = await tx.select().from(topicTable).where(eq(topicTable.id, topicId)).limit(1)
+      const [topic] = tx.select().from(topicTable).where(eq(topicTable.id, topicId)).limit(1).all()
 
       if (!topic) {
         throw DataApiErrorFactory.notFound('Topic', topicId)
@@ -983,16 +992,16 @@ export class MessageService {
         // Auto-resolve: `activeNodeId` is the authoritative "where we are" marker —
         // append there. An empty topic (no active node) starts its first turn under
         // the virtual root.
-        resolvedParentId = topic.activeNodeId ?? (await this.getRootMessageIdTx(tx, topicId))
+        resolvedParentId = topic.activeNodeId ?? this.getRootMessageIdTx(tx, topicId)
       } else if (dto.parentId === null) {
         // First-turn message: hang it off the topic's virtual root (created if absent).
         // First turns and their resends are ordinary siblings under this shared root.
-        resolvedParentId = await this.getRootMessageIdTx(tx, topicId)
+        resolvedParentId = this.getRootMessageIdTx(tx, topicId)
       } else {
         // Explicit parent ID: verify existence and topic membership. Each
         // topic's message tree is self-contained — cross-topic parent refs
         // aren't a supported shape.
-        const [parent] = await tx.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1)
+        const [parent] = tx.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1).all()
 
         if (!parent) {
           throw DataApiErrorFactory.notFound('Message', dto.parentId)
@@ -1004,7 +1013,7 @@ export class MessageService {
       }
 
       // Step 3: Insert the message using the resolved parentId.
-      const [row] = await tx
+      const [row] = tx
         .insert(messageTable)
         .values({
           topicId,
@@ -1018,12 +1027,13 @@ export class MessageService {
           stats: dto.stats
         })
         .returning()
-      await replaceChatMessageFileRefsTx(tx, row.id, dto.data)
+        .all()
+      replaceChatMessageFileRefsTx(tx, row.id, dto.data)
 
       // Update activeNodeId if setAsActive is not explicitly false
       if (dto.setAsActive !== false) {
         const topicService = getDataService('TopicService')
-        await topicService.setActiveNodeTx(tx, topicId, row.id, { assumeValid: true })
+        topicService.setActiveNodeTx(tx, topicId, row.id, { assumeValid: true })
       }
 
       logger.info('Created message', { id: row.id, topicId, role: dto.role, setAsActive: dto.setAsActive !== false })
@@ -1054,12 +1064,12 @@ export class MessageService {
    * is a no-op when there are no existing children (fresh turn) or when they
    * already belong to a group (inherit case).
    */
-  async createUserMessageWithPlaceholders(
+  createUserMessageWithPlaceholders(
     input: CreateUserMessageWithPlaceholdersInput
-  ): Promise<CreateUserMessageWithPlaceholdersResult> {
-    return await application.get('DbService').withWriteTx(async (tx) => {
+  ): CreateUserMessageWithPlaceholdersResult {
+    return application.get('DbService').withWriteTx((tx) => {
       // Validate topic
-      const [topic] = await tx.select().from(topicTable).where(eq(topicTable.id, input.topicId)).limit(1)
+      const [topic] = tx.select().from(topicTable).where(eq(topicTable.id, input.topicId)).limit(1).all()
       if (!topic) {
         throw DataApiErrorFactory.notFound('Topic', input.topicId)
       }
@@ -1072,9 +1082,9 @@ export class MessageService {
 
         if (dto.parentId === undefined || dto.parentId === null) {
           // First-turn message: hang it off the topic's virtual root (created if absent).
-          resolvedParentId = await this.getRootMessageIdTx(tx, input.topicId)
+          resolvedParentId = this.getRootMessageIdTx(tx, input.topicId)
         } else {
-          const [parent] = await tx.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1)
+          const [parent] = tx.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1).all()
           if (!parent) {
             throw DataApiErrorFactory.notFound('Message', dto.parentId)
           }
@@ -1084,7 +1094,7 @@ export class MessageService {
           resolvedParentId = dto.parentId
         }
 
-        const [row] = await tx
+        const [row] = tx
           .insert(messageTable)
           .values({
             topicId: input.topicId,
@@ -1098,10 +1108,11 @@ export class MessageService {
             stats: dto.stats
           })
           .returning()
-        await replaceChatMessageFileRefsTx(tx, row.id, dto.data)
+          .all()
+        replaceChatMessageFileRefsTx(tx, row.id, dto.data)
         userMessage = rowToMessage(row)
       } else {
-        const [row] = await tx.select().from(messageTable).where(eq(messageTable.id, input.userMessage.id)).limit(1)
+        const [row] = tx.select().from(messageTable).where(eq(messageTable.id, input.userMessage.id)).limit(1).all()
         if (!row) {
           throw DataApiErrorFactory.notFound('Message', input.userMessage.id)
         }
@@ -1116,16 +1127,16 @@ export class MessageService {
 
       // 2. Backfill siblings with groupId=0 under the user message
       if (input.siblingsGroupId != null) {
-        await tx
-          .update(messageTable)
+        tx.update(messageTable)
           .set({ siblingsGroupId: input.siblingsGroupId })
           .where(and(eq(messageTable.parentId, userMessage.id), eq(messageTable.siblingsGroupId, 0)))
+          .run()
       }
 
       // 3. Insert placeholders (preserving input order)
       const placeholders: Message[] = []
       for (const p of input.placeholders) {
-        const [row] = await tx
+        const [row] = tx
           .insert(messageTable)
           .values({
             ...(p.id && { id: p.id }),
@@ -1140,14 +1151,15 @@ export class MessageService {
             stats: p.stats
           })
           .returning()
-        await replaceChatMessageFileRefsTx(tx, row.id, p.data)
+          .all()
+        replaceChatMessageFileRefsTx(tx, row.id, p.data)
         placeholders.push(rowToMessage(row))
       }
 
       // 4. Point activeNodeId at the last placeholder (or user message if N=0)
       const newActiveNodeId = placeholders.at(-1)?.id ?? userMessage.id
       const topicService = getDataService('TopicService')
-      await topicService.setActiveNodeTx(tx, input.topicId, newActiveNodeId, { assumeValid: true })
+      topicService.setActiveNodeTx(tx, input.topicId, newActiveNodeId, { assumeValid: true })
 
       logger.info('Reserved assistant turn', {
         topicId: input.topicId,
@@ -1166,20 +1178,20 @@ export class MessageService {
    * Uses transaction to ensure atomicity of validation and update.
    * Cycle check is performed outside transaction as a read-only safety check.
    */
-  async update(id: string, dto: UpdateMessageDto): Promise<Message> {
+  update(id: string, dto: UpdateMessageDto): Message {
     // Pre-transaction: Check for cycle if moving to new parent
     // This is done outside transaction since getDescendantIds uses its own db context
     // and cycle check is a safety check (worst case: reject valid operation)
     if (dto.parentId !== undefined && dto.parentId !== null) {
-      const descendants = await this.getDescendantIds(id)
+      const descendants = this.getDescendantIds(id)
       if (descendants.includes(dto.parentId)) {
         throw DataApiErrorFactory.invalidOperation('move message', 'would create cycle')
       }
     }
 
-    return await application.get('DbService').withWriteTx(async (tx) => {
+    return application.get('DbService').withWriteTx((tx) => {
       // Get existing message within transaction
-      const [existingRow] = await tx.select().from(messageTable).where(eq(messageTable.id, id)).limit(1)
+      const [existingRow] = tx.select().from(messageTable).where(eq(messageTable.id, id)).limit(1).all()
 
       if (!existingRow) {
         throw DataApiErrorFactory.notFound('Message', id)
@@ -1207,7 +1219,7 @@ export class MessageService {
 
       // Verify new parent exists if changing parent
       if (dto.parentId !== undefined && dto.parentId !== existing.parentId && dto.parentId !== null) {
-        const [parent] = await tx.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1)
+        const [parent] = tx.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1).all()
 
         if (!parent) {
           throw DataApiErrorFactory.notFound('Message', dto.parentId)
@@ -1223,9 +1235,9 @@ export class MessageService {
       if (dto.status !== undefined) updates.status = dto.status
       if (dto.stats !== undefined) updates.stats = dto.stats
 
-      const [row] = await tx.update(messageTable).set(updates).where(eq(messageTable.id, id)).returning()
+      const [row] = tx.update(messageTable).set(updates).where(eq(messageTable.id, id)).returning().all()
       if (dto.data !== undefined) {
-        await replaceChatMessageFileRefsTx(tx, id, dto.data)
+        replaceChatMessageFileRefsTx(tx, id, dto.data)
       }
 
       logger.info('Updated message', { id, changes: Object.keys(dto) })
@@ -1250,16 +1262,16 @@ export class MessageService {
    * which applies it authoritatively. A decision that targets an already-settled part is reported so
    * stale duplicate clicks don't dispatch another continuation.
    */
-  async applyToolApprovalDecisions(
+  applyToolApprovalDecisions(
     anchorId: string,
     decisions: ApprovalDecision[]
-  ): Promise<{
+  ): {
     parts: CherryMessagePart[]
     appliedApprovalIds: string[]
     alreadySettledApprovalIds: string[]
-  } | null> {
-    return await application.get('DbService').withWriteTx(async (tx) => {
-      const [row] = await tx.select().from(messageTable).where(eq(messageTable.id, anchorId)).limit(1)
+  } | null {
+    return application.get('DbService').withWriteTx((tx) => {
+      const [row] = tx.select().from(messageTable).where(eq(messageTable.id, anchorId)).limit(1).all()
       if (!row) return null
 
       const existing = rowToMessage(row)
@@ -1281,10 +1293,10 @@ export class MessageService {
       const alreadySettledApprovalIds = decisions.map((d) => d.approvalId).filter((id) => settledIds.has(id))
       const targetPresent = appliedApprovalIds.length > 0
       if (targetPresent) {
-        await tx
-          .update(messageTable)
+        tx.update(messageTable)
           .set({ data: { ...existing.data, parts: after } })
           .where(eq(messageTable.id, anchorId))
+          .run()
       }
       return { parts: after, appliedApprovalIds, alreadySettledApprovalIds }
     })
@@ -1312,18 +1324,18 @@ export class MessageService {
    * @throws INVALID_OPERATION if the target is the topic's virtual root (removable only
    *   via topic deletion; clear-all deletes the root's children instead)
    */
-  async delete(
+  delete(
     id: string,
     cascade: boolean = false,
     activeNodeStrategy: ActiveNodeStrategy = 'parent'
-  ): Promise<DeleteMessageResponse> {
+  ): DeleteMessageResponse {
     const db = application.get('DbService').getDb()
 
     // Get the message
-    const message = await this.getById(id)
+    const message = this.getById(id)
 
     // Get topic to check activeNodeId
-    const [topic] = await db.select().from(topicTable).where(eq(topicTable.id, message.topicId)).limit(1)
+    const [topic] = db.select().from(topicTable).where(eq(topicTable.id, message.topicId)).limit(1).all()
 
     if (!topic) {
       throw DataApiErrorFactory.notFound('Topic', message.topicId)
@@ -1341,11 +1353,11 @@ export class MessageService {
     // Get all descendant IDs before transaction (for cascade delete)
     let descendantIds: string[] = []
     if (cascade) {
-      descendantIds = await this.getDescendantIds(id)
+      descendantIds = this.getDescendantIds(id)
     }
 
     // Use transaction for atomic delete + activeNodeId update
-    return await application.get('DbService').withWriteTx(async (tx) => {
+    return application.get('DbService').withWriteTx((tx) => {
       let deletedIds: string[]
       let reparentedIds: string[] | undefined
       let newActiveNodeId: string | null | undefined
@@ -1357,11 +1369,12 @@ export class MessageService {
       let parentFallback: string | null = message.parentId
       let parentIsRoot = false
       if (parentFallback) {
-        const [parent] = await tx
+        const [parent] = tx
           .select({ role: messageTable.role })
           .from(messageTable)
           .where(eq(messageTable.id, parentFallback))
           .limit(1)
+          .all()
         parentIsRoot = parent?.role === 'root'
         if (!parent || parentIsRoot) parentFallback = null
       }
@@ -1378,7 +1391,7 @@ export class MessageService {
         // subtree in one statement — no leaf-first ordering needed, and no SET NULL to
         // manufacture a colliding parentId-NULL row. (deletedIds above is still derived
         // from getDescendantIds for the response and the activeNodeId check.)
-        await tx.delete(messageTable).where(eq(messageTable.id, id))
+        tx.delete(messageTable).where(eq(messageTable.id, id)).run()
 
         logger.info('Cascade deleted messages', { rootId: id, count: deletedIds.length })
       } else {
@@ -1388,20 +1401,22 @@ export class MessageService {
         // mis-rendered as the same multi-response set. Rebase each distinct non-zero moved
         // group to a fresh id above any group already present at the destination; group 0
         // (no group) carries over unchanged.
-        const children = await tx
+        const children = tx
           .select({ id: messageTable.id, siblingsGroupId: messageTable.siblingsGroupId })
           .from(messageTable)
           .where(and(eq(messageTable.parentId, id), isNull(messageTable.deletedAt)))
+          .all()
 
         reparentedIds = children.map((c) => c.id)
 
         if (reparentedIds.length > 0) {
           const newParentId = message.parentId
           const destRows = newParentId
-            ? await tx
+            ? tx
                 .select({ g: messageTable.siblingsGroupId })
                 .from(messageTable)
                 .where(and(eq(messageTable.parentId, newParentId), isNull(messageTable.deletedAt)))
+                .all()
             : []
           let nextGroupId = Math.max(0, ...destRows.map((r) => r.g), ...children.map((c) => c.siblingsGroupId)) + 1
           const remap = new Map<number, number>()
@@ -1411,13 +1426,13 @@ export class MessageService {
             }
           }
           for (const c of children) {
-            await tx
-              .update(messageTable)
+            tx.update(messageTable)
               .set({
                 parentId: newParentId,
                 siblingsGroupId: c.siblingsGroupId === 0 ? 0 : remap.get(c.siblingsGroupId)!
               })
               .where(eq(messageTable.id, c.id))
+              .run()
           }
         }
 
@@ -1429,7 +1444,7 @@ export class MessageService {
         }
 
         // Hard delete this message
-        await tx.delete(messageTable).where(eq(messageTable.id, id))
+        tx.delete(messageTable).where(eq(messageTable.id, id)).run()
 
         logger.info('Deleted message with reparenting', { id, reparentedCount: reparentedIds.length })
       }
@@ -1438,9 +1453,9 @@ export class MessageService {
       if (newActiveNodeId !== undefined) {
         const topicService = getDataService('TopicService')
         if (newActiveNodeId === null) {
-          await topicService.clearActiveNodeTx(tx, message.topicId)
+          topicService.clearActiveNodeTx(tx, message.topicId)
         } else {
-          await topicService.setActiveNodeTx(tx, message.topicId, newActiveNodeId, { assumeValid: true })
+          topicService.setActiveNodeTx(tx, message.topicId, newActiveNodeId, { assumeValid: true })
         }
 
         logger.info('Updated topic activeNodeId after message deletion', {
@@ -1468,20 +1483,23 @@ export class MessageService {
    * the self-FK `ON DELETE CASCADE` removes whole subtrees, the root (excluded) survives,
    * so the single-root invariant holds — and clears `activeNodeId`.
    */
-  async clearTopicMessages(topicId: string): Promise<{ deletedIds: string[] }> {
-    return await application.get('DbService').withWriteTx(async (tx) => {
-      const rootId = await this.getRootMessageIdTx(tx, topicId)
+  clearTopicMessages(topicId: string): { deletedIds: string[] } {
+    return application.get('DbService').withWriteTx((tx) => {
+      const rootId = this.getRootMessageIdTx(tx, topicId)
 
-      const rows = await tx
+      const rows = tx
         .select({ id: messageTable.id })
         .from(messageTable)
         .where(and(eq(messageTable.topicId, topicId), ne(messageTable.id, rootId), isNull(messageTable.deletedAt)))
+        .all()
       const deletedIds = rows.map((r) => r.id)
 
       if (deletedIds.length === 0) return { deletedIds }
 
-      await tx.delete(messageTable).where(and(eq(messageTable.topicId, topicId), ne(messageTable.id, rootId)))
-      await getDataService('TopicService').clearActiveNodeTx(tx, topicId)
+      tx.delete(messageTable)
+        .where(and(eq(messageTable.topicId, topicId), ne(messageTable.id, rootId)))
+        .run()
+      getDataService('TopicService').clearActiveNodeTx(tx, topicId)
 
       logger.info('Cleared topic messages', { topicId, count: deletedIds.length })
       return { deletedIds }
@@ -1491,11 +1509,11 @@ export class MessageService {
   /**
    * Get all descendant IDs of a message
    */
-  private async getDescendantIds(id: string): Promise<string[]> {
+  private getDescendantIds(id: string): string[] {
     const db = application.get('DbService').getDb()
 
     // Use recursive query to get all descendants
-    const result = await db.all<{ id: string }>(sql`
+    const result = db.all<{ id: string }>(sql`
       WITH RECURSIVE descendants AS (
         SELECT id FROM message WHERE parent_id = ${id} AND deleted_at IS NULL
         UNION ALL
@@ -1515,9 +1533,9 @@ export class MessageService {
    * Uses recursive CTE to fetch all ancestors in a single query,
    * avoiding N+1 query problem for deep message trees.
    */
-  async getPathToNode(nodeId: string): Promise<Message[]> {
+  getPathToNode(nodeId: string): Message[] {
     const db = application.get('DbService').getDb()
-    const pathRows = await this.getPathRowsToNodeTx(db, nodeId)
+    const pathRows = this.getPathRowsToNodeTx(db, nodeId)
     return pathRows.map(rowToMessage)
   }
 
@@ -1526,11 +1544,11 @@ export class MessageService {
    * full ancestor walk is scoped to that topic so copy/navigation callers keep
    * the same-topic message-tree invariant.
    */
-  async getPathRowsToNodeTx(tx: DbOrTx, nodeId: string, options: { topicId?: string } = {}): Promise<MessageRow[]> {
+  getPathRowsToNodeTx(tx: DbOrTx, nodeId: string, options: { topicId?: string } = {}): MessageRow[] {
     // Recursive CTE collects ancestor IDs (single-column, casing-safe);
     // full rows fetched via ORM for camelCase mapping.
     const ancestorIdRows = options.topicId
-      ? await tx.all<{ id: string }>(sql`
+      ? tx.all<{ id: string }>(sql`
           WITH RECURSIVE ancestors AS (
             SELECT id, parent_id FROM message
             WHERE id = ${nodeId} AND topic_id = ${options.topicId} AND deleted_at IS NULL
@@ -1541,7 +1559,7 @@ export class MessageService {
           )
           SELECT id FROM ancestors
         `)
-      : await tx.all<{ id: string }>(sql`
+      : tx.all<{ id: string }>(sql`
           WITH RECURSIVE ancestors AS (
             SELECT id, parent_id FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
             UNION ALL
@@ -1560,7 +1578,7 @@ export class MessageService {
     const whereClause = options.topicId
       ? and(inArray(messageTable.id, ancestorIds), eq(messageTable.topicId, options.topicId))
       : inArray(messageTable.id, ancestorIds)
-    const ancestorRows = await tx.select().from(messageTable).where(whereClause)
+    const ancestorRows = tx.select().from(messageTable).where(whereClause).all()
 
     // Preserve CTE order (nodeId → root) before reversing to root → nodeId.
     const ancestorOrder = new Map(ancestorIds.map((id, i) => [id, i]))
@@ -1582,18 +1600,18 @@ export class MessageService {
    * does not copy `traceId`: trace links describe the original conversation run,
    * while the duplicated topic starts without trace linkage.
    */
-  async copyPathRowsTx(
+  copyPathRowsTx(
     tx: DbOrTx,
     rows: MessageRow[],
     options: { topicId: string }
-  ): Promise<{ copiedMessageIds: Map<string, string>; copiedActiveNodeId: string }> {
+  ): { copiedMessageIds: Map<string, string>; copiedActiveNodeId: string } {
     if (rows.length === 0) {
       throw DataApiErrorFactory.invalidOperation('copy message path', 'Source path is empty')
     }
 
     // The destination topic's virtual root; the path head (first-turn message, whose
     // source parent is the source's excluded virtual root) reparents onto it.
-    const destRootId = await this.getRootMessageIdTx(tx, options.topicId)
+    const destRootId = this.getRootMessageIdTx(tx, options.topicId)
 
     const copiedMessageIds = new Map<string, string>()
     let copiedActiveNodeId = ''
@@ -1607,7 +1625,7 @@ export class MessageService {
         // so attach to the destination topic's virtual root.
         copiedParentId = destRootId
       }
-      const [copiedMessage] = await tx
+      const [copiedMessage] = tx
         .insert(messageTable)
         .values({
           topicId: options.topicId,
@@ -1622,6 +1640,7 @@ export class MessageService {
           stats: sourceMessage.stats
         })
         .returning()
+        .all()
 
       copiedMessageIds.set(sourceMessage.id, copiedMessage.id)
       copiedActiveNodeId = copiedMessage.id
@@ -1641,19 +1660,20 @@ export class MessageService {
    * Pure read — does not touch `topic.activeNodeId`. Callers that want to
    * persist a navigation result should follow up with `setActiveNode`.
    */
-  async getPathThrough(topicId: string, nodeId: string): Promise<Message[]> {
+  getPathThrough(topicId: string, nodeId: string): Message[] {
     const db = application.get('DbService').getDb()
 
-    const [node] = await db
+    const [node] = db
       .select()
       .from(messageTable)
       .where(and(eq(messageTable.id, nodeId), eq(messageTable.topicId, topicId), isNull(messageTable.deletedAt)))
       .limit(1)
+      .all()
     if (!node) {
       throw DataApiErrorFactory.notFound('Message', nodeId)
     }
 
-    const [leaf] = await db.all<{ id: string }>(sql`
+    const [leaf] = db.all<{ id: string }>(sql`
       WITH RECURSIVE subtree AS (
         SELECT id, created_at FROM message
           WHERE id = ${nodeId} AND topic_id = ${topicId} AND deleted_at IS NULL
@@ -1671,7 +1691,7 @@ export class MessageService {
       LIMIT 1
     `)
 
-    const pathRows = await this.getPathRowsToNodeTx(db, leaf?.id ?? nodeId, { topicId })
+    const pathRows = this.getPathRowsToNodeTx(db, leaf?.id ?? nodeId, { topicId })
     return pathRows.map(rowToMessage)
   }
 }

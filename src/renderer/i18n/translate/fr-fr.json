@@ -556,6 +556,7 @@
       "list": {
         "title": "Tâches"
       },
+      "new": "Nouvelle tâche",
       "pin": {
         "title": "Épingler la tâche"
       },
@@ -565,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "Tâches de recherche"
+        "placeholder": "Tâches de recherche",
+        "title": "Rechercher des tâches"
       },
       "unpin": {
         "title": "Détacher la tâche"
@@ -934,6 +936,10 @@
         "Bash": {
           "description": "Exécute des commandes shell dans votre environnement",
           "label": "Bash"
+        },
+        "CherryKbManage": {
+          "description": "Ajoute, supprime ou actualise des documents dans vos bases de connaissances",
+          "label": "Gérer les connaissances"
         },
         "CherryKbSearch": {
           "description": "Recherche dans vos bases de connaissances",
@@ -3157,12 +3163,22 @@
           "agent_title": "Nouvel agent",
           "assistant_title": "Nouvel Assistant",
           "avatar_aria": "Choisir un avatar",
+          "back": "Retour",
+          "capability": {
+            "import": "Importer une compétence",
+            "no_skills": "Aucune compétence installée",
+            "search": "Compétences de recherche"
+          },
           "description_placeholder": "Décrire à quoi cela sert...",
-          "dialog_description": "Créer un assistant ou agent léger.",
-          "model_placeholder": "Sélectionner un modèle",
-          "model_required": "Veuillez sélectionner un modèle",
+          "guided_progress": "Configuration guidée · Étape {{current}} sur {{total}}",
           "name_placeholder": "Entrez un nom",
-          "name_required": "Veuillez entrer un nom",
+          "next": "Suivant",
+          "step": {
+            "basic": "Informations de base",
+            "capability": "Compétences",
+            "knowledge": "Connaissance",
+            "persona": "Persona"
+          },
           "submit": "Créer",
           "submit_failed": "Échec de la création"
         },
@@ -5251,6 +5267,7 @@
     "assistant": {
       "create_new": "Nouvel Assistant",
       "empty_text": "Pas encore d'assistants",
+      "filter": "Filtrer les assistants",
       "multi_hint": "(mutuellement exclusif avec multi-modèle)",
       "multi_label": "Multi-assistant parallèle",
       "search_placeholder": "Assistant de recherche…"
@@ -6430,6 +6447,12 @@
         "show_estimated_tokens": "Afficher le nombre estimatif de tokens",
         "title": "Paramètres d'entrée"
       },
+      "layout": {
+        "classic": "Classique",
+        "conversation": "Vue conversation",
+        "modern": "Moderne",
+        "work": "Vue du travail"
+      },
       "markdown_rendering_input_message": "Rendu Markdown des messages d'entrée",
       "metrics": "Latence initiale {{time_first_token_millsec}}ms | Vitesse de tokenisation {{token_speed}} tokens/s",
       "model": {
@@ -7434,6 +7457,7 @@
           "exa": "API de recherche neuronale pour applications IA, optimisée pour la récupération sémantique sur le web.",
           "exa_mcp": "Exposez la recherche Exa aux agents via le serveur MCP Exa.",
           "fetch": "Fournisseur d’extraction d’URL intégré. Récupère le contenu des pages web à partir d’une URL pour enrichir les résultats de recherche.",
+          "firecrawl": "Service d'exploration et de recherche Firecrawl, optimisé pour transformer les sites web en Markdown.",
           "jina": "APIs de recherche et de lecture Jina Reader pour récupérer du contenu web propre.",
           "querit": "Service de recherche pour applications IA avec résultats de récupération web.",
           "searxng": "Moteur de méta-recherche internet gratuit auto-hébergeable couvrant de nombreuses sources.",

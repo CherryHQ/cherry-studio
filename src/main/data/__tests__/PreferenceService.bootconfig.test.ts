@@ -121,14 +121,18 @@ describe('PreferenceService BootConfig routing', () => {
     })
 
     it('does not call bootConfigService for preference keys', async () => {
-      const mockTx = {
+      // set() writes a single preference row via getDb() directly (one autocommit
+      // UPDATE), so it no longer wraps withWriteTx — stub getDb, not withWriteTx.
+      const mockDb = {
         update: vi.fn().mockReturnValue({
           set: vi.fn().mockReturnValue({
-            where: vi.fn().mockResolvedValue(undefined)
+            where: vi.fn().mockReturnValue({
+              run: vi.fn().mockReturnValue(undefined)
+            })
           })
         })
       }
-      mockWithWriteTx.mockImplementation(async (fn: any) => fn(mockTx))
+      mockGetDb.mockReturnValue(mockDb)
 
       await service.set(PREFERENCE_KEY, 'zh-CN')
 
@@ -143,11 +147,13 @@ describe('PreferenceService BootConfig routing', () => {
       const mockTx = {
         update: vi.fn().mockReturnValue({
           set: vi.fn().mockReturnValue({
-            where: vi.fn().mockResolvedValue(undefined)
+            where: vi.fn().mockReturnValue({
+              run: vi.fn().mockReturnValue(undefined)
+            })
           })
         })
       }
-      mockWithWriteTx.mockImplementation(async (fn: any) => fn(mockTx))
+      mockWithWriteTx.mockImplementation((fn: any) => fn(mockTx))
 
       await service.setMultiple({
         [BOOT_CONFIG_KEY]: true,
