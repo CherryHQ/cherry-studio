@@ -265,6 +265,11 @@ export class McpCatalogService extends BaseService implements ProfileActivatable
             this.listToolsForServer(server, { includeDisabled: true, prewarmGeneration: generation })
           )
         )
+        // A switch/stop during the batch supersedes this generation — skip the
+        // error-branch clearSharedToolsCache below, which would otherwise re-write
+        // mcp.tools.<serverId> after onProfileDeactivate cleared it (the callee-side
+        // writes are guarded; this caller-side write was the remaining gap).
+        if (this.prewarmGeneration !== generation) return
         results.forEach((result, resultIndex) => {
           if (result.status === 'fulfilled') return
           const server = batch[resultIndex]
