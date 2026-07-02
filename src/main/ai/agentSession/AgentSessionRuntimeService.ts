@@ -3,7 +3,7 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { application } from '@main/core/application'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, Injectable, Phase, type ProfileActivatable, ServicePhase } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import {
@@ -157,7 +157,7 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 
 @Injectable('AgentSessionRuntimeService')
 @ServicePhase(Phase.WhenReady)
-export class AgentSessionRuntimeService extends BaseService {
+export class AgentSessionRuntimeService extends BaseService implements ProfileActivatable {
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
 
   protected async onInit(): Promise<void> {
@@ -482,6 +482,17 @@ export class AgentSessionRuntimeService extends BaseService {
   protected onStop(): void {
     this.closeAll()
     toolApprovalRegistry.clear('agent-session-runtime-stop')
+  }
+
+  /** New profile: settle any crash-orphaned pending session messages (mirrors onInit). */
+  onProfileActivate(): void {
+    this.reconcileStalePendingMessages()
+  }
+
+  /** Close the previous profile's session runtimes and clear pending tool approvals. */
+  onProfileDeactivate(): void {
+    this.closeAll()
+    toolApprovalRegistry.clear('agent-session-runtime-profile-switch')
   }
 
   protected onDestroy(): void {
