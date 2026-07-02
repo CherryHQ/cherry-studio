@@ -60,10 +60,11 @@ export function createIndexDocumentsJobHandler(
       const { base, item } = input
 
       // Mark reading before file/network IO so the UI reflects the current long-running phase.
+      // No base mutation lock: this only writes the main app DB (knowledge_item), not the
+      // per-base index.sqlite the lock protects, and updateStatus's own 'deleting' guard
+      // (KnowledgeItemService.updateStatus) already covers the race the lock would.
       reportKnowledgeProgress(ctx, 0, { stage: 'reading', currentFile: 0, totalFiles: 1 })
-      await knowledgeLockManager.withBaseMutationLock(ctx.input.baseId, () => {
-        knowledgeItemService.updateStatus(ctx.input.itemId, 'reading')
-      })
+      knowledgeItemService.updateStatus(ctx.input.itemId, 'reading')
 
       // Capture a url's or note's snapshot on first index (a url fetches outside
       // the lock, a note writes its in-hand content; both persist a relativePath
@@ -84,10 +85,9 @@ export function createIndexDocumentsJobHandler(
       }
 
       // Mark embedding separately so the UI reflects the current long-running phase.
+      // No base mutation lock here either — same reasoning as the 'reading' status above.
       reportKnowledgeProgress(ctx, 40, { stage: 'embedding', currentFile: 0, totalFiles: 1 })
-      await knowledgeLockManager.withBaseMutationLock(ctx.input.baseId, () =>
-        knowledgeItemService.updateStatus(ctx.input.itemId, 'embedding')
-      )
+      knowledgeItemService.updateStatus(ctx.input.itemId, 'embedding')
 
       // Use readableItem, not item: for a freshly captured url it carries the snapshot
       // relativePath, so the material's relative_path is the real `raw/` snapshot path

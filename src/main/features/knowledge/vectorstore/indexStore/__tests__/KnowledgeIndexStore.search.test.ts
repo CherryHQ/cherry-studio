@@ -16,10 +16,10 @@ describe('KnowledgeIndexStore.search', () => {
   let driver: BetterSqlite3Driver
   let store: KnowledgeIndexStore
 
-  beforeEach(async () => {
+  beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), 'cs-knowledge-search-'))
-    driver = await openBetterSqlite3IndexDriver(join(tempDir, 'index.sqlite'))
-    await createKnowledgeIndexSchema(driver)
+    driver = openBetterSqlite3IndexDriver(join(tempDir, 'index.sqlite'))
+    createKnowledgeIndexSchema(driver)
     store = new KnowledgeIndexStore(driver, betterSqlite3VectorIndex)
   })
 
