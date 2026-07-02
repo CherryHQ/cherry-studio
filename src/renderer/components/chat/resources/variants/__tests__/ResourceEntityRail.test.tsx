@@ -288,6 +288,11 @@ describe('ResourceEntityRail', () => {
     expect(screen.getByText('work')).toBeInTheDocument()
     expect(screen.getByText('home')).toBeInTheDocument()
     expect(screen.getByText('assistants.tags.untagged')).toBeInTheDocument()
+    expect(
+      Array.from(
+        screen.getByRole('listbox', { name: 'Assistants list' }).querySelectorAll('button[aria-expanded]')
+      ).map((header) => header.textContent)
+    ).toEqual(['selector.common.pinned_title', 'assistants.tags.untagged', 'work', 'home'])
     // A pinned entity stays under the pinned section even though it carries a tag — its tag must not
     // spawn a second "work" header.
     expect(screen.getAllByText('work')).toHaveLength(1)

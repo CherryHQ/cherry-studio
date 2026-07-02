@@ -48,6 +48,18 @@ function getEntityRailTagBucketKey(tag: string | undefined) {
   return tag ? JSON.stringify(['tag', tag]) : ENTITY_RAIL_UNTAGGED_KEY
 }
 
+function getEntityRailTagGroupingRank(item: ResourceEntityRailItem) {
+  if (item.pinned) return 0
+  return item.tag ? 2 : 1
+}
+
+function sortEntityRailItemsForTagGrouping<T extends ResourceEntityRailItem>(items: readonly T[]): T[] {
+  return items
+    .map((item, index) => ({ item, index, rank: getEntityRailTagGroupingRank(item) }))
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map(({ item }) => item)
+}
+
 export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionContext = unknown> = {
   addIcon?: ReactNode
   addLabel: string
@@ -194,6 +206,10 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
     [getContextMenuActions, onContextMenuAction, onSelect, runContextMenuAction, t]
   )
   const empty = useMemo(() => emptyFallback ?? <div className="min-h-0 flex-1" />, [emptyFallback])
+  const providerItems = useMemo(
+    () => (groupByTag ? sortEntityRailItemsForTagGrouping(items) : items),
+    [groupByTag, items]
+  )
   // Collapsible sections matching the modern layout's left assistant/agent layout (minus the nested
   // topics/sessions): pinned entities float into "已固定" at the top, the rest sit under the
   // "助手" / "智能体" section below. Section headers stay flush-left; the entity rows keep their
@@ -233,7 +249,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   return (
     <Provider
       variant={variant}
-      items={items}
+      items={providerItems}
       selectedId={selectedId}
       status={status}
       groupBy={groupBy}
