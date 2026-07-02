@@ -259,8 +259,9 @@ export class AiStreamManager extends BaseService implements ProfileActivatable {
   /**
    * Resolve assistant rows a prior main-process crash left stuck in `pending`. The streaming
    * loop persists a terminal status only when it settles; if the process died mid-stream the
-   * row stays `pending` forever and the UI shows a frozen "thinking" bubble. Runs once at boot,
-   * before the open handler is registered, so it can never race a freshly created placeholder.
+   * row stays `pending` forever and the UI shows a frozen "thinking" bubble. Runs at boot and
+   * on each profile activation, both before any new stream can be opened for that profile, so
+   * it can never race a freshly created placeholder.
    */
   private reconcileStalePendingMessages(): void {
     try {
@@ -283,8 +284,15 @@ export class AiStreamManager extends BaseService implements ProfileActivatable {
     await this.abortAllStreams('app-shutdown')
   }
 
-  /** No per-profile resource to acquire — streams are created on demand. */
-  onProfileActivate(): void {}
+  /**
+   * Reconcile the switched-into profile's crash-orphaned pending assistant rows
+   * (mirrors onInit; idempotent). Runs during activate-all, before resetRenderer
+   * reloads the window, so a profile whose DB was never opened at boot still has its
+   * frozen "thinking" bubbles settled on switch-in — matching AgentSessionRuntimeService.
+   */
+  onProfileActivate(): void {
+    this.reconcileStalePendingMessages()
+  }
 
   /** Abort the previous profile's in-flight streams and wait for their loops to settle. */
   async onProfileDeactivate(): Promise<void> {

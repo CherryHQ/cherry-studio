@@ -16,4 +16,14 @@ describe('AiStreamManager profile activation', () => {
     await svc.onProfileDeactivate()
     expect(abortAll).toHaveBeenCalledWith('profile-switch')
   })
+
+  it('reconciles crash-orphaned pending rows on profile activate (settles frozen bubbles on switch-in)', () => {
+    const svc = new AiStreamManager()
+    const reconcile = vi
+      .spyOn(svc as unknown as { reconcileStalePendingMessages: () => void }, 'reconcileStalePendingMessages')
+      .mockReturnValue(undefined)
+
+    svc.onProfileActivate()
+    expect(reconcile).toHaveBeenCalledTimes(1)
+  })
 })
