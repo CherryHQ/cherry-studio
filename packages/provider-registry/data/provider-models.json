@@ -1,6 +1,23 @@
 {
   "overrides": [
     {
+      "providerId": "hunyuan",
+      "modelId": "hy3",
+      "apiModelId": "hy3",
+      "name": "Hy3",
+      "family": "hunyuan",
+      "ownedBy": "tencent",
+      "capabilities": {
+        "force": ["function-call", "reasoning"]
+      },
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
+      "inputModalities": ["text"],
+      "outputModalities": ["text"],
+      "reasoning": {
+        "supportedEfforts": ["none", "high"]
+      }
+    },
+    {
       "modelId": "deepseek-chat",
       "providerId": "deepseek"
     },
