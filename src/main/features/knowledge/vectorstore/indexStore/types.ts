@@ -2,10 +2,10 @@
  * Engine-neutral SQLite driver port for the per-base knowledge index.
  *
  * knowledge-technical-design.md §5.6 calls for a thin driver so the index store
- * is written once and the storage engine can be swapped (libsql today,
- * better-sqlite3 + sqlite-vec later) with zero user migration. Only the driver
- * and VectorIndex adapters are engine-specific; everything above them — the
- * schema DDL (schema.ts) and the store's queries — is shared, engine-neutral SQL.
+ * is written once and the storage engine stays swappable (better-sqlite3 +
+ * sqlite-vec today) with zero user migration. Only the driver and VectorIndex
+ * adapters are engine-specific; everything above them — the schema DDL
+ * (schema.ts) and the store's queries — is shared, engine-neutral SQL.
  */
 
 /** A value bindable to a statement parameter or read back from a result column. */
@@ -70,9 +70,8 @@ export interface VectorMatch {
  * Engine-specific vector primitives. The store composes the brute-force scan
  * (`SELECT … ORDER BY dist LIMIT k`) over the plain-BLOB `embedding.vector_blob`
  * column from these; only the distance function and how the query vector binds
- * differ across engines (libsql: vector_distance_cos + vector32(json-string);
- * sqlite-vec: vec_distance_cosine + raw blob). No derived ANN index is used —
- * brute-force first, see §5.6 / decision A1.
+ * are engine-specific (sqlite-vec: `vec_distance_cosine` + a raw float32 blob).
+ * No derived ANN index is used — brute-force first, see §5.6 / decision A1.
  */
 export interface VectorIndex {
   /** SQL expression computing cosine distance between `column` and the bound query vector. */

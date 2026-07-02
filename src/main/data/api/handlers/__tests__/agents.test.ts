@@ -84,7 +84,7 @@ describe('agentHandlers', () => {
 
   describe('/agents', () => {
     it('delegates GET to agentService.listAgents', async () => {
-      listAgentsMock.mockResolvedValueOnce({ agents: [mockAgent], total: 1 })
+      listAgentsMock.mockReturnValueOnce({ agents: [mockAgent], total: 1 })
 
       const result = await agentHandlers['/agents'].GET({ query: {} } as never)
 
@@ -93,7 +93,7 @@ describe('agentHandlers', () => {
     })
 
     it('GET works without query params (defaults from ListAgentsQuerySchema)', async () => {
-      listAgentsMock.mockResolvedValueOnce({ agents: [], total: 0 })
+      listAgentsMock.mockReturnValueOnce({ agents: [], total: 0 })
 
       const result = await agentHandlers['/agents'].GET({} as never)
 
@@ -107,7 +107,7 @@ describe('agentHandlers', () => {
     })
 
     it('GET forwards search to the service', async () => {
-      listAgentsMock.mockResolvedValueOnce({ agents: [], total: 0 })
+      listAgentsMock.mockReturnValueOnce({ agents: [], total: 0 })
 
       await agentHandlers['/agents'].GET({
         query: {
@@ -150,7 +150,7 @@ describe('agentHandlers', () => {
     })
 
     it('delegates POST to agentService.createAgent', async () => {
-      createAgentMock.mockResolvedValueOnce(mockAgent)
+      createAgentMock.mockReturnValueOnce(mockAgent)
 
       const result = await agentHandlers['/agents'].POST({
         body: { type: 'claude-code', name: 'Test', model: 'anthropic::claude-3-5-sonnet' }
@@ -181,7 +181,7 @@ describe('agentHandlers', () => {
 
   describe('/agents/:agentId', () => {
     it('delegates GET and returns agent', async () => {
-      getAgentMock.mockResolvedValueOnce(mockAgent)
+      getAgentMock.mockReturnValueOnce(mockAgent)
 
       const result = await agentHandlers['/agents/:agentId'].GET({ params: { agentId: AGENT_ID } } as never)
 
@@ -190,7 +190,7 @@ describe('agentHandlers', () => {
     })
 
     it('throws notFound when agent does not exist on GET', async () => {
-      getAgentMock.mockResolvedValueOnce(null)
+      getAgentMock.mockReturnValueOnce(null)
 
       await expect(
         agentHandlers['/agents/:agentId'].GET({ params: { agentId: AGENT_ID } } as never)
@@ -198,7 +198,7 @@ describe('agentHandlers', () => {
     })
 
     it('delegates PATCH and returns updated agent', async () => {
-      updateAgentMock.mockResolvedValueOnce({ ...mockAgent, name: 'Updated' })
+      updateAgentMock.mockReturnValueOnce({ ...mockAgent, name: 'Updated' })
 
       const result = await agentHandlers['/agents/:agentId'].PATCH({
         params: { agentId: AGENT_ID },
@@ -210,7 +210,7 @@ describe('agentHandlers', () => {
     })
 
     it('throws notFound when agent does not exist on PATCH', async () => {
-      updateAgentMock.mockResolvedValueOnce(null)
+      updateAgentMock.mockReturnValueOnce(null)
 
       await expect(
         agentHandlers['/agents/:agentId'].PATCH({ params: { agentId: AGENT_ID }, body: {} } as never)
@@ -218,7 +218,7 @@ describe('agentHandlers', () => {
     })
 
     it('delegates DELETE', async () => {
-      deleteAgentMock.mockResolvedValueOnce(true)
+      deleteAgentMock.mockReturnValueOnce(true)
 
       await expect(
         agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)
@@ -241,7 +241,7 @@ describe('agentHandlers', () => {
     })
 
     it('throws notFound when agent does not exist on DELETE', async () => {
-      deleteAgentMock.mockResolvedValueOnce(false)
+      deleteAgentMock.mockReturnValueOnce(false)
 
       await expect(
         agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)
@@ -251,7 +251,7 @@ describe('agentHandlers', () => {
 
   describe('/agents/:id/order', () => {
     it('delegates PATCH to agentService.reorder', async () => {
-      reorderMock.mockResolvedValueOnce(undefined)
+      reorderMock.mockReturnValueOnce(undefined)
 
       await expect(
         agentHandlers['/agents/:id/order'].PATCH({
@@ -277,7 +277,7 @@ describe('agentHandlers', () => {
 
   describe('/agents/order:batch', () => {
     it('delegates PATCH to agentService.reorderBatch', async () => {
-      reorderBatchMock.mockResolvedValueOnce(undefined)
+      reorderBatchMock.mockReturnValueOnce(undefined)
 
       await expect(
         agentHandlers['/agents/order:batch'].PATCH({
@@ -310,7 +310,7 @@ describe('agentHandlers', () => {
 
   describe('/agents/:agentId/tasks', () => {
     it('delegates GET to taskService.listTasks', async () => {
-      listTasksMock.mockResolvedValueOnce({ tasks: [mockTask], total: 1 })
+      listTasksMock.mockReturnValueOnce({ tasks: [mockTask], total: 1 })
 
       const result = await agentHandlers['/agents/:agentId/tasks'].GET({
         params: { agentId: AGENT_ID },
@@ -368,7 +368,7 @@ describe('agentHandlers', () => {
 
   describe('/agents/:agentId/tasks/:taskId', () => {
     it('delegates GET and throws notFound when task is missing', async () => {
-      getTaskMock.mockResolvedValueOnce(null)
+      getTaskMock.mockReturnValueOnce(null)
 
       await expect(
         agentHandlers['/agents/:agentId/tasks/:taskId'].GET({
@@ -427,7 +427,7 @@ describe('agentHandlers', () => {
 
   describe('/skills', () => {
     it('delegates GET to skillService.list and returns direct array', async () => {
-      listSkillsMock.mockResolvedValueOnce([mockSkill])
+      listSkillsMock.mockReturnValueOnce([mockSkill])
 
       const result = await skillHandlers['/skills'].GET({ query: {} } as never)
 
@@ -436,7 +436,7 @@ describe('agentHandlers', () => {
     })
 
     it('passes agentId to skillService.list when provided', async () => {
-      listSkillsMock.mockResolvedValueOnce([mockSkill])
+      listSkillsMock.mockReturnValueOnce([mockSkill])
 
       const result = await skillHandlers['/skills'].GET({ query: { agentId: AGENT_ID } } as never)
 
@@ -445,7 +445,7 @@ describe('agentHandlers', () => {
     })
 
     it('forwards search to skillService.list', async () => {
-      listSkillsMock.mockResolvedValueOnce([mockSkill])
+      listSkillsMock.mockReturnValueOnce([mockSkill])
 
       await skillHandlers['/skills'].GET({
         query: { search: 'summary' }
@@ -467,7 +467,9 @@ describe('agentHandlers', () => {
     })
 
     it('propagates notFound from /skills service when agentId does not exist', async () => {
-      listSkillsMock.mockRejectedValueOnce({ code: ErrorCode.NOT_FOUND })
+      listSkillsMock.mockImplementationOnce(() => {
+        throw { code: ErrorCode.NOT_FOUND }
+      })
 
       await expect(skillHandlers['/skills'].GET({ query: { agentId: AGENT_ID } } as never)).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
@@ -489,7 +491,7 @@ describe('agentHandlers', () => {
 
   describe('/skills/:skillId', () => {
     it('delegates GET to skillService.getById', async () => {
-      getSkillByIdMock.mockResolvedValueOnce(mockSkill)
+      getSkillByIdMock.mockReturnValueOnce(mockSkill)
 
       const result = await skillHandlers['/skills/:skillId'].GET({ params: { skillId: SKILL_ID } } as never)
 
@@ -498,7 +500,7 @@ describe('agentHandlers', () => {
     })
 
     it('throws notFound when skill does not exist', async () => {
-      getSkillByIdMock.mockResolvedValueOnce(null)
+      getSkillByIdMock.mockReturnValueOnce(null)
 
       await expect(
         skillHandlers['/skills/:skillId'].GET({ params: { skillId: SKILL_ID } } as never)
