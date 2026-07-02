@@ -16,6 +16,7 @@ import { ClaudeCodeWarmQueryManager } from '@main/ai/runtime/claudeCode/ClaudeCo
 import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
 import { JobManager } from '@main/core/job/JobManager'
 import { PowerService } from '@main/core/power/PowerService'
+import { ProfileService } from '@main/core/profile/ProfileService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { WindowManager } from '@main/core/window/WindowManager'
 import { ApiGatewayService } from '@main/features/apiGateway/ApiGatewayService'
@@ -109,6 +110,7 @@ export const services = {
   WebSearchService,
   WebviewService,
   CherryInOauthService,
+  ProfileService,
   MainWindowService,
   QuickAssistantService,
   McpPackageService,
