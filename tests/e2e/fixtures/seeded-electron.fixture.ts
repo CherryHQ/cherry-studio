@@ -26,9 +26,13 @@ function setNotesPath(profileDir: string, notesDir: string): void {
       db.close()
     }
   `
-  cp.execFileSync(electronPath as unknown as string, ['-e', script, path.join(profileDir, 'cherrystudio.sqlite'), JSON.stringify(notesDir)], {
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
-  })
+  cp.execFileSync(
+    electronPath as unknown as string,
+    ['-e', script, path.join(profileDir, 'cherrystudio.sqlite'), JSON.stringify(notesDir)],
+    {
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
+    }
+  )
 }
 
 /**
