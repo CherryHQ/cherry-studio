@@ -122,15 +122,74 @@ describe('useAutoPullOnApiKeyChange', () => {
     expect(onTrigger).not.toHaveBeenCalled()
   })
 
-  it('does not fire when no models exist locally yet', () => {
+  it('fires on first render + key change for API-key providers with no models (auto-sync is disabled)', () => {
     const onTrigger = vi.fn()
     useProviderApiKeysMock.mockReturnValue(apiKeys('sk-one'))
     useModelsMock.mockReturnValue({ models: [] })
 
     const { rerender } = renderHook(() => useAutoPullOnApiKeyChange('openai', onTrigger))
 
+    // First render with keys + no models: opens pull reconcile.
+    expect(onTrigger).toHaveBeenCalledTimes(1)
+
     useProviderApiKeysMock.mockReturnValue(apiKeys('sk-two'))
     rerender()
+
+    // Key change with no models: opens pull reconcile again.
+    expect(onTrigger).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not fire for non-key providers when no models exist (auto-sync handles bootstrap)', () => {
+    const onTrigger = vi.fn()
+    useProviderApiKeysMock.mockReturnValue(apiKeys('sk-one'))
+    useModelsMock.mockReturnValue({ models: [] })
+    useProviderMock.mockReturnValue(providerWithHost('http://localhost:11434', 'ollama'))
+
+    const { rerender } = renderHook(() => useAutoPullOnApiKeyChange('ollama', onTrigger))
+
+    useProviderApiKeysMock.mockReturnValue(apiKeys('sk-two'))
+    rerender()
+
+    expect(onTrigger).not.toHaveBeenCalled()
+  })
+
+  it('fires on first render for API-key providers with no models and enabled keys', () => {
+    const onTrigger = vi.fn()
+    useProviderApiKeysMock.mockReturnValue(apiKeys('sk-one'))
+    useModelsMock.mockReturnValue({ models: [] })
+
+    renderHook(() => useAutoPullOnApiKeyChange('openai', onTrigger))
+
+    expect(onTrigger).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not fire on first render for API-key providers that already have models', () => {
+    const onTrigger = vi.fn()
+    useProviderApiKeysMock.mockReturnValue(apiKeys('sk-one'))
+    useModelsMock.mockReturnValue({ models: [{ id: 'openai::gpt-4o' }] })
+
+    renderHook(() => useAutoPullOnApiKeyChange('openai', onTrigger))
+
+    expect(onTrigger).not.toHaveBeenCalled()
+  })
+
+  it('does not fire on first render for API-key providers without enabled keys', () => {
+    const onTrigger = vi.fn()
+    useProviderApiKeysMock.mockReturnValue(emptyApiKeys())
+    useModelsMock.mockReturnValue({ models: [] })
+
+    renderHook(() => useAutoPullOnApiKeyChange('openai', onTrigger))
+
+    expect(onTrigger).not.toHaveBeenCalled()
+  })
+
+  it('does not fire on first render for non-key providers with no models (auto-sync handles it)', () => {
+    const onTrigger = vi.fn()
+    useProviderApiKeysMock.mockReturnValue(emptyApiKeys())
+    useModelsMock.mockReturnValue({ models: [] })
+    useProviderMock.mockReturnValue(providerWithHost('http://localhost:11434', 'ollama'))
+
+    renderHook(() => useAutoPullOnApiKeyChange('ollama', onTrigger))
 
     expect(onTrigger).not.toHaveBeenCalled()
   })
