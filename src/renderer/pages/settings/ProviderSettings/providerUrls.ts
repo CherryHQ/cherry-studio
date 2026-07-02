@@ -349,6 +349,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       models: 'https://openrouter.ai/models'
     }
   },
+  orcarouter: {
+    api: {
+      url: 'https://api.orcarouter.ai/v1/'
+    },
+    websites: {
+      official: 'https://www.orcarouter.ai/',
+      apiKey: 'https://www.orcarouter.ai/console',
+      docs: 'https://docs.orcarouter.ai',
+      models: 'https://www.orcarouter.ai/models'
+    }
+  },
   groq: {
     api: {
       url: 'https://api.groq.com/openai'
