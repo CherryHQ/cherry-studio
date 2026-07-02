@@ -1,4 +1,5 @@
 import { Alert, Button } from '@cherrystudio/ui'
+import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
@@ -94,7 +95,19 @@ function SettingsApp({ initialPath }: { initialPath: string }): React.ReactEleme
                   isMacTransparentWindow && isWindowFocused ? 'bg-sidebar-translucent' : 'bg-sidebar'
                 )}
                 style={shellStyle}>
-                <SettingsWindowRouter initialPath={initialPath} />
+                <WindowFrameProvider
+                  value={{
+                    mode: 'window',
+                    chrome: {
+                      titleLeading: (
+                        <span className="min-w-0 flex-1 truncate font-medium text-[13px] text-foreground/80">
+                          {i18n.t('settings.title')}
+                        </span>
+                      )
+                    }
+                  }}>
+                  <SettingsWindowRouter initialPath={initialPath} />
+                </WindowFrameProvider>
               </div>
             </TopViewContainer>
           </CommandProvider>
