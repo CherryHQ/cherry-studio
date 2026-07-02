@@ -13,12 +13,12 @@ import {
   createJobSnapshot,
   FILE_ITEM_ID,
   getJobMock,
+  ingestionService,
   knowledgeItemGetByIdMock,
   knowledgeItemUpdateIndexedRelativePathMock,
   knowledgeItemUpdateStatusMock,
   knowledgeLockManager,
-  PROCESSED_RELATIVE_PATH,
-  ingestionService
+  PROCESSED_RELATIVE_PATH
 } from './jobHandlerTestUtils'
 
 function createFileProcessingJobSnapshot(overrides: Partial<ReturnType<typeof createJobSnapshot>> = {}) {

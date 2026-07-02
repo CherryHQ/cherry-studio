@@ -7,9 +7,9 @@ import {
   type KnowledgeItemType
 } from '@shared/data/types/knowledge'
 
-import type { IndexableKnowledgeItem } from '../types/items'
 import { isContainerKnowledgeItem, isIndexableKnowledgeItem } from '../items'
 import { collectKnowledgeReservedRelativePaths } from '../pathStorage'
+import type { IndexableKnowledgeItem } from '../types/items'
 import { expandDirectoryOwnerToTree, type ExpandedDirectoryNode } from './directory'
 
 const logger = loggerService.withContext('KnowledgePrepare')

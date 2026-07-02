@@ -2,6 +2,8 @@ import { application } from '@application'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
 
+import { isIndexableKnowledgeItem } from './items'
+import { deleteKnowledgeItemFilesBestEffort } from './pathStorage'
 import { cancelJobOrThrow } from './tasks/utils/cancel'
 import { narrowKnowledgeJobInput } from './tasks/utils/jobInput'
 import {
@@ -10,8 +12,6 @@ import {
   knowledgeQueueName,
   toKnowledgeBaseId
 } from './types'
-import { isIndexableKnowledgeItem } from './items'
-import { deleteKnowledgeItemFilesBestEffort } from './pathStorage'
 import { deleteKnowledgeItemVectors } from './vectorCleanup'
 
 /**

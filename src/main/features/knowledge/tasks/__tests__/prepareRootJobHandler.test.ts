@@ -10,14 +10,14 @@ import {
   deleteKnowledgeItemFilesBestEffortMock,
   deleteMaterialsMock,
   getJobMock,
+  ingestionService,
   knowledgeItemGetByIdMock,
   knowledgeItemGetSubtreeItemsMock,
   knowledgeItemSetSubtreeStatusMock,
   knowledgeItemUpdateStatusMock,
   knowledgeLockManager,
   prepareKnowledgeItemMock,
-  scheduleItemMock,
-  ingestionService
+  scheduleItemMock
 } from './jobHandlerTestUtils'
 
 describe('prepare-root job handler', () => {

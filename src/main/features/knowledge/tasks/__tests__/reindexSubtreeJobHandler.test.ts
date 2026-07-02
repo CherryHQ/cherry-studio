@@ -14,6 +14,7 @@ import {
   deleteMaterialsMock,
   FILE_ITEM_ID,
   getJobMock,
+  ingestionService,
   knowledgeItemGetSubtreeItemsMock,
   knowledgeItemSetSubtreeStatusMock,
   knowledgeItemUpdateStatusMock,
@@ -21,8 +22,7 @@ import {
   listMock,
   loggerWarnMock,
   probeKnowledgeSourcePathMock,
-  scheduleItemMock,
-  ingestionService
+  scheduleItemMock
 } from './jobHandlerTestUtils'
 
 describe('reindex-subtree job handler', () => {
