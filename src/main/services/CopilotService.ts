@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { DEFAULT_PROFILE_ID } from '@main/core/profile/profileRegistry'
 import { net, safeStorage } from 'electron'
 import fs from 'fs'
 import path from 'path'
@@ -64,9 +65,6 @@ class CopilotServiceError extends Error {
 }
 
 class CopilotService {
-  // Memoized backing field for the lazy `tokenFilePath` getter below.
-  // `undefined` until first access; resolved exactly once and cached.
-  private _tokenFilePath: string | undefined
   private headers: Record<string, string>
 
   constructor() {
@@ -77,44 +75,30 @@ class CopilotService {
     }
   }
 
-  // TODO(v2): Lazy + memoized getter is a workaround, not a fix.
+  // Resolve on every access — NO memoization. `feature.copilot.token_file` is a
+  // per-profile path that repoints on a profile switch, so a cached value would make
+  // one profile read/write another profile's Copilot credential.
   //
-  // The real problem is that `CopilotService` is exported as a top-level
-  // singleton at the bottom of this file
-  // (`export const copilotService = new CopilotService()`). That
-  // singleton is instantiated during the static import graph of
-  // `src/main/index.ts` (via `ipc.ts`), BEFORE
-  // `application.bootstrap()` runs and builds the path registry. The
-  // previous shape resolved `tokenFilePath` in the constructor
-  // (`this.tokenFilePath = this.getTokenFilePath()`), which called
-  // `application.getPath(...)` at instantiation time and threw
-  // "PATHS not initialized".
-  //
-  // Lazy + cached resolution defers the path lookup until first *access*
-  // (cached because `getTokenFilePath` does an `fs.existsSync` syscall
-  // for the legacy-path fallback — we don't want that on every read).
-  // But the class itself is still being constructed too early. We've
-  // merely moved the path lookup out of construction; we have NOT
-  // solved the architectural issue.
-  //
-  // The proper v2 fix is to migrate `CopilotService` into the lifecycle
-  // system: extend `BaseService`, add `@Injectable`, register in
-  // `serviceRegistry.ts`, and have callers resolve it via
-  // `application.get('CopilotService')` instead of importing the
-  // singleton. Once that's done, the DI container will instantiate it
-  // inside `application.bootstrap()` after the path registry is built,
-  // and the constructor can resolve `tokenFilePath` directly again.
-  // Until then, keep this lazy getter — do NOT move the assignment
-  // back to the constructor.
+  // TODO(v2): `CopilotService` is still a top-level singleton
+  // (`export const copilotService = new CopilotService()`) instantiated during the
+  // static import graph before the path registry exists, which is why this stays a
+  // lazy getter rather than a constructor field. The proper fix is to migrate it into
+  // the lifecycle system (extend `BaseService`, `@Injectable`, resolve via
+  // `application.get('CopilotService')`) so it participates in profile activation
+  // directly instead of resolving the active profile ad-hoc here.
   private get tokenFilePath(): string {
-    return (this._tokenFilePath ??= this.getTokenFilePath())
+    return this.getTokenFilePath()
   }
 
   private getTokenFilePath = (): string => {
-    // Legacy path: token was previously stored directly under userData
-    const oldTokenFilePath = path.join(application.getPath('app.userdata'), CONFIG.TOKEN_FILE_NAME)
-    if (fs.existsSync(oldTokenFilePath)) {
-      return oldTokenFilePath
+    // The v1 token lived app-globally at `{userData}/.copilot_token`. Only the default
+    // profile — which represents the migrated legacy data — may adopt it; every other
+    // profile is isolated and always uses its own per-profile token file.
+    if (application.get('ProfileService').getActiveProfileId() === DEFAULT_PROFILE_ID) {
+      const legacyTokenPath = path.join(application.getPath('app.userdata'), CONFIG.TOKEN_FILE_NAME)
+      if (fs.existsSync(legacyTokenPath)) {
+        return legacyTokenPath
+      }
     }
     return application.getPath('feature.copilot.token_file')
   }
