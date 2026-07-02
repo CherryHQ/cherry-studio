@@ -482,7 +482,7 @@ const aiHubMixFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.aihubmix,
   fetch: async (provider, signal) => {
     const response = await getFromApi({
-      url: `https://aihubmix.com/api/v1/models`,
+      url: `${withoutTrailingSlash(getBaseUrl(provider)).replace(/\/v1$/, '')}/api/v1/models`,
       headers: defaultHeaders(provider),
       responseSchema: AIHubMixModelsResponseSchema,
       abortSignal: signal

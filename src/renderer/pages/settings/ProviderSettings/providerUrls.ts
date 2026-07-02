@@ -449,10 +449,10 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       url: 'https://aihubmix.com'
     },
     websites: {
-      official: 'https://aihubmix.com?aff=SJyh',
-      apiKey: 'https://aihubmix.com?aff=SJyh',
-      docs: 'https://doc.aihubmix.com/',
-      models: 'https://aihubmix.com/models'
+      official: 'https://inferera.com?aff=SJyh',
+      apiKey: 'https://inferera.com?aff=SJyh',
+      docs: 'https://docs.aihubmix.com',
+      models: 'https://inferera.com/models'
     }
   },
   fireworks: {

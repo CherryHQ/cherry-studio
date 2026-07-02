@@ -308,6 +308,28 @@ describe('listModels — gatewayFetcher (Vercel AI Gateway /v3/ai/config)', () =
   })
 })
 
+describe('listModels — aiHubMixFetcher (configured base URL)', () => {
+  it('builds the models URL from the configured base URL, stripping a trailing /v1', async () => {
+    const provider = makeProvider({
+      id: 'aihubmix',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://custom.example.com/v1' }
+      }
+    })
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: { data: [{ model_id: 'qwen3.6-plus', model_name: 'Qwen3.6 Plus', desc: 'test' }] }
+    })
+
+    const models = await listModels(provider)
+
+    expect(aiSdkGetFromApiMock).toHaveBeenCalledTimes(1)
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
+    expect(call.url).toBe('https://custom.example.com/api/v1/models')
+    expect(models.map((m) => m.apiModelId)).toEqual(['qwen3.6-plus'])
+  })
+})
+
 describe('listModels — vertexFetcher (per-publisher pagination)', () => {
   function makeVertexProvider() {
     return makeProvider({
