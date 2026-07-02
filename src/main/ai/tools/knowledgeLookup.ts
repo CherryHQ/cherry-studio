@@ -367,17 +367,13 @@ function conceptLookupError(
  * throws: an out-of-scope base or a service error returns `{ error }`; a missing
  * base maps to a clear "not found" message. `allowedIds` scopes reachable bases.
  */
-async function readTree(
-  baseId: string,
-  options: { maxDepth?: number },
-  allowedIds: string[]
-): Promise<KnowledgeTreeResultOrError> {
+function readTree(baseId: string, options: { maxDepth?: number }, allowedIds: string[]): KnowledgeTreeResultOrError {
   if (allowedIds.length > 0 && !allowedIds.includes(baseId)) {
     logger.warn('kb_list (outline mode) targeted a base outside the assistant scope', { baseId, allowedIds })
     return { error: `Knowledge base "${baseId}" is not available to this assistant.` }
   }
   try {
-    const tree = await application.get('KnowledgeService').getOrganizationTree(baseId, options)
+    const tree = application.get('KnowledgeService').getOrganizationTree(baseId, options)
     return {
       baseId: tree.baseId,
       totalItems: tree.totalItems,
@@ -561,7 +557,7 @@ async function listKnowledgeBases(
 ): Promise<KnowledgeListResultOrError> {
   try {
     const knowledgeService = application.get('KnowledgeService')
-    const allBases = await knowledgeService.listBases()
+    const allBases = knowledgeService.listBases()
     const scopedBases = allowedIds.length > 0 ? allBases.filter((base) => allowedIds.includes(base.id)) : allBases
 
     // null and undefined both mean "no group filter" — kb_list's nullable input passes null for that.
@@ -620,15 +616,15 @@ export function knowledgeListModelOutput(
   return { type: 'json', value: output }
 }
 
-async function buildOutputItem(
+function buildOutputItem(
   base: KnowledgeBase,
-  knowledgeService: { listRootItems: (id: string) => Promise<KnowledgeItem[]> }
-): Promise<KbListOutputItem> {
+  knowledgeService: { listRootItems: (id: string) => KnowledgeItem[] }
+): KbListOutputItem {
   let rootItems: KnowledgeItem[] = []
   let itemsUnavailable = false
   if (base.status === 'completed') {
     try {
-      rootItems = await knowledgeService.listRootItems(base.id)
+      rootItems = knowledgeService.listRootItems(base.id)
     } catch (error) {
       // A completed base whose items could not be read right now (store busy / closed mid-flight).
       // Flag it in-band instead of returning itemCount:0 — a fabricated 0 with empty sampleSources is

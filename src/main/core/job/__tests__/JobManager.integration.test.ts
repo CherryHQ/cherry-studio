@@ -12,8 +12,8 @@
  *     in-memory queue Map is empty on cold start and dispatchAll would
  *     otherwise iterate nothing)
  *   - Graceful shutdown: handlers observe AbortSignal and finish promptly
- *   - Layer 0 + Layer 1 mutex: multiple queues dispatching in parallel without
- *     libsql SQLITE_BUSY (regression guard for upstream issue #288)
+ *   - Layer 0 write tx + Layer 1 mutex: multiple queues dispatching in parallel
+ *     all commit without contention or SQLITE_BUSY
  *
  * Note on scope: retry / singleton cases assert the full recovery →
  * resurrect → dispatch → completed chain. The terminal assertion is load-
@@ -196,7 +196,7 @@ describe('JobManager integration', () => {
         handlers: [['task.abandon', makeSlowHandler('abandon') as JobHandler]]
       })
 
-      const all = await jobService.list({ type: 'task.abandon' })
+      const all = jobService.list({ type: 'task.abandon' })
       expect(all).toHaveLength(2)
       expect(all.every((r) => r.status === 'cancelled')).toBe(true)
       expect(all.every((r) => r.error?.code === 'JOB_CANCELLED')).toBe(true)
@@ -251,17 +251,17 @@ describe('JobManager integration', () => {
       await drainAllQueues(jobManager)
       const deadline = Date.now() + 1000
       while (Date.now() < deadline) {
-        const row = await jobService.getById(runningId)
+        const row = jobService.getById(runningId)
         if (row && row.status !== 'pending' && row.status !== 'running') break
         await new Promise((r) => setTimeout(r, 20))
       }
       await drainAllQueues(jobManager)
 
-      const finalRunning = await jobService.getById(runningId)
+      const finalRunning = jobService.getById(runningId)
       expect(finalRunning?.status).toBe('completed')
 
       // delayed remains delayed until its scheduledAt arrives (+60s in future).
-      const finalDelayed = await jobService.getById(delayedId)
+      const finalDelayed = jobService.getById(delayedId)
       expect(finalDelayed?.status).toBe('delayed')
 
       await teardownManager(scheduler, jobManager)
@@ -306,10 +306,10 @@ describe('JobManager integration', () => {
 
       // Enqueue + let it start executing: the row is `running` in the DB and the
       // jobId is in inFlightExecuted, with execute() parked on the gate.
-      const handle = await jobManager.enqueue('inflight.guard' as never, { message: 'x' } as never)
+      const handle = jobManager.enqueue('inflight.guard' as never, { message: 'x' } as never)
       await drainAllQueues(jobManager)
       expect(executeCount).toBe(1)
-      expect((await jobService.getById(handle.id))?.status).toBe('running')
+      expect(jobService.getById(handle.id)?.status).toBe('running')
 
       // Run the startup-recovery sweep WHILE the job is genuinely in-flight in
       // this process. Invoked directly — the same flow the 60s timer triggers —
@@ -327,7 +327,7 @@ describe('JobManager integration', () => {
 
       // Positive signal: recovery left the live row alone (still `running`, not
       // reset to `pending`). Load-bearing negative: handler ran exactly once.
-      expect((await jobService.getById(handle.id))?.status).toBe('running')
+      expect(jobService.getById(handle.id)?.status).toBe('running')
       expect(executeCount).toBe(1)
 
       // Release the gate → the single execution finalizes the row once.
@@ -391,14 +391,14 @@ describe('JobManager integration', () => {
       await drainAllQueues(jobManager)
       const deadline = Date.now() + 1000
       while (Date.now() < deadline) {
-        const row = await jobService.getById(newerId)
+        const row = jobService.getById(newerId)
         if (row && row.status !== 'pending' && row.status !== 'running') break
         await new Promise((r) => setTimeout(r, 20))
       }
       await drainAllQueues(jobManager)
 
-      const finalOlder = await jobService.getById(olderId)
-      const finalNewer = await jobService.getById(newerId)
+      const finalOlder = jobService.getById(olderId)
+      const finalNewer = jobService.getById(newerId)
       expect(finalOlder?.status).toBe('cancelled')
       expect(finalNewer?.status).toBe('completed')
 
@@ -464,13 +464,13 @@ describe('JobManager integration', () => {
       await drainAllQueues(jobManager)
       const deadline = Date.now() + 1000
       while (Date.now() < deadline) {
-        const row = await jobService.getById(inserted.id)
+        const row = jobService.getById(inserted.id)
         if (row && row.status !== 'pending' && row.status !== 'running') break
         await new Promise((r) => setTimeout(r, 20))
       }
       await drainAllQueues(jobManager)
 
-      const final = await jobService.getById(inserted.id)
+      const final = jobService.getById(inserted.id)
       expect(final?.status).toBe('completed')
       expect(final?.output).toEqual({ echoed: 'echo: resurrected' })
 
@@ -484,7 +484,7 @@ describe('JobManager integration', () => {
         handlers: [['shutdown.slow', makeSlowHandler('retry') as JobHandler]]
       })
 
-      const handle = await jobManager.enqueue(
+      const handle = jobManager.enqueue(
         'shutdown.slow' as never,
         {
           message: 'long',
@@ -550,7 +550,7 @@ describe('JobManager integration', () => {
       ;(jobManager as unknown as { globalMaxConcurrency: number }).globalMaxConcurrency = 1
 
       // Queue qB occupies the only global slot with a slow job.
-      const occupant = await jobManager.enqueue(
+      const occupant = jobManager.enqueue(
         'cap.task' as never,
         { message: 'occupant', sleepMs: 150 } as never,
         { queue: 'qB' } as never
@@ -559,7 +559,7 @@ describe('JobManager integration', () => {
 
       // Queue qA is enqueued while the global cap is saturated → blocked pending,
       // even though qA's own per-queue slots are free.
-      const starved = await jobManager.enqueue(
+      const starved = jobManager.enqueue(
         'cap.task' as never,
         { message: 'starved', sleepMs: 10 } as never,
         { queue: 'qA' } as never
@@ -611,11 +611,11 @@ describe('JobManager integration', () => {
       // Persistently fail the retry persist path with a non-BUSY error so
       // withWriteTx does NOT retry (only BUSY is retried) — the failure
       // propagates back to scheduleRetry, triggering the fallback finalize.
-      const retrySpy = vi.spyOn(jobService, 'setDelayedRetryTx').mockImplementation(async () => {
+      const retrySpy = vi.spyOn(jobService, 'setDelayedRetryTx').mockImplementation(() => {
         throw Object.assign(new Error('synthetic-corrupt'), { code: 'SQLITE_CORRUPT' })
       })
 
-      const handle = await jobManager.enqueue(
+      const handle = jobManager.enqueue(
         'retry.fallback.task' as never,
         { message: 'doomed' } as never,
         { maxAttempts: 3 } as never
@@ -631,7 +631,7 @@ describe('JobManager integration', () => {
       while (Date.now() < deadline) {
         await drainAllQueues(jobManager)
         await new Promise((r) => setTimeout(r, 20))
-        final = await jobService.getById(handle.id)
+        final = jobService.getById(handle.id)
         if (final?.status === 'failed') break
       }
 
@@ -665,14 +665,14 @@ describe('JobManager integration', () => {
 
       // Force both writes to fail so the §D outer .catch path becomes the
       // last line of defense.
-      const retrySpy = vi.spyOn(jobService, 'setDelayedRetryTx').mockImplementation(async () => {
+      const retrySpy = vi.spyOn(jobService, 'setDelayedRetryTx').mockImplementation(() => {
         throw Object.assign(new Error('synthetic-corrupt'), { code: 'SQLITE_CORRUPT' })
       })
-      const terminalSpy = vi.spyOn(jobService, 'setTerminalTx').mockImplementation(async () => {
+      const terminalSpy = vi.spyOn(jobService, 'setTerminalTx').mockImplementation(() => {
         throw Object.assign(new Error('synthetic-corrupt-terminal'), { code: 'SQLITE_CORRUPT' })
       })
 
-      await jobManager.enqueue(
+      jobManager.enqueue(
         'retry.fallback.task.2' as never,
         { message: 'doubled-doom' } as never,
         { maxAttempts: 3 } as never

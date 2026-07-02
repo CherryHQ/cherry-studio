@@ -10,7 +10,7 @@ import {
   QwenCode
 } from '@cherrystudio/ui/icons'
 import { CLAUDE_SUPPORTED_PROVIDERS } from '@renderer/pages/code/codeProviders'
-import { formatApiHost } from '@renderer/utils/api'
+import { formatApiHost, withoutTrailingSlash } from '@renderer/utils/api'
 import { sanitizeProviderName } from '@renderer/utils/naming'
 import type { EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -98,11 +98,12 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
   [CodeCli.OPEN_CODE]: (providers) => providers.filter(isOpenCodeProvider)
 }
 
-export const getCodeCliApiBaseUrl = (providerId: string, type: 'anthropic' | 'gemini') => {
+export const getCodeCliApiBaseUrl = (providerId: string, type: 'anthropic' | 'gemini', baseUrl?: string) => {
+  const aihubmixBaseUrl = baseUrl ? withoutTrailingSlash(baseUrl).replace(/\/v1$/, '') : 'https://aihubmix.com'
   const CODE_CLI_API_ENDPOINTS = {
     aihubmix: {
       gemini: {
-        api_base_url: 'https://aihubmix.com/gemini'
+        api_base_url: `${aihubmixBaseUrl}/gemini`
       }
     },
     deepseek: {
@@ -205,7 +206,7 @@ export const generateToolEnvironment = ({
     }
 
     case CodeCli.GEMINI_CLI: {
-      const apiBaseUrl = getCodeCliApiBaseUrl(providerId, 'gemini') || baseUrl
+      const apiBaseUrl = getCodeCliApiBaseUrl(providerId, 'gemini', baseUrl) || baseUrl
       env.GEMINI_API_KEY = apiKey
       env.GEMINI_BASE_URL = apiBaseUrl
       env.GOOGLE_GEMINI_BASE_URL = apiBaseUrl

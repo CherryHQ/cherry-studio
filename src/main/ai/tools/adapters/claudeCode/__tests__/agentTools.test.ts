@@ -51,12 +51,12 @@ function createDeferred<T>() {
 describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.getMcpServerById.mockResolvedValue({ id: 'mcp-1', name: 'server' })
+    mocks.getMcpServerById.mockReturnValue({ id: 'mcp-1', name: 'server' })
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'McpCatalogService') return { listTools: mocks.listMcpTools }
       throw new Error(`Unexpected application.get(${name})`)
     })
-    mocks.listMcpTools.mockResolvedValue([])
+    mocks.listMcpTools.mockReturnValue([])
   })
 
   it('reflects a disabledTools change after update() without a connection rebuild', async () => {
@@ -79,7 +79,7 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
   })
 
   it('keeps prior MCP descriptors when a later server listing fails', async () => {
-    mocks.listMcpTools.mockResolvedValueOnce([{ name: 'search_docs', description: 'Search docs' }])
+    mocks.listMcpTools.mockReturnValueOnce([{ name: 'search_docs', description: 'Search docs' }])
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['mcp-1']))
     expect(snapshot.resolve('mcp__server__searchDocs')).toMatchObject({
       id: 'mcp__server__searchDocs',
@@ -87,7 +87,9 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
     })
 
     // A transient catalog failure must not drop the previously-known descriptor.
-    mocks.listMcpTools.mockRejectedValueOnce(new Error('catalog unavailable'))
+    mocks.listMcpTools.mockImplementationOnce(() => {
+      throw new Error('catalog unavailable')
+    })
     await snapshot.update(makeAgent([], ['mcp-1']))
 
     expect(snapshot.resolve('mcp__server__searchDocs')).toMatchObject({
@@ -131,7 +133,7 @@ describe('createClaudeAgentToolPolicySnapshot — auto-allow prefix + approval e
       if (name === 'McpCatalogService') return { listTools: mocks.listMcpTools }
       throw new Error(`Unexpected application.get(${name})`)
     })
-    mocks.listMcpTools.mockResolvedValue([])
+    mocks.listMcpTools.mockReturnValue([])
   })
 
   it('auto-approves an injected tool matching an auto-allow prefix', async () => {
@@ -160,7 +162,7 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
       if (name === 'McpCatalogService') return { listTools: mocks.listMcpTools }
       throw new Error(`Unexpected application.get(${name})`)
     })
-    mocks.listMcpTools.mockResolvedValue([])
+    mocks.listMcpTools.mockReturnValue([])
   })
 
   // Drive the snapshot with the SAME values settingsBuilder.buildToolPermissions wires in production:
