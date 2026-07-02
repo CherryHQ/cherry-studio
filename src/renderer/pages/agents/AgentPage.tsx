@@ -6,6 +6,7 @@ import type { ResourcePaneConfig, ResourcePaneCountButtonProps } from '@renderer
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { AgentResourceList } from '@renderer/components/chat/resources/variants/AgentResourceList'
+import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
 import {
   createRecentSessionEntryFromSession,
@@ -45,7 +46,6 @@ import { useTranslation } from 'react-i18next'
 import HistoryRecordsPage from '../history/HistoryRecordsPage'
 import AgentChat from './AgentChat'
 import AgentSidePanel from './AgentSidePanel'
-import AgentChatNavbar from './components/AgentChatNavbar'
 import { AgentConversationPickerDialog } from './components/AgentConversationPickerDialog'
 import Sessions from './components/Sessions'
 import { parseAgentRouteSearch } from './routeSearch'
@@ -985,7 +985,20 @@ const AgentPage = () => {
   const resourceCenter = activeResourceViewKind
     ? {
         className: 'relative',
-        content: <ConversationResourceView kind={activeResourceViewKind} />
+        content: (
+          <ConversationResourceView
+            kind={activeResourceViewKind}
+            toolbarLeading={
+              !isMessageOnlyView && !isWindowFrame ? (
+                <ConversationSidebarToggleButton
+                  sidebarOpen={effectiveShowSidebar}
+                  onSidebarToggle={toggleResourceListOpen}
+                  tooltipPlacement="bottom"
+                />
+              ) : undefined
+            }
+          />
+        )
       }
     : null
 
@@ -999,14 +1012,6 @@ const AgentPage = () => {
             paneOpen={effectiveShowSidebar}
             panePosition={panePosition}
             onPaneCollapse={() => setResourceListOpen(false)}
-            topBar={
-              <AgentChatNavbar
-                activeAgent={null}
-                showSidebarControls={!isMessageOnlyView && !isWindowFrame}
-                sidebarOpen={effectiveShowSidebar}
-                onSidebarToggle={toggleResourceListOpen}
-              />
-            }
           />
         ) : (
           <AgentChat

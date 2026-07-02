@@ -371,6 +371,17 @@ function getResourceCardProps(overrides: Partial<ComponentProps<typeof ResourceC
 }
 
 describe('ResourceGrid empty state copy', () => {
+  it('renders the optional toolbar leading slot before the search box', () => {
+    renderResourceGrid({
+      toolbarLeading: <button type="button">Toggle sidebar</button>
+    })
+
+    const toggle = screen.getByRole('button', { name: 'Toggle sidebar' })
+    const searchInput = screen.getByPlaceholderText('library.toolbar.search_placeholder')
+
+    expect(toggle.compareDocumentPosition(searchInput)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+  })
+
   it('shows loading placeholders before the empty state while data is loading', () => {
     renderResourceGrid({ isLoading: true })
 

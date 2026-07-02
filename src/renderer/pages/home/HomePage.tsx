@@ -18,6 +18,7 @@ import {
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { AssistantResourceList } from '@renderer/components/chat/resources/variants/AssistantResourceList'
+import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
 import { ChatHomePlacementComposer } from '@renderer/components/composer/variants/ChatComposer'
 import {
@@ -711,6 +712,15 @@ const HomePage: FC = () => {
           <ConversationResourceView
             kind={activeResourceViewKind}
             onOpenAssistantChat={handleOpenAssistantChatFromLibrary}
+            toolbarLeading={
+              !isMessageOnlyView && !isWindowFrame ? (
+                <ConversationSidebarToggleButton
+                  sidebarOpen={effectiveShowSidebar}
+                  onSidebarToggle={toggleResourceListOpen}
+                  tooltipPlacement="bottom"
+                />
+              ) : undefined
+            }
           />
         )
       }
@@ -816,13 +826,6 @@ const HomePage: FC = () => {
             paneOpen={effectiveShowSidebar}
             panePosition={panePosition}
             onPaneCollapse={() => setResourceListOpen(false)}
-            topBar={
-              <ChatNavbar
-                showSidebarControls={!isMessageOnlyView && !isWindowFrame}
-                sidebarOpen={effectiveShowSidebar}
-                onSidebarToggle={toggleResourceListOpen}
-              />
-            }
           />
         </ContentContainer>
         {assistantPickerDialog}

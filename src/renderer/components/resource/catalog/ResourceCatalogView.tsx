@@ -14,6 +14,7 @@ import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useResourceCatalogController } from '@renderer/hooks/resourceCatalog/useResourceCatalogController'
 import type { ResourceType } from '@renderer/types/resourceCatalog'
 import { cn } from '@renderer/utils/style'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { AssistantLibraryDialog } from './AssistantLibraryDialog'
@@ -23,9 +24,15 @@ export type ResourceCatalogViewProps = {
   className?: string
   onOpenAssistantChat?: (assistantId: string) => void
   resourceType: ResourceType
+  toolbarLeading?: ReactNode
 }
 
-export function ResourceCatalogView({ className, onOpenAssistantChat, resourceType }: ResourceCatalogViewProps) {
+export function ResourceCatalogView({
+  className,
+  onOpenAssistantChat,
+  resourceType,
+  toolbarLeading
+}: ResourceCatalogViewProps) {
   const { t } = useTranslation()
   const agentModelFilter = useAgentModelFilter('claude-code')
   const { resourceError, refetch, gridProps, dialogs } = useResourceCatalogController(resourceType)
@@ -49,7 +56,7 @@ export function ResourceCatalogView({ className, onOpenAssistantChat, resourceTy
             />
           </div>
         ) : (
-          <ResourceGrid {...gridProps} />
+          <ResourceGrid {...gridProps} toolbarLeading={toolbarLeading} />
         )}
       </div>
 

@@ -92,7 +92,13 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
-  useCommandHandler: vi.fn()
+  useCommandHandler: vi.fn(),
+  useResolvedCommand: () => ({
+    enabled: true,
+    execute: vi.fn(),
+    label: 'Toggle sidebar',
+    shortcutLabel: ''
+  })
 }))
 
 vi.mock('@data/hooks/usePreference', async () => {
@@ -198,12 +204,15 @@ vi.mock('@renderer/components/chat', () => ({
 vi.mock('@renderer/components/resource/catalog', () => ({
   ResourceCatalogView: ({
     onOpenAssistantChat,
-    resourceType
+    resourceType,
+    toolbarLeading
   }: {
     onOpenAssistantChat?: (assistantId: string) => void
     resourceType: string
+    toolbarLeading?: ReactNode
   }) => (
     <div data-testid={`resource-catalog-${resourceType}`}>
+      {toolbarLeading && <div data-testid="resource-toolbar-leading">{toolbarLeading}</div>}
       {resourceType === 'assistant' && (
         <button type="button" onClick={() => onOpenAssistantChat?.('assistant-2')}>
           Go to chat with assistant 2
@@ -664,7 +673,7 @@ describe('HomePage', () => {
     expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
   })
 
-  it('keeps a sidebar toggle in the resource view top bar so a collapsed pane can be reopened', async () => {
+  it('keeps a sidebar toggle beside resource search so a collapsed pane can be reopened', async () => {
     homeMocks.preferenceValues.set('topic.tab.show', true)
 
     render(<HomePage />)
@@ -674,11 +683,13 @@ describe('HomePage', () => {
     const shell = screen.getByTestId('home-conversation-page-shell')
     expect(within(shell).getByTestId('pane-open')).toHaveTextContent('true')
 
-    // Collapse the pane from the top-bar toggle, then confirm the toggle survives the collapse.
-    fireEvent.click(within(shell).getByRole('button', { name: 'Toggle sidebar' }))
+    const toolbarLeading = within(shell).getByTestId('resource-toolbar-leading')
+
+    // Collapse the pane from the resource toolbar toggle, then confirm the toggle survives the collapse.
+    fireEvent.click(within(toolbarLeading).getByRole('button'))
     await waitFor(() => expect(within(shell).getByTestId('pane-open')).toHaveTextContent('false'))
 
-    fireEvent.click(within(shell).getByRole('button', { name: 'Toggle sidebar' }))
+    fireEvent.click(within(toolbarLeading).getByRole('button'))
     await waitFor(() => expect(within(shell).getByTestId('pane-open')).toHaveTextContent('true'))
   })
 

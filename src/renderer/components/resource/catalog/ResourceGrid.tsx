@@ -39,7 +39,7 @@ import {
   Upload,
   X
 } from 'lucide-react'
-import type { FC, RefObject } from 'react'
+import type { FC, ReactNode, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -74,6 +74,7 @@ interface Props {
   allTagNames: string[]
   /** Full backend tag records (id + name + color). Distinct from `allTagNames` (names only). */
   allTags: BackendTag[]
+  toolbarLeading?: ReactNode
 }
 
 function getGridColumnCount(width: number) {
@@ -183,7 +184,8 @@ export const ResourceGrid: FC<Props> = ({
   onAddTag,
   onUpdateResourceTags,
   allTagNames,
-  allTags
+  allTags,
+  toolbarLeading
 }) => {
   const { t } = useTranslation()
   const { renameTag } = useRenameTag()
@@ -294,7 +296,8 @@ export const ResourceGrid: FC<Props> = ({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 flex-col border-border-muted border-b">
-        <div className="flex items-center gap-2 px-5 py-3">
+        <div className="flex h-(--navbar-height) shrink-0 items-center gap-2 px-2">
+          {toolbarLeading && <div className="flex shrink-0 items-center">{toolbarLeading}</div>}
           <div className="relative max-w-64 flex-1">
             <Search size={14} className="-translate-y-1/2 absolute top-1/2 left-2.5 text-foreground-muted" />
             <Input
