@@ -2796,7 +2796,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} 数据源",
-      "documents_count": "{{count}} 文档",
       "updated_at": "更新于 {{time}}"
     },
     "name_required": "知识库名称为必填项",

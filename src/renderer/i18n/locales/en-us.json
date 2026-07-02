@@ -2796,7 +2796,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} sources",
-      "documents_count": "{{count}} documents",
       "updated_at": "Updated {{time}}"
     },
     "name_required": "Knowledge base name is required",

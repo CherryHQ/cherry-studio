@@ -78,7 +78,6 @@ vi.mock('react-i18next', () => ({
           'knowledge.add.title': '新建知识库',
           'knowledge.add.group': '分组',
           'knowledge.add.submit': '创建',
-          'knowledge.embedding_model': '嵌入模型',
           'knowledge.name_required': '知识库名称为必填项',
           'knowledge.error.failed_to_create': '知识库创建失败',
           'knowledge.groups.default': '默认'
