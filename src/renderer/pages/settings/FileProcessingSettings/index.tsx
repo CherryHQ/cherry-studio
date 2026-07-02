@@ -85,6 +85,7 @@ const FileProcessingSettings: FC = () => {
                   {section.entries.map((entry) => (
                     <MenuItem
                       key={entry.key}
+                      id={`fp-item-${section.feature}-${entry.processor.id}`}
                       label={t(getProcessorNameKey(entry.processor.id))}
                       active={activeEntryKey === entry.key}
                       onClick={() => setActiveKey(entry.key)}
@@ -99,9 +100,14 @@ const FileProcessingSettings: FC = () => {
                       labelClassName={settingsSubmenuItemLabelClassName}
                       suffix={
                         isDefaultEntry(entry) ? (
-                          <Badge className="rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 font-medium text-green-600 text-xs dark:text-green-400">
-                            {t('common.default')}
-                          </Badge>
+                          <span
+                            data-testid="fp-menu-default-badge"
+                            data-feature={entry.feature}
+                            data-processor-id={entry.processor.id}>
+                            <Badge className="rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 font-medium text-green-600 text-xs dark:text-green-400">
+                              {t('common.default')}
+                            </Badge>
+                          </span>
                         ) : undefined
                       }
                     />

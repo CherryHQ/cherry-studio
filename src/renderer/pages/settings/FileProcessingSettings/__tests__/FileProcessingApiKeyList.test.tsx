@@ -101,6 +101,10 @@ describe('FileProcessingApiKeyList', () => {
     })
     expect(screen.queryByText('error.no_api_key')).not.toBeInTheDocument()
     expect(screen.getByText('key-1')).toBeInTheDocument()
+    // e2e anchor: saved key renders as a single non-editing fp-apikey-row
+    const rows = screen.getAllByTestId('fp-apikey-row')
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toHaveAttribute('data-new', 'false')
   })
 
   it('rejects duplicate API keys', async () => {

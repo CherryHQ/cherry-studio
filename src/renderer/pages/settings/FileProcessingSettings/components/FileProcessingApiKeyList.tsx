@@ -122,7 +122,10 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
   }
 
   return (
-    <div className="flex min-h-10 items-center justify-between gap-2 border-border/40 border-b px-3 py-2 last:border-b-0">
+    <div
+      data-testid="fp-apikey-row"
+      data-new={item.isNew ? 'true' : 'false'}
+      className="flex min-h-10 items-center justify-between gap-2 border-border/40 border-b px-3 py-2 last:border-b-0">
       {isEditing ? (
         <>
           <Input

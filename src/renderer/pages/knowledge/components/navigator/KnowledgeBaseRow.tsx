@@ -101,7 +101,7 @@ const KnowledgeBaseRow = ({
   return (
     <>
       <CommandContextMenu location="webcontents.context" extraItems={contextMenuItems}>
-        <div className="group/kb group relative w-full">
+        <div data-testid="kb-base-row" data-base-id={base.id} className="group/kb group relative w-full">
           <div
             className={cn(
               'grid min-h-11 w-full grid-cols-[minmax(0,1fr)_1.75rem] items-center gap-2.5 rounded-xl px-2.5 py-1.5 transition-colors',

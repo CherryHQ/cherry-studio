@@ -21,16 +21,18 @@ export const RagSelectField = ({
   value,
   options,
   placeholder,
-  onValueChange
+  onValueChange,
+  triggerId
 }: {
   value?: string
   options: KnowledgeSelectOption[]
   placeholder?: string
   onValueChange: (value: string) => void
+  triggerId?: string
 }) => {
   return (
     <Select value={value} onValueChange={onValueChange}>
-      <SelectTrigger className="w-full">
+      <SelectTrigger id={triggerId} className="w-full">
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
@@ -63,7 +65,8 @@ export const RagInlineField = ({
   placeholder,
   inputMode,
   onChange,
-  controlClassName
+  controlClassName,
+  inputId
 }: {
   label: string
   hint?: string
@@ -73,11 +76,13 @@ export const RagInlineField = ({
   inputMode?: 'numeric' | 'text'
   onChange: (value: string) => void
   controlClassName?: string
+  inputId?: string
 }) => {
   return (
     <RagFieldRow label={label} hint={hint}>
       <div className={cn('relative', controlClassName ?? 'w-44')}>
         <Input
+          id={inputId}
           value={value}
           placeholder={placeholder}
           inputMode={inputMode}

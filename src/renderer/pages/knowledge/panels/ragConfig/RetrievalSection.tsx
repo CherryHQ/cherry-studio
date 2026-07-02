@@ -74,6 +74,7 @@ const RetrievalSection = ({
           value={searchMode}
           options={searchModeOptions}
           onValueChange={(value) => onSearchModeChange(value as KnowledgeSearchMode)}
+          triggerId="kb-rag-search-mode"
         />
       </div>
 

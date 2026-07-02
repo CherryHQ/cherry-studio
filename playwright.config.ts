@@ -16,7 +16,10 @@ export default defineConfig({
     timeout: 10000
   },
 
-  // Electron apps should run tests sequentially to avoid conflicts
+  // Each spec launches its own Electron instance against an isolated copy of the userData
+  // profile (see seeded-electron.fixture's userDataDir), so specs don't share state. Serialized
+  // (workers: 1) rather than parallel: concurrent Electron instances contend for CPU/GPU enough to
+  // widen UI transition races (e.g. navbar-intercepts-click flakes seen under workers: 3).
   fullyParallel: false,
   workers: 1,
 

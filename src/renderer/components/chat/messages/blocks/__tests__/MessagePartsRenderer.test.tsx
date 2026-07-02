@@ -586,6 +586,9 @@ describe('MessagePartsRenderer', () => {
     // Only the outer fold (total tool count) + the final answer show at the top level.
     const outerButton = screen.getByRole('button', { name: '4 tool calls' })
     expect(outerButton).toHaveAttribute('aria-expanded', 'false')
+    // Stable e2e anchor for "agent/assistant invoked ≥1 tool" (locale-robust; count exposed for diagnostics).
+    expect(outerButton).toHaveAttribute('data-testid', 'message-tool-history')
+    expect(outerButton).toHaveAttribute('data-tool-count', '4')
     expect(screen.getByTestId('mock-markdown').textContent).toBe('final answer')
     expect(screen.queryByText('checking project files')).toBeNull()
     expect(screen.queryByText('rewriting renderer')).toBeNull()

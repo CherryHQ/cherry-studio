@@ -33,6 +33,7 @@ function IconMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppT
             <SidebarTooltip content={item.label}>
               <button
                 type="button"
+                data-testid={`sidebar-nav-${item.id}`}
                 onClick={() => void onItemClick(item.id)}
                 className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150 ${
                   isActive
@@ -77,6 +78,7 @@ function FullMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppT
             <div className="relative">
               <MenuItem
                 variant="ghost"
+                data-testid={`sidebar-nav-${item.id}`}
                 icon={<Icon size={16} strokeWidth={1.6} />}
                 label={item.label}
                 active={isActive}

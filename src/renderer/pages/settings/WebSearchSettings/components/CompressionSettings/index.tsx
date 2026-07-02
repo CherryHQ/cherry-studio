@@ -41,7 +41,7 @@ const CompressionSettings = () => {
           {t('settings.tool.websearch.compression.method.label')}
         </SettingRowTitle>
         <Select value={compressionConfig?.method || 'none'} onValueChange={handleCompressionMethodChange}>
-          <SelectTrigger size="sm" className={selectTriggerClassName}>
+          <SelectTrigger id="web-search-compression-method" size="sm" className={selectTriggerClassName}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
