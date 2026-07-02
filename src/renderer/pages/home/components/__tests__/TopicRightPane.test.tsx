@@ -1,4 +1,6 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -132,5 +134,103 @@ describe('TopicRightPane', () => {
     await waitFor(() => {
       expect(onLocateMessage).toHaveBeenCalledWith('message-1')
     })
+  })
+
+  it('mounts the resource list pane open when requested', () => {
+    render(
+      <TopicRightPane
+        resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}
+        defaultOpen>
+        <TopicRightPane.Host />
+      </TopicRightPane>
+    )
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('resource-list')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /chat\.topics\.title/ })).toBeInTheDocument()
+  })
+
+  it('resets the open resource tab when the resource pane is removed', () => {
+    const { rerender } = render(
+      <TopicRightPane
+        resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}
+        defaultOpen>
+        <TopicRightPane.Host topicId="topic-a" />
+      </TopicRightPane>
+    )
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('resource-list')).toBeInTheDocument()
+
+    rerender(
+      <TopicRightPane>
+        <TopicRightPane.Host topicId="topic-a" />
+      </TopicRightPane>
+    )
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    expect(screen.queryByTestId('resource-list')).toBeNull()
+  })
+
+  it('opens the resource pane on a locate reveal request', () => {
+    const resourcePane = { node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }
+    const { rerender } = render(
+      <TopicRightPane resourcePane={resourcePane}>
+        <TopicRightPane.Host />
+      </TopicRightPane>
+    )
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+
+    rerender(
+      <TopicRightPane
+        resourcePane={resourcePane}
+        revealRequest={{ itemId: 'topic-a', requestId: 1, clearFilters: true, clearQuery: true }}>
+        <TopicRightPane.Host />
+      </TopicRightPane>
+    )
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('resource-list')).toBeInTheDocument()
+  })
+
+  it('does not open the resource pane for a passive (non-locate) reveal request', () => {
+    const resourcePane = { node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }
+    const { rerender } = render(
+      <TopicRightPane resourcePane={resourcePane}>
+        <TopicRightPane.Host />
+      </TopicRightPane>
+    )
+
+    rerender(
+      <TopicRightPane resourcePane={resourcePane} revealRequest={{ itemId: 'topic-a', requestId: 2 }}>
+        <TopicRightPane.Host />
+      </TopicRightPane>
+    )
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('does not open the resource list pane when the owning tab is revealed', async () => {
+    render(
+      <TabIdProvider tabId="chat-tab">
+        <TopicRightPane
+          resourcePane={{ node: <div data-testid="resource-list">Resources</div>, label: 'chat.topics.title' }}>
+          <TopicRightPane.Host />
+        </TopicRightPane>
+      </TabIdProvider>
+    )
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+
+    await act(async () => {
+      await EventEmitter.emit(EVENT_NAMES.REVEAL_ACTIVE_RESOURCE_LIST, {
+        source: 'assistants',
+        tabId: 'chat-tab'
+      })
+    })
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    expect(screen.queryByTestId('resource-list')).toBeNull()
   })
 })

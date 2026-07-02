@@ -93,7 +93,11 @@ export function useAssistantMutations() {
     refresh: ASSISTANTS_REFRESH_KEYS
   })
   const { trigger: deleteTrigger, isLoading: isDeleting } = useMutation('DELETE', '/assistants/:id', {
-    refresh: ASSISTANTS_REFRESH_KEYS
+    refresh: ({ args }) => [
+      ...ASSISTANTS_REFRESH_KEYS,
+      '/pins',
+      ...(args?.query?.deleteTopics === true ? (['/topics'] as ConcreteApiPaths[]) : [])
+    ]
   })
   const createTriggerRef = useRef(createTrigger)
   const updateTriggerRef = useRef(updateTrigger)
@@ -117,9 +121,11 @@ export function useAssistantMutations() {
     return updated
   }, [])
 
-  const deleteAssistant = useCallback(async (id: string): Promise<void> => {
-    await deleteTriggerRef.current({ params: { id } })
-    logger.info('Deleted assistant', { id })
+  const deleteAssistant = useCallback(async (id: string, options: { deleteTopics?: boolean } = {}): Promise<void> => {
+    await deleteTriggerRef.current(
+      options.deleteTopics === true ? { params: { id }, query: { deleteTopics: true } } : { params: { id } }
+    )
+    logger.info('Deleted assistant', { id, deleteTopics: options.deleteTopics === true })
   }, [])
 
   return {
