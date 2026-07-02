@@ -373,7 +373,7 @@ describe('OAuthRuntimeService', () => {
     await service.handleDeepLinkCallback(new URL('app://cb?state=st&code=c'))
 
     expect(h.providerStore.get('cherryin')?.authConfig).toMatchObject({ accessToken: 'at' })
-    expect(h.deepLinkTransportMock.sendConsumedResult).toHaveBeenCalledWith('st', 'win-1', { apiKeys: undefined })
+    expect(h.deepLinkTransportMock.sendConsumedResult).toHaveBeenCalledWith('st', 'win-1', { apiKeys: '' })
   })
 
   it('handleDeepLinkCallback reports an exchange failure to the initiator', async () => {

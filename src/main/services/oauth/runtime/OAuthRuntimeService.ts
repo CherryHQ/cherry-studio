@@ -200,7 +200,9 @@ export class OAuthRuntimeService extends BaseService {
         await this.persistTokens(definition, tokenData)
         const sideEffectResult = await definition.afterPersistTokens?.(tokenData, callback.context)
         providerService.update(providerId, { isEnabled: true })
-        transport.sendConsumedResult(callback.state, callback.initiatorWindowId, { apiKeys: sideEffectResult?.apiKeys })
+        transport.sendConsumedResult(callback.state, callback.initiatorWindowId, {
+          apiKeys: sideEffectResult?.apiKeys ?? ''
+        })
         this.logger.info(`${providerId} deep-link sign-in succeeded`)
         return
       } catch (error) {

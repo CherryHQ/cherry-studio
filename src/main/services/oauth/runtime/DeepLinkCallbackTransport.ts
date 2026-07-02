@@ -19,6 +19,11 @@ export interface DeepLinkAuthorizationRequest {
   state: string
 }
 
+// Exactly one of the two outcomes — a successful exchange carries the optional
+// API keys the side effect produced, a failure carries the error message. The
+// union keeps the two mutually exclusive so callers can't send both or neither.
+export type DeepLinkResult = { apiKeys: string } | { error: string }
+
 export interface DeepLinkAuthorizationCallback {
   state: string
   code: string
@@ -116,18 +121,15 @@ export class DeepLinkCallbackTransport {
     }
   }
 
-  sendConsumedResult(state: string, initiatorWindowId: WindowId, result: { apiKeys?: string; error?: string }): void {
+  sendConsumedResult(state: string, initiatorWindowId: WindowId, result: DeepLinkResult): void {
     this.sendToInitiator(initiatorWindowId, state, result)
   }
 
   // Point-to-point to the flow's initiator only — the result carries the user's
   // API keys, so it must never broadcast. `IpcApiService.send` no-ops if the
   // window is gone/destroyed.
-  private sendToInitiator(windowId: WindowId, state: string, result: { apiKeys?: string; error?: string }): void {
-    const payload =
-      'error' in result && result.error !== undefined
-        ? { state, error: result.error }
-        : { state, apiKeys: result.apiKeys ?? '' }
+  private sendToInitiator(windowId: WindowId, state: string, result: DeepLinkResult): void {
+    const payload = 'error' in result ? { state, error: result.error } : { state, apiKeys: result.apiKeys }
     application.get('IpcApiService').send(windowId, 'oauth.deep_link_result', payload)
   }
 
