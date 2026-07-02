@@ -10,10 +10,88 @@ interface MockViewerOptions {
 }
 
 const mocks = vi.hoisted(() => {
+  const createMockPresentation = () => ({
+    slides: [
+      {
+        rels: new Map([
+          [
+            'rEmbeddedImage',
+            {
+              type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image',
+              target: '../media/image1.png'
+            }
+          ],
+          [
+            'rExternalImage',
+            {
+              type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image',
+              target: 'https://example.com/image.png',
+              targetMode: 'External'
+            }
+          ],
+          [
+            'rExternalVideo',
+            {
+              type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/video',
+              target: 'https://example.com/video.mp4',
+              targetMode: 'External'
+            }
+          ],
+          [
+            'rExternalHyperlink',
+            {
+              type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
+              target: 'https://example.com',
+              targetMode: 'External'
+            }
+          ]
+        ])
+      }
+    ],
+    layouts: new Map([
+      [
+        'layout1',
+        {
+          rels: new Map([
+            [
+              'rLayoutExternalImage',
+              {
+                type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image',
+                target: 'https://example.com/layout.png',
+                targetMode: 'External'
+              }
+            ]
+          ])
+        }
+      ]
+    ]),
+    masters: new Map([
+      [
+        'master1',
+        {
+          rels: new Map([
+            [
+              'rMasterExternalMedia',
+              {
+                type: 'http://schemas.microsoft.com/office/2007/relationships/media',
+                target: 'https://example.com/master.mp4',
+                targetMode: 'External'
+              }
+            ]
+          ])
+        }
+      ]
+    ])
+  })
+
   const state = {
     fsRead: vi.fn(),
     viewerInstances: [] as Array<{ currentSlideIndex: number; slideCount: number }>,
-    open: vi.fn(),
+    mockFiles: { slides: new Map() },
+    parseZipLazyMedia: vi.fn(),
+    buildPresentation: vi.fn(),
+    load: vi.fn(),
+    renderList: vi.fn(),
     goToSlide: vi.fn(),
     setZoom: vi.fn(),
     destroy: vi.fn()
@@ -32,8 +110,12 @@ const mocks = vi.hoisted(() => {
       state.viewerInstances.push(this)
     }
 
-    async open(input: Uint8Array) {
-      state.open(input)
+    load(presentation: unknown) {
+      state.load(presentation)
+    }
+
+    async renderList(options: unknown) {
+      state.renderList(options)
       this.container.textContent = 'rendered pptx'
       this.options.onSlideChange?.(0)
     }
@@ -54,10 +136,12 @@ const mocks = vi.hoisted(() => {
     }
   }
 
-  return { ...state, MockPptxViewer }
+  return { ...state, createMockPresentation, MockPptxViewer }
 })
 
 vi.mock('@aiden0z/pptx-renderer', () => ({
+  buildPresentation: mocks.buildPresentation,
+  parseZipLazyMedia: mocks.parseZipLazyMedia,
   PptxViewer: mocks.MockPptxViewer,
   RECOMMENDED_ZIP_LIMITS: {}
 }))
@@ -93,6 +177,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   mocks.viewerInstances.length = 0
   mocks.fsRead.mockResolvedValue(new Uint8Array([80, 75, 3, 4]))
+  mocks.parseZipLazyMedia.mockResolvedValue(mocks.mockFiles)
+  mocks.buildPresentation.mockImplementation(() => mocks.createMockPresentation())
   Object.defineProperty(window, 'api', {
     configurable: true,
     value: {
@@ -113,7 +199,15 @@ describe('PptxPreviewPanel', () => {
 
     expect(await screen.findByTestId('pptx-preview-panel')).toBeInTheDocument()
     await waitFor(() => expect(mocks.fsRead).toHaveBeenCalledWith('/tmp/slides.pptx'))
-    expect(mocks.open).toHaveBeenCalledWith(new Uint8Array([80, 75, 3, 4]))
+    expect(new Uint8Array(mocks.parseZipLazyMedia.mock.calls[0][0])).toEqual(new Uint8Array([80, 75, 3, 4]))
+    expect(mocks.buildPresentation).toHaveBeenCalledWith(mocks.mockFiles, { lazySlides: true })
+    expect(mocks.load).toHaveBeenCalledTimes(1)
+    expect(mocks.renderList).toHaveBeenCalledWith({
+      windowed: true,
+      batchSize: 4,
+      initialSlides: 3,
+      overscanViewport: 2
+    })
     expect(screen.getByTestId('pptx-preview-page-indicator')).toHaveTextContent('1 / 3')
     expect(screen.getByTestId('pptx-preview-zoom-value')).toHaveTextContent('100%')
 
@@ -128,6 +222,20 @@ describe('PptxPreviewPanel', () => {
     expect(screen.getByTestId('pptx-preview-zoom-value')).toHaveTextContent('110%')
   })
 
+  it('strips external media relationships before loading the viewer', async () => {
+    render(<PptxPreviewPanel filePath="/tmp/slides.pptx" fileName="slides.pptx" refreshKey={0} sourceSize={1024} />)
+
+    await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(1))
+
+    const presentation = mocks.load.mock.calls[0][0]
+    expect(presentation.slides[0].rels.has('rEmbeddedImage')).toBe(true)
+    expect(presentation.slides[0].rels.has('rExternalHyperlink')).toBe(true)
+    expect(presentation.slides[0].rels.has('rExternalImage')).toBe(false)
+    expect(presentation.slides[0].rels.has('rExternalVideo')).toBe(false)
+    expect(presentation.layouts.get('layout1')?.rels.has('rLayoutExternalImage')).toBe(false)
+    expect(presentation.masters.get('master1')?.rels.has('rMasterExternalMedia')).toBe(false)
+  })
+
   it('rejects oversized sources before reading bytes', async () => {
     render(
       <PptxPreviewPanel
@@ -140,7 +248,8 @@ describe('PptxPreviewPanel', () => {
 
     expect(await screen.findByTestId('empty-state')).toHaveTextContent('files.preview.error')
     expect(mocks.fsRead).not.toHaveBeenCalled()
-    expect(mocks.open).not.toHaveBeenCalled()
+    expect(mocks.parseZipLazyMedia).not.toHaveBeenCalled()
+    expect(mocks.load).not.toHaveBeenCalled()
   })
 
   it('rejects oversized bytes discovered after reading the file', async () => {
@@ -150,10 +259,11 @@ describe('PptxPreviewPanel', () => {
 
     expect(await screen.findByTestId('empty-state')).toHaveTextContent('files.preview.error')
     expect(mocks.viewerInstances).toHaveLength(0)
+    expect(mocks.parseZipLazyMedia).not.toHaveBeenCalled()
   })
 
-  it('destroys the viewer when open() rejects on a malformed file', async () => {
-    mocks.open.mockImplementationOnce(() => {
+  it('destroys the viewer when rendering rejects', async () => {
+    mocks.renderList.mockImplementationOnce(() => {
       throw new Error('corrupt pptx')
     })
 

@@ -1,4 +1,5 @@
-import { PptxViewer, RECOMMENDED_ZIP_LIMITS } from '@aiden0z/pptx-renderer'
+import type { PresentationData } from '@aiden0z/pptx-renderer'
+import { buildPresentation, parseZipLazyMedia, PptxViewer, RECOMMENDED_ZIP_LIMITS } from '@aiden0z/pptx-renderer'
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { LoadingState } from '@renderer/components/chat/primitives'
@@ -16,6 +17,8 @@ const PPTX_PREVIEW_ZOOM_STEP = 10
 const PPTX_PREVIEW_MIN_ZOOM = 50
 const PPTX_PREVIEW_MAX_ZOOM = 200
 const PPTX_PREVIEW_MAX_SOURCE_BYTES = 25 * 1024 * 1024
+const EXTERNAL_TARGET_MODE = 'external'
+const EXTERNAL_MEDIA_RELATIONSHIP_TYPES = new Set(['image', 'audio', 'video', 'media'])
 
 interface PptxPreviewPanelProps {
   filePath: string
@@ -28,9 +31,56 @@ const clamp = (value: number, min: number, max: number) => Math.min(Math.max(val
 
 const formatPptxZoom = (zoom: number): string => `${Math.round(zoom)}%`
 
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const buffer = bytes.buffer
+
+  if (buffer instanceof ArrayBuffer && bytes.byteOffset === 0 && bytes.byteLength === buffer.byteLength) {
+    return buffer
+  }
+
+  const copy = new Uint8Array(bytes.byteLength)
+  copy.set(bytes)
+  return copy.buffer
+}
+
 function assertSourceSize(size: number): void {
   if (size > PPTX_PREVIEW_MAX_SOURCE_BYTES) {
     throw new Error('PPTX preview supports files up to 25 MB')
+  }
+}
+
+function throwIfAborted(signal: AbortSignal): void {
+  if (signal.aborted) {
+    throw new DOMException('Preview aborted', 'AbortError')
+  }
+}
+
+function getRelationshipTypeName(type: string): string {
+  return type.trim().toLowerCase().split('/').at(-1) ?? ''
+}
+
+function stripExternalMediaRelationshipMap(rels: Map<string, { type: string; targetMode?: string }>): void {
+  for (const [id, rel] of rels) {
+    if (
+      rel.targetMode?.trim().toLowerCase() === EXTERNAL_TARGET_MODE &&
+      EXTERNAL_MEDIA_RELATIONSHIP_TYPES.has(getRelationshipTypeName(rel.type))
+    ) {
+      rels.delete(id)
+    }
+  }
+}
+
+function stripExternalMediaRelationships(presentation: PresentationData): void {
+  for (const slide of presentation.slides) {
+    stripExternalMediaRelationshipMap(slide.rels)
+  }
+
+  for (const layout of presentation.layouts.values()) {
+    stripExternalMediaRelationshipMap(layout.rels)
+  }
+
+  for (const master of presentation.masters.values()) {
+    stripExternalMediaRelationshipMap(master.rels)
   }
 }
 
@@ -135,6 +185,13 @@ const PptxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize }: PptxPr
         assertSourceSize(pptxData.byteLength)
         if (cancelled) return
 
+        throwIfAborted(controller.signal)
+        const pptxFiles = await parseZipLazyMedia(toArrayBuffer(pptxData), RECOMMENDED_ZIP_LIMITS)
+        throwIfAborted(controller.signal)
+        const presentation = buildPresentation(pptxFiles, { lazySlides: true })
+        stripExternalMediaRelationships(presentation)
+        throwIfAborted(controller.signal)
+
         viewer = new PptxViewer(container, {
           fitMode: 'contain',
           zoomPercent: PPTX_PREVIEW_DEFAULT_ZOOM,
@@ -172,18 +229,14 @@ const PptxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize }: PptxPr
         })
         viewerRef.current = viewer
 
-        await viewer.open(pptxData, {
-          renderMode: 'list',
-          listOptions: {
-            windowed: true,
-            batchSize: 4,
-            initialSlides: 3,
-            overscanViewport: 2
-          },
-          signal: controller.signal,
-          lazyMedia: true,
-          lazySlides: true
+        viewer.load(presentation)
+        await viewer.renderList({
+          windowed: true,
+          batchSize: 4,
+          initialSlides: 3,
+          overscanViewport: 2
         })
+        throwIfAborted(controller.signal)
         if (cancelled) return
 
         const nextPageCount = viewer.slideCount
