@@ -130,9 +130,15 @@ export class ProfileService extends BaseService {
     application.setProfilePathRegistry(roots.profileRoot, roots.credentialRoot)
   }
 
-  /** Restore the previous profile by re-activating it — convergent, so it reaches previous from any partial state. */
+  /** Restore the previous profile: release the target in reverse order, then acquire previous. */
   private async rollbackTo(previous: ProfileEntry | undefined, previousId: string): Promise<void> {
     try {
+      // Release the target's resources FIRST, in reverse order (writers before DbService).
+      // activateProfile alone is convergent but applies release-then-acquire per participant
+      // in FORWARD order, so DbService would reopen the previous DB before still-bound writers
+      // (JobManager) release — letting recovery-armed target jobs settle into the previous
+      // profile's DB. A full deactivate first drains those writers against the target's DB.
+      await application.deactivateProfile()
       if (previous) this.repointPaths(previous)
       await application.activateProfile({ profileId: previousId })
       // Symmetric with the happy path (step 4b): re-arm the restored profile's

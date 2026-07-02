@@ -105,6 +105,7 @@ describe('ProfileService.switchProfile', () => {
     expect(h.calls).toEqual([
       'deactivate',
       'repoint:/userData/Profiles/work',
+      'deactivate', // rollback releases the target in reverse order before re-acquiring previous
       'repoint:/userData', // rollback repoints to the default (previous) root
       'activate:default',
       'recover', // rollback re-arms the restored profile, symmetric with the happy path
