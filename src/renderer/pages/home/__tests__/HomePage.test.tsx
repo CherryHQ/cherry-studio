@@ -342,6 +342,7 @@ vi.mock('../Chat', () => ({
     paneOpen,
     showResourceListControls,
     locateMessageId,
+    resourcePaneCount,
     onCreateEmptyTopic,
     onNewTopic,
     onLocateMessageHandled,
@@ -352,6 +353,7 @@ vi.mock('../Chat', () => ({
     paneOpen?: boolean
     showResourceListControls?: boolean
     locateMessageId?: string
+    resourcePaneCount?: { label: string; count: number }
     onCreateEmptyTopic?: (payload?: { assistantId?: string | null }) => void | Promise<void>
     onNewTopic?: (payload?: { assistantId?: string | null }) => void | Promise<void>
     onLocateMessageHandled?: () => void
@@ -363,6 +365,11 @@ vi.mock('../Chat', () => ({
       <output data-testid="pane-open">{String(paneOpen)}</output>
       <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
       <output data-testid="locate-message-id">{locateMessageId ?? ''}</output>
+      {resourcePaneCount && (
+        <output data-testid="resource-pane-count">
+          {resourcePaneCount.label}:{resourcePaneCount.count}
+        </output>
+      )}
       {onNewTopic && (
         <button type="button" onClick={() => onNewTopic()}>
           New topic
@@ -613,7 +620,7 @@ describe('HomePage', () => {
     expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.right_pane_open', false)
   })
 
-  it('filters the classic-layout right topic panel to the current assistant', () => {
+  it('passes the current assistant topic count to the classic-layout top button', () => {
     homeMocks.preferenceValues.set('topic.layout', 'classic')
     homeMocks.classicLayoutTopics = [
       { ...historyTopic, id: 'topic-a' },
@@ -623,6 +630,7 @@ describe('HomePage', () => {
 
     render(<HomePage />)
 
+    expect(screen.getByTestId('resource-pane-count')).toHaveTextContent('对话:2')
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-assistant-id', 'assistant-1')
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
   })

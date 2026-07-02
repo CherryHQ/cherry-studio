@@ -4,8 +4,8 @@ export {
   ResourcePaneLocateOpener,
   ResourcePanePanel,
   ResourcePaneProvider,
-  ResourcePaneShortcut,
   ResourcePaneTab,
   useResourcePane
 } from './resourcePane'
+export { ResourcePaneCountButton, type ResourcePaneCountButtonProps } from './ResourcePaneCountButton'
 export { Shell, useOptionalShellState, useShellActions, useShellState } from './Shell'

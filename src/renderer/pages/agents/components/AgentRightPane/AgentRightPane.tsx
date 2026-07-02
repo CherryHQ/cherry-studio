@@ -17,7 +17,6 @@ import {
   ResourcePaneLocateOpener,
   ResourcePanePanel,
   ResourcePaneProvider,
-  ResourcePaneShortcut,
   ResourcePaneTab,
   Shell,
   useResourcePane,
@@ -905,7 +904,6 @@ function AgentRightPaneShortcuts() {
 
   return (
     <>
-      <ResourcePaneShortcut />
       {hasFiles && (
         <Shell.TabShortcut
           tab="files"

@@ -6,7 +6,11 @@ import {
   EmptyState
 } from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
-import type { ResourcePaneConfig } from '@renderer/components/chat/panes/Shell'
+import {
+  type ResourcePaneConfig,
+  ResourcePaneCountButton,
+  type ResourcePaneCountButtonProps
+} from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
 import { AgentHomeComposer, MissingAgentHomeComposer } from '@renderer/components/composer/variants/AgentComposer'
@@ -89,6 +93,7 @@ interface AgentChatProps {
   replacingDraftWorkspace?: boolean
   replacingSessionWorkspace?: boolean
   resourcePane?: ResourcePaneConfig | null
+  resourcePaneCount?: ResourcePaneCountButtonProps
   resourcePaneRevealRequest?: ResourceListRevealRequest
   sessionPaneOpen?: boolean
   onSessionPaneOpenChange?: (open: boolean) => void
@@ -124,6 +129,7 @@ const AgentChat = ({
   replacingDraftWorkspace,
   replacingSessionWorkspace,
   resourcePane,
+  resourcePaneCount,
   resourcePaneRevealRequest,
   sessionPaneOpen,
   onSessionPaneOpenChange
@@ -161,6 +167,7 @@ const AgentChat = ({
   const draftConversationKey = draftAgentConversation ? getDraftConversationKey(draftAgentConversation) : null
   const resourcePaneTopRightTool = resourcePane ? (
     <>
+      {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} />}
       <AgentRightPane.Shortcuts />
       <AgentRightPane.FilesToggle />
     </>
@@ -477,6 +484,7 @@ const AgentChat = ({
       onLocateMessageHandled={onLocateMessageHandled}
       onPaneCollapse={onPaneCollapse}
       resourcePane={resourcePane}
+      resourcePaneCount={resourcePaneCount}
       resourcePaneRevealRequest={resourcePaneRevealRequest}
       sessionPaneOpen={sessionPaneOpen}
       onSessionPaneOpenChange={onSessionPaneOpenChange}
@@ -535,6 +543,7 @@ interface AgentChatSessionFrameProps {
   onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   workspaceChanging?: boolean
   resourcePane?: ResourcePaneConfig | null
+  resourcePaneCount?: ResourcePaneCountButtonProps
   resourcePaneRevealRequest?: ResourceListRevealRequest
   sessionPaneOpen?: boolean
   onSessionPaneOpenChange?: (open: boolean) => void
@@ -569,6 +578,7 @@ const AgentChatSessionFrame = ({
   onWorkspaceChange,
   workspaceChanging,
   resourcePane,
+  resourcePaneCount,
   resourcePaneRevealRequest,
   sessionPaneOpen,
   onSessionPaneOpenChange
@@ -698,6 +708,7 @@ const AgentChatSessionFrame = ({
         }
         topRightTool={
           <>
+            {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} />}
             <AgentRightPane.Shortcuts />
             <AgentRightPane.FilesToggle />
           </>

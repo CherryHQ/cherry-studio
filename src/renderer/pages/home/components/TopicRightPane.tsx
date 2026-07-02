@@ -5,7 +5,6 @@ import {
   ResourcePaneLocateOpener,
   ResourcePanePanel,
   ResourcePaneProvider,
-  ResourcePaneShortcut,
   ResourcePaneTab,
   Shell,
   useResourcePane,
@@ -237,7 +236,6 @@ function TopicRightPaneShortcuts({ topicId }: { topicId?: string }) {
 
   return (
     <>
-      <ResourcePaneShortcut />
       {hasBranchPanel && (
         <Shell.TabShortcut
           tab="branch"

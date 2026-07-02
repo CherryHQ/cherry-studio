@@ -288,6 +288,7 @@ vi.mock('../AgentChat', () => ({
     locateMessageId,
     pane,
     paneOpen,
+    resourcePaneCount,
     resourcePane,
     showResourceListControls,
     sessionPaneOpen,
@@ -318,6 +319,7 @@ vi.mock('../AgentChat', () => ({
     locateMessageId?: string
     pane?: ReactNode
     paneOpen?: boolean
+    resourcePaneCount?: { label: string; count: number }
     resourcePane?: { node?: ReactNode; label?: string } | null
     showResourceListControls?: boolean
     sessionPaneOpen?: boolean
@@ -336,6 +338,11 @@ vi.mock('../AgentChat', () => ({
       <output data-testid="pane-open">{String(paneOpen)}</output>
       <output data-testid="session-pane-open">{String(sessionPaneOpen)}</output>
       <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
+      {resourcePaneCount && (
+        <output data-testid="resource-pane-count">
+          {resourcePaneCount.label}:{resourcePaneCount.count}
+        </output>
+      )}
       <button type="button" onClick={() => void onDraftWorkspaceChange?.('workspace-next')}>
         Select workspace
       </button>
@@ -568,7 +575,7 @@ describe('AgentPage', () => {
     expect(agentPageMocks.setClassicLayoutRightPaneOpen).toHaveBeenCalledWith(false)
   })
 
-  it('filters the classic-layout right session panel to the current agent', () => {
+  it('passes the current agent task count to the classic-layout top button', () => {
     agentPageMocks.sessionLayout = 'classic'
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
@@ -580,6 +587,7 @@ describe('AgentPage', () => {
 
     render(<AgentPage />)
 
+    expect(screen.getByTestId('resource-pane-count')).toHaveTextContent('任务:2')
     expect(screen.getByTestId('session-resource-panel')).toHaveAttribute('data-agent-id', 'agent-a')
     expect(screen.getByTestId('session-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
   })
