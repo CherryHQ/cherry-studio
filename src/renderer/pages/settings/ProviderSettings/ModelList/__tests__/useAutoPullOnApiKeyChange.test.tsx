@@ -194,6 +194,23 @@ describe('useAutoPullOnApiKeyChange', () => {
     expect(onTrigger).not.toHaveBeenCalled()
   })
 
+  it('waits for models to finish loading before deciding first-render pull reconcile', () => {
+    const onTrigger = vi.fn()
+    // api-keys resolve first, models are still loading.
+    useProviderApiKeysMock.mockReturnValue(apiKeys('sk-one'))
+    useModelsMock.mockReturnValue({ models: [], isLoading: true })
+
+    const { rerender } = renderHook(() => useAutoPullOnApiKeyChange('openai', onTrigger))
+
+    expect(onTrigger).not.toHaveBeenCalled()
+
+    // models resolve later — the provider already has local models.
+    useModelsMock.mockReturnValue({ models: [{ id: 'openai::gpt-4o' }], isLoading: false })
+    rerender()
+
+    expect(onTrigger).not.toHaveBeenCalled()
+  })
+
   describe('key-set transitions (models already present)', () => {
     beforeEach(() => {
       useModelsMock.mockReturnValue({ models: [{ id: 'openai::gpt-4o' }] })

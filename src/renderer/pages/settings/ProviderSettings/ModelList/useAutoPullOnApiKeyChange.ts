@@ -16,7 +16,7 @@ import { providerNeedsApiKeyForModelSync } from './providerModelSyncRequirements
 export function useAutoPullOnApiKeyChange(providerId: string, onTrigger: () => void | Promise<void>) {
   const { provider } = useProvider(providerId)
   const { data: apiKeysData } = useProviderApiKeys(providerId)
-  const { models } = useModels({ providerId })
+  const { models, isLoading } = useModels({ providerId })
 
   const enabledKeySignature = useMemo(
     () =>
@@ -47,10 +47,7 @@ export function useAutoPullOnApiKeyChange(providerId: string, onTrigger: () => v
   }, [onTrigger])
 
   useEffect(() => {
-    // Until provider/api-keys resolve the signature is a cold-cache placeholder;
-    // recording that as the baseline would make the later undefined→loaded
-    // transition look like a user-initiated change and auto-fire the pull.
-    if (!provider || apiKeysData === undefined) return
+    if (!provider || apiKeysData === undefined || isLoading) return
     if (lastSignatureRef.current === null) {
       lastSignatureRef.current = changeSignature
       if (models.length === 0 && requiresApiKeyForModelSync && enabledKeySignature) {
@@ -66,5 +63,13 @@ export function useAutoPullOnApiKeyChange(providerId: string, onTrigger: () => v
     if (requiresApiKeyForModelSync && !enabledKeySignature) return
     if (models.length === 0 && !requiresApiKeyForModelSync) return
     void onTriggerRef.current()
-  }, [apiKeysData, changeSignature, enabledKeySignature, models.length, provider, requiresApiKeyForModelSync])
+  }, [
+    apiKeysData,
+    changeSignature,
+    enabledKeySignature,
+    isLoading,
+    models.length,
+    provider,
+    requiresApiKeyForModelSync
+  ])
 }
