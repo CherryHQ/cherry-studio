@@ -215,7 +215,13 @@ describe('TranslateHistory', () => {
     render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
 
     fireEvent.click(screen.getByText('hello'))
+    const actionLabels = screen
+      .getAllByRole('button')
+      .map((button) => button.getAttribute('aria-label') ?? button.textContent)
+    const detailStarIndex = actionLabels.lastIndexOf('translate.history.filter.starred')
+    expect(actionLabels.indexOf('translate.history.delete')).toBeLessThan(detailStarIndex)
     const copyTargetButton = screen.getByRole('button', { name: 'translate.history.copy_target' })
+    expect(copyTargetButton).toHaveClass('text-black')
     fireEvent.click(copyTargetButton)
 
     await waitFor(() => expect(writeTextMock).toHaveBeenCalledWith('你好'))
