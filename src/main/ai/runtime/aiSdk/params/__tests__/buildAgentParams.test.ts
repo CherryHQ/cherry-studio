@@ -1,10 +1,12 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { StopCondition, ToolSet } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import { makeModel } from '../../../../__tests__/fixtures'
 import type { CallOverrides } from '../../../../types/requests'
-import { applyCallOverrides, composeStopWhen } from '../buildAgentParams'
+import type { AgentOptions } from '../../loop'
+import { applyCallOverrides, applyResponsesInstructions, composeStopWhen } from '../buildAgentParams'
 
 /**
  * Covers the first-class per-request override merge that replaced the old
@@ -68,6 +70,47 @@ describe('applyCallOverrides', () => {
       makeModel()
     )
     expect(result.providerOptions.anthropic).toEqual({ existing: 1, shared: 'override', added: 2 })
+  })
+})
+
+describe('applyResponsesInstructions', () => {
+  const optionsWith = (providerOptions?: ProviderOptions): AgentOptions =>
+    ({ maxRetries: 0, ...(providerOptions && { providerOptions }) }) as AgentOptions
+
+  it('mirrors the system prompt into openai.instructions for Responses-endpoint models', () => {
+    const options = optionsWith()
+    applyResponsesInstructions(options, 'YOU-ARE-REPRO-BOT', ENDPOINT_TYPE.OPENAI_RESPONSES)
+    expect(options.providerOptions?.openai?.instructions).toBe('YOU-ARE-REPRO-BOT')
+  })
+
+  it('merges into an existing openai providerOptions block without clobbering siblings', () => {
+    const options = optionsWith({ openai: { reasoningEffort: 'low' } })
+    applyResponsesInstructions(options, 'SYS', ENDPOINT_TYPE.OPENAI_RESPONSES)
+    expect(options.providerOptions?.openai).toMatchObject({ reasoningEffort: 'low', instructions: 'SYS' })
+  })
+
+  it('does not overwrite an instructions value the user already set', () => {
+    const options = optionsWith({ openai: { instructions: 'USER-SET' } })
+    applyResponsesInstructions(options, 'SYS', ENDPOINT_TYPE.OPENAI_RESPONSES)
+    expect(options.providerOptions?.openai?.instructions).toBe('USER-SET')
+  })
+
+  it('does nothing for non-Responses endpoints (Chat Completions)', () => {
+    const options = optionsWith()
+    applyResponsesInstructions(options, 'SYS', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    expect(options.providerOptions).toBeUndefined()
+  })
+
+  it('does nothing when the endpoint is undefined', () => {
+    const options = optionsWith()
+    applyResponsesInstructions(options, 'SYS', undefined)
+    expect(options.providerOptions).toBeUndefined()
+  })
+
+  it('does nothing when there is no system prompt', () => {
+    const options = optionsWith()
+    applyResponsesInstructions(options, undefined, ENDPOINT_TYPE.OPENAI_RESPONSES)
+    expect(options.providerOptions).toBeUndefined()
   })
 })
 

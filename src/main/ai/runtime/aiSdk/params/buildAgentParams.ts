@@ -4,7 +4,7 @@ import type { AiPlugin } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@main/ai/constants'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
 import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
@@ -113,6 +113,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
 
   const system = await assembleSystemPrompt({ assistant, model, tools, deferredEntries })
   const options = buildAgentOptions(scope, contributions.stopConditions)
+  applyResponsesInstructions(options, system, endpointType)
 
   return {
     sdkConfig,
@@ -123,6 +124,27 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     hookParts: contributions.hookParts,
     nativeFileSupport,
     fileAttachments
+  }
+}
+
+/**
+ * OpenAI Responses API expects the system prompt in the top-level `instructions`
+ * field. The AI SDK only turns `system` into an input message and leaves
+ * `instructions` empty, which lets relay servers inject their own default system
+ * prompt and override the user's. Mirror the assembled system prompt into
+ * `providerOptions.openai.instructions` for Responses-endpoint models, unless the
+ * user already set it explicitly. (#16008)
+ */
+export function applyResponsesInstructions(
+  options: AgentOptions,
+  system: string | undefined,
+  endpointType: EndpointType | undefined
+): void {
+  if (!system || endpointType !== ENDPOINT_TYPE.OPENAI_RESPONSES) return
+  const providerOptions = (options.providerOptions ??= {})
+  const openai = (providerOptions.openai ??= {})
+  if (openai.instructions == null) {
+    openai.instructions = system
   }
 }
 
