@@ -1097,6 +1097,20 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.sendDisabled).toBe(false)
   })
 
+  it('does not submit a file-only draft before the file token is reflected in the editor', async () => {
+    mocks.files = [{ fileTokenSourceId: 'src-1', name: 'doc.pdf', path: '/tmp/doc.pdf' } as any]
+    const onSend = vi.fn().mockResolvedValue(undefined)
+
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: '', tokens: [] })
+    })
+
+    expect(onSend).not.toHaveBeenCalled()
+    expect(mocks.toastError).not.toHaveBeenCalledWith('chat.input.send_failed')
+  })
+
   it('keeps a steered follow-up in the dock and toasts when its manual send fails', async () => {
     mocks.topicPending = true
     const onSend = vi.fn().mockResolvedValue(undefined)
