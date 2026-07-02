@@ -449,12 +449,14 @@
         "context": "上下文",
         "no_tasks": "暂无活动任务",
         "selected_tool": "选中工具",
+        "session_info": "会话",
         "task_count": "{{completed}} / {{total}} 已完成",
         "tasks": "任务",
         "tools_active": "活跃",
         "tools_done": "完成",
         "tools_failed": "失败",
         "tools_total": "总数",
+        "turn_count": "{{count}} 轮",
         "workspace": "工作区"
       },
       "tabs": {

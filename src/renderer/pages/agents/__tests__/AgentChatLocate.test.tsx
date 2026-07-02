@@ -350,7 +350,7 @@ describe('AgentChat locate pending message', () => {
       />
     )
 
-    expect(agentSessionPartsMocks.loadOlder).not.toHaveBeenCalled()
+    expect(agentSessionPartsMocks.loadOlder).toHaveBeenCalledTimes(1)
     expect(agentSessionPartsMocks.locateAgentMessageInList).not.toHaveBeenCalled()
     expect(onLocateMessageHandled).not.toHaveBeenCalled()
   })
@@ -376,7 +376,7 @@ describe('AgentChat locate pending message', () => {
       />
     )
 
-    await waitFor(() => expect(agentSessionPartsMocks.loadOlder).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(agentSessionPartsMocks.loadOlder).toHaveBeenCalledTimes(2))
     expect(onLocateMessageHandled).not.toHaveBeenCalled()
 
     agentSessionPartsMocks.result = {
