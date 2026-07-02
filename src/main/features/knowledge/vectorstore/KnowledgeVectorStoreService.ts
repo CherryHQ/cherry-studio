@@ -13,10 +13,10 @@ import {
   getKnowledgeVectorStoreFilePath,
   getKnowledgeVectorStoreFilePathSync
 } from '../utils/storage/pathStorage'
+import { openBetterSqlite3IndexDriver } from './indexStore/BetterSqlite3Driver'
+import { betterSqlite3VectorIndex } from './indexStore/BetterSqlite3VectorIndex'
 import { ensureIndexMeta, hasAnyMaterial, readIndexSchemaVersion } from './indexStore/indexMeta'
 import { KnowledgeIndexStore } from './indexStore/KnowledgeIndexStore'
-import { openLibsqlIndexDriver } from './indexStore/LibsqlDriver'
-import { libsqlVectorIndex } from './indexStore/LibsqlVectorIndex'
 import {
   createKnowledgeIndexSchema,
   KNOWLEDGE_INDEX_SCHEMA_VERSION,
@@ -48,9 +48,9 @@ function assertVectorStoreReadyBase(base: KnowledgeBase): asserts base is Comple
 @ServicePhase(Phase.WhenReady)
 export class KnowledgeVectorStoreService extends BaseService {
   // Caches the in-flight open promise, not the resolved store, so concurrent
-  // getIndexStore calls for the same base share one open (one libsql client)
-  // instead of racing — the loser of a "resolve then set" race would otherwise
-  // leak an orphaned store that no one ever closes.
+  // getIndexStore calls for the same base share one open (one better-sqlite3
+  // connection) instead of racing — the loser of a "resolve then set" race would
+  // otherwise leak an orphaned store that no one ever closes.
   private instanceCache = new Map<string, Promise<KnowledgeIndexStore>>()
 
   /** Open (or reuse) the base's index store, ensuring its schema exists. */
@@ -136,7 +136,7 @@ export class KnowledgeVectorStoreService extends BaseService {
 
   private async openIndexStore(base: CompletedKnowledgeBase): Promise<KnowledgeIndexStore> {
     const dbPath = await getKnowledgeVectorStoreFilePath(base.id)
-    const driver = await openLibsqlIndexDriver(dbPath)
+    const driver = await openBetterSqlite3IndexDriver(dbPath)
     try {
       // An index.sqlite from an older schema layout cannot be migrated in place —
       // `CREATE ... IF NOT EXISTS` never retrofits a new column/trigger onto an
@@ -164,10 +164,10 @@ export class KnowledgeVectorStoreService extends BaseService {
       // mounts empty; reportInvisibleIndexContents below makes that state loud.
       await ensureIndexMeta(driver, { baseId: base.id })
       await this.reportInvisibleIndexContents(driver, base.id)
-      return new KnowledgeIndexStore(driver, libsqlVectorIndex)
+      return new KnowledgeIndexStore(driver, betterSqlite3VectorIndex)
     } catch (error) {
-      // Close the driver opened above so a failed open never leaks the libsql
-      // file handle (which on Windows would later block deleting the base dir).
+      // Close the driver opened above so a failed open never leaks the index file
+      // handle (which on Windows would later block deleting the base dir).
       await driver.close()
       throw error
     }
@@ -191,7 +191,7 @@ export class KnowledgeVectorStoreService extends BaseService {
       return
     }
 
-    const items = await knowledgeItemService.getItemsByBaseId(baseId)
+    const items = knowledgeItemService.getItemsByBaseId(baseId)
     if (items.some((item) => isIndexableKnowledgeItem(item) && item.status === 'completed')) {
       logger.error(
         'Index store mounted with zero materials while the base has completed items — the index file was deleted, blanked or replaced; search will return empty results until the base is reindexed',

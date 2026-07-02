@@ -290,7 +290,7 @@ Restore 允许 failed base，也允许 completed base；即使 completed source 
 1. 拒绝 failed base。
 2. 拒绝没有 searchable token 的 query。
 3. 使用 base embedding model 生成 query embedding。
-4. 查询 libSQL vector store。
+4. 查询 sqlite-vec vector store。
 5. 过滤 missing / other-base / deleting source item 的结果。
 6. 如果配置了 rerank model，执行 rerank。
 7. 应用 threshold 并写入 rank。

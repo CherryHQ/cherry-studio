@@ -41,7 +41,7 @@ export async function read(
   id: FileEntryId,
   options?: TextReadOptions | Base64ReadOptions | BinaryReadOptions
 ): Promise<ReadResult<string | Uint8Array>> {
-  const entry = await deps.fileEntryService.getById(id)
+  const entry = deps.fileEntryService.getById(id)
   const physicalPath = resolvePhysicalPath(entry)
   return observeExternalAccess(deps, entry, physicalPath, () => readResolved(physicalPath, options))
 }

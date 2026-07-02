@@ -52,7 +52,7 @@ export function createIndexDocumentsJobHandler(
     async execute(ctx) {
       ctx.signal.throwIfAborted()
       // Validate the target before side effects; missing/deleting items can happen after async delete.
-      const input = await loadIndexDocumentsInputOrSkip(ctx)
+      const input = loadIndexDocumentsInputOrSkip(ctx)
       if (!input) {
         return
       }
@@ -60,8 +60,8 @@ export function createIndexDocumentsJobHandler(
 
       // Mark reading before file/network IO so the UI reflects the current long-running phase.
       reportKnowledgeProgress(ctx, 0, { stage: 'reading', currentFile: 0, totalFiles: 1 })
-      await knowledgeLockManager.withBaseMutationLock(ctx.input.baseId, async () => {
-        await knowledgeItemService.updateStatus(ctx.input.itemId, 'reading')
+      await knowledgeLockManager.withBaseMutationLock(ctx.input.baseId, () => {
+        knowledgeItemService.updateStatus(ctx.input.itemId, 'reading')
       })
 
       // Capture a url's or note's snapshot on first index (a url fetches outside
@@ -106,14 +106,14 @@ export function createIndexDocumentsJobHandler(
   }
 }
 
-async function loadIndexDocumentsInputOrSkip(
+function loadIndexDocumentsInputOrSkip(
   ctx: JobContext<KnowledgeIndexDocumentsPayload>
-): Promise<LoadedIndexDocumentsInput | null> {
+): LoadedIndexDocumentsInput | null {
   const { baseId, itemId } = ctx.input
 
   try {
-    const base = await knowledgeBaseService.getById(baseId)
-    const item = await knowledgeItemService.getById(itemId)
+    const base = knowledgeBaseService.getById(baseId)
+    const item = knowledgeItemService.getById(itemId)
 
     if (item.status === 'deleting') {
       logger.info('Skipping index-documents for deleting item', { baseId, itemId, jobId: ctx.jobId })
@@ -225,16 +225,14 @@ async function ensureSnapshot(
   const markdown = await spec.produce(ctx.signal)
 
   return await knowledgeLockManager.withBaseMutationLock(ctx.input.baseId, async () => {
-    const latest = await knowledgeItemService.getById(ctx.input.itemId)
+    const latest = knowledgeItemService.getById(ctx.input.itemId)
     if (latest.type !== spec.type || latest.data.relativePath) {
       // Another job captured the snapshot (or the item changed) while we produced.
       return isIndexableKnowledgeItem(latest) ? latest : item
     }
-    const reservedPaths = collectKnowledgeReservedRelativePaths(
-      await knowledgeItemService.getItemsByBaseId(ctx.input.baseId)
-    )
+    const reservedPaths = collectKnowledgeReservedRelativePaths(knowledgeItemService.getItemsByBaseId(ctx.input.baseId))
     const relativePath = await spec.capture(markdown, reservedPaths)
-    const updated = await knowledgeItemService.updateSnapshotRelativePath(ctx.input.itemId, spec.type, relativePath)
+    const updated = knowledgeItemService.updateSnapshotRelativePath(ctx.input.itemId, spec.type, relativePath)
     return isIndexableKnowledgeItem(updated) ? updated : item
   })
 }
@@ -302,7 +300,7 @@ async function writeItemMaterial(
 
   await knowledgeLockManager.withBaseMutationLock(baseId, async () => {
     ctx.signal.throwIfAborted()
-    const latestItem = await knowledgeItemService.getById(itemId)
+    const latestItem = knowledgeItemService.getById(itemId)
     if (latestItem.status === 'deleting') {
       logger.info('Skipping material rebuild for deleting item', { baseId, itemId, jobId: ctx.jobId })
       return
@@ -311,6 +309,6 @@ async function writeItemMaterial(
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
     const store = await vectorStoreService.getIndexStore(base)
     await store.rebuildMaterial(itemId, input)
-    await knowledgeItemService.updateStatus(itemId, 'completed')
+    knowledgeItemService.updateStatus(itemId, 'completed')
   })
 }
