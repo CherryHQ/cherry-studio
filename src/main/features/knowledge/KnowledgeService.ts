@@ -44,12 +44,12 @@ import {
   toKnowledgeItemId,
   toKnowledgeItemIds
 } from './types'
-import { embedKnowledgeQuery } from './utils/indexing/embed'
-import { toMaterialRelativePath } from './utils/indexing/materialFields'
-import { rerankKnowledgeSearchResults } from './utils/indexing/rerank'
-import { classifyKnowledgeItemSource } from './utils/items'
-import { applyRelevanceThreshold, getInitialSearchScoreKind, withSearchRanks } from './utils/search'
-import { getKnowledgeBaseFilePath } from './utils/storage/pathStorage'
+import { embedKnowledgeQuery } from './indexing/embed'
+import { toMaterialRelativePath } from './indexing/materialFields'
+import { rerankKnowledgeSearchResults } from './indexing/rerank'
+import { classifyKnowledgeItemSource } from './items'
+import { applyRelevanceThreshold, getInitialSearchScoreKind, withSearchRanks } from './query/search'
+import { getKnowledgeBaseFilePath } from './storage/pathStorage'
 import type { KnowledgeIndexStore } from './vectorstore/indexStore/KnowledgeIndexStore'
 import type { KnowledgeIndexSearchMatch } from './vectorstore/indexStore/model'
 

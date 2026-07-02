@@ -2,7 +2,7 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import path from 'node:path'
 
-import { stripOkfFrontmatter } from '@main/features/knowledge/utils/sources/okfFrontmatter'
+import { stripOkfFrontmatter } from '@main/features/knowledge/sources/okfFrontmatter'
 import { hashEmbeddingText } from '@main/features/knowledge/vectorstore/indexStore/hashing'
 import { KnowledgeIndexStore } from '@main/features/knowledge/vectorstore/indexStore/KnowledgeIndexStore'
 import { encodeVectorBlob } from '@main/features/knowledge/vectorstore/indexStore/vectorBlob'
@@ -73,7 +73,7 @@ function createTempRoot() {
 }
 
 // Mirrors the runtime vector store layout in
-// src/main/features/knowledge/utils/storage/pathStorage.ts: {root}/{baseId}/.cherry/index.sqlite.
+// src/main/features/knowledge/storage/pathStorage.ts: {root}/{baseId}/.cherry/index.sqlite.
 // Read-back assertions use this so they fail if the migrator ever writes to a path the runtime
 // would not open — the exact bug this regression guards against.
 function runtimeVectorStorePath(baseId: string): string {

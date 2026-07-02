@@ -98,7 +98,7 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
   knowledgeItemService: { getItemsByBaseId: getItemsByBaseIdMock }
 }))
 
-vi.mock('../../utils/storage/pathStorage', () => ({
+vi.mock('../../storage/pathStorage', () => ({
   getKnowledgeVectorStoreFilePathSync: getPathSyncMock,
   deleteKnowledgeBaseDir: deleteDirMock
 }))

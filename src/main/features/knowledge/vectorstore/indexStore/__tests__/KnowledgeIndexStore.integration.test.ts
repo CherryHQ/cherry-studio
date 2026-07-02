@@ -4,7 +4,7 @@ import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { splitTextWithOffsets } from '../../../utils/indexing/splitter'
+import { splitTextWithOffsets } from '../../../indexing/splitter'
 import { openBetterSqlite3IndexDriver } from '../BetterSqlite3Driver'
 import { betterSqlite3VectorIndex } from '../BetterSqlite3VectorIndex'
 import { hashEmbeddingText } from '../hashing'

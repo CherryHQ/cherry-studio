@@ -10,7 +10,7 @@ import { MarkdownReader } from '@vectorstores/readers/markdown'
 import { PDFReader } from '@vectorstores/readers/pdf'
 import { TextFileReader } from '@vectorstores/readers/text'
 
-import { getKnowledgeBaseFilePath } from '../utils/storage/pathStorage'
+import { getKnowledgeBaseFilePath } from '../storage/pathStorage'
 import { DocReader } from './files/DocReader'
 import { DraftsExportReader } from './files/DraftsExportReader'
 import { EpubReader } from './files/EpubReader'

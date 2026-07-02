@@ -1,7 +1,7 @@
 import type { PathReadability } from '@main/utils/file'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
-import type { ContainerKnowledgeItem, IndexableKnowledgeItem } from '../types/items'
+import type { ContainerKnowledgeItem, IndexableKnowledgeItem } from './types/items'
 import { probeKnowledgeFile, probeKnowledgeSourcePath } from './storage/pathStorage'
 
 export function isIndexableKnowledgeItem(item: KnowledgeItem): item is IndexableKnowledgeItem {

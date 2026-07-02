@@ -7,7 +7,7 @@ import {
   type KnowledgeItemType
 } from '@shared/data/types/knowledge'
 
-import type { IndexableKnowledgeItem } from '../../types/items'
+import type { IndexableKnowledgeItem } from '../types/items'
 import { isContainerKnowledgeItem, isIndexableKnowledgeItem } from '../items'
 import { collectKnowledgeReservedRelativePaths } from '../storage/pathStorage'
 import { expandDirectoryOwnerToTree, type ExpandedDirectoryNode } from './directory'

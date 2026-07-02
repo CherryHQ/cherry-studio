@@ -18,9 +18,9 @@ import {
   toKnowledgeBaseId,
   toKnowledgeItemId
 } from '../types'
-import { deleteKnowledgeItemVectors } from '../utils/cleanup/vectorCleanup'
-import { canKnowledgeItemRebuildSource, isContainerKnowledgeItem } from '../utils/items'
-import { deleteKnowledgeItemFilesBestEffort } from '../utils/storage/pathStorage'
+import { deleteKnowledgeItemVectors } from '../cleanup/vectorCleanup'
+import { canKnowledgeItemRebuildSource, isContainerKnowledgeItem } from '../items'
+import { deleteKnowledgeItemFilesBestEffort } from '../storage/pathStorage'
 import type { KnowledgeReindexSubtreePayload } from './jobTypes'
 import { narrowKnowledgeJobInput } from './utils/jobInput'
 

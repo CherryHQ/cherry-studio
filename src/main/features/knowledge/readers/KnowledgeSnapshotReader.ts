@@ -2,8 +2,8 @@ import { read } from '@main/utils/file'
 import type { KnowledgeItemOf, KnowledgeSourceMetadata } from '@shared/data/types/knowledge'
 import { Document } from '@vectorstores/core'
 
-import { stripOkfFrontmatter } from '../utils/sources/okfFrontmatter'
-import { getKnowledgeBaseFilePath } from '../utils/storage/pathStorage'
+import { stripOkfFrontmatter } from '../sources/okfFrontmatter'
+import { getKnowledgeBaseFilePath } from '../storage/pathStorage'
 
 /**
  * Read a url or note item from its captured on-disk snapshot — never the network

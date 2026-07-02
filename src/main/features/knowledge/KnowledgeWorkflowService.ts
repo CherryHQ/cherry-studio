@@ -32,11 +32,11 @@ import {
   toKnowledgeItemId,
   toKnowledgeItemIds
 } from './types'
-import { resolveKnowledgeAddConflicts } from './utils/addConflicts'
-import { markUnscheduledKnowledgeItemsFailed } from './utils/cleanup/statusCleanup'
-import { cancelActiveKnowledgeSubtreeJobs, purgeKnowledgeSubtreeWithinLock } from './utils/cleanup/subtreePurge'
-import { isContainerKnowledgeItem } from './utils/items'
-import { planKnowledgeItemSource } from './utils/sources/sourcePlanning'
+import { resolveKnowledgeAddConflicts } from './ingestion/addConflicts'
+import { markUnscheduledKnowledgeItemsFailed } from './ingestion/statusCleanup'
+import { cancelActiveKnowledgeSubtreeJobs, purgeKnowledgeSubtreeWithinLock } from './cleanup/subtreePurge'
+import { isContainerKnowledgeItem } from './items'
+import { planKnowledgeItemSource } from './sources/sourcePlanning'
 import {
   assertKnowledgeFileTargetAvailable,
   collectKnowledgeReservedRelativePaths,
@@ -47,7 +47,7 @@ import {
   getProcessedMarkdownRelativePath,
   needsProcessedArtifactReservation,
   reserveImportedFileRelativePath
-} from './utils/storage/pathStorage'
+} from './storage/pathStorage'
 
 const logger = loggerService.withContext('Knowledge:WorkflowService')
 // Keep poll jobs delayed enough to avoid hot-looping while remote processors are still working.
