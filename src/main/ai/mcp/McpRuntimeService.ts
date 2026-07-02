@@ -6,7 +6,16 @@ import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { createInMemoryMcpServer } from '@main/ai/mcp/servers/factory'
-import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import {
+  BaseService,
+  DependsOn,
+  Emitter,
+  type Event,
+  Injectable,
+  Phase,
+  type ProfileActivatable,
+  ServicePhase
+} from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv } from '@main/utils/commandResolver'
@@ -174,7 +183,7 @@ function withCache<T extends unknown[], R>(
 @Injectable('McpRuntimeService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['WindowManager', 'McpPackageService'])
-export class McpRuntimeService extends BaseService {
+export class McpRuntimeService extends BaseService implements ProfileActivatable {
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
   private activeToolCalls: Map<string, AbortController> = new Map()
@@ -193,6 +202,20 @@ export class McpRuntimeService extends BaseService {
   }
 
   protected async onStop(): Promise<void> {
+    await this.teardownClients()
+  }
+
+  /** Re-arm after a switch: new clients connect on demand for the new profile's MCP servers. */
+  onProfileActivate(): void {
+    this.stopping = false
+  }
+
+  /** Close the previous profile's MCP client connections (its servers/oauth are profile-scoped). */
+  async onProfileDeactivate(): Promise<void> {
+    await this.teardownClients()
+  }
+
+  private async teardownClients(): Promise<void> {
     this.stopping = true
     this.abortActiveToolCalls()
     await this.waitForPendingClients()
