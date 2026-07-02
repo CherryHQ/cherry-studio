@@ -4,11 +4,13 @@ import { isDev } from '@main/core/platform'
 import { session } from 'electron'
 import { join } from 'path'
 
+import { registerMainNetworkDevtoolsOrigin } from './mainNetworkDevtoolsAccess'
+
 const logger = loggerService.withContext('devtools')
 
 /**
  * Install the development-only DevTools extensions (React DevTools + the
- * bundled DataApi DevTools) into the default session.
+ * bundled Cherry DevTools panels) into the default session.
  *
  * Must be called after the `app` `ready` event, and — per Electron's contract —
  * ideally before the first page loads so the extensions attach to it. Callers
@@ -18,7 +20,13 @@ const logger = loggerService.withContext('devtools')
  */
 export async function installDevtoolsExtensions(): Promise<void> {
   if (!isDev) return
-  await Promise.all([installReactDevtools(), installDataApiDevtools()])
+  await Promise.allSettled([
+    installReactDevtools(),
+    installBundledDevtools('data-api', 'DataApi'),
+    installBundledDevtools('main-network', 'Main Network', (extension) => {
+      registerMainNetworkDevtoolsOrigin(`chrome-extension://${extension.id}`)
+    })
+  ])
 }
 
 async function installReactDevtools() {
@@ -35,13 +43,18 @@ async function installReactDevtools() {
   }
 }
 
-async function installDataApiDevtools() {
+async function installBundledDevtools(
+  directoryName: string,
+  displayName: string,
+  onInstalled?: (extension: { id: string; name: string }) => void
+) {
   try {
-    const dataApiDevtoolsPath = join(application.getPath('app.root.resources'), 'devtools', 'data-api')
-    // Loads into the default session, so every default-session BrowserWindow can inspect DataApi activity.
-    const { name } = await session.defaultSession.extensions.loadExtension(dataApiDevtoolsPath)
-    logger.info(`Added Extension: ${name}`)
+    const devtoolsPath = join(application.getPath('app.root.resources'), 'devtools', directoryName)
+    // Loads into the default session, so every default-session BrowserWindow can inspect bundled panels.
+    const extension = await session.defaultSession.extensions.loadExtension(devtoolsPath)
+    onInstalled?.({ id: extension.id, name: extension.name })
+    logger.info(`Added Extension: ${extension.name}`)
   } catch (error) {
-    logger.error('Failed to install DataApi DevTools extension', error as Error)
+    logger.error(`Failed to install ${displayName} DevTools extension`, error as Error)
   }
 }
