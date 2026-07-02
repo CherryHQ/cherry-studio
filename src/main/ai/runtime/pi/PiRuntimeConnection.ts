@@ -103,7 +103,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // pi has no native permission modes; the approval extension enforces them.
     // `plan` is unsupported for pi (deferred) — it falls through to gate-all.
     this.permissionMode = agent.configuration?.permission_mode ?? 'default'
-    this.disabledTools = new Set(agent.disabledTools ?? [])
+    this.disabledTools = normalizeDisabledTools(agent.disabledTools)
 
     const injection = await resolvePiProviderInjection(this.input.modelId ?? agent.model)
     this.modelId = injection.modelId
@@ -224,7 +224,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.permissionMode = update.permissionMode ?? 'default'
       return true
     }
-    this.disabledTools = new Set(update.agent.disabledTools ?? [])
+    this.disabledTools = normalizeDisabledTools(update.agent.disabledTools)
     return true
   }
 
@@ -236,7 +236,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
    */
   async getContextUsage(): Promise<AgentSessionContextUsage | null> {
     const usage = this.session?.getContextUsage()
-    return usage ? this.projectContextUsage(usage) : null
+    // pi returns a truthy `ContextUsage` with `tokens: null` right after compaction
+    // (before the next LLM response) — treat that as "not yet known" and return null
+    // rather than projecting a misleading 0 / 0%.
+    return usage && usage.tokens != null ? this.projectContextUsage(usage) : null
   }
 
   async close(): Promise<void> {
@@ -281,7 +284,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
     if (event.type === 'agent_end') {
       // Auto-retry pending — the loop is not actually done, so hold the turn open.
-      if (event.willRetry) return
+      // Clear the stop-reason so a retry that succeeds isn't tainted by a prior
+      // turn_end's `error` and mislabeled as a failed turn.
+      if (event.willRetry) {
+        this.lastStopReason = undefined
+        return
+      }
       this.maybeEmitResumeToken()
       if (this.lastStopReason === 'error') {
         const message = lastErrorMessage(event.messages)
@@ -306,7 +314,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
   private emitContextUsage(): void {
     const usage = this.session?.getContextUsage()
-    if (!usage) return
+    // Skip the emit while pi cannot yet report occupancy (see getContextUsage).
+    if (!usage || usage.tokens == null) return
     this.eventQueue.push({ type: 'context-usage', usage: this.projectContextUsage(usage) })
   }
 
@@ -326,6 +335,17 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.resumeToken = sessionFile
     this.eventQueue.push({ type: 'resume-token', token: sessionFile })
   }
+}
+
+/**
+ * pi's built-in tool names are lowercase (`bash`/`read`/`edit`/`write`/…), but Cherry's
+ * tool vocabulary is Claude-capitalized (`Bash`/`Read`/…) and the agent editor writes those
+ * ids verbatim into `disabledTools`. The live approval gate (`has`) and the `excludeTools`
+ * bake-out both match pi's lowercase names, so case-fold here or a disabled tool silently
+ * runs at main-process privilege (a fail-open on a hard-block control).
+ */
+function normalizeDisabledTools(disabledTools: string[] | undefined | null): Set<string> {
+  return new Set((disabledTools ?? []).map((tool) => tool.toLowerCase()))
 }
 
 /** pi triggers `manual` on `compact()`, `threshold`/`overflow` automatically — Cherry's

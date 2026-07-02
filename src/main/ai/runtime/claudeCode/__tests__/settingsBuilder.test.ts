@@ -156,7 +156,8 @@ vi.mock('@main/utils/shellEnv', () => ({
 vi.mock('../ToolApprovalRegistry', () => ({
   toolApprovalRegistry: {
     abort: vi.fn(),
-    register: vi.fn()
+    // register returns true when the request is now pending (gates the approval emit).
+    register: vi.fn().mockReturnValue(true)
   }
 }))
 

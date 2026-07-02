@@ -31,7 +31,7 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
 
   it('resolves a dispatch with the exact decision, unmodified', async () => {
     const { entry, result, approvalId } = makeEntry()
-    toolApprovalRegistry.register(entry)
+    expect(toolApprovalRegistry.register(entry)).toBe(true)
     expect(toolApprovalRegistry.size()).toBe(1)
 
     expect(toolApprovalRegistry.dispatch(approvalId, { approved: true })).toBe(true)
@@ -64,7 +64,7 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
     toolApprovalRegistry.register(first.entry)
 
     const dup = makeEntry({ approvalId: first.approvalId })
-    toolApprovalRegistry.register(dup.entry)
+    expect(toolApprovalRegistry.register(dup.entry)).toBe(false)
 
     await expect(dup.result).resolves.toEqual({ approved: false, reason: 'Duplicate approval registration' })
     expect(toolApprovalRegistry.size()).toBe(1)
@@ -77,7 +77,7 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
     const controller = new AbortController()
     controller.abort()
     const { entry, result } = makeEntry({ signal: controller.signal })
-    toolApprovalRegistry.register(entry)
+    expect(toolApprovalRegistry.register(entry)).toBe(false)
 
     await expect(result).resolves.toEqual({
       approved: false,

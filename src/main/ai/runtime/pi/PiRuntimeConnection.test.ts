@@ -326,6 +326,54 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.createOpts?.excludeTools).toEqual(['bash', 'write'])
   })
 
+  it('normalizes Claude-capitalized disabledTools to pi lowercase (bake-out + live gate)', async () => {
+    mocks.getAgent.mockResolvedValue({ id: 'agent-1', model: 'p::m', disabledTools: ['Bash', 'Write'] })
+    const conn = await new PiRuntimeConnection(input).start()
+
+    // Baked-out excludeTools use pi's lowercase vocabulary, not the Claude-capitalized ids.
+    expect(mocks.createOpts?.excludeTools).toEqual(['bash', 'write'])
+
+    // The live gate blocks pi's lowercase `bash` even though the agent disabled `Bash`.
+    const factories = (mocks.loaderOpts as { extensionFactories: Array<(pi: unknown) => void> }).extensionFactories
+    let handler!: (event: unknown, ctx: unknown) => Promise<{ block?: boolean } | undefined>
+    factories[1]({
+      on: (evt: string, h: unknown) => {
+        if (evt === 'tool_call') handler = h as typeof handler
+      }
+    })
+    await expect(
+      handler(
+        { type: 'tool_call', toolName: 'bash', toolCallId: 'tc1', input: { command: 'ls' } },
+        { signal: undefined }
+      )
+    ).resolves.toMatchObject({ block: true })
+    void conn
+  })
+
+  it('returns null context usage when pi reports tokens as null (post-compaction)', async () => {
+    mocks.getContextUsage.mockReturnValue({ tokens: null, contextWindow: 200000, percent: null })
+    const conn = await new PiRuntimeConnection(input).start()
+    await expect(conn.getContextUsage()).resolves.toBeNull()
+  })
+
+  it('does not mislabel a successful auto-retry as an error after a prior error turn_end', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    const cb = mocks.subscribeCb!
+    cb({
+      type: 'turn_end',
+      message: { role: 'assistant', stopReason: 'error', usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } },
+      toolResults: []
+    } as unknown as AgentSessionEvent)
+    // Retry pending — must clear the stale 'error' stop-reason.
+    cb({ type: 'agent_end', messages: [], willRetry: true } as unknown as AgentSessionEvent)
+    // Retry succeeds with no fresh turn_end.
+    cb({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+
+    const events = await collectUntilTerminal(conn.events)
+    expect(events.some((e) => e.type === 'error')).toBe(false)
+    expect(events.at(-1)?.type).toBe('turn-complete')
+  })
+
   it('close() aborts an approval still awaiting the renderer decision', async () => {
     const conn = await new PiRuntimeConnection(input).start()
     const factories = (mocks.loaderOpts as { extensionFactories: Array<(pi: unknown) => void> }).extensionFactories

@@ -117,6 +117,38 @@ describe('PiStreamAdapter', () => {
     expect(new Set(ids).size).toBe(2)
   })
 
+  it('sums token usage across the multiple turn_ends of one turn', async () => {
+    const turnEnd = (usage: Record<string, number>): AgentSessionEvent =>
+      ({ type: 'turn_end', message: { role: 'assistant', usage }, toolResults: [] }) as unknown as AgentSessionEvent
+    const chunks = collect([
+      { type: 'agent_start' } as unknown as AgentSessionEvent,
+      turnEnd({ input: 100, output: 50, cacheRead: 0, cacheWrite: 0 }),
+      turnEnd({ input: 120, output: 80, cacheRead: 0, cacheWrite: 0 })
+    ])
+    // Each turn_end emits a running total; the last-wins chunk carries the whole turn.
+    const metas = chunks.filter((chunk) => chunk.type === 'message-metadata')
+    expect(metas.at(-1)).toMatchObject({
+      messageMetadata: { totalTokens: 350, promptTokens: 220, completionTokens: 130 }
+    })
+    const message = await accumulate(chunks)
+    expect(message.metadata).toMatchObject({ totalTokens: 350, promptTokens: 220, completionTokens: 130 })
+  })
+
+  it('resets the token accumulator when a new turn starts (agent_start)', () => {
+    const turnEnd = (usage: Record<string, number>): AgentSessionEvent =>
+      ({ type: 'turn_end', message: { role: 'assistant', usage }, toolResults: [] }) as unknown as AgentSessionEvent
+    const chunks = collect([
+      { type: 'agent_start' } as unknown as AgentSessionEvent,
+      turnEnd({ input: 100, output: 50, cacheRead: 0, cacheWrite: 0 }),
+      { type: 'agent_start' } as unknown as AgentSessionEvent,
+      turnEnd({ input: 10, output: 5, cacheRead: 0, cacheWrite: 0 })
+    ])
+    const metas = chunks.filter((chunk) => chunk.type === 'message-metadata')
+    expect(metas.at(-1)).toMatchObject({
+      messageMetadata: { totalTokens: 15, promptTokens: 10, completionTokens: 5 }
+    })
+  })
+
   it('accumulates into a CherryUIMessage with text and tool parts', async () => {
     const chunks = collect([
       { type: 'message_start', message: {} } as unknown as AgentSessionEvent,
