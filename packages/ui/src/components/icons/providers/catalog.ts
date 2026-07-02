@@ -116,6 +116,7 @@ import { OcoolaiIcon } from './ocoolai'
 import { OllamaIcon } from './ollama'
 import { OpenaiIcon } from './openai'
 import { OpenclawIcon } from './openclaw'
+import { OpenCodeGoIcon } from './opencode'
 import { OpenrouterIcon } from './openrouter'
 import { PaddleocrIcon } from './paddleocr'
 import { PerplexityIcon } from './perplexity'
@@ -273,6 +274,7 @@ export const PROVIDER_ICON_CATALOG = {
   nvidia: NvidiaIcon,
   o3: O3Icon,
   ocoolai: OcoolaiIcon,
+  opencode: OpenCodeGoIcon,
   ollama: OllamaIcon,
   openai: OpenaiIcon,
   openclaw: OpenclawIcon,
