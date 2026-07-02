@@ -801,7 +801,14 @@ export default function ComposerSurface({
 
   const rootPanelOpenRefreshRequestedRef = useRef(false)
   const unifiedResourceRequestRef = useRef(0)
-  const unifiedPanelListSignatureRef = useRef<string | undefined>(undefined)
+  const unifiedPanelListRefreshKeyRef = useRef<
+    | {
+        signature: string
+        leadingItems?: readonly QuickPanelListItem[]
+        additionalItems?: readonly QuickPanelListItem[]
+      }
+    | undefined
+  >(undefined)
   const [unifiedResourceItems, setUnifiedResourceItems] = useState<QuickPanelListItem[]>([])
   // Per-pluginKey record of the last generation the source itself was active at.
   // Read by onExit so a stale exit cannot borrow another source's active generation
@@ -1588,18 +1595,9 @@ export default function ComposerSurface({
     quickPanelEnabled && quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root
   const rootQuickPanelQueryAnchor = quickPanel.queryAnchor
   const rootQuickPanelTriggerInfo = quickPanel.triggerInfo
-  const rootPanelLeadingItemsSignature = useMemo(
-    () => getQuickPanelItemsSignature(rootPanelLeadingItems),
-    [rootPanelLeadingItems]
-  )
-  const rootPanelAdditionalItemsSignature = useMemo(
-    () => getQuickPanelItemsSignature(rootPanelAdditionalItems),
-    [rootPanelAdditionalItems]
-  )
-
   useEffect(() => {
     if (!isRootQuickPanelVisible) {
-      unifiedPanelListSignatureRef.current = undefined
+      unifiedPanelListRefreshKeyRef.current = undefined
       return
     }
 
@@ -1614,8 +1612,23 @@ export default function ComposerSurface({
     // identical display signature but a different action payload (e.g. the MCP status launcher after a
     // status/scope change) still refreshes the open root panel instead of keeping its stale action closure.
     const nextListSignature = `${toolLaunchersVersion}${getQuickPanelItemsSignature(nextList)}`
-    if (unifiedPanelListSignatureRef.current === nextListSignature) return
-    unifiedPanelListSignatureRef.current = nextListSignature
+    const previous = unifiedPanelListRefreshKeyRef.current
+    // Display-only signatures cannot see a static root item (e.g. an agent skill row) that is rebuilt with
+    // an unchanged display but a new action closure capturing fresh state (selectedSkills, active topic, ...).
+    // Also refresh whenever the leading/additional array identity changes so the open panel never keeps a
+    // stale closure. Both arrays are memoized upstream, so this only re-runs on genuine content changes.
+    if (
+      previous?.signature === nextListSignature &&
+      previous.leadingItems === rootPanelLeadingItems &&
+      previous.additionalItems === rootPanelAdditionalItems
+    ) {
+      return
+    }
+    unifiedPanelListRefreshKeyRef.current = {
+      signature: nextListSignature,
+      leadingItems: rootPanelLeadingItems,
+      additionalItems: rootPanelAdditionalItems
+    }
     currentQuickPanel.updateList(nextList)
   }, [
     createUnifiedPanelOptions,
@@ -1623,8 +1636,8 @@ export default function ComposerSurface({
     isRootQuickPanelVisible,
     rootQuickPanelQueryAnchor,
     rootQuickPanelTriggerInfo,
-    rootPanelAdditionalItemsSignature,
-    rootPanelLeadingItemsSignature,
+    rootPanelAdditionalItems,
+    rootPanelLeadingItems,
     toolLaunchersVersion,
     unifiedResourceItems
   ])

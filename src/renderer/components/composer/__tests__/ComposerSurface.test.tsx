@@ -1590,19 +1590,22 @@ describe('ComposerSurface', () => {
       }
     ]
 
+    // Stable (memoized) reference: passing the same array back must not trigger a redundant refresh.
+    const pdfItems = [
+      {
+        id: 'skill:pdf',
+        label: 'pdf',
+        description: 'Read PDFs',
+        icon: 'sparkles'
+      }
+    ]
+
     const { rerender } = render(
       <ComposerSurface
         {...baseProps}
         quickPanelEnabled
         getToolLaunchers={getToolLaunchers}
-        rootPanelAdditionalItems={[
-          {
-            id: 'skill:pdf',
-            label: 'pdf',
-            description: 'Read PDFs',
-            icon: 'sparkles'
-          }
-        ]}
+        rootPanelAdditionalItems={pdfItems}
       />
     )
 
@@ -1620,14 +1623,7 @@ describe('ComposerSurface', () => {
         {...baseProps}
         quickPanelEnabled
         getToolLaunchers={getToolLaunchers}
-        rootPanelAdditionalItems={[
-          {
-            id: 'skill:pdf',
-            label: 'pdf',
-            description: 'Read PDFs',
-            icon: 'sparkles'
-          }
-        ]}
+        rootPanelAdditionalItems={pdfItems}
       />
     )
 
@@ -1739,6 +1735,57 @@ describe('ComposerSurface', () => {
 
     await waitFor(() => {
       expect(mocks.quickPanelUpdateList).toHaveBeenCalledWith([expect.objectContaining({ label: 'MCP' })])
+    })
+  })
+
+  it('refreshes the open root panel when a static root item is rebuilt with a new action closure but unchanged display', async () => {
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelSymbol = '/'
+    mocks.stabilizeEditor = true
+
+    // A static root item (agent skill row) rebuilt with an identical display but a fresh action closure
+    // (e.g. capturing updated selectedSkills). The launcher version is unchanged, so only the array identity
+    // signals the change; the open panel must still refresh instead of keeping the stale closure.
+    const makeSkillItem = () => [
+      {
+        id: 'skill:pdf',
+        label: 'pdf',
+        description: 'Read PDFs',
+        icon: 'sparkles',
+        action: vi.fn()
+      }
+    ]
+
+    const { rerender } = render(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        toolLaunchersVersion={1}
+        rootPanelAdditionalItems={makeSkillItem()}
+      />
+    )
+
+    await waitFor(() => {
+      expect(mocks.quickPanelUpdateList).toHaveBeenCalledWith([
+        expect.objectContaining({ id: 'skill:pdf', label: 'pdf', description: 'Read PDFs' })
+      ])
+    })
+
+    mocks.quickPanelUpdateList.mockClear()
+
+    rerender(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        toolLaunchersVersion={1}
+        rootPanelAdditionalItems={makeSkillItem()}
+      />
+    )
+
+    await waitFor(() => {
+      expect(mocks.quickPanelUpdateList).toHaveBeenCalledWith([
+        expect.objectContaining({ id: 'skill:pdf', label: 'pdf', description: 'Read PDFs' })
+      ])
     })
   })
 
