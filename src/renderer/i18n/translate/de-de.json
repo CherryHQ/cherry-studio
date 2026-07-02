@@ -556,6 +556,7 @@
       "list": {
         "title": "Aufgaben"
       },
+      "new": "Neue Aufgabe",
       "pin": {
         "title": "Aufgabe anheften"
       },
@@ -565,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "Suchaufgaben"
+        "placeholder": "Suchaufgaben",
+        "title": "Aufgaben suchen"
       },
       "unpin": {
         "title": "Aufgabe lösen"
@@ -934,6 +936,10 @@
         "Bash": {
           "description": "Führt Shell-Befehle in deiner Umgebung aus",
           "label": "Bash"
+        },
+        "CherryKbManage": {
+          "description": "Fügt Dokumente zu Ihren Wissensdatenbanken hinzu, löscht sie oder aktualisiert sie",
+          "label": "Wissen verwalten"
         },
         "CherryKbSearch": {
           "description": "Durchsucht Ihre Wissensdatenbanken",
@@ -3162,12 +3168,22 @@
           "agent_title": "Neuer Agent",
           "assistant_title": "Neuer Assistent",
           "avatar_aria": "Avatar auswählen",
+          "back": "Zurück",
+          "capability": {
+            "import": "Fertigkeit importieren",
+            "no_skills": "Keine Fähigkeiten installiert",
+            "search": "Suchfähigkeiten"
+          },
           "description_placeholder": "Beschreibe, wofür es ist...",
-          "dialog_description": "Erstelle einen leichtgewichtigen Assistenten oder Agenten.",
-          "model_placeholder": "Wählen Sie ein Modell",
-          "model_required": "Bitte wählen Sie ein Modell",
+          "guided_progress": "Geführte Einrichtung · Schritt {{current}} von {{total}}",
           "name_placeholder": "Geben Sie einen Namen ein",
-          "name_required": "Bitte geben Sie einen Namen ein",
+          "next": "Nächste",
+          "step": {
+            "basic": "Grundinformationen",
+            "capability": "Fähigkeiten",
+            "knowledge": "Wissen",
+            "persona": "Persona"
+          },
           "submit": "Erstellen",
           "submit_failed": "Erstellen fehlgeschlagen"
         },
@@ -5257,6 +5273,7 @@
     "assistant": {
       "create_new": "Neuer Assistent",
       "empty_text": "Noch keine Assistenten",
+      "filter": "Filter-Assistenten",
       "multi_hint": "(gegenseitig ausschließend mit Multi-Modell)",
       "multi_label": "Multi-Assistent-Parallel",
       "search_placeholder": "Suchassistenten…"
@@ -6436,6 +6453,12 @@
         "show_estimated_tokens": "Geschätzte Token-Anzahl anzeigen",
         "title": "Eingabeeinstellungen"
       },
+      "layout": {
+        "classic": "Klassisch",
+        "conversation": "Unterhaltungsansicht",
+        "modern": "Modern",
+        "work": "Arbeitsansicht"
+      },
       "markdown_rendering_input_message": "Markdown-Rendering-Eingabenachricht",
       "metrics": "Erste Zeichen-Verzögerung {{time_first_token_millsec}} ms | pro Sekunde {{token_speed}} Token",
       "model": {
@@ -7440,6 +7463,7 @@
           "exa": "Neural Search-API für KI-Anwendungen, optimiert für die semantische Webabfrage.",
           "exa_mcp": "Stelle Exa-Suche Agenten über den Exa MCP Server zur Verfügung.",
           "fetch": "Integrierter URL-Abruf-Provider. Ruft Webseiteninhalte von einer URL ab, um Suchergebnisse zu erweitern.",
+          "firecrawl": "Firecrawl Crawler- und Suchdienst, optimiert zur Umwandlung von Websites in Markdown.",
           "jina": "Jina Reader-Such- und Lese-APIs zum Abrufen von sauberem Webinhalt.",
           "querit": "Suchdienst für KI-Anwendungen mit Web-Abruf-Ergebnissen.",
           "searxng": "Selbst hostbare kostenlose Internet-Metasuchmaschine über viele Quellen.",

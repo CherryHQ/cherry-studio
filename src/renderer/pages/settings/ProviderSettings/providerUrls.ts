@@ -449,10 +449,10 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       url: 'https://aihubmix.com'
     },
     websites: {
-      official: 'https://aihubmix.com?aff=SJyh',
-      apiKey: 'https://aihubmix.com?aff=SJyh',
-      docs: 'https://doc.aihubmix.com/',
-      models: 'https://aihubmix.com/models'
+      official: 'https://inferera.com?aff=SJyh',
+      apiKey: 'https://inferera.com?aff=SJyh',
+      docs: 'https://docs.aihubmix.com',
+      models: 'https://inferera.com/models'
     }
   },
   fireworks: {
@@ -681,6 +681,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://platform.xiaomimimo.com/#/console/usage',
       docs: 'https://platform.xiaomimimo.com/#/docs/welcome',
       models: 'https://platform.xiaomimimo.com/'
+    }
+  },
+  opencode: {
+    api: {
+      url: 'https://opencode.ai/zen/go/v1'
+    },
+    websites: {
+      official: 'https://opencode.ai',
+      apiKey: 'https://opencode.ai/auth',
+      docs: 'https://opencode.ai/docs/go',
+      models: 'https://opencode.ai/docs/go'
     }
   }
 }

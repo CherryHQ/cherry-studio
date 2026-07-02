@@ -216,7 +216,7 @@ class AssistantServer {
       case 'info':
         return this.diagnoseInfo()
       case 'providers':
-        return await this.diagnoseProviders()
+        return this.diagnoseProviders()
       case 'health':
         return await this.diagnoseHealth(args.provider_id as string | undefined)
       case 'logs':
@@ -224,7 +224,7 @@ class AssistantServer {
       case 'errors':
         return this.diagnoseErrors(args.lines as number | undefined)
       case 'mcp_status':
-        return await this.diagnoseMcpStatus()
+        return this.diagnoseMcpStatus()
       case 'read_source':
         return this.readSource(args.file_path as string | undefined, args.lines as number | undefined)
       case 'config':
@@ -271,9 +271,9 @@ class AssistantServer {
     }
   }
 
-  private async diagnoseProviders() {
+  private diagnoseProviders() {
     try {
-      const providers = await providerService.list({})
+      const providers = providerService.list({})
 
       const summary = providers.map((p) => ({
         id: p.id,
@@ -318,7 +318,12 @@ class AssistantServer {
     }
 
     try {
-      const provider = await providerService.getByProviderId(providerId).catch(() => null)
+      let provider: ReturnType<typeof providerService.getByProviderId> | null = null
+      try {
+        provider = providerService.getByProviderId(providerId)
+      } catch {
+        provider = null
+      }
 
       if (!provider) {
         return {
@@ -540,9 +545,9 @@ class AssistantServer {
     }
   }
 
-  private async diagnoseMcpStatus() {
+  private diagnoseMcpStatus() {
     try {
-      const { items: mcpServers } = await mcpServerService.list({})
+      const { items: mcpServers } = mcpServerService.list({})
 
       const summary = mcpServers.map((s) => ({
         id: s.id,

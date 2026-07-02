@@ -539,6 +539,26 @@
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
+      "description": "OpenCode Go - AI model provider",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "adapterFamily": "openai-compatible",
+          "baseUrl": "https://opencode.ai/zen/go/v1"
+        }
+      },
+      "id": "opencode",
+      "metadata": {
+        "website": {
+          "apiKey": "https://opencode.ai/auth",
+          "docs": "https://opencode.ai/docs/go",
+          "models": "https://opencode.ai/docs/go",
+          "official": "https://opencode.ai"
+        }
+      },
+      "name": "OpenCode Go"
+    },
+    {
+      "defaultChatEndpoint": "openai-chat-completions",
       "description": "Azure OpenAI - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {

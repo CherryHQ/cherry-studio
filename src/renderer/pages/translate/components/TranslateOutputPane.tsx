@@ -1,4 +1,4 @@
-import { Check, Copy } from 'lucide-react'
+import { Check, Copy, NotebookPen } from 'lucide-react'
 import type { Ref, UIEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -12,6 +12,7 @@ type Props = {
   translating: boolean
   copied: boolean
   onCopy: () => void
+  onExportToNotes: () => void
   onScroll: (event: UIEvent<HTMLDivElement>) => void
 }
 
@@ -23,6 +24,7 @@ const TranslateOutputPane = ({
   translating,
   copied,
   onCopy,
+  onExportToNotes,
   onScroll
 }: Props) => {
   const { t } = useTranslation()
@@ -48,14 +50,18 @@ const TranslateOutputPane = ({
           ) : null}
         </div>
       </div>
-      <IconButton
-        size="sm"
-        onClick={onCopy}
-        disabled={!translatedContent}
-        aria-label={t('common.copy')}
-        className="absolute top-4 right-3">
-        {copied ? <Check size={14} className="text-foreground" /> : <Copy size={14} />}
-      </IconButton>
+      <div className="absolute top-4 right-3 flex flex-col gap-2">
+        <IconButton size="sm" onClick={onCopy} disabled={!translatedContent} aria-label={t('common.copy')}>
+          {copied ? <Check size={14} className="text-foreground" /> : <Copy size={14} />}
+        </IconButton>
+        <IconButton
+          size="sm"
+          onClick={onExportToNotes}
+          disabled={!translatedContent.trim()}
+          aria-label={t('notes.save')}>
+          <NotebookPen size={14} />
+        </IconButton>
+      </div>
       <div className="flex shrink-0 items-center px-3 py-4">
         {translatedContent && <span className="text-foreground-muted text-xs">{translatedContent.length}</span>}
       </div>

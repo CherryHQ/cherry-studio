@@ -41,6 +41,7 @@ import p_nvidia from './nvidia'
 import p_ocoolai from './ocoolai'
 import p_ollama from './ollama'
 import p_openai from './openai'
+import p_opencode from './opencode'
 import p_openrouter from './openrouter'
 import p_ovms from './ovms'
 import p_perplexity from './perplexity'
@@ -87,6 +88,7 @@ export const PROVIDERS: Provider[] = [
   p_lmstudio,
   p_anthropic,
   p_openai,
+  p_opencode,
   p_azure_openai,
   p_gemini,
   p_vertexai,
