@@ -28,6 +28,15 @@ export {
 export { CircularDependencyError, DependencyResolver, type PhaseAdjustment } from './DependencyResolver'
 export { type Disposable, Emitter, type Event, toDisposable } from './event'
 export { LifecycleManager } from './LifecycleManager'
+export {
+  type ActivationEffect,
+  decideActivate,
+  decideDeactivate,
+  isProfileActivatable,
+  type ProfileActivatable,
+  type ProfileActivationContext,
+  type ProfileBinding
+} from './profileActivation'
 export { ServiceContainer } from './ServiceContainer'
 export { Signal } from './signal'
 export {
