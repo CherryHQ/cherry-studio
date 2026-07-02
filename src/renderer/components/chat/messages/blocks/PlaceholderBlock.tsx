@@ -26,7 +26,7 @@ function getElapsedMs(createdAt: string): number {
   return Math.max(0, Date.now() - createdAtMs)
 }
 
-export function usePlaceholderElapsedMs(isProcessing: boolean, createdAt: string): number {
+export function usePlaceholderElapsedMs(isProcessing: boolean, createdAt: string, updateIntervalMs = 100): number {
   const [elapsedMs, setElapsedMs] = React.useState(() => (isProcessing ? getElapsedMs(createdAt) : 0))
 
   React.useEffect(() => {
@@ -35,9 +35,9 @@ export function usePlaceholderElapsedMs(isProcessing: boolean, createdAt: string
     const updateElapsed = () => setElapsedMs(getElapsedMs(createdAt))
     updateElapsed()
 
-    const timer = setInterval(updateElapsed, 100)
+    const timer = setInterval(updateElapsed, updateIntervalMs)
     return () => clearInterval(timer)
-  }, [createdAt, isProcessing])
+  }, [createdAt, isProcessing, updateIntervalMs])
 
   return elapsedMs
 }

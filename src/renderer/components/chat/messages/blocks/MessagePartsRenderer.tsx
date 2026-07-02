@@ -844,7 +844,7 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
       showPreview ? getPreviewGroupedEntries(renderableEntries, TOOL_HISTORY_PREVIEW_ENTRY_LIMIT, message.id) : [],
     [message.id, renderableEntries, showPreview]
   )
-  const elapsedMs = usePlaceholderElapsedMs(showLiveProgress, message.createdAt)
+  const elapsedMs = usePlaceholderElapsedMs(showLiveProgress, message.createdAt, 1000)
   const elapsedText = showLiveProgress ? formatPlaceholderElapsed(elapsedMs, t) : undefined
   const activityLabel =
     showDynamicHeader && hasStreamingReasoningAfterLastTool(entries) ? t('message.tools.thinkingHeader') : undefined
@@ -1029,7 +1029,6 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
         : null,
     [collapseEnabled, partEntries, message, isActiveTurnProcessing, shouldHoldTrailingResult]
   )
-  const hasToolGroupHeader = !!toolHistoryGroup
   const reportArtifactToolResponses = useMemo(
     () => getReportArtifactToolResponses(partEntries, message.id),
     [partEntries, message.id]

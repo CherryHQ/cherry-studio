@@ -479,7 +479,7 @@ const TitleActions = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) 
   <div className={['flex shrink-0 items-center gap-1.5', className].filter(Boolean).join(' ')} {...props} />
 )
 
-const ActionButton = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
+const ActionButton = ({ className, onKeyDown, ...props }: ComponentPropsWithoutRef<'span'>) => (
   <span
     role="button"
     tabIndex={0}
@@ -490,9 +490,11 @@ const ActionButton = ({ className, ...props }: ComponentPropsWithoutRef<'span'>)
       .filter(Boolean)
       .join(' ')}
     onKeyDown={(event) => {
+      onKeyDown?.(event)
+      if (event.defaultPrevented) return
       if (event.key !== 'Enter' && event.key !== ' ') return
       event.preventDefault()
-      props.onClick?.(event as any)
+      event.currentTarget.click()
     }}
     {...props}
   />
