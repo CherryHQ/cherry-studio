@@ -479,6 +479,46 @@ describe('useChatVirtualizerRuntime', () => {
     expect(handle!.isAtBottom()).toBe(false)
   })
 
+  it('does not pin a follow-up steered into a still-streaming turn', () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      // Render 1: a turn is already streaming (preserveScrollAnchor is true) and no
+      // new user-message key has arrived yet.
+      const view = render(
+        <RuntimeDomProbe items={['user-a']} preserveScrollAnchor onRuntime={(nextRuntime) => (runtime = nextRuntime)} />
+      )
+      const getSpacerHeight = () => runtime!.wrappedItems.find((item) => item.kind === 'spacer')?.height ?? 0
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', { configurable: true, get: () => 0 })
+      Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => 900 + getSpacerHeight() })
+      Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
+      runtime!.vlistHandleRef.current = createHandle({ getItemOffset: vi.fn(() => 300) })
+
+      // Render 2: a queued follow-up is steered into the live turn — a new user
+      // message (`user-b`) arrives while streaming continues. Because a turn was
+      // already streaming just before it, the message must NOT pin to the top, so
+      // no anchor spacer is created (the pin path is what created the instability).
+      view.rerender(
+        <RuntimeDomProbe
+          items={['user-a', 'user-b']}
+          preserveScrollAnchor
+          scrollToTopKey="user-b"
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      raf.tick()
+
+      expect(getSpacerHeight()).toBe(0)
+    } finally {
+      restoreResizeObserver()
+      raf.restore()
+    }
+  })
+
   it('keeps bottom-follow suppressed while the user is still pinned to the top', () => {
     let runtime: ChatVirtualizerRuntime<string> | undefined
     let handle: MessageVirtualListHandle | null = null
