@@ -401,6 +401,72 @@ describe('KnowledgeBaseService', () => {
       expect(row.hybridAlpha).toBe(0.8)
     })
 
+    it('rejects an explicit hybridAlpha on a no-model base instead of silently discarding it', () => {
+      // Without a model, searchMode is always coerced to 'bm25' — an explicit
+      // hybridAlpha is therefore never satisfiable, and create() must reject it the
+      // same way update() does rather than quietly dropping it.
+      let err: unknown
+      try {
+        service.create({ name: 'Lexical Base', hybridAlpha: 0.8 })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            hybridAlpha: ['Hybrid alpha requires hybrid search mode']
+          }
+        }
+      })
+    })
+
+    it('rejects an embedding model without positive dimensions instead of a raw constraint violation', () => {
+      // A model without dimensions would insert a row satisfying neither DB CHECK
+      // arm (vector needs both; bm25-only needs neither). The IPC boundary already
+      // blocks this via CreateKnowledgeBaseSchema's refine, so this guards internal
+      // callers (e.g. restoreBase) that build a DTO directly.
+      let err: unknown
+      try {
+        service.create({ name: 'Missing Dimensions', embeddingModelId: createUniqueModelId('openai', 'embed-model') })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            dimensions: ['A knowledge base with an embedding model requires positive dimensions']
+          }
+        }
+      })
+    })
+
+    it.each([
+      ['zero', 0],
+      ['negative', -1],
+      ['non-integer', 1.5]
+    ])('rejects an embedding model with %s dimensions', (_label, dimensions) => {
+      let err: unknown
+      try {
+        service.create({
+          name: 'Invalid Dimensions',
+          embeddingModelId: createUniqueModelId('openai', 'embed-model'),
+          dimensions
+        })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            dimensions: ['A knowledge base with an embedding model requires positive dimensions']
+          }
+        }
+      })
+    })
+
     it('should create a knowledge base with explicit valid chunk config', async () => {
       const dto: CreateKnowledgeBaseDto = {
         name: 'Small Chunks',

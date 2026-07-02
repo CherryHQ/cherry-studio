@@ -64,13 +64,30 @@ function validateKnowledgeBaseConfig(config: {
 // BM25-only and cannot run a non-bm25 search mode. Mirrors the `completed`-only
 // gate in `KnowledgeBaseSchema.superRefine`: a failed base's leftover searchMode
 // isn't governed by this invariant until it goes through restore, so callers
-// must only apply it to a base that is (or will become) completed.
+// must only apply it to a base that is (or will become) completed. Only
+// update() calls this: create() always coerces searchMode to 'bm25' up front
+// when there is no model, so the invariant already holds by construction there.
 function validateSearchModeNeedsEmbedding(
   embeddingModelId: string | null,
   searchMode: string | null | undefined
 ): Record<string, string[]> {
   if (embeddingModelId == null && searchMode != null && searchMode !== 'bm25') {
     return { searchMode: ['A knowledge base without an embedding model can only use bm25 search'] }
+  }
+  return {}
+}
+
+// The vector arm of the DB CHECK requires a positive dimensions alongside the model;
+// a no-model base always persists a null dimensions regardless of what is passed. The
+// IPC boundary already rejects a model without dimensions via CreateKnowledgeBaseSchema's
+// refine, so this guards internal callers (e.g. restoreBase) that build a DTO directly,
+// before the write reaches the DB CHECK as an untranslated constraint violation.
+function validateDimensionsForEmbeddingModel(
+  embeddingModelId: string | null,
+  dimensions: number | null | undefined
+): Record<string, string[]> {
+  if (embeddingModelId != null && !(typeof dimensions === 'number' && Number.isInteger(dimensions) && dimensions > 0)) {
+    return { dimensions: ['A knowledge base with an embedding model requires positive dimensions'] }
   }
   return {}
 }
@@ -207,8 +224,11 @@ export class KnowledgeBaseService {
       hybridAlpha: usesEmbeddings ? dto.hybridAlpha : undefined
     }
     const createFieldErrors = {
-      ...validateKnowledgeBaseConfig(createConfig),
-      ...validateSearchModeNeedsEmbedding(embeddingModelId, createConfig.searchMode)
+      // Validated against the raw dto.hybridAlpha, not the coerced createConfig value
+      // below, so an explicit hybridAlpha on a no-model base is rejected instead of
+      // silently discarded — create() and update() reject the same input shape.
+      ...validateKnowledgeBaseConfig({ ...createConfig, hybridAlpha: dto.hybridAlpha }),
+      ...validateDimensionsForEmbeddingModel(embeddingModelId, dto.dimensions)
     }
     if (Object.keys(createFieldErrors).length > 0) {
       throw DataApiErrorFactory.validation(createFieldErrors)
