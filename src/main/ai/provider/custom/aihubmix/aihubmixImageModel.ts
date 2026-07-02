@@ -353,7 +353,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
 
         const data = await response.json()
         const items = Array.isArray(data?.data) ? data.data : []
-        const urls = items.map((item: any) => item.url)
+        const urls = items.filter((item: any) => item.url).map((item: any) => item.url)
 
         return wrap(urls)
       }
@@ -405,7 +405,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
 
         const data = await response.json()
         const items = Array.isArray(data?.data) ? data.data : []
-        const urls = items.map((item: any) => item.url)
+        const urls = items.filter((item: any) => item.url).map((item: any) => item.url)
 
         return wrap(urls)
       }
