@@ -4,7 +4,7 @@ import { loggerService } from '@logger'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { application } from '@main/core/application'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, Injectable, Phase, type ProfileActivatable, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
@@ -183,7 +183,7 @@ const nullStreamListener: StreamListener = {
  */
 @Injectable('AiStreamManager')
 @ServicePhase(Phase.WhenReady)
-export class AiStreamManager extends BaseService {
+export class AiStreamManager extends BaseService implements ProfileActivatable {
   private readonly activeStreams = new Map<string, ActiveStream>()
   /** Serialises `prepareDispatch → send` per topic so concurrent `Ai_Stream_Open` can't race
    *  the `hasLiveStream` snapshot and orphan a PENDING placeholder row. */
@@ -280,12 +280,25 @@ export class AiStreamManager extends BaseService {
    * cause append-only backends to write the assistant turn twice.
    */
   protected async onStop(): Promise<void> {
+    await this.abortAllStreams('app-shutdown')
+  }
+
+  /** No per-profile resource to acquire — streams are created on demand. */
+  onProfileActivate(): void {}
+
+  /** Abort the previous profile's in-flight streams and wait for their loops to settle. */
+  async onProfileDeactivate(): Promise<void> {
+    await this.abortAllStreams('profile-switch')
+  }
+
+  /** Abort every live stream and await its execution loops. */
+  private async abortAllStreams(reason: string): Promise<void> {
     const activeTopics = [...this.activeStreams.entries()]
       .filter(([, s]) => isLiveStatus(s.status))
       .map(([topicId]) => topicId)
 
     if (activeTopics.length === 0) return
-    logger.info('Stopping active streams on shutdown', { count: activeTopics.length })
+    logger.info('Aborting active streams', { count: activeTopics.length, reason })
 
     const loopPromises: Promise<void>[] = []
     for (const topicId of activeTopics) {
@@ -294,7 +307,7 @@ export class AiStreamManager extends BaseService {
       for (const exec of stream.executions.values()) {
         loopPromises.push(exec.loopPromise)
       }
-      this.abort(topicId, 'app-shutdown')
+      this.abort(topicId, reason)
     }
 
     await Promise.allSettled(loopPromises)
