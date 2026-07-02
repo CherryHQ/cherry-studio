@@ -376,9 +376,9 @@ function ShellTabList({ children, extraTrailing }: { children: ReactNode; extraT
     <div
       data-testid="shell-tab-list"
       className={cn(
-        // pr reserves the OS window controls corner in a frameless sub-window (--window-controls-width,
-        // 0px = pr-3 in the main window and on macOS).
-        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b pr-[calc(0.75rem+var(--window-controls-width,0px))]',
+        // Match ConversationShellTopRightTool's right inset so the closed-state expand button and
+        // opened-state close button keep the same distance from the right edge.
+        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b pr-[calc(0.5rem+var(--window-controls-width,0px))]',
         isWindowTopBar ? '[-webkit-app-region:drag]' : '[-webkit-app-region:no-drag]',
         isWindowTopBar && isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-3'
       )}>
