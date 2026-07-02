@@ -174,7 +174,7 @@ describe('AgentRightPane', () => {
       </AgentRightPane>
     )
 
-    expect(screen.getByRole('button', { name: 'agent.session.list.title' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'agent.session.list.title' })).toBeNull()
     expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'trace.label' })).toBeInTheDocument()
@@ -205,7 +205,7 @@ describe('AgentRightPane', () => {
       </AgentRightPane>
     )
 
-    expect(screen.getByRole('button', { name: 'agent.session.list.title' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'agent.session.list.title' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.status' })).toBeNull()
   })

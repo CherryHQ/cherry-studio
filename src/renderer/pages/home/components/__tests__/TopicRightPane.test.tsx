@@ -159,7 +159,7 @@ describe('TopicRightPane', () => {
       </TopicRightPane>
     )
 
-    expect(screen.getByRole('button', { name: 'chat.topics.title' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'chat.topics.title' })).toBeNull()
     expect(screen.getByRole('button', { name: 'chat.message.flow.title' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'trace.label' })).toBeInTheDocument()
 
@@ -183,7 +183,7 @@ describe('TopicRightPane', () => {
       </TopicRightPane>
     )
 
-    expect(screen.getByRole('button', { name: 'chat.topics.title' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'chat.topics.title' })).toBeNull()
     expect(screen.getByRole('button', { name: 'chat.message.flow.title' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'trace.label' })).toBeNull()
   })
