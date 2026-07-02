@@ -5,6 +5,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PaintingData } from '../../model/types/paintingData'
 
 const captured = { surfaceProps: undefined as ComposerSurfaceProps | undefined }
+const mockUseImageGenerationSupport = vi.hoisted(() => vi.fn())
+
+const imageGenerationSupportWithFields = {
+  modes: {
+    generate: {
+      supports: {
+        background: { type: 'enum', options: ['auto', 'transparent', 'opaque'], default: 'auto' },
+        numImages: { type: 'range', min: 1, max: 10, default: 1 },
+        quality: { type: 'enum', options: ['auto', 'low', 'medium', 'high'], default: 'auto' },
+        size: { type: 'enum', options: ['auto', '1024x1024', '1536x1024', '1024x1536'], default: '1024x1024' }
+      }
+    }
+  }
+}
 
 // Stand in for the Tiptap surface: expose the text + send wiring the variant drives.
 vi.mock('@renderer/components/composer/ComposerSurface', () => ({
@@ -73,18 +87,7 @@ vi.mock('@shared/utils/model', () => ({ isEditImageModel: () => false }))
 vi.mock('../../hooks/usePaintingComposerInputFiles', () => ({ usePaintingComposerInputFiles: vi.fn() }))
 
 vi.mock('../../hooks/useImageGenerationSupport', () => ({
-  useImageGenerationSupport: () => ({
-    modes: {
-      generate: {
-        supports: {
-          background: { type: 'enum', options: ['auto', 'transparent', 'opaque'], default: 'auto' },
-          numImages: { type: 'range', min: 1, max: 10, default: 1 },
-          quality: { type: 'enum', options: ['auto', 'low', 'medium', 'high'], default: 'auto' },
-          size: { type: 'enum', options: ['auto', '1024x1024', '1536x1024', '1024x1536'], default: '1024x1024' }
-        }
-      }
-    }
-  })
+  useImageGenerationSupport: mockUseImageGenerationSupport
 }))
 
 vi.mock('../PaintingModelSelector', () => ({
@@ -131,6 +134,8 @@ const renderComposer = (props: Partial<React.ComponentProps<typeof PaintingCompo
 describe('PaintingComposer', () => {
   beforeEach(() => {
     captured.surfaceProps = undefined
+    mockUseImageGenerationSupport.mockReset()
+    mockUseImageGenerationSupport.mockReturnValue(imageGenerationSupportWithFields)
   })
 
   it('renders the model selector control in the toolbar', () => {
@@ -153,6 +158,30 @@ describe('PaintingComposer', () => {
   it('disables send while generating', () => {
     renderComposer({ generating: true, painting: makePainting({ prompt: 'a cat' }) })
     expect(screen.getByLabelText('send')).toBeDisabled()
+  })
+
+  it('does not render the image params button when imageGeneration support is missing', () => {
+    mockUseImageGenerationSupport.mockReturnValue(undefined)
+
+    renderComposer({ painting: makePainting({ providerId: 'openrouter', model: 'gpt-5-image' }) })
+
+    expect(screen.queryByRole('button', { name: /common\.settings/ })).not.toBeInTheDocument()
+  })
+
+  it('renders the image params button when imageGeneration support produces fields', () => {
+    mockUseImageGenerationSupport.mockReturnValue({
+      modes: {
+        generate: {
+          supports: {
+            size: { type: 'enum', options: ['1024x1024'], render: 'chips' }
+          }
+        }
+      }
+    })
+
+    renderComposer({ painting: makePainting({ providerId: 'gateway', model: 'gpt-image-1' }) })
+
+    expect(screen.getByRole('button', { name: /common\.settings/ })).toBeInTheDocument()
   })
 
   // The summary is folded into the params button's accessible name, so match on the

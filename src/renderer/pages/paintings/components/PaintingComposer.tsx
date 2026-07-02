@@ -119,10 +119,14 @@ const PaintingParamsButton: FC<{
 }> = ({ painting, onConfigChange, onGenerateRandomSeed }) => {
   const { t } = useTranslation()
   const registrySupport = useImageGenerationSupport(painting.providerId, painting.model)
-  const summary = useMemo(() => {
-    const items = imageGenerationToFields(registrySupport, { mode: tabToImageGenerationMode(painting.mode) })
-    return paramsSummary(painting.params, items, t)
-  }, [registrySupport, painting.mode, painting.params, t])
+  const configItems = useMemo(
+    () => imageGenerationToFields(registrySupport, { mode: tabToImageGenerationMode(painting.mode) }),
+    [registrySupport, painting.mode]
+  )
+  const summary = useMemo(() => paramsSummary(painting.params, configItems, t), [painting.params, configItems, t])
+
+  if (configItems.length === 0) return null
+
   return (
     <Popover>
       <PopoverTrigger asChild>
