@@ -2,6 +2,7 @@
  * Hook for subscribing to migration progress updates
  */
 
+import { loggerService } from '@logger'
 import {
   MigrationIpcChannels,
   type MigrationProgress,
@@ -13,6 +14,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 // Re-export types for convenience
 export type { MigrationProgress, MigrationStage, MigratorStatus }
+
+const logger = loggerService.withContext('useMigrationProgress')
 
 const initialProgress: MigrationProgress = {
   stage: 'introduction',
@@ -75,7 +78,9 @@ export function useMigrationProgress() {
           setProgress(applyMigrationStageTiming(initialProgress))
         }
       })
-      .catch(console.error)
+      .catch((error) => {
+        logger.error('Failed to get initial migration progress', error)
+      })
 
     // Check for last error
     window.electron.ipcRenderer
@@ -85,7 +90,9 @@ export function useMigrationProgress() {
           setLastError(error)
         }
       })
-      .catch(console.error)
+      .catch((error) => {
+        logger.error('Failed to get last migration error', error)
+      })
 
     return () => {
       window.electron.ipcRenderer.removeAllListeners(MigrationIpcChannels.Progress)
