@@ -696,12 +696,14 @@ export class BinaryManager extends BaseService {
     })
     await Promise.all(workers)
 
-    const current = Object.entries(this.loadState().tools)
-      .map(([name, { tool }]) => `${name}@${tool}`)
-      .join('|')
-    if (current === snapshot) {
-      this.saveUpdateCheck({ checkedAt: Date.now(), versions: result })
-    }
+    await this.withStateLock(async () => {
+      const current = Object.entries(this.loadState().tools)
+        .map(([name, { tool }]) => `${name}@${tool}`)
+        .join('|')
+      if (current === snapshot) {
+        this.saveUpdateCheck({ checkedAt: Date.now(), versions: result })
+      }
+    })
     return result
   }
 
