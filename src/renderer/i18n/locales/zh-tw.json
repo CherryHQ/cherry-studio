@@ -1599,6 +1599,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "快取 {{hit_rate}}%",
+        "tooltip": "快取讀取 {{cache_read}} / 寫入 {{cache_write}} / 未快取 {{no_cache}} · 節省 {{saved}} 輸入 Token"
+      },
       "editing_current": "此訊息正在編輯器中編輯",
       "flow": {
         "branches": "分支",

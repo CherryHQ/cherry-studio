@@ -1599,6 +1599,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "缓存 {{hit_rate}}%",
+        "tooltip": "缓存读取 {{cache_read}} / 写入 {{cache_write}} / 未缓存 {{no_cache}} · 节省 {{saved}} 输入 Token"
+      },
       "editing_current": "这条消息正在输入框中编辑",
       "flow": {
         "branches": "分支",
