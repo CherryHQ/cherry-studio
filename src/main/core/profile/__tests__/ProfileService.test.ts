@@ -94,7 +94,8 @@ describe('ProfileService.switchProfile', () => {
       'deactivate',
       'repoint:/userData/Profiles/work',
       'repoint:/userData', // rollback repoints to the default (previous) root
-      'activate:default'
+      'activate:default',
+      'recover' // rollback re-arms the restored profile, symmetric with the happy path
     ])
     expect(h.calls).not.toContain('commit')
     expect(svc.isSwitching()).toBe(false)

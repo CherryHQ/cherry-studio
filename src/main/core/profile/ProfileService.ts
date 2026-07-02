@@ -126,6 +126,10 @@ export class ProfileService extends BaseService {
     try {
       if (previous) this.repointPaths(previous)
       await application.activateProfile({ profileId: previousId })
+      // Symmetric with the happy path (step 4b): re-arm the restored profile's
+      // jobs/schedules, which deactivate disposed — otherwise a failed switch
+      // leaves the previous profile's recurring jobs silently dead until restart.
+      await this.runRecovery(previousId)
     } catch (fatal) {
       logger.error('Profile switch rollback failed — restart required', fatal as Error, { previousId })
       throw new ProfileSwitchFatalError(`Rollback to profile ${previousId} failed; restart the app`)
