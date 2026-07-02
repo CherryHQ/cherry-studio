@@ -18,19 +18,16 @@ import { app } from 'electron'
 import { CHERRY_HOME, LOGS_DIR } from './constants'
 
 /**
- * Build the frozen path registry. Called once during preboot (after
- * `app.setPath('userData', ...)`, before `app.whenReady()`).
+ * Build the frozen app-level path registry — every key whose value is identical
+ * under every profile (`isProfilePathKey(key) === false`). Called once during
+ * preboot; per-profile keys are built separately by `buildProfilePathRegistry`.
  *
  * Every value must be resolvable in preboot — only sync Electron APIs,
  * `process.resourcesPath`, and Node built-ins. No service dependencies.
- *
- * Access via `application.getPath(key, filename?)` only; do not import
- * this function directly (reserved for Application.ts and tests).
  */
-export function buildPathRegistry() {
+export function buildAppPathRegistry() {
   // Intermediate vars (primitives only — no object literals in this file).
   const appUserData = app.getPath('userData')
-  const appUserDataData = path.join(appUserData, 'Data')
   const appSession = app.getPath('sessionData')
   const sysTemp = app.getPath('temp')
   const appTemp = path.join(sysTemp, 'CherryStudio')
@@ -71,9 +68,7 @@ export function buildPathRegistry() {
     'app.session.cache': path.join(appSession, 'Cache'), // Chromium cache Directory
     'app.extra_resources': appExtraResources, // electron-builder extraResources output root
     'app.temp': appTemp, // Cherry-specific temp under sys.temp
-    'app.userdata': appUserData, // Electron per-app data dir (Cherry-owned)
-    'app.userdata.data': appUserDataData,
-    'app.database.file': path.join(appUserData, 'cherrystudio.sqlite'),
+    'app.userdata': appUserData, // Electron per-app data dir (Cherry-owned); profile Data/DB live under the active profile root, not here
     // Dev: relative to __dirname; packaged: shipped via extraResources
     'app.database.migrations': app.isPackaged
       ? path.join(appExtraResources, 'migrations/sqlite-drizzle')
@@ -90,18 +85,8 @@ export function buildPathRegistry() {
     'feature.binary.data': path.join(CHERRY_HOME, 'binary-manager'),
     'feature.binary.state_file': path.join(CHERRY_HOME, 'binary-manager', 'state.json'),
 
-    // MCP
+    // MCP (root; per-profile oauth/memory live in the profile registry)
     'feature.mcp': path.join(CHERRY_HOME, 'mcp'),
-    'feature.mcp.oauth': path.join(CHERRY_HOME, 'config', 'mcp', 'oauth'),
-    'feature.mcp.workspace': path.join(appUserDataData, 'Workspace'),
-    // MCP memory server's knowledge-graph JSON for the built-in MCP server
-    'feature.mcp.memory_file': path.join(CHERRY_HOME, 'config', 'memory.json'),
-
-    // Copilot token
-    'feature.copilot.token_file': path.join(CHERRY_HOME, 'config', '.copilot_token'),
-
-    // Trace
-    'feature.trace': path.join(CHERRY_HOME, 'trace'),
 
     // OVMS (OpenVINO Model Server)
     'feature.ovms': path.join(CHERRY_HOME, 'ovms'),
@@ -109,22 +94,12 @@ export function buildPathRegistry() {
     'feature.ovms.patch': path.join(CHERRY_HOME, 'ovms', 'patch'),
     'feature.ovms.ovocr': path.join(CHERRY_HOME, 'ovms', 'ovocr'),
 
-    // Agents
+    // Agents (read-only bundled templates + install temp; per-profile skills/channels/workspaces live in the profile registry)
     'feature.agents.skills.builtin': path.join(appRootResources, 'skills'), // bundled skill templates (read-only)
-    'feature.agents.skills': path.join(appUserDataData, 'Skills'), // installed skills storage
     'feature.agents.skills.install.temp': path.join(appTemp, 'skill-install'),
-    'feature.agents.claude.root': path.join(appUserData, '.claude'), // Claude Code config (relocated from ~/.claude for Windows compat)
-    'feature.agents.claude.skills': path.join(appUserData, '.claude', 'skills'), // symlinks → feature.agents.skills
-    'feature.agents.channels': path.join(appUserDataData, 'Channels'),
-    'feature.agents.workspaces': path.join(appUserDataData, 'Agents'), // per-agent workspace parent
     'feature.agents.builtin': path.join(appRootResources, 'builtin-agents'), // bundled agent templates (read-only)
 
-    // Files / Notes / Knowledgebase
-    'feature.files.data': path.join(appUserDataData, 'Files'),
-    'feature.notes.data': path.join(appUserDataData, 'Notes'),
-    'feature.knowledgebase.data': path.join(appUserDataData, 'KnowledgeBase'),
-
-    // OCR
+    // OCR (trained-model data, not user content)
     'feature.ocr.tesseract': path.join(appUserData, 'tesseract'),
 
     // Version log
@@ -156,6 +131,55 @@ export function buildPathRegistry() {
         ? path.join(os.homedir(), 'Library', 'Application Support', 'obsidian', 'obsidian.json')
         : path.join(os.homedir(), '.config', 'obsidian', 'obsidian.json')
   } as const)
+}
+
+/**
+ * Build the per-profile path registry — every key in `PROFILE_PATH_KEYS`, rooted
+ * at the active profile. Pure: given the two roots it does path joins only, no
+ * Electron/service calls, so it is rebuilt cheaply on every profile switch.
+ *
+ * @param profileRoot   base for the Data subtree + the SQLite DB (default profile: legacy userData; others: `Profiles/<id>`)
+ * @param credentialRoot base for per-identity content historically under ~/.cherrystudio (default profile: CHERRY_HOME; others: `Profiles/<id>`)
+ */
+export function buildProfilePathRegistry(profileRoot: string, credentialRoot: string) {
+  const dataDir = path.join(profileRoot, 'Data')
+  const config = path.join(credentialRoot, 'config')
+
+  return Object.freeze({
+    'app.database.file': path.join(profileRoot, 'cherrystudio.sqlite'),
+    'app.userdata.data': dataDir,
+
+    'feature.files.data': path.join(dataDir, 'Files'),
+    'feature.notes.data': path.join(dataDir, 'Notes'),
+    'feature.knowledgebase.data': path.join(dataDir, 'KnowledgeBase'),
+    'feature.mcp.workspace': path.join(dataDir, 'Workspace'),
+    'feature.agents.skills': path.join(dataDir, 'Skills'), // installed skills storage
+    'feature.agents.channels': path.join(dataDir, 'Channels'),
+    'feature.agents.workspaces': path.join(dataDir, 'Agents'), // per-agent workspace parent
+
+    'feature.agents.claude.root': path.join(profileRoot, '.claude'), // Claude Code config (relocated from ~/.claude for Windows compat)
+    'feature.agents.claude.skills': path.join(profileRoot, '.claude', 'skills'), // symlinks → feature.agents.skills
+
+    // per-identity content: legacy location was under ~/.cherrystudio, now rooted at credentialRoot
+    'feature.mcp.oauth': path.join(config, 'mcp', 'oauth'),
+    'feature.mcp.memory_file': path.join(config, 'memory.json'), // MCP memory server's knowledge-graph JSON
+    'feature.copilot.token_file': path.join(config, '.copilot_token'),
+    'feature.trace': path.join(credentialRoot, 'trace')
+  } as const)
+}
+
+/** Legacy roots for the default profile: Data/DB under userData, credentials under ~/.cherrystudio. */
+export function buildDefaultProfilePathRegistry() {
+  return buildProfilePathRegistry(app.getPath('userData'), CHERRY_HOME)
+}
+
+/**
+ * Build the full frozen path registry for the default profile (app + profile).
+ * The single source of the `PathMap` / `PathKey` types; do not import directly
+ * (reserved for Application.ts and tests). Access via `application.getPath()`.
+ */
+export function buildPathRegistry() {
+  return Object.freeze({ ...buildAppPathRegistry(), ...buildDefaultProfilePathRegistry() } as const)
 }
 
 /** Compile-time type derived from the builder's return type. */

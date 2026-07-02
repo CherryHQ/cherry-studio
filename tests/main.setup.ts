@@ -65,7 +65,9 @@ vi.mock('electron', () => {
             return '/mock/unknown'
         }
       }),
-      getVersion: vi.fn(() => '1.0.0')
+      getVersion: vi.fn(() => '1.0.0'),
+      getAppPath: vi.fn(() => '/mock/appPath'),
+      isPackaged: false
     },
     ipcMain: {
       handle: vi.fn(),
