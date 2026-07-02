@@ -116,7 +116,7 @@ export class KnowledgeVectorStoreService extends BaseService implements ProfileA
 
   private async closeAllStores(): Promise<void> {
     const storeCount = this.instanceCache.size
-    logger.info('Closing knowledge index stores', { storeCount })
+    logger.info('Stopping knowledge index stores', { storeCount })
 
     try {
       for (const [baseId, store] of this.instanceCache.entries()) {
@@ -128,7 +128,7 @@ export class KnowledgeVectorStoreService extends BaseService implements ProfileA
       }
     } finally {
       this.instanceCache.clear()
-      logger.info('Closed knowledge index stores', { storeCount })
+      logger.info('Stopped knowledge index stores', { storeCount })
     }
   }
 
