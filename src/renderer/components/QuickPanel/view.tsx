@@ -414,12 +414,12 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     }
 
     const nextSearchText = text.slice(queryAnchor, cursorOffset)
-    if (isInputQueryTerminated(nextSearchText)) {
+    if (ctx.triggerInfo?.type === 'input' && isInputQueryTerminated(nextSearchText)) {
       closePanel('input_query_terminated')
       return
     }
 
-    if (isInputQueryRestarted(nextSearchText, inputTriggerSymbol)) {
+    if (ctx.triggerInfo?.type === 'input' && isInputQueryRestarted(nextSearchText, inputTriggerSymbol)) {
       closePanel('input_trigger_restarted')
       return
     }
@@ -470,12 +470,12 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     }
 
     const nextSearchText = text.slice(queryAnchor, cursorOffset)
-    if (isInputQueryTerminated(nextSearchText)) {
+    if (ctx.triggerInfo?.type === 'input' && isInputQueryTerminated(nextSearchText)) {
       closePanel('input_query_terminated')
       return
     }
 
-    if (isInputQueryRestarted(nextSearchText, inputTriggerSymbol)) {
+    if (ctx.triggerInfo?.type === 'input' && isInputQueryRestarted(nextSearchText, inputTriggerSymbol)) {
       closePanel('input_trigger_restarted')
       return
     }

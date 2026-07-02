@@ -311,6 +311,37 @@ describe('QuickPanelView', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it('keeps a button-triggered tracked panel open when the query contains whitespace', async () => {
+    const captureDispatch = vi.fn()
+    const onClose = vi.fn()
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => 'new chat',
+      getCursorOffset: () => 8,
+      insertText: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={inputAdapter}
+          items={[{ id: 'new-chat', label: 'New chat', icon: 'message' }]}
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+          onClose={onClose}
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('New chat')
+
+    expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   // 集成测试验证 context 的 fill 标志 + DOM 几何测量把高度喂给了 getQuickPanelHeights；
   // 具体数值由 heights.test.ts 的纯单测覆盖，这里不写死像素。
   const measuredItems: QuickPanelListItem[] = Array.from({ length: 10 }, (_, index) => ({
