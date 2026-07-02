@@ -71,13 +71,13 @@ export const providerHandlers: HandlersFor<ProviderSchemas> = {
     GET: async ({ params }) => {
       const authConfig = providerService.getAuthConfig(params.providerId)
       // OAuth secrets never need to leave the main process — the renderer uses
-      // `oauth.has_token` for the signed-in boolean. Strip the tokens here so
-      // the endpoint exposes only non-secret metadata (type/clientId/accountId),
-      // while other auth kinds (iam-gcp/aws) still return their config for the
-      // settings UI that edits them.
+      // `oauth.has_token` for the signed-in boolean. Whitelist only the
+      // non-secret metadata (deny-by-default, so a future field can't leak a
+      // secret by accident), while other auth kinds (iam-gcp/aws) still return
+      // their config for the settings UI that edits them.
       if (authConfig?.type === 'oauth') {
-        const { accessToken: _accessToken, refreshToken: _refreshToken, ...safe } = authConfig
-        return safe
+        const { type, clientId, accountId, expiresAt } = authConfig
+        return { type, clientId, accountId, expiresAt }
       }
       return authConfig
     }
