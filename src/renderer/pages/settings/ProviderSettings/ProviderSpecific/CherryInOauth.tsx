@@ -1,7 +1,7 @@
 import { Button, Skeleton } from '@cherrystudio/ui'
 import { Cherryin } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
-import { useProvider, useProviderAuthConfig } from '@renderer/hooks/useProvider'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
 import { oauthCardClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { oauthWithCherryIn } from '@renderer/utils/oauth'
@@ -37,21 +37,31 @@ function formatCurrency(value: number | null | undefined): string {
 
 const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
   const { provider, updateProvider, addApiKey, deleteApiKey } = useProvider(providerId)
-  const {
-    data: authConfig,
-    isLoading: isAuthConfigLoading,
-    refetch: refetchAuthConfig
-  } = useProviderAuthConfig(providerId)
   const { t } = useTranslation()
 
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isLoadingData, setIsLoadingData] = useState(false)
   const [balanceInfo, setBalanceInfo] = useState<CherryInBalance | null>(null)
   const [oauthTokenOverride, setOauthTokenOverride] = useState<boolean | null>(null)
+  // `oauth.has_token` returns only a boolean — the access/refresh tokens stay in
+  // the main process and never reach the renderer (null = status not loaded yet).
+  const [remoteHasOAuthToken, setRemoteHasOAuthToken] = useState<boolean | null>(null)
+
+  const refreshHasToken = useCallback(async () => {
+    try {
+      setRemoteHasOAuthToken(await ipcApi.request('oauth.has_token', { providerId }))
+    } catch (error) {
+      logger.warn('Failed to check CherryIN OAuth token status:', error as Error)
+      setRemoteHasOAuthToken(false)
+    }
+  }, [providerId])
+
+  useEffect(() => {
+    void refreshHasToken()
+  }, [refreshHasToken])
 
   const hasKeys = provider ? hasApiKeys(provider) : false
-  const remoteHasOAuthToken = authConfig?.type === 'oauth' && Boolean(authConfig.accessToken)
-  const hasOAuthToken = oauthTokenOverride ?? remoteHasOAuthToken
+  const hasOAuthToken = oauthTokenOverride ?? remoteHasOAuthToken ?? false
   const isOAuthLoggedIn = hasKeys && hasOAuthToken
 
   const fetchData = useCallback(async () => {
@@ -76,7 +86,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
   }, [fetchData, isOAuthLoggedIn])
 
   useEffect(() => {
-    if (oauthTokenOverride !== null && remoteHasOAuthToken === oauthTokenOverride) {
+    if (oauthTokenOverride !== null && remoteHasOAuthToken !== null && remoteHasOAuthToken === oauthTokenOverride) {
       setOauthTokenOverride(null)
     }
   }, [oauthTokenOverride, remoteHasOAuthToken])
@@ -93,9 +103,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
           await Promise.all(keys.map((key) => addApiKey(key, 'OAuth')))
           await updateProvider({ isEnabled: true })
           setOauthTokenOverride(true)
-          void Promise.resolve(refetchAuthConfig()).catch((error) => {
-            logger.warn('Failed to refetch CherryIN auth config after login:', error as Error)
-          })
+          void refreshHasToken()
           await fetchData()
           window.toast.success(t('auth.get_key_success'))
         },
@@ -107,7 +115,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
       logger.error('OAuth error:', error as Error)
       window.toast.error(t('settings.provider.oauth.error'))
     }
-  }, [addApiKey, fetchData, refetchAuthConfig, t, updateProvider])
+  }, [addApiKey, fetchData, refreshHasToken, t, updateProvider])
 
   const handleLogout = useCallback(() => {
     window.modal.confirm({
@@ -122,9 +130,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
           setOauthTokenOverride(false)
           setBalanceInfo(null)
 
-          void Promise.resolve(refetchAuthConfig()).catch((error) => {
-            logger.warn('Failed to refetch CherryIN auth config after logout:', error as Error)
-          })
+          void refreshHasToken()
 
           const oauthKeys = provider?.apiKeys.filter((key) => key.label === 'OAuth') ?? []
           const deleteResults = await Promise.allSettled(oauthKeys.map((key) => deleteApiKey(key.id)))
@@ -144,7 +150,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
         }
       }
     })
-  }, [deleteApiKey, provider?.apiKeys, refetchAuthConfig, t])
+  }, [deleteApiKey, provider?.apiKeys, refreshHasToken, t])
 
   const handleTopup = useCallback(() => {
     window.open(CHERRYIN_TOPUP_URL, '_blank')
@@ -154,7 +160,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
     return null
   }
 
-  if (isAuthConfigLoading && hasKeys) {
+  if (remoteHasOAuthToken === null && hasKeys) {
     return (
       <div className={oauthCardClasses.container}>
         <div className={oauthCardClasses.shell}>

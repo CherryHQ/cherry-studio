@@ -6,12 +6,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import CherryInOauth from '../ProviderSpecific/CherryInOauth'
 
 const useProviderMock = vi.fn()
-const useProviderAuthConfigMock = vi.fn()
 const ipcApiRequestMock = vi.fn()
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProvider: (...args: any[]) => useProviderMock(...args),
-  useProviderAuthConfig: (...args: any[]) => useProviderAuthConfigMock(...args)
+  useProvider: (...args: any[]) => useProviderMock(...args)
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -62,6 +60,7 @@ describe('CherryInOauth', () => {
     }
     ipcApiRequestMock.mockImplementation((route: string) => {
       if (route === 'cherryin.get_balance') return Promise.resolve(DEFAULT_BALANCE)
+      if (route === 'oauth.has_token') return Promise.resolve(true)
       return Promise.resolve(undefined)
     })
   })
@@ -78,16 +77,6 @@ describe('CherryInOauth', () => {
       addApiKey: vi.fn(),
       deleteApiKey: vi.fn()
     })
-    useProviderAuthConfigMock.mockReturnValue({
-      data: {
-        type: 'oauth',
-        clientId: 'client-id',
-        accessToken: 'oauth-access',
-        refreshToken: 'oauth-refresh'
-      },
-      isLoading: false,
-      refetch: vi.fn()
-    })
 
     render(<CherryInOauth providerId="cherryin" />)
 
@@ -103,11 +92,13 @@ describe('CherryInOauth', () => {
   })
 
   it('keeps balance fetch failures quiet and shows the empty balance state', async () => {
-    ipcApiRequestMock.mockImplementation((route: string) =>
-      route === 'cherryin.get_balance'
-        ? Promise.reject(new Error('Failed to get balance: HTTP 401 Unauthorized'))
-        : Promise.resolve(undefined)
-    )
+    ipcApiRequestMock.mockImplementation((route: string) => {
+      if (route === 'cherryin.get_balance') {
+        return Promise.reject(new Error('Failed to get balance: HTTP 401 Unauthorized'))
+      }
+      if (route === 'oauth.has_token') return Promise.resolve(true)
+      return Promise.resolve(undefined)
+    })
     useProviderMock.mockReturnValue({
       provider: {
         id: 'cherryin',
@@ -118,16 +109,6 @@ describe('CherryInOauth', () => {
       updateProvider: vi.fn(),
       addApiKey: vi.fn(),
       deleteApiKey: vi.fn()
-    })
-    useProviderAuthConfigMock.mockReturnValue({
-      data: {
-        type: 'oauth',
-        clientId: 'client-id',
-        accessToken: 'oauth-access',
-        refreshToken: 'oauth-refresh'
-      },
-      isLoading: false,
-      refetch: vi.fn()
     })
 
     render(<CherryInOauth providerId="cherryin" />)
@@ -151,11 +132,9 @@ describe('CherryInOauth', () => {
       addApiKey: vi.fn(),
       deleteApiKey: vi.fn()
     })
-    useProviderAuthConfigMock.mockReturnValue({
-      data: null,
-      isLoading: false,
-      refetch: vi.fn()
-    })
+    ipcApiRequestMock.mockImplementation((route: string) =>
+      route === 'oauth.has_token' ? Promise.resolve(false) : Promise.resolve(undefined)
+    )
 
     render(<CherryInOauth providerId="cherryin" />)
 
@@ -169,7 +148,6 @@ describe('CherryInOauth', () => {
 
   it('logs out and removes every OAuth-labelled key after confirmation', async () => {
     const deleteApiKey = vi.fn().mockResolvedValue(undefined)
-    const refetchAuthConfig = vi.fn().mockResolvedValue(undefined)
 
     useProviderMock.mockReturnValue({
       provider: {
@@ -186,20 +164,10 @@ describe('CherryInOauth', () => {
       addApiKey: vi.fn(),
       deleteApiKey
     })
-    useProviderAuthConfigMock.mockReturnValue({
-      data: {
-        type: 'oauth',
-        clientId: 'client-id',
-        accessToken: 'oauth-access',
-        refreshToken: 'oauth-refresh'
-      },
-      isLoading: false,
-      refetch: refetchAuthConfig
-    })
 
     render(<CherryInOauth providerId="cherryin" />)
 
-    fireEvent.click(screen.getByRole('button', { name: /退出登录|Logout/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /退出登录|Logout/i }))
 
     const options = (window.modal.confirm as ReturnType<typeof vi.fn>).mock.calls[0][0]
     await act(async () => {
@@ -207,7 +175,7 @@ describe('CherryInOauth', () => {
     })
 
     expect(ipcApiRequestMock).toHaveBeenCalledWith('cherryin.logout', { apiHost: 'https://open.cherryin.ai' })
-    expect(refetchAuthConfig).toHaveBeenCalled()
+    expect(ipcApiRequestMock).toHaveBeenCalledWith('oauth.has_token', { providerId: 'cherryin' })
     expect(deleteApiKey).toHaveBeenCalledTimes(2)
     expect(deleteApiKey).toHaveBeenNthCalledWith(1, 'oauth-1')
     expect(deleteApiKey).toHaveBeenNthCalledWith(2, 'oauth-2')
@@ -217,7 +185,6 @@ describe('CherryInOauth', () => {
 
   it('shows a warning instead of success when OAuth key cleanup partially fails', async () => {
     const deleteApiKey = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('delete failed'))
-    const refetchAuthConfig = vi.fn().mockResolvedValue(undefined)
 
     useProviderMock.mockReturnValue({
       provider: {
@@ -233,20 +200,10 @@ describe('CherryInOauth', () => {
       addApiKey: vi.fn(),
       deleteApiKey
     })
-    useProviderAuthConfigMock.mockReturnValue({
-      data: {
-        type: 'oauth',
-        clientId: 'client-id',
-        accessToken: 'oauth-access',
-        refreshToken: 'oauth-refresh'
-      },
-      isLoading: false,
-      refetch: refetchAuthConfig
-    })
 
     render(<CherryInOauth providerId="cherryin" />)
 
-    fireEvent.click(screen.getByRole('button', { name: /退出登录|Logout/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /退出登录|Logout/i }))
 
     const options = (window.modal.confirm as ReturnType<typeof vi.fn>).mock.calls[0][0]
     await act(async () => {
