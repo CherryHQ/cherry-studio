@@ -273,7 +273,11 @@ export interface WindowQuirks {
 interface WindowTypeMetadataBase {
   /** Window type identifier */
   type: WindowType
-  /** Path to the HTML file for this window (relative to renderer root) */
+  /**
+   * Path to the HTML file for this window (relative to renderer root).
+   * Empty string means WindowManager skips content loading and the domain
+   * service must load content itself.
+   */
   htmlPath: string
   /**
    * Preload script filename (basename with extension) in `src/preload/`.
