@@ -80,6 +80,11 @@ type DirectoryListOptions = {
   searchPattern?: string
 }
 
+type DirectoryEntry = {
+  path: string
+  isDirectory: boolean
+}
+
 type ShortcutRegistrationConflictPayload = {
   key: ShortcutPreferenceKey
   accelerator?: string
@@ -246,6 +251,8 @@ const api = {
       ipcRenderer.invoke(IpcChannel.File_GetMetadata, handle),
     listDirectory: (dirPath: string, options?: DirectoryListOptions) =>
       ipcRenderer.invoke(IpcChannel.File_ListDirectory, dirPath, options),
+    listDirectoryEntries: (dirPath: string, options?: DirectoryListOptions): Promise<DirectoryEntry[]> =>
+      ipcRenderer.invoke(IpcChannel.File_ListDirectoryEntries, dirPath, options),
     checkFileName: (dirPath: string, fileName: string, isFile: boolean) =>
       ipcRenderer.invoke(IpcChannel.File_CheckFileName, dirPath, fileName, isFile),
     validateNotesDirectory: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_ValidateNotesDirectory, dirPath),
