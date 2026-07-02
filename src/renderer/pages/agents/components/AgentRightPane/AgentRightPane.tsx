@@ -31,7 +31,6 @@ import {
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
 import { TracePane } from '@renderer/components/chat/trace/TracePane'
-import NavbarIcon from '@renderer/components/NavbarIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
@@ -51,7 +50,6 @@ import {
   FileText,
   FolderOpen,
   GitBranch,
-  Info,
   Loader2,
   Package,
   Waypoints
@@ -853,7 +851,7 @@ function AgentRightPaneHighlights({
 
 // Hover-card preview body. Lives inside HoverCardContent so it mounts only when the card opens.
 // Reads the same persisted usage data the Status tab renders.
-function AgentRightPaneInfoCardBody() {
+function AgentRightPaneStatusPreview() {
   const { meta } = useAgentRightPane()
   const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId)
   const compaction = useAgentSessionCompaction(meta.sessionId)
@@ -873,24 +871,49 @@ function AgentRightPaneInfoCardBody() {
   )
 }
 
-// Shown only in the collapsed state (rendered into ConversationShell's topRightTool, which the shell
-// suppresses while the pane is open/maximized). Hover previews the session; click expands to Status.
-function AgentRightPaneInfoCard({ disabled }: { disabled?: boolean }) {
-  const { meta } = useAgentRightPane()
-  const { openTab } = useShellActions()
+function AgentRightPaneStatusShortcut({ disabled }: { disabled?: boolean }) {
+  const shellState = useShellState()
   const { t } = useTranslation()
-  if (disabled || meta.statusEnabled === false) return null
+  if (disabled || shellState.open || shellState.maximized) return null
+
   return (
     <HoverCard openDelay={150} closeDelay={100}>
       <HoverCardTrigger asChild>
-        <NavbarIcon tone="conversation" aria-label={t('agent.right_pane.info.label')} onClick={() => openTab('status')}>
-          <Info />
-        </NavbarIcon>
+        <Shell.TabShortcut
+          tab="status"
+          label={t('agent.right_pane.tabs.status')}
+          icon={<Activity className="size-3.5" />}
+          tooltip={false}
+        />
       </HoverCardTrigger>
       <HoverCardContent align="end" sideOffset={8} className="w-80 overflow-hidden p-3">
-        <AgentRightPaneInfoCardBody />
+        <AgentRightPaneStatusPreview />
       </HoverCardContent>
     </HoverCard>
+  )
+}
+
+function AgentRightPaneShortcuts() {
+  const { state, meta } = useAgentRightPane()
+  const { t } = useTranslation()
+  const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
+  const hasFiles = meta.filesEnabled !== false
+  const hasStatus = meta.statusEnabled !== false
+  const traceTopicId = meta.sessionId ? buildAgentSessionTopicId(meta.sessionId) : ''
+  const hasTrace = enableDeveloperMode && !!traceTopicId
+
+  return (
+    <>
+      {hasFiles && (
+        <Shell.TabShortcut
+          tab="files"
+          label={state.selectedFile ? getFilePreviewTitle(state.selectedFile) : t('agent.right_pane.tabs.files')}
+          icon={state.selectedFile ? <FileText className="size-3.5" /> : <FolderOpen className="size-3.5" />}
+        />
+      )}
+      {hasStatus && <AgentRightPaneStatusShortcut />}
+      {hasTrace && <Shell.TabShortcut tab="trace" label={t('trace.label')} icon={<Waypoints className="size-3.5" />} />}
+    </>
   )
 }
 
@@ -900,7 +923,7 @@ export const AgentRightPane = Object.assign(AgentRightPaneProvider, {
   Host: AgentRightPaneHost,
   MaximizedOverlay: AgentRightPaneMaximizedOverlay,
   FilesToggle: AgentRightPaneFilesToggle,
-  InfoCard: AgentRightPaneInfoCard
+  Shortcuts: AgentRightPaneShortcuts
 })
 
 export type { AgentToolFlowOpenInput }
