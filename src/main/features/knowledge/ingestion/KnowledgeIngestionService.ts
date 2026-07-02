@@ -20,12 +20,11 @@ import {
 } from '@shared/data/types/knowledge'
 import { knowledgeSupportedFileExts } from '@shared/utils/file'
 
-import { assertBaseCanRunRuntimeOperation } from '../baseGuards'
-import { cancelActiveKnowledgeSubtreeJobs, purgeKnowledgeSubtreeWithinLock } from '../subtreePurge'
-import { classifyKnowledgeItemSource, isContainerKnowledgeItem } from '../items'
-import type { KnowledgeLockManager } from '../KnowledgeLockManager'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
-import { planKnowledgeItemSource } from '../sources/sourcePlanning'
+
+import { assertBaseCanRunRuntimeOperation } from '../base/baseGuards'
+import type { KnowledgeLockManager } from '../base/KnowledgeLockManager'
+import { classifyKnowledgeItemSource, isContainerKnowledgeItem } from '../items'
 import {
   assertKnowledgeFileTargetAvailable,
   collectKnowledgeReservedRelativePaths,
@@ -37,6 +36,7 @@ import {
   needsProcessedArtifactReservation,
   reserveImportedFileRelativePath
 } from '../pathStorage'
+import { planKnowledgeItemSource } from '../pipeline/sources/sourcePlanning'
 import { cancelJobOrThrow } from '../tasks/utils/cancel'
 import {
   type KnowledgeBaseId,
@@ -53,6 +53,7 @@ import {
 } from '../types'
 import { resolveKnowledgeAddConflicts } from './addConflicts'
 import { markUnscheduledKnowledgeItemsFailed } from './statusCleanup'
+import { cancelActiveKnowledgeSubtreeJobs, purgeKnowledgeSubtreeWithinLock } from './subtreePurge'
 
 const logger = loggerService.withContext('Knowledge:IngestionService')
 // Keep poll jobs delayed enough to avoid hot-looping while remote processors are still working.

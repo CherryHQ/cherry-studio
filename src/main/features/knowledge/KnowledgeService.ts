@@ -14,9 +14,9 @@ import type {
   RestoreKnowledgeBaseResult
 } from '@shared/data/types/knowledge'
 
+import { KnowledgeBaseAdminService } from './base/KnowledgeBaseAdminService'
+import { KnowledgeLockManager } from './base/KnowledgeLockManager'
 import { KnowledgeIngestionService } from './ingestion/KnowledgeIngestionService'
-import { KnowledgeBaseAdminService } from './KnowledgeBaseAdminService'
-import { KnowledgeLockManager } from './KnowledgeLockManager'
 import type {
   KnowledgeConceptContent,
   KnowledgeConceptGrep,

@@ -14,18 +14,18 @@ import {
   type RestoreKnowledgeBaseResult
 } from '@shared/data/types/knowledge'
 
-import type { KnowledgeIngestionService } from './ingestion/KnowledgeIngestionService'
-import { classifyKnowledgeItemSource } from './items'
-import type { KnowledgeLockManager } from './KnowledgeLockManager'
-import { getKnowledgeBaseFilePath } from './pathStorage'
-import { narrowKnowledgeJobInput } from './tasks/utils/jobInput'
+import type { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionService'
+import { classifyKnowledgeItemSource } from '../items'
+import { getKnowledgeBaseFilePath } from '../pathStorage'
+import { narrowKnowledgeJobInput } from '../tasks/utils/jobInput'
 import {
   KNOWLEDGE_ACTIVE_JOB_LIMIT,
   KNOWLEDGE_ACTIVE_JOB_STATUSES,
   KNOWLEDGE_JOB_TYPES,
   knowledgeQueueName,
   toKnowledgeBaseId
-} from './types'
+} from '../types'
+import type { KnowledgeLockManager } from './KnowledgeLockManager'
 
 const logger = loggerService.withContext('Knowledge:BaseAdmin')
 const KNOWLEDGE_JOB_TYPE_SET = new Set<string>(KNOWLEDGE_JOB_TYPES)

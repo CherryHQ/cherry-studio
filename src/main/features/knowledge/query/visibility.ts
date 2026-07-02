@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
-import { toMaterialRelativePath } from '../indexing/materialFields'
+import { toMaterialRelativePath } from '../pipeline/indexing/materialFields'
 
 const logger = loggerService.withContext('Knowledge:Query')
 

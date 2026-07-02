@@ -2,17 +2,17 @@ import { application } from '@application'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
 
-import { isIndexableKnowledgeItem } from './items'
-import { deleteKnowledgeItemFilesBestEffort } from './pathStorage'
-import { cancelJobOrThrow } from './tasks/utils/cancel'
-import { narrowKnowledgeJobInput } from './tasks/utils/jobInput'
+import { isIndexableKnowledgeItem } from '../items'
+import { deleteKnowledgeItemFilesBestEffort } from '../pathStorage'
+import { deleteKnowledgeItemVectors } from '../pipeline/vectorstore/vectorCleanup'
+import { cancelJobOrThrow } from '../tasks/utils/cancel'
+import { narrowKnowledgeJobInput } from '../tasks/utils/jobInput'
 import {
   KNOWLEDGE_ACTIVE_JOB_LIMIT,
   KNOWLEDGE_ACTIVE_JOB_STATUSES,
   knowledgeQueueName,
   toKnowledgeBaseId
-} from './types'
-import { deleteKnowledgeItemVectors } from './vectorCleanup'
+} from '../types'
 
 /**
  * Cancel any in-flight job touching the given subtree (the roots plus their

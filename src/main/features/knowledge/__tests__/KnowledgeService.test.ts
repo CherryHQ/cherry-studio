@@ -173,7 +173,7 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
   }
 }))
 
-vi.mock('../indexing/rerank', () => ({
+vi.mock('../pipeline/indexing/rerank', () => ({
   rerankKnowledgeSearchResults: rerankKnowledgeSearchResultsMock
 }))
 

@@ -1,8 +1,12 @@
 import type { PathReadability } from '@main/utils/file'
-import type { KnowledgeItem } from '@shared/data/types/knowledge'
+import type { KnowledgeItem, KnowledgeItemOf } from '@shared/data/types/knowledge'
 
 import { probeKnowledgeFile, probeKnowledgeSourcePath } from './pathStorage'
-import type { ContainerKnowledgeItem, IndexableKnowledgeItem } from './types/items'
+
+export type IndexableKnowledgeItem = KnowledgeItemOf<'file' | 'url' | 'note'>
+
+export type ContainerKnowledgeItem = KnowledgeItemOf<'directory'>
+export type ContainerKnowledgeItemType = ContainerKnowledgeItem['type']
 
 export function isIndexableKnowledgeItem(item: KnowledgeItem): item is IndexableKnowledgeItem {
   return item.type === 'file' || item.type === 'url' || item.type === 'note'
@@ -41,7 +45,7 @@ export async function classifyKnowledgeItemSource(
 
 /**
  * Whether a knowledge item can rebuild from a still-readable source. Gates reindex both at admission
- * (`KnowledgeService.assertSubtreesCanReindex`) and inside the reindex job's mutation lock right
+ * (`KnowledgeIngestionService.assertSubtreesCanReindex`) and inside the reindex job's mutation lock right
  * before the delete — a vanished or unverifiable source must never wipe vectors with nothing to
  * rebuild from. Admission additionally distinguishes the two via {@link classifyKnowledgeItemSource}.
  */

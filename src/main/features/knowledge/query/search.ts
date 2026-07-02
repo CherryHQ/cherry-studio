@@ -1,6 +1,6 @@
 import type { KnowledgeSearchResult, KnowledgeSearchScoreKind } from '@shared/data/types/knowledge'
 
-import type { KnowledgeIndexSearchMode } from '../vectorstore/indexStore/model'
+import type { KnowledgeIndexSearchMode } from '../pipeline/vectorstore/indexStore/model'
 
 const DEFAULT_SEARCH_THRESHOLD = 0
 

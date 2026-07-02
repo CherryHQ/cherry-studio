@@ -12,7 +12,7 @@ import {
 } from '@main/features/fileProcessing'
 import { isTerminalStatus, type JobSnapshot } from '@shared/data/api/schemas/jobs'
 
-import type { KnowledgeLockManager } from '../KnowledgeLockManager'
+import type { KnowledgeLockManager } from '../base/KnowledgeLockManager'
 import type { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionService'
 import { knowledgeQueueName, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
 import { toKnowledgeRelativePath } from '../pathStorage'

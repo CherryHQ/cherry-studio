@@ -5,10 +5,10 @@ import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { JobHandler } from '@main/core/job/types'
 
-import type { KnowledgeLockManager } from '../KnowledgeLockManager'
-import { cancelActiveKnowledgeSubtreeJobs, purgeKnowledgeSubtreeWithinLock } from '../subtreePurge'
+import type { KnowledgeLockManager } from '../base/KnowledgeLockManager'
+import { cancelActiveKnowledgeSubtreeJobs, purgeKnowledgeSubtreeWithinLock } from '../ingestion/subtreePurge'
+import { reclaimKnowledgeIndexSpace } from '../pipeline/vectorstore/vectorCleanup'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId } from '../types'
-import { reclaimKnowledgeIndexSpace } from '../vectorCleanup'
 import type { KnowledgeDeleteSubtreePayload } from './jobTypes'
 
 const logger = loggerService.withContext('Knowledge:DeleteSubtreeJobHandler')

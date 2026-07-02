@@ -1,6 +1,6 @@
 import { sanitizeFilename } from '@shared/utils/file'
 
-import { reserveImportedFileRelativePath, writeFileIntoKnowledgeBaseAt } from '../pathStorage'
+import { reserveImportedFileRelativePath, writeFileIntoKnowledgeBaseAt } from '../../pathStorage'
 import { serializeOkfFrontmatter } from './okfFrontmatter'
 
 const SNAPSHOT_TITLE_MAX = 80

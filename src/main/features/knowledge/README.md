@@ -7,21 +7,21 @@ agent tools (`kb_search` / `kb_read` / `kb_tree` / `kb_manage`).
 
 ## Pipeline
 
-The top-level directories spell out the ingestion pipeline in stage order:
+`pipeline/` spells out the ingestion pipeline in stage order:
 
 ```
-        input                preprocess              index                 persist
-  ┌──────────────┐      ┌────────────────┐     ┌───────────────┐     ┌───────────────┐
-  │   sources/   │ ───> │    readers/    │ ──> │   indexing/   │ ──> │  vectorstore/ │
-  │ expand dirs, │      │ file → md text │     │ chunk, embed, │     │ index.sqlite  │
-  │ url/note     │      │ (pdf, docx, …) │     │ rerank        │     │ (per base)    │
-  │ snapshots    │      └────────────────┘     └───────────────┘     └───────────────┘
-  └──────────────┘        heavy conversions (MinerU/PaddleOCR/…) run out-of-process
-                          via FileProcessingService, polled by a knowledge job
+                 input                preprocess              index                 persist
+           ┌──────────────┐      ┌────────────────┐     ┌───────────────┐     ┌───────────────┐
+pipeline/  │   sources/   │ ───> │    readers/    │ ──> │   indexing/   │ ──> │  vectorstore/ │
+           │ expand dirs, │      │ file → md text │     │ chunk, embed, │     │ index.sqlite  │
+           │ url/note     │      │ (pdf, docx, …) │     │ rerank        │     │ (per base)    │
+           │ snapshots    │      └────────────────┘     └───────────────┘     └───────────────┘
+           └──────────────┘        heavy conversions (MinerU/PaddleOCR/…) run out-of-process
+                                   via FileProcessingService, polled by a knowledge job
 ```
 
 Jobs in `tasks/` drive the stages; `ingestion/` decides which jobs to enqueue; `query/` reads the
-result back out. Nothing in a stage directory enqueues jobs or mutates item status — that is
+result back out. Nothing under `pipeline/` enqueues jobs or mutates item status — that is
 orchestration, and it lives in `ingestion/` and `tasks/`.
 
 ## Directory map
@@ -29,18 +29,16 @@ orchestration, and it lives in `ingestion/` and `tasks/`.
 | Directory | Role |
 | --- | --- |
 | `KnowledgeService.ts` | Lifecycle facade: registers job handlers, runs boot recovery, delegates every public method. No domain logic. |
-| `KnowledgeBaseAdminService.ts` | Base lifecycle: create (with rollback), delete, restore, list. |
-| `baseGuards.ts` | Shared failed-base guard, used by both the write and read side. |
-| `ingestion/` | Write-side orchestration: admission checks, item creation, add-conflict resolution, job enqueueing, boot recovery. |
-| `sources/` | Input stage: directory expansion, url fetch (Jina reader), url/note snapshot capture, OKF frontmatter. |
-| `readers/` | Preprocess stage: file → markdown/text `Document[]` readers (pdf/docx/epub/…). |
-| `indexing/` | Index stage: offset-preserving splitter + chunker, `AiService` embedding/rerank wrappers, material field derivation. |
-| `vectorstore/` | Persist stage: per-base `index.sqlite` lifecycle (`KnowledgeVectorStoreService`) and the store itself (`indexStore/`, synchronous better-sqlite3 driver). |
+| `base/` | Per-base domain: lifecycle admin (`KnowledgeBaseAdminService` — create with rollback, delete, restore, list), failed-base guard (`baseGuards.ts`), per-base mutation lock (`KnowledgeLockManager`). |
+| `ingestion/` | Write-side orchestration: admission checks, item creation, add-conflict resolution, job enqueueing, subtree purge (`subtreePurge.ts`), boot recovery. |
+| `pipeline/sources/` | Input stage: directory expansion, url fetch (Jina reader), url/note snapshot capture, OKF frontmatter. |
+| `pipeline/readers/` | Preprocess stage: file → markdown/text `Document[]` readers (pdf/docx/epub/…). |
+| `pipeline/indexing/` | Index stage: offset-preserving splitter + chunker, `AiService` embedding/rerank wrappers, material field derivation. |
+| `pipeline/vectorstore/` | Persist stage: per-base `index.sqlite` lifecycle (`KnowledgeVectorStoreService`), the store itself (`indexStore/`, synchronous better-sqlite3 driver), vector deletion + index space reclamation (`vectorCleanup.ts`). |
 | `query/` | Read side: hybrid search with visibility filtering (`KnowledgeQueryService`), Concept ID tool surface (`KnowledgeConceptService`). |
 | `tasks/` | Job handlers — the pipeline executors (see below). |
-| `subtreePurge.ts` / `vectorCleanup.ts` | Subtree purge (vectors + files + rows) and index space reclamation — shared by ingestion and the delete/reindex/prepare-root handlers. |
 | `pathStorage.ts` | `raw/` path allocation: collision-free names, reservation, base file paths. |
-| `items.ts` / `types.ts` / `types/` | Shared item predicates + source probing; branded ids, queue names, idempotency keys. |
+| `items.ts` / `types.ts` | Shared item vocabulary (type aliases, predicates, source probing); branded ids, queue names, idempotency keys. |
 
 ## Jobs
 

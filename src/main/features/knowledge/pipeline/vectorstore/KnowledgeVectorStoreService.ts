@@ -7,8 +7,8 @@ import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CompletedKnowledgeBase, KnowledgeBase } from '@shared/data/types/knowledge'
 import { isCompletedKnowledgeBase } from '@shared/data/types/knowledge'
 
-import { isIndexableKnowledgeItem } from '../items'
-import { deleteKnowledgeBaseDir, getKnowledgeVectorStoreFilePathSync } from '../pathStorage'
+import { isIndexableKnowledgeItem } from '../../items'
+import { deleteKnowledgeBaseDir, getKnowledgeVectorStoreFilePathSync } from '../../pathStorage'
 import { createKnowledgeIndexStoreAtPath } from './indexStore/createIndexStore'
 import type { KnowledgeIndexStore } from './indexStore/KnowledgeIndexStore'
 

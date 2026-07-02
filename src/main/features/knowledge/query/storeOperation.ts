@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 
-import type { KnowledgeIndexStore } from '../vectorstore/indexStore/KnowledgeIndexStore'
+import type { KnowledgeIndexStore } from '../pipeline/vectorstore/indexStore/KnowledgeIndexStore'
 
 const logger = loggerService.withContext('Knowledge:Query')
 

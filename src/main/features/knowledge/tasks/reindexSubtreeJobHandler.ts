@@ -8,10 +8,11 @@ import type { JobHandler, JobSettledEvent } from '@main/core/job/types'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED, type KnowledgeItemStatus } from '@shared/data/types/knowledge'
 
+import type { KnowledgeLockManager } from '../base/KnowledgeLockManager'
 import type { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionService'
 import { canKnowledgeItemRebuildSource, isContainerKnowledgeItem } from '../items'
-import type { KnowledgeLockManager } from '../KnowledgeLockManager'
 import { deleteKnowledgeItemFilesBestEffort } from '../pathStorage'
+import { deleteKnowledgeItemVectors } from '../pipeline/vectorstore/vectorCleanup'
 import {
   KNOWLEDGE_ACTIVE_JOB_LIMIT,
   KNOWLEDGE_ACTIVE_JOB_STATUSES,
@@ -20,7 +21,6 @@ import {
   toKnowledgeBaseId,
   toKnowledgeItemId
 } from '../types'
-import { deleteKnowledgeItemVectors } from '../vectorCleanup'
 import type { KnowledgeReindexSubtreePayload } from './jobTypes'
 import { narrowKnowledgeJobInput } from './utils/jobInput'
 

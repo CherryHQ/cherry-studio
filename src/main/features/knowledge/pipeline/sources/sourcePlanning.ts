@@ -3,7 +3,7 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { knowledgeFileProcessingExts } from '@shared/utils/file'
 
-import { isContainerKnowledgeItem, isIndexableKnowledgeItem } from '../items'
+import { isContainerKnowledgeItem, isIndexableKnowledgeItem } from '../../items'
 
 const KNOWLEDGE_FILE_PROCESSING_EXT_SET = new Set<string>(knowledgeFileProcessingExts)
 

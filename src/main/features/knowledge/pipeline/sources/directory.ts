@@ -5,7 +5,7 @@ import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
 import type { DirectoryItemData, FileItemData, KnowledgeItem } from '@shared/data/types/knowledge'
 import { knowledgeSupportedFileExts } from '@shared/utils/file'
 
-import { copyFileIntoKnowledgeBaseAt } from '../pathStorage'
+import { copyFileIntoKnowledgeBaseAt } from '../../pathStorage'
 
 const KNOWLEDGE_SUPPORTED_FILE_EXT_SET = new Set<string>(knowledgeSupportedFileExts)
 

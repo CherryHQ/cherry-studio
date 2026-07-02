@@ -6,7 +6,7 @@ import { DataApiErrorFactory } from '@shared/data/api'
 import type { KnowledgeItem, KnowledgeItemStatus, KnowledgeItemType } from '@shared/data/types/knowledge'
 import { getKnowledgeItemDisplayTitle } from '@shared/data/types/knowledge'
 
-import { assertBaseCanRunRuntimeOperation } from '../baseGuards'
+import { assertBaseCanRunRuntimeOperation } from '../base/baseGuards'
 import type { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionService'
 import { runStoreOperation } from './storeOperation'
 import { deriveConceptId, loadVisibleItems } from './visibility'

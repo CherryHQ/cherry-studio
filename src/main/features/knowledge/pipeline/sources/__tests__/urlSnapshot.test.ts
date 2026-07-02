@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type * as PathStorage from '../../pathStorage'
+import type * as PathStorage from '../../../pathStorage'
 
 const { writeFileIntoKnowledgeBaseAtMock } = vi.hoisted(() => ({
   writeFileIntoKnowledgeBaseAtMock: vi.fn()
@@ -19,8 +19,8 @@ vi.mock('@logger', () => ({
 
 // Keep reserveImportedFileRelativePath real (it is pure); only stub the disk write so
 // the test exercises name derivation + dedupe without touching the filesystem.
-vi.mock('../../pathStorage', async () => {
-  const actual = await vi.importActual<typeof PathStorage>('../../pathStorage')
+vi.mock('../../../pathStorage', async () => {
+  const actual = await vi.importActual<typeof PathStorage>('../../../pathStorage')
   return { ...actual, writeFileIntoKnowledgeBaseAt: writeFileIntoKnowledgeBaseAtMock }
 })
 
