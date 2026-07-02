@@ -51,7 +51,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const [userName] = usePreference('app.user.name')
   const { favorites, setAppPinned, removeMiniApp, reorderFavorites } = useSidebarFavorites()
   const { activeTab, updateTab, openTab } = useTabs()
-  const { miniApps, pinned, reorderMiniAppsByStatus } = useMiniApps()
+  const { miniApps, pinned } = useMiniApps()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
 
   // Sidebar width — persisted across restarts. Dragging through the
@@ -189,9 +189,8 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   )
 
   // A single drag reorders the whole mixed list. arrayMove yields the new order,
-  // which we persist as tagged favorites. Mini apps also mirror their new relative
-  // order into the mini-app order keys so the launchpad (which sorts by orderKey,
-  // not the favorites list) stays in sync.
+  // which we persist as tagged favorites. The sidebar owns its order entirely
+  // through `ui.sidebar.favorites` and never touches the mini-app order keys.
   const handleReorder = useCallback(
     ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
       const nextEntries = arrayMove(entries, oldIndex, newIndex)
@@ -202,17 +201,8 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
             : createSidebarMiniAppFavorite(entry.id)
         )
       )
-
-      const orderedMiniApps = nextEntries.flatMap((entry) => {
-        if (entry.kind !== 'miniapp') return []
-        const app = openableMiniAppById.get(entry.id)
-        return app ? [app] : []
-      })
-      void reorderMiniAppsByStatus('visible', orderedMiniApps).catch(() => {
-        window.toast?.error(t('miniApp.reorder_failed'))
-      })
     },
-    [entries, reorderFavorites, openableMiniAppById, reorderMiniAppsByStatus, t]
+    [entries, reorderFavorites]
   )
 
   const activeItem = resolveSidebarActiveItem(pathname)

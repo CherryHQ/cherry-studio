@@ -441,7 +441,7 @@ describe('app Sidebar', () => {
     ])
   })
 
-  it('drag-reorders a mini app across built-in apps and mirrors the order key', () => {
+  it('reorders sidebar mini apps through favorites without touching the mini app order key', () => {
     mocks.sidebarFavorites = [appFavorite('assistants'), appFavorite('mini_app')]
     mocks.sidebarMiniAppFavorites = [miniAppFavorite('calculator'), miniAppFavorite('weather')]
     mocks.allApps = [
@@ -459,9 +459,9 @@ describe('app Sidebar', () => {
       miniAppFavorite('weather'),
       miniAppFavorite('calculator')
     ])
-    // The mini apps' order keys mirror the drop order so the launchpad, which
-    // sorts by orderKey, stays in sync with the sidebar.
-    expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledWith('visible', [mocks.allApps[1], mocks.allApps[0]])
+    // The sidebar owns its order through favorites only — the mini app order key
+    // (shared with the mini apps grid) is left untouched.
+    expect(mocks.reorderMiniAppsByStatus).not.toHaveBeenCalled()
   })
 
   it('drag-reorders a mini app above a built-in app, interleaving the two types', () => {

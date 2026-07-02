@@ -12,7 +12,7 @@ import type { SidebarAppId } from '@renderer/utils/sidebar'
 import { getSidebarMenuPath, REQUIRED_SIDEBAR_FAVORITES, SIDEBAR_FAVORITE_ORDER } from '@renderer/utils/sidebar'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { useNavigate } from '@tanstack/react-router'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const BASE_URL = 'https://www.cherry-ai.com/'
@@ -36,27 +36,14 @@ const APP_ICON_BACKGROUNDS: Record<SidebarAppId, string> = {
   openclaw: 'linear-gradient(135deg, #EF4444, #B91C1C)'
 }
 
-function hasSameMiniAppIdSet(left: readonly MiniAppType[], right: readonly MiniAppType[]): boolean {
-  if (left.length !== right.length) return false
-
-  const rightIds = new Set(right.map((app) => app.appId))
-  return left.every((app) => rightIds.has(app.appId))
-}
-
-function hasSameMiniAppOrder(left: readonly MiniAppType[], right: readonly MiniAppType[]): boolean {
-  return left.length === right.length && left.every((app, index) => app.appId === right[index]?.appId)
-}
-
 export default function LaunchpadPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
-  const { pinned, reorderMiniAppsByStatus } = useMiniApps()
-  const { appFavorites, setAppPinned, reorderApps, reorderMiniApps } = useSidebarFavorites()
+  const { pinned } = useMiniApps()
+  const { appFavorites, miniAppFavoriteIds, setAppPinned, reorderApps, reorderMiniApps } = useSidebarFavorites()
   const suppressClickUntilRef = useRef(0)
   const draggedItemIdRef = useRef<string | null>(null)
-  const miniAppReorderRequestIdRef = useRef(0)
-  const [optimisticPinnedMiniApps, setOptimisticPinnedMiniApps] = useState<MiniAppType[] | null>(null)
 
   const orderedVisibleSidebarFavorites = appFavorites
   const visibleSidebarFavoriteSet = useMemo(
@@ -178,25 +165,27 @@ export default function LaunchpadPage() {
     [appMenuItems, visibleSidebarFavoriteSet]
   )
 
-  useEffect(() => {
-    if (!optimisticPinnedMiniApps) return
+  // Mirror the apps section: only mini apps that are pinned to the sidebar are
+  // drag-sortable (ordered by `ui.sidebar.favorites`); the remaining launchpad-
+  // pinned mini apps render after them, static. Reordering persists purely to the
+  // favorites list — the launchpad never touches the mini-app order keys.
+  const pinnedByAppId = useMemo(() => new Map(pinned.map((app) => [app.appId, app])), [pinned])
+  const sidebarFavoriteMiniAppSet = useMemo(() => new Set(miniAppFavoriteIds), [miniAppFavoriteIds])
 
-    if (
-      !hasSameMiniAppIdSet(pinned, optimisticPinnedMiniApps) ||
-      hasSameMiniAppOrder(pinned, optimisticPinnedMiniApps)
-    ) {
-      setOptimisticPinnedMiniApps(null)
-    }
-  }, [optimisticPinnedMiniApps, pinned])
+  const sortableMiniApps = useMemo(
+    () =>
+      miniAppFavoriteIds.flatMap((appId) => {
+        const app = pinnedByAppId.get(appId)
+        return app ? [app] : []
+      }),
+    [miniAppFavoriteIds, pinnedByAppId]
+  )
+  const staticMiniApps = useMemo(
+    () => pinned.filter((app) => !sidebarFavoriteMiniAppSet.has(app.appId)),
+    [pinned, sidebarFavoriteMiniAppSet]
+  )
 
-  const displayedPinnedMiniApps = useMemo(() => {
-    if (!optimisticPinnedMiniApps) return pinned
-
-    const latestPinnedById = new Map(pinned.map((app) => [app.appId, app]))
-    return optimisticPinnedMiniApps.map((app) => latestPinnedById.get(app.appId) ?? app)
-  }, [optimisticPinnedMiniApps, pinned])
-
-  const launchpadMiniAppsVisible = displayedPinnedMiniApps.length > 0
+  const launchpadMiniAppsVisible = pinned.length > 0
 
   const handleSidebarAppsSortEnd = useCallback(
     ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
@@ -208,28 +197,10 @@ export default function LaunchpadPage() {
 
   const handleSidebarMiniAppsSortEnd = useCallback(
     ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
-      const nextItems = arrayMove(displayedPinnedMiniApps, oldIndex, newIndex)
-      const reorderRequestId = ++miniAppReorderRequestIdRef.current
-      setOptimisticPinnedMiniApps(nextItems)
-
-      // Keep the sidebar favorites zone in sync: it orders mini apps by their
-      // position in `ui.sidebar.favorites`, independent of the mini-app orderKey.
+      const nextItems = arrayMove(sortableMiniApps, oldIndex, newIndex)
       reorderMiniApps(nextItems.map((app) => app.appId))
-
-      void reorderMiniAppsByStatus('pinned', nextItems)
-        .then(() => {
-          if (miniAppReorderRequestIdRef.current === reorderRequestId) {
-            setOptimisticPinnedMiniApps(null)
-          }
-        })
-        .catch(() => {
-          if (miniAppReorderRequestIdRef.current === reorderRequestId) {
-            setOptimisticPinnedMiniApps(null)
-          }
-          window.toast?.error(t('miniApp.reorder_failed'))
-        })
     },
-    [displayedPinnedMiniApps, reorderMiniApps, reorderMiniAppsByStatus, t]
+    [sortableMiniApps, reorderMiniApps]
   )
 
   const renderAppMenuItem = (item: (typeof appMenuItems)[number]) => (
@@ -254,6 +225,7 @@ export default function LaunchpadPage() {
 
   const renderMiniAppItem = (app: MiniAppType) => (
     <div
+      key={app.appId}
       className={`${LAUNCHPAD_ITEM_CLASS} flex justify-center rounded-[8px] px-0 py-2 transition-transform duration-200 hover:scale-105 active:scale-95`}>
       <App app={app} size={56} variant="launchpad" onOpen={openMiniApp} />
     </div>
@@ -290,7 +262,7 @@ export default function LaunchpadPage() {
               </h2>
               <div className={LAUNCHPAD_GRID_CLASS}>
                 <Sortable
-                  items={displayedPinnedMiniApps}
+                  items={sortableMiniApps}
                   itemKey="appId"
                   layout="grid"
                   listStyle={SORTABLE_CONTENTS_STYLE}
@@ -300,6 +272,7 @@ export default function LaunchpadPage() {
                   onSortEnd={handleSidebarMiniAppsSortEnd}
                   renderItem={(app) => renderMiniAppItem(app)}
                 />
+                {staticMiniApps.map(renderMiniAppItem)}
               </div>
             </section>
           )}
