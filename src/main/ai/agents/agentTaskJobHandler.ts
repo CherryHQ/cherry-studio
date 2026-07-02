@@ -66,7 +66,7 @@ export const agentTaskJobHandler: JobHandler<AgentTaskInput> = {
   async onSettled(event) {
     if (event.status !== 'failed' || !event.scheduleId) return
 
-    const recent = await jobService.listRecentTerminalByScheduleId(event.scheduleId, RECENT_TERMINAL_WINDOW)
+    const recent = jobService.listRecentTerminalByScheduleId(event.scheduleId, RECENT_TERMINAL_WINDOW)
     if (recent.length < RECENT_TERMINAL_WINDOW) return
     if (!recent.every((j) => j.status === 'failed')) return
 

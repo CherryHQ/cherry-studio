@@ -20,30 +20,30 @@ export const promptHandlers: HandlersFor<PromptSchemas> = {
   '/prompts': {
     GET: async ({ query }) => {
       const parsed = ListPromptsQuerySchema.parse(query ?? {})
-      return await promptService.list(parsed)
+      return promptService.list(parsed)
     },
 
     POST: async ({ body }) => {
       const parsed = CreatePromptSchema.parse(body)
-      return await promptService.create(parsed)
+      return promptService.create(parsed)
     }
   },
 
   '/prompts/:id': {
     GET: async ({ params }) => {
       const id = PromptIdSchema.parse(params.id)
-      return await promptService.getById(id)
+      return promptService.getById(id)
     },
 
     PATCH: async ({ params, body }) => {
       const id = PromptIdSchema.parse(params.id)
       const parsed = UpdatePromptSchema.parse(body)
-      return await promptService.update(id, parsed)
+      return promptService.update(id, parsed)
     },
 
     DELETE: async ({ params }) => {
       const id = PromptIdSchema.parse(params.id)
-      await promptService.delete(id)
+      promptService.delete(id)
       return undefined
     }
   },
@@ -52,7 +52,7 @@ export const promptHandlers: HandlersFor<PromptSchemas> = {
     PATCH: async ({ params, body }) => {
       const id = PromptIdSchema.parse(params.id)
       const anchor = OrderRequestSchema.parse(body)
-      await promptService.reorder(id, anchor)
+      promptService.reorder(id, anchor)
       return undefined
     }
   },
@@ -60,7 +60,7 @@ export const promptHandlers: HandlersFor<PromptSchemas> = {
   '/prompts/order:batch': {
     PATCH: async ({ body }) => {
       const parsed = OrderBatchRequestSchema.parse(body)
-      await promptService.reorderBatch(parsed.moves)
+      promptService.reorderBatch(parsed.moves)
       return undefined
     }
   }

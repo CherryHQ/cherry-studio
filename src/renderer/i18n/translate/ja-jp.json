@@ -556,6 +556,7 @@
       "list": {
         "title": "タスク"
       },
+      "new": "新しいタスク",
       "pin": {
         "title": "タスクをピン留め"
       },
@@ -565,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "検索タスク"
+        "placeholder": "検索タスク",
+        "title": "タスクを検索"
       },
       "unpin": {
         "title": "タスクのピンを外す"
@@ -936,8 +938,8 @@
           "label": "Bash"
         },
         "CherryKbManage": {
-          "description": "[to be translated]:Adds, deletes, or refreshes documents in your knowledge bases",
-          "label": "[to be translated]:Manage Knowledge"
+          "description": "ナレッジベース内のドキュメントを追加、削除、または更新します",
+          "label": "ナレッジ管理"
         },
         "CherryKbSearch": {
           "description": "ナレッジベースを検索します",
@@ -3166,21 +3168,21 @@
           "agent_title": "新エージェント",
           "assistant_title": "新しいアシスタント",
           "avatar_aria": "アバターを選択",
-          "back": "[to be translated]:Back",
+          "back": "戻る",
           "capability": {
-            "import": "[to be translated]:Import skill",
-            "no_skills": "[to be translated]:No skills installed",
-            "search": "[to be translated]:Search skills"
+            "import": "スキルインポート",
+            "no_skills": "インストールされているスキルがありません",
+            "search": "検索スキル"
           },
           "description_placeholder": "それが何のためにあるのかを説明してください…",
-          "guided_progress": "[to be translated]:Guided setup · Step {{current}} of {{total}}",
+          "guided_progress": "Guided setup · ステップ {{current}} / {{total}}",
           "name_placeholder": "名前を入力してください",
-          "next": "[to be translated]:Next",
+          "next": "次",
           "step": {
-            "basic": "[to be translated]:Basic info",
-            "capability": "[to be translated]:Skills",
-            "knowledge": "[to be translated]:Knowledge",
-            "persona": "[to be translated]:Persona"
+            "basic": "基本情報",
+            "capability": "スキル",
+            "knowledge": "知識",
+            "persona": "ペルソナ"
           },
           "submit": "作成",
           "submit_failed": "作成に失敗しました"
@@ -3515,7 +3517,6 @@
     },
     "empty_url": "画像をダウンロードできません。プロンプトに不適切なコンテンツや禁止用語が含まれている可能性があります",
     "error": {
-      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
       "chunk_overlap_too_large": "チャンクのオーバーラップがチャンクサイズより大きくなることはできません",
       "copy": "複製に失敗しました",
       "dimension_too_large": "内容のサイズが大きすぎます",
@@ -5271,6 +5272,7 @@
     "assistant": {
       "create_new": "新しいアシスタント",
       "empty_text": "まだアシスタントはいません",
+      "filter": "フィルターアシスタント",
       "multi_hint": "（マルチモデルとは相互に排他的）",
       "multi_label": "マルチアシスタント並列",
       "search_placeholder": "検索アシスタント…"
@@ -6450,6 +6452,12 @@
         "show_estimated_tokens": "推定トークン数を表示",
         "title": "入力設定"
       },
+      "layout": {
+        "classic": "クラシック",
+        "conversation": "会話ビュー",
+        "modern": "モダン",
+        "work": "ワークビュー"
+      },
       "markdown_rendering_input_message": "Markdownで入力メッセージをレンダリング",
       "metrics": "最初のトークンまでの時間 {{time_first_token_millsec}}ms | トークン速度 {{token_speed}} tok/sec",
       "model": {
@@ -7454,7 +7462,7 @@
           "exa": "AIアプリ向けニューラル検索API、セマンティックWeb検索に最適化されています。",
           "exa_mcp": "Exa MCPサーバーを通じて、エージェントにExa検索を公開する。",
           "fetch": "組み込みURLフェッチプロバイダー。URLからウェブページのコンテンツを取得し、検索結果を充実させます。",
-          "firecrawl": "[to be translated]:Firecrawl crawler and search service, optimized to turn websites into Markdown.",
+          "firecrawl": "Firecrawl クローラーおよび検索サービスは、WebサイトをMarkdownに変換することに最適化されています。",
           "jina": "Jina Reader の検索および読み取り API は、クリーンな Web コンテンツを取得するためのものです。",
           "querit": "AIアプリ向けのWeb検索結果を含む検索サービス",
           "searxng": "多くのソースにまたがる、セルフホスティング可能な無料インターネットメタ検索エンジン。",

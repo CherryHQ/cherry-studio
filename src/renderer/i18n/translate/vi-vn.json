@@ -556,6 +556,7 @@
       "list": {
         "title": "Nhiệm vụ"
       },
+      "new": "Nhiệm vụ mới",
       "pin": {
         "title": "Ghim nhiệm vụ"
       },
@@ -565,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "Tìm kiếm nhiệm vụ"
+        "placeholder": "Tìm kiếm nhiệm vụ",
+        "title": "Tìm kiếm tác vụ"
       },
       "unpin": {
         "title": "Bỏ ghim nhiệm vụ"
@@ -936,8 +938,8 @@
           "label": "Bash"
         },
         "CherryKbManage": {
-          "description": "[to be translated]:Adds, deletes, or refreshes documents in your knowledge bases",
-          "label": "[to be translated]:Manage Knowledge"
+          "description": "Thêm, xóa hoặc làm mới tài liệu trong cơ sở kiến thức của bạn",
+          "label": "Quản lý kiến thức"
         },
         "CherryKbSearch": {
           "description": "Tìm kiếm trong cơ sở kiến thức của bạn",
@@ -3166,21 +3168,21 @@
           "agent_title": "Đại lý mới",
           "assistant_title": "Trợ lý mới",
           "avatar_aria": "Chọn hình đại diện",
-          "back": "[to be translated]:Back",
+          "back": "Quay lại",
           "capability": {
-            "import": "[to be translated]:Import skill",
-            "no_skills": "[to be translated]:No skills installed",
-            "search": "[to be translated]:Search skills"
+            "import": "Nhập kỹ năng",
+            "no_skills": "Chưa cài đặt kỹ năng nào",
+            "search": "Kỹ năng tìm kiếm"
           },
           "description_placeholder": "Mô tả mục đích của nó...",
-          "guided_progress": "[to be translated]:Guided setup · Step {{current}} of {{total}}",
+          "guided_progress": "Thiết lập hướng dẫn · Bước {{current}} trên {{total}}",
           "name_placeholder": "Nhập tên",
-          "next": "[to be translated]:Next",
+          "next": "Tiếp theo",
           "step": {
-            "basic": "[to be translated]:Basic info",
-            "capability": "[to be translated]:Skills",
-            "knowledge": "[to be translated]:Knowledge",
-            "persona": "[to be translated]:Persona"
+            "basic": "Thông tin cơ bản",
+            "capability": "Kỹ năng",
+            "knowledge": "Kiến thức",
+            "persona": "Nhân cách"
           },
           "submit": "Tạo",
           "submit_failed": "Tạo thất bại"
@@ -3515,7 +3517,6 @@
     },
     "empty_url": "Không tải được hình ảnh, có thể do lời nhắc chứa nội dung nhạy cảm hoặc từ ngữ bị cấm",
     "error": {
-      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
       "chunk_overlap_too_large": "Phần chồng chéo của khối không thể lớn hơn kích thước khối",
       "copy": "Sao chép thất bại",
       "dimension_too_large": "Kích thước nội dung quá lớn",
@@ -5271,6 +5272,7 @@
     "assistant": {
       "create_new": "Trợ lý mới",
       "empty_text": "Chưa có trợ lý nào",
+      "filter": "Lọc trợ lý",
       "multi_hint": "(loại trừ lẫn nhau với đa mô hình)",
       "multi_label": "Trợ lý song song đa nhiệm",
       "search_placeholder": "Trợ lý tìm kiếm…"
@@ -6450,6 +6452,12 @@
         "show_estimated_tokens": "Hiển thị số token ước tính",
         "title": "Cài đặt đầu vào"
       },
+      "layout": {
+        "classic": "Cổ điển",
+        "conversation": "Chế độ xem cuộc trò chuyện",
+        "modern": "Hiện đại",
+        "work": "Chế độ xem công việc"
+      },
       "markdown_rendering_input_message": "Tin nhắn nhập Markdown kết xuất",
       "metrics": "{{time_first_token_millsec}}ms até o primeiro token | {{token_speed}} tok/seg",
       "model": {
@@ -7454,7 +7462,7 @@
           "exa": "API tìm kiếm thần kinh cho ứng dụng AI, được tối ưu hóa cho việc truy xuất web ngữ nghĩa.",
           "exa_mcp": "Hiển thị tìm kiếm Exa cho các tác nhân thông qua Máy chủ MCP Exa.",
           "fetch": "Nhà cung cấp tìm nạp URL tích hợp. Tìm nạp nội dung trang web từ một URL để làm phong phú kết quả tìm kiếm.",
-          "firecrawl": "[to be translated]:Firecrawl crawler and search service, optimized to turn websites into Markdown.",
+          "firecrawl": "Dịch vụ crawler và tìm kiếm Firecrawl, được tối ưu hóa để chuyển đổi các trang web thành Markdown.",
           "jina": "API tìm kiếm và đọc Jina Reader để truy xuất nội dung web sạch.",
           "querit": "Dịch vụ tìm kiếm cho ứng dụng AI với kết quả truy xuất web.",
           "searxng": "Công cụ tìm kiếm meta internet miễn phí có thể tự lưu trữ trên nhiều nguồn khác nhau.",

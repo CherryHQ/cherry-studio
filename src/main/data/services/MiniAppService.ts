@@ -99,8 +99,8 @@ export class MiniAppService {
   }
 
   /** Get a miniapp by appId. Throws NOT_FOUND if absent. */
-  async getByAppId(appId: string): Promise<MiniApp> {
-    const [row] = await this.db.select().from(miniAppTable).where(eq(miniAppTable.appId, appId)).limit(1)
+  getByAppId(appId: string): MiniApp {
+    const [row] = this.db.select().from(miniAppTable).where(eq(miniAppTable.appId, appId)).limit(1).all()
     if (!row) throw DataApiErrorFactory.notFound('MiniApp', appId)
     return rowToMiniApp(row)
   }
@@ -109,9 +109,9 @@ export class MiniAppService {
    * List miniApps with optional filters.
    * Sort: status priority (pinned > enabled > disabled), then orderKey ASC.
    */
-  async list(query: { status?: MiniAppStatus } = {}): Promise<MiniApp[]> {
+  list(query: { status?: MiniAppStatus } = {}): MiniApp[] {
     const where = query.status !== undefined ? eq(miniAppTable.status, query.status) : undefined
-    const rows = await this.db.select().from(miniAppTable).where(where).orderBy(asc(miniAppTable.orderKey))
+    const rows = this.db.select().from(miniAppTable).where(where).orderBy(asc(miniAppTable.orderKey)).all()
 
     const items = rows.map(rowToMiniApp)
     items.sort((a, b) => {
@@ -127,20 +127,20 @@ export class MiniAppService {
    * Create a custom miniapp. Rejects collisions with preset ids.
    * Auto-assigns orderKey at the end of the visible miniapp list.
    */
-  async create(dto: CreateMiniAppDto): Promise<MiniApp> {
+  create(dto: CreateMiniAppDto): MiniApp {
     if (presetMiniAppIdSet.has(dto.appId)) {
       throw DataApiErrorFactory.conflict(`MiniApp with appId "${dto.appId}" is a preset app and cannot be recreated`)
     }
 
     const status: MiniAppStatus = 'enabled'
-    const row = await withSqliteErrors(
+    const row = withSqliteErrors(
       () =>
-        application.get('DbService').withWriteTx(async (tx) => {
-          const logoCols = (await reconcileLogoSlotTx(tx, logoSlot(dto.appId), dto.logo)) ?? {
+        application.get('DbService').withWriteTx((tx) => {
+          const logoCols = reconcileLogoSlotTx(tx, logoSlot(dto.appId), dto.logo) ?? {
             logoKey: null,
             logoFileId: null
           }
-          const inserted = await insertWithOrderKey(
+          const inserted = insertWithOrderKey(
             tx,
             miniAppTable,
             {
@@ -181,7 +181,7 @@ export class MiniAppService {
    * status lands at the visible tail; moving into `disabled` lands at the
    * disabled tail.
    */
-  async update(appId: string, dto: UpdateMiniAppInput): Promise<MiniApp> {
+  update(appId: string, dto: UpdateMiniAppInput): MiniApp {
     const hasStatusUpdate = dto.status !== undefined
     const hasCustomUpdate = customMutableFields.some((field) => hasOwnDefined(dto, field))
 
@@ -192,10 +192,10 @@ export class MiniAppService {
       )
     }
 
-    const row = await withSqliteErrors(
+    const row = withSqliteErrors(
       () =>
-        application.get('DbService').withWriteTx(async (tx) => {
-          const [existing] = await tx
+        application.get('DbService').withWriteTx((tx) => {
+          const [existing] = tx
             .select({
               presetMiniAppId: miniAppTable.presetMiniAppId,
               status: miniAppTable.status,
@@ -204,6 +204,7 @@ export class MiniAppService {
             .from(miniAppTable)
             .where(eq(miniAppTable.appId, appId))
             .limit(1)
+            .all()
           if (!existing) throw DataApiErrorFactory.notFound('MiniApp', appId)
 
           if (hasCustomUpdate && existing.presetMiniAppId !== null) {
@@ -218,7 +219,7 @@ export class MiniAppService {
           if (dto.name !== undefined) updates.name = dto.name
           if (dto.url !== undefined) updates.url = dto.url
           // DB-only logo reconcile: replace the slot's file_ref + set columns.
-          const logoCols = await reconcileLogoSlotTx(tx, logoSlot(appId), dto.logo)
+          const logoCols = reconcileLogoSlotTx(tx, logoSlot(appId), dto.logo)
           if (logoCols) {
             updates.logoKey = logoCols.logoKey
             updates.logoFileId = logoCols.logoFileId
@@ -230,23 +231,26 @@ export class MiniAppService {
             if (existing.status !== targetStatus) {
               if (isVisibleStatus(existing.status) && isVisibleStatus(targetStatus)) {
                 const visibleScope = and(orderScopeForStatus(targetStatus), ne(miniAppTable.appId, appId))
-                const [before] = await tx
+                const [before] = tx
                   .select({ orderKey: miniAppTable.orderKey })
                   .from(miniAppTable)
                   .where(and(visibleScope, lt(miniAppTable.orderKey, existing.orderKey)))
                   .orderBy(desc(miniAppTable.orderKey))
                   .limit(1)
-                const [same] = await tx
+                  .all()
+                const [same] = tx
                   .select({ orderKey: miniAppTable.orderKey })
                   .from(miniAppTable)
                   .where(and(visibleScope, eq(miniAppTable.orderKey, existing.orderKey)))
                   .limit(1)
-                const [after] = await tx
+                  .all()
+                const [after] = tx
                   .select({ orderKey: miniAppTable.orderKey })
                   .from(miniAppTable)
                   .where(and(visibleScope, gt(miniAppTable.orderKey, existing.orderKey)))
                   .orderBy(asc(miniAppTable.orderKey))
                   .limit(1)
+                  .all()
 
                 if (same) {
                   updates.orderKey =
@@ -259,18 +263,19 @@ export class MiniAppService {
                   updates.orderKey = existing.orderKey
                 }
               } else {
-                const [tail] = await tx
+                const [tail] = tx
                   .select({ orderKey: miniAppTable.orderKey })
                   .from(miniAppTable)
                   .where(and(orderScopeForStatus(targetStatus), ne(miniAppTable.appId, appId)))
                   .orderBy(desc(miniAppTable.orderKey))
                   .limit(1)
+                  .all()
                 updates.orderKey = generateOrderKeyBetween(tail?.orderKey ?? null, null)
               }
             }
           }
 
-          const [updated] = await tx.update(miniAppTable).set(updates).where(eq(miniAppTable.appId, appId)).returning()
+          const [updated] = tx.update(miniAppTable).set(updates).where(eq(miniAppTable.appId, appId)).returning().all()
           return updated
         }),
       defaultHandlersFor('MiniApp', appId)
@@ -284,15 +289,16 @@ export class MiniAppService {
    * Delete a miniapp. Preset-derived rows cannot be deleted (use status='disabled').
    * Mirrors {@link ProviderService.delete}'s preset guard.
    */
-  async delete(appId: string): Promise<void> {
-    await withSqliteErrors(
-      async () =>
-        application.get('DbService').withWriteTx(async (tx) => {
-          const [existing] = await tx
+  delete(appId: string): void {
+    withSqliteErrors(
+      () =>
+        application.get('DbService').withWriteTx((tx) => {
+          const [existing] = tx
             .select({ presetMiniAppId: miniAppTable.presetMiniAppId })
             .from(miniAppTable)
             .where(eq(miniAppTable.appId, appId))
             .limit(1)
+            .all()
           if (!existing) throw DataApiErrorFactory.notFound('MiniApp', appId)
 
           if (existing.presetMiniAppId !== null) {
@@ -305,8 +311,8 @@ export class MiniAppService {
           // DB-only: drop the logo slot's ref (the file is preserved per the
           // file layer's policy), then delete the row. The FK cascade would also
           // clear it on row delete; the explicit clear keeps the intent local.
-          await clearSingleFileRefTx(tx, logoSlot(appId))
-          await tx.delete(miniAppTable).where(eq(miniAppTable.appId, appId))
+          clearSingleFileRefTx(tx, logoSlot(appId))
+          tx.delete(miniAppTable).where(eq(miniAppTable.appId, appId)).run()
         }),
       defaultHandlersFor('MiniApp', appId)
     )
@@ -319,17 +325,18 @@ export class MiniAppService {
    * Cross visible/hidden batches are rejected — moving a row between visible
    * and hidden still goes through single-row PATCH, not PATCH /order:batch.
    */
-  async reorder(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
+  reorder(moves: Array<{ id: string; anchor: OrderRequest }>): void {
     if (moves.length === 0) return
 
-    await withSqliteErrors(
+    withSqliteErrors(
       () =>
-        application.get('DbService').withWriteTx(async (tx) => {
+        application.get('DbService').withWriteTx((tx) => {
           const ids = moves.map((move) => move.id)
-          const rows = await tx
+          const rows = tx
             .select({ appId: miniAppTable.appId, status: miniAppTable.status })
             .from(miniAppTable)
             .where(inArray(miniAppTable.appId, ids))
+            .all()
 
           if (rows.length === 0) {
             throw DataApiErrorFactory.notFound('MiniApp', ids[0])
@@ -342,7 +349,7 @@ export class MiniAppService {
             throw DataApiErrorFactory.validation({ _root: [message] }, message)
           }
 
-          await applyMoves(tx, miniAppTable, moves, {
+          applyMoves(tx, miniAppTable, moves, {
             pkColumn: miniAppTable.appId,
             scope: hasVisible ? orderScopeForStatus('enabled') : eq(miniAppTable.status, 'disabled')
           })

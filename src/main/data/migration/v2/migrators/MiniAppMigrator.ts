@@ -16,7 +16,11 @@ import type { MigrationContext } from '../core/MigrationContext'
 import { assignOrderKeysByScope } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import { transformMiniApp } from './mappings/MiniAppMappings'
-import { migrateBase64ImageToFileEntry } from './utils/logoMigration'
+import {
+  insertPreparedImageFileTx,
+  prepareBase64ImageFileEntry,
+  type PreparedEntityImageFile
+} from './utils/logoMigration'
 
 type MiniAppRowWithoutOrderKey = Omit<InsertMiniAppRow, 'orderKey'>
 
@@ -189,24 +193,32 @@ export class MiniAppMigrator extends BaseMigrator {
       let processed = 0
 
       const BATCH_SIZE = 100
-      await ctx.db.transaction(async (tx) => {
-        // Promote any base64 data-URL logo to an on-disk WebP file_entry +
-        // file_ref (logoFileId); base64 never stays on logoKey. A non-data-URL
-        // logoKey (url / icon ref) is left as-is.
-        for (const row of this.preparedRows) {
-          if (row.logoKey?.startsWith('data:')) {
-            row.logoFileId = await migrateBase64ImageToFileEntry(
-              tx,
-              ctx.paths.filesDataDir,
-              miniAppLogoSlot(row.appId),
-              row.logoKey
-            )
-            row.logoKey = null
-          }
+      const logoFiles: PreparedEntityImageFile[] = []
+
+      // Promote any base64 data-URL logo to an on-disk WebP file_entry +
+      // file_ref (logoFileId); base64 never stays on logoKey. A non-data-URL
+      // logoKey (url / icon ref) is left as-is.
+      for (const row of this.preparedRows) {
+        if (row.logoKey?.startsWith('data:')) {
+          const logoFile = await prepareBase64ImageFileEntry(
+            ctx.paths.filesDataDir,
+            miniAppLogoSlot(row.appId),
+            row.logoKey
+          )
+          row.logoFileId = logoFile?.id ?? null
+          row.logoKey = null
+          if (logoFile) logoFiles.push(logoFile)
         }
+      }
+
+      ctx.db.transaction((tx) => {
+        for (const logoFile of logoFiles) {
+          insertPreparedImageFileTx(tx, logoFile)
+        }
+
         for (let i = 0; i < this.preparedRows.length; i += BATCH_SIZE) {
           const batch = this.preparedRows.slice(i, i + BATCH_SIZE)
-          await tx.insert(miniAppTable).values(batch)
+          tx.insert(miniAppTable).values(batch).run()
           processed += batch.length
         }
       })
@@ -231,7 +243,7 @@ export class MiniAppMigrator extends BaseMigrator {
 
   async validate(ctx: MigrationContext): Promise<ValidateResult> {
     try {
-      const result = await ctx.db.select({ count: sql<number>`count(*)` }).from(miniAppTable).get()
+      const result = ctx.db.select({ count: sql<number>`count(*)` }).from(miniAppTable).get()
       const appCount = result?.count ?? 0
       const errors: { key: string; message: string }[] = []
 
@@ -243,7 +255,7 @@ export class MiniAppMigrator extends BaseMigrator {
       }
 
       // All rows must have non-empty appId, name, and url.
-      const badRows = await ctx.db
+      const badRows = ctx.db
         .select({ count: sql<number>`count(*)` })
         .from(miniAppTable)
         .where(sql`${miniAppTable.appId} = '' OR ${miniAppTable.name} = '' OR ${miniAppTable.url} = ''`)

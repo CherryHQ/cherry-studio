@@ -52,28 +52,28 @@ export interface CreateTempSessionFileRefRow {
 
 export interface FileRefService {
   /** All refs pointing at a given file_entry. Includes CacheService-backed temp-session refs. */
-  findByEntryId(fileEntryId: FileEntryId): Promise<FileRef[]>
+  findByEntryId(fileEntryId: FileEntryId): FileRef[]
 
   /** All refs owned by a business source (chat message, painting, temp session). */
-  findBySource(source: FileRefSourceKey): Promise<FileRef[]>
+  findBySource(source: FileRefSourceKey): FileRef[]
 
   /** Add one in-memory temp-session ref. Duplicate `(entry, source, role)` throws. */
-  createTempSessionRef(values: CreateTempSessionFileRefRow): Promise<FileRef>
+  createTempSessionRef(values: CreateTempSessionFileRefRow): FileRef
 
   /** Batch add in-memory temp-session refs. Duplicate `(entry, source, role)` rows are skipped. */
-  createManyTempSessionRefs(values: readonly CreateTempSessionFileRefRow[]): Promise<FileRef[]>
+  createManyTempSessionRefs(values: readonly CreateTempSessionFileRefRow[]): FileRef[]
 
   /** Remove all temp-session refs owned by one source id. */
-  cleanupTempSessionSource(sourceId: string): Promise<number>
+  cleanupTempSessionSource(sourceId: string): number
 
   /** Remove all temp-session refs owned by the given source ids. */
-  cleanupTempSessionSources(sourceIds: readonly string[]): Promise<number>
+  cleanupTempSessionSources(sourceIds: readonly string[]): number
 
   /** Ref-count aggregation for a batch of entry ids. */
-  countByEntryIds(ids: readonly FileEntryId[]): Promise<Map<FileEntryId, number>>
+  countByEntryIds(ids: readonly FileEntryId[]): Map<FileEntryId, number>
 
   /** Drop temp-session cache refs whose file_entry no longer exists. */
-  pruneMissingTempSessionRefs(existingEntryIds: ReadonlySet<FileEntryId>): Promise<number>
+  pruneMissingTempSessionRefs(existingEntryIds: ReadonlySet<FileEntryId>): number
 }
 
 const SQLITE_INARRAY_CHUNK = 500
@@ -146,51 +146,56 @@ class FileRefServiceImpl implements FileRefService {
     this.getCacheService().set(TEMP_SESSION_REFS_CACHE_KEY, cache)
   }
 
-  async findByEntryId(fileEntryId: FileEntryId): Promise<FileRef[]> {
+  findByEntryId(fileEntryId: FileEntryId): FileRef[] {
     const persistentRefReaders = {
-      [chatMessageSourceType]: async () => {
-        const rows = await this.getDb()
+      [chatMessageSourceType]: () => {
+        const rows = this.getDb()
           .select()
           .from(chatMessageFileRefTable)
           .where(eq(chatMessageFileRefTable.fileEntryId, fileEntryId))
           .orderBy(asc(chatMessageFileRefTable.createdAt), asc(chatMessageFileRefTable.id))
+          .all()
         return rows.map(chatMessageRowToFileRef)
       },
-      [paintingSourceType]: async () => {
-        const rows = await this.getDb()
+      [paintingSourceType]: () => {
+        const rows = this.getDb()
           .select()
           .from(paintingFileRefTable)
           .where(eq(paintingFileRefTable.fileEntryId, fileEntryId))
           .orderBy(asc(paintingFileRefTable.createdAt), asc(paintingFileRefTable.id))
+          .all()
         return rows.map(paintingRowToFileRef)
       },
-      [providerLogoRef.sourceType]: async () => {
-        const rows = await this.getDb()
+      [providerLogoRef.sourceType]: () => {
+        const rows = this.getDb()
           .select()
           .from(providerLogoFileRefTable)
           .where(eq(providerLogoFileRefTable.fileEntryId, fileEntryId))
           .orderBy(asc(providerLogoFileRefTable.createdAt), asc(providerLogoFileRefTable.id))
+          .all()
         return rows.map((row) => singleFileRowToFileRef(row, providerLogoRef.sourceType))
       },
-      [miniAppLogoRef.sourceType]: async () => {
-        const rows = await this.getDb()
+      [miniAppLogoRef.sourceType]: () => {
+        const rows = this.getDb()
           .select()
           .from(miniAppLogoFileRefTable)
           .where(eq(miniAppLogoFileRefTable.fileEntryId, fileEntryId))
           .orderBy(asc(miniAppLogoFileRefTable.createdAt), asc(miniAppLogoFileRefTable.id))
+          .all()
         return rows.map((row) => singleFileRowToFileRef(row, miniAppLogoRef.sourceType))
       },
-      [userAvatarRef.sourceType]: async () => {
-        const rows = await this.getDb()
+      [userAvatarRef.sourceType]: () => {
+        const rows = this.getDb()
           .select()
           .from(userAvatarFileRefTable)
           .where(eq(userAvatarFileRefTable.fileEntryId, fileEntryId))
           .orderBy(asc(userAvatarFileRefTable.createdAt), asc(userAvatarFileRefTable.id))
+          .all()
         return rows.map((row) => singleFileRowToFileRef(row, userAvatarRef.sourceType))
       }
-    } satisfies Record<PersistentFileRefSourceType, () => Promise<FileRef[]>>
+    } satisfies Record<PersistentFileRefSourceType, () => FileRef[]>
 
-    const persistentRefs = (await Promise.all(Object.values(persistentRefReaders).map((readRefs) => readRefs()))).flat()
+    const persistentRefs = Object.values(persistentRefReaders).flatMap((readRefs) => readRefs())
     const tempRefs = Object.values(this.readTempSessionCache())
       .flat()
       .filter((ref) => ref.fileEntryId === fileEntryId)
@@ -199,63 +204,68 @@ class FileRefServiceImpl implements FileRefService {
     return [...persistentRefs, ...tempRefs].sort(compareRefs)
   }
 
-  async findBySource(source: FileRefSourceKey): Promise<FileRef[]> {
+  findBySource(source: FileRefSourceKey): FileRef[] {
     switch (source.sourceType) {
       case tempSessionSourceType:
         return (this.readTempSessionCache()[source.sourceId] ?? []).map(tempSessionRowToFileRef).sort(compareRefs)
       case chatMessageSourceType: {
-        const rows = await this.getDb()
+        const rows = this.getDb()
           .select()
           .from(chatMessageFileRefTable)
           .where(eq(chatMessageFileRefTable.sourceId, source.sourceId))
           .orderBy(asc(chatMessageFileRefTable.createdAt), asc(chatMessageFileRefTable.id))
+          .all()
         return rows.map(chatMessageRowToFileRef)
       }
       case paintingSourceType: {
-        const rows = await this.getDb()
+        const rows = this.getDb()
           .select()
           .from(paintingFileRefTable)
           .where(eq(paintingFileRefTable.sourceId, source.sourceId))
           .orderBy(asc(paintingFileRefTable.createdAt), asc(paintingFileRefTable.id))
+          .all()
         return rows.map(paintingRowToFileRef)
       }
       case providerLogoRef.sourceType: {
-        const rows = await this.getDb()
+        const rows = this.getDb()
           .select()
           .from(providerLogoFileRefTable)
           .where(eq(providerLogoFileRefTable.sourceId, source.sourceId))
           .orderBy(asc(providerLogoFileRefTable.createdAt), asc(providerLogoFileRefTable.id))
+          .all()
         return rows.map((row) => singleFileRowToFileRef(row, providerLogoRef.sourceType))
       }
       case miniAppLogoRef.sourceType: {
-        const rows = await this.getDb()
+        const rows = this.getDb()
           .select()
           .from(miniAppLogoFileRefTable)
           .where(eq(miniAppLogoFileRefTable.sourceId, source.sourceId))
           .orderBy(asc(miniAppLogoFileRefTable.createdAt), asc(miniAppLogoFileRefTable.id))
+          .all()
         return rows.map((row) => singleFileRowToFileRef(row, miniAppLogoRef.sourceType))
       }
       case userAvatarRef.sourceType: {
-        const rows = await this.getDb()
+        const rows = this.getDb()
           .select()
           .from(userAvatarFileRefTable)
           .where(eq(userAvatarFileRefTable.sourceId, source.sourceId))
           .orderBy(asc(userAvatarFileRefTable.createdAt), asc(userAvatarFileRefTable.id))
+          .all()
         return rows.map((row) => singleFileRowToFileRef(row, userAvatarRef.sourceType))
       }
     }
   }
 
-  async createTempSessionRef(values: CreateTempSessionFileRefRow): Promise<FileRef> {
-    const inserted = await this.createTempSessionRefs([values], { throwOnDuplicate: true })
+  createTempSessionRef(values: CreateTempSessionFileRefRow): FileRef {
+    const inserted = this.createTempSessionRefs([values], { throwOnDuplicate: true })
     return inserted[0]
   }
 
-  async createManyTempSessionRefs(values: readonly CreateTempSessionFileRefRow[]): Promise<FileRef[]> {
+  createManyTempSessionRefs(values: readonly CreateTempSessionFileRefRow[]): FileRef[] {
     return this.createTempSessionRefs(values)
   }
 
-  async cleanupTempSessionSource(sourceId: string): Promise<number> {
+  cleanupTempSessionSource(sourceId: string): number {
     const cache = this.readTempSessionCache()
     const removed = cache[sourceId]?.length ?? 0
     if (removed === 0) return 0
@@ -264,15 +274,15 @@ class FileRefServiceImpl implements FileRefService {
     return removed
   }
 
-  async cleanupTempSessionSources(sourceIds: readonly string[]): Promise<number> {
+  cleanupTempSessionSources(sourceIds: readonly string[]): number {
     let removed = 0
     for (const sourceId of sourceIds) {
-      removed += await this.cleanupTempSessionSource(sourceId)
+      removed += this.cleanupTempSessionSource(sourceId)
     }
     return removed
   }
 
-  async countByEntryIds(ids: readonly FileEntryId[]): Promise<Map<FileEntryId, number>> {
+  countByEntryIds(ids: readonly FileEntryId[]): Map<FileEntryId, number> {
     const counts = new Map<FileEntryId, number>()
     if (ids.length === 0) return counts
 
@@ -288,34 +298,39 @@ class FileRefServiceImpl implements FileRefService {
             .select({ entryId: chatMessageFileRefTable.fileEntryId, refCount: count() })
             .from(chatMessageFileRefTable)
             .where(inArray(chatMessageFileRefTable.fileEntryId, chunk))
-            .groupBy(chatMessageFileRefTable.fileEntryId),
+            .groupBy(chatMessageFileRefTable.fileEntryId)
+            .all(),
         [paintingSourceType]: () =>
           this.getDb()
             .select({ entryId: paintingFileRefTable.fileEntryId, refCount: count() })
             .from(paintingFileRefTable)
             .where(inArray(paintingFileRefTable.fileEntryId, chunk))
-            .groupBy(paintingFileRefTable.fileEntryId),
+            .groupBy(paintingFileRefTable.fileEntryId)
+            .all(),
         [providerLogoRef.sourceType]: () =>
           this.getDb()
             .select({ entryId: providerLogoFileRefTable.fileEntryId, refCount: count() })
             .from(providerLogoFileRefTable)
             .where(inArray(providerLogoFileRefTable.fileEntryId, chunk))
-            .groupBy(providerLogoFileRefTable.fileEntryId),
+            .groupBy(providerLogoFileRefTable.fileEntryId)
+            .all(),
         [miniAppLogoRef.sourceType]: () =>
           this.getDb()
             .select({ entryId: miniAppLogoFileRefTable.fileEntryId, refCount: count() })
             .from(miniAppLogoFileRefTable)
             .where(inArray(miniAppLogoFileRefTable.fileEntryId, chunk))
-            .groupBy(miniAppLogoFileRefTable.fileEntryId),
+            .groupBy(miniAppLogoFileRefTable.fileEntryId)
+            .all(),
         [userAvatarRef.sourceType]: () =>
           this.getDb()
             .select({ entryId: userAvatarFileRefTable.fileEntryId, refCount: count() })
             .from(userAvatarFileRefTable)
             .where(inArray(userAvatarFileRefTable.fileEntryId, chunk))
             .groupBy(userAvatarFileRefTable.fileEntryId)
-      } satisfies Record<PersistentFileRefSourceType, () => Promise<Array<{ entryId: FileEntryId; refCount: number }>>>
+            .all()
+      } satisfies Record<PersistentFileRefSourceType, () => Array<{ entryId: FileEntryId; refCount: number }>>
 
-      const rowGroups = await Promise.all(Object.values(persistentRefCounters).map((countRefs) => countRefs()))
+      const rowGroups = Object.values(persistentRefCounters).map((countRefs) => countRefs())
       for (const rows of rowGroups) {
         for (const row of rows) add(row.entryId, row.refCount)
       }
@@ -331,7 +346,7 @@ class FileRefServiceImpl implements FileRefService {
     return counts
   }
 
-  async pruneMissingTempSessionRefs(existingEntryIds: ReadonlySet<FileEntryId>): Promise<number> {
+  pruneMissingTempSessionRefs(existingEntryIds: ReadonlySet<FileEntryId>): number {
     const cache = this.readTempSessionCache()
     let removed = 0
     for (const [sourceId, refs] of Object.entries(cache)) {
@@ -349,16 +364,17 @@ class FileRefServiceImpl implements FileRefService {
     return removed
   }
 
-  private async assertEntriesExist(entryIds: readonly FileEntryId[]): Promise<void> {
+  private assertEntriesExist(entryIds: readonly FileEntryId[]): void {
     const uniqueIds = [...new Set(entryIds)]
     if (uniqueIds.length === 0) return
     const existing = new Set<FileEntryId>()
     for (let i = 0; i < uniqueIds.length; i += SQLITE_INARRAY_CHUNK) {
       const chunk = uniqueIds.slice(i, i + SQLITE_INARRAY_CHUNK)
-      const rows = await this.getDb()
+      const rows = this.getDb()
         .select({ id: fileEntryTable.id })
         .from(fileEntryTable)
         .where(inArray(fileEntryTable.id, chunk))
+        .all()
       for (const row of rows) existing.add(row.id)
     }
     const missing = uniqueIds.find((id) => !existing.has(id))
@@ -367,12 +383,12 @@ class FileRefServiceImpl implements FileRefService {
     }
   }
 
-  private async createTempSessionRefs(
+  private createTempSessionRefs(
     values: readonly CreateTempSessionFileRefRow[],
     options: { readonly throwOnDuplicate?: boolean } = {}
-  ): Promise<FileRef[]> {
+  ): FileRef[] {
     if (values.length === 0) return []
-    await this.assertEntriesExist(values.map((value) => value.fileEntryId))
+    this.assertEntriesExist(values.map((value) => value.fileEntryId))
 
     const cache = this.readTempSessionCache()
     const now = Date.now()

@@ -18,7 +18,11 @@ import {
   LOCALSTORAGE_MAPPINGS,
   REDUX_STORE_MAPPINGS
 } from './mappings/PreferencesMappings'
-import { migrateBase64ImageToFileEntry } from './utils/logoMigration'
+import {
+  insertPreparedImageFileTx,
+  prepareBase64ImageFileEntry,
+  type PreparedEntityImageFile
+} from './utils/logoMigration'
 
 const logger = loggerService.withContext('PreferencesMigrator')
 
@@ -223,20 +227,27 @@ export class PreferencesMigrator extends BaseMigrator {
       const timestamp = Date.now()
 
       // Use transaction for atomic insert
-      await db.transaction(async (tx) => {
-        // Promote a v1 base64 avatar (`image://avatar`) to an on-disk WebP
-        // file_entry + file_ref, then store a `file:<id>` ref instead of the raw
-        // base64 — mirroring provider / mini-app logos. Emoji / preset / '' (and
-        // a failed transcode → '') pass through unchanged.
-        for (const item of this.preparedItems) {
-          if (
-            item.targetKey === AVATAR_PREFERENCE_KEY &&
-            typeof item.value === 'string' &&
-            item.value.startsWith('data:')
-          ) {
-            const fileId = await migrateBase64ImageToFileEntry(tx, ctx.paths.filesDataDir, AVATAR_REF, item.value)
-            item.value = fileId ? tagStoredFileRef(fileId) : ''
-          }
+      const avatarFiles: PreparedEntityImageFile[] = []
+
+      // Promote a v1 base64 avatar (`image://avatar`) to an on-disk WebP
+      // file_entry + file_ref, then store a `file:<id>` ref instead of the raw
+      // base64 — mirroring provider / mini-app logos. Emoji / preset / '' (and
+      // a failed transcode → '') pass through unchanged.
+      for (const item of this.preparedItems) {
+        if (
+          item.targetKey === AVATAR_PREFERENCE_KEY &&
+          typeof item.value === 'string' &&
+          item.value.startsWith('data:')
+        ) {
+          const avatarFile = await prepareBase64ImageFileEntry(ctx.paths.filesDataDir, AVATAR_REF, item.value)
+          item.value = avatarFile ? tagStoredFileRef(avatarFile.id) : ''
+          if (avatarFile) avatarFiles.push(avatarFile)
+        }
+      }
+
+      db.transaction((tx) => {
+        for (const avatarFile of avatarFiles) {
+          insertPreparedImageFileTx(tx, avatarFile)
         }
 
         // Batch insert all preferences
@@ -252,7 +263,7 @@ export class PreferencesMigrator extends BaseMigrator {
         const BATCH_SIZE = 100
         for (let i = 0; i < insertValues.length; i += BATCH_SIZE) {
           const batch = insertValues.slice(i, i + BATCH_SIZE)
-          await tx.insert(preferenceTable).values(batch)
+          tx.insert(preferenceTable).values(batch).run()
 
           // Report progress
           const progress = Math.round(((i + batch.length) / insertValues.length) * 100)
@@ -285,7 +296,7 @@ export class PreferencesMigrator extends BaseMigrator {
 
     try {
       // Count validation
-      const result = await db
+      const result = db
         .select({ count: sql<number>`count(*)` })
         .from(preferenceTable)
         .where(eq(preferenceTable.scope, 'default'))
@@ -296,7 +307,7 @@ export class PreferencesMigrator extends BaseMigrator {
       // Sample validation - check critical keys
       const criticalKeys = ['app.language', 'ui.theme_mode', 'app.zoom_factor']
       for (const key of criticalKeys) {
-        const record = await db
+        const record = db
           .select()
           .from(preferenceTable)
           .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, key)))

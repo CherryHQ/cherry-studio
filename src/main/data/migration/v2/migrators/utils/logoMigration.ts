@@ -9,12 +9,10 @@
  * normalized to WebP here (128×128 cover-crop, matching the renderer's
  * `normalizeImageToWebp`), not stored raw.
  *
- * Writes through the caller's tx (file_entry + file_ref) so it composes inside
- * the migrator's transaction; the physical file write is non-transactional —
- * same risk model as `ChatMappings.promoteBase64ToFileEntry`. Non-data-URL
- * values (a plain url / icon ref / emoji) return `null`; the caller keeps those
- * as-is. Any decode/transcode failure also returns `null` (the owner falls back
- * to its default) rather than aborting the migration.
+ * The physical file write is non-transactional — same risk model as
+ * `ChatMappings.promoteBase64ToFileEntry`. Callers that need a DB transaction
+ * prepare the file first, then insert the file_entry + file_ref synchronously
+ * inside their transaction.
  */
 
 import fs from 'node:fs/promises'
@@ -40,12 +38,20 @@ export interface EntityImageRef {
   role: string
 }
 
-export async function migrateBase64ImageToFileEntry(
-  tx: Pick<DbType, 'insert'>,
+type InsertFileEntryRow = typeof fileEntryTable.$inferInsert
+
+export interface PreparedEntityImageFile {
+  id: FileEntryId
+  physicalPath: FilePath
+  fileEntry: InsertFileEntryRow
+  ref: EntityImageRef
+}
+
+export async function prepareBase64ImageFileEntry(
   filesDataDir: string,
   ref: EntityImageRef,
   value: string
-): Promise<FileEntryId | null> {
+): Promise<PreparedEntityImageFile | null> {
   const match = BASE64_DATA_URL_RE.exec(value)
   // Not a data URL (plain url / icon ref / emoji) — caller keeps it as-is.
   if (!match) return null
@@ -64,28 +70,56 @@ export async function migrateBase64ImageToFileEntry(
 
   const id = uuidv7()
   const physicalPath = path.join(filesDataDir, `${id}.webp`) as FilePath
-  let written = false
   try {
     await fs.mkdir(path.dirname(physicalPath), { recursive: true })
     await fs.writeFile(physicalPath, webp)
-    written = true
 
     const now = Date.now()
-    await tx.insert(fileEntryTable).values({
+    return {
       id,
-      origin: 'internal',
-      name: ref.role,
-      ext: 'webp',
-      size: webp.length,
-      externalPath: null,
-      deletedAt: null,
-      createdAt: now,
-      updatedAt: now
-    })
-    await insertSingleFileRefTx(tx, { sourceType: ref.sourceType, sourceId: ref.sourceId }, id)
-    return id
+      physicalPath,
+      fileEntry: {
+        id,
+        origin: 'internal',
+        name: ref.role,
+        ext: 'webp',
+        size: webp.length,
+        externalPath: null,
+        deletedAt: null,
+        createdAt: now,
+        updatedAt: now
+      },
+      ref
+    }
   } catch (error) {
-    if (written) await fs.unlink(physicalPath).catch(() => {})
+    logger.warn('Failed to persist v1 image file_entry; dropping it', {
+      sourceType: ref.sourceType,
+      sourceId: ref.sourceId,
+      error: error instanceof Error ? error.message : String(error)
+    })
+    return null
+  }
+}
+
+export function insertPreparedImageFileTx(tx: Pick<DbType, 'insert'>, image: PreparedEntityImageFile): void {
+  tx.insert(fileEntryTable).values(image.fileEntry).run()
+  insertSingleFileRefTx(tx, { sourceType: image.ref.sourceType, sourceId: image.ref.sourceId }, image.id)
+}
+
+export async function migrateBase64ImageToFileEntry(
+  tx: Pick<DbType, 'insert'>,
+  filesDataDir: string,
+  ref: EntityImageRef,
+  value: string
+): Promise<FileEntryId | null> {
+  const image = await prepareBase64ImageFileEntry(filesDataDir, ref, value)
+  if (!image) return null
+
+  try {
+    insertPreparedImageFileTx(tx, image)
+    return image.id
+  } catch (error) {
+    await fs.unlink(image.physicalPath).catch(() => {})
     logger.warn('Failed to persist v1 image file_entry; dropping it', {
       sourceType: ref.sourceType,
       sourceId: ref.sourceId,

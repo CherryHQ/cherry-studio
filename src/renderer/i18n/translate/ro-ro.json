@@ -556,6 +556,7 @@
       "list": {
         "title": "Sarcini"
       },
+      "new": "Sarcină nouă",
       "pin": {
         "title": "Fixează sarcina"
       },
@@ -565,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "Căutare sarcini"
+        "placeholder": "Căutare sarcini",
+        "title": "Căutare sarcini"
       },
       "unpin": {
         "title": "Anulați fixarea sarcinii"
@@ -936,8 +938,8 @@
           "label": "Bash"
         },
         "CherryKbManage": {
-          "description": "[to be translated]:Adds, deletes, or refreshes documents in your knowledge bases",
-          "label": "[to be translated]:Manage Knowledge"
+          "description": "Adaugă, șterge sau reîmprospătează documente în bazele tale de cunoștințe",
+          "label": "Gestionează cunoștințele"
         },
         "CherryKbSearch": {
           "description": "Caută în bazele tale de cunoștințe",
@@ -3166,21 +3168,21 @@
           "agent_title": "Agent nou",
           "assistant_title": "Asistent Nou",
           "avatar_aria": "Alege avatar",
-          "back": "[to be translated]:Back",
+          "back": "Înapoi",
           "capability": {
-            "import": "[to be translated]:Import skill",
-            "no_skills": "[to be translated]:No skills installed",
-            "search": "[to be translated]:Search skills"
+            "import": "Import skill",
+            "no_skills": "Nicio abilitate instalată",
+            "search": "Abilități de căutare"
           },
           "description_placeholder": "Descrie pentru ce este...",
-          "guided_progress": "[to be translated]:Guided setup · Step {{current}} of {{total}}",
+          "guided_progress": "Configurare ghidată · Pasul {{current}} din {{total}}",
           "name_placeholder": "Introduceți un nume",
-          "next": "[to be translated]:Next",
+          "next": "Următorul",
           "step": {
-            "basic": "[to be translated]:Basic info",
-            "capability": "[to be translated]:Skills",
-            "knowledge": "[to be translated]:Knowledge",
-            "persona": "[to be translated]:Persona"
+            "basic": "Informații de bază",
+            "capability": "Abilități",
+            "knowledge": "Cunoștințe",
+            "persona": "Persoană"
           },
           "submit": "Creează",
           "submit_failed": "Crearea a eșuat"
@@ -3515,7 +3517,6 @@
     },
     "empty_url": "Nu s-a putut descărca imaginea, posibil din cauza promptului care conține conținut sensibil sau cuvinte interzise",
     "error": {
-      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
       "chunk_overlap_too_large": "Suprapunerea fragmentelor nu poate fi mai mare decât dimensiunea fragmentului",
       "copy": "Copiere eșuată",
       "dimension_too_large": "Dimensiunea conținutului este prea mare",
@@ -5271,6 +5272,7 @@
     "assistant": {
       "create_new": "Asistent Nou",
       "empty_text": "Niciun asistent încă",
+      "filter": "Asistenți de filtrare",
       "multi_hint": "(exclusiv în mod reciproc cu multi-model)",
       "multi_label": "Asistenți multipli în paralel",
       "search_placeholder": "Asistenți de căutare…"
@@ -6450,6 +6452,12 @@
         "show_estimated_tokens": "Afișează numărul estimat de tokeni",
         "title": "Setări intrare"
       },
+      "layout": {
+        "classic": "Clasic",
+        "conversation": "Vizualizare conversație",
+        "modern": "Modern",
+        "work": "Vizualizare lucru"
+      },
       "markdown_rendering_input_message": "Randare Markdown mesaj intrare",
       "metrics": "{{time_first_token_millsec}}ms până la primul token | {{token_speed}} tok/sec",
       "model": {
@@ -7454,7 +7462,7 @@
           "exa": "API de căutare neuronală pentru aplicații AI, optimizat pentru recuperare semantică pe web.",
           "exa_mcp": "Expune căutarea Exa către agenți prin serverul Exa MCP.",
           "fetch": "Furnizor încorporat de preluare URL. Preia conținutul paginilor web de la o adresă URL pentru a îmbogăți rezultatele căutării.",
-          "firecrawl": "[to be translated]:Firecrawl crawler and search service, optimized to turn websites into Markdown.",
+          "firecrawl": "Serviciu de căutare și crawler Firecrawl, optimizat pentru a transforma site-urile web în Markdown.",
           "jina": "API-urile de căutare și citire Jina Reader pentru recuperarea conținutului web curat.",
           "querit": "Serviciu de căutare pentru aplicații AI cu rezultate de recuperare web.",
           "searxng": "Motor de metacăutare gratuit pe internet, auto-găzduibil, care caută în multe surse.",

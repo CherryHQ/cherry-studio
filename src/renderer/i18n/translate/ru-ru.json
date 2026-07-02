@@ -556,6 +556,7 @@
       "list": {
         "title": "Задачи"
       },
+      "new": "Новое задание",
       "pin": {
         "title": "Закрепить задачу"
       },
@@ -565,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "Поисковые задачи"
+        "placeholder": "Поисковые задачи",
+        "title": "Поиск задач"
       },
       "unpin": {
         "title": "Открепить задачу"
@@ -936,8 +938,8 @@
           "label": "Баш"
         },
         "CherryKbManage": {
-          "description": "[to be translated]:Adds, deletes, or refreshes documents in your knowledge bases",
-          "label": "[to be translated]:Manage Knowledge"
+          "description": "Добавляет, удаляет или обновляет документы в ваших базах знаний",
+          "label": "Управление знаниями"
         },
         "CherryKbSearch": {
           "description": "Ищет в ваших базах знаний",
@@ -3166,21 +3168,21 @@
           "agent_title": "Новый агент",
           "assistant_title": "Новый ассистент",
           "avatar_aria": "Выберите аватар",
-          "back": "[to be translated]:Back",
+          "back": "Назад",
           "capability": {
-            "import": "[to be translated]:Import skill",
-            "no_skills": "[to be translated]:No skills installed",
-            "search": "[to be translated]:Search skills"
+            "import": "Импортировать навык",
+            "no_skills": "Навыки не установлены",
+            "search": "Навыки поиска"
           },
           "description_placeholder": "Опиши, для чего это нужно...",
-          "guided_progress": "[to be translated]:Guided setup · Step {{current}} of {{total}}",
+          "guided_progress": "Пошаговая настройка · Шаг {{current}} из {{total}}",
           "name_placeholder": "Введите имя",
-          "next": "[to be translated]:Next",
+          "next": "Следующий",
           "step": {
-            "basic": "[to be translated]:Basic info",
-            "capability": "[to be translated]:Skills",
-            "knowledge": "[to be translated]:Knowledge",
-            "persona": "[to be translated]:Persona"
+            "basic": "Основная информация",
+            "capability": "Навыки",
+            "knowledge": "Знание",
+            "persona": "Персона"
           },
           "submit": "Создать",
           "submit_failed": "Создание не удалось"
@@ -3515,7 +3517,6 @@
     },
     "empty_url": "Не удалось загрузить изображение, возможно, запрос содержит конфиденциальный контент или запрещенные слова",
     "error": {
-      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
       "chunk_overlap_too_large": "Перекрытие фрагментов не может быть больше размера фрагмента",
       "copy": "Не удалось скопировать",
       "dimension_too_large": "Размер содержимого слишком велик",
@@ -5271,6 +5272,7 @@
     "assistant": {
       "create_new": "Новый ассистент",
       "empty_text": "Пока нет ассистентов",
+      "filter": "Фильтровать помощников",
       "multi_hint": "(взаимоисключающий с многомодельным)",
       "multi_label": "Многопомощниковый параллелизм",
       "search_placeholder": "Поиск ассистентов…"
@@ -6450,6 +6452,12 @@
         "show_estimated_tokens": "Показывать затраты токенов",
         "title": "Настройки ввода"
       },
+      "layout": {
+        "classic": "Классический",
+        "conversation": "Вид разговора",
+        "modern": "Современный",
+        "work": "Вид работы"
+      },
       "markdown_rendering_input_message": "Отображение ввода в формате Markdown",
       "metrics": "{{time_first_token_millsec}}ms до первого токена | {{token_speed}} tok/sec",
       "model": {
@@ -7454,7 +7462,7 @@
           "exa": "API нейропоиска для ИИ-приложений, оптимизированный для семантического поиска в вебе.",
           "exa_mcp": "Предоставьте агентам доступ к поиску Exa через сервер Exa MCP.",
           "fetch": "Встроенный поставщик извлечения URL. Извлекает содержимое веб-страницы по URL для обогащения результатов поиска.",
-          "firecrawl": "[to be translated]:Firecrawl crawler and search service, optimized to turn websites into Markdown.",
+          "firecrawl": "Сервис краулинга и поиска Firecrawl, оптимизированный для преобразования веб-сайтов в Markdown.",
           "jina": "API Jina Reader для поиска и чтения для получения чистого веб-контента.",
           "querit": "Поисковый сервис для приложений ИИ с результатами веб-поиска.",
           "searxng": "Самостоятельно размещаемый бесплатный интернет-метапоисковик по множеству источников.",

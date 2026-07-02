@@ -556,6 +556,7 @@
       "list": {
         "title": "Tarefas"
       },
+      "new": "Nova tarefa",
       "pin": {
         "title": "Fixar tarefa"
       },
@@ -565,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "Tarefas de pesquisa"
+        "placeholder": "Tarefas de pesquisa",
+        "title": "Pesquisar tarefas"
       },
       "unpin": {
         "title": "Desafixar tarefa"
@@ -936,8 +938,8 @@
           "label": "Bash"
         },
         "CherryKbManage": {
-          "description": "[to be translated]:Adds, deletes, or refreshes documents in your knowledge bases",
-          "label": "[to be translated]:Manage Knowledge"
+          "description": "Adiciona, exclui ou atualiza documentos em suas bases de conhecimento",
+          "label": "Gerenciar Conhecimento"
         },
         "CherryKbSearch": {
           "description": "Pesquisa suas bases de conhecimento",
@@ -3166,21 +3168,21 @@
           "agent_title": "Novo Agente",
           "assistant_title": "Novo Assistente",
           "avatar_aria": "Escolher avatar",
-          "back": "[to be translated]:Back",
+          "back": "Voltar",
           "capability": {
-            "import": "[to be translated]:Import skill",
-            "no_skills": "[to be translated]:No skills installed",
-            "search": "[to be translated]:Search skills"
+            "import": "Importar habilidade",
+            "no_skills": "Nenhuma habilidade instalada",
+            "search": "Habilidades de pesquisa"
           },
           "description_placeholder": "Descreva para que serve...",
-          "guided_progress": "[to be translated]:Guided setup · Step {{current}} of {{total}}",
+          "guided_progress": "Configuração guiada · Passo {{current}} de {{total}}",
           "name_placeholder": "Insira um nome",
-          "next": "[to be translated]:Next",
+          "next": "Próximo",
           "step": {
-            "basic": "[to be translated]:Basic info",
-            "capability": "[to be translated]:Skills",
-            "knowledge": "[to be translated]:Knowledge",
-            "persona": "[to be translated]:Persona"
+            "basic": "Informações básicas",
+            "capability": "Habilidades",
+            "knowledge": "Conhecimento",
+            "persona": "Persona"
           },
           "submit": "Criar",
           "submit_failed": "Falha na criação"
@@ -3515,7 +3517,6 @@
     },
     "empty_url": "Não foi possível baixar a imagem, possivelmente porque o prompt contém conteúdo sensível ou palavras proibidas",
     "error": {
-      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
       "chunk_overlap_too_large": "A sobreposição de fragmentos não pode ser maior que o tamanho do fragmento",
       "copy": "Falha ao copiar",
       "dimension_too_large": "Dimensão do conteúdo muito grande",
@@ -5271,6 +5272,7 @@
     "assistant": {
       "create_new": "Novo Assistente",
       "empty_text": "Nenhum assistente ainda",
+      "filter": "Assistentes de filtro",
       "multi_hint": "(mutualmente exclusivo com multi-modelo)",
       "multi_label": "Multi-assistente paralelo",
       "search_placeholder": "Assistentes de pesquisa…"
@@ -6450,6 +6452,12 @@
         "show_estimated_tokens": "Mostrar número estimado de tokens",
         "title": "Configurações de entrada"
       },
+      "layout": {
+        "classic": "Clássico",
+        "conversation": "Vista de conversa",
+        "modern": "Moderno",
+        "work": "Vista de trabalho"
+      },
       "markdown_rendering_input_message": "Renderização de markdown na entrada de mensagens",
       "metrics": "Atraso inicial {{time_first_token_millsec}}ms | Taxa de token por segundo {{token_speed}} tokens",
       "model": {
@@ -7454,7 +7462,7 @@
           "exa": "API de busca neural para aplicações de IA, ajustada para recuperação semântica da web.",
           "exa_mcp": "Exponha a pesquisa Exa aos agentes por meio do Exa MCP Server.",
           "fetch": "Provedor de busca de URL integrado. Busca conteúdo de páginas web a partir de uma URL para enriquecer os resultados de pesquisa.",
-          "firecrawl": "[to be translated]:Firecrawl crawler and search service, optimized to turn websites into Markdown.",
+          "firecrawl": "Serviço de crawler e busca Firecrawl, otimizado para transformar websites em Markdown.",
           "jina": "APIs de pesquisa e leitura Jina Reader para recuperar conteúdo web limpo.",
           "querit": "Serviço de pesquisa para aplicativos de IA com resultados de recuperação da web.",
           "searxng": "Motor de metapesquisa de internet gratuito e auto-hospedável em várias fontes.",

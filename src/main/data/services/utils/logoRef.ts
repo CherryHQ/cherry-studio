@@ -44,16 +44,16 @@ export interface LogoColumns {
 }
 
 /** Remove the single-file ref row owned by `slot`, inside `tx`. */
-export async function clearSingleFileRefTx(tx: DbOrTx, slot: SingleFileRefSlot): Promise<void> {
+export function clearSingleFileRefTx(tx: DbOrTx, slot: SingleFileRefSlot): void {
   switch (slot.sourceType) {
     case providerLogoRef.sourceType:
-      await tx.delete(providerLogoFileRefTable).where(eq(providerLogoFileRefTable.sourceId, slot.sourceId))
+      tx.delete(providerLogoFileRefTable).where(eq(providerLogoFileRefTable.sourceId, slot.sourceId)).run()
       return
     case miniAppLogoRef.sourceType:
-      await tx.delete(miniAppLogoFileRefTable).where(eq(miniAppLogoFileRefTable.sourceId, slot.sourceId))
+      tx.delete(miniAppLogoFileRefTable).where(eq(miniAppLogoFileRefTable.sourceId, slot.sourceId)).run()
       return
     case userAvatarRef.sourceType:
-      await tx.delete(userAvatarFileRefTable).where(eq(userAvatarFileRefTable.sourceId, slot.sourceId))
+      tx.delete(userAvatarFileRefTable).where(eq(userAvatarFileRefTable.sourceId, slot.sourceId)).run()
       return
   }
 }
@@ -65,22 +65,24 @@ export async function clearSingleFileRefTx(tx: DbOrTx, slot: SingleFileRefSlot):
  * role is fixed per source type (`logo` for provider / mini-app, `avatar` for
  * the user avatar), so it is not a parameter.
  */
-export async function insertSingleFileRefTx(
-  tx: Pick<DbType, 'insert'>,
-  slot: SingleFileRefSlot,
-  fileId: FileEntryId
-): Promise<void> {
+export function insertSingleFileRefTx(tx: Pick<DbType, 'insert'>, slot: SingleFileRefSlot, fileId: FileEntryId): void {
   const now = Date.now()
   const base = { id: uuidv4(), fileEntryId: fileId, sourceId: slot.sourceId, createdAt: now, updatedAt: now }
   switch (slot.sourceType) {
     case providerLogoRef.sourceType:
-      await tx.insert(providerLogoFileRefTable).values({ ...base, role: 'logo' })
+      tx.insert(providerLogoFileRefTable)
+        .values({ ...base, role: 'logo' })
+        .run()
       return
     case miniAppLogoRef.sourceType:
-      await tx.insert(miniAppLogoFileRefTable).values({ ...base, role: 'logo' })
+      tx.insert(miniAppLogoFileRefTable)
+        .values({ ...base, role: 'logo' })
+        .run()
       return
     case userAvatarRef.sourceType:
-      await tx.insert(userAvatarFileRefTable).values({ ...base, role: 'avatar' })
+      tx.insert(userAvatarFileRefTable)
+        .values({ ...base, role: 'avatar' })
+        .run()
       return
   }
 }
@@ -88,9 +90,9 @@ export async function insertSingleFileRefTx(
 /**
  * Point `slot` at `fileId`, clearing any existing row first, inside `tx`.
  */
-export async function setSingleFileRefTx(tx: DbOrTx, slot: SingleFileRefSlot, fileId: FileEntryId): Promise<void> {
-  await clearSingleFileRefTx(tx, slot)
-  await insertSingleFileRefTx(tx, slot, fileId)
+export function setSingleFileRefTx(tx: DbOrTx, slot: SingleFileRefSlot, fileId: FileEntryId): void {
+  clearSingleFileRefTx(tx, slot)
+  insertSingleFileRefTx(tx, slot, fileId)
 }
 
 /**
@@ -104,18 +106,18 @@ export async function setSingleFileRefTx(tx: DbOrTx, slot: SingleFileRefSlot, fi
  *   `logoKey = key`, `logoFileId = null`.
  * - `{ kind: 'clear' }` → drop the slot's ref, both columns null.
  */
-export async function reconcileLogoSlotTx(
+export function reconcileLogoSlotTx(
   tx: DbOrTx,
   slot: SingleFileRefSlot,
   input: LogoBindInput | undefined
-): Promise<LogoColumns | null> {
+): LogoColumns | null {
   if (input === undefined) return null
 
   if (input.kind === 'file') {
-    await setSingleFileRefTx(tx, slot, input.fileId)
+    setSingleFileRefTx(tx, slot, input.fileId)
     return { logoKey: null, logoFileId: input.fileId }
   }
 
-  await clearSingleFileRefTx(tx, slot)
+  clearSingleFileRefTx(tx, slot)
   return { logoKey: input.kind === 'key' ? input.key : null, logoFileId: null }
 }
