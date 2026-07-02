@@ -98,7 +98,7 @@ describe('FileManager (integration)', () => {
     expect(meta.kind).toBe('file')
     expect(meta.size).toBe('internal-payload'.length)
 
-    const url = await fm.getUrl(id)
+    const url = fm.getUrl(id)
     expect(url).toMatch(/^file:\/\//)
     expect(url).toContain(encodeURIComponent(`${id}.txt`).replace(/%2F/g, '/'))
   })
@@ -462,7 +462,7 @@ describe('FileManager (integration)', () => {
         updatedAt: now + 1
       }
     ])
-    await fileRefService.createTempSessionRef({
+    fileRefService.createTempSessionRef({
       fileEntryId: danglingTempId,
       sourceId: 'sess-orphan',
       role: 'pending'
@@ -471,7 +471,7 @@ describe('FileManager (integration)', () => {
 
     const report = await fm.runSweep()
 
-    expect(await fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'sess-orphan' })).toEqual([])
+    expect(fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'sess-orphan' })).toEqual([])
     expect(report.outcome).toBe('completed')
     expect(report.orphanRefsByType.temp_session).toBe(1)
     expect(report.orphanEntriesByOrigin.internal ?? 0).toBeGreaterThanOrEqual(1)
@@ -484,9 +484,9 @@ describe('FileManager (integration)', () => {
     // `scanOrphanEntries`'s downstream `findUnreferenced` call to throw.
     // Verifies the end-to-end propagation: runDbSweep → `'failed'` report
     // → `runSweep` returns the `'failed'` variant.
-    const spy = vi
-      .spyOn(fm['deps'].fileEntryService, 'findUnreferenced')
-      .mockRejectedValueOnce(new Error('db conn lost mid-sweep'))
+    const spy = vi.spyOn(fm['deps'].fileEntryService, 'findUnreferenced').mockImplementationOnce(() => {
+      throw new Error('db conn lost mid-sweep')
+    })
 
     const report = await fm.runSweep()
 
@@ -505,9 +505,9 @@ describe('FileManager (integration)', () => {
     // Without the umbrella merge, the cleanup UI would see `outcome:
     // 'completed'` over an EACCES — the regression flagged in
     // PR #15067 thread PRRT_kwDOL_2xws6EeQI5.
-    const spy = vi
-      .spyOn(fm['deps'].fileEntryService, 'listAllIds')
-      .mockRejectedValueOnce(new Error('EACCES on Files dir'))
+    const spy = vi.spyOn(fm['deps'].fileEntryService, 'listAllIds').mockImplementationOnce(() => {
+      throw new Error('EACCES on Files dir')
+    })
 
     const report = await fm.runSweep()
 

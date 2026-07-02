@@ -42,9 +42,9 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
     const input = ctx.input
     try {
       const { providerId, modelId } = parseUniqueModelId(input.uniqueModelId)
-      const provider = await providerService.getByProviderId(providerId)
+      const provider = providerService.getByProviderId(providerId)
       if (!provider) throw new Error(`Image generation job: provider '${providerId}' not found`)
-      const model = await modelService.getByKey(providerId, modelId)
+      const model = modelService.getByKey(providerId, modelId)
       if (!model) throw new Error(`Image generation job: model '${modelId}' not found for provider '${providerId}'`)
 
       const sdkConfig = { ...(await providerToAiSdkConfig(provider, model)), modelId: model.apiModelId ?? model.id }

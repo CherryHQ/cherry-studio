@@ -158,3 +158,9 @@ export interface DirectoryListOptions {
   maxEntries?: number
   searchPattern?: string
 }
+
+/** A listed directory entry with its kind, so callers don't need a follow-up `isDirectory` per path. */
+export interface DirectoryEntry {
+  path: FilePath
+  isDirectory: boolean
+}

@@ -3,8 +3,8 @@ import { AGENT_SESSION_MESSAGE_FTS_STATEMENTS, agentSessionMessageTable } from '
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { MESSAGE_FTS_STATEMENTS, messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
-import type { Client } from '@libsql/client'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
+import type Database from 'better-sqlite3'
 import { isNull } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
@@ -20,8 +20,8 @@ import { describe, expect, it } from 'vitest'
  * empty index cannot expose the bug.
  */
 
-function integrityCheck1(client: Client, ftsTable: string): Promise<unknown> {
-  return client.execute(`INSERT INTO ${ftsTable}(${ftsTable}, rank) VALUES('integrity-check', 1)`)
+function integrityCheck1(sqlite: Database.Database, ftsTable: string): Database.RunResult {
+  return sqlite.prepare(`INSERT INTO ${ftsTable}(${ftsTable}, rank) VALUES('integrity-check', 1)`).run()
 }
 
 function quoteIdent(identifier: string): string {
@@ -34,31 +34,29 @@ function quoteIdent(identifier: string): string {
 // — including `fts_rowid` — verbatim. FTS triggers are dropped during the delete/re-insert, so the
 // FTS vtable is untouched and keeps its entries keyed by fts_rowid; re-running the custom SQL
 // re-asserts the triggers on the rebuilt table.
-async function rebuildWithRowidReshuffle(client: Client, table: string, ftsStatements: string[]): Promise<void> {
+function rebuildWithRowidReshuffle(sqlite: Database.Database, table: string, ftsStatements: string[]): void {
   const quotedTable = quoteIdent(table)
   const copyTable = quoteIdent(`__fts_rebuild_${table}`)
-  const columnsResult = await client.execute(`PRAGMA table_info(${quotedTable})`)
-  const columns = columnsResult.rows.map((row) => String(row.name ?? row[1]))
+  const columns = (sqlite.pragma(`table_info(${quotedTable})`) as Array<{ name: string }>).map((row) => row.name)
   const columnList = columns.map(quoteIdent).join(', ')
 
-  await client.execute('PRAGMA foreign_keys=OFF')
+  sqlite.pragma('foreign_keys=OFF')
   for (const stmt of ftsStatements) {
-    if (/^\s*DROP\s+TRIGGER\b/i.test(stmt)) await client.execute(stmt)
+    if (/^\s*DROP\s+TRIGGER\b/i.test(stmt)) sqlite.exec(stmt)
   }
-  await client.execute(`CREATE TEMP TABLE ${copyTable} AS SELECT * FROM ${quotedTable}`)
-  await client.execute(`DELETE FROM ${quotedTable}`)
-  await client.execute(`INSERT INTO ${quotedTable} (${columnList}) SELECT ${columnList} FROM ${copyTable}`)
-  await client.execute(`DROP TABLE ${copyTable}`)
-  await client.execute('PRAGMA foreign_keys=ON')
-  for (const stmt of ftsStatements) await client.execute(stmt)
+  sqlite.exec(`CREATE TEMP TABLE ${copyTable} AS SELECT * FROM ${quotedTable}`)
+  sqlite.exec(`DELETE FROM ${quotedTable}`)
+  sqlite.exec(`INSERT INTO ${quotedTable} (${columnList}) SELECT ${columnList} FROM ${copyTable}`)
+  sqlite.exec(`DROP TABLE ${copyTable}`)
+  sqlite.pragma('foreign_keys=ON')
+  for (const stmt of ftsStatements) sqlite.exec(stmt)
 }
 
-async function ftsMatchIds(client: Client, table: string, ftsTable: string, term: string): Promise<string[]> {
-  const res = await client.execute({
-    sql: `SELECT m.id FROM ${table} m JOIN ${ftsTable} fts ON m.fts_rowid = fts.rowid WHERE ${ftsTable} MATCH ?`,
-    args: [term]
-  })
-  return res.rows.map((row) => String(row[0]))
+function ftsMatchIds(sqlite: Database.Database, table: string, ftsTable: string, term: string): string[] {
+  const rows = sqlite
+    .prepare(`SELECT m.id FROM ${table} m JOIN ${ftsTable} fts ON m.fts_rowid = fts.rowid WHERE ${ftsTable} MATCH ?`)
+    .all(term) as Array<{ id: string }>
+  return rows.map((row) => String(row.id))
 }
 
 describe('FTS5 rowid-reshuffle resistance (fts_rowid keying)', () => {
@@ -116,16 +114,16 @@ describe('FTS5 rowid-reshuffle resistance (fts_rowid keying)', () => {
     // Trigger wiring: every row got a non-null fts_rowid, and the FTS join resolves the right row.
     const noNullBefore = await dbh.db.select().from(messageTable).where(isNull(messageTable.ftsRowid))
     expect(noNullBefore).toHaveLength(0)
-    expect(await ftsMatchIds(dbh.client, 'message', 'message_fts', 'cherry')).toEqual(['m3'])
+    expect(ftsMatchIds(dbh.sqlite, 'message', 'message_fts', 'cherry')).toEqual(['m3'])
 
     // Create a rowid hole in the middle, then rebuild (reshuffles the implicit rowid).
-    await dbh.client.execute(`DELETE FROM message WHERE id = 'm2'`)
-    await rebuildWithRowidReshuffle(dbh.client, 'message', MESSAGE_FTS_STATEMENTS)
+    dbh.sqlite.exec(`DELETE FROM message WHERE id = 'm2'`)
+    rebuildWithRowidReshuffle(dbh.sqlite, 'message', MESSAGE_FTS_STATEMENTS)
 
     // The index is keyed on fts_rowid (carried through the rebuild), so it stays aligned.
-    await expect(integrityCheck1(dbh.client, 'message_fts')).resolves.toBeDefined()
-    expect(await ftsMatchIds(dbh.client, 'message', 'message_fts', 'cherry')).toEqual(['m3'])
-    expect(await ftsMatchIds(dbh.client, 'message', 'message_fts', 'date')).toEqual(['m4'])
+    expect(integrityCheck1(dbh.sqlite, 'message_fts')).toBeDefined()
+    expect(ftsMatchIds(dbh.sqlite, 'message', 'message_fts', 'cherry')).toEqual(['m3'])
+    expect(ftsMatchIds(dbh.sqlite, 'message', 'message_fts', 'date')).toEqual(['m4'])
     const noNullAfter = await dbh.db.select().from(messageTable).where(isNull(messageTable.ftsRowid))
     expect(noNullAfter).toHaveLength(0)
   })
@@ -181,18 +179,14 @@ describe('FTS5 rowid-reshuffle resistance (fts_rowid keying)', () => {
       .from(agentSessionMessageTable)
       .where(isNull(agentSessionMessageTable.ftsRowid))
     expect(noNullBefore).toHaveLength(0)
-    expect(await ftsMatchIds(dbh.client, 'agent_session_message', 'agent_session_message_fts', 'cherry')).toEqual([
-      'a3'
-    ])
+    expect(ftsMatchIds(dbh.sqlite, 'agent_session_message', 'agent_session_message_fts', 'cherry')).toEqual(['a3'])
 
-    await dbh.client.execute(`DELETE FROM agent_session_message WHERE id = 'a2'`)
-    await rebuildWithRowidReshuffle(dbh.client, 'agent_session_message', AGENT_SESSION_MESSAGE_FTS_STATEMENTS)
+    dbh.sqlite.exec(`DELETE FROM agent_session_message WHERE id = 'a2'`)
+    rebuildWithRowidReshuffle(dbh.sqlite, 'agent_session_message', AGENT_SESSION_MESSAGE_FTS_STATEMENTS)
 
-    await expect(integrityCheck1(dbh.client, 'agent_session_message_fts')).resolves.toBeDefined()
-    expect(await ftsMatchIds(dbh.client, 'agent_session_message', 'agent_session_message_fts', 'cherry')).toEqual([
-      'a3'
-    ])
-    expect(await ftsMatchIds(dbh.client, 'agent_session_message', 'agent_session_message_fts', 'date')).toEqual(['a4'])
+    expect(integrityCheck1(dbh.sqlite, 'agent_session_message_fts')).toBeDefined()
+    expect(ftsMatchIds(dbh.sqlite, 'agent_session_message', 'agent_session_message_fts', 'cherry')).toEqual(['a3'])
+    expect(ftsMatchIds(dbh.sqlite, 'agent_session_message', 'agent_session_message_fts', 'date')).toEqual(['a4'])
     const agentNoNullAfter = await dbh.db
       .select()
       .from(agentSessionMessageTable)
@@ -220,7 +214,7 @@ describe('FTS5 rowid-reshuffle resistance (fts_rowid keying)', () => {
     // Simulate a row that lost its fts_rowid (e.g. a future bulk insert/restore that bypassed the
     // trigger): the FTS entry now references content that no longer carries that key. This is the
     // failure mode the nullable column risks — integrity-check,1 MUST surface it as corruption.
-    await dbh.client.execute(`UPDATE message SET fts_rowid = NULL WHERE id = 'n1'`)
-    await expect(integrityCheck1(dbh.client, 'message_fts')).rejects.toThrow()
+    dbh.sqlite.exec(`UPDATE message SET fts_rowid = NULL WHERE id = 'n1'`)
+    expect(() => integrityCheck1(dbh.sqlite, 'message_fts')).toThrow()
   })
 })

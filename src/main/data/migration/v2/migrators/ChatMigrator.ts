@@ -462,7 +462,7 @@ export class ChatMigrator extends BaseMigrator {
         referencedCount: this.migratedFileEntryIds.size
       })
 
-      const insertResult = await this.insertStagedTopics(ctx)
+      const insertResult = this.insertStagedTopics(ctx)
       processedTopics = insertResult.topicsInserted
       processedMessages = insertResult.messagesInserted
       const pinsInserted = insertResult.pinsInserted
@@ -522,11 +522,11 @@ export class ChatMigrator extends BaseMigrator {
 
     try {
       // Count topics in target
-      const topicResult = await db.select({ count: sql<number>`count(*)` }).from(topicTable).get()
+      const topicResult = db.select({ count: sql<number>`count(*)` }).from(topicTable).get()
       const targetTopicCount = topicResult?.count ?? 0
 
       // Count messages in target
-      const messageResult = await db.select({ count: sql<number>`count(*)` }).from(messageTable).get()
+      const messageResult = db.select({ count: sql<number>`count(*)` }).from(messageTable).get()
       const targetMessageCount = messageResult?.count ?? 0
 
       logger.info('Validation counts', {
@@ -550,7 +550,7 @@ export class ChatMigrator extends BaseMigrator {
 
       const expectedPins = this.stagedTopics.filter((d) => d.pinned).length
       if (expectedPins > 0) {
-        const pinResult = await db
+        const pinResult = db
           .select({ count: sql<number>`count(*)` })
           .from(pinTable)
           .where(eq(pinTable.entityType, 'topic'))
@@ -565,9 +565,9 @@ export class ChatMigrator extends BaseMigrator {
       }
 
       // Sample validation: check a few topics have messages
-      const sampleTopics = await db.select().from(topicTable).limit(5).all()
+      const sampleTopics = db.select().from(topicTable).limit(5).all()
       for (const topic of sampleTopics) {
-        const msgCount = await db
+        const msgCount = db
           .select({ count: sql<number>`count(*)` })
           .from(messageTable)
           .where(eq(messageTable.topicId, topic.id))
@@ -581,7 +581,7 @@ export class ChatMigrator extends BaseMigrator {
 
       // Check for orphan messages (messages without valid topic)
       // This shouldn't happen due to foreign key constraints, but verify anyway
-      const orphanCheck = await db
+      const orphanCheck = db
         .select({ count: sql<number>`count(*)` })
         .from(messageTable)
         .where(sql`${messageTable.topicId} NOT IN (SELECT id FROM ${topicTable})`)
@@ -595,7 +595,7 @@ export class ChatMigrator extends BaseMigrator {
       }
 
       // Check for dangling parentId references (parentId points to non-existent message)
-      const danglingParentCheck = await db
+      const danglingParentCheck = db
         .select({ count: sql<number>`count(*)` })
         .from(messageTable)
         .where(
@@ -616,7 +616,7 @@ export class ChatMigrator extends BaseMigrator {
       // fault (WAL loss, CASCADE from an unexpected file_entry delete), not a
       // migration logic bug — so it warrants investigation, not migration abort.
       if (this.fileRefInsertCount > 0) {
-        const fileRefResult = await db.select({ count: sql<number>`count(*)` }).from(chatMessageFileRefTable).get()
+        const fileRefResult = db.select({ count: sql<number>`count(*)` }).from(chatMessageFileRefTable).get()
         const targetFileRefCount = fileRefResult?.count ?? 0
         if (targetFileRefCount < this.fileRefInsertCount) {
           logger.warn(
@@ -628,7 +628,7 @@ export class ChatMigrator extends BaseMigrator {
       // Invariant check: each topic must have exactly one virtual root (parentId IS NULL).
       // The migrator inserts one per topic and reparents former physical roots onto it,
       // so >1 here means a bug (the message_topic_root_uniq index would also reject it).
-      const multiRootCheck = await db
+      const multiRootCheck = db
         .select({ count: sql<number>`count(*)` })
         .from(sql`(SELECT topic_id FROM ${messageTable} WHERE parent_id IS NULL GROUP BY topic_id HAVING count(*) > 1)`)
         .get()
@@ -1011,9 +1011,11 @@ export class ChatMigrator extends BaseMigrator {
    * Post-stream insert pass: stamp orderKey, insert topics+messages with
    * FK toggling, emit pin rows for legacy `pinned: true` topics.
    */
-  private async insertStagedTopics(
-    ctx: MigrationContext
-  ): Promise<{ topicsInserted: number; messagesInserted: number; pinsInserted: number }> {
+  private insertStagedTopics(ctx: MigrationContext): {
+    topicsInserted: number
+    messagesInserted: number
+    pinsInserted: number
+  } {
     const db = ctx.db
 
     // Sort by updatedAt DESC so the stamped orderKey matches the default
@@ -1080,17 +1082,23 @@ export class ChatMigrator extends BaseMigrator {
       const now = Date.now()
       const batchFileRefRows = this.collectFileRefRows(batchMessages, now)
 
-      // FK stays OFF for the whole migration (MigrationDbService registers it via
-      // setPragma), so this batch can insert self-referencing message.parentId rows that
-      // resolve within the batch. assertOwnedForeignKeys() below verifies the result.
-      await db.transaction(async (tx) => {
-        await tx.insert(topicTable).values(batch.map((d) => d.topic))
+      // FK stays OFF for the whole migration (MigrationDbService sets the PRAGMA once on
+      // its single connection), so this batch can insert self-referencing message.parentId
+      // rows that resolve within the batch. assertOwnedForeignKeys() below verifies the result.
+      db.transaction((tx) => {
+        tx.insert(topicTable)
+          .values(batch.map((d) => d.topic))
+          .run()
         for (let i = 0; i < batchMessages.length; i += MESSAGE_INSERT_BATCH_SIZE) {
-          await tx.insert(messageTable).values(batchMessages.slice(i, i + MESSAGE_INSERT_BATCH_SIZE))
+          tx.insert(messageTable)
+            .values(batchMessages.slice(i, i + MESSAGE_INSERT_BATCH_SIZE))
+            .run()
         }
         if (batchFileRefRows.length > 0) {
           for (let i = 0; i < batchFileRefRows.length; i += FILE_REF_INSERT_BATCH_SIZE) {
-            await tx.insert(chatMessageFileRefTable).values(batchFileRefRows.slice(i, i + FILE_REF_INSERT_BATCH_SIZE))
+            tx.insert(chatMessageFileRefTable)
+              .values(batchFileRefRows.slice(i, i + FILE_REF_INSERT_BATCH_SIZE))
+              .run()
           }
         }
       })
@@ -1128,11 +1136,11 @@ export class ChatMigrator extends BaseMigrator {
       )
       try {
         // Counter assigned only on commit so the catch reports 0 on rollback.
-        const inserted = await db.transaction(async (tx) => {
+        const inserted = db.transaction((tx) => {
           let count = 0
           for (let i = 0; i < pinRows.length; i += MESSAGE_INSERT_BATCH_SIZE) {
             const batch = pinRows.slice(i, i + MESSAGE_INSERT_BATCH_SIZE)
-            const result = await tx.insert(pinTable).values(batch).onConflictDoNothing().returning({ id: pinTable.id })
+            const result = tx.insert(pinTable).values(batch).onConflictDoNothing().returning({ id: pinTable.id }).all()
             count += result.length
           }
           return count
@@ -1149,7 +1157,7 @@ export class ChatMigrator extends BaseMigrator {
     // Self-check FK integrity for the tables this migrator owns: topic.assistantId →
     // assistant (migrated at order 2), message.topicId / parentId / modelId, and
     // chat_message_file_ref.sourceId/fileEntryId all resolve by now.
-    await this.assertOwnedForeignKeys(db, [topicTable, messageTable, pinTable, chatMessageFileRefTable])
+    this.assertOwnedForeignKeys(db, [topicTable, messageTable, pinTable, chatMessageFileRefTable])
 
     return { topicsInserted, messagesInserted, pinsInserted }
   }

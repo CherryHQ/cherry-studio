@@ -21,52 +21,52 @@ export const translateHandlers: HandlersFor<TranslateSchemas> = {
   '/translate/histories': {
     GET: async ({ query }) => {
       const parsed = TranslateHistoryQuerySchema.parse(query ?? {})
-      return await translateHistoryService.list(parsed)
+      return translateHistoryService.list(parsed)
     },
     POST: async ({ body }) => {
       const parsed = CreateTranslateHistorySchema.parse(body)
-      return await translateHistoryService.create(parsed)
+      return translateHistoryService.create(parsed)
     },
     DELETE: async () => {
-      await translateHistoryService.clearAll()
+      translateHistoryService.clearAll()
       return undefined
     }
   },
 
   '/translate/histories/:id': {
     GET: async ({ params }) => {
-      return await translateHistoryService.getById(params.id)
+      return translateHistoryService.getById(params.id)
     },
     PATCH: async ({ params, body }) => {
       const parsed = UpdateTranslateHistorySchema.parse(body)
-      return await translateHistoryService.update(params.id, parsed)
+      return translateHistoryService.update(params.id, parsed)
     },
     DELETE: async ({ params }) => {
-      await translateHistoryService.delete(params.id)
+      translateHistoryService.delete(params.id)
       return undefined
     }
   },
 
   '/translate/languages': {
     GET: async () => {
-      return await translateLanguageService.list()
+      return translateLanguageService.list()
     },
     POST: async ({ body }) => {
       const parsed = CreateTranslateLanguageSchema.parse(body)
-      return await translateLanguageService.create(parsed)
+      return translateLanguageService.create(parsed)
     }
   },
 
   '/translate/languages/:langCode': {
     GET: async ({ params }) => {
-      return await translateLanguageService.getByLangCode(params.langCode)
+      return translateLanguageService.getByLangCode(params.langCode)
     },
     PATCH: async ({ params, body }) => {
       const parsed = UpdateTranslateLanguageSchema.parse(body)
-      return await translateLanguageService.update(params.langCode, parsed)
+      return translateLanguageService.update(params.langCode, parsed)
     },
     DELETE: async ({ params }) => {
-      await translateLanguageService.delete(params.langCode)
+      translateLanguageService.delete(params.langCode)
       return undefined
     }
   }

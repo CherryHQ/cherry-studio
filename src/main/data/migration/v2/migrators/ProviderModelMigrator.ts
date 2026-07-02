@@ -398,17 +398,18 @@ export class ProviderModelMigrator extends BaseMigrator {
     let processedModels = 0
 
     try {
-      await ctx.db.transaction(async (tx) => {
-        await ensureCherryAiDefaultProviderAndModelTx(tx)
+      ctx.db.transaction((tx) => {
+        ensureCherryAiDefaultProviderAndModelTx(tx)
 
         const providerRowsWithoutOrderKey = this.providers.map((provider) =>
           this.enrichProviderRow(transformProvider(provider, this.settings), provider)
         )
-        const [lastProvider] = await tx
+        const [lastProvider] = tx
           .select({ orderKey: userProviderTable.orderKey })
           .from(userProviderTable)
           .orderBy(desc(userProviderTable.orderKey))
           .limit(1)
+          .all()
         const providerOrderKeys = generateOrderKeySequenceBetween(
           lastProvider?.orderKey ?? null,
           null,
@@ -422,7 +423,7 @@ export class ProviderModelMigrator extends BaseMigrator {
         for (let providerIndex = 0; providerIndex < this.providers.length; providerIndex++) {
           const provider = this.providers[providerIndex]
           const providerRow = providerRows[providerIndex]
-          await tx.insert(userProviderTable).values(providerRow)
+          tx.insert(userProviderTable).values(providerRow).run()
           processedProviders++
 
           // Model dedup + invalid-id filtering happens in prepare(); use the
@@ -438,7 +439,7 @@ export class ProviderModelMigrator extends BaseMigrator {
             const batch = modelRows.slice(modelIndex, modelIndex + BATCH_SIZE)
 
             if (batch.length > 0) {
-              await tx.insert(userModelTable).values(batch)
+              tx.insert(userModelTable).values(batch).run()
               processedModels += batch.length
             }
           }
@@ -456,7 +457,7 @@ export class ProviderModelMigrator extends BaseMigrator {
           }))
         )
         if (pinRows.length > 0) {
-          await tx.insert(pinTable).values(pinRows).onConflictDoNothing()
+          tx.insert(pinTable).values(pinRows).onConflictDoNothing().run()
         }
       })
 
@@ -488,17 +489,17 @@ export class ProviderModelMigrator extends BaseMigrator {
     try {
       const errors: { key: string; message: string }[] = []
 
-      const providerResult = await ctx.db
+      const providerResult = ctx.db
         .select({ count: sql<number>`count(*)` })
         .from(userProviderTable)
         .where(ne(userProviderTable.providerId, CHERRYAI_PROVIDER_ID))
         .get()
-      const modelResult = await ctx.db
+      const modelResult = ctx.db
         .select({ count: sql<number>`count(*)` })
         .from(userModelTable)
         .where(ne(userModelTable.providerId, CHERRYAI_PROVIDER_ID))
         .get()
-      const pinResult = await ctx.db
+      const pinResult = ctx.db
         .select({ count: sql<number>`count(*)` })
         .from(pinTable)
         .where(eq(pinTable.entityType, 'model'))
@@ -528,7 +529,7 @@ export class ProviderModelMigrator extends BaseMigrator {
         })
       }
 
-      const sampleProviders = await ctx.db.select().from(userProviderTable).limit(5).all()
+      const sampleProviders = ctx.db.select().from(userProviderTable).limit(5).all()
       for (const provider of sampleProviders) {
         const sourceProvider = this.providers.find((item) => item.id === provider.providerId)
         if (sourceProvider?.apiKey && (!provider.apiKeys || provider.apiKeys.length === 0)) {

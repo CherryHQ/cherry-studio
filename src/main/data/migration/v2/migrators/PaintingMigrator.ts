@@ -144,10 +144,10 @@ export class PaintingMigrator extends BaseMigrator {
 
       logger.info('[execute] insert summary', { total: paintings.length })
 
-      await ctx.db.transaction(async (tx) => {
+      ctx.db.transaction((tx) => {
         for (let index = 0; index < paintings.length; index += INSERT_BATCH_SIZE) {
           const batch = paintings.slice(index, index + INSERT_BATCH_SIZE)
-          await tx.insert(paintingTable).values(batch)
+          tx.insert(paintingTable).values(batch).run()
 
           this.reportProgress(
             Math.round((Math.min(index + INSERT_BATCH_SIZE, paintings.length) / paintings.length) * 100),
@@ -173,10 +173,11 @@ export class PaintingMigrator extends BaseMigrator {
           const existingIds = new Set<string>()
           for (let i = 0; i < idList.length; i += INARRAY_CHUNK) {
             const chunk = idList.slice(i, i + INARRAY_CHUNK)
-            const existing = await tx
+            const existing = tx
               .select({ id: fileEntryTable.id })
               .from(fileEntryTable)
               .where(inArray(fileEntryTable.id, chunk))
+              .all()
             for (const row of existing) existingIds.add(row.id)
           }
 
@@ -215,7 +216,7 @@ export class PaintingMigrator extends BaseMigrator {
 
           for (let i = 0; i < refRows.length; i += INSERT_BATCH_SIZE) {
             const batch = refRows.slice(i, i + INSERT_BATCH_SIZE)
-            await tx.insert(paintingFileRefTable).values(batch).onConflictDoNothing()
+            tx.insert(paintingFileRefTable).values(batch).onConflictDoNothing().run()
           }
 
           logger.info('[execute] painting_file_ref summary', {
@@ -241,7 +242,7 @@ export class PaintingMigrator extends BaseMigrator {
 
   async validate(ctx: MigrationContext): Promise<ValidateResult> {
     try {
-      const countResult = await ctx.db.select({ count: sql<number>`count(*)` }).from(paintingTable).get()
+      const countResult = ctx.db.select({ count: sql<number>`count(*)` }).from(paintingTable).get()
       const targetCount = countResult?.count ?? 0
       const errors: Array<{ key: string; message: string }> = []
 

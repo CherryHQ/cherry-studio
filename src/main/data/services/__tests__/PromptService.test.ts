@@ -20,7 +20,7 @@ describe('PromptService', () => {
 
   describe('create', () => {
     it('should create a prompt with title, content, timestamps, and an order key', async () => {
-      const result = await promptService.create({ title: 'T1', content: 'C1' })
+      const result = promptService.create({ title: 'T1', content: 'C1' })
 
       expect(result).toMatchObject({ title: 'T1', content: 'C1' })
       expect(result.orderKey.length).toBeGreaterThan(0)
@@ -34,9 +34,9 @@ describe('PromptService', () => {
     })
 
     it('should assign strictly increasing order keys on successive creates', async () => {
-      const a = await promptService.create({ title: 'A', content: 'a' })
-      const b = await promptService.create({ title: 'B', content: 'b' })
-      const c = await promptService.create({ title: 'C', content: 'c' })
+      const a = promptService.create({ title: 'A', content: 'a' })
+      const b = promptService.create({ title: 'B', content: 'b' })
+      const c = promptService.create({ title: 'C', content: 'c' })
 
       const rows = await dbh.db.select().from(promptTable).orderBy(asc(promptTable.orderKey))
       expect(rows.map((r) => r.id)).toEqual([a.id, b.id, c.id])
@@ -48,19 +48,19 @@ describe('PromptService', () => {
       const a = await seedPrompt('A', 'a')
       const b = await seedPrompt('B', 'b')
 
-      const all = await promptService.list()
+      const all = promptService.list()
       expect(all.map((p) => p.id)).toEqual([a.id, b.id])
     })
 
     it('should return an empty array when no prompts exist', async () => {
-      await expect(promptService.list()).resolves.toEqual([])
+      expect(promptService.list()).toEqual([])
     })
 
     it('should filter by search on title', async () => {
       await seedPrompt('Daily Report', 'body')
       await seedPrompt('Meeting Notes', 'body')
 
-      const all = await promptService.list({ search: 'daily' })
+      const all = promptService.list({ search: 'daily' })
       expect(all.map((p) => p.title)).toEqual(['Daily Report'])
     })
 
@@ -68,7 +68,7 @@ describe('PromptService', () => {
       await seedPrompt('A', 'Summarize unread email')
       await seedPrompt('B', 'Draft changelog')
 
-      const all = await promptService.list({ search: 'email' })
+      const all = promptService.list({ search: 'email' })
       expect(all.map((p) => p.title)).toEqual(['A'])
     })
 
@@ -76,10 +76,10 @@ describe('PromptService', () => {
       await seedPrompt('percent_100', 'exact')
       await seedPrompt('noMatch', 'exact')
 
-      const underscore = await promptService.list({ search: 'percent_' })
+      const underscore = promptService.list({ search: 'percent_' })
       expect(underscore.map((p) => p.title)).toEqual(['percent_100'])
 
-      const literalMiss = await promptService.list({ search: '_Match' })
+      const literalMiss = promptService.list({ search: '_Match' })
       expect(literalMiss).toHaveLength(0)
     })
   })
@@ -87,14 +87,18 @@ describe('PromptService', () => {
   describe('getById', () => {
     it('should return the prompt when found', async () => {
       const p = await seedPrompt()
-      await expect(promptService.getById(p.id)).resolves.toMatchObject({ id: p.id, title: p.title, content: p.content })
+      expect(promptService.getById(p.id)).toMatchObject({ id: p.id, title: p.title, content: p.content })
     })
 
     it('should throw NOT_FOUND when the prompt does not exist', async () => {
-      await expect(promptService.getById(PROMPT_ID_MISSING)).rejects.toBeInstanceOf(DataApiError)
-      await expect(promptService.getById(PROMPT_ID_MISSING)).rejects.toMatchObject({
-        code: ErrorCode.NOT_FOUND
-      })
+      expect(() => promptService.getById(PROMPT_ID_MISSING)).toThrow(DataApiError)
+      let err: unknown
+      try {
+        promptService.getById(PROMPT_ID_MISSING)
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
     })
   })
 
@@ -102,7 +106,7 @@ describe('PromptService', () => {
     it('should update title and content in place', async () => {
       const p = await seedPrompt('title', 'original')
 
-      const updated = await promptService.update(p.id, { title: 'renamed', content: 'edited' })
+      const updated = promptService.update(p.id, { title: 'renamed', content: 'edited' })
 
       expect(updated).toMatchObject({ id: p.id, title: 'renamed', content: 'edited' })
       const [row] = await dbh.db.select().from(promptTable).where(eq(promptTable.id, p.id))
@@ -112,20 +116,24 @@ describe('PromptService', () => {
     it('should support partial updates', async () => {
       const p = await seedPrompt('title', 'body')
 
-      await expect(promptService.update(p.id, { title: 'renamed' })).resolves.toMatchObject({
+      expect(promptService.update(p.id, { title: 'renamed' })).toMatchObject({
         title: 'renamed',
         content: 'body'
       })
-      await expect(promptService.update(p.id, { content: 'updated' })).resolves.toMatchObject({
+      expect(promptService.update(p.id, { content: 'updated' })).toMatchObject({
         title: 'renamed',
         content: 'updated'
       })
     })
 
     it('should throw NOT_FOUND when the prompt does not exist', async () => {
-      await expect(promptService.update(PROMPT_ID_MISSING, { title: 'x' })).rejects.toMatchObject({
-        code: ErrorCode.NOT_FOUND
-      })
+      let err: unknown
+      try {
+        promptService.update(PROMPT_ID_MISSING, { title: 'x' })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
     })
   })
 
@@ -133,16 +141,20 @@ describe('PromptService', () => {
     it('should delete the prompt row', async () => {
       const p = await seedPrompt('t', 'v1')
 
-      await promptService.delete(p.id)
+      promptService.delete(p.id)
 
       const prompts = await dbh.db.select().from(promptTable).where(eq(promptTable.id, p.id))
       expect(prompts).toHaveLength(0)
     })
 
     it('should throw NOT_FOUND when the prompt does not exist', async () => {
-      await expect(promptService.delete(PROMPT_ID_MISSING)).rejects.toMatchObject({
-        code: ErrorCode.NOT_FOUND
-      })
+      let err: unknown
+      try {
+        promptService.delete(PROMPT_ID_MISSING)
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
     })
   })
 
@@ -152,9 +164,9 @@ describe('PromptService', () => {
       const b = await seedPrompt('b', 'b')
       const c = await seedPrompt('c', 'c')
 
-      await promptService.reorder(c.id, { position: 'first' })
+      promptService.reorder(c.id, { position: 'first' })
 
-      const ids = (await promptService.list()).map((p) => p.id)
+      const ids = promptService.list().map((p) => p.id)
       expect(ids).toEqual([c.id, a.id, b.id])
     })
 
@@ -163,23 +175,31 @@ describe('PromptService', () => {
       const b = await seedPrompt('b', 'b')
       const c = await seedPrompt('c', 'c')
 
-      await promptService.reorder(c.id, { before: b.id })
+      promptService.reorder(c.id, { before: b.id })
 
-      const ids = (await promptService.list()).map((p) => p.id)
+      const ids = promptService.list().map((p) => p.id)
       expect(ids).toEqual([a.id, c.id, b.id])
     })
 
     it('should throw NOT_FOUND when the target does not exist', async () => {
-      await expect(promptService.reorder(PROMPT_ID_MISSING, { position: 'first' })).rejects.toMatchObject({
-        code: ErrorCode.NOT_FOUND
-      })
+      let err: unknown
+      try {
+        promptService.reorder(PROMPT_ID_MISSING, { position: 'first' })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
     })
 
     it('should throw NOT_FOUND when the before anchor does not exist', async () => {
       const a = await seedPrompt('a', 'a')
-      await expect(promptService.reorder(a.id, { before: PROMPT_ID_MISSING })).rejects.toMatchObject({
-        code: ErrorCode.NOT_FOUND
-      })
+      let err: unknown
+      try {
+        promptService.reorder(a.id, { before: PROMPT_ID_MISSING })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
     })
 
     it('should touch only the target row', async () => {
@@ -190,7 +210,7 @@ describe('PromptService', () => {
       const [aBefore] = await dbh.db.select().from(promptTable).where(eq(promptTable.id, a.id))
       const [bBefore] = await dbh.db.select().from(promptTable).where(eq(promptTable.id, b.id))
 
-      await promptService.reorder(c.id, { position: 'first' })
+      promptService.reorder(c.id, { position: 'first' })
 
       const [aAfter] = await dbh.db.select().from(promptTable).where(eq(promptTable.id, a.id))
       const [bAfter] = await dbh.db.select().from(promptTable).where(eq(promptTable.id, b.id))
@@ -208,12 +228,12 @@ describe('PromptService', () => {
       const b = await seedPrompt('b', 'b')
       const c = await seedPrompt('c', 'c')
 
-      await promptService.reorderBatch([
+      promptService.reorderBatch([
         { id: c.id, anchor: { position: 'first' } },
         { id: a.id, anchor: { position: 'last' } }
       ])
 
-      const ids = (await promptService.list()).map((p) => p.id)
+      const ids = promptService.list().map((p) => p.id)
       expect(ids).toEqual([c.id, b.id, a.id])
     })
 
@@ -221,12 +241,16 @@ describe('PromptService', () => {
       const a = await seedPrompt('a', 'a')
       const b = await seedPrompt('b', 'b')
 
-      await expect(
+      let err: unknown
+      try {
         promptService.reorderBatch([
           { id: a.id, anchor: { position: 'first' } },
           { id: b.id, anchor: { before: PROMPT_ID_MISSING } }
         ])
-      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
     })
   })
 })
