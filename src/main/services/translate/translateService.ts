@@ -93,15 +93,15 @@ export class TranslateService {
    * Returns the `streamId` synchronously so the renderer can subscribe to
    * `Ai_StreamChunk/Done/Error` before chunks start flowing.
    */
-  async open(sender: Electron.WebContents, req: TranslateOpenRequest): Promise<TranslateOpenResult> {
+  open(sender: Electron.WebContents, req: TranslateOpenRequest): TranslateOpenResult {
     if (!req.streamId.startsWith(TRANSLATE_STREAM_PREFIX)) {
       throw new Error(`streamId must be prefixed '${TRANSLATE_STREAM_PREFIX}' (got '${req.streamId}')`)
     }
     if (!isTranslateLangCode(req.targetLangCode) || req.targetLangCode === 'unknown') {
       throw new Error(`Invalid target language: ${req.targetLangCode}`)
     }
-    const targetLanguage = await translateLanguageService.getByLangCode(req.targetLangCode)
-    const { uniqueModelId, content } = await this.resolveTranslatePayload(req.text, targetLanguage)
+    const targetLanguage = translateLanguageService.getByLangCode(req.targetLangCode)
+    const { uniqueModelId, content } = this.resolveTranslatePayload(req.text, targetLanguage)
 
     const listeners: StreamListener[] = []
     // Built first so the persistence listener can surface a persist failure through it:
@@ -143,14 +143,19 @@ export class TranslateService {
    * prompt interpolation (the model handles language pairing itself) —
    * matches the renderer-side v1 behaviour.
    */
-  async resolveTranslatePayload(text: string, targetLanguage: TranslateLanguage): Promise<ResolvedPayload> {
+  resolveTranslatePayload(text: string, targetLanguage: TranslateLanguage): ResolvedPayload {
     const preferenceService = application.get('PreferenceService')
     const modelIdRaw = preferenceService.get('feature.translate.model_id')
     if (!modelIdRaw || !isUniqueModelId(modelIdRaw)) {
       throw new Error(NOT_CONFIGURED_ERROR)
     }
     const { providerId, modelId } = parseUniqueModelId(modelIdRaw)
-    const model = await modelService.getByKey(providerId, modelId).catch(() => undefined)
+    let model: ReturnType<typeof modelService.getByKey> | undefined
+    try {
+      model = modelService.getByKey(providerId, modelId)
+    } catch {
+      model = undefined
+    }
     if (!model) {
       throw new Error(NOT_CONFIGURED_ERROR)
     }

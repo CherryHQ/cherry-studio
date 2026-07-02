@@ -23,9 +23,11 @@ vi.mock('i18next', () => ({
 }))
 
 // Franc returns the iso3 code; we canonicalize per test via mockReturnValue.
-const francMock = vi.fn<(input: string) => string>()
+// Forward options so tests catch unexpected franc configuration changes.
+const francMock = vi.fn<(input: string, options?: { minLength?: number }) => string>()
 vi.mock('franc-min', () => ({
-  franc: (input: string) => francMock(input)
+  franc: (input: string, options?: { minLength?: number }) =>
+    options === undefined ? francMock(input) : francMock(input, options)
 }))
 
 // LLM goes through ipcApi.request('ai.generate_text', …) now (Main IPC). Tests can

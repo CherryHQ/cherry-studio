@@ -29,19 +29,20 @@ function rowToTranslateLanguage(row: typeof translateLanguageTable.$inferSelect)
 }
 
 export class TranslateLanguageService {
-  async list(): Promise<TranslateLanguage[]> {
+  list(): TranslateLanguage[] {
     const db = application.get('DbService').getDb()
-    const rows = await db.select().from(translateLanguageTable).orderBy(asc(translateLanguageTable.createdAt))
+    const rows = db.select().from(translateLanguageTable).orderBy(asc(translateLanguageTable.createdAt)).all()
     return rows.map(rowToTranslateLanguage)
   }
 
-  async getByLangCode(langCode: string): Promise<TranslateLanguage> {
+  getByLangCode(langCode: string): TranslateLanguage {
     const db = application.get('DbService').getDb()
-    const [row] = await db
+    const [row] = db
       .select()
       .from(translateLanguageTable)
       .where(eq(translateLanguageTable.langCode, langCode))
       .limit(1)
+      .all()
 
     if (!row) {
       throw DataApiErrorFactory.notFound('TranslateLanguage', langCode)
@@ -50,11 +51,11 @@ export class TranslateLanguageService {
     return rowToTranslateLanguage(row)
   }
 
-  async create(dto: CreateTranslateLanguageDto): Promise<TranslateLanguage> {
+  create(dto: CreateTranslateLanguageDto): TranslateLanguage {
     const db = application.get('DbService').getDb()
     const langCode = parsePersistedLangCode(dto.langCode.toLowerCase())
 
-    const [row] = await withSqliteErrors(
+    const [row] = withSqliteErrors(
       () =>
         db
           .insert(translateLanguageTable)
@@ -63,7 +64,8 @@ export class TranslateLanguageService {
             value: dto.value,
             emoji: dto.emoji
           })
-          .returning(),
+          .returning()
+          .all(),
       defaultHandlersFor('TranslateLanguage', langCode)
     )
 
@@ -75,15 +77,16 @@ export class TranslateLanguageService {
     return rowToTranslateLanguage(row)
   }
 
-  async update(langCode: string, dto: UpdateTranslateLanguageDto): Promise<TranslateLanguage> {
+  update(langCode: string, dto: UpdateTranslateLanguageDto): TranslateLanguage {
     const db = application.get('DbService').getDb()
 
-    return await db.transaction(async (tx) => {
-      const [current] = await tx
+    return db.transaction((tx) => {
+      const [current] = tx
         .select()
         .from(translateLanguageTable)
         .where(eq(translateLanguageTable.langCode, langCode))
         .limit(1)
+        .all()
 
       if (!current) {
         throw DataApiErrorFactory.notFound('TranslateLanguage', langCode)
@@ -97,11 +100,12 @@ export class TranslateLanguageService {
         return rowToTranslateLanguage(current)
       }
 
-      const [row] = await tx
+      const [row] = tx
         .update(translateLanguageTable)
         .set(updates)
         .where(eq(translateLanguageTable.langCode, langCode))
         .returning()
+        .all()
 
       if (!row) {
         throw DataApiErrorFactory.notFound('TranslateLanguage', langCode)
@@ -112,21 +116,22 @@ export class TranslateLanguageService {
     })
   }
 
-  async delete(langCode: string): Promise<void> {
+  delete(langCode: string): void {
     const db = application.get('DbService').getDb()
 
-    await db.transaction(async (tx) => {
-      const [row] = await tx
+    db.transaction((tx) => {
+      const [row] = tx
         .select()
         .from(translateLanguageTable)
         .where(eq(translateLanguageTable.langCode, langCode))
         .limit(1)
+        .all()
 
       if (!row) {
         throw DataApiErrorFactory.notFound('TranslateLanguage', langCode)
       }
 
-      await tx.delete(translateLanguageTable).where(eq(translateLanguageTable.langCode, langCode))
+      tx.delete(translateLanguageTable).where(eq(translateLanguageTable.langCode, langCode)).run()
     })
 
     logger.info('Deleted translate language', { langCode })

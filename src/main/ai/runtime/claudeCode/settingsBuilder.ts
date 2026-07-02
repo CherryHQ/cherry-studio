@@ -180,10 +180,10 @@ async function buildAssistantContext(): Promise<string> {
   const language = application.get('PreferenceService').get('app.language')
   const theme = application.get('PreferenceService').get('ui.theme_mode')
   const proxy = application.get('PreferenceService').get('app.proxy.url')
-  const providers = await providerService.list({})
+  const providers = providerService.list({})
   // MCP summary
-  const mcpServers = (await mcpServerService.list({})).items
-  const activeMcp = (await mcpServerService.list({ isActive: true })).items
+  const mcpServers = mcpServerService.list({}).items
+  const activeMcp = mcpServerService.list({ isActive: true }).items
 
   // Network probe (parallel, 2s timeout each)
   const probeResults = await Promise.allSettled([
@@ -257,7 +257,7 @@ export async function buildClaudeCodeSessionSettings(
   if (!session.agentId) {
     throw new Error(`Cannot build settings for orphan session ${session.id} — its agent was deleted`)
   }
-  const agent = await agentService.getAgent(session.agentId)
+  const agent = agentService.getAgent(session.agentId)
   if (!agent) {
     throw new Error(`Agent not found for session ${session.id}: ${session.agentId}`)
   }
@@ -290,7 +290,7 @@ export async function buildClaudeCodeSessionSettings(
   const agentConfig = agent.configuration
   const soulEnabled = agentConfig?.soul_enabled === true
   const isAssistant = agentConfig?.builtin_role === 'assistant'
-  const mcpServers = await buildMcpServers(session, agent, soulEnabled, isAssistant)
+  const mcpServers = buildMcpServers(session, agent, soulEnabled, isAssistant)
   const mcpToolMetadata = await buildMcpToolMetadata(agent)
 
   // 8. Auto-approve allowlist for injected built-in MCP servers (soul/assistant only)
@@ -479,17 +479,17 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
   // Resolve each model id independently: one model missing from the table must not force the others
   // to fall back, and each falls back to its OWN raw id (not the main model's). Common for
   // agent-specific models that aren't in the model table.
-  const resolveApiModelId = async (providerKey: string, modelKey: string): Promise<string> => {
+  const resolveApiModelId = (providerKey: string, modelKey: string): string => {
     try {
-      const model = await modelService.getByKey(providerKey, modelKey)
+      const model = modelService.getByKey(providerKey, modelKey)
       return model.apiModelId ?? modelKey
     } catch {
       return modelKey
     }
   }
-  const apiModelId = await resolveApiModelId(providerId, rawModelId)
-  const sonnetApiModelId = await resolveApiModelId(sonnetProviderId, sonnetModelId)
-  const haikuApiModelId = await resolveApiModelId(haikuProviderId, haikuModelId)
+  const apiModelId = resolveApiModelId(providerId, rawModelId)
+  const sonnetApiModelId = resolveApiModelId(sonnetProviderId, sonnetModelId)
+  const haikuApiModelId = resolveApiModelId(haikuProviderId, haikuModelId)
 
   const env: Record<string, string | undefined> = {
     ...loginShellEnv,
@@ -645,13 +645,17 @@ async function buildToolPermissions(
   const conditionContext: ClaudeToolContext | undefined = cwd
     ? {
         cwd,
-        channels: await channelService.listChannels({ agentId: agent.id }).catch((error) => {
-          logger.warn('Failed to list channels for tool policy context', {
-            agentId: agent.id,
-            error: error instanceof Error ? error.message : String(error)
-          })
-          return []
-        })
+        channels: (() => {
+          try {
+            return channelService.listChannels({ agentId: agent.id })
+          } catch (error) {
+            logger.warn('Failed to list channels for tool policy context', {
+              agentId: agent.id,
+              error: error instanceof Error ? error.message : String(error)
+            })
+            return []
+          }
+        })()
       }
     : undefined
 
@@ -868,7 +872,7 @@ export async function buildSystemPrompt(
   }
 
   // Channel security (still scoped per session — channels link to a session)
-  const linkedChannel = await channelService.findBySessionId(session.id)
+  const linkedChannel = channelService.findBySessionId(session.id)
   const channelSecurityBlock = linkedChannel ? `\n\n${CHANNEL_SECURITY_PROMPT}` : ''
   const artifactsBlock = `\n\n${REPORT_ARTIFACTS_PROMPT}`
   const langInstruction = getLanguageInstruction()
@@ -912,12 +916,12 @@ export async function buildSystemPrompt(
   }
 }
 
-export async function buildMcpServers(
+export function buildMcpServers(
   session: AgentSessionEntity,
   agent: AgentEntity,
   soulEnabled: boolean,
   isAssistant: boolean
-): Promise<Record<string, McpServerConfig> | undefined> {
+): Record<string, McpServerConfig> | undefined {
   const mcpList: Record<string, McpServerConfig> = {}
 
   // 1. Agent-configured MCP servers (user-added via UI)
@@ -925,7 +929,7 @@ export async function buildMcpServers(
   if (mcpIds && mcpIds.length > 0) {
     for (const mcpId of mcpIds) {
       try {
-        const sdkServer = await createSdkMcpServerInstance(mcpId)
+        const sdkServer = createSdkMcpServerInstance(mcpId)
         mcpList[mcpId] = { type: 'sdk', name: mcpId, instance: sdkServer }
       } catch (error) {
         logger.error(`Failed to create MCP bridge for ${mcpId}`, { error })
@@ -944,7 +948,7 @@ export async function buildMcpServers(
   // `session.agentId` so TS can see the value is non-null after the upstream
   // orphan check in buildClaudeCodeSessionSettings.
   if (soulEnabled) {
-    const sourceChannelId = await resolveSourceChannel(agent.id, session.id)
+    const sourceChannelId = resolveSourceChannel(agent.id, session.id)
     let workspaceSource: AgentSessionWorkspaceSource
     switch (session.workspace.type) {
       case AGENT_WORKSPACE_TYPE.USER:
@@ -1024,10 +1028,10 @@ async function buildMcpToolMetadata(agent: AgentEntity): Promise<Record<string, 
 
   for (const mcpId of mcpIds) {
     try {
-      const server = await mcpServerService.findByIdOrName(mcpId)
+      const server = mcpServerService.findByIdOrName(mcpId)
       if (!server) continue
 
-      const tools = await mcpService.listTools(server.id)
+      const tools = mcpService.listTools(server.id)
       for (const tool of tools) {
         addMcpToolMetadataAliases(metadataByName, server, tool)
       }
@@ -1039,9 +1043,9 @@ async function buildMcpToolMetadata(agent: AgentEntity): Promise<Record<string, 
   return Object.keys(metadataByName).length > 0 ? metadataByName : undefined
 }
 
-async function resolveSourceChannel(agentId: string, sessionId: string): Promise<string | undefined> {
+function resolveSourceChannel(agentId: string, sessionId: string): string | undefined {
   try {
-    const channels = await channelService.listChannels({ agentId })
+    const channels = channelService.listChannels({ agentId })
     return channels.find((ch) => ch.sessionId === sessionId)?.id
   } catch {
     return undefined

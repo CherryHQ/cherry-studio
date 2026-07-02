@@ -17,10 +17,10 @@ describe('ProviderAuthConfigOAuthTokenStore', () => {
   })
 
   it('reads only oauth-typed auth config', async () => {
-    providerServiceMock.getAuthConfig.mockResolvedValueOnce({ type: 'api-key' })
+    providerServiceMock.getAuthConfig.mockReturnValueOnce({ type: 'api-key' })
     expect(await store.get('p')).toBeNull()
 
-    providerServiceMock.getAuthConfig.mockResolvedValueOnce({
+    providerServiceMock.getAuthConfig.mockReturnValueOnce({
       type: 'oauth',
       clientId: 'c',
       accessToken: 'a',
@@ -32,7 +32,7 @@ describe('ProviderAuthConfigOAuthTokenStore', () => {
   })
 
   it('clear() drops tokens but does NOT disable the provider by default (preserves a manual API key)', async () => {
-    providerServiceMock.getAuthConfig.mockResolvedValue(null)
+    providerServiceMock.getAuthConfig.mockReturnValue(null)
     await store.clear('cherryin')
     expect(providerServiceMock.update).toHaveBeenCalledWith('cherryin', { authConfig: { type: 'api-key' } })
     expect(providerServiceMock.update.mock.calls[0][1]).not.toHaveProperty('isEnabled')

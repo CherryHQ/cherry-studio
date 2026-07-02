@@ -5,7 +5,7 @@ import type { OAuthTokenStore, OAuthTokenStoreData } from './types'
 
 export class ProviderAuthConfigOAuthTokenStore implements OAuthTokenStore {
   async get(providerId: string): Promise<OAuthTokenStoreData | null> {
-    const authConfig = await providerService.getAuthConfig(providerId)
+    const authConfig = providerService.getAuthConfig(providerId)
     if (authConfig?.type !== 'oauth') return null
 
     return {
@@ -17,7 +17,7 @@ export class ProviderAuthConfigOAuthTokenStore implements OAuthTokenStore {
   }
 
   async set(providerId: string, data: OAuthTokenStoreData, clientId: string): Promise<void> {
-    const current = await providerService.getAuthConfig(providerId)
+    const current = providerService.getAuthConfig(providerId)
     const currentOAuth = current?.type === 'oauth' ? current : null
     const authConfig: OAuthAuthConfig = {
       type: 'oauth',
@@ -28,7 +28,7 @@ export class ProviderAuthConfigOAuthTokenStore implements OAuthTokenStore {
       ...(data.accountId ? { accountId: data.accountId } : {})
     }
 
-    await providerService.update(providerId, { authConfig })
+    providerService.update(providerId, { authConfig })
   }
 
   async clear(providerId: string, options?: { disableProvider?: boolean }): Promise<void> {
@@ -36,7 +36,7 @@ export class ProviderAuthConfigOAuthTokenStore implements OAuthTokenStore {
     // `isEnabled` when the caller owns the provider's enablement — see the
     // interface doc: disabling a provider that also holds a manual API key would
     // silently kill that key too.
-    await providerService.update(providerId, {
+    providerService.update(providerId, {
       authConfig: { type: 'api-key' },
       ...(options?.disableProvider ? { isEnabled: false } : {})
     })

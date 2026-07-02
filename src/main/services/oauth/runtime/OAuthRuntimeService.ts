@@ -152,7 +152,7 @@ export class OAuthRuntimeService extends BaseService {
       // token and force a full re-auth.
       await this.persistTokens(definition, tokenData)
       await definition.afterPersistTokens?.(tokenData, {})
-      await providerService.update(providerId, { isEnabled: true })
+      providerService.update(providerId, { isEnabled: true })
       this.logger.info(`${providerId} sign-in succeeded`)
       return this.getAccount(providerId)
     } catch (error) {
@@ -197,7 +197,7 @@ export class OAuthRuntimeService extends BaseService {
         // away a valid token and force the user through the whole flow again.
         await this.persistTokens(definition, tokenData)
         const sideEffectResult = await definition.afterPersistTokens?.(tokenData, callback.context)
-        await providerService.update(providerId, { isEnabled: true })
+        providerService.update(providerId, { isEnabled: true })
         transport.sendConsumedResult(callback.state, callback.initiatorWindowId, { apiKeys: sideEffectResult?.apiKeys })
         this.logger.info(`${providerId} deep-link sign-in succeeded`)
         return

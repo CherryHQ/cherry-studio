@@ -578,7 +578,7 @@ class BackupManager {
    * Restore from direct backup format (version 6+).
    * Writes to `*.restore` directories; `handleStartupRestore` performs the atomic
    * swap on next launch, before any DB connection or window opens. Avoids
-   * overwriting live IndexedDB / libsql files (issue #14774).
+   * overwriting live IndexedDB / SQLite database files (issue #14774).
    */
   private async restoreDirect(): Promise<void> {
     const onProgress = this.onProgress(IpcChannel.RestoreProgress, true)
@@ -917,7 +917,7 @@ class BackupManager {
 
   /**
    * Stage an empty Data directory; handleStartupRestore swaps it in on next launch.
-   * Avoids races with libsql / MemoryService / KnowledgeService recreating files
+   * Avoids races with the SQLite DB / MemoryService / KnowledgeService recreating files
    * before relaunch.
    */
   public async resetData() {

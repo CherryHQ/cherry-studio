@@ -27,8 +27,8 @@ const h = vi.hoisted(() => {
       close: vi.fn()
     },
     providerServiceMock: {
-      getAuthConfig: vi.fn(async (id: string) => providerStore.get(id)?.authConfig ?? null),
-      update: vi.fn(async (id: string, patch: Record<string, unknown>) => {
+      getAuthConfig: vi.fn((id: string) => providerStore.get(id)?.authConfig ?? null),
+      update: vi.fn((id: string, patch: Record<string, unknown>) => {
         providerStore.set(id, { ...providerStore.get(id), ...patch })
       })
     }
