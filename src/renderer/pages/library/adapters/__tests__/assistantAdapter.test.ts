@@ -78,7 +78,7 @@ describe('useAssistantMutations', () => {
     })
   })
 
-  it('forwards tag ids to the create endpoint when duplicating an assistant', async () => {
+  it('forwards only one tag id to the create endpoint when duplicating an assistant', async () => {
     const created = createAssistant({ id: 'ast-copy', tags: [] })
     createTriggerMock.mockResolvedValue(created)
 
@@ -106,7 +106,7 @@ describe('useAssistantMutations', () => {
         settings: source.settings,
         mcpServerIds: ['mcp-1'],
         knowledgeBaseIds: ['kb-1'],
-        tagIds: ['tag-1', 'tag-2']
+        tagIds: ['tag-1']
       }
     })
   })

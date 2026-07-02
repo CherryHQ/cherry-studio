@@ -65,8 +65,10 @@ function buildTags(resources: ResourceItem[], backendTags: Tag[], filterType?: R
       for (const tag of r.raw.tags ?? []) {
         if (!backendTagByName.has(tag.name)) backendTagByName.set(tag.name, tag)
       }
+      if (r.tag) {
+        tagMap.set(r.tag, (tagMap.get(r.tag) || 0) + 1)
+      }
     }
-    r.tags.forEach((t) => tagMap.set(t, (tagMap.get(t) || 0) + 1))
   })
   return Array.from(tagMap.entries())
     .sort((a, b) => b[1] - a[1])
@@ -155,7 +157,6 @@ export default function LibraryPage() {
     [tagList.tags]
   )
 
-  const noop = useCallback(() => {}, [])
   const handleClosePromptDialog = useCallback(() => {
     setPromptDialog(null)
   }, [])
@@ -474,7 +475,6 @@ export default function LibraryPage() {
               // rows; binding stays inside card/dialog tag hooks.
               await ensureTags([tagName])
             }}
-            onUpdateResourceTags={noop /* binding is executed inside FixedCardMenu via the tag hooks */}
             allTagNames={allTagNames}
             allTags={tagList.tags}
             assistantCatalog={assistantCatalogProp}
