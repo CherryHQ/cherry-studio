@@ -61,8 +61,7 @@ describe('prompt', () => {
     month: 'numeric',
     day: 'numeric',
     hour: 'numeric',
-    minute: 'numeric',
-    second: 'numeric'
+    minute: 'numeric'
   })};
   - 操作系统: macOS;
   - 中央处理器架构: darwin64;
@@ -86,6 +85,20 @@ describe('prompt', () => {
     it('should handle non-string input gracefully', async () => {
       const result = await replacePromptVariables(null as any)
       expect(result).toBe(null)
+    })
+
+    it('should replace {{time}} with minute-granularity output (no seconds)', async () => {
+      const result = await replacePromptVariables('Current time: {{time}}')
+      expect(result).toBe(
+        `Current time: ${mockDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: 'numeric' })}`
+      )
+    })
+
+    it('should produce deterministic output with a fixed clock', async () => {
+      const prompt = 'Date: {{date}}, Time: {{time}}, DateTime: {{datetime}}'
+      const result1 = await replacePromptVariables(prompt)
+      const result2 = await replacePromptVariables(prompt)
+      expect(result1).toBe(result2)
     })
   })
 })
