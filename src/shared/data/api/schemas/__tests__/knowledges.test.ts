@@ -6,7 +6,7 @@ import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
   isCompletedKnowledgeBase,
-  isVectorKnowledgeBase,
+  isCompletedVectorKnowledgeBase,
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   KnowledgeAddItemInputSchema,
   type KnowledgeBase,
@@ -742,7 +742,7 @@ describe('isCompletedKnowledgeBase', () => {
   })
 })
 
-describe('isVectorKnowledgeBase', () => {
+describe('isCompletedVectorKnowledgeBase', () => {
   const vectorBase = KnowledgeBaseSchema.parse({
     id: KNOWLEDGE_BASE_ID,
     name: 'KB',
@@ -761,7 +761,7 @@ describe('isVectorKnowledgeBase', () => {
   })
 
   it('accepts a completed base with an embedding model and positive integer dimensions', () => {
-    expect(isVectorKnowledgeBase(vectorBase)).toBe(true)
+    expect(isCompletedVectorKnowledgeBase(vectorBase)).toBe(true)
   })
 
   it('rejects a completed BM25-only base with no embedding model or dimensions', () => {
@@ -772,13 +772,13 @@ describe('isVectorKnowledgeBase', () => {
       searchMode: 'bm25'
     })
 
-    expect(isVectorKnowledgeBase(bm25Base)).toBe(false)
+    expect(isCompletedVectorKnowledgeBase(bm25Base)).toBe(false)
   })
 
   it('rejects illegal vector states the schema would never produce', () => {
-    expect(isVectorKnowledgeBase({ ...vectorBase, dimensions: null } as KnowledgeBase)).toBe(false)
-    expect(isVectorKnowledgeBase({ ...vectorBase, dimensions: 0 } as KnowledgeBase)).toBe(false)
-    expect(isVectorKnowledgeBase({ ...vectorBase, embeddingModelId: null } as KnowledgeBase)).toBe(false)
+    expect(isCompletedVectorKnowledgeBase({ ...vectorBase, dimensions: null } as KnowledgeBase)).toBe(false)
+    expect(isCompletedVectorKnowledgeBase({ ...vectorBase, dimensions: 0 } as KnowledgeBase)).toBe(false)
+    expect(isCompletedVectorKnowledgeBase({ ...vectorBase, embeddingModelId: null } as KnowledgeBase)).toBe(false)
   })
 
   it('rejects a failed base', () => {
@@ -790,7 +790,7 @@ describe('isVectorKnowledgeBase', () => {
       error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
     })
 
-    expect(isVectorKnowledgeBase(failedBase)).toBe(false)
+    expect(isCompletedVectorKnowledgeBase(failedBase)).toBe(false)
   })
 })
 

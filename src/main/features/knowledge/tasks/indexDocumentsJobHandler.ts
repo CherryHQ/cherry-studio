@@ -6,7 +6,7 @@ import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { JobContext, JobHandler } from '@main/core/job/types'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { isVectorKnowledgeBase } from '@shared/data/types/knowledge'
+import { isCompletedVectorKnowledgeBase } from '@shared/data/types/knowledge'
 
 import type { KnowledgeLockManager } from '../KnowledgeLockManager'
 import { loadKnowledgeItemDocuments } from '../readers/KnowledgeReader'
@@ -265,7 +265,7 @@ async function buildRebuildMaterialInput(
   // index does not already have (decision A4: reuse vectors stored for unchanged
   // chunks so reindexing does not re-spend the paid embedding API; existing hashes
   // resolve to their stored vector at query time and rebuildMaterial keeps them).
-  const usesEmbeddings = isVectorKnowledgeBase(base)
+  const usesEmbeddings = isCompletedVectorKnowledgeBase(base)
   let embeddings: RebuildMaterialEmbeddingInput[] = []
   if (usesEmbeddings) {
     const vectorStoreService = application.get('KnowledgeVectorStoreService')

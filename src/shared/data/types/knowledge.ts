@@ -213,8 +213,8 @@ export type KnowledgeBase = z.infer<typeof KnowledgeBaseSchema>
  * A knowledge base that has finished setup and is ready for runtime operations
  * (opening its index store, BM25 search, indexing). Covers both a vector base
  * (embedding model + dimensions) and a BM25-only base (neither) — both are valid
- * `completed` states. Use {@link isVectorKnowledgeBase} when you specifically
- * need embeddings/dimensions.
+ * `completed` states. Use {@link isCompletedVectorKnowledgeBase} when you
+ * specifically need embeddings/dimensions.
  */
 export type CompletedKnowledgeBase = KnowledgeBase & {
   status: 'completed'
@@ -236,7 +236,10 @@ export type VectorKnowledgeBase = CompletedKnowledgeBase & {
   embeddingModelId: string
 }
 
-export function isVectorKnowledgeBase(base: KnowledgeBase): base is VectorKnowledgeBase {
+// Named for the `completed` gate, not just the field shape: a *failed* base with a
+// model and dimensions still returns false here — those fields alone don't mean
+// the base is ready to embed/query.
+export function isCompletedVectorKnowledgeBase(base: KnowledgeBase): base is VectorKnowledgeBase {
   return (
     isCompletedKnowledgeBase(base) &&
     typeof base.dimensions === 'number' &&
