@@ -113,6 +113,11 @@ export class JobManager extends BaseService implements ProfileActivatable {
    */
   private readonly inFlightExecuted = new Map<string, Promise<void>>()
   private readonly scheduleDisposables = new Map<string, Disposable>()
+  // Pending `job:*` / `retry:*` once-timer disposables, keyed by their scheduler id.
+  // Tracked so a profile switch (onProfileDeactivate) and shutdown cancel them —
+  // otherwise a delayed/retry timer survives the switch and fires against the NEXT
+  // profile's DB. Cron `schedule:*` disposables live in scheduleDisposables separately.
+  private readonly onceDisposables = new Map<string, Disposable>()
   private readonly globalMaxConcurrency = DEFAULT_GLOBAL_MAX_CONCURRENCY
   /**
    * Set when a dispatch is blocked solely by the global concurrency cap. On the
@@ -335,6 +340,10 @@ export class JobManager extends BaseService implements ProfileActivatable {
       disposable.dispose()
     }
     this.scheduleDisposables.clear()
+    for (const disposable of this.onceDisposables.values()) {
+      disposable.dispose()
+    }
+    this.onceDisposables.clear()
 
     if (inFlight.length === 0) {
       logger.info('JobManager.onStop: no in-flight jobs')
@@ -373,6 +382,7 @@ export class JobManager extends BaseService implements ProfileActivatable {
     this.finishedResolvers.clear()
     this.inFlightExecuted.clear()
     this.scheduleDisposables.clear()
+    this.onceDisposables.clear()
   }
 
   /** Un-pause the ticks for the new profile. Its jobs/schedules are recovered by recoverActiveProfile after activate-all. */
@@ -408,6 +418,10 @@ export class JobManager extends BaseService implements ProfileActivatable {
       disposable.dispose()
     }
     this.scheduleDisposables.clear()
+    for (const disposable of this.onceDisposables.values()) {
+      disposable.dispose()
+    }
+    this.onceDisposables.clear()
 
     if (inFlight.length > 0) {
       // Drain on inFlightExecuted (as cancel() does), NOT finishedResolvers: a job
@@ -1435,10 +1449,12 @@ export class JobManager extends BaseService implements ProfileActivatable {
 
     const scheduler = application.get('SchedulerService')
     const retryId = `retry:${jobId}:${nextAttempt}`
-    scheduler.registerSchedule(retryId, { kind: 'once', at: scheduledAt }, () => {
+    const disp = scheduler.registerSchedule(retryId, { kind: 'once', at: scheduledAt }, () => {
+      this.onceDisposables.delete(retryId) // scheduleOnce self-cleans before firing
       jobService.promoteDelayedDue(Date.now())
       void this.dispatch(queue)
     })
+    this.onceDisposables.set(retryId, disp)
     logger.info('Retry scheduled', { jobId, nextAttempt, scheduledAt, queue })
   }
 
@@ -1505,18 +1521,21 @@ export class JobManager extends BaseService implements ProfileActivatable {
    *
    * Uses the reserved `job:${jobId}` SchedulerService id prefix (see the
    * reserved-prefix table in `docs/references/job-and-scheduler/scheduler-usage.md`).
-   * The disposable returned by `registerSchedule` is intentionally discarded —
-   * cancel() drives termination via the dispatch path rather than disposing
-   * the timer, and `scheduleOnce` self-cleans from its map before firing.
+   * Within a profile the disposable is not used to cancel (cancel() drives termination
+   * via the dispatch path, and `scheduleOnce` self-cleans before firing), but it IS
+   * tracked in `onceDisposables` so a profile switch / shutdown can cancel a still-pending
+   * timer — otherwise it survives the switch and fires against the next profile's DB.
    */
   private armDelayedJob(snapshot: JobSnapshot): void {
     const scheduler = application.get('SchedulerService')
     const jobKey = `job:${snapshot.id}`
     const scheduledMs = Date.parse(snapshot.scheduledAt)
-    scheduler.registerSchedule(jobKey, { kind: 'once', at: scheduledMs }, () => {
+    const disp = scheduler.registerSchedule(jobKey, { kind: 'once', at: scheduledMs }, () => {
+      this.onceDisposables.delete(jobKey) // scheduleOnce self-cleans before firing
       jobService.promoteDelayedDue(Date.now())
       void this.dispatch(snapshot.queue)
     })
+    this.onceDisposables.set(jobKey, disp)
   }
 
   /**

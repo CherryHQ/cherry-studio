@@ -51,4 +51,15 @@ describe('JobManager profile activation', () => {
     await deactivate
     expect(settled).toBe(true)
   })
+
+  it('disposes pending job:*/retry:* once-timers on deactivate so they cannot fire against the next profile', async () => {
+    const svc = new JobManager()
+    const dispose = vi.fn()
+    ;(svc['onceDisposables'] as Map<string, { dispose: () => void }>).set('job:x', { dispose })
+
+    await svc.onProfileDeactivate()
+
+    expect(dispose).toHaveBeenCalledTimes(1)
+    expect(svc['onceDisposables'].size).toBe(0)
+  })
 })
