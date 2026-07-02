@@ -273,12 +273,15 @@ export class OAuthRuntimeService extends BaseService {
       throw new OAuthTransientError(`Temporary failure refreshing ${providerId} token, please retry`)
     }
 
-    // Read back from the store rather than trusting `result.accessToken`: if a
-    // logout cleared the session while this refresh was in flight, persistTokens
-    // skipped the write and there is no live token to hand out.
+    // Confirm our refreshed token actually landed. If the session was replaced
+    // (logout → api-key, or a re-login with a different refresh token) while we
+    // were refreshing, persistTokens skipped the write and the store now holds a
+    // different session's token — which we must NOT hand to this in-flight
+    // request (that would silently switch accounts). Fail closed; the caller
+    // retries against the current session.
     const refreshed = await this.tokenStore.get(providerId)
-    if (!refreshed?.accessToken) return null
-    return { accessToken: refreshed.accessToken, accountId: refreshed.accountId ?? null }
+    if (refreshed?.accessToken !== result.accessToken) return null
+    return { accessToken: result.accessToken, accountId: refreshed?.accountId ?? null }
   }
 
   /**
@@ -349,13 +352,17 @@ export class OAuthRuntimeService extends BaseService {
     refreshToken: string,
     context: OAuthRuntimeProviderContext
   ): Promise<RefreshResult> {
-    const providerId = definition.providerId
-    let refreshPromise = this.refreshPromises.get(providerId)
+    // Key by refresh token, not just providerId: a re-login mid-refresh installs
+    // a new session with a different refresh token, and its requests must run
+    // their OWN refresh — never reuse (and act on the terminal result of) the
+    // superseded session's in-flight refresh, which would clear the new session.
+    const key = `${definition.providerId}:${refreshToken}`
+    let refreshPromise = this.refreshPromises.get(key)
     if (!refreshPromise) {
       refreshPromise = this.doRefresh(definition, refreshToken, context).finally(() => {
-        this.refreshPromises.delete(providerId)
+        this.refreshPromises.delete(key)
       })
-      this.refreshPromises.set(providerId, refreshPromise)
+      this.refreshPromises.set(key, refreshPromise)
     }
     return refreshPromise
   }

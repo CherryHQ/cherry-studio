@@ -165,7 +165,7 @@ describe('OAuthRuntimeService', () => {
   // B1 race, cross-session: logout → re-login installs a NEW oauth session while
   // the old refresh is in flight. The stale refresh must not clobber the new
   // login (same `type:'oauth'`, different refresh token).
-  it('does not clobber a re-login that races an in-flight refresh', async () => {
+  it('does not clobber a re-login that races an in-flight refresh, and fails the stale request closed', async () => {
     seedOAuth('codex', { accessToken: 'old', refreshToken: 'r', expiresAt: PAST() })
     h.refreshMock.mockImplementation(async () => {
       // Simulate logout + a fresh sign-in during the token endpoint round-trip.
@@ -173,9 +173,44 @@ describe('OAuthRuntimeService', () => {
       return { access_token: 'stale', refresh_token: 'r2', expires_in: 3600 }
     })
 
-    // The in-flight request gets the current (new) session's token, never 'stale'.
-    expect(await service.getValidAccessToken('codex')).toEqual({ accessToken: 'new-login', accountId: null })
+    // The stale refresh must neither persist nor hand its token (nor the new
+    // session's) to this in-flight request — fail closed so it retries cleanly.
+    expect(await service.getValidAccessToken('codex')).toBeNull()
+    // The new login is left intact, never overwritten by the stale refresh.
     expect(h.providerStore.get('codex')?.authConfig).toMatchObject({ accessToken: 'new-login', refreshToken: 'r-new' })
+  })
+
+  // Dedup must be per-session: a re-login's own refresh must not reuse (and act
+  // on the terminal result of) the superseded session's in-flight refresh, which
+  // would clear the freshly-installed session.
+  it('does not reuse a superseded session refresh for a re-logged-in session', async () => {
+    seedOAuth('codex', { accessToken: 'old', refreshToken: 'r-old', expiresAt: PAST() })
+    let resolveOld: (v: unknown) => void = () => {}
+    const oldRefresh = new Promise((res) => {
+      resolveOld = res
+    })
+    h.refreshMock.mockImplementation(async (token: string) => {
+      if (token === 'r-old') {
+        await oldRefresh
+        throw new OAuthHttpError('bad', 400, '{"error":"invalid_grant"}') // old session terminally fails
+      }
+      return { access_token: 'fresh-new', refresh_token: 'r-new2', expires_in: 3600 } // new session refreshes fine
+    })
+
+    // Kick off the old-session refresh (hangs on the network).
+    const oldCall = service.getValidAccessToken('codex')
+    // A re-login installs a new session, then its own request forces a refresh.
+    seedOAuth('codex', { accessToken: 'new-login', refreshToken: 'r-new', expiresAt: PAST() })
+    const newToken = await service.getValidAccessToken('codex', { forceRefresh: true })
+
+    // The new session got its OWN refresh, not the old (terminal) one.
+    expect(newToken).toEqual({ accessToken: 'fresh-new', accountId: null })
+    expect(h.providerStore.get('codex')?.authConfig).toMatchObject({ type: 'oauth', accessToken: 'fresh-new' })
+
+    // Now let the old refresh finish terminally — it must not clear the new session.
+    resolveOld(undefined)
+    await oldCall
+    expect(h.providerStore.get('codex')?.authConfig).toMatchObject({ type: 'oauth', accessToken: 'fresh-new' })
   })
 
   // A terminal failure of the OLD refresh must not tear down a session a
