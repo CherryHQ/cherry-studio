@@ -192,6 +192,10 @@ export class PreferenceService extends BaseService implements ProfileActivatable
   // A per-instance clone — never the shared DefaultPreferences.default reference,
   // which set()/loadCache() would otherwise mutate process-wide.
   private cache: PreferenceDefaultScopeType = structuredClone(DefaultPreferences.default)
+  // True between onProfileDeactivate and the next profile's cache load. During this window
+  // the cache holds only defaults, so a profile-scoped read must error (like DbService.getDb)
+  // rather than silently returning the app default as if it were the active profile's value.
+  private profileSwitching = false
 
   // Custom notifier for main process change notifications
   private notifier = new PreferenceNotifier()
@@ -217,6 +221,7 @@ export class PreferenceService extends BaseService implements ProfileActivatable
    */
   async onProfileActivate(): Promise<void> {
     await this.loadCache()
+    this.profileSwitching = false // cache now holds the new profile's values — reads are valid
     for (const key of this.notifier.getSubscribedKeys()) {
       this.notifier.notify(key, this.get(key as UnifiedPreferenceKeyType), undefined)
     }
@@ -224,6 +229,7 @@ export class PreferenceService extends BaseService implements ProfileActivatable
 
   /** Release: reset the cache to defaults so the next profile starts clean. */
   onProfileDeactivate(): void {
+    this.profileSwitching = true // reads must error until the next profile's cache loads
     this.cache = structuredClone(DefaultPreferences.default)
   }
 
@@ -311,6 +317,13 @@ export class PreferenceService extends BaseService implements ProfileActivatable
   public get<K extends UnifiedPreferenceKeyType>(key: K): UnifiedPreferenceType[K] {
     if (!isPreferenceKey(key)) {
       return bootConfigService.get(toBootConfigKey(key)) as UnifiedPreferenceType[K]
+    }
+
+    if (this.profileSwitching) {
+      // The cache was reset to defaults for the switch; returning them here would hand back
+      // the app default as if it were the active profile's value. Error loudly instead —
+      // callers (and the reloading renderer) must treat the profile as momentarily inactive.
+      throw new Error(`Preference '${key}' read during a profile switch — no active profile`)
     }
 
     if (!this.isReady) {
