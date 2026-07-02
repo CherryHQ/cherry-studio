@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { loggerService } from '@logger'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, Injectable, Phase, type ProfileActivatable, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import type { AgentChannelEntity as ChannelRow, AgentChannelType } from '@shared/data/api/schemas/agentChannels'
 import type { ChannelConfig } from '@shared/data/types/channel'
@@ -54,7 +54,7 @@ async function ensureAdapterLoaded(type: AgentChannelType): Promise<void> {
 @Injectable('ChannelManager')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['WindowManager'])
-export class ChannelManager extends BaseService {
+export class ChannelManager extends BaseService implements ProfileActivatable {
   private readonly adapters = new Map<string, ChannelAdapter>() // key: `${agentId}:${channelId}`
   private readonly qrWaiters = new Map<
     string,
@@ -69,6 +69,16 @@ export class ChannelManager extends BaseService {
 
   protected async onStop(): Promise<void> {
     await this.stop()
+  }
+
+  /** Connect the new profile's active channels (mirrors onReady). */
+  onProfileActivate(): Promise<void> {
+    return this.start()
+  }
+
+  /** Disconnect the previous profile's channel adapters. */
+  onProfileDeactivate(): Promise<void> {
+    return this.stop()
   }
 
   async start(): Promise<void> {
