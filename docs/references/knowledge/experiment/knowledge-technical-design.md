@@ -122,7 +122,7 @@ Compatibility mapping: `materialId = knowledge_item.id`, `chunkId = search_unit.
 
 ### 5.2 rebuildMaterial atomic replace
 
-Inside one write transaction: upsert material/content → delete old `search_unit`/`search_text` → insert new → FTS synced by triggers → insert missing embeddings → verify every unit's embedding hash resolves to a vector → update material metadata → sweep orphans. Old and new chunks are never visible mixed. Deleting old `search_text` must **not** delete embeddings directly (they may be shared); instead a reference-counted GC runs at the end of the same write transaction (under the base mutation lock the callers already hold), deleting `embedding` rows no `search_text` references and `content` rows that neither `material.current_content_hash` nor `search_unit.content_hash` references (`deleteMaterial` does the same). The "verify every unit's embedding hash resolves to a vector" step (`assertEmbeddingCoverage`) also closes the `listExistingEmbeddingHashes` race: that read happens outside the base lock, so a concurrent GC could drop a hash it reported present — if the rebuild then has a unit with no vector, it rolls back and the job retry re-reads (now absent) and re-embeds it.
+Inside one write transaction: upsert material/content → delete old `search_unit`/`search_text` → insert new → FTS synced by triggers → insert missing embeddings → verify every unit's embedding hash resolves to a vector (vector bases only; a BM25-only base stores no embeddings and skips this check) → update material metadata → sweep orphans. Old and new chunks are never visible mixed. Deleting old `search_text` must **not** delete embeddings directly (they may be shared); instead a reference-counted GC runs at the end of the same write transaction (under the base mutation lock the callers already hold), deleting `embedding` rows no `search_text` references and `content` rows that neither `material.current_content_hash` nor `search_unit.content_hash` references (`deleteMaterial` does the same). The "verify every unit's embedding hash resolves to a vector" step (`assertEmbeddingCoverage`) also closes the `listExistingEmbeddingHashes` race: that read happens outside the base lock, so a concurrent GC could drop a hash it reported present — if the rebuild then has a unit with no vector, it rolls back and the job retry re-reads (now absent) and re-embeds it.
 
 **Decision A4 (embedding reuse)**: a stored vector is reused on exact "text fingerprint (`embedding_text_hash`) + model + dimensions" equality, and only hashes missing from the index get embedded — reindexing unchanged content no longer spends embedding API money.
 
@@ -136,7 +136,7 @@ A chunk body must be a verbatim slice of `content.text` (the offset-preserving s
 
 ### 5.4 embedding contract
 
-`knowledge_base.embeddingModelId` / `dimensions` must be valid; `embedMany` results are strictly dimension-checked and mismatching vectors are rejected.
+A vector base's `knowledge_base.embeddingModelId` / `dimensions` must be valid together; `embedMany` results are strictly dimension-checked and mismatching vectors are rejected. A BM25-only base has both null and skips the embedding pipeline entirely — no model to call, no dimensions to check.
 
 ### 5.5 embedding / rerank via AiService
 

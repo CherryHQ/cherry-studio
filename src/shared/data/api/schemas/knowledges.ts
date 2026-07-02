@@ -30,8 +30,10 @@ const KNOWLEDGE_BASE_MUTABLE_FIELDS = {
   hybridAlpha: true
 } as const
 
-// `embeddingModelId` and `dimensions` are intentionally excluded: changing
-// either invalidates existing vectors and must go through a runtime reindex flow.
+// `embeddingModelId` and `dimensions` are intentionally excluded: changing either
+// on a vector base invalidates its existing vectors, and adding a model to a
+// BM25-only base has no vectors to invalidate but still needs a full embedding
+// backfill — both go through the restore-into-a-new-base flow, not a PATCH.
 export const UpdateKnowledgeBaseSchema = KnowledgeBaseEntitySchema.pick(KNOWLEDGE_BASE_MUTABLE_FIELDS)
   .partial()
   .extend({
