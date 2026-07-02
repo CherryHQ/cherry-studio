@@ -35,7 +35,7 @@ const logger = loggerService.withContext('NewMiniAppPanel')
 
 const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
   const { t } = useTranslation()
-  const { createCustomMiniApp, updateCustomMiniApp } = useMiniApps()
+  const { createCustomMiniApp, refreshCustomMiniApp, updateCustomMiniApp } = useMiniApps()
   const [filesPath] = useCache('app.path.files')
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const isEditing = app != null
@@ -141,6 +141,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
       try {
         const data = new Uint8Array(await stagedFile.arrayBuffer())
         await ipcApi.request('mini_app.set_logo', { appId, image: { kind: 'image', data } })
+        await refreshCustomMiniApp(appId)
       } catch (error) {
         logoFailed = true
         window.toast.error(t('settings.miniApps.custom.logo_upload_error'))

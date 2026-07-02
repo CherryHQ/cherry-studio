@@ -145,7 +145,9 @@ describe('PreferenceService BootConfig routing', () => {
     const makeTx = () => ({
       update: vi.fn().mockReturnValue({
         set: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue(undefined)
+          where: vi.fn().mockReturnValue({
+            run: vi.fn()
+          })
         })
       })
     })
@@ -153,7 +155,7 @@ describe('PreferenceService BootConfig routing', () => {
     it('writes only the avatar preference through the provided tx and defers cache sync', async () => {
       const mockTx = makeTx()
 
-      const afterCommit = await service.writeUserAvatarPreferenceTx(mockTx, 'file:avatar-id')
+      const afterCommit = service.writeUserAvatarPreferenceTx(mockTx, 'file:avatar-id')
 
       expect(mockTx.update).toHaveBeenCalled()
       expect(mockWithWriteTx).not.toHaveBeenCalled()

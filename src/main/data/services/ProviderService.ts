@@ -213,11 +213,9 @@ class ProviderService {
   create(dto: CreateProviderDto): Provider {
     assertManagedCherryAiProviderMutationAllowed(dto.providerId, `create provider ${dto.providerId}`)
 
-    const db = application.get('DbService').getDb()
-
     const row = withSqliteErrors(
       () =>
-        db.transaction((tx) => {
+        application.get('DbService').withWriteTx((tx) => {
           const logoCols = reconcileLogoSlotTx(tx, logoSlot(dto.providerId), dto.logo) ?? {
             logoKey: null,
             logoFileId: null
@@ -625,9 +623,7 @@ class ProviderService {
    * cannot be deleted. User-created providers that inherit from a preset can be deleted.
    */
   delete(providerId: string): void {
-    const db = application.get('DbService').getDb()
-
-    db.transaction((tx) => {
+    application.get('DbService').withWriteTx((tx) => {
       const [provider] = tx
         .select({ presetProviderId: userProviderTable.presetProviderId })
         .from(userProviderTable)

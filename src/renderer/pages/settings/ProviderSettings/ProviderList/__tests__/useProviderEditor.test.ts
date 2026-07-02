@@ -12,10 +12,15 @@ vi.mock('@renderer/utils/uuid', () => ({
 
 const useProvidersMock = vi.fn()
 const useProviderActionsMock = vi.fn()
+const invalidateMock = vi.fn()
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: (...args: any[]) => useProvidersMock(...args),
   useProviderActions: (...args: any[]) => useProviderActionsMock(...args)
+}))
+
+vi.mock('@data/hooks/useDataApi', () => ({
+  useInvalidateCache: () => invalidateMock
 }))
 
 vi.mock('react-i18next', () => ({
@@ -46,6 +51,7 @@ describe('useProviderEditor', () => {
     createProviderMock.mockResolvedValue({ id: 'new-provider-id', name: 'My Provider' })
     updateProviderByIdMock.mockResolvedValue(undefined)
     ipcRequestMock.mockResolvedValue(undefined)
+    invalidateMock.mockResolvedValue(undefined)
     useProvidersMock.mockReturnValue({
       createProvider: createProviderMock
     })
@@ -182,6 +188,11 @@ describe('useProviderEditor', () => {
         'provider.set_logo',
         expect.objectContaining({ providerId: 'new-provider-id', image: expect.objectContaining({ kind: 'image' }) })
       )
+      expect(invalidateMock).toHaveBeenCalledWith([
+        '/providers',
+        '/providers/new-provider-id',
+        '/providers/new-provider-id/*'
+      ])
     })
 
     it('omits logo from the createProvider DTO when not provided', async () => {
@@ -294,6 +305,7 @@ describe('useProviderEditor', () => {
         providerId: 'openai',
         image: { kind: 'key', key: 'icon:openai' }
       })
+      expect(invalidateMock).toHaveBeenCalledWith(['/providers', '/providers/openai', '/providers/openai/*'])
     })
 
     it('clears the logo via provider.set_logo on update', async () => {
@@ -326,6 +338,7 @@ describe('useProviderEditor', () => {
 
       expect(updateProviderByIdMock.mock.calls[0][1]).not.toHaveProperty('logo')
       expect(ipcRequestMock).not.toHaveBeenCalled()
+      expect(invalidateMock).not.toHaveBeenCalled()
     })
 
     it('does not call onProviderCreated on update', async () => {

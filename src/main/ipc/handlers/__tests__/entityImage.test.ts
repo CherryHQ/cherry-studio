@@ -38,8 +38,8 @@ beforeEach(() => {
   transcodeMock.mockResolvedValue(WEBP)
   createInternalEntryMock.mockResolvedValue({ id: FILE_ID })
   permanentDeleteMock.mockResolvedValue(undefined)
-  providerUpdateMock.mockResolvedValue({})
-  miniAppUpdateMock.mockResolvedValue({})
+  providerUpdateMock.mockReturnValue({})
+  miniAppUpdateMock.mockReturnValue({})
 })
 
 describe('provider.set_logo', () => {
@@ -71,7 +71,9 @@ describe('provider.set_logo', () => {
   })
 
   it('compensates (permanentDelete) when the bind fails', async () => {
-    providerUpdateMock.mockRejectedValueOnce(new Error('bind failed'))
+    providerUpdateMock.mockImplementationOnce(() => {
+      throw new Error('bind failed')
+    })
 
     await expect(
       entityImageHandlers['provider.set_logo'](

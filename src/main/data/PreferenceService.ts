@@ -359,17 +359,17 @@ export class PreferenceService extends BaseService {
    * avatar flow, because `user_avatar_file_ref` and the preference row must
    * commit together.
    */
-  public async writeUserAvatarPreferenceTx(tx: Pick<DbType, 'update'>, value: string): Promise<() => Promise<void>> {
+  public writeUserAvatarPreferenceTx(tx: Pick<DbType, 'update'>, value: string): () => Promise<void> {
     if (!(USER_AVATAR_PREFERENCE_KEY in this.cache)) {
       throw new Error(`Preference ${USER_AVATAR_PREFERENCE_KEY} not found in cache`)
     }
 
     const oldValue = this.cache[USER_AVATAR_PREFERENCE_KEY]
 
-    await tx
-      .update(preferenceTable)
+    tx.update(preferenceTable)
       .set({ value })
       .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, USER_AVATAR_PREFERENCE_KEY)))
+      .run()
 
     return async () => {
       if (isEqual(oldValue, value)) {

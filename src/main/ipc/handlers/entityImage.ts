@@ -13,11 +13,11 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
  */
 export const entityImageHandlers: IpcHandlersFor<typeof entityImageRequestSchemas> = {
   'provider.set_logo': ({ providerId, image }) =>
-    bindLogoImage(image, async (logo) => {
-      await providerService.update(providerId, { logo })
+    bindLogoImage(image, (logo) => {
+      providerService.update(providerId, { logo })
     }),
   'mini_app.set_logo': ({ appId, image }) =>
-    bindLogoImage(image, async (logo) => {
-      await miniAppService.update(appId, { logo })
+    bindLogoImage(image, (logo) => {
+      miniAppService.update(appId, { logo })
     })
 }

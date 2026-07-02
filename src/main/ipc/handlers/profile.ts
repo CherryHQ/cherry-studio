@@ -31,9 +31,9 @@ export const profileHandlers: IpcHandlersFor<typeof profileRequestSchemas> = {
       // withCreatedImageEntry compensates (permanentDelete) iff the tx throws;
       // its bind returns the post-commit callback, run outside that scope.
       const afterCommit = await withCreatedImageEntry(input.data, (fileId) =>
-        db.withWriteTx(async (tx) => {
+        db.withWriteTx((tx) => {
           const value = tagStoredFileRef(fileId)
-          await setSingleFileRefTx(tx, AVATAR_SLOT, fileId)
+          setSingleFileRefTx(tx, AVATAR_SLOT, fileId)
           return preferences.writeUserAvatarPreferenceTx(tx, value)
         })
       )
@@ -44,8 +44,8 @@ export const profileHandlers: IpcHandlersFor<typeof profileRequestSchemas> = {
     // Emoji / clear — no file. Clear the slot, then store the value verbatim
     // (emoji glyph, or `''` to reset to the bundled default).
     const value = input.kind === 'emoji' ? input.emoji : ''
-    const afterCommit = await db.withWriteTx(async (tx) => {
-      await clearSingleFileRefTx(tx, AVATAR_SLOT)
+    const afterCommit = db.withWriteTx((tx) => {
+      clearSingleFileRefTx(tx, AVATAR_SLOT)
       return preferences.writeUserAvatarPreferenceTx(tx, value)
     })
     await afterCommit()

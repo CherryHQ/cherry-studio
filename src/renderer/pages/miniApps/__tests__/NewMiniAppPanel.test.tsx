@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   pinned: [],
   createCustomMiniApp: vi.fn().mockResolvedValue(undefined),
   updateCustomMiniApp: vi.fn().mockResolvedValue(undefined),
+  refreshCustomMiniApp: vi.fn().mockResolvedValue(undefined),
   ipcRequest: vi.fn().mockResolvedValue(undefined),
   dialogOnOpenChange: undefined as ((open: boolean) => void) | undefined
 }))
@@ -26,7 +27,8 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
     disabled: mocks.disabled,
     pinned: mocks.pinned,
     createCustomMiniApp: mocks.createCustomMiniApp,
-    updateCustomMiniApp: mocks.updateCustomMiniApp
+    updateCustomMiniApp: mocks.updateCustomMiniApp,
+    refreshCustomMiniApp: mocks.refreshCustomMiniApp
   })
 }))
 
@@ -111,6 +113,8 @@ beforeEach(() => {
   mocks.dialogOnOpenChange = undefined
   mocks.createCustomMiniApp.mockClear()
   mocks.updateCustomMiniApp.mockClear()
+  mocks.refreshCustomMiniApp.mockClear()
+  mocks.refreshCustomMiniApp.mockResolvedValue(undefined)
   mocks.ipcRequest.mockReset()
   mocks.ipcRequest.mockResolvedValue(undefined)
   // jsdom has no object-URL impl nor File.arrayBuffer; stub both so the staged
@@ -309,6 +313,7 @@ describe('NewMiniAppPanel', () => {
         'mini_app.set_logo',
         expect.objectContaining({ appId: 'custom-app', image: expect.objectContaining({ kind: 'image' }) })
       )
+      expect(mocks.refreshCustomMiniApp).toHaveBeenCalledWith('custom-app')
     })
   })
 
@@ -354,6 +359,7 @@ describe('NewMiniAppPanel', () => {
         'mini_app.set_logo',
         expect.objectContaining({ appId: 'generated-id', image: expect.objectContaining({ kind: 'image' }) })
       )
+      expect(mocks.refreshCustomMiniApp).toHaveBeenCalledWith('generated-id')
     })
   })
 
@@ -378,6 +384,7 @@ describe('NewMiniAppPanel', () => {
     await waitFor(() => {
       // The app saved; only the logo upload failed → a logo-specific message.
       expect(mocks.createCustomMiniApp).toHaveBeenCalledTimes(1)
+      expect(mocks.refreshCustomMiniApp).not.toHaveBeenCalled()
       expect(window.toast.error).toHaveBeenCalledWith('settings.miniApps.custom.logo_upload_error')
     })
     // The row is saved, so the dialog closes (no re-submittable create state that

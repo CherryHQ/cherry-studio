@@ -1,3 +1,4 @@
+import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { useProviderActions, useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
@@ -54,6 +55,7 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
   const { t } = useTranslation()
   const { createProvider } = useProviders()
   const { updateProviderById } = useProviderActions()
+  const invalidate = useInvalidateCache()
   const [mode, setMode] = useState<ProviderEditorMode | null>(null)
   const modeRef = useRef<ProviderEditorMode | null>(null)
   const submitTokenRef = useRef(0)
@@ -88,9 +90,16 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
       } catch (error) {
         logger.error('Failed to set provider logo', error as Error)
         window.toast.error(t('settings.provider.logo_upload_failed'))
+        return
+      }
+
+      try {
+        await invalidate(['/providers', `/providers/${providerId}`, `/providers/${providerId}/*`])
+      } catch (error) {
+        logger.error('Failed to refresh provider data after logo update', error as Error)
       }
     },
-    [t]
+    [invalidate, t]
   )
 
   const submit = useCallback(

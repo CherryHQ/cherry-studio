@@ -4,6 +4,8 @@ import type { LogoBindInput } from '@shared/data/api/schemas/logo'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { LogoImageIntent } from '@shared/ipc/schemas/entityImage'
 
+type MaybePromise<T> = T | Promise<T>
+
 /**
  * Create an entity-image `file_entry` from raw upload bytes, run `bind` with the
  * new id, and **compensate** (`permanentDelete`) if `bind` throws — so a bind
@@ -14,7 +16,7 @@ import type { LogoImageIntent } from '@shared/ipc/schemas/entityImage'
  */
 export async function withCreatedImageEntry<T>(
   bytes: Uint8Array,
-  bind: (fileId: FileEntryId) => Promise<T>
+  bind: (fileId: FileEntryId) => MaybePromise<T>
 ): Promise<T> {
   const fileManager = application.get('FileManager')
   const webp = await transcodeToEntityWebp(bytes)
@@ -35,7 +37,7 @@ export async function withCreatedImageEntry<T>(
  */
 export async function bindLogoImage(
   image: LogoImageIntent,
-  bind: (input: LogoBindInput) => Promise<void>
+  bind: (input: LogoBindInput) => MaybePromise<void>
 ): Promise<void> {
   if (image.kind === 'key') return bind({ kind: 'key', key: image.key })
   if (image.kind === 'clear') return bind({ kind: 'clear' })

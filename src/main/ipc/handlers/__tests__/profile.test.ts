@@ -49,11 +49,11 @@ beforeEach(() => {
     if (name === 'FileManager') return fileManager
     throw new Error(`Unexpected application.get(${name})`)
   })
-  withWriteTxMock.mockImplementation((fn: (tx: unknown) => Promise<unknown>) => fn(TX))
-  clearSingleFileRefTxMock.mockResolvedValue(undefined)
-  setSingleFileRefTxMock.mockResolvedValue(undefined)
+  withWriteTxMock.mockImplementation((fn: (tx: unknown) => unknown) => fn(TX))
+  clearSingleFileRefTxMock.mockReturnValue(undefined)
+  setSingleFileRefTxMock.mockReturnValue(undefined)
   afterCommit.mockResolvedValue(undefined)
-  writeUserAvatarPreferenceTxMock.mockResolvedValue(afterCommit)
+  writeUserAvatarPreferenceTxMock.mockReturnValue(afterCommit)
   transcodeMock.mockResolvedValue(WEBP)
   createInternalEntryMock.mockResolvedValue({ id: FILE_ID })
   permanentDeleteMock.mockResolvedValue(undefined)
@@ -75,7 +75,9 @@ describe('profileHandlers.set_avatar', () => {
   })
 
   it('compensates (permanentDelete) when the tx fails, and skips the post-commit callback', async () => {
-    writeUserAvatarPreferenceTxMock.mockRejectedValueOnce(new Error('tx write failed'))
+    writeUserAvatarPreferenceTxMock.mockImplementationOnce(() => {
+      throw new Error('tx write failed')
+    })
 
     await expect(
       profileHandlers['profile.set_avatar']({ kind: 'image', data: new Uint8Array([1]) }, ctx)
