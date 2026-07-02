@@ -12,17 +12,17 @@ export const noteHandlers: HandlersFor<NoteSchemas> = {
   '/notes': {
     GET: async ({ query }) => {
       const parsed = ListNoteQuerySchema.parse(query)
-      return await noteService.listByRoot(parsed.rootPath)
+      return noteService.listByRoot(parsed.rootPath)
     },
 
     PATCH: async ({ body }) => {
       const parsed = UpsertNoteSchema.parse(body)
-      return await noteService.upsert(parsed)
+      return noteService.upsert(parsed)
     },
 
     DELETE: async ({ query }) => {
       const parsed = DeleteNoteQuerySchema.parse(query)
-      await noteService.deleteByPath(parsed)
+      noteService.deleteByPath(parsed)
       return undefined
     }
   },
@@ -30,7 +30,7 @@ export const noteHandlers: HandlersFor<NoteSchemas> = {
   '/notes/path': {
     PATCH: async ({ body }) => {
       const parsed = RewriteNotePathSchema.parse(body)
-      return await noteService.rewritePath(parsed)
+      return noteService.rewritePath(parsed)
     }
   }
 }

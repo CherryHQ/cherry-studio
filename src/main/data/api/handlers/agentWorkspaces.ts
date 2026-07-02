@@ -12,12 +12,12 @@ import {
 export const agentWorkspaceHandlers: HandlersFor<AgentWorkspaceSchemas> = {
   '/agent-workspaces': {
     GET: async () => {
-      return await agentWorkspaceService.list()
+      return agentWorkspaceService.list()
     },
     POST: async ({ body }) => {
       const parsed = CreateAgentWorkspaceSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      const result = await agentWorkspaceService.findOrCreateByPathResult(parsed.data.path, { name: parsed.data.name })
+      const result = agentWorkspaceService.findOrCreateByPathResult(parsed.data.path, { name: parsed.data.name })
       return {
         data: result.workspace,
         status: result.created ? SuccessStatus.CREATED : SuccessStatus.OK
@@ -27,15 +27,15 @@ export const agentWorkspaceHandlers: HandlersFor<AgentWorkspaceSchemas> = {
 
   '/agent-workspaces/:workspaceId': {
     GET: async ({ params }) => {
-      return await agentWorkspaceService.getById(params.workspaceId)
+      return agentWorkspaceService.getById(params.workspaceId)
     },
     PATCH: async ({ params, body }) => {
       const parsed = UpdateAgentWorkspaceSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await agentWorkspaceService.update(params.workspaceId, parsed.data)
+      return agentWorkspaceService.update(params.workspaceId, parsed.data)
     },
     DELETE: async ({ params }) => {
-      await agentSessionService.deleteWorkspaceCascade(params.workspaceId)
+      agentSessionService.deleteWorkspaceCascade(params.workspaceId)
       return undefined
     }
   },
@@ -43,7 +43,7 @@ export const agentWorkspaceHandlers: HandlersFor<AgentWorkspaceSchemas> = {
   '/agent-workspaces/:id/order': {
     PATCH: async ({ params, body }) => {
       const parsed = OrderRequestSchema.parse(body)
-      await agentWorkspaceService.reorder(params.id, parsed)
+      agentWorkspaceService.reorder(params.id, parsed)
       return undefined
     }
   },
@@ -51,7 +51,7 @@ export const agentWorkspaceHandlers: HandlersFor<AgentWorkspaceSchemas> = {
   '/agent-workspaces/order:batch': {
     PATCH: async ({ body }) => {
       const parsed = OrderBatchRequestSchema.parse(body)
-      await agentWorkspaceService.reorderBatch(parsed.moves)
+      agentWorkspaceService.reorderBatch(parsed.moves)
       return undefined
     }
   }
