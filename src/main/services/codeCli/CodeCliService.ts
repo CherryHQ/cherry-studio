@@ -113,11 +113,17 @@ export class CodeCliService extends BaseService {
    * this is a best-effort "is the user signed in" hint for the settings UI.
    */
   public async checkClaudeLogin(): Promise<boolean> {
-    try {
-      if (isMac) {
+    if (isMac) {
+      try {
         await execAsync('security find-generic-password -s "Claude Code-credentials"', { timeout: 3000 })
         return true
+      } catch {
+        // `security` exits non-zero when the keychain item is absent — the
+        // normal "not signed in" signal, so this path stays silent.
+        return false
       }
+    }
+    try {
       // Resolve from the same source the runtime uses (settingsBuilder reads the
       // login-shell CLAUDE_CONFIG_DIR), not raw process.env: a GUI-launched
       // Electron process does not inherit rc-exported vars, but the login shell
@@ -128,8 +134,12 @@ export class CodeCliService extends BaseService {
         process.env.CLAUDE_CONFIG_DIR ||
         path.join(application.getPath('sys.home'), '.claude')
       return fs.existsSync(path.join(configDir, '.credentials.json'))
-    } catch {
-      // `security` exits non-zero when the item is absent (not signed in).
+    } catch (error) {
+      // A probe failure here (e.g. login-shell env resolution throwing on a
+      // broken rc file) is NOT "not signed in" — log it so a genuinely
+      // signed-in user's stuck "not signed in" card is diagnosable instead of
+      // silently swallowed.
+      logger.warn('Failed to probe Claude login state; reporting not signed in', error as Error)
       return false
     }
   }

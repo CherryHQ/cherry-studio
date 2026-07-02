@@ -14,14 +14,16 @@ vi.mock('@application', () => ({
   }
 }))
 
+const loggerMock = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn()
+}))
+
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: () => ({
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn()
-    })
+    withContext: () => loggerMock
   }
 }))
 
@@ -148,6 +150,24 @@ describe('CodeCliService', () => {
 
       await expect(codeCliService.checkClaudeLogin()).resolves.toBe(true)
       expect(fs.existsSync).toHaveBeenCalledWith('/home/me/.claude/.credentials.json')
+    } finally {
+      vi.doUnmock('@main/core/platform')
+    }
+  })
+
+  // A broken rc file makes the login-shell probe throw. That is NOT "not signed
+  // in" — it must be logged, not silently swallowed, or a signed-in user is
+  // stuck on a "not signed in" card with no diagnostic trail.
+  it('checkClaudeLogin (non-mac) logs a warning and returns false when the login-shell probe throws', async () => {
+    vi.doMock('@main/core/platform', () => ({ isMac: false, isWin: false }))
+    try {
+      const shellEnv = (await import('@main/utils/shell-env')).default
+      vi.mocked(shellEnv).mockRejectedValue(new Error('broken rc file'))
+
+      const { codeCliService } = await loadModules()
+
+      await expect(codeCliService.checkClaudeLogin()).resolves.toBe(false)
+      expect(loggerMock.warn).toHaveBeenCalled()
     } finally {
       vi.doUnmock('@main/core/platform')
     }
