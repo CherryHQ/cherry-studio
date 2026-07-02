@@ -8,10 +8,10 @@ beforeEach(() => {
 })
 
 describe('TraceStorageService profile activation', () => {
-  it('clears the in-memory span store on profile deactivate and activate', () => {
+  it('drains in-flight flushes then clears the in-memory span store on deactivate and activate', async () => {
     const svc = new TraceStorageService()
     const clear = vi.spyOn(svc['store'], 'clear')
-    svc.onProfileDeactivate()
+    await svc.onProfileDeactivate()
     svc.onProfileActivate()
     expect(clear).toHaveBeenCalledTimes(2)
   })

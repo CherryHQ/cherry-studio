@@ -34,6 +34,9 @@ function mergeSpansById(base: SpanEntity[], overrides: SpanEntity[]): SpanEntity
 @ServicePhase(Phase.WhenReady)
 export class TraceStorageService extends BaseService implements TraceStore, Activatable, ProfileActivatable {
   private readonly store = new TraceSpanStore()
+  // In-flight saveSpans promises, drained on deactivate so a flush cannot straddle a
+  // profile switch and write the previous profile's spans under the new profile's dir.
+  private readonly inflightFlushes = new Set<Promise<void>>()
 
   /** Fresh in-memory span store for the new profile (spans persist to the profile-scoped trace path). */
   onProfileActivate(): void {
@@ -41,7 +44,12 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   }
 
   /** Drop the previous profile's in-memory spans on switch; its trace files stay on disk. */
-  onProfileDeactivate(): void {
+  async onProfileDeactivate(): Promise<void> {
+    // Deactivate runs before the path slot repoints (switch step 2 vs step 3), so a
+    // flush drained here still resolves feature.trace to THIS profile's dir. Without
+    // this an in-flight flush would land the previous profile's spans (which may hold
+    // request/response bodies) under the new profile's dir.
+    await Promise.allSettled(this.inflightFlushes)
     this.store.clear()
   }
 
@@ -130,9 +138,18 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   async saveSpans(topicId: string) {
     if (!this.isActivated) return
 
-    const traceIds = this.store.getTraceIdsByTopic(topicId)
-    for (const traceId of traceIds) {
-      await this.flushTrace(topicId, traceId)
+    // Track the flush so onProfileDeactivate can drain it before the path repoints.
+    const flush = (async () => {
+      const traceIds = this.store.getTraceIdsByTopic(topicId)
+      for (const traceId of traceIds) {
+        await this.flushTrace(topicId, traceId)
+      }
+    })()
+    this.inflightFlushes.add(flush)
+    try {
+      await flush
+    } finally {
+      this.inflightFlushes.delete(flush)
     }
   }
 
