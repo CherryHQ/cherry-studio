@@ -1116,7 +1116,13 @@ describe('ModelService.delete', () => {
     })
 
     try {
-      await expect(modelService.delete('openai', 'gpt-4o')).rejects.toMatchObject({
+      let err: unknown
+      try {
+        modelService.delete('openai', 'gpt-4o')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.INVALID_OPERATION,
         status: 400
       })
@@ -1345,12 +1351,16 @@ describe('ModelService.bulkDelete', () => {
     })
 
     try {
-      await expect(
+      let err: unknown
+      try {
         modelService.bulkDelete([
           { providerId: 'openai', modelId: 'gpt-4o' },
           { providerId: 'openai', modelId: 'gpt-4o-mini' }
         ])
-      ).rejects.toMatchObject({
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
         code: ErrorCode.INVALID_OPERATION,
         status: 400
       })
