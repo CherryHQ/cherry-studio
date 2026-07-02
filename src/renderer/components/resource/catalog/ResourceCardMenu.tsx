@@ -171,10 +171,7 @@ export function ResourceCardMenu({
                 icon={<Tag size={10} />}
                 label={t('library.action.manage_tags')}
                 suffix={
-                  <>
-                    {localTag && <span className="text-foreground-muted text-xs tabular-nums">1</span>}
-                    <ChevronDown size={8} className={`transition-transform ${showTagPicker ? 'rotate-180' : ''}`} />
-                  </>
+                  <ChevronDown size={8} className={`transition-transform ${showTagPicker ? 'rotate-180' : ''}`} />
                 }
               />
             </PopoverTrigger>

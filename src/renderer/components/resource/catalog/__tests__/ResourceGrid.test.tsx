@@ -579,6 +579,21 @@ describe('ResourceCardMenu tag binding', () => {
     updateAssistantMock.mockReset()
   })
 
+  it('does not show a tag count in the single-select tag menu trigger', () => {
+    render(
+      <ResourceCardMenu
+        resource={createAssistantResource({ tag: 'alpha' })}
+        onClose={vi.fn()}
+        onDuplicate={vi.fn()}
+        onDelete={vi.fn()}
+        onExport={vi.fn()}
+        allTagNames={['alpha', 'beta']}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: /library.action.manage_tags/ })).not.toHaveTextContent(/\b1\b/)
+  })
+
   it('blocks a second tag write while the first one is still pending', async () => {
     const user = userEvent.setup()
     const pendingTags = createDeferred<Array<{ id: string; name: string }>>()
