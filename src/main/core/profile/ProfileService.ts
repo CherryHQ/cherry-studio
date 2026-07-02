@@ -2,6 +2,8 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { CHERRY_HOME } from '@main/core/paths/constants'
+import { WindowType } from '@main/core/window/types'
+import { WINDOW_TYPE_REGISTRY } from '@main/core/window/windowRegistry'
 
 import {
   addProfile,
@@ -136,9 +138,24 @@ export class ProfileService extends BaseService {
     }
   }
 
-  private resetRenderer(): Promise<void> {
+  private async resetRenderer(): Promise<void> {
+    const wm = application.get('WindowManager')
+    // Close every non-main window so none stays bound to the previous profile
+    // (RFC §4.5 / design §9): pooled types drain their standby via suspendPool,
+    // then in-use instances close; singletons close directly. Otherwise a secondary
+    // window serves old-profile data against the switched DB, and its beforeunload
+    // can re-write the persist cache the reloaded main window just cleared.
+    for (const [type, meta] of Object.entries(WINDOW_TYPE_REGISTRY)) {
+      const windowType = type as WindowType
+      if (windowType === WindowType.Main || !meta) continue
+      if (meta.lifecycle === 'pooled') wm.suspendPool(windowType)
+      for (const win of wm.getWindowsByType(windowType)) {
+        const id = wm.getWindowId(win)
+        if (id) wm.close(id)
+      }
+    }
     // Reload the main window onto the new profile, clearing its persisted cache so
-    // per-profile ids do not leak across the switch (RFC §4.5).
-    return application.get('MainWindowService').reloadMainWindow({ clearPersistCache: true })
+    // per-profile ids do not leak across the switch.
+    await application.get('MainWindowService').reloadMainWindow({ clearPersistCache: true })
   }
 }

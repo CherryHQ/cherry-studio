@@ -21,15 +21,19 @@ vi.mock('@application', () => ({
       h.calls.push(`repoint:${profileRoot}`)
     }),
     getPath: vi.fn(() => '/userData'),
-    get: vi.fn((name: string) =>
-      name === 'JobManager'
-        ? {
-            recoverActiveProfile: async () => {
-              h.calls.push('recover')
-            }
+    get: vi.fn((name: string) => {
+      if (name === 'JobManager') {
+        return {
+          recoverActiveProfile: async () => {
+            h.calls.push('recover')
           }
-        : { reloadMainWindow: () => h.calls.push('reload') }
-    )
+        }
+      }
+      if (name === 'WindowManager') {
+        return { suspendPool: () => 0, getWindowsByType: () => [], getWindowId: () => undefined, close: () => true }
+      }
+      return { reloadMainWindow: () => h.calls.push('reload') } // MainWindowService
+    })
   }
 }))
 
