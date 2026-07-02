@@ -717,20 +717,30 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect(settings.env).not.toHaveProperty('CLAUDE_CONFIG_DIR')
     })
 
-    it('blocks a user env_var override of CLAUDE_CODE_USE_VERTEX', async () => {
-      // CLAUDE_CODE_USE_VERTEX is a runtime-forced routing flag, like CLAUDE_CODE_USE_BEDROCK;
-      // user env_vars must not be able to flip it on.
+    it('blocks a reserved agent env_var override but passes through non-reserved keys', async () => {
+      // env_vars come from the *agent* config, not the provider. CLAUDE_CODE_USE_VERTEX
+      // is a runtime-forced routing flag (like CLAUDE_CODE_USE_BEDROCK) an agent must not
+      // flip on; a non-reserved key must still pass through.
       mocks.getLoginShellEnvironment.mockResolvedValue({})
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'claude-code',
+        instructions: 'Follow instructions.',
+        model: 'anthropic::claude-sonnet',
+        planModel: 'anthropic::claude-sonnet',
+        smallModel: 'anthropic::claude-haiku',
+        mcps: [],
+        allowedTools: [],
+        configuration: { env_vars: { CLAUDE_CODE_USE_VERTEX: '1', CHERRY_CUSTOM_VAR: 'passthrough' } }
+      })
 
       const settings = await buildClaudeCodeSessionSettings(
         session as never,
-        {
-          id: 'claude-code',
-          configuration: { env_vars: { CLAUDE_CODE_USE_VERTEX: '1' } }
-        } as never
+        { id: 'claude-code', authMethods: ['external-cli'] } as never
       )
 
       expect(settings.env!.CLAUDE_CODE_USE_VERTEX).toBe('0')
+      expect(settings.env!.CHERRY_CUSTOM_VAR).toBe('passthrough')
     })
 
     it('leaves inherited Anthropic credentials intact for a non-login provider', async () => {
