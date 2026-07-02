@@ -52,6 +52,16 @@ describe('JobManager profile activation', () => {
     expect(settled).toBe(true)
   })
 
+  it('does not dispatch new jobs while paused for a profile switch (no job escapes the deactivate drain)', async () => {
+    const svc = new JobManager()
+    svc['_profilePaused'] = true
+    // The guard is the first statement in dispatch(), so it returns before even looking
+    // up the queue — an aborted job's re-dispatch during the drain claims nothing.
+    const queuesGet = vi.spyOn(svc['queues'], 'get')
+    await svc.dispatch('default')
+    expect(queuesGet).not.toHaveBeenCalled()
+  })
+
   it('disposes pending job:*/retry:* once-timers on deactivate so they cannot fire against the next profile', async () => {
     const svc = new JobManager()
     const dispose = vi.fn()

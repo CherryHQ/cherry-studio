@@ -1063,6 +1063,13 @@ export class JobManager extends BaseService implements ProfileActivatable {
    * @param queueName - Queue identifier (from `jobTable.queue`); no-op if the queue is unknown
    */
   async dispatch(queueName: string): Promise<void> {
+    // Paused during a profile switch (set before onProfileDeactivate aborts in-flight
+    // jobs). Without this guard, an aborted job's finalizeJob -> resolveAndDispatch ->
+    // dispatch() claims a still-pending row and spawnExecutes it — a job NOT in the
+    // deactivate drain snapshot, which then runs across the switch boundary and writes
+    // to the wrong profile's DB. The freed slot's pending rows are re-dispatched by the
+    // owning profile's recovery once it is active again.
+    if (this._profilePaused) return
     const queue = this.queues.get(queueName)
     if (!queue) return
 
