@@ -21,6 +21,7 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useIsActiveTurnTarget } from '@renderer/hooks/useIsActiveTurnTarget'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { FILE_TYPE } from '@renderer/types/file'
+import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
 import { convertReferencesToCitationReferences, convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ErrorPartData } from '@shared/data/types/uiParts'
@@ -225,6 +226,24 @@ function isReasoningMessagePart(part: CherryMessagePart): boolean {
 function isResultPart(part: CherryMessagePart): boolean {
   const partType = part.type as string
   return isSummaryMessagePart(part) || partType === 'data-error' || partType === 'file' || partType === 'data-video'
+}
+
+function hasVisibleComposerFileToken(parts: readonly CherryMessagePart[]): boolean {
+  return parts.some((part) => {
+    if ((part.type as string) !== 'text') return false
+    const composer = getCherryMeta(part)?.composer
+    return composer ? getDisplayComposerTokens(composer).some((token) => token.kind === 'file') : false
+  })
+}
+
+function shouldHideUserFileAttachmentEntry(
+  entry: PartEntry,
+  message: MessageListItem,
+  hasComposerFileToken: boolean
+): boolean {
+  if (message.role !== 'user' || !hasComposerFileToken) return false
+  if ((entry.part.type as string) !== 'file' || isImageFilePart(entry.part)) return false
+  return true
 }
 
 /**
@@ -710,7 +729,12 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
   // Everything not folded into the history group renders flat: the answer after
   // the fold, or all parts when there's no fold (no tools / collapse disabled).
   const visibleEntries = toolHistoryGroup?.resultEntries ?? partEntries
-  const grouped = useMemo(() => (visibleEntries.length === 0 ? [] : groupPartEntries(visibleEntries)), [visibleEntries])
+  const hasComposerFileToken = useMemo(() => hasVisibleComposerFileToken(messageParts), [messageParts])
+  const displayEntries = useMemo(
+    () => visibleEntries.filter((entry) => !shouldHideUserFileAttachmentEntry(entry, message, hasComposerFileToken)),
+    [hasComposerFileToken, message, visibleEntries]
+  )
+  const grouped = useMemo(() => (displayEntries.length === 0 ? [] : groupPartEntries(displayEntries)), [displayEntries])
 
   // No parts to render — normal for user messages (content is in message text, not parts)
   // But if the message is processing (pending/streaming), show the loading placeholder

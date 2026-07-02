@@ -399,6 +399,52 @@ describe('MessagePartsRenderer', () => {
     expect(screen.getByTestId('mock-attachments').getAttribute('data-file-name')).toBe('doc.pdf')
   })
 
+  it('does not render duplicate user file attachments when composer file tokens are visible', () => {
+    renderParts(
+      [
+        {
+          type: 'text',
+          text: 'Open ',
+          providerMetadata: {
+            cherry: {
+              composer: {
+                version: 1,
+                tokens: [{ id: 'file:doc.pdf', kind: 'file', label: 'doc.pdf', index: 0, textOffset: 5 }]
+              }
+            }
+          }
+        } as unknown as CherryMessagePart,
+        {
+          type: 'file',
+          url: 'file:///doc.pdf',
+          mediaType: 'application/pdf',
+          filename: 'doc.pdf'
+        } as unknown as CherryMessagePart
+      ],
+      msg({ role: 'user' })
+    )
+
+    expect(document.querySelector('[data-composer-token-kind="file"]')).toBeInTheDocument()
+    expect(screen.queryByTestId('mock-attachments')).toBeNull()
+  })
+
+  it('keeps user file attachments when no composer file token is visible', () => {
+    renderParts(
+      [
+        { type: 'text', text: 'Open doc' } as unknown as CherryMessagePart,
+        {
+          type: 'file',
+          url: 'file:///doc.pdf',
+          mediaType: 'application/pdf',
+          filename: 'doc.pdf'
+        } as unknown as CherryMessagePart
+      ],
+      msg({ role: 'user' })
+    )
+
+    expect(screen.getByTestId('mock-attachments').getAttribute('data-file-name')).toBe('doc.pdf')
+  })
+
   // -- tool (single) --
   it('renders single dynamic-tool via MessageTools', () => {
     renderParts([
