@@ -309,7 +309,6 @@ function AgentEditDialogContent({
             agent={resource}
             form={form}
             activeToolTab={activeTab}
-            onOpenSettings={() => onOpenChange(false)}
             portalContainer={dialogContentElement}
           />
         </TabsContent>
@@ -589,13 +588,11 @@ function AgentToolsFields({
   agent,
   form,
   activeToolTab,
-  onOpenSettings,
   portalContainer
 }: {
   agent: AgentDetail
   form: UseFormReturn<AgentEditFormValues>
   activeToolTab: ToolTab
-  onOpenSettings: () => void
   portalContainer: HTMLElement | null
 }) {
   const { t } = useTranslation()
@@ -687,7 +684,6 @@ function AgentToolsFields({
           enabledIds={mcpIds}
           onToggle={(id, enabled) => (enabled ? enableMCP(id) : disableMCP(id))}
           emptyLabel={t('library.config.agent.section.tools.no_mcp_bound')}
-          onOpenSettings={onOpenSettings}
           portalContainer={portalContainer}
         />
       ) : null}

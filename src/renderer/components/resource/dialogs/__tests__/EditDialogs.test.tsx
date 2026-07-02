@@ -932,7 +932,7 @@ describe('edit dialogs', () => {
     expect(screen.getByText('Connected')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'MCP services Settings' }))
     expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/mcp/servers')
-    expect(onAssistantOpenChange).toHaveBeenCalledWith(false)
+    expect(onAssistantOpenChange).not.toHaveBeenCalled()
 
     cleanup()
     openSettingsTabMock.mockClear()
@@ -948,7 +948,7 @@ describe('edit dialogs', () => {
     expect(screen.getByText('Connected')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'MCP services Settings' }))
     expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/mcp/servers')
-    expect(onAgentOpenChange).toHaveBeenCalledWith(false)
+    expect(onAgentOpenChange).not.toHaveBeenCalled()
   })
 
   it('keeps popover content inside the dialog container', async () => {
