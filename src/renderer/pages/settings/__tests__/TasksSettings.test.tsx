@@ -71,6 +71,14 @@ vi.mock('@renderer/hooks/agent/useChannels', () => ({
   useChannels: () => ({ channels: [] })
 }))
 
+vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useQuery: () => ({ data: [] })
+}))
+
+vi.mock('@renderer/components/resource', () => ({
+  WorkspaceSelector: ({ trigger }: { trigger: React.ReactNode }) => <>{trigger}</>
+}))
+
 vi.mock('@renderer/hooks/agent/useTasks', () => ({
   useCreateTask: () => ({ createTask: taskMutationMocks.createTask }),
   useDeleteTask: () => ({ deleteTask: taskMutationMocks.deleteTask }),

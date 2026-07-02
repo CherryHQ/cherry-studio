@@ -52,7 +52,7 @@ describe('PresetProviderSeeder.run — insert-only behavior', () => {
 
   it('should insert all preset providers when DB is empty', async () => {
     const seed = new PresetProviderSeeder()
-    await seed.run(dbh.db)
+    seed.run(dbh.db)
 
     const rows = await dbh.db.select().from(userProviderTable)
     const ids = rows.map((r) => r.providerId)
@@ -66,7 +66,7 @@ describe('PresetProviderSeeder.run — insert-only behavior', () => {
 
   it('should seed special provider defaults without relying on providers.json endpoint metadata', async () => {
     const seed = new PresetProviderSeeder()
-    await seed.run(dbh.db)
+    seed.run(dbh.db)
 
     const rows = await dbh.db.select().from(userProviderTable)
     const azure = rows.find((r) => r.providerId === 'azure-openai')
@@ -87,7 +87,7 @@ describe('PresetProviderSeeder.run — insert-only behavior', () => {
       .values({ providerId: 'openai', name: 'User-renamed OpenAI', orderKey: generateOrderKeyBetween(null, null) })
 
     const seed = new PresetProviderSeeder()
-    await seed.run(dbh.db)
+    seed.run(dbh.db)
 
     const rows = await dbh.db.select().from(userProviderTable)
     const openai = rows.find((r) => r.providerId === 'openai')
@@ -111,7 +111,7 @@ describe('PresetProviderSeeder.run — insert-only behavior', () => {
     const before = await dbh.db.select().from(userProviderTable)
 
     const seed = new PresetProviderSeeder()
-    await seed.run(dbh.db)
+    seed.run(dbh.db)
 
     const after = await dbh.db.select().from(userProviderTable)
     expect(after).toHaveLength(before.length)

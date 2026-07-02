@@ -72,10 +72,10 @@ function normalizeModelId(providerId: string, modelId: string | null | undefined
  * by painting id and role. Returns a Map from painting id → { output, input }.
  * Paintings with no refs simply don't appear in the map.
  */
-async function loadFilesForPaintings(paintingIds: readonly string[]): Promise<Map<string, PaintingFiles>> {
+function loadFilesForPaintings(paintingIds: readonly string[]): Map<string, PaintingFiles> {
   if (paintingIds.length === 0) return new Map()
   const db = application.get('DbService').getDb()
-  const refs = await db
+  const refs = db
     .select({
       sourceId: paintingFileRefTable.sourceId,
       fileEntryId: paintingFileRefTable.fileEntryId,
@@ -83,6 +83,7 @@ async function loadFilesForPaintings(paintingIds: readonly string[]): Promise<Ma
     })
     .from(paintingFileRefTable)
     .where(inArray(paintingFileRefTable.sourceId, [...paintingIds]))
+    .all()
 
   const grouped = new Map<string, PaintingFiles>()
   for (const ref of refs) {
@@ -98,7 +99,7 @@ async function loadFilesForPaintings(paintingIds: readonly string[]): Promise<Ma
 }
 
 class PaintingService {
-  async list(query: ListPaintingsQuery): Promise<PaintingListResponse> {
+  list(query: ListPaintingsQuery): PaintingListResponse {
     const db = application.get('DbService').getDb()
     const conditions: SQL[] = []
     const filterConditions: SQL[] = []
@@ -118,20 +119,20 @@ class PaintingService {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
 
-    const [rows, countResult] = await Promise.all([
-      db
-        .select()
-        .from(paintingTable)
-        .where(whereClause)
-        .orderBy(...ordering.orderBy)
-        .limit(limit + 1),
-      db
-        .select({ count: sql<number>`count(*)` })
-        .from(paintingTable)
-        .where(filterConditions.length > 0 ? and(...filterConditions) : undefined)
-    ])
+    const rows = db
+      .select()
+      .from(paintingTable)
+      .where(whereClause)
+      .orderBy(...ordering.orderBy)
+      .limit(limit + 1)
+      .all()
+    const countResult = db
+      .select({ count: sql<number>`count(*)` })
+      .from(paintingTable)
+      .where(filterConditions.length > 0 ? and(...filterConditions) : undefined)
+      .all()
     const pageRows = rows.slice(0, limit)
-    const filesByPainting = await loadFilesForPaintings(pageRows.map((r) => r.id))
+    const filesByPainting = loadFilesForPaintings(pageRows.map((r) => r.id))
 
     return {
       items: pageRows.map((row) => rowToPainting(row, filesByPainting.get(row.id) ?? EMPTY_FILES)),
@@ -143,25 +144,25 @@ class PaintingService {
     }
   }
 
-  async getById(id: string): Promise<Painting> {
+  getById(id: string): Painting {
     const db = application.get('DbService').getDb()
-    const [row] = await db.select().from(paintingTable).where(eq(paintingTable.id, id)).limit(1)
+    const [row] = db.select().from(paintingTable).where(eq(paintingTable.id, id)).limit(1).all()
 
     if (!row) {
       throw DataApiErrorFactory.notFound('Painting', id)
     }
 
-    const filesByPainting = await loadFilesForPaintings([row.id])
+    const filesByPainting = loadFilesForPaintings([row.id])
     return rowToPainting(row, filesByPainting.get(row.id) ?? EMPTY_FILES)
   }
 
-  async create(dto: CreatePaintingDto): Promise<Painting> {
+  create(dto: CreatePaintingDto): Painting {
     const dbService = application.get('DbService')
 
-    const row = await withSqliteErrors(
+    const row = withSqliteErrors(
       () =>
-        dbService.withWriteTx(async (tx) => {
-          const inserted = await insertWithOrderKey(
+        dbService.withWriteTx((tx) => {
+          const inserted = insertWithOrderKey(
             tx,
             paintingTable,
             {
@@ -178,9 +179,9 @@ class PaintingService {
 
           const insertedRow = inserted as PaintingRow
           const now = Date.now()
-          const refRows = await buildPaintingRefRowsFiltered(tx, insertedRow.id, dto.files, now)
+          const refRows = buildPaintingRefRowsFiltered(tx, insertedRow.id, dto.files, now)
           if (refRows.length > 0) {
-            await tx.insert(paintingFileRefTable).values(refRows).onConflictDoNothing()
+            tx.insert(paintingFileRefTable).values(refRows).onConflictDoNothing().run()
           }
           return insertedRow
         }),
@@ -202,10 +203,10 @@ class PaintingService {
     return rowToPainting(row, dto.files)
   }
 
-  async update(id: string, dto: UpdatePaintingDto): Promise<Painting> {
+  update(id: string, dto: UpdatePaintingDto): Painting {
     const dbService = application.get('DbService')
     const db = dbService.getDb()
-    const [existing] = await db.select().from(paintingTable).where(eq(paintingTable.id, id)).limit(1)
+    const [existing] = db.select().from(paintingTable).where(eq(paintingTable.id, id)).limit(1).all()
     if (!existing) {
       throw DataApiErrorFactory.notFound('Painting', id)
     }
@@ -226,16 +227,16 @@ class PaintingService {
     const filesDirty = dto.files !== undefined
 
     if (Object.keys(updates).length === 0 && !filesDirty) {
-      const filesByPainting = await loadFilesForPaintings([existing.id])
+      const filesByPainting = loadFilesForPaintings([existing.id])
       return rowToPainting(existing, filesByPainting.get(existing.id) ?? EMPTY_FILES)
     }
 
-    const row = await withSqliteErrors(
+    const row = withSqliteErrors(
       () =>
-        dbService.withWriteTx(async (tx) => {
+        dbService.withWriteTx((tx) => {
           let target = existing
           if (Object.keys(updates).length > 0) {
-            const [updated] = await tx.update(paintingTable).set(updates).where(eq(paintingTable.id, id)).returning()
+            const [updated] = tx.update(paintingTable).set(updates).where(eq(paintingTable.id, id)).returning().all()
             if (!updated) {
               throw DataApiErrorFactory.notFound('Painting', id)
             }
@@ -248,10 +249,10 @@ class PaintingService {
             // semantics — `files` is the complete final state — and avoids
             // per-id diffing that would also need to honor the UNIQUE
             // (fileEntryId, sourceId, role) constraint.
-            await tx.delete(paintingFileRefTable).where(eq(paintingFileRefTable.sourceId, id))
-            const refRows = await buildPaintingRefRowsFiltered(tx, id, dto.files, Date.now())
+            tx.delete(paintingFileRefTable).where(eq(paintingFileRefTable.sourceId, id)).run()
+            const refRows = buildPaintingRefRowsFiltered(tx, id, dto.files, Date.now())
             if (refRows.length > 0) {
-              await tx.insert(paintingFileRefTable).values(refRows).onConflictDoNothing()
+              tx.insert(paintingFileRefTable).values(refRows).onConflictDoNothing().run()
             }
           }
           return target
@@ -263,31 +264,30 @@ class PaintingService {
     // On a files write, echo the requested `dto.files` for the same reason as
     // `create` (transition-era ids aren't in `file_entry` yet, so the persisted
     // refs would under-report). Otherwise hydrate from the stored refs.
-    const files = filesDirty ? dto.files! : ((await loadFilesForPaintings([row.id])).get(row.id) ?? EMPTY_FILES)
+    const files = filesDirty ? dto.files! : (loadFilesForPaintings([row.id]).get(row.id) ?? EMPTY_FILES)
     return rowToPainting(row, files)
   }
 
-  async delete(id: string): Promise<void> {
-    const dbService = application.get('DbService')
-    await this.getById(id)
+  delete(id: string): void {
+    this.getById(id)
     // painting_file_ref rows are removed by the FK cascade.
-    await withSqliteErrors(
-      () => dbService.withWriteTx(async (tx) => tx.delete(paintingTable).where(eq(paintingTable.id, id))),
+    withSqliteErrors(
+      () => application.get('DbService').getDb().delete(paintingTable).where(eq(paintingTable.id, id)).run(),
       defaultHandlersFor('Painting', id)
     )
     logger.info('Deleted painting', { id })
   }
 
-  async reorder(id: string, anchor: OrderRequest): Promise<void> {
+  reorder(id: string, anchor: OrderRequest): void {
     const dbService = application.get('DbService')
 
-    await dbService.withWriteTx(async (tx) => {
-      const [target] = await tx.select().from(paintingTable).where(eq(paintingTable.id, id)).limit(1)
+    dbService.withWriteTx((tx) => {
+      const [target] = tx.select().from(paintingTable).where(eq(paintingTable.id, id)).limit(1).all()
       if (!target) {
         throw DataApiErrorFactory.notFound('Painting', id)
       }
 
-      await applyMoves(tx, paintingTable, [{ id, anchor }], {
+      applyMoves(tx, paintingTable, [{ id, anchor }], {
         pkColumn: paintingTable.id
       })
 
@@ -297,20 +297,20 @@ class PaintingService {
     })
   }
 
-  async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
+  reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): void {
     if (moves.length === 0) return
 
     const dbService = application.get('DbService')
 
-    await dbService.withWriteTx(async (tx) => {
+    dbService.withWriteTx((tx) => {
       for (const move of moves) {
-        const [target] = await tx.select().from(paintingTable).where(eq(paintingTable.id, move.id)).limit(1)
+        const [target] = tx.select().from(paintingTable).where(eq(paintingTable.id, move.id)).limit(1).all()
         if (!target) {
           throw DataApiErrorFactory.notFound('Painting', move.id)
         }
       }
 
-      await applyMoves(tx, paintingTable, moves, {
+      applyMoves(tx, paintingTable, moves, {
         pkColumn: paintingTable.id
       })
 
@@ -336,22 +336,23 @@ class PaintingService {
  * the renderer cuts over to `window.api.file.createInternalEntry`. After
  * that cutover all ids should resolve and the filter becomes a no-op.
  */
-async function buildPaintingRefRowsFiltered(
+function buildPaintingRefRowsFiltered(
   tx: Pick<DbType, 'select'>,
   paintingId: string,
   files: PaintingFiles | undefined,
   now: number
-): Promise<Array<typeof paintingFileRefTable.$inferInsert>> {
+): Array<typeof paintingFileRefTable.$inferInsert> {
   if (!files) return []
   const requested = new Set<string>()
   for (const id of files.output) requested.add(id)
   for (const id of files.input) requested.add(id)
   if (requested.size === 0) return []
 
-  const existing = await tx
+  const existing = tx
     .select({ id: fileEntryTable.id })
     .from(fileEntryTable)
     .where(inArray(fileEntryTable.id, [...requested]))
+    .all()
   const existingIds = new Set(existing.map((r) => r.id))
 
   const rows: Array<typeof paintingFileRefTable.$inferInsert> = []

@@ -4,24 +4,24 @@ import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { type LibsqlDriver, openLibsqlIndexDriver } from '../LibsqlDriver'
-import { LibsqlVectorIndex } from '../LibsqlVectorIndex'
+import { type BetterSqlite3Driver, openBetterSqlite3IndexDriver } from '../BetterSqlite3Driver'
+import { BetterSqlite3VectorIndex } from '../BetterSqlite3VectorIndex'
 import { createKnowledgeIndexSchema } from '../schema'
 import { encodeVectorBlob } from '../vectorBlob'
 
-describe('LibsqlVectorIndex', () => {
+describe('BetterSqlite3VectorIndex', () => {
   let tempDir: string
-  let driver: LibsqlDriver
-  const vectorIndex = new LibsqlVectorIndex()
+  let driver: BetterSqlite3Driver
+  const vectorIndex = new BetterSqlite3VectorIndex()
 
-  beforeEach(async () => {
+  beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), 'cs-knowledge-vindex-'))
-    driver = await openLibsqlIndexDriver(join(tempDir, 'index.sqlite'))
-    await createKnowledgeIndexSchema(driver)
+    driver = openBetterSqlite3IndexDriver(join(tempDir, 'index.sqlite'))
+    createKnowledgeIndexSchema(driver)
   })
 
-  afterEach(async () => {
-    await driver.close()
+  afterEach(() => {
+    driver.close()
     rmSync(tempDir, { recursive: true, force: true })
   })
 
@@ -39,23 +39,23 @@ describe('LibsqlVectorIndex', () => {
       [vectorIndex.bindQueryVector(query), k]
     )
 
-  it('brute-force ranks nearest vectors first over a plain-BLOB column', async () => {
-    await insertEmbedding('near', [1, 0, 0])
-    await insertEmbedding('mid', [0.7, 0.7, 0])
-    await insertEmbedding('far', [0, 0, 1])
+  it('brute-force ranks nearest vectors first over a plain-BLOB column', () => {
+    insertEmbedding('near', [1, 0, 0])
+    insertEmbedding('mid', [0.7, 0.7, 0])
+    insertEmbedding('far', [0, 0, 1])
 
-    const result = await topK([1, 0, 0], 3)
+    const result = topK([1, 0, 0], 3)
 
     expect(result.rows.map((row) => row.h)).toEqual(['near', 'mid', 'far'])
     expect(result.rows[0].dist as number).toBeLessThan(0.001)
     expect(result.rows[2].dist as number).toBeGreaterThan(0.9)
   })
 
-  it('respects the LIMIT k bound', async () => {
-    await insertEmbedding('a', [1, 0, 0])
-    await insertEmbedding('b', [0, 1, 0])
+  it('respects the LIMIT k bound', () => {
+    insertEmbedding('a', [1, 0, 0])
+    insertEmbedding('b', [0, 1, 0])
 
-    const result = await topK([1, 0, 0], 1)
+    const result = topK([1, 0, 0], 1)
 
     expect(result.rows).toHaveLength(1)
     expect(result.rows[0].h).toBe('a')

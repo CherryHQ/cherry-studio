@@ -78,8 +78,8 @@ export class AgentsMigrator extends BaseMigrator {
       }
     }
 
-    this.sourceSchemaInfo = await reader.inspectSchema()
-    this.sourceCounts = await reader.countRows(this.sourceSchemaInfo)
+    this.sourceSchemaInfo = reader.inspectSchema()
+    this.sourceCounts = reader.countRows(this.sourceSchemaInfo)
 
     // Debug: Log schema detection results
     logger.info('AgentsMigrator prepare:', {
@@ -107,8 +107,8 @@ export class AgentsMigrator extends BaseMigrator {
     }
 
     if (getTotalAgentsRowCount(this.sourceCounts) === 0) {
-      this.sourceSchemaInfo = await reader.inspectSchema()
-      this.sourceCounts = await reader.countRows(this.sourceSchemaInfo)
+      this.sourceSchemaInfo = reader.inspectSchema()
+      this.sourceCounts = reader.countRows(this.sourceSchemaInfo)
     }
 
     // Debug logging: show source schema detection and counts
@@ -125,27 +125,27 @@ export class AgentsMigrator extends BaseMigrator {
       statements: statements.map((s, i) => ({ index: i, sql: s.substring(0, 200) }))
     })
 
-    // ATTACH/DETACH cannot live inside a transaction, and libsql creates a
-    // fresh connection per transaction() call — meaning agents_legacy would
-    // not be visible inside db.transaction(). Use manual BEGIN/COMMIT/ROLLBACK
-    // via db.run() so ATTACH, all INSERTs, and DETACH share the same connection.
+    // ATTACH/DETACH cannot run inside a transaction, so this work cannot use
+    // db.transaction() (which wraps the callback in BEGIN/COMMIT). Use manual
+    // BEGIN/COMMIT/ROLLBACK via db.run() so ATTACH, all INSERTs, and DETACH run
+    // in order on the single connection, with the inserts kept atomic.
     const importStatements = statements.slice(1, -1)
     let isAttached = false
     let committed = false
     let pendingError: unknown = null
 
     try {
-      await ctx.db.run(sql.raw(statements[0])) // ATTACH DATABASE …
+      ctx.db.run(sql.raw(statements[0])) // ATTACH DATABASE …
       isAttached = true
-      // Foreign keys are already OFF for the whole migration (MigrationDbService registers
-      // it via setPragma), so no per-call toggle here.
-      await ctx.db.run(sql.raw('BEGIN'))
+      // Foreign keys are already OFF for the whole migration (MigrationDbService sets the
+      // PRAGMA once on its single connection), so no per-call toggle here.
+      ctx.db.run(sql.raw('BEGIN'))
 
-      await stageSessionWorkspaces(ctx, this.sourceSchemaInfo)
+      stageSessionWorkspaces(ctx, this.sourceSchemaInfo)
 
       for (const statement of importStatements) {
         logger.debug('Executing SQL:', { sql: statement.substring(0, 200) })
-        await ctx.db.run(sql.raw(statement))
+        ctx.db.run(sql.raw(statement))
       }
 
       // Atomic post-INSERT reconciliation — runs INSIDE the BEGIN/COMMIT
@@ -157,14 +157,14 @@ export class AgentsMigrator extends BaseMigrator {
       //      so MUST run while ATTACH is live and BEFORE remap rewrites ids.
       //   2. importLegacySessionMessages — generates UUID message ids instead
       //      of preserving legacy integer row ids, and writes final `data.parts`.
-      await backfillAgentOrderKeys(ctx.db)
+      backfillAgentOrderKeys(ctx.db)
       await importLegacySessionMessages(ctx.db, this.sourceSchemaInfo, {
         db: ctx.db,
         filesDataDir: ctx.paths.filesDataDir
       })
       await migrateAgentMcps(ctx.db, ctx.sharedData.get('mcpServerIdMapping') as Map<string, string> | undefined)
 
-      await ctx.db.run(sql.raw('COMMIT'))
+      ctx.db.run(sql.raw('COMMIT'))
       committed = true
       logger.info('Agents migration transaction committed successfully')
 
@@ -184,11 +184,11 @@ export class AgentsMigrator extends BaseMigrator {
       // the whole migration, so violations only surface here (and at the engine's final
       // verifyForeignKeys). foreign_key_check is read-only and stays on this connection, so
       // it is safe inside the ATTACH window.
-      await this.assertOwnedForeignKeys(ctx.db, AGENT_TABLES)
+      this.assertOwnedForeignKeys(ctx.db, AGENT_TABLES)
     } catch (error) {
       if (!committed) {
         try {
-          await ctx.db.run(sql.raw('ROLLBACK'))
+          ctx.db.run(sql.raw('ROLLBACK'))
         } catch (rollbackError) {
           logger.error(
             'ROLLBACK failed after agents migration error — DB may be in an inconsistent state',
@@ -202,7 +202,7 @@ export class AgentsMigrator extends BaseMigrator {
 
     if (isAttached) {
       try {
-        await ctx.db.run(sql.raw('DETACH DATABASE agents_legacy'))
+        ctx.db.run(sql.raw('DETACH DATABASE agents_legacy'))
       } catch (detachError) {
         // DETACH must not mask the original error; log loudly so it surfaces in diagnostics.
         logger.error('Failed to DETACH agents_legacy database', detachError as Error)
@@ -234,8 +234,8 @@ export class AgentsMigrator extends BaseMigrator {
     }
 
     if (getTotalAgentsRowCount(this.sourceCounts) === 0) {
-      this.sourceSchemaInfo = await reader.inspectSchema()
-      this.sourceCounts = await reader.countRows(this.sourceSchemaInfo)
+      this.sourceSchemaInfo = reader.inspectSchema()
+      this.sourceCounts = reader.countRows(this.sourceSchemaInfo)
     }
 
     const errors: ValidationError[] = []
@@ -250,15 +250,13 @@ export class AgentsMigrator extends BaseMigrator {
       ok: boolean
     }> = []
 
-    await ctx.db.run(sql.raw(`ATTACH DATABASE ${quoteSqlitePath(dbPath)} AS agents_legacy`))
+    ctx.db.run(sql.raw(`ATTACH DATABASE ${quoteSqlitePath(dbPath)} AS agents_legacy`))
 
     try {
       // v1 has no workspace table. v2 agent_workspace rows are derived from
       // session/agent accessible paths, or a generated default path per session.
-      const derivedWorkspaces = await deriveSessionWorkspaces(ctx, this.sourceSchemaInfo)
-      const workspaceRows = await ctx.db.all<{ count: number }>(
-        sql.raw('SELECT COUNT(*) AS count FROM agent_workspace')
-      )
+      const derivedWorkspaces = deriveSessionWorkspaces(ctx, this.sourceSchemaInfo)
+      const workspaceRows = ctx.db.all<{ count: number }>(sql.raw('SELECT COUNT(*) AS count FROM agent_workspace'))
       const workspaceTargetCount = Number(workspaceRows[0]?.count ?? 0)
       const workspaceExpectedCount = derivedWorkspaces.workspaces.length
       targetCount += workspaceTargetCount
@@ -280,7 +278,7 @@ export class AgentsMigrator extends BaseMigrator {
         })
       }
 
-      const invalidSessionWorkspaceRows = await ctx.db.all<{ count: number }>(
+      const invalidSessionWorkspaceRows = ctx.db.all<{ count: number }>(
         sql.raw(
           `SELECT COUNT(*) AS count
            FROM agent_session
@@ -298,7 +296,7 @@ export class AgentsMigrator extends BaseMigrator {
         })
       }
 
-      const targetWorkspacePathCounts = await ctx.db.all<{ path: string; count: number }>(
+      const targetWorkspacePathCounts = ctx.db.all<{ path: string; count: number }>(
         sql.raw(
           `SELECT agent_workspace.path AS path, COUNT(agent_session.id) AS count
            FROM agent_session
@@ -329,14 +327,11 @@ export class AgentsMigrator extends BaseMigrator {
           continue
         }
 
-        // .get() with sql.raw() crashes on zero rows in drizzle-orm/libsql; use .all() instead.
-        const targetRows = await ctx.db.all<{ count: number }>(
-          sql.raw(`SELECT COUNT(*) AS count FROM ${spec.targetTable}`)
-        )
+        const targetRows = ctx.db.all<{ count: number }>(sql.raw(`SELECT COUNT(*) AS count FROM ${spec.targetTable}`))
         const tableTargetCount = Number(targetRows[0]?.count ?? 0)
         const tableSourceCount = this.sourceCounts[spec.sourceTable]
         const validateWhere = spec.validateWhereClause ?? spec.whereClause
-        const expectedRows = await ctx.db.all<{ count: number }>(
+        const expectedRows = ctx.db.all<{ count: number }>(
           sql.raw(
             `SELECT COUNT(*) AS count FROM agents_legacy.${spec.sourceTable}${validateWhere ? ` WHERE ${validateWhere}` : ''}`
           )
@@ -370,7 +365,7 @@ export class AgentsMigrator extends BaseMigrator {
       }
     } finally {
       try {
-        await ctx.db.run(sql.raw('DETACH DATABASE agents_legacy'))
+        ctx.db.run(sql.raw('DETACH DATABASE agents_legacy'))
       } catch (detachError) {
         logger.error('Failed to DETACH agents_legacy database during validation', detachError as Error)
       }
@@ -432,7 +427,7 @@ export class AgentsMigrator extends BaseMigrator {
     // second-pass inserts. Other type rows are untouched.
     await db.delete(jobScheduleTable).where(sql`${jobScheduleTable.type} = 'agent.task'`)
 
-    const v1Tasks = await db.all<V1ScheduledTaskRow>(
+    const v1Tasks = db.all<V1ScheduledTaskRow>(
       sql.raw(
         'SELECT id, agent_id, name, prompt, schedule_type, schedule_value, timeout_minutes, status ' +
           'FROM agents_legacy.scheduled_tasks ' +
@@ -510,7 +505,7 @@ export class AgentsMigrator extends BaseMigrator {
       migratedCount++
     }
 
-    const v1Subs = await db.all<V1ChannelTaskSubscription>(
+    const v1Subs = db.all<V1ChannelTaskSubscription>(
       sql.raw(
         'SELECT channel_id, task_id FROM agents_legacy.channel_task_subscriptions ' +
           'WHERE channel_id IN (SELECT id FROM agent_channel) ' +
@@ -630,10 +625,7 @@ function selectLegacyAgentColumn(
   return schemaInfo.agents.columns.has(column) ? `agents.${column} AS ${alias}` : `${fallbackExpr} AS ${alias}`
 }
 
-async function selectSessionWorkspaceSourceRows(
-  db: DbType,
-  schemaInfo: AgentsSchemaInfo
-): Promise<SessionWorkspaceSourceRow[]> {
+function selectSessionWorkspaceSourceRows(db: DbType, schemaInfo: AgentsSchemaInfo): SessionWorkspaceSourceRow[] {
   if (
     !schemaInfo.agents.exists ||
     !schemaInfo.sessions.exists ||
@@ -656,14 +648,14 @@ async function selectSessionWorkspaceSourceRows(
     selectLegacySessionColumn(schemaInfo, 'updated_at', 'updated_at', 'NULL')
   ]
 
-  return (await db.all(
+  return db.all(
     sql.raw(
       `SELECT ${columns.join(', ')}
        FROM agents_legacy.sessions AS sessions
        INNER JOIN agents_legacy.agents AS agents ON agents.id = sessions.agent_id
        ORDER BY ${sortOrder} ASC, ${createdAt} ASC, sessions.id ASC`
     )
-  )) as SessionWorkspaceSourceRow[]
+  ) as SessionWorkspaceSourceRow[]
 }
 
 function extractPrimaryWorkspacePath(rawPaths: string | null, source: 'session' | 'agent'): string | null {
@@ -728,11 +720,8 @@ function countExpectedSessionWorkspacePaths(derived: DerivedSessionWorkspaces): 
   return counts
 }
 
-async function deriveSessionWorkspaces(
-  ctx: MigrationContext,
-  schemaInfo: AgentsSchemaInfo
-): Promise<DerivedSessionWorkspaces> {
-  const rows = await selectSessionWorkspaceSourceRows(ctx.db, schemaInfo)
+function deriveSessionWorkspaces(ctx: MigrationContext, schemaInfo: AgentsSchemaInfo): DerivedSessionWorkspaces {
+  const rows = selectSessionWorkspaceSourceRows(ctx.db, schemaInfo)
   const byPath = new Map<string, DerivedWorkspace>()
   const mappings: DerivedSessionWorkspaceMap[] = []
   const now = Date.now()
@@ -768,22 +757,22 @@ async function deriveSessionWorkspaces(
   return { workspaces, mappings }
 }
 
-async function stageSessionWorkspaces(ctx: MigrationContext, schemaInfo: AgentsSchemaInfo): Promise<number> {
+function stageSessionWorkspaces(ctx: MigrationContext, schemaInfo: AgentsSchemaInfo): number {
   const db = ctx.db
-  await db.run(
+  db.run(
     sql.raw('CREATE TEMP TABLE IF NOT EXISTS session_workspace_map (session_id TEXT PRIMARY KEY, workspace_id TEXT)')
   )
-  await db.run(sql.raw('DELETE FROM session_workspace_map'))
+  db.run(sql.raw('DELETE FROM session_workspace_map'))
 
-  const derived = await deriveSessionWorkspaces(ctx, schemaInfo)
+  const derived = deriveSessionWorkspaces(ctx, schemaInfo)
   for (const workspace of derived.workspaces) {
-    await db.run(
+    db.run(
       sql`INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
           VALUES (${workspace.id}, ${workspace.name}, ${workspace.path}, ${workspace.type}, ${workspace.orderKey}, ${workspace.createdAt}, ${workspace.updatedAt})`
     )
   }
   for (const mapping of derived.mappings) {
-    await db.run(
+    db.run(
       sql`INSERT INTO session_workspace_map (session_id, workspace_id) VALUES (${mapping.sessionId}, ${mapping.workspaceId})`
     )
   }
@@ -845,15 +834,11 @@ async function normalizeLegacySessionMessage(
   }
 }
 
-async function resolveUserModelId(
-  db: DbType,
-  cache: Map<string, string | null>,
-  rawModelId: string | null
-): Promise<string | null> {
+function resolveUserModelId(db: DbType, cache: Map<string, string | null>, rawModelId: string | null): string | null {
   if (!rawModelId) return null
   if (cache.has(rawModelId)) return cache.get(rawModelId) ?? null
 
-  const rows = await db.all<{ id: string }>(
+  const rows = db.all<{ id: string }>(
     sql`SELECT id FROM user_model WHERE id = ${rawModelId} OR (provider_id || ':' || model_id) = ${rawModelId} LIMIT 1`
   )
   const resolved = rows[0]?.id ?? null
@@ -884,7 +869,7 @@ export async function importLegacySessionMessages(
     .filter(Boolean)
     .join(', ')
 
-  const rows = await db.all<LegacySessionMessageRow>(
+  const rows = db.all<LegacySessionMessageRow>(
     sql.raw(
       `SELECT ${selectColumns.join(', ')}
        FROM agents_legacy.session_messages
@@ -923,7 +908,7 @@ export async function importLegacySessionMessages(
       role: normalized.role,
       data: normalized.data,
       status: normalized.status,
-      modelId: await resolveUserModelId(db, modelCache, normalized.modelId),
+      modelId: resolveUserModelId(db, modelCache, normalized.modelId),
       runtimeResumeToken: row.agentSessionId,
       createdAt,
       updatedAt
@@ -945,7 +930,7 @@ export async function importLegacySessionMessages(
  * legacy agent id, which that step rewrites alongside `agent.id`.
  */
 export async function migrateAgentMcps(db: DbType, mcpServerIdMapping: Map<string, string> | undefined): Promise<void> {
-  const rows = await db.all<{ agentId: string; oldMcpId: string }>(
+  const rows = db.all<{ agentId: string; oldMcpId: string }>(
     sql.raw(
       `SELECT DISTINCT a.id AS agentId, je.value AS oldMcpId
        FROM agents_legacy.agents a, json_each(a.mcps) AS je
@@ -997,37 +982,37 @@ export async function migrateAgentMcps(db: DbType, mcpServerIdMapping: Map<strin
  *
  * Sessions are scoped per agentId.
  */
-export async function backfillAgentOrderKeys(db: DbType): Promise<void> {
+export function backfillAgentOrderKeys(db: DbType): void {
   type Row = { id: string }
 
-  const agents = (await db.all(
+  const agents = db.all(
     sql.raw(
       `SELECT a.id AS id FROM agent a
        LEFT JOIN agents_legacy.agents s ON a.id = s.id
        WHERE a.order_key = ''
        ORDER BY COALESCE(s.sort_order, 0) ASC, a.id ASC`
     )
-  )) as Row[]
+  ) as Row[]
   if (agents.length > 0) {
     for (const agent of assignOrderKeysInSequence(agents)) {
-      await db.run(sql`UPDATE agent SET order_key = ${agent.orderKey} WHERE id = ${agent.id}`)
+      db.run(sql`UPDATE agent SET order_key = ${agent.orderKey} WHERE id = ${agent.id}`)
     }
     logger.info(`Backfilled ${agents.length} agent order keys`)
   }
 
-  const sessions = (await db.all(
+  const sessions = db.all(
     sql.raw(
       `SELECT a.id AS id, a.agent_id AS agent_id FROM agent_session a
        LEFT JOIN agents_legacy.sessions s ON a.id = s.id
        WHERE a.order_key = ''
        ORDER BY a.agent_id ASC, COALESCE(s.sort_order, 0) ASC, a.id ASC`
     )
-  )) as Array<Row & { agent_id: string }>
+  ) as Array<Row & { agent_id: string }>
   if (sessions.length === 0) return
 
   const stampedSessions = assignOrderKeysByScope(sessions, (row) => row.agent_id)
   for (const session of stampedSessions) {
-    await db.run(sql`UPDATE agent_session SET order_key = ${session.orderKey} WHERE id = ${session.id}`)
+    db.run(sql`UPDATE agent_session SET order_key = ${session.orderKey} WHERE id = ${session.id}`)
   }
   const agentCount = new Set(sessions.map((row) => row.agent_id)).size
   logger.info(`Backfilled ${sessions.length} session order keys across ${agentCount} agents`)

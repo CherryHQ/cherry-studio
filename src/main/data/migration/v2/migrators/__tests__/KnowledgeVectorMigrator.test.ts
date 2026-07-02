@@ -1,19 +1,17 @@
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
 
-import { createClient } from '@libsql/client'
 import { stripOkfFrontmatter } from '@main/features/knowledge/utils/sources/okfFrontmatter'
 import { hashEmbeddingText } from '@main/features/knowledge/vectorstore/indexStore/hashing'
 import { KnowledgeIndexStore } from '@main/features/knowledge/vectorstore/indexStore/KnowledgeIndexStore'
-import * as libsqlDriverModule from '@main/features/knowledge/vectorstore/indexStore/LibsqlDriver'
 import { encodeVectorBlob } from '@main/features/knowledge/vectorstore/indexStore/vectorBlob'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE,
   KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
 } from '@shared/data/types/knowledge'
+import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { KnowledgeVectorSourceReader } from '../../utils/KnowledgeVectorSourceReader'
@@ -118,57 +116,48 @@ async function createLegacyVectorDb(
     vector: number[]
   }>
 ) {
-  const client = createClient({ url: pathToFileURL(dbPath).toString() })
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true })
+  const db = new Database(dbPath)
 
-  await client.execute(`
+  db.exec(`
     CREATE TABLE vectors (
       id TEXT PRIMARY KEY,
       pageContent TEXT UNIQUE,
       uniqueLoaderId TEXT NOT NULL,
       source TEXT NOT NULL,
-      vector F32_BLOB(2),
+      vector BLOB,
       metadata TEXT
     )
   `)
 
+  const insert = db.prepare(`
+    INSERT INTO vectors (id, pageContent, uniqueLoaderId, source, vector, metadata)
+    VALUES (?, ?, ?, ?, ?, '{}')
+  `)
   for (const row of rows) {
-    await client.execute({
-      sql: `
-        INSERT INTO vectors (id, pageContent, uniqueLoaderId, source, vector, metadata)
-        VALUES (?, ?, ?, ?, vector32(?), '{}')
-      `,
-      args: [row.id, row.pageContent, row.uniqueLoaderId, row.source, `[${row.vector.join(',')}]`]
-    })
+    // Raw little-endian float32 bytes — byte-identical to the legacy libsql F32_BLOB/vector32 payload.
+    insert.run(row.id, row.pageContent, row.uniqueLoaderId, row.source, Buffer.from(encodeVectorBlob(row.vector)))
   }
 
-  client.close()
+  db.close()
 }
 
 /** Read every table the migrator writes from a rebuilt store, ordered for assertions. */
 async function readStore(baseId: string) {
-  const client = createClient({ url: pathToFileURL(runtimeVectorStorePath(baseId)).toString() })
+  const db = new Database(runtimeVectorStorePath(baseId))
+  const all = (sql: string): Array<Record<string, unknown>> => db.prepare(sql).all() as Array<Record<string, unknown>>
   try {
-    const meta = (await client.execute('SELECT base_id FROM meta')).rows
-    const material = (
-      await client.execute(
-        'SELECT material_id, relative_path, current_content_hash FROM material ORDER BY relative_path'
-      )
-    ).rows
-    const content = (await client.execute('SELECT content_hash, text FROM content')).rows
-    const searchUnit = (
-      await client.execute(
-        'SELECT unit_id, material_id, unit_type, unit_index, char_start, char_end FROM search_unit ORDER BY material_id, unit_index'
-      )
-    ).rows
-    const searchText = (
-      await client.execute('SELECT target_type, kind, text, embedding_text_hash FROM search_text ORDER BY text')
-    ).rows
-    const embedding = (
-      await client.execute('SELECT embedding_text_hash, vector_blob, length(vector_blob) AS bytes FROM embedding')
-    ).rows
+    const meta = all('SELECT base_id FROM meta')
+    const material = all('SELECT material_id, relative_path, current_content_hash FROM material ORDER BY relative_path')
+    const content = all('SELECT content_hash, text FROM content')
+    const searchUnit = all(
+      'SELECT unit_id, material_id, unit_type, unit_index, char_start, char_end FROM search_unit ORDER BY material_id, unit_index'
+    )
+    const searchText = all('SELECT target_type, kind, text, embedding_text_hash FROM search_text ORDER BY text')
+    const embedding = all('SELECT embedding_text_hash, vector_blob, length(vector_blob) AS bytes FROM embedding')
     return { meta, material, content, searchUnit, searchText, embedding }
   } finally {
-    client.close()
+    db.close()
   }
 }
 
@@ -1119,9 +1108,7 @@ describe('KnowledgeVectorMigrator', () => {
       expect(store.embedding).toHaveLength(1)
       expect(store.embedding[0].embedding_text_hash).toBe(expectedHash)
       expect(Number(store.embedding[0].bytes)).toBe(2 * 4)
-      expect(Buffer.from(store.embedding[0].vector_blob as unknown as Uint8Array)).toEqual(
-        Buffer.from(encodeVectorBlob([1, 2]))
-      )
+      expect(Buffer.from(store.embedding[0].vector_blob as Uint8Array)).toEqual(Buffer.from(encodeVectorBlob([1, 2])))
 
       const validateResult = await migrator.validate(migrationCtx as any)
       expect(validateResult.success).toBe(true)
@@ -1577,49 +1564,6 @@ describe('KnowledgeVectorMigrator', () => {
       }
     })
 
-    it('opens the rebuild store with serializedSingleConnection so a refactor cannot silently drop it (P0-2b)', async () => {
-      // P0-2b eliminated the per-material libsql connection leak by opting the rebuild driver into
-      // single-connection mode. Assert the migrator actually passes the flag — without this a
-      // refactor that dropped the option would leak a handle on the just-built store that, on Windows,
-      // blocks the catch's removeIndexStoreFiles and the later base-dir deletion, yet stay green.
-      const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
-      await createLegacyVectorDb(dbPath, [
-        {
-          id: 'legacy-file-0',
-          pageContent: 'file chunk',
-          uniqueLoaderId: 'loader-file',
-          source: '/tmp/file-1.md',
-          vector: [1, 2]
-        }
-      ])
-      const migrationCtx = createMigrationCtx({
-        migratedBases: [createMigratedBase()],
-        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
-        reduxData: {
-          knowledge: {
-            bases: [
-              {
-                id: LEGACY_KNOWLEDGE_BASE_ID,
-                name: 'Base 1',
-                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
-              }
-            ]
-          }
-        }
-      })
-
-      const migrator = new KnowledgeVectorMigrator() as any
-      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
-
-      // Spy after prepare (which never opens a driver); the default spy calls through, so the real
-      // rebuild still runs.
-      const openDriverSpy = vi.spyOn(libsqlDriverModule, 'openLibsqlIndexDriver')
-      expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
-
-      const rebuildOpen = openDriverSpy.mock.calls.find(([, options]) => options?.serializedSingleConnection === true)
-      expect(rebuildOpen).toBeDefined()
-    })
-
     it('scopes the directory-child loader remap per base so a shared loader id never clobbers across bases', async () => {
       // v1 LocalPathLoader ids are content/path hashes with no base component, so the SAME loader id
       // can legitimately appear under two different bases. The remap must be keyed by migrated base
@@ -1828,6 +1772,7 @@ describe('KnowledgeVectorMigrator', () => {
           material: { relativePath: itemId },
           content: { text },
           units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: text.length }],
+          usesEmbeddings: true,
           embeddings: [{ embeddingTextHash: hashEmbeddingText(text), vector }]
         }
       })
@@ -1882,6 +1827,7 @@ describe('KnowledgeVectorMigrator', () => {
                 material: { relativePath: 'item-0' },
                 content: { text: 'doc' },
                 units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: 3 }],
+                usesEmbeddings: true,
                 embeddings: [{ embeddingTextHash: hashEmbeddingText('doc'), vector: [1, 2] }]
               }
             }
@@ -2017,9 +1963,9 @@ describe('KnowledgeVectorMigrator', () => {
 
     it('builds the store in place at the runtime index.sqlite — no temp file, no rename', async () => {
       // Direct-build: the store is written straight to its runtime path instead of being built in a
-      // temp file and renamed on. The rename was the migration's most fragile step on Windows — libsql
-      // opens index.sqlite in WAL mode, which keeps the file locked past close() (oven-sh/bun#25964),
-      // so MoveFileEx threw EBUSY. Removing the move removes the failure mode. Prove the store lands
+      // temp file and renamed on. The rename was the migration's most fragile step on Windows — a SQLite
+      // file opened in WAL mode can stay locked past close(), so MoveFileEx threw EBUSY. Removing the
+      // move removes the failure mode. Prove the store lands
       // fully at the runtime path, no temp file is left, and fs.rename is never called.
       const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
       await createLegacyVectorDb(dbPath, [
@@ -2293,9 +2239,9 @@ describe('KnowledgeVectorMigrator', () => {
       expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
 
       // Corrupt the store: drop the embedding the unit depends on.
-      const client = createClient({ url: pathToFileURL(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID)).toString() })
-      await client.execute('DELETE FROM embedding')
-      client.close()
+      const db = new Database(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID))
+      db.exec('DELETE FROM embedding')
+      db.close()
 
       const validateResult = await migrator.validate(migrationCtx as any)
       expect(validateResult.success).toBe(false)

@@ -78,7 +78,7 @@ Round 1 job types:
 
 ## Mutation And Crash Semantics
 
-Same-base Knowledge mutations must go through `KnowledgeLockManager`. Main SQLite writes must still go through `DbService.withWriteTx`; the lock manager is not a replacement for the process-wide SQLite write mutex.
+Same-base Knowledge mutations must go through `KnowledgeLockManager`. Main SQLite writes still use a synchronous write transaction (`DbService.withWriteTx`, or an equivalent `db.transaction()`); the lock manager is not a replacement for that write transaction.
 
 Crash safety comes from durable jobs, durable item states, JobManager recovery, and idempotent cleanup. The in-memory mutation lock only serializes concurrent work in the current process.
 

@@ -192,8 +192,8 @@ export class TranslateMigrator extends BaseMigrator {
         }
 
         if (newLanguageRecords.length > 0) {
-          await db.transaction(async (tx) => {
-            await tx.insert(translateLanguageTable).values(newLanguageRecords)
+          db.transaction((tx) => {
+            tx.insert(translateLanguageTable).values(newLanguageRecords).run()
           })
           processedCount += newLanguageRecords.length
         }
@@ -211,7 +211,7 @@ export class TranslateMigrator extends BaseMigrator {
       }
 
       // ── Seed builtin languages (history FK requires them to exist) ──
-      await new TranslateLanguageSeeder().run(db)
+      new TranslateLanguageSeeder().run(db)
 
       // ── Migrate translate history (batched) ──
       if (this.historySourceCount > 0) {
@@ -231,10 +231,10 @@ export class TranslateMigrator extends BaseMigrator {
           newHistoryRecords.push(transformHistoryRecord(old, validLangCodes))
         }
 
-        await db.transaction(async (tx) => {
+        db.transaction((tx) => {
           for (let i = 0; i < newHistoryRecords.length; i += HISTORY_BATCH_SIZE) {
             const batch = newHistoryRecords.slice(i, i + HISTORY_BATCH_SIZE)
-            await tx.insert(translateHistoryTable).values(batch)
+            tx.insert(translateHistoryTable).values(batch).run()
 
             const historyProcessed = Math.min(i + HISTORY_BATCH_SIZE, newHistoryRecords.length)
             const progress = Math.round(((processedCount + historyProcessed) / totalCount) * 100)
@@ -273,7 +273,7 @@ export class TranslateMigrator extends BaseMigrator {
 
     try {
       // Validate translate history
-      const historyResult = await db.select({ count: sql<number>`count(*)` }).from(translateHistoryTable).get()
+      const historyResult = db.select({ count: sql<number>`count(*)` }).from(translateHistoryTable).get()
       const historyTargetCount = historyResult?.count ?? 0
       const expectedHistoryCount = this.historySourceCount - this.historySkippedCount
 
@@ -285,7 +285,7 @@ export class TranslateMigrator extends BaseMigrator {
       }
 
       // Validate translate languages
-      const languageResult = await db.select({ count: sql<number>`count(*)` }).from(translateLanguageTable).get()
+      const languageResult = db.select({ count: sql<number>`count(*)` }).from(translateLanguageTable).get()
       const languageTargetCount = languageResult?.count ?? 0
       const expectedLanguageCount = this.languageSourceCount - this.languageSkippedCount
 
