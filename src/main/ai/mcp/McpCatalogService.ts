@@ -16,7 +16,7 @@ const mcpToolsCacheKey = (serverId: string): SharedCacheKey => `mcp.tools.${serv
 const PREWARM_CONCURRENCY = 3
 
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
-type ListToolsOptions = { includeDisabled?: boolean }
+type ListToolsOptions = { includeDisabled?: boolean; prewarmGeneration?: number }
 
 /** JSON-Schema validator for MCP tool input/output schemas. `loose()` keeps
  *  protocol extensions while normalizing missing fields for renderer reads. */
@@ -165,9 +165,17 @@ export class McpCatalogService extends BaseService implements ProfileActivatable
   }
 
   private async listToolsForServer(server: McpServer, options: ListToolsOptions = {}): Promise<McpTool[]> {
+    // A prewarm batch can be parked on a slow server across a profile switch; if this
+    // generation was superseded, skip the shared-cache/status writes so a stale batch
+    // does not re-populate mcp.tools/mcp.status after onProfileDeactivate cleared them.
+    const superseded = (): boolean =>
+      options.prewarmGeneration !== undefined && options.prewarmGeneration !== this.prewarmGeneration
+
     if (!server.isActive) {
-      this.writeToolsCache(server.id, [])
-      this.runtimeService().setServerStatus(server.id, 'disabled')
+      if (!superseded()) {
+        this.writeToolsCache(server.id, [])
+        this.runtimeService().setServerStatus(server.id, 'disabled')
+      }
       return []
     }
 
@@ -187,12 +195,16 @@ export class McpCatalogService extends BaseService implements ProfileActivatable
 
     try {
       const tools = await withSpanFunc(`${server.name}.ListTool`, 'MCP', listFunc, [server])
-      this.writeToolsCache(server.id, tools)
-      this.runtimeService().setServerStatus(server.id, 'connected')
+      if (!superseded()) {
+        this.writeToolsCache(server.id, tools)
+        this.runtimeService().setServerStatus(server.id, 'connected')
+      }
       return options.includeDisabled ? tools : this.filterEnabledTools(server, tools)
     } catch (error) {
-      this.writeToolsCache(server.id, [])
-      this.runtimeService().setServerStatus(server.id, 'error', error)
+      if (!superseded()) {
+        this.writeToolsCache(server.id, [])
+        this.runtimeService().setServerStatus(server.id, 'error', error)
+      }
       throw error
     }
   }
@@ -249,7 +261,9 @@ export class McpCatalogService extends BaseService implements ProfileActivatable
         if (this.prewarmGeneration !== generation || this.isStopped || this.isDestroyed) return
         const batch = servers.slice(index, index + PREWARM_CONCURRENCY)
         const results = await Promise.allSettled(
-          batch.map((server) => this.listToolsForServer(server, { includeDisabled: true }))
+          batch.map((server) =>
+            this.listToolsForServer(server, { includeDisabled: true, prewarmGeneration: generation })
+          )
         )
         results.forEach((result, resultIndex) => {
           if (result.status === 'fulfilled') return
