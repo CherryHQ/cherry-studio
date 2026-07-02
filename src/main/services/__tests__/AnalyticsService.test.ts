@@ -107,4 +107,20 @@ describe('AnalyticsService reconcile', () => {
     await vi.waitFor(() => expect(service.isActivated).toBe(false))
     expect(MockAnalyticsClient).toHaveBeenCalledTimes(1) // no spurious re-activation
   })
+
+  it('tracks app launch only once when analytics is re-enabled', async () => {
+    const service = new AnalyticsService()
+    await service._doInit()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+    expect(mockTrackAppLaunch).toHaveBeenCalledTimes(1)
+
+    captured.prefHandler!(false)
+    await vi.waitFor(() => expect(mockDestroy).toHaveBeenCalledTimes(1))
+    destroyResolvers[0]()
+    await vi.waitFor(() => expect(service.isActivated).toBe(false))
+
+    captured.prefHandler!(true)
+    await vi.waitFor(() => expect(MockAnalyticsClient).toHaveBeenCalledTimes(2))
+    expect(mockTrackAppLaunch).toHaveBeenCalledTimes(1)
+  })
 })
