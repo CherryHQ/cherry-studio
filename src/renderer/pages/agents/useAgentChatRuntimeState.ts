@@ -1,4 +1,3 @@
-import { loggerService } from '@logger'
 import {
   isAskUserQuestionToolName,
   parseAskUserQuestionToolInput
@@ -24,8 +23,6 @@ import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import { isToolUIPart } from 'ai'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
-
-const logger = loggerService.withContext('useAgentChatRuntimeState')
 
 type AskUserQuestionApprovalPart = CherryMessagePart & {
   type?: string

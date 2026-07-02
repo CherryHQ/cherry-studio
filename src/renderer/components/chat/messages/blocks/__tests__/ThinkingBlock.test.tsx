@@ -14,9 +14,6 @@ type ThinkingBlockFixture = {
   id: string
   content: string
   status: 'success' | 'streaming'
-  thinkingMs: number
-  thoughtsTokens?: number
-  startedAt?: number
 }
 
 vi.mock('../../MessageListProvider', () => ({
@@ -77,22 +74,11 @@ describe('ThinkingBlock', () => {
     id: 'test-thinking-block-1',
     status: 'success',
     content: 'I need to think about this carefully...',
-    thinkingMs: 5000,
-    startedAt: undefined,
     ...overrides
   })
 
   const renderThinkingBlock = (block: ThinkingBlockFixture) => {
-    return render(
-      <ThinkingBlock
-        id={block.id}
-        content={block.content}
-        isStreaming={block.status === 'streaming'}
-        thinkingMs={block.thinkingMs}
-        thoughtsTokens={block.thoughtsTokens}
-        startedAt={block.startedAt}
-      />
-    )
+    return render(<ThinkingBlock id={block.id} content={block.content} isStreaming={block.status === 'streaming'} />)
   }
 
   const getThinkingContent = () => screen.queryByText(/markdown:/i)
@@ -140,8 +126,6 @@ describe('ThinkingBlock', () => {
           id={completedBlock.id}
           content={completedBlock.content}
           isStreaming={completedBlock.status === 'streaming'}
-          thinkingMs={completedBlock.thinkingMs}
-          thoughtsTokens={completedBlock.thoughtsTokens}
         />
       )
 
@@ -152,10 +136,7 @@ describe('ThinkingBlock', () => {
   describe('thinking status display', () => {
     it('should display status messages without elapsed seconds', () => {
       // Completed thinking
-      const completedBlock = createThinkingBlock({
-        thinkingMs: 3500,
-        status: 'success'
-      })
+      const completedBlock = createThinkingBlock({ status: 'success' })
       const { unmount } = renderThinkingBlock(completedBlock)
 
       const timeText = getThinkingTimeText()
@@ -164,10 +145,7 @@ describe('ThinkingBlock', () => {
       unmount()
 
       // Active thinking
-      const thinkingBlock = createThinkingBlock({
-        thinkingMs: 1000,
-        status: 'streaming'
-      })
+      const thinkingBlock = createThinkingBlock({ status: 'streaming' })
       renderThinkingBlock(thinkingBlock)
 
       const activeTimeText = getThinkingTimeText()
@@ -176,24 +154,13 @@ describe('ThinkingBlock', () => {
     })
 
     it('should not display live estimated thinking tokens', () => {
-      const thinkingBlock = createThinkingBlock({
-        status: 'streaming',
-        thoughtsTokens: 1234
-      })
+      const thinkingBlock = createThinkingBlock({ status: 'streaming' })
       const { rerender } = renderThinkingBlock(thinkingBlock)
 
       expect(getThinkingTimeText()).toHaveTextContent('Thinking')
       expect(getThinkingTimeText()).not.toHaveTextContent('~1,234 tokens')
 
-      rerender(
-        <ThinkingBlock
-          id={thinkingBlock.id}
-          content={thinkingBlock.content}
-          isStreaming
-          thinkingMs={thinkingBlock.thinkingMs}
-          thoughtsTokens={2048}
-        />
-      )
+      rerender(<ThinkingBlock id={thinkingBlock.id} content={thinkingBlock.content} isStreaming />)
 
       expect(getThinkingTimeText()).not.toHaveTextContent('~2,048 tokens')
     })
@@ -233,7 +200,6 @@ describe('ThinkingBlock', () => {
           id={completedBlock.id}
           content={completedBlock.content}
           isStreaming={completedBlock.status === 'streaming'}
-          thinkingMs={completedBlock.thinkingMs}
         />
       )
 
@@ -299,14 +265,7 @@ describe('ThinkingBlock', () => {
       expect(screen.getByText('Markdown: Original thought')).toBeInTheDocument()
 
       const block2 = createThinkingBlock({ content: 'Updated thought' })
-      rerender(
-        <ThinkingBlock
-          id={block2.id}
-          content={block2.content}
-          isStreaming={block2.status === 'streaming'}
-          thinkingMs={block2.thinkingMs}
-        />
-      )
+      rerender(<ThinkingBlock id={block2.id} content={block2.content} isStreaming={block2.status === 'streaming'} />)
 
       expect(screen.getByText('Markdown: Updated thought')).toBeInTheDocument()
       expect(screen.queryByText('Markdown: Original thought')).not.toBeInTheDocument()
@@ -319,23 +278,9 @@ describe('ThinkingBlock', () => {
       // Rapidly toggle between states
       for (let i = 0; i < 3; i++) {
         const streamingBlock = createThinkingBlock({ status: 'streaming' })
-        rerender(
-          <ThinkingBlock
-            id={streamingBlock.id}
-            content={streamingBlock.content}
-            isStreaming={true}
-            thinkingMs={streamingBlock.thinkingMs}
-          />
-        )
+        rerender(<ThinkingBlock id={streamingBlock.id} content={streamingBlock.content} isStreaming={true} />)
         const successBlock = createThinkingBlock({ status: 'success' })
-        rerender(
-          <ThinkingBlock
-            id={successBlock.id}
-            content={successBlock.content}
-            isStreaming={false}
-            thinkingMs={successBlock.thinkingMs}
-          />
-        )
+        rerender(<ThinkingBlock id={successBlock.id} content={successBlock.content} isStreaming={false} />)
       }
 
       // Should still render correctly

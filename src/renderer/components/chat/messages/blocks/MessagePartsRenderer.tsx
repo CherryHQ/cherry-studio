@@ -450,24 +450,12 @@ function renderPart(
   switch (partType) {
     case 'reasoning': {
       const reasoningPart = part
-      const cherryMeta = getCherryMeta(part)
-      const metadataBlock =
-        'providerMetadata' in part && part.providerMetadata
-          ? ((part.providerMetadata as Record<string, unknown>).metadata as Record<string, unknown> | undefined)
-          : undefined
-      const thinkingMs =
-        cherryMeta?.thinkingMs ??
-        (typeof metadataBlock?.thinking_millsec === 'number' ? metadataBlock.thinking_millsec : 0)
-      const startedAt = cherryMeta?.startedAt
       return (
         <ThinkingBlock
           key={partId}
           id={partId}
           content={reasoningPart.text || ''}
           isStreaming={reasoningPart.state === 'streaming'}
-          thinkingMs={thinkingMs}
-          thoughtsTokens={message.stats?.thoughtsTokens}
-          startedAt={startedAt}
         />
       )
     }
@@ -1037,10 +1025,18 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
   // the fold, or all parts when there's no fold (no tools / collapse disabled).
   const visibleEntries = toolHistoryGroup?.resultEntries ?? partEntries
   const grouped = useMemo(() => (visibleEntries.length === 0 ? [] : groupPartEntries(visibleEntries)), [visibleEntries])
+  const renderedEntries = useMemo(
+    () => grouped.map((entry) => renderGroupedEntry(entry, message, isStreaming, isTranslationOverlayActive)),
+    [grouped, isStreaming, isTranslationOverlayActive, message]
+  )
+  const hasRenderedEntries = renderedEntries.some(Boolean)
 
   // No parts to render — normal for user messages (content is in message text, not parts)
   // But if the message is processing (pending/streaming), show the loading placeholder
-  if (partEntries.length === 0) {
+  if (
+    partEntries.length === 0 ||
+    (isProcessing && !toolHistoryGroup && !hasRenderedEntries && reportArtifactToolResponses.length === 0)
+  ) {
     if (isProcessing) {
       return (
         <AnimatePresence mode="sync">
@@ -1071,7 +1067,7 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
           />
         </AnimatedBlockWrapper>
       )}
-      {grouped.map((entry) => renderGroupedEntry(entry, message, isStreaming, isTranslationOverlayActive))}
+      {renderedEntries}
       {reportArtifactToolResponses.length > 0 && (
         <AnimatedBlockWrapper key={`report-artifacts-${message.id}`} enableAnimation={isStreaming} animation="fade">
           <MessageReportArtifacts toolResponses={reportArtifactToolResponses} />

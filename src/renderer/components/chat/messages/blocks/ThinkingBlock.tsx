@@ -14,12 +14,6 @@ interface Props {
   content: string
   /** Whether this block is currently streaming */
   isStreaming: boolean
-  /** Thinking duration in milliseconds */
-  thinkingMs: number
-  /** Live estimated reasoning tokens for the current thinking block. */
-  thoughtsTokens?: number
-  /** Thinking start timestamp in epoch ms */
-  startedAt?: number
 }
 
 const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming }) => {

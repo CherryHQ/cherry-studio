@@ -157,18 +157,11 @@ vi.mock('../ErrorBlock', () => ({
 
 vi.mock('../ThinkingBlock', () => ({
   __esModule: true,
-  default: function ThinkingBlockMock({ content, thinkingMs, thoughtsTokens }: any) {
+  default: function ThinkingBlockMock({ content }: any) {
     React.useEffect(() => {
       mockThinkingBlockMounted()
     }, [])
-    return (
-      <div
-        data-testid="mock-thinking-block"
-        data-thinking-ms={String(thinkingMs)}
-        data-thoughts-tokens={String(thoughtsTokens ?? '')}>
-        {content}
-      </div>
-    )
+    return <div data-testid="mock-thinking-block">{content}</div>
   }
 }))
 
@@ -317,6 +310,18 @@ describe('MessagePartsRenderer', () => {
 
     expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-status', 'preparing')
     expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-created-at', '2026-01-01T00:00:00Z')
+  })
+
+  it('shows the placeholder while processing only hidden parts', () => {
+    mockIsActiveTurnTarget.mockReturnValue(true)
+
+    renderParts(
+      [{ type: 'step-start' }, { type: 'source-url', url: 'https://example.com' }] as unknown as CherryMessagePart[],
+      msg({ status: 'pending' })
+    )
+
+    expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-status', 'preparing')
+    expect(screen.queryByTestId('mock-markdown')).toBeNull()
   })
 
   it('does not show a duplicate thinking placeholder when reasoning is the latest activity', () => {
@@ -1313,17 +1318,6 @@ describe('MessagePartsRenderer', () => {
     expect(wrappers[1]).toHaveClass('message-thought-wrapper')
   })
 
-  it('passes message reasoning token estimates to reasoning blocks', () => {
-    renderParts(
-      [{ type: 'reasoning', text: 'live thought', state: 'streaming' } as unknown as CherryMessagePart],
-      msg({ status: 'pending', stats: { thoughtsTokens: 1234 } })
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Reasoning content' }))
-
-    expect(screen.getByTestId('mock-thinking-block')).toHaveAttribute('data-thoughts-tokens', '1234')
-  })
-
   it('keeps reasoning blocks mounted when a pending message settles', () => {
     mockTopicStreamState.isPending = true
 
@@ -1331,8 +1325,7 @@ describe('MessagePartsRenderer', () => {
       {
         type: 'reasoning',
         text: 'steady thought',
-        state: 'done',
-        providerMetadata: { cherry: { thinkingMs: 3100 } }
+        state: 'done'
       },
       { type: 'text', text: 'answer still streaming' }
     ] as unknown as CherryMessagePart[]
@@ -1342,7 +1335,6 @@ describe('MessagePartsRenderer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reasoning content' }))
 
     const initialNode = screen.getByTestId('mock-thinking-block')
-    expect(initialNode).toHaveAttribute('data-thinking-ms', '3100')
     expect(mockThinkingBlockMounted).toHaveBeenCalledTimes(1)
 
     mockTopicStreamState.isPending = false
@@ -1375,7 +1367,6 @@ describe('MessagePartsRenderer', () => {
     )
 
     expect(screen.getByTestId('mock-thinking-block')).toBe(initialNode)
-    expect(screen.getByTestId('mock-thinking-block')).toHaveAttribute('data-thinking-ms', '3100')
     expect(mockThinkingBlockMounted).toHaveBeenCalledTimes(1)
   })
 
