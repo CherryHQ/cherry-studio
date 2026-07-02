@@ -1,5 +1,5 @@
-import { isWin } from '@renderer/config/constant'
 import { useIpcOn } from '@renderer/ipc/useIpcOn'
+import { isWin } from '@renderer/utils/platform'
 import { useTranslation } from 'react-i18next'
 
 export function useFullScreenNotice() {

@@ -50,7 +50,8 @@ describe('usePullReconcileSubmit', () => {
     })
     window.toast = {
       success: vi.fn(),
-      error: vi.fn()
+      error: vi.fn(),
+      warning: vi.fn()
     } as unknown as typeof window.toast
   })
 
@@ -202,5 +203,24 @@ describe('usePullReconcileSubmit', () => {
     expect(onApplyCommitted).not.toHaveBeenCalled()
     expect(window.toast.success).not.toHaveBeenCalled()
     expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.sync_pull_failed')
+  })
+
+  it('shows a warning toast when models are skipped because they are in use as defaults', async () => {
+    // Models in toRemove that still appear in the reconciled response were
+    // skipped by the server because they are in use as user defaults.
+    reconcileTriggerMock.mockResolvedValueOnce([{ id: 'cherryin::default-model' }])
+    const onApplyCommitted = vi.fn()
+    const { result } = renderHook(() => usePullReconcileSubmit({ providerId: 'cherryin', onApplyCommitted }))
+
+    await act(async () => {
+      await result.current.confirmApply({
+        toAdd: [],
+        toRemove: ['cherryin::default-model', 'cherryin::other-model']
+      })
+    })
+
+    expect(onApplyCommitted).toHaveBeenCalled()
+    expect(window.toast.success).not.toHaveBeenCalled()
+    expect(window.toast.warning).toHaveBeenCalledWith('settings.models.manage.sync_apply_default_in_use')
   })
 })

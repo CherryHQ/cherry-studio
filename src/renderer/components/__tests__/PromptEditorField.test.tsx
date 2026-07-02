@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { type ComponentProps, type ReactNode, useState } from 'react'
+import { type ComponentProps, type ReactNode, type Ref, useImperativeHandle, useRef, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import PromptEditorField from '../PromptEditorField'
@@ -25,7 +25,7 @@ vi.mock('@data/hooks/usePreference', () => ({
   usePreference: () => [14]
 }))
 
-vi.mock('@renderer/context/CodeStyleProvider', () => ({
+vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({
     activeCmTheme: 'light'
   })
@@ -41,20 +41,34 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
       </div>
     ),
     CodeEditor: ({
+      ref,
       value,
       onChange,
       placeholder
     }: ComponentProps<'textarea'> & {
+      ref?: Ref<{ focus: () => void }>
       value: string
       onChange?: (value: string) => void
-    }) => (
-      <textarea
-        aria-label="Prompt editor"
-        placeholder={placeholder}
-        value={value}
-        onChange={(event) => onChange?.(event.currentTarget.value)}
-      />
-    )
+    }) => {
+      const textareaRef = useRef<HTMLTextAreaElement>(null)
+      useImperativeHandle(ref, () => ({
+        focus: () => textareaRef.current?.focus()
+      }))
+      return (
+        <div className="cm-editor">
+          <div className="cm-gutters" data-testid="gutter" />
+          <div className="cm-content">
+            <textarea
+              ref={textareaRef}
+              aria-label="Prompt editor"
+              placeholder={placeholder}
+              value={value}
+              onChange={(event) => onChange?.(event.currentTarget.value)}
+            />
+          </div>
+        </div>
+      )
+    }
   }
 })
 
@@ -84,5 +98,21 @@ describe('PromptEditorField', () => {
 
     expect(onSubmit).not.toHaveBeenCalled()
     expect(screen.getByText('Updated prompt')).toBeInTheDocument()
+  })
+
+  it('focuses the editor when clicking the empty area around the content', () => {
+    function Harness() {
+      const [value, setValue] = useState('')
+      return <PromptEditorField label={<span>Prompt</span>} value={value} onChange={setValue} />
+    }
+
+    render(<Harness />)
+
+    const editor = screen.getByLabelText('Prompt editor')
+    expect(editor).not.toHaveFocus()
+
+    fireEvent.mouseDown(screen.getByTestId('gutter'))
+
+    expect(editor).toHaveFocus()
   })
 })

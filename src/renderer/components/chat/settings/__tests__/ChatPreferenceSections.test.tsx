@@ -7,6 +7,8 @@ import ChatPreferenceSections from '../ChatPreferenceSections'
 const mocks = vi.hoisted(() => ({
   setPreference: vi.fn(),
   preferenceValues: {
+    'topic.layout': 'modern',
+    'agent.layout': 'classic',
     'chat.message.style': 'plain',
     'chat.message.font_size': 14,
     'chat.input.send_message_shortcut': 'Enter',
@@ -53,11 +55,11 @@ vi.mock('@data/hooks/usePreference', () => ({
   ]
 }))
 
-vi.mock('@renderer/context/ThemeProvider', () => ({
+vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'light' })
 }))
 
-vi.mock('@renderer/context/CodeStyleProvider', () => ({
+vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({ themeNames: ['auto', 'github'] })
 }))
 

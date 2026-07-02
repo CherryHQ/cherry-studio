@@ -22,15 +22,15 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
-import type { ExportableMessage } from '@renderer/types/messageExport'
-import type { Topic } from '@renderer/types/topic'
 import {
   exportMarkdownToObsidian,
   messagesToMarkdown,
   messageToMarkdown,
   messageToMarkdownWithReasoning,
   topicToMarkdown
-} from '@renderer/utils/export'
+} from '@renderer/services/ExportService'
+import type { ExportableMessage } from '@renderer/types/messageExport'
+import type { Topic } from '@renderer/types/topic'
 import { XIcon } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 
@@ -224,8 +224,6 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
         const vaultToUse = defaultObsidianVault || vaultsData[0]?.name
         if (vaultToUse) {
           setSelectedVault(vaultToUse)
-          const filesData = await window.api.obsidian.getFiles(vaultToUse)
-          setFiles(filesData)
         }
       } catch (error) {
         logger.error('获取Obsidian Vault失败:', error as Error)

@@ -1,8 +1,8 @@
-import { LONG_TEXT_PASTE_THRESHOLD } from '@renderer/config/constant'
 import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { LONG_TEXT_PASTE_THRESHOLD } from '../../composerPaste'
 import pasteHandling from '../pasteHandling'
 
 vi.mock('@logger', () => ({

@@ -1,21 +1,31 @@
-import { LoadingOutlined, WifiOutlined } from '@ant-design/icons'
 import { Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import BackupPopup from '@renderer/components/Popups/BackupPopup'
 import LanTransferPopup from '@renderer/components/Popups/LanTransferPopup'
 import RestorePopup from '@renderer/components/Popups/RestorePopup'
-import { occupiedDirs } from '@renderer/config/constant'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { reset } from '@renderer/services/BackupService'
 import type { AppInfo } from '@renderer/types/app'
 import { cn } from '@renderer/utils/style'
-import { FolderInput, FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
+import { FolderInput, FolderOpen, FolderOutput, Loader2, SaveIcon, Wifi } from 'lucide-react'
 import type React from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
+
+/**
+ * @deprecated v1 leftover. v2's preboot relocation copies the entire Electron
+ * userData directory tree at startup (in `src/main/core/preboot/userDataLocation.ts`),
+ * after the previous process has fully exited and no file is locked. The
+ * distinction between "occupied" and "non-occupied" directories has no meaning
+ * in v2 — the entire tree is opaque and copied as one unit.
+ *
+ * Only used by the v1 in-process migration flow below, to be rewritten to the new
+ * BootConfig `temp.user_data_relocation` protocol. Remove this at the same time.
+ */
+const occupiedDirs = ['logs', 'Network', 'Partitions/webview/Network']
 
 const BasicDataSettings: React.FC = () => {
   const { t } = useTranslation()
@@ -220,7 +230,7 @@ const BasicDataSettings: React.FC = () => {
       className,
       width: 'min(600px, 90vw)',
       style: { minHeight: '400px' },
-      icon: <LoadingOutlined style={{ fontSize: 18 }} />,
+      icon: <Loader2 className="animate-spin" size={18} />,
       content: (
         <MigrationModalContent>
           <PathsContent />
@@ -459,7 +469,7 @@ const BasicDataSettings: React.FC = () => {
           <SettingRowTitle>{t('settings.data.export_to_phone.lan.title')}</SettingRowTitle>
           <RowFlex className="justify-between gap-1.25">
             <Button onClick={LanTransferPopup.show} variant="outline">
-              <WifiOutlined size={14} />
+              <Wifi size={14} />
               {t('settings.data.export_to_phone.lan.button')}
             </Button>
           </RowFlex>

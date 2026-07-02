@@ -1,4 +1,4 @@
-import type { Tab } from '@renderer/hooks/useTabs'
+import type { Tab } from '@renderer/hooks/tab'
 import {
   FileSearch,
   Folder,

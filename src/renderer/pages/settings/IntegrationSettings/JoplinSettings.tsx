@@ -1,7 +1,7 @@
 import { Button, InfoTooltip, Input, RowFlex, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { formatErrorMessage } from '@renderer/utils/error'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'

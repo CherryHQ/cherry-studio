@@ -61,6 +61,23 @@ export function finalizeInterruptedParts(
   })
 }
 
+/**
+ * Drop parts that carry no renderable content — empty/whitespace-only `text`
+ * and `reasoning` parts. The AI SDK accumulator can leave these behind at step
+ * boundaries (e.g. a final text step that produced no output); persisting them
+ * yields invisible message blocks that still inject layout spacing on render.
+ *
+ * Returns the original array by reference when nothing is dropped, so a clean
+ * turn keeps a stable identity (matching `finalizeInterruptedParts`).
+ */
+export function dropEmptyContentParts(parts: CherryMessagePart[]): CherryMessagePart[] {
+  const filtered = parts.filter((part) => {
+    if (part.type !== 'text' && part.type !== 'reasoning') return true
+    return part.text.trim().length > 0
+  })
+  return filtered.length === parts.length ? parts : filtered
+}
+
 export type StatsTimings = TransportTimings & SemanticTimings
 
 export interface PersistAssistantInput {
@@ -76,7 +93,7 @@ export interface PersistenceBackend {
   /** Tag for logging (e.g. "sqlite", "temp", "agents-db"). */
   readonly kind: string
 
-  persistAssistant(input: PersistAssistantInput): Promise<void>
+  persistAssistant(input: PersistAssistantInput): void
 
   /**
    * Best-effort recovery when `persistAssistant` throws: drive the backing
@@ -84,7 +101,7 @@ export interface PersistenceBackend {
    * bubble instead of a frozen `pending` one. Only backends that finalize a
    * pre-existing placeholder (e.g. `MessageServiceBackend`) implement this.
    */
-  markTerminalError?(): Promise<void>
+  markTerminalError?(): void
 
   /** Best-effort post-success hook; failures are swallowed by the listener. */
   afterPersist?(finalMessage: CherryUIMessage): Promise<void>

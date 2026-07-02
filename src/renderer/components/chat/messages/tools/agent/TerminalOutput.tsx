@@ -1,5 +1,5 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { ThemeMode } from '@renderer/types/app'
 import Ansi from 'ansi-to-react'
 import type { ComponentPropsWithoutRef } from 'react'

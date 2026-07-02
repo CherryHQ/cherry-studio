@@ -1,5 +1,5 @@
 import { DragDropContext } from '@hello-pangea/dnd'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
 import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
@@ -91,12 +91,14 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
         </div>
       </DragDropContext>
 
-      <SelectionActionUserModal
-        isModalOpen={isUserModalOpen}
-        editingAction={userEditingAction}
-        onOk={handleUserModalOk}
-        onCancel={() => setIsUserModalOpen(false)}
-      />
+      {isUserModalOpen && (
+        <SelectionActionUserModal
+          isModalOpen={isUserModalOpen}
+          editingAction={userEditingAction}
+          onOk={handleUserModalOk}
+          onCancel={() => setIsUserModalOpen(false)}
+        />
+      )}
 
       <SelectionActionSearchModal
         isModalOpen={isSearchModalOpen}

@@ -1,5 +1,5 @@
 import { Button, ButtonGroup, Flex, InfoTooltip, Input, Label, Tooltip } from '@cherrystudio/ui'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
 import type { WebSearchBasicAuthPatch } from '@renderer/hooks/useWebSearch'
 import { formatApiKeys, splitApiKeyString, withoutTrailingSlash } from '@renderer/utils/api'
 import {
@@ -16,7 +16,7 @@ import type {
   WebSearchProviderOverrides
 } from '@shared/data/preference/preferenceTypes'
 import { useNavigate } from '@tanstack/react-router'
-import { isEmpty } from 'lodash'
+import { isEmpty } from 'es-toolkit/compat'
 import { ExternalLink, List } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'

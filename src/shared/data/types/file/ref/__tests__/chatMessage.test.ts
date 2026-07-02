@@ -32,7 +32,7 @@ describe('chat_message FileRefSourceType registration', () => {
   it('chatMessageFileRefSchema parses a valid chat_message ref', () => {
     const valid = {
       id: '550e8400-e29b-41d4-a716-446655440000',
-      fileEntryId: '550e8400-e29b-41d4-a716-446655440001',
+      fileEntryId: '019606a0-0000-7000-8000-000000000001',
       sourceType: 'chat_message',
       sourceId: '550e8400-e29b-41d4-a716-446655440002',
       role: 'attachment',
@@ -45,7 +45,7 @@ describe('chat_message FileRefSourceType registration', () => {
   it('rejects invalid role', () => {
     const invalid = {
       id: '550e8400-e29b-41d4-a716-446655440000',
-      fileEntryId: '550e8400-e29b-41d4-a716-446655440001',
+      fileEntryId: '019606a0-0000-7000-8000-000000000001',
       sourceType: 'chat_message',
       sourceId: '550e8400-e29b-41d4-a716-446655440002',
       role: 'source',
@@ -58,7 +58,7 @@ describe('chat_message FileRefSourceType registration', () => {
   it('FileRefSchema discriminated union accepts chat_message variant', () => {
     const valid = {
       id: '550e8400-e29b-41d4-a716-446655440000',
-      fileEntryId: '550e8400-e29b-41d4-a716-446655440001',
+      fileEntryId: '019606a0-0000-7000-8000-000000000001',
       sourceType: 'chat_message',
       sourceId: '550e8400-e29b-41d4-a716-446655440002',
       role: 'attachment',

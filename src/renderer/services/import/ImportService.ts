@@ -1,18 +1,12 @@
+import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
-// [v1→v2 tail — deprecated] The ChatGPT importer still writes the new assistant into the
-// legacy Redux `assistants` slice, which has no v2 reader (the write is a no-op in v2).
-// Kept until the importer is migrated to DataApi `createAssistant`; this is the only remaining
-// reason this service depends on `src/renderer/store/`. Do not build on it.
-import store from '@renderer/store'
-import { addAssistant } from '@renderer/store/assistants'
-import type { LegacyAssistant } from '@renderer/types/assistant'
-import { uuid } from '@renderer/utils/uuid'
+import type { Message } from '@renderer/types/newMessage'
+import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
+import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
 
-import { DEFAULT_ASSISTANT_SETTINGS } from '../AssistantService'
 import { availableImporters } from './importers'
-import type { ConversationImporter, ImportResponse } from './types'
-import { saveImportToDatabase } from './utils/database'
+import type { ConversationImporter, ImportResponse, ImportResult } from './types'
 
 const logger = loggerService.withContext('ImportService')
 
@@ -106,32 +100,17 @@ class ImportServiceClass {
         }
       }
 
-      // Create assistant
-      const assistantId = uuid()
-
-      // Parse conversations
-      const result = await importer.parse(fileContent, assistantId)
-
-      // Save to database
-      await saveImportToDatabase(result)
-
-      // Create assistant
       const importerKey = `import.${importer.name.toLowerCase()}.assistant_name`
-      const assistant: LegacyAssistant = {
-        id: assistantId,
+      const dto: CreateAssistantDto = {
         name: i18n.t(importerKey, {
           defaultValue: `${importer.name} Import`
         }),
-        emoji: importer.emoji,
-        prompt: '',
-        topics: result.topics,
-        messages: [],
-        type: 'assistant',
-        settings: DEFAULT_ASSISTANT_SETTINGS
+        emoji: importer.emoji
       }
+      const assistant = await dataApiService.post('/assistants', { body: dto })
 
-      // [v1→v2 tail — deprecated] Writes to the legacy Redux store; no v2 code reads it.
-      store.dispatch(addAssistant(assistant))
+      const result = await importer.parse(fileContent, assistant.id)
+      await this.persistImport(result)
 
       logger.info(
         `Import completed: ${result.topics.length} conversations, ${result.messages.length} messages imported`
@@ -161,6 +140,58 @@ class ImportServiceClass {
    */
   async importChatGPTConversations(fileContent: string): Promise<ImportResponse> {
     return this.importConversations(fileContent, 'chatgpt')
+  }
+
+  /**
+   * Builds a v2 create-message DTO from a parsed v1 message. Imported messages
+   * are historical, so they are persisted as `success`; the source model is
+   * captured as `modelSnapshot` for the renderer badge.
+   */
+  private toMessageDto(message: Message, blockContent: Map<string, string>, parentId: string | null): CreateMessageDto {
+    const text = message.blocks.map((id) => blockContent.get(id) ?? '').join('\n\n')
+
+    const dto: CreateMessageDto = {
+      parentId,
+      role: message.role,
+      data: { parts: [{ type: 'text', text }] },
+      status: 'success'
+    }
+
+    if (message.model) {
+      dto.modelSnapshot = {
+        id: message.model.id,
+        name: message.model.name,
+        provider: message.model.provider,
+        group: message.model.group
+      }
+    }
+
+    return dto
+  }
+
+  /**
+   * Persists the import result via DataApi. Messages chain by parent id into
+   * a single linear branch under each topic.
+   */
+  private async persistImport(result: ImportResult): Promise<void> {
+    const { topics, blocks, messages } = result
+    const blockContent = new Map(blocks.map((block) => [block.id, block.content]))
+
+    for (const topic of topics) {
+      const createdTopic = await dataApiService.post('/topics', {
+        body: { name: topic.name, assistantId: topic.assistantId }
+      })
+
+      let parentId: string | null = null
+      for (const message of topic.messages) {
+        const created = await dataApiService.post(`/topics/${createdTopic.id}/messages`, {
+          body: this.toMessageDto(message, blockContent, parentId)
+        })
+        parentId = created.id
+      }
+    }
+
+    logger.info(`Persisted import: ${topics.length} topics, ${messages.length} messages`)
   }
 }
 

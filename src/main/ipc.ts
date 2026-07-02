@@ -6,26 +6,21 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { generateSignature } from '@main/ai/provider/cherryai'
 import { isMac, isWin } from '@main/core/platform'
-import { listDirectory as searchListDirectory } from '@main/services/file/tree/search'
-import { regionService } from '@main/services/RegionService'
 import {
-  autoDiscoverGitBash,
-  getBinaryPath,
-  getGitBashPathInfo,
-  isBinaryExists,
-  runInstallScript,
-  validateGitBashPath
-} from '@main/utils/process'
+  listDirectory as searchListDirectory,
+  listDirectoryEntries as searchListDirectoryEntries
+} from '@main/services/file/tree/search'
+import { regionService } from '@main/services/RegionService'
+import { extractPdfText } from '@main/utils/pdf'
+import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Notification } from '@shared/types/notification'
-import { extractPdfText } from '@shared/utils/pdf'
 import { app, BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
 
 import { skillService } from './ai/skills/SkillService'
 import { appService } from './services/AppService'
-import { ConfigKeys, configManager } from './services/ConfigManager'
 import { copilotService } from './services/CopilotService'
 import { ExportService } from './services/ExportService'
 import { externalAppsService } from './services/ExternalAppsService'
@@ -36,10 +31,10 @@ import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/nutstore/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { vertexAiService } from './services/VertexAiService'
-import { calculateDirectorySize } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import { isSafeExternalUrl } from './utils/externalUrlSafety'
 import { hasWritePermission, isPathInside, untildify } from './utils/file'
+import { getDirectorySize } from './utils/fileOperations'
 import { getCpuName, getDeviceType, getHostname } from './utils/system'
 import { compress, decompress } from './utils/zip'
 
@@ -66,7 +61,6 @@ export async function registerIpc() {
     isPackaged: app.isPackaged,
     appPath: application.getPath('app.root'),
     homePath: application.getPath('sys.home'),
-    filesPath: application.getPath('feature.files.data'),
     notesPath: application.getPath('feature.notes.data'),
     configPath: application.getPath('cherry.config'),
     appDataPath: application.getPath('app.userdata'),
@@ -187,7 +181,7 @@ export async function registerIpc() {
     logger.info(`Calculating cache size for path: ${cachePath}`)
 
     try {
-      const sizeInBytes = await calculateDirectorySize(cachePath)
+      const sizeInBytes = await getDirectorySize(cachePath)
       const sizeInMB = (sizeInBytes / (1024 * 1024)).toFixed(2)
       return `${sizeInMB}`
     } catch (error: any) {
@@ -302,65 +296,8 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.System_GetDeviceType, getDeviceType)
   ipcMain.handle(IpcChannel.System_GetHostname, getHostname)
   ipcMain.handle(IpcChannel.System_GetCpuName, getCpuName)
-  ipcMain.handle(IpcChannel.System_CheckGitBash, () => {
-    if (!isWin) {
-      return true // Non-Windows systems don't need Git Bash
-    }
-
-    try {
-      // Use autoDiscoverGitBash to handle auto-discovery and persistence
-      const bashPath = autoDiscoverGitBash()
-      if (bashPath) {
-        logger.info('Git Bash is available', { path: bashPath })
-        return true
-      }
-
-      logger.warn('Git Bash not found. Please install Git for Windows from https://git-scm.com/downloads/win')
-      return false
-    } catch (error) {
-      logger.error('Unexpected error checking Git Bash', error as Error)
-      return false
-    }
-  })
-
-  ipcMain.handle(IpcChannel.System_GetGitBashPath, () => {
-    if (!isWin) {
-      return null
-    }
-
-    const customPath = configManager.get(ConfigKeys.GitBashPath)
-    return customPath ?? null
-  })
-
-  // Returns { path, source } where source is 'manual' | 'auto' | null
-  ipcMain.handle(IpcChannel.System_GetGitBashPathInfo, () => {
-    return getGitBashPathInfo()
-  })
-
-  ipcMain.handle(IpcChannel.System_SetGitBashPath, (_, newPath: string | null) => {
-    if (!isWin) {
-      return false
-    }
-
-    if (!newPath) {
-      // Clear manual setting and re-run auto-discovery
-      configManager.set(ConfigKeys.GitBashPath, null)
-      configManager.set(ConfigKeys.GitBashPathSource, null)
-      // Re-run auto-discovery to restore auto-discovered path if available
-      autoDiscoverGitBash()
-      return true
-    }
-
-    const validated = validateGitBashPath(newPath)
-    if (!validated) {
-      return false
-    }
-
-    // Set path with 'manual' source
-    configManager.set(ConfigKeys.GitBashPath, validated)
-    configManager.set(ConfigKeys.GitBashPathSource, 'manual')
-    return true
-  })
+  // Git Bash has no IPC: the Claude Code runtime resolves it in-process via
+  // autoDiscoverGitBash() (ai/runtime/claudeCode/settingsBuilder.ts).
 
   ipcMain.handle(IpcChannel.System_ToggleDevTools, (e) => {
     const win = BrowserWindow.fromWebContents(e.sender)
@@ -424,6 +361,9 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.File_IsTextFile, fileManager.isTextFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_IsDirectory, fileManager.isDirectory.bind(fileManager))
   ipcMain.handle(IpcChannel.File_ListDirectory, (_e, dirPath, options) => searchListDirectory(dirPath, options))
+  ipcMain.handle(IpcChannel.File_ListDirectoryEntries, (_e, dirPath, options) =>
+    searchListDirectoryEntries(dirPath, options)
+  )
   ipcMain.handle(IpcChannel.File_CheckFileName, fileManager.fileNameGuard.bind(fileManager))
   ipcMain.handle(IpcChannel.File_ValidateNotesDirectory, fileManager.validateNotesDirectory.bind(fileManager))
   ipcMain.handle(IpcChannel.File_BatchUploadMarkdown, fileManager.batchUploadMarkdownFiles.bind(fileManager))
@@ -501,12 +441,6 @@ export async function registerIpc() {
     NutstoreService.getDirectoryContents(token, path)
   )
 
-  // ipcMain.handle(IpcChannel.App_SetDisableHardwareAcceleration, (_, isDisable: boolean) => {
-  //   configManager.setDisableHardwareAcceleration(isDisable)
-  // })
-  // ipcMain.handle(IpcChannel.App_SetUseSystemTitleBar, (_, isActive: boolean) => {
-  //   configManager.setUseSystemTitleBar(isActive)
-  // })
   // ExternalApps
   ipcMain.handle(IpcChannel.ExternalApps_DetectInstalled, () => externalAppsService.detectInstalledApps())
 
@@ -560,7 +494,7 @@ export async function registerIpc() {
       ) {
         return { success: false, error: 'Invalid toggle options' }
       }
-      const data = await skillService.toggle(options)
+      const data = skillService.toggle(options)
       return { success: true, data }
     } catch (error) {
       logger.error('Failed to toggle skill', { options, error })

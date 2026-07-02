@@ -1,55 +1,33 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
+import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { AppShell } from '@renderer/components/layout/AppShell'
+import { TabsProvider } from '@renderer/components/layout/TabsProvider'
+import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import TopViewContainer from '@renderer/components/TopView'
-import AntdProvider from '@renderer/context/AntdProvider'
-import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
-import { NotificationProvider } from '@renderer/context/NotificationProvider'
-import StyleSheetManager from '@renderer/context/StyleSheetManager'
-import { TabsProvider } from '@renderer/context/TabsContext'
-import { ThemeProvider } from '@renderer/context/ThemeProvider'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 const logger = loggerService.withContext('MainApp')
 
 void preferenceService.preloadAll()
 
-// 创建 React Query 客户端
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      refetchOnWindowFocus: false
-    }
-  }
-})
-
 function MainApp(): React.ReactElement {
   logger.info('MainApp initialized')
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <StyleSheetManager>
-        <ThemeProvider>
-          <AntdProvider>
-            <NotificationProvider>
-              <CodeStyleProvider>
-                <CommandContextKeyProvider>
-                  <CommandProvider>
-                    <TabsProvider>
-                      <TopViewContainer>
-                        <AppShell />
-                      </TopViewContainer>
-                    </TabsProvider>
-                  </CommandProvider>
-                </CommandContextKeyProvider>
-              </CodeStyleProvider>
-            </NotificationProvider>
-          </AntdProvider>
-        </ThemeProvider>
-      </StyleSheetManager>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <CodeStyleProvider>
+        <CommandContextKeyProvider>
+          <CommandProvider>
+            <TabsProvider>
+              <TopViewContainer>
+                <AppShell />
+              </TopViewContainer>
+            </TabsProvider>
+          </CommandProvider>
+        </CommandContextKeyProvider>
+      </CodeStyleProvider>
+    </ThemeProvider>
   )
 }
 

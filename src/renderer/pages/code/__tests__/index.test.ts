@@ -1,4 +1,4 @@
-import { codeCLI } from '@shared/types/codeCli'
+import { CodeCli } from '@shared/types/codeCli'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CLI_TOOLS, generateToolEnvironment, type ToolEnvironmentConfig } from '../index'
@@ -9,7 +9,7 @@ vi.mock('../CodeCliPage', () => ({ default: () => null }))
 // Mock dependencies needed by CodeCliPage
 vi.mock('@renderer/hooks/useCodeCli', () => ({
   useCodeCli: () => ({
-    selectedCliTool: codeCLI.qwenCode,
+    selectedCliTool: CodeCli.QWEN_CODE,
     selectedModel: null,
     selectedTerminal: 'systemDefault',
     environmentVariables: '',
@@ -37,11 +37,6 @@ vi.mock('@renderer/services/LoggerService', () => ({
   }
 }))
 
-vi.mock('@renderer/store', () => ({
-  useAppDispatch: () => vi.fn(),
-  useAppSelector: () => false
-}))
-
 vi.mock('@renderer/utils/api', () => ({
   formatApiHost: vi.fn((host) => {
     if (!host) return ''
@@ -53,7 +48,8 @@ vi.mock('@renderer/utils/api', () => ({
       return normalized
     }
     return `${normalized}/v1`
-  })
+  }),
+  withoutTrailingSlash: vi.fn((host) => (host ? host.replace(/\/+$/, '') : host))
 }))
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -83,7 +79,7 @@ describe('generateToolEnvironment', () => {
 
   it('should format baseUrl with /v1 for qwenCode when missing', () => {
     const { env } = generateToolEnvironment(
-      baseConfig({ tool: codeCLI.qwenCode, baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode' })
+      baseConfig({ tool: CodeCli.QWEN_CODE, baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode' })
     )
 
     expect(env.OPENAI_BASE_URL).toBe('https://dashscope.aliyuncs.com/compatible-mode/v1')
@@ -91,21 +87,21 @@ describe('generateToolEnvironment', () => {
 
   it('should not duplicate /v1 when already present for qwenCode', () => {
     const { env } = generateToolEnvironment(
-      baseConfig({ tool: codeCLI.qwenCode, baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1' })
+      baseConfig({ tool: CodeCli.QWEN_CODE, baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1' })
     )
 
     expect(env.OPENAI_BASE_URL).toBe('https://dashscope.aliyuncs.com/compatible-mode/v1')
   })
 
   it('should handle empty baseUrl gracefully', () => {
-    const { env } = generateToolEnvironment(baseConfig({ tool: codeCLI.qwenCode, baseUrl: '' }))
+    const { env } = generateToolEnvironment(baseConfig({ tool: CodeCli.QWEN_CODE, baseUrl: '' }))
 
     expect(env.OPENAI_BASE_URL).toBe('')
   })
 
   it('should preserve other API versions when present', () => {
     const { env } = generateToolEnvironment(
-      baseConfig({ tool: codeCLI.qwenCode, baseUrl: 'https://dashscope.aliyuncs.com/v2' })
+      baseConfig({ tool: CodeCli.QWEN_CODE, baseUrl: 'https://dashscope.aliyuncs.com/v2' })
     )
 
     expect(env.OPENAI_BASE_URL).toBe('https://dashscope.aliyuncs.com/v2')
@@ -113,7 +109,7 @@ describe('generateToolEnvironment', () => {
 
   it('should format baseUrl with /v1 for openaiCodex when missing', () => {
     const { env } = generateToolEnvironment(
-      baseConfig({ tool: codeCLI.openaiCodex, providerId: 'openai', baseUrl: 'https://api.openai.com' })
+      baseConfig({ tool: CodeCli.OPENAI_CODEX, providerId: 'openai', baseUrl: 'https://api.openai.com' })
     )
 
     expect(env.CHERRY_CODEX_BASE_URL).toBe('https://api.openai.com/v1')
@@ -121,7 +117,7 @@ describe('generateToolEnvironment', () => {
 
   it('should inject QODERCN_PERSONAL_ACCESS_TOKEN for qoderCli', () => {
     const { env } = generateToolEnvironment(
-      baseConfig({ tool: codeCLI.qoderCli, providerId: 'qoder', apiKey: 'test-key', baseUrl: 'https://api.qoder.com' })
+      baseConfig({ tool: CodeCli.QODER_CLI, providerId: 'qoder', apiKey: 'test-key', baseUrl: 'https://api.qoder.com' })
     )
 
     expect(env.QODERCN_PERSONAL_ACCESS_TOKEN).toBe('test-key')
@@ -129,7 +125,7 @@ describe('generateToolEnvironment', () => {
 
   it('should handle trailing slash correctly', () => {
     const { env } = generateToolEnvironment(
-      baseConfig({ tool: codeCLI.qwenCode, baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/' })
+      baseConfig({ tool: CodeCli.QWEN_CODE, baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/' })
     )
 
     expect(env.OPENAI_BASE_URL).toBe('https://dashscope.aliyuncs.com/compatible-mode/v1')
@@ -137,16 +133,26 @@ describe('generateToolEnvironment', () => {
 
   it('should handle v2beta version correctly', () => {
     const { env } = generateToolEnvironment(
-      baseConfig({ tool: codeCLI.qwenCode, baseUrl: 'https://dashscope.aliyuncs.com/v2beta' })
+      baseConfig({ tool: CodeCli.QWEN_CODE, baseUrl: 'https://dashscope.aliyuncs.com/v2beta' })
     )
 
     expect(env.OPENAI_BASE_URL).toBe('https://dashscope.aliyuncs.com/v2beta')
   })
+
+  it('should derive the gemini baseUrl from the configured baseUrl for aihubmix, stripping a trailing /v1', () => {
+    const { env } = generateToolEnvironment(
+      baseConfig({ tool: CodeCli.GEMINI_CLI, providerId: 'aihubmix', baseUrl: 'https://custom.example.com/v1' })
+    )
+
+    // Must follow the configured baseUrl (not the static aihubmix.com host) and drop /v1 before /gemini
+    expect(env.GEMINI_BASE_URL).toBe('https://custom.example.com/gemini')
+    expect(env.GOOGLE_GEMINI_BASE_URL).toBe('https://custom.example.com/gemini')
+  })
 })
 
 describe('CLI_TOOLS', () => {
-  it('exposes every codeCLI enum value with a renderable icon component', () => {
-    const expectedValues = Object.values(codeCLI)
+  it('exposes every CodeCli enum value with a renderable icon component', () => {
+    const expectedValues = Object.values(CodeCli)
     const actualValues = CLI_TOOLS.map((tool) => tool.value)
 
     expect(actualValues.sort()).toEqual([...expectedValues].sort())

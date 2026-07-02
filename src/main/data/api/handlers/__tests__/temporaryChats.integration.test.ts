@@ -100,7 +100,7 @@ describe('Temporary Chat end-to-end (handler → persist → persistent readback
 
     // 6. The persistent messageService reads the topic as a linear tree with
     // activeNodeId pointing at the last message.
-    const tree = await messageService.getTree(topic.id, { depth: -1 })
+    const tree = messageService.getTree(topic.id, { depth: -1 })
     expect(tree.activeNodeId).toBe(m4.id)
     expect(tree.siblingsGroups).toEqual([])
     const ids = tree.nodes.map((n) => n.id)
@@ -122,11 +122,10 @@ describe('Temporary Chat end-to-end (handler → persist → persistent readback
     }
 
     // And FTS full-text search actually works.
-    const ftsMatches = await dbh.client.execute({
-      sql: `SELECT m.id FROM message m JOIN message_fts fts ON m.fts_rowid = fts.rowid WHERE message_fts MATCH ?`,
-      args: ['second']
-    })
-    const ftsIds = new Set(ftsMatches.rows.map((r) => String(r[0])))
+    const ftsMatches = dbh.sqlite
+      .prepare(`SELECT m.id FROM message m JOIN message_fts fts ON m.fts_rowid = fts.rowid WHERE message_fts MATCH ?`)
+      .all('second') as Array<{ id: string }>
+    const ftsIds = new Set(ftsMatches.map((r) => String(r.id)))
     expect(ftsIds.has(m3.id)).toBe(true)
     expect(ftsIds.has(m4.id)).toBe(true)
     expect(ftsIds.has(m1.id)).toBe(false)

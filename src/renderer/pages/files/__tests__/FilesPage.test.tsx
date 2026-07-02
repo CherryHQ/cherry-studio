@@ -17,7 +17,7 @@ const ipcMocks = vi.hoisted(() => ({
   request: vi.fn()
 }))
 
-vi.mock('@renderer/config/constant', () => ({
+vi.mock('@renderer/utils/platform', () => ({
   get isMac() {
     return platformState.isMac
   }
@@ -656,7 +656,7 @@ describe('FilesPage file operations', () => {
     fireEvent.doubleClick(screen.getByText('report.md'))
 
     await waitFor(() => {
-      expect(ipcMocks.request).toHaveBeenCalledWith('file.show_in_folder', { id: entry.id })
+      expect(ipcMocks.request).toHaveBeenCalledWith('file.show_in_folder', { kind: 'entry', entryId: entry.id })
     })
   })
 

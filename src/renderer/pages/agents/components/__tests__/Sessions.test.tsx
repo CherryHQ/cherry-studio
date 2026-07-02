@@ -286,17 +286,18 @@ const createTopicStreamStatusMock = (overrides: { isFulfilled?: boolean; isPendi
   status: undefined
 })
 
-vi.mock('@renderer/hooks/agents/useSession', () => ({
+vi.mock('@renderer/hooks/agent/useSession', () => ({
   useSessions: sessionDataMocks.useSessions,
   useUpdateSession: sessionDataMocks.useUpdateSession
 }))
 
-vi.mock('@renderer/hooks/agents/useAgent', () => ({
+vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgents: agentDataMocks.useAgents
 }))
 
-vi.mock('@renderer/context/TabsContext', () => ({
-  useOptionalTabsContext: () => tabsContextMocks
+vi.mock('@renderer/hooks/tab', () => ({
+  useOptionalTabsContext: () => tabsContextMocks,
+  useCurrentTabId: () => null
 }))
 
 vi.mock('@renderer/components/resource/dialogs', () => ({
@@ -448,6 +449,7 @@ vi.mock('react-i18next', () => ({
         'agent.session.group.unknown_agent': 'Unknown agent',
         'agent.session.group.yesterday': 'Yesterday',
         'agent.session.list.title': 'Tasks',
+        'agent.session.new': 'New task',
         'agent.pin.title': 'Pin Agent',
         'agent.session.pin.title': 'Pin task',
         'agent.session.reorder.error.failed': 'Failed to reorder tasks',
@@ -490,8 +492,7 @@ vi.mock('react-i18next', () => ({
         'selector.common.sort.asc': 'Oldest first',
         'selector.common.sort.desc': 'Newest first',
         'selector.common.sort_label': 'Sort',
-        'selector.common.unpin': 'Unpin',
-        'settings.shortcuts.toggle_left_sidebar': 'Toggle Left Sidebar'
+        'selector.common.unpin': 'Unpin'
       }
       return labels[key] ?? key
     }
@@ -518,6 +519,16 @@ function SessionsForTest({
 }: SessionsForTestProps) {
   return <Sessions activeSessionId={activeSessionId ?? null} setActiveSessionId={setActiveSessionId} {...props} />
 }
+
+function getHeaderNewTaskButton() {
+  const button = screen
+    .getAllByRole('button', { name: 'New task' })
+    .find((candidate) => candidate.textContent?.includes('New task'))
+
+  expect(button).toBeDefined()
+  return button as HTMLButtonElement
+}
+
 type SessionGroupCollapseFixture = {
   time: string[]
   agent: string[]
@@ -571,7 +582,8 @@ function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessio
     orderKey: 'a',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: CURRENT_SESSION_ISO,
-    ...overrides
+    ...overrides,
+    isNameManuallyEdited: overrides.isNameManuallyEdited ?? false
   }
 }
 
@@ -763,13 +775,39 @@ describe('Sessions', () => {
       <SessionsForTest onStartDraftSession={onStartDraftSession} onStartMissingAgentDraft={onStartMissingAgentDraft} />
     )
 
-    const newConversationButton = screen.getByRole('button', { name: 'Add task' })
-    expect(newConversationButton).not.toBeDisabled()
+    const newTaskButton = getHeaderNewTaskButton()
+    expect(newTaskButton).not.toBeDisabled()
 
-    fireEvent.click(newConversationButton)
+    fireEvent.click(newTaskButton)
 
     expect(onStartMissingAgentDraft).toHaveBeenCalledTimes(1)
     expect(onStartDraftSession).not.toHaveBeenCalled()
+  })
+
+  it('uses only the redesigned search control in right panel mode', () => {
+    setupSessions()
+
+    render(<SessionsForTest agentIdFilter="agent-a" presentation="right-panel" />)
+
+    expect(screen.queryByText('New task')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Display mode')).not.toBeInTheDocument()
+
+    // Behavior: the right panel exposes the search control and drops the sidebar's new/display-mode
+    // affordances. (Styling specifics intentionally not pinned here.)
+    expect(screen.getByPlaceholderText('Search tasks')).toBeInTheDocument()
+  })
+
+  it('forces time grouping in the right panel even when the agent display mode is stored', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    setupSessions()
+
+    render(<SessionsForTest agentIdFilter="agent-a" presentation="right-panel" />)
+
+    // The classic right panel is the parent switch and forces time grouping, so agent grouping is
+    // never engaged and the agent pins query stays disabled. Reverting the `isRightPanel ? 'time' :`
+    // force would flip displayMode back to the stored 'agent' and enable it.
+    expect(pinMocks.usePins).toHaveBeenCalledWith('agent', { enabled: false })
+    expect(pinMocks.usePins).not.toHaveBeenCalledWith('agent', { enabled: true })
   })
 
   it('starts a first-agent draft from the header when there are agents but no sessions', async () => {
@@ -781,7 +819,7 @@ describe('Sessions', () => {
       <SessionsForTest onStartDraftSession={onStartDraftSession} onStartMissingAgentDraft={onStartMissingAgentDraft} />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add task' }))
+    fireEvent.click(getHeaderNewTaskButton())
 
     await vi.waitFor(() =>
       expect(onStartDraftSession).toHaveBeenCalledWith({
@@ -800,7 +838,7 @@ describe('Sessions', () => {
 
     expect(screen.getByText('No tasks yet')).toBeInTheDocument()
     expect(screen.getByText('Tasks will appear here after you start one.')).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: 'Add task' })).toHaveLength(1)
+    expect(getHeaderNewTaskButton()).toBeInTheDocument()
     expect(onStartDraftSession).not.toHaveBeenCalled()
   })
 
@@ -842,9 +880,7 @@ describe('Sessions', () => {
 
     const noProjectSectionHeader = noProjectSection.closest('[class*="group/resource-list-section"]')
     expect(noProjectSectionHeader).not.toBeNull()
-    fireEvent.click(
-      within(noProjectSectionHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' })
-    )
+    fireEvent.click(within(noProjectSectionHeader as HTMLElement).getByRole('button', { name: 'New task' }))
 
     expect(onStartDraftSession).toHaveBeenCalledWith({
       agentId: 'agent-a',
@@ -994,6 +1030,10 @@ describe('Sessions', () => {
     render(<SessionsForTest />)
 
     expect(screen.getByRole('button', { name: /Alpha agent/ })).toHaveTextContent('🤖')
+    expect(
+      screen.getByRole('button', { name: /Alpha agent/ }).querySelector('[data-resource-list-leading-slot="true"]')
+        ?.firstElementChild
+    ).toHaveClass('rounded-full')
   })
 
   it('keeps system workspace sessions inside agent groups in agent display mode', () => {
@@ -1122,7 +1162,7 @@ describe('Sessions', () => {
 
     const betaGroup = screen.getByRole('button', { name: 'Beta agent' }).closest('div')
     expect(betaGroup).not.toBeNull()
-    fireEvent.click(within(betaGroup as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
+    fireEvent.click(within(betaGroup as HTMLElement).getByRole('button', { name: 'New task' }))
 
     await vi.waitFor(() =>
       expect(onStartDraftSession).toHaveBeenCalledWith({
@@ -1233,9 +1273,7 @@ describe('Sessions', () => {
 
     const todayHeader = screen.getByRole('button', { name: 'Today' }).closest('div')
     expect(todayHeader).toBeInTheDocument()
-    expect(
-      within(todayHeader as HTMLElement).queryByRole('button', { name: 'chat.conversation.new' })
-    ).not.toBeInTheDocument()
+    expect(within(todayHeader as HTMLElement).queryByRole('button', { name: 'New task' })).not.toBeInTheDocument()
   })
 
   it('starts a draft session from the header without creating inline', async () => {
@@ -1275,7 +1313,7 @@ describe('Sessions', () => {
 
     render(<SessionsForTest onStartDraftSession={onStartDraftSession} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add task' }))
+    fireEvent.click(getHeaderNewTaskButton())
 
     expect(sessionDataMocks.createSession).not.toHaveBeenCalled()
     expect(onStartDraftSession).toHaveBeenCalledWith({
@@ -1283,15 +1321,6 @@ describe('Sessions', () => {
       workspace: { type: 'user', workspaceId: 'ws-b' }
     })
     await vi.waitFor(() => expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith(null, null))
-  })
-
-  it('toggles the left agent sidebar from the list options menu', () => {
-    render(<SessionsForTest />)
-
-    openSessionListOptions()
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle Left Sidebar' }))
-
-    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('topic.tab.show', false)
   })
 
   it('reveals a history-selected session hidden by search and show-more with row focus', async () => {
@@ -1343,7 +1372,7 @@ describe('Sessions', () => {
 
     await vi.waitFor(() =>
       expect(sessionDataMocks.updateSession).toHaveBeenCalledWith(
-        { id: 'session-a', name: 'Renamed session' },
+        { id: 'session-a', name: 'Renamed session', isNameManuallyEdited: true },
         { showSuccessToast: false }
       )
     )
@@ -1370,7 +1399,7 @@ describe('Sessions', () => {
 
     await vi.waitFor(() =>
       expect(sessionDataMocks.updateSession).toHaveBeenCalledWith(
-        { id: 'session-a', name: 'Renamed from menu' },
+        { id: 'session-a', name: 'Renamed from menu', isNameManuallyEdited: true },
         { showSuccessToast: false }
       )
     )
@@ -1457,6 +1486,157 @@ describe('Sessions', () => {
     await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a'))
   })
 
+  it('selects the same agent neighbouring session after deleting the active session in the right panel', async () => {
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent', configuration: { avatar: 'B' } }
+      ],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a1-first', name: 'A1 First session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-a1-second', name: 'A1 Second session', agentId: 'agent-a', orderKey: 'b' }),
+        createSession({ id: 'session-a2-first', name: 'A2 First session', agentId: 'agent-b', orderKey: 'c' })
+      ]
+    })
+    const setActiveSessionId = vi.fn()
+
+    render(
+      <SessionsForTest
+        agentIdFilter="agent-a"
+        presentation="right-panel"
+        activeSessionId="session-a1-second"
+        setActiveSessionId={setActiveSessionId}
+      />
+    )
+
+    const sessionRow = screen.getByText('A1 Second session').closest('[role="option"]')
+    const deleteButton = within(sessionRow as HTMLElement).getByLabelText('Delete')
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+
+    await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a1-second'))
+    await vi.waitFor(() =>
+      expect(setActiveSessionId).toHaveBeenCalledWith(
+        'session-a1-first',
+        expect.objectContaining({ id: 'session-a1-first' })
+      )
+    )
+    expect(setActiveSessionId).not.toHaveBeenCalledWith('session-a2-first', expect.anything())
+  })
+
+  it('starts an agent-scoped draft after deleting the active agent last session in the right panel', async () => {
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent', configuration: { avatar: 'B' } }
+      ],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({
+          id: 'session-a-only',
+          name: 'A Only session',
+          agentId: 'agent-a',
+          orderKey: 'a',
+          updatedAt: '2026-01-03T01:00:00.000Z'
+        }),
+        createSession({
+          id: 'session-b-first',
+          name: 'B First session',
+          agentId: 'agent-b',
+          orderKey: 'b',
+          updatedAt: '2026-01-02T01:00:00.000Z'
+        })
+      ]
+    })
+    const onStartDraftSession = vi.fn()
+    const setActiveSessionId = vi.fn()
+
+    render(
+      <SessionsForTest
+        agentIdFilter="agent-a"
+        presentation="right-panel"
+        activeSessionId="session-a-only"
+        onStartDraftSession={onStartDraftSession}
+        setActiveSessionId={setActiveSessionId}
+      />
+    )
+
+    const sessionRow = screen.getByText('A Only session').closest('[role="option"]')
+    const deleteButton = within(sessionRow as HTMLElement).getByLabelText('Delete')
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+
+    await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a-only'))
+    await vi.waitFor(() =>
+      expect(onStartDraftSession).toHaveBeenCalledWith({
+        agentId: 'agent-a',
+        workspace: { type: 'user', workspaceId: 'ws-a' }
+      })
+    )
+    expect(setActiveSessionId).not.toHaveBeenCalledWith('session-b-first', expect.anything())
+  })
+
+  it('clears the active session and toasts when the post-delete draft start fails in the right panel', async () => {
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } }],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({
+          id: 'session-a-only',
+          name: 'A Only session',
+          agentId: 'agent-a',
+          orderKey: 'a',
+          updatedAt: '2026-01-03T01:00:00.000Z'
+        })
+      ]
+    })
+    const onStartDraftSession = vi.fn().mockRejectedValue(new Error('workspace refetch failed'))
+    const setActiveSessionId = vi.fn()
+
+    render(
+      <SessionsForTest
+        agentIdFilter="agent-a"
+        presentation="right-panel"
+        activeSessionId="session-a-only"
+        onStartDraftSession={onStartDraftSession}
+        setActiveSessionId={setActiveSessionId}
+      />
+    )
+
+    const sessionRow = screen.getByText('A Only session').closest('[role="option"]')
+    const deleteButton = within(sessionRow as HTMLElement).getByLabelText('Delete')
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+
+    await vi.waitFor(() => expect(onStartDraftSession).toHaveBeenCalled())
+    // The rejection must be surfaced and the active id cleared in `finally` so the view never
+    // stays pointed at the just-deleted session.
+    await vi.waitFor(() => expect(window.toast.error).toHaveBeenCalled())
+    await vi.waitFor(() => expect(setActiveSessionId).toHaveBeenCalledWith(null, null))
+  })
+
   it('subscribes stream status only for visible session rows', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
     setSessionGroupExpansionCache({
@@ -1498,6 +1678,8 @@ describe('Sessions', () => {
     render(<SessionsForTest />)
 
     const displayModeContent = openSessionListOptions()
+    expect(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Time' })).toBeInTheDocument()
+    expect(within(displayModeContent as HTMLElement).queryByRole('button', { name: 'Agent' })).not.toBeInTheDocument()
     fireEvent.click(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Work directory' }))
 
     expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'workdir')
@@ -1907,7 +2089,7 @@ describe('Sessions', () => {
 
     const workdirGroup = screen.getByRole('button', { name: 'Project A Workspace' }).closest('div')
     expect(workdirGroup).not.toBeNull()
-    fireEvent.click(within(workdirGroup as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
+    fireEvent.click(within(workdirGroup as HTMLElement).getByRole('button', { name: 'New task' }))
 
     await vi.waitFor(() =>
       expect(onStartDraftSession).toHaveBeenCalledWith({
@@ -1948,7 +2130,7 @@ describe('Sessions', () => {
     expect(agentGroup).not.toBeNull()
     expect(agentGroup).toHaveClass('border', 'border-transparent')
     expect(agentGroup).toHaveAttribute('title', 'Drag to reorder. Drag tasks to adjust display and hidden groups.')
-    expect(within(agentGroup as HTMLElement).getByRole('button', { name: 'chat.conversation.new' })).toBeInTheDocument()
+    expect(within(agentGroup as HTMLElement).getByRole('button', { name: 'New task' })).toBeInTheDocument()
 
     const moreButton = within(agentGroup as HTMLElement).getByRole('button', { name: 'More' })
     fireEvent.pointerDown(moreButton)

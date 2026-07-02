@@ -36,11 +36,14 @@ import type { BodyForPath, QueryParamsForPath, ResponseForPath } from '@shared/d
 import type { ApiClient, ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type {
   DataRequest,
+  DataResponse,
   HttpMethod,
   SubscriptionCallback,
   SubscriptionEvent,
   SubscriptionOptions
 } from '@shared/data/api/apiTypes'
+
+import { DataApiDevtools } from './utils/dataApiDevtools'
 
 const logger = loggerService.withContext('DataApiService')
 
@@ -121,6 +124,15 @@ export class DataApiService implements ApiClient {
     if (!window.api.dataApi.request) {
       throw DataApiErrorFactory.create(ErrorCode.SERVICE_UNAVAILABLE, 'Data API not available')
     }
+    let errorMetadata: DataResponse['metadata'] | undefined
+    DataApiDevtools.recordStart({
+      requestId: request.id,
+      method: request.method,
+      path: request.path,
+      query: request.params,
+      body: request.body,
+      retryAttempt: retryCount
+    })
 
     // Build request context for error tracking
     const requestContext: RequestContext = {
@@ -143,8 +155,16 @@ export class DataApiService implements ApiClient {
 
       if (response.error) {
         // Reconstruct DataApiError from serialized response
+        errorMetadata = response.metadata
         throw DataApiError.fromJSON(response.error)
       }
+
+      DataApiDevtools.recordSuccess({
+        requestId: request.id,
+        method: request.method,
+        path: request.path,
+        response
+      })
 
       logger.debug(`Request succeeded: ${request.method} ${request.path}`, {
         status: response.status,
@@ -157,10 +177,27 @@ export class DataApiService implements ApiClient {
       const apiError =
         error instanceof DataApiError ? error : toDataApiError(error, `${request.method} ${request.path}`)
 
+      DataApiDevtools.recordError({
+        requestId: request.id,
+        method: request.method,
+        path: request.path,
+        error: apiError,
+        status: apiError.status,
+        metadata: errorMetadata
+      })
+
       logger.debug(`Request failed: ${request.method} ${request.path}`, apiError)
 
       // Check if should retry using the error's built-in isRetryable getter
       if (retryCount < this.defaultRetryOptions.maxRetries && apiError.isRetryable) {
+        DataApiDevtools.recordRetry({
+          requestId: request.id,
+          method: request.method,
+          path: request.path,
+          retryAttempt: retryCount + 1,
+          error: apiError
+        })
+
         logger.debug(
           `Retrying request attempt ${retryCount + 1}/${this.defaultRetryOptions.maxRetries}: ${request.path}`,
           { error: apiError.message, code: apiError.code }

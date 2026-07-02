@@ -190,6 +190,37 @@ describe('QuickPanelView', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
+  it('passes the current context to onClose callbacks', async () => {
+    const onClose = vi.fn()
+    let quickPanel: QuickPanelContextType | undefined
+
+    render(
+      <QuickPanelProvider>
+        <CaptureQuickPanel onCapture={(context) => (quickPanel = context)} />
+      </QuickPanelProvider>
+    )
+
+    await waitFor(() => {
+      expect(quickPanel).toBeDefined()
+    })
+
+    act(() => {
+      quickPanel?.open({ list: [], symbol: '/', onClose })
+    })
+
+    await waitFor(() => {
+      expect(quickPanel?.symbol).toBe('/')
+    })
+
+    const openContext = quickPanel
+    act(() => {
+      openContext?.close('esc')
+    })
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(onClose.mock.calls[0][0].context).toBe(openContext)
+  })
+
   it('dispatches keydown immediately after opening in the same effect tick', async () => {
     const onHandled = vi.fn()
 
@@ -681,6 +712,88 @@ describe('QuickPanelView', () => {
 
     expect(handled).toBe(true)
     expect(action).not.toHaveBeenCalled()
+  })
+
+  it('keeps the exit layout stable when closing', async () => {
+    const inputAdapter: QuickPanelInputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => 8,
+      getText: () => '/missing',
+      insertText: vi.fn()
+    }
+    const items: QuickPanelListItem[] = [{ id: 'clear', label: 'Clear query', icon: 'x', alwaysVisible: true }]
+    let closePanel: QuickPanelContextType['close'] | undefined
+
+    render(
+      <QuickPanelProvider>
+        <CaptureQuickPanel onCapture={(context) => (closePanel = context.close)} />
+        <PanelHarness captureDispatch={vi.fn()} inputAdapter={inputAdapter} items={items} />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('No results')
+
+    const panel = screen.getByTestId('quick-panel')
+    const expected = getQuickPanelHeights({
+      isVisible: true,
+      collapsed: true,
+      readOnly: false,
+      pageSize: 7,
+      itemCount: items.length,
+      availableHeight: null,
+      fill: false
+    })
+
+    expect(panel).toHaveStyle({ maxHeight: `${expected.panelMaxHeight}px` })
+
+    vi.useFakeTimers()
+    act(() => {
+      closePanel?.('esc')
+    })
+
+    expect(panel).not.toHaveClass('visible')
+    expect(panel).toHaveStyle({ maxHeight: `${expected.panelMaxHeight}px` })
+    expect(panel).toHaveClass('transition-none')
+    expect(screen.getByTestId('quick-panel-body')).toHaveClass('transition-[translate,scale,opacity,box-shadow]')
+    expect(screen.getByText('No results')).toBeInTheDocument()
+    expect(screen.queryByText('Clear query')).not.toBeInTheDocument()
+  })
+
+  it('closes a tracked slash panel before rendering a repeated trigger as a query', async () => {
+    const listeners = new Set<Parameters<NonNullable<QuickPanelInputAdapter['subscribeInput']>>[0]>()
+    let inputText = '/'
+    const inputAdapter: QuickPanelInputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => inputText.length,
+      getText: () => inputText,
+      insertText: vi.fn(),
+      subscribeInput: (listener) => {
+        listeners.add(listener)
+        return () => listeners.delete(listener)
+      }
+    }
+    const items: QuickPanelListItem[] = [{ id: 'root', label: 'Root action', icon: 'tool', action: vi.fn() }]
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness captureDispatch={vi.fn()} inputAdapter={inputAdapter} items={items} />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Root action')
+
+    inputText = '//'
+    act(() => {
+      listeners.forEach((listener) => listener())
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('quick-panel')).not.toHaveClass('visible')
+    })
+    expect(screen.queryByText('No results')).not.toBeInTheDocument()
+    expect(screen.getByText('Root action')).toBeInTheDocument()
   })
 
   it('tracks non-slash input queries and consumes the trigger range on selection', async () => {

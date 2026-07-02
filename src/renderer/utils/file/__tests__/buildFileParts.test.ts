@@ -34,7 +34,7 @@ describe('buildFilePartsForAttachments', () => {
 
     expect(window.api.file.createInternalEntry).toHaveBeenCalledWith({ source: 'path', path: '/tmp/image.png' })
     expect(window.api.file.getPhysicalPath).toHaveBeenCalledWith({ id: 'fe-1' })
-    expect(window.api.file.getMetadata).toHaveBeenCalledWith({ kind: 'entry', entryId: 'fe-1' })
+    expect(window.api.file.getMetadata).toHaveBeenCalledWith({ kind: 'path', path: '/p/fe-1.png' })
     expect(part).toEqual({
       type: 'file',
       url: 'file:///p/fe-1.png',

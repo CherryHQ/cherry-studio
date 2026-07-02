@@ -32,7 +32,7 @@ type RequestHandler = (request: unknown, extra: unknown) => Promise<unknown>
 describe('createSdkMcpServerInstance', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.findByIdOrName.mockResolvedValue({ id: 'server-1', name: 'Docs MCP' })
+    mocks.findByIdOrName.mockReturnValue({ id: 'server-1', name: 'Docs MCP' })
     mocks.listPrompts.mockResolvedValue([])
     mocks.getPrompt.mockResolvedValue({
       description: 'Prompt description',
@@ -46,7 +46,7 @@ describe('createSdkMcpServerInstance', () => {
   })
 
   it('proxies prompts/get through McpRuntimeService when prompts are advertised', async () => {
-    const sdkServer = await createSdkMcpServerInstance('server-1')
+    const sdkServer = createSdkMcpServerInstance('server-1')
     const handlers = (sdkServer.server as unknown as { _requestHandlers: Map<string, RequestHandler> })._requestHandlers
     const handler = handlers.get('prompts/get')
 
@@ -69,7 +69,7 @@ describe('createSdkMcpServerInstance', () => {
   })
 
   it('responds to resource template discovery when resources are advertised', async () => {
-    const sdkServer = await createSdkMcpServerInstance('server-1')
+    const sdkServer = createSdkMcpServerInstance('server-1')
     const handlers = (sdkServer.server as unknown as { _requestHandlers: Map<string, RequestHandler> })._requestHandlers
     const handler = handlers.get('resources/templates/list')
 

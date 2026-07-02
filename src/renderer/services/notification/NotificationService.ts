@@ -1,11 +1,7 @@
 import { preferenceService } from '@data/PreferenceService'
 import type { Notification } from '@renderer/types/notification'
 
-import { notificationQueue } from './NotificationQueue'
-
 export class NotificationService {
-  private queue = notificationQueue
-
   constructor() {
     this.setupNotificationClickHandler()
   }
@@ -21,8 +17,12 @@ export class NotificationService {
       knowledge: 'app.notification.knowledge.enabled'
     })
 
+    // TODO(notification): sources without a configured preference key (e.g. 'update')
+    // are silently dropped here — there is no `app.notification.update.enabled`
+    // preference, so update notifications never fire. Add a real preference/default
+    // policy for such sources, or remove the dead path, in a follow-up.
     if (notificationSettings[notification.source]) {
-      void this.queue.add(notification)
+      void window.api.notification.send(notification)
     }
   }
 
@@ -37,20 +37,6 @@ export class NotificationService {
         notification.onClick?.()
       }
     })
-  }
-
-  /**
-   * 清空通知队列
-   */
-  public clear(): void {
-    this.queue.clear()
-  }
-
-  /**
-   * 获取队列中等待的通知数量
-   */
-  public get pendingCount(): number {
-    return this.queue.pending
   }
 }
 

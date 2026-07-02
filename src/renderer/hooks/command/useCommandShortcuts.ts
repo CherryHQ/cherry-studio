@@ -1,5 +1,5 @@
 import { useMultiplePreferences } from '@data/hooks/usePreference'
-import { platform } from '@renderer/config/constant'
+import { platform } from '@renderer/utils/platform'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import type { CommandShortcutPreferenceKey, SupportedPlatform } from '@shared/types/command'
 import type { ResolvedShortcut } from '@shared/types/shortcut'

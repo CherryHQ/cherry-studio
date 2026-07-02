@@ -27,7 +27,9 @@ import {
   type WindowInfo,
   type WindowOptions
 } from '@main/core/window/types'
+import { clearSavedBounds, injectSavedBounds, peekSavedState, persistNow } from '@main/core/window/windowBoundsTracker'
 import { getWindowTypeMetadata, mergeWindowOptions, WINDOW_TYPE_REGISTRY } from '@main/core/window/windowRegistry'
+import type { WindowBoundsState } from '@shared/data/cache/cacheValueTypes'
 import { app, BrowserWindow, screen, shell } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -102,6 +104,14 @@ export class WindowManager extends BaseService {
 
   /** One-time initialization data per window (consumed by renderer via getInitData IPC) */
   private initDataStore = new Map<string, unknown>()
+
+  /**
+   * Runtime override for the registry `rememberBounds` flag, keyed by window type
+   * (set via {@link setRememberBounds}). When present it wins over the registry
+   * default; absent falls back to the declared flag. This map is the only state
+   * the bounds capability holds — `windowBoundsTracker` itself is stateless.
+   */
+  private rememberBoundsOverride = new Map<WindowType, boolean>()
 
   /**
    * Runtime overrides and setters for the declarative `behavior` layer
@@ -247,6 +257,19 @@ export class WindowManager extends BaseService {
     }
 
     return normalized === retentionTime ? cfg : { ...cfg, retentionTime: normalized }
+  }
+
+  protected override onStop(): void {
+    // Persist bounds for any window still alive at shutdown — the SIGINT/SIGTERM
+    // path, where neither the native 'close' event nor destroyWindow runs before
+    // teardown. onStop executes in the stopAll pass (reverse init order), so
+    // WindowManager (WhenReady) stops BEFORE CacheService (BeforeReady): these
+    // setPersist writes land before CacheService's own onStop flushes the persist
+    // map to disk and clears it. The window-destroy loop stays in onDestroy.
+    // persistBoundsFor is gated, so non-remember windows no-op.
+    for (const managed of this.windows.values()) {
+      this.persistBoundsFor(managed.window, managed.type)
+    }
   }
 
   protected override onDestroy(): void {
@@ -1295,6 +1318,16 @@ export class WindowManager extends BaseService {
     const metadata = getWindowTypeMetadata(type)
     const windowId = uuidv4()
     const config = mergeWindowOptions(type, args?.options)
+
+    // Restore remembered geometry into the merged options before construction.
+    // Gated to singleton + rememberBounds (registry flag or runtime override);
+    // injectSavedBounds no-ops without a valid saved record, so the window opens
+    // at its registry default. Restore is fixed at this moment — a later runtime
+    // toggle only affects the next open.
+    if (this.shouldRememberBounds(type)) {
+      injectSavedBounds(type, config)
+    }
+
     const showMode = metadata.showMode ?? 'auto'
 
     // Resolve preload path. `metadata.preload` mirrors `htmlPath`'s three-state
@@ -1382,6 +1415,18 @@ export class WindowManager extends BaseService {
     // calls do not trigger the monkey-patched show/showInactive.
     applyWindowQuirks(managedWindow.window, managedWindow.metadata.quirks, managedWindow.metadata.behavior)
 
+    // 4c. Persist bounds on native close for singletons (GUI quit and
+    // hide-to-tray, where the window is still alive). Attached to every singleton
+    // — not just ones with the flag set now — so a runtime setRememberBounds(true)
+    // on a previously-off singleton still captures bounds on the next close;
+    // persistBoundsFor re-checks the gate at fire time. Programmatic destroys
+    // (window.destroy()) skip 'close' and are covered in destroyWindow; a
+    // shutdown while still alive is covered in onStop. The 'closed' handler's
+    // removeAllListeners cleans this listener up.
+    if (metadata.lifecycle === 'singleton') {
+      window.on('close', () => this.persistBoundsFor(window, type))
+    }
+
     // 5. Store initData synchronously — renderer's cold-start `getInitData`
     //    invoke (fired after mount) is guaranteed to see the fresh value.
     //    Never fire window.reused for fresh windows: the renderer is
@@ -1417,6 +1462,13 @@ export class WindowManager extends BaseService {
   /** Force-destroy a BrowserWindow. Skips the `close` event — only `closed` fires. */
   private destroyWindow(window: BrowserWindow): void {
     if (window.isDestroyed()) return
+    // window.destroy() skips the 'close' event, so the singleton close-listener
+    // persist path never runs for programmatic destroys (e.g. QuickAssistant
+    // deactivate via wm.close → destroyWindow). Capture bounds here first, while
+    // the window is still alive. Gated, so non-remember windows (pool recycle,
+    // trim, etc.) no-op.
+    const managed = this.findManagedByWindow(window)
+    if (managed) this.persistBoundsFor(window, managed.type)
     window.destroy()
   }
 
@@ -1427,6 +1479,67 @@ export class WindowManager extends BaseService {
     const firstId = windowIds.values().next().value
     if (!firstId) return undefined
     return this.windows.get(firstId)
+  }
+
+  // ─── Bounds persistence (rememberBounds capability) ───────────
+
+  /**
+   * Whether a window type's bounds should be persisted & restored right now.
+   *
+   * Singleton-only: bounds answer "where does this window reopen?", which has a
+   * unique answer only when identity = type (a single instance). A non-singleton
+   * that declares the flag is ignored (dev warn). Otherwise the runtime override
+   * wins over the registry default, making the toggle fully orthogonal to the
+   * flag — it can disable a flag-on type or enable a type with no declared flag.
+   */
+  private shouldRememberBounds(type: WindowType): boolean {
+    const metadata = getWindowTypeMetadata(type)
+    if (metadata.lifecycle !== 'singleton') {
+      if (metadata.rememberBounds && isDev) {
+        logger.warn(`rememberBounds is singleton-only; ignored for non-singleton window type "${type}"`)
+      }
+      return false
+    }
+    return this.rememberBoundsOverride.get(type) ?? metadata.rememberBounds ?? false
+  }
+
+  /** Snapshot a window's bounds into the persist cache when the gate allows. */
+  private persistBoundsFor(window: BrowserWindow, type: WindowType): void {
+    if (this.shouldRememberBounds(type)) {
+      persistNow(window, type)
+    }
+  }
+
+  /** Reverse-lookup the managed entry for a raw BrowserWindow (small map, linear scan). */
+  private findManagedByWindow(window: BrowserWindow): ManagedWindow | undefined {
+    for (const managed of this.windows.values()) {
+      if (managed.window === window) return managed
+    }
+    return undefined
+  }
+
+  /**
+   * Runtime toggle for the `rememberBounds` capability, orthogonal to the
+   * registry flag (see {@link shouldRememberBounds}). `true` → persist on
+   * teardown and restore on the next open. `false` → stop persisting AND drop
+   * the saved record immediately, so the next open uses the registry default.
+   * Affects restore on the next open; the live window keeps its geometry.
+   */
+  public setRememberBounds(type: WindowType, enabled: boolean): void {
+    this.rememberBoundsOverride.set(type, enabled)
+    if (!enabled) {
+      clearSavedBounds(type)
+    }
+  }
+
+  /**
+   * Read a window type's saved bounds without restoring them. Lets a consumer
+   * apply state WindowManager does not — e.g. MainWindowService re-applies the
+   * maximized flag on its own show schedule. Returns undefined when nothing is
+   * saved.
+   */
+  public peekWindowBounds(type: WindowType): WindowBoundsState | undefined {
+    return peekSavedState(type)
   }
 
   // ─── Window event listeners ───────────────────────────────────

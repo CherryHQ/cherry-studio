@@ -9,6 +9,18 @@ import { tmpdir } from 'os'
 import path from 'path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+// The data-service layer is synchronous under better-sqlite3: failing calls
+// throw inline instead of rejecting a promise. Capture the thrown error so we
+// can assert on its shape.
+function captureError(fn: () => unknown): unknown {
+  try {
+    fn()
+  } catch (error) {
+    return error
+  }
+  throw new Error('Expected the call to throw, but it returned normally')
+}
+
 describe('AgentWorkspaceService', () => {
   const dbh = setupTestDatabase()
 
@@ -21,7 +33,7 @@ describe('AgentWorkspaceService', () => {
   }
 
   async function findOrCreateWorkspace(rawPath: string, options: { name?: string } = {}) {
-    return await dbh.db.transaction((tx) => agentWorkspaceService.findOrCreateByPathTx(tx, rawPath, options))
+    return dbh.db.transaction((tx) => agentWorkspaceService.findOrCreateByPathTx(tx, rawPath, options))
   }
 
   it('should export a module-level singleton of AgentWorkspaceService', () => {
@@ -66,31 +78,33 @@ describe('AgentWorkspaceService', () => {
     const first = await findOrCreateWorkspace(workspacePath('first'))
     const second = await findOrCreateWorkspace(workspacePath('second'))
 
-    const workspaces = await agentWorkspaceService.list()
+    const workspaces = agentWorkspaceService.list()
 
     expect(workspaces.map((workspace) => workspace.id)).toEqual([second.id, first.id])
   })
 
   it('hides system workspaces from the default list and get APIs', async () => {
     const userWorkspace = await findOrCreateWorkspace(workspacePath('user-project'))
-    const systemWorkspace = await dbh.db.transaction((tx) =>
+    const systemWorkspace = dbh.db.transaction((tx) =>
       agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'system-hidden-session' })
     )
 
-    await expect(agentWorkspaceService.getById(systemWorkspace.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
-    await expect(agentWorkspaceService.getById(systemWorkspace.id, { includeSystem: true })).resolves.toMatchObject({
+    expect(captureError(() => agentWorkspaceService.getById(systemWorkspace.id))).toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+    expect(agentWorkspaceService.getById(systemWorkspace.id, { includeSystem: true })).toMatchObject({
       id: systemWorkspace.id,
       type: 'system'
     })
-    expect((await agentWorkspaceService.list()).map((workspace) => workspace.id)).toEqual([userWorkspace.id])
+    expect(agentWorkspaceService.list().map((workspace) => workspace.id)).toEqual([userWorkspace.id])
   })
 
   it('does not return a system workspace from findOrCreateByPath', async () => {
-    const systemWorkspace = await dbh.db.transaction((tx) =>
+    const systemWorkspace = dbh.db.transaction((tx) =>
       agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'system-path-session' })
     )
 
-    await expect(agentWorkspaceService.findOrCreateByPath(systemWorkspace.path)).rejects.toMatchObject({
+    expect(captureError(() => agentWorkspaceService.findOrCreateByPath(systemWorkspace.path))).toMatchObject({
       code: ErrorCode.CONFLICT
     })
   })
@@ -102,7 +116,7 @@ describe('AgentWorkspaceService', () => {
   })
 
   it('throws not found for missing workspaces', async () => {
-    await expect(agentWorkspaceService.getById('missing-workspace')).rejects.toMatchObject({
+    expect(captureError(() => agentWorkspaceService.getById('missing-workspace'))).toMatchObject({
       code: ErrorCode.NOT_FOUND
     })
   })
@@ -110,22 +124,22 @@ describe('AgentWorkspaceService', () => {
   it('returns database workspace data without consulting the backing directory', async () => {
     const workspace = await findOrCreateWorkspace(workspacePath('db-only'))
 
-    await expect(agentWorkspaceService.getById(workspace.id)).resolves.toMatchObject({
+    expect(agentWorkspaceService.getById(workspace.id)).toMatchObject({
       id: workspace.id,
       path: workspace.path
     })
   })
 
   it('rejects updates to hidden system workspaces without mutating the row', async () => {
-    const systemWorkspace = await dbh.db.transaction((tx) =>
+    const systemWorkspace = dbh.db.transaction((tx) =>
       agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'system-update-session' })
     )
 
-    await expect(agentWorkspaceService.update(systemWorkspace.id, { name: 'Renamed' })).rejects.toMatchObject({
+    expect(captureError(() => agentWorkspaceService.update(systemWorkspace.id, { name: 'Renamed' }))).toMatchObject({
       code: ErrorCode.NOT_FOUND
     })
 
-    await expect(agentWorkspaceService.getById(systemWorkspace.id, { includeSystem: true })).resolves.toMatchObject({
+    expect(agentWorkspaceService.getById(systemWorkspace.id, { includeSystem: true })).toMatchObject({
       id: systemWorkspace.id,
       name: systemWorkspace.name,
       type: 'system'
@@ -141,7 +155,7 @@ describe('AgentWorkspaceService', () => {
       return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
     })
 
-    const workspace = await dbh.db.transaction((tx) =>
+    const workspace = dbh.db.transaction((tx) =>
       agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'session-system' })
     )
 
@@ -156,36 +170,47 @@ describe('AgentWorkspaceService', () => {
     const workspacePathValue = workspacePath('race')
     await findOrCreateWorkspace(workspacePathValue)
 
-    const emptyRows = { limit: async () => [] }
-    const afterWhere = { ...emptyRows, orderBy: () => emptyRows }
+    // better-sqlite3 query builders execute synchronously via `.all()`, so the
+    // racing tx stub resolves both the existing-row check and the boundary-key
+    // lookup to an empty result set, forcing the code path into the real insert
+    // below (which hits the UNIQUE constraint on the already-created row).
+    const emptyResult = { all: () => [] }
+    const limitable = { limit: () => emptyResult }
+    const afterWhere = { ...limitable, orderBy: () => limitable }
     const racingTx = {
       select: () => ({
         from: () => ({
           where: () => afterWhere,
-          orderBy: () => emptyRows,
-          limit: async () => []
+          orderBy: () => limitable,
+          limit: () => emptyResult
         })
       }),
       insert: dbh.db.insert.bind(dbh.db)
     }
 
-    await expect(
+    // findOrCreateByPathTx is synchronous under better-sqlite3; the translated
+    // unique violation is thrown inline rather than as a rejected promise.
+    try {
       agentWorkspaceService.findOrCreateByPathTx(racingTx as never, workspacePathValue)
-    ).rejects.toMatchObject({
-      code: ErrorCode.CONFLICT
-    })
+      throw new Error('expected findOrCreateByPathTx to throw a conflict error')
+    } catch (error) {
+      expect(error).toMatchObject({ code: ErrorCode.CONFLICT })
+    }
   })
 
   it('rejects findOrCreateByPathTx when the existing path belongs to a system workspace', async () => {
-    const workspace = await dbh.db.transaction((tx) =>
+    const workspace = dbh.db.transaction((tx) =>
       agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'session-system-collision' })
     )
 
-    await expect(
+    // better-sqlite3 transactions run synchronously, so the conflict thrown by
+    // findOrCreateByPathTx propagates out of db.transaction() inline.
+    try {
       dbh.db.transaction((tx) => agentWorkspaceService.findOrCreateByPathTx(tx, workspace.path))
-    ).rejects.toMatchObject({
-      code: ErrorCode.CONFLICT
-    })
+      throw new Error('expected findOrCreateByPathTx to throw a conflict error')
+    } catch (error) {
+      expect(error).toMatchObject({ code: ErrorCode.CONFLICT })
+    }
   })
 
   it('rejects workspace rows whose type violates the database CHECK constraint', async () => {
@@ -199,7 +224,7 @@ describe('AgentWorkspaceService', () => {
         type: 'invalid' as never,
         orderKey: 'a0'
       })
-    ).rejects.toThrow(/Failed query/)
+    ).rejects.toThrow(/CHECK constraint failed/)
 
     const rows = await dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.path, invalidPath))
     expect(rows).toHaveLength(0)
@@ -210,33 +235,33 @@ describe('AgentWorkspaceService', () => {
     const second = await findOrCreateWorkspace(workspacePath('second'))
     const third = await findOrCreateWorkspace(workspacePath('third'))
 
-    await agentWorkspaceService.reorder(first.id, { position: 'first' })
-    let workspaces = await agentWorkspaceService.list()
+    agentWorkspaceService.reorder(first.id, { position: 'first' })
+    let workspaces = agentWorkspaceService.list()
     expect(workspaces.map((workspace) => workspace.id)).toEqual([first.id, third.id, second.id])
 
-    await agentWorkspaceService.reorderBatch([
+    agentWorkspaceService.reorderBatch([
       { id: second.id, anchor: { before: first.id } },
       { id: third.id, anchor: { position: 'last' } }
     ])
-    workspaces = await agentWorkspaceService.list()
+    workspaces = agentWorkspaceService.list()
     expect(workspaces.map((workspace) => workspace.id)).toEqual([second.id, first.id, third.id])
   })
 
   it('does not reorder hidden system workspaces as user workspace targets or anchors', async () => {
     const first = await findOrCreateWorkspace(workspacePath('first'))
     const second = await findOrCreateWorkspace(workspacePath('second'))
-    const systemWorkspace = await dbh.db.transaction((tx) =>
+    const systemWorkspace = dbh.db.transaction((tx) =>
       agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'system-anchor-session' })
     )
 
-    await expect(agentWorkspaceService.reorder(first.id, { before: systemWorkspace.id })).rejects.toMatchObject({
+    expect(captureError(() => agentWorkspaceService.reorder(first.id, { before: systemWorkspace.id }))).toMatchObject({
       code: ErrorCode.NOT_FOUND
     })
-    await expect(
-      agentWorkspaceService.reorderBatch([{ id: systemWorkspace.id, anchor: { before: first.id } }])
-    ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    expect(
+      captureError(() => agentWorkspaceService.reorderBatch([{ id: systemWorkspace.id, anchor: { before: first.id } }]))
+    ).toMatchObject({ code: ErrorCode.NOT_FOUND })
 
-    const workspaces = await agentWorkspaceService.list()
+    const workspaces = agentWorkspaceService.list()
     expect(workspaces.map((workspace) => workspace.id)).toEqual([second.id, first.id])
   })
 })

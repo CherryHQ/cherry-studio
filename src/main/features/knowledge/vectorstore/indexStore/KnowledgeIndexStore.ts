@@ -3,10 +3,11 @@ import { computeSearchTextId, computeUnitId, hashContentText, hashEmbeddingText 
 import type {
   KnowledgeIndexSearchInput,
   KnowledgeIndexSearchMatch,
+  KnowledgeMaterialRef,
   KnowledgeSearchUnit,
   RebuildMaterialInput
 } from './model'
-import type { SqliteDriver, SqliteTransaction, SqlValue, VectorIndex } from './types'
+import type { SqliteDriver, SqliteReclaimOutcome, SqliteTransaction, SqlValue, VectorIndex } from './types'
 import { encodeVectorBlob } from './vectorBlob'
 
 /** RRF constant (1-indexed rank), matching the legacy hybrid fusion. */
@@ -16,9 +17,18 @@ const RRF_K = 60
 const EMBEDDING_HASH_QUERY_BATCH = 500
 
 /**
+ * How long {@link KnowledgeIndexStore.deleteMaterials} may run consecutive
+ * per-material transactions before handing the main-process event loop back to
+ * the OS message pump (see the method doc for why). Tuned well under the
+ * multi-second window that surfaces the macOS beachball, while large enough
+ * that the yields add no measurable overhead to a small delete.
+ */
+const DELETE_YIELD_BUDGET_MS = 50
+
+/**
  * Engine-neutral store over a per-base `index.sqlite`. Written once; the storage
- * engine is swapped by injecting a different {@link SqliteDriver} (libsql today,
- * better-sqlite3 + sqlite-vec later) — see knowledge-technical-design.md §5.6.
+ * engine is swapped by injecting a different {@link SqliteDriver} (better-sqlite3
+ * + sqlite-vec today) — see knowledge-technical-design.md §5.6.
  *
  * Retrieval (BM25 + brute-force vector + RRF) applies no material-level filter
  * here; the knowledge_item-level filter (existence / lifecycle status) lives in
@@ -36,6 +46,16 @@ export class KnowledgeIndexStore {
    * an insert failure rolls back without destroying the prior index (§5.2).
    */
   async rebuildMaterial(materialId: string, input: RebuildMaterialInput): Promise<void> {
+    // usesEmbeddings: false means a BM25-only rebuild — step 6 below writes whatever
+    // `embeddings` holds unconditionally (only the step 6b coverage check is gated on
+    // the flag), so a caller bug that sets both would silently write orphan vectors
+    // into an index nothing ever queries or GCs. Fail loud instead.
+    if (!input.usesEmbeddings && input.embeddings.length > 0) {
+      throw new Error(
+        `Knowledge index rebuild for material ${materialId} set usesEmbeddings: false but supplied ${input.embeddings.length} embeddings`
+      )
+    }
+
     const now = Date.now()
     const contentHash = hashContentText(input.content.text)
 
@@ -60,16 +80,23 @@ export class KnowledgeIndexStore {
       }
     })
 
-    await this.driver.transaction(async (tx) => {
+    this.driver.transaction((tx) => {
+      // 0. Capture the material's prior content hash (undefined if it doesn't exist
+      //    yet) so step 8 can tell whether this rebuild could possibly have orphaned
+      //    anything, without an extra full-table scan.
+      const priorRow = tx.execute(`SELECT current_content_hash FROM material WHERE material_id = ?`, [materialId])
+        .rows[0]
+      const priorContentHash = priorRow === undefined ? undefined : (priorRow.current_content_hash as string | null)
+
       // 1. Content is immutable by hash — keep the existing row if present.
-      await tx.execute(`INSERT OR IGNORE INTO content (content_hash, text, created_at) VALUES (?, ?, ?)`, [
+      tx.execute(`INSERT OR IGNORE INTO content (content_hash, text, created_at) VALUES (?, ?, ?)`, [
         contentHash,
         input.content.text,
         now
       ])
 
       // 2. Upsert the material (current_content_hash set in step 7).
-      await tx.execute(
+      tx.execute(
         `INSERT INTO material (material_id, relative_path, created_at, updated_at)
          VALUES (?, ?, ?, ?)
          ON CONFLICT(material_id) DO UPDATE SET
@@ -82,12 +109,12 @@ export class KnowledgeIndexStore {
       //    FK to search_unit (its target_id is polymorphic), so it is deleted
       //    explicitly while search_unit still exists to resolve the targets; the
       //    FTS index is kept in sync by the search_text delete trigger.
-      await this.deleteMaterialSearchText(tx, materialId)
-      await tx.execute(`DELETE FROM search_unit WHERE material_id = ?`, [materialId])
+      this.deleteMaterialSearchText(tx, materialId)
+      const deletedUnits = tx.execute(`DELETE FROM search_unit WHERE material_id = ?`, [materialId]).changes
 
       // 4 & 5. Insert new units and their body search_text (FTS synced by trigger).
       for (const unit of units) {
-        await tx.execute(
+        tx.execute(
           `INSERT INTO search_unit
              (unit_id, material_id, content_hash, unit_type, unit_index, title, char_start, char_end, locator_json, created_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -106,7 +133,7 @@ export class KnowledgeIndexStore {
             now
           ]
         )
-        await tx.execute(
+        tx.execute(
           `INSERT INTO search_text (search_text_id, target_type, target_id, kind, text, embedding_text_hash, created_at)
            VALUES (?, 'search_unit', ?, 'body', ?, ?, ?)`,
           [
@@ -121,50 +148,110 @@ export class KnowledgeIndexStore {
 
       // 6. Insert missing embeddings; existing hashes are reused (decision A4).
       for (const embedding of input.embeddings) {
-        await tx.execute(
-          `INSERT OR IGNORE INTO embedding (embedding_text_hash, vector_blob, created_at) VALUES (?, ?, ?)`,
-          [embedding.embeddingTextHash, encodeVectorBlob(embedding.vector), now]
-        )
+        tx.execute(`INSERT OR IGNORE INTO embedding (embedding_text_hash, vector_blob, created_at) VALUES (?, ?, ?)`, [
+          embedding.embeddingTextHash,
+          encodeVectorBlob(embedding.vector),
+          now
+        ])
       }
 
-      // 6b. Coverage check: every unit's re-derived embedding hash must resolve to a
-      //     vector, or roll the rebuild back. This catches two failure modes:
+      // 6b. Coverage check (vector bases only): every unit's re-derived embedding
+      //     hash must resolve to a vector, or roll the rebuild back. This catches two
+      //     failure modes:
       //     (a) the caller hashes its chunk text while this store hashes the re-sliced
       //         body, so an offset/hash mismatch would leave a unit silently absent
       //         from vector search; and
       //     (b) the listExistingEmbeddingHashes race — the caller reads existing hashes
-      //         outside the base lock, so a concurrent GC (step 8 / deleteMaterial) can
+      //         outside the base lock, so a concurrent GC (step 8 / deleteMaterials) can
       //         drop a hash it reported present before this rebuild writes, and the job
       //         then skips re-embedding it. Failing loud rolls back; the job's retry
       //         re-reads (the hash is now absent), re-embeds it, and converges.
-      await this.assertEmbeddingCoverage(tx, materialId, [...new Set(units.map((unit) => unit.embeddingTextHash))])
+      //     A BM25-only base stores no vectors, so the check does not apply.
+      if (input.usesEmbeddings) {
+        this.assertEmbeddingCoverage(tx, materialId, [...new Set(units.map((unit) => unit.embeddingTextHash))])
+      }
 
       // 7. Mark the material's current content (failure/lifecycle state is the
       //    authority of knowledge_item, not this derived index).
-      await tx.execute(`UPDATE material SET current_content_hash = ?, updated_at = ? WHERE material_id = ?`, [
+      tx.execute(`UPDATE material SET current_content_hash = ?, updated_at = ? WHERE material_id = ?`, [
         contentHash,
         now,
         materialId
       ])
 
       // 8. Sweep rows this rebuild orphaned (old units' embeddings, old content the
-      //    new revision no longer references). Safe under the base mutation lock.
-      await this.collectIndexGarbage(tx)
+      //    new revision no longer references) — but only when it actually could have
+      //    orphaned something. A first-time create (no prior row) or a rebuild that
+      //    replaced zero old units AND kept the same content hash touches nothing an
+      //    earlier revision referenced, so the GC's full-table anti-join scans would
+      //    find nothing; skipping them turns a bulk index of K materials from
+      //    O(K × table) into O(K). Checking unit deletions alone is not sound — a
+      //    material that previously had zero units but a different content hash would
+      //    slip through and leave that old content row an orphan — so both conditions
+      //    are required.
+      const contentChanged = priorContentHash !== undefined && priorContentHash !== contentHash
+      if (deletedUnits > 0 || contentChanged) {
+        this.collectIndexGarbage(tx)
+      }
     })
   }
 
   /**
-   * Delete a material and everything derived from it. Removing the material row
-   * cascades to its `search_unit`; the units' body `search_text` is deleted
-   * explicitly first (no FK), which also clears the FTS index via the delete
-   * trigger. {@link collectIndexGarbage} then sweeps the `embedding` and `content`
-   * rows this delete orphaned, in the same transaction.
+   * Delete many materials — each in its OWN short transaction — then sweep
+   * orphaned `embedding` / `content` rows with a SINGLE {@link collectIndexGarbage}
+   * pass in a final transaction.
+   *
+   * Removing each material row cascades to its `search_unit`; the units' body
+   * `search_text` is deleted explicitly first (no FK), which also clears the FTS
+   * index via the delete trigger.
+   *
+   * collectIndexGarbage runs two FULL-TABLE anti-join scans, so calling it once
+   * per material (an old per-material delete+GC loop) made a bulk delete
+   * O(materials × table): deleting a folder of N files scanned the whole
+   * `embedding`/`content` table N times. With a large index (e.g. a folder of
+   * PDFs chunked into tens of thousands of rows) that blocked the main-process
+   * event loop for seconds — the folder-delete UI freeze. Deleting the rows up
+   * front and GCing once makes it O(N + table).
+   *
+   * Batching the GC removes the super-linear cost, but the per-material row
+   * deletes are still linear in chunks: each `search_text` delete fires the FTS
+   * delete trigger, which the driver runs synchronously on the main process.
+   * Tens of thousands of rows still sum to a multi-second block, and because
+   * Electron drives the window from this same loop that block IS the macOS
+   * beachball (the renderer thread never stalls). A driver transaction must run
+   * fully synchronously (no event-loop yield inside `BEGIN`..`COMMIT` — see
+   * {@link SqliteDriver.transaction}), so each material gets its own transaction
+   * and the loop yields to the OS message pump BETWEEN them whenever it has run
+   * for {@link DELETE_YIELD_BUDGET_MS}: the total work is unchanged, but no single
+   * uninterrupted block is long enough to freeze the window.
+   *
+   * This is no longer one all-or-nothing batch — a failure partway leaves the
+   * materials deleted so far committed. That is safe: every caller (subtreePurge.ts)
+   * deletes vectors before the corresponding `knowledge_item` DB rows, so those rows
+   * still exist after a partial failure and a retry re-discovers exactly the
+   * materials still left (re-deleting an already-gone one is a harmless no-op).
    */
-  async deleteMaterial(materialId: string): Promise<void> {
-    await this.driver.transaction(async (tx) => {
-      await this.deleteMaterialSearchText(tx, materialId)
-      await tx.execute(`DELETE FROM material WHERE material_id = ?`, [materialId])
-      await this.collectIndexGarbage(tx)
+  async deleteMaterials(materialIds: string[]): Promise<void> {
+    const uniqueMaterialIds = [...new Set(materialIds)]
+    if (uniqueMaterialIds.length === 0) {
+      return
+    }
+    // performance.now() is monotonic — a wall-clock step (NTP/manual) mid-batch
+    // must not make the delta negative and silently disable the yields for the
+    // rest of a large delete, reintroducing the freeze this loop prevents.
+    let lastYieldAt = performance.now()
+    for (const materialId of uniqueMaterialIds) {
+      this.driver.transaction((tx) => {
+        this.deleteMaterialSearchText(tx, materialId)
+        tx.execute(`DELETE FROM material WHERE material_id = ?`, [materialId])
+      })
+      if (performance.now() - lastYieldAt >= DELETE_YIELD_BUDGET_MS) {
+        await new Promise<void>((resolve) => setImmediate(resolve))
+        lastYieldAt = performance.now()
+      }
+    }
+    this.driver.transaction((tx) => {
+      this.collectIndexGarbage(tx)
     })
   }
 
@@ -178,12 +265,12 @@ export class KnowledgeIndexStore {
    *    `search_unit.content_hash` (FK CASCADE) reference it — both referrers are
    *    excluded, so the delete never violates either constraint.
    */
-  private async collectIndexGarbage(tx: SqliteTransaction): Promise<void> {
-    await tx.execute(
+  private collectIndexGarbage(tx: SqliteTransaction): void {
+    tx.execute(
       `DELETE FROM embedding
        WHERE NOT EXISTS (SELECT 1 FROM search_text st WHERE st.embedding_text_hash = embedding.embedding_text_hash)`
     )
-    await tx.execute(
+    tx.execute(
       `DELETE FROM content
        WHERE NOT EXISTS (SELECT 1 FROM material m WHERE m.current_content_hash = content.content_hash)
          AND NOT EXISTS (SELECT 1 FROM search_unit su WHERE su.content_hash = content.content_hash)`
@@ -210,7 +297,7 @@ export class KnowledgeIndexStore {
     for (let i = 0; i < hashes.length; i += EMBEDDING_HASH_QUERY_BATCH) {
       const batch = hashes.slice(i, i + EMBEDDING_HASH_QUERY_BATCH)
       const placeholders = batch.map(() => '?').join(', ')
-      const result = await this.driver.execute(
+      const result = this.driver.execute(
         `SELECT embedding_text_hash FROM embedding WHERE embedding_text_hash IN (${placeholders})`,
         batch
       )
@@ -223,7 +310,7 @@ export class KnowledgeIndexStore {
 
   /** Read back a material's units (with body text), ordered by unit index. */
   async listMaterialUnits(materialId: string): Promise<KnowledgeSearchUnit[]> {
-    const result = await this.driver.execute(
+    const result = this.driver.execute(
       `SELECT su.unit_id, su.material_id, su.unit_type, su.unit_index, su.title, su.char_start, su.char_end, st.text AS body
        FROM search_unit su
        LEFT JOIN search_text st
@@ -255,6 +342,48 @@ export class KnowledgeIndexStore {
   }
 
   /**
+   * Resolve a Concept ID (a material's `relative_path`, OKF §2) to its material
+   * row, or null when no material has that path. `relative_path` is UNIQUE per
+   * index, so this is the lookup behind the deep-read tools — they re-validate
+   * the resolved material against the visible knowledge_item before reading.
+   */
+  async getMaterialByRelativePath(relativePath: string): Promise<KnowledgeMaterialRef | null> {
+    const result = this.driver.execute(`SELECT material_id, relative_path FROM material WHERE relative_path = ?`, [
+      relativePath
+    ])
+    const row = result.rows[0]
+    if (!row) {
+      return null
+    }
+    return {
+      materialId: row.material_id as string,
+      relativePath: row.relative_path as string
+    }
+  }
+
+  /**
+   * Read back a material's full indexed text — the immutable `content.text` its
+   * `current_content_hash` points at — or null when the material is unknown or
+   * has no current content yet (mid-index). This is the verbatim text the units
+   * were sliced from, so `text.slice(unit.charStart, unit.charEnd) === unit.text`
+   * holds (the same invariant rebuildMaterial enforces at write time).
+   */
+  async readMaterialContent(materialId: string): Promise<string | null> {
+    const result = this.driver.execute(
+      `SELECT c.text AS text
+         FROM material m
+         JOIN content c ON c.content_hash = m.current_content_hash
+        WHERE m.material_id = ?`,
+      [materialId]
+    )
+    const row = result.rows[0]
+    if (!row || row.text == null) {
+      return null
+    }
+    return row.text as string
+  }
+
+  /**
    * Retrieve units for a query. 'vector' and 'bm25' return their single ranked
    * list; 'hybrid' fuses both with Reciprocal Rank Fusion (rank-based, so the
    * incompatible cosine/BM25 score ranges don't need normalizing). The body
@@ -271,15 +400,32 @@ export class KnowledgeIndexStore {
 
     const alpha = input.alpha ?? 0.5
     const prefetch = input.topK * 5
-    const [vector, bm25] = await Promise.all([
-      this.vectorSearch(this.requireQueryEmbedding(input), prefetch),
-      this.bm25Search(input.queryText, prefetch)
-    ])
+    // Both lanes are synchronous SQL over the same connection — sequential, not
+    // Promise.all: the driver has no true concurrency to parallelize.
+    const vector = this.vectorSearch(this.requireQueryEmbedding(input), prefetch)
+    const bm25 = this.bm25Search(input.queryText, prefetch)
     return fuseWithRrf(vector, bm25, alpha, input.topK)
   }
 
+  /**
+   * Return space a large delete freed back to the OS (see {@link SqliteDriver.reclaim}).
+   * Best-effort; only VACUUMs when the freelist crossed the driver's size threshold.
+   *
+   * Passes the external-content FTS 'optimize' as a pre-VACUUM step. A delete only
+   * TOMBSTONES its trigram entries (via the search_text delete trigger); the segment
+   * blobs linger as live rows in the `search_text_fts_data` shadow table, which VACUUM
+   * cannot reclaim on its own (they are not free pages). 'optimize' merges and drops
+   * them so the VACUUM hands their pages back to the OS. The driver gates it behind the
+   * freelist threshold (runs only when a VACUUM will), so a small delete never pays the
+   * whole-index segment merge — and the FTS table name lives here, with the schema, not
+   * in the engine-neutral driver.
+   */
+  async reclaimSpace(): Promise<SqliteReclaimOutcome> {
+    return this.driver.reclaim([`INSERT INTO search_text_fts(search_text_fts) VALUES('optimize')`])
+  }
+
   async close(): Promise<void> {
-    await this.driver.close()
+    this.driver.close()
   }
 
   /** Whether the backing driver has been closed (see {@link SqliteDriver.isClosed}). */
@@ -295,14 +441,14 @@ export class KnowledgeIndexStore {
   }
 
   /** Brute-force cosine scan over the plain-BLOB embedding column (no ANN index). */
-  private async vectorSearch(queryEmbedding: number[], topK: number): Promise<KnowledgeIndexSearchMatch[]> {
+  private vectorSearch(queryEmbedding: number[], topK: number): KnowledgeIndexSearchMatch[] {
     // Invariant, not a check: a base's embedding model and dimensions are immutable
     // (changing them means migrating to a new base), so `queryEmbedding` and every
     // stored `vector_blob` share one dimension — cosine never compares mismatched lengths.
     // `WHERE dist IS NOT NULL` drops degenerate (zero-norm) vectors: cosine distance is
     // undefined for them, and SQLite coerces that NULL/NaN to NULL — which would otherwise
     // sort first under `ORDER BY dist` and score `1 - Number(null) = 1`, outranking real hits.
-    const result = await this.driver.execute(
+    const result = this.driver.execute(
       `SELECT su.unit_id, su.material_id, su.unit_index, st.text AS body,
               ${this.vectorIndex.buildDistanceExpression('e.vector_blob')} AS dist
        FROM embedding e
@@ -317,7 +463,7 @@ export class KnowledgeIndexStore {
     return result.rows.map((row) => toMatch(row, 1 - Number(row.dist)))
   }
 
-  private async bm25Search(queryText: string, topK: number): Promise<KnowledgeIndexSearchMatch[]> {
+  private bm25Search(queryText: string, topK: number): KnowledgeIndexSearchMatch[] {
     // Short tokens (notably 1–2 char CJK words) produce no trigram, so MATCH would
     // silently return nothing — route those queries to the LIKE fallback instead.
     if (needsLikeFallback(queryText)) {
@@ -327,11 +473,11 @@ export class KnowledgeIndexStore {
     if (!matchQuery) {
       return []
     }
-    const result = await this.driver.execute(
+    const result = this.driver.execute(
       `SELECT su.unit_id, su.material_id, su.unit_index, st.text AS body, bm25(search_text_fts) AS score
        FROM search_text_fts
        JOIN search_text st
-         ON st.rowid = search_text_fts.rowid AND st.target_type = 'search_unit' AND st.kind = 'body'
+         ON st.fts_rowid = search_text_fts.rowid AND st.target_type = 'search_unit' AND st.kind = 'body'
        JOIN search_unit su ON su.unit_id = st.target_id
        WHERE search_text_fts MATCH ?
        ORDER BY score
@@ -349,13 +495,13 @@ export class KnowledgeIndexStore {
    * unit fully about the term) ranks first — and expose it as a higher-is-better
    * score so it fuses sanely with the vector lane in hybrid mode.
    */
-  private async bm25LikeSearch(tokens: string[], topK: number): Promise<KnowledgeIndexSearchMatch[]> {
+  private bm25LikeSearch(tokens: string[], topK: number): KnowledgeIndexSearchMatch[] {
     if (tokens.length === 0) {
       return []
     }
     const likeClauses = tokens.map(() => `st.text LIKE ? ESCAPE '\\'`).join(' AND ')
     const args: SqlValue[] = [...tokens.map(toFtsLikePattern), topK]
-    const result = await this.driver.execute(
+    const result = this.driver.execute(
       `SELECT su.unit_id, su.material_id, su.unit_index, st.text AS body, length(st.text) AS len
        FROM search_text st
        JOIN search_unit su ON su.unit_id = st.target_id
@@ -369,12 +515,12 @@ export class KnowledgeIndexStore {
   }
 
   /** Throw (rolling back the surrounding rebuild) if any unit hash has no embedding row. */
-  private async assertEmbeddingCoverage(tx: SqliteTransaction, materialId: string, hashes: string[]): Promise<void> {
+  private assertEmbeddingCoverage(tx: SqliteTransaction, materialId: string, hashes: string[]): void {
     const missing = new Set(hashes)
     for (let i = 0; i < hashes.length; i += EMBEDDING_HASH_QUERY_BATCH) {
       const batch = hashes.slice(i, i + EMBEDDING_HASH_QUERY_BATCH)
       const placeholders = batch.map(() => '?').join(', ')
-      const result = await tx.execute(
+      const result = tx.execute(
         `SELECT embedding_text_hash FROM embedding WHERE embedding_text_hash IN (${placeholders})`,
         batch
       )
@@ -389,8 +535,8 @@ export class KnowledgeIndexStore {
     }
   }
 
-  private async deleteMaterialSearchText(tx: SqliteTransaction, materialId: string): Promise<void> {
-    await tx.execute(
+  private deleteMaterialSearchText(tx: SqliteTransaction, materialId: string): void {
+    tx.execute(
       `DELETE FROM search_text
        WHERE target_type = 'search_unit'
          AND target_id IN (SELECT unit_id FROM search_unit WHERE material_id = ?)`,

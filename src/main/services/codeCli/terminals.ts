@@ -1,38 +1,38 @@
-import { terminalApps, type TerminalConfig, type TerminalConfigWithCommand } from '@shared/types/codeCli'
+import { TerminalApp, type TerminalConfig, type TerminalConfigWithCommand } from '@shared/types/codeCli'
 
 export const MACOS_TERMINALS: TerminalConfig[] = [
   {
-    id: terminalApps.systemDefault,
+    id: TerminalApp.SYSTEM_DEFAULT,
     name: 'Terminal',
     bundleId: 'com.apple.Terminal'
   },
   {
-    id: terminalApps.iterm2,
+    id: TerminalApp.ITERM2,
     name: 'iTerm2',
     bundleId: 'com.googlecode.iterm2'
   },
   {
-    id: terminalApps.kitty,
+    id: TerminalApp.KITTY,
     name: 'kitty',
     bundleId: 'net.kovidgoyal.kitty'
   },
   {
-    id: terminalApps.alacritty,
+    id: TerminalApp.ALACRITTY,
     name: 'Alacritty',
     bundleId: 'org.alacritty'
   },
   {
-    id: terminalApps.wezterm,
+    id: TerminalApp.WEZTERM,
     name: 'WezTerm',
     bundleId: 'com.github.wez.wezterm'
   },
   {
-    id: terminalApps.ghostty,
+    id: TerminalApp.GHOSTTY,
     name: 'Ghostty',
     bundleId: 'com.mitchellh.ghostty'
   },
   {
-    id: terminalApps.tabby,
+    id: TerminalApp.TABBY,
     name: 'Tabby',
     bundleId: 'org.tabby'
   }
@@ -40,34 +40,34 @@ export const MACOS_TERMINALS: TerminalConfig[] = [
 
 export const WINDOWS_TERMINALS: TerminalConfig[] = [
   {
-    id: terminalApps.cmd,
+    id: TerminalApp.CMD,
     name: 'Command Prompt'
   },
   {
-    id: terminalApps.powershell,
+    id: TerminalApp.POWERSHELL,
     name: 'PowerShell'
   },
   {
-    id: terminalApps.windowsTerminal,
+    id: TerminalApp.WINDOWS_TERMINAL,
     name: 'Windows Terminal'
   },
   {
-    id: terminalApps.wsl,
+    id: TerminalApp.WSL,
     name: 'WSL (Ubuntu/Debian)'
   },
   {
-    id: terminalApps.alacritty,
+    id: TerminalApp.ALACRITTY,
     name: 'Alacritty'
   },
   {
-    id: terminalApps.wezterm,
+    id: TerminalApp.WEZTERM,
     name: 'WezTerm'
   }
 ]
 
 export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
   {
-    id: terminalApps.cmd,
+    id: TerminalApp.CMD,
     name: 'Command Prompt',
     command: (_: string, fullCommand: string) => ({
       command: 'cmd',
@@ -75,7 +75,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     })
   },
   {
-    id: terminalApps.powershell,
+    id: TerminalApp.POWERSHELL,
     name: 'PowerShell',
     command: (_: string, fullCommand: string) => ({
       command: 'powershell',
@@ -83,7 +83,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     })
   },
   {
-    id: terminalApps.windowsTerminal,
+    id: TerminalApp.WINDOWS_TERMINAL,
     name: 'Windows Terminal',
     command: (_: string, fullCommand: string) => ({
       command: 'wt',
@@ -91,7 +91,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     })
   },
   {
-    id: terminalApps.wsl,
+    id: TerminalApp.WSL,
     name: 'WSL (Ubuntu/Debian)',
     command: (_: string, fullCommand: string) => ({
       command: 'wsl',
@@ -99,7 +99,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     })
   },
   {
-    id: terminalApps.alacritty,
+    id: TerminalApp.ALACRITTY,
     name: 'Alacritty',
     customPath: '',
     command: (_: string, fullCommand: string) => ({
@@ -108,7 +108,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     })
   },
   {
-    id: terminalApps.wezterm,
+    id: TerminalApp.WEZTERM,
     name: 'WezTerm',
     customPath: '',
     command: (_: string, fullCommand: string) => ({
@@ -131,7 +131,7 @@ const escapeForAppleScript = (str: string): string => {
 
 export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
   {
-    id: terminalApps.systemDefault,
+    id: TerminalApp.SYSTEM_DEFAULT,
     name: 'Terminal',
     bundleId: 'com.apple.Terminal',
     command: (_directory: string, fullCommand: string) => ({
@@ -143,7 +143,7 @@ export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     })
   },
   {
-    id: terminalApps.iterm2,
+    id: TerminalApp.ITERM2,
     name: 'iTerm2',
     bundleId: 'com.googlecode.iterm2',
     command: (_directory: string, fullCommand: string) => ({
@@ -155,7 +155,7 @@ export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     })
   },
   {
-    id: terminalApps.kitty,
+    id: TerminalApp.KITTY,
     name: 'kitty',
     bundleId: 'net.kovidgoyal.kitty',
     command: (_directory: string, fullCommand: string) => ({
@@ -167,7 +167,7 @@ export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     })
   },
   {
-    id: terminalApps.alacritty,
+    id: TerminalApp.ALACRITTY,
     name: 'Alacritty',
     bundleId: 'org.alacritty',
     command: (_directory: string, fullCommand: string) => ({
@@ -179,7 +179,7 @@ export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     })
   },
   {
-    id: terminalApps.wezterm,
+    id: TerminalApp.WEZTERM,
     name: 'WezTerm',
     bundleId: 'com.github.wez.wezterm',
     command: (_directory: string, fullCommand: string) => ({
@@ -191,7 +191,7 @@ export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     })
   },
   {
-    id: terminalApps.ghostty,
+    id: TerminalApp.GHOSTTY,
     name: 'Ghostty',
     bundleId: 'com.mitchellh.ghostty',
     command: (_directory: string, fullCommand: string) => ({
@@ -203,7 +203,7 @@ export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     })
   },
   {
-    id: terminalApps.tabby,
+    id: TerminalApp.TABBY,
     name: 'Tabby',
     bundleId: 'org.tabby',
     command: (_directory: string, fullCommand: string) => ({

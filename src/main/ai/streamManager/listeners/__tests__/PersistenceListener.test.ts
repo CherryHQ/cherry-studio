@@ -55,7 +55,7 @@ function makeListener(modelId?: UniqueModelId) {
 describe('PersistenceListener + TemporaryChatBackend', () => {
   beforeEach(() => {
     appendMessageMock.mockReset()
-    appendMessageMock.mockResolvedValue({ id: 'msg-a' })
+    appendMessageMock.mockReturnValue({ id: 'msg-a' })
   })
 
   it('appends the assistant message on onDone with status=success', async () => {
@@ -71,6 +71,30 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     expect(payload.modelId).toBe('openai::gpt-4o')
     // The service allocates the DB id; the listener/backend must not leak the UIMessage id.
     expect(payload.id).toBeUndefined()
+  })
+
+  it('strips empty text/reasoning parts before the backend write', async () => {
+    const listener = makeListener('openai::gpt-4o')
+
+    const finalMessage = {
+      id: 'ignored',
+      role: 'assistant',
+      parts: [
+        { type: 'reasoning', text: 'real thought', state: 'done' },
+        { type: 'reasoning', text: '', state: 'done' },
+        { type: 'text', text: 'answer' },
+        { type: 'text', text: '   \n  ' }
+      ]
+    } as unknown as CherryUIMessage
+
+    await listener.onDone({ finalMessage, status: 'success', modelId: 'openai::gpt-4o' })
+
+    const payload = appendMessageMock.mock.calls[0][1]
+    const parts = payload.data.parts as Array<{ type: string; text: string }>
+    expect(parts).toEqual([
+      { type: 'reasoning', text: 'real thought', state: 'done' },
+      { type: 'text', text: 'answer' }
+    ])
   })
 
   it('derives all token stats fields from finalMessage.metadata', async () => {
@@ -338,7 +362,9 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
   })
 
   it('swallows append errors so stream teardown is not disrupted', async () => {
-    appendMessageMock.mockRejectedValueOnce(new Error('write failed'))
+    appendMessageMock.mockImplementationOnce(() => {
+      throw new Error('write failed')
+    })
     const listener = makeListener()
 
     await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).resolves.toBeUndefined()
@@ -359,7 +385,11 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
 
   it('drives the placeholder row to status=error when the persist write fails', async () => {
     // First update() is persistAssistant (fails); second is markTerminalError (succeeds).
-    messageUpdateMock.mockRejectedValueOnce(new Error('write failed')).mockResolvedValueOnce({ id: 'assistant-1' })
+    messageUpdateMock
+      .mockImplementationOnce(() => {
+        throw new Error('write failed')
+      })
+      .mockReturnValueOnce({ id: 'assistant-1' })
     const listener = makeMessageServiceListener()
 
     await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).resolves.toBeUndefined()
@@ -370,7 +400,9 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
   })
 
   it('swallows a failure of the terminal-error recovery write itself', async () => {
-    messageUpdateMock.mockRejectedValue(new Error('db down'))
+    messageUpdateMock.mockImplementation(() => {
+      throw new Error('db down')
+    })
     const listener = makeMessageServiceListener()
 
     await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).resolves.toBeUndefined()
@@ -379,7 +411,11 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
   })
 
   it('notifies onPersistFailed so the live renderer can be corrected (C1)', async () => {
-    messageUpdateMock.mockRejectedValueOnce(new Error('write failed')).mockResolvedValueOnce({ id: 'assistant-1' })
+    messageUpdateMock
+      .mockImplementationOnce(() => {
+        throw new Error('write failed')
+      })
+      .mockReturnValueOnce({ id: 'assistant-1' })
     const onPersistFailed = vi.fn()
     const listener = new PersistenceListener({
       topicId: 'topic-1',

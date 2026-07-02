@@ -66,11 +66,10 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
       return
     }
 
-    const currentHistoryQueries = historyQueriesByBaseId[baseId] ?? []
-    setHistoryQueriesByBaseId({
-      ...historyQueriesByBaseId,
-      [baseId]: prependHistoryQuery(currentHistoryQueries, trimmedQuery)
-    })
+    setHistoryQueriesByBaseId((prev) => ({
+      ...prev,
+      [baseId]: prependHistoryQuery(prev[baseId] ?? [], trimmedQuery)
+    }))
 
     const searchId = latestSearchIdRef.current + 1
     latestSearchIdRef.current = searchId
@@ -132,15 +131,15 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
         setIsHistoryOpen(false)
       },
       removeHistory: (historyId) =>
-        setHistoryQueriesByBaseId({
-          ...historyQueriesByBaseId,
-          [baseId]: historyQueries.filter((item) => item !== historyId)
-        }),
+        setHistoryQueriesByBaseId((prev) => ({
+          ...prev,
+          [baseId]: (prev[baseId] ?? []).filter((item) => item !== historyId)
+        })),
       clearHistory: () =>
-        setHistoryQueriesByBaseId({
-          ...historyQueriesByBaseId,
+        setHistoryQueriesByBaseId((prev) => ({
+          ...prev,
           [baseId]: []
-        })
+        }))
     },
     meta: { baseId }
   }

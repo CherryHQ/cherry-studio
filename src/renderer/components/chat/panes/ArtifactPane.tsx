@@ -5,16 +5,14 @@ import { loggerService } from '@logger'
 import { EmptyState, LoadingState } from '@renderer/components/chat'
 import HtmlPreviewFrame from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
 import CodeViewer from '@renderer/components/CodeViewer'
-import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
-import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
+import { FileTree } from '@renderer/components/FileTree'
 import { type FileSizeState, useFileSize } from '@renderer/hooks/useFileSize'
 import { type IsTextState, useIsTextFile } from '@renderer/hooks/useIsTextFile'
 import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
 import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 import { joinPath } from '@renderer/utils/path'
 import type { FilePath } from '@shared/types/file/common'
-import type { DirectoryTreeOptions, TreeDir, TreeDirRoot, TreeNode } from '@shared/utils/file/tree'
-import { toFileUrl } from '@shared/utils/file/urlUtil'
+import { toFileUrl } from '@shared/utils/file/url'
 import { AlertCircle, FileText, Folder, FolderOpen, Maximize2, Minimize2, RotateCw, Sparkles } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
@@ -23,7 +21,6 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState
 } from 'react'
@@ -32,6 +29,12 @@ import { useTranslation } from 'react-i18next'
 import { CHAT_SHELL_TRANSITION } from '../shell/paneLayout'
 import { getVerticalSplitterProps } from '../shell/splitterA11y'
 import OpenExternalAppButton from './OpenExternalAppButton'
+import { type ArtifactFileTreeModel, isSelectableFileNode, useArtifactFileTreeModel } from './useArtifactFileTreeModel'
+
+// Re-exported from their home modules so existing imports of these from
+// `ArtifactPane` keep working.
+export type { ArtifactPaneFileSelection } from './artifactPanePath'
+export { normalizeArtifactPaneFilePath, resolveArtifactPaneFileSelection } from './artifactPanePath'
 
 const logger = loggerService.withContext('ArtifactPane')
 
@@ -40,7 +43,6 @@ export const ARTIFACT_FILE_TREE_DEFAULT_WIDTH = 160
 export const ARTIFACT_FILE_TREE_CACHE_KEY = 'ui.chat.artifact_pane.file_tree.width'
 const ARTIFACT_FILE_TREE_MIN_WIDTH = 80
 const ARTIFACT_FILE_TREE_MAX_WIDTH_OFFSET = 140
-const WORKSPACE_ROOT_ID = '__workspace_root__'
 
 export interface ArtifactPaneProps {
   workspacePath?: string
@@ -59,11 +61,6 @@ export interface ArtifactPaneProps {
   onToggleMaximized?: () => void
   /** Show a search input inside the file tree that filters nodes by name. */
   enableFileSearch?: boolean
-}
-
-export interface ArtifactPaneFileSelection {
-  workspacePath: string
-  filePath: string
 }
 
 interface ArtifactFilePreviewProps {
@@ -97,152 +94,6 @@ const isMarkdownFile = (name: string) => MARKDOWN_EXT.has(extOf(name))
 const isHtmlFile = (name: string) => HTML_EXT.has(extOf(name))
 const isPdfFile = (name: string) => PDF_EXT.has(extOf(name))
 export const isOfficeDocumentFile = (name: string) => OFFICE_DOCUMENT_EXT.has(extOf(name))
-
-const stripWorkspaceRootId = (ids: ReadonlySet<string>): ReadonlySet<string> => {
-  if (!ids.has(WORKSPACE_ROOT_ID)) return ids
-  const next = new Set(ids)
-  next.delete(WORKSPACE_ROOT_ID)
-  return next
-}
-
-const getPathBasename = (path: string): string => {
-  const trimmed = path.trim().replace(/[\\/]+$/, '')
-  if (!trimmed) return path
-  const segments = trimmed.split(/[/\\]+/).filter(Boolean)
-  return segments.at(-1) ?? trimmed
-}
-
-const normalizeTreePath = (path: string): string => {
-  const normalized = path.trim().replace(/\\/g, '/')
-  const withoutTrailingSlash = normalized.replace(/\/+$/, '')
-  if (/^[A-Za-z]:$/.test(withoutTrailingSlash)) return `${withoutTrailingSlash}/`
-  if (!withoutTrailingSlash && normalized.startsWith('/')) return '/'
-  return withoutTrailingSlash
-}
-
-const isAbsoluteTreePath = (path: string): boolean => path.startsWith('/') || /^[A-Za-z]:\//.test(path)
-
-const hasParentTraversal = (path: string): boolean => path.split(/[/\\]+/).some((segment) => segment === '..')
-
-const getPathDirname = (path: string): string => {
-  const normalized = normalizeTreePath(path)
-  const basename = getPathBasename(normalized)
-  if (!basename || normalized === basename) return ''
-
-  const dirname = normalized.slice(0, normalized.length - basename.length).replace(/\/+$/, '')
-  if (!dirname && normalized.startsWith('/')) return '/'
-  if (/^[A-Za-z]:$/.test(dirname)) return `${dirname}/`
-  return dirname
-}
-
-export const normalizeArtifactPaneFilePath = (workspacePath: string, rawPath: string): string | null => {
-  const workspace = normalizeTreePath(workspacePath)
-  const normalized = normalizeTreePath(rawPath)
-  if (!normalized) return null
-
-  if (normalized === workspace) return null
-  if (workspace === '/' && normalized.startsWith('/')) return normalized.slice(1)
-  if (normalized.startsWith(`${workspace}/`)) return normalized.slice(workspace.length + 1)
-  if (isAbsoluteTreePath(normalized)) return null
-
-  return normalized.replace(/^\/+/, '')
-}
-
-export const resolveArtifactPaneFileSelection = (
-  workspacePath: string | undefined,
-  rawPath: string
-): ArtifactPaneFileSelection | null => {
-  const normalized = normalizeTreePath(rawPath)
-  if (!normalized) return null
-
-  if (workspacePath) {
-    const workspaceFilePath = normalizeArtifactPaneFilePath(workspacePath, normalized)
-    if (workspaceFilePath) {
-      if (!hasParentTraversal(workspaceFilePath)) {
-        return { workspacePath, filePath: workspaceFilePath }
-      }
-      // Deliberate: a workspace-relative artifact path that climbs out via `..` is allowed — the
-      // agent legitimately creates files outside the workspace — but re-root it to the resolved
-      // file's directory (like the absolute-path branch below) so the displayed tree root and the
-      // previewed file stay consistent, instead of showing the workspace while reading outside it.
-      // Sandboxing, if ever needed, is the consumer's responsibility at the trust boundary.
-      const resolvedAbsolute = joinPath(normalizeTreePath(workspacePath), workspaceFilePath)
-      const escapedWorkspacePath = getPathDirname(resolvedAbsolute)
-      const escapedFilePath = getPathBasename(resolvedAbsolute)
-      return escapedWorkspacePath && escapedFilePath && escapedFilePath !== escapedWorkspacePath
-        ? { workspacePath: escapedWorkspacePath, filePath: escapedFilePath }
-        : null
-    }
-  }
-
-  if (!isAbsoluteTreePath(normalized)) return null
-
-  const externalWorkspacePath = getPathDirname(normalized)
-  const filePath = getPathBasename(normalized)
-  if (!externalWorkspacePath || !filePath || filePath === externalWorkspacePath) return null
-
-  return { workspacePath: externalWorkspacePath, filePath }
-}
-
-/**
- * Project the main-side `DirectoryTreeBuilder` snapshot into the legacy
- * `FileTreeNode[]` shape `@renderer/components/FileTree` consumes.
- *
- * Identity rule (kept stable so persisted `expandedIds` / `selectedId` survive):
- *   - synthetic root node uses `id === path === WORKSPACE_ROOT_ID`
- *   - every descendant's `id` is its workspace-relative path
- *     (forward-slash, no leading slash) and `path` is `WORKSPACE_ROOT_ID/<id>`
- *
- * Sort order: folders first, then files, each layer alphabetised by name.
- */
-function projectArtifactTree(root: TreeDirRoot | null, workspacePath: string | undefined): FileTreeNode[] {
-  if (!root || !workspacePath) return []
-
-  const rootName = getPathBasename(workspacePath)
-  const rootNode: FileTreeNode = {
-    id: WORKSPACE_ROOT_ID,
-    name: rootName || workspacePath,
-    kind: 'folder',
-    path: WORKSPACE_ROOT_ID,
-    children: projectChildren(root, '')
-  }
-  return [rootNode]
-}
-
-function projectChildren(dir: TreeDir, parentRelPath: string): FileTreeNode[] {
-  const out: FileTreeNode[] = []
-  for (const child of Object.values(dir.children)) {
-    out.push(projectTreeNode(child, parentRelPath))
-  }
-  out.sort((a, b) => {
-    if (a.kind !== b.kind) return a.kind === 'folder' ? -1 : 1
-    return a.name.localeCompare(b.name)
-  })
-  return out
-}
-
-function projectTreeNode(node: TreeNode, parentRelPath: string): FileTreeNode {
-  const relPath = parentRelPath ? `${parentRelPath}/${node.basename}` : node.basename
-  const path = joinPath(WORKSPACE_ROOT_ID, relPath)
-  if (node.isTreeDir()) {
-    return {
-      id: relPath,
-      name: node.basename,
-      kind: 'folder',
-      path,
-      children: projectChildren(node, relPath)
-    }
-  }
-  return { id: relPath, name: node.basename, kind: 'file', path }
-}
-
-interface WorkspaceFileTreeResult {
-  tree: FileTreeNode[]
-  isLoading: boolean
-  hasLoaded: boolean
-  error?: Error
-  refresh: () => void
-}
 
 type PdfPreviewPanelComponent = ComponentType<{
   filePath: string
@@ -340,41 +191,6 @@ function useArtifactFileTreeResize() {
     maxWidth,
     startResizing,
     setPaneWidth
-  }
-}
-
-// Module-level defaults keep the sampled options stable for each tree mount.
-// `useDirectoryTree` rebuilds only when the root path changes.
-const WORKSPACE_TREE_OPTIONS: DirectoryTreeOptions = {
-  // No extension filter — the workspace pane shows whatever the agent
-  // produced. `respectGitignore` defaults to `true` (good for code repos),
-  // dotfiles stay hidden by default.
-}
-
-// The main-side `DirectoryTreeManager` owns the scan + watcher lifecycle.
-const useWorkspaceFileTree = (path: string | undefined): WorkspaceFileTreeResult => {
-  const { root, version, isLoading, error } = useDirectoryTree(path, WORKSPACE_TREE_OPTIONS)
-
-  const tree = useMemo(() => {
-    void version
-    return projectArtifactTree(root, path)
-  }, [root, version, path])
-
-  // The watcher attached by `DirectoryTreeBuilder` keeps the projection
-  // current automatically (agent writes / external edits surface as
-  // `added` / `removed` events). `refresh` stays in the public shape so
-  // the toolbar refresh button + content-cache re-pull continue to work,
-  // but the tree side is a no-op now.
-  const refresh = useCallback(() => {
-    /* no-op — watcher-driven */
-  }, [])
-
-  return {
-    tree,
-    isLoading,
-    hasLoaded: !isLoading && root !== null,
-    error: error ?? undefined,
-    refresh
   }
 }
 
@@ -602,24 +418,47 @@ export function ArtifactFilePreview({
   )
 }
 
-const ArtifactPane = ({
+interface ArtifactPaneViewProps {
+  workspacePath?: string
+  maximized?: boolean
+  pdfLayoutPending?: boolean
+  pdfLayoutRefreshKey?: number
+  enableFileSearch?: boolean
+  onToggleMaximized?: () => void
+  /** The lifted directory-tree model. Owning it above the component lets the
+   *  agent right-pane survive the Host↔Overlay maximize remount without
+   *  rebuilding the tree. */
+  model: ArtifactFileTreeModel
+  selectedFile: string | null
+  onSelectedFileChange: (file: string | null) => void
+  treeOpen: boolean
+  onTreeOpenChange: (open: boolean) => void
+  searchKeyword: string
+  onSearchKeywordChange: (keyword: string) => void
+}
+
+/**
+ * Presentational artifact pane: renders the file tree (from a supplied
+ * `model`) and the selected-file preview. Owns only genuinely-local concerns
+ * (panel resize, the selected-file content sniff, the refresh token); all
+ * tree state is provided.
+ */
+export function ArtifactPaneView({
   workspacePath,
   maximized = false,
   pdfLayoutPending = false,
   pdfLayoutRefreshKey = 0,
-  selectedFile: selectedFileProp,
-  onSelectedFileChange,
-  fileTreeOpen: fileTreeOpenProp,
-  onFileTreeOpenChange,
-  fileTreeExpandedIds: fileTreeExpandedIdsProp,
-  onFileTreeExpandedIdsChange,
-  fileTreeSearchKeyword: fileTreeSearchKeywordProp,
-  onFileTreeSearchKeywordChange,
+  enableFileSearch = false,
   onToggleMaximized,
-  enableFileSearch = false
-}: ArtifactPaneProps) => {
+  model,
+  selectedFile,
+  onSelectedFileChange,
+  treeOpen,
+  onTreeOpenChange,
+  searchKeyword,
+  onSearchKeywordChange
+}: ArtifactPaneViewProps) {
   const { t } = useTranslation()
-  const { tree, isLoading, hasLoaded, error, refresh } = useWorkspaceFileTree(workspacePath)
   const {
     artifactPaneRef,
     isResizing: isFileTreeResizing,
@@ -631,153 +470,32 @@ const ArtifactPane = ({
     setPaneWidth: setFileTreeWidth
   } = useArtifactFileTreeResize()
 
-  const [internalFileTreeOpen, setInternalFileTreeOpen] = useState(false)
-  const [internalSelectedFile, setInternalSelectedFile] = useState<string | null>(null)
-  const [internalFileTreeExpandedIds, setInternalFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [contentRefreshToken, setContentRefreshToken] = useState(0)
-  const [internalFileTreeSearchKeyword, setInternalFileTreeSearchKeyword] = useState('')
   const previousWorkspacePathRef = useRef(workspacePath)
-  const hasMountedRef = useRef(false)
-  const selectedFileControlled = selectedFileProp !== undefined
-  const selectedFile = selectedFileControlled ? selectedFileProp : internalSelectedFile
-  const fileTreeOpenControlled = fileTreeOpenProp !== undefined
-  const treeOpen = fileTreeOpenProp ?? internalFileTreeOpen
-  const fileTreeExpandedIdsControlled = fileTreeExpandedIdsProp !== undefined
-  const expandedIds = fileTreeExpandedIdsProp ?? internalFileTreeExpandedIds
-  const fileTreeSearchKeywordControlled = fileTreeSearchKeywordProp !== undefined
-  const fileSearchKeyword = fileTreeSearchKeywordProp ?? internalFileTreeSearchKeyword
-  const setSelectedFile = useCallback(
-    (file: string | null) => {
-      if (!selectedFileControlled) setInternalSelectedFile(file)
-      onSelectedFileChange?.(file)
-    },
-    [onSelectedFileChange, selectedFileControlled]
-  )
-  const setTreeOpen = useCallback(
-    (open: boolean) => {
-      if (!fileTreeOpenControlled) setInternalFileTreeOpen(open)
-      onFileTreeOpenChange?.(open)
-    },
-    [fileTreeOpenControlled, onFileTreeOpenChange]
-  )
-  const setExpandedIds = useCallback(
-    (ids: ReadonlySet<string>) => {
-      const nextIds = stripWorkspaceRootId(ids)
-      if (!fileTreeExpandedIdsControlled) setInternalFileTreeExpandedIds(nextIds)
-      onFileTreeExpandedIdsChange?.(nextIds)
-    },
-    [fileTreeExpandedIdsControlled, onFileTreeExpandedIdsChange]
-  )
-  const setFileSearchKeyword = useCallback(
-    (keyword: string) => {
-      if (!fileTreeSearchKeywordControlled) setInternalFileTreeSearchKeyword(keyword)
-      onFileTreeSearchKeywordChange?.(keyword)
-    },
-    [fileTreeSearchKeywordControlled, onFileTreeSearchKeywordChange]
-  )
+  // Destructure the stable callbacks so effect/callback deps don't have to
+  // list the whole `model` (a fresh object every render).
+  const { refresh, reloadExpandedDirectories } = model
 
-  const nodeById = useMemo(() => {
-    const result = new Map<string, FileTreeNode>()
-    const visit = (nodes: readonly FileTreeNode[]) => {
-      for (const node of nodes) {
-        result.set(node.id, node)
-        if (node.children?.length) visit(node.children)
-      }
-    }
-    visit(tree)
-    return result
-  }, [tree])
-
-  const trimmedFileSearch = enableFileSearch ? fileSearchKeyword.trim() : ''
-
-  const expandedIdsWithWorkspaceRoot = useMemo<ReadonlySet<string>>(() => {
-    if (!workspacePath) return expandedIds
-    const next = new Set(expandedIds)
-    next.add(WORKSPACE_ROOT_ID)
-    return next
-  }, [expandedIds, workspacePath])
-
-  const filteredTree = useMemo<FileTreeNode[]>(() => {
-    if (!trimmedFileSearch) return tree
-    const needle = trimmedFileSearch.toLowerCase()
-    const filterNodes = (nodes: readonly FileTreeNode[]): FileTreeNode[] => {
-      const out: FileTreeNode[] = []
-      for (const node of nodes) {
-        if (node.kind === 'folder') {
-          const filteredChildren = filterNodes(node.children ?? [])
-          if (filteredChildren.length > 0 || node.name.toLowerCase().includes(needle)) {
-            out.push({ ...node, children: filteredChildren })
-          }
-        } else if (node.name.toLowerCase().includes(needle)) {
-          out.push(node)
-        }
-      }
-      return out
-    }
-    return filterNodes(tree)
-  }, [tree, trimmedFileSearch])
-
-  // While searching, expand every visible folder so matches stay reachable —
-  // user-toggled `expandedIds` resumes after the keyword clears.
-  const effectiveExpandedIds = useMemo<ReadonlySet<string>>(() => {
-    if (!trimmedFileSearch) return expandedIdsWithWorkspaceRoot
-    const expanded = new Set<string>()
-    const visit = (nodes: readonly FileTreeNode[]) => {
-      for (const node of nodes) {
-        if (node.kind === 'folder') {
-          expanded.add(node.id)
-          if (node.children?.length) visit(node.children)
-        }
-      }
-    }
-    visit(filteredTree)
-    return expanded
-  }, [expandedIdsWithWorkspaceRoot, trimmedFileSearch, filteredTree])
-
-  // Reset transient state when the workspace changes.
+  // Drop the content-refresh token when the workspace changes so the preview
+  // doesn't carry a stale forced-reload key into a different tree.
   useEffect(() => {
-    const workspaceChanged = previousWorkspacePathRef.current !== workspacePath
-    if (workspaceChanged) {
-      if (!selectedFileControlled) setSelectedFile(null)
+    if (previousWorkspacePathRef.current !== workspacePath) {
+      previousWorkspacePathRef.current = workspacePath
+      setContentRefreshToken(0)
     }
-    previousWorkspacePathRef.current = workspacePath
+  }, [workspacePath])
 
-    if (!hasMountedRef.current || workspaceChanged) {
-      if (!fileTreeExpandedIdsControlled) setExpandedIds(new Set())
-      if (!fileTreeSearchKeywordControlled) setFileSearchKeyword('')
-    }
-    hasMountedRef.current = true
-    setContentRefreshToken(0)
-  }, [
-    fileTreeExpandedIdsControlled,
-    fileTreeSearchKeywordControlled,
-    selectedFileControlled,
-    setExpandedIds,
-    setFileSearchKeyword,
-    setSelectedFile,
-    workspacePath
-  ])
-
-  useEffect(() => {
-    if (!selectedFile || !hasLoaded) return
-
-    const selectedNode = nodeById.get(selectedFile)
-    if (selectedNode?.kind === 'file') return
-
-    setSelectedFile(null)
-  }, [hasLoaded, nodeById, selectedFile, setSelectedFile])
+  const trimmedFileSearch = enableFileSearch ? searchKeyword.trim() : ''
 
   const handleSelectedChange = useCallback(
     (id: string | null) => {
       if (!id) {
-        setSelectedFile(null)
+        onSelectedFileChange(null)
         return
       }
-
-      const node = nodeById.get(id)
-      if (node?.kind === 'file') setSelectedFile(id)
+      if (isSelectableFileNode(model.nodeById, id)) onSelectedFileChange(id)
     },
-    [nodeById, setSelectedFile]
+    [model.nodeById, onSelectedFileChange]
   )
 
   const isPdfSelection = selectedFile ? isPdfFile(selectedFile) : false
@@ -789,10 +507,13 @@ const ArtifactPane = ({
 
   const handleRefresh = useCallback(() => {
     refresh()
+    if (treeOpen) {
+      reloadExpandedDirectories()
+    }
     if (workspacePath && selectedFile && isText === 'text') {
       setContentRefreshToken((v) => v + 1)
     }
-  }, [refresh, selectedFile, workspacePath, isText])
+  }, [refresh, reloadExpandedDirectories, selectedFile, treeOpen, workspacePath, isText])
 
   const isSelectedHtmlPreview = selectedFile ? isHtmlFile(selectedFile) : false
   const isSelectedPdfPreview = isPdfSelection
@@ -812,8 +533,8 @@ const ArtifactPane = ({
         />
       )
     }
-    if (error) {
-      return <EmptyState icon={AlertCircle} title={t('common.error')} description={error.message} />
+    if (model.error) {
+      return <EmptyState icon={AlertCircle} title={t('common.error')} description={model.error.message} />
     }
     return (
       <ArtifactFilePreview
@@ -858,22 +579,22 @@ const ArtifactPane = ({
                 <div
                   data-artifact-file-tree-scroll-region
                   className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-1 py-2">
-                  {isLoading ? (
+                  {model.isLoading ? (
                     <LoadingState variant="skeleton" rows={4} />
                   ) : (
                     <FileTree
-                      nodes={filteredTree}
-                      expandedIds={effectiveExpandedIds}
-                      onExpandedChange={setExpandedIds}
+                      nodes={model.filteredTree}
+                      expandedIds={model.effectiveExpandedIds}
+                      onExpandedChange={model.setExpandedIds}
                       selectedId={selectedFile}
                       onSelectedChange={handleSelectedChange}
                       showSearch={enableFileSearch}
-                      searchKeyword={fileSearchKeyword}
-                      onSearchKeywordChange={setFileSearchKeyword}
+                      searchKeyword={searchKeyword}
+                      onSearchKeywordChange={onSearchKeywordChange}
                       searchPlaceholder={t('agent.preview_pane.search_placeholder')}
                       emptyState={
                         <div className="px-2 py-3 text-muted-foreground text-xs">
-                          {error
+                          {model.error
                             ? t('common.error')
                             : trimmedFileSearch
                               ? t('agent.preview_pane.no_search_results')
@@ -913,7 +634,7 @@ const ArtifactPane = ({
                   className={headerToggleClass(treeOpen)}
                   aria-label={t('agent.preview_pane.file_tree')}
                   aria-pressed={treeOpen}
-                  onClick={() => setTreeOpen(!treeOpen)}>
+                  onClick={() => onTreeOpenChange(!treeOpen)}>
                   <FileTreeIcon size={16} />
                 </Button>
               </Tooltip>
@@ -960,6 +681,133 @@ const ArtifactPane = ({
         </section>
       </div>
     </div>
+  )
+}
+
+/**
+ * Standalone artifact pane: owns its own (optionally controlled) selection /
+ * file-tree state and builds the tree model internally. The agent right-pane
+ * instead lifts the model into a surviving provider and renders
+ * `ArtifactPaneView` directly (so maximize/minimize doesn't rebuild the tree).
+ */
+const ArtifactPane = ({
+  workspacePath,
+  maximized = false,
+  pdfLayoutPending = false,
+  pdfLayoutRefreshKey = 0,
+  selectedFile: selectedFileProp,
+  onSelectedFileChange,
+  fileTreeOpen: fileTreeOpenProp,
+  onFileTreeOpenChange,
+  fileTreeExpandedIds: fileTreeExpandedIdsProp,
+  onFileTreeExpandedIdsChange,
+  fileTreeSearchKeyword: fileTreeSearchKeywordProp,
+  onFileTreeSearchKeywordChange,
+  onToggleMaximized,
+  enableFileSearch = false
+}: ArtifactPaneProps) => {
+  const [internalFileTreeOpen, setInternalFileTreeOpen] = useState(false)
+  const [internalSelectedFile, setInternalSelectedFile] = useState<string | null>(null)
+  const [internalFileTreeExpandedIds, setInternalFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
+  const [internalFileTreeSearchKeyword, setInternalFileTreeSearchKeyword] = useState('')
+  const previousWorkspacePathRef = useRef(workspacePath)
+  const hasMountedRef = useRef(false)
+  const selectedFileControlled = selectedFileProp !== undefined
+  const selectedFile = selectedFileControlled ? selectedFileProp : internalSelectedFile
+  const fileTreeOpenControlled = fileTreeOpenProp !== undefined
+  const treeOpen = fileTreeOpenProp ?? internalFileTreeOpen
+  const fileTreeExpandedIdsControlled = fileTreeExpandedIdsProp !== undefined
+  const expandedIds = fileTreeExpandedIdsProp ?? internalFileTreeExpandedIds
+  const fileTreeSearchKeywordControlled = fileTreeSearchKeywordProp !== undefined
+  const fileSearchKeyword = fileTreeSearchKeywordProp ?? internalFileTreeSearchKeyword
+
+  const setSelectedFile = useCallback(
+    (file: string | null) => {
+      if (!selectedFileControlled) setInternalSelectedFile(file)
+      onSelectedFileChange?.(file)
+    },
+    [onSelectedFileChange, selectedFileControlled]
+  )
+  const setTreeOpen = useCallback(
+    (open: boolean) => {
+      if (!fileTreeOpenControlled) setInternalFileTreeOpen(open)
+      onFileTreeOpenChange?.(open)
+    },
+    [fileTreeOpenControlled, onFileTreeOpenChange]
+  )
+  const setExpandedIdsState = useCallback(
+    (ids: ReadonlySet<string>) => {
+      if (!fileTreeExpandedIdsControlled) setInternalFileTreeExpandedIds(ids)
+      onFileTreeExpandedIdsChange?.(ids)
+    },
+    [fileTreeExpandedIdsControlled, onFileTreeExpandedIdsChange]
+  )
+  const setFileSearchKeyword = useCallback(
+    (keyword: string) => {
+      if (!fileTreeSearchKeywordControlled) setInternalFileTreeSearchKeyword(keyword)
+      onFileTreeSearchKeywordChange?.(keyword)
+    },
+    [fileTreeSearchKeywordControlled, onFileTreeSearchKeywordChange]
+  )
+
+  const model = useArtifactFileTreeModel({
+    workspacePath,
+    treeOpen,
+    expandedIds,
+    searchKeyword: fileSearchKeyword,
+    enableFileSearch,
+    selectedFile,
+    onExpandedIdsChange: setExpandedIdsState
+  })
+  const { resetLazyChildren } = model
+
+  // Reset transient state when the workspace changes.
+  useEffect(() => {
+    const workspaceChanged = previousWorkspacePathRef.current !== workspacePath
+    if (workspaceChanged) {
+      if (!selectedFileControlled) setSelectedFile(null)
+      resetLazyChildren()
+    }
+    previousWorkspacePathRef.current = workspacePath
+
+    if (!hasMountedRef.current || workspaceChanged) {
+      if (!fileTreeExpandedIdsControlled) setExpandedIdsState(new Set())
+      if (!fileTreeSearchKeywordControlled) setFileSearchKeyword('')
+    }
+    hasMountedRef.current = true
+  }, [
+    fileTreeExpandedIdsControlled,
+    fileTreeSearchKeywordControlled,
+    selectedFileControlled,
+    setExpandedIdsState,
+    setFileSearchKeyword,
+    setSelectedFile,
+    resetLazyChildren,
+    workspacePath
+  ])
+
+  useEffect(() => {
+    if (!selectedFile || !model.hasLoaded) return
+    if (isSelectableFileNode(model.nodeById, selectedFile)) return
+    setSelectedFile(null)
+  }, [model.hasLoaded, model.nodeById, selectedFile, setSelectedFile])
+
+  return (
+    <ArtifactPaneView
+      workspacePath={workspacePath}
+      maximized={maximized}
+      pdfLayoutPending={pdfLayoutPending}
+      pdfLayoutRefreshKey={pdfLayoutRefreshKey}
+      enableFileSearch={enableFileSearch}
+      onToggleMaximized={onToggleMaximized}
+      model={model}
+      selectedFile={selectedFile}
+      onSelectedFileChange={setSelectedFile}
+      treeOpen={treeOpen}
+      onTreeOpenChange={setTreeOpen}
+      searchKeyword={fileSearchKeyword}
+      onSearchKeywordChange={setFileSearchKeyword}
+    />
   )
 }
 

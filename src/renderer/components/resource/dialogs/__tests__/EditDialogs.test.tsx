@@ -161,7 +161,7 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useQuery: useQueryMock
 }))
 
-vi.mock('@renderer/hooks/agents/useAgentTools', () => ({
+vi.mock('@renderer/hooks/agent/useAgentTools', () => ({
   useAgentTools: () => ({
     tools: agentTools,
     isLoading: false,
@@ -295,8 +295,9 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.model_not_found': 'Model {{id}} is unavailable.',
           'library.config.basic.precise': 'Precise',
           'library.config.basic.stream_output': 'Stream output',
+          'library.config.basic.tags': 'Tags',
           'library.config.basic.tag_empty': 'No tags',
-          'library.config.basic.tag_placeholder': 'Select tags',
+          'library.config.basic.tag_placeholder': 'Select tag',
           'library.config.basic.tag_search': 'Search tags',
           'library.config.basic.mcp_mode': 'MCP Mode',
           'library.config.basic.temperature': 'Temperature',
@@ -558,13 +559,10 @@ async function expectVariablesHelpOnHover() {
   await waitFor(() => expect(screen.getAllByText('{{date}}').length).toBeGreaterThan(0))
 }
 
-function openTagCombobox() {
-  const removeTagButton = screen.getByRole('button', { name: 'Remove work' })
-  const combobox = removeTagButton.closest('[role="combobox"]')
-  if (!combobox) {
-    throw new Error('Tag combobox trigger not found')
-  }
-  fireEvent.click(combobox)
+function openTagSelect() {
+  const select = screen.getByRole('combobox', { name: 'Tags' })
+  fireEvent.pointerDown(select)
+  fireEvent.click(select)
 }
 
 describe('edit dialogs', () => {
@@ -616,57 +614,45 @@ describe('edit dialogs', () => {
   })
 
   it('submits assistant tag changes through ensureTags', async () => {
-    ensureTagsMock.mockResolvedValueOnce([
-      { id: 'tag-work', name: 'work', color: '#8b5cf6' },
-      { id: 'tag-personal', name: 'personal', color: '#10b981' }
-    ])
+    ensureTagsMock.mockResolvedValueOnce([{ id: 'tag-personal', name: 'personal', color: '#10b981' }])
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
-    openTagCombobox()
-    fireEvent.click(await screen.findByText('personal'))
+    openTagSelect()
+    fireEvent.click(await screen.findByRole('option', { name: 'personal' }))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-    await waitFor(() => expect(ensureTagsMock).toHaveBeenCalledWith(['work', 'personal']))
+    await waitFor(() => expect(ensureTagsMock).toHaveBeenCalledWith(['personal']))
     expect(updateAssistantMock).toHaveBeenCalledWith({
       body: expect.objectContaining({
-        tagIds: ['tag-work', 'tag-personal']
+        tagIds: ['tag-personal']
       })
     })
   })
 
-  it('creates and binds a new tag typed in assistant editing', async () => {
-    ensureTagsMock.mockResolvedValueOnce([
-      { id: 'tag-work', name: 'work', color: '#8b5cf6' },
-      { id: 'tag-new', name: 'new-tag', color: '#10b981' }
-    ])
+  it('clears the assistant tag from the single-select tag field', async () => {
+    ensureTagsMock.mockResolvedValueOnce([])
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
-    openTagCombobox()
-    fireEvent.change(screen.getByPlaceholderText('Search tags'), { target: { value: 'new-tag' } })
-    fireEvent.click(await screen.findByText('new-tag'))
+    const clearButton = screen.getByRole('button', { name: 'Tags Clear' })
+    expect(clearButton).toHaveClass('focus-visible:pointer-events-auto', 'focus-visible:opacity-100')
+    fireEvent.click(clearButton)
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-    await waitFor(() => expect(ensureTagsMock).toHaveBeenCalledWith(['work', 'new-tag']))
+    await waitFor(() => expect(ensureTagsMock).toHaveBeenCalledWith([]))
     expect(updateAssistantMock).toHaveBeenCalledWith({
       body: expect.objectContaining({
-        tagIds: ['tag-work', 'tag-new']
+        tagIds: []
       })
     })
   })
 
-  it('does not expose typed tag names beyond the server-side max length', async () => {
+  it('limits assistant tag editing to existing tags', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
-    // Open the combobox popover (CommandInput only mounts once the trigger is active)
-    openTagCombobox()
-    const atLimit = 'y'.repeat(64) // TagNameSchema.max(64)
-    const tooLong = 'x'.repeat(65) // one over the limit — server would reject
-    const searchInput = screen.getByPlaceholderText('Search tags')
 
-    fireEvent.change(searchInput, { target: { value: tooLong } })
-    expect(screen.queryByText(tooLong)).not.toBeInTheDocument()
-
-    fireEvent.change(searchInput, { target: { value: atLimit } })
-    expect(await screen.findByText(atLimit)).toBeInTheDocument()
+    openTagSelect()
+    expect(screen.queryByPlaceholderText('Search tags')).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'No tag' })).not.toBeInTheDocument()
+    expect(screen.queryByText('new-tag')).not.toBeInTheDocument()
   })
 
   it('submits agent instructions and model changes as a PATCH', async () => {

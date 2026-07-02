@@ -149,8 +149,7 @@ export async function restore() {
             message: i18n.t('message.restore.success'),
             silent: false,
             timestamp: Date.now(),
-            source: 'backup',
-            channel: 'system'
+            source: 'backup'
           })
           // App will relaunch automatically
           return
@@ -168,8 +167,7 @@ export async function restore() {
         message: i18n.t('message.restore.success'),
         silent: false,
         timestamp: Date.now(),
-        source: 'backup',
-        channel: 'system'
+        source: 'backup'
       })
     } catch (error) {
       logger.error('restore: Error restoring backup file:', error as Error)
@@ -293,8 +291,7 @@ export async function backupToWebdav({
         message: i18n.t('message.backup.success'),
         silent: false,
         timestamp: Date.now(),
-        source: 'backup',
-        channel: 'system'
+        source: 'backup'
       })
       showMessage && window.toast.success(i18n.t('message.backup.success'))
 
@@ -363,8 +360,7 @@ export async function backupToWebdav({
       message: error.message,
       silent: false,
       timestamp: Date.now(),
-      source: 'backup',
-      channel: 'system'
+      source: 'backup'
     })
     setWebDAVSyncState({ lastSyncError: error.message })
     showMessage && window.toast.error(i18n.t('message.backup.failed'))
@@ -484,8 +480,7 @@ export async function backupToS3({
         message: i18n.t('message.backup.success'),
         silent: false,
         timestamp: Date.now(),
-        source: 'backup',
-        channel: 'system'
+        source: 'backup'
       })
       showMessage && window.toast.success(i18n.t('message.backup.success'))
 
@@ -538,8 +533,7 @@ export async function backupToS3({
       message: error.message,
       silent: false,
       timestamp: Date.now(),
-      source: 'backup',
-      channel: 'system'
+      source: 'backup'
     })
     setS3SyncState({ lastSyncError: error.message })
     logger.error('backupToS3: Error uploading file to S3:', error)
@@ -1104,8 +1098,7 @@ export async function backupToLocal({
           message: i18n.t('message.backup.success'),
           silent: false,
           timestamp: Date.now(),
-          source: 'backup',
-          channel: 'system'
+          source: 'backup'
         })
       }
 

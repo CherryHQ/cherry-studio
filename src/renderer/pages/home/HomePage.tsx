@@ -8,27 +8,39 @@ import {
   EmptyState,
   LoadingState
 } from '@renderer/components/chat'
+import {
+  type ResourcePaneConfig,
+  ResourcePaneCountButton,
+  type ResourcePaneCountButtonProps,
+  useResourcePane
+} from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
+import { AssistantResourceList } from '@renderer/components/chat/resources/variants/AssistantResourceList'
 import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
-import { ChatPlacementComposer } from '@renderer/components/composer/variants/ChatComposer'
+import { ChatHomePlacementComposer } from '@renderer/components/composer/variants/ChatComposer'
 import {
   createRecentTopicEntryFromTopic,
   upsertGlobalSearchRecentEntry
 } from '@renderer/components/GlobalSearch/globalSearchGroups'
-import { getTabInstanceKey } from '@renderer/config/tabInstanceMetadata'
-import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/context/TabIdContext'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
+import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/hooks/tab'
 import { useAssistantApiById, useAssistants } from '@renderer/hooks/useAssistant'
+import { toCreateAssistantDtoFromCatalogPreset } from '@renderer/hooks/useAssistantCatalogPresets'
+import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { FileMetadata } from '@renderer/types/file'
 import type { Topic } from '@renderer/types/topic'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { findLatestUpdated, isUntouchedSinceCreation } from '@renderer/utils/resourceEntity'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
+import { getTabInstanceKey } from '@renderer/utils/tabInstanceMetadata'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
@@ -39,9 +51,15 @@ import { useTranslation } from 'react-i18next'
 
 import HistoryRecordsPage from '../history/HistoryRecordsPage'
 import Chat from './Chat'
+import {
+  AssistantConversationPickerDialog,
+  type AssistantConversationSelection
+} from './components/AssistantConversationPickerDialog'
 import ChatNavbar from './components/ChatNavbar'
+import { TopicRightPane } from './components/TopicRightPane'
 import { parseChatRouteSearch } from './routeSearch'
 import HomeTabs from './Tabs'
+import { Topics } from './Tabs/components/Topics'
 import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('HomePage')
@@ -55,6 +73,23 @@ type DraftAssistantStartState = {
 
 type DraftAssistantSelection = {
   assistantId?: string
+}
+
+// Reuse the assistant's latest *empty* placeholder topic instead of stacking a new one. The empty
+// topic only exists to surface the assistant in the classic-layout rail, so on repeated adds we reopen the
+// existing placeholder rather than pile up blanks.
+//
+// Emptiness is detected via `isUntouchedSinceCreation` (updatedAt === createdAt), not a blank name:
+// with auto-naming off a chatted-in topic keeps a blank name forever, so a name test would reopen it
+// instead of starting a new conversation. See isUntouchedSinceCreation for the full rationale.
+function findReusableEmptyTopic<T extends { assistantId?: string; createdAt?: string; updatedAt?: string }>(
+  topics: readonly T[],
+  assistantId: string | undefined
+): T | undefined {
+  if (!assistantId) return undefined
+  return findLatestUpdated(
+    topics.filter((topic) => topic.assistantId === assistantId && isUntouchedSinceCreation(topic))
+  )
 }
 
 type DraftChatSendOptions = {
@@ -71,14 +106,31 @@ const HomePage: FC = () => {
   const topicRevealRequestIdRef = useRef(0)
   const draftAssistantStartStateRef = useRef<DraftAssistantStartState>({ firstLaunchStarted: false })
   const draftAssistantSelectionRef = useRef<DraftAssistantSelection | null>(null)
+  // Guards the classic-layout topic-create paths against re-entry: a rapid double-click would
+  // otherwise read the same pre-refresh topic list twice and stack duplicate blank topics.
+  const isCreatingTopicRef = useRef(false)
   const [draftAssistantSelection, setDraftAssistantSelection] = useState<DraftAssistantSelection | undefined>()
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
   const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
-  const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
+  const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
+  const [topicLayout] = usePreference('topic.layout')
+  const isClassicTopicLayout = topicLayout === 'classic'
+  // Classic-layout right-pane open state, cached on the assistant surface's own key.
+  const [topicPaneOpen, setTopicPaneOpen] = useClassicLayoutRightPaneOpen('chat', isClassicTopicLayout)
+  // Classic layout shares this full-topics source with the rail; modern layout leaves it disabled (no fetch).
+  // The picker uses it to reuse an empty placeholder topic instead of stacking new ones.
+  const {
+    topics: classicLayoutTopics,
+    isLoadingAll: isClassicTopicLayoutLoading,
+    isFullyLoaded: isClassicTopicLayoutFullyLoaded
+  } = useAssistantTopicsSource({ enabled: isClassicTopicLayout })
+  const isClassicTopicLayoutHistoryReady =
+    !isClassicTopicLayout || (!isClassicTopicLayoutLoading && isClassicTopicLayoutFullyLoaded)
   const [historyRecordsOpen, setHistoryRecordsOpen] = useState(false)
+  const [assistantPickerOpen, setAssistantPickerOpen] = useState(false)
 
   const location = useLocation()
   const routeSearch = parseChatRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
@@ -111,7 +163,8 @@ const HomePage: FC = () => {
     assistants,
     hasLoaded: hasAssistantsLoaded,
     isLoading: isAssistantsLoading,
-    isRefreshing: isAssistantsRefreshing
+    isRefreshing: isAssistantsRefreshing,
+    addAssistant
   } = useAssistants()
   const assistantIdSet = useMemo(() => new Set(assistants.map((assistant) => assistant.id)), [assistants])
   const validLastUsedAssistantId =
@@ -120,6 +173,9 @@ const HomePage: FC = () => {
   const isAssistantListResolved = hasAssistantsLoaded && !isAssistantsLoading && !isAssistantsRefreshing
   const resolveDraftAssistantTarget = useCallback(
     (explicitAssistantId?: string | null): ResolvedDraftAssistantSelection => {
+      if (explicitAssistantId === null) {
+        return { source: 'explicit' }
+      }
       if (explicitAssistantId && assistantIdSet.has(explicitAssistantId)) {
         return { assistantId: explicitAssistantId, source: 'explicit' }
       }
@@ -241,6 +297,14 @@ const HomePage: FC = () => {
   // are distinguishable in the tab bar (every tab labels itself — not gated on active).
   const visibleAssistantId = visibleTopic?.assistantId ?? draftAssistantSelectionSnapshot?.assistantId
   const { assistant: visibleAssistant } = useAssistantApiById(visibleAssistantId ?? undefined)
+  const topicResourcePaneCount = useMemo<ResourcePaneCountButtonProps | undefined>(() => {
+    if (!isClassicTopicLayout || !visibleAssistantId) return undefined
+
+    return {
+      label: t('chat.topics.title'),
+      count: classicLayoutTopics.filter((topic) => topic.assistantId === visibleAssistantId).length
+    }
+  }, [isClassicTopicLayout, classicLayoutTopics, t, visibleAssistantId])
   const isDraftView = !isMessageOnlyView && !!draftAssistantSelectionSnapshot
   const tabInstanceTopicId =
     !isMessageOnlyView && !isDraftView ? (visibleTopic?.id ?? routeActiveTopicId ?? undefined) : undefined
@@ -261,13 +325,9 @@ const HomePage: FC = () => {
     const signature = `${activeTopic.id}:${activeTopic.name}`
     if (lastRecordedRecentTopicRef.current === signature) return
 
-    const currentRecentItems = recentItems ?? []
-    const nextItems = upsertGlobalSearchRecentEntry(currentRecentItems, createRecentTopicEntryFromTopic(activeTopic))
     lastRecordedRecentTopicRef.current = signature
-    if (nextItems !== currentRecentItems) {
-      setRecentItems(nextItems)
-    }
-  }, [activeTopic, isMessageOnlyView, recentItems, setRecentItems])
+    setRecentItems((prev) => upsertGlobalSearchRecentEntry(prev ?? [], createRecentTopicEntryFromTopic(activeTopic)))
+  }, [activeTopic, isMessageOnlyView, setRecentItems])
 
   const sendDraftMessage = useCallback(
     async (text: string, options?: DraftChatSendOptions) => {
@@ -361,6 +421,17 @@ const HomePage: FC = () => {
     if (!shouldUseDraft || draftAssistantStartStateRef.current.firstLaunchStarted || state?.topic) return
     if (draftAssistantSelectionSnapshot || activeTopic || isActiveTopicLoading) return
     if (!isAssistantListResolved) return
+    if (isClassicTopicLayout && !isClassicTopicLayoutHistoryReady) return
+
+    if (isClassicTopicLayout && !routeAssistantId) {
+      const latestTopic = findLatestUpdated(classicLayoutTopics)
+      if (latestTopic) {
+        draftAssistantStartStateRef.current.firstLaunchStarted = true
+        setDraftAssistantSelectionState(undefined)
+        setActiveTopic(mapApiTopicToRendererTopic(latestTopic))
+        return
+      }
+    }
 
     draftAssistantStartStateRef.current.firstLaunchStarted = true
     startDraftAssistantSelection(routeAssistantId ? { assistantId: routeAssistantId } : undefined)
@@ -369,7 +440,12 @@ const HomePage: FC = () => {
     draftAssistantSelectionSnapshot,
     isActiveTopicLoading,
     isAssistantListResolved,
+    isClassicTopicLayout,
+    isClassicTopicLayoutHistoryReady,
+    classicLayoutTopics,
     routeAssistantId,
+    setActiveTopic,
+    setDraftAssistantSelectionState,
     shouldUseDraft,
     startDraftAssistantSelection,
     state?.topic
@@ -389,6 +465,106 @@ const HomePage: FC = () => {
       return true
     },
     [conversationNav, currentTabId, setActiveTopic, setDraftAssistantSelectionState]
+  )
+  // Classic-layout reset after deleting the active assistant: select the latest
+  // remaining topic (across other assistants). Filter by the deleted id so this
+  // is correct even before the topic cache refetches. If nothing remains, fall
+  // back to the draft compose — classic layout has no empty-with-rail state to show.
+  const handleActiveAssistantDeleted = useCallback(
+    (deletedAssistantId: string) => {
+      const nextTopic = findLatestUpdated(
+        classicLayoutTopics.filter((topic) => topic.assistantId !== deletedAssistantId)
+      )
+      // setActiveTopicAndDiscardDraft returns false when the next topic is already open in another
+      // tab (it focuses that tab). In that case the current tab would otherwise keep pointing at the
+      // just-deleted topic, so fall through to a draft instead of leaving a ghost.
+      if (nextTopic && setActiveTopicAndDiscardDraft(mapApiTopicToRendererTopic(nextTopic))) {
+        return
+      }
+      startDraftAssistantSelection()
+    },
+    [classicLayoutTopics, setActiveTopicAndDiscardDraft, startDraftAssistantSelection]
+  )
+
+  const resolveAssistantIdForSelection = useCallback(
+    async (selection: AssistantConversationSelection) => {
+      if (selection.type === 'assistant') return selection.assistantId
+
+      // Reuse an assistant already created from this preset (matched by name, the only persistent
+      // link we have) instead of creating a duplicate every time the preset is picked.
+      const presetName = selection.preset.name.trim()
+      const existing = assistants.find((assistant) => assistant.name === presetName)
+      if (existing) return existing.id
+
+      return (await addAssistant(toCreateAssistantDtoFromCatalogPreset(selection.preset))).id
+    },
+    [addAssistant, assistants]
+  )
+
+  const handleAssistantConversationSelect = useCallback(
+    async (selection: AssistantConversationSelection) => {
+      if (isCreatingTopicRef.current) return
+      isCreatingTopicRef.current = true
+      // Close the picker first so the topic/assistant data churn below doesn't refresh the dialog
+      // while it's still visible (which reads as a black/white flash + the dialog reopening).
+      setAssistantPickerOpen(false)
+      try {
+        const assistantId = await resolveAssistantIdForSelection(selection)
+
+        // Reuse the assistant's latest empty placeholder topic (see findReusableEmptyTopic).
+        const reusableTopic = findReusableEmptyTopic(classicLayoutTopics, assistantId)
+
+        const topic = reusableTopic ?? (await createTopic({ assistantId }))
+        const rendererTopic = mapApiTopicToRendererTopic(topic)
+
+        // One tab per topic: a reused topic already open in another tab focuses that tab instead of
+        // duplicating it here; this also discards any pending draft selection.
+        setActiveTopicAndDiscardDraft(rendererTopic)
+        if (!reusableTopic) {
+          void refreshTopics().catch((err) => {
+            logger.warn('Failed to refresh topics after assistant picker topic create', err as Error)
+          })
+        }
+      } catch (err) {
+        logger.error('Failed to create assistant conversation from classic-layout picker', err as Error)
+        window.toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+      } finally {
+        isCreatingTopicRef.current = false
+      }
+    },
+    [createTopic, classicLayoutTopics, refreshTopics, resolveAssistantIdForSelection, setActiveTopicAndDiscardDraft, t]
+  )
+
+  const createAndActivateEmptyTopic = useCallback(
+    async (payload?: AddNewTopicPayload) => {
+      if (isCreatingTopicRef.current) return
+      isCreatingTopicRef.current = true
+      try {
+        const selection = resolveDraftAssistantTarget(payload?.assistantId)
+        const reusableTopic = findReusableEmptyTopic(classicLayoutTopics, selection.assistantId)
+        const topic =
+          reusableTopic ??
+          (await createTopic({
+            ...(selection.assistantId ? { assistantId: selection.assistantId } : {})
+          }))
+        const rendererTopic = mapApiTopicToRendererTopic(topic)
+
+        // One tab per topic: a reused topic already open in another tab focuses that tab instead of
+        // duplicating it here; this also discards any pending draft selection.
+        setActiveTopicAndDiscardDraft(rendererTopic)
+        if (!reusableTopic) {
+          void refreshTopics().catch((err) => {
+            logger.warn('Failed to refresh topics after composer topic create', err as Error)
+          })
+        }
+      } catch (err) {
+        logger.error('Failed to create empty topic from classic-layout composer', err as Error)
+        window.toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+      } finally {
+        isCreatingTopicRef.current = false
+      }
+    },
+    [createTopic, classicLayoutTopics, refreshTopics, resolveDraftAssistantTarget, setActiveTopicAndDiscardDraft, t]
   )
 
   useEffect(() => {
@@ -476,8 +652,18 @@ const HomePage: FC = () => {
     return <Container id="home-page" />
   }
 
-  const panePosition = 'left'
-  const pane = (
+  // Classic layout = entity rail + right topic panel; modern layout = the single sidebar (HomeTabs).
+  const panePosition: ChatPanePosition = 'left'
+  const pane = isClassicTopicLayout ? (
+    <AssistantResourceList
+      activeAssistantId={visibleAssistantId ?? null}
+      onAddAssistant={() => setAssistantPickerOpen(true)}
+      onOpenHistoryRecords={openHistoryRecords}
+      onSelectTopic={setActiveTopicAndDiscardDraft}
+      onStartDraftAssistant={(assistantId) => startDraftAssistantSelection({ assistantId })}
+      onActiveAssistantDeleted={handleActiveAssistantDeleted}
+    />
+  ) : (
     <HomeTabs
       activeTopic={visibleTopic}
       setActiveTopic={setActiveTopicAndDiscardDraft}
@@ -485,6 +671,33 @@ const HomePage: FC = () => {
       onOpenHistoryRecords={openHistoryRecords}
       revealRequest={topicRevealRequest}
     />
+  )
+  // In classic layout the topic list moves into the chat's right pane as a tab; the single page-level
+  // provider owns the Shell for both views so the rail and the right panel share its open/maximize
+  // state. New (sidebar) view passes a null config, leaving the pane as branch/trace only.
+  const resourcePane: ResourcePaneConfig | null = isClassicTopicLayout
+    ? {
+        label: t('chat.topics.title'),
+        node: (
+          <Topics
+            presentation="right-panel"
+            activeTopic={visibleTopic}
+            assistantIdFilter={visibleAssistantId ?? null}
+            setActiveTopic={setActiveTopicAndDiscardDraft}
+            onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
+            revealRequest={topicRevealRequest}
+          />
+        )
+      }
+    : null
+  const renderWithRightPane = (content: ReactNode) => (
+    <TopicRightPane
+      resourcePane={resourcePane}
+      defaultOpen={topicPaneOpen}
+      onOpenChange={isClassicTopicLayout ? setTopicPaneOpen : undefined}
+      revealRequest={topicRevealRequest}>
+      {content}
+    </TopicRightPane>
   )
   const historyRecordsOverlay = (
     <HistoryRecordsPage
@@ -495,9 +708,18 @@ const HomePage: FC = () => {
       onRecordSelect={handleHistoryRecordsTopicSelect}
     />
   )
+  const assistantPickerDialog = isClassicTopicLayout ? (
+    <AssistantConversationPickerDialog
+      open={assistantPickerOpen}
+      onOpenChange={setAssistantPickerOpen}
+      assistants={assistants}
+      assistantsLoading={isAssistantsLoading || isAssistantsRefreshing}
+      onSelect={handleAssistantConversationSelect}
+    />
+  ) : null
 
   if (draftAssistantSelectionSnapshot) {
-    return (
+    return renderWithRightPane(
       <Container id="home-page">
         <ContentContainer $detached={isWindowFrame}>
           <DraftWelcomeChat
@@ -508,14 +730,17 @@ const HomePage: FC = () => {
             panePosition={panePosition}
             onPaneCollapse={() => setResourceListOpen(false)}
             onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
+            onCreateEmptyTopic={isClassicTopicLayout && !isMessageOnlyView ? createAndActivateEmptyTopic : undefined}
             onDraftAssistantChange={updateDraftAssistantSelection}
             onSend={sendDraftMessage}
             showResourceListControls={!isMessageOnlyView && !isWindowFrame}
             sidebarOpen={effectiveShowSidebar}
             onSidebarToggle={toggleResourceListOpen}
+            resourcePaneCount={topicResourcePaneCount}
             welcomeText={t('chat.home.welcome_title')}
           />
         </ContentContainer>
+        {assistantPickerDialog}
         {historyRecordsOverlay}
       </Container>
     )
@@ -524,7 +749,7 @@ const HomePage: FC = () => {
   const chatTopic = visibleTopic
   if (!chatTopic) return <Container id="home-page" />
 
-  return (
+  return renderWithRightPane(
     <Container id="home-page">
       <ContentContainer $detached={isWindowFrame}>
         <Chat
@@ -534,13 +759,16 @@ const HomePage: FC = () => {
           panePosition={panePosition}
           onPaneCollapse={() => setResourceListOpen(false)}
           onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
+          onCreateEmptyTopic={isClassicTopicLayout && !isMessageOnlyView ? createAndActivateEmptyTopic : undefined}
           showResourceListControls={!isMessageOnlyView && !isWindowFrame}
           sidebarOpen={effectiveShowSidebar}
           onSidebarToggle={toggleResourceListOpen}
           locateMessageId={pendingLocateMessageId}
           onLocateMessageHandled={handleLocateMessageHandled}
+          resourcePaneCount={topicResourcePaneCount}
         />
       </ContentContainer>
+      {assistantPickerDialog}
       {historyRecordsOverlay}
     </Container>
   )
@@ -554,8 +782,10 @@ type DraftWelcomeChatProps = {
   panePosition?: ChatPanePosition
   onPaneCollapse?: () => void
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
+  onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
   onSend: (text: string, options?: DraftChatSendOptions) => Promise<void>
+  resourcePaneCount?: ResourcePaneCountButtonProps
   showResourceListControls?: boolean
   sidebarOpen?: boolean
   onSidebarToggle?: () => void
@@ -570,23 +800,26 @@ function DraftWelcomeChat({
   panePosition,
   onPaneCollapse,
   onNewTopic,
+  onCreateEmptyTopic,
   onDraftAssistantChange,
   onSend,
+  resourcePaneCount,
   showResourceListControls,
   sidebarOpen,
   onSidebarToggle,
   welcomeText
 }: DraftWelcomeChatProps) {
   const [messageStyle] = usePreference('chat.message.style')
+  const resourcePane = useResourcePane()
 
   const composer = (
-    <ChatPlacementComposer
-      isHome
+    <ChatHomePlacementComposer
       scopeKey={scopeKey}
       assistantId={assistantId}
       onSend={onSend}
       onDraftAssistantChange={onDraftAssistantChange}
       onNewTopic={onNewTopic}
+      onCreateEmptyTopic={onCreateEmptyTopic}
     />
   )
 
@@ -605,9 +838,20 @@ function DraftWelcomeChat({
           onSidebarToggle={onSidebarToggle}
         />
       }
+      topRightTool={
+        resourcePane ? (
+          <>
+            {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} />}
+            <TopicRightPane.Shortcuts />
+            <TopicRightPane.Toggle />
+          </>
+        ) : undefined
+      }
       center={
         <ConversationStageCenter placement="home" main={null} composer={composer} homeWelcomeText={welcomeText} />
       }
+      centerOverlay={resourcePane ? <TopicRightPane.MaximizedOverlay /> : undefined}
+      rightPane={resourcePane ? <TopicRightPane.Host /> : undefined}
       centerId="chat-main"
       centerClassName="transform-[translateZ(0)] relative justify-between"
     />

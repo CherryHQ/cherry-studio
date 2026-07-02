@@ -2,9 +2,9 @@ import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useMultiplePreferences } from '@renderer/data/hooks/usePreference'
-import { useAgents } from '@renderer/hooks/agents/useAgent'
-import { useAgentSessionStreamStatuses } from '@renderer/hooks/agents/useAgentSessionStreamStatuses'
-import { useSessions, useUpdateSession } from '@renderer/hooks/agents/useSession'
+import { useAgents } from '@renderer/hooks/agent/useAgent'
+import { useAgentSessionStreamStatuses } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
+import { useSessions, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
@@ -656,7 +656,10 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
       const trimmedName = name.trim()
       if (!session || !trimmedName || trimmedName === session.name) return
 
-      const updatedSession = await updateSession({ id, name: trimmedName }, { showSuccessToast: false })
+      const updatedSession = await updateSession(
+        { id, name: trimmedName, isNameManuallyEdited: true },
+        { showSuccessToast: false }
+      )
       if (updatedSession) {
         window.toast.success(t('common.saved'))
       }

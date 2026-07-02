@@ -29,7 +29,6 @@ const providerKeyMap = {
   baichuan: 'provider.baichuan',
   'baidu-cloud': 'provider.baidu-cloud',
   burncloud: 'provider.burncloud',
-  cephalon: 'provider.cephalon',
   cherryai: 'provider.cherryai',
   cherryin: 'provider.cherryin',
   copilot: 'provider.copilot',
@@ -71,7 +70,6 @@ const providerKeyMap = {
   stepfun: 'provider.stepfun',
   'tencent-cloud-ti': 'provider.tencent-cloud-ti',
   together: 'provider.together',
-  tokenflux: 'provider.tokenflux',
   vertexai: 'provider.vertexai',
   voyageai: 'provider.voyageai',
   xirang: 'provider.xirang',
@@ -87,7 +85,8 @@ const providerKeyMap = {
   cerebras: 'provider.cerebras',
   mimo: 'provider.mimo',
   'minimax-global': 'provider.minimax-global',
-  zai: 'provider.zai'
+  zai: 'provider.zai',
+  opencode: 'provider.opencode'
 } as const
 
 /**
@@ -187,7 +186,7 @@ const sidebarIconKeyMap = {
   assistants: 'agent.session.group.conversation',
   agents: 'title.work',
   store: 'assistants.presets.title',
-  paintings: 'paintings.title',
+  paintings: 'title.paintings',
   translate: 'translate.title',
   mini_app: 'miniApp.title',
   knowledge: 'knowledge.title',
@@ -208,7 +207,7 @@ const sidebarFavoriteKeyMap = {
   assistants: 'assistants.title',
   agents: 'title.work',
   store: 'assistants.presets.title',
-  paintings: 'paintings.title',
+  paintings: 'title.paintings',
   translate: 'translate.title',
   mini_app: 'miniApp.title',
   knowledge: 'knowledge.title',
