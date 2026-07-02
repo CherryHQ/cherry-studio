@@ -1,5 +1,11 @@
 /* eslint-disable @eslint-react/naming-convention/context-name */
+import { existsSync, mkdtempSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import { assistantTable } from '@data/db/schemas/assistant'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -9,6 +15,10 @@ import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { asc, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+/** A valid 1×1 PNG so `sharp` can transcode it to WebP during migration. */
+const PNG_1X1 =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 
 import type { MigrationContext } from '../../core/MigrationContext'
 import { AssistantMigrator } from '../AssistantMigrator'
@@ -49,7 +59,8 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
 function createContext(
   db: MigrationContext['db'],
   reduxState: Record<string, unknown> = {},
-  dexieSettings: Record<string, unknown> = {}
+  dexieSettings: Record<string, unknown> = {},
+  filesDataDir = ''
 ): MigrationContext {
   return {
     sources: {
@@ -61,7 +72,8 @@ function createContext(
       }
     },
     db,
-    sharedData: new Map()
+    sharedData: new Map(),
+    paths: { filesDataDir }
   } as unknown as MigrationContext
 }
 
@@ -432,6 +444,47 @@ describe('ProviderModelMigrator', () => {
         .where(eq(userProviderTable.providerId, 'custom-provider'))
       // No registry baseline applied — apiFeatures stays null (transformProvider default)
       expect(providerRow.apiFeatures).toBeNull()
+    })
+
+    it('promotes a v1 custom provider logo from dexie settings into a WebP file_entry', async () => {
+      const filesDataDir = mkdtempSync(path.join(os.tmpdir(), 'provider-logo-mig-'))
+      const migrationContext = createContext(
+        dbh.db,
+        { llm: { providers: [makeProvider('with-logo'), makeProvider('no-logo')] } },
+        { 'image://provider-with-logo': PNG_1X1 },
+        filesDataDir
+      )
+      await migrator.prepare(migrationContext)
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+
+      const [withLogo] = await dbh.db
+        .select()
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, 'with-logo'))
+      // Base64 upload becomes an on-disk WebP file_entry; logoKey stays null.
+      expect(withLogo.logoKey).toBeNull()
+      expect(withLogo.logoFileId).toBeTruthy()
+
+      const [entry] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, withLogo.logoFileId!))
+      expect(entry?.origin).toBe('internal')
+      expect(entry?.ext).toBe('webp')
+      expect(existsSync(path.join(filesDataDir, `${withLogo.logoFileId}.webp`))).toBe(true)
+
+      const refs = await dbh.db
+        .select()
+        .from(providerLogoFileRefTable)
+        .where(eq(providerLogoFileRefTable.sourceId, 'with-logo'))
+      expect(refs).toHaveLength(1)
+      expect(refs[0]?.fileEntryId).toBe(withLogo.logoFileId)
+
+      const [withoutLogo] = await dbh.db
+        .select()
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, 'no-logo'))
+      expect(withoutLogo.logoKey).toBeNull()
+      expect(withoutLogo.logoFileId).toBeNull()
     })
 
     it('keeps the catalog adapterFamily over the migrator fallback for relay system providers', async () => {

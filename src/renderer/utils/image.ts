@@ -32,6 +32,7 @@ export const convertToBase64 = (file: File): Promise<string | ArrayBuffer | null
 /**
  * 压缩图像文件，限制最大大小和尺寸。
  * @param {File} file 要压缩的图像文件
+ * @param options 可覆盖最大体积 / 最大边长（默认 1MB / 300px）
  * @returns {Promise<File>} 压缩后的图像文件
  */
 export const compressImage = async (file: File, options: ImageCompressionOptions = {}): Promise<File> => {
@@ -43,21 +44,6 @@ export const compressImage = async (file: File, options: ImageCompressionOptions
     useWebWorker: false,
     ...options
   })
-}
-
-/**
- * 将上传的头像图片转换为可直接存储/预览的 base64 data URL。
- * GIF 原样保留以保留动画，其余压缩到头像尺寸。
- * @param {File} file 用户上传的图片文件
- * @returns {Promise<string>} base64 data URL
- */
-export const fileToAvatarDataUrl = async (file: File): Promise<string> => {
-  const processed = file.type === 'image/gif' ? file : await compressImage(file)
-  const base64 = await convertToBase64(processed)
-  if (typeof base64 !== 'string') {
-    throw new Error('Failed to encode avatar image')
-  }
-  return base64
 }
 
 /**

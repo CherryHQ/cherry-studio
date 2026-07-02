@@ -254,6 +254,14 @@ export const ProviderSchema = z.object({
   presetProviderId: z.string().optional(),
   /** Display name */
   name: z.string(),
+  /**
+   * Resolved logo (`logoFileId ?? logoKey`): an uploaded logo's opaque
+   * file-entry id (rendered via `resolveStoredImageSrc` → `file://…/{id}.webp`),
+   * or a preset `icon:<providerId>` brand-icon ref. Absent for preset
+   * providers rendered by id. Never a remote URL or data URL — a custom logo
+   * is always a local uploaded file.
+   */
+  logo: z.string().optional(),
   /** Description */
   description: z.string().optional(),
   /** Preset provider website links */

@@ -1,7 +1,9 @@
+import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { resolveStoredImageSrc } from '@renderer/utils/storedImage'
 import { clearWebviewState } from '@renderer/utils/webviewStateManager'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
@@ -126,6 +128,7 @@ export const useMiniAppPopup = () => {
     setMiniAppShow
   } = useMiniApps()
   const [maxKeepAliveMiniApps] = usePreference('feature.mini_app.max_keep_alive')
+  const [filesPath] = useCache('app.path.files')
 
   const cap = maxKeepAliveMiniApps ?? DEFAULT_MAX_KEEP_ALIVE
 
@@ -298,9 +301,14 @@ export const useMiniAppPopup = () => {
       // already exists. `MiniAppTabsPool.shouldShow` keys off the active tab
       // URL, not pool membership. Webview re-use stays correct: when cached we
       // don't recreate the entry or reset `src`, only the tab route activates.
-      openTab(`/app/mini-app/${app.appId}`, { title: app.name, icon: app.logo })
+      // Resolve an uploaded-logo file id to a file:// src for TabIcon; preset
+      // ids / urls pass through.
+      openTab(`/app/mini-app/${app.appId}`, {
+        title: app.name,
+        icon: resolveStoredImageSrc(app.logo, filesPath) ?? app.logo
+      })
     },
-    [cap, openTab, setOpenedKeepAliveMiniApps, setCurrentMiniAppId, setMiniAppShow]
+    [cap, filesPath, openTab, setOpenedKeepAliveMiniApps, setCurrentMiniAppId, setMiniAppShow]
   )
 
   return {

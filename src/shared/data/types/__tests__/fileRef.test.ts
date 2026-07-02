@@ -5,10 +5,14 @@ import {
   chatMessageFileRefSchema,
   chatMessageSourceType,
   FileRefSchema,
+  miniAppLogoRef,
   paintingFileRefSchema,
   paintingSourceType,
+  providerLogoRef,
   tempSessionFileRefSchema,
-  tempSessionSourceType
+  tempSessionSourceType,
+  USER_AVATAR_SOURCE_ID,
+  userAvatarRef
 } from '../file/ref'
 
 const REF_ID = '11111111-2222-4333-8444-000000000001' // UUIDv4
@@ -19,7 +23,17 @@ const TS = 1700000000000
 
 describe('FileRefSourceType', () => {
   it('exposes exactly the currently-registered source types', () => {
-    expect([...allSourceTypes]).toEqual(['temp_session', 'chat_message', 'painting'])
+    // Defensive: this assertion locks the currently-registered set. Adding a
+    // new variant must also extend the discriminated union and back it with an
+    // FK-constrained association table — see ref/index.ts.
+    expect([...allSourceTypes]).toEqual([
+      'temp_session',
+      'chat_message',
+      'painting',
+      'provider_logo',
+      'mini_app_logo',
+      'user_avatar'
+    ])
   })
 })
 
@@ -91,6 +105,51 @@ describe('paintingFileRefSchema', () => {
 
   it('rejects sourceType other than the literal painting', () => {
     expect(() => paintingFileRefSchema.parse(makePaintingRef({ sourceType: 'chat_message' }))).toThrow()
+  })
+})
+
+describe('single-file ref variants (provider_logo / mini_app_logo / user_avatar)', () => {
+  it('accepts a well-formed provider/mini-app logo ref (role "logo", free-string sourceId)', () => {
+    for (const ref of [providerLogoRef, miniAppLogoRef]) {
+      const parsed = ref.schema.parse({
+        id: REF_ID,
+        fileEntryId: ENTRY_ID,
+        sourceType: ref.sourceType,
+        sourceId: 'preset-or-uuid-id',
+        role: 'logo',
+        createdAt: TS,
+        updatedAt: TS
+      })
+      expect(parsed.sourceType).toBe(ref.sourceType)
+      expect(parsed.role).toBe('logo')
+    }
+  })
+
+  it('accepts the singleton avatar ref (role "avatar")', () => {
+    const parsed = userAvatarRef.schema.parse({
+      id: REF_ID,
+      fileEntryId: ENTRY_ID,
+      sourceType: userAvatarRef.sourceType,
+      sourceId: USER_AVATAR_SOURCE_ID,
+      role: 'avatar',
+      createdAt: TS,
+      updatedAt: TS
+    })
+    expect(parsed.role).toBe('avatar')
+  })
+
+  it('rejects a role outside the variant vocabulary', () => {
+    expect(() =>
+      providerLogoRef.schema.parse({
+        id: REF_ID,
+        fileEntryId: ENTRY_ID,
+        sourceType: providerLogoRef.sourceType,
+        sourceId: 'p1',
+        role: 'avatar',
+        createdAt: TS,
+        updatedAt: TS
+      })
+    ).toThrow()
   })
 })
 

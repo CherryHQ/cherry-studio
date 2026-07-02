@@ -231,7 +231,7 @@ describe('MiniAppMigrator', () => {
         await migrator.execute(ctx)
 
         const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'bilibili'))
-        expect(row.logo).toBe('https://b.cdn/logo.ico')
+        expect(row.logoKey).toBe('https://b.cdn/logo.ico')
       } finally {
         await fs.rm(tmpUserData, { recursive: true, force: true })
       }

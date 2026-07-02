@@ -21,6 +21,7 @@ import type {
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, orderKeyColumns, orderKeyIndex } from './_columnHelpers'
+import { fileEntryTable } from './file'
 
 export const userProviderTable = sqliteTable(
   'user_provider',
@@ -34,6 +35,22 @@ export const userProviderTable = sqliteTable(
     presetProviderId: text(),
 
     name: text().notNull(),
+
+    /**
+     * Preset/bundled logo reference (`icon:<providerId>` ref), or null for
+     * preset providers that render a bundled icon by id. Holds an icon key /
+     * ref only — never a remote URL or data URL. User-uploaded custom logos
+     * are stored on disk and referenced via {@link logoFileId} instead.
+     */
+    logoKey: text('logo_key'),
+
+    /**
+     * Custom user-uploaded logo: FK to the on-disk `file_entry` holding a
+     * normalized 128×128 WebP. NULL when the provider has no uploaded logo
+     * (falls back to {@link logoKey} / the bundled icon). `set null` on delete so
+     * pruning the file entry clears the reference automatically.
+     */
+    logoFileId: text('logo_file_id').references(() => fileEntryTable.id, { onDelete: 'set null' }),
 
     /** Per-endpoint-type configuration (baseUrl, reasoningFormatType, modelsApiUrls) */
     endpointConfigs: text('endpoint_configs', { mode: 'json' }).$type<Partial<Record<EndpointType, EndpointConfig>>>(),

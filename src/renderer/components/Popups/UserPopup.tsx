@@ -15,12 +15,9 @@ import {
   PopoverTrigger,
   RowFlex
 } from '@cherrystudio/ui'
-import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
-import DefaultAvatar from '@renderer/assets/images/avatar.png'
 import useAvatar from '@renderer/hooks/useAvatar'
-import ImageStorage from '@renderer/services/ImageStorage'
-import { fileToAvatarDataUrl } from '@renderer/utils/image'
+import { ipcApi } from '@renderer/ipc'
 import { isEmoji } from '@renderer/utils/naming'
 import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -59,12 +56,12 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     }
   }
 
+  // The `profile.set_avatar` handler owns the `app.user.avatar` Preference write
+  // (and prunes any superseded file); the Preference auto-syncs back to
+  // `useAvatar`, so these flows don't write the value themselves.
   const handleEmojiClick = async (emoji: string) => {
     try {
-      // set emoji string
-      await ImageStorage.set('avatar', emoji)
-      // update avatar display
-      cacheService.set('app.user.avatar', emoji)
+      await ipcApi.request('profile.set_avatar', { kind: 'emoji', emoji })
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: any) {
@@ -74,8 +71,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   const handleReset = async () => {
     try {
-      await ImageStorage.set('avatar', DefaultAvatar)
-      cacheService.set('app.user.avatar', DefaultAvatar)
+      // Clear falls back to the bundled default avatar (see useAvatar).
+      await ipcApi.request('profile.set_avatar', { kind: 'clear' })
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: any) {
@@ -85,9 +82,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   const handleUploadAvatar = async (file: File) => {
     try {
-      const dataUrl = await fileToAvatarDataUrl(file)
-      await ImageStorage.set('avatar', dataUrl)
-      cacheService.set('app.user.avatar', dataUrl)
+      // Send raw bytes; the handler normalizes to WebP, creates the file_entry,
+      // points the avatar slot's file_ref at it, and writes the Preference.
+      const data = new Uint8Array(await file.arrayBuffer())
+      await ipcApi.request('profile.set_avatar', { kind: 'image', data })
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: any) {

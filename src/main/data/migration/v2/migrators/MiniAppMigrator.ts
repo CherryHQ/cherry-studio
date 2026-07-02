@@ -9,12 +9,18 @@ import { miniAppTable } from '@data/db/schemas/miniApp'
 import { loggerService } from '@logger'
 import { MINI_APP_ID_REGEX } from '@shared/data/api/schemas/miniApps'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
+import { miniAppLogoRef } from '@shared/data/types/file'
 import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { assignOrderKeysByScope } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import { transformMiniApp } from './mappings/MiniAppMappings'
+import {
+  insertPreparedImageFileTx,
+  prepareBase64ImageFileEntry,
+  type PreparedEntityImageFile
+} from './utils/logoMigration'
 
 type MiniAppRowWithoutOrderKey = Omit<InsertMiniAppRow, 'orderKey'>
 
@@ -22,6 +28,11 @@ const logger = loggerService.withContext('MiniAppMigrator')
 
 function orderKeyScopeForStatus(status: MiniAppStatus | undefined): 'visible' | 'disabled' {
   return status === 'disabled' ? 'disabled' : 'visible'
+}
+
+/** The mini-app logo slot for a given appId (mirrors MiniAppService). */
+function miniAppLogoSlot(appId: string) {
+  return { sourceType: miniAppLogoRef.sourceType, sourceId: appId, role: 'logo' }
 }
 
 export class MiniAppMigrator extends BaseMigrator {
@@ -182,7 +193,29 @@ export class MiniAppMigrator extends BaseMigrator {
       let processed = 0
 
       const BATCH_SIZE = 100
+      const logoFiles: PreparedEntityImageFile[] = []
+
+      // Promote any base64 data-URL logo to an on-disk WebP file_entry +
+      // file_ref (logoFileId); base64 never stays on logoKey. A non-data-URL
+      // logoKey (url / icon ref) is left as-is.
+      for (const row of this.preparedRows) {
+        if (row.logoKey?.startsWith('data:')) {
+          const logoFile = await prepareBase64ImageFileEntry(
+            ctx.paths.filesDataDir,
+            miniAppLogoSlot(row.appId),
+            row.logoKey
+          )
+          row.logoFileId = logoFile?.id ?? null
+          row.logoKey = null
+          if (logoFile) logoFiles.push(logoFile)
+        }
+      }
+
       ctx.db.transaction((tx) => {
+        for (const logoFile of logoFiles) {
+          insertPreparedImageFileTx(tx, logoFile)
+        }
+
         for (let i = 0; i < this.preparedRows.length; i += BATCH_SIZE) {
           const batch = this.preparedRows.slice(i, i + BATCH_SIZE)
           tx.insert(miniAppTable).values(batch).run()

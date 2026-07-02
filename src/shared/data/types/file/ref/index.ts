@@ -43,6 +43,14 @@ import {
   paintingRoleSchema,
   paintingSourceType
 } from './painting'
+import {
+  miniAppLogoRef,
+  providerLogoRef,
+  STORED_FILE_REF_PREFIX,
+  tagStoredFileRef,
+  USER_AVATAR_SOURCE_ID,
+  userAvatarRef
+} from './singleFile'
 import { tempSessionFileRefSchema, tempSessionRefFields, tempSessionRoles, tempSessionSourceType } from './tempSession'
 
 // ─── SourceType type (load-bearing — keys DataApi/query validation) ───
@@ -71,7 +79,10 @@ import { tempSessionFileRefSchema, tempSessionRefFields, tempSessionRoles, tempS
 export const allSourceTypes = [
   tempSessionSourceType,
   chatMessageSourceType,
-  paintingSourceType
+  paintingSourceType,
+  providerLogoRef.sourceType,
+  miniAppLogoRef.sourceType,
+  userAvatarRef.sourceType
 ] as const satisfies readonly string[]
 export type FileRefSourceType = (typeof allSourceTypes)[number]
 
@@ -94,7 +105,10 @@ export const FileRefSourceTypeSchema = z.enum(allSourceTypes)
 export const FileRefSchema = z.discriminatedUnion('sourceType', [
   tempSessionFileRefSchema,
   chatMessageFileRefSchema,
-  paintingFileRefSchema
+  paintingFileRefSchema,
+  providerLogoRef.schema,
+  miniAppLogoRef.schema,
+  userAvatarRef.schema
 ])
 export type FileRef = z.infer<typeof FileRefSchema>
 
@@ -106,13 +120,19 @@ export {
   chatMessageRoles,
   chatMessageRoleSchema,
   chatMessageSourceType,
+  miniAppLogoRef,
   paintingFileRefSchema,
   paintingRefFields,
   paintingRoles,
   paintingRoleSchema,
   paintingSourceType,
+  providerLogoRef,
+  STORED_FILE_REF_PREFIX,
+  tagStoredFileRef,
   tempSessionFileRefSchema,
   tempSessionRefFields,
   tempSessionRoles,
-  tempSessionSourceType
+  tempSessionSourceType,
+  USER_AVATAR_SOURCE_ID,
+  userAvatarRef
 }

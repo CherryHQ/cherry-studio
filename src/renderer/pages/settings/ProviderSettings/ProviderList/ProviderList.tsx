@@ -208,15 +208,11 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
 
   const handleSubmitEditor = useCallback(
     async (providerInput: SubmitProviderEditorParams) => {
-      const result = await submitEditor(providerInput)
-
-      if (result.notice === 'create-logo-save-failed') {
-        window.toast.error(t('message.error.save_provider_logo'))
-      } else if (result.notice === 'update-logo-save-failed') {
-        window.toast.error(t('message.error.update_provider_logo'))
-      }
+      // Logo now saves atomically with the provider row, so any failure rejects
+      // here and is surfaced by the drawer's submit catch — no separate notice.
+      await submitEditor(providerInput)
     },
-    [submitEditor, t]
+    [submitEditor]
   )
 
   const handleDeleteProvider = useCallback(

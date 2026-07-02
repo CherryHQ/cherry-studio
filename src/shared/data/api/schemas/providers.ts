@@ -20,6 +20,7 @@ import {
   ProviderSettingsSchema
 } from '../../types/provider'
 import type { OrderEndpoints } from './_endpointHelpers'
+import { CreateLogoSchema } from './logo'
 
 // ============================================================================
 // Field atoms
@@ -59,6 +60,12 @@ export const CreateProviderSchema = z.strictObject({
   presetProviderId: z.string().optional(),
   /** Display name (required on create) */
   name: z.string().min(1),
+  /**
+   * Custom logo for a user-defined provider — a preset key only
+   * (`{ kind: 'key', key }`). Uploaded images go through the `provider.set_logo`
+   * IpcApi command (bytes → file_entry main-side), not this DTO.
+   */
+  logo: CreateLogoSchema.optional(),
   /** Per-endpoint-type configuration */
   endpointConfigs: ProviderEndpointConfigsSchema.optional(),
   /** Default text generation endpoint (kebab-case `EndpointType` value) */
@@ -92,6 +99,8 @@ const ProviderMutableFieldsSchema = CreateProviderSchema.pick({
 export const UpdateProviderSchema = ProviderMutableFieldsSchema.partial().extend({
   /** Whether this provider is enabled */
   isEnabled: z.boolean().optional()
+  // Logo edits (preset key / image upload / clear) go through the
+  // `provider.set_logo` IpcApi command, not this PATCH body.
 })
 export type UpdateProviderDto = z.infer<typeof UpdateProviderSchema>
 

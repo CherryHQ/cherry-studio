@@ -9,7 +9,6 @@ import {
   captureScrollableAsDataURL,
   compressImage,
   convertToBase64,
-  fileToAvatarDataUrl,
   makeSvgSizeAdaptive
 } from '../image'
 
@@ -28,6 +27,7 @@ vi.mock('html-to-image', () => ({
 
 // mock window.toast
 beforeEach(() => {
+  vi.mocked(imageCompression).mockClear()
   vi.mocked(htmlToImage.toCanvas).mockReset()
   vi.mocked(htmlToImage.toCanvas).mockImplementation(() =>
     Promise.resolve({
@@ -72,22 +72,6 @@ describe('utils/image', () => {
           useWebWorker: false
         })
       )
-    })
-  })
-
-  describe('fileToAvatarDataUrl', () => {
-    it('should encode a compressed non-GIF image as a base64 data URL', async () => {
-      const png = new File(['hello'], 'a.png', { type: 'image/png' })
-      const dataUrl = await fileToAvatarDataUrl(png)
-      // The mocked compressor yields a PNG, so the encoded result is a PNG data URL.
-      expect(dataUrl).toMatch(/^data:image\/png;base64,/)
-    })
-
-    it('should encode a GIF without compressing it', async () => {
-      const gif = new File(['gif-bytes'], 'a.gif', { type: 'image/gif' })
-      const dataUrl = await fileToAvatarDataUrl(gif)
-      // Untouched GIF bytes encode to a gif data URL (not the compressor's png).
-      expect(dataUrl).toMatch(/^data:image\/gif;base64,/)
     })
   })
 

@@ -5,7 +5,6 @@ import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
-import { fileToAvatarDataUrl } from '@renderer/utils/image'
 import { cn, generateColorFromChar, getForegroundColor } from '@renderer/utils/style'
 import { uuid } from '@renderer/utils/uuid'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
@@ -98,13 +97,29 @@ export default function ProviderEditorDrawer({
   const [apiKey, setApiKey] = useState('')
   const [secondaryUrls, setSecondaryUrls] = useState<Record<string, string>>({})
   const [moreEndpointsOpen, setMoreEndpointsOpen] = useState(false)
+  // `logo` is the preview value only (a preset id / url / object URL for a
+  // staged upload). When the user uploads, `stagedFile` holds the raw file whose
+  // bytes are sent to `provider.set_logo` on save; a preset/clear leaves it null.
   const [logo, setLogo] = useState<string | null>(null)
+  const [stagedFile, setStagedFile] = useState<File | null>(null)
   const [logoDirty, setLogoDirty] = useState(false)
   const [logoPickerOpen, setLogoPickerOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [nameTouched, setNameTouched] = useState(false)
   const [baseUrlTouched, setBaseUrlTouched] = useState(false)
   const previousOpenRef = useRef(false)
+  // Object URL backing the upload preview; revoked when it's replaced or the
+  // component unmounts so blobs don't leak.
+  const previewObjectUrlRef = useRef<string | null>(null)
+
+  const revokePreviewObjectUrl = () => {
+    if (previewObjectUrlRef.current) {
+      URL.revokeObjectURL(previewObjectUrlRef.current)
+      previewObjectUrlRef.current = null
+    }
+  }
+
+  useEffect(() => () => revokePreviewObjectUrl(), [])
 
   const editingProvider = mode?.kind === 'edit' ? mode.provider : null
   const duplicateSource = mode?.kind === 'duplicate' ? mode.source : null
@@ -140,6 +155,8 @@ export default function ProviderEditorDrawer({
     setMoreEndpointsOpen(false)
     setLogoDirty(false)
     setLogoPickerOpen(false)
+    revokePreviewObjectUrl()
+    setStagedFile(null)
   }, [open, editingProvider, duplicateSource])
 
   useEffect(() => {
@@ -160,7 +177,7 @@ export default function ProviderEditorDrawer({
     [avatarBackgroundColor]
   )
 
-  const handleUploadChange = async (event: ChangeEvent<HTMLInputElement>) => {
+  const handleUploadChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     event.target.value = ''
 
@@ -168,28 +185,37 @@ export default function ProviderEditorDrawer({
       return
     }
 
-    try {
-      const storedLogo = await fileToAvatarDataUrl(file)
-      setLogo(storedLogo)
-      setLogoDirty(true)
-    } catch (error) {
-      // fileToAvatarDataUrl can reject on a corrupt or unsupported file
-      // (compression or base64 encoding) — tell the user instead of silently doing nothing.
-      logger.error('Failed to process uploaded provider logo', error as Error)
-      window.toast.error(t('settings.provider.logo_upload_failed'))
-    }
+    // Stage the raw file + preview it via an object URL (revoking any previous
+    // one); the bytes are sent to `provider.set_logo` on save. The renderer no
+    // longer pre-creates a file_entry, so a bad upload only surfaces on save.
+    revokePreviewObjectUrl()
+    previewObjectUrlRef.current = URL.createObjectURL(file)
+    setLogo(previewObjectUrlRef.current)
+    setStagedFile(file)
+    setLogoDirty(true)
   }
 
   const buildSubmit = (): ProviderEditorSubmit | null => {
     const trimmedName = name.trim()
     if (!trimmedName || !mode) return null
 
+    // A staged upload sends its bytes via `provider.set_logo`; a picked icon is a
+    // preset key; a reset clears. Not dirty → unchanged (the field is omitted).
+    const logoEdit: SubmitProviderEditorParams['logo'] = stagedFile
+      ? { kind: 'image', file: stagedFile }
+      : logoDirty
+        ? logo
+          ? { kind: 'key', key: logo }
+          : { kind: 'clear' }
+        : undefined
+    const logoField = logoEdit ? { logo: logoEdit } : {}
+
     if (mode.kind === 'edit') {
       return {
         mode: 'edit',
         name: trimmedName,
         defaultChatEndpoint: mode.provider.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-        logo: logoDirty ? logo : undefined
+        ...logoField
       }
     }
 
@@ -214,7 +240,7 @@ export default function ProviderEditorDrawer({
         endpointConfigs,
         authConfig: { type: 'api-key' },
         apiKeys: apiKeysPayload,
-        logo: logo ?? undefined
+        ...logoField
       }
     }
 
@@ -227,7 +253,7 @@ export default function ProviderEditorDrawer({
         defaultChatEndpoint,
         presetProviderId: source.presetProviderId,
         authConfig: emptyAuthConfigFor(source.authType),
-        logo: logo ?? undefined
+        ...logoField
       }
       if (duplicateNeedsBaseUrl(source.authType)) {
         const endpointConfigs: Partial<Record<EndpointType, EndpointConfig>> = {}
@@ -320,13 +346,17 @@ export default function ProviderEditorDrawer({
           editingProviderId={editingProvider?.id}
           avatarBackgroundColor={avatarBackgroundColor}
           avatarForegroundColor={avatarForegroundColor}
-          onUpload={(event) => void handleUploadChange(event)}
+          onUpload={(event) => handleUploadChange(event)}
           onPick={(providerId) => {
+            revokePreviewObjectUrl()
+            setStagedFile(null)
             setLogo(`icon:${providerId}`)
             setLogoDirty(true)
             setLogoPickerOpen(false)
           }}
           onReset={() => {
+            revokePreviewObjectUrl()
+            setStagedFile(null)
             setLogo(null)
             setLogoDirty(true)
           }}

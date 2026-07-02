@@ -22,8 +22,11 @@ import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import {
   chatMessageFileRefTable,
+  miniAppLogoFileRefTable,
   paintingFileRefTable,
-  type PersistentFileRefSourceType
+  type PersistentFileRefSourceType,
+  providerLogoFileRefTable,
+  userAvatarFileRefTable
 } from '@data/db/schemas/fileRelations'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
@@ -37,7 +40,13 @@ import {
   InternalEntrySchema,
   SafeNameSchema
 } from '@shared/data/types/file'
-import { chatMessageSourceType, paintingSourceType } from '@shared/data/types/file/ref'
+import {
+  chatMessageSourceType,
+  miniAppLogoRef,
+  paintingSourceType,
+  providerLogoRef,
+  userAvatarRef
+} from '@shared/data/types/file/ref'
 import { and, asc, count, eq, isNotNull, isNull, type SQL, sql, type SQLWrapper } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 import * as z from 'zod'
@@ -523,7 +532,13 @@ class FileEntryServiceImpl implements FileEntryService {
       [chatMessageSourceType]: () =>
         sql`NOT EXISTS (SELECT 1 FROM ${chatMessageFileRefTable} WHERE ${chatMessageFileRefTable.fileEntryId} = ${fileEntryTable.id})`,
       [paintingSourceType]: () =>
-        sql`NOT EXISTS (SELECT 1 FROM ${paintingFileRefTable} WHERE ${paintingFileRefTable.fileEntryId} = ${fileEntryTable.id})`
+        sql`NOT EXISTS (SELECT 1 FROM ${paintingFileRefTable} WHERE ${paintingFileRefTable.fileEntryId} = ${fileEntryTable.id})`,
+      [providerLogoRef.sourceType]: () =>
+        sql`NOT EXISTS (SELECT 1 FROM ${providerLogoFileRefTable} WHERE ${providerLogoFileRefTable.fileEntryId} = ${fileEntryTable.id})`,
+      [miniAppLogoRef.sourceType]: () =>
+        sql`NOT EXISTS (SELECT 1 FROM ${miniAppLogoFileRefTable} WHERE ${miniAppLogoFileRefTable.fileEntryId} = ${fileEntryTable.id})`,
+      [userAvatarRef.sourceType]: () =>
+        sql`NOT EXISTS (SELECT 1 FROM ${userAvatarFileRefTable} WHERE ${userAvatarFileRefTable.fileEntryId} = ${fileEntryTable.id})`
     } satisfies Record<PersistentFileRefSourceType, () => SQL>
 
     const conditions: SQL[] = [
