@@ -1,5 +1,5 @@
 import type { DbType } from '@data/db/types'
-import type { Client } from '@libsql/client'
+import type Database from 'better-sqlite3'
 import { sql } from 'drizzle-orm'
 
 interface MasterRow {
@@ -11,9 +11,8 @@ interface MasterRow {
  * intact. Called by the harness's `beforeEach` hook.
  *
  * Implementation notes:
- * - FK is toggled via `client.execute` (one-shot on the current connection)
- *   instead of `client.setPragma` to avoid growing the patched
- *   `#connectionPragmas` replay list by two entries per test.
+ * - FK is toggled via `sqlite.pragma` (one-shot on the connection) so
+ *   enforcement is restored right after the truncation.
  * - `__drizzle_migrations` is preserved so the schema stays set up across
  *   tests.
  * - FTS5 virtual tables and their shadow tables (`_data`, `_config`,
@@ -22,10 +21,10 @@ interface MasterRow {
  * - `sqlite_sequence` may not exist if no AUTOINCREMENT columns are defined;
  *   we ignore that error.
  */
-export async function truncateAll(db: DbType, client: Client): Promise<void> {
-  await client.execute('PRAGMA foreign_keys = OFF')
+export function truncateAll(db: DbType, sqlite: Database.Database): void {
+  sqlite.pragma('foreign_keys = OFF')
   try {
-    const rows = await db.all<MasterRow>(
+    const rows = db.all<MasterRow>(
       sql.raw(
         "SELECT name FROM sqlite_master WHERE type='table' " +
           "AND name NOT LIKE 'sqlite_%' " +
@@ -35,17 +34,17 @@ export async function truncateAll(db: DbType, client: Client): Promise<void> {
       )
     )
 
-    await db.transaction(async (tx) => {
+    db.transaction((tx) => {
       for (const { name } of rows) {
-        await tx.run(sql.raw(`DELETE FROM "${name}"`))
+        tx.run(sql.raw(`DELETE FROM "${name}"`))
       }
       try {
-        await tx.run(sql.raw('DELETE FROM sqlite_sequence'))
+        tx.run(sql.raw('DELETE FROM sqlite_sequence'))
       } catch {
         // sqlite_sequence may not exist if no AUTOINCREMENT columns defined
       }
     })
   } finally {
-    await client.execute('PRAGMA foreign_keys = ON')
+    sqlite.pragma('foreign_keys = ON')
   }
 }

@@ -83,7 +83,7 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   // Get last error
   ipcMain.handle(MigrationIpcChannels.GetLastError, async () => {
     try {
-      return await migrationEngine.getLastError()
+      return migrationEngine.getLastError()
     } catch (error) {
       logger.error('Error getting last error', error as Error)
       throw error

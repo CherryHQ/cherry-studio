@@ -44,7 +44,7 @@ describe('FileEntryService', () => {
         updatedAt: now
       })
 
-      const entry = await fileEntryService.findById(id)
+      const entry = fileEntryService.findById(id)
       expect(entry?.id).toBe(id)
       expect(entry?.origin).toBe('internal')
       if (entry?.origin === 'internal') {
@@ -53,7 +53,7 @@ describe('FileEntryService', () => {
     })
 
     it('returns null for missing id', async () => {
-      const result = await fileEntryService.findById('019606a0-0000-7000-8000-9999ffffffff' as FileEntryId)
+      const result = fileEntryService.findById('019606a0-0000-7000-8000-9999ffffffff' as FileEntryId)
       expect(result).toBeNull()
     })
 
@@ -64,9 +64,14 @@ describe('FileEntryService', () => {
       // never matched. Pin both the class and the typed code so a future
       // "throw a generic error" regression is caught at the service boundary.
       const missing = '019606a0-0000-7000-8000-9999fffffffe' as FileEntryId
-      const promise = fileEntryService.getById(missing)
-      await expect(promise).rejects.toBeInstanceOf(DataApiError)
-      await expect(promise).rejects.toMatchObject({
+      let err: unknown
+      try {
+        fileEntryService.getById(missing)
+      } catch (e) {
+        err = e
+      }
+      expect(err).toBeInstanceOf(DataApiError)
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND,
         details: { resource: 'FileEntry', id: missing }
       })
@@ -87,7 +92,7 @@ describe('FileEntryService', () => {
         updatedAt: now
       })
 
-      const entry = await fileEntryService.findById(id)
+      const entry = fileEntryService.findById(id)
       if (entry?.origin === 'internal') {
         expect(entry.deletedAt).toBe(now)
       } else {
@@ -112,13 +117,13 @@ describe('FileEntryService', () => {
         updatedAt: now
       })
 
-      const entry = await fileEntryService.findByExternalPath('/Users/me/doc.pdf' as CanonicalExternalPath)
+      const entry = fileEntryService.findByExternalPath('/Users/me/doc.pdf' as CanonicalExternalPath)
       expect(entry?.id).toBe(id)
       expect(entry?.origin).toBe('external')
     })
 
     it('returns null when no row matches', async () => {
-      const result = await fileEntryService.findByExternalPath('/Users/me/nonexistent.pdf' as CanonicalExternalPath)
+      const result = fileEntryService.findByExternalPath('/Users/me/nonexistent.pdf' as CanonicalExternalPath)
       expect(result).toBeNull()
     })
 
@@ -137,7 +142,7 @@ describe('FileEntryService', () => {
         updatedAt: now
       })
 
-      const result = await fileEntryService.findByExternalPath('/Users/me/A.TXT' as CanonicalExternalPath)
+      const result = fileEntryService.findByExternalPath('/Users/me/A.TXT' as CanonicalExternalPath)
       expect(result).toBeNull()
     })
   })
@@ -162,13 +167,13 @@ describe('FileEntryService', () => {
         updatedAt: now
       })
 
-      const peers = await fileEntryService.findCaseInsensitivePeers('/Users/me/a.txt' as CanonicalExternalPath)
+      const peers = fileEntryService.findCaseInsensitivePeers('/Users/me/a.txt' as CanonicalExternalPath)
       expect(peers).toHaveLength(1)
       expect(peers[0]?.id).toBe('019606a0-0000-7000-8000-000000000020')
     })
 
     it('returns empty array when no rows match', async () => {
-      const peers = await fileEntryService.findCaseInsensitivePeers('/zzz/none.txt' as CanonicalExternalPath)
+      const peers = fileEntryService.findCaseInsensitivePeers('/zzz/none.txt' as CanonicalExternalPath)
       expect(peers).toEqual([])
     })
 
@@ -185,7 +190,7 @@ describe('FileEntryService', () => {
         createdAt: now,
         updatedAt: now
       })
-      // libsql / drizzle wraps the SQLite SQLITE_CONSTRAINT_UNIQUE error in a
+      // better-sqlite3 / drizzle wraps the SQLite SQLITE_CONSTRAINT_UNIQUE error in a
       // `Failed query: ...` envelope with the original sqlite error message
       // moved to `.cause`. Match on the envelope (stable across drizzle
       // versions) plus the underlying cause's UNIQUE marker.
@@ -240,7 +245,7 @@ describe('FileEntryService', () => {
         }
       ])
 
-      const entries = await fileEntryService.findMany()
+      const entries = fileEntryService.findMany()
       expect(entries).toHaveLength(1)
       expect(entries[0].name).toBe('a')
     })
@@ -272,7 +277,7 @@ describe('FileEntryService', () => {
         }
       ])
 
-      const externals = await fileEntryService.findMany({ origin: 'external' })
+      const externals = fileEntryService.findMany({ origin: 'external' })
       expect(externals).toHaveLength(1)
       expect(externals[0].origin).toBe('external')
     })
@@ -304,7 +309,7 @@ describe('FileEntryService', () => {
         }
       ])
 
-      const trashed = await fileEntryService.findMany({ inTrash: true })
+      const trashed = fileEntryService.findMany({ inTrash: true })
       expect(trashed).toHaveLength(1)
       expect(trashed[0].name).toBe('dead')
     })
@@ -324,7 +329,7 @@ describe('FileEntryService', () => {
       }))
       await dbh.db.insert(fileEntryTable).values(rows)
 
-      const page = await fileEntryService.findMany({ limit: 2, offset: 1 })
+      const page = fileEntryService.findMany({ limit: 2, offset: 1 })
       expect(page).toHaveLength(2)
     })
   })
@@ -373,7 +378,7 @@ describe('FileEntryService', () => {
         }
       ])
 
-      const result = await fileEntryService.listCursor()
+      const result = fileEntryService.listCursor()
       expect(result.items).toHaveLength(1)
       expect(result.items[0].name).toBe('a')
       expect(result.total).toBe(1)
@@ -383,9 +388,9 @@ describe('FileEntryService', () => {
     it('paginates with cursor+limit and reports the true total across pages', async () => {
       await seed5()
 
-      const page1 = await fileEntryService.listCursor({ limit: 2 })
-      const page2 = await fileEntryService.listCursor({ cursor: page1.nextCursor, limit: 2 })
-      const page3 = await fileEntryService.listCursor({ cursor: page2.nextCursor, limit: 2 })
+      const page1 = fileEntryService.listCursor({ limit: 2 })
+      const page2 = fileEntryService.listCursor({ cursor: page1.nextCursor, limit: 2 })
+      const page3 = fileEntryService.listCursor({ cursor: page2.nextCursor, limit: 2 })
 
       expect(page1.items.map((e) => e.name)).toEqual(['name0', 'name1'])
       expect(page1.total).toBe(5)
@@ -401,10 +406,10 @@ describe('FileEntryService', () => {
     it('sorts ascending by createdAt by default; reverses with sortOrder=desc', async () => {
       await seed5()
 
-      const asc = await fileEntryService.listCursor({})
+      const asc = fileEntryService.listCursor({})
       expect(asc.items.map((e) => e.name)).toEqual(['name0', 'name1', 'name2', 'name3', 'name4'])
 
-      const desc = await fileEntryService.listCursor({ sortOrder: 'desc' })
+      const desc = fileEntryService.listCursor({ sortOrder: 'desc' })
       expect(desc.items.map((e) => e.name)).toEqual(['name4', 'name3', 'name2', 'name1', 'name0'])
     })
 
@@ -447,7 +452,7 @@ describe('FileEntryService', () => {
         }
       ])
 
-      const result = await fileEntryService.listCursor({ sortBy: 'name' })
+      const result = fileEntryService.listCursor({ sortBy: 'name' })
       expect(result.items.map((e) => e.name)).toEqual(['alpha', 'bravo', 'charlie'])
     })
 
@@ -489,8 +494,8 @@ describe('FileEntryService', () => {
         }
       ])
 
-      const page1 = await fileEntryService.listCursor({ sortBy: 'name', sortOrder: 'asc', limit: 2 })
-      const page2 = await fileEntryService.listCursor({
+      const page1 = fileEntryService.listCursor({ sortBy: 'name', sortOrder: 'asc', limit: 2 })
+      const page2 = fileEntryService.listCursor({
         sortBy: 'name',
         sortOrder: 'asc',
         cursor: page1.nextCursor,
@@ -541,10 +546,10 @@ describe('FileEntryService', () => {
         }
       ])
 
-      const asc = await fileEntryService.listCursor({ sortBy: 'size', sortOrder: 'asc' })
+      const asc = fileEntryService.listCursor({ sortBy: 'size', sortOrder: 'asc' })
       expect(asc.items.map((e) => e.name)).toEqual(['external-null', 'zero', 'ten'])
 
-      const desc = await fileEntryService.listCursor({ sortBy: 'size', sortOrder: 'desc' })
+      const desc = fileEntryService.listCursor({ sortBy: 'size', sortOrder: 'desc' })
       expect(desc.items.map((e) => e.name)).toEqual(['ten', 'zero', 'external-null'])
     })
 
@@ -586,10 +591,10 @@ describe('FileEntryService', () => {
         }
       ])
 
-      const asc = await fileEntryService.listCursor({ sortBy: 'ext', sortOrder: 'asc' })
+      const asc = fileEntryService.listCursor({ sortBy: 'ext', sortOrder: 'asc' })
       expect(asc.items.map((e) => e.name)).toEqual(['no-ext', 'markdown', 'text'])
 
-      const desc = await fileEntryService.listCursor({ sortBy: 'ext', sortOrder: 'desc' })
+      const desc = fileEntryService.listCursor({ sortBy: 'ext', sortOrder: 'desc' })
       expect(desc.items.map((e) => e.name)).toEqual(['text', 'markdown', 'no-ext'])
     })
 
@@ -631,14 +636,14 @@ describe('FileEntryService', () => {
         }
       ])
 
-      const page1 = await fileEntryService.listCursor({ sortBy: 'size', sortOrder: 'asc', limit: 1 })
-      const page2 = await fileEntryService.listCursor({
+      const page1 = fileEntryService.listCursor({ sortBy: 'size', sortOrder: 'asc', limit: 1 })
+      const page2 = fileEntryService.listCursor({
         sortBy: 'size',
         sortOrder: 'asc',
         cursor: page1.nextCursor,
         limit: 1
       })
-      const page3 = await fileEntryService.listCursor({
+      const page3 = fileEntryService.listCursor({
         sortBy: 'size',
         sortOrder: 'asc',
         cursor: page2.nextCursor,
@@ -691,14 +696,14 @@ describe('FileEntryService', () => {
         }
       ])
 
-      const page1 = await fileEntryService.listCursor({ sortBy: 'ext', sortOrder: 'asc', limit: 1 })
-      const page2 = await fileEntryService.listCursor({
+      const page1 = fileEntryService.listCursor({ sortBy: 'ext', sortOrder: 'asc', limit: 1 })
+      const page2 = fileEntryService.listCursor({
         sortBy: 'ext',
         sortOrder: 'asc',
         cursor: page1.nextCursor,
         limit: 1
       })
-      const page3 = await fileEntryService.listCursor({
+      const page3 = fileEntryService.listCursor({
         sortBy: 'ext',
         sortOrder: 'asc',
         cursor: page2.nextCursor,
@@ -762,8 +767,8 @@ describe('FileEntryService', () => {
         }
       ])
 
-      const page1 = await fileEntryService.listCursor({ sortBy: 'ext', sortOrder: 'asc', limit: 2 })
-      const page2 = await fileEntryService.listCursor({
+      const page1 = fileEntryService.listCursor({ sortBy: 'ext', sortOrder: 'asc', limit: 2 })
+      const page2 = fileEntryService.listCursor({
         sortBy: 'ext',
         sortOrder: 'asc',
         cursor: page1.nextCursor,
@@ -777,7 +782,7 @@ describe('FileEntryService', () => {
     })
 
     it('returns { items: [], total: 0 } on an empty table', async () => {
-      const result = await fileEntryService.listCursor()
+      const result = fileEntryService.listCursor()
       expect(result.items).toEqual([])
       expect(result.total).toBe(0)
       expect(result.nextCursor).toBeUndefined()
@@ -818,8 +823,8 @@ describe('FileEntryService', () => {
 
       it('asc: pages over rows with identical createdAt have no overlap and miss nothing', async () => {
         const ids = await seedSameCreatedAt()
-        const page1 = await fileEntryService.listCursor({ limit: 2 })
-        const page2 = await fileEntryService.listCursor({ cursor: page1.nextCursor, limit: 2 })
+        const page1 = fileEntryService.listCursor({ limit: 2 })
+        const page2 = fileEntryService.listCursor({ cursor: page1.nextCursor, limit: 2 })
 
         const seen = [...page1.items, ...page2.items].map((e) => e.id)
         expect(seen).toHaveLength(4)
@@ -854,8 +859,8 @@ describe('FileEntryService', () => {
           }))
         )
 
-        const page1 = await fileEntryService.listCursor({ sortBy: 'name', sortOrder: 'desc', limit: 2 })
-        const page2 = await fileEntryService.listCursor({
+        const page1 = fileEntryService.listCursor({ sortBy: 'name', sortOrder: 'desc', limit: 2 })
+        const page2 = fileEntryService.listCursor({
           sortBy: 'name',
           sortOrder: 'desc',
           cursor: page1.nextCursor,
@@ -947,7 +952,7 @@ describe('FileEntryService', () => {
         }
       ])
 
-      const stats = await fileEntryService.getStats()
+      const stats = fileEntryService.getStats()
       const extCounts = new Map(stats.extCounts.map((row) => [row.ext, row.count]))
       expect(stats.activeTotal).toBe(5)
       expect(stats.trashTotal).toBe(1)
@@ -961,7 +966,7 @@ describe('FileEntryService', () => {
   describe('create', () => {
     it('inserts an internal row and returns a parsed FileEntry', async () => {
       const id = '019606a0-0000-7000-8000-000000000a01' as FileEntryId
-      const entry = await fileEntryService.create({
+      const entry = fileEntryService.create({
         id,
         origin: 'internal',
         name: 'note',
@@ -978,7 +983,7 @@ describe('FileEntryService', () => {
     })
 
     it('inserts an external row with size=null in DB; size absent on BO projection', async () => {
-      const entry = await fileEntryService.create({
+      const entry = fileEntryService.create({
         origin: 'external',
         name: 'doc',
         ext: 'pdf',
@@ -994,7 +999,7 @@ describe('FileEntryService', () => {
     })
 
     it('throws when external row has non-null size (schema mirrors fe_size_internal_only)', async () => {
-      await expect(
+      expect(() =>
         fileEntryService.create({
           origin: 'external',
           name: 'doc',
@@ -1002,13 +1007,13 @@ describe('FileEntryService', () => {
           size: 100,
           externalPath: '/Users/me/doc2.pdf'
         } as never)
-      ).rejects.toThrow()
+      ).toThrow()
     })
 
     it('rejects unsafe ext BEFORE the SQL INSERT commits', async () => {
       const id = '019606a0-0000-7000-8000-000000000a05' as FileEntryId
 
-      await expect(
+      expect(() =>
         fileEntryService.create({
           id,
           origin: 'internal',
@@ -1016,7 +1021,7 @@ describe('FileEntryService', () => {
           ext: 'exe ',
           size: 1
         })
-      ).rejects.toThrow()
+      ).toThrow()
 
       const raw = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, id))
       expect(raw).toHaveLength(0)
@@ -1024,7 +1029,7 @@ describe('FileEntryService', () => {
 
     it('throws when internal row has externalPath (schema mirrors fe_origin_consistency)', async () => {
       const id = '019606a0-0000-7000-8000-000000000a04' as FileEntryId
-      await expect(
+      expect(() =>
         fileEntryService.create({
           id,
           origin: 'internal',
@@ -1033,17 +1038,17 @@ describe('FileEntryService', () => {
           size: 1,
           externalPath: '/some/path'
         } as never)
-      ).rejects.toThrow()
+      ).toThrow()
     })
   })
 
   describe('update', () => {
     it('updates name and refreshes updatedAt', async () => {
       const id = '019606a0-0000-7000-8000-000000000b01' as FileEntryId
-      await fileEntryService.create({ id, origin: 'internal', name: 'old', ext: 'txt', size: 1 })
-      const original = await fileEntryService.getById(id)
+      fileEntryService.create({ id, origin: 'internal', name: 'old', ext: 'txt', size: 1 })
+      const original = fileEntryService.getById(id)
       await new Promise((r) => setTimeout(r, 5))
-      const updated = await fileEntryService.update(id, { name: 'new' })
+      const updated = fileEntryService.update(id, { name: 'new' })
       expect(updated.name).toBe('new')
       expect(updated.updatedAt).toBeGreaterThanOrEqual(original.updatedAt)
     })
@@ -1054,9 +1059,14 @@ describe('FileEntryService', () => {
       // `/not found/i` regex check but break renderer-side `error.code ===
       // ErrorCode.NOT_FOUND` branches.
       const missing = '019606a0-0000-7000-8000-000000000bff' as FileEntryId
-      const promise = fileEntryService.update(missing, { name: 'x' })
-      await expect(promise).rejects.toBeInstanceOf(DataApiError)
-      await expect(promise).rejects.toMatchObject({
+      let err: unknown
+      try {
+        fileEntryService.update(missing, { name: 'x' })
+      } catch (e) {
+        err = e
+      }
+      expect(err).toBeInstanceOf(DataApiError)
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND,
         details: { resource: 'FileEntry', id: missing }
       })
@@ -1064,21 +1074,21 @@ describe('FileEntryService', () => {
 
     it('updates deletedAt for soft delete', async () => {
       const id = '019606a0-0000-7000-8000-000000000b02' as FileEntryId
-      await fileEntryService.create({ id, origin: 'internal', name: 'tmp', ext: 'txt', size: 1 })
+      fileEntryService.create({ id, origin: 'internal', name: 'tmp', ext: 'txt', size: 1 })
       const deletedAt = Date.now()
-      const updated = await fileEntryService.update(id, { deletedAt })
+      const updated = fileEntryService.update(id, { deletedAt })
       if (updated.origin !== 'internal') throw new Error('expected internal entry')
       expect(updated.deletedAt).toBe(deletedAt)
     })
 
     it('throws when setting deletedAt on an external row (CHECK fe_external_no_delete)', async () => {
-      const entry = await fileEntryService.create({
+      const entry = fileEntryService.create({
         origin: 'external',
         name: 'ext',
         ext: 'txt',
         externalPath: '/x/y.txt'
       })
-      await expect(fileEntryService.update(entry.id, { deletedAt: Date.now() })).rejects.toThrow()
+      expect(() => fileEntryService.update(entry.id, { deletedAt: Date.now() })).toThrow()
     })
 
     it('rejects unsafe name BEFORE the SQL UPDATE commits', async () => {
@@ -1089,9 +1099,9 @@ describe('FileEntryService', () => {
       // row back with a raw SELECT after the rejection and asserting the
       // `name` column is unchanged.
       const id = '019606a0-0000-7000-8000-000000000b04' as FileEntryId
-      await fileEntryService.create({ id, origin: 'internal', name: 'safe', ext: 'txt', size: 1 })
+      fileEntryService.create({ id, origin: 'internal', name: 'safe', ext: 'txt', size: 1 })
 
-      await expect(fileEntryService.update(id, { name: 'has\0null' })).rejects.toThrow()
+      expect(() => fileEntryService.update(id, { name: 'has\0null' })).toThrow()
 
       const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, id))
       expect(raw?.name).toBe('safe')
@@ -1099,9 +1109,9 @@ describe('FileEntryService', () => {
 
     it('rejects unsafe ext BEFORE the SQL UPDATE commits', async () => {
       const id = '019606a0-0000-7000-8000-000000000b05' as FileEntryId
-      await fileEntryService.create({ id, origin: 'internal', name: 'safe', ext: 'txt', size: 1 })
+      fileEntryService.create({ id, origin: 'internal', name: 'safe', ext: 'txt', size: 1 })
 
-      await expect(fileEntryService.update(id, { ext: 'txt.' })).rejects.toThrow()
+      expect(() => fileEntryService.update(id, { ext: 'txt.' })).toThrow()
 
       const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, id))
       expect(raw?.ext).toBe('txt')
@@ -1116,7 +1126,7 @@ describe('FileEntryService', () => {
     // creeping in) or returning an array shape.
 
     it('returns an empty Set on an empty table', async () => {
-      const ids = await fileEntryService.listAllIds()
+      const ids = fileEntryService.listAllIds()
       expect(ids).toBeInstanceOf(Set)
       expect(ids.size).toBe(0)
     })
@@ -1124,23 +1134,23 @@ describe('FileEntryService', () => {
     it('includes both active and trashed rows', async () => {
       const active = '019606a0-0000-7000-8000-000000000e01' as FileEntryId
       const trashed = '019606a0-0000-7000-8000-000000000e02' as FileEntryId
-      await fileEntryService.create({
+      fileEntryService.create({
         id: active,
         origin: 'internal',
         name: 'a',
         ext: 'txt',
         size: 1
       })
-      await fileEntryService.create({
+      fileEntryService.create({
         id: trashed,
         origin: 'internal',
         name: 't',
         ext: 'txt',
         size: 1
       })
-      await fileEntryService.update(trashed, { deletedAt: Date.now() })
+      fileEntryService.update(trashed, { deletedAt: Date.now() })
 
-      const ids = await fileEntryService.listAllIds()
+      const ids = fileEntryService.listAllIds()
       expect(ids).toBeInstanceOf(Set)
       expect(ids.has(active)).toBe(true)
       expect(ids.has(trashed)).toBe(true)
@@ -1156,17 +1166,17 @@ describe('FileEntryService', () => {
     // miles downstream in the rename orchestrator.
 
     it('returns the refreshed row with new path and name', async () => {
-      const entry = await fileEntryService.create({
+      const entry = fileEntryService.create({
         origin: 'external',
         name: 'old-doc',
         ext: 'pdf',
         externalPath: '/Users/me/old-doc.pdf'
       })
       const id = entry.id
-      const original = await fileEntryService.getById(id)
+      const original = fileEntryService.getById(id)
       await new Promise((r) => setTimeout(r, 5))
 
-      const updated = await fileEntryService.setExternalPathAndName(
+      const updated = fileEntryService.setExternalPathAndName(
         id,
         '/Users/me/new-doc.pdf' as CanonicalExternalPath,
         'new-doc'
@@ -1178,7 +1188,7 @@ describe('FileEntryService', () => {
       expect(updated.name).toBe('new-doc')
       expect(updated.updatedAt).toBeGreaterThanOrEqual(original.updatedAt)
       // Row is committed (not just returned from the in-memory diff)
-      const refetched = await fileEntryService.getById(id)
+      const refetched = fileEntryService.getById(id)
       if (refetched.origin !== 'external') throw new Error('expected external entry')
       expect(refetched.externalPath).toBe('/Users/me/new-doc.pdf')
       expect(refetched.name).toBe('new-doc')
@@ -1187,13 +1197,14 @@ describe('FileEntryService', () => {
     it('throws a typed DataApiError(NOT_FOUND) when the entry does not exist', async () => {
       // Mirror of the getById typed-contract pin (line 51).
       const missing = '019606a0-0000-7000-8000-000000000dff' as FileEntryId
-      const promise = fileEntryService.setExternalPathAndName(
-        missing,
-        '/Users/me/ghost.pdf' as CanonicalExternalPath,
-        'ghost'
-      )
-      await expect(promise).rejects.toBeInstanceOf(DataApiError)
-      await expect(promise).rejects.toMatchObject({
+      let err: unknown
+      try {
+        fileEntryService.setExternalPathAndName(missing, '/Users/me/ghost.pdf' as CanonicalExternalPath, 'ghost')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toBeInstanceOf(DataApiError)
+      expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND,
         details: { resource: 'FileEntry', id: missing }
       })
@@ -1203,16 +1214,16 @@ describe('FileEntryService', () => {
       // Same regression class as the `update` typed-name guard: an unsafe
       // name must not reach SQLite, otherwise the row gets stuck past
       // `rowToFileEntry` parse. Raw SELECT proves the row stayed unchanged.
-      const entry = await fileEntryService.create({
+      const entry = fileEntryService.create({
         origin: 'external',
         name: 'safe',
         ext: 'txt',
         externalPath: '/Users/me/safe.txt'
       })
 
-      await expect(
+      expect(() =>
         fileEntryService.setExternalPathAndName(entry.id, '/Users/me/legit.txt' as CanonicalExternalPath, '../evil')
-      ).rejects.toThrow()
+      ).toThrow()
 
       const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, entry.id))
       expect(raw?.name).toBe('safe')
@@ -1224,16 +1235,16 @@ describe('FileEntryService', () => {
       // guarantee. The service-side `AbsolutePathSchema.parse(externalPath)`
       // catches null bytes / non-absolute paths regardless of whether the
       // caller went through `canonicalizeExternalPath` or `as`-cast.
-      const entry = await fileEntryService.create({
+      const entry = fileEntryService.create({
         origin: 'external',
         name: 'safe',
         ext: 'txt',
         externalPath: '/Users/me/safe.txt'
       })
 
-      await expect(
+      expect(() =>
         fileEntryService.setExternalPathAndName(entry.id, '/Users/me/null\0byte.txt' as CanonicalExternalPath, 'fine')
-      ).rejects.toThrow()
+      ).toThrow()
 
       const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, entry.id))
       expect(raw?.name).toBe('safe')
@@ -1245,13 +1256,13 @@ describe('FileEntryService', () => {
       // unique index rejects the second UPDATE with a SQLite constraint
       // failure. Callers that catch only "not found"-shaped errors would
       // otherwise see this as an unhandled rejection.
-      await fileEntryService.create({
+      fileEntryService.create({
         origin: 'external',
         name: 'a',
         ext: 'txt',
         externalPath: '/Users/me/a.txt'
       })
-      const b = await fileEntryService.create({
+      const b = fileEntryService.create({
         origin: 'external',
         name: 'b',
         ext: 'txt',
@@ -1263,57 +1274,58 @@ describe('FileEntryService', () => {
       // is the negative one: this is NOT a "not found"-shaped error, so callers
       // catching only that branch will correctly surface this case as
       // unexpected and bubble it up.
-      const err = await fileEntryService
-        .setExternalPathAndName(b.id, '/Users/me/a.txt' as CanonicalExternalPath, 'a')
-        .then(
-          () => null,
-          (e: Error) => e
-        )
+      let err: Error | null = null
+      try {
+        fileEntryService.setExternalPathAndName(b.id, '/Users/me/a.txt' as CanonicalExternalPath, 'a')
+      } catch (e) {
+        err = e as Error
+      }
       expect(err).toBeInstanceOf(Error)
       expect(err?.message).not.toMatch(/not found/i)
       // The conflicting entry is unchanged after the failed mutation
-      const refetched = await fileEntryService.getById(b.id)
+      const refetched = fileEntryService.getById(b.id)
       if (refetched.origin !== 'external') throw new Error('expected external entry')
       expect(refetched.externalPath).toBe('/Users/me/b.txt')
     })
   })
 
   describe('delete', () => {
-    it('routes public write wrappers through DbService.withWriteTx', async () => {
+    it('commits single-write public wrappers directly without opening a transaction', async () => {
       const withWriteTx = MockMainDbServiceExport.dbService.withWriteTx
       withWriteTx.mockClear()
 
       const internalId = '019606a0-0000-7000-8000-000000000c10' as FileEntryId
-      await fileEntryService.create({ id: internalId, origin: 'internal', name: 'tx', ext: 'txt', size: 1 })
-      await fileEntryService.update(internalId, { name: 'tx-renamed' })
-      await fileEntryService.delete(internalId)
+      fileEntryService.create({ id: internalId, origin: 'internal', name: 'tx', ext: 'txt', size: 1 })
+      fileEntryService.update(internalId, { name: 'tx-renamed' })
+      fileEntryService.delete(internalId)
 
-      const external = await fileEntryService.create({
+      const external = fileEntryService.create({
         origin: 'external',
         name: 'ext-tx',
         ext: 'txt',
         externalPath: '/Users/me/ext-tx.txt'
       })
-      await fileEntryService.setExternalPathAndName(
+      fileEntryService.setExternalPathAndName(
         external.id,
         '/Users/me/ext-tx-renamed.txt' as CanonicalExternalPath,
         'ext-tx-renamed'
       )
 
-      expect(withWriteTx).toHaveBeenCalledTimes(5)
+      // create/update/delete/setExternalPathAndName are each a single autocommit statement under
+      // better-sqlite3, so they write via getDb() directly and never wrap withWriteTx. If any grows
+      // into a multi-statement mutation it must adopt withWriteTx and update this expectation.
+      expect(withWriteTx).toHaveBeenCalledTimes(0)
     })
 
     it('removes an existing row', async () => {
       const id = '019606a0-0000-7000-8000-000000000c01' as FileEntryId
-      await fileEntryService.create({ id, origin: 'internal', name: 'd', ext: 'txt', size: 1 })
-      await fileEntryService.delete(id)
-      expect(await fileEntryService.findById(id)).toBeNull()
+      fileEntryService.create({ id, origin: 'internal', name: 'd', ext: 'txt', size: 1 })
+      fileEntryService.delete(id)
+      expect(fileEntryService.findById(id)).toBeNull()
     })
 
     it('is idempotent on missing id', async () => {
-      await expect(
-        fileEntryService.delete('019606a0-0000-7000-8000-000000000cff' as FileEntryId)
-      ).resolves.toBeUndefined()
+      expect(fileEntryService.delete('019606a0-0000-7000-8000-000000000cff' as FileEntryId)).toBeUndefined()
     })
   })
 
@@ -1384,14 +1396,14 @@ describe('FileEntryService', () => {
     it('returns only entries with zero persistent refs', async () => {
       const referenced = '019606a0-0000-7000-8000-000000000d01' as FileEntryId
       const orphan = '019606a0-0000-7000-8000-000000000d02' as FileEntryId
-      await fileEntryService.create({
+      fileEntryService.create({
         id: referenced,
         origin: 'internal',
         name: 'r',
         ext: 'txt',
         size: 1
       })
-      await fileEntryService.create({
+      fileEntryService.create({
         id: orphan,
         origin: 'internal',
         name: 'o',
@@ -1400,7 +1412,7 @@ describe('FileEntryService', () => {
       })
       await seedRef(referenced)
 
-      const result = await fileEntryService.findUnreferenced()
+      const result = fileEntryService.findUnreferenced()
       const ids = result.map((e) => e.id)
       expect(ids).toEqual([orphan])
     })
@@ -1408,14 +1420,14 @@ describe('FileEntryService', () => {
     it('excludes entries referenced only by chat_message_file_ref', async () => {
       const referenced = '019606a0-0000-7000-8000-000000000d03' as FileEntryId
       const orphan = '019606a0-0000-7000-8000-000000000d04' as FileEntryId
-      await fileEntryService.create({
+      fileEntryService.create({
         id: referenced,
         origin: 'internal',
         name: 'chat-ref',
         ext: 'txt',
         size: 1
       })
-      await fileEntryService.create({
+      fileEntryService.create({
         id: orphan,
         origin: 'internal',
         name: 'orphan',
@@ -1424,21 +1436,21 @@ describe('FileEntryService', () => {
       })
       await seedChatRef(referenced)
 
-      const result = await fileEntryService.findUnreferenced()
+      const result = fileEntryService.findUnreferenced()
       expect(result.map((e) => e.id)).toEqual([orphan])
     })
 
     it('excludes entries referenced by both chat and painting refs', async () => {
       const referenced = '019606a0-0000-7000-8000-000000000d05' as FileEntryId
       const orphan = '019606a0-0000-7000-8000-000000000d06' as FileEntryId
-      await fileEntryService.create({
+      fileEntryService.create({
         id: referenced,
         origin: 'internal',
         name: 'both-ref',
         ext: 'txt',
         size: 1
       })
-      await fileEntryService.create({
+      fileEntryService.create({
         id: orphan,
         origin: 'internal',
         name: 'orphan',
@@ -1448,45 +1460,45 @@ describe('FileEntryService', () => {
       await seedRef(referenced)
       await seedChatRef(referenced)
 
-      const result = await fileEntryService.findUnreferenced()
+      const result = fileEntryService.findUnreferenced()
       expect(result.map((e) => e.id)).toEqual([orphan])
     })
 
     it('honours the optional origin filter', async () => {
       const internalOrphan = '019606a0-0000-7000-8000-000000000d11' as FileEntryId
-      await fileEntryService.create({
+      fileEntryService.create({
         id: internalOrphan,
         origin: 'internal',
         name: 'i',
         ext: 'txt',
         size: 1
       })
-      const externalOrphan = await fileEntryService.create({
+      const externalOrphan = fileEntryService.create({
         origin: 'external',
         name: 'e',
         ext: 'txt',
         externalPath: '/abs/orphan.txt' as CanonicalExternalPath
       })
 
-      const externalsOnly = await fileEntryService.findUnreferenced({ origin: 'external' })
+      const externalsOnly = fileEntryService.findUnreferenced({ origin: 'external' })
       expect(externalsOnly.map((e) => e.id)).toEqual([externalOrphan.id])
 
-      const internalsOnly = await fileEntryService.findUnreferenced({ origin: 'internal' })
+      const internalsOnly = fileEntryService.findUnreferenced({ origin: 'internal' })
       expect(internalsOnly.map((e) => e.id)).toEqual([internalOrphan])
     })
 
     it('excludes trashed entries', async () => {
       const id = '019606a0-0000-7000-8000-000000000d21' as FileEntryId
-      await fileEntryService.create({
+      fileEntryService.create({
         id,
         origin: 'internal',
         name: 't',
         ext: 'txt',
         size: 1
       })
-      await fileEntryService.update(id, { deletedAt: Date.now() })
+      fileEntryService.update(id, { deletedAt: Date.now() })
 
-      const result = await fileEntryService.findUnreferenced()
+      const result = fileEntryService.findUnreferenced()
       expect(result.find((e) => e.id === id)).toBeUndefined()
     })
   })
@@ -1530,7 +1542,7 @@ describe('FileEntryService', () => {
       await seedOneGoodOneBad()
       mockMainLoggerService.warn.mockClear()
 
-      const entries = await fileEntryService.findMany()
+      const entries = fileEntryService.findMany()
       expect(entries.map((e) => e.id)).toEqual([goodId])
       expect(mockMainLoggerService.warn).toHaveBeenCalledTimes(1)
       expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
@@ -1541,20 +1553,20 @@ describe('FileEntryService', () => {
 
     it('findById still throws for the bad row; good rows unaffected', async () => {
       await seedOneGoodOneBad()
-      await expect(fileEntryService.findById(badId)).rejects.toThrow()
-      await expect(fileEntryService.findById(goodId)).resolves.toMatchObject({ id: goodId })
+      expect(() => fileEntryService.findById(badId)).toThrow()
+      expect(fileEntryService.findById(goodId)).toMatchObject({ id: goodId })
     })
 
     it('listCursor excludes bad rows from items while total still counts them', async () => {
       await seedOneGoodOneBad()
-      const page = await fileEntryService.listCursor()
+      const page = fileEntryService.listCursor()
       expect(page.items.map((e) => e.id)).toEqual([goodId])
       expect(page.total).toBe(2)
     })
 
     it('findUnreferenced skips bad rows', async () => {
       await seedOneGoodOneBad()
-      const entries = await fileEntryService.findUnreferenced()
+      const entries = fileEntryService.findUnreferenced()
       expect(entries.map((e) => e.id)).toEqual([goodId])
     })
 
@@ -1594,9 +1606,7 @@ describe('FileEntryService', () => {
       mockMainLoggerService.warn.mockClear()
 
       // Corrupt match → excluded with one warning, not a throw.
-      const badPeers = await fileEntryService.findCaseInsensitivePeers(
-        '/users/me/bad-peer.txt' as CanonicalExternalPath
-      )
+      const badPeers = fileEntryService.findCaseInsensitivePeers('/users/me/bad-peer.txt' as CanonicalExternalPath)
       expect(badPeers).toEqual([])
       expect(mockMainLoggerService.warn).toHaveBeenCalledTimes(1)
       expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
@@ -1605,9 +1615,7 @@ describe('FileEntryService', () => {
       )
 
       // Good rows still surface through the same method.
-      const goodPeers = await fileEntryService.findCaseInsensitivePeers(
-        '/users/me/good-peer.txt' as CanonicalExternalPath
-      )
+      const goodPeers = fileEntryService.findCaseInsensitivePeers('/users/me/good-peer.txt' as CanonicalExternalPath)
       expect(goodPeers.map((e) => e.id)).toEqual([goodExternalId])
     })
   })

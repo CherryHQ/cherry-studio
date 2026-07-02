@@ -279,8 +279,8 @@ Current `KnowledgeSearchResult` includes:
 
 ### Current Retrieval Cost Assumption
 
-The current v2 implementation intentionally does not create a vector index and does not use `vector_top_k`.
-Similarity search scans the `embedding` rows directly and sorts by the engine's scalar cosine distance (`vector_distance_cos` on libsql).
+The current v2 implementation intentionally does not create a vector index and does not use an indexed approximate-nearest-neighbor lookup.
+Similarity search scans the `embedding` rows directly and sorts by the engine's scalar cosine distance (`vec_distance_cosine` on sqlite-vec, with the query vector bound as a raw little-endian float32 BLOB).
 
 This means retrieval cost scales roughly linearly with the number of vector rows in a single knowledge base.
 That tradeoff is currently accepted because it keeps the runtime path simpler for expected near-term corpus sizes.

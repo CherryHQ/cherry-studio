@@ -16,7 +16,7 @@ export const agentChannelHandlers: HandlersFor<AgentChannelSchemas> = {
       const parsed = AgentChannelListQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
       const filters = Object.keys(parsed.data).length > 0 ? parsed.data : undefined
-      return await agentChannelService.listChannels(filters)
+      return agentChannelService.listChannels(filters)
     },
 
     POST: async ({ body }) => {
@@ -32,7 +32,7 @@ export const agentChannelHandlers: HandlersFor<AgentChannelSchemas> = {
 
   '/agent-channels/:channelId': {
     GET: async ({ params }) => {
-      const channel = await agentChannelService.getChannel(params.channelId)
+      const channel = agentChannelService.getChannel(params.channelId)
       if (!channel) throw DataApiErrorFactory.notFound('Channel', params.channelId)
       return channel
     },

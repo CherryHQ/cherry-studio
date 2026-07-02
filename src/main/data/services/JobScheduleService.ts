@@ -44,7 +44,7 @@ export class JobScheduleService {
 
   // ---------------- Read ----------------
 
-  async listAll(filter: JobScheduleListFilter = {}): Promise<JobScheduleSnapshot[]> {
+  listAll(filter: JobScheduleListFilter = {}): JobScheduleSnapshot[] {
     const db = this.getDb()
     const conditions: SQL[] = []
     if (filter.type) conditions.push(eq(jobScheduleTable.type, filter.type))
@@ -61,24 +61,25 @@ export class JobScheduleService {
     const rows =
       filter.limit !== undefined
         ? filter.offset !== undefined
-          ? await baseQuery.limit(filter.limit).offset(filter.offset)
-          : await baseQuery.limit(filter.limit)
-        : await baseQuery
+          ? baseQuery.limit(filter.limit).offset(filter.offset).all()
+          : baseQuery.limit(filter.limit).all()
+        : baseQuery.all()
 
     return rows.map((r) => this.rowToSnapshot(r))
   }
 
-  async listEnabled(): Promise<JobScheduleSnapshot[]> {
-    const rows = await this.getDb()
+  listEnabled(): JobScheduleSnapshot[] {
+    const rows = this.getDb()
       .select()
       .from(jobScheduleTable)
       .where(eq(jobScheduleTable.enabled, true))
       .orderBy(asc(jobScheduleTable.createdAt))
+      .all()
     return rows.map((r) => this.rowToSnapshot(r))
   }
 
-  async getById(id: string): Promise<JobScheduleSnapshot | null> {
-    const [row] = await this.getDb().select().from(jobScheduleTable).where(eq(jobScheduleTable.id, id)).limit(1)
+  getById(id: string): JobScheduleSnapshot | null {
+    const [row] = this.getDb().select().from(jobScheduleTable).where(eq(jobScheduleTable.id, id)).limit(1).all()
     return row ? this.rowToSnapshot(row) : null
   }
 
@@ -87,12 +88,13 @@ export class JobScheduleService {
    * Returns null when not found so the caller (JobManager) can wrap absence
    * into a typed error with a `knownNames` list for better DX.
    */
-  async getByTypeAndName(type: string, name: string): Promise<JobScheduleSnapshot | null> {
-    const [row] = await this.getDb()
+  getByTypeAndName(type: string, name: string): JobScheduleSnapshot | null {
+    const [row] = this.getDb()
       .select()
       .from(jobScheduleTable)
       .where(and(eq(jobScheduleTable.type, type), eq(jobScheduleTable.name, name)))
       .limit(1)
+      .all()
     return row ? this.rowToSnapshot(row) : null
   }
 
@@ -101,11 +103,12 @@ export class JobScheduleService {
    * error context. The singleton sentinel `''` is filtered out so callers see
    * only user-visible names.
    */
-  async listNamesForType(type: string): Promise<string[]> {
-    const rows = await this.getDb()
+  listNamesForType(type: string): string[] {
+    const rows = this.getDb()
       .select({ name: jobScheduleTable.name })
       .from(jobScheduleTable)
       .where(eq(jobScheduleTable.type, type))
+      .all()
     return rows.map((r) => r.name).filter((n) => n !== '')
   }
 
@@ -114,7 +117,7 @@ export class JobScheduleService {
    * schedules — JobManager applies the per-schedule policy. Filtering more
    * aggressively here would duplicate policy knowledge from JobManager.
    */
-  async getCatchUpCandidates(): Promise<JobScheduleSnapshot[]> {
+  getCatchUpCandidates(): JobScheduleSnapshot[] {
     return this.listEnabled()
   }
 
@@ -125,11 +128,11 @@ export class JobScheduleService {
    *   - `*Tx(tx, ...)` — pure DB operation against a provided transaction.
    *     Use for composing multiple writes into one transaction.
    *   - non-Tx public methods — thin wrappers routing through
-   *     `DbService.withWriteTx` to serialize against other writes (avoids
-   *     libsql issue #288 SQLITE_BUSY). Input validation lives here.
+   *     `DbService.withWriteTx` to serialize against other writes. Input
+   *     validation lives here.
    */
 
-  async createTx(tx: DbOrTx, dto: CreateJobScheduleDto): Promise<JobScheduleSnapshot> {
+  createTx(tx: DbOrTx, dto: CreateJobScheduleDto): JobScheduleSnapshot {
     // Drizzle's `text({ mode: 'json' })` columns accept JS values directly —
     // no manual JSON.stringify needed. The ORM serializes on write and parses
     // on read.
@@ -143,7 +146,7 @@ export class JobScheduleService {
       metadata: dto.metadata ?? {}
     }
 
-    const result = await withSqliteErrors(() => tx.insert(jobScheduleTable).values(insertData).returning(), {
+    const result = withSqliteErrors(() => tx.insert(jobScheduleTable).values(insertData).returning().all(), {
       ...defaultHandlersFor('JobSchedule', '<auto>'),
       unique: () =>
         DataApiErrorFactory.conflict(
@@ -159,7 +162,7 @@ export class JobScheduleService {
     return this.rowToSnapshot(row)
   }
 
-  async create(dto: CreateJobScheduleDto): Promise<JobScheduleSnapshot> {
+  create(dto: CreateJobScheduleDto): JobScheduleSnapshot {
     if (dto.name) {
       const parsed = JobScheduleNameAtomSchema.safeParse(dto.name)
       if (!parsed.success) {
@@ -168,11 +171,10 @@ export class JobScheduleService {
         )
       }
     }
-    const dbService = application.get('DbService')
-    return dbService.withWriteTx((tx) => this.createTx(tx, dto))
+    return this.createTx(application.get('DbService').getDb(), dto)
   }
 
-  async updateTx(tx: DbOrTx, id: string, patch: UpdateJobScheduleDto): Promise<JobScheduleSnapshot | null> {
+  updateTx(tx: DbOrTx, id: string, patch: UpdateJobScheduleDto): JobScheduleSnapshot | null {
     const updateData: Partial<InsertJobScheduleRow> = { updatedAt: Date.now() }
     if (patch.name !== undefined) updateData.name = patch.name ?? ''
     if (patch.trigger !== undefined) updateData.trigger = patch.trigger
@@ -181,8 +183,8 @@ export class JobScheduleService {
     if (patch.enabled !== undefined) updateData.enabled = patch.enabled
     if (patch.metadata !== undefined) updateData.metadata = patch.metadata
 
-    const result = await withSqliteErrors(
-      () => tx.update(jobScheduleTable).set(updateData).where(eq(jobScheduleTable.id, id)).returning(),
+    const result = withSqliteErrors(
+      () => tx.update(jobScheduleTable).set(updateData).where(eq(jobScheduleTable.id, id)).returning().all(),
       {
         ...defaultHandlersFor('JobSchedule', id),
         unique: () =>
@@ -198,7 +200,7 @@ export class JobScheduleService {
     return this.rowToSnapshot(row)
   }
 
-  async update(id: string, patch: UpdateJobScheduleDto): Promise<JobScheduleSnapshot | null> {
+  update(id: string, patch: UpdateJobScheduleDto): JobScheduleSnapshot | null {
     if (patch.name) {
       const parsed = JobScheduleNameAtomSchema.safeParse(patch.name)
       if (!parsed.success) {
@@ -207,32 +209,30 @@ export class JobScheduleService {
         )
       }
     }
-    const dbService = application.get('DbService')
-    return dbService.withWriteTx((tx) => this.updateTx(tx, id, patch))
+    return this.updateTx(application.get('DbService').getDb(), id, patch)
   }
 
-  async setEnabledTx(tx: DbOrTx, id: string, enabled: boolean): Promise<boolean> {
-    const result = await tx
+  setEnabledTx(tx: DbOrTx, id: string, enabled: boolean): boolean {
+    const result = tx
       .update(jobScheduleTable)
       .set({ enabled, updatedAt: Date.now() })
       .where(eq(jobScheduleTable.id, id))
-    return result.rowsAffected > 0
+      .run()
+    return result.changes > 0
   }
 
-  async setEnabled(id: string, enabled: boolean): Promise<boolean> {
-    const dbService = application.get('DbService')
-    return dbService.withWriteTx((tx) => this.setEnabledTx(tx, id, enabled))
+  setEnabled(id: string, enabled: boolean): boolean {
+    return this.setEnabledTx(application.get('DbService').getDb(), id, enabled)
   }
 
-  async deleteTx(tx: DbOrTx, id: string): Promise<boolean> {
-    const result = await tx.delete(jobScheduleTable).where(eq(jobScheduleTable.id, id))
-    logger.info('JobSchedule deleted', { id, deleted: result.rowsAffected > 0 })
-    return result.rowsAffected > 0
+  deleteTx(tx: DbOrTx, id: string): boolean {
+    const result = tx.delete(jobScheduleTable).where(eq(jobScheduleTable.id, id)).run()
+    logger.info('JobSchedule deleted', { id, deleted: result.changes > 0 })
+    return result.changes > 0
   }
 
-  async delete(id: string): Promise<boolean> {
-    const dbService = application.get('DbService')
-    return dbService.withWriteTx((tx) => this.deleteTx(tx, id))
+  delete(id: string): boolean {
+    return this.deleteTx(application.get('DbService').getDb(), id)
   }
 
   /**
@@ -240,16 +240,15 @@ export class JobScheduleService {
    * to the next expected fire (or null for terminal one-shot / no-more-runs).
    * Called from the SchedulerService callback after each fire.
    */
-  async markFiredTx(tx: DbOrTx, id: string, lastRun: number, nextRun: number | null): Promise<void> {
-    await tx
-      .update(jobScheduleTable)
+  markFiredTx(tx: DbOrTx, id: string, lastRun: number, nextRun: number | null): void {
+    tx.update(jobScheduleTable)
       .set({ lastRun, nextRun, updatedAt: Date.now() })
       .where(eq(jobScheduleTable.id, id))
+      .run()
   }
 
-  async markFired(id: string, lastRun: number, nextRun: number | null): Promise<void> {
-    const dbService = application.get('DbService')
-    await dbService.withWriteTx((tx) => this.markFiredTx(tx, id, lastRun, nextRun))
+  markFired(id: string, lastRun: number, nextRun: number | null): void {
+    this.markFiredTx(application.get('DbService').getDb(), id, lastRun, nextRun)
   }
 
   // ---------------- Row → Entity ----------------

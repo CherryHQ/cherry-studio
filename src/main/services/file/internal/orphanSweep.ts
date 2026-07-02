@@ -69,9 +69,9 @@ export interface ScanOrphanEntriesDeps {
  * user/caller-driven flows; dangling external entries are not auto-deleted by
  * sweep.
  */
-export async function scanOrphanEntries(deps: ScanOrphanEntriesDeps): Promise<OrphanEntryReport> {
-  const candidates = await deps.fileEntryService.findUnreferenced()
-  const counts = await deps.fileRefService.countByEntryIds(candidates.map((row) => row.id))
+export function scanOrphanEntries(deps: ScanOrphanEntriesDeps): OrphanEntryReport {
+  const candidates = deps.fileEntryService.findUnreferenced()
+  const counts = deps.fileRefService.countByEntryIds(candidates.map((row) => row.id))
   const rows = candidates.filter((row) => (counts.get(row.id) ?? 0) === 0)
   const byOrigin: Partial<Record<FileEntryOrigin, number>> = {}
   for (const row of rows) {
@@ -117,15 +117,13 @@ export type { OrphanReport } from '@shared/types/file/sweep'
  * throw collapses to `outcome: 'failed'`. Caller decides when to invoke the
  * sweep; FileManager exposes it on demand and does not run it at startup.
  */
-export async function runDbSweep(deps: RunDbSweepDeps): Promise<DbSweepReport> {
+export function runDbSweep(deps: RunDbSweepDeps): DbSweepReport {
   const startedAt = Date.now()
   try {
-    const prunedTempSessionRefs = await deps.fileRefService.pruneMissingTempSessionRefs(
-      await deps.fileEntryService.listAllIds()
-    )
+    const prunedTempSessionRefs = deps.fileRefService.pruneMissingTempSessionRefs(deps.fileEntryService.listAllIds())
     const refsByType: Partial<Record<FileRefSourceType, number>> =
       prunedTempSessionRefs > 0 ? { temp_session: prunedTempSessionRefs } : {}
-    const entries = await scanOrphanEntries({
+    const entries = scanOrphanEntries({
       fileEntryService: deps.fileEntryService,
       fileRefService: deps.fileRefService
     })
@@ -289,7 +287,7 @@ async function runFileSweepInner(deps: RunFileSweepDeps): Promise<FileSweepRepor
   const startedAt = Date.now()
   try {
     const filesDir = application.getPath('feature.files.data')
-    const idSnapshot: Set<FileEntryId> = await deps.fileEntryService.listAllIds()
+    const idSnapshot: Set<FileEntryId> = deps.fileEntryService.listAllIds()
 
     let dirents: string[]
     try {
