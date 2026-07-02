@@ -1,258 +1,81 @@
 {
-  "generated_at": "2026-07-01",
-  "repository": "CherryHQ/cherry-studio",
-
+  "generated_at": "2026-07-02",
   "v2_branch_status": {
-    "merged_into_main": true,
-    "merge_completed_approximately": "2026-W22 (week of May 26 – June 1, 2026)",
-    "active_dev_branch": "main",
-    "open_prs_targeting_v2": 0,
-    "historical_v2_prs": {
-      "total_in_dataset": 100,
-      "merged": 34,
-      "closed_without_merge": 66,
-      "latest_merge_date": "2026-05-28",
-      "top_v2_contributor": "eeee0717 (24 of 34 merged PRs)",
-      "v2_work_themes": ["knowledge base infrastructure", "web search → main process migration", "DataApi/Preference data layer adoption", "vector store schema"]
+    "open_prs": 0,
+    "merged_prs_30d": "unknown (GitHub search date filter returned 0; see discussion_analysis.json note)",
+    "note": "v2 branch merged into main. Both v1 and v2 code coexist on main during refactor. No open PRs targeting v2 branch today."
+  },
+  "active_tracks": {
+    "Data Layer": {
+      "status": "in_progress (cleanup stage)",
+      "replacing": ["Redux (done)", "Dexie", "ElectronStore"],
+      "adopting": ["Cache", "Preference", "DataApi (SQLite + Drizzle ORM)"],
+      "note": "Opportunistic v1 residue removal when editing — no dedicated PRs visible today"
     },
-    "merged_prs_30d_total_on_main": 295,
-    "merge_rate_type_breakdown": {
-      "fix": 52,
-      "feat": 18,
-      "refactor": 18,
-      "other": 7,
-      "chore": 3,
-      "docs": 2
+    "UI Layer": {
+      "status": "in_progress — major stacked PR series active",
+      "replacing": ["antd/HeroUI/styled-components"],
+      "adopting": ["@cherrystudio/ui (Tailwind CSS + Shadcn UI)"],
+      "active_prs": {
+        "description": "SiinXu's 11-PR stacked chain for full UI design system rollout",
+        "chain": [
+          "ui-design-system → ui-design-system-02-primitives",
+          "→ ui-design-system-03-composites",
+          "→ ui-design-system-04-window-shell",
+          "→ ui-design-system-05-sidebar-nav",
+          "→ ui-design-system-06-ps-base",
+          "→ ui-design-system-07-ps-lists",
+          "→ ui-design-system-08-ps-components",
+          "→ ui-design-system-09-data-settings",
+          "→ ui-design-system-10-tool-settings",
+          "→ ui-design-system-11-launchpad",
+          "→ ui-design-system-12-other-pages"
+        ]
+      }
+    },
+    "Backup System": {
+      "status": "in_progress",
+      "active_prs": [
+        {"number": 16682, "title": "feat(backup): schema-refs codegen + neutral layer + v2 docs [1/3]", "base": "main"},
+        {"number": 16683, "title": "feat(backup): add contributor manager + finalize [3/3]"},
+        {"number": 16684, "title": "feat(backup): add 9 domain contributors [2/3]"}
+      ],
+      "author": "GeorgeDong32",
+      "note": "New backup architecture landed today. Addresses the open data-integrity issue #15316 (agents.db WAL race)."
+    },
+    "AI SDK": {
+      "status": "tracking",
+      "tracking_issue": 14022,
+      "assigned": "DeJeune",
+      "note": "Vercel AI SDK v7 migration plan. v7 milestone at 55% (44/79 closed). Key breaking changes: CallSettings split, image-*→file-*, context→runtimeContext rename, CJS removal."
+    },
+    "Agent (Assistant)": {
+      "status": "active feature development",
+      "new_issues_today": [
+        {"number": 16659, "title": "[Feature]: Streaming Idle Watchdog with Auto-Retry", "labels": ["feature", "internal_team"]},
+        {"number": 16658, "title": "[Feature]: Background Agent Task Recovery After Process Restart", "labels": ["feature", "Assistant", "internal_team"]},
+        {"number": 16657, "title": "[Feature]: Cross-Device Agent Task Continuation", "labels": ["feature", "internal_team"]},
+        {"number": 16656, "title": "[Feature]: Control Whether Reasoning CoT Is Included in Historical Context", "labels": ["feature", "UI/UX", "Models", "internal_team"]},
+        {"number": 16655, "title": "[Feature]: Configurable Auto-Retry on Interrupted or Failed Replies", "labels": ["feature", "internal_team"]}
+      ]
     }
   },
-
   "milestones": {
-    "v2.0.0": {
-      "status": "overdue",
-      "due_on": "2026-04-30",
-      "days_overdue": 62,
-      "open_issues": 24,
-      "closed_issues": 109,
-      "completion_pct": 82
-    },
-    "v2.1.0": {
-      "status": "active",
-      "open_issues": 29,
-      "closed_issues": 4,
-      "completion_pct": 12
-    },
-    "v2.2.0": {
-      "status": "active",
-      "open_issues": 38,
-      "closed_issues": 7,
-      "completion_pct": 16
-    },
     "v2.4.0": {
-      "status": "active",
-      "open_issues": 21,
-      "closed_issues": 3,
-      "completion_pct": 12
+      "state": "open",
+      "open_issues": 37,
+      "closed_issues": 5,
+      "key_p1": "#14899 Unified Notification Center"
+    },
+    "v1.9.8": {
+      "state": "open",
+      "open_issues": 11,
+      "closed_issues": 1,
+      "key_issue": "#15316 agents.db backup race condition"
     }
   },
-
-  "active_v2_workstreams_on_main": [
-    {
-      "name": "Database Engine Migration (libsql → better-sqlite3 + sqlite-vec)",
-      "type": "Core Infrastructure",
-      "lead": "0xfullex",
-      "status": "OPEN FOR REVIEW — major PR filed today",
-      "open_prs": [
-        {
-          "number": 16626,
-          "title": "refactor(db): replace libsql with better-sqlite3 + sqlite-vec",
-          "created_at": "2026-07-01",
-          "significance": "MAJOR — synchronous single-connection model; removes async-mutex, SQLITE_BUSY retry (#288), pragma-replay patch; 1179 files / 13727 tests pass; split ABI (Node for test, Electron for app)",
-          "caveat": "Windows ARM64: no sqlite-vec vec0.dll prebuild — KB vector search unavailable on win-arm64 until follow-up"
-        }
-      ],
-      "related_test_artifact": "v0.0.0-libsql.win.arm.test draft release — Windows ARM64 sqlite-vec compatibility testing"
-    },
-    {
-      "name": "UI Design System v2 Overhaul (SiinXu)",
-      "type": "UI/UX Refactor",
-      "lead": "SiinXu",
-      "pr_chain": [
-        "#16104 — v2 design tokens, theme & global styles [1/13]",
-        "#16502 — v2 primitive components [2/13]",
-        "#16503 — v2 composites incl color-picker [3/13]",
-        "#16504 — focus-aware glass shell + window IPC [4/13]",
-        "#16505 — v2 sidebar + nav selected state [5/13]",
-        "#16506 — provider-settings: connection slots + page shell [6/13]",
-        "#16507 — provider-settings: model + provider lists [7/13]",
-        "#16508 — provider-settings: components + provider-specific [8/13]",
-        "#16509 — settings: card barrel + data/integration/websearch [9/13]",
-        "#16510 — settings: mcp/file/selection/common/shortcut [10/13]",
-        "#16511 — feat(launchpad): custom app icon artwork [11/13]",
-        "#16512 — refactor(pages): v2 re-skin pages + quick-assistant [12/13]",
-        "#16513 — shared component re-skin + legacy-css-var governance [13/13]"
-      ],
-      "status": "all drafts — being developed in stacked sequence",
-      "new_feature_spec": { "number": 16620, "title": "Group Conversation Anchors by Turn", "filed_by": "SiinXu", "date": "2026-07-01" }
-    },
-    {
-      "name": "Knowledge Base Enhancement",
-      "type": "Feature",
-      "lead": "eeee0717, LWWZH",
-      "recently_merged": [
-        "#16345 — feat(knowledge): add agent tool surface (kb_list/kb_search/kb_read/kb_manage) — merged 2026-06-30",
-        "#16564 — fix(knowledge): filter rag file processors by configured keys — merged 2026-06-30"
-      ],
-      "open_prs": [
-        "#16486 — file-name search to knowledge base index",
-        "#16407 — local embedding and PaddleOCR (draft)",
-        "#16443 — e2e data-testid hooks + agent-e2e spec (draft)"
-      ],
-      "open_issues": [
-        { "number": 16610, "title": "[Bug]: Adding a folder with thousands of files crashes the main process", "severity": "CRASH", "labeled": "Data", "note": "Needs P1 escalation" }
-      ],
-      "status": "active — KB agent tools merged; crash bug open; vector store migrating to sqlite-vec via PR #16626"
-    },
-    {
-      "name": "Reasoning/Thinking Effort SSoT",
-      "type": "Architecture / Bug Fix",
-      "lead": "DeJeune (proposal), unassigned",
-      "status": "URGENT — community pain confirmed today",
-      "tracking_issues": [
-        {
-          "number": 16598,
-          "title": "Make reasoning-effort control data-driven from ProviderRegistry",
-          "filed_by": "DeJeune",
-          "date": "2026-06-30",
-          "detail": "4 failure modes documented: A=control disabled for unlisted models, B=selection lost in serialization, C=silent coercion, D=empty descriptor. Proposed 5-step remediation."
-        },
-        {
-          "number": 16623,
-          "title": "[Bug]: Thinking/Reasoning settings are insufficient",
-          "filed_by": "oooskarrr",
-          "date": "2026-07-01",
-          "detail": "Community corroboration — cannot set reasoning for new Sonnet, GLM-5.2, M3; only GPT and some Anthropic models work correctly"
-        }
-      ],
-      "note": "No PR yet — unblocked architectural fix needed before next model release cycle"
-    },
-    {
-      "name": "Agent Runtime / SDK Integration",
-      "type": "Core Feature",
-      "lead": "DeJeune, vaayne",
-      "recently_merged": [
-        "#16602 — fix(migration): always publish mcpServerIdMapping for empty server list — merged 2026-06-30"
-      ],
-      "open_prs": [
-        "#16462 — AI SDK v7 migration plan and design docs (draft)",
-        "#16492 — OAuth runtime provider registry (vaayne)",
-        "#16283 — login-based providers: Claude Code, OpenAI Codex, Grok",
-        "#16579 — feat(agents): separate agent root directory and personality/author (draft, DeJeune)"
-      ],
-      "status": "active"
-    },
-    {
-      "name": "IPC Migration to IpcApi",
-      "type": "Architecture",
-      "lead": "Pleasurecruise",
-      "open_prs": [
-        "#16397 — migrate runtime IPC to IpcApi",
-        "#16554 — binary.latest_versions IPC",
-        "#16491 — refactor(code-cli): persist provider configs to native CLI files (draft)"
-      ],
-      "status": "open PRs in progress"
-    },
-    {
-      "name": "Composer UX Improvements",
-      "type": "Feature/UX",
-      "lead": "zhangjiadi225, DeJeune",
-      "recently_merged": [
-        "#16596 — feat(composer): add hover remove popover to skill and knowledge tokens — merged 2026-06-30"
-      ],
-      "open_prs": [
-        "#16429 — feat(composer): add input history navigation"
-      ],
-      "status": "active"
-    },
-    {
-      "name": "Settings Window Consolidation",
-      "type": "Refactor",
-      "lead": "DeJeune",
-      "open_prs": [
-        "#16488 — refactor(settings): reorganize into 6 discriminating groups (draft)",
-        "#16489 — refactor(settings): remove standalone settings window"
-      ],
-      "status": "open drafts"
-    },
-    {
-      "name": "Channels — outbound file forwarding",
-      "type": "New Feature",
-      "lead": "DeJeune (issue), vaayne (assignee)",
-      "tracking_issue": 16566,
-      "status": "filed 2026-06-29, no PR yet"
-    },
-    {
-      "name": "Paintings — Infinite Canvas",
-      "type": "New Feature",
-      "lead": "DeJeune",
-      "open_prs": [
-        "#16444 — feat(paintings): infinite canvas paint mode with React Flow (draft)"
-      ],
-      "status": "draft, speculative"
-    },
-    {
-      "name": "Windows Bundled Git",
-      "type": "Platform",
-      "lead": "vaayne",
-      "open_prs": [
-        "#16402 — feat(bundled-git): ship MinGit on Windows as system-git fallback (draft)"
-      ],
-      "related_test_artifact": "v0.0.0-mingit-test draft release",
-      "status": "draft — platform compatibility testing ongoing"
-    }
-  ],
-
-  "v2_data_layer": {
-    "removing": ["Dexie (in progress)", "ElectronStore (removed)", "Redux (removed)", "libsql (PR #16626 in review)"],
-    "adopting": ["Cache", "Preference", "DataApi (SQLite + Drizzle)", "better-sqlite3 + sqlite-vec (PR #16626)"],
-    "migration_status": "in cleanup/adoption phase — libsql removal is the next major step"
-  },
-
-  "v2_ui_layer": {
-    "adopting": "@cherrystudio/ui (Shadcn UI + Tailwind CSS)",
-    "overhaul": "SiinXu's 13-PR design system chain covers all major UI surfaces (all drafts)"
-  },
-
-  "vercel_ai_sdk_v7_tracking": {
-    "tracking_issue": 14022,
-    "current_version": "ai@^6.x + 17 @ai-sdk/* packages",
-    "migration_doc_pr": 16462,
-    "key_breaking_changes": [
-      "CallSettings → ModelCallOptions + RequestOptions",
-      "image-* → file-* type unification",
-      "experimental_context → runtimeContext",
-      "CJS exports removed (pure ESM in v7)",
-      "TelemetrySettings → TelemetryOptions"
-    ],
-    "status": "design doc PR open (#16462, draft)"
-  },
-
-  "release_status": {
-    "latest_public": "v1.9.11",
-    "published_at": "2026-06-07",
-    "draft": "v1.9.12",
-    "test_artifacts": ["v0.0.0-mingit-test", "v0.0.0-libsql.win.arm.test"],
-    "note": "v2.0.0 not yet released (62 days overdue); public releases still on v1.9.x. v1.9.12 in draft. MiniMax M3 thinking mode bugs closed today — included in next release?"
-  },
-
-  "top_merged_contributors_30d": [
-    { "author": "DeJeune", "merged_prs": 29 },
-    { "author": "zhangjiadi225", "merged_prs": 12 },
-    { "author": "eeee0717", "merged_prs": 12 },
-    { "author": "kangfenmao", "merged_prs": 11 },
-    { "author": "AtomsH4", "merged_prs": 6 },
-    { "author": "vaayne", "merged_prs": 4 },
-    { "author": "ousugo", "merged_prs": 4 },
-    { "author": "Pleasurecruise", "merged_prs": 4 },
-    { "author": "beyondkmp", "merged_prs": 3 }
-  ]
+  "internal_team_activity": {
+    "recent_issues_today": 5,
+    "note": "36/100 most-recently-updated issues carry internal_team label — highest label frequency. Active internal planning visible."
+  }
 }
