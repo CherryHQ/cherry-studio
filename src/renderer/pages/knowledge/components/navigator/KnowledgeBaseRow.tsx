@@ -97,6 +97,8 @@ const KnowledgeBaseRow = ({
     <>
       <CommandContextMenu location="webcontents.context" extraItems={contextMenuItems}>
         <div
+          data-testid="kb-base-row"
+          data-base-id={base.id}
           className={cn(
             'w-full rounded-md px-2.5 py-1.5 transition-colors',
             selected ? 'bg-secondary' : 'hover:bg-accent'

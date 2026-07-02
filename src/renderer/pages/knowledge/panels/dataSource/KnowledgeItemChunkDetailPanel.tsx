@@ -25,7 +25,9 @@ const KnowledgeItemChunkCard = ({ chunk }: { chunk: KnowledgeItemChunk }) => {
   const { t } = useTranslation()
 
   return (
-    <div className="rounded-lg border border-border-subtle transition-all hover:border-border-hover">
+    <div
+      data-testid="kb-chunk-card"
+      className="rounded-lg border border-border-subtle transition-all hover:border-border-hover">
       <div className="flex items-center gap-2 px-3 py-2">
         <span className="flex size-5 shrink-0 items-center justify-center rounded bg-accent text-foreground-muted text-xs leading-4">
           {chunk.metadata.chunkIndex + 1}
@@ -111,7 +113,7 @@ const KnowledgeItemChunkDetailPanel = ({
   }, [baseId, itemId])
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div data-testid="kb-chunk-panel" className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 items-center gap-2 border-border-muted border-b px-3 py-2">
         <Button
           type="button"
@@ -132,7 +134,7 @@ const KnowledgeItemChunkDetailPanel = ({
             {viewModel?.title ?? t('common.loading')}
           </span>
           <div className="flex items-center gap-2 text-foreground-muted text-xs leading-4">
-            <span>{chunksCountMeta}</span>
+            <span data-testid="kb-chunks-count">{chunksCountMeta}</span>
           </div>
         </div>
       </div>

@@ -44,6 +44,7 @@ const KnowledgeItemStatusBadge = ({
 
   const content = (
     <span
+      data-testid="kb-item-status"
       className={cn(
         'inline-flex shrink-0 items-center gap-1 text-xs',
         failureReason && 'cursor-help',
@@ -171,6 +172,9 @@ const KnowledgeItemRow = ({
     <CommandContextMenu location="webcontents.context" extraItems={contextMenuItems}>
       <div
         role="row"
+        data-testid="kb-item-row"
+        data-item-id={item.id}
+        data-status={item.status}
         data-state={selected ? 'selected' : undefined}
         tabIndex={canViewChunks ? 0 : undefined}
         aria-label={canViewChunks ? t('knowledge.data_source.table.view_chunks_row', { title }) : undefined}
