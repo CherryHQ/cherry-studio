@@ -82,3 +82,12 @@ supportedArchitectures:
     - current
   cpu:
     - current
+
+minimumReleaseAgeExclude:
+  - '@aiany/sqlite-vec-darwin-arm64@0.1.10-alpha.4.aiany.2'
+  - '@aiany/sqlite-vec-darwin-x64@0.1.10-alpha.4.aiany.2'
+  - '@aiany/sqlite-vec-linux-arm64@0.1.10-alpha.4.aiany.2'
+  - '@aiany/sqlite-vec-linux-x64@0.1.10-alpha.4.aiany.2'
+  - '@aiany/sqlite-vec-windows-arm64@0.1.10-alpha.4.aiany.2'
+  - '@aiany/sqlite-vec-windows-x64@0.1.10-alpha.4.aiany.2'
+  - '@aiany/sqlite-vec@0.1.10-alpha.4.aiany.2'

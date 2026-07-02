@@ -43,15 +43,15 @@ const packages = [
   '@napi-rs/canvas-darwin-arm64',
   '@napi-rs/canvas-win32-x64-msvc',
   '@napi-rs/canvas-win32-arm64-msvc',
-  // sqlite-vec prebuilt extensions (vec0.dylib/.so/.dll). Note the package names use
+  // sqlite-vec prebuilt extensions (vec0.dylib/.so/.dll), from the @aiany/sqlite-vec fork
+  // which adds a windows-arm64 build (upstream ships none). Note the package names use
   // `windows`, not `win32` — see platformTokens below for why the keep-filter must match both.
-  // There is no sqlite-vec-windows-arm64 (upstream ships no win-arm64 prebuild), so a win-arm64
-  // build bundles no vec0.dll until one is vendored — see the win32-arm64 note below.
-  'sqlite-vec-darwin-arm64',
-  'sqlite-vec-darwin-x64',
-  'sqlite-vec-linux-arm64',
-  'sqlite-vec-linux-x64',
-  'sqlite-vec-windows-x64'
+  '@aiany/sqlite-vec-darwin-arm64',
+  '@aiany/sqlite-vec-darwin-x64',
+  '@aiany/sqlite-vec-linux-arm64',
+  '@aiany/sqlite-vec-linux-x64',
+  '@aiany/sqlite-vec-windows-arm64',
+  '@aiany/sqlite-vec-windows-x64'
 ]
 
 const platformToArch = {
@@ -137,10 +137,9 @@ exports.default = async function (context) {
     .map((p) => '!node_modules/' + p + '/**')
 
   const currentPlatformKey = `${platform}-${arch}`
-  // win32-arm64 is in this list so `build:win` (--x64 --arm64) can package it. Note: sqlite-vec
-  // ships no prebuilt Windows ARM64 extension, so a win-arm64 package currently carries no vec0.dll
-  // and knowledge-base vector search is unavailable there until a win-arm64 vec0.dll is vendored
-  // (follow-up work).
+  // win32-arm64 is in this list so `build:win` (--x64 --arm64) can package it. The
+  // @aiany/sqlite-vec fork provides a windows-arm64 vec0.dll, so knowledge-base vector
+  // search works on that target too.
   const allBinaryPlatforms = ['darwin-arm64', 'darwin-x64', 'linux-x64', 'linux-arm64', 'win32-x64', 'win32-arm64']
   const excludeBundledBinaryFilters = allBinaryPlatforms
     .filter((p) => p !== currentPlatformKey)

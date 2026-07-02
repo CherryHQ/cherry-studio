@@ -128,8 +128,8 @@ importers:
         specifier: 0.34.5
         version: 0.34.5
       sqlite-vec:
-        specifier: 0.1.9
-        version: 0.1.9
+        specifier: npm:@aiany/sqlite-vec@0.1.10-alpha.4.aiany.2
+        version: '@aiany/sqlite-vec@0.1.10-alpha.4.aiany.2'
       tesseract.js:
         specifier: 6.0.1
         version: 6.0.1(patch_hash=a131c9f36e950911e9fc548408131145a3e5e53977d67abe5196f6b23b32bb6e)(encoding@0.1.13)
@@ -1062,6 +1062,24 @@ importers:
         specifier: ^4.1.5
         version: 4.3.4
     optionalDependencies:
+      '@aiany/sqlite-vec-darwin-arm64':
+        specifier: 0.1.10-alpha.4.aiany.2
+        version: 0.1.10-alpha.4.aiany.2
+      '@aiany/sqlite-vec-darwin-x64':
+        specifier: 0.1.10-alpha.4.aiany.2
+        version: 0.1.10-alpha.4.aiany.2
+      '@aiany/sqlite-vec-linux-arm64':
+        specifier: 0.1.10-alpha.4.aiany.2
+        version: 0.1.10-alpha.4.aiany.2
+      '@aiany/sqlite-vec-linux-x64':
+        specifier: 0.1.10-alpha.4.aiany.2
+        version: 0.1.10-alpha.4.aiany.2
+      '@aiany/sqlite-vec-windows-arm64':
+        specifier: 0.1.10-alpha.4.aiany.2
+        version: 0.1.10-alpha.4.aiany.2
+      '@aiany/sqlite-vec-windows-x64':
+        specifier: 0.1.10-alpha.4.aiany.2
+        version: 0.1.10-alpha.4.aiany.2
       '@anthropic-ai/claude-agent-sdk-darwin-arm64':
         specifier: 0.3.168
         version: 0.3.168
@@ -1164,21 +1182,6 @@ importers:
       '@napi-rs/system-ocr-win32-x64-msvc':
         specifier: 1.0.2
         version: 1.0.2
-      sqlite-vec-darwin-arm64:
-        specifier: 0.1.9
-        version: 0.1.9
-      sqlite-vec-darwin-x64:
-        specifier: 0.1.9
-        version: 0.1.9
-      sqlite-vec-linux-arm64:
-        specifier: 0.1.9
-        version: 0.1.9
-      sqlite-vec-linux-x64:
-        specifier: 0.1.9
-        version: 0.1.9
-      sqlite-vec-windows-x64:
-        specifier: 0.1.9
-        version: 0.1.9
 
   packages/ai-sdk-provider:
     dependencies:
@@ -1746,6 +1749,39 @@ packages:
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
+
+  '@aiany/sqlite-vec-darwin-arm64@0.1.10-alpha.4.aiany.2':
+    resolution: {integrity: sha512-R2nPP2/Pr613Ja7ePR/y7KFvlGaznMMgYnmhdzcc+C0o4y6DvrIU5K3P5OgO2l2uHKdESLesBWhvrBlTHpJZ7A==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@aiany/sqlite-vec-darwin-x64@0.1.10-alpha.4.aiany.2':
+    resolution: {integrity: sha512-wa791COJ7fHxy2TaIHQ1AiyC3CxaQK3Us4GK9JoRIH+d57/8pwPpdqF1ZgKgXDFsSDRsnWSMJDyjJn0vlXk8Ig==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@aiany/sqlite-vec-linux-arm64@0.1.10-alpha.4.aiany.2':
+    resolution: {integrity: sha512-pT0hJnscNnjVWHdTWMv3npjkzteORzmb1HwM6gmN4pGpwdgKy/sqxb4rRszmSvAtEjd1NoZnkjw6AfAoGD6Jug==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@aiany/sqlite-vec-linux-x64@0.1.10-alpha.4.aiany.2':
+    resolution: {integrity: sha512-6nZtJNrA0F8Df4eM+6vRQzKVqjTnqvhqFPAMEJv5viw/Dwc9kqOSIDCighclkS4T4je+zRZjofBSqL6cR3TL7w==}
+    cpu: [x64]
+    os: [linux]
+
+  '@aiany/sqlite-vec-windows-arm64@0.1.10-alpha.4.aiany.2':
+    resolution: {integrity: sha512-fJ/TENSlUvJ9Cm10rmFT6d6oOfKzgLgQTY9FZXCf0VJapWK29mSpZL2krPqZgTOW0lqvOjEfQyjrMMlBcmzngw==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@aiany/sqlite-vec-windows-x64@0.1.10-alpha.4.aiany.2':
+    resolution: {integrity: sha512-B4GZ98uwoJD3JmHjdsWcGDl26uhduAOH1udC0MFfkhzhQyY5Y4UOmuntz4KiA5v3/XSSLogrrddXff0WWY6LoQ==}
+    cpu: [x64]
+    os: [win32]
+
+  '@aiany/sqlite-vec@0.1.10-alpha.4.aiany.2':
+    resolution: {integrity: sha512-/uuNC2Z3ZcUvJxMGFIVdPmFUjkCLgIhzbk3uI988qu79aG2Ez7Bl7eDBKrWcrBf0C4gAqs+33my7W3eaHtzgTQ==}
 
   '@ampproject/remapping@2.3.0':
     resolution: {integrity: sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw==}
@@ -12518,34 +12554,6 @@ packages:
   sprintf-js@1.1.3:
     resolution: {integrity: sha512-Oo+0REFV59/rz3gfJNKQiBlwfHaSESl1pcGyABQsnnIfWOFt6JNj5gCog2U6MLZ//IGYD+nA8nI+mTShREReaA==}
 
-  sqlite-vec-darwin-arm64@0.1.9:
-    resolution: {integrity: sha512-jSsZpE42OfBkGL/ItyJTVCUwl6o6Ka3U5rc4j+UBDIQzC1ulSSKMEhQLthsOnF/MdAf1MuAkYhkdKmmcjaIZQg==}
-    cpu: [arm64]
-    os: [darwin]
-
-  sqlite-vec-darwin-x64@0.1.9:
-    resolution: {integrity: sha512-KDlVyqQT7pnOhU1ymB9gs7dMbSoVmKHitT+k1/xkjarcX8bBqPxWrGlK/R+C5WmWkfvWwyq5FfXfiBYCBs6PlA==}
-    cpu: [x64]
-    os: [darwin]
-
-  sqlite-vec-linux-arm64@0.1.9:
-    resolution: {integrity: sha512-5wXVJ9c9kR4CHm/wVqXb/R+XUHTdpZ4nWbPHlS+gc9qQFVHs92Km4bPnCKX4rtcPMzvNis+SIzMJR1SCEwpuUw==}
-    cpu: [arm64]
-    os: [linux]
-
-  sqlite-vec-linux-x64@0.1.9:
-    resolution: {integrity: sha512-w3tCH8xK2finW8fQJ/m8uqKodXUZ9KAuAar2UIhz4BHILfpE0WM/MTGCRfa7RjYbrYim5Luk3guvMOGI7T7JQA==}
-    cpu: [x64]
-    os: [linux]
-
-  sqlite-vec-windows-x64@0.1.9:
-    resolution: {integrity: sha512-y3gEIyy/17bq2QFPQOWLE68TYWcRZkBQVA2XLrTPHNTOp55xJi/BBBmOm40tVMDMjtP+Elpk6UBUXdaq+46b0Q==}
-    cpu: [x64]
-    os: [win32]
-
-  sqlite-vec@0.1.9:
-    resolution: {integrity: sha512-L7XJWRIBNvR9O5+vh1FQ+IGkh/3D2AzVksW5gdtk28m78Hy8skFD0pqReKH1Yp0/BUKRGcffgKvyO/EON5JXpA==}
-
   srvx@0.11.16:
     resolution: {integrity: sha512-bp07zRuycfTY43IjAvvTFnmnJi8ikW0VFiHwOhhYcVW/L4xQ1XY4PAd4Nuum1rsA17C39zL7x+CDhrn5AL32Rw==}
     engines: {node: '>=20.16.0'}
@@ -14026,6 +14034,33 @@ snapshots:
       '@ai-sdk/provider': 3.0.8
       '@ai-sdk/provider-utils': 4.0.23(zod@4.3.4)
       zod: 4.3.4
+
+  '@aiany/sqlite-vec-darwin-arm64@0.1.10-alpha.4.aiany.2':
+    optional: true
+
+  '@aiany/sqlite-vec-darwin-x64@0.1.10-alpha.4.aiany.2':
+    optional: true
+
+  '@aiany/sqlite-vec-linux-arm64@0.1.10-alpha.4.aiany.2':
+    optional: true
+
+  '@aiany/sqlite-vec-linux-x64@0.1.10-alpha.4.aiany.2':
+    optional: true
+
+  '@aiany/sqlite-vec-windows-arm64@0.1.10-alpha.4.aiany.2':
+    optional: true
+
+  '@aiany/sqlite-vec-windows-x64@0.1.10-alpha.4.aiany.2':
+    optional: true
+
+  '@aiany/sqlite-vec@0.1.10-alpha.4.aiany.2':
+    optionalDependencies:
+      '@aiany/sqlite-vec-darwin-arm64': 0.1.10-alpha.4.aiany.2
+      '@aiany/sqlite-vec-darwin-x64': 0.1.10-alpha.4.aiany.2
+      '@aiany/sqlite-vec-linux-arm64': 0.1.10-alpha.4.aiany.2
+      '@aiany/sqlite-vec-linux-x64': 0.1.10-alpha.4.aiany.2
+      '@aiany/sqlite-vec-windows-arm64': 0.1.10-alpha.4.aiany.2
+      '@aiany/sqlite-vec-windows-x64': 0.1.10-alpha.4.aiany.2
 
   '@ampproject/remapping@2.3.0':
     dependencies:
@@ -26648,29 +26683,6 @@ snapshots:
 
   sprintf-js@1.1.3:
     optional: true
-
-  sqlite-vec-darwin-arm64@0.1.9:
-    optional: true
-
-  sqlite-vec-darwin-x64@0.1.9:
-    optional: true
-
-  sqlite-vec-linux-arm64@0.1.9:
-    optional: true
-
-  sqlite-vec-linux-x64@0.1.9:
-    optional: true
-
-  sqlite-vec-windows-x64@0.1.9:
-    optional: true
-
-  sqlite-vec@0.1.9:
-    optionalDependencies:
-      sqlite-vec-darwin-arm64: 0.1.9
-      sqlite-vec-darwin-x64: 0.1.9
-      sqlite-vec-linux-arm64: 0.1.9
-      sqlite-vec-linux-x64: 0.1.9
-      sqlite-vec-windows-x64: 0.1.9
 
   srvx@0.11.16: {}
 

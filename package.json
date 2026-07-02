@@ -118,7 +118,7 @@
     "pdfjs-dist": "5.4.296",
     "selection-hook": "2.0.1",
     "sharp": "0.34.5",
-    "sqlite-vec": "0.1.9",
+    "sqlite-vec": "npm:@aiany/sqlite-vec@0.1.10-alpha.4.aiany.2",
     "tesseract.js": "6.0.1",
     "turndown": "7.2.0",
     "ws": "^8.18.2",
@@ -434,6 +434,12 @@
   },
   "packageManager": "pnpm@11.8.0+sha512.c1f5e7c4cb241c8f174b743851d82f42b802324afc8b0f116b96adb15aa06664948dde36960a3ba1079ba5b4b29dd0140135b94b5b5f5263592249d68e555f26",
   "optionalDependencies": {
+    "@aiany/sqlite-vec-darwin-arm64": "0.1.10-alpha.4.aiany.2",
+    "@aiany/sqlite-vec-darwin-x64": "0.1.10-alpha.4.aiany.2",
+    "@aiany/sqlite-vec-linux-arm64": "0.1.10-alpha.4.aiany.2",
+    "@aiany/sqlite-vec-linux-x64": "0.1.10-alpha.4.aiany.2",
+    "@aiany/sqlite-vec-windows-arm64": "0.1.10-alpha.4.aiany.2",
+    "@aiany/sqlite-vec-windows-x64": "0.1.10-alpha.4.aiany.2",
     "@anthropic-ai/claude-agent-sdk-darwin-arm64": "0.3.168",
     "@anthropic-ai/claude-agent-sdk-darwin-x64": "0.3.168",
     "@anthropic-ai/claude-agent-sdk-linux-arm64": "0.3.168",
@@ -467,11 +473,6 @@
     "@napi-rs/system-ocr-darwin-arm64": "1.0.2",
     "@napi-rs/system-ocr-darwin-x64": "1.0.2",
     "@napi-rs/system-ocr-win32-arm64-msvc": "1.0.2",
-    "@napi-rs/system-ocr-win32-x64-msvc": "1.0.2",
-    "sqlite-vec-darwin-arm64": "0.1.9",
-    "sqlite-vec-darwin-x64": "0.1.9",
-    "sqlite-vec-linux-arm64": "0.1.9",
-    "sqlite-vec-linux-x64": "0.1.9",
-    "sqlite-vec-windows-x64": "0.1.9"
+    "@napi-rs/system-ocr-win32-x64-msvc": "1.0.2"
   }
 }
