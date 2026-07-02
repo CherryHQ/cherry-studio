@@ -6,5 +6,6 @@ create-skill
 demand-first-review
 gh-create-issue
 gh-pr-review
+skill-creator
 vercel-react-best-practices
 cherry-pr-test
