@@ -33,6 +33,7 @@ export const AgentConfigurationSchema = z
     avatar: z.string().optional(),
     slash_commands: z.array(z.string()).optional(),
     permission_mode: AgentPermissionModeSchema.optional(),
+    /** @deprecated Retired in v2 — no longer read at runtime. Kept for backward compatibility with existing configs. */
     max_turns: z.number().optional(),
     env_vars: z.record(z.string(), z.string()).optional(),
     soul_enabled: z.boolean().optional(),
