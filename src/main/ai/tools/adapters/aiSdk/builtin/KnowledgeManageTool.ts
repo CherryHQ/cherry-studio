@@ -9,9 +9,14 @@
  * mutation itself lives in the shared `knowledgeLookup` core so the Claude Code
  * MCP bridge runs identical logic (gated there by Claude Code's own permission
  * prompt); this file is just the AI-SDK `tool()` wrapper.
+ *
+ * `defer: 'never'` (kept inline, never behind `tool_search`/`tool_invoke`): the same rule
+ * `mcp/mcpTools.ts` applies to force-prompt MCP tools. Deferring an approval-gated tool would strip
+ * it from the SDK's tool-set, so the SDK's native `needsApproval` gate never fires and `tool_invoke`
+ * refuses it too (it never runs an approval-gated tool blind) — an unreachable tool either way.
  */
 
-import { KB_MANAGE_TOOL_NAME, kbManageInputSchema, kbManageOutputSchema } from '@shared/ai/builtinTools'
+import { KB_MANAGE_TOOL_NAME, kbManageOutputSchema, kbManageStrictInputSchema } from '@shared/ai/builtinTools'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
 
@@ -31,7 +36,7 @@ const knowledgeManageResultSchema = z.union([kbManageOutputSchema, knowledgeLook
 
 const kbManageTool = tool({
   description: KNOWLEDGE_MANAGE_DESCRIPTION,
-  inputSchema: kbManageInputSchema,
+  inputSchema: kbManageStrictInputSchema,
   outputSchema: knowledgeManageResultSchema,
   strict: true,
   // Every action (add / delete / refresh) modifies the base; gate on explicit user approval.
@@ -48,7 +53,7 @@ export function createKbManageToolEntry(): ToolEntry {
     name: KB_MANAGE_TOOL_NAME,
     namespace: 'kb',
     description: 'Add, delete, or re-index documents in a knowledge base (requires approval)',
-    defer: 'always',
+    defer: 'never',
     tool: kbManageTool,
     applies: (scope) => scope.hasAnyKnowledgeBase === true && (scope.assistant?.knowledgeBaseIds?.length ?? 0) > 0
   }

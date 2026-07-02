@@ -1,5 +1,5 @@
 {
-  "version": "2026.06.27",
+  "version": "2026.07.01",
   "providers": [
     {
       "id": "cherryin",
@@ -570,6 +570,26 @@
           "apiKey": "https://platform.openai.com/api-keys",
           "docs": "https://platform.openai.com/docs",
           "models": "https://platform.openai.com/docs/models"
+        }
+      }
+    },
+    {
+      "id": "opencode",
+      "name": "OpenCode Go",
+      "description": "OpenCode Go - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "baseUrl": "https://opencode.ai/zen/go/v1",
+          "adapterFamily": "openai-compatible"
+        }
+      },
+      "metadata": {
+        "website": {
+          "official": "https://opencode.ai",
+          "apiKey": "https://opencode.ai/auth",
+          "docs": "https://opencode.ai/docs/go",
+          "models": "https://opencode.ai/docs/go"
         }
       }
     },

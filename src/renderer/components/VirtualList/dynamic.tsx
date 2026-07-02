@@ -4,6 +4,8 @@ import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
 import React, { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 
 const SCROLLBAR_AUTO_HIDE_DELAY = 2000
+const STICKY_ITEM_Z_INDEX = 1
+const ACTIVE_STICKY_ITEM_Z_INDEX_BASE = 2
 
 type InheritedVirtualizerOptions = Partial<
   Omit<
@@ -294,6 +296,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
       ref={setScrollerRef}
       className={cn(
         'dynamic-virtual-list [&::-webkit-scrollbar-thumb:hover]:bg-[var(--color-scrollbar-thumb-hover)] [&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-300 [&::-webkit-scrollbar-thumb]:ease-in-out [&::-webkit-scrollbar-thumb]:will-change-[background]',
+        isSticky && 'isolate',
         autoHideScrollbar && !showScrollbar
           ? '[&::-webkit-scrollbar-thumb]:bg-transparent'
           : '[&::-webkit-scrollbar-thumb]:bg-[var(--color-scrollbar-thumb)]',
@@ -330,6 +333,8 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
               stickyOffset += estimateSize(prevStickyIndex)
             }
           }
+          const activeStickyZIndex =
+            ACTIVE_STICKY_ITEM_Z_INDEX_BASE + activeStickyIndexesRef.current.length - activeStickyIndex
 
           // Check if this item is visually covered by sticky items
           // If covered, disable pointer events to prevent hover/click bleeding through
@@ -353,7 +358,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
             position: isItemActiveSticky ? 'sticky' : 'absolute',
             top: isItemActiveSticky ? stickyOffset : 0,
             left: 0,
-            zIndex: isItemActiveSticky ? 1000 + (100 - activeStickyIndex) : isItemSticky ? 999 : 0,
+            zIndex: isItemActiveSticky ? activeStickyZIndex : isItemSticky ? STICKY_ITEM_Z_INDEX : 0,
             pointerEvents: isCoveredBySticky ? 'none' : 'auto',
             ...(isItemActiveSticky && {
               backgroundColor: 'var(--color-background)'
