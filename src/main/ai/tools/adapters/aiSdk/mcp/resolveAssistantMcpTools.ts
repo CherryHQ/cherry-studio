@@ -20,8 +20,8 @@ export function getEffectiveMcpMode(assistant: Assistant): McpMode {
   return assistant.mcpServerIds.length > 0 ? 'manual' : 'disabled'
 }
 
-async function resolveServersForAssistant(assistant: Assistant, mode: McpMode): Promise<McpServer[]> {
-  const { items: activeServers } = await mcpServerService.list({ isActive: true })
+function resolveServersForAssistant(assistant: Assistant, mode: McpMode): McpServer[] {
+  const { items: activeServers } = mcpServerService.list({ isActive: true })
   if (mode === 'auto') return activeServers
   const linkedIds = new Set(assistant.mcpServerIds)
   return activeServers.filter((server) => linkedIds.has(server.id))
@@ -33,7 +33,12 @@ function isToolDisabled(server: McpServer, tool: { name: string; id: string; des
 
 /** Returns `[]` when the assistant is missing, MCP disabled, or no servers linked. */
 export async function resolveAssistantMcpToolIds(assistantId: string): Promise<string[]> {
-  const assistant = await assistantDataService.getById(assistantId).catch(() => null)
+  let assistant: Assistant | null
+  try {
+    assistant = assistantDataService.getById(assistantId)
+  } catch {
+    assistant = null
+  }
   if (!assistant) {
     logger.debug('Assistant not found, skipping MCP resolution', { assistantId })
     return []
@@ -42,12 +47,12 @@ export async function resolveAssistantMcpToolIds(assistantId: string): Promise<s
   const mode = getEffectiveMcpMode(assistant)
   if (mode === 'disabled') return []
 
-  const servers = await resolveServersForAssistant(assistant, mode)
+  const servers = resolveServersForAssistant(assistant, mode)
   if (servers.length === 0) return []
 
   const perServerResults = await Promise.allSettled(
     servers.map(async (server) => {
-      const tools = await application.get('McpCatalogService').listTools(server.id)
+      const tools = application.get('McpCatalogService').listTools(server.id)
       return tools.filter((tool) => !isToolDisabled(server, tool)).map((tool) => tool.id)
     })
   )

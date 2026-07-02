@@ -544,9 +544,9 @@ describe('ChatMigrator validate orphan-ratio diagnostic', () => {
         const get = vi.fn().mockImplementation(() => {
           if (!firstCountReturned) {
             firstCountReturned = true
-            return Promise.resolve({ count: targetTopicCount })
+            return { count: targetTopicCount }
           }
-          return Promise.resolve({ count: 0 })
+          return { count: 0 }
         })
         return {
           from: vi.fn().mockReturnValue({
@@ -557,7 +557,7 @@ describe('ChatMigrator validate orphan-ratio diagnostic', () => {
       }
       return {
         from: vi.fn().mockReturnValue({
-          limit: vi.fn().mockReturnValue({ all: vi.fn().mockResolvedValue([]) })
+          limit: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) })
         })
       }
     })
@@ -767,7 +767,7 @@ describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
     ) => Promise<{ pinsInserted: number }>
 
     // Should not throw despite the existing pin row.
-    await expect(fn.call(migrator, ctxOf())).resolves.toBeDefined()
+    expect(fn.call(migrator, ctxOf())).toBeDefined()
 
     // Original pin row is preserved (DO NOTHING leaves it in place).
     const pins = await dbh.db.select().from(pinTable).where(eq(pinTable.entityType, 'topic'))

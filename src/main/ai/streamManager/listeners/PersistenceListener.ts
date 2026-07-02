@@ -74,19 +74,19 @@ export class PersistenceListener implements StreamListener {
 
   async onDone(result: StreamDoneResult): Promise<void> {
     if (!this.owns(result.modelId)) return
-    await this.persistAssistant(result.finalMessage, 'success', result.timings)
+    this.persistAssistant(result.finalMessage, 'success', result.timings)
   }
 
   async onPaused(result: StreamPausedResult): Promise<void> {
     if (!this.owns(result.modelId)) return
-    await this.persistAssistant(result.finalMessage, 'paused', result.timings)
+    this.persistAssistant(result.finalMessage, 'paused', result.timings)
   }
 
   async onError(result: StreamErrorResult): Promise<void> {
     if (!this.owns(result.modelId)) return
     // Folded once here so backends see a uniform UIMessage shape, not `SerializedError`.
     const withErrorPart = mergeErrorIntoMessage(result.finalMessage, result.error)
-    await this.persistAssistant(withErrorPart, 'error', result.timings)
+    this.persistAssistant(withErrorPart, 'error', result.timings)
   }
 
   isAlive(): boolean {
@@ -97,11 +97,11 @@ export class PersistenceListener implements StreamListener {
     return !modelId || !this.opts.modelId || modelId === this.opts.modelId
   }
 
-  private async persistAssistant(
+  private persistAssistant(
     finalMessage: CherryUIMessage | undefined,
     status: 'success' | 'paused' | 'error',
     transportTimings: TransportTimings | undefined
-  ): Promise<void> {
+  ): void {
     if (!finalMessage && status !== 'error') {
       logger.warn('Terminal event without finalMessage, skipping persistence', {
         backend: this.opts.backend.kind,
@@ -126,7 +126,7 @@ export class PersistenceListener implements StreamListener {
     )
 
     try {
-      await this.opts.backend.persistAssistant({
+      this.opts.backend.persistAssistant({
         finalMessage: finalMessageForPersistence,
         status,
         modelId: this.opts.modelId,
@@ -147,7 +147,7 @@ export class PersistenceListener implements StreamListener {
       // The placeholder row stays `pending` forever (boot-time reconcile aside), so on reload it
       // shows a frozen loading bubble. Best-effort drive it to a terminal `error` state instead.
       try {
-        await this.opts.backend.markTerminalError?.()
+        this.opts.backend.markTerminalError?.()
       } catch (markErr) {
         logger.error('Failed to mark assistant message as terminal error after persist failure', {
           backend: this.opts.backend.kind,

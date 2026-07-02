@@ -180,7 +180,7 @@ describe('fileHandlers (DataApi)', () => {
       const idB = '019606a0-0000-7000-8000-000000000c02' as FileEntryId
       await seedEntry(idA)
       await seedEntry(idB)
-      await fileRefService.createManyTempSessionRefs([
+      fileRefService.createManyTempSessionRefs([
         { fileEntryId: idA, sourceId: 's1', role: 'pending' },
         { fileEntryId: idA, sourceId: 's2', role: 'pending' }
       ])
@@ -215,7 +215,7 @@ describe('fileHandlers (DataApi)', () => {
     it('returns refs for the entry', async () => {
       const id = '019606a0-0000-7000-8000-000000000d01' as FileEntryId
       await seedEntry(id)
-      await fileRefService.createTempSessionRef({ fileEntryId: id, sourceId: 's1', role: 'pending' })
+      fileRefService.createTempSessionRef({ fileEntryId: id, sourceId: 's1', role: 'pending' })
       const refs = (await fileHandlers['/files/entries/:id/refs'].GET({
         params: { id }
       } as never)) as Array<{ fileEntryId: string }>
@@ -228,7 +228,7 @@ describe('fileHandlers (DataApi)', () => {
     it('returns refs filtered by source key', async () => {
       const id = '019606a0-0000-7000-8000-000000000e01' as FileEntryId
       await seedEntry(id)
-      await fileRefService.createTempSessionRef({
+      fileRefService.createTempSessionRef({
         fileEntryId: id,
         sourceId: 'session-Z',
         role: 'pending'
