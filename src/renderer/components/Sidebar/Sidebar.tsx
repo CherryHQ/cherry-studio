@@ -9,28 +9,25 @@ import { DefaultLogo } from './primitives'
 import { SidebarFooter, type SidebarFooterActions } from './SidebarFooter'
 import { SidebarList } from './SidebarList'
 import { SidebarTooltip } from './Tooltip'
-import type { SidebarEntry, SidebarUser } from './types'
+import type { ResolvedSidebarEntry, SidebarActiveState, SidebarUser } from './types'
 import { useSidebarResize } from './useSidebarResize'
 
 export interface SidebarProps {
   width: number
   setWidth: (width: number) => void
-  activeItem: string
-  entries: SidebarEntry[]
+  entries: ResolvedSidebarEntry[]
+  active: SidebarActiveState
   title?: string
   logo?: React.ReactNode
-  activeTabId?: string
   user?: SidebarUser
   isFloating?: boolean
   searchLabel?: string
   extensionsLabel?: string
   actions?: SidebarFooterActions
-  onItemClick: (id: string) => void
   onHoverChange?: (visible: boolean) => void
   onResizePreview?: (width: number | null) => void
   onSearchClick?: () => void
   onExtensionsClick?: () => void
-  onMiniAppTabClick?: (tabId: string) => void
   onEntriesReorder?: (event: { oldIndex: number; newIndex: number }) => void
   onDismiss?: () => void
 }
@@ -38,22 +35,19 @@ export interface SidebarProps {
 export function Sidebar({
   width,
   setWidth,
-  activeItem,
   entries,
+  active,
   title = '',
   logo,
-  activeTabId,
   user,
   isFloating = false,
   searchLabel = '',
   extensionsLabel = '',
   actions,
-  onItemClick,
   onHoverChange,
   onResizePreview,
   onSearchClick,
   onExtensionsClick,
-  onMiniAppTabClick,
   onEntriesReorder,
   onDismiss
 }: SidebarProps) {
@@ -113,10 +107,7 @@ export function Sidebar({
 
   const listProps = {
     entries,
-    activeItem,
-    activeTabId,
-    onItemClick,
-    onMiniAppTabClick,
+    active,
     onReorder: onEntriesReorder,
     onContextMenuOpenChange: handleContextMenuOpenChange
   }

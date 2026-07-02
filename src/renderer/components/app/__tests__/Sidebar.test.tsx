@@ -142,16 +142,27 @@ vi.mock('../../layout/ShellTabBarActions', () => ({
   )
 }))
 
+type MockSidebarEntry = {
+  key: string
+  label: string
+  isActive: (active: { activeItem: string; activeTabId?: string }) => boolean
+  onOpen: () => void
+  contextMenuItems?: Array<{ id: string; label: string; enabled?: boolean; onSelect?: () => void }>
+}
+
+const parseEntryKey = (key: string) => {
+  const idx = key.indexOf(':')
+  return { type: key.slice(0, idx), id: key.slice(idx + 1) }
+}
+
 vi.mock('../../Sidebar', () => ({
   Sidebar: ({
     isFloating,
     isFloatingClosing,
     onDismiss,
     onHoverChange,
-    onItemClick,
-    onMiniAppTabClick,
     onEntriesReorder,
-    activeTabId,
+    active,
     entries,
     title,
     logo,
@@ -162,14 +173,8 @@ vi.mock('../../Sidebar', () => ({
   }: {
     isFloating?: boolean
     isFloatingClosing?: boolean
-    activeTabId?: string
-    entries?: Array<{
-      kind: 'app' | 'miniapp'
-      id: string
-      label?: string
-      title?: string
-      contextMenuItems?: Array<{ id: string; label: string; enabled?: boolean; onSelect?: () => void }>
-    }>
+    active?: { activeItem: string; activeTabId?: string }
+    entries?: MockSidebarEntry[]
     title?: string
     logo?: ReactNode
     user?: unknown
@@ -178,16 +183,14 @@ vi.mock('../../Sidebar', () => ({
     onResizePreview?: (width: number | null) => void
     onDismiss?: () => void
     onHoverChange?: (hovering: boolean) => void
-    onItemClick?: (id: string) => void
-    onMiniAppTabClick?: (id: string) => void
     onEntriesReorder?: (event: { oldIndex: number; newIndex: number }) => void
   }) => {
     mocks.onEntriesReorder = onEntriesReorder
-    // The real UISidebar renders one mixed list; the tests still assert per-type
-    // ordering, so split the single `entries` prop back into the two sections by
-    // `kind` (relative order within each kind is preserved).
-    const items = entries?.filter((entry) => entry.kind === 'app')
-    const dockedTabs = entries?.filter((entry) => entry.kind === 'miniapp')
+    // Entries are type-agnostic resolved rows; the tests still assert per-type
+    // testids, so recover the type/id from the stable `entry.key` (`${type}:${id}`).
+    const activeState = active ?? { activeItem: '' }
+    const items = entries?.filter((entry) => parseEntryKey(entry.key).type === 'app')
+    const dockedTabs = entries?.filter((entry) => parseEntryKey(entry.key).type === 'mini_app')
     return isFloating ? (
       <div
         className={isFloatingClosing ? 'slide-out-to-left-2 animate-out' : 'slide-in-from-left-2 animate-in'}
@@ -210,8 +213,11 @@ vi.mock('../../Sidebar', () => ({
         <div data-testid="ui-sidebar" data-width={width} />
         <div data-testid="sidebar-items">
           {items?.map((item) => (
-            <div key={item.id}>
-              <button type="button" data-testid={`sidebar-item-${item.id}`} onClick={() => onItemClick?.(item.id)}>
+            <div key={item.key}>
+              <button
+                type="button"
+                data-testid={`sidebar-item-${parseEntryKey(item.key).id}`}
+                onClick={() => item.onOpen()}>
                 <span>{item.label}</span>
               </button>
               {item.contextMenuItems?.map((menuItem) => (
@@ -229,13 +235,13 @@ vi.mock('../../Sidebar', () => ({
         </div>
         <div data-testid="sidebar-mini-app-section">
           {dockedTabs?.map((miniTab) => (
-            <div key={miniTab.id}>
+            <div key={miniTab.key}>
               <button
                 type="button"
-                data-active={activeTabId === miniTab.id ? 'true' : 'false'}
-                data-testid={`sidebar-mini-app-${miniTab.id}`}
-                onClick={() => onMiniAppTabClick?.(miniTab.id)}>
-                {miniTab.title}
+                data-active={miniTab.isActive(activeState) ? 'true' : 'false'}
+                data-testid={`sidebar-mini-app-${parseEntryKey(miniTab.key).id}`}
+                onClick={() => miniTab.onOpen()}>
+                {miniTab.label}
               </button>
               {miniTab.contextMenuItems?.map((menuItem) => (
                 <button

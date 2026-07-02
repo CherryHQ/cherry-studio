@@ -218,7 +218,8 @@ export function createSidebarMiniAppFavorite(id: string): SidebarFavoriteItem {
   return { type: 'mini_app', id }
 }
 
-function getSidebarFavoriteKey(favorite: SidebarFavoriteItem): string {
+/** Stable identity for a favorite — its react key and reorder-matching key. */
+export function getSidebarFavoriteKey(favorite: SidebarFavoriteItem): string {
   return `${favorite.type}:${favorite.id}`
 }
 
