@@ -569,10 +569,10 @@ export interface IFileManager {
   // ─── Path / URL resolution ───
 
   /** Resolve an entry to its `file://` URL with the danger-file safety wrap. */
-  getUrl(id: FileEntryId): Promise<FileUrlString>
+  getUrl(id: FileEntryId): FileUrlString
 
   /** Resolve an entry to its absolute filesystem path. */
-  getPhysicalPath(id: FileEntryId): Promise<FilePath>
+  getPhysicalPath(id: FileEntryId): FilePath
 
   // ─── Dangling state ───
 
@@ -759,12 +759,15 @@ export class FileManager extends BaseService implements IFileManager {
       }
     )
 
-    const dbSweepPromise = runDbSweep({
-      fileEntryService: this.deps.fileEntryService,
-      fileRefService: this.deps.fileRefService
-    }).catch((err): DbSweepReport => {
-      fileManagerLogger.error('DB orphan sweep failed', err)
-      return {
+    let dbReport: DbSweepReport
+    try {
+      dbReport = runDbSweep({
+        fileEntryService: this.deps.fileEntryService,
+        fileRefService: this.deps.fileRefService
+      })
+    } catch (err) {
+      fileManagerLogger.error('DB orphan sweep failed', err as Error)
+      dbReport = {
         outcome: 'failed',
         errorMessage: err instanceof Error ? err.message : String(err),
         orphanRefsByType: {},
@@ -773,9 +776,9 @@ export class FileManager extends BaseService implements IFileManager {
         orphanEntriesTotal: 0,
         scanDurationMs: 0
       }
-    })
+    }
 
-    const [fsReport, dbReport] = await Promise.all([fsSweepPromise, dbSweepPromise])
+    const fsReport = await fsSweepPromise
     const lastRunAt = startedAt
     const counts = {
       orphanRefsByType: dbReport.orphanRefsByType,
@@ -847,7 +850,7 @@ export class FileManager extends BaseService implements IFileManager {
    * expected to tolerate their absence until enrichment lands.
    */
   async getMetadata(id: FileEntryId): Promise<PhysicalFileMetadata> {
-    const entry = await this.deps.fileEntryService.getById(id)
+    const entry = this.deps.fileEntryService.getById(id)
     const physicalPath = resolvePhysicalPath(entry)
     const s = await observeExternalAccess(this.deps, entry, physicalPath, () => fsStat(physicalPath))
     if (s.isDirectory) {
@@ -871,7 +874,7 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   async getVersion(id: FileEntryId): Promise<FileVersion> {
-    const entry = await this.deps.fileEntryService.getById(id)
+    const entry = this.deps.fileEntryService.getById(id)
     const physicalPath = resolvePhysicalPath(entry)
     const s = await observeExternalAccess(this.deps, entry, physicalPath, () => fsStat(physicalPath))
     return { mtime: s.modifiedAt, size: s.size }
@@ -881,14 +884,14 @@ export class FileManager extends BaseService implements IFileManager {
     return internalHash(this.deps, id)
   }
 
-  async getUrl(id: FileEntryId): Promise<FileUrlString> {
-    const entry = await this.deps.fileEntryService.getById(id)
+  getUrl(id: FileEntryId): FileUrlString {
+    const entry = this.deps.fileEntryService.getById(id)
     const physicalPath = resolvePhysicalPath(entry)
     return pathToFileURL(physicalPath).toString() as FileUrlString
   }
 
-  async getPhysicalPath(id: FileEntryId): Promise<FilePath> {
-    const entry = await this.deps.fileEntryService.getById(id)
+  getPhysicalPath(id: FileEntryId): FilePath {
+    const entry = this.deps.fileEntryService.getById(id)
     return resolvePhysicalPath(entry)
   }
 
@@ -934,7 +937,7 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   async createReadStream(id: FileEntryId): Promise<Readable> {
-    const entry = await this.deps.fileEntryService.getById(id)
+    const entry = this.deps.fileEntryService.getById(id)
     const physicalPath = resolvePhysicalPath(entry)
     const stream = nodeCreateReadStream(physicalPath)
     if (entry.origin === 'external') {
@@ -1017,12 +1020,12 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   async open(id: FileEntryId): Promise<void> {
-    const entry = await this.deps.fileEntryService.getById(id)
+    const entry = this.deps.fileEntryService.getById(id)
     return safeOpen(resolvePhysicalPath(entry))
   }
 
   async showInFolder(id: FileEntryId): Promise<void> {
-    const entry = await this.deps.fileEntryService.getById(id)
+    const entry = this.deps.fileEntryService.getById(id)
     return internalShellShowInFolder(resolvePhysicalPath(entry))
   }
 
@@ -1034,7 +1037,7 @@ export class FileManager extends BaseService implements IFileManager {
    * miss. Unknown ids resolve to `'unknown'`.
    */
   async getDanglingState(params: { id: FileEntryId }): Promise<DanglingState> {
-    const entry = await this.deps.fileEntryService.findById(params.id)
+    const entry = this.deps.fileEntryService.findById(params.id)
     if (!entry) return 'unknown'
     return this.deps.danglingCache.check(entry)
   }

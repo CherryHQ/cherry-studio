@@ -131,19 +131,19 @@ function buildStructuredConversation(messages: StructuredMessage[]): string {
 }
 
 export class TopicNamingService {
-  async maybeRenameFromFirstUserMessage(topicId: string, userMessageId: string): Promise<void> {
+  maybeRenameFromFirstUserMessage(topicId: string, userMessageId: string): void {
     try {
       const enabled = application.get('PreferenceService').get('topic.naming.enabled')
       if (!enabled) return
 
-      const topic = await this.getTopic(topicId)
+      const topic = this.getTopic(topicId)
       if (!topic || topic.isNameManuallyEdited) return
 
-      const userMessage = await messageService.getById(userMessageId)
+      const userMessage = messageService.getById(userMessageId)
       const title = truncateFirstUserMessageTitleSource(getMainTextContentFromMessage(userMessage))
       if (!title) return
 
-      await this.renameTopicIfStillAuto(topicId, title)
+      this.renameTopicIfStillAuto(topicId, title)
     } catch (error) {
       logger.warn('Failed to auto-rename topic from first user message', {
         topicId,
@@ -164,12 +164,12 @@ export class TopicNamingService {
     if (summaryLocks.has(topicId)) return
     if (hasNamedTopic(topicId)) return
 
-    const topic = await this.getTopic(topicId)
+    const topic = this.getTopic(topicId)
     if (!topic || topic.isNameManuallyEdited) return
 
     summaryLocks.add(topicId)
     try {
-      const userMessage = await messageService.getById(userMessageId)
+      const userMessage = messageService.getById(userMessageId)
       const structuredConversation: StructuredMessage[] = [
         {
           role: userMessage.role,
@@ -182,7 +182,7 @@ export class TopicNamingService {
         }
       ]
 
-      const uniqueModelId = await this.resolveNamingModelId()
+      const uniqueModelId = this.resolveNamingModelId()
       const title = await this.generateSummaryTitle(
         assistantId,
         uniqueModelId,
@@ -190,7 +190,7 @@ export class TopicNamingService {
       )
       if (!title) return
 
-      if (await this.renameTopicIfStillAuto(topic.id, title)) {
+      if (this.renameTopicIfStillAuto(topic.id, title)) {
         markNamedTopic(topicId)
       }
     } catch (error) {
@@ -213,15 +213,12 @@ export class TopicNamingService {
    * @param sessionId Cherry Studio agent session id.
    * @param userMessage Persisted message data, or already-extracted user text.
    */
-  async maybeRenameAgentSessionFromFirstUserMessage(
-    sessionId: string,
-    userMessage: MessageData | string | undefined
-  ): Promise<void> {
+  maybeRenameAgentSessionFromFirstUserMessage(sessionId: string, userMessage: MessageData | string | undefined): void {
     try {
       const enabled = application.get('PreferenceService').get('topic.naming.enabled')
       if (!enabled) return
 
-      const session = await this.getAgentSession(sessionId, 'initial')
+      const session = this.getAgentSession(sessionId, 'initial')
       if (session?.isNameManuallyEdited) return
       if (!session || !canAutoRenameAgentSessionName(session.name)) return
 
@@ -229,12 +226,12 @@ export class TopicNamingService {
       const nextName = buildFirstUserMessageTitle(userText)
       if (!nextName) return
 
-      const latestSession = await this.getAgentSession(sessionId, 'latest')
+      const latestSession = this.getAgentSession(sessionId, 'latest')
       if (latestSession?.isNameManuallyEdited) return
       if (!latestSession || !canAutoRenameAgentSessionName(latestSession.name, userText)) return
       if (nextName === (latestSession.name ?? '').trim()) return
 
-      await agentSessionService.update(sessionId, { name: nextName, isNameManuallyEdited: false })
+      agentSessionService.update(sessionId, { name: nextName, isNameManuallyEdited: false })
       this.notifyAgentSessionAutoRenamed(sessionId)
     } catch (error) {
       logger.warn('Failed to auto-rename agent session from first user message', {
@@ -270,11 +267,11 @@ export class TopicNamingService {
 
     agentSessionRenameLocks.add(sessionId)
     try {
-      const session = await this.getAgentSession(sessionId, 'initial')
+      const session = this.getAgentSession(sessionId, 'initial')
       if (!session || !session.agentId) return
       if (session.isNameManuallyEdited) return
       if (!canAutoRenameAgentSessionName(session.name, userText)) return
-      const uniqueModelId = await this.resolveNamingModelId()
+      const uniqueModelId = this.resolveNamingModelId()
 
       const structuredConversation: StructuredMessage[] = [
         { role: 'user', mainText: cleanMarkdownImages(userText) },
@@ -289,12 +286,12 @@ export class TopicNamingService {
       if (!title) return
 
       const nextName = sanitizeConversationTitle(title)
-      const latestSession = await this.getAgentSession(sessionId, 'latest')
+      const latestSession = this.getAgentSession(sessionId, 'latest')
       if (latestSession?.isNameManuallyEdited) return
       if (!latestSession || !canAutoRenameAgentSessionName(latestSession.name, userText)) return
       if (!nextName || nextName === (latestSession.name ?? '').trim()) return
 
-      await agentSessionService.update(sessionId, { name: nextName, isNameManuallyEdited: false })
+      agentSessionService.update(sessionId, { name: nextName, isNameManuallyEdited: false })
       this.notifyAgentSessionAutoRenamed(sessionId)
     } catch (error) {
       logger.warn('Failed to auto-rename agent session', {
@@ -307,18 +304,18 @@ export class TopicNamingService {
     }
   }
 
-  private async getTopic(topicId: string): Promise<Topic | null> {
+  private getTopic(topicId: string): Topic | null {
     try {
-      return await topicService.getById(topicId)
+      return topicService.getById(topicId)
     } catch (error) {
       logger.debug('Failed to read topic for auto-rename', { topicId, error: error as Error })
       return null
     }
   }
 
-  private async getAgentSession(sessionId: string, phase: 'initial' | 'latest') {
+  private getAgentSession(sessionId: string, phase: 'initial' | 'latest') {
     try {
-      return await agentSessionService.getById(sessionId)
+      return agentSessionService.getById(sessionId)
     } catch (error) {
       logger.debug('Failed to read agent session for auto-rename', { sessionId, phase, error: error as Error })
       return null
@@ -355,7 +352,7 @@ export class TopicNamingService {
     return (configuredPrompt || FALLBACK_PROMPT).replaceAll('{{language}}', language)
   }
 
-  private async resolveNamingModelId(): Promise<UniqueModelId> {
+  private resolveNamingModelId(): UniqueModelId {
     const configured = application.get('PreferenceService').get('topic.naming.model_id')
     const parsed = UniqueModelIdSchema.safeParse(configured)
     if (!parsed.success) {
@@ -367,7 +364,7 @@ export class TopicNamingService {
 
     const { providerId, modelId } = parseUniqueModelId(parsed.data)
     try {
-      await modelService.getByKey(providerId, modelId)
+      modelService.getByKey(providerId, modelId)
       return parsed.data
     } catch (error) {
       logger.warn('topic.naming.model_id points to a missing model; falling back to managed CherryAI default model', {
@@ -377,15 +374,15 @@ export class TopicNamingService {
     }
   }
 
-  private async renameTopicIfStillAuto(topicId: string, name: string): Promise<boolean> {
-    const latestTopic = await this.getTopic(topicId)
+  private renameTopicIfStillAuto(topicId: string, name: string): boolean {
+    const latestTopic = this.getTopic(topicId)
     if (!latestTopic || latestTopic.isNameManuallyEdited) return false
 
     const nextName = sanitizeConversationTitle(name)
     if (!nextName) return false
     if (nextName === latestTopic.name) return true
 
-    await topicService.update(topicId, { name: nextName, isNameManuallyEdited: false })
+    topicService.update(topicId, { name: nextName, isNameManuallyEdited: false })
     this.notifyTopicAutoRenamed(topicId)
     return true
   }

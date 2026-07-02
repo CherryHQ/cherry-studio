@@ -142,14 +142,14 @@ A chunk body must be a verbatim slice of `content.text` (the offset-preserving s
 
 `utils/indexing/embed.ts` → `AiService.embedMany`, `rerank.ts` → `AiService.rerank`, reusing the provider the user configured on the chat side (`provider::model` UniqueModelId). No local ONNX inference stack. Persistent rerank misconfiguration (401/403/404) escalates to an error log; transient failures fall back to the un-reranked results.
 
-### 5.6 Engine portability (libsql ↔ better-sqlite3 + sqlite-vec)
+### 5.6 Engine portability (better-sqlite3 + sqlite-vec)
 
-`.cherry/index.sqlite` shares one schema across both engines — **switching needs zero user migration**:
+`.cherry/index.sqlite` keeps an engine-neutral schema, so the switch from the former libsql engine to **better-sqlite3 + sqlite-vec** needed **zero user migration**:
 
 1. Relational tables use generic SQLite DDL only; FTS5 is built into both engines; CJK handling lives in the application layer.
-2. **Decision A1**: the canonical vector storage is a plain `BLOB` column holding little-endian float32 bytes (not libsql's proprietary `F32_BLOB`); it is the source of truth and both engines read the same bytes.
-3. First-version vector retrieval is a brute-force scan over the canonical BLOBs (libsql `vector_distance_cos` / sqlite-vec `vec_distance_cosine`), exposed through the `VectorIndex` adapter; **no** vec0 / ANN derived index (left as a purely additive change after performance evaluation).
-4. A thin `SqliteDriver` port (execute / transaction / close) so the store is written once; the libsql driver uses a per-driver write mutex + WAL/busy_timeout PRAGMAs to avoid SQLITE_BUSY from libsql client-ts #288.
+2. **Decision A1**: the canonical vector storage is a plain `BLOB` column holding little-endian float32 bytes (a generic SQLite BLOB, not any engine-proprietary vector type); it is the source of truth and both engines read the same bytes.
+3. First-version vector retrieval is a brute-force scan over the canonical BLOBs (sqlite-vec's `vec_distance_cosine(col, ?)`, binding the query vector as raw little-endian float32 BLOB bytes — no `vector32()` wrapper), exposed through the `VectorIndex` adapter; **no** vec0 / ANN derived index (left as a purely additive change after performance evaluation).
+4. A thin `SqliteDriver` port (execute / transaction / close) so the store is written once; better-sqlite3 keeps one synchronous, persistent connection — PRAGMAs (e.g. WAL) are set once and persist — and per-base writes are serialized by `KnowledgeLockManager.withBaseMutationLock(baseId)`, so the driver carries no write mutex or busy-retry of its own.
 
 ## 6. Retrieval
 
@@ -184,6 +184,6 @@ A chunk body must be a verbatim slice of `content.text` (the offset-preserving s
   - An explicit `maxParallelCalls` (plus token-aware batching) for `AiService.embedMany`, so one large document cannot fan out unbounded batches, exceed provider per-request token limits, and discard embeddings already paid for in a failed attempt.
   - Startup-recovery cross-cancellation: a crash-recovered delete-subtree job and the `recoverDeletingItems` re-enqueue get different idempotency keys and cancel each other via roots-intersection (`jobTouchesSubtree`); cancel only jobs whose roots are fully covered by the current job's roots.
   - Hybrid search runs its two lanes as independent read snapshots; a rebuild committing between them can transiently return both copies of a chunk — close with a shared read transaction or a second dedupe by material id + unit index.
-  - `LibsqlDriver.close()` does not take the write mutex; shutdown safety currently rests on JobManager draining before the store service stops — wrapping close in `runExclusive` hardens it.
+  - The per-base index driver's `close()` no longer needs to take a write mutex: better-sqlite3 uses one synchronous, persistent connection and per-base writes are serialized by `KnowledgeLockManager.withBaseMutationLock(baseId)`, so there is no driver-level async write mutex to race — shutdown safety rests on JobManager draining before the store service stops.
   - Retrieval-surface follow-ups (PR C): the `searchMode` `default`→`vector` rename is externally visible through the gateway's pass-through base entity, and a permanent open failure (legacy layout) currently maps to a retryable 503.
 - PR A's full test matrix and risk notes live in this repo's test suites (`src/main/features/knowledge/**/__tests__`) and the PR #15973 description.
