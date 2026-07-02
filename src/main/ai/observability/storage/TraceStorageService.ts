@@ -3,7 +3,14 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import {
+  type Activatable,
+  BaseService,
+  Injectable,
+  Phase,
+  type ProfileActivatable,
+  ServicePhase
+} from '@main/core/lifecycle'
 import { convertSpanToSpanEntity } from '@mcp-trace/trace-core/core/spanConvert'
 import type { TraceStore } from '@mcp-trace/trace-core/core/traceStore'
 import type { Attributes, AttributeValue, SpanEntity } from '@mcp-trace/trace-core/types/config'
@@ -25,8 +32,18 @@ function mergeSpansById(base: SpanEntity[], overrides: SpanEntity[]): SpanEntity
 
 @Injectable('TraceStorageService')
 @ServicePhase(Phase.WhenReady)
-export class TraceStorageService extends BaseService implements TraceStore, Activatable {
+export class TraceStorageService extends BaseService implements TraceStore, Activatable, ProfileActivatable {
   private readonly store = new TraceSpanStore()
+
+  /** Fresh in-memory span store for the new profile (spans persist to the profile-scoped trace path). */
+  onProfileActivate(): void {
+    this.store.clear()
+  }
+
+  /** Drop the previous profile's in-memory spans on switch; its trace files stay on disk. */
+  onProfileDeactivate(): void {
+    this.store.clear()
+  }
 
   protected async onInit() {
     this.registerIpcHandlers()
