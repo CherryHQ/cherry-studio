@@ -125,8 +125,8 @@ describe('PaintingMigrator painting_file_ref integration', () => {
     expect((migrator as unknown as { droppedFileRefs: number }).droppedFileRefs).toBe(0)
 
     // The post-migration check the engine runs must pass.
-    const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
-    expect(fkCheck.rows).toHaveLength(0)
+    const fkCheck = dbh.sqlite.pragma('foreign_key_check')
+    expect(fkCheck).toHaveLength(0)
   })
 
   it('drops file ids absent from file_entry, counts them, and still migrates paintings', async () => {
@@ -175,8 +175,8 @@ describe('PaintingMigrator painting_file_ref integration', () => {
     expect((migrator as unknown as { droppedFileRefs: number }).droppedFileRefs).toBe(2)
 
     // No dangling FK left behind for the engine's final check.
-    const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
-    expect(fkCheck.rows).toHaveLength(0)
+    const fkCheck = dbh.sqlite.pragma('foreign_key_check')
+    expect(fkCheck).toHaveLength(0)
   })
 
   it('drops every ref and emits none when all referenced file ids are dangling', async () => {
@@ -203,8 +203,8 @@ describe('PaintingMigrator painting_file_ref integration', () => {
     expect(refRows).toHaveLength(0)
     expect((migrator as unknown as { droppedFileRefs: number }).droppedFileRefs).toBe(2)
 
-    const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
-    expect(fkCheck.rows).toHaveLength(0)
+    const fkCheck = dbh.sqlite.pragma('foreign_key_check')
+    expect(fkCheck).toHaveLength(0)
   })
 
   it('rewrites a cross-namespace duplicate id to a fresh uuidv4 so painting_file_refs validate', async () => {
@@ -239,8 +239,8 @@ describe('PaintingMigrator painting_file_ref integration', () => {
     }
     expect(new Set(refRows.map((r) => r.sourceId))).toEqual(new Set(ids))
 
-    const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
-    expect(fkCheck.rows).toHaveLength(0)
+    const fkCheck = dbh.sqlite.pragma('foreign_key_check')
+    expect(fkCheck).toHaveLength(0)
   })
 
   it('chunks file_entry lookup for more than SQLite parameter limit file ids', async () => {
@@ -280,8 +280,8 @@ describe('PaintingMigrator painting_file_ref integration', () => {
     expect(refRows).toHaveLength(FILE_COUNT)
     expect((migrator as unknown as { droppedFileRefs: number }).droppedFileRefs).toBe(0)
 
-    const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
-    expect(fkCheck.rows).toHaveLength(0)
+    const fkCheck = dbh.sqlite.pragma('foreign_key_check')
+    expect(fkCheck).toHaveLength(0)
   })
 
   it('validates migrated row counts after a mixed present/dangling run', async () => {

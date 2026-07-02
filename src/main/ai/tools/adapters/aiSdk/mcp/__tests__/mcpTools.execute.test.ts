@@ -52,8 +52,8 @@ function activeServer(id: string, disabledAutoApproveTools: string[] = []) {
 
 /** Register a single tool via the production sync path and return its SDK execute fn. */
 async function registerToolExecute(reg: ToolRegistry) {
-  list.mockResolvedValue({ items: [activeServer('s1')] })
-  listTools.mockResolvedValue([mcpTool('s1', 't')])
+  list.mockReturnValue({ items: [activeServer('s1')] })
+  listTools.mockReturnValue([mcpTool('s1', 't')])
   await syncMcpToolsToRegistry(reg)
   const entry = reg.getByName('mcp__s1__t')
   if (!entry) throw new Error('expected mcp__s1__t to be registered')
@@ -76,7 +76,7 @@ describe('mcpTools execute wrapper', () => {
 
     // resolveActiveServerById → mcpServerService.getById resolves an inactive server,
     // so resolveActiveServerById returns undefined and execute throws.
-    getById.mockResolvedValue({ id: 's1', name: 's1', isActive: false })
+    getById.mockReturnValue({ id: 's1', name: 's1', isActive: false })
 
     await expect(execute({}, { toolCallId: 'call-1' } as any)).rejects.toThrow(
       'MCP server s1 is not active or no longer registered'
@@ -89,7 +89,7 @@ describe('mcpTools execute wrapper', () => {
     const reg = new ToolRegistry()
     const execute = await registerToolExecute(reg)
 
-    getById.mockResolvedValue(activeServer('s1'))
+    getById.mockReturnValue(activeServer('s1'))
     callTool.mockResolvedValue({
       isError: true,
       content: [{ type: 'text', text: 'boom from server' }]
@@ -102,7 +102,7 @@ describe('mcpTools execute wrapper', () => {
     const reg = new ToolRegistry()
     const execute = await registerToolExecute(reg)
 
-    getById.mockResolvedValue(activeServer('s1'))
+    getById.mockReturnValue(activeServer('s1'))
     const runtimeResult: McpCallToolResponse = {
       isError: false,
       content: [{ type: 'text', text: 'ok' }]

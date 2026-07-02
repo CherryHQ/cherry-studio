@@ -29,7 +29,7 @@ export async function cancelActiveKnowledgeSubtreeJobs(
   reason: string,
   currentJobId?: string
 ): Promise<void> {
-  const subtreeItems = await knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true })
+  const subtreeItems = knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true })
   const subtreeIds = new Set(subtreeItems.map((item) => item.id))
   if (subtreeIds.size === 0) {
     return
@@ -79,7 +79,7 @@ export async function purgeKnowledgeSubtreeWithinLock(
   // which would otherwise strand rows after their vectors are gone.
   await deleteKnowledgeItemFilesBestEffort(base.id, subtreeItems, logContext)
 
-  await knowledgeItemService.deleteItemsByIds(base.id, subtreeItemIds)
+  knowledgeItemService.deleteItemsByIds(base.id, subtreeItemIds)
 }
 
 function jobTouchesSubtree(job: { type: string; input: unknown }, subtreeIds: Set<string>): boolean {

@@ -31,13 +31,6 @@ const packages = [
   '@img/sharp-linuxmusl-x64',
   '@img/sharp-win32-arm64',
   '@img/sharp-win32-x64',
-  '@libsql/darwin-arm64',
-  '@libsql/darwin-x64',
-  '@libsql/linux-arm64-gnu',
-  '@libsql/linux-x64-gnu',
-  '@libsql/linux-arm64-musl',
-  '@libsql/linux-x64-musl',
-  '@libsql/win32-x64-msvc',
   '@napi-rs/system-ocr-darwin-arm64',
   '@napi-rs/system-ocr-darwin-x64',
   '@napi-rs/system-ocr-win32-arm64-msvc',
@@ -50,7 +43,15 @@ const packages = [
   '@napi-rs/canvas-darwin-arm64',
   '@napi-rs/canvas-win32-x64-msvc',
   '@napi-rs/canvas-win32-arm64-msvc',
-  '@strongtz/win32-arm64-msvc'
+  // sqlite-vec prebuilt extensions (vec0.dylib/.so/.dll), from the @aiany/sqlite-vec fork
+  // which adds a windows-arm64 build (upstream ships none). Note the package names use
+  // `windows`, not `win32` — see platformTokens below for why the keep-filter must match both.
+  '@aiany/sqlite-vec-darwin-arm64',
+  '@aiany/sqlite-vec-darwin-x64',
+  '@aiany/sqlite-vec-linux-arm64',
+  '@aiany/sqlite-vec-linux-x64',
+  '@aiany/sqlite-vec-windows-arm64',
+  '@aiany/sqlite-vec-windows-x64'
 ]
 
 const platformToArch = {
@@ -119,17 +120,26 @@ exports.default = async function (context) {
     context.packager.config.files[0].filter = filters
   }
 
-  const arm64KeepPackages = packages.filter((p) => p.includes('arm64') && p.includes(platform))
+  // Most native packages encode Electron's platform key (win32) in their name, but some
+  // (e.g. sqlite-vec) use the npm `windows` convention. Match either so a win32 build keeps
+  // sqlite-vec-windows-x64 instead of wrongly excluding it.
+  const platformTokens = platform === 'win32' ? ['win32', 'windows'] : [platform]
+  const matchesPlatform = (p) => platformTokens.some((t) => p.includes(t))
+
+  const arm64KeepPackages = packages.filter((p) => p.includes('arm64') && matchesPlatform(p))
   const arm64ExcludePackages = packages
     .filter((p) => !arm64KeepPackages.includes(p))
     .map((p) => '!node_modules/' + p + '/**')
 
-  const x64KeepPackages = packages.filter((p) => p.includes('x64') && p.includes(platform))
+  const x64KeepPackages = packages.filter((p) => p.includes('x64') && matchesPlatform(p))
   const x64ExcludePackages = packages
     .filter((p) => !x64KeepPackages.includes(p))
     .map((p) => '!node_modules/' + p + '/**')
 
   const currentPlatformKey = `${platform}-${arch}`
+  // win32-arm64 is in this list so `build:win` (--x64 --arm64) can package it. The
+  // @aiany/sqlite-vec fork provides a windows-arm64 vec0.dll, so knowledge-base vector
+  // search works on that target too.
   const allBinaryPlatforms = ['darwin-arm64', 'darwin-x64', 'linux-x64', 'linux-arm64', 'win32-x64', 'win32-arm64']
   const excludeBundledBinaryFilters = allBinaryPlatforms
     .filter((p) => p !== currentPlatformKey)

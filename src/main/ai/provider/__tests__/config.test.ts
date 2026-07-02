@@ -23,8 +23,8 @@ import { customFetch } from '../../utils/customFetch'
 // auth config off the direct-import ProviderService singleton. Mock both at the
 // module boundary so the dispatch builders run without touching the DB.
 const { getRotatedApiKeyMock, getAuthConfigMock, getByProviderIdMock } = vi.hoisted(() => ({
-  getRotatedApiKeyMock: vi.fn<(providerId: string) => Promise<string>>(),
-  getAuthConfigMock: vi.fn<(providerId: string) => Promise<AuthConfig | null>>(),
+  getRotatedApiKeyMock: vi.fn<(providerId: string) => string>(),
+  getAuthConfigMock: vi.fn<(providerId: string) => AuthConfig | null>(),
   getByProviderIdMock: vi.fn()
 }))
 const { generateSignatureMock } = vi.hoisted(() => ({
@@ -48,8 +48,8 @@ const { providerToAiSdkConfig } = await import('../config')
 
 beforeEach(() => {
   vi.clearAllMocks()
-  getRotatedApiKeyMock.mockResolvedValue('sk-test-key')
-  getAuthConfigMock.mockResolvedValue(null)
+  getRotatedApiKeyMock.mockReturnValue('sk-test-key')
+  getAuthConfigMock.mockReturnValue(null)
 })
 
 afterEach(() => {
@@ -75,7 +75,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       // resolveAiSdkProviderId self-maps to the same aiSdkProviderId. Without the
       // 'google-vertex-anthropic' row in the dispatch table this falls through to
       // the generic builder and silently DROPS project/location/googleCredentials.
-      getAuthConfigMock.mockResolvedValue(vertexAuth)
+      getAuthConfigMock.mockReturnValue(vertexAuth)
       const provider = makeProvider({
         id: 'vertex',
         authType: 'iam-gcp',
@@ -112,7 +112,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     })
 
     it('routes a normal google-vertex endpoint to buildVertexConfig with the google publisher baseURL', async () => {
-      getAuthConfigMock.mockResolvedValue(vertexAuth)
+      getAuthConfigMock.mockReturnValue(vertexAuth)
       const provider = makeProvider({
         id: 'vertex',
         authType: 'iam-gcp',
@@ -143,7 +143,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       // Service-account JSON stored with snake_case keys must surface as camelCase
       // `clientEmail` on googleCredentials; otherwise @ai-sdk/google-vertex/edge
       // builds a JWT with iss:undefined and auth fails.
-      getAuthConfigMock.mockResolvedValue({
+      getAuthConfigMock.mockReturnValue({
         type: 'iam-gcp',
         project: 'my-project',
         location: 'us-central1',
@@ -181,7 +181,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       // Standard Vertex providers leave baseUrl empty. The old code appended the publisher
       // suffix to '' → '/publishers/google', a truthy host-less URL the Vertex SDK's `?? `
       // default does NOT override, so every inference request targeted a host-less path.
-      getAuthConfigMock.mockResolvedValue(vertexAuth)
+      getAuthConfigMock.mockReturnValue(vertexAuth)
       const provider = makeProvider({
         id: 'vertex',
         authType: 'iam-gcp',
@@ -210,7 +210,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     })
 
     it('throws when a Vertex-resolved provider lacks iam-gcp auth config', async () => {
-      getAuthConfigMock.mockResolvedValue(null)
+      getAuthConfigMock.mockReturnValue(null)
       const provider = makeProvider({
         id: 'vertex',
         authType: 'iam-gcp',
@@ -232,7 +232,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
   describe('Bedrock row', () => {
     it('routes a bedrock-resolved provider to buildBedrockConfig (iam-aws region/keys)', async () => {
-      getAuthConfigMock.mockResolvedValue({
+      getAuthConfigMock.mockReturnValue({
         type: 'iam-aws',
         region: 'us-east-1',
         accessKeyId: 'AKIA',
@@ -266,7 +266,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     })
 
     it('passes baseURL=undefined (not "") when no host is configured, so the SDK derives the host (upstream #14425)', async () => {
-      getAuthConfigMock.mockResolvedValue({
+      getAuthConfigMock.mockReturnValue({
         type: 'iam-aws',
         region: 'us-east-1',
         accessKeyId: 'AKIA',
@@ -367,7 +367,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       // The resolver upgrades the default OpenAI chat endpoint to the `cherryin-chat` variant,
       // so the old `id === 'cherryin'` dispatch row never matched and the request fell through
       // to buildGenericProviderConfig — dropping endpointType + the relay anthropic/gemini URLs.
-      getByProviderIdMock.mockResolvedValue(
+      getByProviderIdMock.mockReturnValue(
         makeProvider({
           id: 'cherryin',
           endpointConfigs: {
@@ -406,7 +406,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
   describe('CherryAI routing', () => {
     it('uses custom fetch to sign chat completions requests', async () => {
-      getRotatedApiKeyMock.mockResolvedValue('')
+      getRotatedApiKeyMock.mockReturnValue('')
       generateSignatureMock.mockReturnValue({
         'X-Client-ID': 'cherry-studio',
         'X-Timestamp': '1700000000',

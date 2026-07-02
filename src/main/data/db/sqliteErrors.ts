@@ -1,9 +1,9 @@
 /**
  * SQLite constraint error → DataApiError translation layer.
  *
- * Drizzle ORM wraps the underlying libsql error in a `DrizzleQueryError` whose
- * `.message` reads "Failed query: insert into ..." and whose `.cause` carries
- * the real libsql error (with `code` such as `SQLITE_CONSTRAINT_UNIQUE`).
+ * Drizzle ORM wraps the underlying better-sqlite3 error in a `DrizzleQueryError`
+ * whose `.message` reads "Failed to run the query ..." and whose `.cause` carries
+ * the real `SqliteError` (with `code` such as `SQLITE_CONSTRAINT_UNIQUE`).
  * Sometimes the chain is one level deeper on top of a native `SqliteError`.
  * Matching `e.message` on the outer error alone therefore misses the wrapped
  * form — every helper here walks the `.cause` chain.
@@ -137,8 +137,9 @@ function extractCheckName(message: string): string | undefined {
  *
  * The SQLite extended error codes (`SQLITE_CONSTRAINT_UNIQUE` etc.) are the
  * authoritative classification signal. A message-substring fallback handles
- * older libsql releases that may not set `.code`; when the fallback fires we
- * emit a warning log so driver drift becomes visible.
+ * errors that reach us without a `.code` (e.g. a wrapper that does not
+ * propagate it); when the fallback fires we emit a warning log so driver
+ * drift becomes visible.
  *
  * @example
  * ```ts
@@ -227,13 +228,29 @@ export function classifySqliteError(e: unknown): SqliteConstraint | null {
  * For the common case use `defaultHandlersFor` which provides sensible
  * defaults for all four constraint kinds.
  */
-export async function withSqliteErrors<T>(operation: () => Promise<T>, handlers: SqliteErrorHandlers): Promise<T> {
+export function withSqliteErrors<T>(operation: () => T, handlers: SqliteErrorHandlers): T {
   try {
-    return await operation()
+    const result = operation()
+    // A thenable result defers its error past this synchronous try/catch — either a genuinely
+    // async operation or a not-yet-executed drizzle query builder (`DbService.withWriteTx` runs
+    // synchronously, so it is not a source). Adopt it as a promise so the same classification maps its
+    // rejection. A plain synchronous result (rows array, RunResult, mapped object) skips this.
+    if (result != null && typeof (result as { then?: unknown }).then === 'function') {
+      return Promise.resolve(result).catch((e: unknown) => mapSqliteError(e, handlers)) as T
+    }
+    return result
   } catch (e) {
-    const classification = classifySqliteError(e)
-    if (!classification) throw e
+    return mapSqliteError(e, handlers)
+  }
+}
 
+/**
+ * Classify a SQLite constraint error and rethrow it via the matching handler; if it is not a
+ * recognized constraint (or no handler is registered for that kind) rethrow the original error.
+ */
+function mapSqliteError(e: unknown, handlers: SqliteErrorHandlers): never {
+  const classification = classifySqliteError(e)
+  if (classification) {
     switch (classification.kind) {
       case 'unique':
         if (handlers.unique) throw handlers.unique(classification.columns)
@@ -248,8 +265,8 @@ export async function withSqliteErrors<T>(operation: () => Promise<T>, handlers:
         if (handlers.notNull) throw handlers.notNull(classification.columns)
         break
     }
-    throw e
   }
+  throw e
 }
 
 /**

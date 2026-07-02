@@ -91,7 +91,7 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
 
   const formattedBaseUrl = formatBaseURL(baseUrl, provider, endpointType)
   const { baseURL, endpoint } = routeToEndpoint(formattedBaseUrl)
-  const apiKey = await providerService.getRotatedApiKey(provider.id)
+  const apiKey = providerService.getRotatedApiKey(provider.id)
 
   const ctx: BuilderContext = {
     actualProvider: provider,
@@ -248,8 +248,8 @@ function buildOllamaConfig(ctx: BuilderContext): ProviderConfig<'ollama'> {
   }
 }
 
-async function buildBedrockConfig(ctx: BuilderContext): Promise<ProviderConfig<'bedrock'>> {
-  const authConfig = await providerService.getAuthConfig(ctx.actualProvider.id)
+function buildBedrockConfig(ctx: BuilderContext): ProviderConfig<'bedrock'> {
+  const authConfig = providerService.getAuthConfig(ctx.actualProvider.id)
   const base = { providerId: 'bedrock' as const, endpoint: ctx.endpoint }
 
   // SDK treats `""` as a valid baseURL → every request hits `""/model/...`. Guard region too.
@@ -294,8 +294,8 @@ export function normalizeVertexCredentials(credentials: Record<string, unknown> 
   }
 }
 
-async function buildVertexConfig(ctx: BuilderContext): Promise<ProviderConfig<'google-vertex'>> {
-  const authConfig = await providerService.getAuthConfig(ctx.actualProvider.id)
+function buildVertexConfig(ctx: BuilderContext): ProviderConfig<'google-vertex'> {
+  const authConfig = providerService.getAuthConfig(ctx.actualProvider.id)
 
   if (authConfig?.type !== 'iam-gcp') {
     throw new Error('VertexAI requires iam-gcp auth configuration.')
@@ -352,11 +352,11 @@ function mapCherryinEndpointType(epType: string | undefined): CherryInProviderSe
   }
 }
 
-async function buildCherryinConfig(ctx: BuilderContext): Promise<ProviderConfig> {
+function buildCherryinConfig(ctx: BuilderContext): ProviderConfig {
   let anthropicBaseURL: string | undefined
   let geminiBaseURL: string | undefined
   try {
-    const cherryinProvider = await providerService.getByProviderId(SystemProviderIds.cherryin)
+    const cherryinProvider = providerService.getByProviderId(SystemProviderIds.cherryin)
     anthropicBaseURL = formatApiHost(cherryinProvider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl)
     geminiBaseURL = formatApiHost(getBaseUrl(cherryinProvider, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT), true, 'v1beta')
   } catch {
