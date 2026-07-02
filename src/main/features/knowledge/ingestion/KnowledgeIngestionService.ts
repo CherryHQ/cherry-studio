@@ -24,6 +24,7 @@ import { assertBaseCanRunRuntimeOperation } from '../base/guards'
 import { cancelActiveKnowledgeSubtreeJobs, purgeKnowledgeSubtreeWithinLock } from '../cleanup/subtreePurge'
 import { classifyKnowledgeItemSource, isContainerKnowledgeItem } from '../items'
 import type { KnowledgeLockManager } from '../KnowledgeLockManager'
+import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import { planKnowledgeItemSource } from '../sources/sourcePlanning'
 import {
   assertKnowledgeFileTargetAvailable,
@@ -238,6 +239,36 @@ export class KnowledgeIngestionService {
         queue: knowledgeQueueName(knowledgeBaseId)
       }
     )
+  }
+
+  /**
+   * Configures an embedding model on a base that has never had one (BM25-only), then
+   * backfills embeddings for its existing items in place — no restore-into-a-new-base
+   * needed, since a BM25-only base has no vectors to invalidate. `knowledgeBaseService.
+   * update` still rejects switching an already-configured model this way; that case
+   * keeps going through `restoreBase` because it does invalidate existing vectors.
+   *
+   * Runs the same admission checks `reindexItems` would run, but before committing the
+   * model — a base whose backfill is doomed (missing source, subtree still running, ...)
+   * must never end up with a model set and no vectors to back it, since there is nothing
+   * to roll back to once it is committed.
+   */
+  async enableEmbeddingModel(baseId: string, patch: UpdateKnowledgeBaseDto): Promise<KnowledgeBase> {
+    const rootItems = knowledgeItemService.getRootItemsByBaseId(baseId).filter((item) => item.status !== 'deleting')
+    const rootItemIds = rootItems.map((item) => item.id)
+
+    if (rootItemIds.length > 0) {
+      assertBaseCanRunRuntimeOperation(baseId, 'enableEmbeddingModel')
+      await this.assertSubtreesCanReindex(baseId, rootItemIds)
+    }
+
+    const updatedBase = knowledgeBaseService.update(baseId, patch, { allowEmbeddingModelBackfill: true })
+
+    if (rootItemIds.length > 0) {
+      await this.reindexItems(baseId, rootItemIds)
+    }
+
+    return updatedBase
   }
 
   async scheduleItem(

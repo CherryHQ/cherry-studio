@@ -188,7 +188,8 @@ vi.mock('../storage/pathStorage', async () => {
   }
 })
 
-const { KnowledgeService, KNOWLEDGE_TREE_MAX_NODES } = await import('../KnowledgeService')
+const { KnowledgeService } = await import('../KnowledgeService')
+const { KNOWLEDGE_TREE_MAX_NODES } = await import('../query/KnowledgeConceptService')
 
 const NOTE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
 const DELETING_NOTE_ITEM_ID = '0198f3f2-7d1b-7abc-8def-123456789abc'
