@@ -85,6 +85,9 @@ export const MessageStatsSchema = z.strictObject({
   completionTokens: z.number().optional(),
   totalTokens: z.number().optional(),
   thoughtsTokens: z.number().optional(),
+  /** Real end-of-turn context size = the LAST step's totalTokens (input+output).
+   *  Distinct from totalTokens, which is the per-step SUM (over-counts). Durable-compaction anchor. */
+  contextTokens: z.number().optional(),
 
   // Cost (calculated at message completion time)
   cost: z.number().optional(),
@@ -169,6 +172,8 @@ export interface CherryUIMessageMetadata {
    * (Gemini thoughts, Anthropic extended thinking, OpenAI o-series).
    */
   thoughtsTokens?: number
+  /** Last-step totalTokens (real context size); projected into MessageStats.contextTokens. */
+  contextTokens?: number
   /** Full persisted stats (tokens + durations) when available. */
   stats?: MessageStats
 }
@@ -477,6 +482,8 @@ export const MessageSchema = z.strictObject({
   modelSnapshot: ModelSnapshotSchema.nullable().optional(),
   /** Statistics: token usage, performance metrics */
   stats: MessageStatsSchema.nullable().optional(),
+  /** Durable compaction marker: rolling summary covering the conversation up to & incl. this row. */
+  compactionSummary: z.string().nullable().optional(),
   /** Creation timestamp (ISO string) */
   createdAt: z.iso.datetime(),
   /** Last update timestamp (ISO string) */

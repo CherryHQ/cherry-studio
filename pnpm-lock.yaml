@@ -64,6 +64,12 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.168
         version: 0.3.168(@anthropic-ai/sdk@0.81.0(zod@4.3.4))(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))(zod@4.3.4)
+      '@context-chef/ai-sdk-middleware':
+        specifier: ^1.6.0
+        version: 1.6.0(@ai-sdk/provider@3.0.8)(@anthropic-ai/sdk@0.81.0(zod@4.3.4))(ai@6.0.143(patch_hash=a6fc1788c6b23da25d4d91aee1fa72564041e79e3cb20811d7d9e61a2c53878e)(zod@4.3.4))
+      '@context-chef/core':
+        specifier: ^3.8.0
+        version: 3.8.0(@anthropic-ai/sdk@0.81.0(zod@4.3.4))
       '@expo/sudo-prompt':
         specifier: ^9.3.2
         version: 9.3.2
@@ -2402,6 +2408,26 @@ packages:
   '@colors/colors@1.6.0':
     resolution: {integrity: sha512-Ir+AOibqzrIsL6ajt3Rz3LskB7OiMVHqltZmspbW/TJuTVuyOMirVqAkjfY6JISiLHgyNqicAC8AyHHGzNd/dA==}
     engines: {node: '>=0.1.90'}
+
+  '@context-chef/ai-sdk-middleware@1.6.0':
+    resolution: {integrity: sha512-oOSY/kDB8T6LH16aMDqeS2wPLPACgXtg2f9l3pkyMmEd3clUKOCAs+/BxHXxJ2xu97LhYP9BLkW0+PVZO5KaVw==}
+    peerDependencies:
+      '@ai-sdk/provider': '>=3'
+      ai: '>=6'
+
+  '@context-chef/core@3.8.0':
+    resolution: {integrity: sha512-OeDbLUtPFeUJmJIJO1X/jXXD2DpHjxUT64OurZ1LJoCHEHlka8XuTRLkGPYu+CxX7evqODSZgwJwa+Aduxpfag==}
+    peerDependencies:
+      '@anthropic-ai/sdk': '>=0.20'
+      '@google/generative-ai': '>=0.1'
+      openai: '>=4'
+    peerDependenciesMeta:
+      '@anthropic-ai/sdk':
+        optional: true
+      '@google/generative-ai':
+        optional: true
+      openai:
+        optional: true
 
   '@croct/json5-parser@0.2.2':
     resolution: {integrity: sha512-0NJMLrbeLbQ0eCVj3UoH/kG2QckUgOASfwmfDTjyW1xAYPyTNJXcWVT/dssJdTJd0pRchW+qF0VFWQHcxs1OVw==}
@@ -15179,6 +15205,22 @@ snapshots:
 
   '@colors/colors@1.6.0': {}
 
+  '@context-chef/ai-sdk-middleware@1.6.0(@ai-sdk/provider@3.0.8)(@anthropic-ai/sdk@0.81.0(zod@4.3.4))(ai@6.0.143(patch_hash=a6fc1788c6b23da25d4d91aee1fa72564041e79e3cb20811d7d9e61a2c53878e)(zod@4.3.4))':
+    dependencies:
+      '@ai-sdk/provider': 3.0.8
+      '@context-chef/core': 3.8.0(@anthropic-ai/sdk@0.81.0(zod@4.3.4))
+      ai: 6.0.143(patch_hash=a6fc1788c6b23da25d4d91aee1fa72564041e79e3cb20811d7d9e61a2c53878e)(zod@4.3.4)
+    transitivePeerDependencies:
+      - '@anthropic-ai/sdk'
+      - '@google/generative-ai'
+      - openai
+
+  '@context-chef/core@3.8.0(@anthropic-ai/sdk@0.81.0(zod@4.3.4))':
+    dependencies:
+      zod: 4.4.3
+    optionalDependencies:
+      '@anthropic-ai/sdk': 0.81.0(zod@4.3.4)
+
   '@croct/json5-parser@0.2.2':
     dependencies:
       '@croct/json': 2.1.0
@@ -15592,7 +15634,7 @@ snapshots:
       '@eslint-react/eff': 1.53.1
       '@typescript-eslint/utils': 8.51.0(eslint@9.39.2(jiti@2.7.0))(typescript@5.8.3)
       ts-pattern: 5.9.0
-      zod: 4.3.6
+      zod: 4.4.3
     transitivePeerDependencies:
       - eslint
       - supports-color
@@ -15604,7 +15646,7 @@ snapshots:
       '@eslint-react/kit': 1.53.1(eslint@9.39.2(jiti@2.7.0))(typescript@5.8.3)
       '@typescript-eslint/utils': 8.51.0(eslint@9.39.2(jiti@2.7.0))(typescript@5.8.3)
       ts-pattern: 5.9.0
-      zod: 4.3.6
+      zod: 4.4.3
     transitivePeerDependencies:
       - eslint
       - supports-color

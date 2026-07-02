@@ -53,21 +53,29 @@ export { ZERO_USAGE }
 
 export function attachUsageObserver(agent: Agent): void {
   let total: LanguageModelUsage = ZERO_USAGE
+  let lastStepTotalTokens: number | undefined
 
   agent.on('onStart', () => {
     total = ZERO_USAGE
+    lastStepTotalTokens = undefined
   })
 
   agent.on('onStepFinish', (step) => {
     if (!step.usage) return
     total = mergeUsage(total, step.usage)
+    // contextTokens is the real end-of-turn context size; trust it only when the
+    // provider reported inputTokens. Otherwise totalTokens collapses to output-only
+    // (addTokenCounts(undefined, out) === out) — a bogus anchor that would suppress
+    // durable compaction — so leave it undefined and let estimateContext fall back to tokenx.
+    lastStepTotalTokens = typeof step.usage.inputTokens === 'number' ? step.usage.totalTokens : undefined
     agent.write({
       type: 'message-metadata',
       messageMetadata: {
         totalTokens: total.totalTokens,
         promptTokens: total.inputTokens,
         completionTokens: total.outputTokens,
-        thoughtsTokens: total.outputTokenDetails?.reasoningTokens
+        thoughtsTokens: total.outputTokenDetails?.reasoningTokens,
+        contextTokens: lastStepTotalTokens
       }
     })
   })

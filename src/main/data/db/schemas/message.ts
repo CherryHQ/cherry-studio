@@ -41,6 +41,10 @@ export const messageTable = sqliteTable(
     modelSnapshot: text({ mode: 'json' }).$type<ModelSnapshot>(),
     // Statistics: token usage, performance metrics, etc.
     stats: text({ mode: 'json' }).$type<MessageStats>(),
+    // Durable compaction marker: a rolling summary covering the conversation up to
+    // AND INCLUDING this row. null until this row becomes a compaction boundary.
+    // Read-time only — never fed to the model as a tree node (see compaction.ts).
+    compactionSummary: text(),
 
     // Stable integer surrogate for the FTS5 content_rowid. Local-only physical identity
     // (like rowid): assigned by the AFTER INSERT trigger, never set by app code, never

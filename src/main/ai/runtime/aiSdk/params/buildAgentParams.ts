@@ -9,6 +9,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
 import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
+import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
 import { collectFileAttachments } from '../../../messages/attachmentRouting'
 import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
 import { createHttpTraceFetch } from '../../../observability'
@@ -92,6 +93,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     fileAttachments
   }
 
+  const { contextSettings, compressionModel } = await resolveRequestContextSettings(model)
+
   const scope: RequestScope = {
     request,
     signal,
@@ -105,6 +108,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     aiSdkProviderId,
     requestContext,
     mcpToolIds,
+    contextSettings,
+    compressionModel,
     hasFileAttachments
   }
 

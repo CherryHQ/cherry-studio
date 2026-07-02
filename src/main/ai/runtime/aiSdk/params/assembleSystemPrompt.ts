@@ -3,6 +3,7 @@
  */
 
 import { replacePromptVariables } from '@main/utils/prompt'
+import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import type { ToolSet } from 'ai'
@@ -10,6 +11,7 @@ import type { ToolSet } from 'ai'
 import { TOOL_SEARCH_TOOL_NAME } from '../../../tools/adapters/aiSdk/meta/toolSearch'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
 import { getDeferredToolsSystemPrompt } from '../prompts/deferredTools'
+import { PERSISTED_OUTPUT_SYSTEM_PROMPT } from '../prompts/persistedOutput'
 
 export interface AssembleSystemPromptInput {
   assistant?: Assistant
@@ -33,6 +35,10 @@ export async function assembleSystemPrompt(input: AssembleSystemPromptInput): Pr
 
   if (tools && TOOL_SEARCH_TOOL_NAME in tools) {
     sections.push(getDeferredToolsSystemPrompt(deferredEntries))
+  }
+
+  if (tools && FS_READ_TOOL_NAME in tools) {
+    sections.push(PERSISTED_OUTPUT_SYSTEM_PROMPT)
   }
 
   if (sections.length === 0) return undefined
