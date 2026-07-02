@@ -6,7 +6,7 @@ import path from 'node:path'
 import { MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { isWorkspaceFileError, resolveWorkspaceFile, WorkspaceFileError } from '../WorkspaceFileGuard'
+import { resolveWorkspaceFile } from '../WorkspaceFileGuard'
 
 // Wrap only `open` as a spy so a single test can simulate a file growing between
 // fstat and read; every other fs call (and open by default) stays real.
@@ -66,10 +66,7 @@ describe('resolveWorkspaceFile', () => {
     await writeFile(path.join(outside, 'secret.txt'), 'top secret')
     const rel = path.relative(workspace, path.join(outside, 'secret.txt'))
 
-    await expect(resolveWorkspaceFile(workspace, rel)).rejects.toMatchObject({
-      name: 'WorkspaceFileError',
-      reason: 'outside-workspace'
-    })
+    await expect(resolveWorkspaceFile(workspace, rel)).rejects.toThrow(/outside the workspace/)
   })
 
   it('rejects a sibling directory that shares the workspace path as a prefix', async () => {
@@ -81,9 +78,7 @@ describe('resolveWorkspaceFile', () => {
     await writeFile(evilFile, 'top secret')
 
     try {
-      await expect(resolveWorkspaceFile(workspace, evilFile)).rejects.toMatchObject({
-        reason: 'outside-workspace'
-      })
+      await expect(resolveWorkspaceFile(workspace, evilFile)).rejects.toThrow(/outside the workspace/)
     } finally {
       await rm(evilDir, { recursive: true, force: true })
     }
@@ -93,15 +88,11 @@ describe('resolveWorkspaceFile', () => {
     await writeFile(path.join(outside, 'secret.txt'), 'top secret')
     await symlink(path.join(outside, 'secret.txt'), path.join(workspace, 'link.txt'))
 
-    await expect(resolveWorkspaceFile(workspace, 'link.txt')).rejects.toMatchObject({
-      reason: 'outside-workspace'
-    })
+    await expect(resolveWorkspaceFile(workspace, 'link.txt')).rejects.toThrow(/outside the workspace/)
   })
 
   it('rejects a non-existent file as not-found', async () => {
-    await expect(resolveWorkspaceFile(workspace, 'missing.txt')).rejects.toMatchObject({
-      reason: 'not-found'
-    })
+    await expect(resolveWorkspaceFile(workspace, 'missing.txt')).rejects.toThrow(/not found in workspace/)
   })
 
   it('rejects a file larger than the size limit as too-large', async () => {
@@ -111,9 +102,7 @@ describe('resolveWorkspaceFile', () => {
     await writeFile(big, '')
     await truncate(big, MAX_FILE_SIZE_BYTES + 1)
 
-    await expect(resolveWorkspaceFile(workspace, 'big.bin')).rejects.toMatchObject({
-      reason: 'too-large'
-    })
+    await expect(resolveWorkspaceFile(workspace, 'big.bin')).rejects.toThrow(/byte limit/)
   })
 
   it('rejects a file that grows past the limit between stat and read', async () => {
@@ -127,25 +116,11 @@ describe('resolveWorkspaceFile', () => {
       close: async () => {}
     } as unknown as Awaited<ReturnType<typeof open>>)
 
-    await expect(resolveWorkspaceFile(workspace, 'growing.bin')).rejects.toMatchObject({
-      reason: 'too-large'
-    })
+    await expect(resolveWorkspaceFile(workspace, 'growing.bin')).rejects.toThrow(/byte limit/)
   })
 
   it('rejects a directory as not-a-file', async () => {
     await mkdir(path.join(workspace, 'adir'))
-    await expect(resolveWorkspaceFile(workspace, 'adir')).rejects.toMatchObject({
-      reason: 'not-a-file'
-    })
-  })
-
-  it('throws a typed error guarded by isWorkspaceFileError', async () => {
-    try {
-      await resolveWorkspaceFile(workspace, 'missing.txt')
-      expect.unreachable('should have thrown')
-    } catch (error) {
-      expect(isWorkspaceFileError(error)).toBe(true)
-      expect(error).toBeInstanceOf(WorkspaceFileError)
-    }
+    await expect(resolveWorkspaceFile(workspace, 'adir')).rejects.toThrow(/Not a regular file/)
   })
 })

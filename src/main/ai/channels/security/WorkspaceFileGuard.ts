@@ -7,23 +7,6 @@ import { MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 
 import { FILE_EXTENSION_MIME_MAP } from '../utils'
 
-export type WorkspaceFileErrorReason = 'outside-workspace' | 'not-found' | 'too-large' | 'not-a-file'
-
-/** Raised when an outbound file can't be safely resolved from the session workspace. */
-export class WorkspaceFileError extends Error {
-  constructor(
-    readonly reason: WorkspaceFileErrorReason,
-    message: string
-  ) {
-    super(message)
-    this.name = 'WorkspaceFileError'
-  }
-}
-
-export function isWorkspaceFileError(error: unknown): error is WorkspaceFileError {
-  return error instanceof WorkspaceFileError
-}
-
 function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && 'code' in error
 }
@@ -54,7 +37,7 @@ export async function resolveWorkspaceFile(workspaceRoot: string, userPath: stri
     // naming the root reads like "your file_path is wrong" — wrap it so the agent doesn't
     // waste retries on other paths.
     if (isErrnoException(error) && (error.code === 'ENOENT' || error.code === 'ENOTDIR')) {
-      throw new WorkspaceFileError('not-found', `Session workspace is unavailable: ${workspaceRoot}`)
+      throw new Error(`Session workspace is unavailable: ${workspaceRoot}`)
     }
     throw error
   }
@@ -64,13 +47,13 @@ export async function resolveWorkspaceFile(workspaceRoot: string, userPath: stri
     realTarget = await realpath(requested)
   } catch (error) {
     if (isErrnoException(error) && (error.code === 'ENOENT' || error.code === 'ENOTDIR')) {
-      throw new WorkspaceFileError('not-found', `File not found in workspace: ${userPath}`)
+      throw new Error(`File not found in workspace: ${userPath}`)
     }
     throw error
   }
 
   if (realTarget !== realRoot && !realTarget.startsWith(realRoot + path.sep)) {
-    throw new WorkspaceFileError('outside-workspace', `Path is outside the workspace: ${userPath}`)
+    throw new Error(`Path is outside the workspace: ${userPath}`)
   }
 
   let fd: FileHandle
@@ -78,7 +61,7 @@ export async function resolveWorkspaceFile(workspaceRoot: string, userPath: stri
     fd = await open(realTarget, 'r')
   } catch (error) {
     if (isErrnoException(error) && (error.code === 'ENOENT' || error.code === 'ENOTDIR')) {
-      throw new WorkspaceFileError('not-found', `File not found in workspace: ${userPath}`)
+      throw new Error(`File not found in workspace: ${userPath}`)
     }
     throw error
   }
@@ -86,23 +69,17 @@ export async function resolveWorkspaceFile(workspaceRoot: string, userPath: stri
   try {
     const stats = await fd.stat()
     if (!stats.isFile()) {
-      throw new WorkspaceFileError('not-a-file', `Not a regular file: ${userPath}`)
+      throw new Error(`Not a regular file: ${userPath}`)
     }
     if (stats.size > MAX_FILE_SIZE_BYTES) {
-      throw new WorkspaceFileError(
-        'too-large',
-        `File exceeds the ${MAX_FILE_SIZE_BYTES} byte limit (${stats.size} bytes): ${userPath}`
-      )
+      throw new Error(`File exceeds the ${MAX_FILE_SIZE_BYTES} byte limit (${stats.size} bytes): ${userPath}`)
     }
 
     const buffer = await fd.readFile()
     // Re-check against the actual read size: the file can grow between fstat and read,
     // so the pre-read stat cap alone could let an oversize payload through.
     if (buffer.length > MAX_FILE_SIZE_BYTES) {
-      throw new WorkspaceFileError(
-        'too-large',
-        `File exceeds the ${MAX_FILE_SIZE_BYTES} byte limit (${buffer.length} bytes): ${userPath}`
-      )
+      throw new Error(`File exceeds the ${MAX_FILE_SIZE_BYTES} byte limit (${buffer.length} bytes): ${userPath}`)
     }
     const filename = path.basename(requested)
     return {
@@ -112,7 +89,7 @@ export async function resolveWorkspaceFile(workspaceRoot: string, userPath: stri
       size: buffer.length
     }
   } finally {
-    // Swallow close errors so they can't mask an in-flight WorkspaceFileError.
+    // Swallow close errors so they can't mask an in-flight resolution error.
     await fd.close().catch(() => {})
   }
 }
