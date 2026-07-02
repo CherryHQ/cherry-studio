@@ -27,8 +27,8 @@ const AssistantEditDialog = lazy(() =>
 /**
  * Row shape the selector operates on — derived from the Assistant DTO. `selectionType: 'item'`
  * returns values of this shape (not the raw Assistant) so the selector never leaks DB columns the
- * caller didn't ask about. User tag names may be present so the selector can filter by assistant
- * tags.
+ * caller didn't ask about. A user tag name may be present so the selector can filter by assistant
+ * tag.
  */
 export type AssistantSelectorItem = ResourceSelectorShellItem
 
@@ -118,7 +118,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
         name: a.name,
         emoji: a.emoji,
         description: a.description,
-        tags: (a.tags ?? []).map((tag) => tag.name)
+        tag: a.tags?.[0]?.name
       })),
     [data]
   )
@@ -126,7 +126,8 @@ export function AssistantSelector(props: AssistantSelectorProps) {
   const tags = useMemo<ResourceSelectorShellTag[]>(() => {
     const byName = new Map<string, string | undefined>()
     for (const assistant of data?.items ?? []) {
-      for (const tag of assistant.tags ?? []) {
+      const tag = assistant.tags?.[0]
+      if (tag) {
         if (!byName.has(tag.name)) {
           byName.set(tag.name, tag.color ?? undefined)
         }
@@ -200,7 +201,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
             name: created.name,
             emoji: created.emoji,
             description: created.description,
-            tags: (created.tags ?? []).map((tag) => tag.name)
+            tag: created.tags?.[0]?.name
           })
         } else {
           props.onChange(created.id)
