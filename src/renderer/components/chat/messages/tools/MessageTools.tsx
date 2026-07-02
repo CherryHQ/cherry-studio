@@ -33,8 +33,26 @@ export function canRenderMessageTool(toolResponse: McpToolResponse | NormalToolR
 
 export default function MessageTools({ toolResponse }: Props) {
   if (isReportArtifactsToolResponse(toolResponse)) return null
-  if (rendersThroughChooseTool(toolResponse)) {
-    return <MessageTool toolResponse={toolResponse as NormalToolResponse} />
-  }
-  return <MessageMcpTool toolResponse={toolResponse as McpToolResponse} />
+  const rendered = rendersThroughChooseTool(toolResponse) ? (
+    <MessageTool toolResponse={toolResponse as NormalToolResponse} />
+  ) : (
+    <MessageMcpTool toolResponse={toolResponse as McpToolResponse} />
+  )
+  return (
+    // `contents` keeps this out of layout entirely; it only exists to expose the wire tool name
+    // (e.g. "web_search", "kb_search"), its call arguments, and its status for e2e. This is the
+    // single choke point both single-entry (ToolPartView) and grouped-entry
+    // (ToolBlockGroupContent) rendering call through, so it covers a tool call regardless of
+    // whether it got bundled with adjacent tool calls. `data-tool-args` matters most for a
+    // meta-tool like `tool_invoke`, whose own wire name never reveals which deferred tool it
+    // dispatched to (that's `arguments.name`); `data-tool-status` lets a test tell an executed
+    // call apart from one whose inner dispatch errored (`'error'` vs `'done'`).
+    <div
+      className="contents"
+      data-tool-name={toolResponse.tool.name}
+      data-tool-args={JSON.stringify(toolResponse.arguments ?? {})}
+      data-tool-status={toolResponse.status}>
+      {rendered}
+    </div>
+  )
 }
