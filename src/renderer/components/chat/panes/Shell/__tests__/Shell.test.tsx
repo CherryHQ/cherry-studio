@@ -536,9 +536,9 @@ describe('Shell.TabList', () => {
     const scrollContainer = screen.getByTestId('shell-tab-scroll-container')
     const tabsList = screen.getByTestId('shell-tabs-list')
 
-    // The opened-pane header uses the same right inset as ConversationShell's closed-state cluster
-    // so the expand and close buttons keep the same distance from the right edge.
-    expect(tabList).toHaveClass('pr-[calc(0.5rem+var(--window-controls-width,0px))]', 'pl-3')
+    // The opened-pane header uses ConversationShell's edge inset so the tab row is balanced
+    // while the right side still reserves frameless window controls when present.
+    expect(tabList).toHaveClass('pr-[calc(0.5rem+var(--window-controls-width,0px))]', 'pl-2')
     expect(tabList).not.toHaveClass('pr-11')
     expect(scrollContainer).toHaveClass('min-w-0', 'flex-1')
     expect(tabsList).not.toHaveClass('overflow-x-auto')
@@ -551,9 +551,9 @@ describe('Shell.TabList', () => {
     expect(minimizeButton).toHaveAttribute('aria-pressed', 'true')
     expect(minimizeButton).not.toHaveAttribute('data-active')
     expect(minimizeButton.querySelector('svg')).not.toHaveAttribute('width', '15')
-    // embedded mode (no WindowFrameProvider) stays no-drag and uses the symmetric pl-3 inset
+    // embedded mode (no WindowFrameProvider) stays no-drag and uses the symmetric pl-2 inset
     // even when maximized — the traffic-light inset is sub-window-only.
-    expect(tabList).toHaveClass('pl-3')
+    expect(tabList).toHaveClass('pl-2')
     expect(tabList).not.toHaveClass('pl-[env(titlebar-area-x)]')
   })
 

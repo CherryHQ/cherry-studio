@@ -376,11 +376,11 @@ function ShellTabList({ children, extraTrailing }: { children: ReactNode; extraT
     <div
       data-testid="shell-tab-list"
       className={cn(
-        // Match ConversationShell's right inset so the closed-state expand button and
-        // opened-state close button keep the same distance from the right edge.
+        // Match ConversationShell's edge inset so the closed-state expand button and
+        // opened-state close button keep the same distance from the nearest edge.
         'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b pr-[calc(0.5rem+var(--window-controls-width,0px))]',
         isWindowTopBar ? '[-webkit-app-region:drag]' : '[-webkit-app-region:no-drag]',
-        isWindowTopBar && isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-3'
+        isWindowTopBar && isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-2'
       )}>
       <HorizontalScrollContainer className="min-w-0 flex-1" gap="4px" scrollDistance={180}>
         <TabsList className="min-w-max justify-start gap-1 [-webkit-app-region:no-drag]">{children}</TabsList>
