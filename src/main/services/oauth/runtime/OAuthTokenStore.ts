@@ -20,16 +20,23 @@ export class ProviderAuthConfigOAuthTokenStore implements OAuthTokenStore {
     providerId: string,
     data: OAuthTokenStoreData,
     clientId: string,
-    options?: { requireExistingSession?: boolean }
+    options?: { expectedRefreshToken?: string }
   ): Promise<void> {
     const current = providerService.getAuthConfig(providerId)
     const currentOAuth = current?.type === 'oauth' ? current : null
-    // Refresh path: bail if the session is no longer OAuth. The read above and
-    // the write below share one synchronous tick (no `await` between them), so
-    // a concurrent logout — which arrives as a separate macrotask — cannot
-    // interleave here; this check is atomic against it and stops a refresh that
-    // resolved after logout from writing the stale token back.
-    if (options?.requireExistingSession && !currentOAuth) return
+    // Refresh path: commit only if the stored session is the same one we
+    // refreshed from — still OAuth and still holding that refresh token. This
+    // rejects both a logout (→ api-key, no match) and a re-login (a different
+    // session's refresh token) that landed during the network round-trip. The
+    // read above and the write below share one synchronous tick (no `await`
+    // between them), so a concurrent logout/login macrotask cannot interleave;
+    // the check is atomic against it.
+    if (
+      options?.expectedRefreshToken !== undefined &&
+      (!currentOAuth || currentOAuth.refreshToken !== options.expectedRefreshToken)
+    ) {
+      return
+    }
     const authConfig: OAuthAuthConfig = {
       type: 'oauth',
       clientId: clientId || currentOAuth?.clientId || '',
@@ -42,7 +49,17 @@ export class ProviderAuthConfigOAuthTokenStore implements OAuthTokenStore {
     providerService.update(providerId, { authConfig })
   }
 
-  async clear(providerId: string, options?: { disableProvider?: boolean }): Promise<void> {
+  async clear(
+    providerId: string,
+    options?: { disableProvider?: boolean; expectedRefreshToken?: string }
+  ): Promise<void> {
+    // Conditional clear (terminal refresh failure): skip if this is no longer
+    // the session that failed — a re-login during the failed refresh must
+    // survive. Same synchronous read-then-write atomicity as `set`.
+    if (options?.expectedRefreshToken !== undefined) {
+      const current = providerService.getAuthConfig(providerId)
+      if (current?.type !== 'oauth' || current.refreshToken !== options.expectedRefreshToken) return
+    }
     // Reset auth back to api-key mode (drops the OAuth tokens). Only flip
     // `isEnabled` when the caller owns the provider's enablement — see the
     // interface doc: disabling a provider that also holds a manual API key would

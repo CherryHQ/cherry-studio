@@ -112,7 +112,7 @@ export class OAuthRuntimeService extends BaseService {
   private async persistTokens(
     definition: OAuthRuntimeProviderDefinition,
     tokenData: { access_token: string; refresh_token?: string; expires_in?: number },
-    options?: { requireExistingSession?: boolean }
+    options?: { expectedRefreshToken?: string }
   ): Promise<void> {
     const current = await this.tokenStore.get(definition.providerId)
     const accountId = definition.extractAccountId?.(tokenData.access_token) ?? current?.accountId
@@ -261,7 +261,9 @@ export class OAuthRuntimeService extends BaseService {
     // failure keeps the stored token so the next request retries instead of
     // logging the user out over a flaky network or a 5xx.
     if (result.status === 'terminal') {
-      await this.clearSession(definition)
+      // Pass the refresh token we started from so a re-login that replaced the
+      // session mid-refresh is not cleared by this stale terminal result.
+      await this.clearSession(definition, config.refreshToken)
       return null
     }
     if (result.status !== 'ok') {
@@ -310,7 +312,16 @@ export class OAuthRuntimeService extends BaseService {
     const first = buildRequest(creds)
     let response = await doFetch(first.input, first.init)
     if (response.status === 401) {
-      const refreshed = await this.getValidAccessToken(providerId, { ...context, forceRefresh: true })
+      let refreshed: OAuthTokenCredentials | null
+      try {
+        refreshed = await this.getValidAccessToken(providerId, { ...context, forceRefresh: true })
+      } catch (error) {
+        // A transient refresh failure propagates as a retry signal — but drain
+        // the discarded 401 body first, or the underlying (undici) connection
+        // leaks just as it would on the retry path below.
+        void response.body?.cancel?.()
+        throw error
+      }
       if (refreshed?.accessToken) {
         // Drain the discarded 401 body before retrying so the underlying (undici)
         // connection is released instead of leaking one per forced refresh.
@@ -326,8 +337,11 @@ export class OAuthRuntimeService extends BaseService {
     return response
   }
 
-  private clearSession(definition: OAuthRuntimeProviderDefinition): Promise<void> {
-    return this.tokenStore.clear(definition.providerId, { disableProvider: definition.clearDisablesProvider })
+  private clearSession(definition: OAuthRuntimeProviderDefinition, expectedRefreshToken?: string): Promise<void> {
+    return this.tokenStore.clear(definition.providerId, {
+      disableProvider: definition.clearDisablesProvider,
+      ...(expectedRefreshToken !== undefined ? { expectedRefreshToken } : {})
+    })
   }
 
   private refreshAccessToken(
@@ -354,7 +368,7 @@ export class OAuthRuntimeService extends BaseService {
     try {
       const client = await definition.createClient(context)
       const tokenData = await client.refresh(refreshToken)
-      await this.persistTokens(definition, tokenData, { requireExistingSession: true })
+      await this.persistTokens(definition, tokenData, { expectedRefreshToken: refreshToken })
       return { status: 'ok', accessToken: tokenData.access_token }
     } catch (error) {
       this.logger.error(`Failed to refresh ${definition.providerId} token`, describeOAuthError(error))

@@ -20,16 +20,17 @@ export interface OAuthTokenStoreData {
 export interface OAuthTokenStore {
   get(providerId: string): Promise<OAuthTokenStoreData | null>
   /**
-   * Persist the OAuth session. `requireExistingSession` makes the write a no-op
-   * unless a live OAuth session is already stored — used by the refresh path so
-   * a network round-trip that resolves *after* a logout (or a switch to api-key)
-   * cannot resurrect the dead session with its now-stale token.
+   * Persist the OAuth session. When `expectedRefreshToken` is given the write is
+   * a no-op unless the stored session is still OAuth *and* still carries that
+   * exact refresh token — the refresh path uses it so a network round-trip that
+   * resolves after a logout (session → api-key) or a re-login (a different
+   * session) cannot clobber the current credential with its now-stale token.
    */
   set(
     providerId: string,
     data: OAuthTokenStoreData,
     clientId: string,
-    options?: { requireExistingSession?: boolean }
+    options?: { expectedRefreshToken?: string }
   ): Promise<void>
   /**
    * Drop the stored OAuth tokens. `disableProvider` also flips the provider to
@@ -37,7 +38,19 @@ export interface OAuthTokenStore {
    * (Codex, Grok), but wrong for one that can also hold a manual API key
    * (CherryIN), where disabling would take the manual key down with it.
    */
-  clear(providerId: string, options?: { disableProvider?: boolean }): Promise<void>
+  clear(
+    providerId: string,
+    options?: {
+      disableProvider?: boolean
+      /**
+       * Conditional clear (a terminal refresh failure): only drop the session
+       * when it still carries this refresh token, so a re-login that landed
+       * during the failed refresh is not torn down with it. Omit for a
+       * user-initiated logout, which clears unconditionally.
+       */
+      expectedRefreshToken?: string
+    }
+  ): Promise<void>
 }
 
 export interface LoopbackCallbackConfig {

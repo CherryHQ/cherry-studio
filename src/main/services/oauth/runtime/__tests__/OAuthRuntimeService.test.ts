@@ -162,6 +162,37 @@ describe('OAuthRuntimeService', () => {
     expect(h.providerStore.get('codex')?.authConfig).toEqual({ type: 'api-key' })
   })
 
+  // B1 race, cross-session: logout → re-login installs a NEW oauth session while
+  // the old refresh is in flight. The stale refresh must not clobber the new
+  // login (same `type:'oauth'`, different refresh token).
+  it('does not clobber a re-login that races an in-flight refresh', async () => {
+    seedOAuth('codex', { accessToken: 'old', refreshToken: 'r', expiresAt: PAST() })
+    h.refreshMock.mockImplementation(async () => {
+      // Simulate logout + a fresh sign-in during the token endpoint round-trip.
+      seedOAuth('codex', { accessToken: 'new-login', refreshToken: 'r-new', expiresAt: FUTURE() })
+      return { access_token: 'stale', refresh_token: 'r2', expires_in: 3600 }
+    })
+
+    // The in-flight request gets the current (new) session's token, never 'stale'.
+    expect(await service.getValidAccessToken('codex')).toEqual({ accessToken: 'new-login', accountId: null })
+    expect(h.providerStore.get('codex')?.authConfig).toMatchObject({ accessToken: 'new-login', refreshToken: 'r-new' })
+  })
+
+  // A terminal failure of the OLD refresh must not tear down a session a
+  // re-login installed while that refresh was in flight.
+  it('does not clear a re-login when the old refresh fails terminally', async () => {
+    seedOAuth('codex', { accessToken: 'old', refreshToken: 'r', expiresAt: PAST() })
+    h.refreshMock.mockImplementation(async () => {
+      seedOAuth('codex', { accessToken: 'new-login', refreshToken: 'r-new', expiresAt: FUTURE() })
+      throw new OAuthHttpError('bad', 400, '{"error":"invalid_grant"}')
+    })
+
+    expect(await service.getValidAccessToken('codex')).toBeNull()
+    const stored = h.providerStore.get('codex')
+    expect(stored?.authConfig).toMatchObject({ type: 'oauth', accessToken: 'new-login', refreshToken: 'r-new' })
+    expect(stored?.isEnabled).not.toBe(false)
+  })
+
   it('deduplicates concurrent refreshes', async () => {
     seedOAuth('codex', { accessToken: 'old', refreshToken: 'r', expiresAt: PAST() })
     h.refreshMock.mockResolvedValue({ access_token: 'new', refresh_token: 'r2', expires_in: 3600 })
@@ -216,6 +247,22 @@ describe('OAuthRuntimeService', () => {
       })
     ).rejects.toThrow(OAuthTransientError)
     expect(doFetch).not.toHaveBeenCalled()
+  })
+
+  // item4 + resource safety: when the forced refresh after a 401 fails
+  // transiently, the transient error propagates AND the discarded 401 body is
+  // drained so the undici connection is not leaked.
+  it('authenticatedFetch drains the 401 body when the forced refresh fails transiently', async () => {
+    seedOAuth('codex', { accessToken: 'tok', refreshToken: 'r', expiresAt: FUTURE(), accountId: null })
+    h.refreshMock.mockRejectedValue(new Error('network down'))
+    const cancel = vi.fn()
+    const doFetch = vi.fn().mockResolvedValue({ status: 401, body: { cancel } } as unknown as Response)
+
+    await expect(service.authenticatedFetch('codex', () => ({ input: 'x', init: {} }), doFetch)).rejects.toThrow(
+      OAuthTransientError
+    )
+    expect(cancel).toHaveBeenCalledTimes(1)
+    expect(doFetch).toHaveBeenCalledTimes(1)
   })
 
   // CherryIN path: still 401 after the forced-refresh retry → onUnauthorized fires
