@@ -4,6 +4,13 @@ import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
 
 import { getServiceName } from './decorators'
 import { type Disposable, toDisposable } from './event'
+import {
+  type ActivationEffect,
+  decideActivate,
+  isProfileActivatable,
+  type ProfileActivationContext,
+  type ProfileBinding
+} from './profileActivation'
 import { type ErrorStrategy, isActivatable, isPausable, LifecycleState, type ServiceConstructor } from './types'
 
 const logger = loggerService.withContext('Lifecycle')
@@ -31,6 +38,12 @@ export abstract class BaseService {
 
   /** Guard flag to prevent concurrent activate/deactivate execution */
   private _activating = false
+
+  /** Which profile this service currently holds resources for (ProfileActivatable interface) */
+  private _profileBinding: ProfileBinding = { kind: 'unbound' }
+
+  /** Guard flag to prevent concurrent profile activate/deactivate execution */
+  private _profileActivating = false
 
   /** Error handling strategy for this service */
   static errorStrategy: ErrorStrategy = 'graceful'
@@ -281,6 +294,7 @@ export abstract class BaseService {
         }
         this._activated = false
       }
+      await this._releaseProfileOnShutdown()
       await this.onStop()
     } finally {
       this._cleanupDisposables()
@@ -305,6 +319,7 @@ export abstract class BaseService {
       }
       this._activated = false
     }
+    await this._releaseProfileOnShutdown()
     await this.onDestroy()
     this._cleanupDisposables()
     this._state = LifecycleState.Destroyed
@@ -359,6 +374,94 @@ export abstract class BaseService {
     } finally {
       this._activating = false
     }
+  }
+
+  /**
+   * Internal method to bind this service to `ctx.profileId` (ProfileActivatable).
+   * Convergent: unbound → acquire, bound to the target → no-op, bound to another
+   * profile → release the old then acquire the new. So `activate(P)` ends bound
+   * to P from any prior state, which is why rollback is just re-activating the
+   * previous profile. On a hook throw the binding is left unbound (error
+   * contract, RFC §4.2) so a later activation retries cleanly.
+   * Called by the orchestrator.
+   * @returns True if this service participates and is now bound to the target
+   */
+  public async _doProfileActivate(ctx: ProfileActivationContext): Promise<boolean> {
+    if (!isProfileActivatable(this)) return false
+    if (this._profileActivating) return false
+    const effect: ActivationEffect = decideActivate(this._profileBinding, ctx.profileId)
+    if (effect === 'none') return true
+    this._profileActivating = true
+    try {
+      if (effect === 'release-then-acquire') {
+        const current = this._profileBinding
+        if (current.kind === 'bound') await this.onProfileDeactivate({ profileId: current.profileId })
+        this._profileBinding = { kind: 'unbound' }
+      }
+      await this.onProfileActivate(ctx)
+      this._profileBinding = { kind: 'bound', profileId: ctx.profileId }
+      logger.info(
+        `Service '${getServiceName(this.constructor as ServiceConstructor)}' bound to profile '${ctx.profileId}'`
+      )
+      return true
+    } catch (err) {
+      // A hook that threw must have released what it acquired; leave unbound so a
+      // corrective activate re-runs the hook instead of no-oping a broken binding.
+      this._profileBinding = { kind: 'unbound' }
+      throw err
+    } finally {
+      this._profileActivating = false
+    }
+  }
+
+  /**
+   * Internal method to release this service's current profile resources
+   * (ProfileActivatable), deriving the profile from the current binding. The
+   * binding is cleared even if the hook throws (RFC §4.2): the resources are
+   * gone or in an unknown state, and leaving it 'bound' would let a corrective
+   * activate no-op them. Called by the orchestrator.
+   * @returns True if this service participates and is now unbound
+   */
+  public async _doProfileDeactivate(): Promise<boolean> {
+    if (!isProfileActivatable(this)) return false
+    if (this._profileActivating) return false
+    const current = this._profileBinding
+    if (current.kind !== 'bound') return true // decideDeactivate(current) === 'none'
+    this._profileActivating = true
+    try {
+      await this.onProfileDeactivate({ profileId: current.profileId })
+      logger.info(
+        `Service '${getServiceName(this.constructor as ServiceConstructor)}' released profile '${current.profileId}'`
+      )
+      return true
+    } finally {
+      this._profileBinding = { kind: 'unbound' }
+      this._profileActivating = false
+    }
+  }
+
+  /** The profile this service currently holds resources for (unbound if none). */
+  public get profileBinding(): ProfileBinding {
+    return this._profileBinding
+  }
+
+  /**
+   * Shutdown safety net: release profile resources if still bound (mirrors the
+   * Activatable auto-deactivate in _doStop/_doDestroy). Best-effort — a failure
+   * is logged and does not block shutdown; the binding is cleared regardless.
+   */
+  private async _releaseProfileOnShutdown(): Promise<void> {
+    const current = this._profileBinding
+    if (current.kind !== 'bound' || !isProfileActivatable(this)) return
+    try {
+      await this.onProfileDeactivate({ profileId: current.profileId })
+    } catch (err) {
+      logger.warn(
+        `Service '${getServiceName(this.constructor as ServiceConstructor)}' profile release on shutdown failed`,
+        err as Error
+      )
+    }
+    this._profileBinding = { kind: 'unbound' }
   }
 
   /**
