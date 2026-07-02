@@ -22,33 +22,33 @@ export const mcpServerHandlers: HandlersFor<McpServerSchemas> = {
   '/mcp-servers': {
     GET: async ({ query }) => {
       const parsed = ListMcpServersQuerySchema.parse(query ?? {})
-      return await mcpServerService.list(parsed)
+      return mcpServerService.list(parsed)
     },
 
     POST: async ({ body }) => {
       const parsed = CreateMcpServerSchema.parse(body)
-      return await mcpServerService.create(parsed)
+      return mcpServerService.create(parsed)
     },
 
     PATCH: async ({ body }) => {
       const parsed = ReorderMcpServersSchema.parse(body)
-      await mcpServerService.reorder(parsed.orderedIds)
+      mcpServerService.reorder(parsed.orderedIds)
       return undefined
     }
   },
 
   '/mcp-servers/:id': {
     GET: async ({ params }) => {
-      return await mcpServerService.getById(params.id)
+      return mcpServerService.getById(params.id)
     },
 
     PATCH: async ({ params, body }) => {
       const parsed = UpdateMcpServerSchema.parse(body)
-      return await mcpServerService.update(params.id, parsed)
+      return mcpServerService.update(params.id, parsed)
     },
 
     DELETE: async ({ params }) => {
-      await mcpServerService.delete(params.id)
+      mcpServerService.delete(params.id)
       return undefined
     }
   }

@@ -19,24 +19,24 @@ export const miniAppHandlers: HandlersFor<MiniAppSchemas> = {
   '/mini-apps': {
     GET: async ({ query }) => {
       const parsed = ListMiniAppsQuerySchema.parse(query ?? {})
-      return await miniAppService.list(parsed)
+      return miniAppService.list(parsed)
     },
     POST: async ({ body }) => {
       const parsed = CreateMiniAppSchema.parse(body)
-      return await miniAppService.create(parsed)
+      return miniAppService.create(parsed)
     }
   },
 
   '/mini-apps/:appId': {
     GET: async ({ params }) => {
-      return await miniAppService.getByAppId(params.appId)
+      return miniAppService.getByAppId(params.appId)
     },
     PATCH: async ({ params, body }) => {
       const parsed = UpdateMiniAppSchema.parse(body)
-      return await miniAppService.update(params.appId, parsed)
+      return miniAppService.update(params.appId, parsed)
     },
     DELETE: async ({ params }) => {
-      await miniAppService.delete(params.appId)
+      miniAppService.delete(params.appId)
       return undefined
     }
   },
@@ -44,7 +44,7 @@ export const miniAppHandlers: HandlersFor<MiniAppSchemas> = {
   '/mini-apps/:id/order': {
     PATCH: async ({ params, body }) => {
       const anchor = OrderRequestSchema.parse(body)
-      await miniAppService.reorder([{ id: params.id, anchor }])
+      miniAppService.reorder([{ id: params.id, anchor }])
       return undefined
     }
   },
@@ -52,7 +52,7 @@ export const miniAppHandlers: HandlersFor<MiniAppSchemas> = {
   '/mini-apps/order:batch': {
     PATCH: async ({ body }) => {
       const { moves } = OrderBatchRequestSchema.parse(body)
-      await miniAppService.reorder(moves)
+      miniAppService.reorder(moves)
       return undefined
     }
   }

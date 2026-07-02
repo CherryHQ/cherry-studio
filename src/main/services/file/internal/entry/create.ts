@@ -149,7 +149,7 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
     throw err
   }
   try {
-    return await deps.fileEntryService.create({
+    return deps.fileEntryService.create({
       id,
       origin: 'internal',
       name: source.name,
@@ -170,7 +170,7 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
  */
 export async function ensureExternal(deps: FileManagerDeps, params: EnsureExternalEntryParams): Promise<FileEntry> {
   const canonical = canonicalizeExternalPath(params.externalPath)
-  const existing = await deps.fileEntryService.findByExternalPath(canonical)
+  const existing = deps.fileEntryService.findByExternalPath(canonical)
   if (existing) return existing
   // Every downstream derivation must consume the canonical path, not the
   // raw `params.externalPath`. On macOS APFS the raw input can arrive in
@@ -207,7 +207,7 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
   // subsequent INSERT would fail at the same boundary with a more
   // diagnosable stack, so wrapping in try/catch here only hides the real
   // error one stack frame earlier.
-  const peers = await deps.fileEntryService.findCaseInsensitivePeers(canonical)
+  const peers = deps.fileEntryService.findCaseInsensitivePeers(canonical)
   if (peers.length > 0) {
     const reusable = await resolveCaseCollisionPeer(canonical as FilePath, peers)
     if (reusable) {
@@ -240,7 +240,7 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
   // must `rename` after `ensureExternalEntry` returns.
   const name = defaultNameFromPath(canonical)
   const ext = extWithoutDot(canonical)
-  const inserted = await deps.fileEntryService.create({
+  const inserted = deps.fileEntryService.create({
     origin: 'external',
     name,
     ext,
