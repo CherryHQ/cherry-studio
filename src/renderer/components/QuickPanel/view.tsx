@@ -355,7 +355,11 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       }
 
       if (item.isMenu) {
-        consumeInputTriggerSymbol()
+        if (ctx.triggerInfo?.type === 'button' && ctx.trackInputQuery) {
+          consumeInputQueryOnce()
+        } else {
+          consumeInputTriggerSymbol()
+        }
       } else {
         consumeInputQuery()
       }

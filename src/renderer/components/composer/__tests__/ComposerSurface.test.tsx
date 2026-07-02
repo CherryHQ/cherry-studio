@@ -15,6 +15,8 @@ import ComposerSurface, { type ComposerSurfaceActions, type ComposerSurfaceProps
 
 const mocks = vi.hoisted(() => ({
   editorOptions: undefined as any,
+  editorInstance: undefined as any,
+  stabilizeEditor: false,
   actions: undefined as ComposerSurfaceActions | undefined,
   editorViewComposing: false,
   insertContent: vi.fn(),
@@ -127,7 +129,7 @@ vi.mock('@renderer/components/QuickPanel', () => ({
 vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
   useRichTextEditorKernel: (options: any) => {
     mocks.editorOptions = options
-    return {
+    const editor = {
       isDestroyed: false,
       isEditable: true,
       getJSON: mocks.getJSON,
@@ -196,6 +198,13 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
         }
       }
     }
+
+    if (!mocks.stabilizeEditor) return editor
+    if (!mocks.editorInstance) {
+      mocks.editorInstance = editor
+    }
+
+    return mocks.editorInstance
   }
 }))
 
@@ -359,6 +368,8 @@ describe('ComposerSurface', () => {
   beforeEach(() => {
     clearMockTimers()
     mocks.editorOptions = undefined
+    mocks.editorInstance = undefined
+    mocks.stabilizeEditor = false
     mocks.actions = undefined
     mocks.editorViewComposing = false
     mocks.insertContent.mockReset()
@@ -1475,6 +1486,7 @@ describe('ComposerSurface', () => {
   it('updates the open QuickPanel root list when additional items change', async () => {
     mocks.quickPanelIsVisible = true
     mocks.quickPanelSymbol = '/'
+    mocks.stabilizeEditor = true
 
     const getToolLaunchers = () => [
       {
@@ -1518,6 +1530,28 @@ describe('ComposerSurface', () => {
         getToolLaunchers={getToolLaunchers}
         rootPanelAdditionalItems={[
           {
+            id: 'skill:pdf',
+            label: 'pdf',
+            description: 'Read PDFs',
+            icon: 'sparkles'
+          }
+        ]}
+      />
+    )
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(mocks.quickPanelUpdateList).not.toHaveBeenCalled()
+
+    rerender(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        getToolLaunchers={getToolLaunchers}
+        rootPanelAdditionalItems={[
+          {
             id: 'skill:docx',
             label: 'docx',
             description: 'Read DOCX files',
@@ -1531,6 +1565,50 @@ describe('ComposerSurface', () => {
       expect(mocks.quickPanelUpdateList).toHaveBeenCalledWith([
         expect.objectContaining({ label: 'Generate image' }),
         expect.objectContaining({ id: 'skill:docx', label: 'docx', description: 'Read DOCX files' })
+      ])
+    })
+  })
+
+  it('updates the open QuickPanel root list when launcher state changes', async () => {
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelSymbol = '/'
+    mocks.stabilizeEditor = true
+    let attachmentActive = false
+    let attachmentDisabled = false
+    const getToolLaunchers = () => [
+      {
+        id: 'attachment',
+        kind: 'command' as const,
+        label: 'Attachment',
+        description: 'Attach files',
+        icon: 'paperclip',
+        sources: ['popover'] as const,
+        active: attachmentActive,
+        disabled: attachmentDisabled
+      }
+    ]
+
+    const { rerender } = render(
+      <ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={getToolLaunchers} toolLaunchersVersion={1} />
+    )
+
+    await waitFor(() => {
+      expect(mocks.quickPanelUpdateList).toHaveBeenCalledWith([
+        expect.objectContaining({ label: 'Attachment', isSelected: false, disabled: false })
+      ])
+    })
+
+    mocks.quickPanelUpdateList.mockClear()
+    attachmentActive = true
+    attachmentDisabled = true
+
+    rerender(
+      <ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={getToolLaunchers} toolLaunchersVersion={2} />
+    )
+
+    await waitFor(() => {
+      expect(mocks.quickPanelUpdateList).toHaveBeenCalledWith([
+        expect.objectContaining({ label: 'Attachment', isSelected: true, disabled: true })
       ])
     })
   })

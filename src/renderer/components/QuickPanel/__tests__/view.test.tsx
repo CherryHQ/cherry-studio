@@ -377,6 +377,58 @@ describe('QuickPanelView', () => {
     expect(deleteTriggerRange).not.toHaveBeenCalled()
   })
 
+  it('clears a button-triggered search before opening a child menu panel', async () => {
+    const captureDispatch = vi.fn()
+    const childAction = vi.fn()
+    const insertText = vi.fn()
+    let text = 'knowledge'
+    let cursorOffset = text.length
+    const deleteTriggerRange = vi.fn(({ from, to }: { from: number; to: number }) => {
+      text = text.slice(0, from) + text.slice(to)
+      cursorOffset = from
+    })
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => text,
+      getCursorOffset: () => cursorOffset,
+      insertText,
+      deleteTriggerRange,
+      focus: vi.fn()
+    }
+    const menuAction: QuickPanelListItem['action'] = ({ context, parentPanel, queryAnchor }) => {
+      context.open({
+        list: [{ id: 'knowledge-file', label: 'Knowledge file', icon: 'file', action: childAction }],
+        symbol: 'knowledge-base',
+        parentPanel,
+        queryAnchor,
+        triggerInfo: context.triggerInfo
+      })
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={inputAdapter}
+          items={[{ id: 'knowledge-base', label: 'Knowledge Base', icon: 'kb', isMenu: true, action: menuAction }]}
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+        />
+      </QuickPanelProvider>
+    )
+
+    fireEvent.click(await screen.findByText('Knowledge Base'))
+
+    expect(deleteTriggerRange).toHaveBeenCalledOnce()
+    expect(deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 'knowledge'.length })
+    expect(text).toBe('')
+
+    fireEvent.click(await screen.findByText('Knowledge file'))
+
+    expect(childAction).toHaveBeenCalledTimes(1)
+    expect(deleteTriggerRange).toHaveBeenCalledOnce()
+  })
+
   // 集成测试验证 context 的 fill 标志 + DOM 几何测量把高度喂给了 getQuickPanelHeights；
   // 具体数值由 heights.test.ts 的纯单测覆盖，这里不写死像素。
   const measuredItems: QuickPanelListItem[] = Array.from({ length: 10 }, (_, index) => ({

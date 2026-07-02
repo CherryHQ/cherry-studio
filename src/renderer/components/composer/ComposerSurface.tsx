@@ -148,6 +148,28 @@ export interface ComposerSurfaceProps {
   sendAccessory?: React.ReactNode
 }
 
+function getQuickPanelItemText(value: React.ReactNode | string | undefined) {
+  return typeof value === 'string' || typeof value === 'number' ? String(value) : ''
+}
+
+function getQuickPanelItemsSignature(items?: readonly QuickPanelListItem[]) {
+  return (items ?? [])
+    .map((item, index) =>
+      [
+        item.id ?? index,
+        getQuickPanelItemText(item.label),
+        getQuickPanelItemText(item.description),
+        item.filterText ?? '',
+        item.disabled ? '1' : '0',
+        item.hidden ? '1' : '0',
+        item.isSelected ? '1' : '0',
+        item.isMenu ? '1' : '0',
+        item.alwaysVisible ? '1' : '0'
+      ].join('\u001f')
+    )
+    .join('\u001e')
+}
+
 function removeComposerTokens(editor: Editor, shouldRemove: (token: ComposerSerializedToken) => boolean) {
   const ranges: Array<{ from: number; to: number }> = []
 
@@ -775,6 +797,7 @@ export default function ComposerSurface({
 
   const rootPanelOpenRefreshRequestedRef = useRef(false)
   const unifiedResourceRequestRef = useRef(0)
+  const unifiedPanelListSignatureRef = useRef<string | undefined>(undefined)
   const [unifiedResourceItems, setUnifiedResourceItems] = useState<QuickPanelListItem[]>([])
   const rootSuggestionStateRef = useRef({
     getToolLaunchers,
@@ -1492,25 +1515,41 @@ export default function ComposerSurface({
     quickPanelEnabled && quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root
   const rootQuickPanelQueryAnchor = quickPanel.queryAnchor
   const rootQuickPanelTriggerInfo = quickPanel.triggerInfo
+  const rootPanelLeadingItemsSignature = useMemo(
+    () => getQuickPanelItemsSignature(rootPanelLeadingItems),
+    [rootPanelLeadingItems]
+  )
+  const rootPanelAdditionalItemsSignature = useMemo(
+    () => getQuickPanelItemsSignature(rootPanelAdditionalItems),
+    [rootPanelAdditionalItems]
+  )
 
   useEffect(() => {
-    if (!isRootQuickPanelVisible) return
+    if (!isRootQuickPanelVisible) {
+      unifiedPanelListSignatureRef.current = undefined
+      return
+    }
 
     const currentQuickPanel = quickPanelRef.current
-    currentQuickPanel.updateList(
-      createUnifiedPanelOptions({
-        inputAdapter,
-        resourceItems: unifiedResourceItems,
-        queryAnchor: rootQuickPanelQueryAnchor,
-        triggerInfo: rootQuickPanelTriggerInfo
-      }).list
-    )
+    const nextList = createUnifiedPanelOptions({
+      inputAdapter,
+      resourceItems: unifiedResourceItems,
+      queryAnchor: rootQuickPanelQueryAnchor,
+      triggerInfo: rootQuickPanelTriggerInfo
+    }).list
+    const nextListSignature = getQuickPanelItemsSignature(nextList)
+    if (unifiedPanelListSignatureRef.current === nextListSignature) return
+    unifiedPanelListSignatureRef.current = nextListSignature
+    currentQuickPanel.updateList(nextList)
   }, [
     createUnifiedPanelOptions,
     inputAdapter,
     isRootQuickPanelVisible,
     rootQuickPanelQueryAnchor,
     rootQuickPanelTriggerInfo,
+    rootPanelAdditionalItemsSignature,
+    rootPanelLeadingItemsSignature,
+    toolLaunchersVersion,
     unifiedResourceItems
   ])
 
