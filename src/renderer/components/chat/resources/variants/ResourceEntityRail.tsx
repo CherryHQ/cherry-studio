@@ -102,6 +102,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   const { t } = useTranslation()
   const fallbackListRef = useRef<HTMLDivElement>(null)
   const effectiveListRef = listRef ?? fallbackListRef
+  const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
   const runContextMenuAction = useCallback(
     (item: T, action: ResolvedAction<TActionContext>) => {
       if (!action.availability.enabled || !onContextMenuAction) return
@@ -205,7 +206,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
     <Provider
       variant={variant}
       items={items}
-      selectedId={selectedId}
+      selectedId={hasActiveResourceMenuItem ? null : selectedId}
       status={status}
       groupBy={groupBy}
       sectionBy={sectionBy}

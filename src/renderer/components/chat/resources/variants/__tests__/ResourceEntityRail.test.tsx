@@ -171,7 +171,7 @@ describe('ResourceEntityRail', () => {
     expect(screen.queryByRole('button', { name: 'history.records.shortTitle' })).not.toBeInTheDocument()
   })
 
-  it('renders resource menu items below the add button', () => {
+  it('renders active resource menu items without also selecting entity rows', () => {
     const onSelectResourceView = vi.fn()
 
     render(
@@ -179,6 +179,7 @@ describe('ResourceEntityRail', () => {
         addLabel="New"
         ariaLabel="Assistants"
         items={ITEMS}
+        selectedId="assistant-a"
         resourceMenuItems={[
           {
             active: true,
@@ -196,6 +197,7 @@ describe('ResourceEntityRail', () => {
     const item = screen.getByRole('button', { name: 'Assistants' })
 
     expect(item).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByText('Assistant A').closest('[role="option"]')).not.toHaveAttribute('data-selected', 'true')
     fireEvent.click(item)
     expect(onSelectResourceView).toHaveBeenCalledTimes(1)
   })
