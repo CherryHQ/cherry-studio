@@ -1,11 +1,8 @@
-import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { SelectDropdown } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { fieldClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { replaceEndpointConfigDomain } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
-import { cn } from '@renderer/utils/style'
-import { Check, ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface CherryInSettingsProps {
@@ -28,7 +25,6 @@ const API_HOST_OPTIONS = [
 const CherryInSettings: FC<CherryInSettingsProps> = ({ providerId }) => {
   const { provider, updateProvider } = useProvider(providerId)
   const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
 
   const currentHost = useMemo(() => {
     if (!provider?.endpointConfigs) return API_HOST_OPTIONS[0].value
@@ -46,7 +42,6 @@ const CherryInSettings: FC<CherryInSettingsProps> = ({ providerId }) => {
 
   const handleHostChange = useCallback(
     async (value: string) => {
-      setOpen(false)
       const newEndpointConfigs = replaceEndpointConfigDomain(provider?.endpointConfigs, value)
       try {
         await updateProvider({ endpointConfigs: newEndpointConfigs })
@@ -58,45 +53,28 @@ const CherryInSettings: FC<CherryInSettingsProps> = ({ providerId }) => {
   )
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        className={cn(fieldClasses.inputGroupBlock, 'group cursor-pointer justify-between text-left outline-none')}>
-        <span
-          className={cn(
-            fieldClasses.input,
-            'block min-h-[1.25em] min-w-0 flex-1 truncate bg-transparent py-0 font-mono tabular-nums'
-          )}>
-          {currentHost}
+    <SelectDropdown
+      items={API_HOST_OPTIONS.map((option) => ({
+        id: option.value,
+        description: option.description,
+        labelKey: option.labelKey
+      }))}
+      selectedId={currentHost}
+      onSelect={(value) => void handleHostChange(value)}
+      triggerClassName="flex-1"
+      renderSelected={(item) => (
+        <span className="flex min-w-0 items-baseline gap-2 truncate">
+          <span className="font-mono tabular-nums">{item.description}</span>
+          <span className="truncate text-muted-foreground text-xs">{t(item.labelKey)}</span>
         </span>
-        <ChevronDown
-          size={12}
-          className="ml-2 shrink-0 text-muted-foreground/55 transition-transform group-data-[state=open]:rotate-180"
-          aria-hidden
-        />
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        sideOffset={4}
-        className="w-(--radix-popover-trigger-width) rounded-lg border-[0.5px] border-border bg-popover p-1.5 text-popover-foreground shadow-lg">
-        <MenuList>
-          {API_HOST_OPTIONS.map((option) => {
-            const isSelected = option.value === currentHost
-            return (
-              <MenuItem
-                key={option.value}
-                label={t(option.labelKey)}
-                description={option.description}
-                active={isSelected}
-                suffix={isSelected ? <Check size={14} className="text-foreground/70" aria-hidden /> : null}
-                className="rounded-lg px-2.5 text-sm"
-                descriptionClassName="font-mono text-muted-foreground/70 text-xs tabular-nums"
-                onClick={() => void handleHostChange(option.value)}
-              />
-            )
-          })}
-        </MenuList>
-      </PopoverContent>
-    </Popover>
+      )}
+      renderItem={(item) => (
+        <span className="flex min-w-0 items-baseline gap-2">
+          <span className="font-mono tabular-nums">{item.description}</span>
+          <span className="truncate text-muted-foreground text-xs">{t(item.labelKey)}</span>
+        </span>
+      )}
+    />
   )
 }
 
