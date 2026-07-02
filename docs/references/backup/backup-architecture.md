@@ -378,12 +378,12 @@ flowchart TB
      - **等同** → 直接导入
    - **失败善后**：migrate-forward 失败（备份损坏 / migration SQL 执行失败）= 门禁失败，中止恢复、保留 live DB 原状（未触碰）、删临时 `backup.sqlite`，**不触发 step 4 整库回滚**（因 live DB 未变），并向用户报错「备份无法恢复：文件损坏或版本不受支持」
    - migrate-forward 跑 release migration chain（`resources/database/drizzle` 正式产物，#16626 起路径），不碰开发期 drift；跨分支表集差异（`agent_task` vs `painting`/`agent_workspace`，§四）由 chain 位置识别并经 migrate-forward 消解
-1. **RESTORE BARRIER** acquire（静默 WhenReady DB writers + 阻塞 renderer mutation，全程）后用 VACUUM INTO 建快照（须事务外，持 withExclusiveAccess 写锁）
+1. **RESTORE BARRIER** acquire（静默 WhenReady DB writers + 阻塞 renderer mutation，全程）后经 `createSnapshot` 建 VACUUM INTO 快照（事务外；better-sqlite3 单连接同步，序列化 by construction，不需额外写锁）
 2. contributor restoreResources 文件 IO 在 withWriteTx 之外、之前
 3. 仅 DB 行导入在 withWriteTx 内
 4. 失败整库回滚是应用级动作（SQLite 单连接持文件锁——better-sqlite3 亦然，无法直接 rename 替换文件）：checkpoint(TRUNCATE) 后关连接，再安全文件提升（integrity_check + fsync+rename 原子替换 live .sqlite + 删 stale -wal/-shm + rename-aside 回退），最后重连
 
-本方案将 RestoreRecoveryPoint（整库 DB pre-snapshot + restore journal + 受影响文件快照）作为 in-scope 必交付项（现状 createSnapshot 已用 VACUUM INTO 建 pre-restore-snapshot，但仅创建不使用：失败仅 warn 继续、无回滚/撤销/journal/文件快照；本方案补齐持锁快照 + 回滚 + journal + 文件快照 + 失败阻塞）。**snapshot 创建失败 SHALL 阻塞恢复**（现状 warn 继续，属 breaking）。**合并语义下首要价值是「撤销成功恢复」**（用户回退），其次才是失败回滚。contributor 不负责整库快照与回滚。
+本方案将 RestoreRecoveryPoint（整库 DB pre-snapshot + restore journal + 受影响文件快照）作为 in-scope 必交付项（**现状 restore safety 整体未实现**：全仓无 `createSnapshot`、无 RestoreSafetyManager、无回滚/撤销/journal/文件快照，restore 失败无任何恢复保证；本方案经 DbService `createSnapshot` + `restoreDbFromSnapshot` 补齐快照 + 回滚 + journal + 文件快照 + 失败阻塞）。**snapshot 创建失败 SHALL 阻塞恢复**（属 breaking，现状无此门）。**合并语义下首要价值是「撤销成功恢复」**（用户回退），其次才是失败回滚。contributor 不负责整库快照与回滚。
 
 **Owner 切割**（recovery point 生命周期，详见 backup-restore-safety specs）：`barrier` + `createRecoveryPoint`/`commit`/`rollback` 归 `RestoreSafetyManager`（RESTORE BARRIER owner 须中立、不写 DB，防「既裁判又运动员」自指）；`RestoreRecoveryPointStore` + GC + `BackupV2_*` IPC（含 undo 编排）归 `BackupService`；`undoRestore` 是 `BackupService` 编排方法（查 store + 委托 `RestoreSafetyManager.rollback`）；on-boot crash recovery gate 独立在 `DbService.onInit`（BeforeReady）。
 
@@ -392,7 +392,7 @@ flowchart TB
 >
 > **恢复安全三件套（针对 PR #12659 review B1/B2/B3）**：① RESTORE BARRIER（应用级写屏障，区别于逐事务 `withWriteTx`——better-sqlite3 单连接同步，writeMutex 已随 #16626 移除，写序列化 by construction）静默 WhenReady DB writers + 阻塞 renderer mutation，跨 snapshot-文件-DB-promote 全程；② 安全文件提升 rollback 序列防 WAL sidecar replay 覆盖快照；③ journal 持久状态机（6 态）+ on-boot crash recovery + completed 门；**recoverOnBoot 作为 `DbService.onInit` 内 `migrateDb` 之前的 gate**（目标态：在 `DbService.ts:139` onInit 中插入 recovery gate，使顺序为 configurePragmas → **recovery gate** → migrateDb → seeders；当前 onInit 仅前三步无 gate）——journal 存在非终态条目时先跑补偿回滚（live DB 经 `DbService.restoreDbFromSnapshot` 整库回滚；覆盖文件从 `fileSnapshots` 恢复到 pre-restore，与 runtime rollback 对称、不经 RSM）再放行 migrateDb，避免 migrateDb/seeders 碰半恢复 DB；回滚快照 schema 可能旧于 consumer，放行后 migrateDb 复用 step 0 migrate-forward 机制推进。
 >
-> **Upstream prerequisites（gating）**：依赖 DbService 新增 `withExclusiveAccess`（事务外持锁建快照）+ `restoreDbFromSnapshot`（**整库回滚组合 API**，含 checkpoint/close/safe-promote/reconnect/校验；rollback + recoverOnBoot 两入口共享，消 drift）+ `verifyLiveDb`（completed 门）+ PreferenceService.reloadFromDb + DataApiService.armMutationGate/disarmMutationGate + PreferenceService.armWriteGate/disarmWriteGate（RESTORE BARRIER gate），须先合 upstream API PR 再合 backup 实现。
+> **Upstream prerequisites（gating）**：依赖 DbService 新增 `createSnapshot`（事务外建整库快照，专用 VACUUM INTO；better-sqlite3 单连接同步，序列化 by construction，不需额外写锁）+ `restoreDbFromSnapshot`（**整库回滚组合 API**，含 checkpoint/close/safe-promote/reconnect/校验；rollback + recoverOnBoot 两入口共享，消 drift）+ `verifyLiveDb`（completed 门）+ PreferenceService.reloadFromDb + DataApiService.armMutationGate/disarmMutationGate + PreferenceService.armWriteGate/disarmWriteGate（RESTORE BARRIER gate），须先合 upstream API PR 再合 backup 实现。
 >
 > **Preference cache 一致性**（M1）：`PreferenceService` 启动一次性 load DB 进内存 cache 后不再 re-read；故 PREFERENCES 域 `afterImport` 须触发 `PreferenceService.reloadFromDb()+rebroadcast` 使 main + 各 renderer cache 失效重载；整库回滚（live DB 已换）后同样触发（所有 cache 失效）。否则恢复/回滚的偏好对运行态静默不生效，直至重启。
 
