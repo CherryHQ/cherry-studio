@@ -377,7 +377,7 @@ describe('ProviderRegistryService', () => {
         ]
       } as ReturnType<typeof readProviderRegistry>)
 
-      const [dated] = await providerRegistryService.resolveModels('tokenhub', ['deepseek-v4-flash-202605'])
+      const [dated] = providerRegistryService.resolveModels('tokenhub', ['deepseek-v4-flash-202605'])
       // unique id rebuilt from the apiModelId (NOT collapsed to the canonical tokenhub::deepseek-v4-flash)
       expect(dated.id).toBe(createUniqueModelId('tokenhub', 'deepseek-v4-flash-202605'))
       expect(dated.apiModelId).toBe('deepseek-v4-flash-202605')
