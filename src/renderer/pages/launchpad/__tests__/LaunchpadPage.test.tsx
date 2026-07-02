@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   reorderMiniAppsByStatus: vi.fn(() => Promise.resolve()),
   setSidebarFavorites: vi.fn(() => Promise.resolve()),
   sidebarFavorites: [{ type: 'app', id: 'assistants' }] as SidebarFavoriteItem[],
+  setAppOrder: vi.fn(() => Promise.resolve()),
+  appOrder: [] as SidebarAppId[],
   sortableCalls: [] as any[]
 }))
 
@@ -36,6 +38,7 @@ vi.mock('@cherrystudio/ui', () => ({
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
     if (key === 'feature.paintings.default_provider') return ['zhipu', vi.fn()]
+    if (key === 'ui.launchpad.app_order') return [mocks.appOrder, mocks.setAppOrder]
     return [mocks.sidebarFavorites, mocks.setSidebarFavorites]
   }
 }))
@@ -159,8 +162,10 @@ describe('LaunchpadPage', () => {
     mocks.pinnedMiniApps = []
     mocks.openedMiniApps = []
     mocks.sidebarFavorites = [appFavorite('assistants')]
+    mocks.appOrder = []
     mocks.sortableCalls.length = 0
     mocks.setSidebarFavorites.mockResolvedValue(undefined)
+    mocks.setAppOrder.mockResolvedValue(undefined)
     mocks.reorderMiniAppsByStatus.mockResolvedValue(undefined)
   })
 
@@ -206,8 +211,10 @@ describe('LaunchpadPage', () => {
     )
   })
 
-  it('renders fixed sidebar apps first and unpinned apps in default order', () => {
-    mocks.sidebarFavorites = [appFavorite('translate'), appFavorite('assistants'), appFavorite('agents')]
+  it('orders app tiles by the launchpad app order, appending the rest canonically', () => {
+    // Launchpad app order is independent of the sidebar favorites order.
+    mocks.appOrder = ['translate', 'assistants', 'agents']
+    mocks.sidebarFavorites = [appFavorite('assistants')]
 
     render(<LaunchpadPage />)
 
@@ -233,22 +240,28 @@ describe('LaunchpadPage', () => {
     expect(appLabels.slice(0, 4)).toEqual(['Translate', 'Chat', 'Agent', 'Paintings'])
   })
 
-  it('sorts fixed sidebar apps and persists the new order', () => {
-    mocks.sidebarFavorites = [appFavorite('translate'), appFavorite('assistants'), appFavorite('agents')]
+  it('sorts every app tile and persists to the launchpad app order, not the sidebar favorites', () => {
+    mocks.appOrder = ['translate', 'assistants', 'agents']
 
     render(<LaunchpadPage />)
 
     const systemSortable = mocks.sortableCalls.find((call) => call.itemKey === 'id')
 
-    expect(systemSortable.items.map((item: { id: string }) => item.id)).toEqual(['translate', 'assistants', 'agents'])
-
-    systemSortable.onSortEnd({ oldIndex: 0, newIndex: 2 })
-
-    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([
-      appFavorite('assistants'),
-      appFavorite('agents'),
-      appFavorite('translate')
+    // Every renderable app is in a single sortable (stored order first, canonical rest).
+    expect(systemSortable.items.map((item: { id: string }) => item.id).slice(0, 3)).toEqual([
+      'translate',
+      'assistants',
+      'agents'
     ])
+
+    act(() => {
+      systemSortable.onSortEnd({ oldIndex: 0, newIndex: 2 })
+    })
+
+    const [persisted] = mocks.setAppOrder.mock.calls.at(-1) as unknown as [SidebarAppId[]]
+    expect(persisted.slice(0, 3)).toEqual(['assistants', 'agents', 'translate'])
+    expect(persisted).toHaveLength(systemSortable.items.length)
+    expect(mocks.setSidebarFavorites).not.toHaveBeenCalled()
   })
 
   it('navigates apps inside the current launchpad tab', async () => {
@@ -294,7 +307,7 @@ describe('LaunchpadPage', () => {
     expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/mini-app/calculator' })
   })
 
-  it('sorts only sidebar-favorite mini apps and persists to favorites without touching order keys', () => {
+  it('sorts every pinned mini app by order key and persists to order keys, not favorites', () => {
     const calculator = {
       appId: 'calculator',
       name: 'Calculator',
@@ -313,8 +326,9 @@ describe('LaunchpadPage', () => {
       status: 'pinned',
       orderKey: 'b'
     }
-    mocks.pinnedMiniApps = [calculator, docs]
-    mocks.sidebarFavorites = [appFavorite('assistants'), miniAppFavorite('calculator'), miniAppFavorite('docs')]
+    // Order-key order is 'a' < 'b', regardless of the array order passed in.
+    mocks.pinnedMiniApps = [docs, calculator]
+    mocks.sidebarFavorites = [appFavorite('assistants')]
 
     render(<LaunchpadPage />)
 
@@ -326,17 +340,16 @@ describe('LaunchpadPage', () => {
       miniAppSortable.onSortEnd({ oldIndex: 0, newIndex: 1 })
     })
 
-    // The launchpad persists mini app order to the favorites list, mirroring the
-    // apps section, and never writes the shared mini app order key.
-    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([
-      appFavorite('assistants'),
-      miniAppFavorite('docs'),
-      miniAppFavorite('calculator')
+    // The launchpad persists mini app order to the shared order key (independent of
+    // the sidebar favorites), never writing `ui.sidebar.favorites`.
+    expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledWith('pinned', [
+      expect.objectContaining({ appId: 'docs' }),
+      expect.objectContaining({ appId: 'calculator' })
     ])
-    expect(mocks.reorderMiniAppsByStatus).not.toHaveBeenCalled()
+    expect(mocks.setSidebarFavorites).not.toHaveBeenCalled()
   })
 
-  it('makes only sidebar-favorite mini apps sortable, showing the rest statically', () => {
+  it('holds the dropped mini app order optimistically before the data refetches', () => {
     const calculator = {
       appId: 'calculator',
       name: 'Calculator',
@@ -355,7 +368,42 @@ describe('LaunchpadPage', () => {
       status: 'pinned',
       orderKey: 'b'
     }
-    // Only calculator is pinned to the sidebar; docs is launchpad-pinned only.
+    mocks.pinnedMiniApps = [calculator, docs]
+
+    render(<LaunchpadPage />)
+
+    act(() => {
+      const miniAppSortable = mocks.sortableCalls.find((call) => call.itemKey === 'appId')
+      miniAppSortable.onSortEnd({ oldIndex: 0, newIndex: 1 })
+    })
+
+    // Upstream `pinned` has NOT changed (no refetch yet); the sortable still shows
+    // the dropped order from local optimistic state, so the tile never snaps back.
+    const latestMiniAppSortable = mocks.sortableCalls.filter((call) => call.itemKey === 'appId').at(-1)
+    expect(latestMiniAppSortable.items.map((app: { appId: string }) => app.appId)).toEqual(['docs', 'calculator'])
+  })
+
+  it('makes every pinned mini app sortable regardless of sidebar favorites', () => {
+    const calculator = {
+      appId: 'calculator',
+      name: 'Calculator',
+      logo: 'calc-logo',
+      url: 'https://example.com',
+      presetMiniAppId: 'calculator',
+      status: 'pinned',
+      orderKey: 'a'
+    }
+    const docs = {
+      appId: 'docs',
+      name: 'Docs',
+      logo: 'docs-logo',
+      url: 'https://docs.example.com',
+      presetMiniAppId: 'docs',
+      status: 'pinned',
+      orderKey: 'b'
+    }
+    // Only calculator is pinned to the sidebar; docs is launchpad-pinned only —
+    // both are still sortable in the launchpad.
     mocks.pinnedMiniApps = [calculator, docs]
     mocks.sidebarFavorites = [appFavorite('assistants'), miniAppFavorite('calculator')]
 
@@ -363,8 +411,7 @@ describe('LaunchpadPage', () => {
 
     const miniAppSortable = mocks.sortableCalls.find((call) => call.itemKey === 'appId')
 
-    // Sortable holds only the sidebar-favorite mini app; the rest render statically.
-    expect(miniAppSortable.items.map((app: { appId: string }) => app.appId)).toEqual(['calculator'])
+    expect(miniAppSortable.items.map((app: { appId: string }) => app.appId)).toEqual(['calculator', 'docs'])
     expect(screen.getByRole('button', { name: 'Calculator' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Docs' })).toBeInTheDocument()
   })
@@ -395,8 +442,7 @@ describe('LaunchpadPage', () => {
 
     render(<LaunchpadPage />)
 
-    // calculator is launchpad-pinned but not a sidebar favorite, so it renders
-    // in the static region rather than the sortable one.
+    // Launchpad membership is driven by pinned status, not by what is merely opened.
     expect(screen.getByRole('button', { name: 'Calculator' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Scratch' })).not.toBeInTheDocument()
   })

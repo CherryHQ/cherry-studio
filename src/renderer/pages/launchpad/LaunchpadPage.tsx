@@ -5,14 +5,15 @@ import { SIDEBAR_ICON_COMPONENTS } from '@renderer/components/app/sidebarIcons'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import App from '@renderer/components/MiniApp/MiniApp'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useLaunchpadAppOrder } from '@renderer/hooks/useLaunchpadAppOrder'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
-import { getSidebarMenuPath, REQUIRED_SIDEBAR_FAVORITES, SIDEBAR_FAVORITE_ORDER } from '@renderer/utils/sidebar'
+import { getSidebarMenuPath, REQUIRED_SIDEBAR_FAVORITES } from '@renderer/utils/sidebar'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { useNavigate } from '@tanstack/react-router'
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const BASE_URL = 'https://www.cherry-ai.com/'
@@ -40,16 +41,13 @@ export default function LaunchpadPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
-  const { pinned } = useMiniApps()
-  const { appFavorites, miniAppFavoriteIds, setAppPinned, reorderApps, reorderMiniApps } = useSidebarFavorites()
+  const { pinned, reorderMiniAppsByStatus } = useMiniApps()
+  const { appFavorites, setAppPinned } = useSidebarFavorites()
+  const { orderedAppIds, reorderApps } = useLaunchpadAppOrder()
   const suppressClickUntilRef = useRef(0)
   const draggedItemIdRef = useRef<string | null>(null)
 
-  const orderedVisibleSidebarFavorites = appFavorites
-  const visibleSidebarFavoriteSet = useMemo(
-    () => new Set(orderedVisibleSidebarFavorites),
-    [orderedVisibleSidebarFavorites]
-  )
+  const visibleSidebarFavoriteSet = useMemo(() => new Set(appFavorites), [appFavorites])
 
   const handleSortableDragStart = useCallback((event: { active: { id: string | number } }) => {
     draggedItemIdRef.current = String(event.active.id)
@@ -133,74 +131,66 @@ export default function LaunchpadPage() {
     [pinToSidebar, t, unpinFromSidebar, visibleSidebarFavoriteSet]
   )
 
-  const appMenuItems = useMemo(() => {
-    const orderedVisibleFavoriteSet = new Set(orderedVisibleSidebarFavorites)
-    const orderedFavorites = [
-      ...orderedVisibleSidebarFavorites,
-      ...SIDEBAR_FAVORITE_ORDER.filter((favorite) => !orderedVisibleFavoriteSet.has(favorite))
-    ]
-
-    return orderedFavorites.flatMap((favorite) => {
-      const Icon = SIDEBAR_ICON_COMPONENTS[favorite]
-      if (!Icon || !getSidebarMenuPath(favorite, defaultPaintingProvider)) return []
-
-      return [
-        {
-          id: favorite,
-          icon: <Icon size={32} />,
-          text: t(getSidebarIconLabelKey(favorite)),
-          bgColor: APP_ICON_BACKGROUNDS[favorite],
-          menuItems: getAppContextMenuItems(favorite)
-        }
-      ]
-    })
-  }, [defaultPaintingProvider, getAppContextMenuItems, orderedVisibleSidebarFavorites, t])
-
-  const pinnedAppMenuItems = useMemo(
-    () => appMenuItems.filter((item) => visibleSidebarFavoriteSet.has(item.id)),
-    [appMenuItems, visibleSidebarFavoriteSet]
-  )
-  const unpinnedAppMenuItems = useMemo(
-    () => appMenuItems.filter((item) => !visibleSidebarFavoriteSet.has(item.id)),
-    [appMenuItems, visibleSidebarFavoriteSet]
-  )
-
-  // Mirror the apps section: only mini apps that are pinned to the sidebar are
-  // drag-sortable (ordered by `ui.sidebar.favorites`); the remaining launchpad-
-  // pinned mini apps render after them, static. Reordering persists purely to the
-  // favorites list — the launchpad never touches the mini-app order keys.
-  const pinnedByAppId = useMemo(() => new Map(pinned.map((app) => [app.appId, app])), [pinned])
-  const sidebarFavoriteMiniAppSet = useMemo(() => new Set(miniAppFavoriteIds), [miniAppFavoriteIds])
-
-  const sortableMiniApps = useMemo(
+  // Built-in app tiles are ordered by the launchpad's own preference
+  // (`ui.launchpad.app_order`), independent of the sidebar favorites order.
+  // Every renderable app is drag-sortable in one grid.
+  const appMenuItems = useMemo(
     () =>
-      miniAppFavoriteIds.flatMap((appId) => {
-        const app = pinnedByAppId.get(appId)
-        return app ? [app] : []
+      orderedAppIds.flatMap((favorite) => {
+        const Icon = SIDEBAR_ICON_COMPONENTS[favorite]
+        if (!Icon || !getSidebarMenuPath(favorite, defaultPaintingProvider)) return []
+
+        return [
+          {
+            id: favorite,
+            icon: <Icon size={32} />,
+            text: t(getSidebarIconLabelKey(favorite)),
+            bgColor: APP_ICON_BACKGROUNDS[favorite],
+            menuItems: getAppContextMenuItems(favorite)
+          }
+        ]
       }),
-    [miniAppFavoriteIds, pinnedByAppId]
-  )
-  const staticMiniApps = useMemo(
-    () => pinned.filter((app) => !sidebarFavoriteMiniAppSet.has(app.appId)),
-    [pinned, sidebarFavoriteMiniAppSet]
+    [defaultPaintingProvider, getAppContextMenuItems, orderedAppIds, t]
   )
 
-  const launchpadMiniAppsVisible = pinned.length > 0
+  // Mini app tiles are ordered by their global `orderKey` (shared with the mini
+  // app settings page), independent of the sidebar favorites. Every pinned mini
+  // app is drag-sortable in one grid; reordering persists purely to `orderKey`.
+  const sortedMiniApps = useMemo(
+    () => [...pinned].sort((a, b) => (a.orderKey < b.orderKey ? -1 : a.orderKey > b.orderKey ? 1 : 0)),
+    [pinned]
+  )
 
-  const handleSidebarAppsSortEnd = useCallback(
+  // Hold the drop result in local optimistic state so the Sortable keeps the tile
+  // at its dropped slot while the async order-key write settles. Without this the
+  // tile snaps back to its old position for one render — before the reordered
+  // `/mini-apps` cache lands — and then jumps forward, a visible flashback. The
+  // resync only replaces the list when the order actually differs, preserving the
+  // reference on a no-op so Sortable never re-layouts mid drop-animation.
+  const [orderedMiniApps, setOrderedMiniApps] = useState(sortedMiniApps)
+  useEffect(() => {
+    setOrderedMiniApps((prev) => (sameMiniAppOrder(prev, sortedMiniApps) ? prev : sortedMiniApps))
+  }, [sortedMiniApps])
+
+  const launchpadMiniAppsVisible = orderedMiniApps.length > 0
+
+  const handleAppsSortEnd = useCallback(
     ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
-      const nextItems = arrayMove(pinnedAppMenuItems, oldIndex, newIndex)
+      const nextItems = arrayMove(appMenuItems, oldIndex, newIndex)
       reorderApps(nextItems.map((item) => item.id))
     },
-    [pinnedAppMenuItems, reorderApps]
+    [appMenuItems, reorderApps]
   )
 
-  const handleSidebarMiniAppsSortEnd = useCallback(
+  const handleMiniAppsSortEnd = useCallback(
     ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
-      const nextItems = arrayMove(sortableMiniApps, oldIndex, newIndex)
-      reorderMiniApps(nextItems.map((app) => app.appId))
+      const nextItems = arrayMove(orderedMiniApps, oldIndex, newIndex)
+      setOrderedMiniApps(nextItems)
+      reorderMiniAppsByStatus('pinned', nextItems).catch(() => {
+        window.toast?.error(t('miniApp.reorder_failed'))
+      })
     },
-    [sortableMiniApps, reorderMiniApps]
+    [orderedMiniApps, reorderMiniAppsByStatus, t]
   )
 
   const renderAppMenuItem = (item: (typeof appMenuItems)[number]) => (
@@ -241,17 +231,16 @@ export default function LaunchpadPage() {
             </h2>
             <div className={LAUNCHPAD_GRID_CLASS}>
               <Sortable
-                items={pinnedAppMenuItems}
+                items={appMenuItems}
                 itemKey="id"
                 layout="grid"
                 listStyle={SORTABLE_CONTENTS_STYLE}
                 onDragStart={handleSortableDragStart}
                 onDragEnd={handleSortableDragSettled}
                 onDragCancel={handleSortableDragSettled}
-                onSortEnd={handleSidebarAppsSortEnd}
+                onSortEnd={handleAppsSortEnd}
                 renderItem={(item) => renderAppMenuItem(item)}
               />
-              {unpinnedAppMenuItems.map(renderAppMenuItem)}
             </div>
           </section>
 
@@ -262,17 +251,16 @@ export default function LaunchpadPage() {
               </h2>
               <div className={LAUNCHPAD_GRID_CLASS}>
                 <Sortable
-                  items={sortableMiniApps}
+                  items={orderedMiniApps}
                   itemKey="appId"
                   layout="grid"
                   listStyle={SORTABLE_CONTENTS_STYLE}
                   onDragStart={handleSortableDragStart}
                   onDragEnd={handleSortableDragSettled}
                   onDragCancel={handleSortableDragSettled}
-                  onSortEnd={handleSidebarMiniAppsSortEnd}
+                  onSortEnd={handleMiniAppsSortEnd}
                   renderItem={(app) => renderMiniAppItem(app)}
                 />
-                {staticMiniApps.map(renderMiniAppItem)}
               </div>
             </section>
           )}
@@ -280,4 +268,13 @@ export default function LaunchpadPage() {
       </Scrollbar>
     </div>
   )
+}
+
+/** Same pinned mini apps in the same order (membership + sequence, by appId). */
+function sameMiniAppOrder(a: MiniAppType[], b: MiniAppType[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].appId !== b[i].appId) return false
+  }
+  return true
 }

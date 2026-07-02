@@ -4,15 +4,15 @@ import { Library } from 'lucide-react'
 import { describe, expect, it } from 'vitest'
 
 import {
+  getOrderedLaunchpadApps,
   getOrderedVisibleSidebarFavoriteItems,
   getOrderedVisibleSidebarFavorites,
   getSidebarFavoriteItems,
   getSidebarMenuPath,
   getSidebarMiniAppFavoriteIds,
   removeSidebarMiniApp,
-  reorderSidebarApps,
+  reorderLaunchpadApps,
   reorderSidebarFavorites,
-  reorderSidebarMiniApps,
   resolveSidebarActiveItem,
   setSidebarAppPinned,
   SIDEBAR_FAVORITE_ORDER,
@@ -154,26 +154,6 @@ describe('sidebar favorites mutations', () => {
     ])
   })
 
-  it('reorders the app zone and keeps mini apps after it', () => {
-    expect(
-      reorderSidebarApps(
-        [appFavorite('assistants'), appFavorite('knowledge'), appFavorite('files'), miniAppFavorite('calculator')],
-        ['files', 'assistants', 'knowledge']
-      )
-    ).toEqual([
-      appFavorite('files'),
-      appFavorite('assistants'),
-      appFavorite('knowledge'),
-      miniAppFavorite('calculator')
-    ])
-  })
-
-  it('keeps visible apps missing from a partial reorder at the end', () => {
-    expect(
-      reorderSidebarApps([appFavorite('assistants'), appFavorite('knowledge'), appFavorite('files')], ['files'])
-    ).toEqual([appFavorite('files'), appFavorite('assistants'), appFavorite('knowledge')])
-  })
-
   it('toggles a mini app on and off, preserving apps', () => {
     const added = toggleSidebarMiniApp([appFavorite('assistants'), miniAppFavorite('calculator')], 'weather')
     expect(added).toEqual([appFavorite('assistants'), miniAppFavorite('calculator'), miniAppFavorite('weather')])
@@ -187,52 +167,6 @@ describe('sidebar favorites mutations', () => {
         'calculator'
       )
     ).toEqual([appFavorite('assistants'), miniAppFavorite('weather')])
-  })
-
-  it('reorders the mini app zone and keeps apps before it', () => {
-    expect(
-      reorderSidebarMiniApps(
-        [appFavorite('assistants'), miniAppFavorite('calculator'), miniAppFavorite('weather')],
-        ['weather', 'calculator']
-      )
-    ).toEqual([appFavorite('assistants'), miniAppFavorite('weather'), miniAppFavorite('calculator')])
-  })
-
-  it('keeps mini apps missing from a partial reorder at the end', () => {
-    expect(
-      reorderSidebarMiniApps(
-        [
-          appFavorite('assistants'),
-          miniAppFavorite('calculator'),
-          miniAppFavorite('weather'),
-          miniAppFavorite('stale')
-        ],
-        ['weather', 'calculator']
-      )
-    ).toEqual([
-      appFavorite('assistants'),
-      miniAppFavorite('weather'),
-      miniAppFavorite('calculator'),
-      miniAppFavorite('stale')
-    ])
-  })
-
-  it('reordering apps leaves interleaved mini apps in their slots', () => {
-    expect(
-      reorderSidebarApps(
-        [appFavorite('assistants'), miniAppFavorite('calculator'), appFavorite('knowledge')],
-        ['knowledge', 'assistants']
-      )
-    ).toEqual([appFavorite('knowledge'), miniAppFavorite('calculator'), appFavorite('assistants')])
-  })
-
-  it('reordering mini apps leaves interleaved apps in their slots', () => {
-    expect(
-      reorderSidebarMiniApps(
-        [miniAppFavorite('calculator'), appFavorite('assistants'), miniAppFavorite('weather')],
-        ['weather', 'calculator']
-      )
-    ).toEqual([miniAppFavorite('weather'), appFavorite('assistants'), miniAppFavorite('calculator')])
   })
 })
 
@@ -262,5 +196,38 @@ describe('reorderSidebarFavorites (mixed cross-type reorder)', () => {
         [miniAppFavorite('ghost'), miniAppFavorite('calculator'), appFavorite('assistants')]
       )
     ).toEqual([miniAppFavorite('calculator'), appFavorite('assistants')])
+  })
+})
+
+describe('launchpad app order (independent from sidebar favorites)', () => {
+  it('falls back to the canonical order when the store is empty', () => {
+    expect(getOrderedLaunchpadApps(undefined)).toEqual(SIDEBAR_FAVORITE_ORDER)
+    expect(getOrderedLaunchpadApps([])).toEqual(SIDEBAR_FAVORITE_ORDER)
+  })
+
+  it('keeps the stored order first and appends missing apps in canonical order', () => {
+    const ordered = getOrderedLaunchpadApps(['files', 'assistants'])
+    expect(ordered.slice(0, 2)).toEqual(['files', 'assistants'])
+    expect([...ordered].sort()).toEqual([...SIDEBAR_FAVORITE_ORDER].sort())
+    expect(new Set(ordered).size).toBe(ordered.length)
+  })
+
+  it('drops unknown and duplicate stored ids', () => {
+    const ordered = getOrderedLaunchpadApps(['files', 'ghost', 'files', 'assistants'])
+    expect(ordered.slice(0, 2)).toEqual(['files', 'assistants'])
+    expect(ordered).not.toContain('ghost')
+    expect(new Set(ordered).size).toBe(ordered.length)
+  })
+
+  it('reorders to the requested order and keeps missing apps at the end', () => {
+    const next = reorderLaunchpadApps(['assistants', 'agents', 'files'], ['files', 'assistants', 'agents'])
+    expect(next.slice(0, 3)).toEqual(['files', 'assistants', 'agents'])
+    expect([...next].sort()).toEqual([...SIDEBAR_FAVORITE_ORDER].sort())
+  })
+
+  it('drops unknown ids from a requested reorder', () => {
+    const next = reorderLaunchpadApps(['assistants', 'agents'], ['ghost', 'agents', 'assistants'])
+    expect(next.slice(0, 2)).toEqual(['agents', 'assistants'])
+    expect(next).not.toContain('ghost')
   })
 })

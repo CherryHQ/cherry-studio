@@ -347,36 +347,6 @@ export function setSidebarAppPinned(
   return [...items, createSidebarAppFavorite(id)]
 }
 
-/**
- * Reorder the app subsequence to `orderedAppIds`, leaving mini apps in place.
- * App slots keep their positions in the list; only the app ids filling them are
- * permuted. Unknown ids are dropped and any visible app missing from the list is
- * kept at the end of the app order so a partial order never loses favorites.
- */
-export function reorderSidebarApps(
-  favorites: readonly SidebarFavoriteItem[] | undefined,
-  orderedAppIds: readonly string[]
-): SidebarFavoriteItem[] {
-  const items = getOrderedVisibleSidebarFavoriteItems(favorites)
-  const currentAppIds = items.flatMap((item) => (item.type === 'app' ? [item.id] : []))
-  const currentSet = new Set(currentAppIds)
-  const seen = new Set<SidebarAppId>()
-  const nextAppIds: SidebarAppId[] = []
-
-  for (const id of orderedAppIds) {
-    if (isSidebarAppId(id) && currentSet.has(id) && !seen.has(id)) {
-      seen.add(id)
-      nextAppIds.push(id)
-    }
-  }
-  for (const id of currentAppIds) {
-    if (!seen.has(id)) nextAppIds.push(id)
-  }
-
-  let cursor = 0
-  return items.map((item) => (item.type === 'app' ? createSidebarAppFavorite(nextAppIds[cursor++]) : item))
-}
-
 /** Toggle a mini app favorite, preserving everything else. Adding appends to the end. */
 export function toggleSidebarMiniApp(
   favorites: readonly SidebarFavoriteItem[] | undefined,
@@ -399,32 +369,62 @@ export function removeSidebarMiniApp(
   )
 }
 
-/**
- * Reorder the mini app subsequence to `orderedIds`, leaving apps in place. Mini
- * app slots keep their positions; only the ids filling them are permuted. Mini
- * apps missing from the list (e.g. hidden ones still stored as favorites) are
- * kept at the end of the mini app order so a partial reorder never drops the rest.
- */
-export function reorderSidebarMiniApps(
-  favorites: readonly SidebarFavoriteItem[] | undefined,
-  orderedIds: readonly string[]
-): SidebarFavoriteItem[] {
-  const items = getOrderedVisibleSidebarFavoriteItems(favorites)
-  const currentIds = items.flatMap((item) => (item.type === 'mini_app' ? [item.id] : []))
-  const currentSet = new Set(currentIds)
-  const seen = new Set<string>()
-  const nextIds: string[] = []
+// --- Launchpad app order --------------------------------------------------
+//
+// The launchpad orders its built-in app tiles through its own preference
+// (`ui.launchpad.app_order`), completely independent of the sidebar favorites
+// order. Mini app tiles are ordered by their global `orderKey` instead, so the
+// launchpad never reads or writes `ui.sidebar.favorites`.
 
-  for (const id of orderedIds) {
-    if (currentSet.has(id) && !seen.has(id)) {
+/**
+ * The ordered launchpad app ids. Stored order is filtered to valid app ids and
+ * deduped; any app missing from storage (e.g. an empty default or a newly added
+ * app) is appended in canonical order, so a partial or empty store still yields
+ * every app exactly once.
+ */
+export function getOrderedLaunchpadApps(stored: readonly string[] | undefined): SidebarAppId[] {
+  const seen = new Set<SidebarAppId>()
+  const ordered: SidebarAppId[] = []
+
+  for (const id of stored ?? []) {
+    if (isSidebarAppId(id) && !seen.has(id)) {
       seen.add(id)
-      nextIds.push(id)
+      ordered.push(id)
     }
   }
-  for (const id of currentIds) {
-    if (!seen.has(id)) nextIds.push(id)
+  for (const id of SIDEBAR_FAVORITE_ORDER) {
+    if (!seen.has(id)) {
+      seen.add(id)
+      ordered.push(id)
+    }
   }
 
-  let cursor = 0
-  return items.map((item) => (item.type === 'mini_app' ? createSidebarMiniAppFavorite(nextIds[cursor++]) : item))
+  return ordered
+}
+
+/**
+ * Reorder the launchpad app list to `orderedIds` (typically the rendered tile
+ * order after a drag). Unknown ids are dropped and any app missing from the
+ * requested order is kept at the end so a partial order never loses apps.
+ */
+export function reorderLaunchpadApps(
+  stored: readonly string[] | undefined,
+  orderedIds: readonly string[]
+): SidebarAppId[] {
+  const current = getOrderedLaunchpadApps(stored)
+  const currentSet = new Set(current)
+  const seen = new Set<SidebarAppId>()
+  const next: SidebarAppId[] = []
+
+  for (const id of orderedIds) {
+    if (isSidebarAppId(id) && currentSet.has(id) && !seen.has(id)) {
+      seen.add(id)
+      next.push(id)
+    }
+  }
+  for (const id of current) {
+    if (!seen.has(id)) next.push(id)
+  }
+
+  return next
 }

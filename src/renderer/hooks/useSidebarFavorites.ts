@@ -5,9 +5,7 @@ import {
   getOrderedVisibleSidebarFavorites,
   getSidebarMiniAppFavoriteIds,
   removeSidebarMiniApp,
-  reorderSidebarApps,
   reorderSidebarFavorites,
-  reorderSidebarMiniApps,
   setSidebarAppPinned,
   toggleSidebarMiniApp
 } from '@renderer/utils/sidebar'
@@ -20,9 +18,12 @@ import { useTranslation } from 'react-i18next'
  *
  * `favorites` is the full ordered mixed list (apps and mini apps interleaved) the
  * sidebar renders and drag-reorders as one zone; `reorderFavorites` persists a new
- * mixed order. The partitioned `appFavorites` / `miniAppFavoriteIds` and their
- * per-type mutations remain for surfaces (launchpad, mini app menu) that manage a
- * single type. Every mutation goes through the mix-preserving helpers in
+ * mixed order. The partitioned `appFavorites` / `miniAppFavoriteIds` remain for
+ * surfaces (launchpad, mini app menu) that need to know a single type's membership
+ * (e.g. pin state), and `setAppPinned` / `toggleMiniApp` / `removeMiniApp` mutate
+ * membership. The launchpad owns its own tile ordering elsewhere (built-in apps via
+ * `ui.launchpad.app_order`, mini apps via `orderKey`), so favorites carries the
+ * sidebar order only. Every mutation goes through the mix-preserving helpers in
  * `utils/sidebar`, so components never touch the raw `type` tags.
  */
 export function useSidebarFavorites() {
@@ -46,16 +47,8 @@ export function useSidebarFavorites() {
     (id: SidebarAppId, pinned: boolean) => persist(setSidebarAppPinned(favorites, id, pinned)),
     [favorites, persist]
   )
-  const reorderApps = useCallback(
-    (orderedAppIds: readonly string[]) => persist(reorderSidebarApps(favorites, orderedAppIds)),
-    [favorites, persist]
-  )
   const toggleMiniApp = useCallback((id: string) => persist(toggleSidebarMiniApp(favorites, id)), [favorites, persist])
   const removeMiniApp = useCallback((id: string) => persist(removeSidebarMiniApp(favorites, id)), [favorites, persist])
-  const reorderMiniApps = useCallback(
-    (orderedIds: readonly string[]) => persist(reorderSidebarMiniApps(favorites, orderedIds)),
-    [favorites, persist]
-  )
   const reorderFavorites = useCallback(
     (orderedItems: readonly SidebarFavoriteItem[]) => persist(reorderSidebarFavorites(favorites, orderedItems)),
     [favorites, persist]
@@ -66,10 +59,8 @@ export function useSidebarFavorites() {
     appFavorites,
     miniAppFavoriteIds,
     setAppPinned,
-    reorderApps,
     reorderFavorites,
     toggleMiniApp,
-    removeMiniApp,
-    reorderMiniApps
+    removeMiniApp
   }
 }

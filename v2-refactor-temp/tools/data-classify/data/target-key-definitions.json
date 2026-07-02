@@ -131,6 +131,13 @@
       "description": "Left sidebar favorites, an ordered list of tagged items: built-in apps ({type:'app'}) and mini apps ({type:'mini_app'})"
     },
     {
+      "targetKey": "ui.launchpad.app_order",
+      "type": "PreferenceTypes.SidebarFavorite[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Launchpad built-in app tile order, independent from the sidebar favorites order (new v2 preference, no v1 source). Empty defaults to the canonical app order; unknown/missing apps are normalized at read time"
+    },
+    {
       "targetKey": "chat.default_model_id",
       "type": "string",
       "defaultValue": null,
