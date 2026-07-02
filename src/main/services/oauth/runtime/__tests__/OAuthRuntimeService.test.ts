@@ -146,6 +146,20 @@ describe('OAuthRuntimeService', () => {
     expect(stored?.isEnabled).toBeUndefined()
   })
 
+  // B1 race: a logout that lands while a refresh is in flight must win — the
+  // late refresh must not resurrect the session, and no token is handed out.
+  it('does not resurrect the session when a logout races an in-flight refresh', async () => {
+    seedOAuth('codex', { accessToken: 'old', refreshToken: 'r', expiresAt: PAST() })
+    h.refreshMock.mockImplementation(async () => {
+      // Simulate the user logging out during the token endpoint round-trip.
+      await service.logout('codex')
+      return { access_token: 'resurrected', refresh_token: 'r2', expires_in: 3600 }
+    })
+
+    expect(await service.getValidAccessToken('codex')).toBeNull()
+    expect(h.providerStore.get('codex')?.authConfig).toEqual({ type: 'api-key' })
+  })
+
   it('deduplicates concurrent refreshes', async () => {
     seedOAuth('codex', { accessToken: 'old', refreshToken: 'r', expiresAt: PAST() })
     h.refreshMock.mockResolvedValue({ access_token: 'new', refresh_token: 'r2', expires_in: 3600 })

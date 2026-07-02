@@ -16,9 +16,20 @@ export class ProviderAuthConfigOAuthTokenStore implements OAuthTokenStore {
     }
   }
 
-  async set(providerId: string, data: OAuthTokenStoreData, clientId: string): Promise<void> {
+  async set(
+    providerId: string,
+    data: OAuthTokenStoreData,
+    clientId: string,
+    options?: { requireExistingSession?: boolean }
+  ): Promise<void> {
     const current = providerService.getAuthConfig(providerId)
     const currentOAuth = current?.type === 'oauth' ? current : null
+    // Refresh path: bail if the session is no longer OAuth. The read above and
+    // the write below share one synchronous tick (no `await` between them), so
+    // a concurrent logout — which arrives as a separate macrotask — cannot
+    // interleave here; this check is atomic against it and stops a refresh that
+    // resolved after logout from writing the stale token back.
+    if (options?.requireExistingSession && !currentOAuth) return
     const authConfig: OAuthAuthConfig = {
       type: 'oauth',
       clientId: clientId || currentOAuth?.clientId || '',

@@ -19,7 +19,18 @@ export interface OAuthTokenStoreData {
 
 export interface OAuthTokenStore {
   get(providerId: string): Promise<OAuthTokenStoreData | null>
-  set(providerId: string, data: OAuthTokenStoreData, clientId: string): Promise<void>
+  /**
+   * Persist the OAuth session. `requireExistingSession` makes the write a no-op
+   * unless a live OAuth session is already stored — used by the refresh path so
+   * a network round-trip that resolves *after* a logout (or a switch to api-key)
+   * cannot resurrect the dead session with its now-stale token.
+   */
+  set(
+    providerId: string,
+    data: OAuthTokenStoreData,
+    clientId: string,
+    options?: { requireExistingSession?: boolean }
+  ): Promise<void>
   /**
    * Drop the stored OAuth tokens. `disableProvider` also flips the provider to
    * disabled — correct for providers whose only credential is the OAuth session

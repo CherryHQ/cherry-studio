@@ -111,7 +111,8 @@ export class OAuthRuntimeService extends BaseService {
 
   private async persistTokens(
     definition: OAuthRuntimeProviderDefinition,
-    tokenData: { access_token: string; refresh_token?: string; expires_in?: number }
+    tokenData: { access_token: string; refresh_token?: string; expires_in?: number },
+    options?: { requireExistingSession?: boolean }
   ): Promise<void> {
     const current = await this.tokenStore.get(definition.providerId)
     const accountId = definition.extractAccountId?.(tokenData.access_token) ?? current?.accountId
@@ -123,7 +124,8 @@ export class OAuthRuntimeService extends BaseService {
         expiresAt: tokenData.expires_in ? Date.now() + tokenData.expires_in * 1000 : undefined,
         ...(accountId ? { accountId } : {})
       },
-      definition.clientId
+      definition.clientId,
+      options
     )
   }
 
@@ -266,8 +268,12 @@ export class OAuthRuntimeService extends BaseService {
       return null
     }
 
+    // Read back from the store rather than trusting `result.accessToken`: if a
+    // logout cleared the session while this refresh was in flight, persistTokens
+    // skipped the write and there is no live token to hand out.
     const refreshed = await this.tokenStore.get(providerId)
-    return { accessToken: result.accessToken, accountId: refreshed?.accountId ?? null }
+    if (!refreshed?.accessToken) return null
+    return { accessToken: refreshed.accessToken, accountId: refreshed.accountId ?? null }
   }
 
   /**
@@ -345,7 +351,7 @@ export class OAuthRuntimeService extends BaseService {
     try {
       const client = await definition.createClient(context)
       const tokenData = await client.refresh(refreshToken)
-      await this.persistTokens(definition, tokenData)
+      await this.persistTokens(definition, tokenData, { requireExistingSession: true })
       return { status: 'ok', accessToken: tokenData.access_token }
     } catch (error) {
       this.logger.error(`Failed to refresh ${definition.providerId} token`, describeOAuthError(error))
