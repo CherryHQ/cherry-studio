@@ -72,6 +72,23 @@ describe('resolveWorkspaceFile', () => {
     })
   })
 
+  it('rejects a sibling directory that shares the workspace path as a prefix', async () => {
+    // `${workspace}-evil` starts with the workspace path but is NOT inside it; the
+    // `realRoot + path.sep` boundary is what stops a naive startsWith from matching it.
+    const evilDir = `${workspace}-evil`
+    await mkdir(evilDir)
+    const evilFile = path.join(evilDir, 'secret.txt')
+    await writeFile(evilFile, 'top secret')
+
+    try {
+      await expect(resolveWorkspaceFile(workspace, evilFile)).rejects.toMatchObject({
+        reason: 'outside-workspace'
+      })
+    } finally {
+      await rm(evilDir, { recursive: true, force: true })
+    }
+  })
+
   it('rejects a symlink that points outside the workspace', async () => {
     await writeFile(path.join(outside, 'secret.txt'), 'top secret')
     await symlink(path.join(outside, 'secret.txt'), path.join(workspace, 'link.txt'))

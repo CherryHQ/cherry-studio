@@ -41,12 +41,23 @@ function mimeForFilename(filename: string): string {
  *
  * This is defense-in-depth against traversal mistakes and prompt injection picking a
  * wrong path — not a sandbox against an agent with code execution (which can already
- * read arbitrary files and exfiltrate them as message text). See the #16566 plan, D2.
+ * read arbitrary files and exfiltrate them as message text). See #16566.
  */
 export async function resolveWorkspaceFile(workspaceRoot: string, userPath: string): Promise<FileAttachment> {
   const requested = path.resolve(workspaceRoot, userPath)
 
-  const realRoot = await realpath(workspaceRoot)
+  let realRoot: string
+  try {
+    realRoot = await realpath(workspaceRoot)
+  } catch (error) {
+    // The root is a caller invariant, but if the session workspace is gone a bare ENOENT
+    // naming the root reads like "your file_path is wrong" — wrap it so the agent doesn't
+    // waste retries on other paths.
+    if (isErrnoException(error) && (error.code === 'ENOENT' || error.code === 'ENOTDIR')) {
+      throw new WorkspaceFileError('not-found', `Session workspace is unavailable: ${workspaceRoot}`)
+    }
+    throw error
+  }
 
   let realTarget: string
   try {
@@ -101,6 +112,7 @@ export async function resolveWorkspaceFile(workspaceRoot: string, userPath: stri
       size: buffer.length
     }
   } finally {
-    await fd.close()
+    // Swallow close errors so they can't mask an in-flight WorkspaceFileError.
+    await fd.close().catch(() => {})
   }
 }
