@@ -50,6 +50,32 @@ jobs:
               - 'vitest.config.ts'
               - 'patches/**'
 
+  catalog-hand-edit-check:
+    # provider-registry data/*.json are GENERATED from src/labs + src/provider. Catch a hand-edit:
+    # if the data changed but no source under src/ or scripts/ did, the JSON was edited directly.
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v6
+
+      - name: Detect provider-registry changes
+        id: filter
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            data:
+              - 'packages/provider-registry/data/**'
+            source:
+              - 'packages/provider-registry/src/**'
+              - 'packages/provider-registry/scripts/**'
+
+      - name: Reject hand-edited catalog
+        if: steps.filter.outputs.data == 'true' && steps.filter.outputs.source == 'false'
+        run: |
+          echo "::error::packages/provider-registry/data/*.json changed but no src/ or scripts/ change — that's a hand-edit. The data files are generated: edit src/labs|src/provider and run \`pnpm --filter @cherrystudio/provider-registry generate\`, then commit. Never hand-edit data/*.json."
+          exit 1
+
   changeset-check:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && github.head_ref != 'changeset-release/main'

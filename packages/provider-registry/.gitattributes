@@ -1,0 +1,5 @@
+# Generated artifacts — produced by `pnpm generate` from src/labs + src/provider.
+# Never hand-edit; collapse them in PR diffs.
+data/models.json          linguist-generated=true
+data/providers.json       linguist-generated=true
+data/provider-models.json linguist-generated=true
