@@ -35,6 +35,7 @@ import MessageAttachments from '../frame/MessageAttachments'
 import MessageVideo from '../frame/MessageVideo'
 import { useMessageRenderConfig } from '../MessageListProvider'
 import { isReportArtifactsToolResponse, MessageReportArtifacts } from '../tools/agent/ReportArtifacts'
+import { isAskUserQuestionToolName } from '../tools/agent/types'
 import MessageTools, { canRenderMessageTool } from '../tools/MessageTools'
 import { hasPartParentToolCallId } from '../tools/toolParentMetadata'
 import { buildToolResponseFromPart, type ToolRenderItem } from '../tools/toolResponse'
@@ -278,9 +279,14 @@ function isCompletedReasoningMessagePart(part: CherryMessagePart): boolean {
   return isReasoningMessagePart(part) && (part as ReasoningUIPart).state !== 'streaming'
 }
 
+function isFoldableToolPart(part: CherryMessagePart): boolean {
+  if (!isToolUIPart(part)) return false
+  return !isAskUserQuestionToolName((part as { toolName?: string }).toolName)
+}
+
 function hasUnfinishedToolCall(entries: readonly PartEntry[]): boolean {
   return entries.some(({ part }) => {
-    if (!isToolUIPart(part)) return false
+    if (!isFoldableToolPart(part)) return false
     const state = (part as { state?: string }).state
     return !state || !TERMINAL_TOOL_STATES.has(state)
   })
@@ -316,7 +322,7 @@ function getTrailingResultHoldKey(entries: readonly PartEntry[]): string | null 
   let lastToolEntry: PartEntry | undefined
   let lastToolPosition = -1
   for (let position = entries.length - 1; position >= 0; position--) {
-    if (isToolUIPart(entries[position].part)) {
+    if (isFoldableToolPart(entries[position].part)) {
       lastToolEntry = entries[position]
       lastToolPosition = position
       break
@@ -350,7 +356,7 @@ function isResultPart(part: CherryMessagePart): boolean {
 function isProcessPart(part: CherryMessagePart): boolean {
   const partType = part.type as string
   return (
-    isToolUIPart(part) ||
+    isFoldableToolPart(part) ||
     partType === 'reasoning' ||
     partType === 'step-start' ||
     partType === 'source-url' ||
@@ -708,7 +714,7 @@ function getToolHistoryGroup(
 
   let lastToolIndex = -1
   for (let index = entries.length - 1; index >= 0; index--) {
-    if (isToolUIPart(entries[index].part)) {
+    if (isFoldableToolPart(entries[index].part)) {
       lastToolIndex = index
       break
     }
@@ -722,16 +728,13 @@ function getToolHistoryGroup(
   }
 
   const hasUnfinishedTools = hasUnfinishedToolCall(entries.slice(0, collapsedEnd + 1))
-  if (hasUnfinishedTools || shouldHoldTrailingResult) {
-    let activeCollapsedEnd = entries.length - 1
-    while (
-      !shouldHoldTrailingResult &&
-      activeCollapsedEnd > lastToolIndex &&
-      isResultPart(entries[activeCollapsedEnd].part)
-    ) {
-      activeCollapsedEnd--
+  if (shouldHoldTrailingResult) {
+    collapsedEnd = entries.length - 1
+  } else if (hasUnfinishedTools) {
+    for (let index = lastToolIndex + 1; index < entries.length; index++) {
+      if (!isProcessPart(entries[index].part)) break
+      collapsedEnd = index
     }
-    collapsedEnd = Math.max(collapsedEnd, activeCollapsedEnd)
   }
 
   const collapsedEntries = entries.slice(0, collapsedEnd + 1)
@@ -760,7 +763,7 @@ function getToolHistoryGroup(
 function hasStreamingReasoningAfterLastTool(entries: readonly PartEntry[]): boolean {
   for (let index = entries.length - 1; index >= 0; index--) {
     const { part } = entries[index]
-    if (isToolUIPart(part)) return false
+    if (isFoldableToolPart(part)) return false
     if ((part.type as string) === 'reasoning' && (part as ReasoningUIPart).state === 'streaming') return true
   }
   return false
@@ -870,7 +873,7 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
   const triggerClassName = [
     !showLiveProgress && '-ml-0.5',
     'flex min-h-7',
-    isExpanded ? 'w-full' : 'w-fit',
+    'w-full',
     'items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2'
   ]
     .filter(Boolean)
@@ -895,28 +898,35 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
         />
       </button>
       <div aria-hidden="true" data-testid="tool-history-divider" className="my-1.5 h-px w-full bg-border-subtle" />
-      {showPreview && (
-        <div
-          data-testid="tool-history-preview"
-          className="group/preview relative h-[6.5rem] w-full overflow-hidden rounded-lg bg-background-subtle">
-          <button
-            type="button"
-            aria-label={t('common.close')}
-            className="absolute top-1.5 right-1.5 z-10 flex size-5 items-center justify-center rounded-full bg-background/80 text-muted-foreground opacity-0 transition-opacity hover:bg-background hover:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-1 group-hover/preview:opacity-100 group-focus-within/preview:opacity-100"
-            onClick={(event) => {
-              event.stopPropagation()
-              setPreviewDismissed(true)
-            }}>
-            <X aria-hidden="true" size={13} strokeWidth={1.8} />
-          </button>
-          <div
-            ref={previewRef}
-            aria-hidden="true"
-            className="pointer-events-none flex h-full w-full flex-col gap-0 overflow-y-auto px-2.5 py-1.5 pr-7 [scrollbar-width:thin] [&>.block-wrapper:empty]:hidden [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0! [&_.message-thought-container]:leading-5! [&_.tool-block-group-content]:gap-0! [&_button]:min-h-6! [&_button]:py-0! [&_[role='button']]:min-h-6! [&_[role='button']]:py-0!">
-            {previewEntries.map((entry) => renderGroupedEntry(entry, message, false, false))}
-          </div>
-        </div>
-      )}
+      <AnimatePresence initial={false}>
+        {showPreview && (
+          <motion.div
+            key="tool-history-preview"
+            data-testid="tool-history-preview"
+            className="group/preview relative h-[6.5rem] w-full overflow-hidden rounded-lg bg-background-subtle"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: '6.5rem', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}>
+            <button
+              type="button"
+              aria-label={t('common.close')}
+              className="absolute top-1.5 right-1.5 z-10 flex size-5 items-center justify-center rounded-full bg-background/80 text-muted-foreground opacity-0 transition-opacity hover:bg-background hover:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-1 group-hover/preview:opacity-100 group-focus-within/preview:opacity-100"
+              onClick={(event) => {
+                event.stopPropagation()
+                setPreviewDismissed(true)
+              }}>
+              <X aria-hidden="true" size={13} strokeWidth={1.8} />
+            </button>
+            <div
+              ref={previewRef}
+              aria-hidden="true"
+              className="pointer-events-none flex h-full w-full flex-col gap-0 overflow-y-auto px-2.5 py-1.5 pr-7 [scrollbar-width:thin] [&>.block-wrapper:empty]:hidden [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0! [&_.message-thought-container]:leading-5! [&_.tool-block-group-content]:gap-0! [&_button]:min-h-6! [&_button]:py-0! [&_[role='button']]:min-h-6! [&_[role='button']]:py-0!">
+              {previewEntries.map((entry) => renderGroupedEntry(entry, message, false, false))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {isExpanded && (
         <div
           id={contentId}

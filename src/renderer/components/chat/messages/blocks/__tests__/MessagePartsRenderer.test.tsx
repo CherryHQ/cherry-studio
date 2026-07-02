@@ -759,6 +759,7 @@ describe('MessagePartsRenderer', () => {
 
     const foldButton = screen.getByRole('button', { name: /1 tool calls/ })
     expect(foldButton).toHaveAttribute('aria-expanded', 'false')
+    expect(foldButton).toHaveClass('w-full')
     const preview = screen.getByTestId('tool-history-preview')
     expect(preview).toHaveClass('h-[6.5rem]')
     expect(screen.getByTestId('tool-history-divider')).toHaveClass('w-full')
@@ -774,6 +775,59 @@ describe('MessagePartsRenderer', () => {
     expect(
       screen.getAllByTestId('mock-markdown').every((node) => screen.getByTestId('tool-history-preview').contains(node))
     ).toBe(true)
+  })
+
+  it('does not create a toolgroup for AskUserQuestion-only messages', () => {
+    mockIsActiveTurnTarget.mockReturnValue(true)
+
+    renderParts(
+      [
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'ask',
+          toolName: 'AskUserQuestion',
+          state: 'input-available',
+          input: { questions: [{ header: '合并', question: '是否提交 Approve 审查并合并此 PR?', options: [] }] }
+        }
+      ] as unknown as CherryMessagePart[],
+      msg({ status: 'pending' })
+    )
+
+    expect(screen.queryByRole('button', { name: /tool calls/ })).toBeNull()
+    expect(screen.queryByTestId('tool-history-preview')).toBeNull()
+    expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-tool-name', 'AskUserQuestion')
+  })
+
+  it('keeps AskUserQuestion outside the folded toolgroup', () => {
+    mockIsActiveTurnTarget.mockReturnValue(true)
+
+    renderParts(
+      [
+        { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'input-available', input: {} },
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'ask',
+          toolName: 'AskUserQuestion',
+          state: 'input-available',
+          input: { questions: [{ header: '合并', question: '是否提交 Approve 审查并合并此 PR?', options: [] }] }
+        }
+      ] as unknown as CherryMessagePart[],
+      msg({ status: 'pending' })
+    )
+
+    expect(screen.getByRole('button', { name: /1 tool calls/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /2 tool calls/ })).toBeNull()
+
+    const preview = screen.getByTestId('tool-history-preview')
+    expect(
+      within(preview)
+        .getAllByTestId('mock-message-tools')
+        .map((node) => node.getAttribute('data-tool-name'))
+    ).toEqual(['list'])
+    expect(screen.getAllByTestId('mock-message-tools').map((node) => node.getAttribute('data-tool-name'))).toEqual([
+      'list',
+      'AskUserQuestion'
+    ])
   })
 
   it('moves the final answer below the collapsed toolgroup after the active turn completes', () => {
