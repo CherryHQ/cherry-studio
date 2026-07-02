@@ -83,6 +83,8 @@ export interface DirectoryWatcher {
 export interface CreateDirectoryWatcherOptions {
   /** Recurse into subdirectories. Default: `true`. */
   readonly recursive?: boolean
+  /** Maximum recursion depth when `recursive` is enabled. `undefined` keeps chokidar's default unlimited depth. */
+  readonly maxDepth?: number
   /** Custom ignore predicate. Built-in ignores (`.DS_Store`, `Thumbs.db`, etc.) always apply. */
   readonly ignore?: (path: FilePath) => boolean
   /** Stability window for `awaitWriteFinish` (ms). Default: 200. Set to 0 to disable. */
@@ -111,11 +113,12 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
     const userIgnore = this.opts.ignore
     const recursive = this.opts.recursive !== false
     const stability = this.opts.stabilityThresholdMs ?? 200
+    const depth = recursive ? this.opts.maxDepth : 0
 
     const fsw = chokidarWatch(this.root, {
       ignored: userIgnore ? [builtinIgnore, (p) => userIgnore(p as FilePath)] : [builtinIgnore],
       ignoreInitial: true,
-      depth: recursive ? undefined : 0,
+      depth,
       awaitWriteFinish: stability > 0 ? { stabilityThreshold: stability, pollInterval: 100 } : false,
       usePolling
     })

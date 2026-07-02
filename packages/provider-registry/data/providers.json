@@ -1,5 +1,5 @@
 {
-  "version": "2026.04.09",
+  "version": "2026.06.27",
   "providers": [
     {
       "id": "cherryin",
@@ -247,30 +247,6 @@
       }
     },
     {
-      "id": "tokenflux",
-      "name": "TokenFlux",
-      "description": "TokenFlux - AI model provider",
-      "defaultChatEndpoint": "openai-chat-completions",
-      "endpointConfigs": {
-        "openai-chat-completions": {
-          "baseUrl": "https://api.tokenflux.ai/openai/v1",
-          "adapterFamily": "openai-compatible"
-        },
-        "anthropic-messages": {
-          "baseUrl": "https://api.tokenflux.ai/anthropic",
-          "adapterFamily": "anthropic"
-        }
-      },
-      "metadata": {
-        "website": {
-          "official": "https://api.tokenflux.ai",
-          "apiKey": "https://api.tokenflux.ai/dashboard/api-keys",
-          "docs": "https://api.tokenflux.ai/docs",
-          "models": "https://api.tokenflux.ai/models"
-        }
-      }
-    },
-    {
       "id": "302ai",
       "name": "302.AI",
       "description": "302.AI - AI model provider",
@@ -291,29 +267,6 @@
           "apiKey": "https://dash.302.ai/apis/list",
           "docs": "https://302ai.apifox.cn/api-147522039",
           "models": "https://302.ai/pricing/"
-        }
-      }
-    },
-    {
-      "id": "cephalon",
-      "name": "Cephalon",
-      "description": "Cephalon - AI model provider",
-      "defaultChatEndpoint": "openai-chat-completions",
-      "apiFeatures": {
-        "arrayContent": false
-      },
-      "endpointConfigs": {
-        "openai-chat-completions": {
-          "baseUrl": "https://cephalon.cloud/user-center/v1/model",
-          "adapterFamily": "openai-compatible"
-        }
-      },
-      "metadata": {
-        "website": {
-          "official": "https://cephalon.cloud/",
-          "apiKey": "https://cephalon.cloud/api",
-          "docs": "https://cephalon.cloud/",
-          "models": "https://cephalon.cloud/model"
         }
       }
     },

@@ -16,11 +16,14 @@ import {
   collectKnowledgeReservedRelativePaths,
   reserveImportedFileRelativePath
 } from '@main/features/knowledge/utils/storage/pathStorage'
+import {
+  type BetterSqlite3Driver,
+  openBetterSqlite3IndexDriver
+} from '@main/features/knowledge/vectorstore/indexStore/BetterSqlite3Driver'
+import { betterSqlite3VectorIndex } from '@main/features/knowledge/vectorstore/indexStore/BetterSqlite3VectorIndex'
 import { hashEmbeddingText } from '@main/features/knowledge/vectorstore/indexStore/hashing'
 import { ensureIndexMeta } from '@main/features/knowledge/vectorstore/indexStore/indexMeta'
 import { KnowledgeIndexStore } from '@main/features/knowledge/vectorstore/indexStore/KnowledgeIndexStore'
-import { type LibsqlDriver, openLibsqlIndexDriver } from '@main/features/knowledge/vectorstore/indexStore/LibsqlDriver'
-import { libsqlVectorIndex } from '@main/features/knowledge/vectorstore/indexStore/LibsqlVectorIndex'
 import type { RebuildMaterialInput } from '@main/features/knowledge/vectorstore/indexStore/model'
 import { createKnowledgeIndexSchema } from '@main/features/knowledge/vectorstore/indexStore/schema'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
@@ -55,7 +58,7 @@ const KNOWLEDGE_VECTOR_STORE_FILE = 'index.sqlite'
 const KNOWLEDGE_MATERIAL_ROOT_DIR = 'raw'
 const INDEXABLE_KNOWLEDGE_ITEM_TYPES = new Set<KnowledgeItemType>(['file', 'url', 'note'])
 const SKIP_WARNING_SAMPLE_LIMIT = 3
-// fs.rm options that survive a transient Windows lock (libsql handle / AV / indexer)
+// fs.rm options that survive a transient Windows lock (an open index.sqlite handle / AV / indexer)
 // on the index.sqlite family; `recursive` is required for fs.rm to honor the retries.
 const REMOVE_RETRY_OPTIONS = { recursive: true, force: true, maxRetries: 5, retryDelay: 100 } as const
 
@@ -75,8 +78,7 @@ const FS_RETRY_MAX_DELAY_MS = 1500
 
 // inArray() binds one SQL variable per id; a single UPDATE over the whole degrade set would
 // overflow SQLite's bound-variable cap once a corpus accumulates enough orphaned directory items.
-// Chunk well under the cap, matching the repo convention (FileRefService / orphanCheckerRegistry /
-// ChatMigrator all use 500 on this same knowledge_item id column).
+// Chunk well under the cap, matching the repo convention (FileRefService / ChatMigrator use 500).
 const DEGRADE_UPDATE_CHUNK = 500
 
 async function retryOnTransientFsLock<T>(operation: () => Promise<T>): Promise<T> {
@@ -964,8 +966,8 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // would produce.
         //
         // Why not build a temp store and rename it on? The rename was the migration's single most
-        // fragile step on Windows. libsql opens index.sqlite in WAL mode, and WAL mode on Windows is
-        // known to keep a lock on the MAIN db file past close() — wal_checkpoint(TRUNCATE), PERSIST_WAL
+        // fragile step on Windows. The index store opens index.sqlite in WAL mode, and WAL mode on Windows
+        // is known to keep a lock on the MAIN db file past close() — wal_checkpoint(TRUNCATE), PERSIST_WAL
         // and multi-second waits do NOT release it (oven-sh/bun#25964) — on top of the AV/Search-
         // Indexer scan that opens the just-written file without DELETE share. MoveFileEx needs DELETE
         // access on the source, so the rename threw EBUSY/EPERM and the base lost its store. A retry
@@ -980,16 +982,11 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // fresh uuid dir, the runtime never opens a store mid-migration, and the catch below wipes a
         // partial on a caught failure. A crash-orphaned dir is never referenced by a knowledge_base row
         // so it is never mounted (it is dead disk, the same as the rename path produced).
-        //
-        // serializedSingleConnection: the per-material rebuild loop runs one transaction per material.
-        // With libsql's client.transaction('write') each would orphan a still-open handle (released
-        // only by GC); manual BEGIN keeps every write on the single connection so driver.close()
-        // releases it. Safe here because migration is the sole writer and nothing reads it concurrently.
-        const driver = await openLibsqlIndexDriver(plan.targetDbPath, { serializedSingleConnection: true })
+        const driver = await openBetterSqlite3IndexDriver(plan.targetDbPath)
         try {
           await createKnowledgeIndexSchema(driver)
           await ensureIndexMeta(driver, { baseId: plan.baseId })
-          const store = new KnowledgeIndexStore(driver, libsqlVectorIndex)
+          const store = new KnowledgeIndexStore(driver, betterSqlite3VectorIndex)
 
           for (const material of plan.materials) {
             await store.rebuildMaterial(material.itemId, material.input)
@@ -999,7 +996,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           }
 
           // Fold the WAL back into the main db file so the committed pages are durable in index.sqlite
-          // itself (libsql does not reliably checkpoint on close); the runtime then opens a
+          // itself (the WAL is not guaranteed to be checkpointed on close); the runtime then opens a
           // self-contained store.
           await driver.execute('PRAGMA wal_checkpoint(TRUNCATE)')
         } finally {
@@ -1165,11 +1162,11 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           })
         }
 
-        // Reopen through openLibsqlIndexDriver, not a bare createClient: the driver sets
+        // Reopen through openBetterSqlite3IndexDriver, not a bare new Database: the driver sets
         // busy_timeout=5000, so this re-read of the just-built store waits out a transient Windows lock
         // (Defender / indexer scanning the freshly-written file) instead of throwing SQLITE_BUSY /
         // EACCES and failing validation for an already-correct store.
-        const driver = await openLibsqlIndexDriver(plan.targetDbPath)
+        const driver = await openBetterSqlite3IndexDriver(plan.targetDbPath)
         try {
           const materialCount = await this.tableCount(driver, 'material')
           const unitCount = await this.tableCount(driver, 'search_unit')
@@ -1237,7 +1234,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     }
   }
 
-  private async tableCount(driver: LibsqlDriver, table: string): Promise<number> {
+  private async tableCount(driver: BetterSqlite3Driver, table: string): Promise<number> {
     const result = await driver.execute(`SELECT count(*) AS count FROM ${table}`)
     return Number(result.rows[0]?.count ?? 0)
   }

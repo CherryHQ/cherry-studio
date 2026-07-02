@@ -76,12 +76,12 @@ vi.mock('../indexStore/KnowledgeIndexStore', () => ({
   KnowledgeIndexStore: indexStoreCtorMock
 }))
 
-vi.mock('../indexStore/LibsqlDriver', () => ({
-  openLibsqlIndexDriver: openDriverMock
+vi.mock('../indexStore/BetterSqlite3Driver', () => ({
+  openBetterSqlite3IndexDriver: openDriverMock
 }))
 
-vi.mock('../indexStore/LibsqlVectorIndex', () => ({
-  libsqlVectorIndex: { kind: 'libsql' }
+vi.mock('../indexStore/BetterSqlite3VectorIndex', () => ({
+  betterSqlite3VectorIndex: { kind: 'better-sqlite3' }
 }))
 
 vi.mock('../indexStore/schema', () => ({
@@ -152,7 +152,7 @@ describe('KnowledgeVectorStoreService', () => {
     // A non-empty material probe keeps the invisible-contents diagnostic quiet
     // unless a test opts in.
     hasAnyMaterialMock.mockResolvedValue(true)
-    getItemsByBaseIdMock.mockResolvedValue([])
+    getItemsByBaseIdMock.mockReturnValue([])
     deleteDirMock.mockResolvedValue(undefined)
     indexStoreCtorMock.mockImplementation(() => ({ close: vi.fn().mockResolvedValue(undefined) }))
   })
@@ -453,7 +453,7 @@ describe('KnowledgeVectorStoreService', () => {
     const service = new KnowledgeVectorStoreService()
     const base = createBase()
     hasAnyMaterialMock.mockResolvedValueOnce(false)
-    getItemsByBaseIdMock.mockResolvedValueOnce([
+    getItemsByBaseIdMock.mockReturnValueOnce([
       { id: 'item-1', type: 'directory', status: 'completed' },
       { id: 'item-2', type: 'file', status: 'completed' }
     ])
@@ -472,7 +472,7 @@ describe('KnowledgeVectorStoreService', () => {
     const base = createBase()
     hasAnyMaterialMock.mockResolvedValueOnce(false)
     // A completed empty directory is legitimate without materials; in-flight leaves are too.
-    getItemsByBaseIdMock.mockResolvedValueOnce([
+    getItemsByBaseIdMock.mockReturnValueOnce([
       { id: 'item-1', type: 'directory', status: 'completed' },
       { id: 'item-2', type: 'file', status: 'processing' }
     ])
@@ -491,7 +491,9 @@ describe('KnowledgeVectorStoreService', () => {
       return openedDriver
     })
     hasAnyMaterialMock.mockResolvedValueOnce(false)
-    getItemsByBaseIdMock.mockRejectedValueOnce(new Error('app database unavailable'))
+    getItemsByBaseIdMock.mockImplementationOnce(() => {
+      throw new Error('app database unavailable')
+    })
 
     // Deliberate fail-loud: swallowing the lookup failure would re-silence the
     // deleted-base race (open racing deleteBase recreates an empty file, and the

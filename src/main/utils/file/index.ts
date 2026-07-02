@@ -43,7 +43,7 @@
  *   internal-origin storage region.
  *
  * They carry no DB awareness: they do not know about `file_entry`, do not
- * consult `file_ref`, and do not emit DanglingCache events. If you find
+ * consult FileManager refs, and do not emit DanglingCache events. If you find
  * yourself needing any of those, the operation belongs on FileManager, not
  * here.
  */

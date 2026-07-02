@@ -264,7 +264,7 @@ class ClawServer {
               case 'add':
                 return await this.addJob(args)
               case 'list':
-                return await this.listJobs()
+                return this.listJobs()
               case 'remove':
                 return await this.removeJob(args)
               default:
@@ -277,9 +277,9 @@ class ClawServer {
             const action = args.action
             switch (action) {
               case 'status':
-                return await this.configStatus()
+                return this.configStatus()
               case 'rename':
-                return await this.configRename(args)
+                return this.configRename(args)
               case 'add_channel':
                 return await this.configAddChannel(args)
               case 'update_channel':
@@ -289,9 +289,9 @@ class ClawServer {
               case 'reconnect_channel':
                 return await this.configReconnectChannel(args)
               case 'complete_bootstrap':
-                return await this.configCompleteBootstrap()
+                return this.configCompleteBootstrap()
               case 'reset_bootstrap':
-                return await this.configResetBootstrap()
+                return this.configResetBootstrap()
               default:
                 throw new McpError(
                   ErrorCode.InvalidParams,
@@ -365,8 +365,8 @@ class ClawServer {
     }
   }
 
-  private async listJobs() {
-    const { tasks } = await taskService.listTasks(this.agentId, { limit: 100 })
+  private listJobs() {
+    const { tasks } = taskService.listTasks(this.agentId, { limit: 100 })
 
     if (tasks.length === 0) {
       return { content: [{ type: 'text' as const, text: 'No scheduled jobs.' }] }
@@ -473,12 +473,12 @@ class ClawServer {
 
   // ── Config tool handlers ──────────────────────────────────────────
 
-  private async configStatus() {
-    const agent = await agentService.getAgent(this.agentId)
+  private configStatus() {
+    const agent = agentService.getAgent(this.agentId)
     if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
 
     const config = agent.configuration
-    const channels = await channelService.listChannels({ agentId: this.agentId })
+    const channels = channelService.listChannels({ agentId: this.agentId })
 
     const adapterStatuses = application.get('ChannelManager').getAdapterStatuses(this.agentId)
     const statusMap = new Map(adapterStatuses.map((s) => [s.channelId, s.connected]))
@@ -546,7 +546,7 @@ class ClawServer {
     const needsQr = type === 'wechat' || (type === 'feishu' && !cfg.app_id && !cfg.app_secret)
 
     if (needsQr) {
-      const newChannel = await channelService.createChannel({
+      const newChannel = channelService.createChannel({
         type: channelType,
         name,
         agentId: this.agentId,
@@ -640,7 +640,7 @@ class ClawServer {
     const channelId = args.channel_id as string | undefined
     if (!channelId) throw new McpError(ErrorCode.InvalidParams, "'channel_id' is required for update_channel")
 
-    const existing = await channelService.getChannel(channelId)
+    const existing = channelService.getChannel(channelId)
     if (!existing) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
     const updates: Record<string, unknown> = {}
@@ -662,7 +662,7 @@ class ClawServer {
     const channelId = args.channel_id as string | undefined
     if (!channelId) throw new McpError(ErrorCode.InvalidParams, "'channel_id' is required for remove_channel")
 
-    const channel = await channelService.getChannel(channelId)
+    const channel = channelService.getChannel(channelId)
     if (!channel) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
     await agentChannelWorkflowService.deleteChannel(channelId)
@@ -677,7 +677,7 @@ class ClawServer {
     const channelId = args.channel_id as string | undefined
     if (!channelId) throw new McpError(ErrorCode.InvalidParams, "'channel_id' is required for reconnect_channel")
 
-    const channel = await channelService.getChannel(channelId)
+    const channel = channelService.getChannel(channelId)
     if (!channel) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
     const needsQr = channel.type === 'wechat' || (channel.type === 'feishu' && !channel.config.app_id)
@@ -734,11 +734,11 @@ class ClawServer {
     }
   }
 
-  private async configRename(args: Record<string, unknown>) {
+  private configRename(args: Record<string, unknown>) {
     const name = args.name as string | undefined
     if (!name || !name.trim()) throw new McpError(ErrorCode.InvalidParams, "'name' is required for rename")
 
-    await agentService.updateAgent(this.agentId, { name: name.trim() })
+    agentService.updateAgent(this.agentId, { name: name.trim() })
 
     logger.info('Agent renamed via config tool', { agentId: this.agentId, name: name.trim() })
     return {
@@ -746,12 +746,12 @@ class ClawServer {
     }
   }
 
-  private async configCompleteBootstrap() {
-    const agent = await agentService.getAgent(this.agentId)
+  private configCompleteBootstrap() {
+    const agent = agentService.getAgent(this.agentId)
     if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
 
     const existingConfig = agent.configuration
-    await agentService.updateAgent(this.agentId, {
+    agentService.updateAgent(this.agentId, {
       configuration: { ...existingConfig, bootstrap_completed: true } as AgentConfiguration
     })
 
@@ -763,12 +763,12 @@ class ClawServer {
     }
   }
 
-  private async configResetBootstrap() {
-    const agent = await agentService.getAgent(this.agentId)
+  private configResetBootstrap() {
+    const agent = agentService.getAgent(this.agentId)
     if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
 
     const existingConfig = agent.configuration
-    await agentService.updateAgent(this.agentId, {
+    agentService.updateAgent(this.agentId, {
       configuration: { ...existingConfig, bootstrap_completed: false } as AgentConfiguration
     })
 

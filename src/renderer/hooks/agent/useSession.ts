@@ -17,11 +17,13 @@ import {
 import { useReorder } from '@renderer/data/hooks/useReorder'
 import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
 import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
+import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
   AgentSessionEntity,
   CreateAgentSessionDto,
   DeleteAgentSessionsResult,
+  SetAgentSessionWorkspaceDto,
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
 import { useCallback, useEffect, useMemo } from 'react'
@@ -32,6 +34,7 @@ export type AgentSessionSource = 'query' | 'pending' | 'none'
 type UseSessionsOptions = {
   pageSize?: number
   loadAll?: boolean
+  enabled?: boolean
 }
 
 export type CreateSessionForm = Omit<CreateAgentSessionDto, 'agentId'>
@@ -97,10 +100,12 @@ export const useSessions = (
   const { t } = useTranslation()
   const pageSize = typeof options === 'number' ? options : (options.pageSize ?? DEFAULT_SESSION_PAGE_SIZE)
   const loadAll = typeof options === 'number' ? false : (options.loadAll ?? false)
+  const enabled = typeof options === 'number' ? undefined : options.enabled
 
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/agent-sessions', {
     query: agentId ? { agentId } : undefined,
-    limit: pageSize
+    limit: pageSize,
+    enabled
   })
   // Cache key includes the query, so reorder operates on the same key.
   const { applyReorderedList } = useReorder('/agent-sessions')
@@ -275,7 +280,8 @@ export const useSessions = (
 /**
  * Patch session-level fields (`name`, `description`, `agentId`). Config fields
  * (model, instructions, configuration, ...) live on the parent agent — use
- * {@link import('./useAgent').useUpdateAgent} for those.
+ * {@link import('./useAgent').useUpdateAgent} for those. The workspace binding
+ * is changed separately via {@link setSessionWorkspace} (only while empty).
  */
 export const useUpdateSession = () => {
   const { t } = useTranslation()
@@ -284,7 +290,16 @@ export const useUpdateSession = () => {
     // The non-null assertion mirrors useTopic.ts and crashes loud
     // if the contract is ever broken instead of silently producing
     // '/agent-sessions/undefined' (which would miss every cache entry).
-    refresh: ({ args }) => ['/agent-sessions', `/agent-sessions/${args!.params.sessionId}`]
+    refresh: ({ args }) => ['/agent-sessions', `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths]
+  })
+  const { trigger: setWorkspaceTrigger } = useMutation('PUT', '/agent-sessions/:sessionId/workspace', {
+    // Switching workspace creates/deletes a backing system workspace row, so
+    // refresh the workspace list alongside the session caches.
+    refresh: ({ args }) => [
+      '/agent-sessions',
+      `/agent-sessions/${args!.params.sessionId}` as ConcreteApiPaths,
+      '/agent-workspaces'
+    ]
   })
 
   const updateSession = useCallback(
@@ -304,7 +319,24 @@ export const useUpdateSession = () => {
     [updateTrigger, t]
   )
 
-  return { updateSession }
+  /**
+   * Replace a session's workspace. Backend rejects this once the session has
+   * any message (only empty sessions may rebind), so callers should gate on an
+   * untouched session.
+   */
+  const setSessionWorkspace = useCallback(
+    async (id: string, workspace: SetAgentSessionWorkspaceDto): Promise<AgentSessionEntity | undefined> => {
+      try {
+        return await setWorkspaceTrigger({ params: { sessionId: id }, body: workspace })
+      } catch (error) {
+        window.toast.error({ title: t('agent.session.update.error.failed'), description: getErrorMessage(error) })
+        return undefined
+      }
+    },
+    [setWorkspaceTrigger, t]
+  )
+
+  return { updateSession, setSessionWorkspace }
 }
 
 /**

@@ -10,6 +10,12 @@ export type ChannelMessageEvent = {
   userId: string
   userName: string
   text: string
+  /**
+   * Platform message id of the inbound message, carried so the reply can target it (e.g. QQ
+   * passive reply, Telegram reply-to). Bound to the specific message being answered rather than
+   * looked up from mutable per-chat state at send time. Adapters that don't need it omit it.
+   */
+  messageId?: string
   /** Pre-downloaded base64 images attached to the message. */
   images?: ImageAttachment[]
   /** Pre-downloaded base64 files attached to the message. */
@@ -22,11 +28,14 @@ export type ChannelCommandEvent = {
   userName: string
   command: 'new' | 'compact' | 'help' | 'whoami'
   args?: string
+  /** Platform message id of the command message, so the reply can target it. See `ChannelMessageEvent.messageId`. */
+  messageId?: string
 }
 
 export type SendMessageOptions = {
   parseMode?: 'MarkdownV2' | 'HTML'
-  replyToMessageId?: number
+  /** Inbound message id to reply against. String for QQ (passive `msg_id`); number for Telegram. */
+  replyToMessageId?: string | number
 }
 
 /** Channel type → its config payload, projected from the `AgentChannelEntity` discriminated union. */

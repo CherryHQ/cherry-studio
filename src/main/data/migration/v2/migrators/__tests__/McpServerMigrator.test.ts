@@ -14,18 +14,17 @@ function createMockContext(reduxData: Record<string, unknown> = {}) {
       dexieSettings: { keys: vi.fn().mockReturnValue([]), get: vi.fn() }
     },
     db: {
-      transaction: vi.fn(async (fn: (tx: any) => Promise<void>) => {
+      transaction: vi.fn((fn: (tx: any) => void) => {
         const tx = {
           insert: vi.fn().mockReturnValue({
-            values: vi.fn().mockResolvedValue(undefined)
+            values: vi.fn().mockReturnValue({ run: vi.fn() })
           })
         }
-        await fn(tx)
-        return tx
+        return fn(tx)
       }),
       select: vi.fn().mockReturnValue({
         from: vi.fn().mockReturnValue({
-          get: vi.fn().mockResolvedValue({ count: 0 })
+          get: vi.fn().mockReturnValue({ count: 0 })
         })
       })
     },
@@ -176,9 +175,23 @@ describe('McpServerMigrator', () => {
       expect(result).toStrictEqual({ success: true, processedCount: 0 })
     })
 
+    it('should publish an empty id mapping when there are no servers', async () => {
+      // AssistantMigrator throws if mcpServerIdMapping is absent while assistants
+      // still reference (now-deleted) servers. Publishing an empty map lets it
+      // drop those dangling refs instead of failing the whole migration.
+      const ctx = createMockContext({ mcp: { servers: [] } })
+      await migrator.prepare(ctx as any)
+      await migrator.execute(ctx as any)
+      const mapping = ctx.sharedData.get('mcpServerIdMapping')
+      expect(mapping).toBeInstanceOf(Map)
+      expect((mapping as Map<string, string>).size).toBe(0)
+    })
+
     it('should return failure when transaction throws', async () => {
       const ctx = createMockContext({ mcp: { servers: SAMPLE_SERVERS } })
-      ctx.db.transaction = vi.fn().mockRejectedValue(new Error('SQLITE_CONSTRAINT'))
+      ctx.db.transaction = vi.fn().mockImplementation(() => {
+        throw new Error('SQLITE_CONSTRAINT')
+      })
       await migrator.prepare(ctx as any)
       const result = await migrator.execute(ctx as any)
       expect(result.success).toBe(false)
@@ -194,7 +207,7 @@ describe('McpServerMigrator', () => {
           // count query: select({ count: ... }).from().get()
           return {
             from: vi.fn().mockReturnValue({
-              get: vi.fn().mockResolvedValue({ count })
+              get: vi.fn().mockReturnValue({ count })
             })
           }
         }
@@ -202,7 +215,7 @@ describe('McpServerMigrator', () => {
         return {
           from: vi.fn().mockReturnValue({
             limit: vi.fn().mockReturnValue({
-              all: vi.fn().mockResolvedValue(sample)
+              all: vi.fn().mockReturnValue(sample)
             })
           })
         }

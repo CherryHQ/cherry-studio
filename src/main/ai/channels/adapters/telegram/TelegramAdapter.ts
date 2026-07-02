@@ -316,8 +316,11 @@ class TelegramAdapter extends ChannelAdapter {
     for (let i = 0; i < plainChunks.length; i++) {
       const plain = plainChunks[i]
       const formatted = isMarkdown ? toMarkdownV2(plain).trimEnd() : plain
+      // Telegram message ids are numeric; a string replyToMessageId (QQ's msg_id) isn't ours.
       const replyParams =
-        opts?.replyToMessageId && i === 0 ? { reply_parameters: { message_id: opts.replyToMessageId } } : {}
+        typeof opts?.replyToMessageId === 'number' && i === 0
+          ? { reply_parameters: { message_id: opts.replyToMessageId } }
+          : {}
 
       try {
         await this.bot.api.sendMessage(chatId, formatted, {
