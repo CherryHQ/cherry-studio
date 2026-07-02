@@ -177,5 +177,5 @@ describe('SaveToKnowledgePopup', () => {
     expect(mocks.toast.warning).toHaveBeenCalledWith('chat.save.knowledge.error.file_partial_failed:{"count":1}')
 
     await expect(promise).resolves.toEqual({ success: true, savedCount: 1 })
-  }, 60_000)
+  })
 })

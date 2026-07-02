@@ -535,7 +535,7 @@ describe('AgentSelector', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Edit agent' })[0])
 
-    expect(await screen.findByRole('heading', { name: 'Edit Agent' }, { timeout: 5_000 })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Edit Agent' })).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Renamed Agent' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))

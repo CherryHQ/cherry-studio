@@ -28,13 +28,13 @@ describe('fileProcessingMeta language options', () => {
     expect(supportsLanguageConfig('system')).toBe(true)
     expect(supportsLanguageConfig('tesseract')).toBe(true)
     expect(supportsLanguageConfig('mistral')).toBe(false)
-  }, 60_000)
+  })
 
   it('shows Tesseract language options on every platform', async () => {
     const { shouldShowLanguageOptions } = await import('../utils/fileProcessingMeta')
 
     expect(shouldShowLanguageOptions('tesseract')).toBe(true)
-  }, 60_000)
+  })
 
   it('shows System OCR language options on Windows only', async () => {
     platformMock.isWin = true
@@ -49,5 +49,5 @@ describe('fileProcessingMeta language options', () => {
     )
 
     expect(shouldShowLanguageOptionsOnNonWindows('system')).toBe(false)
-  }, 60_000)
+  })
 })
