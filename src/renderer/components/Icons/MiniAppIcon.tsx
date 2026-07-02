@@ -6,12 +6,11 @@ interface Props {
   app: Pick<MiniApp, 'logo' | 'name' | 'background'>
   /** `avatar` keeps the bordered Avatar chrome; `plain` strips it from icon logos; `bare` also strips it from image logos. */
   appearance?: 'avatar' | 'plain' | 'bare'
-  sidebar?: boolean
   size?: number
   style?: React.CSSProperties
 }
 
-const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style, sidebar = false }) => {
+const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style }) => {
   // Preset-derived apps already include seeded display fields.
   if (app.logo) {
     const logo = getMiniAppsLogo(app.logo)
@@ -63,7 +62,6 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style, 
           height: `${size}px`,
           backgroundColor: app.background,
           userSelect: 'none',
-          ...(sidebar ? {} : undefined),
           ...style
         }}
         draggable={false}

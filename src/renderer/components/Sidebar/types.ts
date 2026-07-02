@@ -9,11 +9,8 @@ export interface SidebarMiniApp {
 }
 
 export interface SidebarMiniAppTab {
-  id: string
   title: string
-  type: 'miniapp'
   miniApp: SidebarMiniApp
-  contextMenuItems?: readonly CommandContextMenuExtraItem[]
 }
 
 /** The active-route state a resolved entry matches itself against. */
@@ -29,7 +26,7 @@ export interface SidebarActiveState {
  * the tagged favorites via the variant registry (see `components/app/sidebarVariants`);
  * the presentation layer renders them without knowing whether a row is a built-in
  * app or a mini app. Adding a new sidebar item type is a new variant descriptor —
- * this presentation contract does not change.
+ * leaf item rows keep this presentation contract.
  */
 export interface ResolvedSidebarEntry {
   /** Stable identity — react key and reorder-matching key (`${type}:${id}`). */

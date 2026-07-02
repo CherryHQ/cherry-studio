@@ -108,6 +108,15 @@ describe('sidebar config helpers', () => {
     ).toEqual([appFavorite('translate'), miniAppFavorite('calculator'), appFavorite('assistants')])
   })
 
+  it('drops unknown favorite types from visible reads while keeping surrounding leaves', () => {
+    const group = { type: 'group', id: 'g1', name: 'Group', items: [] } as unknown as SidebarFavoriteItem
+
+    expect(getSidebarFavoriteItems([appFavorite('translate'), group, miniAppFavorite('calculator')])).toEqual([
+      appFavorite('translate'),
+      miniAppFavorite('calculator')
+    ])
+  })
+
   it('preserves extra per-item fields through normalization (non-lossy round-trip)', () => {
     // Future per-item params must survive the normalize round-trip instead of being
     // rebuilt away from just the id.
@@ -180,6 +189,21 @@ describe('sidebar favorites mutations', () => {
       )
     ).toEqual([appFavorite('assistants'), miniAppFavorite('weather')])
   })
+
+  it('preserves forward-compatible unknown items when mutating favorites', () => {
+    const group = {
+      type: 'group',
+      id: 'g1',
+      name: 'Group',
+      items: [miniAppFavorite('calculator')]
+    } as unknown as SidebarFavoriteItem
+
+    expect(toggleSidebarMiniApp([appFavorite('assistants'), group], 'weather')).toEqual([
+      appFavorite('assistants'),
+      miniAppFavorite('weather'),
+      group
+    ])
+  })
 })
 
 describe('reorderSidebarFavorites (mixed cross-type reorder)', () => {
@@ -208,6 +232,13 @@ describe('reorderSidebarFavorites (mixed cross-type reorder)', () => {
         [miniAppFavorite('ghost'), miniAppFavorite('calculator'), appFavorite('assistants')]
       )
     ).toEqual([miniAppFavorite('calculator'), appFavorite('assistants')])
+  })
+
+  it('keeps a required app once when the requested reorder omits it', () => {
+    const reordered = reorderSidebarFavorites([appFavorite('knowledge')], [appFavorite('knowledge')])
+
+    expect(reordered).toEqual([appFavorite('knowledge'), appFavorite('assistants')])
+    expect(reordered.filter((item) => item.type === 'app' && item.id === 'assistants')).toHaveLength(1)
   })
 })
 

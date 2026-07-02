@@ -99,6 +99,14 @@ export type SidebarFavorite =
   | 'notes'
   | 'openclaw'
 
+/**
+ * Group-ready sidebar storage contract.
+ *
+ * Leaf items are stored as tagged objects, not bare ids. Keep the `type` values,
+ * id semantics, and one ordered heterogeneous top-level array stable: a future
+ * `group` variant can then be added as another top-level item without migrating
+ * existing flat `SidebarFavoriteItem[]` values.
+ */
 export type SidebarFavoriteItem =
   | {
       type: 'app'

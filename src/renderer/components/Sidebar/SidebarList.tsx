@@ -67,7 +67,7 @@ function IconList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
               <button
                 type="button"
                 aria-label={entry.label}
-                onClick={guardClick(entry.onOpen)}
+                onClick={guardClick(entry.key, entry.onOpen)}
                 className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150 ${
                   isActive
                     ? 'bg-sidebar-active-bg text-foreground'
@@ -102,7 +102,7 @@ function FullList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
                 icon={entry.renderIcon(16, 'md')}
                 label={entry.label}
                 active={isActive}
-                onClick={guardClick(entry.onOpen)}
+                onClick={guardClick(entry.key, entry.onOpen)}
                 className="rounded-xl data-[active=true]:bg-sidebar-active-bg"
               />
             </EntryContextMenu>

@@ -218,9 +218,53 @@ function createSidebarMiniAppFavorite(id: string): SidebarFavoriteItem {
   return { type: 'mini_app', id }
 }
 
-/** Stable identity for a favorite — its react key and reorder-matching key. */
+/**
+ * Stable identity for a favorite — its react key and reorder-matching key.
+ *
+ * Keep the type namespace. Future item types (including `group`) must not collide
+ * with app or mini-app ids.
+ */
 export function getSidebarFavoriteKey(favorite: SidebarFavoriteItem): string {
   return `${favorite.type}:${favorite.id}`
+}
+
+function isForwardCompatibleSidebarFavoriteItem(favorite: SidebarFavoriteItem): boolean {
+  const item = favorite as { type?: unknown; id?: unknown }
+  return (
+    typeof item.type === 'string' &&
+    item.type !== 'app' &&
+    item.type !== 'mini_app' &&
+    typeof item.id === 'string' &&
+    item.id.length > 0
+  )
+}
+
+function getForwardCompatibleSidebarFavoriteItems(
+  favorites: readonly SidebarFavoriteItem[] | undefined
+): SidebarFavoriteItem[] {
+  const seen = new Set<string>()
+  const items: SidebarFavoriteItem[] = []
+
+  for (const favorite of favorites ?? []) {
+    if (!isForwardCompatibleSidebarFavoriteItem(favorite)) continue
+
+    const item = favorite as SidebarFavoriteItem & { type: string; id: string }
+    const key = `${item.type}:${item.id}`
+    if (seen.has(key)) continue
+
+    seen.add(key)
+    items.push(favorite)
+  }
+
+  return items
+}
+
+function preserveForwardCompatibleSidebarFavoriteItems(
+  favorites: readonly SidebarFavoriteItem[] | undefined,
+  nextItems: SidebarFavoriteItem[]
+): SidebarFavoriteItem[] {
+  const futureItems = getForwardCompatibleSidebarFavoriteItems(favorites)
+  return futureItems.length ? [...nextItems, ...futureItems] : nextItems
 }
 
 function normalizeSidebarFavoriteItem(favorite: SidebarFavoriteItem): SidebarFavoriteItem | undefined {
@@ -265,6 +309,7 @@ export function getSidebarFavoriteItems(favorites: readonly SidebarFavoriteItem[
 
 /** Mini app sidebar favorites: an ordered, deduped list of mini app ids. */
 export function getSidebarMiniAppFavoriteIds(favorites: readonly SidebarFavoriteItem[] | undefined): string[] {
+  // LEAF-ONLY: recurse into group.items when a 'group' variant is added.
   return getSidebarFavoriteItems(favorites).flatMap((favorite) => (favorite.type === 'mini_app' ? [favorite.id] : []))
 }
 
@@ -279,6 +324,7 @@ export function getOrderedVisibleSidebarFavoriteItems(
   favorites: readonly SidebarFavoriteItem[] | undefined
 ): SidebarFavoriteItem[] {
   const items = getSidebarFavoriteItems(favorites)
+  // LEAF-ONLY: recurse into group.items when a 'group' variant is added.
   const missingRequired = REQUIRED_SIDEBAR_FAVORITES.filter(
     (id) => !items.some((item) => item.type === 'app' && item.id === id)
   ).map(createSidebarAppFavorite)
@@ -286,10 +332,11 @@ export function getOrderedVisibleSidebarFavoriteItems(
   return [...missingRequired, ...items]
 }
 
-/** The app zone projected out of the mixed list (built-in app ids, in order). */
+/** Built-in app ids projected out of the mixed list, in order. */
 export function getOrderedVisibleSidebarFavorites(
   favorites: readonly SidebarFavoriteItem[] | undefined
 ): SidebarAppId[] {
+  // LEAF-ONLY: recurse into group.items when a 'group' variant is added.
   return getOrderedVisibleSidebarFavoriteItems(favorites).flatMap((favorite) =>
     favorite.type === 'app' ? [favorite.id] : []
   )
@@ -307,9 +354,9 @@ export function getOrderedVisibleSidebarFavorites(
 
 /**
  * Reorder the whole sidebar list to `orderedItems` (a permutation of the visible
- * favorites). Unknown items are dropped and any stored favorite missing from the
- * list (e.g. a stale mini app id) is kept at the end so a partial order never
- * silently loses favorites.
+ * favorites). Invalid known items are dropped, future item types are preserved at
+ * the end, and any stored favorite missing from the list (e.g. a stale mini app
+ * id) is kept at the end so a partial order never silently loses favorites.
  */
 export function reorderSidebarFavorites(
   favorites: readonly SidebarFavoriteItem[] | undefined,
@@ -332,7 +379,7 @@ export function reorderSidebarFavorites(
     if (!seen.has(getSidebarFavoriteKey(item))) reordered.push(item)
   }
 
-  return reordered
+  return preserveForwardCompatibleSidebarFavoriteItems(favorites, reordered)
 }
 
 /**
@@ -346,15 +393,19 @@ export function setSidebarAppPinned(
   pinned: boolean
 ): SidebarFavoriteItem[] {
   const items = getOrderedVisibleSidebarFavoriteItems(favorites)
+  // LEAF-ONLY: recurse into group.items when a 'group' variant is added.
   const isTarget = (item: SidebarFavoriteItem) => item.type === 'app' && item.id === id
 
   if (!pinned) {
-    if (REQUIRED_SIDEBAR_FAVORITES.includes(id)) return items
-    return items.filter((item) => !isTarget(item))
+    if (REQUIRED_SIDEBAR_FAVORITES.includes(id)) return preserveForwardCompatibleSidebarFavoriteItems(favorites, items)
+    return preserveForwardCompatibleSidebarFavoriteItems(
+      favorites,
+      items.filter((item) => !isTarget(item))
+    )
   }
 
-  if (items.some(isTarget)) return items
-  return [...items, createSidebarAppFavorite(id)]
+  if (items.some(isTarget)) return preserveForwardCompatibleSidebarFavoriteItems(favorites, items)
+  return preserveForwardCompatibleSidebarFavoriteItems(favorites, [...items, createSidebarAppFavorite(id)])
 }
 
 /** Toggle a mini app favorite, preserving everything else. Adding appends to the end. */
@@ -363,10 +414,16 @@ export function toggleSidebarMiniApp(
   id: string
 ): SidebarFavoriteItem[] {
   const items = getOrderedVisibleSidebarFavoriteItems(favorites)
+  // LEAF-ONLY: recurse into group.items when a 'group' variant is added.
   const isTarget = (item: SidebarFavoriteItem) => item.type === 'mini_app' && item.id === id
 
-  if (items.some(isTarget)) return items.filter((item) => !isTarget(item))
-  return [...items, createSidebarMiniAppFavorite(id)]
+  if (items.some(isTarget)) {
+    return preserveForwardCompatibleSidebarFavoriteItems(
+      favorites,
+      items.filter((item) => !isTarget(item))
+    )
+  }
+  return preserveForwardCompatibleSidebarFavoriteItems(favorites, [...items, createSidebarMiniAppFavorite(id)])
 }
 
 /** Remove a mini app favorite, preserving everything else in place. */
@@ -374,8 +431,10 @@ export function removeSidebarMiniApp(
   favorites: readonly SidebarFavoriteItem[] | undefined,
   id: string
 ): SidebarFavoriteItem[] {
-  return getOrderedVisibleSidebarFavoriteItems(favorites).filter(
-    (item) => !(item.type === 'mini_app' && item.id === id)
+  // LEAF-ONLY: recurse into group.items when a 'group' variant is added.
+  return preserveForwardCompatibleSidebarFavoriteItems(
+    favorites,
+    getOrderedVisibleSidebarFavoriteItems(favorites).filter((item) => !(item.type === 'mini_app' && item.id === id))
   )
 }
 

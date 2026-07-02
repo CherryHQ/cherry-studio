@@ -165,11 +165,12 @@ export default function LaunchpadPage() {
   // at its dropped slot while the async order-key write settles. Without this the
   // tile snaps back to its old position for one render — before the reordered
   // `/mini-apps` cache lands — and then jumps forward, a visible flashback. The
-  // resync only replaces the list when the order actually differs, preserving the
-  // reference on a no-op so Sortable never re-layouts mid drop-animation.
+  // resync preserves the reference only when the refreshed list contains the same
+  // objects in the same order; a rename/logo refresh with the same ids still adopts
+  // the fresh objects.
   const [orderedMiniApps, setOrderedMiniApps] = useState(sortedMiniApps)
   useEffect(() => {
-    setOrderedMiniApps((prev) => (sameMiniAppOrder(prev, sortedMiniApps) ? prev : sortedMiniApps))
+    setOrderedMiniApps((prev) => (sameMiniAppItems(prev, sortedMiniApps) ? prev : sortedMiniApps))
   }, [sortedMiniApps])
 
   const launchpadMiniAppsVisible = orderedMiniApps.length > 0
@@ -270,11 +271,11 @@ export default function LaunchpadPage() {
   )
 }
 
-/** Same pinned mini apps in the same order (membership + sequence, by appId). */
-function sameMiniAppOrder(a: MiniAppType[], b: MiniAppType[]): boolean {
+/** Same pinned mini app objects in the same order. */
+function sameMiniAppItems(a: MiniAppType[], b: MiniAppType[]): boolean {
   if (a.length !== b.length) return false
   for (let i = 0; i < a.length; i++) {
-    if (a[i].appId !== b[i].appId) return false
+    if (a[i] !== b[i]) return false
   }
   return true
 }

@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -274,6 +274,21 @@ describe('LaunchpadPage', () => {
     expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/knowledge' })
   })
 
+  it('suppresses only the dragged launchpad item click', () => {
+    render(<LaunchpadPage />)
+
+    const systemSortable = mocks.sortableCalls.find((call) => call.itemKey === 'id')
+    act(() => {
+      systemSortable.onDragStart({ active: { id: 'knowledge' } })
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Knowledge' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Chat' }))
+
+    expect(mocks.navigate).toHaveBeenCalledTimes(1)
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/chat' })
+  })
+
   it('opens chat and agent apps fresh in the current tab', async () => {
     const user = userEvent.setup()
 
@@ -381,6 +396,117 @@ describe('LaunchpadPage', () => {
     // the dropped order from local optimistic state, so the tile never snaps back.
     const latestMiniAppSortable = mocks.sortableCalls.filter((call) => call.itemKey === 'appId').at(-1)
     expect(latestMiniAppSortable.items.map((app: { appId: string }) => app.appId)).toEqual(['docs', 'calculator'])
+  })
+
+  it('replaces the optimistic mini app order when the refreshed pinned set changes', async () => {
+    const calculator = {
+      appId: 'calculator',
+      name: 'Calculator',
+      logo: 'calc-logo',
+      url: 'https://example.com',
+      presetMiniAppId: 'calculator',
+      status: 'pinned',
+      orderKey: 'a'
+    }
+    const docs = {
+      appId: 'docs',
+      name: 'Docs',
+      logo: 'docs-logo',
+      url: 'https://docs.example.com',
+      presetMiniAppId: 'docs',
+      status: 'pinned',
+      orderKey: 'b'
+    }
+    const weather = {
+      appId: 'weather',
+      name: 'Weather',
+      logo: 'weather-logo',
+      url: 'https://weather.example.com',
+      presetMiniAppId: 'weather',
+      status: 'pinned',
+      orderKey: 'c'
+    }
+    mocks.pinnedMiniApps = [calculator, docs]
+
+    const { rerender } = render(<LaunchpadPage />)
+
+    act(() => {
+      const miniAppSortable = mocks.sortableCalls.find((call) => call.itemKey === 'appId')
+      miniAppSortable.onSortEnd({ oldIndex: 0, newIndex: 1 })
+    })
+
+    mocks.pinnedMiniApps = [docs, weather]
+    rerender(<LaunchpadPage />)
+
+    await waitFor(() => {
+      const latestMiniAppSortable = mocks.sortableCalls.filter((call) => call.itemKey === 'appId').at(-1)
+      expect(latestMiniAppSortable.items.map((app: { appId: string }) => app.appId)).toEqual(['docs', 'weather'])
+    })
+    expect(screen.queryByRole('button', { name: 'Calculator' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Weather' })).toBeInTheDocument()
+  })
+
+  it('preserves the dropped mini app items reference when refresh returns the same objects in the same order', async () => {
+    const calculator = {
+      appId: 'calculator',
+      name: 'Calculator',
+      logo: 'calc-logo',
+      url: 'https://example.com',
+      presetMiniAppId: 'calculator',
+      status: 'pinned',
+      orderKey: 'a'
+    }
+    const docs = {
+      appId: 'docs',
+      name: 'Docs',
+      logo: 'docs-logo',
+      url: 'https://docs.example.com',
+      presetMiniAppId: 'docs',
+      status: 'pinned',
+      orderKey: 'b'
+    }
+    mocks.pinnedMiniApps = [calculator, docs]
+
+    const { rerender } = render(<LaunchpadPage />)
+
+    act(() => {
+      const miniAppSortable = mocks.sortableCalls.find((call) => call.itemKey === 'appId')
+      miniAppSortable.onSortEnd({ oldIndex: 0, newIndex: 1 })
+    })
+
+    const optimisticItems = mocks.sortableCalls.filter((call) => call.itemKey === 'appId').at(-1).items
+    docs.orderKey = 'a'
+    calculator.orderKey = 'b'
+    mocks.pinnedMiniApps = [docs, calculator]
+    rerender(<LaunchpadPage />)
+
+    await waitFor(() => {
+      const latestMiniAppSortable = mocks.sortableCalls.filter((call) => call.itemKey === 'appId').at(-1)
+      expect(latestMiniAppSortable.items).toBe(optimisticItems)
+    })
+  })
+
+  it('adopts fresh mini app objects when the order is unchanged', async () => {
+    const calculator = {
+      appId: 'calculator',
+      name: 'Calculator',
+      logo: 'calc-logo',
+      url: 'https://example.com',
+      presetMiniAppId: 'calculator',
+      status: 'pinned',
+      orderKey: 'a'
+    }
+    mocks.pinnedMiniApps = [calculator]
+
+    const { rerender } = render(<LaunchpadPage />)
+
+    expect(screen.getByRole('button', { name: 'Calculator' })).toBeInTheDocument()
+
+    mocks.pinnedMiniApps = [{ ...calculator, name: 'Calculator Pro' }]
+    rerender(<LaunchpadPage />)
+
+    expect(await screen.findByRole('button', { name: 'Calculator Pro' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Calculator' })).not.toBeInTheDocument()
   })
 
   it('makes every pinned mini app sortable regardless of sidebar favorites', () => {

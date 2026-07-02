@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import type { LucideIcon } from 'lucide-react'
 import { Search } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   getSidebarDisplayWidth,
@@ -22,6 +22,43 @@ type AppItem = {
   icon: LucideIcon
   contextMenuItems?: ResolvedSidebarEntry['contextMenuItems']
 }
+
+const uiMocks = vi.hoisted(() => ({
+  sortableCalls: [] as any[]
+}))
+
+vi.mock('@cherrystudio/ui', () => ({
+  MenuItem: ({
+    icon,
+    label,
+    onClick,
+    className,
+    active
+  }: {
+    icon?: ReactNode
+    label: string
+    onClick?: () => void
+    className?: string
+    active?: boolean
+  }) => (
+    <button type="button" data-active={active ? 'true' : 'false'} className={className} onClick={onClick}>
+      {icon}
+      <span>{label}</span>
+    </button>
+  ),
+  Sortable: ({ items, itemKey, renderItem, ...props }: any) => {
+    uiMocks.sortableCalls.push({ items, itemKey, renderItem, ...props })
+    const getKey = typeof itemKey === 'function' ? itemKey : (item: any) => item[itemKey]
+
+    return (
+      <div>
+        {items.map((item: any) => (
+          <div key={getKey(item)}>{renderItem(item)}</div>
+        ))}
+      </div>
+    )
+  }
+}))
 
 vi.mock('../Tooltip', () => ({
   SidebarTooltip: ({ children }: { children: ReactNode }) => children
@@ -90,13 +127,16 @@ const appEntry = (item: AppItem): ResolvedSidebarEntry => ({
   onOpen: () => {},
   contextMenuItems: item.contextMenuItems
 })
-const miniEntry = (tab: SidebarMiniAppTab): ResolvedSidebarEntry => ({
-  key: `mini_app:${tab.id}`,
+const miniEntry = (
+  tab: SidebarMiniAppTab,
+  contextMenuItems?: ResolvedSidebarEntry['contextMenuItems']
+): ResolvedSidebarEntry => ({
+  key: `mini_app:${tab.miniApp.id}`,
   label: tab.title,
   renderIcon: (_size, miniAppSize) => <MiniAppIcon tab={tab} size={miniAppSize} />,
-  isActive: (active) => active.activeTabId === tab.id,
+  isActive: (active) => active.activeTabId === tab.miniApp.id,
   onOpen: () => {},
-  contextMenuItems: tab.contextMenuItems
+  contextMenuItems
 })
 
 const items: AppItem[] = [
@@ -109,6 +149,10 @@ const items: AppItem[] = [
 const entries: ResolvedSidebarEntry[] = items.map(appEntry)
 
 const INTERMEDIATE_WIDTH = SIDEBAR_ICON_WIDTH + 30
+
+afterEach(() => {
+  uiMocks.sortableCalls.length = 0
+})
 
 function dragResizeFrom(width: number, moves: number | number[]) {
   const setWidth = vi.fn()
@@ -340,9 +384,7 @@ describe('Sidebar resize handle', () => {
         entries={[
           ...entries,
           miniEntry({
-            id: 'qwen',
             title: 'Qwen',
-            type: 'miniapp',
             miniApp: { id: 'qwen', logo: 'qwen' }
           })
         ]}
@@ -358,9 +400,7 @@ describe('Sidebar resize handle', () => {
 
   it('renders apps and mini apps together in one continuous list', () => {
     const dockedTab: SidebarMiniAppTab = {
-      id: 'qwen',
       title: 'Qwen',
-      type: 'miniapp',
       miniApp: { id: 'qwen', logo: 'qwen' }
     }
 
@@ -388,9 +428,7 @@ describe('Sidebar resize handle', () => {
         entries={[
           ...entries,
           miniEntry({
-            id: 'qwen',
             title: 'Qwen',
-            type: 'miniapp',
             miniApp: { id: 'qwen', logo: 'qwen' }
           })
         ]}
@@ -414,9 +452,7 @@ describe('Sidebar resize handle', () => {
         entries={[
           ...entries,
           miniEntry({
-            id: 'custom',
             title: 'Custom Tool',
-            type: 'miniapp',
             miniApp: { id: 'custom' }
           })
         ]}
@@ -436,13 +472,13 @@ describe('Sidebar resize handle', () => {
         active={{ activeItem: 'chat' }}
         entries={[
           ...entries,
-          miniEntry({
-            id: 'qwen',
-            title: 'Qwen',
-            type: 'miniapp',
-            miniApp: { id: 'qwen', logo: 'qwen' },
-            contextMenuItems: [{ type: 'item', id: 'remove-qwen', label: 'Remove from Sidebar', onSelect: onRemove }]
-          })
+          miniEntry(
+            {
+              title: 'Qwen',
+              miniApp: { id: 'qwen', logo: 'qwen' }
+            },
+            [{ type: 'item', id: 'remove-qwen', label: 'Remove from Sidebar', onSelect: onRemove }]
+          )
         ]}
       />
     )
@@ -450,6 +486,47 @@ describe('Sidebar resize handle', () => {
     fireEvent.click(screen.getByTestId('context-menu-remove-qwen'))
 
     expect(onRemove).toHaveBeenCalledTimes(1)
+  })
+
+  it('suppresses only the dragged sidebar entry click after sorting settles', () => {
+    const onChatOpen = vi.fn()
+    const onAgentOpen = vi.fn()
+    const sortableEntries: ResolvedSidebarEntry[] = [
+      {
+        key: 'app:chat',
+        label: 'Chat',
+        renderIcon: () => null,
+        isActive: (active) => active.activeItem === 'chat',
+        onOpen: onChatOpen
+      },
+      {
+        key: 'app:agent',
+        label: 'Agent',
+        renderIcon: () => null,
+        isActive: (active) => active.activeItem === 'agent',
+        onOpen: onAgentOpen
+      }
+    ]
+
+    render(
+      <Sidebar
+        width={SIDEBAR_FULL_THRESHOLD}
+        setWidth={vi.fn()}
+        active={{ activeItem: 'chat' }}
+        entries={sortableEntries}
+        onEntriesReorder={vi.fn()}
+      />
+    )
+
+    const sortableCall = uiMocks.sortableCalls.at(-1)
+    sortableCall.onDragStart({ active: { id: 'app:chat' } })
+    sortableCall.onDragEnd()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Chat' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Agent' }))
+
+    expect(onChatOpen).not.toHaveBeenCalled()
+    expect(onAgentOpen).toHaveBeenCalledTimes(1)
   })
 
   it('renders footer actions with the current sidebar layout', () => {

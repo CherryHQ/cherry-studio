@@ -17,7 +17,7 @@ import { useTranslation } from 'react-i18next'
  * Single entry point for the `ui.sidebar.favorites` preference.
  *
  * `favorites` is the full ordered mixed list (apps and mini apps interleaved) the
- * sidebar renders and drag-reorders as one zone; `reorderFavorites` persists a new
+ * sidebar renders and drag-reorders as one list; `reorderFavorites` persists a new
  * mixed order. The partitioned `appFavorites` / `miniAppFavoriteIds` remain for
  * surfaces (launchpad, mini app menu) that need to know a single type's membership
  * (e.g. pin state), and `setAppPinned` / `toggleMiniApp` / `removeMiniApp` mutate

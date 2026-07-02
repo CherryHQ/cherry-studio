@@ -77,9 +77,7 @@ const miniAppVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { ty
 
     const title = app.nameKey ? ctx.t(app.nameKey) : app.name
     const tab = {
-      id: app.appId,
       title,
-      type: 'miniapp' as const,
       miniApp: { id: app.appId, logo: app.logo, url: app.url }
     }
 
