@@ -402,6 +402,11 @@ export function useChatVirtualizerRuntime<T>({
 
   const lastScrollToTopKeyRef = useRef<string | undefined>(undefined)
   const didMountForScrollKeyRef = useRef(false)
+  // The committed `preserveScrollAnchor` from the previous render — i.e. whether a
+  // turn was already streaming just before the current commit. Lets the pin effect
+  // tell a fresh idle→new-turn send from a mid-stream insertion. A trailing effect
+  // (below) keeps it in sync AFTER the pin effect has read the prior value.
+  const wasStreamingBeforeUserMessageRef = useRef(preserveScrollAnchor)
 
   useEffect(() => {
     const previous = lastScrollToTopKeyRef.current
@@ -411,6 +416,12 @@ export function useChatVirtualizerRuntime<T>({
       return
     }
     if (!scrollToTopKey || scrollToTopKey === previous) return
+    // A new user message appeared. Only pin it to the top when it STARTS a fresh
+    // turn (the topic was idle just before it). If a turn was already streaming —
+    // a queued follow-up steered into the live turn — pinning the new message to
+    // the top would yank the view and fight the previous assistant's still-growing
+    // response (the instability we're fixing). Leave scroll to bottom-follow.
+    if (wasStreamingBeforeUserMessageRef.current) return
     const idx = findDataIndexByKey(scrollToTopKey)
     if (idx < 0) return
     anchor.pinTo(idx)
@@ -419,6 +430,13 @@ export function useChatVirtualizerRuntime<T>({
     // manual-control gate carried over from the previous turn.
     userTookControlRef.current = false
   }, [anchor, atBottom, findDataIndexByKey, scrollToTopKey])
+
+  // Sync the "was a turn already streaming" marker AFTER the pin effect above has
+  // read the previous render's value. Runs every commit so the next new-user-
+  // message commit sees whether streaming was in progress when it arrived.
+  useEffect(() => {
+    wasStreamingBeforeUserMessageRef.current = preserveScrollAnchor
+  })
 
   // Initial scroll on mount is owned by `useScrollPositionMemory` above: it
   // restores the saved anchor for this topic, or scrolls to the newest message
