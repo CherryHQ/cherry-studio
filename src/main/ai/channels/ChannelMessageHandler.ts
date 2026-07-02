@@ -17,7 +17,7 @@ import { application } from '@main/core/application'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
-import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent } from './ChannelAdapter'
+import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent, SendMessageOptions } from './ChannelAdapter'
 import { SLASH_COMMANDS } from './constants'
 import { wrapExternalContent } from './security'
 
@@ -128,7 +128,9 @@ export class ChannelMessageHandler {
         const chatId = merged.chatId
         if (adapter && chatId) {
           adapter
-            .sendMessage(chatId, '⚠️ An error occurred while processing your message. Please try again later.')
+            .sendMessage(chatId, '⚠️ An error occurred while processing your message. Please try again later.', {
+              replyToMessageId: merged.messageId
+            })
             .catch((sendErr) => {
               logger.debug('Failed to send error notification to channel', {
                 chatId,
@@ -153,12 +155,16 @@ export class ChannelMessageHandler {
       .join('\n')
     const mergedImages = messages.flatMap((m) => m.images ?? [])
     const mergedFiles = messages.flatMap((m) => m.files ?? [])
+    // Reply against the most recent message in the batch: freshest passive-reply window and the
+    // closest match to "what the user just finished saying".
+    const messageId = messages[messages.length - 1].messageId
 
     return {
       chatId: first.chatId,
       userId: first.userId,
       userName: first.userName,
       text: mergedText,
+      ...(messageId ? { messageId } : {}),
       ...(mergedImages.length > 0 ? { images: mergedImages } : {}),
       ...(mergedFiles.length > 0 ? { files: mergedFiles } : {})
     }
@@ -172,7 +178,9 @@ export class ChannelMessageHandler {
       if (!session) {
         logger.error('Failed to resolve session', { agentId })
         await adapter
-          .sendMessage(message.chatId, '⚠️ Failed to resolve a session for this agent. Please try again later.')
+          .sendMessage(message.chatId, '⚠️ Failed to resolve a session for this agent. Please try again later.', {
+            replyToMessageId: message.messageId
+          })
           .catch((err) => {
             logger.debug('Failed to send session-error notification to channel', {
               chatId: message.chatId,
@@ -206,7 +214,9 @@ export class ChannelMessageHandler {
           await prepareClaudeCodeWorkspaceDirectory(session)
         } catch (error) {
           if (isAgentSessionWorkspaceError(error)) {
-            await adapter.sendMessage(message.chatId, error.message).catch(() => {})
+            await adapter
+              .sendMessage(message.chatId, error.message, { replyToMessageId: message.messageId })
+              .catch(() => {})
           }
           throw error
         }
@@ -280,14 +290,23 @@ export class ChannelMessageHandler {
         // `ChannelAdapterListener` registered inside `collectStreamResponse`; we only await
         // turn completion here. (The old post-hoc finalize was dead — the sentinel's `c.text`
         // read never accumulated — and reviving it would double-send.)
-        await this.collectStreamResponse(session, securedContent, abortController, adapter, message.chatId)
+        await this.collectStreamResponse(
+          session,
+          securedContent,
+          abortController,
+          adapter,
+          message.chatId,
+          message.messageId
+        )
       } catch (streamError) {
         const streamErrorMessage = streamError instanceof Error ? streamError.message : String(streamError)
         if (isAgentSessionWorkspaceError(streamError)) {
           // Thrown before streaming starts (validateSession), so no controller exists yet and
           // onStreamError is a no-op on most adapters — send a plain message so the inbound
           // message isn't silently dropped on Telegram/WeChat/QQ/Discord/Slack.
-          adapter.sendMessage(message.chatId, streamErrorMessage).catch(() => {})
+          adapter
+            .sendMessage(message.chatId, streamErrorMessage, { replyToMessageId: message.messageId })
+            .catch(() => {})
         } else {
           // Mid-stream error: let the adapter update its streaming UI.
           adapter.onStreamError(message.chatId, streamErrorMessage).catch(() => {})
@@ -308,6 +327,7 @@ export class ChannelMessageHandler {
 
   async handleCommand(adapter: ChannelAdapter, command: ChannelCommandEvent): Promise<void> {
     const { agentId } = adapter
+    const replyOpts: SendMessageOptions = { replyToMessageId: command.messageId }
     try {
       switch (command.command) {
         case 'new': {
@@ -318,13 +338,13 @@ export class ChannelMessageHandler {
           const trackerKey = `${agentId}:${adapter.channelId}:${command.chatId}`
           this.sessionTracker.set(trackerKey, newSession.id)
           this.evictSessionTracker()
-          await adapter.sendMessage(command.chatId, 'New session created.')
+          await adapter.sendMessage(command.chatId, 'New session created.', replyOpts)
           break
         }
         case 'compact': {
           const session = await this.resolveSession(agentId, adapter.channelId, adapter.channelType, command.chatId)
           if (!session) {
-            await adapter.sendMessage(command.chatId, 'No active session.')
+            await adapter.sendMessage(command.chatId, 'No active session.', replyOpts)
             return
           }
           const abortController = new AbortController()
@@ -339,13 +359,14 @@ export class ChannelMessageHandler {
               '/compact',
               abortController,
               adapter,
-              command.chatId
+              command.chatId,
+              command.messageId
             )
             // The `ChannelAdapterListener` registered inside `collectStreamResponse` already
             // delivered any non-empty output; only send an explicit fallback when compact
             // produced no text, so we don't double-send.
             if (!response) {
-              await adapter.sendMessage(command.chatId, 'Session compacted.')
+              await adapter.sendMessage(command.chatId, 'Session compacted.', replyOpts)
             }
           } finally {
             clearInterval(typingInterval)
@@ -365,7 +386,7 @@ export class ChannelMessageHandler {
           ]
             .filter(Boolean)
             .join('\n')
-          await adapter.sendMessage(command.chatId, helpText)
+          await adapter.sendMessage(command.chatId, helpText, replyOpts)
           break
         }
         case 'whoami': {
@@ -375,7 +396,8 @@ export class ChannelMessageHandler {
               `Current chat ID: \`${command.chatId}\``,
               '',
               'Add this value to `allow_ids` in settings to receive notifications.'
-            ].join('\n')
+            ].join('\n'),
+            replyOpts
           )
           break
         }
@@ -387,7 +409,9 @@ export class ChannelMessageHandler {
         error: error instanceof Error ? error.message : String(error)
       })
       adapter
-        .sendMessage(command.chatId, '⚠️ An error occurred while processing the command. Please try again later.')
+        .sendMessage(command.chatId, '⚠️ An error occurred while processing the command. Please try again later.', {
+          replyToMessageId: command.messageId
+        })
         .catch((sendErr) => {
           logger.debug('Failed to send error notification to channel', {
             chatId: command.chatId,
@@ -552,7 +576,8 @@ export class ChannelMessageHandler {
     content: string,
     abortController: AbortController,
     adapter: ChannelAdapter,
-    chatId: string
+    chatId: string,
+    replyToMessageId?: string
   ): Promise<string> {
     if (!session.agentId) {
       throw new Error(`Cannot stream on orphan session ${session.id} — its agent was deleted`)
@@ -586,7 +611,7 @@ export class ChannelMessageHandler {
     await startAgentSessionRun({
       sessionId: session.id,
       userParts: [{ type: 'text', text: content }],
-      listeners: [sentinel, new ChannelAdapterListener(adapter, chatId)]
+      listeners: [sentinel, new ChannelAdapterListener(adapter, chatId, false, replyToMessageId)]
     })
 
     return executionDone

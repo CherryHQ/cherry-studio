@@ -116,4 +116,3 @@ Besides automatic scheduling, each task can be manually triggered via API or UI:
 | `src/main/services/agents/services/SchedulerService.ts` | Polling scheduler main logic |
 | `src/main/services/agents/services/TaskService.ts` | Task CRUD, getDueTasks, computeNextRun |
 | `src/main/services/agents/database/schema/tasks.schema.ts` | scheduled_tasks + task_run_logs table definitions |
-| `resources/database/drizzle/0003_wise_meltdown.sql` | Database migration script |
