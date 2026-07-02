@@ -902,8 +902,8 @@ describe('KnowledgePage', () => {
 
     await waitFor(() => {
       expect(createGroupMock).toHaveBeenCalledWith('Group 2')
+      expect(screen.queryByTestId('create-group-dialog')).not.toBeInTheDocument()
     })
-    expect(screen.queryByTestId('create-group-dialog')).not.toBeInTheDocument()
   })
 
   it('opens the rename dialog with the current name and updates the selected group', async () => {

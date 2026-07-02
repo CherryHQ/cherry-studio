@@ -340,7 +340,7 @@
       "welcome_title": "What shall we talk about today?"
     },
     "input": {
-      "placeholder": "Enter your message here, send with {{key}} - @ select path, / select command",
+      "placeholder": "Type a message. Press {{key}} to send. Type / to search paths or commands.",
       "soul_placeholder": "Help me connect to Telegram"
     },
     "list": {
@@ -1495,7 +1495,7 @@
       "paste_text_file": "Paste into input",
       "pasted_text_file_name": "Pasted text.txt",
       "pause": "Pause",
-      "placeholder": "Type your message here, press {{key}} to send - @ to Select Model, / to Include Tools",
+      "placeholder": "Type a message. Press {{key}} to send. Type / for tools and actions.",
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
       "resource_panel": {
         "categories": {
@@ -1506,7 +1506,7 @@
         "description": "Select from files, agents, or skills",
         "loading": "Loading...",
         "no_file_found": {
-          "description": "No files available in accessible directories",
+          "description": "No searchable files in the current workspace",
           "label": "No File Found"
         },
         "no_items_found": {
@@ -6450,7 +6450,7 @@
       "input": {
         "confirm_delete_message": "Confirm before deleting messages",
         "confirm_regenerate_message": "Confirm before regenerating messages",
-        "enable_quick_triggers": "Enable / and @ triggers",
+        "enable_quick_triggers": "Enable / to open the input quick panel",
         "send_shortcuts": "Send shortcuts",
         "show_estimated_tokens": "Show estimated tokens",
         "title": "Input Settings"
@@ -7200,10 +7200,10 @@
         "unknownServer": "Unknown MCP server"
       },
       "multiple": "Multiple Select",
-      "noResult": "No results found",
+      "noResult": "No matching items",
       "page": "Page",
       "select": "Select",
-      "title": "Quick Menu"
+      "title": "Input Quick Panel"
     },
     "quickPhrase": {
       "add": "Add Phrase",

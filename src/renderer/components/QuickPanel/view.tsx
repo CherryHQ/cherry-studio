@@ -103,7 +103,9 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   const inputQueryConsumedRef = useRef(false)
   const prevPanelGenerationRef = useRef<number | undefined>(undefined)
   const inputTriggerSymbol = ctx.triggerInfo?.originalText?.slice(0, 1)
-  const isTrackedInputPanel = Boolean(ctx.trackInputQuery && ctx.triggerInfo?.type === 'input')
+  const isTrackedInputPanel = Boolean(
+    ctx.trackInputQuery && (ctx.triggerInfo?.type === 'input' || ctx.triggerInfo?.type === 'button')
+  )
   const activeSearchText = isTrackedInputPanel ? inputSearchText : ''
   const activeSearchQuery = getInputQueryText(activeSearchText, inputTriggerSymbol)
 
@@ -272,8 +274,13 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
     if (cursorOffset <= queryAnchor) return
 
+    if (ctx.triggerInfo?.type === 'button') {
+      const currentInputQuery = text.slice(queryAnchor, cursorOffset)
+      if (!activeSearchQuery || currentInputQuery !== activeSearchQuery) return
+    }
+
     inputAdapter.deleteTriggerRange({ from: queryAnchor, to: cursorOffset })
-  }, [ctx.queryAnchor, inputAdapter])
+  }, [activeSearchQuery, ctx.queryAnchor, ctx.triggerInfo?.type, inputAdapter])
 
   const consumeInputQueryOnce = useCallback(() => {
     if (inputQueryConsumedRef.current) return
@@ -348,7 +355,11 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       }
 
       if (item.isMenu) {
-        consumeInputTriggerSymbol()
+        if (ctx.triggerInfo?.type === 'button' && ctx.trackInputQuery) {
+          consumeInputQueryOnce()
+        } else {
+          consumeInputTriggerSymbol()
+        }
       } else {
         consumeInputQuery()
       }
@@ -397,7 +408,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return
     }
 
-    if (!isInputQueryAnchorAllowed(text, queryAnchor)) {
+    if (ctx.triggerInfo?.type === 'input' && !isInputQueryAnchorAllowed(text, queryAnchor)) {
       closePanel('input_prefix_invalid')
       return
     }
@@ -412,17 +423,17 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     }
 
     const nextSearchText = text.slice(queryAnchor, cursorOffset)
-    if (isInputQueryTerminated(nextSearchText)) {
+    if (ctx.triggerInfo?.type === 'input' && isInputQueryTerminated(nextSearchText)) {
       closePanel('input_query_terminated')
       return
     }
 
-    if (isInputQueryRestarted(nextSearchText, inputTriggerSymbol)) {
+    if (ctx.triggerInfo?.type === 'input' && isInputQueryRestarted(nextSearchText, inputTriggerSymbol)) {
       closePanel('input_trigger_restarted')
       return
     }
 
-    if (!isInputQueryCursorAtEnd(text, cursorOffset)) {
+    if (ctx.triggerInfo?.type === 'input' && !isInputQueryCursorAtEnd(text, cursorOffset)) {
       closePanel('input_cursor_invalid')
       return
     }
@@ -457,7 +468,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return
     }
 
-    if (!isInputQueryAnchorAllowed(text, queryAnchor)) {
+    if (ctx.triggerInfo?.type === 'input' && !isInputQueryAnchorAllowed(text, queryAnchor)) {
       closePanel('input_prefix_invalid')
       return
     }
@@ -468,17 +479,17 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     }
 
     const nextSearchText = text.slice(queryAnchor, cursorOffset)
-    if (isInputQueryTerminated(nextSearchText)) {
+    if (ctx.triggerInfo?.type === 'input' && isInputQueryTerminated(nextSearchText)) {
       closePanel('input_query_terminated')
       return
     }
 
-    if (isInputQueryRestarted(nextSearchText, inputTriggerSymbol)) {
+    if (ctx.triggerInfo?.type === 'input' && isInputQueryRestarted(nextSearchText, inputTriggerSymbol)) {
       closePanel('input_trigger_restarted')
       return
     }
 
-    if (!isInputQueryCursorAtEnd(text, cursorOffset)) {
+    if (ctx.triggerInfo?.type === 'input' && !isInputQueryCursorAtEnd(text, cursorOffset)) {
       closePanel('input_cursor_invalid')
       return
     }

@@ -45,7 +45,10 @@ const mocks = vi.hoisted(() => ({
   sessionLayout: undefined as string | undefined,
   runtimeHostProps: undefined as
     | { assistant?: { modelId?: string | null }; model?: Model; session?: { agentId?: string } }
-    | undefined
+    | undefined,
+  sessionWorkspaceId: 'workspace-1',
+  sessionWorkspaceName: 'Workspace 1',
+  sessionWorkspacePath: '/workspace'
 }))
 
 const originalResizeObserver = globalThis.ResizeObserver
@@ -211,6 +214,7 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
     getLaunchers: vi.fn(() => []),
     dispatchLauncher: vi.fn()
   }),
+  useComposerToolLauncherVersion: () => 0,
   useComposerTokenReconcile: () => mocks.reconcileTokens
 }))
 
@@ -266,13 +270,13 @@ vi.mock('@renderer/hooks/agent/useSession', () => ({
       id: 'session-1',
       agentId: 'agent-1',
       name: 'Session',
-      accessiblePaths: ['/workspace'],
-      workspaceId: 'workspace-1',
+      accessiblePaths: [mocks.sessionWorkspacePath],
+      workspaceId: mocks.sessionWorkspaceId,
       workspace: {
-        id: 'workspace-1',
+        id: mocks.sessionWorkspaceId,
         type: 'user',
-        name: 'Workspace 1',
-        path: '/workspace',
+        name: mocks.sessionWorkspaceName,
+        path: mocks.sessionWorkspacePath,
         orderKey: 'a0',
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z'
@@ -477,6 +481,9 @@ describe('AgentComposer', () => {
     mocks.surfaceProps = undefined
     mocks.derivedToolState = undefined
     mocks.runtimeHostProps = undefined
+    mocks.sessionWorkspaceId = 'workspace-1'
+    mocks.sessionWorkspaceName = 'Workspace 1'
+    mocks.sessionWorkspacePath = '/workspace'
     mocks.sessionLayout = undefined
     mocks.shortcutHandlers.clear()
     mocks.shortcutOptions.clear()
@@ -565,6 +572,7 @@ describe('AgentComposer', () => {
 
   it('routes new session shortcuts through the explicit parent action', () => {
     const onNewSessionDraft = vi.fn()
+    const onCreateEmptySession = vi.fn()
 
     render(
       <AgentComposer
@@ -573,6 +581,7 @@ describe('AgentComposer', () => {
         sendMessage={mocks.sendMessage}
         stop={mocks.stop}
         onNewSessionDraft={onNewSessionDraft}
+        onCreateEmptySession={onCreateEmptySession}
         isStreaming={false}
       />
     )
@@ -580,6 +589,7 @@ describe('AgentComposer', () => {
     mocks.shortcutHandlers.get('topic.create')?.()
 
     expect(onNewSessionDraft).toHaveBeenCalledTimes(1)
+    expect(onCreateEmptySession).not.toHaveBeenCalled()
   })
 
   it('routes classic-layout new session shortcuts through the empty session action', () => {
@@ -605,7 +615,7 @@ describe('AgentComposer', () => {
     expect(onNewSessionDraft).not.toHaveBeenCalled()
   })
 
-  it('renders the empty session action before the tool menu and calls the explicit handler', () => {
+  it('puts the classic-layout empty session action first in the slash panel and calls the explicit handler', () => {
     mocks.sessionLayout = 'classic'
     const onCreateEmptySession = vi.fn()
 
@@ -621,19 +631,30 @@ describe('AgentComposer', () => {
     )
 
     const leftControls = screen.getByTestId('composer-left-controls')
-    const newSessionButton = within(leftControls).getByRole('button', { name: 'agent.session.new' })
     const modelButton = within(leftControls).getByRole('button', { name: /Claude Sonnet 4.5/ })
     const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
-    expect(newSessionButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(modelButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(newSessionButton.querySelector('svg')).toHaveClass('lucide-message-square-plus')
+    expect(toolMenuButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(within(leftControls).queryByRole('button', { name: 'agent.session.new' })).not.toBeInTheDocument()
 
-    fireEvent.click(newSessionButton)
+    const newSessionItem = mocks.surfaceProps?.rootPanelLeadingItems?.[0]
+    expect(newSessionItem).toEqual(
+      expect.objectContaining({
+        id: 'composer:new-session',
+        label: 'agent.session.new',
+        filterText: 'agent.session.new'
+      })
+    )
+    newSessionItem?.action?.({
+      context: {} as any,
+      action: 'enter',
+      item: newSessionItem
+    })
 
     expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps the tool menu at the far left in the modern layout', () => {
+  it('keeps the tool menu at the far left and puts the modern-layout new session action in the slash panel', () => {
+    const onNewSessionDraft = vi.fn()
     const onCreateEmptySession = vi.fn()
 
     render(
@@ -642,21 +663,36 @@ describe('AgentComposer', () => {
         sessionId="session-1"
         sendMessage={mocks.sendMessage}
         stop={mocks.stop}
+        onNewSessionDraft={onNewSessionDraft}
         onCreateEmptySession={onCreateEmptySession}
         isStreaming={false}
       />
     )
 
     const leftControls = screen.getByTestId('composer-left-controls')
-    const newSessionButton = within(leftControls).getByRole('button', { name: 'agent.session.new' })
     const agentButton = within(leftControls).getByRole('button', { name: /Agent/ })
     const modelButton = within(leftControls).getByRole('button', { name: /Claude Sonnet 4.5/ })
     const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
 
-    expect(toolMenuButton.compareDocumentPosition(newSessionButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(newSessionButton.compareDocumentPosition(agentButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(toolMenuButton.compareDocumentPosition(agentButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(agentButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(within(leftControls).queryByRole('button', { name: 'agent.session.new' })).not.toBeInTheDocument()
+
+    const newSessionItem = mocks.surfaceProps?.rootPanelLeadingItems?.[0]
+    expect(newSessionItem).toEqual(
+      expect.objectContaining({
+        id: 'composer:new-session',
+        label: 'agent.session.new'
+      })
+    )
+    newSessionItem?.action?.({
+      context: {} as any,
+      action: 'enter',
+      item: newSessionItem
+    })
+
+    expect(onNewSessionDraft).toHaveBeenCalledTimes(1)
+    expect(onCreateEmptySession).not.toHaveBeenCalled()
   })
 
   it('hides the empty session action without a handler', () => {
@@ -671,6 +707,7 @@ describe('AgentComposer', () => {
     )
 
     expect(screen.queryByRole('button', { name: 'agent.session.new' })).not.toBeInTheDocument()
+    expect(mocks.surfaceProps?.rootPanelLeadingItems).toEqual([])
   })
 
   it('passes attachment capabilities through the provider without effect mirroring', () => {
@@ -718,7 +755,7 @@ describe('AgentComposer', () => {
     expect(screen.getByText('agent/deepseek-v4-flash')).toBeInTheDocument()
   })
 
-  it('provides workspace resources through the mention suggestion source', async () => {
+  it('provides workspace resources through the unified panel resource provider', async () => {
     mocks.listDirectory.mockResolvedValue(['/workspace/docs/notes.md', '/workspace/docs/notes.md'])
 
     render(
@@ -731,15 +768,22 @@ describe('AgentComposer', () => {
       />
     )
 
-    const resourceSource = mocks.surfaceProps?.suggestionSources?.[0]
-    expect(resourceSource).toEqual(
-      expect.objectContaining({
-        char: '@',
-        pluginKey: 'agent-resource-mention-suggestion'
-      })
-    )
+    const resourceProvider = mocks.surfaceProps?.resourceProvider
+    expect(resourceProvider).toEqual(expect.any(Function))
+    expect(mocks.surfaceProps?.suggestionSources).toEqual([])
 
-    const items = await resourceSource?.items({ query: 'notes', editor: {} as any })
+    const inputAdapter = {
+      getText: vi.fn(() => ''),
+      insertText: vi.fn(),
+      insertToken: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+    const emptyItems = await resourceProvider?.('', { inputAdapter, quickPanel: {} as any })
+    expect(emptyItems).toEqual([])
+    expect(mocks.listDirectory).not.toHaveBeenCalled()
+
+    const items = await resourceProvider?.('notes', { inputAdapter, quickPanel: {} as any })
     expect(mocks.listDirectory).toHaveBeenCalledWith(
       '/workspace',
       expect.objectContaining({
@@ -750,55 +794,78 @@ describe('AgentComposer', () => {
     )
     expect(items).toHaveLength(1)
     const item = items?.[0]
+    if (!item?.id) throw new Error('Expected a resource provider item')
     expect(items?.[0]).toEqual(
       expect.objectContaining({
-        id: expect.stringMatching(/^file:.+/),
+        id: expect.stringMatching(/^agent-resource:.+/),
         label: 'docs/notes.md',
         description: '/workspace/docs/notes.md',
         disabled: false
       })
     )
-    expect(item?.id).not.toContain('/workspace/docs/notes.md')
+    expect(item.id).not.toContain('/workspace/docs/notes.md')
 
-    const run = vi.fn()
-    const insertContent = vi.fn(() => ({ run }))
-    const insertComposerToken = vi.fn(() => ({ insertContent }))
-    const editor = {
-      getJSON: () => ({ type: 'doc', content: [] }),
-      chain: () => ({
-        focus: () => ({
-          insertComposerToken
-        })
-      })
-    }
+    const refreshedItems = await resourceProvider?.('notes', { inputAdapter, quickPanel: {} as any })
+    expect(refreshedItems?.[0]?.id).toBe(item.id)
 
-    items?.[0]?.command({ editor: editor as any, range: { from: 1, to: 7 }, item: items[0], query: 'notes' })
+    item.action?.({ action: 'enter', context: {} as any, item, inputAdapter })
 
-    expect(insertComposerToken).toHaveBeenCalledWith(
+    expect(inputAdapter.insertToken).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: item?.id,
+        id: expect.stringMatching(/^file:.+/),
         kind: 'file',
         label: 'notes.md',
         payload: expect.objectContaining({
-          fileTokenSourceId: item?.id.slice('file:'.length),
+          fileTokenSourceId: expect.any(String),
           path: '/workspace/docs/notes.md'
         })
       })
     )
-    expect(insertContent).toHaveBeenCalledWith(' ')
-    expect(run).toHaveBeenCalled()
+    expect(inputAdapter.focus).toHaveBeenCalled()
 
     const setFilesUpdater = mocks.setFiles.mock.calls.at(-1)?.[0]
     expect(typeof setFilesUpdater).toBe('function')
     const selectedFile = { id: '/workspace/docs/notes.md', path: '/workspace/docs/notes.md' } as FileMetadata
     expect(setFilesUpdater([])).toEqual([
       expect.objectContaining({
-        fileTokenSourceId: item?.id.slice('file:'.length),
+        fileTokenSourceId: expect.any(String),
         path: '/workspace/docs/notes.md'
       })
     ])
     expect(setFilesUpdater([selectedFile])).toBeInstanceOf(Array)
     expect(setFilesUpdater([selectedFile])).toHaveLength(1)
+  })
+
+  it('changes the unified panel resource provider when the workspace scope changes', () => {
+    const { rerender } = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const firstResourceProvider = mocks.surfaceProps?.resourceProvider
+    expect(firstResourceProvider).toEqual(expect.any(Function))
+
+    mocks.sessionWorkspaceId = 'workspace-2'
+    mocks.sessionWorkspaceName = 'Workspace 2'
+    mocks.sessionWorkspacePath = '/workspace-2'
+
+    rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.surfaceProps?.resourceProvider).toEqual(expect.any(Function))
+    expect(mocks.surfaceProps?.resourceProvider).not.toBe(firstResourceProvider)
   })
 
   it('marks already selected workspace resources as disabled', async () => {
@@ -822,10 +889,13 @@ describe('AgentComposer', () => {
       />
     )
 
-    const items = await mocks.surfaceProps?.suggestionSources?.[0]?.items({ query: 'notes', editor: {} as any })
+    const items = await mocks.surfaceProps?.resourceProvider?.('notes', {
+      inputAdapter: undefined,
+      quickPanel: {} as any
+    })
     expect(items?.[0]).toEqual(
       expect.objectContaining({
-        id: expect.stringMatching(/^file:.+/),
+        id: expect.stringMatching(/^agent-resource:.+/),
         disabled: true
       })
     )
