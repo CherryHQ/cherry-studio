@@ -46,7 +46,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { appFavorites, miniAppFavoriteIds, setAppPinned, removeMiniApp, reorderApps, reorderMiniApps } =
     useSidebarFavorites()
   const { activeTab, updateTab, openTab } = useTabs()
-  const { miniApps, pinned } = useMiniApps()
+  const { miniApps, pinned, reorderMiniAppsByStatus } = useMiniApps()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
 
   // Sidebar width — persisted across restarts. Dragging through the
@@ -191,9 +191,21 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const handleReorderMiniApps = useCallback(
     ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
-      reorderMiniApps(arrayMove(sidebarMiniAppTabs, oldIndex, newIndex).map((tab) => tab.id))
+      const orderedIds = arrayMove(sidebarMiniAppTabs, oldIndex, newIndex).map((tab) => tab.id)
+      reorderMiniApps(orderedIds)
+
+      // Mirror the new order into the mini apps' order keys so the launchpad,
+      // which sorts by orderKey rather than by the sidebar favorites list, stays
+      // in sync. Sidebar tabs are always visible (enabled or pinned) apps.
+      const orderedApps = orderedIds.flatMap((id) => {
+        const app = openableMiniAppById.get(id)
+        return app ? [app] : []
+      })
+      void reorderMiniAppsByStatus('visible', orderedApps).catch(() => {
+        window.toast?.error(t('miniApp.reorder_failed'))
+      })
     },
-    [sidebarMiniAppTabs, reorderMiniApps]
+    [sidebarMiniAppTabs, reorderMiniApps, openableMiniAppById, reorderMiniAppsByStatus, t]
   )
 
   const activeItem = resolveSidebarActiveItem(pathname)

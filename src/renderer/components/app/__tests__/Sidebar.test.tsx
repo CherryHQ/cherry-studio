@@ -37,6 +37,7 @@ const mocks = vi.hoisted(() => ({
   } as FakeTab | null,
   setSidebarWidth: vi.fn(),
   setSidebarFavorites: vi.fn(() => Promise.resolve()),
+  reorderMiniAppsByStatus: vi.fn(() => Promise.resolve()),
   showUserPopup: vi.fn(),
   sidebarWidth: 50,
   tabs: [] as FakeTab[],
@@ -76,7 +77,8 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
   useMiniApps: () => ({
     allApps: mocks.allApps,
     miniApps: mocks.visibleMiniApps ?? mocks.allApps,
-    pinned: mocks.pinnedMiniApps
+    pinned: mocks.pinnedMiniApps,
+    reorderMiniAppsByStatus: mocks.reorderMiniAppsByStatus
   })
 }))
 vi.mock('@renderer/i18n/label', () => ({
@@ -279,6 +281,8 @@ afterEach(() => {
   mocks.sidebarMiniAppFavorites = []
   mocks.setSidebarFavorites.mockReset()
   mocks.setSidebarFavorites.mockResolvedValue(undefined)
+  mocks.reorderMiniAppsByStatus.mockReset()
+  mocks.reorderMiniAppsByStatus.mockResolvedValue(undefined)
   mocks.activeTab = {
     id: 'chat',
     type: 'route',
@@ -456,6 +460,9 @@ describe('app Sidebar', () => {
       miniAppFavorite('weather'),
       miniAppFavorite('calculator')
     ])
+    // The mini apps' order keys mirror the drop order so the launchpad, which
+    // sorts by orderKey, stays in sync with the sidebar.
+    expect(mocks.reorderMiniAppsByStatus).toHaveBeenCalledWith('visible', [mocks.allApps[1], mocks.allApps[0]])
   })
 
   it('does not render mini apps unless they are sidebar favorites', () => {
