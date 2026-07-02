@@ -929,7 +929,7 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
           className="mt-2 flex w-full items-center gap-2 rounded px-0 py-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
           onClick={() => setIsExpanded(false)}>
           <span aria-hidden="true" className="h-px flex-1 bg-border-subtle" />
-          <span className="shrink-0">{t('common.collapse')}</span>
+          <span className="shrink-0">{t('message.tools.collapse')}</span>
           <span aria-hidden="true" className="h-px flex-1 bg-border-subtle" />
         </button>
       )}

@@ -63,9 +63,9 @@ vi.mock('react-i18next', () => ({
       if (key === 'message.tools.runningHeader') return 'Working…'
       if (key === 'message.tools.thinkingHeader') return 'Thinking...'
       if (key === 'common.preview') return 'Preview'
-      if (key === 'common.collapse') return '收起'
       if (key === 'common.close') return 'Close'
       if (key === 'common.reasoning_content') return 'Reasoning content'
+      if (key === 'message.tools.collapse') return '收起'
       if (key === 'chat.input.tools.open_file') return 'Open File'
       if (key === 'chat.input.tools.open_file_error') return 'Failed to open file'
       return key

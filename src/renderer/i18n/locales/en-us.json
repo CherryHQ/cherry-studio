@@ -337,7 +337,7 @@
       "tooltip": "Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
     },
     "home": {
-      "welcome_title": "What do you want to do today?"
+      "welcome_title": "What shall we talk about today?"
     },
     "input": {
       "placeholder": "Enter your message here, send with {{key}} - @ select path, / select command",
@@ -3775,6 +3775,7 @@
       "approvalRequired": "Tool \"{{tool}}\" requires approval",
       "autoApproveEnabled": "Auto-approve enabled for this tool",
       "cancelled": "Cancelled",
+      "collapse": "Collapse",
       "completed": "Completed",
       "error": "Error occurred",
       "groupHeader": "{{count}} tool calls",
