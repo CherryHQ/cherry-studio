@@ -23,30 +23,30 @@ import { EntityIdSchema, EntityTypeSchema } from '@shared/data/types/entityType'
 export const tagHandlers: HandlersFor<TagSchemas> = {
   '/tags': {
     GET: async () => {
-      return await tagService.list()
+      return tagService.list()
     },
 
     POST: async ({ body }) => {
       const parsed = CreateTagSchema.parse(body)
-      return await tagService.create(parsed)
+      return tagService.create(parsed)
     }
   },
 
   '/tags/:id': {
     GET: async ({ params }) => {
       const id = TagIdSchema.parse(params.id)
-      return await tagService.getById(id)
+      return tagService.getById(id)
     },
 
     PATCH: async ({ params, body }) => {
       const id = TagIdSchema.parse(params.id)
       const parsed = UpdateTagSchema.parse(body)
-      return await tagService.update(id, parsed)
+      return tagService.update(id, parsed)
     },
 
     DELETE: async ({ params }) => {
       const id = TagIdSchema.parse(params.id)
-      await tagService.delete(id)
+      tagService.delete(id)
       return undefined
     }
   },
@@ -55,7 +55,7 @@ export const tagHandlers: HandlersFor<TagSchemas> = {
     PUT: async ({ params, body }) => {
       const id = TagIdSchema.parse(params.id)
       const parsed = SetTagEntitiesSchema.parse(body)
-      await tagService.setEntities(id, parsed)
+      tagService.setEntities(id, parsed)
       return undefined
     }
   },
@@ -64,14 +64,14 @@ export const tagHandlers: HandlersFor<TagSchemas> = {
     GET: async ({ params }) => {
       const entityType = EntityTypeSchema.parse(params.entityType)
       const entityId = EntityIdSchema.parse(params.entityId)
-      return await tagService.getTagsByEntity(entityType, entityId)
+      return tagService.getTagsByEntity(entityType, entityId)
     },
 
     PUT: async ({ params, body }) => {
       const entityType = EntityTypeSchema.parse(params.entityType)
       const entityId = EntityIdSchema.parse(params.entityId)
       const parsed = SyncEntityTagsSchema.parse(body)
-      await tagService.syncEntityTags(entityType, entityId, parsed)
+      tagService.syncEntityTags(entityType, entityId, parsed)
       return undefined
     }
   }

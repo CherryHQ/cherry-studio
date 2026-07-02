@@ -90,7 +90,7 @@ Key rules:
 
 ## Database
 
-CherryClaw uses Drizzle ORM + LibSQL (SQLite) for task data storage:
+CherryClaw uses Drizzle ORM + better-sqlite3 (SQLite) for task data storage:
 
 | Table | Purpose |
 |---|---|

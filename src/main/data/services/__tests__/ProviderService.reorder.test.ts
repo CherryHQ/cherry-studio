@@ -30,7 +30,7 @@ describe('ProviderService reorder', () => {
   it('creates new providers at the end of the list', async () => {
     await seedProviders()
 
-    const created = await providerService.create({ providerId: 'grok', name: 'Grok' })
+    const created = providerService.create({ providerId: 'grok', name: 'Grok' })
 
     const rows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'grok')).limit(1)
 
@@ -44,7 +44,7 @@ describe('ProviderService reorder', () => {
   it('batchUpsert appends only missing providers in input order', async () => {
     await seedProviders()
 
-    await providerService.batchUpsert([
+    providerService.batchUpsert([
       { providerId: 'anthropic', name: 'Anthropic duplicate' },
       { providerId: 'grok', name: 'Grok' },
       { providerId: 'openrouter', name: 'OpenRouter' }
@@ -56,7 +56,7 @@ describe('ProviderService reorder', () => {
   it('moves a provider to the first position', async () => {
     await seedProviders()
 
-    await providerService.move('gemini', { position: 'first' })
+    providerService.move('gemini', { position: 'first' })
 
     expect(await readOrder()).toEqual(['gemini', 'openai', 'anthropic'])
   })
@@ -64,7 +64,7 @@ describe('ProviderService reorder', () => {
   it('moves a provider after an anchor', async () => {
     await seedProviders()
 
-    await providerService.move('openai', { after: 'gemini' })
+    providerService.move('openai', { after: 'gemini' })
 
     expect(await readOrder()).toEqual(['anthropic', 'gemini', 'openai'])
   })
@@ -76,7 +76,7 @@ describe('ProviderService reorder', () => {
     // place it immediately before gemini, between anthropic and gemini.
     await seedProviders()
 
-    await providerService.move('openai', { before: 'gemini' })
+    providerService.move('openai', { before: 'gemini' })
 
     expect(await readOrder()).toEqual(['anthropic', 'openai', 'gemini'])
   })
@@ -84,7 +84,13 @@ describe('ProviderService reorder', () => {
   it('rejects a before-anchor that equals the move target', async () => {
     await seedProviders()
 
-    await expect(providerService.move('openai', { before: 'openai' })).rejects.toMatchObject({
+    let err: unknown
+    try {
+      providerService.move('openai', { before: 'openai' })
+    } catch (e) {
+      err = e
+    }
+    expect(err).toMatchObject({
       code: ErrorCode.VALIDATION_ERROR
     })
   })
@@ -92,7 +98,7 @@ describe('ProviderService reorder', () => {
   it('applies batch moves sequentially', async () => {
     await seedProviders()
 
-    await providerService.reorder([
+    providerService.reorder([
       { id: 'gemini', anchor: { position: 'first' } },
       { id: 'openai', anchor: { after: 'gemini' } }
     ])
@@ -103,7 +109,13 @@ describe('ProviderService reorder', () => {
   it('throws when target provider does not exist', async () => {
     await seedProviders()
 
-    await expect(providerService.move('missing', { position: 'first' })).rejects.toMatchObject({
+    let err: unknown
+    try {
+      providerService.move('missing', { position: 'first' })
+    } catch (e) {
+      err = e
+    }
+    expect(err).toMatchObject({
       code: ErrorCode.NOT_FOUND,
       details: { resource: 'Provider', id: 'missing' }
     })
@@ -112,7 +124,13 @@ describe('ProviderService reorder', () => {
   it('throws when anchor provider does not exist', async () => {
     await seedProviders()
 
-    await expect(providerService.move('openai', { after: 'missing' })).rejects.toMatchObject({
+    let err: unknown
+    try {
+      providerService.move('openai', { after: 'missing' })
+    } catch (e) {
+      err = e
+    }
+    expect(err).toMatchObject({
       code: ErrorCode.NOT_FOUND,
       details: { resource: 'Provider', id: 'missing' }
     })
@@ -127,12 +145,22 @@ describe('ProviderService reorder', () => {
       isEnabled: true
     })
 
-    await expect(providerService.move(CHERRYAI_PROVIDER_ID, { position: 'first' })).rejects.toMatchObject({
+    let moveErr: unknown
+    try {
+      providerService.move(CHERRYAI_PROVIDER_ID, { position: 'first' })
+    } catch (e) {
+      moveErr = e
+    }
+    expect(moveErr).toMatchObject({
       code: ErrorCode.INVALID_OPERATION
     })
-    await expect(
+    let reorderErr: unknown
+    try {
       providerService.reorder([{ id: CHERRYAI_PROVIDER_ID, anchor: { position: 'last' } }])
-    ).rejects.toMatchObject({
+    } catch (e) {
+      reorderErr = e
+    }
+    expect(reorderErr).toMatchObject({
       code: ErrorCode.INVALID_OPERATION
     })
     expect(await readOrder()).toEqual(['openai', 'anthropic', 'gemini', CHERRYAI_PROVIDER_ID])
