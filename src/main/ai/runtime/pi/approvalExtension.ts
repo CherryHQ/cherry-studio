@@ -29,7 +29,7 @@ import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 
-import { detectGlobalInstall } from '../claudeCode/dependencyGuard'
+import { detectGlobalInstall } from '../toolApproval/dependencyGuard'
 import { type DispatchDecision, toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
 import { PI_TRANSPORT } from './piStreamAdapter'
 
@@ -90,7 +90,7 @@ export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFact
 
       const approvalId = randomUUID()
       const decision = await new Promise<DispatchDecision>((resolve) => {
-        toolApprovalRegistry.register({
+        const pending = toolApprovalRegistry.register({
           approvalId,
           sessionId: ctx.sessionId,
           toolCallId,
@@ -99,6 +99,10 @@ export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFact
           signal: extCtx.signal,
           resolve
         })
+        // Only surface the approval card when the request is actually pending; a
+        // synchronous resolve (e.g. the turn was aborted as the tool fired) already
+        // settled the promise, and emitting would leave an unanswerable card.
+        if (!pending) return
         const request: LanguageModelV3ToolApprovalRequest = {
           type: 'tool-approval-request',
           approvalId,

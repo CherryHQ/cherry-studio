@@ -33,17 +33,24 @@ type PendingApproval = {
 class ToolApprovalRegistry {
   private readonly pending = new Map<string, PendingApproval>()
 
-  register(entry: Omit<PendingApproval, 'abortListener'>): void {
+  /**
+   * Register a pending approval. Returns `true` when the request is now pending a
+   * renderer decision, `false` when it was resolved synchronously (duplicate id, or
+   * an already-aborted signal). Callers must only surface the approval UI (emit a
+   * `tool-approval-request`) when this returns `true` — otherwise the request has no
+   * pending entry to answer, so the card can never be dispatched.
+   */
+  register(entry: Omit<PendingApproval, 'abortListener'>): boolean {
     const { approvalId, signal } = entry
     if (this.pending.has(approvalId)) {
       logger.warn('Duplicate approval registration — rejecting', { approvalId })
       entry.resolve({ approved: false, reason: 'Duplicate approval registration' })
-      return
+      return false
     }
 
     if (signal?.aborted) {
       entry.resolve({ approved: false, reason: 'Tool request was cancelled before approval' })
-      return
+      return false
     }
 
     const stored: PendingApproval = { ...entry }
@@ -54,6 +61,7 @@ class ToolApprovalRegistry {
     }
 
     this.pending.set(approvalId, stored)
+    return true
   }
 
   /** Returns `false` for unknown ids (already dispatched / session expired). */

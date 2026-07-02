@@ -41,11 +41,22 @@ export class PiStreamAdapter {
    *  (pi resets `contentIndex` to 0 per message). */
   private messageSeq = 0
   private readonly startedTools = new Set<string>()
+  /** Running token totals for the current turn (`agent_start` → `agent_end`).
+   *  pi's `Usage` is per-assistant-message, but a Cherry turn spans N `turn_end`s
+   *  (one per LLM response in the tool loop) that accumulate into a single message
+   *  whose `message-metadata` is last-wins. Summing here makes the final chunk carry
+   *  the whole turn's tokens instead of just the last LLM call — parity with the
+   *  Claude driver, whose SDK `result` usage is already a turn total. */
+  private turnUsage = emptyTurnUsage()
 
   constructor(private readonly sink: PiStreamSink) {}
 
   handleEvent(event: AgentSessionEvent): void {
     switch (event.type) {
+      case 'agent_start':
+        // New turn — reset the per-turn token accumulator.
+        this.turnUsage = emptyTurnUsage()
+        return
       case 'message_start':
         this.messageSeq += 1
         return
@@ -63,8 +74,8 @@ export class PiStreamAdapter {
         return
       default:
         // tool_execution_update (no standard partial-output chunk in v1),
-        // agent_start/agent_end, compaction_*, retry, queue_update, etc. are
-        // lifecycle events handled by the connection or intentionally ignored.
+        // agent_end, compaction_*, retry, queue_update, etc. are lifecycle
+        // events handled by the connection or intentionally ignored.
         return
     }
   }
@@ -156,16 +167,37 @@ export class PiStreamAdapter {
     const promptTokens = usage.input + usage.cacheRead + usage.cacheWrite
     const completionTokens = usage.output
     const totalTokens = usage.totalTokens && usage.totalTokens > 0 ? usage.totalTokens : promptTokens + completionTokens
+    // Accumulate across the turn's LLM responses; emit the running total so the
+    // last-wins `message-metadata` carries the whole turn, not just this response.
+    this.turnUsage.promptTokens += promptTokens
+    this.turnUsage.completionTokens += completionTokens
+    this.turnUsage.totalTokens += totalTokens
+    if (usage.reasoning !== undefined) {
+      this.turnUsage.thoughtsTokens += usage.reasoning
+      this.turnUsage.hasReasoning = true
+    }
     this.sink.enqueue({
       type: 'message-metadata',
       messageMetadata: {
-        totalTokens,
-        promptTokens,
-        completionTokens,
-        ...(usage.reasoning !== undefined ? { thoughtsTokens: usage.reasoning } : {})
+        totalTokens: this.turnUsage.totalTokens,
+        promptTokens: this.turnUsage.promptTokens,
+        completionTokens: this.turnUsage.completionTokens,
+        ...(this.turnUsage.hasReasoning ? { thoughtsTokens: this.turnUsage.thoughtsTokens } : {})
       }
     })
   }
+}
+
+interface TurnUsageTotals {
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+  thoughtsTokens: number
+  hasReasoning: boolean
+}
+
+function emptyTurnUsage(): TurnUsageTotals {
+  return { promptTokens: 0, completionTokens: 0, totalTokens: 0, thoughtsTokens: 0, hasReasoning: false }
 }
 
 /**

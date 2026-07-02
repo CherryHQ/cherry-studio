@@ -138,6 +138,16 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     expect(event.input.command).toBe('rtk-rewritten')
   })
 
+  it('blocks without emitting an approval card when the signal is already aborted', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const { handler, emitted } = buildGate()
+    const result = await handler(toolEvent('bash', { command: 'ls' }), { signal: controller.signal })
+    // Synchronous deny from the registry — no pending entry, so no unanswerable card.
+    expect(result).toEqual({ block: true, reason: 'Tool request was cancelled before approval' })
+    expect(emitted).toHaveLength(0)
+  })
+
   it('denies a pending approval when the registry aborts (session close)', async () => {
     const { handler } = buildGate()
     const pending = handler(toolEvent('bash', { command: 'ls' }), extCtx)
