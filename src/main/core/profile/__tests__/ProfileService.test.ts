@@ -21,7 +21,15 @@ vi.mock('@application', () => ({
       h.calls.push(`repoint:${profileRoot}`)
     }),
     getPath: vi.fn(() => '/userData'),
-    get: vi.fn(() => ({ reloadMainWindow: () => h.calls.push('reload') }))
+    get: vi.fn((name: string) =>
+      name === 'JobManager'
+        ? {
+            recoverActiveProfile: async () => {
+              h.calls.push('recover')
+            }
+          }
+        : { reloadMainWindow: () => h.calls.push('reload') }
+    )
   }
 }))
 
@@ -60,7 +68,14 @@ describe('ProfileService.switchProfile', () => {
 
     await svc.switchProfile('work')
 
-    expect(h.calls).toEqual(['deactivate', 'repoint:/userData/Profiles/work', 'activate:work', 'commit', 'reload'])
+    expect(h.calls).toEqual([
+      'deactivate',
+      'repoint:/userData/Profiles/work',
+      'activate:work',
+      'recover',
+      'commit',
+      'reload'
+    ])
     expect(h.writes[0].activeProfileId).toBe('work')
     expect(switched).toHaveBeenCalledWith('work')
     expect(svc.isSwitching()).toBe(false)

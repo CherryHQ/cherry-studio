@@ -4,7 +4,7 @@ import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import { Application } from '@main/core/application/Application'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, Injectable, Phase, type ProfileActivatable, ServicePhase } from '@main/core/lifecycle'
 import type { Disposable } from '@main/core/lifecycle/event'
 import type { JobScheduleSnapshot, RetryPolicy, Trigger, UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
 import { type JobError, type JobSnapshot } from '@shared/data/api/schemas/jobs'
@@ -94,7 +94,7 @@ interface FinishedResolver {
 @Injectable('JobManager')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['SchedulerService'])
-export class JobManager extends BaseService {
+export class JobManager extends BaseService implements ProfileActivatable {
   private readonly handlers = new Map<string, JobHandler>()
   private readonly queues = new Map<string, DispatchQueue>()
   private readonly abortControllers = new Map<string, AbortController>()
@@ -132,6 +132,17 @@ export class JobManager extends BaseService {
   private _isShuttingDown = false
 
   /**
+   * Flipped to `true` in `onProfileDeactivate` and back in `onProfileActivate`.
+   * Unlike `_isShuttingDown` this is transient: it pauses the GC/promotion ticks
+   * and short-circuits the boot recovery timer while a switch is in flight (the
+   * DB is closing), then clears so the new profile resumes.
+   */
+  private _profilePaused = false
+
+  /** The boot startup-recovery quiet-window timer, so a switch can cancel it. */
+  private _bootRecoveryTimer: ReturnType<typeof setTimeout> | undefined
+
+  /**
    * Promise tracking the deferred startup recovery flow. Assigned in the
    * setTimeout callback once the flow actually starts. `onStop` awaits it to
    * join the flow before disposing of in-flight resources. `protected` (not
@@ -154,6 +165,8 @@ export class JobManager extends BaseService {
     // have had their own `onInit` window to call `registerHandler`.
     this.registerInterval(() => this.runGC(), GC_INTERVAL_MS)
     this.registerInterval(() => {
+      // Paused during a switch — the DB is closing/reopening.
+      if (this._profilePaused) return
       const promoted = jobService.promoteDelayedDue(Date.now())
       if (promoted > 0) {
         logger.debug('Promoted delayed jobs', { count: promoted })
@@ -179,14 +192,20 @@ export class JobManager extends BaseService {
    * teardown arrives inside the quiet window — see `_isShuttingDown`.
    */
   protected override onAllReady(): void {
-    const handle = setTimeout(() => {
-      if (this._isShuttingDown) {
-        logger.info('Startup recovery skipped: shutdown requested during quiet window')
+    this._bootRecoveryTimer = setTimeout(() => {
+      this._bootRecoveryTimer = undefined
+      if (this._isShuttingDown || this._profilePaused) {
+        logger.info('Startup recovery skipped: shutdown or profile switch during quiet window')
         return
       }
       this._recoveryDone = this.runStartupRecoveryFlow()
     }, JOB_MANAGER_STARTUP_DELAY_MS)
-    this.registerDisposable(() => clearTimeout(handle))
+    this.registerDisposable(() => {
+      if (this._bootRecoveryTimer) {
+        clearTimeout(this._bootRecoveryTimer)
+        this._bootRecoveryTimer = undefined
+      }
+    })
   }
 
   /**
@@ -354,6 +373,68 @@ export class JobManager extends BaseService {
     this.finishedResolvers.clear()
     this.inFlightExecuted.clear()
     this.scheduleDisposables.clear()
+  }
+
+  /** Un-pause the ticks for the new profile. Its jobs/schedules are recovered by recoverActiveProfile after activate-all. */
+  onProfileActivate(): void {
+    this._profilePaused = false
+  }
+
+  /**
+   * Release the previous profile's job resources on switch: pause the ticks,
+   * cancel a pending boot recovery, join any in-flight recovery, abort in-flight
+   * jobs, dispose schedules, and wait for the aborted jobs to settle. If they do
+   * not settle in time the switch is aborted (they still write to the closing DB).
+   */
+  async onProfileDeactivate(): Promise<void> {
+    this._profilePaused = true
+    if (this._bootRecoveryTimer) {
+      clearTimeout(this._bootRecoveryTimer)
+      this._bootRecoveryTimer = undefined
+    }
+    if (this._recoveryDone) {
+      try {
+        await this._recoveryDone
+      } catch {
+        // errors already logged inside runStartupRecoveryFlow
+      }
+    }
+
+    const inFlight = Array.from(this.abortControllers.keys())
+    for (const controller of this.abortControllers.values()) {
+      controller.abort(new Error('JobManager profile switch'))
+    }
+    for (const disposable of this.scheduleDisposables.values()) {
+      disposable.dispose()
+    }
+    this.scheduleDisposables.clear()
+
+    if (inFlight.length > 0) {
+      const pending = inFlight
+        .map((id) => this.finishedResolvers.get(id)?.promise)
+        .filter((p): p is Promise<JobSnapshot> => p !== undefined)
+      const timeout = new Promise<'timeout'>((resolve) =>
+        setTimeout(() => resolve('timeout'), Application.SHUTDOWN_TIMEOUT_MS)
+      )
+      const winner = await Promise.race([Promise.allSettled(pending).then(() => 'done' as const), timeout])
+      if (winner === 'timeout') {
+        // Leave the maps intact: the jobs still run against the still-open old DB.
+        throw new Error(
+          `JobManager: ${inFlight.length} in-flight job(s) did not settle within ` +
+            `${Application.SHUTDOWN_TIMEOUT_MS}ms; profile switch aborted`
+        )
+      }
+    }
+
+    this.finishedResolvers.clear()
+    this.inFlightExecuted.clear()
+    this.abortControllers.clear()
+  }
+
+  /** Re-run startup recovery for the newly-active profile (no boot quiet window). Called by ProfileService after activate-all. */
+  async recoverActiveProfile(): Promise<void> {
+    this._recoveryDone = this.runStartupRecoveryFlow()
+    await this._recoveryDone
   }
 
   // ---------------- Handler registry ----------------
@@ -1481,6 +1562,7 @@ export class JobManager extends BaseService {
    * surfaces its own error.
    */
   private runGC(): void {
+    if (this._profilePaused) return // paused during a switch — the DB is closing/reopening
     const cutoff = Date.now() - GC_TERMINAL_TTL_MS
     let byTtl = 0
     let byCount = 0

@@ -86,6 +86,7 @@ export class ProfileService extends BaseService {
       await application.deactivateProfile() // step 2: writers first, DbService last
       this.repointPaths(target) // step 3
       await application.activateProfile({ profileId: targetId }) // step 4: DbService first
+      await this.runRecovery(targetId) // step 4b: re-arm owners that recover after activation
       writeProfileRegistry(setActive(registry, targetId)) // step 5: commit (disk pointer moves only here)
     } catch (error) {
       await this.rollbackTo(previous, previousId)
@@ -104,6 +105,15 @@ export class ProfileService extends BaseService {
     this._onProfileDidSwitch.fire(targetId)
     this.switching = false
     logger.info('Profile switch complete', { targetId, previousId })
+  }
+
+  /** Best-effort post-activation recovery for owners that re-arm the new profile's work. */
+  private async runRecovery(profileId: string): Promise<void> {
+    try {
+      await application.get('JobManager').recoverActiveProfile()
+    } catch (error) {
+      logger.error('Profile switch: job recovery failed', error as Error, { profileId })
+    }
   }
 
   private repointPaths(entry: ProfileEntry): void {
