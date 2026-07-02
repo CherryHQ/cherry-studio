@@ -1,28 +1,28 @@
+import { Sortable } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { arrayMove } from '@dnd-kit/sortable'
 import { SIDEBAR_ICON_COMPONENTS } from '@renderer/components/app/sidebarIcons'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import App from '@renderer/components/MiniApp/MiniApp'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
-import {
-  getRequiredSidebarFavoritesVisible,
-  getSidebarMenuPath,
-  REQUIRED_SIDEBAR_FAVORITES,
-  sanitizeSidebarFavorites,
-  SIDEBAR_FAVORITE_ORDER
-} from '@renderer/utils/sidebar'
-import type { SidebarFavorite } from '@shared/data/preference/preferenceTypes'
+import type { SidebarAppId } from '@renderer/utils/sidebar'
+import { getSidebarMenuPath, REQUIRED_SIDEBAR_FAVORITES, SIDEBAR_FAVORITE_ORDER } from '@renderer/utils/sidebar'
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
 import { useNavigate } from '@tanstack/react-router'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const BASE_URL = 'https://www.cherry-ai.com/'
 
-const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarFavorite>(REQUIRED_SIDEBAR_FAVORITES)
+const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarAppId>(REQUIRED_SIDEBAR_FAVORITES)
+const LAUNCHPAD_GRID_CLASS = 'grid grid-cols-6 justify-items-center gap-2 px-2'
+const LAUNCHPAD_ITEM_CLASS = 'mx-auto w-[92px]'
+const SORTABLE_CONTENTS_STYLE = { display: 'contents' } as const
 
-const APP_ICON_BACKGROUNDS: Record<SidebarFavorite, string> = {
+const APP_ICON_BACKGROUNDS: Record<SidebarAppId, string> = {
   assistants: 'linear-gradient(135deg, #111827, #4B5563)',
   agents: 'linear-gradient(135deg, #2563EB, #38BDF8)',
   store: 'linear-gradient(135deg, #0EA5E9, #6366F1)',
@@ -36,46 +36,36 @@ const APP_ICON_BACKGROUNDS: Record<SidebarFavorite, string> = {
   openclaw: 'linear-gradient(135deg, #EF4444, #B91C1C)'
 }
 
-function insertSidebarFavoriteByCanonicalOrder(favorites: SidebarFavorite[], favorite: SidebarFavorite) {
-  const favoriteOrder = SIDEBAR_FAVORITE_ORDER.indexOf(favorite)
-  const insertIndex = favorites.findIndex((existing) => SIDEBAR_FAVORITE_ORDER.indexOf(existing) > favoriteOrder)
-  favorites.splice(insertIndex === -1 ? favorites.length : insertIndex, 0, favorite)
-}
-
-function getSidebarFavoritesWithPinnedState({
-  favorites,
-  favorite,
-  pinned
-}: {
-  favorites: readonly SidebarFavorite[] | undefined
-  favorite: SidebarFavorite
-  pinned: boolean
-}): SidebarFavorite[] {
-  const nextFavorites = sanitizeSidebarFavorites(favorites).filter((existing) => existing !== favorite)
-
-  for (const requiredFavorite of REQUIRED_SIDEBAR_FAVORITES) {
-    if (!nextFavorites.includes(requiredFavorite)) {
-      insertSidebarFavoriteByCanonicalOrder(nextFavorites, requiredFavorite)
-    }
-  }
-
-  if (pinned && !nextFavorites.includes(favorite)) {
-    nextFavorites.push(favorite)
-  }
-
-  return nextFavorites
-}
-
 export default function LaunchpadPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
-  const { pinned, openedKeepAliveMiniApps } = useMiniApps()
-  const [sidebarFavorites, setSidebarFavorites] = usePreference('ui.sidebar.favorites')
+  const { pinned } = useMiniApps()
+  const { appFavorites, miniAppFavoriteIds, setAppPinned, reorderApps, reorderMiniApps } = useSidebarFavorites()
+  const suppressClickUntilRef = useRef(0)
+  const draggedItemIdRef = useRef<string | null>(null)
 
+  const orderedVisibleSidebarFavorites = appFavorites
   const visibleSidebarFavoriteSet = useMemo(
-    () => new Set(getRequiredSidebarFavoritesVisible(sidebarFavorites)),
-    [sidebarFavorites]
+    () => new Set(orderedVisibleSidebarFavorites),
+    [orderedVisibleSidebarFavorites]
+  )
+
+  const handleSortableDragStart = useCallback((event: { active: { id: string | number } }) => {
+    draggedItemIdRef.current = String(event.active.id)
+    suppressClickUntilRef.current = Date.now() + 500
+  }, [])
+
+  // The pointer sensor fires a synthetic click on the dragged element after drop;
+  // refresh the window on settle so the click is still suppressed after long drags.
+  const handleSortableDragSettled = useCallback(() => {
+    suppressClickUntilRef.current = Date.now() + 500
+  }, [])
+
+  // Only swallow the post-drag click on the item that was actually dragged.
+  const shouldSuppressLaunchClick = useCallback(
+    (id: string) => id === draggedItemIdRef.current && Date.now() < suppressClickUntilRef.current,
+    []
   )
 
   const navigateToUrl = useCallback(
@@ -93,93 +83,153 @@ export default function LaunchpadPage() {
     [navigate]
   )
 
-  const openLaunchpadItem = (icon: SidebarFavorite) => {
-    // Launchpad opens each app at its base entry (chat → new conversation,
-    // agents → new session). Resuming the last-used instance is the sidebar's
+  const openLaunchpadItem = (favorite: SidebarAppId) => {
+    if (shouldSuppressLaunchClick(favorite)) return
+
+    // Launchpad opens each app at its base entry (chat -> new conversation,
+    // agents -> new session). Resuming the last-used instance is the sidebar's
     // job, not the launcher's.
-    const path = getSidebarMenuPath(icon, defaultPaintingProvider)
+    const path = getSidebarMenuPath(favorite, defaultPaintingProvider)
     if (!path) return
     void navigateToUrl(path)
   }
 
   const openMiniApp = (app: MiniAppType) => {
+    if (shouldSuppressLaunchClick(app.appId)) return
+
     void navigateToUrl(`/app/mini-app/${app.appId}`)
   }
 
-  const saveSidebarFavoritePinnedState = useCallback(
-    (icon: SidebarFavorite, pinned: boolean) => {
-      void setSidebarFavorites(
-        getSidebarFavoritesWithPinnedState({
-          favorites: sidebarFavorites,
-          favorite: icon,
-          pinned
-        })
-      ).catch(() => {
-        window.toast?.error(t('common.error'))
-      })
-    },
-    [setSidebarFavorites, sidebarFavorites, t]
-  )
-
   const pinToSidebar = useCallback(
-    (icon: SidebarFavorite) => {
-      if (visibleSidebarFavoriteSet.has(icon)) return
-      saveSidebarFavoritePinnedState(icon, true)
+    (favorite: SidebarAppId) => {
+      if (visibleSidebarFavoriteSet.has(favorite)) return
+      setAppPinned(favorite, true)
     },
-    [saveSidebarFavoritePinnedState, visibleSidebarFavoriteSet]
+    [setAppPinned, visibleSidebarFavoriteSet]
   )
 
   const unpinFromSidebar = useCallback(
-    (icon: SidebarFavorite) => {
-      if (!visibleSidebarFavoriteSet.has(icon) || REQUIRED_SIDEBAR_FAVORITE_SET.has(icon)) return
-      saveSidebarFavoritePinnedState(icon, false)
+    (favorite: SidebarAppId) => {
+      if (!visibleSidebarFavoriteSet.has(favorite) || REQUIRED_SIDEBAR_FAVORITE_SET.has(favorite)) return
+      setAppPinned(favorite, false)
     },
-    [saveSidebarFavoritePinnedState, visibleSidebarFavoriteSet]
+    [setAppPinned, visibleSidebarFavoriteSet]
   )
 
   const getAppContextMenuItems = useCallback(
-    (icon: SidebarFavorite): CommandContextMenuExtraItem[] => {
-      const isPinned = visibleSidebarFavoriteSet.has(icon)
+    (favorite: SidebarAppId): CommandContextMenuExtraItem[] => {
+      const isPinned = visibleSidebarFavoriteSet.has(favorite)
 
       return [
         {
           type: 'item',
-          id: `launchpad.${isPinned ? 'unpin-from-sidebar' : 'pin-to-sidebar'}.${icon}`,
+          id: `launchpad.${isPinned ? 'unpin-from-sidebar' : 'pin-to-sidebar'}.${favorite}`,
           label: t(isPinned ? 'launchpad.unpin_from_sidebar' : 'launchpad.pin_to_sidebar'),
-          enabled: !isPinned || !REQUIRED_SIDEBAR_FAVORITE_SET.has(icon),
-          onSelect: () => (isPinned ? unpinFromSidebar(icon) : pinToSidebar(icon))
+          enabled: !isPinned || !REQUIRED_SIDEBAR_FAVORITE_SET.has(favorite),
+          onSelect: () => (isPinned ? unpinFromSidebar(favorite) : pinToSidebar(favorite))
         }
       ]
     },
     [pinToSidebar, t, unpinFromSidebar, visibleSidebarFavoriteSet]
   )
 
-  const appMenuItems = SIDEBAR_FAVORITE_ORDER.flatMap((icon) => {
-    const Icon = SIDEBAR_ICON_COMPONENTS[icon]
-    if (!Icon || !getSidebarMenuPath(icon, defaultPaintingProvider)) return []
-
-    return [
-      {
-        id: icon,
-        icon: <Icon size={32} />,
-        text: t(getSidebarIconLabelKey(icon)),
-        bgColor: APP_ICON_BACKGROUNDS[icon],
-        menuItems: getAppContextMenuItems(icon)
-      }
+  const appMenuItems = useMemo(() => {
+    const orderedVisibleFavoriteSet = new Set(orderedVisibleSidebarFavorites)
+    const orderedFavorites = [
+      ...orderedVisibleSidebarFavorites,
+      ...SIDEBAR_FAVORITE_ORDER.filter((favorite) => !orderedVisibleFavoriteSet.has(favorite))
     ]
-  })
 
-  const sortedMiniApps = useMemo(() => {
-    const result = [...pinned]
+    return orderedFavorites.flatMap((favorite) => {
+      const Icon = SIDEBAR_ICON_COMPONENTS[favorite]
+      if (!Icon || !getSidebarMenuPath(favorite, defaultPaintingProvider)) return []
 
-    openedKeepAliveMiniApps.forEach((app) => {
-      if (!result.some((pinnedApp) => pinnedApp.appId === app.appId)) {
-        result.push(app)
-      }
+      return [
+        {
+          id: favorite,
+          icon: <Icon size={32} />,
+          text: t(getSidebarIconLabelKey(favorite)),
+          bgColor: APP_ICON_BACKGROUNDS[favorite],
+          menuItems: getAppContextMenuItems(favorite)
+        }
+      ]
     })
+  }, [defaultPaintingProvider, getAppContextMenuItems, orderedVisibleSidebarFavorites, t])
 
-    return result
-  }, [openedKeepAliveMiniApps, pinned])
+  const pinnedAppMenuItems = useMemo(
+    () => appMenuItems.filter((item) => visibleSidebarFavoriteSet.has(item.id)),
+    [appMenuItems, visibleSidebarFavoriteSet]
+  )
+  const unpinnedAppMenuItems = useMemo(
+    () => appMenuItems.filter((item) => !visibleSidebarFavoriteSet.has(item.id)),
+    [appMenuItems, visibleSidebarFavoriteSet]
+  )
+
+  // Mirror the apps section: only mini apps that are pinned to the sidebar are
+  // drag-sortable (ordered by `ui.sidebar.favorites`); the remaining launchpad-
+  // pinned mini apps render after them, static. Reordering persists purely to the
+  // favorites list — the launchpad never touches the mini-app order keys.
+  const pinnedByAppId = useMemo(() => new Map(pinned.map((app) => [app.appId, app])), [pinned])
+  const sidebarFavoriteMiniAppSet = useMemo(() => new Set(miniAppFavoriteIds), [miniAppFavoriteIds])
+
+  const sortableMiniApps = useMemo(
+    () =>
+      miniAppFavoriteIds.flatMap((appId) => {
+        const app = pinnedByAppId.get(appId)
+        return app ? [app] : []
+      }),
+    [miniAppFavoriteIds, pinnedByAppId]
+  )
+  const staticMiniApps = useMemo(
+    () => pinned.filter((app) => !sidebarFavoriteMiniAppSet.has(app.appId)),
+    [pinned, sidebarFavoriteMiniAppSet]
+  )
+
+  const launchpadMiniAppsVisible = pinned.length > 0
+
+  const handleSidebarAppsSortEnd = useCallback(
+    ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
+      const nextItems = arrayMove(pinnedAppMenuItems, oldIndex, newIndex)
+      reorderApps(nextItems.map((item) => item.id))
+    },
+    [pinnedAppMenuItems, reorderApps]
+  )
+
+  const handleSidebarMiniAppsSortEnd = useCallback(
+    ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
+      const nextItems = arrayMove(sortableMiniApps, oldIndex, newIndex)
+      reorderMiniApps(nextItems.map((app) => app.appId))
+    },
+    [sortableMiniApps, reorderMiniApps]
+  )
+
+  const renderAppMenuItem = (item: (typeof appMenuItems)[number]) => (
+    <CommandContextMenu key={item.id} location="webcontents.context" extraItems={item.menuItems}>
+      <button
+        type="button"
+        onClick={() => openLaunchpadItem(item.id)}
+        className={`${LAUNCHPAD_ITEM_CLASS} group flex cursor-pointer flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center outline-none transition-transform duration-200 hover:scale-105 focus-visible:scale-105 active:scale-95`}>
+        <span className="relative flex size-14 items-center justify-center">
+          <span
+            className="flex size-14 items-center justify-center rounded-2xl text-white shadow-sm [&_svg]:size-7 [&_svg]:text-white"
+            style={{ background: item.bgColor }}>
+            {item.icon}
+          </span>
+        </span>
+        <span className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-foreground">
+          {item.text}
+        </span>
+      </button>
+    </CommandContextMenu>
+  )
+
+  const renderMiniAppItem = (app: MiniAppType) => (
+    <div
+      key={app.appId}
+      className={`${LAUNCHPAD_ITEM_CLASS} flex justify-center rounded-[8px] px-0 py-2 transition-transform duration-200 hover:scale-105 active:scale-95`}>
+      <App app={app} size={56} variant="launchpad" onOpen={openMiniApp} />
+    </div>
+  )
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
@@ -189,42 +239,40 @@ export default function LaunchpadPage() {
             <h2 className="m-0 px-9 py-0 font-semibold text-[14px] text-foreground opacity-80">
               {t('launchpad.apps')}
             </h2>
-            <div className="grid grid-cols-6 gap-2 px-2">
-              {appMenuItems.map((item) => (
-                <CommandContextMenu key={item.id} location="webcontents.context" extraItems={item.menuItems}>
-                  <button
-                    type="button"
-                    onClick={() => openLaunchpadItem(item.id)}
-                    className="group flex cursor-pointer flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center outline-none transition-transform duration-200 hover:scale-105 focus-visible:scale-105 active:scale-95">
-                    <span className="relative flex size-14 items-center justify-center">
-                      <span
-                        className="flex size-14 items-center justify-center rounded-2xl text-white shadow-sm [&_svg]:size-7 [&_svg]:text-white"
-                        style={{ background: item.bgColor }}>
-                        {item.icon}
-                      </span>
-                    </span>
-                    <span className="w-full overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-foreground">
-                      {item.text}
-                    </span>
-                  </button>
-                </CommandContextMenu>
-              ))}
+            <div className={LAUNCHPAD_GRID_CLASS}>
+              <Sortable
+                items={pinnedAppMenuItems}
+                itemKey="id"
+                layout="grid"
+                listStyle={SORTABLE_CONTENTS_STYLE}
+                onDragStart={handleSortableDragStart}
+                onDragEnd={handleSortableDragSettled}
+                onDragCancel={handleSortableDragSettled}
+                onSortEnd={handleSidebarAppsSortEnd}
+                renderItem={(item) => renderAppMenuItem(item)}
+              />
+              {unpinnedAppMenuItems.map(renderAppMenuItem)}
             </div>
           </section>
 
-          {sortedMiniApps.length > 0 && (
+          {launchpadMiniAppsVisible && (
             <section className="flex flex-col gap-2">
               <h2 className="m-0 px-9 py-0 font-semibold text-[14px] text-foreground opacity-80">
                 {t('launchpad.miniApps')}
               </h2>
-              <div className="grid grid-cols-6 gap-2 px-2">
-                {sortedMiniApps.map((app) => (
-                  <div
-                    key={app.appId}
-                    className="rounded-[8px] px-1 py-2 transition-transform duration-200 hover:scale-105 active:scale-95">
-                    <App app={app} size={56} variant="launchpad" onOpen={openMiniApp} />
-                  </div>
-                ))}
+              <div className={LAUNCHPAD_GRID_CLASS}>
+                <Sortable
+                  items={sortableMiniApps}
+                  itemKey="appId"
+                  layout="grid"
+                  listStyle={SORTABLE_CONTENTS_STYLE}
+                  onDragStart={handleSortableDragStart}
+                  onDragEnd={handleSortableDragSettled}
+                  onDragCancel={handleSortableDragSettled}
+                  onSortEnd={handleSidebarMiniAppsSortEnd}
+                  renderItem={(app) => renderMiniAppItem(app)}
+                />
+                {staticMiniApps.map(renderMiniAppItem)}
               </div>
             </section>
           )}

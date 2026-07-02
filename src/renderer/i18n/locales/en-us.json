@@ -2930,8 +2930,8 @@
     "apps": "Apps",
     "minapps": "Minapps",
     "miniApps": "MiniApps",
-    "pin_to_sidebar": "Pin to sidebar",
-    "unpin_from_sidebar": "Unpin from sidebar"
+    "pin_to_sidebar": "Add to Sidebar",
+    "unpin_from_sidebar": "Remove from Sidebar"
   },
   "library": {
     "action": {
