@@ -223,19 +223,13 @@ export function diffAgentUpdate(
   }
 
   if (cfgDirty) {
-    dto.configuration = { ...configurationWithoutMaxTurns(agent.configuration), ...cfgPatch }
+    dto.configuration = { ...agent.configuration, ...cfgPatch }
     dirty = true
   }
 
   if (!dirty) return null
 
   return { dto }
-}
-
-function configurationWithoutMaxTurns(configuration: AgentDetail['configuration']): Record<string, unknown> {
-  const rest: Record<string, unknown> = { ...configuration }
-  delete rest.max_turns
-  return rest
 }
 
 function arraysEqual(a: readonly string[], b: readonly string[]): boolean {

@@ -125,6 +125,8 @@ interface AgentRightPaneMeta {
   modelFallback?: ModelSnapshot
   filesEnabled?: boolean
   statusEnabled?: boolean
+  hasOlder?: boolean
+  loadOlder?: () => void
 }
 
 interface AgentRightPaneState {
@@ -132,6 +134,7 @@ interface AgentRightPaneState {
   activeFlowTab?: AgentFlowTab
   flow: ReturnType<typeof buildAgentToolFlowProjection>
   status: AgentRightPaneStatus
+  turnCount: number
   filePreview: AgentFilePreviewTab | null
   selectedFile: string | null
   fileTreeOpen: boolean
@@ -168,6 +171,8 @@ interface AgentRightPaneProviderProps extends AgentRightPaneMeta {
   workspacePath?: string
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
+  hasOlder?: boolean
+  loadOlder?: () => void
 }
 
 const AgentRightPaneContext = createContext<AgentRightPaneContextValue | null>(null)
@@ -206,7 +211,9 @@ function AgentRightPaneStateProvider({
   agentAvatar,
   filesEnabled = true,
   modelFallback,
-  statusEnabled = true
+  statusEnabled = true,
+  hasOlder,
+  loadOlder
 }: AgentRightPaneProviderProps) {
   const { activeTab } = useShellState()
   const { openTab } = useShellActions()
@@ -242,6 +249,7 @@ function AgentRightPaneStateProvider({
     [activeFlowTab?.toolCallId, messages, partsByMessageId]
   )
   const status = useMemo(() => buildAgentRightPaneStatus(messages, partsByMessageId), [messages, partsByMessageId])
+  const turnCount = useMemo(() => messages.filter((m) => m.role === 'assistant').length, [messages])
 
   const openAgentToolFlow = useCallback(
     (input: AgentToolFlowOpenInput) => {
@@ -284,6 +292,15 @@ function AgentRightPaneStateProvider({
     if (activeTab === FILE_PREVIEW_TAB) openTab('files')
   }, [activeTab, resetFileTreeLazyChildren, openTab, workspacePath])
 
+  // Load one additional page of messages on mount when the conversation exceeds
+  // PAGE_SIZE (50). This doubles the visible message window to 100 (≈50 turns),
+  // so task records stay in the status panel for all but the longest sessions.
+  // Deeper pages are loaded incrementally as the user scrolls the message list.
+  useEffect(() => {
+    if (!hasOlder || !loadOlder) return
+    loadOlder()
+  }, [hasOlder, loadOlder])
+
   // Drop a selection that no longer resolves to a file in the loaded tree
   // (e.g. the watcher reported it removed).
   useEffect(() => {
@@ -310,6 +327,7 @@ function AgentRightPaneStateProvider({
         activeFlowTab,
         flow,
         status,
+        turnCount,
         filePreview,
         selectedFile,
         fileTreeOpen,
@@ -336,7 +354,9 @@ function AgentRightPaneStateProvider({
         agentAvatar,
         filesEnabled,
         modelFallback,
-        statusEnabled
+        statusEnabled,
+        hasOlder,
+        loadOlder
       }
     }),
     [
@@ -353,6 +373,8 @@ function AgentRightPaneStateProvider({
       filePreview,
       flow,
       flowTabs,
+      hasOlder,
+      loadOlder,
       modelFallback,
       openArtifactFile,
       openAgentToolFlow,
@@ -362,6 +384,7 @@ function AgentRightPaneStateProvider({
       statusEnabled,
       status,
       traceId,
+      turnCount,
       workspacePath
     ]
   )
@@ -548,7 +571,7 @@ function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] }) {
 function AgentAgentRightPaneStatusPanel() {
   const { state, meta } = useAgentRightPane()
   const { t } = useTranslation()
-  const { status } = state
+  const { status, turnCount } = state
   const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const isCompacting = compaction.status === 'compacting'
@@ -556,6 +579,13 @@ function AgentAgentRightPaneStatusPanel() {
 
   return (
     <div className="space-y-4 p-3 text-sm">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="font-medium text-foreground text-sm">{t('agent.right_pane.status.session_info')}</h3>
+        <Badge variant="outline" className="text-[11px]">
+          {t('agent.right_pane.status.turn_count', { count: turnCount })}
+        </Badge>
+      </div>
+
       {status.tasks.length > 0 && (
         <section className="space-y-2">
           <div className="flex items-center justify-between gap-2">
