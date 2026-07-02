@@ -52,13 +52,19 @@ const MessageWebSearchToolLabel = ({ toolResponse }: { toolResponse: NormalToolR
 
 export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: NormalToolResponse }) => {
   const outputParse = webSearchOutputSchema.safeParse(toolResponse.response)
-  const hasResults = toolResponse.status === 'done' && outputParse.success && outputParse.data.length > 0
+  const resultCount = outputParse.success ? outputParse.data.length : 0
+  const hasResults = toolResponse.status === 'done' && resultCount > 0
   const label = <MessageWebSearchToolLabel toolResponse={toolResponse} />
 
   if (!hasResults) return label
 
   return (
-    <div className="group/tool my-px first:mt-0 first:pt-0">
+    // Stable e2e anchor for "a web search completed and rendered results" (locale-robust; count exposed
+    // for diagnostics). Renders only when status==='done' with ≥1 result, so existence == search succeeded.
+    <div
+      className="group/tool my-px first:mt-0 first:pt-0"
+      data-testid="message-websearch-result"
+      data-result-count={resultCount}>
       <ToolDisclosure
         variant="light"
         className="message-tools-container border-none"

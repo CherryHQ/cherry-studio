@@ -106,7 +106,7 @@ const BasicSettings: FC = () => {
             onValueChange={(providerId) =>
               updateSelectedWebSearchProvider(providerId, setDefaultSearchKeywordsProvider)
             }>
-            <SelectTrigger size="sm" className={selectTriggerClassName}>
+            <SelectTrigger id="web-search-default-keywords-provider" size="sm" className={selectTriggerClassName}>
               <SelectValue placeholder={t('settings.tool.websearch.search_provider_placeholder')} />
             </SelectTrigger>
             <SelectContent>
@@ -125,7 +125,7 @@ const BasicSettings: FC = () => {
           <Select
             value={defaultFetchUrlsProvider?.id}
             onValueChange={(providerId) => updateSelectedWebSearchProvider(providerId, setDefaultFetchUrlsProvider)}>
-            <SelectTrigger size="sm" className={selectTriggerClassName}>
+            <SelectTrigger id="web-search-default-fetch-provider" size="sm" className={selectTriggerClassName}>
               <SelectValue placeholder={t('settings.tool.websearch.search_provider_placeholder')} />
             </SelectTrigger>
             <SelectContent>
