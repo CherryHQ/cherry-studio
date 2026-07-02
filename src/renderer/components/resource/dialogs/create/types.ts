@@ -1,3 +1,4 @@
+import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 export type ResourceCreateWizardKind = 'assistant' | 'agent'
@@ -15,6 +16,8 @@ export type ResourceCreateWizardFormValues = {
   avatar: string
   name: string
   description: string
+  /** Agent runtime driver. Ignored for the assistant kind. */
+  agentType: AgentType
   modelId: UniqueModelId | null
   prompt: string
   // assistant step 3
@@ -30,6 +33,8 @@ export type ResourceCreateWizardFormValues = {
 export type ResourceCreateWizardValues = {
   avatar: string
   name: string
+  /** Agent runtime driver (agent kind only; assistant callers ignore it). */
+  agentType: AgentType
   modelId: UniqueModelId
   description: string
   prompt: string

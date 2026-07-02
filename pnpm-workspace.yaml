@@ -60,6 +60,7 @@ patchedDependencies:
   '@openrouter/ai-sdk-provider@2.10.0': patches/@openrouter__ai-sdk-provider@2.10.0.patch
 
 allowBuilds:
+  '@google/genai': false
   '@j178/prek': true
   '@paymoapp/electron-shutdown-handler': true
   '@scarf/scarf': true
@@ -82,3 +83,9 @@ supportedArchitectures:
     - current
   cpu:
     - current
+
+minimumReleaseAgeExclude:
+  - '@earendil-works/pi-agent-core@0.80.3'
+  - '@earendil-works/pi-ai@0.80.3'
+  - '@earendil-works/pi-coding-agent@0.80.3'
+  - '@earendil-works/pi-tui@0.80.3'

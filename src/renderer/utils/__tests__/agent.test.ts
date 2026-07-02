@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { DEFAULT_AGENT_AVATAR, getAgentAvatar } from '../agent'
+import { DEFAULT_AGENT_AVATAR, getAgentAvatar, getPermissionModeCards } from '../agent'
 
 describe('agent utilities', () => {
   it('normalizes blank stored avatars to the default agent avatar', () => {
@@ -12,5 +12,19 @@ describe('agent utilities', () => {
 
   it('preserves non-blank stored avatars after trimming', () => {
     expect(getAgentAvatar('  🦞  ')).toBe('🦞')
+  })
+})
+
+describe('getPermissionModeCards', () => {
+  it('offers the full mode set (including plan) for claude-code and unknown types', () => {
+    const modes = getPermissionModeCards('claude-code').map((card) => card.mode)
+    expect(modes).toContain('plan')
+    expect(getPermissionModeCards(undefined).map((c) => c.mode)).toContain('plan')
+  })
+
+  it('drops plan mode for pi agents (D8)', () => {
+    const modes = getPermissionModeCards('pi').map((card) => card.mode)
+    expect(modes).not.toContain('plan')
+    expect(modes).toEqual(expect.arrayContaining(['default', 'acceptEdits', 'bypassPermissions']))
   })
 })

@@ -132,6 +132,27 @@ describe('toolResponse adapter', () => {
     expect(response?.tool.name).toBe('CustomTool')
   })
 
+  it('routes pi-agent transport tool calls to the generic provider card', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolName: 'bash',
+      toolCallId: 'pi-call-1',
+      state: 'output-available',
+      input: { command: 'ls' },
+      output: 'ok',
+      callProviderMetadata: {
+        cherry: { transport: 'pi-agent' }
+      }
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+    expect(response?.status).toBe('done')
+    // pi's lowercase tool names have no bespoke renderer; the transport tag keeps
+    // them off the MCP path and on the generic provider card (D8).
+    expect(response?.tool.type).toBe('provider')
+    expect(response?.tool.name).toBe('bash')
+  })
+
   it('keeps migrated agent dynamic-tool calls without metadata on the provider renderer path', () => {
     const part = {
       type: 'dynamic-tool',

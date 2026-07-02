@@ -9,13 +9,13 @@ vi.mock('react-i18next', () => ({
 
 import { ContextUsageSummary } from '../ContextUsageSummary'
 
-const buildUsage = (categories: { name: string; tokens: number }[]): AgentSessionContextUsage =>
-  ({
-    categories: categories.map((category) => ({ ...category, color: '#000' })),
-    totalTokens: 1000,
-    maxTokens: 2000,
-    model: 'claude-opus-4-8'
-  }) as AgentSessionContextUsage
+const buildUsage = (categories: { name: string; tokens: number }[]): AgentSessionContextUsage => ({
+  categories,
+  totalTokens: 1000,
+  maxTokens: 2000,
+  percentage: 50,
+  model: 'claude-opus-4-8'
+})
 
 describe('ContextUsageSummary', () => {
   it('translates known category names', () => {
@@ -28,5 +28,13 @@ describe('ContextUsageSummary', () => {
     render(<ContextUsageSummary usage={buildUsage([{ name: 'Brand new thing', tokens: 100 }])} percentage={50} />)
 
     expect(screen.getByText('Brand new thing')).toBeInTheDocument()
+  })
+
+  it('renders the total bar for a pi usage payload with no categories', () => {
+    // pi cannot produce a per-category breakdown (plan D5); the total bar must still render.
+    render(<ContextUsageSummary usage={buildUsage([])} percentage={50} />)
+
+    expect(screen.getByText('1,000 / 2,000 (50%)')).toBeInTheDocument()
+    expect(screen.getByText('claude-opus-4-8')).toBeInTheDocument()
   })
 })

@@ -3034,6 +3034,13 @@
             "hint": "任務分解與規劃",
             "label": "計畫模型"
           },
+          "runtime": {
+            "label": "執行環境",
+            "option": {
+              "claude_code": "Claude Code",
+              "pi": "pi"
+            }
+          },
           "small_model": {
             "hint": "輕量級檢查與格式化",
             "label": "小型模型"

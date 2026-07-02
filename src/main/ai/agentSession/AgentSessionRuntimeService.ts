@@ -31,7 +31,7 @@ import {
   type AgentRuntimeUserInput,
   runtimeDriverRegistry
 } from '../runtime'
-import { type DispatchDecision, toolApprovalRegistry } from '../runtime/claudeCode/ToolApprovalRegistry'
+import { type DispatchDecision, toolApprovalRegistry } from '../runtime/toolApproval/ToolApprovalRegistry'
 import { PersistenceListener } from '../streamManager/listeners/PersistenceListener'
 import { TraceFlushListener } from '../streamManager/listeners/TraceFlushListener'
 import type { StreamErrorResult, StreamListener, StreamPausedResult } from '../streamManager/types'

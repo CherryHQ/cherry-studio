@@ -121,7 +121,7 @@ export const AGENT_MUTABLE_FIELDS = {
 
 export const AgentEntitySchema = AgentBaseSchema.extend({
   id: z.string(),
-  type: z.enum(['claude-code']),
+  type: z.enum(['claude-code', 'pi']),
   createdAt: z.string(),
   updatedAt: z.string(),
   /** Persistent ordering key. Read-only; modified only through order endpoints. */
