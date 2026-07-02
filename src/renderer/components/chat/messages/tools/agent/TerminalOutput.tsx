@@ -33,6 +33,7 @@ const light = {
 }
 
 type ColorPalette = typeof dark
+export const shellColorPalettes = { dark, light }
 
 const ERROR_LINE_RE = /^(error|Error|ERROR|FAIL|FAILED|fatal|Fatal|FATAL)\b/
 const WARNING_LINE_RE = /^(warning|Warning|WARNING|WARN)\b/
@@ -280,7 +281,7 @@ function colorizeLine(line: string, commandMode: boolean, p: ColorPalette): stri
   return result
 }
 
-function colorizeShellOutput(text: string, commandMode: boolean, palette: ColorPalette): string {
+export function colorizeShellOutput(text: string, commandMode: boolean, palette: ColorPalette): string {
   if (text.includes('\x1b[')) return text
 
   return text

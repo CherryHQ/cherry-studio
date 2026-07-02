@@ -108,6 +108,14 @@ function useStableHeaderCandidate(
     return clearPendingTimer
   }, [isLiveProgress, nextCandidate])
 
+  if (!isLiveProgress || shouldBypassHeaderStabilization(nextCandidate)) {
+    return nextCandidate
+  }
+
+  if (displayCandidateRef.current.key === nextCandidate.key) {
+    return nextCandidate
+  }
+
   return displayCandidate
 }
 
@@ -249,7 +257,7 @@ interface ToolBlockGroupContentProps {
 }
 
 export const ToolBlockGroupContent = React.memo(({ items, scrollRef }: ToolBlockGroupContentProps) => (
-  <div ref={scrollRef} className="flex w-full flex-col gap-2">
+  <div ref={scrollRef} className="tool-block-group-content flex w-full flex-col gap-2">
     {items.map((item) => {
       return (
         <div key={item.id} data-block-id={item.id} className="w-full">

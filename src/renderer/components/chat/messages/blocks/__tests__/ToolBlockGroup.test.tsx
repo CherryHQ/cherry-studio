@@ -246,6 +246,25 @@ describe('ToolBlockGroup', () => {
     expect(screen.getByTestId('mock-tool-header')).toHaveTextContent('Edit:invoking')
   })
 
+  it('updates the header immediately when live progress ends', () => {
+    const { rerender } = render(
+      <ToolBlockGroupHeaderContent
+        items={[]}
+        activityLabel="Thinking..."
+        summary="Thinking..."
+        isLiveProgress
+        showLatestWhenComplete
+      />
+    )
+
+    expect(screen.getByText('Thinking...')).toBeInTheDocument()
+
+    rerender(<ToolBlockGroupHeaderContent items={[]} summary="Reasoning content" />)
+
+    expect(screen.getByText('Reasoning content')).toBeInTheDocument()
+    expect(screen.queryByText('Thinking...')).toBeNull()
+  })
+
   it('updates the displayed item data when the live candidate key stays the same', () => {
     vi.useFakeTimers()
 

@@ -1,12 +1,16 @@
 import { Flex } from '@cherrystudio/ui'
+import { useTheme } from '@renderer/hooks/useTheme'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { McpTool } from '@renderer/types/tool'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import Ansi from 'ansi-to-react'
 import type { ComponentPropsWithoutRef, FC, ReactNode } from 'react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PlaceholderShimmerText } from '../blocks/PlaceholderShimmerText'
 import { type ToolStatus, ToolStatusIndicator, useIsStreaming } from './agent/GenericTools'
+import { colorizeShellOutput, shellColorPalettes } from './agent/TerminalOutput'
 import { AgentToolsType } from './agent/types'
 
 type Translate = (key: string, options?: Record<string, string>) => string
@@ -127,6 +131,43 @@ function getReadablePathTarget(filePath: string | undefined, t: Translate): stri
 }
 
 const SEARCH_PATTERN_META_RE = /[\\^$.*+?()[\]{}|]/
+const COMMAND_PREVIEW_MAX_LENGTH = 160
+
+function normalizeCommandPreview(command: string): string {
+  return command.replace(/\s+/g, ' ').trim()
+}
+
+function truncateCommandPreview(command: string): string {
+  const normalized = normalizeCommandPreview(command)
+  if (normalized.length <= COMMAND_PREVIEW_MAX_LENGTH) return normalized
+
+  const maxContentLength = COMMAND_PREVIEW_MAX_LENGTH - 1
+  const prefix = normalized.slice(0, maxContentLength)
+  const separatorIndex = Math.max(
+    prefix.lastIndexOf(' && '),
+    prefix.lastIndexOf(' || '),
+    prefix.lastIndexOf(' ; '),
+    prefix.lastIndexOf(' | ')
+  )
+  if (separatorIndex > 0) return `${prefix.slice(0, separatorIndex).trimEnd()}…`
+
+  const whitespaceIndex = prefix.lastIndexOf(' ')
+  if (whitespaceIndex > 0) return `${prefix.slice(0, whitespaceIndex).trimEnd()}…`
+
+  return `${prefix}…`
+}
+
+function getCommandPreview(toolName: string, args: unknown): { text: string; fullText: string } | undefined {
+  if (toolName !== AgentToolsType.Bash && toolName !== AgentToolsType.BashOutput) return undefined
+
+  const command = getStringArg(args, 'command')
+  if (!command) return undefined
+
+  return {
+    text: truncateCommandPreview(command),
+    fullText: normalizeCommandPreview(command)
+  }
+}
 
 function getReadableSearchTarget(value: string | undefined, t: Translate): string {
   const text = value?.trim()
@@ -480,6 +521,25 @@ const Stats = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
   <span className={[STATS_CLASS, className].filter(Boolean).join(' ')} {...props} />
 )
 
+const CommandPreview = ({ fullText, text }: { fullText: string; text: string }) => {
+  const { theme } = useTheme()
+  const isLightTheme = theme === ThemeMode.light
+  const palette = isLightTheme ? shellColorPalettes.light : shellColorPalettes.dark
+  const colorized = colorizeShellOutput(text, true, palette)
+
+  return (
+    <code
+      data-testid="tool-command-preview"
+      title={fullText}
+      className={[
+        "hidden min-w-0 max-w-[clamp(6rem,42vw,32rem)] shrink-[2] truncate rounded px-1.5 py-0.5 font-['Menlo','Monaco','Courier_New',monospace] text-[12px] leading-4 sm:block",
+        isLightTheme ? 'bg-[#f5f5f5] text-[#1e1e1e]' : 'bg-[#1e1e1e] text-[#d4d4d4]'
+      ].join(' ')}>
+      <Ansi>{colorized}</Ansi>
+    </code>
+  )
+}
+
 const StatusWrapper = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
   <div className={['flex shrink-0 items-center', className].filter(Boolean).join(' ')} {...props} />
 )
@@ -571,6 +631,7 @@ const ToolHeader: FC<ToolHeaderProps> = ({
   const activity = getReadableToolActivity(toolName, args, isStreaming || isActiveStatus(status), t)
   const displayLabel = propLabel ?? activity?.label ?? getAgentToolLabel(toolName, t)
   const description = params ?? activity?.description ?? getToolDescription(toolName, args, t)
+  const commandPreview = getCommandPreview(toolName, args)
 
   const Container = variant === 'standalone' ? HeaderContainer : LabelContainer
 
@@ -600,6 +661,7 @@ const ToolHeader: FC<ToolHeaderProps> = ({
         )}
       </ToolName>
       {description && <Description>{description}</Description>}
+      {commandPreview && <CommandPreview text={commandPreview.text} fullText={commandPreview.fullText} />}
       {stats && <Stats>{stats}</Stats>}
       {showStatus && status && (
         <StatusWrapper>
