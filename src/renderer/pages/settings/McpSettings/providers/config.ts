@@ -15,8 +15,6 @@ export interface ProviderConfig {
   key: string
   /** i18n key for provider name, or plain text if not starting with 'provider.' */
   nameKey: string
-  /** i18n key for provider description */
-  descriptionKey: string
   discoverUrl: string
   apiKeyUrl: string
   tokenFieldName: string
@@ -29,7 +27,6 @@ export const providers: ProviderConfig[] = [
   {
     key: 'bailian',
     nameKey: 'provider.dashscope',
-    descriptionKey: 'settings.mcp.sync.providerDescriptions.bailian',
     discoverUrl: `https://bailian.console.aliyun.com/?tab=mcp#/mcp-market`,
     apiKeyUrl: `https://bailian.console.aliyun.com/?tab=app#/api-key`,
     tokenFieldName: 'bailianToken',
@@ -40,7 +37,6 @@ export const providers: ProviderConfig[] = [
   {
     key: 'modelscope',
     nameKey: 'ModelScope',
-    descriptionKey: 'settings.mcp.sync.providerDescriptions.modelscope',
     discoverUrl: `${MODELSCOPE_HOST}/mcp?hosted=1&page=1`,
     apiKeyUrl: `${MODELSCOPE_HOST}/my/myaccesstoken`,
     tokenFieldName: 'modelScopeToken',

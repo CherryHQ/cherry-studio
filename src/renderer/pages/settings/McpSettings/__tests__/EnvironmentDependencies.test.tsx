@@ -151,4 +151,12 @@ describe('EnvironmentDependencies', () => {
     expect(container).toBeEmptyDOMElement()
     await waitFor(() => expect(screen.getByRole('button')).toBeInTheDocument())
   })
+
+  it('keeps the mini warning hidden when dependency checks fail', async () => {
+    ipcMocks.getState.mockRejectedValue(new Error('not ready'))
+    const { container } = render(<EnvironmentDependencies mini />)
+
+    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+    expect(container).toBeEmptyDOMElement()
+  })
 })

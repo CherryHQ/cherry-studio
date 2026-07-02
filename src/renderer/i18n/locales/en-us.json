@@ -6307,6 +6307,7 @@
         "title": "Run external MCP?"
       },
       "provider": "Provider",
+      "providerNotFound": "MCP provider not found",
       "providerPlaceholder": "Provider name",
       "providerUrl": "Provider URL",
       "providers": "Providers",
@@ -6353,10 +6354,6 @@
         "getToken": "Get API Token",
         "getTokenDescription": "Retrieve your personal API token from your account",
         "noServersAvailable": "No MCP servers available",
-        "providerDescriptions": {
-          "bailian": "Alibaba Cloud Bailian Platform MCP Service",
-          "modelscope": "ModelScope Platform MCP Service"
-        },
         "selectProvider": "Select Provider:",
         "setToken": "Enter Your Token",
         "success": "Sync MCP Servers successful",

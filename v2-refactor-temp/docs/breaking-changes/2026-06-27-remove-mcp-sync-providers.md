@@ -2,7 +2,7 @@
 title: Some MCP sync providers removed
 category: removed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#16517"
 date: 2026-06-27
 ---
 

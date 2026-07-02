@@ -280,15 +280,6 @@ export const getMcpTypeLabelKey = (key: string): string => {
   return getLabelKey(mcpTypeKeyMap, key)
 }
 
-const mcpProviderDescriptionKeyMap = {
-  bailian: 'settings.mcp.sync.providerDescriptions.bailian',
-  modelscope: 'settings.mcp.sync.providerDescriptions.modelscope'
-} as const
-
-export const getMcpProviderDescriptionLabelKey = (key: string): string => {
-  return getLabelKey(mcpProviderDescriptionKeyMap, key)
-}
-
 const miniAppsStatusKeyMap = {
   visible: 'settings.miniApps.visible',
   disabled: 'settings.miniApps.disabled'

@@ -27,7 +27,7 @@ import EnvironmentDependencies from './EnvironmentDependencies'
 import McpServerCard from './McpServerCard'
 
 type ImportMethod = 'json' | 'dxt' | 'mcpb'
-type McpServerFilter = 'all' | 'enabled' | 'disabled' | 'stdio' | 'sse' | 'builtin'
+type McpServerFilter = 'all' | 'enabled' | 'disabled' | 'stdio' | 'sse' | 'streamableHttp' | 'builtin'
 
 const FILTER_OPTIONS: { value: McpServerFilter; labelKey?: string; label?: string }[] = [
   { value: 'all', labelKey: 'models.all' },
@@ -35,6 +35,7 @@ const FILTER_OPTIONS: { value: McpServerFilter; labelKey?: string; label?: strin
   { value: 'disabled', labelKey: 'common.disabled' },
   { value: 'stdio', label: 'STDIO' },
   { value: 'sse', label: 'SSE' },
+  { value: 'streamableHttp', labelKey: 'settings.mcp.types.streamableHttp' },
   { value: 'builtin', labelKey: 'settings.mcp.builtinServers' }
 ]
 
@@ -64,6 +65,7 @@ const McpServersList: FC = () => {
       if (filter === 'disabled' && server.isActive) return false
       if (filter === 'stdio' && server.type !== 'stdio') return false
       if (filter === 'sse' && server.type !== 'sse') return false
+      if (filter === 'streamableHttp' && server.type !== 'streamableHttp') return false
       if (filter === 'builtin' && server.installSource !== 'builtin') return false
 
       if (keywords.length === 0) return true

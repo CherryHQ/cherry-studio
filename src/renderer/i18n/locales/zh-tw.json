@@ -6307,6 +6307,7 @@
         "title": "執行外部 MCP？"
       },
       "provider": "提供者",
+      "providerNotFound": "未找到 MCP 供應商",
       "providerPlaceholder": "提供者名稱",
       "providerUrl": "提供者網址",
       "providers": "供應商",
@@ -6353,10 +6354,6 @@
         "getToken": "取得 API 權杖",
         "getTokenDescription": "從帳戶取得個人 API 權杖",
         "noServersAvailable": "無可用的 MCP 伺服器",
-        "providerDescriptions": {
-          "bailian": "阿里雲百鍊平台 MCP 服務",
-          "modelscope": "ModelScope平台MCP服務"
-        },
         "selectProvider": "選擇提供者：",
         "setToken": "輸入權杖",
         "success": "同步 MCP 伺服器成功",

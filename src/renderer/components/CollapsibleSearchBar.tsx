@@ -12,8 +12,6 @@ interface CollapsibleSearchBarProps {
   maxWidth?: string | number
   collapsedSize?: number
   animated?: boolean
-  inputClassName?: string
-  expandedIconPosition?: 'left' | 'right'
   style?: React.CSSProperties
 }
 
@@ -29,8 +27,6 @@ const CollapsibleSearchBar = ({
   maxWidth = '100%',
   collapsedSize = 32,
   animated = true,
-  inputClassName,
-  expandedIconPosition = 'right',
   style
 }: CollapsibleSearchBarProps) => {
   const [searchVisible, setSearchVisible] = useState(false)
@@ -84,23 +80,13 @@ const CollapsibleSearchBar = ({
         }}
         style={{ overflow: 'hidden', flexShrink: 1 }}>
         <div className="relative flex items-center">
-          {expandedIconPosition === 'left' && (
-            <button
-              type="button"
-              aria-label={tooltip}
-              className="-translate-y-1/2 absolute top-1/2 left-2 flex size-4 items-center justify-center text-muted-foreground hover:text-foreground"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => inputRef.current?.focus()}>
-              {icon}
-            </button>
-          )}
           <Input
             ref={inputRef}
             type="text"
             placeholder={placeholder}
             value={searchText}
             autoFocus
-            className={`h-8 rounded-full text-sm shadow-none focus-visible:border-border-hover focus-visible:ring-0 ${expandedIconPosition === 'left' ? 'pr-8 pl-8' : 'pr-8'} ${inputClassName ?? ''}`}
+            className="h-8 rounded-full pr-8 text-sm shadow-none focus-visible:border-border-hover focus-visible:ring-0"
             onChange={(e) => handleTextChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
@@ -114,16 +100,14 @@ const CollapsibleSearchBar = ({
             }}
             style={{ width: '100%', height: collapsedSize, ...style }}
           />
-          {(searchText || expandedIconPosition === 'right') && (
-            <button
-              type="button"
-              aria-label={searchText ? i18n.t('common.clear') : tooltip}
-              className="absolute right-2 flex size-4 items-center justify-center text-muted-foreground hover:text-foreground"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={searchText ? handleClear : () => inputRef.current?.focus()}>
-              {searchText ? <X size={14} /> : icon}
-            </button>
-          )}
+          <button
+            type="button"
+            aria-label={searchText ? i18n.t('common.clear') : tooltip}
+            className="absolute right-2 flex size-4 items-center justify-center text-muted-foreground hover:text-foreground"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={searchText ? handleClear : () => inputRef.current?.focus()}>
+            {searchText ? <X size={14} /> : icon}
+          </button>
         </div>
       </motion.div>
       <motion.div

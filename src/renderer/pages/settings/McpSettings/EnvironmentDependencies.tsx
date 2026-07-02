@@ -82,10 +82,9 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       if (!mountedRef.current) return
       setBinaryState(state)
       setBundled(bundledMap)
+      setBinaryStateReady(true)
     } catch (error) {
       logger.error('Failed to refresh binary state', error as Error)
-    } finally {
-      if (mountedRef.current) setBinaryStateReady(true)
     }
   }, [])
 

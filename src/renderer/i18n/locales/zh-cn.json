@@ -6307,6 +6307,7 @@
         "title": "运行外部 MCP？"
       },
       "provider": "提供者",
+      "providerNotFound": "未找到 MCP 提供商",
       "providerPlaceholder": "提供者名称",
       "providerUrl": "提供者网址",
       "providers": "提供商",
@@ -6353,10 +6354,6 @@
         "getToken": "获取 API 令牌",
         "getTokenDescription": "从您的帐户中获取个人 API 令牌",
         "noServersAvailable": "无可用的 MCP 服务器",
-        "providerDescriptions": {
-          "bailian": "百炼平台服务",
-          "modelscope": "ModelScope 平台 MCP 服务"
-        },
         "selectProvider": "选择提供商：",
         "setToken": "输入您的令牌",
         "success": "同步 MCP 服务器成功",

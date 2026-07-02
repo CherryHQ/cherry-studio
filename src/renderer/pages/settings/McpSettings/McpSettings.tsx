@@ -45,7 +45,7 @@ import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpServerLogEntry } from '@shared/types/mcp'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { ArrowLeft, SaveIcon } from 'lucide-react'
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import * as z from 'zod'
@@ -164,6 +164,7 @@ const McpSettings: React.FC = () => {
 
   const [serverVersion, setServerVersion] = useState<string | null>(null)
   const [logs, setLogs] = useState<(McpServerLogEntry & { serverId?: string })[]>([])
+  const fetchServerLogsRequestRef = useRef(0)
 
   const { theme } = useTheme()
 
@@ -306,11 +307,14 @@ const McpSettings: React.FC = () => {
     }
   }
 
-  const fetchServerLogs = async () => {
-    if (!server) return
+  const fetchServerLogs = async (serverId = server?.id) => {
+    if (!serverId) return
+    const requestId = ++fetchServerLogsRequestRef.current
     try {
-      const history = await window.api.mcp.getServerLogs(server.id)
-      setLogs(history)
+      const history = await window.api.mcp.getServerLogs(serverId)
+      if (requestId === fetchServerLogsRequestRef.current && serverId === server?.id) {
+        setLogs((prev) => mergeServerLogs(history, prev))
+      }
     } catch (error) {
       logger.warn('Failed to load server logs', error as Error)
     }
@@ -334,6 +338,7 @@ const McpSettings: React.FC = () => {
   }, [server?.id])
 
   useEffect(() => {
+    fetchServerLogsRequestRef.current += 1
     setLogs([])
   }, [server?.id])
 
@@ -350,7 +355,6 @@ const McpSettings: React.FC = () => {
       void fetchPrompts()
       void fetchResources()
       void fetchServerVersion()
-      void fetchServerLogs()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [server?.id, server?.isActive])
@@ -1187,6 +1191,23 @@ function mapLogLevelClass(level: McpServerLogEntry['level']) {
     default:
       return 'border-border/60 bg-muted text-muted-foreground'
   }
+}
+
+function mergeServerLogs(
+  history: McpServerLogEntry[],
+  current: (McpServerLogEntry & { serverId?: string })[]
+): (McpServerLogEntry & { serverId?: string })[] {
+  const seen = new Set<string>()
+  const merged: (McpServerLogEntry & { serverId?: string })[] = []
+
+  for (const log of [...history, ...current]) {
+    const key = `${log.timestamp}:${log.level}:${log.source ?? ''}:${log.message}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    merged.push(log)
+  }
+
+  return merged.length > 200 ? merged.slice(merged.length - 200) : merged
 }
 
 const VersionText = ({ className, ...props }: React.ComponentProps<'span'>) => (

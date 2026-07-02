@@ -16,7 +16,9 @@ const ProviderPage = () => {
 
   if (!provider) {
     return (
-      <div className="flex h-full items-center justify-center text-muted-foreground">{t('provider_not_found')}</div>
+      <div className="flex h-full items-center justify-center text-muted-foreground">
+        {t('settings.mcp.providerNotFound')}
+      </div>
     )
   }
 
