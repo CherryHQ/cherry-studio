@@ -28,8 +28,8 @@ export async function resolveCompressionModel(modelIdRaw: string): Promise<Langu
   let provider
   let model
   try {
-    provider = await providerService.getByProviderId(providerId)
-    model = await modelService.getByKey(providerId, modelId)
+    provider = providerService.getByProviderId(providerId)
+    model = modelService.getByKey(providerId, modelId)
   } catch (error) {
     logger.warn('compression provider/model lookup failed', {
       providerId,

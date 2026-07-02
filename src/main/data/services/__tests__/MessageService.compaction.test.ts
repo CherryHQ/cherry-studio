@@ -31,22 +31,22 @@ describe('setCompactionSummary', () => {
     )
   })
 
-  it('sets and reads back the summary on a message row', async () => {
-    await messageService.setCompactionSummary('m1', 'summary of first 10 turns')
-    const row = await messageService.getById('m1')
+  it('sets and reads back the summary on a message row', () => {
+    messageService.setCompactionSummary('m1', 'summary of first 10 turns')
+    const row = messageService.getById('m1')
     expect(row.compactionSummary).toBe('summary of first 10 turns')
   })
 
-  it('overwrites the summary when called a second time', async () => {
-    await messageService.setCompactionSummary('m1', 'first')
-    await messageService.setCompactionSummary('m1', 'second')
-    const row = await messageService.getById('m1')
+  it('overwrites the summary when called a second time', () => {
+    messageService.setCompactionSummary('m1', 'first')
+    messageService.setCompactionSummary('m1', 'second')
+    const row = messageService.getById('m1')
     expect(row.compactionSummary).toBe('second')
   })
 
-  it('round-trips compactionSummary through getPathToNode (real read path)', async () => {
-    await messageService.setCompactionSummary('m1', 'path-readback')
-    const path = await messageService.getPathToNode('m1')
+  it('round-trips compactionSummary through getPathToNode (real read path)', () => {
+    messageService.setCompactionSummary('m1', 'path-readback')
+    const path = messageService.getPathToNode('m1')
     expect(path.at(-1)?.compactionSummary).toBe('path-readback')
   })
 })
