@@ -5,6 +5,7 @@ import { useProvider, useProviderAuthConfig } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
 import { oauthCardClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { oauthWithCherryIn } from '@renderer/utils/oauth'
+import type { CherryInBalance } from '@shared/ipc/schemas/cherryin'
 import { hasApiKeys } from '@shared/utils/provider'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -20,18 +21,6 @@ export const getAvatarInitials = (name: string): string => {
   const trimmed = name.trim()
   if (trimmed.length <= 2) return trimmed.toUpperCase()
   return trimmed.slice(0, 2).toUpperCase()
-}
-
-interface CherryINProfile {
-  displayName: string | null
-  username: string | null
-  email: string | null
-  group: string | null
-}
-
-interface BalanceInfo {
-  balance: number
-  profile: CherryINProfile | null
 }
 
 interface CherryInOauthProps {
@@ -57,7 +46,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
 
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isLoadingData, setIsLoadingData] = useState(false)
-  const [balanceInfo, setBalanceInfo] = useState<BalanceInfo | null>(null)
+  const [balanceInfo, setBalanceInfo] = useState<CherryInBalance | null>(null)
   const [oauthTokenOverride, setOauthTokenOverride] = useState<boolean | null>(null)
 
   const hasKeys = provider ? hasApiKeys(provider) : false

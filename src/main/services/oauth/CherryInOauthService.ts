@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import type { CherryInBalance, CherryInProfile } from '@shared/ipc/schemas/cherryin'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { net } from 'electron'
 import * as z from 'zod'
@@ -33,7 +34,7 @@ const UserSelfResponseSchema = z
       .transform((payload) => payload.data),
     UserSelfProfileSchema.transform((profile) => profile)
   ])
-  .transform((payload): CherryINProfile | null => {
+  .transform((payload): CherryInProfile | null => {
     const profile = payload
 
     if (!profile) {
@@ -47,18 +48,6 @@ const UserSelfResponseSchema = z
       group: profile.group ?? null
     }
   })
-
-export interface BalanceResponse {
-  balance: number
-  profile: CherryINProfile | null
-}
-
-export interface CherryINProfile {
-  displayName: string | null
-  username: string | null
-  email: string | null
-  group: string | null
-}
 
 /**
  * CherryIN's REST operations (balance/profile/logout) layered over the OAuth
@@ -185,7 +174,7 @@ export class CherryInOauthService {
     )
   }
 
-  private getProfile = async (apiHost: string): Promise<CherryINProfile | null> => {
+  private getProfile = async (apiHost: string): Promise<CherryInProfile | null> => {
     try {
       const response = await this.authenticatedFetch(apiHost, '/api/user/self')
 
@@ -210,7 +199,7 @@ export class CherryInOauthService {
     }
   }
 
-  public getBalance = async (apiHost: string): Promise<BalanceResponse> => {
+  public getBalance = async (apiHost: string): Promise<CherryInBalance> => {
     this.validateApiHost(apiHost)
 
     try {
