@@ -20,6 +20,9 @@ import { app } from 'electron'
 export const CHERRY_HOME_DIRNAME = '.cherrystudio'
 export const CHERRY_HOME = path.join(os.homedir(), CHERRY_HOME_DIRNAME)
 export const BOOT_CONFIG_PATH = path.join(CHERRY_HOME, 'boot-config.json')
+// Profile registry + active pointer. Must be preboot-readable (DbService resolves
+// the active profile's DB path very early). See core/profile (RFC §4.6).
+export const PROFILES_CONFIG_PATH = path.join(CHERRY_HOME, 'profiles.json')
 
 /**
  * Logs directory. Resolves to Electron's platform-standard location:
