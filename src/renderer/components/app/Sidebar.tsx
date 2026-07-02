@@ -8,6 +8,7 @@ import {
 import { useTabs } from '@renderer/hooks/tab'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
+import { openSettingsTab } from '@renderer/services/settingsNavigation'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import {
   getOrderedVisibleSidebarFavorites,
@@ -156,8 +157,8 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     [activeTab, updateTab, openTab, defaultPaintingProvider]
   )
   const handleOpenSettingsTab = useCallback(() => {
-    openTab('/settings/provider', { title: t('settings.title') })
-  }, [openTab, t])
+    openSettingsTab('/settings/provider')
+  }, [])
 
   // Common props shared between normal and floating sidebar
   const sidebarProps = {
