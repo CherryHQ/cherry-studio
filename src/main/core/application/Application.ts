@@ -244,15 +244,24 @@ export class Application {
       // WhenReady phase opens the main window, so the window's first data reads
       // hit an open DB.
       const bootProfileId = resolveBootProfile().id
-      await this.activateProfile({ profileId: bootProfileId })
+      try {
+        await this.activateProfile({ profileId: bootProfileId })
 
-      // 3. WhenReady phase - services requiring Electron API
-      await this.lifecycleManager.startPhase(Phase.WhenReady)
+        // 3. WhenReady phase - services requiring Electron API
+        await this.lifecycleManager.startPhase(Phase.WhenReady)
 
-      // Profile activation tier 2: bind the WhenReady participants now that they
-      // exist. Tier-1 participants are already bound, so this converges (the
-      // per-service activate is idempotent for the same profile).
-      await this.activateProfile({ profileId: bootProfileId })
+        // Profile activation tier 2: bind the WhenReady participants now that they
+        // exist. Tier-1 participants are already bound, so this converges (the
+        // per-service activate is idempotent for the same profile).
+        await this.activateProfile({ profileId: bootProfileId })
+      } catch (error) {
+        // A boot-profile activation failure (DbService open/migrate/seed, or a
+        // fail-fast owner) is a fatal start failure. activateProfile throws a plain
+        // Error, so wrap it as ServiceInitError — otherwise the outer catch skips
+        // the Unable-to-Start dialog and the app bare-exits with only a log line.
+        // (startPhase already throws ServiceInitError, which passes through.)
+        throw error instanceof ServiceInitError ? error : new ServiceInitError('ProfileActivation', error as Error)
+      }
 
       this.isBootstrapped = true
 
