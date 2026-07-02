@@ -94,7 +94,7 @@ describe('Sidebar language refresh', () => {
     MockUseCacheUtils.resetMocks()
     MockUseDataApiUtils.resetMocks()
     MockUseDataApiUtils.mockQueryData('/mini-apps', [])
-    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', ['assistants'])
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', [{ type: 'app', id: 'assistants' }])
     MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_provider', 'zhipu')
     MockUseCacheUtils.setPersistCacheValue('ui.sidebar.width', 170)
   })

@@ -99,6 +99,16 @@ export type SidebarFavorite =
   | 'notes'
   | 'openclaw'
 
+export type SidebarFavoriteItem =
+  | {
+      type: 'app'
+      id: SidebarFavorite
+    }
+  | {
+      type: 'mini_app'
+      id: string
+    }
+
 export type AssistantIconType = 'model' | 'emoji' | 'none'
 
 export type ProxyMode = 'system' | 'custom' | 'none'

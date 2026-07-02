@@ -10,7 +10,7 @@ import {
   type TransformResult
 } from '../ComplexPreferenceMappings'
 
-const appFavorite = (id: string) => id
+const appFavorite = (id: string) => ({ type: 'app', id })
 
 describe('ComplexPreferenceMappings', () => {
   describe('type exports', () => {

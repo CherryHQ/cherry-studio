@@ -119,17 +119,16 @@
     },
     {
       "targetKey": "ui.sidebar.favorites",
-      "type": "PreferenceTypes.SidebarFavorite[]",
-      "defaultValue": ["assistants", "agents", "store", "translate", "mini_app"],
+      "type": "PreferenceTypes.SidebarFavoriteItem[]",
+      "defaultValue": [
+        { "id": "assistants", "type": "app" },
+        { "id": "agents", "type": "app" },
+        { "id": "store", "type": "app" },
+        { "id": "translate", "type": "app" },
+        { "id": "mini_app", "type": "app" }
+      ],
       "status": "classified",
-      "description": "Left sidebar favorite built-in app ids, stored as an ordered subset of the sidebar app catalog"
-    },
-    {
-      "targetKey": "ui.sidebar.mini_app_favorites",
-      "type": "string[]",
-      "defaultValue": [],
-      "status": "classified",
-      "description": "Left sidebar favorite mini app ids, ordered and independent of launchpad pinning"
+      "description": "Left sidebar favorites, an ordered list of tagged items: built-in apps ({type:'app'}) and mini apps ({type:'mini_app'})"
     },
     {
       "targetKey": "chat.default_model_id",

@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import type { SidebarAppId } from '@renderer/utils/sidebar'
+import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
@@ -13,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   openedMiniApps: [] as any[],
   reorderMiniAppsByStatus: vi.fn(() => Promise.resolve()),
   setSidebarFavorites: vi.fn(() => Promise.resolve()),
-  sidebarFavorites: ['assistants'] as string[],
+  sidebarFavorites: [{ type: 'app', id: 'assistants' }] as SidebarFavoriteItem[],
   sortableCalls: [] as any[]
 }))
 
@@ -144,7 +145,7 @@ vi.mock('react-i18next', () => ({
 
 import LaunchpadPage from '../LaunchpadPage'
 
-const appFavorite = (id: SidebarAppId): string => id
+const appFavorite = (id: SidebarAppId): SidebarFavoriteItem => ({ type: 'app', id })
 
 afterEach(() => {
   cleanup()

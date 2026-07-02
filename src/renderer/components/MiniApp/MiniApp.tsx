@@ -1,6 +1,5 @@
 import { ConfirmDialog } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import MiniAppIcon from '@renderer/components/Icons/MiniAppIcon'
@@ -8,7 +7,7 @@ import IndicatorLight from '@renderer/components/IndicatorLight'
 import MarqueeText from '@renderer/components/MarqueeText'
 import { useTabs } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { getSidebarMiniAppFavoriteIds } from '@renderer/utils/sidebar'
+import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { FC, KeyboardEvent } from 'react'
@@ -39,13 +38,12 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
     updateAppStatus,
     removeCustomMiniApp
   } = useMiniApps()
-  const [sidebarMiniAppFavorites, setSidebarMiniAppFavorites] = usePreference('ui.sidebar.mini_app_favorites')
+  const { miniAppFavoriteIds, toggleMiniApp } = useSidebarFavorites()
   const { openTab } = useTabs()
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false)
   const [removingCustom, setRemovingCustom] = useState(false)
   const isPinned = pinned.some((p) => p.appId === app.appId)
-  const sidebarMiniAppFavoriteIds = getSidebarMiniAppFavoriteIds(sidebarMiniAppFavorites)
-  const isSidebarFavorite = sidebarMiniAppFavoriteIds.includes(app.appId)
+  const isSidebarFavorite = miniAppFavoriteIds.includes(app.appId)
   const isVisible = miniApps.some((m) => m.appId === app.appId)
   // Pinned apps should always be visible regardless of region/locale filtering
   const shouldShow = isVisible || isPinned
@@ -100,10 +98,7 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
   }
 
   const handleToggleSidebarFavorite = () => {
-    const withoutApp = sidebarMiniAppFavoriteIds.filter((favorite) => favorite !== app.appId)
-    const nextFavorites = isSidebarFavorite ? withoutApp : [...withoutApp, app.appId]
-
-    setSidebarMiniAppFavorites(nextFavorites).catch(reportFailure('common.error'))
+    toggleMiniApp(app.appId)
   }
 
   const handleHide = () => {

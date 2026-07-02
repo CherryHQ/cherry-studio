@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import type { SidebarAppId } from '@renderer/utils/sidebar'
+import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -36,12 +37,11 @@ const mocks = vi.hoisted(() => ({
   } as FakeTab | null,
   setSidebarWidth: vi.fn(),
   setSidebarFavorites: vi.fn(() => Promise.resolve()),
-  setSidebarMiniAppFavorites: vi.fn(() => Promise.resolve()),
   showUserPopup: vi.fn(),
   sidebarWidth: 50,
   tabs: [] as FakeTab[],
-  sidebarFavorites: ['assistants'] as string[],
-  sidebarMiniAppFavorites: [] as string[],
+  sidebarFavorites: [{ type: 'app', id: 'assistants' }] as SidebarFavoriteItem[],
+  sidebarMiniAppFavorites: [] as SidebarFavoriteItem[],
   allApps: [] as FakeMiniApp[],
   visibleMiniApps: null as FakeMiniApp[] | null,
   pinnedMiniApps: [] as FakeMiniApp[]
@@ -60,9 +60,8 @@ vi.mock('@data/hooks/useCache', () => ({
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
     if (key === 'app.user.name') return ['JD']
-    if (key === 'ui.sidebar.favorites') return [mocks.sidebarFavorites, mocks.setSidebarFavorites]
-    if (key === 'ui.sidebar.mini_app_favorites')
-      return [mocks.sidebarMiniAppFavorites, mocks.setSidebarMiniAppFavorites]
+    if (key === 'ui.sidebar.favorites')
+      return [[...mocks.sidebarFavorites, ...mocks.sidebarMiniAppFavorites], mocks.setSidebarFavorites]
     return [undefined]
   }
 }))
@@ -261,8 +260,8 @@ import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
 
 import Sidebar from '../Sidebar'
 
-const appFavorite = (id: SidebarAppId): string => id
-const miniAppFavorite = (id: string): string => id
+const appFavorite = (id: SidebarAppId): SidebarFavoriteItem => ({ type: 'app', id })
+const miniAppFavorite = (id: string): SidebarFavoriteItem => ({ type: 'mini_app', id })
 
 afterEach(() => {
   cleanup()
@@ -271,8 +270,6 @@ afterEach(() => {
   mocks.sidebarMiniAppFavorites = []
   mocks.setSidebarFavorites.mockReset()
   mocks.setSidebarFavorites.mockResolvedValue(undefined)
-  mocks.setSidebarMiniAppFavorites.mockReset()
-  mocks.setSidebarMiniAppFavorites.mockResolvedValue(undefined)
   mocks.activeTab = {
     id: 'chat',
     type: 'route',
@@ -410,7 +407,11 @@ describe('app Sidebar', () => {
 
     fireEvent.click(screen.getByTestId('sidebar-menu-sidebar.remove-mini-app.calculator'))
 
-    expect(mocks.setSidebarMiniAppFavorites).toHaveBeenCalledWith([miniAppFavorite('weather')])
+    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([
+      appFavorite('assistants'),
+      appFavorite('mini_app'),
+      miniAppFavorite('weather')
+    ])
   })
 
   it('does not render mini apps unless they are sidebar favorites', () => {

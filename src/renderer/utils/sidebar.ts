@@ -5,7 +5,7 @@ import {
   hasTabInstanceMetadataForApp
 } from '@renderer/utils/tabInstanceMetadata'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import type { SidebarFavorite } from '@shared/data/preference/preferenceTypes'
+import type { SidebarFavorite, SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 
 /**
  * Context passed to sidebar navigation handlers. Carries per-call state the
@@ -210,31 +210,61 @@ export function isSidebarAppId(value: string): value is SidebarAppId {
   return sidebarFavoriteSet.has(value as SidebarAppId)
 }
 
-/** Dedupe an ordered id list, preserving first-seen order and dropping empties. */
-function dedupeIds(ids: readonly string[] | undefined): string[] {
-  const seen = new Set<string>()
-  const result: string[] = []
-
-  for (const id of ids ?? []) {
-    if (!id || seen.has(id)) continue
-
-    seen.add(id)
-    result.push(id)
-  }
-
-  return result
+export function createSidebarAppFavorite(id: SidebarAppId): SidebarFavoriteItem {
+  return { type: 'app', id }
 }
 
-function sanitizeSidebarFavorites(favorites: readonly string[] | undefined): SidebarAppId[] {
-  return dedupeIds(favorites).filter(isSidebarAppId)
+export function createSidebarMiniAppFavorite(id: string): SidebarFavoriteItem {
+  return { type: 'mini_app', id }
+}
+
+function getSidebarFavoriteKey(favorite: SidebarFavoriteItem): string {
+  return `${favorite.type}:${favorite.id}`
+}
+
+function normalizeSidebarFavoriteItem(favorite: SidebarFavoriteItem): SidebarFavoriteItem | undefined {
+  if (favorite.type === 'app') {
+    return isSidebarAppId(favorite.id) ? createSidebarAppFavorite(favorite.id) : undefined
+  }
+
+  if (favorite.type === 'mini_app') {
+    return favorite.id ? createSidebarMiniAppFavorite(favorite.id) : undefined
+  }
+
+  return undefined
+}
+
+/** Normalize and dedupe the stored favorites into valid, ordered tagged items. */
+export function getSidebarFavoriteItems(favorites: readonly SidebarFavoriteItem[] | undefined): SidebarFavoriteItem[] {
+  const seen = new Set<string>()
+  const items: SidebarFavoriteItem[] = []
+
+  for (const favorite of favorites ?? []) {
+    const item = normalizeSidebarFavoriteItem(favorite)
+    if (!item) continue
+
+    const key = getSidebarFavoriteKey(item)
+    if (seen.has(key)) continue
+
+    seen.add(key)
+    items.push(item)
+  }
+
+  return items
+}
+
+function sanitizeSidebarFavorites(favorites: readonly SidebarFavoriteItem[] | undefined): SidebarAppId[] {
+  return getSidebarFavoriteItems(favorites).flatMap((favorite) => (favorite.type === 'app' ? [favorite.id] : []))
 }
 
 /** Mini app sidebar favorites: an ordered, deduped list of mini app ids. */
-export function getSidebarMiniAppFavoriteIds(favorites: readonly string[] | undefined): string[] {
-  return dedupeIds(favorites)
+export function getSidebarMiniAppFavoriteIds(favorites: readonly SidebarFavoriteItem[] | undefined): string[] {
+  return getSidebarFavoriteItems(favorites).flatMap((favorite) => (favorite.type === 'mini_app' ? [favorite.id] : []))
 }
 
-export function getOrderedVisibleSidebarFavorites(favorites: readonly string[] | undefined): SidebarAppId[] {
+export function getOrderedVisibleSidebarFavorites(
+  favorites: readonly SidebarFavoriteItem[] | undefined
+): SidebarAppId[] {
   const visible = sanitizeSidebarFavorites(favorites)
 
   for (const favorite of REQUIRED_SIDEBAR_FAVORITES) {
@@ -248,4 +278,93 @@ export function getOrderedVisibleSidebarFavorites(favorites: readonly string[] |
   }
 
   return visible
+}
+
+// --- Favorites mutations -----------------------------------------------------
+//
+// The favorites preference stores apps and mini apps in one array. Each mutation
+// touches a single partition and re-merges the other untouched, so callers never
+// have to remember to preserve the partition they didn't change. The canonical
+// storage order is apps-first (in visible order) followed by mini apps; the two
+// sidebar zones render from their own partition, so cross-zone order is irrelevant.
+
+/** Recombine the two partitions into the canonical apps-first storage order. */
+function rebuildSidebarFavorites(
+  appIds: readonly SidebarAppId[],
+  miniAppIds: readonly string[]
+): SidebarFavoriteItem[] {
+  return [...appIds.map(createSidebarAppFavorite), ...miniAppIds.map(createSidebarMiniAppFavorite)]
+}
+
+/**
+ * Pin or unpin a built-in app, preserving mini app favorites. Unpinning a
+ * required app is a no-op — required apps are always visible.
+ */
+export function setSidebarAppPinned(
+  favorites: readonly SidebarFavoriteItem[] | undefined,
+  id: SidebarAppId,
+  pinned: boolean
+): SidebarFavoriteItem[] {
+  const currentApps = getOrderedVisibleSidebarFavorites(favorites)
+  const miniAppIds = getSidebarMiniAppFavoriteIds(favorites)
+
+  if (!pinned && REQUIRED_SIDEBAR_FAVORITES.includes(id)) {
+    return rebuildSidebarFavorites(currentApps, miniAppIds)
+  }
+
+  const nextApps = currentApps.filter((app) => app !== id)
+  if (pinned) nextApps.push(id)
+
+  return rebuildSidebarFavorites(nextApps, miniAppIds)
+}
+
+/**
+ * Reorder the app zone to `orderedAppIds` (a permutation of the visible apps),
+ * preserving mini apps. Unknown ids are dropped and any visible app missing from
+ * the list is kept at the end so a partial order never silently loses favorites.
+ */
+export function reorderSidebarApps(
+  favorites: readonly SidebarFavoriteItem[] | undefined,
+  orderedAppIds: readonly string[]
+): SidebarFavoriteItem[] {
+  const currentApps = getOrderedVisibleSidebarFavorites(favorites)
+  const currentSet = new Set(currentApps)
+  const seen = new Set<SidebarAppId>()
+  const reordered: SidebarAppId[] = []
+
+  for (const id of orderedAppIds) {
+    if (isSidebarAppId(id) && currentSet.has(id) && !seen.has(id)) {
+      seen.add(id)
+      reordered.push(id)
+    }
+  }
+  for (const id of currentApps) {
+    if (!seen.has(id)) reordered.push(id)
+  }
+
+  return rebuildSidebarFavorites(reordered, getSidebarMiniAppFavoriteIds(favorites))
+}
+
+/** Toggle a mini app favorite, preserving apps. Adding appends to the mini app zone. */
+export function toggleSidebarMiniApp(
+  favorites: readonly SidebarFavoriteItem[] | undefined,
+  id: string
+): SidebarFavoriteItem[] {
+  const miniAppIds = getSidebarMiniAppFavoriteIds(favorites)
+  const nextMiniAppIds = miniAppIds.includes(id)
+    ? miniAppIds.filter((existing) => existing !== id)
+    : [...miniAppIds, id]
+
+  return rebuildSidebarFavorites(getOrderedVisibleSidebarFavorites(favorites), nextMiniAppIds)
+}
+
+/** Remove a mini app favorite, preserving everything else. */
+export function removeSidebarMiniApp(
+  favorites: readonly SidebarFavoriteItem[] | undefined,
+  id: string
+): SidebarFavoriteItem[] {
+  return rebuildSidebarFavorites(
+    getOrderedVisibleSidebarFavorites(favorites),
+    getSidebarMiniAppFavoriteIds(favorites).filter((existing) => existing !== id)
+  )
 }
