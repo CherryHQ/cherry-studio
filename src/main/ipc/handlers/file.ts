@@ -35,7 +35,7 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     const pairs = await Promise.all(
       ids.map(async (id) => {
         try {
-          return [id, await fileManager.getPhysicalPath(id)] as const
+          return [id, fileManager.getPhysicalPath(id)] as const
         } catch {
           return [id, null] as const
         }

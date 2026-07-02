@@ -102,20 +102,20 @@ export interface ListCursorQuery {
 }
 
 export interface FileEntryService {
-  /** Run serialized DB writes through DbService.withWriteTx. */
-  withWriteTx<T>(fn: (tx: DbOrTx) => Promise<T>): Promise<T>
+  /** Run serialized DB writes through DbService.withWriteTx (synchronous — no await needed). */
+  withWriteTx<T>(fn: (tx: DbOrTx) => T): T
 
   /** Return the entry, or `null` if not found. Trashed entries are included. */
-  findById(id: FileEntryId): Promise<FileEntry | null>
+  findById(id: FileEntryId): FileEntry | null
 
   /** Tx-scoped variant of `findById` for composing write flows. */
-  findByIdTx(tx: DbOrTx, id: FileEntryId): Promise<FileEntry | null>
+  findByIdTx(tx: DbOrTx, id: FileEntryId): FileEntry | null
 
   /** Return the entry, or throw. Trashed entries are included. */
-  getById(id: FileEntryId): Promise<FileEntry>
+  getById(id: FileEntryId): FileEntry
 
   /** Tx-scoped variant of `getById` for composing write flows. */
-  getByIdTx(tx: DbOrTx, id: FileEntryId): Promise<FileEntry>
+  getByIdTx(tx: DbOrTx, id: FileEntryId): FileEntry
 
   /**
    * Look up an external entry by canonical `externalPath`. Returns `null` when
@@ -124,7 +124,7 @@ export interface FileEntryService {
    * not assignable here, which prevents the "caller forgot to canonicalize"
    * class of bug that would silently miss all matches.
    */
-  findByExternalPath(canonicalPath: CanonicalExternalPath): Promise<FileEntry | null>
+  findByExternalPath(canonicalPath: CanonicalExternalPath): FileEntry | null
 
   /**
    * Return external entries whose `externalPath` matches `canonicalPath`
@@ -152,21 +152,21 @@ export interface FileEntryService {
    *
    * Un-parseable rows are skipped with a warning (see `rowToFileEntrySafe`).
    */
-  findCaseInsensitivePeers(canonicalPath: CanonicalExternalPath): Promise<FileEntry[]>
+  findCaseInsensitivePeers(canonicalPath: CanonicalExternalPath): FileEntry[]
 
   /**
    * Flat listing. Trashed filter defaults to "active only" when `inTrash` is omitted.
    * Un-parseable rows are skipped with a warning (see `rowToFileEntrySafe`).
    */
-  findMany(query?: FindEntriesQuery): Promise<FileEntry[]>
+  findMany(query?: FindEntriesQuery): FileEntry[]
 
   /** Tx-scoped variant of `findMany` for composing write flows. */
-  findManyTx(tx: DbOrTx, query?: FindEntriesQuery): Promise<FileEntry[]>
+  findManyTx(tx: DbOrTx, query?: FindEntriesQuery): FileEntry[]
 
   /**
    * Cursor-and-count list backing `GET /files/entries`. Returns
    * `{ items, total, nextCursor }` matching the DataApi cursor response shape,
-   * doing the select + count in a single round-trip via `Promise.all`.
+   * running the page select and the total count as two sequential synchronous queries.
    *
    * Defaults: `limit = 50`, `sortBy = 'createdAt'`, `sortOrder = 'asc'`.
    * Trashed filter defaults to "active only" when `inTrash` is omitted, matching
@@ -180,13 +180,13 @@ export interface FileEntryService {
    * `total` is a SQL count and may exceed `items.length` when corrupted
    * rows were skipped.
    */
-  listCursor(query?: ListCursorQuery): Promise<FileEntryListResponse>
+  listCursor(query?: ListCursorQuery): FileEntryListResponse
 
   /**
    * Pure-SQL aggregate counts backing the file sidebar. Counts active rows by
    * extension and active external rows by dirname, plus active/trash totals.
    */
-  getStats(): Promise<FileEntryStats>
+  getStats(): FileEntryStats
 
   /**
    * Active (non-trashed) entries with zero persistent association rows pointing
@@ -195,26 +195,26 @@ export interface FileEntryService {
    *
    * Un-parseable rows are skipped with a warning (see `rowToFileEntrySafe`).
    */
-  findUnreferenced(query?: { origin?: FileEntryOrigin }): Promise<FileEntry[]>
+  findUnreferenced(query?: { origin?: FileEntryOrigin }): FileEntry[]
 
   /**
    * All entry ids regardless of trashed state — backs the on-demand orphan
    * sweep, which needs to know which on-disk UUID files have a DB row
    * (active or trashed; both are out of scope for unlink).
    */
-  listAllIds(): Promise<Set<FileEntryId>>
+  listAllIds(): Set<FileEntryId>
 
   /** Insert a new row. Violates `fe_origin_consistency` / `fe_size_internal_only` → throws. */
-  create(values: CreateFileEntryRow): Promise<FileEntry>
+  create(values: CreateFileEntryRow): FileEntry
 
   /** Tx-scoped variant of `create` for composing write flows. */
-  createTx(tx: DbOrTx, values: CreateFileEntryRow): Promise<FileEntry>
+  createTx(tx: DbOrTx, values: CreateFileEntryRow): FileEntry
 
   /** Update mutable columns. Returns the refreshed row. Throws if not found. */
-  update(id: FileEntryId, values: UpdateFileEntryRow): Promise<FileEntry>
+  update(id: FileEntryId, values: UpdateFileEntryRow): FileEntry
 
   /** Tx-scoped variant of `update` for composing write flows. */
-  updateTx(tx: DbOrTx, id: FileEntryId, values: UpdateFileEntryRow): Promise<FileEntry>
+  updateTx(tx: DbOrTx, id: FileEntryId, values: UpdateFileEntryRow): FileEntry
 
   /**
    * Atomically rewrite both `externalPath` and `name` for an external entry.
@@ -222,21 +222,16 @@ export interface FileEntryService {
    * doing it as a single statement keeps the (path, name) pair consistent under
    * partial-failure scenarios (transient lock, schema constraint).
    */
-  setExternalPathAndName(id: FileEntryId, externalPath: CanonicalExternalPath, name: string): Promise<FileEntry>
+  setExternalPathAndName(id: FileEntryId, externalPath: CanonicalExternalPath, name: string): FileEntry
 
   /** Tx-scoped variant of `setExternalPathAndName` for composing write flows. */
-  setExternalPathAndNameTx(
-    tx: DbOrTx,
-    id: FileEntryId,
-    externalPath: CanonicalExternalPath,
-    name: string
-  ): Promise<FileEntry>
+  setExternalPathAndNameTx(tx: DbOrTx, id: FileEntryId, externalPath: CanonicalExternalPath, name: string): FileEntry
 
   /** Remove the row (CASCADE drops dependent persistent file refs). No-op if already gone. */
-  delete(id: FileEntryId): Promise<void>
+  delete(id: FileEntryId): void
 
   /** Tx-scoped variant of `delete` for composing write flows. */
-  deleteTx(tx: DbOrTx, id: FileEntryId): Promise<void>
+  deleteTx(tx: DbOrTx, id: FileEntryId): void
 }
 
 type FileEntryRow = typeof fileEntryTable.$inferSelect
@@ -372,42 +367,43 @@ class FileEntryServiceImpl implements FileEntryService {
     return this.getDbService().getDb()
   }
 
-  withWriteTx<T>(fn: (tx: DbOrTx) => Promise<T>): Promise<T> {
+  withWriteTx<T>(fn: (tx: DbOrTx) => T): T {
     return this.getDbService().withWriteTx(fn)
   }
 
-  async findById(id: FileEntryId): Promise<FileEntry | null> {
+  findById(id: FileEntryId): FileEntry | null {
     return this.findByIdTx(this.getDb(), id)
   }
 
-  async findByIdTx(tx: DbOrTx, id: FileEntryId): Promise<FileEntry | null> {
-    const rows = await tx.select().from(fileEntryTable).where(eq(fileEntryTable.id, id)).limit(1)
+  findByIdTx(tx: DbOrTx, id: FileEntryId): FileEntry | null {
+    const rows = tx.select().from(fileEntryTable).where(eq(fileEntryTable.id, id)).limit(1).all()
     return rows.length === 0 ? null : rowToFileEntry(rows[0])
   }
 
-  async getById(id: FileEntryId): Promise<FileEntry> {
+  getById(id: FileEntryId): FileEntry {
     return this.getByIdTx(this.getDb(), id)
   }
 
-  async getByIdTx(tx: DbOrTx, id: FileEntryId): Promise<FileEntry> {
-    const entry = await this.findByIdTx(tx, id)
+  getByIdTx(tx: DbOrTx, id: FileEntryId): FileEntry {
+    const entry = this.findByIdTx(tx, id)
     if (!entry) {
       throw DataApiErrorFactory.notFound('FileEntry', id)
     }
     return entry
   }
 
-  async findByExternalPath(canonicalPath: CanonicalExternalPath): Promise<FileEntry | null> {
-    const rows = await this.getDb()
+  findByExternalPath(canonicalPath: CanonicalExternalPath): FileEntry | null {
+    const rows = this.getDb()
       .select()
       .from(fileEntryTable)
       .where(eq(fileEntryTable.externalPath, canonicalPath))
       .limit(1)
+      .all()
     return rows.length === 0 ? null : rowToFileEntry(rows[0])
   }
 
-  async findCaseInsensitivePeers(canonicalPath: CanonicalExternalPath): Promise<FileEntry[]> {
-    const rows = await this.getDb()
+  findCaseInsensitivePeers(canonicalPath: CanonicalExternalPath): FileEntry[] {
+    const rows = this.getDb()
       .select()
       .from(fileEntryTable)
       .where(
@@ -421,14 +417,15 @@ class FileEntryServiceImpl implements FileEntryService {
       // tests and for the surviving-row selection in any future FileMigrator
       // dedupe pass).
       .orderBy(asc(fileEntryTable.createdAt), asc(fileEntryTable.id))
+      .all()
     return rows.map(rowToFileEntrySafe).filter((e): e is FileEntry => e !== null)
   }
 
-  async findMany(query: FindEntriesQuery = {}): Promise<FileEntry[]> {
+  findMany(query: FindEntriesQuery = {}): FileEntry[] {
     return this.findManyTx(this.getDb(), query)
   }
 
-  async findManyTx(tx: DbOrTx, query: FindEntriesQuery = {}): Promise<FileEntry[]> {
+  findManyTx(tx: DbOrTx, query: FindEntriesQuery = {}): FileEntry[] {
     const conditions: SQL[] = []
     if (query.origin) {
       conditions.push(eq(fileEntryTable.origin, query.origin))
@@ -453,11 +450,11 @@ class FileEntryServiceImpl implements FileEntryService {
       queryBuilder = queryBuilder.offset(query.offset)
     }
 
-    const rows = await queryBuilder
+    const rows = queryBuilder.all()
     return rows.map(rowToFileEntrySafe).filter((e): e is FileEntry => e !== null)
   }
 
-  async listCursor(query: ListCursorQuery = {}): Promise<FileEntryListResponse> {
+  listCursor(query: ListCursorQuery = {}): FileEntryListResponse {
     const filterConditions: SQL[] = []
     if (query.origin) {
       filterConditions.push(eq(fileEntryTable.origin, query.origin))
@@ -482,15 +479,14 @@ class FileEntryServiceImpl implements FileEntryService {
     const where = and(...conditions)
     const filterWhere = and(...filterConditions)
 
-    const [rows, totalRow] = await Promise.all([
-      this.getDb()
-        .select()
-        .from(fileEntryTable)
-        .where(where)
-        .orderBy(...ordering.orderBy)
-        .limit(pageSize + 1),
-      this.getDb().select({ value: count() }).from(fileEntryTable).where(filterWhere)
-    ])
+    const rows = this.getDb()
+      .select()
+      .from(fileEntryTable)
+      .where(where)
+      .orderBy(...ordering.orderBy)
+      .limit(pageSize + 1)
+      .all()
+    const totalRow = this.getDb().select({ value: count() }).from(fileEntryTable).where(filterWhere).all()
     const pageRows = rows.slice(0, pageSize)
 
     return {
@@ -503,17 +499,24 @@ class FileEntryServiceImpl implements FileEntryService {
     }
   }
 
-  async getStats(): Promise<FileEntryStats> {
+  getStats(): FileEntryStats {
     const db = this.getDb()
-    const [activeTotalRows, trashTotalRows, extRows] = await Promise.all([
-      db.select({ count: count() }).from(fileEntryTable).where(isNull(fileEntryTable.deletedAt)),
-      db.select({ count: count() }).from(fileEntryTable).where(isNotNull(fileEntryTable.deletedAt)),
-      db
-        .select({ ext: fileEntryTable.ext, count: count() })
-        .from(fileEntryTable)
-        .where(isNull(fileEntryTable.deletedAt))
-        .groupBy(fileEntryTable.ext)
-    ])
+    const activeTotalRows = db
+      .select({ count: count() })
+      .from(fileEntryTable)
+      .where(isNull(fileEntryTable.deletedAt))
+      .all()
+    const trashTotalRows = db
+      .select({ count: count() })
+      .from(fileEntryTable)
+      .where(isNotNull(fileEntryTable.deletedAt))
+      .all()
+    const extRows = db
+      .select({ ext: fileEntryTable.ext, count: count() })
+      .from(fileEntryTable)
+      .where(isNull(fileEntryTable.deletedAt))
+      .groupBy(fileEntryTable.ext)
+      .all()
 
     return {
       activeTotal: activeTotalRows[0]?.count ?? 0,
@@ -522,7 +525,7 @@ class FileEntryServiceImpl implements FileEntryService {
     }
   }
 
-  async findUnreferenced(query: { origin?: FileEntryOrigin } = {}): Promise<FileEntry[]> {
+  findUnreferenced(query: { origin?: FileEntryOrigin } = {}): FileEntry[] {
     const persistentRefAbsenceConditions = {
       [chatMessageSourceType]: () =>
         sql`NOT EXISTS (SELECT 1 FROM ${chatMessageFileRefTable} WHERE ${chatMessageFileRefTable.fileEntryId} = ${fileEntryTable.id})`,
@@ -535,28 +538,29 @@ class FileEntryServiceImpl implements FileEntryService {
       ...Object.values(persistentRefAbsenceConditions).map((buildCondition) => buildCondition())
     ]
     if (query.origin) conditions.push(eq(fileEntryTable.origin, query.origin))
-    const rows = await this.getDb()
+    const rows = this.getDb()
       .select({ entry: fileEntryTable })
       .from(fileEntryTable)
       .where(and(...conditions))
       .orderBy(asc(fileEntryTable.createdAt))
+      .all()
     return rows.map((r) => rowToFileEntrySafe(r.entry)).filter((e): e is FileEntry => e !== null)
   }
 
-  async listAllIds(): Promise<Set<FileEntryId>> {
-    const rows = await this.getDb().select({ id: fileEntryTable.id }).from(fileEntryTable)
+  listAllIds(): Set<FileEntryId> {
+    const rows = this.getDb().select({ id: fileEntryTable.id }).from(fileEntryTable).all()
     return new Set(rows.map((r) => r.id))
   }
 
-  async create(values: CreateFileEntryRow): Promise<FileEntry> {
-    return this.withWriteTx((tx) => this.createTx(tx, values))
+  create(values: CreateFileEntryRow): FileEntry {
+    return this.createTx(this.getDb(), values)
   }
 
-  async createTx(tx: DbOrTx, values: CreateFileEntryRow): Promise<FileEntry> {
+  createTx(tx: DbOrTx, values: CreateFileEntryRow): FileEntry {
     const parsed = CreateFileEntryRowSchema.parse(values)
     const now = Date.now()
     const id = parsed.origin === 'internal' ? parsed.id : uuidv7()
-    const rows = await tx
+    const rows = tx
       .insert(fileEntryTable)
       .values({
         id,
@@ -570,14 +574,15 @@ class FileEntryServiceImpl implements FileEntryService {
         updatedAt: now
       })
       .returning()
+      .all()
     return rowToFileEntry(rows[0])
   }
 
-  async update(id: FileEntryId, values: UpdateFileEntryRow): Promise<FileEntry> {
-    return this.withWriteTx((tx) => this.updateTx(tx, id, values))
+  update(id: FileEntryId, values: UpdateFileEntryRow): FileEntry {
+    return this.updateTx(this.getDb(), id, values)
   }
 
-  async updateTx(tx: DbOrTx, id: FileEntryId, values: UpdateFileEntryRow): Promise<FileEntry> {
+  updateTx(tx: DbOrTx, id: FileEntryId, values: UpdateFileEntryRow): FileEntry {
     // Validate user-controlled string columns BEFORE the SQL UPDATE so a
     // rejected value never persists. Without this, a name / ext failing
     // the FileEntry field schemas commits to SQLite first and only fails at
@@ -592,7 +597,7 @@ class FileEntryServiceImpl implements FileEntryService {
     if (values.ext !== undefined) updates.ext = values.ext
     if (values.size !== undefined) updates.size = values.size
     if (values.deletedAt !== undefined) updates.deletedAt = values.deletedAt
-    const rows = await tx.update(fileEntryTable).set(updates).where(eq(fileEntryTable.id, id)).returning()
+    const rows = tx.update(fileEntryTable).set(updates).where(eq(fileEntryTable.id, id)).returning().all()
     if (rows.length === 0) {
       throw DataApiErrorFactory.notFound('FileEntry', id)
     }
@@ -604,16 +609,11 @@ class FileEntryServiceImpl implements FileEntryService {
    * the only sanctioned mutation site for `externalPath`. Used by the rename
    * flow so the (path, name) pair stays consistent under failure.
    */
-  async setExternalPathAndName(id: FileEntryId, externalPath: CanonicalExternalPath, name: string): Promise<FileEntry> {
-    return this.withWriteTx((tx) => this.setExternalPathAndNameTx(tx, id, externalPath, name))
+  setExternalPathAndName(id: FileEntryId, externalPath: CanonicalExternalPath, name: string): FileEntry {
+    return this.setExternalPathAndNameTx(this.getDb(), id, externalPath, name)
   }
 
-  async setExternalPathAndNameTx(
-    tx: DbOrTx,
-    id: FileEntryId,
-    externalPath: CanonicalExternalPath,
-    name: string
-  ): Promise<FileEntry> {
+  setExternalPathAndNameTx(tx: DbOrTx, id: FileEntryId, externalPath: CanonicalExternalPath, name: string): FileEntry {
     // Same pre-SQL validation rationale as `update` above; an unsafe value
     // for either column would corrupt the row past `rowToFileEntry` parse.
     // The `CanonicalExternalPath` brand is TS-only — defense-in-depth at the
@@ -622,23 +622,24 @@ class FileEntryServiceImpl implements FileEntryService {
     // `canonicalizeExternalPath`).
     SafeNameSchema.parse(name)
     AbsolutePathSchema.parse(externalPath)
-    const rows = await tx
+    const rows = tx
       .update(fileEntryTable)
       .set({ externalPath, name, updatedAt: Date.now() })
       .where(eq(fileEntryTable.id, id))
       .returning()
+      .all()
     if (rows.length === 0) {
       throw DataApiErrorFactory.notFound('FileEntry', id)
     }
     return rowToFileEntry(rows[0])
   }
 
-  async delete(id: FileEntryId): Promise<void> {
-    await this.withWriteTx((tx) => this.deleteTx(tx, id))
+  delete(id: FileEntryId): void {
+    this.deleteTx(this.getDb(), id)
   }
 
-  async deleteTx(tx: DbOrTx, id: FileEntryId): Promise<void> {
-    await tx.delete(fileEntryTable).where(eq(fileEntryTable.id, id))
+  deleteTx(tx: DbOrTx, id: FileEntryId): void {
+    tx.delete(fileEntryTable).where(eq(fileEntryTable.id, id)).run()
   }
 }
 

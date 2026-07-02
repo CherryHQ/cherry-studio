@@ -4,19 +4,19 @@ import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { type LibsqlDriver, openLibsqlIndexDriver } from '../LibsqlDriver'
-import { LibsqlVectorIndex } from '../LibsqlVectorIndex'
+import { type BetterSqlite3Driver, openBetterSqlite3IndexDriver } from '../BetterSqlite3Driver'
+import { BetterSqlite3VectorIndex } from '../BetterSqlite3VectorIndex'
 import { createKnowledgeIndexSchema } from '../schema'
 import { encodeVectorBlob } from '../vectorBlob'
 
-describe('LibsqlVectorIndex', () => {
+describe('BetterSqlite3VectorIndex', () => {
   let tempDir: string
-  let driver: LibsqlDriver
-  const vectorIndex = new LibsqlVectorIndex()
+  let driver: BetterSqlite3Driver
+  const vectorIndex = new BetterSqlite3VectorIndex()
 
   beforeEach(async () => {
     tempDir = mkdtempSync(join(tmpdir(), 'cs-knowledge-vindex-'))
-    driver = await openLibsqlIndexDriver(join(tempDir, 'index.sqlite'))
+    driver = await openBetterSqlite3IndexDriver(join(tempDir, 'index.sqlite'))
     await createKnowledgeIndexSchema(driver)
   })
 

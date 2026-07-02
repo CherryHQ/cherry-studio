@@ -73,7 +73,9 @@ describe('fileHandlers', () => {
   })
 
   it('batch_get_physical_paths returns null for per-entry path failures', async () => {
-    fileManager.getPhysicalPath.mockResolvedValueOnce('/tmp/a.png').mockRejectedValueOnce(new Error('ENOENT'))
+    fileManager.getPhysicalPath.mockReturnValueOnce('/tmp/a.png').mockImplementationOnce(() => {
+      throw new Error('ENOENT')
+    })
 
     await expect(fileHandlers['file.batch_get_physical_paths']({ ids }, ctx)).resolves.toEqual({
       [ids[0]]: '/tmp/a.png',

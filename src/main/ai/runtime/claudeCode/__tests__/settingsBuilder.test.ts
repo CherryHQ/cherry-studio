@@ -169,7 +169,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       if (specifier === '@anthropic-ai/claude-agent-sdk') return '/sdk/index.js'
       return `/native/${specifier}/claude`
     })
-    mocks.getAgent.mockResolvedValue({
+    mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
       instructions: 'Follow instructions.',
@@ -180,15 +180,15 @@ describe('buildClaudeCodeSessionSettings', () => {
       allowedTools: [],
       configuration: {}
     })
-    mocks.modelGetByKey.mockResolvedValue({ apiModelId: 'claude-api' })
-    mocks.findBySessionId.mockResolvedValue(null)
+    mocks.modelGetByKey.mockReturnValue({ apiModelId: 'claude-api' })
+    mocks.findBySessionId.mockReturnValue(null)
     mocks.createToolPolicySnapshot.mockResolvedValue({
       resolve: vi.fn(),
       isDisabled: vi.fn(() => false),
       update: vi.fn(),
       setPermissionMode: vi.fn()
     })
-    mocks.listChannels.mockResolvedValue([])
+    mocks.listChannels.mockReturnValue([])
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') {
         return { get: vi.fn(() => undefined) }
@@ -251,7 +251,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
   it('resolves the plan (sonnet) and small (haiku) model env keys from their own model ids', async () => {
     // Each of the three model lookups must resolve independently from its own key/provider.
-    mocks.modelGetByKey.mockImplementation(async (providerId: string, modelId: string) => {
+    mocks.modelGetByKey.mockImplementation((providerId: string, modelId: string) => {
       if (modelId === 'claude-sonnet') return { apiModelId: 'sonnet-api' }
       if (modelId === 'claude-haiku') return { apiModelId: 'haiku-api' }
       throw new Error(`model ${providerId}::${modelId} not in table`)
@@ -276,7 +276,7 @@ describe('buildClaudeCodeSessionSettings', () => {
   it('falls back each model env key to its own raw id when that model is absent from the table', async () => {
     // Only the small (haiku) model is missing — the others must NOT be forced to fall back, and the
     // haiku key must fall back to its OWN raw id (not the main model's).
-    mocks.modelGetByKey.mockImplementation(async (_providerId: string, modelId: string) => {
+    mocks.modelGetByKey.mockImplementation((_providerId: string, modelId: string) => {
       if (modelId === 'claude-haiku') throw new Error('haiku not in table')
       return { apiModelId: `${modelId}-api` }
     })
@@ -338,7 +338,7 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('passes agent disabledTools through to SDK disallowedTools', async () => {
-    mocks.getAgent.mockResolvedValue({
+    mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
       model: 'anthropic::claude-sonnet',
@@ -360,7 +360,7 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('composes disallowedTools: globals + EnterWorktree (no .git cwd) + dedup, no AskUserQuestion for a plain agent', async () => {
-    mocks.getAgent.mockResolvedValue({
+    mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
       model: 'anthropic::claude-sonnet',
@@ -387,7 +387,7 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('soul mode adds SOUL_MODE_DISALLOWED_TOOLS to disallowedTools', async () => {
-    mocks.getAgent.mockResolvedValue({
+    mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
       model: 'anthropic::claude-sonnet',
@@ -412,7 +412,7 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('assistant role adds AskUserQuestion to disallowedTools', async () => {
-    mocks.getAgent.mockResolvedValue({
+    mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
       model: 'anthropic::claude-sonnet',
@@ -522,7 +522,9 @@ describe('buildClaudeCodeSessionSettings', () => {
       agentId: 'agent-1',
       workspace: { type: 'user', path: '/workspace/project' }
     }
-    mocks.listChannels.mockRejectedValueOnce(new Error('channel db down'))
+    mocks.listChannels.mockImplementationOnce(() => {
+      throw new Error('channel db down')
+    })
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
