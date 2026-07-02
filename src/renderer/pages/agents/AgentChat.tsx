@@ -250,7 +250,6 @@ const AgentChat = ({
           panePosition={panePosition}
           onPaneCollapse={onPaneCollapse}
           topRightTool={resourcePaneTopRightTool}
-          topRightToolReserve="double"
           center={<ConversationCenterState state="loading" />}
           centerOverlay={resourcePane ? <AgentRightPane.MaximizedOverlay /> : undefined}
           rightPane={<AgentRightPane.Host />}
@@ -342,7 +341,6 @@ const AgentChat = ({
             />
           }
           topRightTool={resourcePaneTopRightTool}
-          topRightToolReserve="double"
           center={
             <ConversationStageCenter
               placement="home"
@@ -395,7 +393,6 @@ const AgentChat = ({
             />
           }
           topRightTool={resourcePaneTopRightTool}
-          topRightToolReserve="double"
           center={
             <ConversationStageCenter
               placement="home"
@@ -705,7 +702,6 @@ const AgentChatSessionFrame = ({
             <AgentRightPane.FilesToggle />
           </>
         }
-        topRightToolReserve={resourcePane ? 'quint' : 'quad'}
         center={
           <ConversationStageCenter
             placement="docked"

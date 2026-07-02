@@ -225,7 +225,6 @@ const Chat: FC<Props> = (props) => {
           <TopicRightPane.Toggle />
         </>
       }
-      topRightToolReserve="quad"
       sidePanel={
         <CitationsPanel
           open={citationsPanelOpen}

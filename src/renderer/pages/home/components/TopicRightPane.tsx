@@ -154,7 +154,7 @@ function TopicRightPaneSurface({
 
   // The TabList absorbs the navbar's right cluster while the pane is open: pin/back-to-main
   // when we're in a sub-window, plus the pane toggle (closes the open pane). Navbar suppresses
-  // its own copy via useOptionalShellState — see ConversationShellTopRightTool.
+  // its own copy via useOptionalShellState — see ConversationShell's topbar cluster.
   const tabListTrailing = (
     <>
       {isWindow ? chrome?.titleTrailing : null}

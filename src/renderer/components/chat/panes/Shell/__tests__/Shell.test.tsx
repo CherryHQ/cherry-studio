@@ -536,7 +536,7 @@ describe('Shell.TabList', () => {
     const scrollContainer = screen.getByTestId('shell-tab-scroll-container')
     const tabsList = screen.getByTestId('shell-tabs-list')
 
-    // The opened-pane header uses the same right inset as ConversationShellTopRightTool
+    // The opened-pane header uses the same right inset as ConversationShell's closed-state cluster
     // so the expand and close buttons keep the same distance from the right edge.
     expect(tabList).toHaveClass('pr-[calc(0.5rem+var(--window-controls-width,0px))]', 'pl-3')
     expect(tabList).not.toHaveClass('pr-11')

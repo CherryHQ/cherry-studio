@@ -360,8 +360,8 @@ function ShellTabs({ children }: { children: ReactNode }) {
 
 // Header bar: the tab strip plus the pane-level maximize toggle.
 // `extraTrailing` hosts the navbar-right cluster (sub-window controls, pane toggle) when the
-// pane is open — see ConversationShellTopRightTool, which suppresses itself in that state so
-// the cluster doesn't sit on top of this header.
+// pane is open; ConversationShell hides its closed-state topbar cluster in that state so the
+// cluster doesn't sit on top of this header.
 function ShellTabList({ children, extraTrailing }: { children: ReactNode; extraTrailing?: ReactNode }) {
   const { state, actions } = useShell()
   const { t } = useTranslation()
@@ -376,7 +376,7 @@ function ShellTabList({ children, extraTrailing }: { children: ReactNode; extraT
     <div
       data-testid="shell-tab-list"
       className={cn(
-        // Match ConversationShellTopRightTool's right inset so the closed-state expand button and
+        // Match ConversationShell's right inset so the closed-state expand button and
         // opened-state close button keep the same distance from the right edge.
         'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b pr-[calc(0.5rem+var(--window-controls-width,0px))]',
         isWindowTopBar ? '[-webkit-app-region:drag]' : '[-webkit-app-region:no-drag]',

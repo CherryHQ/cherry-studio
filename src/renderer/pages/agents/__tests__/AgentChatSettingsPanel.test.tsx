@@ -26,9 +26,6 @@ const agentComposerPropsMock = vi.hoisted(() => ({
 }))
 const toolApprovalRespondMock = vi.hoisted(() => vi.fn())
 const agentSessionRefreshMock = vi.hoisted(() => vi.fn())
-const conversationShellPropsMock = vi.hoisted(() => ({
-  last: undefined as any
-}))
 
 // Tool-approval responses now go through ipcApi.request('ai.respond_tool_approval', …).
 vi.mock('@renderer/ipc', () => ({
@@ -50,7 +47,6 @@ vi.mock('@renderer/components/chat', () => ({
   ConversationShell: ({
     topBar,
     topRightTool,
-    topRightToolReserve,
     sidePanel,
     center,
     rightPane,
@@ -58,24 +54,20 @@ vi.mock('@renderer/components/chat', () => ({
   }: {
     topBar?: ReactNode
     topRightTool?: ReactNode
-    topRightToolReserve?: string
     sidePanel?: ReactNode
     center?: ReactNode
     rightPane?: ReactNode
     overlay?: ReactNode
-  }) => {
-    conversationShellPropsMock.last = { topRightToolReserve }
-    return (
-      <div>
-        <div data-testid="agent-top-bar">{topBar}</div>
-        <div data-testid="agent-top-right-tool">{topRightTool}</div>
-        <div data-testid="agent-side-panel">{sidePanel}</div>
-        <div>{center}</div>
-        <div>{overlay}</div>
-        {rightPane}
-      </div>
-    )
-  },
+  }) => (
+    <div>
+      <div data-testid="agent-top-bar">{topBar}</div>
+      <div data-testid="agent-top-right-tool">{topRightTool}</div>
+      <div data-testid="agent-side-panel">{sidePanel}</div>
+      <div>{center}</div>
+      <div>{overlay}</div>
+      {rightPane}
+    </div>
+  ),
   LoadingState: () => <div data-testid="loading-state" />,
   RightPaneHost: ({ children, open }: PropsWithChildren<{ open?: boolean }>) => (
     <div data-testid="right-pane-host" data-open={String(Boolean(open))}>
@@ -310,7 +302,6 @@ describe('AgentChat settings panel', () => {
     partsByMessageIdMock.value = {}
     topicStreamStatusMock.isPending = false
     activeAgentMock.value = { id: 'agent-1', model: 'provider:model-1' }
-    conversationShellPropsMock.last = undefined
     agentRightPanePropsMock.last = undefined
     agentComposerPropsMock.last = undefined
     agentRightPanePropsMock.openAgentToolFlow.mockReset()
@@ -341,7 +332,6 @@ describe('AgentChat settings panel', () => {
   it('keeps the right-pane expand button next to the tab shortcuts', () => {
     renderAgentChat()
 
-    expect(conversationShellPropsMock.last?.topRightToolReserve).toBe('quad')
     expect(screen.getByRole('button', { name: 'Shortcuts' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Files' })).toBeInTheDocument()
   })

@@ -115,7 +115,6 @@ describe('Chat', () => {
     expect(screen.getByTestId('chat-navbar')).toHaveAttribute('data-show-sidebar-controls', 'true')
     expect(conversationShellProps.current?.topBar).toBeTruthy()
     expect(conversationShellProps.current?.topRightTool).toBeTruthy()
-    expect(conversationShellProps.current?.topRightToolReserve).toBe('quad')
     expect(screen.getByTestId('topic-right-shortcuts')).toHaveAttribute('data-topic-id', 'topic-1')
     expect(screen.getByTestId('topic-right-toggle')).toBeInTheDocument()
   })

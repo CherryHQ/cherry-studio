@@ -829,7 +829,6 @@ function DraftWelcomeChat({
           </>
         ) : undefined
       }
-      topRightToolReserve="double"
       center={
         <ConversationStageCenter placement="home" main={null} composer={composer} homeWelcomeText={welcomeText} />
       }
