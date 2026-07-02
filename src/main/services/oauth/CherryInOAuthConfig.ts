@@ -7,20 +7,20 @@ export const CHERRYIN_CONFIG = {
   SCOPES: 'openid profile email offline_access balance:read usage:read tokens:read tokens:write'
 } as const
 
-export class CherryInOauthServiceError extends Error {
+export class CherryInOAuthServiceError extends Error {
   constructor(
     message: string,
     public readonly cause?: unknown,
     public readonly code?: string
   ) {
     super(message)
-    this.name = 'CherryInOauthServiceError'
+    this.name = 'CherryInOAuthServiceError'
   }
 }
 
 export function validateCherryInApiHost(apiHost: string): void {
   if (!(CHERRYIN_CONFIG.ALLOWED_HOSTS as readonly string[]).includes(apiHost)) {
-    throw new CherryInOauthServiceError(`Unauthorized API host: ${apiHost}`)
+    throw new CherryInOAuthServiceError(`Unauthorized API host: ${apiHost}`)
   }
 }
 

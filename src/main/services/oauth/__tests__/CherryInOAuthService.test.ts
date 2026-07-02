@@ -28,10 +28,10 @@ vi.mock('electron', () => ({
 }))
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
-import { CherryInOauthService } from '../CherryInOauthService'
+import { CherryInOAuthService } from '../CherryInOAuthService'
 
-describe('CherryInOauthService', () => {
-  let cherryInOauthService: CherryInOauthService
+describe('CherryInOAuthService', () => {
+  let cherryInOAuthService: CherryInOAuthService
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -46,7 +46,7 @@ describe('CherryInOauthService', () => {
       if (response.status === 401) await options.onUnauthorized?.(response)
       return response
     })
-    cherryInOauthService = new CherryInOauthService()
+    cherryInOAuthService = new CherryInOAuthService()
   })
 
   it('maps balance/profile data and shapes the authenticated balance request', async () => {
@@ -75,7 +75,7 @@ describe('CherryInOauthService', () => {
         })
       } as Response)
 
-    const result = await cherryInOauthService.getBalance('https://open.cherryin.ai')
+    const result = await cherryInOAuthService.getBalance('https://open.cherryin.ai')
 
     expect(result).toEqual({
       balance: 128.5,
@@ -112,7 +112,7 @@ describe('CherryInOauthService', () => {
         }) as Response
     } as Response)
 
-    await expect(cherryInOauthService.getBalance('https://open.cherryin.ai')).rejects.toThrow(
+    await expect(cherryInOAuthService.getBalance('https://open.cherryin.ai')).rejects.toThrow(
       'Failed to get balance: HTTP 401 Unauthorized from /api/v1/oauth/balance'
     )
 
@@ -129,16 +129,16 @@ describe('CherryInOauthService', () => {
   it('rejects api hosts outside the allowlist on every IPC entry point', async () => {
     const forgedHost = 'https://attacker.example.com'
 
-    await expect(cherryInOauthService.getBalance(forgedHost)).rejects.toThrow(/Unauthorized API host/)
+    await expect(cherryInOAuthService.getBalance(forgedHost)).rejects.toThrow(/Unauthorized API host/)
 
-    await expect(cherryInOauthService.logout(forgedHost)).rejects.toThrow(/Unauthorized API host/)
+    await expect(cherryInOAuthService.logout(forgedHost)).rejects.toThrow(/Unauthorized API host/)
   })
 
   it('revokes remotely and delegates local token clearing to OAuthRuntimeService on logout', async () => {
     runtimeMocks.getValidAccessToken.mockResolvedValue({ accessToken: 'oauth-access' })
     netMocks.fetch.mockResolvedValue({ ok: true, status: 200, statusText: 'OK' } as Response)
 
-    await cherryInOauthService.logout('https://open.cherryin.ai')
+    await cherryInOAuthService.logout('https://open.cherryin.ai')
 
     expect(netMocks.fetch).toHaveBeenCalledWith(
       'https://open.cherryin.ai/oauth2/revoke',

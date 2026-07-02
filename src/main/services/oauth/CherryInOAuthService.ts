@@ -5,9 +5,9 @@ import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { net } from 'electron'
 import * as z from 'zod'
 
-import { CherryInOauthServiceError, validateCherryInApiHost } from './CherryInOAuthConfig'
+import { CherryInOAuthServiceError, validateCherryInApiHost } from './CherryInOAuthConfig'
 
-const logger = loggerService.withContext('CherryInOauthService')
+const logger = loggerService.withContext('CherryInOAuthService')
 
 const BalanceDataSchema = z.object({
   quota: z.number(),
@@ -55,7 +55,7 @@ const UserSelfResponseSchema = z
  * long-lived resources and registers no side effects — so it is a direct-import
  * singleton, not a lifecycle service (see lifecycle-decision-guide.md).
  */
-export class CherryInOauthService {
+export class CherryInOAuthService {
   private validateApiHost(apiHost: string): void {
     validateCherryInApiHost(apiHost)
   }
@@ -206,7 +206,7 @@ export class CherryInOauthService {
       const response = await this.authenticatedFetch(apiHost, '/api/v1/oauth/balance')
 
       if (!response.ok) {
-        throw new CherryInOauthServiceError(`HTTP ${response.status} ${response.statusText} from /api/v1/oauth/balance`)
+        throw new CherryInOAuthServiceError(`HTTP ${response.status} ${response.statusText} from /api/v1/oauth/balance`)
       }
 
       const json = await response.json()
@@ -214,7 +214,7 @@ export class CherryInOauthService {
       const parsed = BalanceResponseSchema.parse(json)
 
       if (!parsed.success) {
-        throw new CherryInOauthServiceError('API returned success: false')
+        throw new CherryInOAuthServiceError('API returned success: false')
       }
 
       const { quota, used_quota: usedQuota } = parsed.data
@@ -228,11 +228,11 @@ export class CherryInOauthService {
     } catch (error) {
       if (error instanceof z.ZodError) {
         logger.error('Invalid balance response format:', error.issues)
-        throw new CherryInOauthServiceError('Invalid response format from server', error)
+        throw new CherryInOAuthServiceError('Invalid response format from server', error)
       }
       logger.error('Failed to get balance:', error as Error)
       const detail = error instanceof Error && error.message ? `: ${error.message}` : ''
-      throw new CherryInOauthServiceError(`Failed to get balance${detail}`, error)
+      throw new CherryInOAuthServiceError(`Failed to get balance${detail}`, error)
     }
   }
 
@@ -264,9 +264,9 @@ export class CherryInOauthService {
       logger.debug('Successfully cleared CherryIN OAuth tokens from auth config')
     } catch (error) {
       logger.error('Failed to logout:', error as Error)
-      throw new CherryInOauthServiceError('Failed to logout', error)
+      throw new CherryInOAuthServiceError('Failed to logout', error)
     }
   }
 }
 
-export const cherryInOauthService = new CherryInOauthService()
+export const cherryInOAuthService = new CherryInOAuthService()

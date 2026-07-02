@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { cherryInOauthService } = vi.hoisted(() => ({
-  cherryInOauthService: {
+const { cherryInOAuthService } = vi.hoisted(() => ({
+  cherryInOAuthService: {
     getBalance: vi.fn(() => Promise.resolve({ balance: 1, profile: null })),
     logout: vi.fn(() => Promise.resolve())
   }
 }))
-vi.mock('@main/services/oauth/CherryInOauthService', () => ({ cherryInOauthService }))
+vi.mock('@main/services/oauth/CherryInOAuthService', () => ({ cherryInOAuthService }))
 
 import { cherryinHandlers } from '../cherryin'
 
@@ -19,11 +19,11 @@ describe('cherryinHandlers', () => {
     await expect(
       cherryinHandlers['cherryin.get_balance']({ apiHost: 'https://open.cherryin.ai' }, { senderId: 'w1' })
     ).resolves.toEqual({ balance: 1, profile: null })
-    expect(cherryInOauthService.getBalance).toHaveBeenCalledWith('https://open.cherryin.ai')
+    expect(cherryInOAuthService.getBalance).toHaveBeenCalledWith('https://open.cherryin.ai')
   })
 
   it('dispatches logout to the service', async () => {
     await cherryinHandlers['cherryin.logout']({ apiHost: 'https://open.cherryin.ai' }, { senderId: 'w1' })
-    expect(cherryInOauthService.logout).toHaveBeenCalledWith('https://open.cherryin.ai')
+    expect(cherryInOAuthService.logout).toHaveBeenCalledWith('https://open.cherryin.ai')
   })
 })
