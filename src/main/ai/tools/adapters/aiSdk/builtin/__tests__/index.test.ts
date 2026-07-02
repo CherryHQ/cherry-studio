@@ -35,4 +35,20 @@ describe('registerBuiltinTools', () => {
     expect(readFile?.applies?.({ mcpToolIds: new Set(), hasFileAttachments: false })).toBe(false)
     expect(readFile?.applies?.({ mcpToolIds: new Set(), hasFileAttachments: true })).toBe(true)
   })
+
+  it(
+    'never defers an approval-gated entry (would strip it from the inline set with no way back — ' +
+      'see mcp/mcpTools.ts and toolInvoke.ts for the same rule on MCP force-prompt tools)',
+    () => {
+      const reg = new ToolRegistry()
+      registerBuiltinTools(reg)
+      for (const entry of reg.getAll()) {
+        if (entry.tool.needsApproval) {
+          expect(entry.defer).toBe('never')
+        }
+      }
+      // Sanity: this loop is only meaningful while at least one builtin entry is approval-gated.
+      expect(reg.getAll().some((e) => e.tool.needsApproval)).toBe(true)
+    }
+  )
 })

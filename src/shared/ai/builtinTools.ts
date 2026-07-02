@@ -293,6 +293,11 @@ export const KB_MANAGE_ADD_TYPES = ['file', 'url', 'note'] as const
 // One flat object, not a discriminated union: which fields apply depends on `action`
 // (and, for add, on `type`). The core validates the combination and returns a steer
 // string on a missing field, so the model gets a clear error rather than a schema reject.
+//
+// kb_manage is consumed by two paths with conflicting schema needs, same split as kb_list.
+//
+// MCP / Claude Code bridge (cherryBuiltinTools): the agent parses raw args with this schema and may
+// omit any field, so they are `.optional()`.
 export const kbManageInputSchema = z.object({
   baseId: z.string().trim().min(1).describe('ID of the knowledge base to modify — a base id from kb_list.'),
   action: z
@@ -333,6 +338,59 @@ export const kbManageInputSchema = z.object({
     )
 })
 
+// AI-SDK path (KnowledgeManageTool) runs with `strict: true` — same `.nullable()` treatment as
+// `kbListStrictInputSchema` and for the same reason (an all-optional shape serializes `required`
+// away to nothing, which a strict OpenAI-compatible provider rejects). `manageKnowledge` treats
+// null (like undefined) as "field not set for this action/type".
+export const kbManageStrictInputSchema = z.object({
+  baseId: z.string().trim().min(1).describe('ID of the knowledge base to modify — a base id from kb_list.'),
+  action: z
+    .enum(KB_MANAGE_ACTIONS)
+    .describe(
+      'add: import a new source (set `type` + its field). delete: remove documents by `conceptIds`. ' +
+        'refresh: re-index documents by `conceptIds`. All actions modify the base and require user approval.'
+    ),
+  type: z
+    .enum(KB_MANAGE_ADD_TYPES)
+    .nullable()
+    .describe(
+      'For action="add" only: the source kind — "file" (set `path`), "url" (set `url`), or "note" (set `content`). ' +
+        'Pass null otherwise.'
+    ),
+  path: z
+    .string()
+    .trim()
+    .min(1)
+    .nullable()
+    .describe('For action="add", type="file": absolute local filesystem path of the file to import. Else null.'),
+  url: z
+    .string()
+    .trim()
+    .min(1)
+    .nullable()
+    .describe('For action="add", type="url": the URL to fetch and index. Else null.'),
+  content: z
+    .string()
+    .min(1)
+    .nullable()
+    .describe('For action="add", type="note": the plain-text note content to index. Else null.'),
+  title: z
+    .string()
+    .trim()
+    .min(1)
+    .nullable()
+    .describe(
+      'For action="add", type="note": optional display title (defaults to the note\'s first line). Pass null to omit.'
+    ),
+  conceptIds: z
+    .array(z.string().trim().min(1))
+    .nullable()
+    .describe(
+      'For action="delete"/"refresh": Concept IDs (the `conceptId` field of a kb_search hit or a kb_list result) ' +
+        'to operate on. Else null.'
+    )
+})
+
 export const kbManageOutputSchema = z.object({
   action: z.enum(KB_MANAGE_ACTIONS),
   // add: the source identifiers that were imported (one per add call).
@@ -344,7 +402,6 @@ export const kbManageOutputSchema = z.object({
   notFound: z.array(z.string()).optional()
 })
 
-export type KbManageInput = z.infer<typeof kbManageInputSchema>
 export type KbManageOutput = z.infer<typeof kbManageOutputSchema>
 
 // ── web_search ───────────────────────────────────────────────────
