@@ -63,15 +63,15 @@ export class ChannelManager extends BaseService implements ProfileActivatable {
   private readonly channelLogs = new ChannelLogBuffer()
   private readonly channelStatuses = new Map<string, ChannelStatusEvent>()
 
-  protected async onReady(): Promise<void> {
-    await this.start()
-  }
-
   protected async onStop(): Promise<void> {
     await this.stop()
   }
 
-  /** Connect the new profile's active channels (mirrors onReady). */
+  /**
+   * Connect the active profile's channels. This is the ONLY start path — boot runs
+   * it as the first profile activation (do NOT also start() in onReady, or boot
+   * double-starts and leaks/duplicates adapters).
+   */
   onProfileActivate(): Promise<void> {
     return this.start()
   }
