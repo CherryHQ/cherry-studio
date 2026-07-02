@@ -15,18 +15,12 @@ export interface EffectiveAnthropicCacheSettings {
 
 export function resolveAnthropicCacheSettings(provider: Pick<Provider, 'settings'>): EffectiveAnthropicCacheSettings {
   const settings = provider.settings?.cacheControl
-  if (settings?.enabled === false) {
-    return {
-      enabled: false,
-      tokenThreshold: settings.tokenThreshold ?? ANTHROPIC_CACHE_DEFAULT_TOKEN_THRESHOLD,
-      cacheSystemMessage: settings.cacheSystemMessage ?? true,
-      cacheLastNMessages: settings.cacheLastNMessages ?? ANTHROPIC_CACHE_DEFAULT_LAST_N_MESSAGES
-    }
-  }
+  const tokenThreshold = settings?.tokenThreshold ?? ANTHROPIC_CACHE_DEFAULT_TOKEN_THRESHOLD
 
   return {
-    enabled: true,
-    tokenThreshold: settings?.tokenThreshold ?? ANTHROPIC_CACHE_DEFAULT_TOKEN_THRESHOLD,
+    // v1 used tokenThreshold: 0 as the off switch and migrated providers can still carry that shape.
+    enabled: settings?.enabled !== false && tokenThreshold > 0,
+    tokenThreshold,
     cacheSystemMessage: settings?.cacheSystemMessage ?? true,
     cacheLastNMessages: settings?.cacheLastNMessages ?? ANTHROPIC_CACHE_DEFAULT_LAST_N_MESSAGES
   }

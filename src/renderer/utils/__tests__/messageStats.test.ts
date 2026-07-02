@@ -67,6 +67,10 @@ describe('getCacheTokenStats', () => {
   it('returns undefined when no cache counters exist', () => {
     expect(getCacheTokenStats({ promptTokens: 10 })).toBeUndefined()
   })
+
+  it('returns undefined when only non-cache input tokens exist', () => {
+    expect(getCacheTokenStats({ noCacheTokens: 100 })).toBeUndefined()
+  })
 })
 
 describe('statsToMetrics', () => {

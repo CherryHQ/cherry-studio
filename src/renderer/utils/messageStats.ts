@@ -15,8 +15,9 @@ function buildCacheTokenStats(
   cacheReadTokens: number,
   cacheWriteTokens: number
 ): CacheTokenStats | undefined {
+  if (cacheReadTokens === 0 && cacheWriteTokens === 0) return undefined
+
   const totalInputTokens = noCacheTokens + cacheReadTokens + cacheWriteTokens
-  if (totalInputTokens === 0) return undefined
 
   return {
     noCacheTokens,

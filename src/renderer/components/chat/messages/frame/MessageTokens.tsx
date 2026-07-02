@@ -95,7 +95,7 @@ const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
       ? t('chat.message.cache_stats.inline', {
           hit_rate: cacheHitRate,
           defaultValue: 'Cache {{hit_rate}}%'
-        }) || `Cache ${cacheHitRate}%`
+        })
       : undefined
     const cacheTooltip = cacheStats
       ? t('chat.message.cache_stats.tooltip', {
@@ -105,8 +105,7 @@ const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
           saved: cacheStats.savedInputTokens,
           defaultValue:
             'Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens'
-        }) ||
-        `Cache read ${cacheStats.cacheReadTokens} / write ${cacheStats.cacheWriteTokens} / no cache ${cacheStats.noCacheTokens} · saved ${cacheStats.savedInputTokens} input tokens`
+        })
       : undefined
     const tooltipContent = [metrixs, cacheTooltip].filter(Boolean).join(' | ')
 

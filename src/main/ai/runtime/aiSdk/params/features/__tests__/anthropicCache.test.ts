@@ -90,6 +90,16 @@ describe('anthropicCacheFeature', () => {
       } as never)
     ).toBe(false)
   })
+
+  it('keeps migrated v1 threshold-zero providers disabled', () => {
+    expect(
+      anthropicCacheFeature.applies!({
+        endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        provider: makeProvider({ enabled: true, tokenThreshold: 0 }),
+        model: makeModel()
+      } as never)
+    ).toBe(false)
+  })
 })
 
 describe('transformAnthropicCacheParams', () => {
@@ -97,6 +107,18 @@ describe('transformAnthropicCacheParams', () => {
     const out = await transform(
       { prompt: [textMessage('system', 'x '.repeat(3000))] },
       makeProvider({ enabled: false, tokenThreshold: 1024 })
+    )
+
+    expect(countCacheMarkers(out)).toBe(0)
+  })
+
+  it('does not emit markers for migrated v1 threshold-zero providers', async () => {
+    const out = await transform(
+      {
+        prompt: [textMessage('system', 'x '.repeat(3000)), textMessage('user', 'u '.repeat(3000))],
+        tools: [makeTool('mcp_tool', 6000)]
+      },
+      makeProvider({ enabled: true, tokenThreshold: 0 })
     )
 
     expect(countCacheMarkers(out)).toBe(0)
@@ -173,17 +195,43 @@ describe('transformAnthropicCacheParams', () => {
     expect(JSON.stringify(first.tools)).toBe(JSON.stringify(second.tools))
   })
 
-  it('skips only the system marker for volatile time prompts', async () => {
+  it('counts tool-result payloads when deciding trailing cache breakpoints', async () => {
+    const out = await transform({
+      prompt: [
+        textMessage('system', 'short'),
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'tool-result',
+              toolCallId: 'call-1',
+              toolName: 'large_mcp_tool',
+              output: { type: 'text', value: 'tool output '.repeat(3000) }
+            }
+          ]
+        }
+      ]
+    })
+
+    expect(countCacheMarkers(out)).toBe(1)
+  })
+
+  it('skips system and trailing markers for volatile time prompts but keeps stable tool markers', async () => {
     const out = await transform(
       {
-        prompt: [textMessage('system', 'x '.repeat(3000))],
+        prompt: [
+          textMessage('system', 'x '.repeat(3000)),
+          textMessage('user', 'u '.repeat(3000)),
+          textMessage('assistant', 'a '.repeat(3000))
+        ],
         tools: [makeTool('mcp_tool', 6000)]
       },
-      makeProvider(),
+      makeProvider({ enabled: true, tokenThreshold: 1024, cacheLastNMessages: 2 }),
       { id: 'a1', prompt: 'Current time: {{time}}' } as Assistant
     )
 
     expect(hasCacheControl(out.prompt[0])).toBe(false)
     expect(out.tools?.filter((tool) => 'providerOptions' in tool && hasCacheControl(tool))).toHaveLength(1)
+    expect(countCacheMarkers({ ...out, tools: undefined })).toBe(0)
   })
 })

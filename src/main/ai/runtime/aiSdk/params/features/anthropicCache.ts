@@ -33,10 +33,13 @@ function estimateContentTokens(content: LanguageModelV3Message['content']): numb
   if (typeof content === 'string') return estimateTokenCount(content)
   if (Array.isArray(content)) {
     return content.reduce((acc, part) => {
-      if (part.type === 'text') {
-        return acc + estimateTokenCount(part.text)
-      }
-      return acc
+      if (part.type === 'text') return acc + estimateTokenCount(part.text)
+
+      const serializedPayload = JSON.stringify({
+        input: 'input' in part ? part.input : undefined,
+        output: 'output' in part ? part.output : undefined
+      })
+      return serializedPayload === '{}' ? acc : acc + estimateTokenCount(serializedPayload)
     }, 0)
   }
   return 0
@@ -172,7 +175,7 @@ export async function transformAnthropicCacheParams(
     budget
   )
 
-  if (settings.cacheLastNMessages > 0) {
+  if (settings.cacheLastNMessages > 0 && !volatileSystemPrompt) {
     const cumsumTokens: number[] = []
     let tokenSum = toolPrefix.totalTokens
     for (let i = 0; i < messages.length; i++) {
