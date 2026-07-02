@@ -101,7 +101,7 @@ function getFilePreviewTitle(filePath: string): string {
 }
 
 function isFramedFilePreview(filePath: string): boolean {
-  return /\.(html?|pdf)$/i.test(filePath)
+  return /\.(html?|pdf)$/i.test(filePath) || isOfficeDocumentFile(filePath)
 }
 
 interface AgentFlowTab {
@@ -139,6 +139,7 @@ interface AgentRightPaneState {
   fileTreeOpen: boolean
   fileTreeExpandedIds: ReadonlySet<string>
   fileTreeSearchKeyword: string
+  workspaceId?: string
   workspacePath?: string
 }
 
@@ -167,6 +168,7 @@ interface AgentRightPaneProviderProps extends AgentRightPaneMeta {
   defaultOpen?: boolean
   /** Persist open state across the per-branch Shell remount (draft→persistent handoff). */
   onOpenChange?: (open: boolean) => void
+  workspaceId?: string
   workspacePath?: string
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
@@ -197,6 +199,7 @@ export function useAgentRightPaneActions(): AgentRightPaneActions {
 
 function AgentRightPaneStateProvider({
   children,
+  workspaceId,
   workspacePath,
   messages,
   partsByMessageId,
@@ -218,7 +221,8 @@ function AgentRightPaneStateProvider({
   const [fileTreeOpen, setFileTreeOpen] = useState(false)
   const [fileTreeExpandedIds, setFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
-  const previousWorkspacePathRef = useRef(workspacePath)
+  const workspaceKey = `${workspaceId ?? ''}\0${workspacePath ?? ''}`
+  const previousWorkspaceKeyRef = useRef(workspaceKey)
 
   // Built once here (the provider survives the Host↔Overlay maximize swap), so
   // maximize/minimize no longer remounts + rematerializes the workspace tree.
@@ -274,8 +278,8 @@ function AgentRightPaneStateProvider({
   )
 
   useEffect(() => {
-    if (previousWorkspacePathRef.current === workspacePath) return
-    previousWorkspacePathRef.current = workspacePath
+    if (previousWorkspaceKeyRef.current === workspaceKey) return
+    previousWorkspaceKeyRef.current = workspaceKey
     setSelectedFile(null)
     setFilePreview(null)
     setFileTreeExpandedIds(new Set())
@@ -284,7 +288,7 @@ function AgentRightPaneStateProvider({
     // workspace change must be explicit (previously it rode the pane remount).
     resetFileTreeLazyChildren()
     if (activeTab === FILE_PREVIEW_TAB) openTab('files')
-  }, [activeTab, resetFileTreeLazyChildren, openTab, workspacePath])
+  }, [activeTab, resetFileTreeLazyChildren, openTab, workspaceKey])
 
   // Drop a selection that no longer resolves to a file in the loaded tree
   // (e.g. the watcher reported it removed).
@@ -317,6 +321,7 @@ function AgentRightPaneStateProvider({
         fileTreeOpen,
         fileTreeExpandedIds,
         fileTreeSearchKeyword,
+        workspaceId,
         workspacePath
       },
       actions: {
@@ -364,6 +369,7 @@ function AgentRightPaneStateProvider({
       statusEnabled,
       status,
       traceId,
+      workspaceId,
       workspacePath
     ]
   )

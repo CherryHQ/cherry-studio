@@ -243,6 +243,7 @@ const AgentChat = ({
       <AgentRightPane
         filesEnabled={false}
         statusEnabled={false}
+        workspaceId={visibleWorkspaceId ?? undefined}
         workspacePath={draftAgentConversation?.workspace?.path}
         messages={EMPTY_MESSAGES}
         partsByMessageId={EMPTY_PARTS}
@@ -680,6 +681,7 @@ const AgentChatSessionFrame = ({
 
   return (
     <AgentRightPane
+      workspaceId={session.workspaceId}
       workspacePath={session.workspace?.path}
       messages={runtime.uiMessages}
       partsByMessageId={runtime.partsByMessageId}

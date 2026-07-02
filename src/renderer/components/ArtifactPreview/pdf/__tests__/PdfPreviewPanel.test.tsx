@@ -163,14 +163,19 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat', () => ({
+vi.mock('@cherrystudio/ui', () => ({
+  Button: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'button'>>) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
   EmptyState: ({ title, description }: { title: string; description?: string }) => (
     <div data-testid="empty-state">
       <span>{title}</span>
       <span>{description}</span>
     </div>
   ),
-  LoadingState: ({ label }: { label?: string }) => <div data-testid="loading-state">{label}</div>
+  Tooltip: ({ children }: PropsWithChildren<{ content: string }>) => <>{children}</>
 }))
 
 vi.mock('react-i18next', () => ({
@@ -180,7 +185,8 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('lucide-react', () => ({
-  AlertCircle: (props: PropsWithChildren<React.SVGProps<SVGSVGElement>>) => <svg aria-hidden="true" {...props} />
+  AlertCircle: (props: PropsWithChildren<React.SVGProps<SVGSVGElement>>) => <svg aria-hidden="true" {...props} />,
+  Loader2: (props: PropsWithChildren<React.SVGProps<SVGSVGElement>>) => <svg aria-hidden="true" {...props} />
 }))
 
 const flushPdfEffects = async () => {
@@ -211,6 +217,12 @@ describe('PdfPreviewPanel', () => {
     mocks.pdfDocument.numPages = 1
     document.documentElement.style.setProperty('--color-background', 'rgb(10, 11, 12)')
 
+    mocks.pdfDocument.destroy = mocks.pdfDocumentDestroy
+    mocks.fsRead.mockResolvedValue(new Uint8Array([0x25, 0x50, 0x44, 0x46]))
+    mocks.getDocument.mockReturnValue({
+      destroy: mocks.loadingTaskDestroy,
+      promise: Promise.resolve(mocks.pdfDocument)
+    })
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
@@ -218,13 +230,6 @@ describe('PdfPreviewPanel', () => {
           read: mocks.fsRead
         }
       }
-    })
-
-    mocks.pdfDocument.destroy = mocks.pdfDocumentDestroy
-    mocks.fsRead.mockResolvedValue(new Uint8Array([1, 2, 3]))
-    mocks.getDocument.mockReturnValue({
-      destroy: mocks.loadingTaskDestroy,
-      promise: Promise.resolve(mocks.pdfDocument)
     })
   })
 
@@ -248,7 +253,7 @@ describe('PdfPreviewPanel', () => {
       position: 'absolute'
     })
     expect(mocks.fsRead).toHaveBeenCalledWith('/tmp/workspace/paper.pdf')
-    expect(mocks.getDocument).toHaveBeenCalledWith({ data: new Uint8Array([1, 2, 3]) })
+    expect(mocks.getDocument).toHaveBeenCalledWith({ data: new Uint8Array([0x25, 0x50, 0x44, 0x46]) })
     expect(mocks.pdfViewerConstructor).toHaveBeenCalledWith(
       expect.objectContaining({
         container: viewerContainer,
@@ -267,6 +272,24 @@ describe('PdfPreviewPanel', () => {
     expect(mocks.pdfViewerScaleValues).toContain('page-width')
     expect(viewer).toHaveClass('pdfViewer')
     expect(viewer.style.getPropertyValue('--page-bg-color')).toBe('rgb(10, 11, 12)')
+  })
+
+  it('shows an accessible loading state while the PDF is being fetched', async () => {
+    let resolveRead: ((value: Uint8Array) => void) | undefined
+    mocks.fsRead.mockReturnValueOnce(
+      new Promise<Uint8Array>((resolve) => {
+        resolveRead = resolve
+      })
+    )
+
+    render(<PdfPreviewPanel filePath="/tmp/workspace/paper.pdf" fileName="paper.pdf" refreshKey={0} />)
+
+    expect(screen.getByRole('status')).toHaveTextContent('common.loading')
+
+    await act(async () => {
+      resolveRead?.(new Uint8Array([0x25, 0x50, 0x44, 0x46]))
+      await flushPdfEffects()
+    })
   })
 
   it('does not apply a hardcoded page background when no app background can be resolved', async () => {
