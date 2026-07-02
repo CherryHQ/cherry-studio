@@ -1,8 +1,16 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
-import { BaseService, ErrorHandling, Injectable, Priority, ServicePhase } from '@main/core/lifecycle'
-import { Phase } from '@main/core/lifecycle'
+import {
+  BaseService,
+  ErrorHandling,
+  Injectable,
+  Phase,
+  Priority,
+  type ProfileActivatable,
+  type ProfileActivationContext,
+  ServicePhase
+} from '@main/core/lifecycle'
 import Database from 'better-sqlite3'
 import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
@@ -18,12 +26,21 @@ import type { DbOrTx, DbType } from './types'
 const logger = loggerService.withContext('DbService')
 
 /**
- * Database service managing SQLite connection via Drizzle ORM
- * Managed by the lifecycle system for centralized database access
+ * The connection resource. A sum type so an "open db without its sqlite handle"
+ * state cannot be represented — the two are acquired and released together.
+ */
+type DbConnection =
+  | { readonly kind: 'closed' }
+  | { readonly kind: 'open'; readonly sqlite: Database.Database; readonly db: DbType }
+
+/**
+ * Database service managing the SQLite connection via Drizzle ORM.
  *
- * Features:
- * - Database initialization and connection management
- * - Migration and seeding support
+ * The connection is per-profile: it is opened (migrate + seed) when a profile
+ * is activated and closed when it is deactivated, so switching profiles swaps
+ * the entire database. `getDb()` / `withWriteTx()` throw while no profile is
+ * bound. Activates first / deactivates last among profile participants, so every
+ * other profile-scoped service sees an open DB for its whole active window.
  *
  * @example
  * ```typescript
@@ -36,27 +53,46 @@ const logger = loggerService.withContext('DbService')
 @ServicePhase(Phase.BeforeReady)
 @Priority(10)
 @ErrorHandling('fail-fast')
-export class DbService extends BaseService {
-  private sqlite: Database.Database
-  private db: DbType
-  private pragmasConfigured = false
+export class DbService extends BaseService implements ProfileActivatable {
+  private connection: DbConnection = { kind: 'closed' }
 
-  constructor() {
-    super()
+  /**
+   * Open the active profile's database: ensure file integrity, open a fresh
+   * better-sqlite3 connection at the profile-resolved path, configure PRAGMAs,
+   * migrate, and seed. On any failure the connection is closed and the service
+   * stays unbound (error contract) before the error propagates.
+   */
+  onProfileActivate(ctx: ProfileActivationContext): void {
+    const dbPath = application.getPath('app.database.file')
+    this.ensureDatabaseIntegrity(dbPath)
+    // better-sqlite3 opens a bare filesystem path and keeps a single synchronous
+    // connection for the profile's active window; PRAGMAs are set once per open.
+    const sqlite = new Database(dbPath)
     try {
-      this.ensureDatabaseIntegrity()
-      // better-sqlite3 opens a bare filesystem path (not a file: URL) and keeps a single
-      // persistent connection for the process lifetime, so the per-connection PRAGMAs set
-      // once in configurePragmas() never need replaying.
-      this.sqlite = new Database(application.getPath('app.database.file'))
-      this.db = drizzle({ client: this.sqlite, casing: 'snake_case' })
-      if (DIAGNOSTICS_ENABLED) this.installSlowQueryProbe()
-      logger.info('Database connection initialized', {
-        dbPath: application.getPath('app.database.file')
-      })
+      const db = drizzle({ client: sqlite, casing: 'snake_case' })
+      if (DIAGNOSTICS_ENABLED) this.installSlowQueryProbe(sqlite)
+      this.configurePragmas(sqlite)
+      this.migrateDb(db)
+      new SeedRunner(db).runAll(seeders)
+      this.connection = { kind: 'open', sqlite, db }
+      logger.info('Database opened for profile', { profileId: ctx.profileId, dbPath })
     } catch (error) {
-      logger.error('Failed to initialize database connection', error as Error)
-      throw new Error('Database initialization failed')
+      sqlite.close()
+      logger.error('Failed to open database for profile', error as Error, { profileId: ctx.profileId })
+      throw error
+    }
+  }
+
+  /**
+   * Close the current profile's connection. `close()` is synchronous and flushes
+   * the WAL, so there is nothing to drain — better-sqlite3 runs every write to
+   * completion in a single JS turn, so no write can be in flight here.
+   */
+  onProfileDeactivate(): void {
+    if (this.connection.kind === 'open') {
+      this.connection.sqlite.close()
+      this.connection = { kind: 'closed' }
+      logger.info('Database closed')
     }
   }
 
@@ -70,7 +106,7 @@ export class DbService extends BaseService {
    * (instrumenting the statement's run/get/all) and `exec` (raw multi-statement
    * SQL such as migrations and custom DDL) covers every query through one hook.
    */
-  private installSlowQueryProbe(): void {
+  private installSlowQueryProbe(sqlite: Database.Database): void {
     const frames = (stack: string | undefined): string =>
       (stack ?? '')
         .split('\n')
@@ -98,10 +134,10 @@ export class DbService extends BaseService {
     }
 
     type AnyFn = (...args: unknown[]) => unknown
-    const sqlite = this.sqlite as unknown as { prepare: AnyFn; exec: AnyFn }
+    const raw = sqlite as unknown as { prepare: AnyFn; exec: AnyFn }
 
-    const origPrepare = sqlite.prepare.bind(sqlite)
-    sqlite.prepare = (...prepareArgs: unknown[]) => {
+    const origPrepare = raw.prepare.bind(raw)
+    raw.prepare = (...prepareArgs: unknown[]) => {
       const stmt = origPrepare(...prepareArgs) as Record<string, AnyFn>
       const sqlText = String(prepareArgs[0] ?? '?').slice(0, 160)
       for (const method of ['run', 'get', 'all'] as const) {
@@ -119,8 +155,8 @@ export class DbService extends BaseService {
       return stmt
     }
 
-    const origExec = sqlite.exec.bind(sqlite)
-    sqlite.exec = (...execArgs: unknown[]) => {
+    const origExec = raw.exec.bind(raw)
+    raw.exec = (...execArgs: unknown[]) => {
       const callerStack = new Error().stack
       const t0 = performance.now()
       const res = origExec(...execArgs)
@@ -130,36 +166,20 @@ export class DbService extends BaseService {
   }
 
   /**
-   * Lifecycle: Initialize database with WAL mode, run migrations and seeds
-   */
-  protected onInit(): void {
-    this.configurePragmas()
-    this.migrateDb()
-    new SeedRunner(this.db).runAll(seeders)
-  }
-
-  /**
    * Configure database PRAGMAs (WAL mode, synchronous, foreign keys, busy timeout).
    *
-   * better-sqlite3 keeps a single persistent connection, so each PRAGMA is set once
-   * here and holds for the process lifetime — no replay machinery is needed.
-   * `journal_mode = WAL` is additionally persisted in the database file;
-   * `synchronous = NORMAL` is WAL's safe pairing; `foreign_keys = ON` enables the
-   * schema's ON DELETE CASCADE / SET NULL; `busy_timeout` makes a brief external
-   * lock (e.g. a dev tool opening the db) wait rather than fail.
+   * Set once per opened connection. `journal_mode = WAL` is additionally persisted
+   * in the database file; `synchronous = NORMAL` is WAL's safe pairing;
+   * `foreign_keys = ON` enables the schema's ON DELETE CASCADE / SET NULL;
+   * `busy_timeout` makes a brief external lock (e.g. a dev tool opening the db)
+   * wait rather than fail.
    */
-  private configurePragmas(): void {
-    if (this.pragmasConfigured) {
-      return
-    }
-
+  private configurePragmas(sqlite: Database.Database): void {
     try {
-      this.sqlite.pragma('journal_mode = WAL')
-      this.sqlite.pragma('synchronous = NORMAL')
-      this.sqlite.pragma('foreign_keys = ON')
-      this.sqlite.pragma('busy_timeout = 5000')
-
-      this.pragmasConfigured = true
+      sqlite.pragma('journal_mode = WAL')
+      sqlite.pragma('synchronous = NORMAL')
+      sqlite.pragma('foreign_keys = ON')
+      sqlite.pragma('busy_timeout = 5000')
       logger.info('Database PRAGMAs configured (WAL, synchronous, foreign_keys, busy_timeout)')
     } catch (error) {
       logger.warn('Failed to configure database PRAGMAs', error as Error)
@@ -167,16 +187,13 @@ export class DbService extends BaseService {
   }
 
   /**
-   * Run database migrations
+   * Run database migrations, then the custom SQL Drizzle cannot manage.
    */
-  private migrateDb(): void {
+  private migrateDb(db: DbType): void {
     try {
       const migrationsFolder = application.getPath('app.database.migrations')
-      migrate(this.db, { migrationsFolder })
-
-      // Run custom SQL that Drizzle cannot manage (triggers, virtual tables, etc.)
-      this.runCustomMigrations()
-
+      migrate(db, { migrationsFolder })
+      this.runCustomMigrations(db)
       logger.info('Database migration completed successfully')
     } catch (error) {
       logger.error('Database migration failed', error as Error)
@@ -185,18 +202,15 @@ export class DbService extends BaseService {
   }
 
   /**
-   * Run custom SQL statements that Drizzle cannot manage
-   *
-   * This includes triggers, virtual tables, and other SQL objects.
-   * Called after every migration because:
-   * 1. Drizzle doesn't track these in schema
-   * 2. DROP TABLE removes associated triggers
-   * 3. All statements use IF NOT EXISTS, so they're idempotent
+   * Run custom SQL statements that Drizzle cannot manage (triggers, virtual
+   * tables, etc.). Called after every migration because Drizzle doesn't track
+   * these, DROP TABLE removes associated triggers, and all statements use
+   * IF NOT EXISTS so they are idempotent.
    */
-  private runCustomMigrations(): void {
+  private runCustomMigrations(db: DbType): void {
     try {
       for (const statement of CUSTOM_SQL_STATEMENTS) {
-        this.db.run(sql.raw(statement))
+        db.run(sql.raw(statement))
       }
       logger.debug('Custom migrations completed', { count: CUSTOM_SQL_STATEMENTS.length })
     } catch (error) {
@@ -206,14 +220,14 @@ export class DbService extends BaseService {
   }
 
   /**
-   * Get the database instance
-   * @throws {Error} If database is not initialized
+   * Get the database instance.
+   * @throws {Error} If no profile is bound (the DB is closed).
    */
   public getDb(): DbType {
-    if (!this.isReady) {
-      throw new Error('Database is not initialized, please call init() first!')
+    if (this.connection.kind !== 'open') {
+      throw new Error('DbService: database is not active — no profile is bound (open on profile activation).')
     }
-    return this.db
+    return this.connection.db
   }
 
   /**
@@ -221,7 +235,7 @@ export class DbService extends BaseService {
    * must commit all-or-nothing across more than one statement (multiple writes, or a
    * read-then-write); a single autocommit write does not need it — better-sqlite3 runs
    * each statement atomically on its one connection. It is not the readiness gate
-   * either: `getDb()` already throws when the DB isn't ready.
+   * either: it throws (like `getDb()`) when no profile is bound.
    *
    * The premise is **atomicity**, not serialization. better-sqlite3 keeps one
    * synchronous connection, so a transaction runs to completion in a single JS turn
@@ -238,8 +252,7 @@ export class DbService extends BaseService {
    * Returns **synchronously**: better-sqlite3 runs the whole transaction on its
    * single connection with no I/O wait, so the write has already committed by the
    * time this returns `T`. It is intentionally NOT `async` — there is no real
-   * async work to await, and an `async` wrapper would just be libsql-era residue
-   * (the old client was async). Call it directly from `async` service methods; no
+   * async work to await. Call it directly from `async` service methods; no
    * `await` needed.
    *
    * Reads do NOT need this — WAL mode gives readers snapshot isolation that is
@@ -266,25 +279,21 @@ export class DbService extends BaseService {
    * ```
    */
   public withWriteTx<T>(fn: (tx: DbOrTx) => T): T {
-    if (!this.isReady) {
-      throw new Error('Database is not initialized, please call init() first!')
+    if (this.connection.kind !== 'open') {
+      throw new Error('DbService: database is not active — no profile is bound (open on profile activation).')
     }
-    return this.db.transaction(fn, { behavior: 'immediate' })
+    return this.connection.db.transaction(fn, { behavior: 'immediate' })
   }
 
   /**
-   * Ensure database file integrity before opening connection.
+   * Ensure database file integrity before opening the connection.
    * Handles two scenarios that cause SQLITE_IOERR_SHORT_READ:
    * 1. Main .db file is 0 bytes (corrupt) — remove so SQLite recreates it
    * 2. Main .db file missing but orphaned -wal/-shm remain — SQLite attempts
    *    WAL recovery against an empty file and fails
    */
-  private ensureDatabaseIntegrity(): void {
-    const dbPath = application.getPath('app.database.file')
-
-    const dbExists = fs.existsSync(dbPath)
-
-    if (dbExists) {
+  private ensureDatabaseIntegrity(dbPath: string): void {
+    if (fs.existsSync(dbPath)) {
       const stats = fs.statSync(dbPath)
       if (stats.size === 0) {
         logger.warn('Database file is empty (0 bytes), removing')
