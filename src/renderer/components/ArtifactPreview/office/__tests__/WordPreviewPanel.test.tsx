@@ -6,6 +6,79 @@ import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
+  interface TestZipEntry {
+    name: string
+    content?: Uint8Array
+    compressedSize?: number
+    uncompressedSize?: number
+  }
+
+  const asciiBytes = (value: string): Uint8Array => Uint8Array.from(value, (char) => char.charCodeAt(0))
+
+  const concatBytes = (chunks: Uint8Array[]): Uint8Array => {
+    const bytes = new Uint8Array(chunks.reduce((size, chunk) => size + chunk.byteLength, 0))
+    let offset = 0
+
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset)
+      offset += chunk.byteLength
+    }
+
+    return bytes
+  }
+
+  const createZipBytes = (entries: TestZipEntry[]): Uint8Array => {
+    const localRecords: Uint8Array[] = []
+    const centralRecords: Uint8Array[] = []
+    let localOffset = 0
+
+    for (const entry of entries) {
+      const name = asciiBytes(entry.name)
+      const content = entry.content ?? new Uint8Array()
+      const compressedSize = entry.compressedSize ?? content.byteLength
+      const uncompressedSize = entry.uncompressedSize ?? content.byteLength
+
+      const localRecord = new Uint8Array(30 + name.byteLength + content.byteLength)
+      const localView = new DataView(localRecord.buffer)
+      localView.setUint32(0, 0x04034b50, true)
+      localView.setUint16(4, 20, true)
+      localView.setUint32(18, compressedSize, true)
+      localView.setUint32(22, uncompressedSize, true)
+      localView.setUint16(26, name.byteLength, true)
+      localRecord.set(name, 30)
+      localRecord.set(content, 30 + name.byteLength)
+
+      const centralRecord = new Uint8Array(46 + name.byteLength)
+      const centralView = new DataView(centralRecord.buffer)
+      centralView.setUint32(0, 0x02014b50, true)
+      centralView.setUint16(4, 20, true)
+      centralView.setUint16(6, 20, true)
+      centralView.setUint32(20, compressedSize, true)
+      centralView.setUint32(24, uncompressedSize, true)
+      centralView.setUint16(28, name.byteLength, true)
+      centralView.setUint32(42, localOffset, true)
+      centralRecord.set(name, 46)
+
+      localRecords.push(localRecord)
+      centralRecords.push(centralRecord)
+      localOffset += localRecord.byteLength
+    }
+
+    const centralDirectoryOffset = localOffset
+    const centralDirectorySize = centralRecords.reduce((size, record) => size + record.byteLength, 0)
+    const eocd = new Uint8Array(22)
+    const eocdView = new DataView(eocd.buffer)
+    eocdView.setUint32(0, 0x06054b50, true)
+    eocdView.setUint16(8, entries.length, true)
+    eocdView.setUint16(10, entries.length, true)
+    eocdView.setUint32(12, centralDirectorySize, true)
+    eocdView.setUint32(16, centralDirectoryOffset, true)
+
+    return concatBytes([...localRecords, ...centralRecords, eocd])
+  }
+
+  const validDocxBytes = createZipBytes([{ name: 'word/document.xml', content: asciiBytes('<w:document />') }])
+
   class MockIntersectionObserver {
     callback: IntersectionObserverCallback
     observed: HTMLElement[] = []
@@ -29,7 +102,9 @@ const mocks = vi.hoisted(() => {
     fsRead: vi.fn(),
     renderAsync: vi.fn(),
     MockIntersectionObserver,
-    intersectionObserverInstances: instances
+    intersectionObserverInstances: instances,
+    createZipBytes,
+    validDocxBytes
   }
 })
 
@@ -48,10 +123,19 @@ vi.mock('@cherrystudio/ui', () => ({
     </button>
   ),
   Tooltip: ({ children }: PropsWithChildren<{ content: string }>) => <>{children}</>,
-  EmptyState: ({ title, description }: { title?: string; description?: string }) => (
+  EmptyState: ({
+    title,
+    description,
+    actions
+  }: {
+    title?: string
+    description?: string
+    actions?: React.ReactNode
+  }) => (
     <div data-testid="empty-state">
       <span>{title}</span>
       <span>{description}</span>
+      {actions}
     </div>
   )
 }))
@@ -67,7 +151,7 @@ import WordPreviewPanel from '../WordPreviewPanel'
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.intersectionObserverInstances.length = 0
-  mocks.fsRead.mockResolvedValue(new Uint8Array([80, 75, 3, 4]))
+  mocks.fsRead.mockResolvedValue(mocks.validDocxBytes)
   mocks.renderAsync.mockImplementation(async (_data: Uint8Array, bodyContainer: HTMLElement) => {
     bodyContainer.innerHTML = '<section>Page 1</section><section>Page 2</section>'
   })
@@ -95,7 +179,7 @@ describe('WordPreviewPanel', () => {
     expect(await screen.findByTestId('docx-preview-panel')).toBeInTheDocument()
     await waitFor(() => expect(mocks.fsRead).toHaveBeenCalledWith('/tmp/report.docx'))
     expect(mocks.renderAsync).toHaveBeenCalledWith(
-      new Uint8Array([80, 75, 3, 4]),
+      mocks.validDocxBytes,
       expect.any(HTMLElement),
       expect.any(HTMLElement),
       expect.objectContaining({
@@ -160,6 +244,31 @@ describe('WordPreviewPanel', () => {
 
     expect(await screen.findByTestId('empty-state')).toHaveTextContent('files.preview.error')
     expect(mocks.fsRead).not.toHaveBeenCalled()
+    expect(mocks.renderAsync).not.toHaveBeenCalled()
+  })
+
+  it('rejects oversized DOCX ZIP entries before rendering', async () => {
+    const oversizedDocxBytes = mocks.createZipBytes([
+      {
+        name: 'word/document.xml',
+        uncompressedSize: 32 * 1024 * 1024 + 1
+      }
+    ])
+    mocks.fsRead.mockResolvedValueOnce(oversizedDocxBytes)
+
+    render(
+      <WordPreviewPanel
+        filePath="/tmp/zip-bomb.docx"
+        fileName="zip-bomb.docx"
+        refreshKey={0}
+        sourceSize={oversizedDocxBytes.byteLength}
+        actions={<button type="button">Open externally</button>}
+      />
+    )
+
+    expect(await screen.findByText('common.error')).toBeInTheDocument()
+    expect(screen.getByText('files.preview.error')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open externally' })).toBeInTheDocument()
     expect(mocks.renderAsync).not.toHaveBeenCalled()
   })
 

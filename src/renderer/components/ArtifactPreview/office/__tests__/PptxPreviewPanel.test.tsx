@@ -157,10 +157,19 @@ vi.mock('@cherrystudio/ui', () => ({
     </button>
   ),
   Tooltip: ({ children }: PropsWithChildren<{ content: string }>) => <>{children}</>,
-  EmptyState: ({ title, description }: { title?: string; description?: string }) => (
+  EmptyState: ({
+    title,
+    description,
+    actions
+  }: {
+    title?: string
+    description?: string
+    actions?: React.ReactNode
+  }) => (
     <div data-testid="empty-state">
       <span>{title}</span>
       <span>{description}</span>
+      {actions}
     </div>
   )
 }))
@@ -243,10 +252,13 @@ describe('PptxPreviewPanel', () => {
         fileName="huge.pptx"
         refreshKey={0}
         sourceSize={25 * 1024 * 1024 + 1}
+        actions={<button type="button">Open externally</button>}
       />
     )
 
-    expect(await screen.findByTestId('empty-state')).toHaveTextContent('files.preview.error')
+    expect(await screen.findByText('common.error')).toBeInTheDocument()
+    expect(screen.getByText('files.preview.error')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open externally' })).toBeInTheDocument()
     expect(mocks.fsRead).not.toHaveBeenCalled()
     expect(mocks.parseZipLazyMedia).not.toHaveBeenCalled()
     expect(mocks.load).not.toHaveBeenCalled()

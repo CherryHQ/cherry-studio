@@ -11,6 +11,7 @@ interface OfficeDocumentPreviewProps {
   fileName: string
   refreshKey: number
   sourceSize?: number
+  actions?: ReactNode
 }
 
 type OfficeDocumentPreviewPanel = ComponentType<OfficeDocumentPreviewProps>
@@ -94,7 +95,8 @@ function SupportedOfficePreview({
   filePath,
   fileName,
   refreshKey,
-  sourceSize
+  sourceSize,
+  actions
 }: OfficeDocumentPreviewProps & { extension: string }) {
   const { t } = useTranslation()
   const [loadedPreview, setLoadedPreview] = useState<{
@@ -126,7 +128,7 @@ function SupportedOfficePreview({
   }, [extension, PreviewPanel])
 
   if (loadError) {
-    return <EmptyState icon={AlertCircle} title={t('common.error')} description={t('files.preview.error')} />
+    return <OfficePreviewError actions={actions} />
   }
 
   if (!PreviewPanel) {
@@ -137,7 +139,15 @@ function SupportedOfficePreview({
     )
   }
 
-  return <PreviewPanel filePath={filePath} fileName={fileName} refreshKey={refreshKey} sourceSize={sourceSize} />
+  return (
+    <PreviewPanel
+      filePath={filePath}
+      fileName={fileName}
+      refreshKey={refreshKey}
+      sourceSize={sourceSize}
+      actions={actions}
+    />
+  )
 }
 
 export function OfficePreviewPanel({
@@ -180,6 +190,7 @@ export function OfficePreviewPanel({
           fileName={displayName}
           refreshKey={refreshKey}
           sourceSize={sourceSize}
+          actions={actions}
         />
       </div>
     </div>

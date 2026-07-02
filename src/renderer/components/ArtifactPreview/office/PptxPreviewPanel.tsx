@@ -1,10 +1,9 @@
 import type { PresentationData } from '@aiden0z/pptx-renderer'
 import { buildPresentation, parseZipLazyMedia, PptxViewer, RECOMMENDED_ZIP_LIMITS } from '@aiden0z/pptx-renderer'
-import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { LoadingState } from '@renderer/components/chat/primitives'
+import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
 import { AlertCircle } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import DocumentPreviewToolbar from '../DocumentPreviewToolbar'
@@ -25,6 +24,7 @@ interface PptxPreviewPanelProps {
   fileName: string
   refreshKey: number
   sourceSize?: number
+  actions?: ReactNode
 }
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
@@ -84,7 +84,7 @@ function stripExternalMediaRelationships(presentation: PresentationData): void {
   }
 }
 
-const PptxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize }: PptxPreviewPanelProps) => {
+const PptxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize, actions }: PptxPreviewPanelProps) => {
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const viewerRef = useRef<PptxViewer | null>(null)
@@ -271,7 +271,14 @@ const PptxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize }: PptxPr
   }, [filePath, focusContainer, refreshKey, setPreviewControlsBusy, sourceSize])
 
   if (error) {
-    return <EmptyState icon={AlertCircle} title={t('common.error')} description={t('files.preview.error')} />
+    return (
+      <EmptyState
+        icon={AlertCircle}
+        title={t('common.error')}
+        description={t('files.preview.error')}
+        actions={actions}
+      />
+    )
   }
 
   const canUsePreviewControls = pageCount > 0

@@ -6,8 +6,20 @@ import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  wordPreviewPanelProps: [] as Array<{ fileName: string; filePath: string; refreshKey: number; sourceSize?: number }>,
-  pptxPreviewPanelProps: [] as Array<{ fileName: string; filePath: string; refreshKey: number; sourceSize?: number }>,
+  wordPreviewPanelProps: [] as Array<{
+    fileName: string
+    filePath: string
+    refreshKey: number
+    sourceSize?: number
+    actions?: React.ReactNode
+  }>,
+  pptxPreviewPanelProps: [] as Array<{
+    fileName: string
+    filePath: string
+    refreshKey: number
+    sourceSize?: number
+    actions?: React.ReactNode
+  }>,
   wordPreviewPanelModuleLoadCount: 0,
   pptxPreviewPanelModuleLoadCount: 0
 }))
@@ -15,7 +27,13 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../WordPreviewPanel', () => {
   mocks.wordPreviewPanelModuleLoadCount += 1
   return {
-    default: (props: { fileName: string; filePath: string; refreshKey: number; sourceSize?: number }) => {
+    default: (props: {
+      fileName: string
+      filePath: string
+      refreshKey: number
+      sourceSize?: number
+      actions?: React.ReactNode
+    }) => {
       mocks.wordPreviewPanelProps.push(props)
       return <div data-testid="word-preview-panel" data-file-name={props.fileName} data-file-path={props.filePath} />
     },
@@ -26,7 +44,13 @@ vi.mock('../WordPreviewPanel', () => {
 vi.mock('../PptxPreviewPanel', () => {
   mocks.pptxPreviewPanelModuleLoadCount += 1
   return {
-    default: (props: { fileName: string; filePath: string; refreshKey: number; sourceSize?: number }) => {
+    default: (props: {
+      fileName: string
+      filePath: string
+      refreshKey: number
+      sourceSize?: number
+      actions?: React.ReactNode
+    }) => {
       mocks.pptxPreviewPanelProps.push(props)
       return <div data-testid="pptx-preview-panel" data-file-name={props.fileName} data-file-path={props.filePath} />
     },
@@ -41,10 +65,19 @@ vi.mock('@cherrystudio/ui', () => ({
     </button>
   ),
   Tooltip: ({ children }: PropsWithChildren<{ content: string }>) => <>{children}</>,
-  EmptyState: ({ title, description }: { title?: string; description?: string }) => (
+  EmptyState: ({
+    title,
+    description,
+    actions
+  }: {
+    title?: string
+    description?: string
+    actions?: React.ReactNode
+  }) => (
     <div data-testid="empty-state">
       <span>{title}</span>
       <span>{description}</span>
+      {actions}
     </div>
   )
 }))
@@ -116,7 +149,8 @@ describe('OfficePreviewPanel', () => {
       fileName: 'report.docx',
       filePath: '/tmp/workspace/report.docx',
       refreshKey: 2,
-      sourceSize: 2048
+      sourceSize: 2048,
+      actions: undefined
     })
     expect(mocks.pptxPreviewPanelProps).toEqual([])
   })
@@ -140,15 +174,24 @@ describe('OfficePreviewPanel', () => {
       fileName: 'slides.pptx',
       filePath: '/tmp/workspace/slides.pptx',
       refreshKey: 3,
-      sourceSize: 4096
+      sourceSize: 4096,
+      actions: undefined
     })
     expect(mocks.wordPreviewPanelProps).toEqual([])
   })
 
   it('shows an error when a supported relative file is missing an absolute source path', () => {
-    render(<OfficePreviewPanel filePath="report.docx" fileName="report.docx" />)
+    render(
+      <OfficePreviewPanel
+        filePath="report.docx"
+        fileName="report.docx"
+        actions={<button type="button">Open externally</button>}
+      />
+    )
 
-    expect(screen.getByTestId('empty-state')).toHaveTextContent('common.error')
+    expect(screen.getByText('common.error')).toBeInTheDocument()
+    expect(screen.getByText('files.preview.error')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open externally' })).toBeInTheDocument()
     expect(mocks.wordPreviewPanelProps).toEqual([])
   })
 
@@ -165,10 +208,13 @@ describe('OfficePreviewPanel', () => {
         filePath="report.docx"
         fileName="report.docx"
         sourceFilePath="/tmp/workspace/report.docx"
+        actions={<button type="button">Open externally</button>}
       />
     )
 
-    expect(await screen.findByTestId('empty-state')).toHaveTextContent('common.error')
+    expect(await screen.findByText('common.error')).toBeInTheDocument()
+    expect(screen.getByText('files.preview.error')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open externally' })).toBeInTheDocument()
 
     vi.doUnmock('../WordPreviewPanel')
     vi.resetModules()

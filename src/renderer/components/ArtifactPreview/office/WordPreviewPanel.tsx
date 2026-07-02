@@ -1,13 +1,13 @@
-import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { LoadingState } from '@renderer/components/chat/primitives'
+import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
 import { renderAsync } from 'docx-preview'
 import { AlertCircle } from 'lucide-react'
-import { type CSSProperties, useCallback, useEffect, useRef, useState } from 'react'
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import DocumentPreviewToolbar from '../DocumentPreviewToolbar'
 import { toUint8Array } from '../toUint8Array'
+import { assertDocxZipLimits } from './docxZipPreflight'
 
 const logger = loggerService.withContext('WordPreviewPanel')
 
@@ -22,6 +22,7 @@ interface WordPreviewPanelProps {
   fileName: string
   refreshKey: number
   sourceSize?: number
+  actions?: ReactNode
 }
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
@@ -62,7 +63,7 @@ function sanitizeHyperlinks(body: HTMLElement): void {
   })
 }
 
-const WordPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize }: WordPreviewPanelProps) => {
+const WordPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize, actions }: WordPreviewPanelProps) => {
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -143,6 +144,9 @@ const WordPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize }: WordPr
         assertSourceSize(docxData.byteLength)
         if (!isCurrent()) return
 
+        assertDocxZipLimits(docxData)
+        if (!isCurrent()) return
+
         await renderAsync(docxData, stagingBody, stagingStyle, {
           className: 'docx-preview',
           inWrapper: true,
@@ -220,7 +224,14 @@ const WordPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize }: WordPr
   }, [pageCount])
 
   if (error) {
-    return <EmptyState icon={AlertCircle} title={t('common.error')} description={t('files.preview.error')} />
+    return (
+      <EmptyState
+        icon={AlertCircle}
+        title={t('common.error')}
+        description={t('files.preview.error')}
+        actions={actions}
+      />
+    )
   }
 
   const canUsePreviewControls = pageCount > 0
