@@ -1,5 +1,4 @@
 import type { CommandContextMenuExtraItem } from '@renderer/components/command'
-import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 export interface SidebarMiniApp {
@@ -16,25 +15,6 @@ export interface SidebarMiniAppTab {
   miniApp: SidebarMiniApp
   contextMenuItems?: readonly CommandContextMenuExtraItem[]
 }
-
-export interface SidebarMenuItem {
-  id: string
-  label: string
-  icon: LucideIcon
-  contextMenuItems?: readonly CommandContextMenuExtraItem[]
-}
-
-export interface SidebarRouteTab {
-  id: string
-  title: string
-  type: 'route'
-  icon: LucideIcon
-  sourceMenuItemId?: string
-  dockTarget?: 'sidebar'
-  contextMenuItems?: readonly CommandContextMenuExtraItem[]
-}
-
-export type SidebarTab = SidebarRouteTab | SidebarMiniAppTab
 
 /** The active-route state a resolved entry matches itself against. */
 export interface SidebarActiveState {

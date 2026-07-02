@@ -1,9 +1,8 @@
 import { EmojiIcon } from '@cherrystudio/ui'
 import MiniAppLogo from '@renderer/components/Icons/MiniAppIcon'
 import { isEmoji } from '@renderer/utils/naming'
-import type { LucideProps } from 'lucide-react'
 
-import type { SidebarMiniAppTab, SidebarTab, SidebarUser } from './types'
+import type { SidebarMiniAppTab, SidebarUser } from './types'
 
 type MiniAppIconSize = 'sm' | 'md' | 'lg'
 
@@ -47,18 +46,6 @@ export function MiniAppIcon({ tab, size = 'sm' }: { tab: SidebarMiniAppTab; size
       {tab.title?.[0] ?? ''}
     </div>
   )
-}
-
-export function SidebarTabIcon({
-  tab,
-  miniAppSize = 'sm',
-  ...iconProps
-}: { tab: SidebarTab; miniAppSize?: MiniAppIconSize } & LucideProps) {
-  if (tab.type === 'miniapp') {
-    return <MiniAppIcon tab={tab} size={miniAppSize} />
-  }
-  const Icon = tab.icon
-  return <Icon {...iconProps} />
 }
 
 /** Returns true if the string is NOT a URL — i.e., should be rendered as text (emoji or initial). */

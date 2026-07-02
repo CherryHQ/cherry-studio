@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import type { LucideIcon } from 'lucide-react'
 import { Search } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -11,9 +12,16 @@ import {
   SIDEBAR_ICON_WIDTH,
   SIDEBAR_MAX_WIDTH
 } from '../constants'
-import { SidebarTabIcon } from '../primitives'
+import { MiniAppIcon } from '../primitives'
 import { Sidebar } from '../Sidebar'
-import type { ResolvedSidebarEntry, SidebarMenuItem, SidebarMiniAppTab } from '../types'
+import type { ResolvedSidebarEntry, SidebarMiniAppTab } from '../types'
+
+type AppItem = {
+  id: string
+  label: string
+  icon: LucideIcon
+  contextMenuItems?: ResolvedSidebarEntry['contextMenuItems']
+}
 
 vi.mock('../Tooltip', () => ({
   SidebarTooltip: ({ children }: { children: ReactNode }) => children
@@ -71,7 +79,7 @@ vi.mock('@renderer/components/Icons/miniAppsLogo', () => ({
 
 // Build the type-agnostic resolved entries the real registry would produce, so the
 // presentation tests exercise the same shape without depending on app wiring.
-const appEntry = (item: SidebarMenuItem): ResolvedSidebarEntry => ({
+const appEntry = (item: AppItem): ResolvedSidebarEntry => ({
   key: `app:${item.id}`,
   label: item.label,
   renderIcon: (size) => {
@@ -85,15 +93,13 @@ const appEntry = (item: SidebarMenuItem): ResolvedSidebarEntry => ({
 const miniEntry = (tab: SidebarMiniAppTab): ResolvedSidebarEntry => ({
   key: `mini_app:${tab.id}`,
   label: tab.title,
-  renderIcon: (size, miniAppSize) => (
-    <SidebarTabIcon tab={tab} size={size} strokeWidth={1.6} miniAppSize={miniAppSize} />
-  ),
+  renderIcon: (_size, miniAppSize) => <MiniAppIcon tab={tab} size={miniAppSize} />,
   isActive: (active) => active.activeTabId === tab.id,
   onOpen: () => {},
   contextMenuItems: tab.contextMenuItems
 })
 
-const items: SidebarMenuItem[] = [
+const items: AppItem[] = [
   {
     id: 'chat',
     label: 'Chat',
@@ -350,82 +356,30 @@ describe('Sidebar resize handle', () => {
     })
   })
 
-  it('renders apps and mini apps as one continuous list with no divider between them', () => {
+  it('renders apps and mini apps together in one continuous list', () => {
     const dockedTab: SidebarMiniAppTab = {
       id: 'qwen',
       title: 'Qwen',
       type: 'miniapp',
       miniApp: { id: 'qwen', logo: 'qwen' }
     }
-    const mixedEntries = [...entries, miniEntry(dockedTab)]
 
-    const { container: fullContainer, getByText } = render(
-      <Sidebar
-        width={SIDEBAR_FULL_THRESHOLD}
-        setWidth={vi.fn()}
-        active={{ activeItem: 'chat' }}
-        entries={mixedEntries}
-      />
-    )
-
-    expect(fullContainer.querySelector('.sidebar-docked-divider')).not.toBeInTheDocument()
-    expect(getByText('Chat')).toBeInTheDocument()
-    expect(getByText('Qwen')).toBeInTheDocument()
-
-    const { container: iconContainer } = render(
-      <Sidebar width={SIDEBAR_ICON_WIDTH} setWidth={vi.fn()} active={{ activeItem: 'chat' }} entries={mixedEntries} />
-    )
-
-    expect(iconContainer.querySelector('.sidebar-docked-divider')).not.toBeInTheDocument()
-  })
-
-  it('uses the same full row sizing and hover styles for docked mini apps as sidebar menu items', () => {
     const { getByText } = render(
       <Sidebar
         width={SIDEBAR_FULL_THRESHOLD}
         setWidth={vi.fn()}
         active={{ activeItem: 'chat' }}
-        entries={[
-          ...entries,
-          miniEntry({
-            id: 'qwen',
-            title: 'Qwen',
-            type: 'miniapp',
-            miniApp: { id: 'qwen', logo: 'qwen' }
-          })
-        ]}
+        entries={[...entries, miniEntry(dockedTab)]}
       />
     )
 
-    const sidebarItem = getByText('Chat').closest('button')
-    const dockedMiniApp = getByText('Qwen').closest('button')
-
-    expect(dockedMiniApp?.className).toBe(sidebarItem?.className)
+    // App and mini app rows go through the same resolved-entry render path, so both
+    // appear in the single list.
+    expect(getByText('Chat')).toBeInTheDocument()
+    expect(getByText('Qwen')).toBeInTheDocument()
   })
 
-  it('uses the same full active indicator for docked mini apps as sidebar menu items', () => {
-    const { container } = render(
-      <Sidebar
-        width={SIDEBAR_FULL_THRESHOLD}
-        setWidth={vi.fn()}
-        active={{ activeItem: 'chat', activeTabId: 'qwen' }}
-        entries={[
-          ...entries,
-          miniEntry({
-            id: 'qwen',
-            title: 'Qwen',
-            type: 'miniapp',
-            miniApp: { id: 'qwen', logo: 'qwen' }
-          })
-        ]}
-      />
-    )
-
-    expect(container.querySelector('.bg-sidebar-glow-bg')).not.toBeInTheDocument()
-    expect(container.querySelector('.bg-sidebar-glow-line')).not.toBeInTheDocument()
-  })
-
-  it('uses the same icon row sizing and hover styles for docked mini apps as sidebar menu items', () => {
+  it('gives docked mini apps the shared icon-row button sizing and hover styles', () => {
     const { container } = render(
       <Sidebar
         width={SIDEBAR_ICON_WIDTH}

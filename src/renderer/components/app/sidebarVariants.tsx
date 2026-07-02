@@ -3,11 +3,15 @@ import type { SidebarAppId } from '@renderer/utils/sidebar'
 import { getSidebarFavoriteKey, getSidebarMenuPath } from '@renderer/utils/sidebar'
 import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { assertNever } from '@shared/utils/assertNever'
 
-import { SidebarTabIcon } from '../Sidebar/primitives'
+import { MiniAppIcon } from '../Sidebar/primitives'
 import type { ResolvedSidebarEntry } from '../Sidebar/types'
 import { SIDEBAR_ICON_COMPONENTS } from './sidebarIcons'
+
+/** Exhaustiveness guard: a new `SidebarFavoriteItem` type must add a `case` below. */
+function assertNever(value: never): never {
+  throw new Error(`Unhandled sidebar favorite variant: ${JSON.stringify(value)}`)
+}
 
 /**
  * Runtime context a variant needs to resolve a favorite into a rendered row:
@@ -82,9 +86,7 @@ const miniAppVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { ty
     return {
       key: getSidebarFavoriteKey(item),
       label: title,
-      renderIcon: (size, miniAppSize) => (
-        <SidebarTabIcon tab={tab} size={size} strokeWidth={1.6} miniAppSize={miniAppSize} />
-      ),
+      renderIcon: (_size, miniAppSize) => <MiniAppIcon tab={tab} size={miniAppSize} />,
       isActive: (active) => active.activeTabId === app.appId,
       onOpen: () => ctx.openMiniApp(app.appId),
       contextMenuItems: [

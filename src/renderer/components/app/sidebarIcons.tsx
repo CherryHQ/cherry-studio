@@ -1,6 +1,6 @@
 import { OpenClawSidebarIcon } from '@renderer/components/Icons/SvgIcon'
-import type { SidebarMenuItem } from '@renderer/components/Sidebar/types'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
+import type { LucideIcon } from 'lucide-react'
 import {
   Code,
   FileSearch,
@@ -20,7 +20,7 @@ import {
  * here is a type error. Kept in the component layer because the values are React
  * components; the navigation data and logic live in `@renderer/utils/sidebar`.
  */
-export const SIDEBAR_ICON_COMPONENTS: Record<SidebarAppId, SidebarMenuItem['icon']> = {
+export const SIDEBAR_ICON_COMPONENTS: Record<SidebarAppId, LucideIcon> = {
   assistants: MessageSquare,
   agents: MousePointerClick,
   paintings: Palette,

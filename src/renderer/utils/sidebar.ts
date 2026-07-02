@@ -206,15 +206,15 @@ export function resolveSidebarActiveItem(url: string): SidebarAppId | '' {
   return match?.id ?? ''
 }
 
-export function isSidebarAppId(value: string): value is SidebarAppId {
+function isSidebarAppId(value: string): value is SidebarAppId {
   return sidebarFavoriteSet.has(value as SidebarAppId)
 }
 
-export function createSidebarAppFavorite(id: SidebarAppId): SidebarFavoriteItem {
+function createSidebarAppFavorite(id: SidebarAppId): SidebarFavoriteItem {
   return { type: 'app', id }
 }
 
-export function createSidebarMiniAppFavorite(id: string): SidebarFavoriteItem {
+function createSidebarMiniAppFavorite(id: string): SidebarFavoriteItem {
   return { type: 'mini_app', id }
 }
 
