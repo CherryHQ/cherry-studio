@@ -30,16 +30,33 @@ const fxAppTable = sqliteTable('fx_order_key_app_test', {
   orderKey: text('order_key').notNull()
 })
 
+/**
+ * Run a synchronous `dbh.db.transaction(...)` expected to throw, and return the
+ * thrown error for shape assertions. Under better-sqlite3 the transaction
+ * callback executes synchronously, so the order-key helpers' contract
+ * rejections surface as a synchronous throw rather than a rejected promise.
+ * Throws if the function completes without throwing, so a missing rejection
+ * still fails the test.
+ */
+function captureTxThrow(fn: () => unknown): unknown {
+  try {
+    fn()
+  } catch (error) {
+    return error
+  }
+  throw new Error('Expected the transaction to throw, but it completed normally')
+}
+
 describe('orderKey', () => {
   const dbh = setupTestDatabase()
 
-  beforeAll(async () => {
+  beforeAll(() => {
     // Create test-only tables directly on the shared client. Survive across
     // truncateAll (which only deletes rows, not schema).
-    await dbh.client.execute(
+    dbh.sqlite.exec(
       'CREATE TABLE IF NOT EXISTS fx_order_key_test (id TEXT PRIMARY KEY, order_key TEXT NOT NULL, scope TEXT)'
     )
-    await dbh.client.execute(
+    dbh.sqlite.exec(
       'CREATE TABLE IF NOT EXISTS fx_order_key_app_test (app_key TEXT PRIMARY KEY, order_key TEXT NOT NULL)'
     )
   })
@@ -125,7 +142,7 @@ describe('orderKey', () => {
 
   describe('insertWithOrderKey', () => {
     it('inserts into an empty table with a non-empty orderKey', async () => {
-      const row = (await insertWithOrderKey(dbh.db, fxTable, { id: 'a' }, { pkColumn: fxTable.id })) as {
+      const row = insertWithOrderKey(dbh.db, fxTable, { id: 'a' }, { pkColumn: fxTable.id }) as {
         id: string
         orderKey: string
       }
@@ -135,33 +152,33 @@ describe('orderKey', () => {
     })
 
     it("appends when position='last' (default)", async () => {
-      await insertWithOrderKey(dbh.db, fxTable, { id: 'a' }, { pkColumn: fxTable.id })
-      await insertWithOrderKey(dbh.db, fxTable, { id: 'b' }, { pkColumn: fxTable.id })
+      insertWithOrderKey(dbh.db, fxTable, { id: 'a' }, { pkColumn: fxTable.id })
+      insertWithOrderKey(dbh.db, fxTable, { id: 'b' }, { pkColumn: fxTable.id })
       const rows = await dbh.db.select().from(fxTable).orderBy(asc(fxTable.orderKey))
       expect(rows.map((r) => r.id)).toEqual(['a', 'b'])
     })
 
     it("prepends when position='first'", async () => {
-      await insertWithOrderKey(dbh.db, fxTable, { id: 'a' }, { pkColumn: fxTable.id })
-      await insertWithOrderKey(dbh.db, fxTable, { id: 'b' }, { pkColumn: fxTable.id, position: 'first' })
+      insertWithOrderKey(dbh.db, fxTable, { id: 'a' }, { pkColumn: fxTable.id })
+      insertWithOrderKey(dbh.db, fxTable, { id: 'b' }, { pkColumn: fxTable.id, position: 'first' })
       const rows = await dbh.db.select().from(fxTable).orderBy(asc(fxTable.orderKey))
       expect(rows.map((r) => r.id)).toEqual(['b', 'a'])
     })
 
     it('with scope: insert into one bucket does not reorder another', async () => {
-      await insertWithOrderKey(
+      insertWithOrderKey(
         dbh.db,
         fxTable,
         { id: 's1a', scope: 's1' },
         { pkColumn: fxTable.id, scope: eq(fxTable.scope, 's1') }
       )
-      await insertWithOrderKey(
+      insertWithOrderKey(
         dbh.db,
         fxTable,
         { id: 's2a', scope: 's2' },
         { pkColumn: fxTable.id, scope: eq(fxTable.scope, 's2') }
       )
-      await insertWithOrderKey(
+      insertWithOrderKey(
         dbh.db,
         fxTable,
         { id: 's1b', scope: 's1' },
@@ -175,7 +192,7 @@ describe('orderKey', () => {
     })
 
     it('returns the inserted row shape', async () => {
-      const row = (await insertWithOrderKey(dbh.db, fxTable, { id: 'only' }, { pkColumn: fxTable.id })) as {
+      const row = insertWithOrderKey(dbh.db, fxTable, { id: 'only' }, { pkColumn: fxTable.id }) as {
         id: string
         orderKey: string
       }
@@ -185,8 +202,8 @@ describe('orderKey', () => {
     })
 
     it('supports a non-"id" primary-key column (appKey)', async () => {
-      await insertWithOrderKey(dbh.db, fxAppTable, { appKey: 'one' }, { pkColumn: fxAppTable.appKey })
-      await insertWithOrderKey(dbh.db, fxAppTable, { appKey: 'two' }, { pkColumn: fxAppTable.appKey })
+      insertWithOrderKey(dbh.db, fxAppTable, { appKey: 'one' }, { pkColumn: fxAppTable.appKey })
+      insertWithOrderKey(dbh.db, fxAppTable, { appKey: 'two' }, { pkColumn: fxAppTable.appKey })
       const rows = await dbh.db.select().from(fxAppTable).orderBy(asc(fxAppTable.orderKey))
       expect(rows.map((r) => r.appKey)).toEqual(['one', 'two'])
     })
@@ -195,9 +212,9 @@ describe('orderKey', () => {
   // --- applyMoves ---
 
   describe('applyMoves', () => {
-    async function seedFx(ids: string[]): Promise<void> {
+    function seedFx(ids: string[]): void {
       for (const id of ids) {
-        await insertWithOrderKey(dbh.db, fxTable, { id }, { pkColumn: fxTable.id })
+        insertWithOrderKey(dbh.db, fxTable, { id }, { pkColumn: fxTable.id })
       }
     }
 
@@ -209,41 +226,41 @@ describe('orderKey', () => {
     }
 
     it('moves a row before another: resulting key < anchor key', async () => {
-      await seedFx(['a', 'b', 'c'])
-      await dbh.db.transaction(async (tx) => {
-        await applyMoves(tx, fxTable, [{ id: 'c', anchor: { before: 'a' } }], { pkColumn: fxTable.id })
+      seedFx(['a', 'b', 'c'])
+      dbh.db.transaction((tx) => {
+        applyMoves(tx, fxTable, [{ id: 'c', anchor: { before: 'a' } }], { pkColumn: fxTable.id })
       })
       expect(await readIds()).toEqual(['c', 'a', 'b'])
     })
 
     it('moves a row after another: resulting key > anchor key', async () => {
-      await seedFx(['a', 'b', 'c'])
-      await dbh.db.transaction(async (tx) => {
-        await applyMoves(tx, fxTable, [{ id: 'a', anchor: { after: 'c' } }], { pkColumn: fxTable.id })
+      seedFx(['a', 'b', 'c'])
+      dbh.db.transaction((tx) => {
+        applyMoves(tx, fxTable, [{ id: 'a', anchor: { after: 'c' } }], { pkColumn: fxTable.id })
       })
       expect(await readIds()).toEqual(['b', 'c', 'a'])
     })
 
     it("position: 'first' moves row to the head", async () => {
-      await seedFx(['a', 'b', 'c'])
-      await dbh.db.transaction(async (tx) => {
-        await applyMoves(tx, fxTable, [{ id: 'c', anchor: { position: 'first' } }], { pkColumn: fxTable.id })
+      seedFx(['a', 'b', 'c'])
+      dbh.db.transaction((tx) => {
+        applyMoves(tx, fxTable, [{ id: 'c', anchor: { position: 'first' } }], { pkColumn: fxTable.id })
       })
       expect(await readIds()).toEqual(['c', 'a', 'b'])
     })
 
     it("position: 'last' moves row to the tail", async () => {
-      await seedFx(['a', 'b', 'c'])
-      await dbh.db.transaction(async (tx) => {
-        await applyMoves(tx, fxTable, [{ id: 'a', anchor: { position: 'last' } }], { pkColumn: fxTable.id })
+      seedFx(['a', 'b', 'c'])
+      dbh.db.transaction((tx) => {
+        applyMoves(tx, fxTable, [{ id: 'a', anchor: { position: 'last' } }], { pkColumn: fxTable.id })
       })
       expect(await readIds()).toEqual(['b', 'c', 'a'])
     })
 
     it('dedups by id keeping the LAST occurrence', async () => {
-      await seedFx(['a', 'b', 'c'])
-      await dbh.db.transaction(async (tx) => {
-        await applyMoves(
+      seedFx(['a', 'b', 'c'])
+      dbh.db.transaction((tx) => {
+        applyMoves(
           tx,
           fxTable,
           [
@@ -258,23 +275,25 @@ describe('orderKey', () => {
     })
 
     it('is a no-op when newKey === currentKey', async () => {
-      await seedFx(['a', 'b', 'c'])
+      seedFx(['a', 'b', 'c'])
       const before = await dbh.db.select().from(fxTable).orderBy(asc(fxTable.orderKey))
       // Moving 'c' to position 'last' when it is already last ⇒ no change.
-      await dbh.db.transaction(async (tx) => {
-        await applyMoves(tx, fxTable, [{ id: 'c', anchor: { position: 'last' } }], { pkColumn: fxTable.id })
+      dbh.db.transaction((tx) => {
+        applyMoves(tx, fxTable, [{ id: 'c', anchor: { position: 'last' } }], { pkColumn: fxTable.id })
       })
       const after = await dbh.db.select().from(fxTable).orderBy(asc(fxTable.orderKey))
       expect(after).toEqual(before)
     })
 
     it('throws a NOT_FOUND DataApiError when the target id does not exist', async () => {
-      await seedFx(['a'])
-      await expect(
-        dbh.db.transaction(async (tx) => {
-          await applyMoves(tx, fxTable, [{ id: 'missing', anchor: { position: 'last' } }], { pkColumn: fxTable.id })
-        })
-      ).rejects.toMatchObject({
+      seedFx(['a'])
+      expect(
+        captureTxThrow(() =>
+          dbh.db.transaction((tx) => {
+            applyMoves(tx, fxTable, [{ id: 'missing', anchor: { position: 'last' } }], { pkColumn: fxTable.id })
+          })
+        )
+      ).toMatchObject({
         code: ErrorCode.NOT_FOUND,
         message: expect.stringMatching(/missing/),
         details: { resource: 'fx_order_key_test', id: 'missing' }
@@ -282,12 +301,14 @@ describe('orderKey', () => {
     })
 
     it('throws a NOT_FOUND DataApiError when the anchor id does not exist (before)', async () => {
-      await seedFx(['a'])
-      await expect(
-        dbh.db.transaction(async (tx) => {
-          await applyMoves(tx, fxTable, [{ id: 'a', anchor: { before: 'nope' } }], { pkColumn: fxTable.id })
-        })
-      ).rejects.toMatchObject({
+      seedFx(['a'])
+      expect(
+        captureTxThrow(() =>
+          dbh.db.transaction((tx) => {
+            applyMoves(tx, fxTable, [{ id: 'a', anchor: { before: 'nope' } }], { pkColumn: fxTable.id })
+          })
+        )
+      ).toMatchObject({
         code: ErrorCode.NOT_FOUND,
         message: expect.stringMatching(/nope/),
         details: { resource: 'fx_order_key_test', id: 'nope' }
@@ -295,61 +316,67 @@ describe('orderKey', () => {
     })
 
     it('throws a NOT_FOUND DataApiError when the anchor id does not exist (after)', async () => {
-      await seedFx(['a'])
-      await expect(
-        dbh.db.transaction(async (tx) => {
-          await applyMoves(tx, fxTable, [{ id: 'a', anchor: { after: 'nope' } }], { pkColumn: fxTable.id })
-        })
-      ).rejects.toMatchObject({
+      seedFx(['a'])
+      expect(
+        captureTxThrow(() =>
+          dbh.db.transaction((tx) => {
+            applyMoves(tx, fxTable, [{ id: 'a', anchor: { after: 'nope' } }], { pkColumn: fxTable.id })
+          })
+        )
+      ).toMatchObject({
         code: ErrorCode.NOT_FOUND,
         details: { id: 'nope' }
       })
     })
 
     it("throws a VALIDATION_ERROR DataApiError when the 'before' anchor equals the move id", async () => {
-      await seedFx(['a'])
-      await expect(
-        dbh.db.transaction(async (tx) => {
-          await applyMoves(tx, fxTable, [{ id: 'a', anchor: { before: 'a' } }], { pkColumn: fxTable.id })
-        })
-      ).rejects.toMatchObject({
+      seedFx(['a'])
+      expect(
+        captureTxThrow(() =>
+          dbh.db.transaction((tx) => {
+            applyMoves(tx, fxTable, [{ id: 'a', anchor: { before: 'a' } }], { pkColumn: fxTable.id })
+          })
+        )
+      ).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
         message: expect.stringMatching(/cannot equal the move's own id/)
       })
     })
 
     it("throws a VALIDATION_ERROR DataApiError when the 'after' anchor equals the move id", async () => {
-      await seedFx(['a'])
-      await expect(
-        dbh.db.transaction(async (tx) => {
-          await applyMoves(tx, fxTable, [{ id: 'a', anchor: { after: 'a' } }], { pkColumn: fxTable.id })
-        })
-      ).rejects.toMatchObject({
+      seedFx(['a'])
+      expect(
+        captureTxThrow(() =>
+          dbh.db.transaction((tx) => {
+            applyMoves(tx, fxTable, [{ id: 'a', anchor: { after: 'a' } }], { pkColumn: fxTable.id })
+          })
+        )
+      ).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
         message: expect.stringMatching(/cannot equal the move's own id/)
       })
     })
 
     it('with scope: only touches rows in the scope bucket', async () => {
-      await insertWithOrderKey(
+      insertWithOrderKey(
         dbh.db,
         fxTable,
         { id: 'a', scope: 's1' },
         { pkColumn: fxTable.id, scope: eq(fxTable.scope, 's1') }
       )
-      await insertWithOrderKey(
+      insertWithOrderKey(
         dbh.db,
         fxTable,
         { id: 'b', scope: 's1' },
         { pkColumn: fxTable.id, scope: eq(fxTable.scope, 's1') }
       )
-      await insertWithOrderKey(
+      insertWithOrderKey(
         dbh.db,
         fxTable,
         { id: 'x', scope: 's2' },
         { pkColumn: fxTable.id, scope: eq(fxTable.scope, 's2') }
       )
-      await insertWithOrderKey(
+      insertWithOrderKey(
         dbh.db,
         fxTable,
         { id: 'y', scope: 's2' },
@@ -358,8 +385,8 @@ describe('orderKey', () => {
 
       const s2Before = await dbh.db.select().from(fxTable).where(eq(fxTable.scope, 's2')).orderBy(asc(fxTable.orderKey))
 
-      await dbh.db.transaction(async (tx) => {
-        await applyMoves(tx, fxTable, [{ id: 'b', anchor: { before: 'a' } }], {
+      dbh.db.transaction((tx) => {
+        applyMoves(tx, fxTable, [{ id: 'b', anchor: { before: 'a' } }], {
           pkColumn: fxTable.id,
           scope: eq(fxTable.scope, 's1')
         })
@@ -371,38 +398,40 @@ describe('orderKey', () => {
     })
 
     it('throws NOT_FOUND DataApiError when anchor id is in a different scope than the target', async () => {
-      await insertWithOrderKey(
+      insertWithOrderKey(
         dbh.db,
         fxTable,
         { id: 'a', scope: 's1' },
         { pkColumn: fxTable.id, scope: eq(fxTable.scope, 's1') }
       )
-      await insertWithOrderKey(
+      insertWithOrderKey(
         dbh.db,
         fxTable,
         { id: 'x', scope: 's2' },
         { pkColumn: fxTable.id, scope: eq(fxTable.scope, 's2') }
       )
-      await expect(
-        dbh.db.transaction(async (tx) => {
-          await applyMoves(tx, fxTable, [{ id: 'a', anchor: { before: 'x' } }], {
-            pkColumn: fxTable.id,
-            scope: eq(fxTable.scope, 's1')
+      expect(
+        captureTxThrow(() =>
+          dbh.db.transaction((tx) => {
+            applyMoves(tx, fxTable, [{ id: 'a', anchor: { before: 'x' } }], {
+              pkColumn: fxTable.id,
+              scope: eq(fxTable.scope, 's1')
+            })
           })
-        })
-      ).rejects.toMatchObject({
+        )
+      ).toMatchObject({
         code: ErrorCode.NOT_FOUND,
         details: { resource: 'fx_order_key_test', id: 'x' }
       })
     })
 
     it('supports a non-"id" primary-key column', async () => {
-      await insertWithOrderKey(dbh.db, fxAppTable, { appKey: 'one' }, { pkColumn: fxAppTable.appKey })
-      await insertWithOrderKey(dbh.db, fxAppTable, { appKey: 'two' }, { pkColumn: fxAppTable.appKey })
-      await insertWithOrderKey(dbh.db, fxAppTable, { appKey: 'three' }, { pkColumn: fxAppTable.appKey })
+      insertWithOrderKey(dbh.db, fxAppTable, { appKey: 'one' }, { pkColumn: fxAppTable.appKey })
+      insertWithOrderKey(dbh.db, fxAppTable, { appKey: 'two' }, { pkColumn: fxAppTable.appKey })
+      insertWithOrderKey(dbh.db, fxAppTable, { appKey: 'three' }, { pkColumn: fxAppTable.appKey })
 
-      await dbh.db.transaction(async (tx) => {
-        await applyMoves(tx, fxAppTable, [{ id: 'three', anchor: { position: 'first' } }], {
+      dbh.db.transaction((tx) => {
+        applyMoves(tx, fxAppTable, [{ id: 'three', anchor: { position: 'first' } }], {
           pkColumn: fxAppTable.appKey
         })
       })
@@ -416,13 +445,13 @@ describe('orderKey', () => {
 
   describe('resetOrder', () => {
     it('rewrites orderKey in the given order, leaving other columns unchanged', async () => {
-      await insertWithOrderKey(dbh.db, fxTable, { id: 'a', scope: 'keep-a' }, { pkColumn: fxTable.id })
-      await insertWithOrderKey(dbh.db, fxTable, { id: 'b', scope: 'keep-b' }, { pkColumn: fxTable.id })
-      await insertWithOrderKey(dbh.db, fxTable, { id: 'c', scope: 'keep-c' }, { pkColumn: fxTable.id })
+      insertWithOrderKey(dbh.db, fxTable, { id: 'a', scope: 'keep-a' }, { pkColumn: fxTable.id })
+      insertWithOrderKey(dbh.db, fxTable, { id: 'b', scope: 'keep-b' }, { pkColumn: fxTable.id })
+      insertWithOrderKey(dbh.db, fxTable, { id: 'c', scope: 'keep-c' }, { pkColumn: fxTable.id })
 
       const ordered = [{ id: 'c' }, { id: 'a' }, { id: 'b' }]
-      await dbh.db.transaction(async (tx) => {
-        await resetOrder(tx, fxTable, ordered, { pkColumn: fxTable.id })
+      dbh.db.transaction((tx) => {
+        resetOrder(tx, fxTable, ordered, { pkColumn: fxTable.id })
       })
 
       const rows = await dbh.db.select().from(fxTable).orderBy(asc(fxTable.orderKey))
@@ -439,7 +468,7 @@ describe('orderKey', () => {
 
   describe('computeNewOrderKey', () => {
     it('empty scope + position:last → generates a valid starting key', async () => {
-      const key = await dbh.db.transaction(async (tx) => {
+      const key = dbh.db.transaction((tx) => {
         return computeNewOrderKey(tx, fxTable, { position: 'last' }, { pkColumn: fxTable.id })
       })
       expect(typeof key).toBe('string')
@@ -447,10 +476,10 @@ describe('orderKey', () => {
     })
 
     it('scope with 1 row, request before anchor → key < anchor.orderKey', async () => {
-      await insertWithOrderKey(dbh.db, fxTable, { id: 'only' }, { pkColumn: fxTable.id })
+      insertWithOrderKey(dbh.db, fxTable, { id: 'only' }, { pkColumn: fxTable.id })
       const [onlyRow] = await dbh.db.select().from(fxTable).where(eq(fxTable.id, 'only'))
 
-      const newKey = await dbh.db.transaction(async (tx) => {
+      const newKey = dbh.db.transaction((tx) => {
         return computeNewOrderKey(tx, fxTable, { before: 'only' }, { pkColumn: fxTable.id })
       })
       expect(newKey < onlyRow.orderKey).toBe(true)
@@ -461,16 +490,16 @@ describe('orderKey', () => {
 
   describe('insertManyWithOrderKey', () => {
     it('returns [] for empty input and does not touch the DB', async () => {
-      const result = await insertManyWithOrderKey(dbh.db, fxTable, [], { pkColumn: fxTable.id })
+      const result = insertManyWithOrderKey(dbh.db, fxTable, [], { pkColumn: fxTable.id })
       expect(result).toEqual([])
       const rows = await dbh.db.select().from(fxTable)
       expect(rows).toHaveLength(0)
     })
 
     it("appends N rows when position='last' (default) on an empty table", async () => {
-      const inserted = (await insertManyWithOrderKey(dbh.db, fxTable, [{ id: 'a' }, { id: 'b' }, { id: 'c' }], {
+      const inserted = insertManyWithOrderKey(dbh.db, fxTable, [{ id: 'a' }, { id: 'b' }, { id: 'c' }], {
         pkColumn: fxTable.id
-      })) as Array<{ id: string; orderKey: string }>
+      }) as Array<{ id: string; orderKey: string }>
 
       expect(inserted.map((r) => r.id)).toEqual(['a', 'b', 'c'])
       // Each row has a non-empty orderKey and keys are strictly increasing
@@ -484,15 +513,15 @@ describe('orderKey', () => {
     })
 
     it("appends N rows after existing rows when position='last'", async () => {
-      await insertWithOrderKey(dbh.db, fxTable, { id: 'existing' }, { pkColumn: fxTable.id })
-      await insertManyWithOrderKey(dbh.db, fxTable, [{ id: 'x' }, { id: 'y' }], { pkColumn: fxTable.id })
+      insertWithOrderKey(dbh.db, fxTable, { id: 'existing' }, { pkColumn: fxTable.id })
+      insertManyWithOrderKey(dbh.db, fxTable, [{ id: 'x' }, { id: 'y' }], { pkColumn: fxTable.id })
       const rows = await dbh.db.select().from(fxTable).orderBy(asc(fxTable.orderKey))
       expect(rows.map((r) => r.id)).toEqual(['existing', 'x', 'y'])
     })
 
     it("prepends N rows before existing rows when position='first'", async () => {
-      await insertWithOrderKey(dbh.db, fxTable, { id: 'existing' }, { pkColumn: fxTable.id })
-      await insertManyWithOrderKey(dbh.db, fxTable, [{ id: 'p' }, { id: 'q' }], {
+      insertWithOrderKey(dbh.db, fxTable, { id: 'existing' }, { pkColumn: fxTable.id })
+      insertManyWithOrderKey(dbh.db, fxTable, [{ id: 'p' }, { id: 'q' }], {
         pkColumn: fxTable.id,
         position: 'first'
       })
@@ -506,12 +535,12 @@ describe('orderKey', () => {
       // Indirect check: if each row did its own boundary lookup the fifth row's
       // key would depend on the fourth — we assert strict monotonic keys in a
       // single invocation, which already holds by the helper's contract.
-      const inserted = (await insertManyWithOrderKey(
+      const inserted = insertManyWithOrderKey(
         dbh.db,
         fxTable,
         [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }, { id: 'e' }],
         { pkColumn: fxTable.id }
-      )) as Array<{ id: string; orderKey: string }>
+      ) as Array<{ id: string; orderKey: string }>
 
       const sortedByKey = [...inserted].sort((x, y) => x.orderKey.localeCompare(y.orderKey))
       expect(sortedByKey.map((r) => r.id)).toEqual(['a', 'b', 'c', 'd', 'e'])
@@ -519,7 +548,7 @@ describe('orderKey', () => {
 
     it('respects scope: batch insert only sees/affects rows in the target scope', async () => {
       // Seed two scopes with one row each.
-      await insertWithOrderKey(
+      insertWithOrderKey(
         dbh.db,
         fxTable,
         { id: 'a', scope: 'sX' },
@@ -528,7 +557,7 @@ describe('orderKey', () => {
           scope: eq(fxTable.scope, 'sX')
         }
       )
-      await insertWithOrderKey(
+      insertWithOrderKey(
         dbh.db,
         fxTable,
         { id: 'b', scope: 'sY' },
@@ -539,7 +568,7 @@ describe('orderKey', () => {
       )
 
       // Batch append into scope sX. sY's key must not be consulted or changed.
-      await insertManyWithOrderKey(
+      insertManyWithOrderKey(
         dbh.db,
         fxTable,
         [
@@ -556,9 +585,9 @@ describe('orderKey', () => {
     })
 
     it('supports a non-"id" primary-key column', async () => {
-      const inserted = (await insertManyWithOrderKey(dbh.db, fxAppTable, [{ appKey: 'one' }, { appKey: 'two' }], {
+      const inserted = insertManyWithOrderKey(dbh.db, fxAppTable, [{ appKey: 'one' }, { appKey: 'two' }], {
         pkColumn: fxAppTable.appKey
-      })) as Array<{ appKey: string; orderKey: string }>
+      }) as Array<{ appKey: string; orderKey: string }>
 
       expect(inserted.map((r) => r.appKey)).toEqual(['one', 'two'])
       expect(inserted[1].orderKey > inserted[0].orderKey).toBe(true)
@@ -568,14 +597,9 @@ describe('orderKey', () => {
   // --- applyScopedMoves ---
 
   describe('applyScopedMoves', () => {
-    async function seedScoped(entries: Array<{ id: string; scope: string }>): Promise<void> {
+    function seedScoped(entries: Array<{ id: string; scope: string }>): void {
       for (const { id, scope } of entries) {
-        await insertWithOrderKey(
-          dbh.db,
-          fxTable,
-          { id, scope },
-          { pkColumn: fxTable.id, scope: eq(fxTable.scope, scope) }
-        )
+        insertWithOrderKey(dbh.db, fxTable, { id, scope }, { pkColumn: fxTable.id, scope: eq(fxTable.scope, scope) })
       }
     }
 
@@ -585,14 +609,14 @@ describe('orderKey', () => {
     }
 
     it('returns without touching the DB when moves is empty', async () => {
-      await seedScoped([
+      seedScoped([
         { id: 'a', scope: 's1' },
         { id: 'b', scope: 's1' }
       ])
       const before = await dbh.db.select().from(fxTable).orderBy(asc(fxTable.orderKey))
 
-      await dbh.db.transaction(async (tx) => {
-        await applyScopedMoves(tx, fxTable, [], { pkColumn: fxTable.id, scopeColumn: fxTable.scope })
+      dbh.db.transaction((tx) => {
+        applyScopedMoves(tx, fxTable, [], { pkColumn: fxTable.id, scopeColumn: fxTable.scope })
       })
 
       const after = await dbh.db.select().from(fxTable).orderBy(asc(fxTable.orderKey))
@@ -600,7 +624,7 @@ describe('orderKey', () => {
     })
 
     it('infers scope from the target row and only touches that scope bucket', async () => {
-      await seedScoped([
+      seedScoped([
         { id: 'a', scope: 's1' },
         { id: 'b', scope: 's1' },
         { id: 'c', scope: 's1' },
@@ -610,8 +634,8 @@ describe('orderKey', () => {
       const s2Before = await readIdsInScope('s2')
       const s2RowsBefore = await dbh.db.select().from(fxTable).where(eq(fxTable.scope, 's2'))
 
-      await dbh.db.transaction(async (tx) => {
-        await applyScopedMoves(tx, fxTable, [{ id: 'c', anchor: { before: 'a' } }], {
+      dbh.db.transaction((tx) => {
+        applyScopedMoves(tx, fxTable, [{ id: 'c', anchor: { before: 'a' } }], {
           pkColumn: fxTable.id,
           scopeColumn: fxTable.scope
         })
@@ -624,15 +648,15 @@ describe('orderKey', () => {
     })
 
     it('applies a batch of moves within the same scope', async () => {
-      await seedScoped([
+      seedScoped([
         { id: 'a', scope: 's1' },
         { id: 'b', scope: 's1' },
         { id: 'c', scope: 's1' },
         { id: 'd', scope: 's1' }
       ])
 
-      await dbh.db.transaction(async (tx) => {
-        await applyScopedMoves(
+      dbh.db.transaction((tx) => {
+        applyScopedMoves(
           tx,
           fxTable,
           [
@@ -647,14 +671,14 @@ describe('orderKey', () => {
     })
 
     it('throws a VALIDATION_ERROR DataApiError when batch spans multiple scopes', async () => {
-      await seedScoped([
+      seedScoped([
         { id: 'a', scope: 's1' },
         { id: 'x', scope: 's2' }
       ])
 
-      await expect(
-        dbh.db.transaction(async (tx) => {
-          await applyScopedMoves(
+      const error = captureTxThrow(() =>
+        dbh.db.transaction((tx) => {
+          applyScopedMoves(
             tx,
             fxTable,
             [
@@ -664,63 +688,55 @@ describe('orderKey', () => {
             { pkColumn: fxTable.id, scopeColumn: fxTable.scope }
           )
         })
-      ).rejects.toMatchObject({
+      )
+      expect(error).toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
         message: expect.stringMatching(/s1/)
       })
-
-      await expect(
-        dbh.db.transaction(async (tx) => {
-          await applyScopedMoves(
-            tx,
-            fxTable,
-            [
-              { id: 'a', anchor: { position: 'last' } },
-              { id: 'x', anchor: { position: 'last' } }
-            ],
-            { pkColumn: fxTable.id, scopeColumn: fxTable.scope }
-          )
-        })
-      ).rejects.toMatchObject({
+      expect(error).toMatchObject({
         message: expect.stringMatching(/s2/)
       })
     })
 
     it('throws a NOT_FOUND DataApiError when the target id is not in the table', async () => {
-      await seedScoped([{ id: 'a', scope: 's1' }])
+      seedScoped([{ id: 'a', scope: 's1' }])
 
-      await expect(
-        dbh.db.transaction(async (tx) => {
-          await applyScopedMoves(tx, fxTable, [{ id: 'ghost', anchor: { position: 'last' } }], {
-            pkColumn: fxTable.id,
-            scopeColumn: fxTable.scope
+      expect(
+        captureTxThrow(() =>
+          dbh.db.transaction((tx) => {
+            applyScopedMoves(tx, fxTable, [{ id: 'ghost', anchor: { position: 'last' } }], {
+              pkColumn: fxTable.id,
+              scopeColumn: fxTable.scope
+            })
           })
-        })
-      ).rejects.toMatchObject({
+        )
+      ).toMatchObject({
         code: ErrorCode.NOT_FOUND,
         message: expect.stringMatching(/ghost/)
       })
     })
 
     it('throws NOT_FOUND (not VALIDATION_ERROR) when one id is missing and the rest share scope', async () => {
-      await seedScoped([
+      seedScoped([
         { id: 'a', scope: 's1' },
         { id: 'b', scope: 's1' }
       ])
 
-      await expect(
-        dbh.db.transaction(async (tx) => {
-          await applyScopedMoves(
-            tx,
-            fxTable,
-            [
-              { id: 'a', anchor: { position: 'last' } },
-              { id: 'missing', anchor: { position: 'last' } }
-            ],
-            { pkColumn: fxTable.id, scopeColumn: fxTable.scope }
-          )
-        })
-      ).rejects.toMatchObject({
+      expect(
+        captureTxThrow(() =>
+          dbh.db.transaction((tx) => {
+            applyScopedMoves(
+              tx,
+              fxTable,
+              [
+                { id: 'a', anchor: { position: 'last' } },
+                { id: 'missing', anchor: { position: 'last' } }
+              ],
+              { pkColumn: fxTable.id, scopeColumn: fxTable.scope }
+            )
+          })
+        )
+      ).toMatchObject({
         code: ErrorCode.NOT_FOUND,
         message: expect.stringMatching(/missing/)
       })

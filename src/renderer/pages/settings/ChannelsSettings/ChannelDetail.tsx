@@ -20,14 +20,16 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
+import { WorkspaceSelector } from '@renderer/components/resource'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { isSoulModeEnabled } from '@renderer/hooks/agent/agentConfiguration'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
-import type { CreateAgentChannelDto } from '@shared/data/api/schemas/agentChannels'
+import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentConfiguration } from '@shared/data/types/agent'
-import { FileText, Pencil, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, CircleSlash, FileText, Folder, Pencil, Plus, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -194,11 +196,15 @@ const ChannelEditModal: FC<
   const { t } = useTranslation()
   const [name, setName] = useState('')
   const [agentId, setAgentId] = useState<string | null>(null)
+  // `null` = "No work directory" (system workspace); a string binds the channel to that user workspace.
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null)
+  const { data: workspaces } = useQuery('/agent-workspaces')
 
   useEffect(() => {
     if (channel) {
       setName(channel.name)
       setAgentId(channel.agentId ?? null)
+      setWorkspaceId(channel.workspace?.type === AGENT_WORKSPACE_TYPE.USER ? channel.workspace.workspaceId : null)
     }
   }, [channel])
 
@@ -221,6 +227,26 @@ const ChannelEditModal: FC<
     },
     [channel, onSave]
   )
+
+  const handleWorkspaceChange = useCallback(
+    (nextWorkspaceId: string | null) => {
+      setWorkspaceId(nextWorkspaceId)
+      if (channel) {
+        onSave(channel.id, {
+          workspace:
+            nextWorkspaceId === null
+              ? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+              : { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: nextWorkspaceId }
+        })
+      }
+    },
+    [channel, onSave]
+  )
+
+  const isSystemWorkspace = workspaceId === null
+  const workspaceLabel = isSystemWorkspace
+    ? t('agent.session.workspace_selector.no_project')
+    : (workspaces?.find((w) => w.id === workspaceId)?.name ?? workspaceId)
 
   const handleUpdate = useCallback(
     (updates: Partial<ChannelData>) => {
@@ -272,6 +298,22 @@ const ChannelEditModal: FC<
                     className="mt-2 text-xs"
                   />
                 )}
+                {/* Workspace is a secondary detail — channel sessions default to "No work directory". */}
+                <div className="mt-2 flex items-center gap-1.5 text-foreground-muted text-xs">
+                  <span>{t('agent.session.display.workdir')}</span>
+                  <WorkspaceSelector
+                    value={workspaceId}
+                    onChange={handleWorkspaceChange}
+                    align="start"
+                    trigger={
+                      <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-foreground-muted">
+                        {isSystemWorkspace ? <CircleSlash className="size-3.5" /> : <Folder className="size-3.5" />}
+                        <span className="max-w-40 truncate">{workspaceLabel}</span>
+                        <ChevronDown className="size-3.5" />
+                      </Button>
+                    }
+                  />
+                </div>
               </div>
               {FormComponent && (
                 <FormComponent channel={channel} onConfigChange={handleUpdate} onRemove={() => onDelete(channel.id)} />
@@ -399,6 +441,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
         name: ch.name,
         agentId: ch.agentId,
         sessionId: ch.sessionId,
+        workspace: ch.workspace,
         config: ch.config,
         isActive: ch.isActive,
         permissionMode: ch.permissionMode,
@@ -416,8 +459,6 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
 
   // Log modal
   const [logChannel, setLogChannel] = useState<{ id: string; name: string } | null>(null)
-  // TODO(agent-workspace-picker): wire the workspace picker before re-enabling channel creation.
-  const [workspaceSource] = useState<CreateAgentChannelDto['workspace'] | null>(null)
 
   // Fetch initial statuses + subscribe to real-time changes
   useEffect(() => {
@@ -446,19 +487,18 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
   }, [mutate])
 
   const handleAdd = useCallback(async () => {
-    if (!workspaceSource) return
     const existingCount = channels?.length ?? 0
     const newChannel = await createChannel({
       type: channelDef.type,
       name: existingCount > 0 ? `${channelDef.name} ${existingCount + 1}` : channelDef.name,
-      workspace: workspaceSource,
+      workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM },
       config: channelDef.defaultConfig,
       isActive: true
     } as never)
     if (newChannel) {
       setEditingChannelId(newChannel.id)
     }
-  }, [channels?.length, createChannel, channelDef, workspaceSource])
+  }, [channels?.length, createChannel, channelDef])
 
   const handleSave = useCallback(
     async (channelId: string, updates: Partial<ChannelData>) => {
@@ -467,6 +507,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
       const apiUpdates: Record<string, unknown> = {}
       if (updates.name !== undefined) apiUpdates.name = updates.name
       if (updates.agentId !== undefined) apiUpdates.agentId = updates.agentId
+      if (updates.workspace !== undefined) apiUpdates.workspace = updates.workspace
       if (updates.config !== undefined) apiUpdates.config = updates.config
       if (updates.isActive !== undefined) apiUpdates.isActive = updates.isActive
       if (updates.permissionMode !== undefined) apiUpdates.permissionMode = updates.permissionMode
@@ -516,7 +557,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
               {channelDef.available ? t(channelDef.description) : t('agent.cherryClaw.channels.comingSoon')}
             </p>
           </div>
-          <Button size="sm" disabled={!channelDef.available || !workspaceSource} variant="outline" onClick={handleAdd}>
+          <Button size="sm" disabled={!channelDef.available} variant="outline" onClick={handleAdd}>
             <Plus className="size-4" />
             {t('agent.cherryClaw.channels.add')}
           </Button>

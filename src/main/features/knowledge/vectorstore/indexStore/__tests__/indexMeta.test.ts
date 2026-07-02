@@ -4,9 +4,9 @@ import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import type { BetterSqlite3Driver } from '../BetterSqlite3Driver'
+import { openBetterSqlite3IndexDriver } from '../BetterSqlite3Driver'
 import { ensureIndexMeta, hasAnyMaterial } from '../indexMeta'
-import type { LibsqlDriver } from '../LibsqlDriver'
-import { openLibsqlIndexDriver } from '../LibsqlDriver'
 import { createKnowledgeIndexSchema, KNOWLEDGE_INDEX_SCHEMA_VERSION } from '../schema'
 
 const META_INPUT = {
@@ -15,11 +15,11 @@ const META_INPUT = {
 
 describe('ensureIndexMeta', () => {
   let tempDir: string
-  let driver: LibsqlDriver
+  let driver: BetterSqlite3Driver
 
   beforeEach(async () => {
     tempDir = mkdtempSync(join(tmpdir(), 'cs-knowledge-meta-'))
-    driver = await openLibsqlIndexDriver(join(tempDir, 'index.sqlite'))
+    driver = await openBetterSqlite3IndexDriver(join(tempDir, 'index.sqlite'))
     await createKnowledgeIndexSchema(driver)
   })
 
@@ -65,11 +65,11 @@ describe('ensureIndexMeta', () => {
 // open while the suite stays green.
 describe('index content diagnostics', () => {
   let tempDir: string
-  let driver: LibsqlDriver
+  let driver: BetterSqlite3Driver
 
   beforeEach(async () => {
     tempDir = mkdtempSync(join(tmpdir(), 'cs-knowledge-meta-'))
-    driver = await openLibsqlIndexDriver(join(tempDir, 'index.sqlite'))
+    driver = await openBetterSqlite3IndexDriver(join(tempDir, 'index.sqlite'))
     await createKnowledgeIndexSchema(driver)
   })
 

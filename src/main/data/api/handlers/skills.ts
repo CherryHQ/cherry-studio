@@ -12,13 +12,13 @@ export const skillHandlers: HandlersFor<SkillSchemas> = {
     GET: async ({ query }) => {
       const parsed = ListSkillsQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await skillService.list(parsed.data)
+      return skillService.list(parsed.data)
     }
   },
 
   '/skills/:skillId': {
     GET: async ({ params }) => {
-      const skill = await skillService.getById(params.skillId)
+      const skill = skillService.getById(params.skillId)
       if (!skill) throw DataApiErrorFactory.notFound('Skill', params.skillId)
       return skill
     }
