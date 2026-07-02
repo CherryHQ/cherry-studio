@@ -1,5 +1,5 @@
 import { type MarkdownSource } from '@cherrystudio/ui'
-import { type CSSProperties, memo, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { type CSSProperties, memo, useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ChatMarkdown from '../markdown/ChatMarkdown'
@@ -14,15 +14,9 @@ interface Props {
   content: string
   /** Whether this block is currently streaming */
   isStreaming: boolean
-  /** Thinking duration in milliseconds */
-  thinkingMs: number
-  /** Live estimated reasoning tokens for the current thinking block. */
-  thoughtsTokens?: number
-  /** Thinking start timestamp in epoch ms */
-  startedAt?: number
 }
 
-const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs, thoughtsTokens, startedAt }) => {
+const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming }) => {
   const block = useMemo<MarkdownSource>(
     () => ({
       id,
@@ -64,18 +58,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs, 
             withScrollAnchor(() => setIsExpanded((expanded) => !expanded))
           }
         }}>
-        <ThinkingEffect
-          expanded={isExpanded}
-          isThinking={isThinking}
-          thinkingTimeText={
-            <ThinkingTimeSeconds
-              blockThinkingTime={thinkingMs}
-              isThinking={isThinking}
-              startedAt={startedAt}
-              thoughtsTokens={thoughtsTokens}
-            />
-          }
-        />
+        <ThinkingEffect thinkingTimeText={<ThinkingTimeSeconds isThinking={isThinking} />} />
       </div>
       <div
         id={contentId}
@@ -98,90 +81,11 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs, 
   )
 }
 
-const normalizeThinkingTime = (value?: number) => (typeof value === 'number' && Number.isFinite(value) ? value : 0)
-const normalizeThoughtsTokens = (value?: number) =>
-  typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.round(value) : undefined
+const ThinkingTimeSeconds = memo(({ isThinking }: { isThinking: boolean }) => {
+  const { t } = useTranslation()
 
-const ThinkingTimeSeconds = memo(
-  ({
-    blockThinkingTime,
-    isThinking,
-    startedAt,
-    thoughtsTokens
-  }: {
-    blockThinkingTime: number
-    isThinking: boolean
-    startedAt?: number
-    thoughtsTokens?: number
-  }) => {
-    const { t } = useTranslation()
-
-    const safeStartedAt = typeof startedAt === 'number' && Number.isFinite(startedAt) ? startedAt : undefined
-
-    const [displayTime, setDisplayTime] = useState(() => {
-      if (!isThinking) return normalizeThinkingTime(blockThinkingTime)
-      if (safeStartedAt !== undefined) {
-        return Math.max(0, Date.now() - safeStartedAt)
-      }
-      return 0
-    })
-
-    const timer = useRef<NodeJS.Timeout | null>(null)
-
-    useEffect(() => {
-      if (isThinking) {
-        if (safeStartedAt !== undefined) {
-          setDisplayTime(Math.max(0, Date.now() - safeStartedAt))
-        }
-        if (!timer.current) {
-          timer.current = setInterval(() => {
-            if (safeStartedAt !== undefined) {
-              setDisplayTime(Math.max(0, Date.now() - safeStartedAt))
-            } else {
-              setDisplayTime((prev) => prev + 100)
-            }
-          }, 100)
-        }
-      } else {
-        if (timer.current) {
-          clearInterval(timer.current)
-          timer.current = null
-        }
-        const normalized = normalizeThinkingTime(blockThinkingTime)
-        setDisplayTime(normalized)
-      }
-
-      return () => {
-        if (timer.current) {
-          clearInterval(timer.current)
-          timer.current = null
-        }
-      }
-    }, [isThinking, blockThinkingTime, safeStartedAt])
-
-    const thinkingTimeSeconds = useMemo(() => {
-      const safeTime = normalizeThinkingTime(displayTime)
-      return ((safeTime < 100 ? 100 : safeTime) / 1000).toFixed(1)
-    }, [displayTime])
-
-    const statusText =
-      !isThinking && normalizeThinkingTime(blockThinkingTime) <= 0
-        ? t('common.reasoning_content')
-        : isThinking
-          ? t('chat.thinking', {
-              seconds: thinkingTimeSeconds
-            })
-          : t('chat.deeply_thought', {
-              seconds: thinkingTimeSeconds
-            })
-
-    const normalizedTokens = normalizeThoughtsTokens(thoughtsTokens)
-    if (!normalizedTokens) return statusText
-
-    return `${statusText} · ${t('chat.thinking_tokens', {
-      tokens: new Intl.NumberFormat().format(normalizedTokens)
-    })}`
-  }
-)
+  if (isThinking) return t('message.tools.placeholder.thinking')
+  return t('common.reasoning_content')
+})
 
 export default memo(ThinkingBlock)

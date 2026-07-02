@@ -440,7 +440,7 @@ const MessageList = () => {
     })
   }, [bindRuntime])
 
-  if (data.isInitialLoading) {
+  if (data.isInitialLoading && messages.length === 0) {
     return <MessageListInitialLoading />
   }
 

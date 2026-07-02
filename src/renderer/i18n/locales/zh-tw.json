@@ -3776,6 +3776,7 @@
       "approvalRequired": "工具 \"{{tool}}\" 需要審批",
       "autoApproveEnabled": "此工具已啟用自動批准",
       "cancelled": "已取消",
+      "collapse": "收合",
       "completed": "已完成",
       "error": "發生錯誤",
       "groupHeader": "{{count}} 次工具呼叫",

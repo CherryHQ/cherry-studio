@@ -1,11 +1,12 @@
 import type { McpToolResponse } from '@renderer/types/mcpTool'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MessageMcpTool from '../mcp/MessageMcpTool'
 
 const mockApproval = vi.hoisted(() => vi.fn())
 const mockActions = vi.hoisted(() => vi.fn(() => ({}) as Record<string, unknown>))
+const mockIsToolAutoApproved = vi.hoisted(() => vi.fn(() => false))
 
 // Control approval state directly so the test doesn't need the MCP-server data hooks.
 vi.mock('../hooks/useToolApproval', () => ({
@@ -14,7 +15,7 @@ vi.mock('../hooks/useToolApproval', () => ({
 
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   useOptionalMessageListActions: () => mockActions(),
-  useOptionalMessageListUi: () => ({ isToolAutoApproved: () => false }),
+  useOptionalMessageListUi: () => ({ isToolAutoApproved: mockIsToolAutoApproved }),
   useMessageRenderConfig: () => ({ messageFont: 'sans-serif', fontSize: 14 })
 }))
 
@@ -70,6 +71,7 @@ describe('MessageMcpTool', () => {
       confirm: vi.fn(),
       cancel: vi.fn()
     })
+    mockIsToolAutoApproved.mockReturnValue(false)
   })
 
   afterEach(() => vi.clearAllMocks())
@@ -97,5 +99,37 @@ describe('MessageMcpTool', () => {
     expect(container.textContent).not.toContain('chat.input.pause')
     // Only the collapse header is interactive — no separate actions-bar controls.
     expect(screen.getAllByRole('button')).toHaveLength(1)
+    expect(screen.getByRole('button')).toHaveClass('w-fit')
+    expect(screen.getByRole('button')).not.toHaveClass('w-full')
+  })
+
+  it('keeps a lightweight copy action for completed tool payloads', async () => {
+    const copyText = vi.fn()
+    mockActions.mockReturnValue({ copyText })
+
+    render(
+      <MessageMcpTool
+        toolResponse={createMcpToolResponse({
+          status: 'done',
+          response: { content: [{ type: 'text', text: 'ok' }] }
+        })}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.copy' }))
+
+    await waitFor(() => {
+      expect(copyText).toHaveBeenCalledWith(expect.stringContaining('"url": "https://example.com"'), {
+        successMessage: 'message.copied'
+      })
+    })
+  })
+
+  it('shows the auto-approve badge when the MCP tool is auto-approved', () => {
+    mockIsToolAutoApproved.mockReturnValue(true)
+
+    render(<MessageMcpTool toolResponse={createMcpToolResponse({ status: 'done' })} />)
+
+    expect(screen.getByLabelText('message.tools.autoApproveEnabled')).toBeInTheDocument()
   })
 })

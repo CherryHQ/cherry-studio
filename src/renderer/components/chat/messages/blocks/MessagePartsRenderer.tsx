@@ -22,10 +22,11 @@ import { useIsActiveTurnTarget } from '@renderer/hooks/useIsActiveTurnTarget'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { FILE_TYPE } from '@renderer/types/file'
 import { convertReferencesToCitationReferences, convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
+import { classifyTurn } from '@shared/ai/transport'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ErrorPartData } from '@shared/data/types/uiParts'
 import { isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
-import { ChevronDown } from 'lucide-react'
+import { X } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -34,6 +35,7 @@ import MessageAttachments from '../frame/MessageAttachments'
 import MessageVideo from '../frame/MessageVideo'
 import { useMessageRenderConfig } from '../MessageListProvider'
 import { isReportArtifactsToolResponse, MessageReportArtifacts } from '../tools/agent/ReportArtifacts'
+import { isAskUserQuestionToolName } from '../tools/agent/types'
 import MessageTools, { canRenderMessageTool } from '../tools/MessageTools'
 import { hasPartParentToolCallId } from '../tools/toolParentMetadata'
 import { buildToolResponseFromPart, type ToolRenderItem } from '../tools/toolResponse'
@@ -45,12 +47,20 @@ import ErrorBlock from './ErrorBlock'
 import ImageBlock from './ImageBlock'
 import MainTextBlock from './MainTextBlock'
 import { useMessageParts, useTranslationOverlayEntry } from './MessagePartsContext'
-import PlaceholderBlock, { type PlaceholderStatus } from './PlaceholderBlock'
+import PlaceholderBlock, {
+  formatPlaceholderElapsed,
+  type PlaceholderStatus,
+  usePlaceholderElapsedMs
+} from './PlaceholderBlock'
 import ThinkingBlock from './ThinkingBlock'
 import { ToolBlockGroupContent, ToolBlockGroupHeaderContent } from './ToolBlockGroup'
 import TranslationBlock from './TranslationBlock'
 
 const logger = loggerService.withContext('MessagePartsRenderer')
+const BOTTOM_COLLAPSE_TOOL_COUNT_THRESHOLD = 10
+const TOOL_HISTORY_PREVIEW_ENTRY_LIMIT = 10
+const TOOL_HISTORY_REASONING_DISPLAY_LIMIT = 3
+const TRAILING_RESULT_RELEASE_DELAY_MS = 2000
 
 // ============================================================================
 // Animation shared by message block renderers.
@@ -201,6 +211,62 @@ function groupPartEntries(entries: readonly PartEntry[]): GroupedEntry[] {
   }, [])
 }
 
+function canJoinPreviewGroup(entry: PartEntry, groupEntry: PartEntry): boolean {
+  const part = entry.part
+  const groupPart = groupEntry.part
+  if (isImageFilePart(part) && isImageFilePart(groupPart)) return true
+  if (isToolUIPart(part) && isToolUIPart(groupPart)) return true
+  return (
+    isDataUIPart(part) &&
+    part.type === 'data-video' &&
+    isDataUIPart(groupPart) &&
+    groupPart.type === 'data-video' &&
+    getVideoFilePath(part) === getVideoFilePath(groupPart)
+  )
+}
+
+function isRenderablePreviewEntry(entry: PartEntry, messageId: string): boolean {
+  const part = entry.part
+  const partType = part.type as string
+
+  if (isToolUIPart(part)) return buildToolRenderItems([entry], messageId).length > 0
+  if (isImageFilePart(part)) return !!extractImageUrl(part)
+  if (isDataUIPart(part) && part.type === 'data-video') return !!part.data
+  if (partType === 'source-url' || partType === 'step-start' || partType === 'data-agent-task-event') return false
+  if (partType === 'data-citation') return false
+
+  return true
+}
+
+function getPreviewGroupedEntries(entries: readonly PartEntry[], limit: number, messageId: string): GroupedEntry[] {
+  const reversedGroups: GroupedEntry[] = []
+
+  for (let index = entries.length - 1; index >= 0; index--) {
+    const entry = entries[index]
+    if (!isRenderablePreviewEntry(entry, messageId)) continue
+
+    const latestGroup = reversedGroups[reversedGroups.length - 1]
+    if (Array.isArray(latestGroup) && canJoinPreviewGroup(entry, latestGroup[0])) {
+      latestGroup.unshift(entry)
+      continue
+    }
+
+    if (reversedGroups.length >= limit) break
+
+    if (
+      isImageFilePart(entry.part) ||
+      isToolUIPart(entry.part) ||
+      (isDataUIPart(entry.part) && entry.part.type === 'data-video')
+    ) {
+      reversedGroups.push([entry])
+    } else {
+      reversedGroups.push(entry)
+    }
+  }
+
+  return reversedGroups.reverse()
+}
+
 function isSummaryMessagePart(part: CherryMessagePart): boolean {
   const partType = part.type as string
   if (partType === 'text') {
@@ -222,6 +288,61 @@ function isReasoningMessagePart(part: CherryMessagePart): boolean {
   return (part.type as string) === 'reasoning' && !!(part as ReasoningUIPart).text?.trim()
 }
 
+function isFoldableToolPart(part: CherryMessagePart): boolean {
+  if (!isToolUIPart(part)) return false
+  return !isAskUserQuestionToolName((part as { toolName?: string }).toolName)
+}
+
+function isTrailingHoldPart(part: CherryMessagePart): boolean {
+  return isResultPart(part) || isReasoningMessagePart(part)
+}
+
+function getLeadingSingleReasoningGroup(entries: readonly PartEntry[]): {
+  collapsedEntries: PartEntry[]
+  resultEntries: PartEntry[]
+} | null {
+  if (entries.length === 0 || !isReasoningMessagePart(entries[0].part)) return null
+
+  let reasoningCount = 0
+  for (const entry of entries) {
+    if (isReasoningMessagePart(entry.part)) {
+      reasoningCount++
+      continue
+    }
+    if (!isResultPart(entry.part)) return null
+  }
+  if (reasoningCount !== 1) return null
+
+  return {
+    collapsedEntries: [entries[0]],
+    resultEntries: entries.slice(1)
+  }
+}
+
+function getTrailingResultHoldKey(entries: readonly PartEntry[]): string | null {
+  let lastToolEntry: PartEntry | undefined
+  let lastToolPosition = -1
+  for (let position = entries.length - 1; position >= 0; position--) {
+    if (isFoldableToolPart(entries[position].part)) {
+      lastToolEntry = entries[position]
+      lastToolPosition = position
+      break
+    }
+  }
+  if (!lastToolEntry || lastToolPosition >= entries.length - 1) return null
+
+  for (let position = lastToolPosition + 1; position < entries.length; position++) {
+    if (!isTrailingHoldPart(entries[position].part)) return null
+  }
+
+  const toolPart = lastToolEntry.part as { toolCallId?: string; toolName?: string; type?: string }
+  const trailingSignature = entries
+    .slice(lastToolPosition + 1)
+    .map(({ index, part }) => `${index}:${part.type}`)
+    .join('|')
+  return `${lastToolEntry.index}:${toolPart.toolCallId ?? toolPart.toolName ?? toolPart.type ?? 'tool'}:${trailingSignature}`
+}
+
 function isResultPart(part: CherryMessagePart): boolean {
   const partType = part.type as string
   return isSummaryMessagePart(part) || partType === 'data-error' || partType === 'file' || partType === 'data-video'
@@ -236,7 +357,7 @@ function isResultPart(part: CherryMessagePart): boolean {
 function isProcessPart(part: CherryMessagePart): boolean {
   const partType = part.type as string
   return (
-    isToolUIPart(part) ||
+    isFoldableToolPart(part) ||
     partType === 'reasoning' ||
     partType === 'step-start' ||
     partType === 'source-url' ||
@@ -254,6 +375,11 @@ function getProcessingPlaceholderStatus(entries: readonly PartEntry[]): Placehol
   }
 
   return 'preparing'
+}
+
+function hasProcessTail(entries: readonly PartEntry[]): boolean {
+  const lastEntry = entries.at(-1)
+  return lastEntry ? isProcessPart(lastEntry.part) : false
 }
 
 // ============================================================================
@@ -315,24 +441,12 @@ function renderPart(
   switch (partType) {
     case 'reasoning': {
       const reasoningPart = part
-      const cherryMeta = getCherryMeta(part)
-      const metadataBlock =
-        'providerMetadata' in part && part.providerMetadata
-          ? ((part.providerMetadata as Record<string, unknown>).metadata as Record<string, unknown> | undefined)
-          : undefined
-      const thinkingMs =
-        cherryMeta?.thinkingMs ??
-        (typeof metadataBlock?.thinking_millsec === 'number' ? metadataBlock.thinking_millsec : 0)
-      const startedAt = cherryMeta?.startedAt
       return (
         <ThinkingBlock
           key={partId}
           id={partId}
           content={reasoningPart.text || ''}
           isStreaming={reasoningPart.state === 'streaming'}
-          thinkingMs={thinkingMs}
-          thoughtsTokens={message.stats?.thoughtsTokens}
-          startedAt={startedAt}
         />
       )
     }
@@ -561,13 +675,33 @@ function renderGroupedEntry(
 function getToolHistoryGroup(
   entries: readonly PartEntry[],
   message: MessageListItem,
-  isProcessing: boolean
-): { collapsedEntries: PartEntry[]; resultEntries: PartEntry[]; toolCount: number; hasResult: boolean } | null {
+  isActiveTurnProcessing: boolean,
+  shouldHoldTrailingResult: boolean
+): {
+  collapsedEntries: PartEntry[]
+  resultEntries: PartEntry[]
+  toolCount: number
+  hasResult: boolean
+  hasLiveProcessTail: boolean
+  summaryType: 'tools' | 'thinking'
+} | null {
   if (message.role !== 'assistant') return null
+
+  const singleReasoningGroup = getLeadingSingleReasoningGroup(entries)
+  if (singleReasoningGroup) {
+    return {
+      collapsedEntries: singleReasoningGroup.collapsedEntries,
+      resultEntries: singleReasoningGroup.resultEntries,
+      toolCount: 0,
+      hasResult: singleReasoningGroup.resultEntries.some((entry) => isResultPart(entry.part)),
+      hasLiveProcessTail: isActiveTurnProcessing,
+      summaryType: 'thinking'
+    }
+  }
 
   let lastToolIndex = -1
   for (let index = entries.length - 1; index >= 0; index--) {
-    if (isToolUIPart(entries[index].part)) {
+    if (isFoldableToolPart(entries[index].part)) {
       lastToolIndex = index
       break
     }
@@ -580,16 +714,28 @@ function getToolHistoryGroup(
     collapsedEnd = index
   }
 
+  if (shouldHoldTrailingResult) {
+    collapsedEnd = entries.length - 1
+  }
+
   const collapsedEntries = entries.slice(0, collapsedEnd + 1)
   const resultEntries = entries.slice(collapsedEnd + 1)
   const hasResult = resultEntries.some((entry) => isResultPart(entry.part))
+  const hasLiveProcessTail = isActiveTurnProcessing && hasProcessTail(entries)
   const hasCollapsedTail = collapsedEnd > lastToolIndex
-  if (message.status === 'success' && !isProcessing && !hasResult && !hasCollapsedTail) return null
+  if (message.status === 'success' && !isActiveTurnProcessing && !hasResult && !hasCollapsedTail) return null
 
   const toolCount = buildToolRenderItems(collapsedEntries, message.id).length
   if (toolCount === 0) return null
 
-  return { collapsedEntries, resultEntries, toolCount, hasResult }
+  return {
+    collapsedEntries,
+    resultEntries,
+    toolCount,
+    hasResult,
+    hasLiveProcessTail,
+    summaryType: 'tools'
+  }
 }
 
 /** Whether trailing reasoning after the last tool is still streaming — drives
@@ -597,78 +743,205 @@ function getToolHistoryGroup(
 function hasStreamingReasoningAfterLastTool(entries: readonly PartEntry[]): boolean {
   for (let index = entries.length - 1; index >= 0; index--) {
     const { part } = entries[index]
-    if (isToolUIPart(part)) return false
+    if (isFoldableToolPart(part)) return false
     if ((part.type as string) === 'reasoning' && (part as ReasoningUIPart).state === 'streaming') return true
   }
   return false
 }
 
+function filterToolHistoryReasoningEntries(
+  entries: readonly PartEntry[],
+  keepLastReasoning: boolean
+): readonly PartEntry[] {
+  const reasoningCount = entries.reduce((count, entry) => count + (isReasoningMessagePart(entry.part) ? 1 : 0), 0)
+  if (reasoningCount <= TOOL_HISTORY_REASONING_DISPLAY_LIMIT) return entries
+  let lastReasoningEntry: PartEntry | undefined
+  if (keepLastReasoning) {
+    for (let index = entries.length - 1; index >= 0; index--) {
+      if (isReasoningMessagePart(entries[index].part)) {
+        lastReasoningEntry = entries[index]
+        break
+      }
+    }
+  }
+  return entries.filter((entry) => !isReasoningMessagePart(entry.part) || entry === lastReasoningEntry)
+}
+
 /**
- * The big outer fold for the whole agentic process. Collapsed by default; while
- * the turn is live its header shows the current tool being called (the live
- * "tool change" display), settling to a "N tool calls" count once done. Only on
- * manual expand does it reveal the process in order. The final answer renders
- * outside, below this fold.
+ * The big outer fold for the whole agentic process. It stays collapsed by
+ * default and shows a bounded process preview while collapsed; expanding
+ * reveals the process in full. The final answer renders outside, below this fold.
  */
 const OuterProcessFold = React.memo(function OuterProcessFold({
   entries,
+  hasLiveProcessTail,
   message,
   toolCount,
-  hasResult,
-  isProcessing
+  isProcessing,
+  summary
 }: {
   entries: readonly PartEntry[]
+  hasLiveProcessTail: boolean
   message: MessageListItem
   toolCount: number
-  hasResult: boolean
   isProcessing: boolean
+  summary: React.ReactNode
 }) {
   const { t } = useTranslation()
   const [isExpanded, setIsExpanded] = React.useState(false)
+  const [previewDismissed, setPreviewDismissed] = React.useState(false)
   const contentId = React.useId()
+  const previewRef = React.useRef<HTMLDivElement | null>(null)
+  const wasPreviewVisibleRef = React.useRef(false)
+  const shouldSmoothPreviewScrollRef = React.useRef(false)
 
-  const toolItems = useMemo(() => buildToolRenderItems(entries, message.id), [entries, message.id])
-  const groupedEntries = useMemo(() => groupPartEntries(entries), [entries])
-  const showLiveProgress = (isProcessing || message.status !== 'success') && !hasResult
+  const showLiveProgress = isProcessing && hasLiveProcessTail
+  const renderableEntries = useMemo(
+    () => filterToolHistoryReasoningEntries(entries, showLiveProgress),
+    [entries, showLiveProgress]
+  )
+  const shouldHoldPreview = isProcessing
+  const wasHoldingPreviewRef = React.useRef(shouldHoldPreview)
+  const showPreview = !isExpanded && !previewDismissed && shouldHoldPreview && renderableEntries.length > 0
+  const showDynamicHeader = showLiveProgress && !isExpanded
+  const toolItems = useMemo(
+    () => (showPreview ? [] : buildToolRenderItems(entries, message.id)),
+    [entries, message.id, showPreview]
+  )
+  const groupedEntries = useMemo(
+    () => (isExpanded ? groupPartEntries(renderableEntries) : []),
+    [isExpanded, renderableEntries]
+  )
+  const previewEntries = useMemo(
+    () =>
+      showPreview ? getPreviewGroupedEntries(renderableEntries, TOOL_HISTORY_PREVIEW_ENTRY_LIMIT, message.id) : [],
+    [message.id, renderableEntries, showPreview]
+  )
+  const elapsedMs = usePlaceholderElapsedMs(showLiveProgress, message.createdAt, 1000)
+  const elapsedText = showLiveProgress ? formatPlaceholderElapsed(elapsedMs, t) : undefined
   const activityLabel =
-    showLiveProgress && hasStreamingReasoningAfterLastTool(entries) ? t('message.tools.thinkingHeader') : undefined
+    showDynamicHeader && hasStreamingReasoningAfterLastTool(entries) ? t('message.tools.thinkingHeader') : undefined
+  const showBottomCollapseButton = isExpanded && toolCount > BOTTOM_COLLAPSE_TOOL_COUNT_THRESHOLD
+
+  React.useLayoutEffect(() => {
+    if (!showPreview) {
+      wasPreviewVisibleRef.current = false
+      shouldSmoothPreviewScrollRef.current = false
+      return
+    }
+
+    const preview = previewRef.current
+    if (!preview || wasPreviewVisibleRef.current) return
+
+    preview.scrollTop = preview.scrollHeight
+    wasPreviewVisibleRef.current = true
+    shouldSmoothPreviewScrollRef.current = false
+  }, [showPreview])
+
+  React.useEffect(() => {
+    if (!showPreview) return
+
+    const preview = previewRef.current
+    if (!preview) return
+
+    if (!shouldSmoothPreviewScrollRef.current) {
+      shouldSmoothPreviewScrollRef.current = true
+      return
+    }
+
+    if (typeof preview.scrollTo === 'function') {
+      preview.scrollTo({ top: preview.scrollHeight, behavior: 'smooth' })
+      return
+    }
+
+    preview.scrollTop = preview.scrollHeight
+  }, [previewEntries, showPreview])
+
+  React.useEffect(() => {
+    if (wasHoldingPreviewRef.current && !shouldHoldPreview) {
+      setIsExpanded(false)
+    }
+    if (!shouldHoldPreview) {
+      setPreviewDismissed(false)
+    }
+    wasHoldingPreviewRef.current = shouldHoldPreview
+  }, [shouldHoldPreview])
+
   const triggerClassName = [
     !showLiveProgress && '-ml-0.5',
     'flex min-h-7',
-    isExpanded ? 'w-full' : 'w-fit',
+    'w-full',
     'items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2'
   ]
     .filter(Boolean)
     .join(' ')
 
   return (
-    <div className={`group/process-history max-w-full ${isExpanded ? 'w-full' : 'w-fit'}`}>
+    <div className="group/process-history w-full max-w-full">
       <button
         type="button"
         aria-expanded={isExpanded}
         aria-controls={contentId}
         className={triggerClassName}
         onClick={() => setIsExpanded((expanded) => !expanded)}>
-        {!showLiveProgress && (
-          <ChevronDown
-            size={16}
-            className={`shrink-0 text-foreground-muted transition-transform duration-150 ${isExpanded ? 'rotate-180' : '-rotate-90'}`}
-          />
-        )}
         <ToolBlockGroupHeaderContent
           items={toolItems}
           activityLabel={activityLabel}
-          summary={t('message.tools.groupHeader', { count: toolCount })}
-          isLiveProgress={showLiveProgress}
-          showLatestWhenComplete={showLiveProgress}
+          elapsedText={elapsedText}
+          summary={summary}
+          isLiveProgress={showDynamicHeader}
+          preferSummary={isExpanded || showPreview}
+          showLatestWhenComplete={showDynamicHeader && !showPreview}
         />
       </button>
+      <div aria-hidden="true" data-testid="tool-history-divider" className="my-1.5 h-px w-full bg-border-subtle" />
+      <AnimatePresence initial={false}>
+        {showPreview && (
+          <motion.div
+            key="tool-history-preview"
+            data-testid="tool-history-preview"
+            className="group/preview relative h-[6.5rem] w-full overflow-hidden rounded-lg bg-background-subtle"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: '6.5rem', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}>
+            <button
+              type="button"
+              aria-label={t('common.close')}
+              className="absolute top-1.5 right-1.5 z-10 flex size-5 items-center justify-center rounded-full bg-background/80 text-muted-foreground opacity-0 transition-opacity hover:bg-background hover:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-1 group-hover/preview:opacity-100 group-focus-within/preview:opacity-100"
+              onClick={(event) => {
+                event.stopPropagation()
+                setPreviewDismissed(true)
+              }}>
+              <X aria-hidden="true" size={13} strokeWidth={1.8} />
+            </button>
+            <div
+              ref={previewRef}
+              aria-hidden="true"
+              className="pointer-events-none flex h-full w-full flex-col gap-0 overflow-y-auto px-2.5 py-1.5 pr-7 [scrollbar-width:thin] [&>.block-wrapper:empty]:hidden [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0! [&_.message-thought-container]:leading-5! [&_.tool-block-group-content]:gap-0! [&_button]:min-h-6! [&_button]:py-0! [&_[role='button']]:min-h-6! [&_[role='button']]:py-0!">
+              {previewEntries.map((entry) => renderGroupedEntry(entry, message, false, false))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {isExpanded && (
         <div
           id={contentId}
-          className="mt-1.5 flex w-full flex-col gap-2 [&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper:empty]:hidden [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0!">
+          data-testid="tool-history-content"
+          className="flex w-full flex-col gap-2 [&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper:empty]:hidden [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0!">
           {groupedEntries.map((entry) => renderGroupedEntry(entry, message, false, false))}
         </div>
+      )}
+      {showBottomCollapseButton && (
+        <button
+          type="button"
+          aria-controls={contentId}
+          className="mt-2 flex w-full items-center gap-2 rounded px-0 py-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+          onClick={() => setIsExpanded(false)}>
+          <span aria-hidden="true" className="h-px flex-1 bg-border-subtle" />
+          <span className="shrink-0">{t('message.tools.collapse')}</span>
+          <span aria-hidden="true" className="h-px flex-1 bg-border-subtle" />
+        </button>
       )}
     </div>
   )
@@ -679,8 +952,10 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
 // ============================================================================
 
 const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
+  const { t } = useTranslation()
   const messageParts = useMessageParts(message.id)
-  const { isPending: isTopicStreaming } = useTopicStreamStatus(message.topicId)
+  const { status: topicStreamStatus, isPending: isTopicStreaming } = useTopicStreamStatus(message.topicId)
+  const topicTurnState = classifyTurn(topicStreamStatus)
   const isStreaming = isTopicStreaming && message.status === 'pending'
   const isTranslationOverlayActive = useTranslationOverlayEntry(message.id) !== undefined
   const renderConfig = useMessageRenderConfig()
@@ -689,19 +964,43 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
   // target. The identity predicate lives in `useIsActiveTurnTarget` so
   // consumers do not over-scope topic-level stream status to user messages.
   const isProcessing = useIsActiveTurnTarget(message)
+  const isActiveTurnProcessing =
+    isProcessing && (topicStreamStatus === undefined ? message.status !== 'success' : topicTurnState.isTurnActive)
 
   const partEntries = useMemo(
     () => messageParts.flatMap((part, index) => (hasPartParentToolCallId(part) ? [] : [{ part, index }])),
     [messageParts]
   )
+  const trailingResultHoldKey = useMemo(
+    () => (isActiveTurnProcessing ? getTrailingResultHoldKey(partEntries) : null),
+    [isActiveTurnProcessing, partEntries]
+  )
+  const [releasedTrailingResultKey, setReleasedTrailingResultKey] = React.useState<string | null>(null)
+  React.useEffect(() => {
+    if (!trailingResultHoldKey) {
+      setReleasedTrailingResultKey(null)
+      return
+    }
+    if (releasedTrailingResultKey === trailingResultHoldKey) return
+
+    const timer = window.setTimeout(() => {
+      setReleasedTrailingResultKey(trailingResultHoldKey)
+    }, TRAILING_RESULT_RELEASE_DELAY_MS)
+
+    return () => window.clearTimeout(timer)
+  }, [releasedTrailingResultKey, trailingResultHoldKey])
+  const shouldHoldTrailingResult = trailingResultHoldKey !== null && releasedTrailingResultKey !== trailingResultHoldKey
   const placeholderStatus = useMemo(() => getProcessingPlaceholderStatus(partEntries), [partEntries])
   const collapseEnabled = renderConfig.collapseCompletedToolHistory
   // The whole agentic process (tools + reasoning) collapses behind one outer
   // fold; the answer that follows renders below it. Present throughout the turn
   // (collapsed, live header while streaming) so it never flips in/out.
   const toolHistoryGroup = useMemo(
-    () => (collapseEnabled ? getToolHistoryGroup(partEntries, message, isProcessing) : null),
-    [collapseEnabled, partEntries, message, isProcessing]
+    () =>
+      collapseEnabled
+        ? getToolHistoryGroup(partEntries, message, isActiveTurnProcessing, shouldHoldTrailingResult)
+        : null,
+    [collapseEnabled, partEntries, message, isActiveTurnProcessing, shouldHoldTrailingResult]
   )
   const reportArtifactToolResponses = useMemo(
     () => getReportArtifactToolResponses(partEntries, message.id),
@@ -711,10 +1010,18 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
   // the fold, or all parts when there's no fold (no tools / collapse disabled).
   const visibleEntries = toolHistoryGroup?.resultEntries ?? partEntries
   const grouped = useMemo(() => (visibleEntries.length === 0 ? [] : groupPartEntries(visibleEntries)), [visibleEntries])
+  const renderedEntries = useMemo(
+    () => grouped.map((entry) => renderGroupedEntry(entry, message, isStreaming, isTranslationOverlayActive)),
+    [grouped, isStreaming, isTranslationOverlayActive, message]
+  )
+  const hasRenderedEntries = renderedEntries.some(Boolean)
 
   // No parts to render — normal for user messages (content is in message text, not parts)
   // But if the message is processing (pending/streaming), show the loading placeholder
-  if (partEntries.length === 0) {
+  if (
+    partEntries.length === 0 ||
+    (isProcessing && !toolHistoryGroup && !hasRenderedEntries && reportArtifactToolResponses.length === 0)
+  ) {
     if (isProcessing) {
       return (
         <AnimatePresence mode="sync">
@@ -733,22 +1040,22 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
         <AnimatedBlockWrapper key={`tool-history-${message.id}`} enableAnimation={false}>
           <OuterProcessFold
             entries={toolHistoryGroup.collapsedEntries}
+            hasLiveProcessTail={toolHistoryGroup.hasLiveProcessTail}
             message={message}
             toolCount={toolHistoryGroup.toolCount}
-            hasResult={toolHistoryGroup.hasResult}
-            isProcessing={isProcessing}
+            isProcessing={isActiveTurnProcessing}
+            summary={
+              toolHistoryGroup.summaryType === 'thinking'
+                ? t(isActiveTurnProcessing ? 'message.tools.thinkingHeader' : 'common.reasoning_content')
+                : t('message.tools.groupHeader', { count: toolHistoryGroup.toolCount })
+            }
           />
         </AnimatedBlockWrapper>
       )}
-      {grouped.map((entry) => renderGroupedEntry(entry, message, isStreaming, isTranslationOverlayActive))}
+      {renderedEntries}
       {reportArtifactToolResponses.length > 0 && (
         <AnimatedBlockWrapper key={`report-artifacts-${message.id}`} enableAnimation={isStreaming} animation="fade">
           <MessageReportArtifacts toolResponses={reportArtifactToolResponses} />
-        </AnimatedBlockWrapper>
-      )}
-      {isProcessing && (
-        <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
-          <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />
         </AnimatedBlockWrapper>
       )}
     </AnimatePresence>
