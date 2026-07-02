@@ -6,7 +6,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   commandHandlers: new Map<string, () => void>(),
-  showSearchPopup: vi.fn()
+  showSearchPopup: vi.fn(),
+  setActiveTab: vi.fn(),
+  tabs: [
+    { id: 'tab1', isDormant: false, title: 'Tab 1', type: 'route', url: '/tab1' },
+    { id: 'tab2', isDormant: false, title: 'Tab 2', type: 'route', url: '/tab2' },
+    { id: 'tab3', isDormant: false, title: 'Tab 3', type: 'route', url: '/tab3' }
+  ],
+  activeTabId: 'tab1'
 }))
 
 vi.mock('@renderer/databases', () => ({}))
@@ -29,21 +36,13 @@ vi.mock('@renderer/components/Popups/SearchPopup', () => ({
 
 vi.mock('../../../hooks/tab', () => ({
   useTabs: () => ({
-    activeTabId: 'home',
+    activeTabId: mocks.activeTabId,
     closeTab: vi.fn(),
     openTab: vi.fn(),
     pinTab: vi.fn(),
     reorderTabs: vi.fn(),
-    setActiveTab: vi.fn(),
-    tabs: [
-      {
-        id: 'home',
-        isDormant: false,
-        title: 'Chat',
-        type: 'route',
-        url: '/app/chat'
-      }
-    ],
+    setActiveTab: mocks.setActiveTab,
+    tabs: mocks.tabs,
     unpinTab: vi.fn(),
     updateTab: vi.fn()
   })
@@ -85,5 +84,35 @@ describe('AppShell', () => {
     mocks.commandHandlers.get('app.search')?.()
 
     expect(mocks.showSearchPopup).toHaveBeenCalledTimes(1)
+  })
+
+  it('cycles tabs via command handlers', () => {
+    // tab1 -> next -> tab2
+    mocks.activeTabId = 'tab1'
+    const { rerender } = render(<AppShell />)
+
+    mocks.commandHandlers.get('tab.next')?.()
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('tab2')
+
+    // tab3 -> next -> tab1
+    mocks.activeTabId = 'tab3'
+    rerender(<AppShell />)
+    mocks.setActiveTab.mockClear()
+    mocks.commandHandlers.get('tab.next')?.()
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('tab1')
+
+    // tab2 -> prev -> tab1
+    mocks.activeTabId = 'tab2'
+    rerender(<AppShell />)
+    mocks.setActiveTab.mockClear()
+    mocks.commandHandlers.get('tab.prev')?.()
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('tab1')
+
+    // tab1 -> prev -> tab3
+    mocks.activeTabId = 'tab1'
+    rerender(<AppShell />)
+    mocks.setActiveTab.mockClear()
+    mocks.commandHandlers.get('tab.prev')?.()
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('tab3')
   })
 })

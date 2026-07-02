@@ -38,6 +38,15 @@ describe('getCommandShortcutLabel', () => {
     )
   })
 
+  it('formats macOS tab navigation shortcuts as control-tab', () => {
+    expect(getCommandShortcutLabel('tab.next', undefined, { context: {}, isMac: true, platform: 'darwin' })).toBe(
+      '⌃Tab'
+    )
+    expect(getCommandShortcutLabel('tab.prev', undefined, { context: {}, isMac: true, platform: 'darwin' })).toBe(
+      '⌃⇧Tab'
+    )
+  })
+
   it('returns empty label when unavailable', () => {
     expect(getCommandShortcutLabel('topic.create', { binding: [], enabled: true }, { context: {}, isMac: true })).toBe(
       ''
