@@ -1,26 +1,27 @@
-import { Button } from '@cherrystudio/ui'
-import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import { ConfirmDialog } from '@cherrystudio/ui'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import type { CodeCli } from '@shared/types/codeCli'
 import { useNavigate } from '@tanstack/react-router'
-import { Play, Plus } from 'lucide-react'
+import { ExternalLink } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { CLI_TOOLS } from './cliTools'
+import { CLI_TOOLS, PROVIDERLESS_CLI_TOOLS } from './cliTools'
 import { CodeCliSidebar } from './components/CodeCliSidebar'
 import { ConfigEditPanel } from './components/configEditPanel/ConfigEditPanel'
 import { ConfigList } from './components/ConfigList'
-import { CurrentConfigPanel } from './components/CurrentConfigPanel'
+import { LaunchDialog } from './components/LaunchDialog'
 import { VersionStatusCard } from './components/VersionStatusCard'
-import { injectCliConfig } from './injectCliConfig'
+import { clearCliConfig, injectCliConfig } from './injectCliConfig'
 import type { CodeToolMeta, VersionStatus } from './types'
 import { useAvailableTerminals } from './useAvailableTerminals'
 import { useBinaryActions } from './useBinaryActions'
@@ -67,13 +68,16 @@ const CodeCliPage: FC = () => {
 
   const supportedProviders = useMemo(() => {
     const filtered = filterProviders(providers)
-    const order = currentToolState.providerOrder
-    if (!order?.length) return filtered
-    const byId = new Map(filtered.map((p) => [p.id, p]))
-    const ordered = order.map((id) => byId.get(id)).filter((p): p is Provider => !!p)
-    const orderedIds = new Set(ordered.map((p) => p.id))
-    const rest = filtered.filter((p) => !orderedIds.has(p.id))
-    return [...ordered, ...rest]
+    const entries = new Map(Object.entries(currentToolState.providers))
+    // Sort by explicit sortIndex; providers without one appear at the end.
+    return [...filtered].sort((a, b) => {
+      const ai = entries.get(a.id)?.sortIndex
+      const bi = entries.get(b.id)?.sortIndex
+      if (ai !== undefined && bi !== undefined) return ai - bi
+      if (ai !== undefined) return -1
+      if (bi !== undefined) return 1
+      return 0
+    })
   }, [filterProviders, providers, currentToolState])
 
   const handleReorder = useCallback(
@@ -83,7 +87,12 @@ const CodeCliPage: FC = () => {
     [reorderProviders]
   )
 
+  const enabledProvider = currentProviderId ? supportedProviders.find((p) => p.id === currentProviderId) : undefined
+
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
+  const [launchOpen, setLaunchOpen] = useState(false)
+  const [launching, setLaunching] = useState(false)
+  const [removeTarget, setRemoveTarget] = useState<CodeCli | null>(null)
   const openConfigurePanel = useCallback((provider: Provider) => setEditingProvider(provider), [])
   const closePanel = useCallback(() => setEditingProvider(null), [])
 
@@ -117,6 +126,12 @@ const CodeCliPage: FC = () => {
       const isEnabling = currentProviderId !== provider.id
       void (async () => {
         if (!isEnabling) {
+          try {
+            await clearCliConfig({ cliTool: selectedCliTool })
+          } catch (err) {
+            logger.error('Failed to clear CLI config on disable:', err as Error)
+            window.toast.error(t('code.apply_failed'))
+          }
           await setCurrentProvider(null)
           return
         }
@@ -169,37 +184,47 @@ const CodeCliPage: FC = () => {
   }, [selectFolder])
 
   // The native config file is written at "enable" time, not here — launch only
-  // opens a terminal running the CLI in the provider's directory.
+  // opens a terminal running the CLI in the provider's directory. Provider-less
+  // tools (qoder / copilot) launch with a directory only.
   const handleLaunch = useCallback(async () => {
-    if (!currentProviderConfig || !directory) {
+    const isProviderless = PROVIDERLESS_CLI_TOOLS.has(selectedCliTool)
+    if (!directory || (!isProviderless && !enabledProvider)) {
       window.toast.error(t('code.folder_placeholder'))
       return
     }
-    const { providerId, modelId: rawModelId } = isUniqueModelId(currentProviderConfig.modelId)
-      ? parseUniqueModelId(currentProviderConfig.modelId)
-      : { providerId: '', modelId: currentProviderConfig.modelId }
+    const { providerId, modelId: rawModelId } =
+      currentProviderConfig && isUniqueModelId(currentProviderConfig.modelId)
+        ? parseUniqueModelId(currentProviderConfig.modelId)
+        : { providerId: '', modelId: currentProviderConfig?.modelId ?? '' }
     try {
-      const runResult = await window.api.codeCli.run(
-        selectedCliTool,
-        rawModelId,
+      setLaunching(true)
+      const runResult = await ipcApi.request('code_cli.run', {
+        cliTool: selectedCliTool,
+        model: rawModelId,
         providerId,
         directory,
-        {},
-        { terminal: selectedTerminal ?? undefined }
-      )
+        env: {},
+        options: { terminal: selectedTerminal ?? undefined }
+      })
       if (!runResult.success) {
         window.toast.error(runResult.message)
+      } else {
+        setLaunchOpen(false)
       }
     } catch (err) {
       logger.error('Failed to launch CLI tool:', err as Error)
       window.toast.error(t('code.launch.error'))
+    } finally {
+      setLaunching(false)
     }
-  }, [currentProviderConfig, directory, selectedCliTool, selectedTerminal, t])
+  }, [enabledProvider, currentProviderConfig, directory, selectedCliTool, selectedTerminal, t])
 
   const activeTool = useMemo<CliToolOption | undefined>(
     () => CLI_TOOLS.find((ti) => ti.value === selectedCliTool),
     [selectedCliTool]
   )
+  const isProviderlessTool = PROVIDERLESS_CLI_TOOLS.has(selectedCliTool)
+  const canLaunch = isProviderlessTool || !!enabledProvider
   const activeMeta = activeTool ? toMeta(activeTool) : null
   const statuses = useCliVersionStatuses(CLI_TOOL_IDS)
   const versionStatus: VersionStatus = statuses[selectedCliTool] ?? { installed: false, canUpgrade: false }
@@ -223,11 +248,7 @@ const CodeCliPage: FC = () => {
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden text-foreground">
-      <Navbar>
-        <NavbarCenter className="border-r-0">{t('code.title')}</NavbarCenter>
-      </Navbar>
-
-      <div className="flex min-h-0 flex-1 border-border/15 border-t">
+      <div className="flex min-h-0 flex-1">
         {/* Left sidebar: CLI tools list */}
         <CodeCliSidebar
           tools={CLI_TOOLS}
@@ -244,65 +265,49 @@ const CodeCliPage: FC = () => {
           {activeMeta ? (
             <div className="scrollbar-thin flex-1 overflow-y-auto px-6 py-5">
               <div className="mx-auto max-w-2xl space-y-5">
-                {/* Header: tool name + launch button */}
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-foreground text-sm">{activeMeta.label}</span>
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() => void handleLaunch()}
-                    disabled={!currentProviderConfig || !directory}
-                    className="gap-1 text-xs">
-                    <Play size={12} />
-                    {t('code.launch.label')}
-                  </Button>
-                </div>
-
                 {/* Version status card */}
                 {cliPreset && (
                   <VersionStatusCard
                     toolId={selectedCliTool}
                     toolName={activeMeta.label}
-                    toolDescription={t(cliPreset.descriptionKey)}
-                    repoUrl={cliPreset.repoUrl}
-                    homepage={cliPreset.homepage}
                     status={versionStatus}
                     onInstall={() => void install(selectedCliTool)}
                     onUpgrade={() => void upgrade(selectedCliTool)}
-                    onRemove={() => void remove(selectedCliTool)}
+                    onRemove={() => setRemoveTarget(selectedCliTool)}
+                    onLaunch={() => setLaunchOpen(true)}
+                    canLaunch={canLaunch}
+                    launching={launching}
                     isInstalling={installingTools.has(selectedCliTool)}
                     isUpgrading={upgradingTools.has(selectedCliTool)}
                   />
                 )}
 
                 {/* Enabled-provider list */}
-                <ConfigList
-                  providers={supportedProviders}
-                  providerConfigs={providerConfigs}
-                  currentProviderId={currentProviderId}
-                  resolveMeta={resolveProviderMeta}
-                  onConfigure={openConfigurePanel}
-                  onToggleCurrent={handleToggleCurrent}
-                  onReorder={handleReorder}
-                />
+                {isProviderlessTool ? (
+                  <div className="rounded-lg border border-border/40 bg-accent/10 px-4 py-3 text-xs text-muted-foreground">
+                    {t('code.providerless_hint')}
+                  </div>
+                ) : (
+                  <>
+                    <ConfigList
+                      providers={supportedProviders}
+                      providerConfigs={providerConfigs}
+                      currentProviderId={currentProviderId}
+                      resolveMeta={resolveProviderMeta}
+                      onConfigure={openConfigurePanel}
+                      onToggleCurrent={handleToggleCurrent}
+                      onReorder={handleReorder}
+                    />
 
-                {/* Footer link: add / manage providers in Settings */}
-                <button
-                  type="button"
-                  onClick={() => void navigate({ to: '/settings/provider' })}
-                  className="mx-auto flex items-center gap-1.5 pt-1 text-[11px] text-muted-foreground/60 transition-colors hover:text-primary">
-                  <Plus size={11} />
-                  {t('code.add_provider_hint')}
-                </button>
-
-                {/* Working directory + terminal (per CLI tool, shared across providers) */}
-                <CurrentConfigPanel
-                  directory={directory}
-                  terminals={availableTerminals}
-                  selectedTerminal={selectedTerminal}
-                  onSelectFolder={() => void handleSelectFolder()}
-                  onSelectTerminal={(terminal) => void setTerminal(terminal)}
-                />
+                    <button
+                      type="button"
+                      onClick={() => void navigate({ to: '/settings/provider' })}
+                      className="flex w-full items-center justify-center gap-1 rounded-xl border border-border/50 border-dashed py-2 text-xs text-muted-foreground/55 transition-colors hover:border-border hover:text-foreground">
+                      {t('code.add_provider_hint')}
+                      <ExternalLink size={10} />
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           ) : (
@@ -312,6 +317,30 @@ const CodeCliPage: FC = () => {
           )}
         </div>
       </div>
+
+      <LaunchDialog
+        open={launchOpen}
+        onClose={() => setLaunchOpen(false)}
+        toolName={activeMeta?.label ?? ''}
+        directory={directory}
+        terminals={availableTerminals}
+        selectedTerminal={selectedTerminal}
+        onSelectFolder={() => void handleSelectFolder()}
+        onSelectTerminal={(terminal) => void setTerminal(terminal)}
+        onLaunch={() => void handleLaunch()}
+        launching={launching}
+      />
+
+      <ConfirmDialog
+        open={!!removeTarget}
+        onOpenChange={(open) => !open && setRemoveTarget(null)}
+        title={t('settings.plugins.removeConfirmTitle')}
+        description={t('settings.plugins.removeConfirmMessage', { name: activeMeta?.label ?? '' })}
+        destructive
+        onConfirm={async () => {
+          if (removeTarget) await remove(removeTarget)
+        }}
+      />
 
       {/* Configure dialog */}
       {editingProvider && (

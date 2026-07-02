@@ -23,11 +23,12 @@ function getToolState(toolId: CodeCliId, configs: CodeCliConfigs): CodeCliToolSt
 export const useCodeCli = () => {
   const [configs, setConfigs] = usePreference(PREFERENCE_KEY)
 
-  // Mirror configs in a ref so sequential writes chain correctly: usePreference's
-  // setter takes a plain value, so two awaited writes back-to-back would otherwise
-  // have the second read a stale snapshot and clobber the first.
+  // Mirror configs in a ref so sequential writes read the freshest value.
+  // A write queue serialises patchToolState calls so two concurrent writes
+  // never clobber each other (setConfigs takes a plain value, not an updater).
   const configsRef = useRef(configs)
   configsRef.current = configs
+  const writeQueueRef = useRef<Promise<void>>(Promise.resolve())
 
   const [selectedCliTool, setSelectedCliTool] = useState<CodeCli>(DEFAULT_TOOL)
 
@@ -47,12 +48,16 @@ export const useCodeCli = () => {
   const providerConfigs = currentToolState.providers
 
   const patchToolState = useCallback(
-    async (toolId: CodeCliId, patch: (prev: CodeCliToolState) => CodeCliToolState) => {
-      const latest = configsRef.current
-      const prev = getToolState(toolId, latest)
-      const next = { ...latest, [toolId]: patch(prev) }
-      configsRef.current = next
-      await setConfigs(next)
+    (toolId: CodeCliId, patch: (prev: CodeCliToolState) => CodeCliToolState): Promise<void> => {
+      const task = writeQueueRef.current.then(async () => {
+        const latest = configsRef.current
+        const prev = getToolState(toolId, latest)
+        const next = { ...latest, [toolId]: patch(prev) }
+        configsRef.current = next
+        await setConfigs(next)
+      })
+      writeQueueRef.current = task.catch(() => {})
+      return task
     },
     [setConfigs]
   )
@@ -107,7 +112,16 @@ export const useCodeCli = () => {
   const reorderProviders = useCallback(
     async (orderedIds: string[]) => {
       const toolId = selectedCliTool as CodeCliId
-      await patchToolState(toolId, (prev) => ({ ...prev, providerOrder: orderedIds }))
+      await patchToolState(toolId, (prev) => {
+        const nextProviders = { ...prev.providers }
+        for (let i = 0; i < orderedIds.length; i++) {
+          const id = orderedIds[i]
+          if (nextProviders[id]) {
+            nextProviders[id] = { ...nextProviders[id], sortIndex: i }
+          }
+        }
+        return { ...prev, providers: nextProviders }
+      })
     },
     [patchToolState, selectedCliTool]
   )

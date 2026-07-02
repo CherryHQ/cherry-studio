@@ -335,13 +335,6 @@ export enum IpcChannel {
   // ExternalApps
   ExternalApps_DetectInstalled = 'external-apps:detect-installed',
 
-  // CodeCli
-  CodeCli_Run = 'code-cli:run',
-  CodeCli_GetAvailableTerminals = 'code-cli:get-available-terminals',
-  CodeCli_SetCustomTerminalPath = 'code-cli:set-custom-terminal-path',
-  CodeCli_GetCustomTerminalPath = 'code-cli:get-custom-terminal-path',
-  CodeCli_RemoveCustomTerminalPath = 'code-cli:remove-custom-terminal-path',
-
   // OVMS
   Ovms_IsSupported = 'ovms:is-supported',
   Ovms_AddModel = 'ovms:add-model',

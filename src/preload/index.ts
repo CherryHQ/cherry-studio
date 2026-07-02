@@ -13,8 +13,6 @@ import type { SettingsPath } from '@shared/data/types/settingsPath'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ApiGatewayStatusResult } from '@shared/types/apiGateway'
 import type { S3Config, WebDavConfig } from '@shared/types/backup'
-import type { TerminalConfig } from '@shared/types/codeCli'
-import type { CodeToolsRunResult } from '@shared/types/codeTools'
 import type { MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/types/command'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
 import type { FilePath, PhysicalFileMetadata } from '@shared/types/file/common'
@@ -582,25 +580,6 @@ const api = {
   trace: {
     getData: (topicId: string, traceId: string) => ipcRenderer.invoke(IpcChannel.TRACE_GET_DATA, topicId, traceId),
     cleanLocalData: () => ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_LOCAL_DATA)
-  },
-  codeCli: {
-    run: (
-      cliTool: string,
-      model: string,
-      providerId: string,
-      directory: string,
-      env: Record<string, string>,
-      options?: { autoUpdateToLatest?: boolean; terminal?: string }
-    ): Promise<CodeToolsRunResult> =>
-      ipcRenderer.invoke(IpcChannel.CodeCli_Run, cliTool, model, providerId, directory, env, options),
-    getAvailableTerminals: (): Promise<TerminalConfig[]> =>
-      ipcRenderer.invoke(IpcChannel.CodeCli_GetAvailableTerminals),
-    setCustomTerminalPath: (terminalId: string, path: string): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.CodeCli_SetCustomTerminalPath, terminalId, path),
-    getCustomTerminalPath: (terminalId: string): Promise<string | undefined> =>
-      ipcRenderer.invoke(IpcChannel.CodeCli_GetCustomTerminalPath, terminalId),
-    removeCustomTerminalPath: (terminalId: string): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.CodeCli_RemoveCustomTerminalPath, terminalId)
   },
   cherryai: {
     generateSignature: (params: { method: string; path: string; query: string; body: Record<string, any> }) =>

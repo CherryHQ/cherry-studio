@@ -17,7 +17,7 @@ export const CodeCliIdSchema = z.enum(CODE_CLI_IDS)
 export const CliProviderConfigSchema = z.object({
   modelId: z.string(),
   config: z.record(z.string(), z.unknown()).optional(),
-  directory: z.string().optional(),
+  sortIndex: z.number().optional(),
   createdAt: z.number().optional()
 })
 
@@ -25,8 +25,8 @@ export const CliProviderConfigSchema = z.object({
 export const CodeCliToolStateSchema = z.object({
   providers: z.record(z.string(), CliProviderConfigSchema),
   current: z.string().nullable(),
-  providerOrder: z.array(z.string()).optional(),
   terminal: z.string().optional(),
+  directory: z.string().optional(),
   directories: z.array(z.string()).optional()
 })
 

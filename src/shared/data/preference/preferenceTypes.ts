@@ -248,17 +248,24 @@ export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
   'openai-codex',
   'opencode',
   'openclaw',
-  'hermes'
+  'hermes',
+  'gemini-cli',
+  'qwen-code',
+  'kimi-code',
+  'qoder-cli',
+  'github-copilot-cli'
 ]
 
 export type CodeCliId = (typeof CODE_CLI_IDS)[number]
 
-/** A CLI provider config, keyed by providerId in `CodeCliToolState.providers`. */
+/** A per-tool provider entry, keyed by providerId in `CodeCliToolState.providers`. */
 export interface CliProviderConfig {
   /** Unique model id ("providerId::modelId"). */
   modelId: string
   /** User-edited tool-specific config blob. */
   config?: Record<string, unknown>
+  /** Sort order in the provider list (lower = first). */
+  sortIndex?: number
   createdAt?: number
 }
 
@@ -267,8 +274,6 @@ export interface CodeCliToolState {
   providers: Record<string, CliProviderConfig>
   /** Currently enabled providerId (single-select). */
   current: string | null
-  /** User-ordered provider ids for the list (drag-to-reorder). */
-  providerOrder?: string[]
   /** Terminal app — matches `terminalApps` values. */
   terminal?: string
   /** Working directory for this CLI tool (shared across all its providers). */

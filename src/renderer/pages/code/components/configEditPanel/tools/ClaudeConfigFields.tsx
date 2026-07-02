@@ -1,6 +1,4 @@
-import { Input, Popover, PopoverContent, PopoverTrigger, Switch } from '@cherrystudio/ui'
-import { cn } from '@renderer/utils/style'
-import { ChevronDown } from 'lucide-react'
+import { Input, SelectDropdown, Switch } from '@cherrystudio/ui'
 import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -120,58 +118,8 @@ function setOneMMarker(value: string, enabled: boolean): string {
   return enabled ? `${base} ${ONE_M_MARKER}` : base
 }
 
-function ClaudeEffortPopover({
-  value,
-  placeholder,
-  onChange
-}: {
-  value: string
-  placeholder: string
-  onChange: (v: string) => void
-}) {
-  const [open, setOpen] = useState(false)
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            'flex h-9 w-full min-w-0 items-center justify-between rounded-md border bg-transparent px-3 text-sm outline-none',
-            'border-input focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
-            'font-normal hover:bg-muted/30 transition-colors',
-            'data-[state=open]:border-ring data-[state=open]:ring-ring/50 data-[state=open]:ring-[3px]'
-          )}>
-          <span className={cn('truncate', !value && 'text-muted-foreground')}>{value || placeholder}</span>
-          <ChevronDown className="ml-1 size-3.5 shrink-0 text-muted-foreground" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        className="p-1"
-        style={{ width: 'var(--radix-popover-trigger-width)' }}
-        align="start"
-        side="bottom"
-        sideOffset={4}>
-        {(['auto', 'low', 'medium', 'high', 'xhigh', 'max', 'ultracode'] as const).map((opt) => (
-          <button
-            key={opt}
-            type="button"
-            className={cn(
-              'w-full cursor-pointer rounded-sm px-2 py-1.5 text-sm text-left transition-colors',
-              'hover:bg-accent hover:text-accent-foreground',
-              value === opt && 'bg-primary/10 text-primary'
-            )}
-            onClick={() => {
-              onChange(opt)
-              setOpen(false)
-            }}>
-            {opt}
-          </button>
-        ))}
-      </PopoverContent>
-    </Popover>
-  )
-}
+const EFFORT_OPTIONS = ['auto', 'low', 'medium', 'high', 'xhigh', 'max', 'ultracode'] as const
+const EFFORT_ITEMS = EFFORT_OPTIONS.map((id) => ({ id }))
 
 export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({ config, onChange }) => {
   const { t } = useTranslation()
@@ -280,9 +228,7 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({ config, onChan
                   {field.supports1M && (
                     <Switch
                       checked={uses1M}
-                      onCheckedChange={(checked) =>
-                        updateModelRole(field.roleKey, setOneMMarker(base, checked === true))
-                      }
+                      onCheckedChange={(checked) => updateModelRole(field.roleKey, setOneMMarker(base, checked))}
                     />
                   )}
                 </div>
@@ -308,10 +254,16 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({ config, onChan
             <span className="mb-1 block text-[10px] text-muted-foreground/60">
               {t('code.adv.claude.effort_level_hint')}
             </span>
-            <ClaudeEffortPopover
-              value={env['CLAUDE_CODE_EFFORT_LEVEL'] ?? ''}
+            <SelectDropdown
+              // FIXME: SelectDropdown list width drifts — packages/ui tailwind-merge@^2.5.5
+              // can't merge Tailwind v4 `w-(--radix-popover-trigger-width)`, so PopoverContent
+              // keeps both it and the base `w-72`. Fix: bump packages/ui tailwind-merge to ^3.3.1.
+              items={EFFORT_ITEMS}
+              selectedId={env['CLAUDE_CODE_EFFORT_LEVEL'] || undefined}
+              onSelect={(v) => updateEnvField('CLAUDE_CODE_EFFORT_LEVEL', v)}
               placeholder={t('code.adv.select_placeholder')}
-              onChange={(v) => updateEnvField('CLAUDE_CODE_EFFORT_LEVEL', v)}
+              renderSelected={(item) => item.id}
+              renderItem={(item) => item.id}
             />
           </label>
         </div>

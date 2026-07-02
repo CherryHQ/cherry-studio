@@ -1,13 +1,32 @@
-import { ClaudeCode, Nousresearch, OpenaiCodex, Openclaw, OpenCode } from '@cherrystudio/ui/icons'
+import {
+  ClaudeCode,
+  GeminiCli,
+  GithubCopilotCli,
+  KimiCli as KimiCode,
+  Nousresearch,
+  OpenaiCodex,
+  Openclaw,
+  OpenCode,
+  QoderCli,
+  QwenCode
+} from '@cherrystudio/ui/icons'
 import { CodeCli } from '@shared/types/codeCli'
-import type { FC } from 'react'
+import type { SVGProps } from 'react'
+import type { ComponentType, FC } from 'react'
 
-const CLI_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+type SvgIcon = ComponentType<SVGProps<SVGSVGElement>>
+
+const CLI_ICONS: Record<string, SvgIcon> = {
   [CodeCli.CLAUDE_CODE]: ClaudeCode,
   [CodeCli.OPENAI_CODEX]: OpenaiCodex,
   [CodeCli.OPEN_CODE]: OpenCode,
   [CodeCli.OPENCLAW]: Openclaw,
-  [CodeCli.HERMES]: Nousresearch
+  [CodeCli.HERMES]: Nousresearch,
+  [CodeCli.GEMINI_CLI]: GeminiCli,
+  [CodeCli.QWEN_CODE]: QwenCode,
+  [CodeCli.KIMI_CODE]: KimiCode,
+  [CodeCli.QODER_CLI]: QoderCli,
+  [CodeCli.GITHUB_COPILOT_CLI]: GithubCopilotCli
 }
 
 interface CLIIconProps {
@@ -27,5 +46,6 @@ export const CLIIcon: FC<CLIIconProps> = ({ id, size = 28, className }) => {
       </div>
     )
   }
-  return <Icon size={size} className={className} />
+
+  return <Icon width={size} height={size} className={className} />
 }

@@ -2039,6 +2039,7 @@
       "label": "启动",
       "launched": "已启动",
       "success": "启动成功",
+      "title": "启动 {{tool}}",
       "validation_error": "请完成所有必填项：CLI 工具、模型和工作目录"
     },
     "launching": "启动中...",
@@ -2053,6 +2054,7 @@
     "no_providers_title": "没有已启用的服务商",
     "no_tools": "暂无工具",
     "not_installed": "未安装",
+    "providerless_hint": "该工具通过自带的登录流程进行认证 — 只需选择工作目录即可启动。请先运行一次该工具完成登录。",
     "providers": "服务商",
     "raw_config": "原始配置 (JSON)",
     "search_cli_placeholder": "搜索 CLI…",
@@ -2066,12 +2068,18 @@
     "title": "代码工具",
     "tool_description": {
       "claude_code": "Anthropic 官方 CLI 编程助手",
+      "gemini_cli": "Google 官方 Gemini CLI 编程助手",
+      "github_copilot_cli": "GitHub Copilot CLI 编程助手",
       "hermes": "Nous Research 智能编程 CLI",
+      "kimi_cli": "Moonshot Kimi CLI 编程助手",
       "openai_codex": "OpenAI 官方代码生成 CLI",
       "openclaw": "多通道个人 AI 助手，支持 Gateway 常驻服务",
-      "opencode": "开源社区的多模型代码 Agent"
+      "opencode": "开源社区的多模型代码 Agent",
+      "qoder_cli": "Qoder CLI 编程助手",
+      "qwen_code": "阿里巴巴 Qwen Code CLI 编程助手"
     },
     "tool_parameters": "工具参数",
+    "up_to_date": "已是最新",
     "update_options": "更新选项",
     "upgrade": "升级",
     "upgrade_error": "升级失败",

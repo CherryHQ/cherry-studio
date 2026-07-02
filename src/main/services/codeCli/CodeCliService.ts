@@ -28,7 +28,6 @@ import { getBinaryExecutionEnv, getBinaryPath, isBinaryExists } from '@main/util
 import { removeEnvProxy } from '@main/utils/shell-env'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { IpcChannel } from '@shared/IpcChannel'
 import { CodeCli, TerminalApp, type TerminalConfig, type TerminalConfigWithCommand } from '@shared/types/codeCli'
 import type { CodeToolsRunResult } from '@shared/types/codeTools'
 import { spawn } from 'child_process'
@@ -69,35 +68,9 @@ export class CodeCliService extends BaseService {
   private readonly TERMINALS_CACHE_DURATION = 1000 * 60 * 5 // 5 minutes cache for terminals
 
   protected async onInit(): Promise<void> {
-    this.registerIpcHandlers()
     if (isMac || isWin) {
       void this.preloadTerminals()
     }
-  }
-
-  private registerIpcHandlers(): void {
-    this.ipcHandle(
-      IpcChannel.CodeCli_Run,
-      (
-        event,
-        cliTool: string,
-        model: string,
-        providerId: string,
-        directory: string,
-        env: Record<string, string>,
-        options?: { autoUpdateToLatest?: boolean; terminal?: string }
-      ) => this.run(event, cliTool, model, providerId, directory, env, options)
-    )
-    this.ipcHandle(IpcChannel.CodeCli_GetAvailableTerminals, () => this.getAvailableTerminalsForPlatform())
-    this.ipcHandle(IpcChannel.CodeCli_SetCustomTerminalPath, (_, terminalId: string, path: string) =>
-      this.setCustomTerminalPath(terminalId, path)
-    )
-    this.ipcHandle(IpcChannel.CodeCli_GetCustomTerminalPath, (_, terminalId: string) =>
-      this.getCustomTerminalPath(terminalId)
-    )
-    this.ipcHandle(IpcChannel.CodeCli_RemoveCustomTerminalPath, (_, terminalId: string) =>
-      this.removeCustomTerminalPath(terminalId)
-    )
   }
 
   protected async onStop(): Promise<void> {
@@ -132,6 +105,16 @@ export class CodeCliService extends BaseService {
         return 'openclaw'
       case CodeCli.HERMES:
         return 'hermes-agent'
+      case CodeCli.GEMINI_CLI:
+        return '@google/gemini-cli'
+      case CodeCli.QWEN_CODE:
+        return '@qwen-code/qwen-code'
+      case CodeCli.KIMI_CODE:
+        return 'kimi-code'
+      case CodeCli.QODER_CLI:
+        return '@qodercn-ai/qoderclicn'
+      case CodeCli.GITHUB_COPILOT_CLI:
+        return '@github/copilot'
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
     }
@@ -149,6 +132,16 @@ export class CodeCliService extends BaseService {
         return { name: 'openclaw', tool: 'npm:openclaw' }
       case CodeCli.HERMES:
         return { name: 'hermes', tool: 'pipx:hermes-agent' }
+      case CodeCli.GEMINI_CLI:
+        return { name: 'gemini', tool: 'npm:@google/gemini-cli' }
+      case CodeCli.QWEN_CODE:
+        return { name: 'qwen', tool: 'npm:@qwen-code/qwen-code' }
+      case CodeCli.KIMI_CODE:
+        return { name: 'kimi', tool: 'npm:kimi-code' }
+      case CodeCli.QODER_CLI:
+        return { name: 'qoderclicn', tool: 'npm:@qodercn-ai/qoderclicn' }
+      case CodeCli.GITHUB_COPILOT_CLI:
+        return { name: 'copilot', tool: 'npm:@github/copilot' }
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
     }
@@ -166,6 +159,16 @@ export class CodeCliService extends BaseService {
         return 'openclaw'
       case CodeCli.HERMES:
         return 'hermes'
+      case CodeCli.GEMINI_CLI:
+        return 'gemini'
+      case CodeCli.QWEN_CODE:
+        return 'qwen'
+      case CodeCli.KIMI_CODE:
+        return 'kimi'
+      case CodeCli.QODER_CLI:
+        return 'qoderclicn'
+      case CodeCli.GITHUB_COPILOT_CLI:
+        return 'copilot'
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
     }
@@ -637,7 +640,6 @@ export class CodeCliService extends BaseService {
   }
 
   async run(
-    _: Electron.IpcMainInvokeEvent,
     cliTool: string,
     model: string,
     providerId: string,
@@ -662,12 +664,15 @@ export class CodeCliService extends BaseService {
     }
 
     // hermes/openclaw only — claude-code/codex/opencode are injected from the renderer.
-    try {
-      await this.resolveAndApplyConfig(cliTool, model, providerId)
-    } catch (error) {
-      const message = `Failed to write ${cliTool} config: ${error instanceof Error ? error.message : String(error)}`
-      logger.error(message, error as Error)
-      return { success: false, message, command: '' }
+    // qoder and copilot start directly — no provider config writing needed.
+    if (cliTool === CodeCli.HERMES || cliTool === CodeCli.OPENCLAW) {
+      try {
+        await this.resolveAndApplyConfig(cliTool, model, providerId)
+      } catch (error) {
+        const message = `Failed to write ${cliTool} config: ${error instanceof Error ? error.message : String(error)}`
+        logger.error(message, error as Error)
+        return { success: false, message, command: '' }
+      }
     }
 
     const executableName = await this.getCliExecutableName(cliTool)

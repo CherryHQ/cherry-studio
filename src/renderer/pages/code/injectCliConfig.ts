@@ -4,7 +4,8 @@ import type { Model } from '@shared/data/types/model'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
-import { parse as parseJsonc } from 'jsonc-parser'
+import { formatApiHost } from '@shared/utils/api'
+import { parse as parseJsonc, type ParseError } from 'jsonc-parser'
 import { parse as parseToml, stringify as stringifyToml } from 'smol-toml'
 
 const logger = loggerService.withContext('injectCliConfig')
@@ -13,7 +14,7 @@ const logger = loggerService.withContext('injectCliConfig')
  * Renderer-side native-config injection for the file-based CLI tools.
  *
  * Injection runs at the "enable config" trigger (see CodeCliPage); launch
- * (`window.api.codeCli.run`) is terminal-only. Hermes and OpenClaw are
+ * (`ipcApi.request('code_cli.run', …)`) is terminal-only. Hermes and OpenClaw are
  * injected in the main-process `run()` instead, so this function is a no-op
  * for them.
  *
@@ -26,6 +27,38 @@ const CODEX_CONFIG_PATH = '~/.codex/config.toml'
 const CODEX_RESPONSES_ENDPOINT = 'openai-responses'
 const CODEX_CHAT_ENDPOINT = 'openai-chat-completions'
 const OPENCODE_CONFIG_PATH = '~/.config/opencode/opencode.json'
+const GEMINI_ENV_PATH = '~/.gemini/.env'
+const GEMINI_SETTINGS_PATH = '~/.gemini/settings.json'
+const QWEN_CONFIG_PATH = '~/.qwen/settings.json'
+const KIMI_CONFIG_PATH = '~/.kimi-code/config.toml'
+
+/** aihubmix's Gemini endpoint lives at `/gemini`, not its preset's bare domain. */
+const GEMINI_AGGREGATOR_BASE_URLS: Record<string, string> = {
+  aihubmix: 'https://aihubmix.com/gemini'
+}
+
+/** File-based CLI tools injected here at "enable config" time. */
+const FILE_CONFIGURED_CLI_TOOLS: ReadonlySet<string> = new Set([
+  CodeCli.CLAUDE_CODE,
+  CodeCli.OPENAI_CODEX,
+  CodeCli.OPEN_CODE,
+  CodeCli.GEMINI_CLI,
+  CodeCli.QWEN_CODE,
+  CodeCli.KIMI_CODE
+])
+
+/** Resolve the Gemini base URL, honoring known aggregator overrides. */
+function resolveGeminiBaseUrl(provider: Provider): string {
+  return (
+    GEMINI_AGGREGATOR_BASE_URLS[provider.id] ?? provider.endpointConfigs?.['google-generate-content']?.baseUrl ?? ''
+  )
+}
+
+function resolveOpenAIBaseUrl(provider: Provider): string {
+  const responses = provider.endpointConfigs?.[CODEX_RESPONSES_ENDPOINT]?.baseUrl
+  const chat = provider.endpointConfigs?.[CODEX_CHAT_ENDPOINT]?.baseUrl
+  return formatApiHost(responses ?? chat)
+}
 
 /**
  * Top-level keys Cherry manages inside ~/.claude/settings.json. Cleared on
@@ -91,18 +124,39 @@ async function readExternal(absPath: string): Promise<string> {
   }
 }
 
-function parseTomlSafe(content: string): Record<string, any> {
-  if (!content) return {}
+/** Read + parse JSONC, throwing a contextual error on a malformed file so the
+ * caller surfaces a toast instead of silently overwriting the file with a
+ * merge-into-empty that wipes the user's config. */
+async function readValidatedJson(absPath: string, label: string): Promise<Record<string, any>> {
   try {
-    return parseToml(content) as Record<string, any>
-  } catch {
-    return {}
+    return parseJsonOrThrow(await readExternal(absPath))
+  } catch (err) {
+    throw new Error(`Failed to parse ${label} at ${absPath}: ${err instanceof Error ? err.message : String(err)}`)
   }
 }
 
-function parseJsonSafe(content: string): Record<string, any> {
+/** Read + parse TOML, throwing a contextual error on a malformed file (see
+ * `readValidatedJson`). */
+async function readValidatedToml(absPath: string, label: string): Promise<Record<string, any>> {
+  try {
+    return parseTomlOrThrow(await readExternal(absPath))
+  } catch (err) {
+    throw new Error(`Failed to parse ${label} at ${absPath}: ${err instanceof Error ? err.message : String(err)}`)
+  }
+}
+
+function parseTomlOrThrow(content: string): Record<string, any> {
   if (!content) return {}
-  const parsed = parseJsonc(content, undefined, { allowTrailingComma: true, disallowComments: false })
+  return parseToml(content) as Record<string, any>
+}
+
+function parseJsonOrThrow(content: string): Record<string, any> {
+  if (!content) return {}
+  const errors: ParseError[] = []
+  const parsed = parseJsonc(content, errors, { allowTrailingComma: true, disallowComments: false })
+  if (errors.length) {
+    throw new Error(`invalid JSONC (${errors.length} parse error(s))`)
+  }
   return parsed && typeof parsed === 'object' ? (parsed as Record<string, any>) : {}
 }
 
@@ -118,8 +172,23 @@ function firstApiKey(keys: ApiKeyEntry[] | undefined): string {
   return keys.find((k) => k.isEnabled)?.key ?? keys[0]?.key ?? ''
 }
 
-function resolveNpmPackage(providerType: string): string {
-  return providerType === 'anthropic' ? '@ai-sdk/anthropic' : '@ai-sdk/openai-compatible'
+interface OpenCodeNpmInfo {
+  npm: string
+  providerType: 'anthropic' | 'google' | 'openai' | 'openai-compatible'
+}
+
+function resolveOpenCodeNpmInfo(provider: Provider): OpenCodeNpmInfo {
+  if (provider.endpointConfigs?.['google-generate-content']?.baseUrl) {
+    return { npm: '@ai-sdk/google', providerType: 'google' }
+  }
+  if (provider.endpointConfigs?.['anthropic-messages']?.baseUrl) {
+    return { npm: '@ai-sdk/anthropic', providerType: 'anthropic' }
+  }
+  if (provider.endpointConfigs?.['openai-responses']?.baseUrl) {
+    return { npm: '@ai-sdk/openai', providerType: 'openai' }
+  }
+  // openai-chat-completions or any unrecognised → openai-compatible
+  return { npm: '@ai-sdk/openai-compatible', providerType: 'openai-compatible' }
 }
 
 /** Whether a model advertises reasoning-effort support (shapes opencode's
@@ -130,11 +199,11 @@ function modelSupportsReasoningEffort(modelRecord: Model | null): boolean {
 
 /** Apply the claude-code config body to ~/.claude/settings.json (merged). */
 async function writeClaude(
+  existing: Record<string, any>,
   userBlob: Record<string, any>,
   resolved: { apiKey: string; baseUrl: string; model: string }
 ): Promise<void> {
   const absPath = await resolveAbs(CLAUDE_SETTINGS_PATH)
-  const existing = parseJsonSafe(await readExternal(absPath))
 
   // Inject env into a copy of the user blob, then deep-merge into existing,
   // clearing managed ANTHROPIC_* keys from the on-disk env first so a config
@@ -191,7 +260,6 @@ async function writeCodex(
     baseUrl: string
     providerName: string
     model: string
-    wireApi: 'responses' | 'chat_completions'
   },
   options: CodexConfigOptions = {}
 ): Promise<void> {
@@ -229,7 +297,7 @@ async function writeCodex(
         // `name = "OpenAI"` opts into Codex's remote (server-side) compaction.
         name: options.remoteCompaction ? 'OpenAI' : providerName,
         base_url: baseUrl.replace(/\/$/, ''),
-        wire_api: resolved.wireApi,
+        wire_api: 'responses',
         requires_openai_auth: true
       }
     }
@@ -273,8 +341,20 @@ async function writeCodex(
 
   const absPath = await resolveAbs(CODEX_CONFIG_PATH)
   const authAbsPath = await resolveAbs(CODEX_AUTH_PATH)
+  // Two files: write config first, then auth. If the auth write fails, roll
+  // config back to its pre-injection text so we never leave a config.toml
+  // pointing at a provider whose auth.json wasn't updated.
   await window.api.file.write(absPath, stringifyToml(merged))
-  await window.api.file.write(authAbsPath, `${JSON.stringify(mergedAuth, null, 2)}\n`)
+  try {
+    await window.api.file.write(authAbsPath, `${JSON.stringify(mergedAuth, null, 2)}\n`)
+  } catch (err) {
+    await window.api.file
+      .write(absPath, stringifyToml(existingToml))
+      .catch((rollbackErr) =>
+        logger.error('Failed to roll back Codex config.toml after auth.json write failure:', rollbackErr as Error)
+      )
+    throw err
+  }
   logger.info(`Applied Codex config to ${absPath} + ${authAbsPath}`)
 }
 
@@ -288,37 +368,59 @@ interface OpenCodeModelOptions {
   maxTurns?: number
 }
 
+function buildOpenCodeModelOptions(
+  modelConfig: Record<string, any>,
+  npmInfo: OpenCodeNpmInfo,
+  options: OpenCodeModelOptions
+): void {
+  const { providerType } = npmInfo
+
+  if (providerType === 'anthropic') {
+    if (options.reasoning || options.thinkingBudgetTokens) {
+      modelConfig.reasoning = true
+      const budgetTokens = options.thinkingBudgetTokens ?? 10000
+      modelConfig.options = { thinking: { budgetTokens, type: 'enabled' } }
+    }
+    return
+  }
+
+  if (providerType === 'google') {
+    if (options.reasoning) {
+      modelConfig.reasoning = true
+      modelConfig.options = {
+        thinkingConfig: { includeThoughts: true, thinkingBudget: options.thinkingBudgetTokens ?? -1 }
+      }
+    }
+    return
+  }
+
+  // openai / openai-compatible: reasoning-effort based
+  if (options.reasoning && options.supportsReasoningEffort) {
+    modelConfig.reasoning = true
+    modelConfig.options = { reasoningEffort: options.reasoningEffort || 'medium' }
+  } else if (options.reasoningEffort) {
+    // Reasoning effort can be set even without the reasoning toggle.
+    modelConfig.options = { reasoningEffort: options.reasoningEffort }
+  }
+}
+
 /** Apply the opencode config to ~/.config/opencode/opencode.json (merged). */
 async function writeOpenCode(
   existing: Record<string, any>,
   provider: Provider,
-  resolved: { apiKey: string; baseUrl: string; model: string; isAnthropic: boolean },
+  npmInfo: OpenCodeNpmInfo,
+  resolved: { apiKey: string; baseUrl: string; model: string },
   options: OpenCodeModelOptions
 ): Promise<void> {
-  const { apiKey, baseUrl, model, isAnthropic } = resolved
-  const providerType = isAnthropic ? 'anthropic' : 'openai'
+  const { apiKey, baseUrl, model } = resolved
   const providerName = sanitizeProviderName(provider.name, provider.id)
 
   const modelConfig: Record<string, any> = { name: model }
-  if (options.reasoning) {
-    modelConfig.reasoning = true
-    if (isAnthropic) {
-      const budgetTokens = options.thinkingBudgetTokens ?? 10000
-      modelConfig.options = { thinking: { budgetTokens, type: 'enabled' } }
-    } else if (options.supportsReasoningEffort) {
-      modelConfig.options = { reasoningEffort: options.reasoningEffort || 'medium' }
-    }
-  } else if (!isAnthropic && options.reasoningEffort) {
-    // Reasoning effort can be set even without the reasoning toggle.
-    modelConfig.options = { reasoningEffort: options.reasoningEffort }
-  } else if (isAnthropic && options.thinkingBudgetTokens) {
-    modelConfig.reasoning = true
-    modelConfig.options = { thinking: { budgetTokens: options.thinkingBudgetTokens, type: 'enabled' } }
-  }
+  buildOpenCodeModelOptions(modelConfig, npmInfo, options)
 
   const providerKey = `${CHERRY_PROVIDER_PREFIX}${providerName}`
   const cherryProvider = {
-    npm: resolveNpmPackage(providerType),
+    npm: npmInfo.npm,
     name: providerKey,
     options: { apiKey, baseURL: baseUrl },
     models: { [model]: modelConfig }
@@ -327,7 +429,7 @@ async function writeOpenCode(
   const preservedProviders = Object.fromEntries(
     Object.entries(existingProviders).filter(([key]) => !key.startsWith(CHERRY_PROVIDER_PREFIX))
   )
-  const merged = {
+  const merged: Record<string, any> = {
     $schema: OPENCODE_SCHEMA,
     ...existing,
     provider: { ...preservedProviders, [providerKey]: cherryProvider }
@@ -346,11 +448,133 @@ async function writeOpenCode(
   logger.info(`Applied OpenCode config to ${absPath}`)
 }
 
+/** Gemini env keys Cherry manages inside ~/.gemini/.env (cleared on switch). */
+const GEMINI_MANAGED_ENV_KEYS = ['GEMINI_API_KEY', 'GOOGLE_GEMINI_BASE_URL'] as const
+
+/** Parse a dotenv file into an ordered key→value map, preserving entry order. */
+function parseDotenv(content: string): Map<string, string> {
+  const out = new Map<string, string>()
+  for (const raw of content.split(/\r?\n/)) {
+    const line = raw.trim()
+    if (!line || line.startsWith('#')) continue
+    const eq = line.indexOf('=')
+    if (eq === -1) continue
+    const key = line.slice(0, eq).trim()
+    let value = line.slice(eq + 1).trim()
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1)
+    }
+    out.set(key, value)
+  }
+  return out
+}
+
+/** Apply gemini-cli credentials to ~/.gemini/.env + model to settings.json. */
+async function writeGemini(
+  envMap: Map<string, string>,
+  settings: Record<string, any>,
+  resolved: { apiKey: string; baseUrl: string; model: string }
+): Promise<void> {
+  const envAbsPath = await resolveAbs(GEMINI_ENV_PATH)
+  for (const key of GEMINI_MANAGED_ENV_KEYS) envMap.delete(key)
+  if (resolved.apiKey) envMap.set('GEMINI_API_KEY', resolved.apiKey)
+  if (resolved.baseUrl) envMap.set('GOOGLE_GEMINI_BASE_URL', resolved.baseUrl)
+  const envBody = `${[...envMap.entries()].map(([k, v]) => `${k}=${v}`).join('\n')}\n`
+  await window.api.file.write(envAbsPath, envBody)
+
+  const settingsAbsPath = await resolveAbs(GEMINI_SETTINGS_PATH)
+  settings.model = {
+    ...(settings.model && typeof settings.model === 'object' ? settings.model : {}),
+    name: resolved.model
+  }
+  await window.api.file.write(settingsAbsPath, `${JSON.stringify(settings, null, 2)}\n`)
+  logger.info(`Applied Gemini CLI config to ${envAbsPath} + ${settingsAbsPath}`)
+}
+
+/** Prefix marking Qwen env keys / Kimi tables as Cherry-managed. */
+const CHERRY_PREFIX = 'cherry-'
+
+/** Apply qwen-code config to ~/.qwen/settings.json (merged).
+ *
+ * Qwen Code keys models under a protocol bucket (`modelProviders.openai`),
+ * not a provider name. Cherry marks its entries with a `CHERRY_*` envKey so a
+ * config switch strips the previous config without touching user models. */
+async function writeQwen(
+  existing: Record<string, any>,
+  resolved: { apiKey: string; baseUrl: string; model: string; modelLabel: string }
+): Promise<void> {
+  const envKey = 'CHERRY_QWEN_API_KEY'
+  const openaiBucket: Record<string, any> =
+    existing.modelProviders?.openai && typeof existing.modelProviders.openai === 'object'
+      ? { ...(existing.modelProviders.openai as Record<string, any>) }
+      : { protocol: 'openai' }
+  if (!openaiBucket.protocol) openaiBucket.protocol = 'openai'
+  const existingModels = Array.isArray(openaiBucket.models) ? [...openaiBucket.models] : []
+  const userModels = existingModels.filter(
+    (m) => !(m && typeof m === 'object' && typeof m.envKey === 'string' && m.envKey.startsWith('CHERRY_'))
+  )
+  userModels.push({ id: resolved.model, name: resolved.modelLabel, baseUrl: resolved.baseUrl, envKey })
+  openaiBucket.models = userModels
+
+  const existingEnv =
+    existing.env && typeof existing.env === 'object' ? { ...(existing.env as Record<string, any>) } : {}
+  for (const k of Object.keys(existingEnv)) {
+    if (k.startsWith('CHERRY_')) delete existingEnv[k]
+  }
+  existingEnv[envKey] = resolved.apiKey
+
+  const merged = {
+    ...existing,
+    modelProviders: { ...existing.modelProviders, openai: openaiBucket },
+    env: existingEnv,
+    security: {
+      ...existing.security,
+      auth: { ...existing.security?.auth, selectedType: 'openai' }
+    },
+    model: { name: resolved.model }
+  }
+
+  const absPath = await resolveAbs(QWEN_CONFIG_PATH)
+  await window.api.file.write(absPath, `${JSON.stringify(merged, null, 2)}\n`)
+  logger.info(`Applied Qwen Code config to ${absPath}`)
+}
+
+/** Apply kimi-code config to ~/.kimi-code/config.toml (merged).
+ *
+ * Cherry owns one provider+model pair under `cherry-<provider>` tables; a
+ * switch strips any prior `cherry-*` providers/models before writing. */
+async function writeKimi(
+  existing: Record<string, any>,
+  resolved: { apiKey: string; baseUrl: string; model: string; modelKey: string }
+): Promise<void> {
+  const providerTable =
+    existing.providers && typeof existing.providers === 'object'
+      ? { ...(existing.providers as Record<string, any>) }
+      : {}
+  for (const k of Object.keys(providerTable)) {
+    if (k.startsWith(CHERRY_PREFIX)) delete providerTable[k]
+  }
+  providerTable[resolved.modelKey] = { type: 'openai', base_url: resolved.baseUrl, api_key: resolved.apiKey }
+
+  const modelsTable =
+    existing.models && typeof existing.models === 'object' ? { ...(existing.models as Record<string, any>) } : {}
+  for (const k of Object.keys(modelsTable)) {
+    if (k.startsWith(CHERRY_PREFIX)) delete modelsTable[k]
+  }
+  modelsTable[resolved.modelKey] = { provider: resolved.modelKey, model: resolved.model }
+
+  const merged = { ...existing, default_model: resolved.modelKey, providers: providerTable, models: modelsTable }
+
+  const absPath = await resolveAbs(KIMI_CONFIG_PATH)
+  await window.api.file.write(absPath, stringifyToml(merged))
+  logger.info(`Applied Kimi CLI config to ${absPath}`)
+}
+
 export interface InjectCliConfigArgs {
   cliTool: string
   /** Unique model id ("providerId::modelId"). */
   modelId: string
-  /** User-edited config blob (claude-code, codex, and opencode consume it). */
+  /** User-edited config blob (claude-code / codex / opencode consume it). */
   configBlob?: Record<string, unknown>
 }
 
@@ -359,11 +583,11 @@ export interface InjectCliConfigArgs {
  * file. No-op for hermes/openclaw (still injected in main `run()`). Throws on
  * failure so callers can surface a toast.
  */
-export async function injectCliConfig(args: InjectCliConfigArgs): Promise<void> {
+export async function injectCliConfig(args: InjectCliConfigArgs): Promise<unknown> {
   const { cliTool, configBlob } = args
 
   // Only the file-based tools are injected here.
-  if (cliTool !== CodeCli.CLAUDE_CODE && cliTool !== CodeCli.OPENAI_CODEX && cliTool !== CodeCli.OPEN_CODE) {
+  if (!FILE_CONFIGURED_CLI_TOOLS.has(cliTool)) {
     return
   }
   if (!isUniqueModelId(args.modelId)) {
@@ -386,34 +610,36 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<void> 
   switch (cliTool) {
     case CodeCli.CLAUDE_CODE: {
       const baseUrl = provider.endpointConfigs?.['anthropic-messages']?.baseUrl ?? ''
-      await writeClaude(configBlob && typeof configBlob === 'object' ? (configBlob as Record<string, any>) : {}, {
-        apiKey,
-        baseUrl,
-        model
-      })
+      const absPath = await resolveAbs(CLAUDE_SETTINGS_PATH)
+      const existing = await readValidatedJson(absPath, 'Claude Code settings')
+      await writeClaude(
+        existing,
+        configBlob && typeof configBlob === 'object' ? (configBlob as Record<string, any>) : {},
+        { apiKey, baseUrl, model }
+      )
       return
     }
     case CodeCli.OPENAI_CODEX: {
       const responsesUrl = provider.endpointConfigs?.[CODEX_RESPONSES_ENDPOINT]?.baseUrl
-      const chatUrl = provider.endpointConfigs?.[CODEX_CHAT_ENDPOINT]?.baseUrl
-      const baseUrl = responsesUrl ?? chatUrl ?? ''
-      const wireApi: 'responses' | 'chat_completions' = responsesUrl ? 'responses' : 'chat_completions'
       const providerName = sanitizeProviderName(provider.name, provider.id)
       if (!apiKey) {
         throw new Error('Codex config is missing the API key')
       }
-      if (!baseUrl) {
-        throw new Error('Codex config is missing the OpenAI endpoint base URL')
+      // Codex dropped `wire_api = "chat"`; only the Responses API is supported,
+      // so a provider without a responses endpoint cannot back Codex.
+      if (!responsesUrl) {
+        throw new Error('Codex requires an OpenAI Responses API endpoint, which this provider does not expose')
       }
+      const baseUrl = formatApiHost(responsesUrl)
       const absPath = await resolveAbs(CODEX_CONFIG_PATH)
       const authAbsPath = await resolveAbs(CODEX_AUTH_PATH)
-      const existing = parseTomlSafe(await readExternal(absPath))
-      const existingAuth = parseJsonSafe(await readExternal(authAbsPath))
+      const existing = await readValidatedToml(absPath, 'Codex config')
+      const existingAuth = await readValidatedJson(authAbsPath, 'Codex auth')
       const blob = configBlob && typeof configBlob === 'object' ? (configBlob as Record<string, any>) : {}
       await writeCodex(
         existing,
         existingAuth,
-        { apiKey, baseUrl, providerName, model, wireApi },
+        { apiKey, baseUrl, providerName, model },
         {
           goalMode: blob.goalMode === true,
           remoteCompaction: blob.remoteCompaction === true,
@@ -429,22 +655,31 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<void> 
       return
     }
     case CodeCli.OPEN_CODE: {
-      const isAnthropic = !!provider.endpointConfigs?.['anthropic-messages']?.baseUrl
-      const endpointType = isAnthropic
-        ? 'anthropic-messages'
-        : (provider.defaultChatEndpoint ?? 'openai-chat-completions')
-      const baseUrl = provider.endpointConfigs?.[endpointType]?.baseUrl ?? ''
+      const npmInfo = resolveOpenCodeNpmInfo(provider)
+      // Pick the primary endpoint to source the baseUrl from, in priority order
+      // matching resolveOpenCodeNpmInfo: google → anthropic → responses → chat.
+      const endpointType =
+        npmInfo.providerType === 'google'
+          ? 'google-generate-content'
+          : npmInfo.providerType === 'anthropic'
+            ? 'anthropic-messages'
+            : npmInfo.providerType === 'openai'
+              ? 'openai-responses'
+              : (provider.defaultChatEndpoint ?? 'openai-chat-completions')
+      const rawUrl = provider.endpointConfigs?.[endpointType]?.baseUrl ?? ''
+      const baseUrl = formatApiHost(rawUrl)
       if (!apiKey || !baseUrl) {
         throw new Error('OpenCode config is missing required fields (apiKey/baseUrl)')
       }
       const absPath = await resolveAbs(OPENCODE_CONFIG_PATH)
-      const existing = parseJsonSafe(await readExternal(absPath))
+      const existing = await readValidatedJson(absPath, 'OpenCode config')
       const blob = configBlob && typeof configBlob === 'object' ? (configBlob as Record<string, any>) : {}
       const env = blob.env && typeof blob.env === 'object' ? (blob.env as Record<string, any>) : {}
       await writeOpenCode(
         existing,
         provider,
-        { apiKey, baseUrl, model, isAnthropic },
+        npmInfo,
+        { apiKey, baseUrl, model },
         {
           reasoning: env.OPENCODE_REASONING === 'true',
           supportsReasoningEffort: modelSupportsReasoningEffort(modelRecord),
@@ -454,6 +689,184 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<void> 
           maxTurns: typeof blob.maxTurns === 'number' ? blob.maxTurns : undefined
         }
       )
+      return
+    }
+    case CodeCli.GEMINI_CLI: {
+      const baseUrl = resolveGeminiBaseUrl(provider)
+      if (!apiKey) {
+        throw new Error('Gemini CLI config is missing the API key')
+      }
+      const envAbsPath = await resolveAbs(GEMINI_ENV_PATH)
+      const settingsAbsPath = await resolveAbs(GEMINI_SETTINGS_PATH)
+      const envMap = parseDotenv(await readExternal(envAbsPath))
+      const settings = await readValidatedJson(settingsAbsPath, 'Gemini CLI settings')
+      await writeGemini(envMap, settings, { apiKey, baseUrl, model })
+      return
+    }
+    case CodeCli.QWEN_CODE: {
+      const baseUrl = resolveOpenAIBaseUrl(provider)
+      if (!apiKey) {
+        throw new Error('Qwen Code config is missing the API key')
+      }
+      if (!baseUrl) {
+        throw new Error('Qwen Code config is missing the OpenAI endpoint base URL')
+      }
+      const absPath = await resolveAbs(QWEN_CONFIG_PATH)
+      const existing = await readValidatedJson(absPath, 'Qwen Code config')
+      const modelLabel = modelRecord?.name ?? model
+      await writeQwen(existing, { apiKey, baseUrl, model, modelLabel })
+      return
+    }
+    case CodeCli.KIMI_CODE: {
+      const baseUrl = resolveOpenAIBaseUrl(provider)
+      if (!apiKey) {
+        throw new Error('Kimi CLI config is missing the API key')
+      }
+      if (!baseUrl) {
+        throw new Error('Kimi CLI config is missing the OpenAI endpoint base URL')
+      }
+      const absPath = await resolveAbs(KIMI_CONFIG_PATH)
+      const existing = await readValidatedToml(absPath, 'Kimi Code config')
+      const providerName = sanitizeProviderName(provider.name, provider.id)
+      const modelKey = `${CHERRY_PREFIX}${providerName}`
+      await writeKimi(existing, { apiKey, baseUrl, model, modelKey })
+      return
+    }
+    default:
+      return
+  }
+}
+
+export interface ClearCliConfigArgs {
+  /** CLI tool whose native config file should be scrubbed. */
+  cliTool: string
+}
+
+/** Remove every Cherry-managed key from a CLI tool's native config file,
+ * leaving user-owned keys intact. Used on "disable current provider" so stale
+ * credentials don't linger. No-op for hermes/openclaw/provider-less tools.
+ * Throws on a malformed native file (same parse-safety contract as injection). */
+export async function clearCliConfig(args: ClearCliConfigArgs): Promise<void> {
+  const { cliTool } = args
+  if (!FILE_CONFIGURED_CLI_TOOLS.has(cliTool)) return
+
+  switch (cliTool) {
+    case CodeCli.CLAUDE_CODE: {
+      const absPath = await resolveAbs(CLAUDE_SETTINGS_PATH)
+      const existing = await readValidatedJson(absPath, 'Claude Code settings')
+      const next: Record<string, any> = { ...existing }
+      for (const key of CLAUDE_MANAGED_TOP_LEVEL_KEYS) delete next[key]
+      if (next.env && typeof next.env === 'object') {
+        const env = { ...(next.env as Record<string, any>) }
+        for (const key of CLAUDE_MANAGED_ENV_KEYS) delete env[key]
+        next.env = env
+      }
+      await window.api.file.write(absPath, `${JSON.stringify(next, null, 2)}\n`)
+      return
+    }
+    case CodeCli.OPENAI_CODEX: {
+      const absPath = await resolveAbs(CODEX_CONFIG_PATH)
+      const authAbsPath = await resolveAbs(CODEX_AUTH_PATH)
+      const existing = await readValidatedToml(absPath, 'Codex config')
+      const existingAuth = await readValidatedJson(authAbsPath, 'Codex auth')
+      const next: Record<string, any> = {}
+      for (const [k, v] of Object.entries(existing)) {
+        if (
+          !(CODEX_MANAGED_TOP_LEVEL_KEYS as readonly string[]).includes(k) &&
+          k !== 'model' &&
+          k !== 'model_provider'
+        ) {
+          next[k] = v
+        }
+      }
+      if (next.model_providers && typeof next.model_providers === 'object') {
+        const mp: Record<string, any> = {}
+        for (const [k, v] of Object.entries(next.model_providers as Record<string, any>)) {
+          if (!k.startsWith(CHERRY_PROVIDER_PREFIX)) mp[k] = v
+        }
+        next.model_providers = mp
+      }
+      if (next.features && typeof next.features === 'object') {
+        const f = { ...(next.features as Record<string, any>) }
+        delete f.goals
+        if (Object.keys(f).length === 0) delete next.features
+        else next.features = f
+      }
+      await window.api.file.write(absPath, stringifyToml(next))
+      if (existingAuth.OPENAI_API_KEY !== undefined) {
+        const nextAuth = { ...existingAuth }
+        delete nextAuth.OPENAI_API_KEY
+        await window.api.file.write(authAbsPath, `${JSON.stringify(nextAuth, null, 2)}\n`)
+      }
+      return
+    }
+    case CodeCli.OPEN_CODE: {
+      const absPath = await resolveAbs(OPENCODE_CONFIG_PATH)
+      const existing = await readValidatedJson(absPath, 'OpenCode config')
+      const next: Record<string, any> = { ...existing }
+      if (next.provider && typeof next.provider === 'object') {
+        const pp: Record<string, any> = {}
+        for (const [k, v] of Object.entries(next.provider as Record<string, any>)) {
+          if (!k.startsWith(CHERRY_PROVIDER_PREFIX)) pp[k] = v
+        }
+        next.provider = pp
+      }
+      await window.api.file.write(absPath, `${JSON.stringify(next, null, 2)}\n`)
+      return
+    }
+    case CodeCli.GEMINI_CLI: {
+      const envAbsPath = await resolveAbs(GEMINI_ENV_PATH)
+      const envMap = parseDotenv(await readExternal(envAbsPath))
+      for (const key of GEMINI_MANAGED_ENV_KEYS) envMap.delete(key)
+      await window.api.file.write(envAbsPath, `${[...envMap.entries()].map(([k, v]) => `${k}=${v}`).join('\n')}\n`)
+      const settingsAbsPath = await resolveAbs(GEMINI_SETTINGS_PATH)
+      const settings = await readValidatedJson(settingsAbsPath, 'Gemini CLI settings')
+      if (settings.model && typeof settings.model === 'object') {
+        delete settings.model.name
+        if (Object.keys(settings.model as Record<string, any>).length === 0) delete settings.model
+      }
+      await window.api.file.write(settingsAbsPath, `${JSON.stringify(settings, null, 2)}\n`)
+      return
+    }
+    case CodeCli.QWEN_CODE: {
+      const absPath = await resolveAbs(QWEN_CONFIG_PATH)
+      const existing = await readValidatedJson(absPath, 'Qwen Code config')
+      const next: Record<string, any> = { ...existing }
+      if (next.env && typeof next.env === 'object') {
+        const env: Record<string, any> = {}
+        for (const [k, v] of Object.entries(next.env as Record<string, any>)) {
+          if (!k.startsWith('CHERRY_')) env[k] = v
+        }
+        next.env = env
+      }
+      if (next.modelProviders?.openai && typeof next.modelProviders.openai === 'object') {
+        const bucket: Record<string, any> = { ...(next.modelProviders.openai as Record<string, any>) }
+        if (Array.isArray(bucket.models)) {
+          bucket.models = bucket.models.filter(
+            (m: any) => !(m && typeof m === 'object' && typeof m.envKey === 'string' && m.envKey.startsWith('CHERRY_'))
+          )
+        }
+        next.modelProviders = { ...(next.modelProviders as Record<string, any>), openai: bucket }
+      }
+      delete next.model
+      await window.api.file.write(absPath, `${JSON.stringify(next, null, 2)}\n`)
+      return
+    }
+    case CodeCli.KIMI_CODE: {
+      const absPath = await resolveAbs(KIMI_CONFIG_PATH)
+      const existing = await readValidatedToml(absPath, 'Kimi Code config')
+      const next: Record<string, any> = { ...existing }
+      for (const table of ['providers', 'models'] as const) {
+        if (next[table] && typeof next[table] === 'object') {
+          const cleaned: Record<string, any> = {}
+          for (const [k, v] of Object.entries(next[table] as Record<string, any>)) {
+            if (!k.startsWith(CHERRY_PREFIX)) cleaned[k] = v
+          }
+          next[table] = cleaned
+        }
+      }
+      delete next.default_model
+      await window.api.file.write(absPath, stringifyToml(next))
       return
     }
     default:

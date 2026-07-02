@@ -1,7 +1,6 @@
-import { Input, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { Input, SelectDropdown } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
-import { ChevronDown } from 'lucide-react'
-import type { FC } from 'react'
+import type { FC, ReactNode } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -13,63 +12,7 @@ export interface OpenCodeConfigFieldsProps {
   onChange: (next: Record<string, unknown>) => void
 }
 
-const triggerClass = cn(
-  'flex h-9 w-full min-w-0 items-center justify-between rounded-md border bg-transparent px-3 text-sm outline-none',
-  'border-input focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
-  'font-normal hover:bg-muted/30 transition-colors',
-  'data-[state=open]:border-ring data-[state=open]:ring-ring/50 data-[state=open]:ring-[3px]'
-)
-
-const optionClass = cn(
-  'w-full cursor-pointer rounded-sm px-2 py-1.5 text-sm text-left transition-colors',
-  'hover:bg-accent hover:text-accent-foreground'
-)
-
-function SelectPopover({
-  value,
-  placeholder,
-  onChange,
-  children
-}: {
-  value: string
-  placeholder: string
-  onChange: (v: string) => void
-  children: (opt: string) => React.ReactNode
-}) {
-  const [open, setOpen] = useState(false)
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button type="button" className={triggerClass}>
-          <span className={cn('truncate', !value && 'text-muted-foreground')}>{value || placeholder}</span>
-          <ChevronDown className="ml-1 size-3.5 shrink-0 text-muted-foreground" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        className="p-1"
-        style={{ width: 'var(--radix-popover-trigger-width)' }}
-        align="start"
-        side="bottom"
-        sideOffset={4}>
-        {['low', 'medium', 'high'].map((opt) => (
-          <button
-            key={opt}
-            type="button"
-            className={cn(optionClass, value === opt && 'bg-primary/10 text-primary')}
-            onClick={() => {
-              onChange(opt)
-              setOpen(false)
-            }}>
-            {children(opt)}
-          </button>
-        ))}
-      </PopoverContent>
-    </Popover>
-  )
-}
-
-function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
+function Field({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (
     <label className={cn('min-w-0 flex-1', className)}>
       <span className="mb-1 block text-[10px] text-muted-foreground/60">{label}</span>
@@ -129,6 +72,11 @@ export const OpenCodeConfigFields: FC<OpenCodeConfigFieldsProps> = ({ config, on
     [t]
   )
 
+  const effortItems = useMemo(
+    () => (['low', 'medium', 'high'] as const).map((opt) => ({ id: opt, label: effortLabel(opt) })),
+    [effortLabel]
+  )
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-1.5">
@@ -160,12 +108,17 @@ export const OpenCodeConfigFields: FC<OpenCodeConfigFieldsProps> = ({ config, on
             />
           </Field>
           <Field label={t('code.adv.opencode.reasoning_effort_hint')}>
-            <SelectPopover
-              value={reasoningEffort}
+            <SelectDropdown
+              // FIXME: SelectDropdown list width drifts — packages/ui tailwind-merge@^2.5.5
+              // can't merge Tailwind v4 `w-(--radix-popover-trigger-width)`, so PopoverContent
+              // keeps both it and the base `w-72`. Fix: bump packages/ui tailwind-merge to ^3.3.1.
+              items={effortItems}
+              selectedId={reasoningEffort || undefined}
+              onSelect={(v) => updateField('reasoningEffort', v)}
               placeholder={t('code.adv.select_placeholder')}
-              onChange={(v) => updateField('reasoningEffort', v)}>
-              {effortLabel}
-            </SelectPopover>
+              renderSelected={(item) => item.label}
+              renderItem={(item) => item.label}
+            />
           </Field>
         </div>
         <Field label={t('code.adv.opencode.thinking_budget_hint')} className="mt-3 block w-full flex-none">

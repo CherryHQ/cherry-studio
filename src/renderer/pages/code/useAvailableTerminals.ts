@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import { isMac, isWin } from '@renderer/utils/platform'
 import type { TerminalConfig } from '@shared/types/codeCli'
 import { useEffect, useState } from 'react'
@@ -15,8 +16,8 @@ export function useAvailableTerminals(): TerminalConfig[] {
   useEffect(() => {
     if (!isMac && !isWin) return
     let cancelled = false
-    window.api.codeCli
-      .getAvailableTerminals()
+    ipcApi
+      .request('code_cli.get_available_terminals')
       .then((result) => {
         if (!cancelled) setTerminals(result)
       })

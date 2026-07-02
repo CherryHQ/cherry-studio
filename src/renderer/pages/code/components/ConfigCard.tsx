@@ -1,6 +1,5 @@
-import { Badge, Button, Tooltip } from '@cherrystudio/ui'
 import type { Provider } from '@shared/data/types/provider'
-import { Pencil, Power } from 'lucide-react'
+import { GripVertical, Pencil, Power } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -29,47 +28,51 @@ export const ProviderCard: FC<ProviderCardProps> = ({
 
   return (
     <div
-      className={`group flex items-center justify-between rounded-lg border px-3 py-2.5 transition-colors ${
+      className={`rounded-xl border p-3.5 transition-colors ${
         dragging
-          ? 'border-primary/40 bg-accent/60 shadow-sm'
-          : 'border-transparent hover:border-border hover:bg-accent/40'
+          ? 'border-primary/40 opacity-50'
+          : isCurrent
+            ? 'border-success/50 bg-success/[0.04]'
+            : 'border-border/40 hover:border-border'
       }`}>
-      <div className="flex min-w-0 items-center gap-2.5">
-        <span className={`size-1.5 shrink-0 rounded-full ${isCurrent ? 'bg-primary' : 'bg-muted-foreground/30'}`} />
-        <div className="min-w-0">
+      <div className="flex items-center gap-3">
+        <GripVertical
+          size={13}
+          className="shrink-0 cursor-grab text-muted-foreground/25 hover:text-muted-foreground/55 active:cursor-grabbing"
+        />
+
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate text-foreground text-sm">{providerName}</span>
             {isCurrent && (
-              <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[11px] leading-4">
-                {t('code.current_config')}
-              </Badge>
+              <span className="shrink-0 rounded bg-success/15 px-1.5 py-0.5 text-[10px] text-success">
+                {t('code.enabled')}
+              </span>
             )}
           </div>
-          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground/50">
-            {modelName && <span className="truncate font-mono">{modelName}</span>}
-          </div>
+          {modelName && (
+            <div className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground/50">{modelName}</div>
+          )}
         </div>
-      </div>
 
-      <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-        <Tooltip content={isCurrent ? t('code.disable') : t('code.enable')} placement="bottom">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => onToggleCurrent(provider)}
-            className={`size-6 ${isCurrent ? 'text-primary' : 'text-muted-foreground/40 hover:text-foreground'}`}>
-            <Power size={12} />
-          </Button>
-        </Tooltip>
-        <Tooltip content={t('code.configure')} placement="bottom">
-          <Button
-            variant="ghost"
-            size="icon-sm"
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button
+            type="button"
             onClick={() => onConfigure(provider)}
-            className="size-6 text-muted-foreground/40 hover:text-foreground">
-            <Pencil size={10} />
-          </Button>
-        </Tooltip>
+            className="flex items-center gap-1 rounded-md border border-border/50 px-2.5 py-1 text-muted-foreground text-xs transition-colors hover:text-foreground">
+            <Pencil size={11} />
+            {t('code.configure')}
+          </button>
+          <button
+            type="button"
+            onClick={() => onToggleCurrent(provider)}
+            className={`flex items-center gap-1 rounded-md border border-border/50 px-2.5 py-1 text-xs transition-colors ${
+              isCurrent ? 'text-muted-foreground' : 'text-foreground'
+            } hover:text-foreground`}>
+            <Power size={11} />
+            {isCurrent ? t('code.disable') : t('code.enable')}
+          </button>
+        </div>
       </div>
     </div>
   )

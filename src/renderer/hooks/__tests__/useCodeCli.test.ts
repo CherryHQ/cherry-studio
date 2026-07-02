@@ -90,7 +90,7 @@ describe('useCodeCli', () => {
   })
 
   describe('reorderProviders', () => {
-    it('should write the ordered provider ids to the tool state', async () => {
+    it('should write sortIndex to each provider entry', async () => {
       const mockSetter = setupUpdaterMock({
         'claude-code': state({ anthropic: cfg(), openrouter: cfg({ modelId: 'openrouter::x' }) }, 'anthropic')
       } as unknown as CodeCliConfigs)
@@ -101,7 +101,8 @@ describe('useCodeCli', () => {
       })
 
       const lastWrite = mockSetter.mock.calls.at(-1)?.[0] as CodeCliConfigs
-      expect(lastWrite['claude-code'].providerOrder).toEqual(['openrouter', 'anthropic'])
+      expect(lastWrite['claude-code'].providers['openrouter']?.sortIndex).toBe(0)
+      expect(lastWrite['claude-code'].providers['anthropic']?.sortIndex).toBe(1)
     })
   })
 

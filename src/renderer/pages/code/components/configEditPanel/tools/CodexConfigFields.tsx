@@ -1,6 +1,5 @@
-import { Input, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { Input, SelectDropdown } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
-import { ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -15,67 +14,10 @@ export interface CodexConfigFieldsProps {
 
 type CodexFlag = 'goalMode' | 'remoteCompaction' | 'commonConfig' | 'disableResponseStorage'
 
-const triggerClass = cn(
-  'flex h-9 w-full min-w-0 items-center justify-between rounded-md border bg-transparent px-3 text-sm outline-none',
-  'border-input focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
-  'font-normal hover:bg-muted/30 transition-colors',
-  'data-[state=open]:border-ring data-[state=open]:ring-ring/50 data-[state=open]:ring-[3px]'
-)
-
-const optionClass = cn(
-  'w-full cursor-pointer rounded-sm px-2 py-1.5 text-sm text-left transition-colors',
-  'hover:bg-accent hover:text-accent-foreground'
-)
-
 const EFFORT_OPTIONS = ['low', 'medium', 'high'] as const
+const EFFORT_ITEMS = EFFORT_OPTIONS.map((id) => ({ id }))
 const VERBOSITY_OPTIONS = ['low', 'medium', 'high'] as const
-
-function SelectPopover({
-  value,
-  options,
-  placeholder,
-  onChange
-}: {
-  value: string
-  options: readonly string[]
-  placeholder: string
-  onChange: (v: string) => void
-}) {
-  const [open, setOpen] = useState(false)
-
-  const label = value || placeholder
-  const isPlaceholder = !value
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button type="button" className={triggerClass}>
-          <span className={cn('truncate', isPlaceholder && 'text-muted-foreground')}>{label}</span>
-          <ChevronDown className="ml-1 size-3.5 shrink-0 text-muted-foreground" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent
-        className="p-1"
-        style={{ width: 'var(--radix-popover-trigger-width)' }}
-        align="start"
-        side="bottom"
-        sideOffset={4}>
-        {options.map((opt) => (
-          <button
-            key={opt}
-            type="button"
-            className={cn(optionClass, value === opt && 'bg-primary/10 text-primary')}
-            onClick={() => {
-              onChange(opt)
-              setOpen(false)
-            }}>
-            {opt}
-          </button>
-        ))}
-      </PopoverContent>
-    </Popover>
-  )
-}
+const VERBOSITY_ITEMS = VERBOSITY_OPTIONS.map((id) => ({ id }))
 
 function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
@@ -156,19 +98,29 @@ export const CodexConfigFields: FC<CodexConfigFieldsProps> = ({ config, onChange
       <AdvancedConfigToggle open={advancedOpen} onToggle={() => setAdvancedOpen((o) => !o)}>
         <div className="flex gap-3">
           <Field label={t('code.adv.codex.reasoning_effort_hint')}>
-            <SelectPopover
-              value={reasoningEffort}
-              options={EFFORT_OPTIONS}
+            <SelectDropdown
+              // FIXME: SelectDropdown list width drifts — packages/ui tailwind-merge@^2.5.5
+              // can't merge Tailwind v4 `w-(--radix-popover-trigger-width)`, so PopoverContent
+              // keeps both it and the base `w-72`. Fix: bump packages/ui tailwind-merge to ^3.3.1.
+              items={EFFORT_ITEMS}
+              selectedId={reasoningEffort || undefined}
+              onSelect={(v) => updateField('modelReasoningEffort', v)}
               placeholder={t('code.adv.select_placeholder')}
-              onChange={(v) => updateField('modelReasoningEffort', v)}
+              renderSelected={(item) => item.id}
+              renderItem={(item) => item.id}
             />
           </Field>
           <Field label={t('code.adv.codex.model_verbosity_hint')}>
-            <SelectPopover
-              value={verbosity}
-              options={VERBOSITY_OPTIONS}
+            <SelectDropdown
+              // FIXME: SelectDropdown list width drifts — packages/ui tailwind-merge@^2.5.5
+              // can't merge Tailwind v4 `w-(--radix-popover-trigger-width)`, so PopoverContent
+              // keeps both it and the base `w-72`. Fix: bump packages/ui tailwind-merge to ^3.3.1.
+              items={VERBOSITY_ITEMS}
+              selectedId={verbosity || undefined}
+              onSelect={(v) => updateField('modelVerbosity', v)}
               placeholder={t('code.adv.select_placeholder')}
-              onChange={(v) => updateField('modelVerbosity', v)}
+              renderSelected={(item) => item.id}
+              renderItem={(item) => item.id}
             />
           </Field>
         </div>

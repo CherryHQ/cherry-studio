@@ -2039,6 +2039,7 @@
       "label": "Launch",
       "launched": "Launched",
       "success": "Launch successful",
+      "title": "Launch {{tool}}",
       "validation_error": "Please complete all required fields: CLI tool, model, and working directory"
     },
     "launching": "Launching...",
@@ -2053,6 +2054,7 @@
     "no_providers_title": "No enabled providers",
     "no_tools": "No tools available",
     "not_installed": "Not installed",
+    "providerless_hint": "This tool authenticates through its own login flow — just pick a working directory and launch it. Run the tool once to sign in.",
     "providers": "Providers",
     "raw_config": "Raw Config (JSON)",
     "search_cli_placeholder": "Search CLI…",
@@ -2066,12 +2068,18 @@
     "title": "Code Tools",
     "tool_description": {
       "claude_code": "Anthropic's official command-line AI coding assistant",
+      "gemini_cli": "Google's official Gemini command-line AI coding agent",
+      "github_copilot_cli": "GitHub Copilot command-line AI coding assistant",
       "hermes": "Nous Research agentic coding CLI",
+      "kimi_cli": "Moonshot Kimi command-line AI coding agent",
       "openai_codex": "OpenAI's official code generation CLI",
       "openclaw": "Multi-channel personal AI assistant with gateway service",
-      "opencode": "Open-source multi-model coding agent"
+      "opencode": "Open-source multi-model coding agent",
+      "qoder_cli": "Qoder command-line AI coding assistant",
+      "qwen_code": "Alibaba Qwen Code command-line AI coding agent"
     },
     "tool_parameters": "Tool Parameters",
+    "up_to_date": "Up to date",
     "update_options": "Update Options",
     "upgrade": "Upgrade",
     "upgrade_error": "Upgrade failed",

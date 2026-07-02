@@ -34,6 +34,13 @@ const openaiCompatProvider = {
   defaultChatEndpoint: 'openai-chat-completions'
 } as unknown as Provider
 
+/** Responses-capable provider — the only kind Codex can target (its binary
+ * rejects `wire_api = "chat"`). */
+const codexProvider = {
+  ...openaiCompatProvider,
+  endpointConfigs: { 'openai-responses': { baseUrl: 'https://api.deepseek.com/v1' } }
+} as unknown as Provider
+
 const enabledKey: ApiKeyEntry = { id: 'k1', key: 'sk-secret', isEnabled: true }
 
 describe('injectCliConfig', () => {
@@ -178,9 +185,9 @@ describe('injectCliConfig', () => {
   describe('codex (~/.codex/config.toml + auth.json)', () => {
     const findWrite = (suffix: string) => writes.find((w) => w.path.endsWith(suffix))
 
-    it('writes both auth.json (OPENAI_API_KEY) and config.toml (requires_openai_auth)', async () => {
+    it('writes both auth.json (OPENAI_API_KEY) and config.toml with wire_api = responses', async () => {
       mockGet({
-        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek': () => codexProvider,
         '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
         '/models/': () => null
       })
@@ -201,8 +208,8 @@ describe('injectCliConfig', () => {
       expect(parsed.model_provider).toBe('cherry-DeepSeek')
       expect(parsed.model_providers['cherry-DeepSeek'].base_url).toBe('https://api.deepseek.com/v1')
       expect(parsed.model_providers['cherry-DeepSeek'].requires_openai_auth).toBe(true)
-      // chat-completions-only provider → wire_api follows the endpoint
-      expect(parsed.model_providers['cherry-DeepSeek'].wire_api).toBe('chat_completions')
+      // Codex rejects `wire_api = "chat"`; only the Responses API is supported.
+      expect(parsed.model_providers['cherry-DeepSeek'].wire_api).toBe('responses')
       // key lives in auth.json now, not as a bearer token
       expect(parsed.model_providers['cherry-DeepSeek']).not.toHaveProperty('experimental_bearer_token')
       expect(parsed.model_providers['cherry-DeepSeek'].name).toBe('DeepSeek')
@@ -213,12 +220,26 @@ describe('injectCliConfig', () => {
       expect(authParsed.OPENAI_API_KEY).toBe('sk-secret')
     })
 
+    it('rejects a chat-completions-only provider (Codex no longer supports wire_api = "chat")', async () => {
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await expect(
+        injectCliConfig({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::deepseek-chat' })
+      ).rejects.toThrow(/Responses API endpoint/)
+      // No file is touched when the provider cannot back Codex.
+      expect(writes).toEqual([])
+    })
+
     it('merges OPENAI_API_KEY into auth.json, preserving unrelated OAuth keys', async () => {
       existing['/resolved~/.codex/auth.json'] = JSON.stringify({
         tokens: { id_token: 'oauth-jwt', access_token: 'oauth-access' }
       })
       mockGet({
-        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek': () => codexProvider,
         '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
         '/models/': () => null
       })
@@ -235,7 +256,7 @@ describe('injectCliConfig', () => {
 
     it('applies goal mode + remote compaction from the config blob', async () => {
       mockGet({
-        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek': () => codexProvider,
         '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
         '/models/': () => null
       })
@@ -270,7 +291,7 @@ describe('injectCliConfig', () => {
         ''
       ].join('\n')
       mockGet({
-        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek': () => codexProvider,
         '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
         '/models/': () => null
       })
@@ -287,7 +308,7 @@ describe('injectCliConfig', () => {
       expect(parsed.model_providers['cherry-DeepSeek'].name).toBe('DeepSeek')
     })
 
-    it('prefers the responses endpoint and sets wire_api = responses when available', async () => {
+    it('uses the responses endpoint even when a chat-completions endpoint is also present', async () => {
       const responsesProvider = {
         ...openaiCompatProvider,
         endpointConfigs: {
@@ -309,16 +330,34 @@ describe('injectCliConfig', () => {
       expect(parsed.model_providers['cherry-DeepSeek'].wire_api).toBe('responses')
     })
 
-    it('throws when the provider has no OpenAI endpoint base URL', async () => {
-      const noUrl = { ...openaiCompatProvider, endpointConfigs: {} } as unknown as Provider
+    it('throws when the provider has no Responses API endpoint', async () => {
+      const noResponses = { ...openaiCompatProvider, endpointConfigs: {} } as unknown as Provider
       mockGet({
-        '/providers/deepseek': () => noUrl,
+        '/providers/deepseek': () => noResponses,
         '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
         '/models/': () => null
       })
       await expect(
         injectCliConfig({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::deepseek-chat' })
-      ).rejects.toThrow(/OpenAI endpoint base URL/)
+      ).rejects.toThrow(/Responses API endpoint/)
+    })
+
+    it('appends /v1 to a responses base_url missing the version segment', async () => {
+      const noVersionProvider = {
+        ...openaiCompatProvider,
+        endpointConfigs: { 'openai-responses': { baseUrl: 'https://api.deepseek.com' } }
+      } as unknown as Provider
+      mockGet({
+        '/providers/deepseek': () => noVersionProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await injectCliConfig({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::deepseek-chat' })
+
+      const { parse: parseToml } = await import('smol-toml')
+      const parsed = parseToml(findWrite('config.toml')!.content) as Record<string, any>
+      expect(parsed.model_providers['cherry-DeepSeek'].base_url).toBe('https://api.deepseek.com/v1')
     })
   })
 
@@ -367,7 +406,9 @@ describe('injectCliConfig', () => {
       })
 
       const parsed = JSON.parse(opencodeWrite().content)
-      const model = parsed.provider['cherry-Anthropic'].models['claude-sonnet-4-5']
+      const provider = parsed.provider['cherry-Anthropic']
+      expect(provider.options.baseURL).toBe('https://api.anthropic.com/v1')
+      const model = provider.models['claude-sonnet-4-5']
       expect(model.reasoning).toBe(true)
       expect(model.options.thinking).toEqual({ budgetTokens: 10000, type: 'enabled' })
     })
@@ -389,6 +430,73 @@ describe('injectCliConfig', () => {
       const model = parsed.provider['cherry-DeepSeek'].models['deepseek-chat']
       expect(model.reasoning).toBe(true)
       expect(model.options.reasoningEffort).toBe('medium')
+    })
+
+    // Regression: catalog seeds deepseek/dmxapi without `/v1`. @ai-sdk/openai-compatible
+    // appends `/chat/completions` directly to baseURL, so a bare host produced
+    // `https://api.deepseek.com/chat/completions` → 404.
+    it('appends /v1 to an OpenAI-compatible baseURL missing the version', async () => {
+      const noVersionProvider = {
+        ...openaiCompatProvider,
+        endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://api.deepseek.com' } }
+      } as unknown as Provider
+      mockGet({
+        '/providers/deepseek': () => noVersionProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await injectCliConfig({ cliTool: CodeCli.OPEN_CODE, modelId: 'deepseek::deepseek-chat' })
+
+      const parsed = JSON.parse(opencodeWrite().content)
+      expect(parsed.provider['cherry-DeepSeek'].options.baseURL).toBe('https://api.deepseek.com/v1')
+    })
+  })
+
+  describe('clear on disable deletes Cherry-managed keys', () => {
+    it('removes managed env keys and top-level keys from claude settings', async () => {
+      existing['/resolved~/.claude/settings.json'] = JSON.stringify({
+        theme: 'dark',
+        env: { ANTHROPIC_AUTH_TOKEN: 'sk-injected', KEEP: '1' }
+      })
+      const { clearCliConfig } = await import('../injectCliConfig')
+      await clearCliConfig({ cliTool: CodeCli.CLAUDE_CODE })
+
+      const afterClear = JSON.parse(writes.at(-1)!.content)
+      expect(afterClear.theme).toBe('dark')
+      expect(afterClear.env.KEEP).toBe('1')
+      expect(afterClear.env.ANTHROPIC_AUTH_TOKEN).toBeUndefined()
+    })
+  })
+
+  describe('parse-failure safety (never overwrite a malformed native file)', () => {
+    it('aborts the codex write instead of clobbering a malformed config.toml', async () => {
+      existing['/resolved~/.codex/config.toml'] = 'this is = = not valid toml [[['
+      mockGet({
+        '/providers/openai': () => codexProvider,
+        '/providers/openai/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await expect(injectCliConfig({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'openai::gpt-4o' })).rejects.toThrow(
+        /Failed to parse/
+      )
+      // Crucially, nothing was written — the malformed file is left intact.
+      expect(writes).toEqual([])
+    })
+
+    it('aborts the opencode write instead of clobbering a malformed opencode.json', async () => {
+      existing['/resolved~/.config/opencode/opencode.json'] = '{ not json ]]]'
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await expect(injectCliConfig({ cliTool: CodeCli.OPEN_CODE, modelId: 'deepseek::deepseek-chat' })).rejects.toThrow(
+        /Failed to parse/
+      )
+      expect(writes).toEqual([])
     })
   })
 })

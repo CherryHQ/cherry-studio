@@ -1,5 +1,5 @@
-import { Badge, Button } from '@cherrystudio/ui'
-import { Download, ExternalLink, Loader2, RefreshCw, Trash2 } from 'lucide-react'
+import { Button } from '@cherrystudio/ui'
+import { ArrowUpCircle, Download, Play, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -9,139 +9,133 @@ import { CLIIcon } from './CLIIcon'
 interface VersionStatusCardProps {
   toolId: string
   toolName: string
-  toolDescription?: string
-  repoUrl?: string
-  homepage?: string
   status: VersionStatus
   onInstall?: () => void
   onUpgrade?: () => void
   onRemove?: () => void
+  onLaunch?: () => void
   isInstalling?: boolean
   isUpgrading?: boolean
+  canLaunch?: boolean
+  launching?: boolean
 }
 
 export const VersionStatusCard: FC<VersionStatusCardProps> = ({
   toolId,
   toolName,
-  toolDescription,
-  repoUrl,
-  homepage,
   status,
   onInstall,
   onUpgrade,
   onRemove,
+  onLaunch,
   isInstalling,
-  isUpgrading
+  isUpgrading,
+  canLaunch,
+  launching
 }) => {
   const { t } = useTranslation()
+  const isInstalled = status.installed
+  const canUpgrade = isInstalled && status.canUpgrade
 
   return (
-    <div className="flex flex-col rounded-xl border border-border bg-card p-4 transition-colors duration-200 ease-in-out hover:border-border-hover">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <CLIIcon id={toolId} size={20} />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-foreground text-sm leading-5">{toolName}</span>
-            </div>
-            {status.installed && (
-              <div className="mt-0.5 flex flex-wrap items-center gap-1">
-                {status.current && (
-                  <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[11px] leading-4">
-                    v{status.current}
-                  </Badge>
-                )}
-                {status.canUpgrade && (
-                  <Badge
-                    variant="outline"
-                    className="gap-1 border-warning/50 px-1.5 py-0 text-[11px] text-warning leading-4">
-                    {t('code.can_upgrade')} → v{status.latest}
-                  </Badge>
-                )}
-              </div>
+    <div className="rounded-lg border border-border/40 bg-card px-4 py-3">
+      <div className="flex items-center gap-3">
+        <CLIIcon id={toolId} size={28} className="size-7 shrink-0" />
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="truncate font-medium text-foreground text-sm">{toolName}</span>
+            {!isInstalled ? (
+              <span className="shrink-0 rounded bg-accent/60 px-1.5 py-0.5 text-[10px] text-muted-foreground/70">
+                {t('code.not_installed')}
+              </span>
+            ) : canUpgrade ? (
+              <button
+                type="button"
+                onClick={onUpgrade}
+                disabled={isUpgrading}
+                className="flex h-auto shrink-0 items-center gap-1 rounded px-1.5 py-0 text-[10px] text-warning transition-colors hover:bg-warning/10 hover:text-warning disabled:opacity-50">
+                <ArrowUpCircle size={10} />
+                {t('code.upgrade')}
+              </button>
+            ) : (
+              <span className="shrink-0 rounded bg-success/15 px-1.5 py-0.5 text-[10px] text-success">
+                {t('code.up_to_date')}
+              </span>
             )}
-            {!status.installed && (
-              <div className="mt-0.5 flex flex-wrap items-center gap-1">
-                <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[11px] text-muted-foreground leading-4">
-                  {t('code.not_installed')}
-                </Badge>
-              </div>
+          </div>
+
+          <div className="mt-1 flex items-center gap-1.5 text-muted-foreground/60 text-xs">
+            {isInstalled
+              ? status.current && <span className="font-mono">v{status.current}</span>
+              : status.latest && (
+                  <>
+                    <span>{t('code.latest')}</span>
+                    <span className="font-mono">v{status.latest}</span>
+                  </>
+                )}
+            {canUpgrade && (
+              <>
+                <ArrowUpCircle size={11} className="shrink-0 text-warning" />
+                <span className="font-mono text-warning">v{status.latest}</span>
+              </>
             )}
           </div>
         </div>
 
-        {status.installed && (
-          <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 items-center gap-2">
+          {isInstalled && onRemove && (
             <Button
               variant="ghost"
               size="icon-sm"
-              className="text-foreground/40 hover:text-foreground"
-              onClick={onUpgrade}
-              disabled={isUpgrading}
-              title={t('code.upgrade')}>
-              {isUpgrading ? (
-                <Loader2 className="size-3.5 motion-safe:animate-spin" />
-              ) : (
-                <RefreshCw className="size-3.5" />
-              )}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="text-foreground/40 hover:text-destructive"
+              className="text-muted-foreground/30 hover:text-destructive"
               onClick={onRemove}
               disabled={isInstalling || isUpgrading}
               aria-label={t('settings.plugins.remove')}
               title={t('settings.plugins.remove')}>
               <Trash2 className="size-3.5" />
             </Button>
-          </div>
-        )}
-      </div>
+          )}
 
-      {toolDescription && (
-        <p className="mt-2.5 line-clamp-2 text-muted-foreground text-xs leading-4" title={toolDescription}>
-          {toolDescription}
-        </p>
-      )}
-
-      <div className="mt-3 flex items-center gap-3">
-        {repoUrl && (
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
-            onClick={() => void window.api.openWebsite(repoUrl)}>
-            <ExternalLink className="size-3" />
-            {repoUrl.replace('https://github.com/', '')}
-          </button>
-        )}
-        {homepage && (
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
-            onClick={() => void window.api.openWebsite(homepage)}>
-            <ExternalLink className="size-3" />
-            {homepage.replace(/^https?:\/\//, '')}
-          </button>
-        )}
-      </div>
-
-      {!status.installed && (
-        <div className="mt-3 border-border border-t pt-3">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 w-full gap-1 font-medium text-xs"
-            onClick={onInstall}
-            disabled={isInstalling}
-            loading={isInstalling}>
-            {!isInstalling && <Download className="size-3.5" />}
-            {isInstalling ? t('code.installing') : t('code.install')}
-          </Button>
+          {isInstalled ? (
+            <button
+              type="button"
+              onClick={onLaunch}
+              disabled={!canLaunch || launching}
+              className="flex shrink-0 items-center gap-1.5 rounded-md border border-border/60 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-border hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50">
+              {launching ? (
+                <>
+                  <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
+                  {t('code.launching')}
+                </>
+              ) : (
+                <>
+                  <Play size={12} />
+                  {t('code.launch.label')}
+                </>
+              )}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onInstall}
+              disabled={isInstalling}
+              className="flex shrink-0 items-center gap-1.5 rounded-md border border-border/60 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-border hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50">
+              {isInstalling ? (
+                <>
+                  <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
+                  {t('code.installing')}
+                </>
+              ) : (
+                <>
+                  <Download size={12} />
+                  {t('code.install')}
+                </>
+              )}
+            </button>
+          )}
         </div>
-      )}
+      </div>
     </div>
   )
 }

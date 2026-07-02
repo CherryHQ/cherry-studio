@@ -28,7 +28,7 @@ export const CurrentConfigPanel: FC<CurrentConfigPanelProps> = ({
   const effectiveTerminal = selectedTerminal ?? terminals[0]?.id ?? ''
 
   return (
-    <div className="space-y-3 border-border/15 border-t pt-4">
+    <div className="space-y-3">
       <div className="space-y-1.5">
         <label className="text-foreground/70 text-xs">{t('code.working_directory')}</label>
         <div className="flex w-full items-center">

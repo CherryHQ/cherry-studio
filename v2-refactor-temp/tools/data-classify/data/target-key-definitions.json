@@ -80,7 +80,7 @@
       "type": "PreferenceTypes.CodeCliConfigs",
       "defaultValue": "VALUE: {} as PreferenceTypes.CodeCliConfigs",
       "status": "classified",
-      "description": "Fresh v2 key (no migration): per-tool named CLI configs. v1 codeTools is throwaway."
+      "description": "Fresh v2 key (no migration): per-tool CLI configs with per-provider modelId, config blob, and sortIndex. v1 codeTools is throwaway."
     },
     {
       "targetKey": "chat.web_search.exclude_domains",

@@ -3,7 +3,12 @@ export enum CodeCli {
   OPENAI_CODEX = 'openai-codex',
   OPEN_CODE = 'opencode',
   OPENCLAW = 'openclaw',
-  HERMES = 'hermes'
+  HERMES = 'hermes',
+  GEMINI_CLI = 'gemini-cli',
+  QWEN_CODE = 'qwen-code',
+  KIMI_CODE = 'kimi-code',
+  QODER_CLI = 'qoder-cli',
+  GITHUB_COPILOT_CLI = 'github-copilot-cli'
 }
 
 export enum TerminalApp {

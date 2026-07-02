@@ -4,6 +4,7 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
 import { aiHandlers } from './ai'
 import { appHandlers } from './app'
 import { binaryHandlers } from './binary'
+import { codeCliHandlers } from './codeCli'
 import { fileHandlers } from './file'
 import { fileProcessingHandlers } from './fileProcessing'
 import { knowledgeHandlers } from './knowledge'
@@ -26,6 +27,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...appHandlers,
   ...openclawHandlers,
   ...binaryHandlers,
+  ...codeCliHandlers,
   ...fileHandlers,
   ...fileProcessingHandlers,
   ...knowledgeHandlers,
