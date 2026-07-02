@@ -244,6 +244,11 @@ describe('internal/entry/lifecycle', () => {
       const withWriteTx = MockMainDbServiceExport.dbService.withWriteTx
 
       withWriteTx.mockClear()
+      withWriteTx.mockImplementationOnce((fn: (tx: unknown) => unknown) => {
+        const callbackResult = fn(dbh.db)
+        expect(callbackResult).not.toBeInstanceOf(Promise)
+        return callbackResult
+      })
       const result = await emptyTrash(deps)
 
       expect(withWriteTx).toHaveBeenCalledTimes(1)

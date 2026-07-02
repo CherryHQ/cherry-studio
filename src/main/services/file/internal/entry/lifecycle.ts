@@ -133,7 +133,7 @@ export async function emptyTrash(deps: FileManagerDeps): Promise<BatchMutationRe
   const succeeded: FileEntryId[] = []
   const failed: BatchMutationResult['failed'] = []
 
-  await deps.fileEntryService.withWriteTx(async (tx) => {
+  deps.fileEntryService.withWriteTx((tx) => {
     const entries = deps.fileEntryService.findManyTx(tx, { origin: 'internal', inTrash: true })
     for (const entry of entries) {
       try {
