@@ -110,6 +110,18 @@ export class MainWindowService extends BaseService {
     return mainWindow
   }
 
+  /**
+   * Reload the main window's renderer. Used by the profile switch to reset the
+   * renderer onto the newly-active profile (RFC §4.5): a reload discards all
+   * in-memory renderer state so it re-reads the new profile's data. No-op if the
+   * main window is not currently open.
+   */
+  public reloadMainWindow(): void {
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.reload()
+    }
+  }
+
   private registerActivateHandler() {
     // showMainWindow's fallback re-opens via WindowManager when the previous window
     // has been destroyed; reuse path falls through to focus + restore.
