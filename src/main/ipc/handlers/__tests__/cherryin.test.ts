@@ -2,9 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { cherryInOauthService } = vi.hoisted(() => ({
   cherryInOauthService: {
-    getBalance: vi.fn(() =>
-      Promise.resolve({ balance: 1, profile: null, monthlyUsageTokens: null, monthlySpend: null })
-    ),
+    getBalance: vi.fn(() => Promise.resolve({ balance: 1, profile: null })),
     logout: vi.fn(() => Promise.resolve())
   }
 }))
@@ -20,7 +18,7 @@ describe('cherryinHandlers', () => {
   it('dispatches get_balance to the service', async () => {
     await expect(
       cherryinHandlers['cherryin.get_balance']({ apiHost: 'https://open.cherryin.ai' }, { senderId: 'w1' })
-    ).resolves.toEqual({ balance: 1, profile: null, monthlyUsageTokens: null, monthlySpend: null })
+    ).resolves.toEqual({ balance: 1, profile: null })
     expect(cherryInOauthService.getBalance).toHaveBeenCalledWith('https://open.cherryin.ai')
   })
 

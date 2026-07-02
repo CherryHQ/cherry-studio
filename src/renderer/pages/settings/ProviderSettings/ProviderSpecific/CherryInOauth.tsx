@@ -32,8 +32,6 @@ interface CherryINProfile {
 interface BalanceInfo {
   balance: number
   profile: CherryINProfile | null
-  monthlyUsageTokens: number | null
-  monthlySpend: number | null
 }
 
 interface CherryInOauthProps {

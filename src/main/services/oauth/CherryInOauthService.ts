@@ -51,8 +51,6 @@ const UserSelfResponseSchema = z
 export interface BalanceResponse {
   balance: number
   profile: CherryINProfile | null
-  monthlyUsageTokens: number | null
-  monthlySpend: number | null
 }
 
 export interface CherryINProfile {
@@ -233,13 +231,10 @@ export class CherryInOauthService {
       const { quota, used_quota: usedQuota } = parsed.data
       const profile = await this.getProfile(apiHost)
       const balance = quota / 500000
-      const monthlySpend = usedQuota / 500000
-      logger.info('Balance fetched successfully', { balance, usedQuota, monthlySpend })
+      logger.info('Balance fetched successfully', { balance, usedQuota })
       return {
         balance,
-        profile,
-        monthlyUsageTokens: null,
-        monthlySpend
+        profile
       }
     } catch (error) {
       if (error instanceof z.ZodError) {

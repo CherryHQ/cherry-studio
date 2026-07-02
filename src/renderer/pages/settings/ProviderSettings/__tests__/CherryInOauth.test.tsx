@@ -27,9 +27,7 @@ const DEFAULT_BALANCE = {
     username: 'siin',
     email: 'siin@gmail.com',
     group: 'Pro'
-  },
-  monthlyUsageTokens: null,
-  monthlySpend: 6.82
+  }
 }
 
 vi.mock('@renderer/utils/oauth', () => ({

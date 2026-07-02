@@ -84,9 +84,7 @@ describe('CherryInOauthService', () => {
         username: 'siin',
         email: 'siin@gmail.com',
         group: 'Pro'
-      },
-      monthlyUsageTokens: null,
-      monthlySpend: 6.82
+      }
     })
     // Delegates to the runtime with the cherryin provider id and its apiHost
     // context, and shapes the bearer/json request the runtime then drives.

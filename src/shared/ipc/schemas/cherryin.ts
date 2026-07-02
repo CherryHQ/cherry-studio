@@ -18,12 +18,10 @@ const cherryInProfileSchema = z.object({
   group: z.string().nullable()
 })
 
-/** Balance plus optional profile/usage, returned to the settings panel. */
+/** Balance plus optional profile, returned to the settings panel. */
 const cherryInBalanceSchema = z.object({
   balance: z.number(),
-  profile: cherryInProfileSchema.nullable(),
-  monthlyUsageTokens: z.number().nullable(),
-  monthlySpend: z.number().nullable()
+  profile: cherryInProfileSchema.nullable()
 })
 
 export type CherryInProfile = z.infer<typeof cherryInProfileSchema>
