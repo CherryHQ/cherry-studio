@@ -1,6 +1,7 @@
 import type { ISeeder } from '../types'
 import { CherryAiDefaultModelSeeder } from './seeders/cherryaiDefaultModelSeeder'
 import { DefaultAssistantSeeder } from './seeders/defaultAssistantSeeder'
+import { HunyuanHy3ModelSeeder } from './seeders/hunyuanHy3ModelSeeder'
 import { MiniAppSeeder } from './seeders/miniAppSeeder'
 import { PreferenceSeeder } from './seeders/preferenceSeeder'
 import { PresetProviderSeeder } from './seeders/presetProviderSeeder'
@@ -22,5 +23,8 @@ export const seeders: ISeeder[] = [
   new PreferenceSeeder(),
   new TranslateLanguageSeeder(),
   new PresetProviderSeeder(),
+  // After PresetProviderSeeder: the hy3 model row has an FK to the Hunyuan
+  // provider row, so the provider must be seeded first.
+  new HunyuanHy3ModelSeeder(),
   new MiniAppSeeder()
 ]
