@@ -817,7 +817,7 @@ describe('AgentToolRenderer', () => {
         node.className.includes("font-['Menlo','Monaco','Courier_New',monospace]")
       )
       expect(terminal?.className).toContain('bg-[#f5f5f5]')
-      expect(terminal?.className).not.toContain('bg-[#1e1e1e]')
+      expect(terminal?.className).toContain('dark:bg-[#1e1e1e]')
 
       fireEvent.click(toolHeader)
       expect(screen.getByTestId('collapse-content-Bash')).not.toBeVisible()
