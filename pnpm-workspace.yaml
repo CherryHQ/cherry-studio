@@ -64,12 +64,13 @@ allowBuilds:
   '@scarf/scarf': true
   '@swc/core': true
   better-sqlite3: true
-  canvas: true
+  canvas: false
   core-js: true
   electron: true
   electron-winstaller: true
   esbuild: true
   msw: true
+  onnxruntime-node: true
   protobufjs: true
   registry-js: true
   selection-hook: true

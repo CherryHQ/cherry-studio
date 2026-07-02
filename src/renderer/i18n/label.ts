@@ -86,6 +86,7 @@ const providerKeyMap = {
   mimo: 'provider.mimo',
   'minimax-global': 'provider.minimax-global',
   zai: 'provider.zai',
+  'local-embedding': 'provider.local-embedding',
   opencode: 'provider.opencode'
 } as const
 
