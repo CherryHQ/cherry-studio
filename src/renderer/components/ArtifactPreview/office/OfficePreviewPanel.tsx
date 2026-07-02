@@ -1,8 +1,11 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { loggerService } from '@logger'
 import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
 import { AlertCircle, FileText } from 'lucide-react'
 import { type ComponentType, type ReactNode, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('OfficePreviewPanel')
 
 const SUPPORTED_OFFICE_PREVIEW_EXTENSIONS = new Set(['docx', 'pptx'])
 
@@ -119,7 +122,9 @@ function SupportedOfficePreview({
       })
       .catch((err: unknown) => {
         if (cancelled) return
-        setLoadError(err instanceof Error ? err : new Error(String(err)))
+        const normalized = err instanceof Error ? err : new Error(String(err))
+        logger.error(`Failed to load ${extension} preview panel`, normalized)
+        setLoadError(normalized)
       })
 
     return () => {
