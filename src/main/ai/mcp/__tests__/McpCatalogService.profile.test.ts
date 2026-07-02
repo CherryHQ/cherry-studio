@@ -8,17 +8,18 @@ beforeEach(() => {
 })
 
 describe('McpCatalogService profile activation', () => {
-  it('cancels prewarm on deactivate; re-arms and re-prewarms on activate', () => {
+  it('supersedes the prewarm generation on deactivate and re-prewarms on activate', () => {
     const svc = new McpCatalogService()
     const prewarm = vi
       .spyOn(svc as unknown as { prewarmActiveServerTools: () => Promise<void> }, 'prewarmActiveServerTools')
       .mockResolvedValue(undefined)
 
+    const genBefore = svc['prewarmGeneration']
     svc.onProfileDeactivate()
-    expect(svc['prewarmCancelled']).toBe(true)
+    // Generation bumped → a running prewarm loop of the previous profile stops.
+    expect(svc['prewarmGeneration']).toBe(genBefore + 1)
 
     svc.onProfileActivate()
-    expect(svc['prewarmCancelled']).toBe(false)
     expect(prewarm).toHaveBeenCalledTimes(1)
   })
 })

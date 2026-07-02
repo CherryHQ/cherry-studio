@@ -69,10 +69,12 @@ function withCache<T extends unknown[], R>(
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['McpRuntimeService'])
 export class McpCatalogService extends BaseService implements ProfileActivatable {
-  private prewarmCancelled = false
+  // Monotonic generation for prewarm cancellation. A running prewarm captures its
+  // generation and stops when it changes, so a single shared boolean cannot be
+  // reset by the next profile's activate and un-cancel the previous loop.
+  private prewarmGeneration = 0
 
   protected async onInit(): Promise<void> {
-    this.prewarmCancelled = false
     this.registerDisposable(
       application.get('McpRuntimeService').onToolListChanged(({ serverId }) => {
         void this.refreshTools(serverId).catch((error) => {
@@ -88,18 +90,20 @@ export class McpCatalogService extends BaseService implements ProfileActivatable
   }
 
   protected async onStop(): Promise<void> {
-    this.prewarmCancelled = true
+    this.prewarmGeneration++ // cancel any in-flight prewarm
   }
 
-  /** Re-arm and prewarm the new profile's active MCP server tools (mirrors onReady). */
+  /** Prewarm the new profile's active MCP server tools (mirrors onReady). */
   onProfileActivate(): void {
-    this.prewarmCancelled = false
     void this.prewarmActiveServerTools()
   }
 
-  /** Cancel any in-flight prewarm of the previous profile's tools. */
+  /** Cancel the previous profile's in-flight prewarm and drop its cached tool defs. */
   onProfileDeactivate(): void {
-    this.prewarmCancelled = true
+    this.prewarmGeneration++ // supersede the previous profile's prewarm generation
+    // Drop this profile's per-server tool cache so a reloaded renderer does not
+    // re-sync it (keys are per-profile serverIds, no TTL).
+    application.get('CacheService').deleteSharedByPrefix(['mcp.tools.'])
   }
 
   private getServerById(serverId: string): McpServer {
@@ -236,10 +240,13 @@ export class McpCatalogService extends BaseService implements ProfileActivatable
   }
 
   private async prewarmActiveServerTools(): Promise<void> {
+    // Capture the generation at launch; a deactivate/stop/next-activate bumps it,
+    // which stops this loop between batches even after another profile activates.
+    const generation = ++this.prewarmGeneration
     try {
       const { items: servers } = mcpServerService.list({ isActive: true })
       for (let index = 0; index < servers.length; index += PREWARM_CONCURRENCY) {
-        if (this.prewarmCancelled || this.isStopped || this.isDestroyed) return
+        if (this.prewarmGeneration !== generation || this.isStopped || this.isDestroyed) return
         const batch = servers.slice(index, index + PREWARM_CONCURRENCY)
         const results = await Promise.allSettled(
           batch.map((server) => this.listToolsForServer(server, { includeDisabled: true }))

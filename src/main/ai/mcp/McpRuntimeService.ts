@@ -213,6 +213,9 @@ export class McpRuntimeService extends BaseService implements ProfileActivatable
   /** Close the previous profile's MCP client connections (its servers/oauth are profile-scoped). */
   async onProfileDeactivate(): Promise<void> {
     await this.teardownClients()
+    // Drop this profile's per-server status from the shared cache so a reloaded
+    // renderer does not re-sync it (keys are per-profile serverIds, no TTL).
+    application.get('CacheService').deleteSharedByPrefix(['mcp.status.'])
   }
 
   private async teardownClients(): Promise<void> {
