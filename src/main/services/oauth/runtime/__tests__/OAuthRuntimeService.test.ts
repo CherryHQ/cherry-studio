@@ -77,6 +77,7 @@ vi.mock('../providerDefinitions', () => ({
 
 import { OAuthHttpError } from '@main/utils/oauth/PkceOAuthClient'
 
+import { OAuthTransientError } from '../../errors'
 import { OAuthRuntimeService } from '../OAuthRuntimeService'
 
 function seedOAuth(id: string, authConfig: Record<string, unknown>): void {
@@ -103,23 +104,24 @@ describe('OAuthRuntimeService', () => {
     expect(h.refreshMock).not.toHaveBeenCalled()
   })
 
-  // W1: a transient refresh failure must NOT log the user out.
-  it('keeps the stored token when a refresh fails transiently (network/5xx)', async () => {
+  // W1 + item4: a transient refresh failure must NOT log the user out, and must
+  // surface a retriable error rather than a null the caller reads as signed-out.
+  it('throws a transient error and keeps the stored token when a refresh fails transiently (network/5xx)', async () => {
     seedOAuth('codex', { accessToken: 'old', refreshToken: 'r', expiresAt: PAST() })
     h.refreshMock.mockRejectedValue(new Error('network down'))
 
-    expect(await service.getValidAccessToken('codex')).toBeNull()
+    await expect(service.getValidAccessToken('codex')).rejects.toThrow(OAuthTransientError)
     const stored = h.providerStore.get('codex')
     expect(stored?.authConfig).toMatchObject({ type: 'oauth', refreshToken: 'r' })
     expect(stored?.isEnabled).toBeUndefined()
   })
 
   // A 408 from the token endpoint is transient too — must keep the session.
-  it('keeps the stored token when a refresh returns 408 (request timeout)', async () => {
+  it('throws a transient error and keeps the stored token when a refresh returns 408 (request timeout)', async () => {
     seedOAuth('codex', { accessToken: 'old', refreshToken: 'r', expiresAt: PAST() })
     h.refreshMock.mockRejectedValue(new OAuthHttpError('timeout', 408, ''))
 
-    expect(await service.getValidAccessToken('codex')).toBeNull()
+    await expect(service.getValidAccessToken('codex')).rejects.toThrow(OAuthTransientError)
     expect(h.providerStore.get('codex')?.authConfig).toMatchObject({ type: 'oauth' })
   })
 
@@ -198,6 +200,22 @@ describe('OAuthRuntimeService', () => {
         notSignedInMessage: 'please sign in'
       })
     ).rejects.toThrow('please sign in')
+  })
+
+  // item4: a transient refresh blip mid-chat must surface as a retriable error,
+  // NOT the not-signed-in hint (which would push the user through a full OAuth
+  // round). The request is never even attempted.
+  it('authenticatedFetch surfaces a transient refresh failure instead of the not-signed-in hint', async () => {
+    seedOAuth('codex', { accessToken: 'old', refreshToken: 'r', expiresAt: PAST() })
+    h.refreshMock.mockRejectedValue(new Error('network down'))
+    const doFetch = vi.fn()
+
+    await expect(
+      service.authenticatedFetch('codex', () => ({ input: 'x', init: {} }), doFetch, {
+        notSignedInMessage: 'please sign in'
+      })
+    ).rejects.toThrow(OAuthTransientError)
+    expect(doFetch).not.toHaveBeenCalled()
   })
 
   // CherryIN path: still 401 after the forced-refresh retry → onUnauthorized fires

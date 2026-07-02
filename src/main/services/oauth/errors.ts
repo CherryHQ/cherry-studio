@@ -10,6 +10,20 @@ export class OAuthServiceError extends Error {
 }
 
 /**
+ * A token refresh failed transiently (network, 5xx, 408/425/429) — the stored
+ * session is still valid and the caller should retry, not re-authenticate.
+ * Kept distinct from a plain null / `OAuthServiceError` so the chat path can
+ * surface "please retry" instead of sending the user through a full browser
+ * OAuth round for what is really a momentary blip.
+ */
+export class OAuthTransientError extends OAuthServiceError {
+  constructor(message: string, cause?: unknown) {
+    super(message, cause)
+    this.name = 'OAuthTransientError'
+  }
+}
+
+/**
  * Reduce an OAuth error (and its `cause` chain) to a log-safe shape: name,
  * message, and an HTTP `status` when present. Deliberately drops any raw token
  * endpoint response body — `OAuthHttpError.body` can carry provider error

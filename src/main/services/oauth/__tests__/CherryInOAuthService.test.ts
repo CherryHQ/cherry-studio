@@ -29,6 +29,7 @@ vi.mock('electron', () => ({
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
 import { CherryInOAuthService } from '../CherryInOAuthService'
+import { OAuthTransientError } from '../errors'
 
 describe('CherryInOAuthService', () => {
   let cherryInOAuthService: CherryInOAuthService
@@ -144,6 +145,17 @@ describe('CherryInOAuthService', () => {
       'https://open.cherryin.ai/oauth2/revoke',
       expect.objectContaining({ method: 'POST', body: 'token=oauth-access&token_type_hint=access_token' })
     )
+    expect(runtimeMocks.logout).toHaveBeenCalledWith('cherryin')
+  })
+
+  it('still clears the local session on logout when the token is temporarily unavailable', async () => {
+    // A transient refresh failure means no token to revoke — logout must skip
+    // the remote revoke but still delegate the local clear.
+    runtimeMocks.getValidAccessToken.mockRejectedValue(new OAuthTransientError('temporary, please retry'))
+
+    await cherryInOAuthService.logout('https://open.cherryin.ai')
+
+    expect(netMocks.fetch).not.toHaveBeenCalled()
     expect(runtimeMocks.logout).toHaveBeenCalledWith('cherryin')
   })
 })

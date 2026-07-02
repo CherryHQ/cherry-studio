@@ -6,6 +6,7 @@ import { net } from 'electron'
 import * as z from 'zod'
 
 import { CherryInOAuthServiceError, validateCherryInApiHost } from './CherryInOAuthConfig'
+import { describeOAuthError, OAuthTransientError } from './errors'
 
 const logger = loggerService.withContext('CherryInOAuthService')
 
@@ -62,10 +63,21 @@ export class CherryInOAuthService {
 
   public getToken = async (apiHost = 'https://open.cherryin.ai'): Promise<string | null> => {
     this.validateApiHost(apiHost)
-    const credentials = await application
-      .get('OAuthRuntimeService')
-      .getValidAccessToken(SystemProviderIds.cherryin, { apiHost })
-    return credentials?.accessToken ?? null
+    try {
+      const credentials = await application
+        .get('OAuthRuntimeService')
+        .getValidAccessToken(SystemProviderIds.cherryin, { apiHost })
+      return credentials?.accessToken ?? null
+    } catch (error) {
+      // A transient refresh failure means the session is still valid but we
+      // can't produce a token right now. The sole caller is logout, which must
+      // still clear the local session — treat it as "no token to revoke".
+      if (error instanceof OAuthTransientError) {
+        logger.debug('CherryIN token temporarily unavailable, skipping remote revoke', describeOAuthError(error))
+        return null
+      }
+      throw error
+    }
   }
 
   private redactDiagnosticValue = (value: unknown): unknown => {

@@ -5,7 +5,7 @@ import { OAuthHttpError } from '@main/utils/oauth/PkceOAuthClient'
 import type { WindowId } from '@shared/ipc/types'
 import { shell } from 'electron'
 
-import { describeOAuthError, OAuthServiceError } from '../errors'
+import { describeOAuthError, OAuthServiceError, OAuthTransientError } from '../errors'
 import { DeepLinkCallbackTransport } from './DeepLinkCallbackTransport'
 import { LoopbackCallbackTransport } from './LoopbackCallbackTransport'
 import { ProviderAuthConfigOAuthTokenStore } from './OAuthTokenStore'
@@ -265,7 +265,10 @@ export class OAuthRuntimeService extends BaseService {
       return null
     }
     if (result.status !== 'ok') {
-      return null
+      // Retriable: the session is intact. Signal a retry rather than returning
+      // null, which authenticatedFetch would otherwise report as "not signed
+      // in — sign in again", forcing an unnecessary browser OAuth round.
+      throw new OAuthTransientError(`Temporary failure refreshing ${providerId} token, please retry`)
     }
 
     // Read back from the store rather than trusting `result.accessToken`: if a
