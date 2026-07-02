@@ -1132,6 +1132,75 @@ describe('MessagePartsRenderer', () => {
     ])
   })
 
+  it('keeps up to three reasoning blocks inside expanded tool history', () => {
+    renderParts([
+      { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
+      { type: 'reasoning', text: 'thought 1', state: 'done' },
+      { type: 'reasoning', text: 'thought 2', state: 'done' },
+      { type: 'reasoning', text: 'thought 3', state: 'done' },
+      { type: 'dynamic-tool', toolCallId: 'b', toolName: 'read', state: 'output-available', output: {} },
+      { type: 'text', text: 'final answer' }
+    ] as unknown as CherryMessagePart[])
+
+    fireEvent.click(screen.getByRole('button', { name: '2 tool calls' }))
+
+    expect(screen.getAllByTestId('mock-thinking-block').map((node) => node.textContent)).toEqual([
+      'thought 1',
+      'thought 2',
+      'thought 3'
+    ])
+  })
+
+  it('hides reasoning blocks inside tool history when there are more than three', () => {
+    renderParts([
+      { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
+      { type: 'reasoning', text: 'thought 1', state: 'done' },
+      { type: 'reasoning', text: 'thought 2', state: 'done' },
+      { type: 'reasoning', text: 'thought 3', state: 'done' },
+      { type: 'reasoning', text: 'thought 4', state: 'done' },
+      { type: 'dynamic-tool', toolCallId: 'b', toolName: 'read', state: 'output-available', output: {} },
+      { type: 'text', text: 'final answer' }
+    ] as unknown as CherryMessagePart[])
+
+    fireEvent.click(screen.getByRole('button', { name: '2 tool calls' }))
+
+    expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
+    expect(screen.getAllByTestId('mock-message-tools').map((node) => node.getAttribute('data-tool-name'))).toEqual([
+      'list',
+      'read'
+    ])
+    expect(screen.getByTestId('mock-markdown')).toHaveTextContent('final answer')
+  })
+
+  it('keeps the latest reasoning block in live tool history when there are more than three', () => {
+    mockIsActiveTurnTarget.mockReturnValue(true)
+
+    renderParts(
+      [
+        { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
+        { type: 'reasoning', text: 'thought 1', state: 'done' },
+        { type: 'reasoning', text: 'thought 2', state: 'done' },
+        { type: 'reasoning', text: 'thought 3', state: 'done' },
+        { type: 'reasoning', text: 'thought 4', state: 'streaming' }
+      ] as unknown as CherryMessagePart[],
+      msg({ status: 'pending' })
+    )
+
+    const preview = screen.getByTestId('tool-history-preview')
+    expect(within(preview).queryByText('thought 1')).toBeNull()
+    expect(within(preview).queryByText('thought 2')).toBeNull()
+    expect(within(preview).queryByText('thought 3')).toBeNull()
+    expect(within(preview).getByText('thought 4')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '1 tool calls · 1 second' }))
+
+    expect(screen.queryByTestId('tool-history-preview')).toBeNull()
+    expect(screen.queryByText('thought 1')).toBeNull()
+    expect(screen.queryByText('thought 2')).toBeNull()
+    expect(screen.queryByText('thought 3')).toBeNull()
+    expect(screen.getByText('thought 4')).toBeInTheDocument()
+  })
+
   it('folds single-tool steps and narration into the outer fold once an answer exists', () => {
     renderParts([
       { type: 'text', text: 'checking project files' },
@@ -1428,6 +1497,25 @@ describe('MessagePartsRenderer', () => {
     expect(screen.getAllByTestId('mock-message-tools').map((node) => node.getAttribute('data-tool-name'))).toEqual([
       'edit'
     ])
+  })
+
+  it('does not let hidden process parts produce an empty collapsed preview', () => {
+    mockIsActiveTurnTarget.mockReturnValue(true)
+
+    renderParts(
+      [
+        { type: 'dynamic-tool', toolCallId: 'a', toolName: 'edit', state: 'input-available', input: {} },
+        ...Array.from({ length: 12 }, (_, index) =>
+          index % 2 === 0
+            ? ({ type: 'step-start' } as unknown as CherryMessagePart)
+            : ({ type: 'source-url' } as unknown as CherryMessagePart)
+        )
+      ] as unknown as CherryMessagePart[],
+      msg({ status: 'pending' })
+    )
+
+    const preview = screen.getByTestId('tool-history-preview')
+    expect(within(preview).getByTestId('mock-message-tools')).toHaveAttribute('data-tool-name', 'edit')
   })
 
   it('hides the generating placeholder when a pending agent message already has tool calls', () => {

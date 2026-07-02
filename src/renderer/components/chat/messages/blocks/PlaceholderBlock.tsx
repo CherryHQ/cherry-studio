@@ -63,7 +63,7 @@ const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ isProcessing, creat
   if (isProcessing) {
     return (
       <div
-        className="-mt-1.25 mb-0.5 flex min-h-6 flex-row items-center gap-1.5 text-[12px] text-muted-foreground/75 leading-4"
+        className="mt-1 mb-0.5 flex min-h-6 flex-row items-center gap-1.5 text-[12px] text-muted-foreground/75 leading-4"
         data-testid="message-status-placeholder">
         <PlaceholderShimmerText data-testid="message-status-text">
           {t(PLACEHOLDER_LABEL_KEYS[status])}

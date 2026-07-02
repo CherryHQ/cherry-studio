@@ -59,6 +59,7 @@ import TranslationBlock from './TranslationBlock'
 const logger = loggerService.withContext('MessagePartsRenderer')
 const BOTTOM_COLLAPSE_TOOL_COUNT_THRESHOLD = 10
 const TOOL_HISTORY_PREVIEW_ENTRY_LIMIT = 10
+const TOOL_HISTORY_REASONING_DISPLAY_LIMIT = 3
 const TRAILING_RESULT_RELEASE_DELAY_MS = 2000
 const TERMINAL_TOOL_STATES = new Set(['output-available', 'output-error', 'output-denied'])
 
@@ -225,11 +226,25 @@ function canJoinPreviewGroup(entry: PartEntry, groupEntry: PartEntry): boolean {
   )
 }
 
-function getPreviewGroupedEntries(entries: readonly PartEntry[], limit: number): GroupedEntry[] {
+function isRenderablePreviewEntry(entry: PartEntry, messageId: string): boolean {
+  const part = entry.part
+  const partType = part.type as string
+
+  if (isToolUIPart(part)) return buildToolRenderItems([entry], messageId).length > 0
+  if (isImageFilePart(part)) return !!extractImageUrl(part)
+  if (isDataUIPart(part) && part.type === 'data-video') return !!part.data
+  if (partType === 'source-url' || partType === 'step-start' || partType === 'data-agent-task-event') return false
+  if (partType === 'data-citation') return false
+
+  return true
+}
+
+function getPreviewGroupedEntries(entries: readonly PartEntry[], limit: number, messageId: string): GroupedEntry[] {
   const reversedGroups: GroupedEntry[] = []
 
   for (let index = entries.length - 1; index >= 0; index--) {
     const entry = entries[index]
+    if (!isRenderablePreviewEntry(entry, messageId)) continue
 
     const latestGroup = reversedGroups[reversedGroups.length - 1]
     if (Array.isArray(latestGroup) && canJoinPreviewGroup(entry, latestGroup[0])) {
@@ -761,6 +776,24 @@ function hasStreamingReasoningAfterLastTool(entries: readonly PartEntry[]): bool
   return false
 }
 
+function filterToolHistoryReasoningEntries(
+  entries: readonly PartEntry[],
+  keepLastReasoning: boolean
+): readonly PartEntry[] {
+  const reasoningCount = entries.reduce((count, entry) => count + (isReasoningMessagePart(entry.part) ? 1 : 0), 0)
+  if (reasoningCount <= TOOL_HISTORY_REASONING_DISPLAY_LIMIT) return entries
+  let lastReasoningEntry: PartEntry | undefined
+  if (keepLastReasoning) {
+    for (let index = entries.length - 1; index >= 0; index--) {
+      if (isReasoningMessagePart(entries[index].part)) {
+        lastReasoningEntry = entries[index]
+        break
+      }
+    }
+  }
+  return entries.filter((entry) => !isReasoningMessagePart(entry.part) || entry === lastReasoningEntry)
+}
+
 /**
  * The big outer fold for the whole agentic process. It stays collapsed by
  * default and shows a bounded process preview while collapsed; expanding
@@ -789,8 +822,11 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
   const wasPreviewVisibleRef = React.useRef(false)
   const shouldSmoothPreviewScrollRef = React.useRef(false)
 
-  const renderableEntries = entries
   const showLiveProgress = isProcessing && hasLiveProcessTail
+  const renderableEntries = useMemo(
+    () => filterToolHistoryReasoningEntries(entries, showLiveProgress),
+    [entries, showLiveProgress]
+  )
   const shouldHoldPreview = isProcessing
   const wasHoldingPreviewRef = React.useRef(shouldHoldPreview)
   const showPreview = !isExpanded && !previewDismissed && shouldHoldPreview && renderableEntries.length > 0
@@ -804,8 +840,9 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
     [isExpanded, renderableEntries]
   )
   const previewEntries = useMemo(
-    () => (showPreview ? getPreviewGroupedEntries(renderableEntries, TOOL_HISTORY_PREVIEW_ENTRY_LIMIT) : []),
-    [renderableEntries, showPreview]
+    () =>
+      showPreview ? getPreviewGroupedEntries(renderableEntries, TOOL_HISTORY_PREVIEW_ENTRY_LIMIT, message.id) : [],
+    [message.id, renderableEntries, showPreview]
   )
   const elapsedMs = usePlaceholderElapsedMs(showLiveProgress, message.createdAt)
   const elapsedText = showLiveProgress ? formatPlaceholderElapsed(elapsedMs, t) : undefined
