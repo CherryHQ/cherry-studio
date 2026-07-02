@@ -449,12 +449,14 @@
         "context": "情境",
         "no_tasks": "沒有進行中的任務",
         "selected_tool": "選取的工具",
+        "session_info": "會話",
         "task_count": "{{completed}} / {{total}} 完成",
         "tasks": "任務",
         "tools_active": "活躍",
         "tools_done": "完成",
         "tools_failed": "失敗",
         "tools_total": "總計",
+        "turn_count": "{{count}} 輪",
         "workspace": "工作區"
       },
       "tabs": {

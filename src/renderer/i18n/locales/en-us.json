@@ -449,12 +449,14 @@
         "context": "Context",
         "no_tasks": "No active tasks",
         "selected_tool": "Selected tool",
+        "session_info": "Session",
         "task_count": "{{completed}} / {{total}} complete",
         "tasks": "Tasks",
         "tools_active": "Active",
         "tools_done": "Done",
         "tools_failed": "Failed",
         "tools_total": "Total",
+        "turn_count": "{{count}} turns",
         "workspace": "Workspace"
       },
       "tabs": {

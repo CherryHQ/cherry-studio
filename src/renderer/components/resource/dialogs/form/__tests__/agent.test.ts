@@ -174,7 +174,7 @@ describe('diffAgentUpdate', () => {
     })
   })
 
-  it('merges configuration-subkey patches on top of the existing configuration without sending max_turns', () => {
+  it('merges configuration-subkey patches on top of the existing configuration preserving all fields', () => {
     const agent = createAgent({
       configuration: { avatar: '🤖', plugin_state: 'keep-me', max_turns: 10 }
     })
@@ -182,11 +182,12 @@ describe('diffAgentUpdate', () => {
     const next = { ...baseline, avatar: '🚀' }
 
     const result = diffAgentUpdate(baseline, next, agent)
-    // plugin_state must be preserved — the library form does not edit it, so
-    // it MUST NOT be stripped from the PATCH payload.
+    // plugin_state and max_turns must be preserved — the library form does not edit them, so
+    // they MUST NOT be stripped from the PATCH payload.
     expect(result?.dto.configuration).toEqual({
       avatar: '🚀',
-      plugin_state: 'keep-me'
+      plugin_state: 'keep-me',
+      max_turns: 10
     })
   })
 
