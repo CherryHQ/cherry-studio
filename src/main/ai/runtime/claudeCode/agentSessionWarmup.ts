@@ -10,7 +10,7 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost } from '@shared/utils/api'
-import { isGeminiProvider } from '@shared/utils/provider'
+import { isExternalCliProvider, isGeminiProvider } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
@@ -114,7 +114,7 @@ async function resolveClaudeCodeRuntimeRoute(
   // key (abandoning the login) and ship an unresolvable `claude-code:*` id to
   // the gateway, bricking the agent. Pin every sub-model back onto the primary
   // so the agent still runs on the subscription login.
-  if (primaryProvider.authMethods?.includes('external-cli')) {
+  if (isExternalCliProvider(primaryProvider)) {
     const pinToPrimary = (ref: RuntimeModelRef) =>
       ref.providerId === primaryProvider.id ? ref.apiModelId : primaryRef.apiModelId
     return {

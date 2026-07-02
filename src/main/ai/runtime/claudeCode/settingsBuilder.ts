@@ -68,6 +68,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 import type { McpTool } from '@shared/types/mcp'
 import { languageEnglishNameMap } from '@shared/utils/languages'
+import { isExternalCliProvider } from '@shared/utils/provider'
 import { app } from 'electron'
 
 import type { AgentRuntimeUserInput } from '../types'
@@ -559,7 +560,7 @@ async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise
   // CLI login. Elsewhere credentials live in <CLAUDE_CONFIG_DIR>/.credentials.json,
   // so point at the user's real config dir (their shell's CLAUDE_CONFIG_DIR, or
   // ~/.claude) rather than Cherry's relocated agent config.
-  if (provider.authMethods?.includes('external-cli')) {
+  if (isExternalCliProvider(provider)) {
     delete env.ANTHROPIC_API_KEY
     delete env.ANTHROPIC_AUTH_TOKEN
     delete env.ANTHROPIC_BASE_URL
