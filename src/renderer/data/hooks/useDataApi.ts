@@ -478,94 +478,101 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
     ...options?.swrOptions
   })
 
-  const trigger = async (data?: TriggerArgs<TPath, TMethod>): Promise<ResponseForPath<TPath, TMethod>> => {
-    const opts = optionsRef.current
-    // Capture args in this call's closure so concurrent triggers don't clobber
-    // each other's refresh context (refs would race on overlapping awaits).
-    const capturedArgs = data
-    const paramsRecord = capturedArgs?.params as Record<string, string | number> | undefined
-    const resolvedPath = resolveTemplate(path, paramsRecord)
-    const hasOptimisticData = opts?.optimisticData !== undefined
+  // Memoized so the returned `trigger` keeps a stable identity across renders. Callers routinely
+  // place `trigger` in dependency arrays (of `useCallback`/`useMemo`/`useEffect`); an unstable
+  // trigger propagates fresh identities downstream and can drive render loops. Latest options are
+  // read via `optionsRef`, so a stable identity does not stale the closure.
+  const trigger = useCallback(
+    async (data?: TriggerArgs<TPath, TMethod>): Promise<ResponseForPath<TPath, TMethod>> => {
+      const opts = optionsRef.current
+      // Capture args in this call's closure so concurrent triggers don't clobber
+      // each other's refresh context (refs would race on overlapping awaits).
+      const capturedArgs = data
+      const paramsRecord = capturedArgs?.params as Record<string, string | number> | undefined
+      const resolvedPath = resolveTemplate(path, paramsRecord)
+      const hasOptimisticData = opts?.optimisticData !== undefined
 
-    // Dev-mode: warn when a single template-hook instance is trigger'd with
-    // different params while a previous call is still in-flight. We check the
-    // ref rather than SWR's `isMutating` because React state updates lag a
-    // render — synchronous bursts (e.g. `Promise.all([trigger(a), trigger(b)])`)
-    // would see stale `isMutating === false` in both closures and the warning
-    // would never fire. The ref is updated synchronously on trigger entry.
-    if (isDev && paramsRecord) {
-      const prev = inFlightParamsRef.current
-      if (prev && JSON.stringify(prev) !== JSON.stringify(paramsRecord)) {
-        logger.warn(
-          `Concurrent trigger on template useMutation: ${method} ${String(path)}. ` +
-            `In-flight params=${JSON.stringify(prev)}, new params=${JSON.stringify(paramsRecord)}. ` +
-            `isMutating/error state will be shared between the two calls. ` +
-            `Use per-row hook instances with concrete paths (e.g. useMutation('${method}', providerPath(id))) for parallel writes.`
-        )
-      }
-    }
-    inFlightParamsRef.current = paramsRecord ?? null
-
-    // Apply optimistic update if optimisticData is provided
-    if (hasOptimisticData) {
-      await globalMutate([resolvedPath], opts.optimisticData, false)
-    }
-
-    try {
-      const result = await swrTrigger({
-        params: paramsRecord,
-        body: capturedArgs?.body,
-        query: capturedArgs?.query
-      } as {
-        params?: Record<string, string | number>
-        body?: BodyForPath<TPath, TMethod>
-        query?: QueryParamsForPath<TPath, TMethod>
-      })
-
-      // Run refresh after the mutation resolves. We do this in `trigger`
-      // itself (not SWR's onSuccess) so args/result are closure-captured
-      // and tied to this specific call.
-      //
-      // Refresh is an after-success side effect, not part of the mutation's
-      // success contract. If a user-provided function-form refresh throws
-      // (e.g. dereferences a missing arg), or if SWR revalidation surfaces
-      // an error, we must NOT propagate it — the server-side mutation has
-      // already succeeded and the caller's `await trigger()` must resolve
-      // accordingly. Log and continue instead.
-      const refreshOpt = opts?.refresh
-      if (refreshOpt) {
-        try {
-          const keys = typeof refreshOpt === 'function' ? refreshOpt({ args: capturedArgs, result }) : refreshOpt
-          if (keys.length > 0) {
-            await invalidatePathPatterns(cache, globalMutate, keys)
-          }
-        } catch (refreshErr) {
-          logger.warn(`Refresh failed after successful ${method} ${String(path)}; cache may be stale`, {
-            error: refreshErr
-          })
+      // Dev-mode: warn when a single template-hook instance is trigger'd with
+      // different params while a previous call is still in-flight. We check the
+      // ref rather than SWR's `isMutating` because React state updates lag a
+      // render — synchronous bursts (e.g. `Promise.all([trigger(a), trigger(b)])`)
+      // would see stale `isMutating === false` in both closures and the warning
+      // would never fire. The ref is updated synchronously on trigger entry.
+      if (isDev && paramsRecord) {
+        const prev = inFlightParamsRef.current
+        if (prev && JSON.stringify(prev) !== JSON.stringify(paramsRecord)) {
+          logger.warn(
+            `Concurrent trigger on template useMutation: ${method} ${String(path)}. ` +
+              `In-flight params=${JSON.stringify(prev)}, new params=${JSON.stringify(paramsRecord)}. ` +
+              `isMutating/error state will be shared between the two calls. ` +
+              `Use per-row hook instances with concrete paths (e.g. useMutation('${method}', providerPath(id))) for parallel writes.`
+          )
         }
       }
+      inFlightParamsRef.current = paramsRecord ?? null
 
-      opts?.onSuccess?.(result)
-
-      // Revalidate after optimistic update completes
+      // Apply optimistic update if optimisticData is provided
       if (hasOptimisticData) {
-        await globalMutate([resolvedPath])
+        await globalMutate([resolvedPath], opts.optimisticData, false)
       }
 
-      return result
-    } catch (err) {
-      // Rollback optimistic update on error
-      if (hasOptimisticData) {
-        await globalMutate([resolvedPath])
+      try {
+        const result = await swrTrigger({
+          params: paramsRecord,
+          body: capturedArgs?.body,
+          query: capturedArgs?.query
+        } as {
+          params?: Record<string, string | number>
+          body?: BodyForPath<TPath, TMethod>
+          query?: QueryParamsForPath<TPath, TMethod>
+        })
+
+        // Run refresh after the mutation resolves. We do this in `trigger`
+        // itself (not SWR's onSuccess) so args/result are closure-captured
+        // and tied to this specific call.
+        //
+        // Refresh is an after-success side effect, not part of the mutation's
+        // success contract. If a user-provided function-form refresh throws
+        // (e.g. dereferences a missing arg), or if SWR revalidation surfaces
+        // an error, we must NOT propagate it — the server-side mutation has
+        // already succeeded and the caller's `await trigger()` must resolve
+        // accordingly. Log and continue instead.
+        const refreshOpt = opts?.refresh
+        if (refreshOpt) {
+          try {
+            const keys = typeof refreshOpt === 'function' ? refreshOpt({ args: capturedArgs, result }) : refreshOpt
+            if (keys.length > 0) {
+              await invalidatePathPatterns(cache, globalMutate, keys)
+            }
+          } catch (refreshErr) {
+            logger.warn(`Refresh failed after successful ${method} ${String(path)}; cache may be stale`, {
+              error: refreshErr
+            })
+          }
+        }
+
+        opts?.onSuccess?.(result)
+
+        // Revalidate after optimistic update completes
+        if (hasOptimisticData) {
+          await globalMutate([resolvedPath])
+        }
+
+        return result
+      } catch (err) {
+        // Rollback optimistic update on error
+        if (hasOptimisticData) {
+          await globalMutate([resolvedPath])
+        }
+        throw err
+      } finally {
+        if (inFlightParamsRef.current === paramsRecord) {
+          inFlightParamsRef.current = null
+        }
       }
-      throw err
-    } finally {
-      if (inFlightParamsRef.current === paramsRecord) {
-        inFlightParamsRef.current = null
-      }
-    }
-  }
+    },
+    [cache, globalMutate, method, path, swrTrigger]
+  )
 
   return {
     trigger,
