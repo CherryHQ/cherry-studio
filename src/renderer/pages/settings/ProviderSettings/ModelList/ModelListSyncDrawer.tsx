@@ -4,6 +4,13 @@ import { useTranslation } from 'react-i18next'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
+import ModelListCapabilityChips from './ModelListCapabilityChips'
+import {
+  getCapabilityModelCounts,
+  matchesCapabilityFilter,
+  MODEL_LIST_CAPABILITY_FILTERS,
+  type ModelListCapabilityFilter
+} from './modelListDerivedState'
 import ModelSyncPreviewPanel, { ModelSyncPreviewFooter } from './ModelSyncPreviewPanel'
 import type { ModelSyncPreviewResponse } from './modelSyncPreviewTypes'
 import { type ModelPullApplyPayload, useModelListSyncSelections } from './useModelListSyncSelections'
@@ -20,31 +27,48 @@ interface ModelListSyncDrawerProps {
 export default function ModelListSyncDrawer({ open, preview, isApplying, onApply, onClose }: ModelListSyncDrawerProps) {
   const { t } = useTranslation()
   const [searchText, setSearchText] = useState('')
+  const [selectedCapabilityFilter, setSelectedCapabilityFilter] = useState<ModelListCapabilityFilter>('all')
   const selections = useModelListSyncSelections(preview)
   const searchActive = Boolean(searchText.trim())
+  const capabilityActive = selectedCapabilityFilter !== 'all'
+  const filterActive = searchActive || capabilityActive
   const hasModels = !!preview && (preview.added.length > 0 || preview.missing.length > 0)
 
   useEffect(() => {
     setSearchText('')
+    setSelectedCapabilityFilter('all')
   }, [open, preview])
 
+  // Capability counts span the full unfiltered preview (added + missing) so the chip badges
+  // reflect every model the sync touches, not just the search-narrowed subset.
+  const capabilityModelCounts = useMemo(
+    () => getCapabilityModelCounts(preview ? [...preview.added, ...preview.missing.map((item) => item.model)] : []),
+    [preview]
+  )
+
   const filteredPreview = useMemo<ModelSyncPreviewResponse | null>(() => {
-    if (!preview || !searchActive) {
+    if (!preview || !filterActive) {
       return preview
     }
 
-    const added = filterProviderSettingModelsByKeywords(searchText, preview.added)
-    const visibleMissingModels = filterProviderSettingModelsByKeywords(
-      searchText,
-      preview.missing.map((item) => item.model)
+    const searchedAdded = searchActive ? filterProviderSettingModelsByKeywords(searchText, preview.added) : preview.added
+    const added = searchedAdded.filter((model) => matchesCapabilityFilter(model, selectedCapabilityFilter))
+
+    const missingModels = preview.missing.map((item) => item.model)
+    const searchedMissing = searchActive
+      ? filterProviderSettingModelsByKeywords(searchText, missingModels)
+      : missingModels
+    const visibleMissingIds = new Set(
+      searchedMissing
+        .filter((model) => matchesCapabilityFilter(model, selectedCapabilityFilter))
+        .map((model) => model.id)
     )
-    const visibleMissingIds = new Set(visibleMissingModels.map((model) => model.id))
 
     return {
       added,
       missing: preview.missing.filter((item) => visibleMissingIds.has(item.model.id))
     }
-  }, [preview, searchActive, searchText])
+  }, [preview, filterActive, searchActive, searchText, selectedCapabilityFilter])
 
   const handleApply = useCallback(() => {
     const payload = selections.getApplyPayload()
@@ -75,32 +99,40 @@ export default function ModelListSyncDrawer({ open, preview, isApplying, onApply
       {filteredPreview ? (
         <>
           {hasModels ? (
-            <div className={modelListClasses.searchWrap}>
-              <Search className={modelListClasses.searchIcon} />
-              <input
-                type="text"
-                value={searchText}
-                placeholder={t('models.search.placeholder')}
-                disabled={isApplying}
-                onChange={(event) => setSearchText(event.target.value)}
-                className={modelListClasses.searchInput}
+            <div className={modelListClasses.titleWrap}>
+              <div className={modelListClasses.searchWrap}>
+                <Search className={modelListClasses.searchIcon} />
+                <input
+                  type="text"
+                  value={searchText}
+                  placeholder={t('models.search.placeholder')}
+                  disabled={isApplying}
+                  onChange={(event) => setSearchText(event.target.value)}
+                  className={modelListClasses.searchInput}
+                />
+                {searchText ? (
+                  <button
+                    type="button"
+                    onClick={() => setSearchText('')}
+                    className={modelListClasses.searchClear}
+                    aria-label={t('common.clear')}>
+                    <X size={9} />
+                  </button>
+                ) : null}
+              </div>
+              <ModelListCapabilityChips
+                capabilityOptions={MODEL_LIST_CAPABILITY_FILTERS}
+                selectedCapabilityFilter={selectedCapabilityFilter}
+                capabilityModelCounts={capabilityModelCounts}
+                onSelectCapabilityFilter={setSelectedCapabilityFilter}
               />
-              {searchText ? (
-                <button
-                  type="button"
-                  onClick={() => setSearchText('')}
-                  className={modelListClasses.searchClear}
-                  aria-label={t('common.clear')}>
-                  <X size={9} />
-                </button>
-              ) : null}
             </div>
           ) : null}
           <ModelSyncPreviewPanel
             preview={filteredPreview}
             selections={selections}
             isApplying={isApplying}
-            searchActive={searchActive}
+            searchActive={filterActive}
           />
         </>
       ) : null}
