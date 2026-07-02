@@ -21,6 +21,7 @@ import type { BinaryState, ManagedBinary } from '@shared/data/preference/prefere
 import { type BinaryToolPreset, PRESETS_BINARY_TOOLS, validateManagedBinary } from '@shared/data/presets/binaryTools'
 import { useNavigate } from '@tanstack/react-router'
 import {
+  ArrowBigUp,
   Download,
   ExternalLink,
   FolderOpen,
@@ -35,6 +36,7 @@ import {
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { gt as semverGt } from 'semver'
 
 const logger = loggerService.withContext('EnvironmentDependencies')
 
@@ -54,6 +56,8 @@ interface EnvironmentDependenciesProps {
 const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = false }) => {
   const [binaryState, setBinaryState] = useState<BinaryState | null>(null)
   const [bundled, setBundled] = useState<Record<string, string | null>>({})
+  const [latestVersions, setLatestVersions] = useState<Record<string, string> | null>(null)
+  const [checkingUpdates, setCheckingUpdates] = useState(false)
   const [installingTools, setInstallingTools] = useState<Set<string>>(new Set())
   const [customTools, setCustomTools] = usePreference('feature.binary.tools')
   const [showAddDialog, setShowAddDialog] = useState(false)
@@ -86,9 +90,29 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     }
   }, [])
 
+  const fetchLatestVersions = useCallback(async (force = false) => {
+    setCheckingUpdates(true)
+    try {
+      const versions = await ipcApi.request('binary.latest_versions', force)
+      if (!mountedRef.current) return
+      setLatestVersions(versions)
+    } catch (error) {
+      logger.error('Failed to fetch latest versions', error as Error)
+    } finally {
+      if (mountedRef.current) setCheckingUpdates(false)
+    }
+  }, [])
+
   useEffect(() => {
     void refreshState()
   }, [refreshState])
+
+  useEffect(() => {
+    // Update-version data is only rendered in the full view; mini mode (mounted
+    // by McpServersList) skips the fetch to avoid hitting rate-limited registries.
+    if (mini) return
+    void fetchLatestVersions(false)
+  }, [fetchLatestVersions, mini])
 
   useIpcOn('binary.state_changed', (state) => {
     setBinaryState(state)
@@ -117,6 +141,24 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       })
       await refreshState()
     }
+  }
+
+  const handleUpdate = async (tool: ManagedBinary) => {
+    const installed = binaryState?.tools[tool.name]
+    let latest = latestVersions?.[tool.name]
+
+    if (installed?.version && !latest) {
+      const fresh = await ipcApi.request('binary.latest_versions', true)
+      if (mountedRef.current) setLatestVersions(fresh)
+      latest = fresh[tool.name]
+    }
+
+    if (installed?.version && latest && !semverGt(latest, installed.version)) {
+      window.toast.success(t('settings.plugins.upToDate'))
+      return
+    }
+
+    await installTool(tool)
   }
 
   const handleAddCustomTool = async (tool: ManagedBinary) => {
@@ -182,6 +224,19 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         <div className="flex min-w-0 items-center gap-2">
           <h1 className="font-semibold text-[15px] text-foreground leading-6">{t('settings.plugins.title')}</h1>
           <span className="text-muted-foreground/50 text-xs">{totalCount}</span>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="text-muted-foreground/50 hover:text-foreground"
+            onClick={() => fetchLatestVersions(true)}
+            disabled={checkingUpdates}
+            title={t('settings.plugins.update')}>
+            {checkingUpdates ? (
+              <Loader2 className="size-3 motion-safe:animate-spin" />
+            ) : (
+              <RefreshCw className="size-3" />
+            )}
+          </Button>
         </div>
         <p className="mt-1 text-muted-foreground text-xs leading-5">{t('settings.plugins.description')}</p>
       </div>
@@ -191,15 +246,20 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
           const installed = binaryState?.tools[tool.name]
           const bundledVersion = bundled[tool.name]
           const source: ToolSource = installed ? 'managed' : tool.name in bundled ? 'bundled' : 'none'
+          const installedVersion = installed?.version ?? bundledVersion ?? undefined
+          const latestVersion = latestVersions?.[tool.name]
+          const hasUpdate =
+            !!installed && installedVersion && latestVersion && semverGt(latestVersion, installedVersion)
           return (
             <BinaryToolPresetCard
               key={tool.name}
               tool={tool}
               source={source}
-              installedVersion={installed?.version ?? bundledVersion ?? undefined}
+              installedVersion={installedVersion}
+              latestVersion={hasUpdate ? latestVersion : undefined}
               installing={installingTools.has(tool.name)}
               onInstall={() => installTool({ name: tool.name, tool: tool.tool, version: tool.version })}
-              onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
+              onUpdate={() => handleUpdate({ name: tool.name, tool: tool.tool })}
               onOpenPath={() => openToolDir(tool.name)}
               onRemove={() => setDeleteTarget(tool.name)}
             />
@@ -221,15 +281,20 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {customTools.map((tool) => {
             const installed = binaryState?.tools[tool.name]
+            const installedVersion = installed?.version
+            const latestVersion = latestVersions?.[tool.name]
+            const hasUpdate =
+              !!installed && installedVersion && latestVersion && semverGt(latestVersion, installedVersion)
             return (
               <CustomToolCard
                 key={tool.name}
                 tool={tool}
                 installed={!!installed}
-                installedVersion={installed?.version}
+                installedVersion={installedVersion}
+                latestVersion={hasUpdate ? latestVersion : undefined}
                 installing={installingTools.has(tool.name)}
                 onInstall={() => installTool(tool)}
-                onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
+                onUpdate={() => handleUpdate({ name: tool.name, tool: tool.tool })}
                 onOpenPath={() => openToolDir(tool.name)}
                 onRemove={() => setDeleteTarget(tool.name)}
               />
@@ -262,12 +327,13 @@ const BinaryToolPresetCard: FC<{
   tool: BinaryToolPreset
   source: ToolSource
   installedVersion?: string
+  latestVersion?: string
   installing: boolean
   onInstall: () => void
   onUpdate: () => void
   onOpenPath: () => void
   onRemove: () => void
-}> = ({ tool, source, installedVersion, installing, onInstall, onUpdate, onOpenPath, onRemove }) => {
+}> = ({ tool, source, installedVersion, latestVersion, installing, onInstall, onUpdate, onOpenPath, onRemove }) => {
   const { t } = useTranslation()
   const description = t(`settings.plugins.tools.${tool.name}`)
   const present = source !== 'none'
@@ -298,6 +364,13 @@ const BinaryToolPresetCard: FC<{
                 {installedVersion && (
                   <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[11px] leading-4">
                     v{installedVersion}
+                  </Badge>
+                )}
+                {latestVersion && (
+                  <Badge
+                    variant="outline"
+                    className="gap-1 border-success/40 bg-success/10 px-1.5 py-0 text-[11px] text-success leading-4">
+                    <ArrowBigUp className="size-2.5" />v{latestVersion}
                   </Badge>
                 )}
                 {isBundled && (
@@ -343,21 +416,21 @@ const BinaryToolPresetCard: FC<{
         {description}
       </p>
 
-      <div className="mt-3 flex items-center gap-3">
+      <div className="mt-3 flex min-w-0 items-center gap-3">
         <button
           type="button"
-          className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
+          className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
           onClick={() => void window.api.openWebsite(tool.repoUrl)}>
-          <ExternalLink className="size-3" />
-          {tool.repoUrl.replace('https://github.com/', '')}
+          <ExternalLink className="size-3 shrink-0" />
+          <span className="truncate">{tool.repoUrl.replace('https://github.com/', '')}</span>
         </button>
         {tool.homepage && (
           <button
             type="button"
-            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
+            className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
             onClick={() => void window.api.openWebsite(tool.homepage!)}>
-            <SquareArrowOutUpRight className="size-3" />
-            {tool.homepage.replace(/^https?:\/\//, '')}
+            <SquareArrowOutUpRight className="size-3 shrink-0" />
+            <span className="truncate">{tool.homepage.replace(/^https?:\/\//, '')}</span>
           </button>
         )}
         {present && (
@@ -366,7 +439,7 @@ const BinaryToolPresetCard: FC<{
             onClick={onOpenPath}
             aria-label={t('settings.plugins.openBinariesDir')}
             title={t('settings.plugins.openBinariesDir')}
-            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground">
+            className="inline-flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground">
             <FolderOpen className="size-3" />
           </button>
         )}
@@ -398,12 +471,13 @@ const CustomToolCard: FC<{
   tool: ManagedBinary
   installed: boolean
   installedVersion?: string
+  latestVersion?: string
   installing: boolean
   onInstall: () => void
   onUpdate: () => void
   onOpenPath: () => void
   onRemove: () => void
-}> = ({ tool, installed, installedVersion, installing, onInstall, onUpdate, onOpenPath, onRemove }) => {
+}> = ({ tool, installed, installedVersion, latestVersion, installing, onInstall, onUpdate, onOpenPath, onRemove }) => {
   const { t } = useTranslation()
 
   return (
@@ -422,10 +496,21 @@ const CustomToolCard: FC<{
           <div className="min-w-0">
             <span className="font-semibold text-foreground text-sm leading-5">{tool.name}</span>
             <div className="mt-0.5 text-muted-foreground text-xs">{tool.tool}</div>
-            {installed && installedVersion && (
-              <Badge variant="secondary" className="mt-0.5 gap-1 px-1.5 py-0 text-[11px] leading-4">
-                v{installedVersion}
-              </Badge>
+            {installed && (
+              <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                {installedVersion && (
+                  <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[11px] leading-4">
+                    v{installedVersion}
+                  </Badge>
+                )}
+                {latestVersion && (
+                  <Badge
+                    variant="outline"
+                    className="gap-1 border-success/40 bg-success/10 px-1.5 py-0 text-[11px] text-success leading-4">
+                    <ArrowBigUp className="size-2.5" />v{latestVersion}
+                  </Badge>
+                )}
+              </div>
             )}
           </div>
         </div>

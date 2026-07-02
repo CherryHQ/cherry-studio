@@ -11,7 +11,12 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { isWin } from '@main/core/platform'
 import { regionService } from '@main/services/RegionService'
 import { getBinaryExecutionEnv, getBinaryIsolatedHomeEnv, getBinaryPath } from '@main/utils/process'
-import type { BinaryState, ManagedBinary, ToolInstallState } from '@shared/data/preference/preferenceTypes'
+import type {
+  BinaryState,
+  BinaryUpdateCheck,
+  ManagedBinary,
+  ToolInstallState
+} from '@shared/data/preference/preferenceTypes'
 import { PRESETS_BINARY_TOOLS, TOOL_KEY_RE, validateManagedBinary } from '@shared/data/presets/binaryTools'
 
 const logger = loggerService.withContext('BinaryManager')
@@ -73,6 +78,10 @@ function isFloatingVersion(v?: string): boolean {
 const RUNTIME_DEPS: Record<string, string> = { npm: 'node@22', pipx: 'python@3.12' }
 
 const REGISTRY_CACHE_TTL_MS = 10 * 60 * 1000
+
+// `mise latest` for github: backends hits the rate-limited GitHub releases API,
+// so lookups stay off the boot path and run with a small concurrency bound.
+const LATEST_VERSIONS_CONCURRENCY = 4
 
 // Single source of truth for tools shipped inside the app and extracted at
 // boot. `internal` marks infrastructure (mise) excluded from the UI probe.
@@ -347,8 +356,12 @@ export class BinaryManager extends BaseService {
    * (e.g. mkdir failure) clears.
    */
   private getIsolatedEnv(): Promise<Record<string, string>> {
+    const currentGhToken = process.env['CHERRY_GITHUB_TOKEN']
     if (this.isolatedEnv) {
-      return Promise.resolve(this.isolatedEnv)
+      if (this.isolatedEnv['GITHUB_TOKEN'] === (currentGhToken || undefined)) {
+        return Promise.resolve(this.isolatedEnv)
+      }
+      this.isolatedEnv = null
     }
     if (!this.isolatedEnvPromise) {
       this.isolatedEnvPromise = this.buildIsolatedEnv().then(
@@ -468,7 +481,25 @@ export class BinaryManager extends BaseService {
           logger.warn('Discarding malformed tool entry from state', { key })
         }
       }
-      return { tools: validTools }
+      const state: BinaryState = { tools: validTools }
+      // Persisted update-check survives restart; validate its shape so a corrupt
+      // entry can't crash consumers. Drift between versions and the managed set
+      // is reconciled lazily in getLatestVersions (force path).
+      const uc = parsed.updateCheck as Record<string, unknown> | undefined
+      if (
+        uc &&
+        typeof uc === 'object' &&
+        typeof uc.checkedAt === 'number' &&
+        uc.versions &&
+        typeof uc.versions === 'object'
+      ) {
+        const validVersions: Record<string, string> = {}
+        for (const [name, v] of Object.entries(uc.versions)) {
+          if (typeof v === 'string') validVersions[name] = v
+        }
+        state.updateCheck = { checkedAt: uc.checkedAt, versions: validVersions }
+      }
+      return state
     } catch (err) {
       // Corrupt JSON or wrong shape: back up the bad file before the next
       // saveState() overwrites it, so the failure stays diagnosable.
@@ -487,6 +518,8 @@ export class BinaryManager extends BaseService {
     const dir = path.dirname(statePath)
     fs.mkdirSync(dir, { recursive: true })
     const tmp = statePath + '.tmp'
+    // Managed-set mutation invalidates the persisted update-check.
+    delete state.updateCheck
     fs.writeFileSync(tmp, JSON.stringify(state, null, 2))
     fs.renameSync(tmp, statePath)
     this.broadcastState(state)
@@ -616,6 +649,73 @@ export class BinaryManager extends BaseService {
     const registry = await this.loadRegistry()
     const q = query.toLowerCase()
     return registry.filter((entry) => entry.name.toLowerCase().includes(q)).slice(0, 50)
+  }
+
+  /**
+   * Latest available registry version for each mise-managed tool (name → version).
+   * On demand only — never during boot or reconcile — because `mise latest` for
+   * github: backends hits the rate-limited GitHub releases API. Runs with a
+   * small worker pool; tools whose lookup fails are omitted.
+   *
+   * Persisted in `BinaryState.updateCheck` so the UI can show the last-known
+   * update availability across restarts. Returns the persisted snapshot unless
+   * `force` re-runs `mise latest`. Cleared on managed-set mutation (saveState).
+   */
+  async getLatestVersions(force = false): Promise<Record<string, string>> {
+    const state = this.loadState()
+    if (!force && state.updateCheck) {
+      return state.updateCheck.versions
+    }
+
+    const result: Record<string, string> = {}
+    if (!this.miseBin) {
+      return result
+    }
+
+    // Drop the result if the managed set drifted mid-batch.
+    const snapshot = Object.entries(state.tools)
+      .map(([name, { tool }]) => `${name}@${tool}`)
+      .join('|')
+    let cursor = 0
+    const entries = Object.entries(state.tools)
+    const workers = Array.from({ length: Math.min(LATEST_VERSIONS_CONCURRENCY, entries.length) }, async () => {
+      while (cursor < entries.length) {
+        const [name, { tool }] = entries[cursor++]
+        try {
+          const { stdout } = await this.runMise(['latest', tool], os.tmpdir())
+          const version = stdout.trim().split(/\r?\n/)[0]?.trim()
+          if (version) result[name] = version
+        } catch (err) {
+          logger.warn('Failed to query latest version', {
+            name,
+            tool,
+            error: err instanceof Error ? err.message : String(err)
+          })
+        }
+      }
+    })
+    await Promise.all(workers)
+
+    await this.withStateLock(async () => {
+      const current = Object.entries(this.loadState().tools)
+        .map(([name, { tool }]) => `${name}@${tool}`)
+        .join('|')
+      if (current === snapshot) {
+        this.saveUpdateCheck({ checkedAt: Date.now(), versions: result })
+      }
+    })
+    return result
+  }
+
+  /** Persist only the update-check field, leaving the managed set untouched.
+   * Separate from saveState, which clears updateCheck on mutations. */
+  private saveUpdateCheck(updateCheck: BinaryUpdateCheck) {
+    const statePath = application.getPath('feature.binary.state_file')
+    const state = this.loadState()
+    state.updateCheck = updateCheck
+    const tmp = statePath + '.tmp'
+    fs.writeFileSync(tmp, JSON.stringify(state, null, 2))
+    fs.renameSync(tmp, statePath)
   }
 
   private broadcastReconcileFailures(failed: ReconcileResult['failed']) {

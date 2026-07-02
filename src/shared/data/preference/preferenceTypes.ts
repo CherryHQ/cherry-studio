@@ -338,6 +338,12 @@ export interface ToolInstallState {
   version: string
 }
 
+export interface BinaryUpdateCheck {
+  checkedAt: number
+  versions: Record<string, string>
+}
+
 export interface BinaryState {
   tools: Record<string, ToolInstallState>
+  updateCheck?: BinaryUpdateCheck
 }

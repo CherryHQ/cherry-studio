@@ -421,6 +421,169 @@ describe('BinaryManager', () => {
     })
   })
 
+  describe('getLatestVersions', () => {
+    // Simulate state.json round-trip: readFileSync returns the live store,
+    // writeFileSync updates it, so saveUpdateCheck persists across calls.
+    const setupManaged = (
+      tools: Record<string, { tool: string; version: string }>,
+      updateCheck?: { checkedAt: number; versions: Record<string, string> }
+    ) => {
+      const store: { tools: typeof tools; updateCheck?: typeof updateCheck } = updateCheck
+        ? { tools, updateCheck }
+        : { tools }
+      mockFs.readFileSync.mockImplementation(() => JSON.stringify(store))
+      mockFs.writeFileSync.mockImplementation((_p: string, data: string) => {
+        const parsed = JSON.parse(data)
+        // Reflect a real file write: replace the store wholesale, including
+        // dropping keys absent from the written object (e.g. updateCheck).
+        for (const key of Object.keys(store)) delete (store as any)[key]
+        Object.assign(store, parsed)
+      })
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      return service
+    }
+
+    const latestCalls = () =>
+      mockExecFileAsync.mock.calls.filter((c: any[]) => c[1]?.[0] === 'latest').map((c: any[]) => c[1])
+
+    const readState = () => JSON.parse(mockFs.readFileSync())
+
+    it('returns empty map when mise binary is not available', async () => {
+      const service = new BinaryManager()
+
+      const result = await service.getLatestVersions()
+
+      expect(result).toEqual({})
+      expect(mockExecFileAsync).not.toHaveBeenCalled()
+    })
+
+    it('returns empty map when no tools are managed', async () => {
+      mockFs.readFileSync.mockImplementation(() => {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      })
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      const result = await service.getLatestVersions()
+
+      expect(result).toEqual({})
+      expect(mockExecFileAsync).not.toHaveBeenCalled()
+    })
+
+    it('queries the latest version for every managed tool via mise latest', async () => {
+      const service = setupManaged({
+        fd: { tool: 'github:sharkdp/fd', version: '10.0.0' },
+        rg: { tool: 'github:BurntSushi/ripgrep', version: '15.0.0' }
+      })
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'latest')
+          return { stdout: `${args[1] === 'github:sharkdp/fd' ? '10.1.0' : '15.1.0'}\n`, stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      const result = await service.getLatestVersions()
+
+      expect(result).toEqual({ fd: '10.1.0', rg: '15.1.0' })
+      expect(latestCalls()).toContainEqual(['latest', 'github:sharkdp/fd'])
+      expect(latestCalls()).toContainEqual(['latest', 'github:BurntSushi/ripgrep'])
+    })
+
+    it('omits tools whose latest-version lookup fails', async () => {
+      const service = setupManaged({
+        fd: { tool: 'github:sharkdp/fd', version: '10.0.0' },
+        rg: { tool: 'github:BurntSushi/ripgrep', version: '15.0.0' }
+      })
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] !== 'latest') return { stdout: '', stderr: '' }
+        if (args[1] === 'github:BurntSushi/ripgrep') throw new Error('rate limited')
+        return { stdout: '10.1.0\n', stderr: '' }
+      })
+
+      const result = await service.getLatestVersions()
+
+      // Failed lookup is omitted, not reported as an error.
+      expect(result).toEqual({ fd: '10.1.0' })
+    })
+
+    it('persists updateCheck so the second call reads it without re-running mise latest', async () => {
+      const service = setupManaged({ fd: { tool: 'github:sharkdp/fd', version: '10.0.0' } })
+      mockExecFileAsync.mockResolvedValue({ stdout: '10.1.0\n', stderr: '' })
+
+      await service.getLatestVersions()
+      expect(readState().updateCheck).toEqual({ checkedAt: expect.any(Number), versions: { fd: '10.1.0' } })
+      const callsAfterFirst = latestCalls().length
+
+      // Second call served from the persisted snapshot — no extra mise latest call.
+      await service.getLatestVersions()
+      expect(latestCalls().length).toBe(callsAfterFirst)
+    })
+
+    it('re-runs mise latest when force is true even with a persisted snapshot', async () => {
+      const service = setupManaged(
+        { fd: { tool: 'github:sharkdp/fd', version: '10.0.0' } },
+        {
+          checkedAt: 1000,
+          versions: { fd: '10.0.5' }
+        }
+      )
+      mockExecFileAsync.mockResolvedValue({ stdout: '10.1.0\n', stderr: '' })
+
+      const callsBefore = latestCalls().length
+      await service.getLatestVersions(true)
+      expect(latestCalls().length).toBeGreaterThan(callsBefore)
+      expect(readState().updateCheck.versions).toEqual({ fd: '10.1.0' })
+    })
+
+    it('clears updateCheck on state mutation so the next call refetches', async () => {
+      const service = setupManaged({ fd: { tool: 'github:sharkdp/fd', version: '10.0.0' } })
+      mockExecFileAsync.mockResolvedValue({ stdout: '10.1.0\n', stderr: '' })
+
+      await service.getLatestVersions()
+      const callsAfterFirst = latestCalls().length
+      expect(readState().updateCheck).toBeDefined()
+
+      // saveState (any managed-set mutation) invalidates the persisted update-check.
+      ;(service as any).saveState({ tools: { fd: { tool: 'github:sharkdp/fd', version: '10.0.0' } } })
+      expect(readState().updateCheck).toBeUndefined()
+
+      await service.getLatestVersions()
+      expect(latestCalls().length).toBeGreaterThan(callsAfterFirst)
+    })
+
+    it('drops the result when the managed set changes during the batch (race guard)', async () => {
+      const service = setupManaged({ fd: { tool: 'github:sharkdp/fd', version: '10.0.0' } })
+      mockExecFileAsync.mockResolvedValue({ stdout: '10.1.0\n', stderr: '' })
+      await service.getLatestVersions()
+      expect(readState().updateCheck.versions).toEqual({ fd: '10.1.0' })
+
+      // After the first call, saveUpdateCheck has written once.
+      const writesAfterFirst = mockFs.writeFileSync.mock.calls.length
+
+      // Simulate saveState racing mid-batch: rewrite state.json to a new managed
+      // set (the real saveState also drops updateCheck, which the snapshot guard
+      // is what protects against).
+      mockExecFileAsync.mockImplementationOnce(async () => {
+        mockFs.readFileSync.mockReturnValue(
+          JSON.stringify({
+            tools: {
+              fd: { tool: 'github:sharkdp/fd', version: '10.0.0' },
+              rg: { tool: 'github:BurntSushi/ripgrep', version: '15.0.0' }
+            }
+          })
+        )
+        return { stdout: '10.1.0\n', stderr: '' }
+      })
+
+      await service.getLatestVersions(true)
+
+      // Guard held: no extra writeFileSync from saveUpdateCheck (stale result dropped).
+      expect(mockFs.writeFileSync.mock.calls.length).toBe(writesAfterFirst)
+    })
+  })
+
   describe('validateManagedBinary', () => {
     it.each([
       ['../etc', 'fd', undefined],
