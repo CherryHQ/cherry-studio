@@ -11,7 +11,7 @@ on:
 
   # Ensure this workflow only runs from the default branch
   # (workflow_dispatch already restricts to branches with write access,
-  # but we guard the job to main to prevent accidental runs from feature branches)
+  # but we guard the job to main or v1 to prevent accidental runs from feature branches)
 
 permissions:
   contents: write
@@ -20,12 +20,13 @@ permissions:
 
 jobs:
   prepare:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v1'
     runs-on: ubuntu-latest
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v6
         with:
+          ref: v1
           fetch-depth: 0
 
       - name: Prepare Release via Claude

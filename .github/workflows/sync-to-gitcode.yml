@@ -21,7 +21,47 @@ permissions:
   contents: read
 
 jobs:
+  check-release-target:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.get-tag.outputs.tag }}
+      should_run: ${{ steps.check-main.outputs.should_run }}
+    steps:
+      - name: Get tag name
+        id: get-tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check out Git repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ steps.get-tag.outputs.tag }}
+
+      - name: Skip tags from main
+        id: check-main
+        shell: bash
+        run: |
+          TAG="${{ steps.get-tag.outputs.tag }}"
+          git fetch origin main:refs/remotes/origin/main --tags --force
+
+          TAG_COMMIT="$(git rev-list -n 1 "$TAG")"
+          if git merge-base --is-ancestor "$TAG_COMMIT" origin/main; then
+            echo "Tag $TAG points to a commit on main. Skipping GitCode sync."
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          else
+            echo "Tag $TAG is not on main. Continuing GitCode sync."
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          fi
+
   build-windows-signed:
+    needs: check-release-target
+    if: needs.check-release-target.outputs.should_run == 'true'
     runs-on: [self-hosted, windows-signing]
     outputs:
       tag: ${{ steps.get-tag.outputs.tag }}
@@ -105,7 +145,8 @@ jobs:
 
   sync-to-gitcode:
     runs-on: [self-hosted, windows-signing]
-    needs: build-windows-signed
+    needs: [check-release-target, build-windows-signed]
+    if: needs.check-release-target.outputs.should_run == 'true'
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v6
@@ -212,7 +253,7 @@ jobs:
               tag_name: $tag,
               name: $name,
               body: $body,
-              target_commitish: "main"
+              target_commitish: "v1"
             }'
           echo
           echo "Files that would be uploaded:"
@@ -261,7 +302,7 @@ jobs:
               tag_name: $tag,
               name: $name,
               body: $body,
-              target_commitish: "main"
+              target_commitish: "v1"
             }' > /tmp/release_payload.json
 
           RELEASE_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
@@ -381,9 +422,10 @@ jobs:
 
   notify:
     runs-on: ubuntu-latest
-    needs: [build-windows-signed, sync-to-gitcode]
+    needs: [check-release-target, build-windows-signed, sync-to-gitcode]
     if: >-
       always() &&
+      needs.check-release-target.outputs.should_run == 'true' &&
       (github.event_name != 'workflow_dispatch' || github.event.inputs.dry_run != 'true') &&
       (
         needs.build-windows-signed.result == 'failure' ||
@@ -397,7 +439,7 @@ jobs:
         env:
           FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
           FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
-          TAG_NAME: ${{ needs.build-windows-signed.outputs.tag }}
+          TAG_NAME: ${{ needs.check-release-target.outputs.tag }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           BUILD_RESULT: ${{ needs.build-windows-signed.result }}
           SYNC_RESULT: ${{ needs.sync-to-gitcode.result }}
