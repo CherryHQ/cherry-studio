@@ -1,6 +1,6 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { ThemeMode } from '@renderer/types/app'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import Ansi from 'ansi-to-react'
 import type { ComponentPropsWithoutRef } from 'react'
 import { memo, useMemo } from 'react'
@@ -313,13 +313,21 @@ export const TerminalOutput = memo(function TerminalOutput({
   )
 })
 
-export const TerminalContainer = ({ className, style, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={cn(
-      "m-0 overflow-y-auto whitespace-pre-wrap break-all rounded-md bg-[#1e1e1e] in-[[theme-mode=light]]:bg-[#f5f5f5] px-2.5 py-2 font-['Menlo','Monaco','Courier_New',monospace] in-[[theme-mode=light]]:text-[#1e1e1e] text-[#d4d4d4] text-xs leading-normal [&_[role=link]:hover]:text-[#7cb9e8]! [&_[role=link]:hover]:decoration-solid [&_a:hover]:text-[#7cb9e8]! [&_a:hover]:decoration-solid [&_a]:text-[#569cd6]! [&_a]:underline [&_a]:decoration-dotted [&_a]:underline-offset-2 **:[[role=link]]:text-[#569cd6]! **:[[role=link]]:underline **:[[role=link]]:decoration-dotted **:[[role=link]]:underline-offset-2 [[theme-mode=light]_&_[role=link]:hover]:text-[#0550ae]! [[theme-mode=light]_&_[role=link]]:text-[#0366d6]! [[theme-mode=light]_&_a:hover]:text-[#0550ae]! [[theme-mode=light]_&_a]:text-[#0366d6]!",
-      className
-    )}
-    style={{ maxHeight: '15rem', ...style }}
-    {...props}
-  />
-)
+export const TerminalContainer = ({ className, style, ...props }: ComponentPropsWithoutRef<'div'>) => {
+  const { theme } = useTheme()
+  const isLightTheme = theme === ThemeMode.light
+
+  return (
+    <div
+      className={cn(
+        "m-0 overflow-y-auto whitespace-pre-wrap break-all rounded-md px-2.5 py-2 font-['Menlo','Monaco','Courier_New',monospace] text-xs leading-normal [&_a]:underline [&_a]:decoration-dotted [&_a]:underline-offset-2 **:[[role=link]]:underline **:[[role=link]]:decoration-dotted **:[[role=link]]:underline-offset-2",
+        isLightTheme
+          ? 'bg-[#f5f5f5] text-[#1e1e1e] [&_[role=link]:hover]:text-[#0550ae]! [&_[role=link]]:text-[#0366d6]! [&_a:hover]:text-[#0550ae]! [&_a]:text-[#0366d6]! **:[[role=link]]:text-[#0366d6]!'
+          : 'bg-[#1e1e1e] text-[#d4d4d4] [&_[role=link]:hover]:text-[#7cb9e8]! [&_[role=link]:hover]:decoration-solid [&_a:hover]:text-[#7cb9e8]! [&_a:hover]:decoration-solid [&_a]:text-[#569cd6]! **:[[role=link]]:text-[#569cd6]!',
+        className
+      )}
+      style={{ maxHeight: '15rem', ...style }}
+      {...props}
+    />
+  )
+}

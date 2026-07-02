@@ -26,7 +26,7 @@ import { classifyTurn } from '@shared/ai/transport'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ErrorPartData } from '@shared/data/types/uiParts'
 import { isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
-import { ChevronsUp, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -939,10 +939,11 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
         <button
           type="button"
           aria-controls={contentId}
-          className="mt-2 inline-flex w-fit items-center gap-1 px-0 py-0 text-[13px] text-primary hover:text-primary/85 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+          className="mt-2 flex w-full items-center gap-2 rounded px-0 py-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
           onClick={() => setIsExpanded(false)}>
-          <ChevronsUp aria-hidden="true" className="text-current" size={14} strokeWidth={1.8} />
-          {t('common.collapse')}
+          <span aria-hidden="true" className="h-px flex-1 bg-border-subtle" />
+          <span className="shrink-0">{t('common.collapse')}</span>
+          <span aria-hidden="true" className="h-px flex-1 bg-border-subtle" />
         </button>
       )}
     </div>

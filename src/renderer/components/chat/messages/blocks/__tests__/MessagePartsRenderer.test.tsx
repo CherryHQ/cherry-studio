@@ -63,7 +63,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'message.tools.runningHeader') return 'Working…'
       if (key === 'message.tools.thinkingHeader') return 'Thinking...'
       if (key === 'common.preview') return 'Preview'
-      if (key === 'common.collapse') return 'Collapse'
+      if (key === 'common.collapse') return '收起'
       if (key === 'common.close') return 'Close'
       if (key === 'common.reasoning_content') return 'Reasoning content'
       if (key === 'chat.input.tools.open_file') return 'Open File'
@@ -653,10 +653,10 @@ describe('MessagePartsRenderer', () => {
       'edit',
       'bash'
     ])
-    expect(screen.queryByRole('button', { name: 'Collapse' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '收起' })).toBeNull()
   })
 
-  it('shows a bottom collapse link after expanding more than ten tool calls', () => {
+  it('shows a bottom 收起 divider after expanding more than ten tool calls', () => {
     const toolParts = Array.from({ length: 11 }, (_, index) => ({
       type: 'dynamic-tool',
       toolCallId: `tool-${index}`,
@@ -669,22 +669,24 @@ describe('MessagePartsRenderer', () => {
 
     const foldButton = screen.getByRole('button', { name: '11 tool calls' })
     expect(foldButton).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByRole('button', { name: 'Collapse' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '收起' })).toBeNull()
     expect(screen.queryByTestId('tool-history-preview')).toBeNull()
     expect(screen.queryByTestId('mock-message-tools')).toBeNull()
 
     fireEvent.click(foldButton)
 
-    const collapseButton = screen.getByRole('button', { name: 'Collapse' })
+    const collapseButton = screen.getByRole('button', { name: '收起' })
     expect(collapseButton).toBeInTheDocument()
-    expect(collapseButton.querySelector('svg')).toBeInTheDocument()
+    expect(collapseButton).toHaveClass('w-full')
+    expect(collapseButton.querySelector('svg')).toBeNull()
+    expect(collapseButton.querySelectorAll('[aria-hidden="true"]')).toHaveLength(2)
     expect(screen.queryByTestId('tool-history-preview')).toBeNull()
     expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(11)
 
     fireEvent.click(collapseButton)
 
     expect(foldButton).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByRole('button', { name: 'Collapse' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '收起' })).toBeNull()
     expect(screen.queryByTestId('tool-history-preview')).toBeNull()
     expect(screen.queryByTestId('mock-message-tools')).toBeNull()
   })

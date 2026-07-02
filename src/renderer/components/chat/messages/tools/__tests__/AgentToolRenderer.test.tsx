@@ -27,6 +27,7 @@ const mockUseTranslation = vi.fn()
 // Parts map drives approval state post-migration. Default: no pending approvals.
 const mockPartsMap = vi.hoisted(() => vi.fn((): Record<string, unknown[]> | null => null))
 const mockMessageListActions = vi.hoisted(() => vi.fn(() => ({})))
+const mockThemeState = vi.hoisted(() => ({ theme: 'light' }))
 
 vi.mock('@renderer/components/chat/messages/blocks', () => ({
   usePartsMap: () => mockPartsMap()
@@ -35,6 +36,10 @@ vi.mock('@renderer/components/chat/messages/blocks', () => ({
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   useOptionalMessageListActions: () => mockMessageListActions(),
   useOptionalMessageListUi: () => ({ externalCodeEditors: [] })
+}))
+
+vi.mock('@renderer/hooks/useTheme', () => ({
+  useTheme: () => ({ theme: mockThemeState.theme })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -165,6 +170,7 @@ describe('AgentToolRenderer', () => {
   beforeEach(() => {
     mockPartsMap.mockReturnValue(null) // no parts context: no pending approval
     mockMessageListActions.mockReturnValue({})
+    mockThemeState.theme = 'light'
     mockUseTranslation.mockReturnValue({
       t: (key: string, options?: string | Record<string, string | number>) => {
         // Handle plural keys with count option
@@ -807,6 +813,11 @@ describe('AgentToolRenderer', () => {
       expect(openAgentToolFlow).not.toHaveBeenCalled()
       expect(screen.getByTestId('collapse-content-Bash')).toBeVisible()
       expect(screen.getByTestId('collapse-content-Bash')).toHaveClass('rounded-xl', 'bg-muted', 'px-4', 'py-3')
+      const terminal = Array.from(screen.getByTestId('collapse-content-Bash').querySelectorAll('div')).find((node) =>
+        node.className.includes("font-['Menlo','Monaco','Courier_New',monospace]")
+      )
+      expect(terminal?.className).toContain('bg-[#f5f5f5]')
+      expect(terminal?.className).not.toContain('bg-[#1e1e1e]')
 
       fireEvent.click(toolHeader)
       expect(screen.getByTestId('collapse-content-Bash')).not.toBeVisible()
