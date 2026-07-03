@@ -224,10 +224,10 @@ const Chat: FC<Props> = (props) => {
       topRightTool={
         <>
           {props.resourcePaneCount && <ResourcePaneCountButton {...props.resourcePaneCount} />}
+          <TopicRightPane.Shortcuts topicId={props.activeTopic.id} />
           <TopicRightPane.Toggle />
         </>
       }
-      topRightToolReserve={props.resourcePaneCount ? 'history' : 'single'}
       sidePanel={
         <CitationsPanel
           open={citationsPanelOpen}

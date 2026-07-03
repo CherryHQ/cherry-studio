@@ -342,22 +342,22 @@ vi.mock('../Chat', () => ({
     paneOpen,
     showResourceListControls,
     locateMessageId,
+    resourcePaneCount,
     onCreateEmptyTopic,
     onNewTopic,
     onLocateMessageHandled,
-    onPaneCollapse,
-    resourcePaneCount
+    onPaneCollapse
   }: {
     activeTopic: Topic
     pane?: ReactNode
     paneOpen?: boolean
     showResourceListControls?: boolean
     locateMessageId?: string
+    resourcePaneCount?: { label: string; count: number }
     onCreateEmptyTopic?: (payload?: { assistantId?: string | null }) => void | Promise<void>
     onNewTopic?: (payload?: { assistantId?: string | null }) => void | Promise<void>
     onLocateMessageHandled?: () => void
     onPaneCollapse?: () => void
-    resourcePaneCount?: { label: string; count: number }
   }) => (
     <section>
       <output data-testid="active-topic">{activeTopic.id}</output>
@@ -466,6 +466,7 @@ vi.mock('../components/TopicRightPane', () => {
     {
       Host: () => <div data-testid="topic-right-pane-host" />,
       MaximizedOverlay: () => <div data-testid="topic-right-pane-overlay" />,
+      Shortcuts: () => <button type="button">Topic right pane shortcuts</button>,
       Toggle: () => <button type="button">Toggle topic right pane</button>
     }
   )
@@ -619,7 +620,7 @@ describe('HomePage', () => {
     expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.right_pane_open', false)
   })
 
-  it('passes the current assistant conversation count to the classic-layout top button', () => {
+  it('passes the current assistant topic count to the classic-layout top button', () => {
     homeMocks.preferenceValues.set('topic.layout', 'classic')
     homeMocks.classicLayoutTopics = [
       { ...historyTopic, id: 'topic-a' },
@@ -630,6 +631,8 @@ describe('HomePage', () => {
     render(<HomePage />)
 
     expect(screen.getByTestId('resource-pane-count')).toHaveTextContent('对话:2')
+    expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-assistant-id', 'assistant-1')
+    expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
   })
 
   it('selects the latest historical topic by default when entering classic layout without a route topic', async () => {

@@ -1,7 +1,7 @@
-import { ResourcePaneCountButton, Shell } from '@renderer/components/chat/panes/Shell'
+import { Shell } from '@renderer/components/chat/panes/Shell'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import type * as ConstantConfig from '@renderer/utils/platform'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -70,20 +70,29 @@ describe('ConversationShell', () => {
   })
 
   it('keeps the window-mode navbar wrapper at the title-bar height', () => {
-    render(
+    const { container } = render(
       <WindowFrameProvider value={{ mode: 'window', chrome: { titleLeading: <div data-testid="title-leading" /> } }}>
         <ConversationShell topBar={<div data-testid="top-bar" />} center={<div />} />
       </WindowFrameProvider>
     )
 
-    const topBarWrapper = screen.getByTestId('top-bar').parentElement
+    const topBarWrapper = container.querySelector<HTMLElement>('[data-conversation-shell-topbar]')
     expect(topBarWrapper).toHaveClass('h-[37.5px]')
     expect(topBarWrapper).not.toHaveClass('h-(--navbar-height)')
     expect(topBarWrapper).toHaveClass('pl-[env(titlebar-area-x)]')
     expect(topBarWrapper?.style.getPropertyValue('--navbar-height')).toBe('37.5px')
   })
 
-  it('lays out a double top-right tool cluster without the single-button width clamp', () => {
+  it('does not add an embedded topbar wrapper or reserve when no right tool exists', () => {
+    const { container } = render(<ConversationShell topBar={<div data-testid="top-bar" />} center={<div />} />)
+
+    expect(screen.getByTestId('top-bar')).toBeInTheDocument()
+    expect(container.querySelector('[data-conversation-shell-topbar]')).not.toBeInTheDocument()
+    expect(container.querySelector('[data-navbar-right-occupant]')).not.toBeInTheDocument()
+    expect(container.querySelector('[data-conversation-shell-right-spacer]')).not.toBeInTheDocument()
+  })
+
+  it('keeps a multi-button top-right tool cluster in the topbar layout flow', () => {
     const { container } = render(
       <ConversationShell
         topBar={<div data-testid="top-bar" />}
@@ -91,42 +100,98 @@ describe('ConversationShell', () => {
           <>
             <button type="button">info</button>
             <button type="button">toggle</button>
+            <button type="button">files</button>
+            <button type="button">status</button>
           </>
         }
-        topRightToolReserve="double"
         center={<div />}
       />
     )
 
-    const topBarWrapper = screen.getByTestId('top-bar').parentElement
-    const topRightTool = container.querySelector('[data-navbar-right-occupant]')
-    expect(topBarWrapper).toHaveClass('pr-[76px]')
-    expect(topRightTool).toHaveClass('gap-0.5')
-    expect(topRightTool).not.toHaveClass('w-7.5')
+    const topBarWrapper = container.querySelector<HTMLElement>('[data-conversation-shell-topbar]')
+    const topRightTool = container.querySelector<HTMLElement>('[data-conversation-shell-topbar-right]')
+    const rightSpacer = container.querySelector<HTMLElement>('[data-conversation-shell-right-spacer]')
+    expect(topBarWrapper).toContainElement(topRightTool)
+    expect(topBarWrapper).not.toHaveClass('pr-11', 'pr-[76px]', 'pr-[140px]', 'pr-[172px]')
+    expect(topRightTool).toHaveClass('flex', 'shrink-0', 'gap-0.5')
+    expect(topRightTool).not.toHaveClass('absolute')
+    expect(rightSpacer).toHaveClass('w-2')
   })
 
-  it('opens the resource pane from the history count button and hides the navbar cluster', () => {
-    render(
+  it('keeps window chrome trailing tools in the title-bar flow and preserves the controls spacer', () => {
+    const { container } = render(
+      <WindowFrameProvider
+        value={{
+          mode: 'window',
+          chrome: {
+            titleTrailing: <button type="button">Pin</button>
+          }
+        }}>
+        <ConversationShell
+          topBar={<div data-testid="top-bar" />}
+          topRightTool={<button type="button">Files</button>}
+          center={<div />}
+        />
+      </WindowFrameProvider>
+    )
+
+    const topBarWrapper = container.querySelector<HTMLElement>('[data-conversation-shell-topbar]')
+    const topRightTool = container.querySelector<HTMLElement>('[data-conversation-shell-topbar-right]')
+    const rightSpacer = container.querySelector<HTMLElement>('[data-conversation-shell-right-spacer]')
+    expect(topBarWrapper).toContainElement(topRightTool)
+    expect(topBarWrapper).not.toHaveClass('pr-[calc(7rem+var(--window-controls-width,0px))]')
+    expect(topRightTool).toHaveTextContent('Pin')
+    expect(topRightTool).toHaveTextContent('Files')
+    expect(
+      within(topRightTool!)
+        .getAllByRole('button')
+        .map((button) => button.textContent)
+    ).toEqual(['Pin', 'Files'])
+    expect(topRightTool).toHaveClass('h-[37.5px]')
+    expect(topRightTool).not.toHaveClass('absolute')
+    expect(rightSpacer).toHaveClass('w-[calc(0.5rem+var(--window-controls-width,0px))]')
+  })
+
+  it('does not create a fake tool reserve in window mode when no trailing tool exists', () => {
+    const { container } = render(
+      <WindowFrameProvider value={{ mode: 'window' }}>
+        <ConversationShell topBar={<div data-testid="top-bar" />} center={<div />} />
+      </WindowFrameProvider>
+    )
+
+    const topBarWrapper = container.querySelector<HTMLElement>('[data-conversation-shell-topbar]')
+    const rightSpacer = container.querySelector<HTMLElement>('[data-conversation-shell-right-spacer]')
+    expect(container.querySelector('[data-conversation-shell-topbar-right]')).not.toBeInTheDocument()
+    expect(topBarWrapper).not.toHaveClass('pr-[calc(7rem+var(--window-controls-width,0px))]')
+    expect(rightSpacer).toHaveClass('w-[calc(0.5rem+var(--window-controls-width,0px))]')
+  })
+
+  it('opens the right-pane tab from a shortcut and hides the navbar cluster', () => {
+    const { container } = render(
       <Shell defaultTab="resources">
         <ConversationShell
           topBar={<div data-testid="top-bar" />}
-          topRightTool={<ResourcePaneCountButton label="对话" count={6} />}
-          topRightToolReserve="history"
+          topRightTool={
+            <Shell.TabShortcut tab="resources" label="对话" icon={<span data-testid="resource-shortcut-icon" />} />
+          }
           center={<div />}
         />
       </Shell>
     )
 
-    const topBarWrapper = screen.getByTestId('top-bar').parentElement
-    expect(topBarWrapper).toHaveClass('pr-[156px]')
+    const topBarWrapper = container.querySelector<HTMLElement>('[data-conversation-shell-topbar]')
+    const topRightTool = container.querySelector<HTMLElement>('[data-conversation-shell-topbar-right]')
+    expect(topBarWrapper).toContainElement(topRightTool)
+    expect(topBarWrapper).not.toHaveClass('pr-11')
 
-    fireEvent.click(screen.getByRole('button', { name: '对话 6' }))
+    fireEvent.click(screen.getByRole('button', { name: '对话' }))
 
-    expect(screen.queryByRole('button', { name: '对话 6' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '对话' })).not.toBeInTheDocument()
+    expect(container.querySelector('[data-conversation-shell-topbar-right]')).not.toBeInTheDocument()
   })
 
   it('uses normal title-bar padding when the left pane is open in window mode', () => {
-    render(
+    const { container } = render(
       <WindowFrameProvider value={{ mode: 'window', chrome: { titleLeading: <div data-testid="title-leading" /> } }}>
         <ConversationShell
           pane={<div data-testid="pane" />}
@@ -138,7 +203,7 @@ describe('ConversationShell', () => {
       </WindowFrameProvider>
     )
 
-    const topBarWrapper = screen.getByTestId('top-bar').parentElement
+    const topBarWrapper = container.querySelector<HTMLElement>('[data-conversation-shell-topbar]')
     expect(topBarWrapper).toHaveClass('pl-2')
     expect(topBarWrapper).not.toHaveClass('pl-[env(titlebar-area-x)]')
   })

@@ -46,6 +46,16 @@ export class KnowledgeIndexStore {
    * an insert failure rolls back without destroying the prior index (§5.2).
    */
   async rebuildMaterial(materialId: string, input: RebuildMaterialInput): Promise<void> {
+    // usesEmbeddings: false means a BM25-only rebuild — step 6 below writes whatever
+    // `embeddings` holds unconditionally (only the step 6b coverage check is gated on
+    // the flag), so a caller bug that sets both would silently write orphan vectors
+    // into an index nothing ever queries or GCs. Fail loud instead.
+    if (!input.usesEmbeddings && input.embeddings.length > 0) {
+      throw new Error(
+        `Knowledge index rebuild for material ${materialId} set usesEmbeddings: false but supplied ${input.embeddings.length} embeddings`
+      )
+    }
+
     const now = Date.now()
     const contentHash = hashContentText(input.content.text)
 
@@ -145,8 +155,9 @@ export class KnowledgeIndexStore {
         ])
       }
 
-      // 6b. Coverage check: every unit's re-derived embedding hash must resolve to a
-      //     vector, or roll the rebuild back. This catches two failure modes:
+      // 6b. Coverage check (vector bases only): every unit's re-derived embedding
+      //     hash must resolve to a vector, or roll the rebuild back. This catches two
+      //     failure modes:
       //     (a) the caller hashes its chunk text while this store hashes the re-sliced
       //         body, so an offset/hash mismatch would leave a unit silently absent
       //         from vector search; and
@@ -155,7 +166,10 @@ export class KnowledgeIndexStore {
       //         drop a hash it reported present before this rebuild writes, and the job
       //         then skips re-embedding it. Failing loud rolls back; the job's retry
       //         re-reads (the hash is now absent), re-embeds it, and converges.
-      this.assertEmbeddingCoverage(tx, materialId, [...new Set(units.map((unit) => unit.embeddingTextHash))])
+      //     A BM25-only base stores no vectors, so the check does not apply.
+      if (input.usesEmbeddings) {
+        this.assertEmbeddingCoverage(tx, materialId, [...new Set(units.map((unit) => unit.embeddingTextHash))])
+      }
 
       // 7. Mark the material's current content (failure/lifecycle state is the
       //    authority of knowledge_item, not this derived index).
