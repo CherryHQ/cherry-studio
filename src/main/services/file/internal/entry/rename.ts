@@ -28,7 +28,7 @@ export async function rename(deps: FileManagerDeps, id: FileEntryId, newName: st
   // catching here also short-circuits the external-rename FS work for inputs
   // the service would reject anyway.
   SafeNameSchema.parse(newName)
-  const entry = await deps.fileEntryService.getById(id)
+  const entry = deps.fileEntryService.getById(id)
   if (entry.name === newName) return entry
   if (entry.origin === 'internal') {
     return deps.fileEntryService.update(id, { name: newName })
@@ -83,7 +83,7 @@ export async function rename(deps: FileManagerDeps, id: FileEntryId, newName: st
   // the original DB error so the caller sees the real failure cause.
   let renamed: FileEntry
   try {
-    renamed = await deps.fileEntryService.setExternalPathAndName(id, canonical, newName)
+    renamed = deps.fileEntryService.setExternalPathAndName(id, canonical, newName)
   } catch (dbErr) {
     try {
       await fsMove(canonical as FilePath, oldPath)

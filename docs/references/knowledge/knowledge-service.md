@@ -13,7 +13,7 @@ The current implementation is split into four responsibility areas:
 1. `KnowledgeBaseService` / `KnowledgeItemService`
    - Persist SQLite-backed knowledge base and knowledge item data.
    - Persist `knowledge_base.status` and `error`; migrated bases with missing embedding models remain as recoverable `failed` bases.
-   - Persist `knowledge_base.groupId` and `dimensions`; `dimensions` is nullable only for failed bases whose embedding contract is unknown.
+   - Persist `knowledge_base.groupId` and `dimensions`; `dimensions` is `null` for BM25-only completed bases (no embedding model) and for failed bases whose embedding contract is unknown.
    - Validate item `type` / `data` consistency.
    - Persist `knowledge_item.status` and `error`.
    - Reconcile container item status from child item state.
@@ -164,7 +164,8 @@ Current status writes are:
 Current persisted `knowledge_base` columns include:
 
 - `groupId`: nullable group assignment; `null` means ungrouped.
-- `dimensions`: positive embedding vector width for completed bases; nullable for failed migrated bases with unknown dimensions.
+- `embeddingModelId`: the embedding model; `null` for BM25-only bases.
+- `dimensions`: positive embedding vector width for vector-capable bases; `null` for BM25-only completed bases (no embedding model) and for failed migrated bases with unknown dimensions. On a completed base it is paired with `embeddingModelId` — both set, or both `null` with `searchMode` forced to `bm25` (enforced by the DB CHECK and the entity schema).
 - `status`: `completed` for runnable bases, `failed` for recoverable base-level migration failures.
 - `error`: nullable `KnowledgeBaseErrorCode`; currently `missing_embedding_model` for recoverable failed bases.
 
@@ -279,8 +280,8 @@ Current `KnowledgeSearchResult` includes:
 
 ### Current Retrieval Cost Assumption
 
-The current v2 implementation intentionally does not create a vector index and does not use `vector_top_k`.
-Similarity search scans the `embedding` rows directly and sorts by the engine's scalar cosine distance (`vector_distance_cos` on libsql).
+The current v2 implementation intentionally does not create a vector index and does not use an indexed approximate-nearest-neighbor lookup.
+Similarity search scans the `embedding` rows directly and sorts by the engine's scalar cosine distance (`vec_distance_cosine` on sqlite-vec, with the query vector bound as a raw little-endian float32 BLOB).
 
 This means retrieval cost scales roughly linearly with the number of vector rows in a single knowledge base.
 That tradeoff is currently accepted because it keeps the runtime path simpler for expected near-term corpus sizes.

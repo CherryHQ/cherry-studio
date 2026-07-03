@@ -183,7 +183,7 @@ async function resolveTools(
     await syncMcpToolsToRegistry(undefined, { selectedToolIds: mcpToolIds })
   }
 
-  const hasAnyKnowledgeBase = await resolveHasAnyKnowledgeBase()
+  const hasAnyKnowledgeBase = resolveHasAnyKnowledgeBase()
   const activeEntries = registry.selectActive({ assistant, mcpToolIds, hasFileAttachments, hasAnyKnowledgeBase })
   let tools: ToolSet | undefined
   if (activeEntries.length > 0) {
@@ -209,9 +209,9 @@ async function resolveTools(
  * a transient count error must not suppress the KB tools for users who do have bases (the tools
  * themselves steer gracefully when a lookup fails), so an error is treated as "present".
  */
-async function resolveHasAnyKnowledgeBase(): Promise<boolean> {
+function resolveHasAnyKnowledgeBase(): boolean {
   try {
-    return await application.get('KnowledgeService').hasAnyBase()
+    return application.get('KnowledgeService').hasAnyBase()
   } catch (error) {
     logger.warn('Failed to check for knowledge bases during tool resolution; treating as present', { error })
     return true

@@ -38,7 +38,7 @@ const ChatMarkdown: FC<Props> = ({ block, postProcess, className, components }) 
   }, [block.status, block.content, postProcess, t])
 
   const hasStyleElement = STYLE_ELEMENT_REGEX.test(content)
-  const chatComponents = useChatMarkdownComponents({ blockId: block.id, hasStyleElement })
+  const chatComponents = useChatMarkdownComponents({ blockId: block.id, hasStyleElement, isStreaming })
   const mergedComponents = useMemo(
     () => (components ? { ...chatComponents, ...components } : chatComponents),
     [chatComponents, components]

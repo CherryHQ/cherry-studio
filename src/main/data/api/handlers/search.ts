@@ -9,14 +9,14 @@ export const searchHandlers: HandlersFor<SearchSchemas> = {
     GET: async ({ query }) => {
       const parsed = EntitySearchQuerySchema.safeParse(query)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await entitySearchService.search(parsed.data)
+      return entitySearchService.search(parsed.data)
     }
   },
   '/search/contents': {
     GET: async ({ query }) => {
       const parsed = ContentSearchQuerySchema.safeParse(query)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await contentSearchService.search(parsed.data)
+      return contentSearchService.search(parsed.data)
     }
   }
 }

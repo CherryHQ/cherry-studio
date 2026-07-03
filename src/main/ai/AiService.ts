@@ -267,7 +267,7 @@ export class AiService extends BaseService {
     // stale parts and clobber each other's decision (or both compute a stale "still pending" and
     // neither resume). Returns the committed parts, or null when the anchor row is gone — a stale
     // click on a deleted message, resolved through the result shape instead of throwing.
-    const approvalResult = await messageService.applyToolApprovalDecisions(payload.anchorId, [decision])
+    const approvalResult = messageService.applyToolApprovalDecisions(payload.anchorId, [decision])
     if (approvalResult === null) {
       logger.warn('Tool-approval response anchor is missing or deleted', {
         approvalId: payload.approvalId,
@@ -601,7 +601,7 @@ export class AiService extends BaseService {
         ...(maskFileId && { maskFileId }),
         providerParams
       }
-      handle = await jobManager.enqueue('image-generation.generate', payload)
+      handle = jobManager.enqueue('image-generation.generate', payload)
     } catch (error) {
       // Setup failed before the job owns the payload — clean up what we created.
       await deleteImageInputEntries(createdEntryIds)
@@ -694,7 +694,12 @@ export class AiService extends BaseService {
   async listModels(request: ListModelsRequest): Promise<Partial<Model>[]> {
     let providerId = request.providerId
     if (!providerId && request.assistantId) {
-      const assistant = await assistantDataService.getById(request.assistantId).catch(() => undefined)
+      let assistant: Assistant | undefined
+      try {
+        assistant = assistantDataService.getById(request.assistantId)
+      } catch {
+        assistant = undefined
+      }
       if (assistant?.modelId) {
         providerId = parseUniqueModelId(assistant.modelId).providerId
       }
@@ -702,7 +707,7 @@ export class AiService extends BaseService {
     if (!providerId) {
       throw new Error('Cannot resolve providerId: not in request and assistant has no model')
     }
-    const provider = await providerService.getByProviderId(providerId)
+    const provider = providerService.getByProviderId(providerId)
     return listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
   }
 
@@ -710,7 +715,7 @@ export class AiService extends BaseService {
 
   /** Dispatches to `rerank` / `embedMany` for those model types, `generateText` otherwise. */
   async checkModel(request: AiBaseRequest & { timeout?: number }): Promise<{ latency: number }> {
-    const { model } = await this.getProviderAndModel(request)
+    const { model } = this.getProviderAndModel(request)
     const start = performance.now()
     const timeout = request.timeout ?? 15000
 
@@ -757,7 +762,7 @@ export class AiService extends BaseService {
     signal: AbortSignal | undefined,
     extraFeatures: readonly RequestFeature[] = []
   ) {
-    const { provider, model, assistant } = await this.getProviderAndModel(request)
+    const { provider, model, assistant } = this.getProviderAndModel(request)
     const built = await buildAgentParams({ request, signal, provider, model, assistant, extraFeatures })
     return { ...built, provider, model, assistant }
   }
@@ -784,10 +789,14 @@ export class AiService extends BaseService {
   }
 
   /** Priority: explicit `uniqueModelId` > `assistant.modelId`. */
-  private async getProviderAndModel(request: AiBaseRequest & { chatId?: string }) {
+  private getProviderAndModel(request: AiBaseRequest & { chatId?: string }) {
     let assistant: Assistant | undefined
     if (request.assistantId) {
-      assistant = await assistantDataService.getById(request.assistantId).catch(() => undefined)
+      try {
+        assistant = assistantDataService.getById(request.assistantId)
+      } catch {
+        assistant = undefined
+      }
     }
 
     let providerId: string | undefined
@@ -804,8 +813,8 @@ export class AiService extends BaseService {
     if (!providerId) throw new Error('Cannot resolve providerId: not in request and assistant has no model')
     if (!modelId) throw new Error('Cannot resolve modelId: not in request and assistant has no model')
 
-    const provider = await providerService.getByProviderId(providerId)
-    const model = await modelService.getByKey(providerId, modelId)
+    const provider = providerService.getByProviderId(providerId)
+    const model = modelService.getByKey(providerId, modelId)
 
     return { provider, model, assistant }
   }
