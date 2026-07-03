@@ -44,7 +44,7 @@ import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpServerLogEntry } from '@shared/types/mcp'
 import { useNavigate, useParams } from '@tanstack/react-router'
-import { ArrowLeft, SaveIcon } from 'lucide-react'
+import { ArrowLeft, SaveIcon, X } from 'lucide-react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -692,6 +692,24 @@ const McpSettings: React.FC = () => {
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name="tags"
+                  render={({ field }) => (
+                    <FormItem className="min-w-0 xl:col-span-2">
+                      <FormLabel>{t('settings.mcp.tags', 'Tags')}</FormLabel>
+                      <FormControl>
+                        <TagsInput
+                          value={field.value ?? []}
+                          onChange={(next) => {
+                            field.onChange(next)
+                            setIsFormChanged(true)
+                          }}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
               </McpFormGrid>
             </McpFormSection>
 
@@ -1062,6 +1080,7 @@ const McpSettings: React.FC = () => {
                     checked={server.isActive}
                     key={server.id}
                     loading={loadingServer === server.id}
+                    size="sm"
                     onCheckedChange={onToggleActive}
                   />
                 </Flex>
@@ -1165,7 +1184,7 @@ const Timestamp = ({ className, ...props }: React.ComponentPropsWithoutRef<'span
 )
 
 const LogMessage = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('wrap-break-word text-[13px] leading-normal', className)} {...props} />
+  <span className={cn('wrap-break-word text-(length:--font-size-body-xs) leading-normal', className)} {...props} />
 )
 
 const PreBlock = ({ className, ...props }: React.ComponentPropsWithoutRef<'pre'>) => (
@@ -1182,14 +1201,14 @@ function mapLogLevelClass(level: McpServerLogEntry['level']) {
   switch (level) {
     case 'error':
     case 'stderr':
-      return 'border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400'
+      return 'border-error-border bg-error-bg text-error-text'
     case 'warn':
-      return 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400'
+      return 'border-warning-border bg-warning-bg text-warning-text'
     case 'info':
     case 'stdout':
-      return 'border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400'
+      return 'border-info-border bg-info-bg text-info-text'
     default:
-      return 'border-border/60 bg-muted text-muted-foreground'
+      return 'border-border-muted bg-muted text-muted-foreground'
   }
 }
 
@@ -1219,9 +1238,9 @@ const McpRuntimeStatusBadge = ({
   className,
   ...props
 }: { state: 'disabled' | 'connecting' | 'connected' | 'error' } & React.ComponentProps<'span'>) => (
-  <span
+  <Badge
     className={cn(
-      'inline-flex h-4.5 items-center rounded-[9px] px-1.5 font-medium text-[11px] leading-4.5',
+      'text-(length:--font-size-body-xs) h-4.5 px-1.5 py-0 leading-4.5',
       state === 'connected' && 'bg-success/10 text-success',
       state === 'connecting' && 'bg-warning/10 text-warning',
       state === 'error' && 'bg-destructive/10 text-destructive',
@@ -1231,5 +1250,70 @@ const McpRuntimeStatusBadge = ({
     {...props}
   />
 )
+
+interface TagsInputProps {
+  value: string[]
+  onChange: (next: string[]) => void
+}
+
+const TagsInput = ({ value, onChange }: TagsInputProps) => {
+  const { t } = useTranslation()
+  const [draft, setDraft] = useState('')
+
+  const commit = (raw: string) => {
+    const parts = raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0 && !value.includes(s))
+    if (parts.length > 0) {
+      onChange([...value, ...parts])
+    }
+    setDraft('')
+  }
+
+  const removeAt = (index: number) => {
+    onChange(value.filter((_, i) => i !== index))
+  }
+
+  return (
+    <div className="flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border border-input bg-transparent px-2 py-1 shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
+      {value.map((tag, index) => (
+        <Badge key={`${tag}-${index}`} className="gap-1 bg-muted font-normal text-foreground">
+          {tag}
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-destructive"
+            onClick={() => removeAt(index)}>
+            <X size={12} className="lucide-custom" />
+          </button>
+        </Badge>
+      ))}
+      <input
+        className="min-w-30 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+        value={draft}
+        placeholder={t('settings.mcp.tagsPlaceholder', 'Enter tags')}
+        onChange={(e) => {
+          const next = e.target.value
+          if (next.endsWith(',')) {
+            commit(next)
+          } else {
+            setDraft(next)
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && draft.trim()) {
+            e.preventDefault()
+            commit(draft)
+          } else if (e.key === 'Backspace' && draft === '' && value.length > 0) {
+            removeAt(value.length - 1)
+          }
+        }}
+        onBlur={() => {
+          if (draft.trim()) commit(draft)
+        }}
+      />
+    </div>
+  )
+}
 
 export default McpSettings

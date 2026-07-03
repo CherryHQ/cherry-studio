@@ -2,7 +2,7 @@ import { Flex, InfoTooltip, Input, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import {
-  SettingDivider,
+  SettingCard,
   SettingGroup,
   SettingRow,
   SettingRowTitle,
@@ -111,93 +111,92 @@ const SystemSettings: FC = () => {
     <SettingsContentColumn theme={theme}>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.launch.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.launch.onboot')}</SettingRowTitle>
-          <Switch checked={launchOnBoot} onCheckedChange={(checked) => void setLaunchOnBoot(checked)} />
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.launch.totray')}</SettingRowTitle>
-          <Switch checked={launchToTray} onCheckedChange={(checked) => updateLaunchToTray(checked)} />
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.tray.show')}</SettingRowTitle>
-          <Switch checked={tray} onCheckedChange={(checked) => updateTray(checked)} />
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.tray.onclose')}</SettingRowTitle>
-          <Switch checked={trayOnClose} onCheckedChange={(checked) => updateTrayOnClose(checked)} />
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.power.prevent_sleep_when_busy')}</SettingRowTitle>
-          <Switch checked={preventSleepWhenBusy} onCheckedChange={(checked) => void setPreventSleepWhenBusy(checked)} />
-        </SettingRow>
+        <SettingCard>
+          <SettingRow>
+            <SettingRowTitle>{t('settings.launch.onboot')}</SettingRowTitle>
+            <Switch checked={launchOnBoot} onCheckedChange={(checked) => void setLaunchOnBoot(checked)} />
+          </SettingRow>
+          <SettingRow>
+            <SettingRowTitle>{t('settings.launch.totray')}</SettingRowTitle>
+            <Switch checked={launchToTray} onCheckedChange={(checked) => updateLaunchToTray(checked)} />
+          </SettingRow>
+          <SettingRow>
+            <SettingRowTitle>{t('settings.tray.show')}</SettingRowTitle>
+            <Switch checked={tray} onCheckedChange={(checked) => updateTray(checked)} />
+          </SettingRow>
+          <SettingRow>
+            <SettingRowTitle>{t('settings.tray.onclose')}</SettingRowTitle>
+            <Switch checked={trayOnClose} onCheckedChange={(checked) => updateTrayOnClose(checked)} />
+          </SettingRow>
+          <SettingRow>
+            <SettingRowTitle>{t('settings.power.prevent_sleep_when_busy')}</SettingRowTitle>
+            <Switch
+              checked={preventSleepWhenBusy}
+              onCheckedChange={(checked) => void setPreventSleepWhenBusy(checked)}
+            />
+          </SettingRow>
+        </SettingCard>
       </SettingGroup>
 
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.proxy.mode.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.proxy.mode.title')}</SettingRowTitle>
-          <Selector value={storeProxyMode} onChange={(mode) => void setProxyMode(mode)} options={proxyModeOptions} />
-        </SettingRow>
-        {storeProxyMode === 'custom' && (
-          <>
-            <SettingDivider />
-            <SettingRow>
-              <SettingRowTitle>{t('settings.proxy.address')}</SettingRowTitle>
-              <Input
-                spellCheck={false}
-                placeholder="socks5://127.0.0.1:6153"
-                value={proxyUrl}
-                onChange={(e) => setProxyUrl(e.target.value)}
-                style={{ width: 220 }}
-                onBlur={onSetProxyUrl}
-                type="url"
-              />
-            </SettingRow>
-            <SettingDivider />
-            <SettingRow>
-              <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span>{t('settings.proxy.bypass')}</span>
-                <InfoTooltip
-                  content={t('settings.proxy.tip')}
-                  placement="right"
-                  iconProps={{ className: 'cursor-pointer' }}
+        <SettingCard>
+          <SettingRow>
+            <SettingRowTitle>{t('settings.proxy.mode.title')}</SettingRowTitle>
+            <Selector value={storeProxyMode} onChange={(mode) => void setProxyMode(mode)} options={proxyModeOptions} />
+          </SettingRow>
+          {storeProxyMode === 'custom' && (
+            <>
+              <SettingRow>
+                <SettingRowTitle>{t('settings.proxy.address')}</SettingRowTitle>
+                <Input
+                  spellCheck={false}
+                  placeholder="socks5://127.0.0.1:6153"
+                  value={proxyUrl}
+                  onChange={(e) => setProxyUrl(e.target.value)}
+                  style={{ width: 220 }}
+                  onBlur={onSetProxyUrl}
+                  type="url"
                 />
-              </SettingRowTitle>
-              <Input
-                spellCheck={false}
-                placeholder={defaultByPassRules}
-                value={proxyBypassRules}
-                onChange={(e) => setProxyBypassRules(e.target.value)}
-                style={{ width: 220 }}
-                onBlur={onSetProxyBypassRules}
-              />
-            </SettingRow>
-          </>
-        )}
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.hardware_acceleration.title')}</SettingRowTitle>
-          <Switch checked={disableHardwareAcceleration} onCheckedChange={handleHardwareAccelerationChange} />
-        </SettingRow>
+              </SettingRow>
+              <SettingRow>
+                <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span>{t('settings.proxy.bypass')}</span>
+                  <InfoTooltip
+                    content={t('settings.proxy.tip')}
+                    placement="right"
+                    iconProps={{ className: 'cursor-pointer' }}
+                  />
+                </SettingRowTitle>
+                <Input
+                  spellCheck={false}
+                  placeholder={defaultByPassRules}
+                  value={proxyBypassRules}
+                  onChange={(e) => setProxyBypassRules(e.target.value)}
+                  style={{ width: 220 }}
+                  onBlur={onSetProxyBypassRules}
+                />
+              </SettingRow>
+            </>
+          )}
+          <SettingRow>
+            <SettingRowTitle>{t('settings.hardware_acceleration.title')}</SettingRowTitle>
+            <Switch checked={disableHardwareAcceleration} onCheckedChange={handleHardwareAccelerationChange} />
+          </SettingRow>
+        </SettingCard>
       </SettingGroup>
 
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.developer.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <Flex className="items-center gap-1">
-            <SettingRowTitle>{t('settings.developer.enable_developer_mode')}</SettingRowTitle>
-            <InfoTooltip content={t('settings.developer.help')} />
-          </Flex>
-          <Switch checked={enableDeveloperMode} onCheckedChange={setEnableDeveloperMode} />
-        </SettingRow>
+        <SettingCard>
+          <SettingRow>
+            <Flex className="items-center gap-1">
+              <SettingRowTitle>{t('settings.developer.enable_developer_mode')}</SettingRowTitle>
+              <InfoTooltip content={t('settings.developer.help')} />
+            </Flex>
+            <Switch checked={enableDeveloperMode} onCheckedChange={setEnableDeveloperMode} />
+          </SettingRow>
+        </SettingCard>
       </SettingGroup>
     </SettingsContentColumn>
   )

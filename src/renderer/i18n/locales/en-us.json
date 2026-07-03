@@ -5073,6 +5073,7 @@
         "r_regenerate": "R: Regenerate"
       }
     },
+    "description": "Select any text to instantly translate, explain, summarize, and more",
     "name": "Selection Assistant",
     "settings": {
       "actions": {
@@ -7196,6 +7197,7 @@
     },
     "quickAssistant": {
       "click_tray_to_show": "Click the tray icon to start",
+      "description": "A lightweight AI assistant summoned anytime via shortcut or tray",
       "enable_quick_assistant": "Enable Quick Assistant",
       "read_clipboard_at_startup": "Read clipboard at startup",
       "title": "Quick Assistant",

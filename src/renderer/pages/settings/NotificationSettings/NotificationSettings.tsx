@@ -1,7 +1,7 @@
 import { InfoTooltip, Switch } from '@cherrystudio/ui'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import {
-  SettingDivider,
+  SettingCard,
   SettingGroup,
   SettingRow,
   SettingRowTitle,
@@ -31,37 +31,36 @@ const NotificationSettings: FC = () => {
     <SettingsContentColumn theme={theme}>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.notification.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span>{t('settings.notification.assistant')}</span>
-            <InfoTooltip
-              content={t('notification.tip')}
-              placement="right"
-              iconProps={{ className: 'cursor-pointer' }}
+        <SettingCard>
+          <SettingRow>
+            <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span>{t('settings.notification.assistant')}</span>
+              <InfoTooltip
+                content={t('notification.tip')}
+                placement="right"
+                iconProps={{ className: 'cursor-pointer' }}
+              />
+            </SettingRowTitle>
+            <Switch
+              checked={notificationSettings.assistant}
+              onCheckedChange={(v) => handleNotificationChange('assistant', v)}
             />
-          </SettingRowTitle>
-          <Switch
-            checked={notificationSettings.assistant}
-            onCheckedChange={(v) => handleNotificationChange('assistant', v)}
-          />
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.notification.backup')}</SettingRowTitle>
-          <Switch
-            checked={notificationSettings.backup}
-            onCheckedChange={(v) => handleNotificationChange('backup', v)}
-          />
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.notification.knowledge_embed')}</SettingRowTitle>
-          <Switch
-            checked={notificationSettings.knowledge}
-            onCheckedChange={(v) => handleNotificationChange('knowledge', v)}
-          />
-        </SettingRow>
+          </SettingRow>
+          <SettingRow>
+            <SettingRowTitle>{t('settings.notification.backup')}</SettingRowTitle>
+            <Switch
+              checked={notificationSettings.backup}
+              onCheckedChange={(v) => handleNotificationChange('backup', v)}
+            />
+          </SettingRow>
+          <SettingRow>
+            <SettingRowTitle>{t('settings.notification.knowledge_embed')}</SettingRowTitle>
+            <Switch
+              checked={notificationSettings.knowledge}
+              onCheckedChange={(v) => handleNotificationChange('knowledge', v)}
+            />
+          </SettingRow>
+        </SettingCard>
       </SettingGroup>
     </SettingsContentColumn>
   )

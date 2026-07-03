@@ -1,7 +1,7 @@
 import { Flex, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider, Switch } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
-import { SettingGroup as PageSettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
+import { SettingCard, SettingGroup as PageSettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { CodeStyleVarious } from '@renderer/types/app'
@@ -13,13 +13,7 @@ import type { FC, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  SettingDivider,
-  SettingGroup,
-  SettingRow,
-  SettingRowTitleSmall,
-  SettingSwitch
-} from './settingsPanelPrimitives'
+import { SettingRow, SettingRowTitleSmall, SettingSwitch } from './settingsPanelPrimitives'
 
 type SelectOption<T extends string = string> = {
   value: T
@@ -159,8 +153,7 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
   const renderSection = (title: string, children: ReactNode) => (
     <PageSettingGroup theme={theme} className={sectionClassName}>
       <SettingTitle>{title}</SettingTitle>
-      <SettingDivider />
-      <SettingGroup>{children}</SettingGroup>
+      <SettingCard>{children}</SettingCard>
     </PageSettingGroup>
   )
 
@@ -184,7 +177,6 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               </SelectContent>
             </Select>
           </SettingRow>
-          <SettingDivider />
           <SettingRow>
             <Flex className="mr-4 flex-1 items-center justify-between">
               <SettingRowTitleSmall>{t('settings.general.spell_check.label')}</SettingRowTitleSmall>
@@ -211,7 +203,6 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
             </Flex>
             <Switch checked={enableSpellCheck} onCheckedChange={handleSpellCheckChange} />
           </SettingRow>
-          <SettingDivider />
           <SettingRow>
             <SettingSwitch
               checked={showInputEstimatedTokens}
@@ -219,7 +210,6 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               label={t('settings.messages.input.show_estimated_tokens')}
             />
           </SettingRow>
-          <SettingDivider />
           <SettingRow>
             <SettingSwitch
               checked={renderInputMessageAsMarkdown}
@@ -227,7 +217,6 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               label={t('settings.messages.markdown_rendering_input_message')}
             />
           </SettingRow>
-          <SettingDivider />
           <SettingRow>
             <SettingSwitch
               checked={confirmDeleteMessage}
@@ -243,7 +232,6 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
           <SettingRow>
             <SettingSwitch checked={wideMode} onCheckedChange={setWideMode} label={t('settings.messages.wide_mode')} />
           </SettingRow>
-          <SettingDivider />
           <SettingRow>
             <SettingSwitch
               checked={messageFont === 'serif'}
@@ -251,7 +239,6 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               label={t('settings.messages.use_serif_font')}
             />
           </SettingRow>
-          <SettingDivider />
           <SettingRow>
             <SettingSwitch
               checked={thoughtAutoCollapse}
@@ -260,7 +247,6 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               hint={t('chat.settings.thought_auto_collapse.tip')}
             />
           </SettingRow>
-          <SettingDivider />
           <SettingRow>
             <SettingSwitch
               checked={showMessageOutline}
@@ -268,7 +254,6 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               label={t('settings.messages.show_message_outline')}
             />
           </SettingRow>
-          <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('message.message.style.label')}</SettingRowTitleSmall>
             <Select value={messageStyle} onValueChange={setMessageStyle}>
@@ -284,7 +269,6 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               </SelectContent>
             </Select>
           </SettingRow>
-          <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('message.message.multi_model_style.label')}</SettingRowTitleSmall>
             <Select value={multiModelMessageStyle} onValueChange={setMultiModelMessageStyle}>
@@ -307,7 +291,6 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               </SelectContent>
             </Select>
           </SettingRow>
-          <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.messages.navigation.label')}</SettingRowTitleSmall>
             <Select value={messageNavigation} onValueChange={setMessageNavigation}>
@@ -323,7 +306,6 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               </SelectContent>
             </Select>
           </SettingRow>
-          <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.font_size.title')}</SettingRowTitleSmall>
           </SettingRow>
@@ -375,7 +357,6 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               </SelectContent>
             </Select>
           </SettingRow>
-          <SettingDivider />
           <SettingRow>
             <SettingSwitch
               checked={codeFancyBlock}
@@ -384,7 +365,6 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               hint={t('chat.settings.code_fancy_block.tip')}
             />
           </SettingRow>
-          <SettingDivider />
           <SettingRow>
             <SettingSwitch
               checked={codeEditor.enabled}
@@ -394,7 +374,6 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
           </SettingRow>
           {codeEditor.enabled && (
             <>
-              <SettingDivider />
               <SettingRow className="pl-2">
                 <SettingSwitch
                   checked={codeEditor.highlightActiveLine}
@@ -402,7 +381,6 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
                   label={t('chat.settings.code_editor.highlight_active_line')}
                 />
               </SettingRow>
-              <SettingDivider />
               <SettingRow className="pl-2">
                 <SettingSwitch
                   checked={codeEditor.foldGutter}
@@ -410,7 +388,6 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
                   label={t('chat.settings.code_editor.fold_gutter')}
                 />
               </SettingRow>
-              <SettingDivider />
               <SettingRow className="pl-2">
                 <SettingSwitch
                   checked={codeEditor.autocompletion}
@@ -418,7 +395,6 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
                   label={t('chat.settings.code_editor.autocompletion')}
                 />
               </SettingRow>
-              <SettingDivider />
               <SettingRow className="pl-2">
                 <SettingSwitch
                   checked={codeEditor.keymap}
@@ -428,7 +404,6 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               </SettingRow>
             </>
           )}
-          <SettingDivider />
           <SettingRow>
             <SettingSwitch
               checked={codeShowLineNumbers}
@@ -436,7 +411,6 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               label={t('chat.settings.show_line_numbers')}
             />
           </SettingRow>
-          <SettingDivider />
           <SettingRow>
             <SettingSwitch
               checked={codeCollapsible}
@@ -444,7 +418,6 @@ const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassN
               label={t('chat.settings.code_collapsible')}
             />
           </SettingRow>
-          <SettingDivider />
           <SettingRow>
             <SettingSwitch
               checked={codeWrappable}

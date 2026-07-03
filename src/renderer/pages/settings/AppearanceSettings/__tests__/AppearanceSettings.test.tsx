@@ -64,6 +64,8 @@ vi.mock('@cherrystudio/ui', async () => {
     CustomTag: passthrough('span'),
     Flex: passthrough('div'),
     InfoTooltip: ({ children }: { children?: React.ReactNode }) => React.createElement(React.Fragment, null, children),
+    NormalTooltip: ({ children }: { children?: React.ReactNode }) =>
+      React.createElement(React.Fragment, null, children),
     Input: (props: any) => React.createElement('input', props),
     MenuItem: ({ active, icon, label, onClick, ...props }: any) => {
       const cleanProps = { ...props }
@@ -165,8 +167,8 @@ vi.mock('@renderer/components/SettingsPrimitives', async () => {
       React.createElement(tag, props, children)
 
   return {
+    SettingCard: passthrough('div'),
     SettingDescription: passthrough('p'),
-    SettingDivider: passthrough('hr'),
     SettingGroup: passthrough('section'),
     SettingRow: passthrough('div'),
     SettingRowTitle: passthrough('div'),

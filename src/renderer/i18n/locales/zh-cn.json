@@ -5073,6 +5073,7 @@
         "r_regenerate": "R 重新生成"
       }
     },
+    "description": "选中任意文本，立即执行翻译、解释、总结等快捷操作",
     "name": "划词助手",
     "settings": {
       "actions": {
@@ -7196,6 +7197,7 @@
     },
     "quickAssistant": {
       "click_tray_to_show": "点击托盘图标启动",
+      "description": "通过快捷键或托盘随时唤起的轻量 AI 助手",
       "enable_quick_assistant": "启用快捷助手",
       "read_clipboard_at_startup": "启动时读取剪贴板",
       "title": "快捷助手",

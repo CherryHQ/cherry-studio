@@ -17,8 +17,8 @@ import ChatPreferenceSections from '@renderer/components/chat/settings/ChatPrefe
 import ResetIcon from '@renderer/components/icons/ResetIcon'
 import Selector from '@renderer/components/Selector'
 import {
+  SettingCard,
   SettingDescription,
-  SettingDivider,
   SettingGroup,
   SettingRow,
   SettingRowTitle,
@@ -44,24 +44,25 @@ import { useTranslation } from 'react-i18next'
 
 import ThemeColorPicker from './components/ThemeColorPicker'
 
-const DEFAULT_COLOR_PRIMARY = '#00b96b'
+const DEFAULT_COLOR_PRIMARY = '#009FFF'
 const DEFAULT_ZOOM_FACTOR = 1
 const appearanceSectionClassName = 'border-t-0 pt-0'
 const THEME_COLOR_PRESETS = [
-  DEFAULT_COLOR_PRIMARY,
-  '#EF4444', // Red
-  '#F59E0B', // Amber
-  '#3B82F6', // Blue
-  '#8B5CF6' // Purple
+  DEFAULT_COLOR_PRIMARY, // Light blue
+  '#65D46D', // Green
+  '#E15456', // Red
+  '#F19A29', // Orange
+  '#0091FF', // Blue
+  '#8089F3', // Purple
+  '#FB83F3' // Pink
 ]
 
-type TFunction = (key: string) => string
 type MenuPresentationModeChangeOptions = {
   currentMode: MenuPresentationMode
   mode: MenuPresentationMode
   setMenuPresentationMode: (mode: MenuPresentationMode) => Promise<unknown> | unknown
   setTimeoutTimer: (key: string, callback: () => void, delay: number) => void
-  t: TFunction
+  t: (key: string) => string
 }
 
 const defaultFontPreviewFamily = 'Ubuntu, -apple-system, system-ui, Arial, sans-serif'
@@ -125,8 +126,27 @@ const AppearanceSettings: FC = () => {
 
   const [language, setLanguage] = usePreference('app.language')
   const [windowStyle, setWindowStyle] = usePreference('ui.window_style')
-  const [menuPresentationMode, setMenuPresentationMode] = usePreference('menu.presentation_mode')
   const [customCss, setCustomCss] = usePreference('ui.custom_css')
+  const [menuPresentationMode, setMenuPresentationMode] = usePreference('menu.presentation_mode')
+  const menuPresentationModeOptions = useMemo(
+    () => [
+      { value: 'cherry' as const, label: t('settings.general.common.menu.presentation_mode.cherry') },
+      { value: 'native' as const, label: t('settings.general.common.menu.presentation_mode.native') }
+    ],
+    [t]
+  )
+  const handleMenuPresentationModeChange = useCallback(
+    (mode: MenuPresentationMode) => {
+      confirmMenuPresentationModeChange({
+        currentMode: menuPresentationMode,
+        mode,
+        setMenuPresentationMode,
+        setTimeoutTimer,
+        t
+      })
+    },
+    [menuPresentationMode, setMenuPresentationMode, setTimeoutTimer, t]
+  )
   const [fontSize] = usePreference('chat.message.font_size')
   const [topicLayout, setTopicLayout] = usePreference('topic.layout')
   const [sessionLayout, setSessionLayout] = usePreference('agent.layout')
@@ -232,33 +252,12 @@ const AppearanceSettings: FC = () => {
     [setWindowStyle]
   )
 
-  const menuPresentationModeOptions = useMemo(
-    () => [
-      { value: 'cherry' as const, label: t('settings.general.common.menu.presentation_mode.cherry') },
-      { value: 'native' as const, label: t('settings.general.common.menu.presentation_mode.native') }
-    ],
-    [t]
-  )
-
   const layoutOptions = useMemo(
     () => [
       { value: 'classic' as const, label: t('settings.messages.layout.classic') },
       { value: 'modern' as const, label: t('settings.messages.layout.modern') }
     ],
     [t]
-  )
-
-  const handleMenuPresentationModeChange = useCallback(
-    (mode: MenuPresentationMode) => {
-      confirmMenuPresentationModeChange({
-        currentMode: menuPresentationMode,
-        mode,
-        setMenuPresentationMode,
-        setTimeoutTimer,
-        t
-      })
-    },
-    [menuPresentationMode, setMenuPresentationMode, setTimeoutTimer, t]
   )
 
   const handleUseSystemTitleBarChange = (checked: boolean) => {
@@ -338,7 +337,7 @@ const AppearanceSettings: FC = () => {
 
     return (
       <Tooltip title={option.label} placement="left" delay={500} fullWidthTrigger>
-        <div className="w-full min-w-0 truncate" style={{ fontFamily }}>
+        <div className="w-full min-w-0 truncate leading-5" style={{ fontFamily }}>
           {option.label}
         </div>
       </Tooltip>
@@ -367,199 +366,188 @@ const AppearanceSettings: FC = () => {
     <SettingsContentColumn theme={theme} innerClassName="[&>*+*]:mt-8">
       <SettingGroup theme={theme} className={appearanceSectionClassName}>
         <SettingTitle>{t('settings.general.common.sections.display_language')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('common.language')}</SettingRowTitle>
-          <SelectorRow>
-            <Selector
-              size={14}
-              style={{ width: '100%' }}
-              value={displayLanguage}
-              onChange={onSelectLanguage}
-              options={languagesOptions.map((lang) => ({
-                label: (
-                  <Flex className="items-center gap-2">
-                    <span role="img" aria-label={lang.flag}>
-                      {lang.flag}
-                    </span>
-                    {lang.label}
-                  </Flex>
-                ),
-                value: lang.value
-              }))}
-            />
-          </SelectorRow>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.theme.title')}</SettingRowTitle>
-          <SelectorRow>
-            <Selector<ThemeMode>
-              size={14}
-              style={{ width: '100%' }}
-              value={settedTheme}
-              onChange={setTheme}
-              options={themeOptions}
-            />
-          </SelectorRow>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.theme.color_primary')}</SettingRowTitle>
-          <WideControlRow>
-            <ThemeColorPicker
-              value={userTheme.colorPrimary}
-              presets={THEME_COLOR_PRESETS}
-              onChange={handleColorPrimaryChange}
-              ariaLabel={t('settings.theme.color_primary')}
-              className="w-full justify-end"
-            />
-          </WideControlRow>
-        </SettingRow>
-        {isLinux && (
-          <>
-            <SettingDivider />
+        <SettingCard>
+          <SettingRow>
+            <SettingRowTitle>{t('common.language')}</SettingRowTitle>
+            <SelectorRow>
+              <Selector
+                size={14}
+                style={{ width: '100%' }}
+                value={displayLanguage}
+                onChange={onSelectLanguage}
+                options={languagesOptions.map((lang) => ({
+                  label: (
+                    <Flex className="items-center gap-2">
+                      <span role="img" aria-label={lang.flag}>
+                        {lang.flag}
+                      </span>
+                      {lang.label}
+                    </Flex>
+                  ),
+                  value: lang.value
+                }))}
+              />
+            </SelectorRow>
+          </SettingRow>
+          <SettingRow>
+            <SettingRowTitle>{t('settings.theme.title')}</SettingRowTitle>
+            <SelectorRow>
+              <Selector<ThemeMode>
+                size={14}
+                style={{ width: '100%' }}
+                value={settedTheme}
+                onChange={setTheme}
+                options={themeOptions}
+              />
+            </SelectorRow>
+          </SettingRow>
+          <SettingRow>
+            <SettingRowTitle>{t('settings.theme.color_primary')}</SettingRowTitle>
+            <WideControlRow>
+              <ThemeColorPicker
+                value={userTheme.colorPrimary}
+                presets={THEME_COLOR_PRESETS}
+                onChange={handleColorPrimaryChange}
+                ariaLabel={t('settings.theme.color_primary')}
+                className="w-full justify-end"
+              />
+            </WideControlRow>
+          </SettingRow>
+          {isLinux && (
             <SettingRow>
               <SettingRowTitle>{t('settings.use_system_title_bar.title')}</SettingRowTitle>
               <Switch checked={useSystemTitleBar} onCheckedChange={handleUseSystemTitleBarChange} />
             </SettingRow>
-          </>
-        )}
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.zoom.title')}</SettingRowTitle>
-          <ZoomButtonGroup>
-            {!isDefaultZoom && (
-              <Button onClick={() => handleZoomFactor(0, true)} variant="ghost" size="icon">
-                <ResetIcon size="14" />
+          )}
+          <SettingRow>
+            <SettingRowTitle>{t('settings.zoom.title')}</SettingRowTitle>
+            <ZoomButtonGroup>
+              {!isDefaultZoom && (
+                <Button onClick={() => handleZoomFactor(0, true)} variant="ghost" size="icon">
+                  <ResetIcon size="14" />
+                </Button>
+              )}
+              <Button onClick={() => handleZoomFactor(-0.1)} variant="ghost" size="icon">
+                <Minus size="14" />
               </Button>
-            )}
-            <Button onClick={() => handleZoomFactor(-0.1)} variant="ghost" size="icon">
-              <Minus size="14" />
-            </Button>
-            <ZoomValue>{Math.round(currentZoom * 100)}%</ZoomValue>
-            <Button onClick={() => handleZoomFactor(0.1)} variant="ghost" size="icon">
-              <Plus size="14" />
-            </Button>
-          </ZoomButtonGroup>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.general.common.menu.presentation_mode.title')}</SettingRowTitle>
-          <SegmentedControl<MenuPresentationMode>
-            value={menuPresentationMode}
-            onValueChange={handleMenuPresentationModeChange}
-            options={menuPresentationModeOptions}
-            size="sm"
-          />
-        </SettingRow>
-        {isMac && (
-          <>
-            <SettingDivider />
+              <ZoomValue>{Math.round(currentZoom * 100)}%</ZoomValue>
+              <Button onClick={() => handleZoomFactor(0.1)} variant="ghost" size="icon">
+                <Plus size="14" />
+              </Button>
+            </ZoomButtonGroup>
+          </SettingRow>
+          <SettingRow>
+            <SettingRowTitle>{t('settings.general.common.menu.presentation_mode.title')}</SettingRowTitle>
+            <SegmentedControl<MenuPresentationMode>
+              value={menuPresentationMode}
+              onValueChange={handleMenuPresentationModeChange}
+              options={menuPresentationModeOptions}
+              size="sm"
+            />
+          </SettingRow>
+          {isMac && (
             <SettingRow>
               <SettingRowTitle>{t('settings.theme.window.style.transparent')}</SettingRowTitle>
               <Switch checked={windowStyle === 'transparent'} onCheckedChange={handleWindowStyleChange} />
             </SettingRow>
-          </>
-        )}
+          )}
+        </SettingCard>
       </SettingGroup>
 
       <SettingGroup theme={theme} className={appearanceSectionClassName}>
         <SettingTitle>{t('settings.display.topic.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.messages.layout.conversation')}</SettingRowTitle>
-          <SegmentedControl<ChatLayoutMode>
-            value={topicLayout}
-            onValueChange={setTopicLayout}
-            options={layoutOptions}
-            size="sm"
-          />
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.messages.layout.work')}</SettingRowTitle>
-          <SegmentedControl<ChatLayoutMode>
-            value={sessionLayout}
-            onValueChange={setSessionLayout}
-            options={layoutOptions}
-            size="sm"
-          />
-        </SettingRow>
+        <SettingCard>
+          <SettingRow>
+            <SettingRowTitle>{t('settings.messages.layout.conversation')}</SettingRowTitle>
+            <SegmentedControl<ChatLayoutMode>
+              value={topicLayout}
+              onValueChange={setTopicLayout}
+              options={layoutOptions}
+              size="sm"
+            />
+          </SettingRow>
+          <SettingRow>
+            <SettingRowTitle>{t('settings.messages.layout.work')}</SettingRowTitle>
+            <SegmentedControl<ChatLayoutMode>
+              value={sessionLayout}
+              onValueChange={setSessionLayout}
+              options={layoutOptions}
+              size="sm"
+            />
+          </SettingRow>
+        </SettingCard>
       </SettingGroup>
 
       <SettingGroup theme={theme} className={appearanceSectionClassName}>
         <SettingTitle style={{ justifyContent: 'flex-start', gap: 5 }}>
           {t('settings.display.font.title')} <Badge className="border-primary/20 bg-primary/10 text-primary">New</Badge>
         </SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.display.font.global')}</SettingRowTitle>
-          <SelectRow>
-            {userTheme.userFontFamily && (
-              <Button onClick={() => handleUserFontChange('')} variant="ghost" size="icon">
-                <ResetIcon size="14" />
-              </Button>
-            )}
-            <div className="min-w-0 flex-1">
-              <Combobox
-                placeholder={t('settings.display.font.select')}
-                emptyText={t('common.no_results')}
-                options={fontOptions}
-                value={userTheme.userFontFamily || ''}
-                onChange={handleUserFontComboboxChange}
-                renderOption={renderFontOption}
-                searchPlacement="trigger"
-                triggerStyle={{ fontFamily: userTheme.userFontFamily || defaultFontPreviewFamily }}
-                popoverClassName="max-h-[320px] overflow-y-auto"
-              />
-            </div>
-          </SelectRow>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.display.font.code')}</SettingRowTitle>
-          <SelectRow>
-            {userTheme.userCodeFontFamily && (
-              <Button onClick={() => handleUserCodeFontChange('')} variant="ghost" size="icon">
-                <ResetIcon size="14" />
-              </Button>
-            )}
-            <div className="min-w-0 flex-1">
-              <Combobox
-                placeholder={t('settings.display.font.select')}
-                emptyText={t('common.no_results')}
-                options={fontOptions}
-                value={userTheme.userCodeFontFamily || ''}
-                onChange={handleUserCodeFontComboboxChange}
-                renderOption={renderFontOption}
-                searchPlacement="trigger"
-                triggerStyle={{ fontFamily: userTheme.userCodeFontFamily || defaultFontPreviewFamily }}
-                popoverClassName="max-h-[320px] overflow-y-auto"
-              />
-            </div>
-          </SelectRow>
-        </SettingRow>
+        <SettingCard>
+          <SettingRow>
+            <SettingRowTitle>{t('settings.display.font.global')}</SettingRowTitle>
+            <SelectRow>
+              {userTheme.userFontFamily && (
+                <Button onClick={() => handleUserFontChange('')} variant="ghost" size="icon">
+                  <ResetIcon size="14" />
+                </Button>
+              )}
+              <div className="min-w-0 flex-1">
+                <Combobox
+                  placeholder={t('settings.display.font.select')}
+                  emptyText={t('common.no_results')}
+                  options={fontOptions}
+                  value={userTheme.userFontFamily || ''}
+                  onChange={handleUserFontComboboxChange}
+                  renderOption={renderFontOption}
+                  searchPlacement="trigger"
+                  triggerStyle={{ fontFamily: userTheme.userFontFamily || defaultFontPreviewFamily }}
+                  popoverClassName="max-h-[320px] overflow-y-auto"
+                />
+              </div>
+            </SelectRow>
+          </SettingRow>
+          <SettingRow>
+            <SettingRowTitle>{t('settings.display.font.code')}</SettingRowTitle>
+            <SelectRow>
+              {userTheme.userCodeFontFamily && (
+                <Button onClick={() => handleUserCodeFontChange('')} variant="ghost" size="icon">
+                  <ResetIcon size="14" />
+                </Button>
+              )}
+              <div className="min-w-0 flex-1">
+                <Combobox
+                  placeholder={t('settings.display.font.select')}
+                  emptyText={t('common.no_results')}
+                  options={fontOptions}
+                  value={userTheme.userCodeFontFamily || ''}
+                  onChange={handleUserCodeFontComboboxChange}
+                  renderOption={renderFontOption}
+                  searchPlacement="trigger"
+                  triggerStyle={{ fontFamily: userTheme.userCodeFontFamily || defaultFontPreviewFamily }}
+                  popoverClassName="max-h-[320px] overflow-y-auto"
+                />
+              </div>
+            </SelectRow>
+          </SettingRow>
+        </SettingCard>
       </SettingGroup>
 
       <ChatPreferenceSections sectionClassName={appearanceSectionClassName} />
 
       <SettingGroup theme={theme} className={appearanceSectionClassName}>
         <SettingTitle>{t('chat.settings.code_execution.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <Flex className="items-center gap-1">
-            <SettingRowTitle>{t('chat.settings.code_execution.title')}</SettingRowTitle>
-            <InfoTooltip content={t('chat.settings.code_execution.tip')} />
-          </Flex>
-          <Switch
-            checked={codeExecution.enabled}
-            onCheckedChange={(checked) => setCodeExecution({ enabled: checked })}
-          />
-        </SettingRow>
-        {codeExecution.enabled && (
-          <>
-            <SettingDivider />
+        <SettingCard>
+          <SettingRow>
+            <Flex className="items-center gap-1">
+              <SettingRowTitle>{t('chat.settings.code_execution.title')}</SettingRowTitle>
+              <InfoTooltip content={t('chat.settings.code_execution.tip')} />
+            </Flex>
+            <Switch
+              checked={codeExecution.enabled}
+              onCheckedChange={(checked) => setCodeExecution({ enabled: checked })}
+            />
+          </SettingRow>
+          {codeExecution.enabled && (
             <SettingRow>
               <Flex className="items-center gap-1">
                 <SettingRowTitle>{t('chat.settings.code_execution.timeout_minutes.label')}</SettingRowTitle>
@@ -575,16 +563,15 @@ const AppearanceSettings: FC = () => {
                 onChange={(value) => setCodeExecution({ timeoutMinutes: value ?? 1 })}
               />
             </SettingRow>
-          </>
-        )}
-        <SettingDivider />
-        <SettingRow>
-          <Flex className="items-center gap-1">
-            <SettingRowTitle>{t('chat.settings.code_image_tools.label')}</SettingRowTitle>
-            <InfoTooltip content={t('chat.settings.code_image_tools.tip')} />
-          </Flex>
-          <Switch checked={codeImageTools} onCheckedChange={setCodeImageTools} />
-        </SettingRow>
+          )}
+          <SettingRow>
+            <Flex className="items-center gap-1">
+              <SettingRowTitle>{t('chat.settings.code_image_tools.label')}</SettingRowTitle>
+              <InfoTooltip content={t('chat.settings.code_image_tools.tip')} />
+            </Flex>
+            <Switch checked={codeImageTools} onCheckedChange={setCodeImageTools} />
+          </SettingRow>
+        </SettingCard>
       </SettingGroup>
 
       <SettingGroup theme={theme} className={appearanceSectionClassName}>
@@ -603,8 +590,7 @@ const AppearanceSettings: FC = () => {
             language="css"
             placeholder={t('settings.display.custom.css.placeholder')}
             onChange={(value) => setCustomCss(value)}
-            height="56vh"
-            expanded={false}
+            minHeight="56vh"
             wrapped
             options={{
               autocompletion: true,
@@ -624,15 +610,15 @@ const TitleExtra = ({ className, ...props }: React.ComponentPropsWithoutRef<'div
 )
 
 const ZoomButtonGroup = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex w-full min-w-0 max-w-52.5 items-center justify-end', className)} {...props} />
+  <div className={cn('flex min-w-0 max-w-52.5 flex-1 items-center justify-end', className)} {...props} />
 )
 
 const SelectorRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex w-full min-w-0 max-w-55 items-center justify-end', className)} {...props} />
+  <div className={cn('flex min-w-0 max-w-55 flex-1 items-center justify-end', className)} {...props} />
 )
 
 const WideControlRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex w-full min-w-0 max-w-95 items-center justify-end', className)} {...props} />
+  <div className={cn('flex min-w-0 max-w-95 flex-1 items-center justify-end', className)} {...props} />
 )
 
 const ZoomValue = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
@@ -640,7 +626,7 @@ const ZoomValue = ({ className, ...props }: React.ComponentPropsWithoutRef<'span
 )
 
 const SelectRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex w-full min-w-0 max-w-65 items-center justify-end gap-2', className)} {...props} />
+  <div className={cn('flex min-w-0 max-w-65 flex-1 items-center justify-end gap-2', className)} {...props} />
 )
 
 export default AppearanceSettings

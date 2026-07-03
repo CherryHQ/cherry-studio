@@ -188,7 +188,7 @@ const NpxSearch: FC = () => {
                     href={record.npmLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="selectable text-link text-sm hover:text-link-hover">
+                    className="selectable !text-info text-sm hover:underline">
                     {record.npmLink}
                   </a>
                 </div>

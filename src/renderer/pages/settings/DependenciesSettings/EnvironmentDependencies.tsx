@@ -8,7 +8,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Input
+  Input,
+  Tooltip
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { Icon } from '@iconify/react'
@@ -20,13 +21,16 @@ import type { BinaryState, ManagedBinary } from '@shared/data/preference/prefere
 import { type BinaryToolPreset, PRESETS_BINARY_TOOLS, validateManagedBinary } from '@shared/data/presets/binaryTools'
 import { useNavigate } from '@tanstack/react-router'
 import {
+  ArrowUpCircle,
   Download,
   ExternalLink,
   FolderOpen,
+  Globe,
   Loader2,
+  Package,
+  PackageCheck,
   Plus,
   RefreshCw,
-  SquareArrowOutUpRight,
   Terminal,
   Trash2,
   TriangleAlert
@@ -34,6 +38,8 @@ import {
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { SettingsPageHeader } from '@renderer/components/SettingsPrimitives'
 
 const logger = loggerService.withContext('EnvironmentDependencies')
 
@@ -139,14 +145,11 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     await setCustomTools([...customTools, tool])
   }
 
-  // Uninstalls the mise-managed binary for both preset and custom tools; only custom tools
-  // also drop from the persisted list (presets revert to bundled/not-installed on re-probe).
-  const handleRemoveTool = async (toolName: string) => {
+  const handleRemoveCustomTool = async (toolName: string) => {
     try {
       await ipcApi.request('binary.remove_tool', toolName)
-      if (customTools.some((t) => t.name === toolName)) {
-        await setCustomTools(customTools.filter((t) => t.name !== toolName))
-      }
+      const updated = customTools.filter((t) => t.name !== toolName)
+      await setCustomTools(updated)
       await refreshState()
       setDeleteTarget(null)
     } catch (error) {
@@ -184,13 +187,15 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="min-w-0">
-        <div className="flex min-w-0 items-center gap-2">
-          <h1 className="font-semibold text-[15px] text-foreground leading-6">{t('settings.dependencies.title')}</h1>
-          <span className="text-muted-foreground/50 text-xs">{totalCount}</span>
-        </div>
-        <p className="mt-1 text-muted-foreground text-xs leading-5">{t('settings.dependencies.description')}</p>
-      </div>
+      <SettingsPageHeader
+        icon={<PackageCheck />}
+        title={
+          <>
+            {t('settings.dependencies.title')} <span className="text-muted-foreground/50 text-xs">{totalCount}</span>
+          </>
+        }
+        description={t('settings.dependencies.description')}
+      />
 
       <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {PRESETS_BINARY_TOOLS.map((tool) => {
@@ -259,7 +264,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         description={t('settings.dependencies.removeConfirmMessage', { name: deleteNameRef.current })}
         destructive
         onConfirm={async () => {
-          if (deleteTarget) await handleRemoveTool(deleteTarget)
+          if (deleteTarget) await handleRemoveCustomTool(deleteTarget)
         }}
       />
     </div>
@@ -286,7 +291,7 @@ const BinaryToolPresetCard: FC<{
       role="listitem"
       className="flex flex-col rounded-xl border border-border bg-card p-4 transition-colors duration-200 ease-in-out hover:border-border-hover">
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <div
             className={cn(
               'flex size-10 shrink-0 items-center justify-center rounded-xl',
@@ -295,53 +300,102 @@ const BinaryToolPresetCard: FC<{
             <ToolIcon icon={tool.icon} />
           </div>
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-foreground text-sm leading-5">{tool.displayName}</span>
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+              <span className="whitespace-nowrap font-semibold text-foreground text-sm leading-5">
+                {tool.displayName}
+              </span>
               {tool.displayName !== tool.name && (
-                <span className="text-muted-foreground/60 text-xs">({tool.name})</span>
+                <span className="shrink-0 text-muted-foreground/60 text-xs">({tool.name})</span>
+              )}
+              <Tooltip content={tool.repoUrl.replace('https://github.com/', '')}>
+                <button
+                  type="button"
+                  aria-label={tool.repoUrl.replace('https://github.com/', '')}
+                  onClick={() => void window.api.openWebsite(tool.repoUrl)}
+                  className="shrink-0 text-muted-foreground/50 transition-colors hover:text-foreground">
+                  <ExternalLink className="size-3" />
+                </button>
+              </Tooltip>
+              {tool.homepage && (
+                <Tooltip content={tool.homepage.replace(/^https?:\/\//, '')}>
+                  <button
+                    type="button"
+                    aria-label={tool.homepage.replace(/^https?:\/\//, '')}
+                    onClick={() => void window.api.openWebsite(tool.homepage!)}
+                    className="shrink-0 text-muted-foreground/50 transition-colors hover:text-foreground">
+                    <Globe className="size-3" />
+                  </button>
+                </Tooltip>
+              )}
+              {present && (
+                <Tooltip content={t('settings.dependencies.openBinariesDir')}>
+                  <button
+                    type="button"
+                    aria-label={t('settings.dependencies.openBinariesDir')}
+                    onClick={onOpenPath}
+                    className="shrink-0 text-muted-foreground/50 transition-colors hover:text-foreground">
+                    <FolderOpen className="size-3" />
+                  </button>
+                </Tooltip>
               )}
             </div>
             {present && (
               <div className="mt-0.5 flex flex-wrap items-center gap-1">
                 {installedVersion && (
-                  <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[11px] leading-4">
+                  <Badge
+                    variant="outline"
+                    className="gap-1 border-transparent bg-success/10 px-1.5 py-0 text-[11px] text-success leading-4">
                     v{installedVersion}
                   </Badge>
                 )}
                 {isBundled && (
-                  <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[11px] leading-4">
+                  <Badge
+                    variant="outline"
+                    className="gap-1 border-transparent bg-info/10 px-1.5 py-0 text-[11px] text-info leading-4">
+                    <Package />
                     {t('settings.dependencies.source.bundled')}
                   </Badge>
+                )}
+                {source === 'managed' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={onUpdate}
+                      disabled={installing}
+                      title={t('settings.dependencies.update')}
+                      className="inline-flex cursor-pointer items-center gap-0.5 rounded-full bg-warning/10 px-1.5 py-0 text-[11px] text-warning leading-4 transition-colors hover:bg-warning/20 disabled:cursor-default disabled:opacity-40">
+                      {installing ? (
+                        <Loader2 className="size-3 motion-safe:animate-spin" />
+                      ) : (
+                        <ArrowUpCircle className="size-3" />
+                      )}
+                      {t('settings.dependencies.update_short')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onRemove}
+                      disabled={installing}
+                      title={t('settings.dependencies.remove')}
+                      aria-label={t('settings.dependencies.remove')}
+                      className="inline-flex cursor-pointer items-center rounded-full bg-destructive/10 px-1.5 py-0.5 text-destructive transition-colors hover:bg-destructive/20 disabled:cursor-default disabled:opacity-40">
+                      <Trash2 className="size-3" />
+                    </button>
+                  </>
                 )}
               </div>
             )}
           </div>
         </div>
 
-        {source === 'managed' && (
+        {source !== 'managed' && (
           <div className="flex shrink-0 items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="text-foreground/40 hover:text-foreground"
-              onClick={onUpdate}
-              disabled={installing}
-              title={t('settings.dependencies.update')}>
-              {installing ? (
-                <Loader2 className="size-3.5 motion-safe:animate-spin" />
-              ) : (
-                <RefreshCw className="size-3.5" />
-              )}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="text-foreground/40 hover:text-destructive"
-              onClick={onRemove}
-              disabled={installing}
-              aria-label={t('settings.dependencies.remove')}
-              title={t('settings.dependencies.remove')}>
-              <Trash2 className="size-3.5" />
+            <Button variant="outline" size="sm" onClick={onInstall} disabled={installing} loading={installing}>
+              {!installing && <Download className="size-3.5" />}
+              {installing
+                ? t('settings.dependencies.installing')
+                : isBundled
+                  ? t('settings.dependencies.install')
+                  : t('settings.mcp.install')}
             </Button>
           </div>
         )}
@@ -350,54 +404,6 @@ const BinaryToolPresetCard: FC<{
       <p className="mt-2.5 line-clamp-2 text-muted-foreground text-xs leading-4" title={description}>
         {description}
       </p>
-
-      <div className="mt-3 flex items-center gap-3">
-        <button
-          type="button"
-          className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
-          onClick={() => void window.api.openWebsite(tool.repoUrl)}>
-          <ExternalLink className="size-3" />
-          {tool.repoUrl.replace('https://github.com/', '')}
-        </button>
-        {tool.homepage && (
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
-            onClick={() => void window.api.openWebsite(tool.homepage!)}>
-            <SquareArrowOutUpRight className="size-3" />
-            {tool.homepage.replace(/^https?:\/\//, '')}
-          </button>
-        )}
-        {present && (
-          <button
-            type="button"
-            onClick={onOpenPath}
-            aria-label={t('settings.dependencies.openBinariesDir')}
-            title={t('settings.dependencies.openBinariesDir')}
-            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground">
-            <FolderOpen className="size-3" />
-          </button>
-        )}
-      </div>
-
-      {source !== 'managed' && (
-        <div className="mt-3 border-border border-t pt-3">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 w-full gap-1 font-medium text-xs"
-            onClick={onInstall}
-            disabled={installing}
-            loading={installing}>
-            {!installing && <Download className="size-3.5" />}
-            {installing
-              ? t('settings.dependencies.installing')
-              : isBundled
-                ? t('settings.dependencies.install')
-                : t('settings.mcp.install')}
-          </Button>
-        </div>
-      )}
     </div>
   )
 }
@@ -419,7 +425,7 @@ const CustomToolCard: FC<{
       role="listitem"
       className="flex flex-col rounded-xl border border-border bg-card p-4 transition-colors duration-200 ease-in-out hover:border-border-hover">
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <div
             className={cn(
               'flex size-10 shrink-0 items-center justify-center rounded-xl',
@@ -428,8 +434,8 @@ const CustomToolCard: FC<{
             <ToolIcon />
           </div>
           <div className="min-w-0">
-            <span className="font-semibold text-foreground text-sm leading-5">{tool.name}</span>
-            <div className="mt-0.5 text-muted-foreground text-xs">{tool.tool}</div>
+            <span className="block truncate font-semibold text-foreground text-sm leading-5">{tool.name}</span>
+            <div className="mt-0.5 truncate text-muted-foreground text-xs">{tool.tool}</div>
             {installed && installedVersion && (
               <Badge variant="secondary" className="mt-0.5 gap-1 px-1.5 py-0 text-[11px] leading-4">
                 v{installedVersion}

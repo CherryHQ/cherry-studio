@@ -1,4 +1,4 @@
-import { Divider as SettingDivider, Switch, Tooltip } from '@cherrystudio/ui'
+import { Switch, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { SettingRow as BaseSettingRow, SettingRowTitle } from '@renderer/components/SettingsPrimitives'
 import { Info } from 'lucide-react'
@@ -36,9 +36,3 @@ export const SettingSwitch = ({
 export const SettingRow = ({ className, ...rest }: ComponentPropsWithoutRef<typeof BaseSettingRow>) => (
   <BaseSettingRow className={cn('min-h-6 gap-3', className)} {...rest} />
 )
-
-export const SettingGroup = ({ className, ...rest }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex w-full flex-col gap-0', className)} {...rest} />
-)
-
-export { SettingDivider }

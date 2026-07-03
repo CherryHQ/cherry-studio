@@ -24,9 +24,9 @@ export function PaddleOcrModelSettings({ feature, value, onChange }: PaddleOcrMo
   const selectedValue = trimmedValue || modelOptions[0]
 
   return (
-    <div className="flex flex-col gap-3 border-border-muted border-t pt-4">
+    <div className="flex flex-col gap-3">
       <SettingRow className="items-center gap-4 py-0">
-        <SettingRowTitle className="w-24 shrink-0">
+        <SettingRowTitle className="w-24 flex-none">
           {t('settings.tool.file_processing.processors.paddleocr.fields.parse_model')}
         </SettingRowTitle>
         <div className="min-w-0 flex-1">
@@ -34,10 +34,10 @@ export function PaddleOcrModelSettings({ feature, value, onChange }: PaddleOcrMo
             <SelectTrigger
               size="sm"
               aria-label={t('settings.tool.file_processing.processors.paddleocr.fields.parse_model')}
-              className="w-full max-w-65">
+              className="w-full">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent align="start" className="w-56">
+            <SelectContent align="start">
               {modelOptions.map((model) => (
                 <SelectItem key={model} value={model} className="text-sm">
                   {model}
