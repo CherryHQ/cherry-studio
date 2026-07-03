@@ -168,4 +168,14 @@ describe('ProviderApiOptionsDrawer', () => {
       screen.queryByLabelText('settings.provider.api.options.anthropic_cache.token_threshold')
     ).not.toBeInTheDocument()
   })
+
+  it('hides generic api feature toggles for system providers but keeps anthropic cache settings', () => {
+    isSystemProviderMock.mockReturnValue(true)
+
+    render(<ProviderApiOptionsDrawer providerId="openai" open onClose={vi.fn()} />)
+
+    expect(screen.queryByLabelText('settings.provider.api.options.array_content.label')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('settings.provider.api.options.developer_role.label')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('settings.provider.api.options.anthropic_cache.token_threshold')).toBeInTheDocument()
+  })
 })
