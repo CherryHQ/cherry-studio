@@ -235,14 +235,14 @@ const HeaderNavbar = ({
       <RowFlex className="flex-[0_0_auto] items-center">
         {showWorkspace && (
           <Tooltip title={t('navbar.hide_sidebar')} delay={800}>
-            <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-icon" onClick={handleToggleShowWorkspace}>
+            <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-foreground/80" onClick={handleToggleShowWorkspace}>
               <PanelLeftClose size={18} />
             </BaseNavbarIcon>
           </Tooltip>
         )}
         {!showWorkspace && (
           <Tooltip title={t('navbar.show_sidebar')} delay={800} placement="right">
-            <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-icon" onClick={handleToggleShowWorkspace}>
+            <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-foreground/80" onClick={handleToggleShowWorkspace}>
               <PanelRightClose size={18} />
             </BaseNavbarIcon>
           </Tooltip>
@@ -274,7 +274,7 @@ const HeaderNavbar = ({
                         <span
                           className={cn(
                             'inline-block min-w-0 max-w-37.5 shrink overflow-hidden text-ellipsis whitespace-nowrap',
-                            item.isFolder && !isLastItem && 'cursor-pointer hover:text-primary hover:underline'
+                            item.isFolder && !isLastItem && 'cursor-pointer hover:text-link hover:underline'
                           )}
                           onClick={() => handleBreadcrumbClick(item)}>
                           {item.title}
@@ -297,7 +297,7 @@ const HeaderNavbar = ({
         {canShowStarButton && (
           <Tooltip title={activeNode.isStarred ? t('notes.unstar') : t('notes.star')} delay={800}>
             <div
-              className="flex h-7.5 cursor-pointer flex-row items-center justify-center rounded-lg px-1.75 transition-all duration-200 ease-in-out [-webkit-app-region:none] hover:bg-muted [&_svg]:text-icon"
+              className="flex h-7.5 cursor-pointer flex-row items-center justify-center rounded-lg px-1.75 transition-all duration-200 ease-in-out [-webkit-app-region:none] hover:bg-muted [&_svg]:text-foreground/80 [&_svg]:[stroke-width:1.6]"
               onClick={handleToggleStarred}>
               {activeNode.isStarred ? (
                 <Star size={18} fill="var(--color-warning-base)" stroke="var(--color-warning-base)" />
@@ -311,7 +311,7 @@ const HeaderNavbar = ({
           <PopoverTrigger asChild>
             <div>
               <Tooltip title={t('notes.settings.title')} delay={800}>
-                <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-icon">
+                <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-foreground/80">
                   <MoreHorizontal size={18} />
                 </BaseNavbarIcon>
               </Tooltip>

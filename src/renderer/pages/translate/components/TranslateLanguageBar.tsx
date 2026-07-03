@@ -178,7 +178,7 @@ const TranslateLanguageBar: FC<Props> = ({
               onClick={onExchange}
               disabled={!couldExchange}
               aria-label={t('translate.exchange.label')}
-              className="h-8 w-8 shrink-0 rounded-full text-foreground-muted shadow-none transition-all hover:bg-accent hover:text-foreground active:scale-90">
+              className="h-8 w-8 shrink-0 rounded-full text-foreground/80 shadow-none transition-all hover:bg-accent hover:text-foreground active:scale-90 [&_svg]:[stroke-width:1.6]">
               <ArrowLeftRight size={14} />
             </Button>
           </Tooltip>

@@ -26,7 +26,6 @@ import { type FileMetadata, isImageFileMetadata } from '@renderer/types/file'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileExtension, isTextFile } from '@renderer/utils/file'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
-import { cn } from '@renderer/utils/style'
 import {
   createInputScrollHandler,
   createOutputScrollHandler,
@@ -678,27 +677,15 @@ const TranslatePage: FC = () => {
             onExchange={handleExchange}
           />
           {isTranslating ? (
-            <button
-              type="button"
-              onClick={onAbort}
-              className="flex h-8 items-center gap-1.5 rounded-md bg-secondary px-3 text-foreground text-sm transition-all hover:bg-secondary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+            <Button type="button" variant="secondary" size="sm" onClick={onAbort}>
               <CirclePause size={14} className="lucide-custom" />
               <span>{t('common.stop')}</span>
-            </button>
+            </Button>
           ) : (
-            <button
-              type="button"
-              onClick={onTranslate}
-              disabled={!couldTranslate}
-              className={cn(
-                'flex h-8 items-center gap-1.5 rounded-md px-3 text-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
-                couldTranslate
-                  ? 'bg-primary text-primary-foreground hover:opacity-90'
-                  : 'cursor-not-allowed bg-muted text-foreground-muted'
-              )}>
+            <Button type="button" size="sm" onClick={onTranslate} disabled={!couldTranslate}>
               <Languages size={14} className="lucide-custom" />
               <span>{t('translate.button.translate')}</span>
-            </button>
+            </Button>
           )}
           <span className="flex-1" />
           <div className="flex items-center gap-1">
@@ -741,7 +728,9 @@ const TranslatePage: FC = () => {
             <Button
               variant="ghost"
               size="icon-sm"
-              className={historyOpen ? 'text-foreground' : 'text-foreground-muted hover:text-foreground'}
+              className={
+                historyOpen ? 'text-foreground' : 'text-foreground/80 hover:text-foreground [&_svg]:[stroke-width:1.6]'
+              }
               onClick={() =>
                 setHistoryOpen((open) => {
                   const next = !open
@@ -756,7 +745,9 @@ const TranslatePage: FC = () => {
             <Button
               variant="ghost"
               size="icon-sm"
-              className={settingsOpen ? 'text-foreground' : 'text-foreground-muted hover:text-foreground'}
+              className={
+                settingsOpen ? 'text-foreground' : 'text-foreground/80 hover:text-foreground [&_svg]:[stroke-width:1.6]'
+              }
               onClick={() =>
                 setSettingsOpen((open) => {
                   const next = !open

@@ -1,7 +1,6 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import ImageViewer from '@renderer/components/ImageViewer'
-import { ImageDown, ImageUp, RefreshCcw, RotateCcwSquare, RotateCwSquare, ZoomIn, ZoomOut } from 'lucide-react'
-import { motion } from 'motion/react'
+import { ImageDown, ImageUp, Loader2, RefreshCcw, RotateCcwSquare, RotateCwSquare, ZoomIn, ZoomOut } from 'lucide-react'
 import {
   type FC,
   type PointerEvent,
@@ -46,19 +45,8 @@ const LoadingStateCard: FC<{ text: ReactNode; onCancel: () => void; cancelLabel:
   cancelLabel
 }) => {
   return (
-    <div className="flex min-w-56 flex-col items-center gap-4 rounded-[18px] border border-border-subtle bg-card/96 px-10 py-10 shadow-2xl backdrop-blur-sm">
-      <div className="relative h-12 w-12">
-        <motion.div
-          className="absolute inset-0 rounded-full border-2 border-border"
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY, ease: 'linear' }}
-        />
-        <motion.div
-          className="absolute inset-1 rounded-full border-2 border-primary border-r-transparent border-b-transparent"
-          animate={{ rotate: -360 }}
-          transition={{ duration: 1.5, repeat: Number.POSITIVE_INFINITY, ease: 'linear' }}
-        />
-      </div>
+    <div className="flex min-w-56 flex-col items-center gap-4 rounded-2xl border border-border bg-popover px-10 py-10 shadow-lg">
+      <Loader2 className="size-8 animate-spin text-primary" />
       <div className="text-center font-medium text-[13px] text-foreground/85">{text}</div>
       <Button variant="outline" size="sm" onClick={onCancel} className="mt-1 min-w-20">
         {cancelLabel}
@@ -192,8 +180,10 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
           <div className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden">
             <ImageViewer
               alt=""
-              className={`max-h-full max-w-full select-none rounded-md bg-secondary object-contain ${
-                isDraggingImage ? 'cursor-grabbing transition-none' : 'cursor-grab transition-transform duration-150'
+              className={`max-h-full max-w-full select-none rounded-md bg-secondary object-contain ${isLoading ? 'blur-md' : ''} ${
+                isDraggingImage
+                  ? 'cursor-grabbing transition-none'
+                  : 'cursor-grab transition-[transform,filter] duration-150'
               }`}
               draggable={false}
               onPointerCancel={stopImageDrag}
@@ -214,10 +204,10 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
               {painting.files.length > 1 && (
                 <>
                   <ArtboardToolButton label={t('preview.previous')} onClick={onPrevImage}>
-                    <ImageUp className="size-[18px]" />
+                    <ImageUp className="size-[18px] text-foreground" strokeWidth={1.6} />
                   </ArtboardToolButton>
                   <ArtboardToolButton label={t('preview.next')} onClick={onNextImage}>
-                    <ImageDown className="size-[18px]" />
+                    <ImageDown className="size-[18px] text-foreground" strokeWidth={1.6} />
                   </ArtboardToolButton>
                   <span className="my-0.5 h-px w-4 bg-border-subtle" aria-hidden />
                 </>
@@ -226,22 +216,22 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
                 label={t('preview.zoom_out')}
                 disabled={imageScale <= MIN_IMAGE_SCALE}
                 onClick={zoomOut}>
-                <ZoomOut className="size-4" />
+                <ZoomOut className="size-4 text-foreground" strokeWidth={1.6} />
               </ArtboardToolButton>
               <ArtboardToolButton
                 label={t('preview.zoom_in')}
                 disabled={imageScale >= MAX_IMAGE_SCALE}
                 onClick={zoomIn}>
-                <ZoomIn className="size-4" />
+                <ZoomIn className="size-4 text-foreground" strokeWidth={1.6} />
               </ArtboardToolButton>
               <ArtboardToolButton label={t('preview.rotate_left')} onClick={rotateImageLeft}>
-                <RotateCcwSquare className="size-4" />
+                <RotateCcwSquare className="size-4 text-foreground" strokeWidth={1.6} />
               </ArtboardToolButton>
               <ArtboardToolButton label={t('preview.rotate_right')} onClick={rotateImageRight}>
-                <RotateCwSquare className="size-4" />
+                <RotateCwSquare className="size-4 text-foreground" strokeWidth={1.6} />
               </ArtboardToolButton>
               <ArtboardToolButton label={t('preview.reset')} onClick={resetImageTransform}>
-                <RefreshCcw className="size-4" />
+                <RefreshCcw className="size-4 text-foreground" strokeWidth={1.6} />
               </ArtboardToolButton>
             </div>
             <div className="-translate-x-1/2 absolute bottom-2.5 left-1/2 rounded-full bg-foreground/60 px-2 py-1 text-background text-xs">

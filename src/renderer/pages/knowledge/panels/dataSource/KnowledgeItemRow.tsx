@@ -105,7 +105,7 @@ const KnowledgeItemRow = ({
         type: 'item',
         id: 'preview-source',
         label: t('knowledge.data_source.actions.preview_source'),
-        icon: <BookOpen className="size-3.5" />,
+        icon: <BookOpen className="size-3.5 text-current" strokeWidth={1.6} />,
         onSelect: () => {
           void Promise.resolve(onPreviewSource()).catch((error) => {
             window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.preview.failed')))
@@ -119,7 +119,7 @@ const KnowledgeItemRow = ({
         type: 'item',
         id: 'view-chunks',
         label: t('knowledge.data_source.actions.view_chunks'),
-        icon: <Eye className="size-3.5" />,
+        icon: <Eye className="size-3.5 text-current" strokeWidth={1.6} />,
         onSelect: onViewChunks
       })
     }
@@ -129,7 +129,7 @@ const KnowledgeItemRow = ({
         type: 'item',
         id: 'reindex',
         label: t('knowledge.data_source.actions.reindex'),
-        icon: <RefreshCw className="size-3.5" />,
+        icon: <RefreshCw className="size-3.5 text-current" strokeWidth={1.6} />,
         onSelect: () => {
           void Promise.resolve(onReindex()).catch((error) => {
             window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.reindex_failed')))
@@ -143,7 +143,7 @@ const KnowledgeItemRow = ({
       type: 'item',
       id: 'delete',
       label: t('knowledge.data_source.actions.delete'),
-      icon: <Trash2 className="size-3.5" />,
+      icon: <Trash2 className="size-3.5 text-current" strokeWidth={1.6} />,
       destructive: true,
       onSelect: () => {
         void Promise.resolve(onDelete()).catch((error) => {

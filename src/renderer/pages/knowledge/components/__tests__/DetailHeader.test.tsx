@@ -5,33 +5,96 @@ import { describe, expect, it, vi } from 'vitest'
 
 import DetailHeader from '../DetailHeader'
 
-vi.mock('@cherrystudio/ui', () => ({
-  Badge: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
-    <span {...props}>{children}</span>
-  ),
-  Button: ({
-    children,
-    type = 'button',
-    ...props
-  }: {
-    children: ReactNode
-    type?: 'button'
-    [key: string]: unknown
-  }) => (
-    <button type={type} {...props}>
-      {children}
-    </button>
-  )
+vi.mock('@renderer/utils/time', () => ({
+  formatRelativeTime: () => '刚刚'
 }))
+
+vi.mock('@cherrystudio/ui', async () => {
+  const React = await import('react')
+  const PopoverContext = React.createContext<{
+    open: boolean
+    onOpenChange?: (open: boolean) => void
+  }>({
+    open: false
+  })
+
+  return {
+    Badge: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+      <span {...props}>{children}</span>
+    ),
+    Button: ({
+      children,
+      type = 'button',
+      ...props
+    }: {
+      children: ReactNode
+      type?: 'button'
+      [key: string]: unknown
+    }) => (
+      <button type={type} {...props}>
+        {children}
+      </button>
+    ),
+    MenuItem: ({ icon, label, ...props }: { icon?: ReactNode; label: string; [key: string]: unknown }) => (
+      <button type="button" {...props}>
+        {icon}
+        {label}
+      </button>
+    ),
+    MenuList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    Popover: ({
+      children,
+      open,
+      onOpenChange
+    }: {
+      children: ReactNode
+      open?: boolean
+      onOpenChange?: (open: boolean) => void
+    }) => <PopoverContext value={{ open: Boolean(open), onOpenChange }}>{children}</PopoverContext>,
+    PopoverContent: ({ children }: { children: ReactNode }) => {
+      const { open } = React.use(PopoverContext)
+      return open ? <div>{children}</div> : null
+    },
+    PopoverTrigger: ({ children, asChild }: { children: ReactNode; asChild?: boolean }) => {
+      const { open, onOpenChange } = React.use(PopoverContext)
+
+      if (asChild && React.isValidElement(children)) {
+        const child = children as React.ReactElement<{
+          onClick?: (event: React.MouseEvent) => void
+        }>
+
+        // eslint-disable-next-line @eslint-react/no-clone-element
+        return React.cloneElement(child, {
+          onClick: (event: React.MouseEvent) => {
+            child.props.onClick?.(event)
+            onOpenChange?.(!open)
+          }
+        })
+      }
+
+      return (
+        <button type="button" onClick={() => onOpenChange?.(!open)}>
+          {children}
+        </button>
+      )
+    }
+  }
+})
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     i18n: {
       language: 'zh-CN'
     },
-    t: (key: string) =>
+    t: (key: string, options?: { count?: number; time?: string }) =>
       (
         ({
+          'knowledge.data_source.toolbar.add': '添加数据源',
+          'knowledge.data_source.add_dialog.sources.file': '文件',
+          'knowledge.data_source.add_dialog.sources.note': '笔记',
+          'knowledge.data_source.add_dialog.sources.directory': '目录',
+          'knowledge.data_source.add_dialog.sources.url': '链接',
+          'knowledge.meta.updated_at': `更新于 ${options?.time ?? ''}`,
           'knowledge.error.missing_embedding_model':
             '迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。',
           'knowledge.restore.action': '重建知识库',
@@ -74,6 +137,7 @@ describe('DetailHeader', () => {
         onOpenRagConfig={vi.fn()}
         onOpenRecallTest={vi.fn()}
         onRebuild={vi.fn()}
+        onAddSource={vi.fn()}
       />
     )
 
@@ -91,6 +155,7 @@ describe('DetailHeader', () => {
         onOpenRagConfig={vi.fn()}
         onOpenRecallTest={vi.fn()}
         onRebuild={onRebuild}
+        onAddSource={vi.fn()}
       />
     )
 
@@ -120,6 +185,7 @@ describe('DetailHeader', () => {
         onOpenRagConfig={vi.fn()}
         onOpenRecallTest={vi.fn()}
         onRebuild={onRebuild}
+        onAddSource={vi.fn()}
       />
     )
 
@@ -137,6 +203,7 @@ describe('DetailHeader', () => {
         onOpenRagConfig={onOpenRagConfig}
         onOpenRecallTest={onOpenRecallTest}
         onRebuild={vi.fn()}
+        onAddSource={vi.fn()}
       />
     )
 
@@ -148,5 +215,38 @@ describe('DetailHeader', () => {
     expect(screen.queryByText('知识库设置')).not.toBeInTheDocument()
     expect(screen.getByText('召回测试')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '更多' })).not.toBeInTheDocument()
+  })
+
+  it('renders the updated-at time after the title', () => {
+    render(
+      <DetailHeader
+        base={createKnowledgeBase()}
+        onOpenRagConfig={vi.fn()}
+        onOpenRecallTest={vi.fn()}
+        onRebuild={vi.fn()}
+        onAddSource={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('更新于 刚刚')).toBeInTheDocument()
+  })
+
+  it('opens the add-source menu and forwards the selected source', () => {
+    const onAddSource = vi.fn()
+
+    render(
+      <DetailHeader
+        base={createKnowledgeBase()}
+        onOpenRagConfig={vi.fn()}
+        onOpenRecallTest={vi.fn()}
+        onRebuild={vi.fn()}
+        onAddSource={onAddSource}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '添加数据源' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '文件' }))
+
+    expect(onAddSource).toHaveBeenCalledWith('file')
   })
 })

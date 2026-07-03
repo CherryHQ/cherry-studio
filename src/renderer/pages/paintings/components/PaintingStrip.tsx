@@ -119,7 +119,7 @@ const PaintingStrip: FC<PaintingStripProps> = ({
             className={paintingClasses.historyAddButton}
             aria-label={t('paintings.button.new.image')}
             onClick={onAddPainting}>
-            <Plus className="size-4" />
+            <Plus className="size-4 text-foreground" strokeWidth={1.6} />
           </Button>
         </Tooltip>
         {items.map((painting) => (

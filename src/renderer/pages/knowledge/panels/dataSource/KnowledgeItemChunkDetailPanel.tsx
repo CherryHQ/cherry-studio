@@ -27,7 +27,7 @@ const KnowledgeItemChunkCard = ({ chunk }: { chunk: KnowledgeItemChunk }) => {
   return (
     <div className="rounded-lg border border-border-subtle transition-all hover:border-border-hover">
       <div className="flex items-center gap-2 px-3 py-2">
-        <span className="flex size-5 shrink-0 items-center justify-center rounded bg-accent text-foreground-muted text-xs leading-4">
+        <span className="flex size-5 shrink-0 items-center justify-center rounded bg-accent text-foreground-secondary text-xs leading-4">
           {chunk.metadata.chunkIndex + 1}
         </span>
         <span className="flex-1 text-foreground-muted text-xs leading-4">
@@ -35,7 +35,7 @@ const KnowledgeItemChunkCard = ({ chunk }: { chunk: KnowledgeItemChunk }) => {
         </span>
       </div>
       <div className="px-3 pb-3">
-        <p className="line-clamp-2 text-foreground-secondary text-sm leading-relaxed">{chunk.content}</p>
+        <p className="line-clamp-2 text-foreground text-sm leading-relaxed">{chunk.content}</p>
       </div>
     </div>
   )

@@ -93,7 +93,7 @@ const NoteSourceContent = ({ selectedNotes, onToggle }: NoteSourceContentProps) 
                 checked={selectedPaths.has(note.externalPath)}
                 onCheckedChange={() => onToggle({ name: note.name, externalPath: note.externalPath })}
               />
-              <NotebookPen className="size-3.5 shrink-0 text-foreground-muted" />
+              <NotebookPen className="size-3.5 shrink-0 text-foreground-muted" strokeWidth={1.6} />
               <span className="min-w-0 truncate text-foreground text-xs leading-4" title={note.name}>
                 {note.name}
               </span>

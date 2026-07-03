@@ -56,7 +56,7 @@ sessionActionRegistry.registerAction({
   id: 'session.rename',
   commandId: 'session.rename',
   label: ({ t }) => t('common.rename'),
-  icon: () => <EditIcon size={14} />,
+  icon: () => <EditIcon className="size-3.5" strokeWidth={1.6} />,
   order: 10,
   surface: 'menu'
 })
@@ -65,7 +65,8 @@ sessionActionRegistry.registerAction({
   id: 'session.toggle-pin',
   commandId: 'session.toggle-pin',
   label: ({ pinned, t }) => (pinned ? t('agent.session.unpin.title') : t('agent.session.pin.title')),
-  icon: ({ pinned }) => (pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />),
+  icon: ({ pinned }) =>
+    pinned ? <PinOffIcon className="size-3.5" strokeWidth={1.6} /> : <PinIcon className="size-3.5" strokeWidth={1.6} />,
   order: 20,
   surface: 'menu'
 })
@@ -74,7 +75,7 @@ sessionActionRegistry.registerAction({
   id: 'session.open-in-new-tab',
   commandId: 'session.open-in-new-tab',
   label: ({ t }) => t('common.open_in_new_tab'),
-  icon: () => <ExternalLink size={14} />,
+  icon: () => <ExternalLink className="size-3.5" strokeWidth={1.6} />,
   order: 30,
   surface: 'menu'
 })
@@ -83,7 +84,7 @@ sessionActionRegistry.registerAction({
   id: 'session.open-in-new-window',
   commandId: 'session.open-in-new-window',
   label: ({ t }) => t('tab.open_in_new_window'),
-  icon: () => <OpenInNewWindowIcon size={14} />,
+  icon: () => <OpenInNewWindowIcon className="size-3.5" strokeWidth={1.6} />,
   order: 35,
   surface: 'menu'
 })
@@ -92,7 +93,7 @@ sessionActionRegistry.registerAction({
   id: 'session.delete',
   commandId: 'session.delete',
   label: ({ t }) => t('common.delete'),
-  icon: () => <DeleteIcon size={14} className="lucide-custom" />,
+  icon: () => <DeleteIcon className="size-3.5 lucide-custom" strokeWidth={1.6} />,
   group: 'danger',
   order: 40,
   surface: 'menu',

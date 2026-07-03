@@ -228,7 +228,7 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
         </Button>
         <Button
           type="button"
-          variant="emphasis"
+          variant="default"
           loading={isLoading || isFetchingDimensions}
           disabled={!canSubmit}
           onClick={handleSave}>

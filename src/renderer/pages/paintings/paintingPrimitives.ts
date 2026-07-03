@@ -15,7 +15,7 @@ export const paintingClasses = {
   historyStrip:
     'flex h-full w-[68px] shrink-0 flex-col gap-2 overflow-y-auto border-border-subtle border-r bg-background px-2 py-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
   historyAddButton:
-    'sticky top-0 z-10 mb-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] border border-dashed border-border-muted bg-background text-muted-foreground hover:bg-secondary-hover hover:text-foreground',
+    'sticky top-0 z-10 mb-1 flex h-9 w-11 shrink-0 items-center justify-center rounded-full bg-background text-foreground/80 hover:bg-accent hover:text-foreground [&_svg]:[stroke-width:1.6]',
   historyItem:
     'group relative flex h-11 w-11 shrink-0 items-center justify-center overflow-visible rounded-[12px] bg-secondary p-0 leading-none transition hover:bg-secondary-hover',
   historyItemActive: 'bg-background',
@@ -27,7 +27,7 @@ export const paintingClasses = {
   promptWrap: 'shrink-0 px-2 pb-4 pt-2',
   toolbarWrap: 'absolute top-1/2 left-4 z-20 -translate-y-1/2',
   toolbarRail:
-    'flex flex-col items-center gap-1 rounded-full border border-border-muted bg-background/90 p-1 shadow-md backdrop-blur-xl',
+    'flex flex-col items-center gap-1 rounded-full border border-border-muted bg-background/90 p-1 shadow-lg backdrop-blur-xl',
   toolbarButton: 'rounded-full text-muted-foreground hover:bg-muted/55 hover:text-foreground',
   toolbarButtonActive: 'bg-muted text-foreground'
 } as const

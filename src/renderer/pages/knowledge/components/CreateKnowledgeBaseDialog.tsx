@@ -83,7 +83,7 @@ const CreateKnowledgeBaseDialogActions = ({
       <Button type="button" variant="outline" onClick={onCancel}>
         {cancelLabel}
       </Button>
-      <Button type="submit" variant="emphasis" loading={isCreating}>
+      <Button type="submit" variant="default" loading={isCreating}>
         {submitLabel}
       </Button>
     </KnowledgeDialogFooter>
@@ -164,7 +164,9 @@ const CreateKnowledgeBaseDialogRoot = ({
         <CreateKnowledgeBaseDialog.Form onSubmit={handleSubmit}>
           <KnowledgeDialogBody>
             <KnowledgeDialogField>
-              <Label htmlFor="knowledge-create-name">{t('common.name')}</Label>
+              <Label htmlFor="knowledge-create-name" className="text-xs font-normal">
+                {t('common.name')}
+              </Label>
               <Input
                 id="knowledge-create-name"
                 value={values.name}

@@ -258,7 +258,11 @@ export const ResourceGrid: FC<Props> = ({
         <div className="flex h-(--navbar-height) shrink-0 items-center gap-2 px-2">
           {toolbarLeading && <div className="flex shrink-0 items-center">{toolbarLeading}</div>}
           <div className="relative max-w-64 flex-1">
-            <Search size={14} className="-translate-y-1/2 absolute top-1/2 left-2.5 text-foreground-muted" />
+            <Search
+              size={14}
+              strokeWidth={1.6}
+              className="-translate-y-1/2 absolute top-1/2 left-2.5 text-foreground/80"
+            />
             <Input
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
@@ -271,7 +275,7 @@ export const ResourceGrid: FC<Props> = ({
                 size="icon-sm"
                 aria-label={t('common.clear')}
                 onClick={() => onSearchChange('')}
-                className="-translate-y-1/2 absolute top-1/2 right-1 size-6 text-foreground-muted hover:text-foreground">
+                className="-translate-y-1/2 absolute top-1/2 right-1 size-6 text-foreground/80 hover:text-foreground [&_svg]:[stroke-width:1.6]">
                 <X size={12} />
               </Button>
             )}
@@ -349,7 +353,7 @@ export const ResourceGrid: FC<Props> = ({
                   aria-label={t('library.toolbar.all_tags')}
                   title={t('library.toolbar.all_tags')}
                   onClick={() => setShowAllTags((value) => !value)}
-                  className="size-6 shrink-0 rounded-full text-foreground-muted hover:bg-accent hover:text-foreground">
+                  className="size-6 shrink-0 rounded-full text-foreground/80 hover:bg-accent hover:text-foreground [&_svg]:[stroke-width:1.6]">
                   {showAllTags ? <ChevronLeft size={13} /> : <ChevronRight size={13} />}
                 </Button>
               )}
@@ -380,7 +384,7 @@ export const ResourceGrid: FC<Props> = ({
                     size="icon-sm"
                     onClick={() => void handleAddTag()}
                     disabled={addingTag || !newTagName.trim()}
-                    className="size-6 text-foreground-muted hover:text-foreground">
+                    className="size-6 text-foreground/80 hover:text-foreground [&_svg]:[stroke-width:1.6]">
                     <Plus size={12} />
                   </Button>
                 </div>
