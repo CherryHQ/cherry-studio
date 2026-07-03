@@ -9,6 +9,8 @@ import type { LocalModelKind } from '@shared/data/presets/localModel'
 import type { InferenceModelSource, InferenceRequest, InferenceResponse, OcrModelPaths } from './inferenceProtocol'
 import { inferenceWorkerSource } from './inferenceWorkerSource'
 
+const INFERENCE_WORKER_IDLE_TIMEOUT_MS = 60 * 1000
+
 /** Per-member Omit so union variants keep their own fields (built-in Omit drops them). */
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
 
@@ -48,12 +50,15 @@ interface Pending {
  * Lifecycle-managed: the worker is a real OS thread that must not outlive a
  * clean shutdown. Spawning stays fully lazy (on first `send()`), so `onInit()`
  * has nothing to do — only `onStop()`/`onDestroy()` are meaningful, both
- * releasing the worker via the same idempotent `terminate()`.
+ * releasing the worker via the same idempotent `terminate()`. A loaded model
+ * (up to 600MB+) is also released after a period of inactivity, mirroring
+ * {@link TesseractRuntimeService}'s idle-release timer.
  */
 abstract class InferenceHostBase extends BaseService {
   private worker: Worker | null = null
   private readonly pending = new Map<string, Pending>()
   private idSeq = 0
+  private idleReleaseTimer: NodeJS.Timeout | null = null
   private readonly logger: ReturnType<typeof loggerService.withContext>
 
   protected constructor(kind: LocalModelKind) {
@@ -155,9 +160,10 @@ abstract class InferenceHostBase extends BaseService {
     request: DistributiveOmit<InferenceRequest, 'id'>,
     opts: { onProgress?: (p: InferenceProgress) => void; signal?: AbortSignal } = {}
   ): Promise<InferenceResult> {
+    this.clearIdleReleaseTimer()
     const worker = this.ensureWorker()
     const id = String(++this.idSeq)
-    return new Promise((resolve, reject) => {
+    const result = new Promise<InferenceResult>((resolve, reject) => {
       if (opts.signal?.aborted) {
         reject(opts.signal.reason instanceof Error ? opts.signal.reason : new Error('aborted'))
         return
@@ -174,6 +180,7 @@ abstract class InferenceHostBase extends BaseService {
       )
       worker.postMessage({ ...request, id } as InferenceRequest)
     })
+    return result.finally(() => this.scheduleIdleReleaseIfNeeded())
   }
 
   /**
@@ -184,6 +191,7 @@ abstract class InferenceHostBase extends BaseService {
    * this first, or the delete can race the worker's teardown.
    */
   async terminate(): Promise<void> {
+    this.clearIdleReleaseTimer()
     if (!this.worker) return
     const worker = this.worker
     this.worker = null
@@ -207,6 +215,29 @@ abstract class InferenceHostBase extends BaseService {
     } catch (error) {
       this.logger.warn('failed to terminate inference worker during shutdown', error as Error)
     }
+  }
+
+  /** Arms the idle-release timer once a request settles and nothing else is in flight
+   * (mirrors TesseractRuntimeService's scheduleIdleWorkerReleaseIfNeeded). */
+  private scheduleIdleReleaseIfNeeded(): void {
+    if (!this.worker || this.pending.size > 0) return
+    this.clearIdleReleaseTimer()
+    this.idleReleaseTimer = setTimeout(() => {
+      this.idleReleaseTimer = null
+      void this.releaseWorkerIfIdle()
+    }, INFERENCE_WORKER_IDLE_TIMEOUT_MS)
+  }
+
+  private clearIdleReleaseTimer(): void {
+    if (!this.idleReleaseTimer) return
+    clearTimeout(this.idleReleaseTimer)
+    this.idleReleaseTimer = null
+  }
+
+  private async releaseWorkerIfIdle(): Promise<void> {
+    if (!this.worker || this.pending.size > 0) return
+    this.logger.debug('releasing idle inference worker')
+    await this.terminateSafely()
   }
 }
 

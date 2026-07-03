@@ -47,6 +47,13 @@ function lastRequestId(worker: FakeWorker): string {
   return (call![0] as { id: string }).id
 }
 
+/** The id stamped onto the most recently posted request (for a worker that already
+ * skipped its one-time init message, i.e. a second+ request on the same worker). */
+function lastPostedId(worker: FakeWorker): string {
+  const [msg] = worker.postMessage.mock.calls.at(-1)!
+  return (msg as { id: string }).id
+}
+
 describe('InferenceHost worker exit / failAll', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -210,5 +217,57 @@ describe('embeddingInferenceHost / ocrInferenceHost isolation', () => {
 
     ocrWorker.emit('message', { type: 'result', id: lastRequestId(ocrWorker), text: 'ok' })
     await expect(ocrPending).resolves.toBe('ok')
+  })
+})
+
+describe('InferenceHost idle-release timer', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    fakeWorkers.length = 0
+  })
+
+  afterEach(async () => {
+    await embeddingInferenceHost.terminate()
+    vi.useRealTimers()
+  })
+
+  it('releases the worker after an idle timeout', async () => {
+    vi.useFakeTimers()
+
+    const pending = embeddingInferenceHost.embed(['hi'], SOURCE, 'org/model', 'q8')
+    const worker = fakeWorkers.at(-1)!
+    worker.emit('message', { type: 'result', id: lastRequestId(worker), embeddings: [[0.1]] })
+    await pending
+
+    expect(worker.terminate).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(60_000)
+
+    expect(worker.terminate).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the worker alive when another request arrives before the idle timeout', async () => {
+    vi.useFakeTimers()
+
+    const first = embeddingInferenceHost.embed(['hi'], SOURCE, 'org/model', 'q8')
+    const worker = fakeWorkers.at(-1)!
+    worker.emit('message', { type: 'result', id: lastRequestId(worker), embeddings: [[0.1]] })
+    await first
+
+    await vi.advanceTimersByTimeAsync(30_000)
+
+    const second = embeddingInferenceHost.embed(['bye'], SOURCE, 'org/model', 'q8')
+    worker.emit('message', { type: 'result', id: lastPostedId(worker), embeddings: [[0.2]] })
+    await second
+
+    await vi.advanceTimersByTimeAsync(59_000)
+
+    // The second request rearmed the timer — still within its own 60s window.
+    expect(fakeWorkers).toHaveLength(1)
+    expect(worker.terminate).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1_000)
+
+    expect(worker.terminate).toHaveBeenCalledTimes(1)
   })
 })
