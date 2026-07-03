@@ -11,7 +11,7 @@ import AddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/A
 import DownloadOVMSModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/DownloadOVMSModelPopup'
 import ManageModelsPopup from '@renderer/pages/settings/ProviderSettings/ModelList/ManageModelsPopup'
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
-import type { Model } from '@renderer/types'
+import { type Model, SystemProviderIds } from '@renderer/types'
 import { filterModelsByKeywords } from '@renderer/utils'
 import { getDuplicateModelNames } from '@renderer/utils/model'
 import { isNewApiProvider } from '@renderer/utils/provider'
@@ -112,21 +112,22 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
 
   const isLoading = useMemo(() => displayedModelGroups === null, [displayedModelGroups])
   const hasNoModels = useMemo(() => models.length === 0, [models.length])
+  const canAddCustomModel = provider.id !== SystemProviderIds.cherryin
 
   const actionButtons = (
     <Space.Compact>
       <Button onClick={onManageModel} icon={<RefreshCw size={16} />} disabled={isHealthChecking}>
         {t('settings.models.manage.fetch_list')}
       </Button>
-      {provider.id !== 'ovms' ? (
-        <Tooltip title={t('button.add')} mouseLeaveDelay={0}>
-          <Button onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking} />
-        </Tooltip>
-      ) : (
+      {provider.id === 'ovms' ? (
         <Tooltip title={t('button.download')} mouseLeaveDelay={0}>
           <Button onClick={onDownloadModel} icon={<Plus size={16} />} />
         </Tooltip>
-      )}
+      ) : canAddCustomModel ? (
+        <Tooltip title={t('button.add')} mouseLeaveDelay={0}>
+          <Button onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking} />
+        </Tooltip>
+      ) : null}
     </Space.Compact>
   )
 
