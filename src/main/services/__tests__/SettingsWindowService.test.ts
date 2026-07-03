@@ -11,9 +11,16 @@ const { applicationMock, windowManagerMock } = vi.hoisted(() => {
     onWindowCreatedByType: vi.fn(() => ({ dispose: vi.fn() })),
     onWindowDestroyedByType: vi.fn(() => ({ dispose: vi.fn() }))
   }
+  // SettingsWindowService.getWindowOptions() reads `app.use_system_title_bar` on Linux
+  // to honour the user's native title-bar preference; default to `false` so the test
+  // matches the frameless macOS / Windows codepath the existing assertions already cover.
+  const preferenceServiceMock = {
+    get: vi.fn<(key: string) => unknown>(() => false)
+  }
   const applicationMock = {
     get: vi.fn((name: string) => {
       if (name === 'WindowManager') return windowManagerMock
+      if (name === 'PreferenceService') return preferenceServiceMock
       throw new Error(`unexpected service: ${name}`)
     })
   }
