@@ -25,6 +25,7 @@ import { hashEmbeddingText } from '../pipeline/vectorstore/indexStore/hashing'
 import type { RebuildMaterialEmbeddingInput, RebuildMaterialInput } from '../pipeline/vectorstore/indexStore/model'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId } from '../types'
 import type { KnowledgeIndexDocumentsPayload } from './jobTypes'
+import { resolveLiveKnowledgeItem } from './utils/liveItem'
 import { isDataApiNotFoundError, markKnowledgeItemFailedOnSettled } from './utils/settled'
 
 const logger = loggerService.withContext('Knowledge:IndexDocumentsJobHandler')
@@ -114,26 +115,9 @@ function loadIndexDocumentsInputOrSkip(
 ): LoadedIndexDocumentsInput | null {
   const { baseId, itemId } = ctx.input
 
+  let base: KnowledgeBase
   try {
-    const base = knowledgeBaseService.getById(baseId)
-    const item = knowledgeItemService.getById(itemId)
-
-    if (item.status === 'deleting') {
-      logger.info('Skipping index-documents for deleting item', { baseId, itemId, jobId: ctx.jobId })
-      reportKnowledgeProgress(ctx, 100, { stage: 'deleting', currentFile: 1, totalFiles: 1 })
-      return null
-    }
-
-    if (!isIndexableKnowledgeItem(item)) {
-      throw new Error(`indexDocumentsJobHandler received non-leaf knowledge item: id=${itemId} type=${item.type}`)
-    }
-
-    if (item.status === 'completed') {
-      reportKnowledgeProgress(ctx, 100, { stage: 'already-completed', currentFile: 1, totalFiles: 1 })
-      return null
-    }
-
-    return { base, item }
+    base = knowledgeBaseService.getById(baseId)
   } catch (error) {
     if (isDataApiNotFoundError(error)) {
       logger.info('Skipping index-documents for missing base or item', { baseId, itemId, jobId: ctx.jobId })
@@ -142,6 +126,30 @@ function loadIndexDocumentsInputOrSkip(
     }
     throw error
   }
+
+  const result = resolveLiveKnowledgeItem(itemId)
+  if ('skip' in result) {
+    if (result.skip === 'deleting') {
+      logger.info('Skipping index-documents for deleting item', { baseId, itemId, jobId: ctx.jobId })
+      reportKnowledgeProgress(ctx, 100, { stage: 'deleting', currentFile: 1, totalFiles: 1 })
+    } else {
+      logger.info('Skipping index-documents for missing base or item', { baseId, itemId, jobId: ctx.jobId })
+      reportKnowledgeProgress(ctx, 100, { stage: 'item-gone', currentFile: 1, totalFiles: 1 })
+    }
+    return null
+  }
+  const { item } = result
+
+  if (!isIndexableKnowledgeItem(item)) {
+    throw new Error(`indexDocumentsJobHandler received non-leaf knowledge item: id=${itemId} type=${item.type}`)
+  }
+
+  if (item.status === 'completed') {
+    reportKnowledgeProgress(ctx, 100, { stage: 'already-completed', currentFile: 1, totalFiles: 1 })
+    return null
+  }
+
+  return { base, item }
 }
 
 async function readItemDocuments(
@@ -319,8 +327,8 @@ async function writeItemMaterial(
 
   await knowledgeLockManager.withBaseMutationLock(baseId, async () => {
     ctx.signal.throwIfAborted()
-    const latestItem = knowledgeItemService.getById(itemId)
-    if (latestItem.status === 'deleting') {
+    const result = resolveLiveKnowledgeItem(itemId)
+    if ('skip' in result) {
       logger.info('Skipping material rebuild for deleting item', { baseId, itemId, jobId: ctx.jobId })
       return
     }

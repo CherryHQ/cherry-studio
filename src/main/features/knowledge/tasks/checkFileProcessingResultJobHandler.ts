@@ -18,7 +18,8 @@ import { toKnowledgeRelativePath } from '../pathStorage'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
 import type { KnowledgeCheckFileProcessingResultPayload } from './jobTypes'
 import { cancelJobOrThrow } from './utils/cancel'
-import { isDataApiNotFoundError, markKnowledgeItemFailedOnSettled } from './utils/settled'
+import { resolveLiveKnowledgeItem } from './utils/liveItem'
+import { markKnowledgeItemFailedOnSettled } from './utils/settled'
 
 const logger = loggerService.withContext('Knowledge:CheckFileProcessingResultJobHandler')
 // Remote document processors can be slow, but a stale paid job should not poll forever.
@@ -168,40 +169,32 @@ function isExpectedFileProcessingJob(snapshot: JobSnapshot, itemId: string): boo
 }
 
 function shouldSkipMissingOrDeletingItem(baseId: string, itemId: string, jobId: string): boolean {
-  try {
-    const item = knowledgeItemService.getById(itemId)
-    if (item.baseId !== baseId) {
-      throw new Error(`Knowledge item '${itemId}' does not belong to base '${baseId}'`)
-    }
-    if (item.status === 'deleting') {
+  const result = resolveLiveKnowledgeItem(itemId)
+  if ('skip' in result) {
+    if (result.skip === 'deleting') {
       logger.info('Skipping file-processing check for deleting item', { baseId, itemId, jobId })
-      return true
-    }
-    return false
-  } catch (error) {
-    if (isDataApiNotFoundError(error)) {
+    } else {
       logger.info('Skipping file-processing check for missing item', { baseId, itemId, jobId })
-      return true
     }
-    throw error
+    return true
   }
+  if (result.item.baseId !== baseId) {
+    throw new Error(`Knowledge item '${itemId}' does not belong to base '${baseId}'`)
+  }
+  return false
 }
 
 function markItemFailed(itemId: string, error: string): void {
-  try {
-    const item = knowledgeItemService.getById(itemId)
-    if (item.status === 'deleting') {
+  const result = resolveLiveKnowledgeItem(itemId)
+  if ('skip' in result) {
+    if (result.skip === 'deleting') {
       logger.info('Skipping mark failed for deleting item', { itemId, error })
-      return
-    }
-    knowledgeItemService.updateStatus(itemId, 'failed', { error })
-  } catch (updateError) {
-    if (isDataApiNotFoundError(updateError)) {
+    } else {
       logger.info('Skipping mark failed for missing item', { itemId, error })
-      return
     }
-    throw updateError
+    return
   }
+  knowledgeItemService.updateStatus(itemId, 'failed', { error })
 }
 
 function parseMarkdownArtifactRelativePathOrNull(baseId: string, snapshot: JobSnapshot): string | null {

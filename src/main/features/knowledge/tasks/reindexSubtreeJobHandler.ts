@@ -23,6 +23,7 @@ import {
 } from '../types'
 import type { KnowledgeReindexSubtreePayload } from './jobTypes'
 import { narrowKnowledgeJobInput } from './utils/jobInput'
+import { resolveLiveKnowledgeSubtree } from './utils/liveItem'
 
 const logger = loggerService.withContext('Knowledge:ReindexSubtreeJobHandler')
 const REINDEX_RECOVERY_ACTIVE_STATUSES = new Set<KnowledgeItemStatus>(['preparing', 'processing'])
@@ -60,13 +61,14 @@ export function createReindexSubtreeJobHandler(
       // Reset vectors, expanded children, and root statuses as one base-level mutation.
       const resetResult = await knowledgeLockManager.withBaseMutationLock(baseId, async () => {
         const base = knowledgeBaseService.getById(baseId)
-        const rootItems = knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true })
         // Re-check under the mutation lock so reindex cannot turn a just-deleted
         // subtree back into preparing/processing during cleanup/reset.
-        if (rootItems.some((item) => item.status === 'deleting')) {
+        const subtreeResult = resolveLiveKnowledgeSubtree(baseId, rootItemIds)
+        if ('skip' in subtreeResult) {
           logger.info('Skipping reindex-subtree reset for deleting subtree', { baseId, rootItemIds, jobId: ctx.jobId })
           return { roots: [], skippedDeleting: true, skippedMissingSource: 0 }
         }
+        const rootItems = subtreeResult.items
 
         const selectedRoots = rootItems.filter((item) => rootItemIds.includes(item.id))
         // Admission (assertSubtreesCanReindex) already rejected roots whose source is gone, but the
@@ -174,12 +176,12 @@ export function createReindexSubtreeJobHandler(
 }
 
 function shouldSkipDeletingSubtreeReindex(baseId: string, rootItemIds: string[], jobId: string): boolean {
-  const subtreeItems = knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true })
-  const hasDeletingItem = subtreeItems.some((item) => item.status === 'deleting')
-  if (hasDeletingItem) {
+  const result = resolveLiveKnowledgeSubtree(baseId, rootItemIds)
+  const isSkipped = 'skip' in result
+  if (isSkipped) {
     logger.info('Skipping reindex-subtree for deleting subtree', { baseId, rootItemIds, jobId })
   }
-  return hasDeletingItem
+  return isSkipped
 }
 
 async function markReindexSubtreeFailedOnSettled(event: JobSettledEvent): Promise<void> {

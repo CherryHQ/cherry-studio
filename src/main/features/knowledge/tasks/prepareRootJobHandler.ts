@@ -13,6 +13,7 @@ import { purgeKnowledgeSubtreeWithinLock } from '../ingestion/subtreePurge'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
 import type { KnowledgePrepareRootPayload } from './jobTypes'
 import { prepareKnowledgeItem } from './prepareItem'
+import { resolveLiveKnowledgeItem } from './utils/liveItem'
 import { isDataApiNotFoundError, markKnowledgeItemFailedOnSettled } from './utils/settled'
 
 const logger = loggerService.withContext('Knowledge:PrepareRootJobHandler')
@@ -68,15 +69,6 @@ function loadPrepareRootItemOrSkip(ctx: JobContext<KnowledgePrepareRootPayload>)
 
   try {
     knowledgeBaseService.getById(baseId)
-    const item = knowledgeItemService.getById(itemId)
-
-    if (item.status === 'deleting') {
-      logger.info('Skipping prepare-root for deleting item', { baseId, itemId, jobId: ctx.jobId })
-      reportKnowledgeProgress(ctx, 100, { stage: 'deleting' })
-      return null
-    }
-
-    return item
   } catch (error) {
     if (isDataApiNotFoundError(error)) {
       logger.info('Skipping prepare-root for missing base or item', { baseId, itemId, jobId: ctx.jobId })
@@ -85,6 +77,20 @@ function loadPrepareRootItemOrSkip(ctx: JobContext<KnowledgePrepareRootPayload>)
     }
     throw error
   }
+
+  const result = resolveLiveKnowledgeItem(itemId)
+  if ('skip' in result) {
+    if (result.skip === 'deleting') {
+      logger.info('Skipping prepare-root for deleting item', { baseId, itemId, jobId: ctx.jobId })
+      reportKnowledgeProgress(ctx, 100, { stage: 'deleting' })
+    } else {
+      logger.info('Skipping prepare-root for missing base or item', { baseId, itemId, jobId: ctx.jobId })
+      reportKnowledgeProgress(ctx, 100, { stage: 'item-gone' })
+    }
+    return null
+  }
+
+  return result.item
 }
 
 async function deletePreviousLeafExpansion(
@@ -107,27 +113,21 @@ async function scanRootItem(
   const { baseId, itemId } = ctx.input
 
   return await knowledgeLockManager.withBaseMutationLock(baseId, async () => {
-    let currentItem: KnowledgeItem
-    try {
-      currentItem = knowledgeItemService.getById(itemId)
-    } catch (error) {
-      if (isDataApiNotFoundError(error)) {
+    const result = resolveLiveKnowledgeItem(itemId)
+    if ('skip' in result) {
+      if (result.skip === 'deleting') {
+        logger.info('Skipping prepare-root for deleting item before expansion', { baseId, itemId, jobId: ctx.jobId })
+        reportKnowledgeProgress(ctx, 100, { stage: 'deleting' })
+      } else {
         logger.info('Skipping prepare-root for missing item before expansion', { baseId, itemId, jobId: ctx.jobId })
         reportKnowledgeProgress(ctx, 100, { stage: 'item-gone' })
-        return []
       }
-      throw error
-    }
-
-    if (currentItem.status === 'deleting') {
-      logger.info('Skipping prepare-root for deleting item before expansion', { baseId, itemId, jobId: ctx.jobId })
-      reportKnowledgeProgress(ctx, 100, { stage: 'deleting' })
       return []
     }
 
     const leaves = await prepareKnowledgeItem({
       baseId,
-      item: currentItem,
+      item: result.item,
       signal: ctx.signal
     })
     if (leaves.length > 0) {
