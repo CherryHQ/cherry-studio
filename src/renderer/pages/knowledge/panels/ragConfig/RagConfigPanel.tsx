@@ -1,6 +1,6 @@
 import { Alert, Button, Scrollbar } from '@cherrystudio/ui'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import { DEFAULT_KNOWLEDGE_SEARCH_MODE, type KnowledgeBase } from '@shared/data/types/knowledge'
 import { RotateCcw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -109,7 +109,14 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
       }
 
       try {
-        await save(values, { embeddingModelId: values.embeddingModelId, dimensions })
+        const saveValues =
+          initialValues.embeddingModelId === null &&
+          values.embeddingModelId !== null &&
+          values.searchMode === initialValues.searchMode
+            ? { ...values, searchMode: DEFAULT_KNOWLEDGE_SEARCH_MODE, hybridAlpha: null }
+            : values
+
+        await save(saveValues, { embeddingModelId: values.embeddingModelId, dimensions })
         window.toast.success(t('knowledge.rag.saved'))
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))
