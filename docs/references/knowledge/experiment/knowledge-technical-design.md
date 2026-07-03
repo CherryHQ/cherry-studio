@@ -101,7 +101,7 @@ Unique on `(target_type, target_id, kind)`; both FTS and vectors enter through `
 
 ### 4.7 search_text_fts
 
-External-content FTS5 (trigram). **FTS hits must join back through `search_text.rowid = search_text_fts.rowid`** — `search_text_id` is a TEXT business key, not the FTS rowid.
+External-content FTS5 (trigram). **FTS hits must join back through `search_text.fts_rowid = search_text_fts.rowid`** — `fts_rowid` is a stable integer surrogate column (not SQLite's implicit rowid), because VACUUM and any `INSERT...SELECT` rebuild renumber the implicit rowid and would silently desync an external-content index keyed on it. `search_text_id` is a separate TEXT business key, not the FTS rowid.
 
 ## 5. Index interface and implementation notes
 

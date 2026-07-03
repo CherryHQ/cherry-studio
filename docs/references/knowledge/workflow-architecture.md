@@ -8,20 +8,20 @@ Knowledge operations are modelled as a lightweight workflow rather than a single
 
 ```text
 API / user action
-  -> KnowledgeWorkflowService
+  -> KnowledgeIngestionService
      -> JobManager
         -> Knowledge job handlers
            -> KnowledgeLockManager
-              -> SQLite / vector store / FileManager
+              -> SQLite / index store / knowledge-owned files (raw/)
 ```
 
 The design keeps three owners:
 
-- `KnowledgeWorkflowService` decides the next workflow step.
+- `KnowledgeIngestionService` decides the next workflow step.
 - `KnowledgeLockManager` serializes same-base mutations and cleanup.
 - Knowledge job handlers execute one durable stage and call the workflow service for the next step.
 
-Helpers may own source planning, lifecycle writes, artifact refs, and FileProcessing adaptation. They should stay as modules until they need lifecycle-managed resources, IPC, timers, or long-lived state.
+Helpers may own source planning, lifecycle writes, knowledge-owned raw files, and FileProcessing adaptation. They should stay as modules until they need lifecycle-managed resources, IPC, timers, or long-lived state.
 
 ## Workflow Entry Points
 

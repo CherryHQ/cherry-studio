@@ -52,9 +52,9 @@ All jobs run on the per-base queue `base.{baseId}`; idempotency keys prevent dou
 | `knowledge.delete-subtree` | Cancel active jobs → delete vectors → delete files → delete rows. | `ingestion` (delete), boot recovery |
 | `knowledge.reindex-subtree` | Verify source → delete vectors → reset statuses → re-enqueue indexing. | `ingestion` (reindex) |
 
-Indexing jobs declare `recovery: 'abandon'` — an app restart never silently resumes them (that
-would auto-spend the paid embedding API); boot recovery parks interrupted items at `failed`
-instead. Delete/reindex jobs use `recovery: 'retry'`.
+Indexing jobs and `knowledge.reindex-subtree` declare `recovery: 'abandon'` — an app restart never
+silently resumes them (that would auto-spend the paid embedding API); boot recovery parks
+interrupted items at `failed` instead. Only `knowledge.delete-subtree` uses `recovery: 'retry'`.
 
 Item status flow: `preparing` (directory) / `processing` → `completed` | `failed`; any status →
 `deleting` → row removed. `reading`/`embedding` are transient sub-phases surfaced while the index
