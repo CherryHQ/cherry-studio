@@ -1433,7 +1433,7 @@ describe('AgentSessionRuntimeService', () => {
     await vi.waitFor(() =>
       expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
     )
-    expect(mocks.upsertContextUsageSnapshot).toHaveBeenCalledWith('session-1', usage, expect.any(String))
+    expect(mocks.upsertContextUsageSnapshot).toHaveBeenCalledWith('session-1', usage, expect.any(Number))
 
     events.push({ type: 'turn-complete' })
     await expect(reader.read()).resolves.toMatchObject({ done: true })
@@ -1669,7 +1669,7 @@ describe('AgentSessionRuntimeService', () => {
     ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'context-usage', usage })
 
     expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
-    expect(mocks.upsertContextUsageSnapshot).toHaveBeenCalledWith('session-1', usage, expect.any(String))
+    expect(mocks.upsertContextUsageSnapshot).toHaveBeenCalledWith('session-1', usage, expect.any(Number))
   })
 
   it('drops stale context usage refreshes that resolve after a newer sample', async () => {
@@ -1706,7 +1706,7 @@ describe('AgentSessionRuntimeService', () => {
     newer.resolve(newerUsage)
 
     await vi.waitFor(() =>
-      expect(mocks.upsertContextUsageSnapshot).toHaveBeenCalledWith('session-1', newerUsage, expect.any(String))
+      expect(mocks.upsertContextUsageSnapshot).toHaveBeenCalledWith('session-1', newerUsage, expect.any(Number))
     )
     mocks.upsertContextUsageSnapshot.mockClear()
     mocks.cacheSetShared.mockClear()
@@ -1749,14 +1749,14 @@ describe('AgentSessionRuntimeService', () => {
     ;(service as any).handleRuntimeEvent(entry, {
       type: 'context-usage',
       usage,
-      capturedAt: '2026-06-09T12:00:00.000Z'
+      capturedAt: Date.UTC(2026, 5, 9, 12, 0, 0)
     })
 
     expect(mocks.upsertContextUsageSnapshot).not.toHaveBeenCalled()
     expect(mocks.cacheSetShared).not.toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
   })
 
-  it('settles compaction without clearing last context usage when closing a session', () => {
+  it('settles compaction and clears live context usage when closing a session', () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
 
@@ -1780,9 +1780,9 @@ describe('AgentSessionRuntimeService', () => {
 
     service.closeSession('session-1')
 
-    // The context-usage entry remains as the last known value; an in-flight compaction is settled to idle
-    // (not deleted) so a re-open doesn't briefly observe a stale compacting status.
-    expect(mocks.cacheDeleteShared).not.toHaveBeenCalledWith('agent.session.context_usage.session-1')
+    // Context usage is live-only in shared cache; durable fallback lives in the session state table.
+    // Compaction state is settled to idle so a re-open doesn't briefly observe a stale compacting status.
+    expect(mocks.cacheDeleteShared).toHaveBeenCalledWith('agent.session.context_usage.session-1')
     expect(mocks.cacheSetShared).toHaveBeenLastCalledWith('agent.session.compaction.session-1', {
       status: 'idle'
     })
@@ -2065,12 +2065,13 @@ describe('AgentSessionRuntimeService', () => {
 
     await vi.waitFor(() => expect(connection.close).toHaveBeenCalledOnce())
     await vi.waitFor(() =>
-      expect(mocks.upsertContextUsageSnapshot).toHaveBeenCalledWith('session-1', finalUsage, expect.any(String))
+      expect(mocks.upsertContextUsageSnapshot).toHaveBeenCalledWith('session-1', finalUsage, expect.any(Number))
     )
-    expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', {
+    expect(mocks.cacheSetShared).not.toHaveBeenCalledWith('agent.session.context_usage.session-1', {
       usage: finalUsage,
-      capturedAt: expect.any(String)
+      capturedAt: expect.any(Number)
     })
+    expect(mocks.cacheDeleteShared).toHaveBeenCalledWith('agent.session.context_usage.session-1')
     expect(service.inspect('session-1')).toBeUndefined()
     await reader.cancel().catch(() => undefined)
   })

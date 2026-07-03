@@ -362,11 +362,7 @@ export class AgentSessionService {
     return row
   }
 
-  upsertContextUsageSnapshot(
-    sessionId: string,
-    usage: AgentSessionContextUsage,
-    capturedAt = new Date().toISOString()
-  ): void {
+  upsertContextUsageSnapshot(sessionId: string, usage: AgentSessionContextUsage, capturedAt = Date.now()): void {
     const snapshot = {
       usage,
       capturedAt
@@ -381,7 +377,12 @@ export class AgentSessionService {
             .where(eq(agentSessionStateTable.sessionId, sessionId))
             .limit(1)
             .all()
-          if (current?.contextUsage?.capturedAt && current.contextUsage.capturedAt > snapshot.capturedAt) return
+          if (
+            current?.contextUsage?.capturedAt !== undefined &&
+            current.contextUsage.capturedAt > snapshot.capturedAt
+          ) {
+            return
+          }
 
           tx.insert(agentSessionStateTable)
             .values({ sessionId, contextUsage: snapshot })

@@ -513,7 +513,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   private async emitContextUsage(): Promise<void> {
     if (!this.query) return
-    const capturedAt = new Date().toISOString()
+    const capturedAt = Date.now()
     try {
       const usage = await this.query.getContextUsage()
       this.eventQueue.push({ type: 'context-usage', usage, capturedAt })

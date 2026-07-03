@@ -13,6 +13,9 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
 
 const { useAgentSessionContextUsage } = await import('../useAgentSessionContextUsage')
 
+const CAPTURED_AT = Date.UTC(2026, 5, 9, 12, 0, 0)
+const CAPTURED_AT_LATER = Date.UTC(2026, 5, 9, 12, 1, 0)
+
 function makeUsage(overrides: Partial<AgentSessionContextUsage> = {}): AgentSessionContextUsage {
   return {
     categories: [{ name: 'Messages', tokens: 42, color: '#fff' }],
@@ -53,7 +56,7 @@ describe('useAgentSessionContextUsage', () => {
   it('falls back to the persisted snapshot when live shared cache is empty', () => {
     const snapshot = {
       usage: makeUsage({ percentage: 41 }),
-      capturedAt: '2026-06-09T12:00:00.000Z'
+      capturedAt: CAPTURED_AT
     }
 
     const { result } = renderHook(() => useAgentSessionContextUsage('session-1', undefined, snapshot))
@@ -66,18 +69,25 @@ describe('useAgentSessionContextUsage', () => {
     })
   })
 
-  it('treats a snapshot-shaped shared-cache entry as last measured usage', () => {
-    const snapshot = {
+  it('ignores snapshot-shaped shared-cache entries and falls back to the persisted snapshot', () => {
+    const staleCacheEntry = {
       usage: makeUsage({ percentage: 55 }),
-      capturedAt: '2026-06-09T12:01:00.000Z'
+      capturedAt: CAPTURED_AT_LATER
     }
-    MockUseCacheUtils.setSharedCacheValue(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY('session-1'), snapshot)
+    const snapshot = {
+      usage: makeUsage({ percentage: 41 }),
+      capturedAt: CAPTURED_AT
+    }
+    MockUseCacheUtils.setSharedCacheValue(
+      AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY('session-1'),
+      staleCacheEntry as unknown as AgentSessionContextUsage
+    )
 
-    const { result } = renderHook(() => useAgentSessionContextUsage('session-1'))
+    const { result } = renderHook(() => useAgentSessionContextUsage('session-1', undefined, snapshot))
 
     expect(result.current).toMatchObject({
       usage: snapshot.usage,
-      percentage: 55,
+      percentage: 41,
       source: 'snapshot',
       capturedAt: snapshot.capturedAt
     })
@@ -87,7 +97,7 @@ describe('useAgentSessionContextUsage', () => {
     const live = makeUsage({ percentage: 64 })
     const snapshot = {
       usage: makeUsage({ percentage: 41 }),
-      capturedAt: '2026-06-09T12:00:00.000Z'
+      capturedAt: CAPTURED_AT
     }
     MockUseCacheUtils.setSharedCacheValue(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY('session-1'), live)
 
@@ -104,7 +114,7 @@ describe('useAgentSessionContextUsage', () => {
   it('matches dated provider model aliases against the expected base model', () => {
     const snapshot = {
       usage: makeUsage({ model: 'anthropic::claude-sonnet-4-5-20250929' }),
-      capturedAt: '2026-06-09T12:00:00.000Z'
+      capturedAt: CAPTURED_AT
     }
 
     const { result } = renderHook(() => useAgentSessionContextUsage('session-1', ['claude-sonnet-4-5'], snapshot))
@@ -116,7 +126,7 @@ describe('useAgentSessionContextUsage', () => {
   it('does not match shorter model ids against longer model families', () => {
     const snapshot = {
       usage: makeUsage({ model: 'claude-sonnet-4' }),
-      capturedAt: '2026-06-09T12:00:00.000Z'
+      capturedAt: CAPTURED_AT
     }
 
     const { result } = renderHook(() => useAgentSessionContextUsage('session-1', ['claude-sonnet-4-5'], snapshot))
@@ -132,7 +142,7 @@ describe('useAgentSessionContextUsage', () => {
   it('returns none when neither live nor snapshot usage matches the expected model', () => {
     const snapshot = {
       usage: makeUsage({ model: 'claude-opus-4-1' }),
-      capturedAt: '2026-06-09T12:00:00.000Z'
+      capturedAt: CAPTURED_AT
     }
 
     const { result } = renderHook(() => useAgentSessionContextUsage('session-1', ['claude-sonnet-4-5'], snapshot))
