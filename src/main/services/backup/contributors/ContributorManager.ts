@@ -16,6 +16,7 @@
 import type { BackupContributor, ReadonlyBackupRegistry } from '@main/data/db/backup/contributor-types'
 import { BACKUP_REFS_META } from '@main/data/db/backup/dbSchemaRefs'
 
+import { CONTRIBUTORS } from './CONTRIBUTORS'
 import { finalize } from './finalize'
 
 /**
@@ -23,11 +24,9 @@ import { finalize } from './finalize'
  * registry. Construction is cheap; the expensive 26-invariant validation runs
  * lazily on the first getRegistry() call and is then cached.
  *
- * Contributors are injected via the constructor. In production the B track
- * wires the real 14 via the CONTRIBUTORS barrel (`new ContributorManager(CONTRIBUTORS)`);
- * until then the default empty array means getRegistry() fails fast at #1,
- * which is the correct "barrel not wired" signal. Tests inject synthetic
- * contributors to exercise finalize without the barrel.
+ * Contributors are injected via the constructor. The process-wide
+ * `contributorManager` singleton (below) wires the real 14 via the CONTRIBUTORS
+ * barrel. Tests inject synthetic contributors to exercise finalize in isolation.
  */
 export class ContributorManager {
   private cachedRegistry: ReadonlyBackupRegistry | undefined
@@ -57,8 +56,9 @@ export class ContributorManager {
 }
 
 /**
- * The process-wide singleton. BackupService.onInit() calls getRegistry(); the
- * B track will pass the real CONTRIBUTORS barrel to the constructor.
+ * The process-wide singleton, wired with the real 14-domain CONTRIBUTORS barrel.
+ * BackupService.onInit() calls getRegistry() to lazily run finalize + cache the
+ * frozen registry; a finalize failure surfaces as a BackupService.onInit failure
+ * → the lifecycle container refuses to start.
  */
-// TODO(B track): new ContributorManager(CONTRIBUTORS) — import { CONTRIBUTORS } from './CONTRIBUTORS'.
-export const contributorManager = new ContributorManager()
+export const contributorManager = new ContributorManager(CONTRIBUTORS)

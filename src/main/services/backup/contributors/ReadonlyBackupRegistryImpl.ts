@@ -31,6 +31,7 @@ import {
 } from '@main/data/db/backup/dbSchemaRefs'
 import { BACKUP_DOMAINS, type BackupDomain } from '@main/data/db/backup/domains'
 import { INFRASTRUCTURE_TABLES, RUNTIME_EXCLUDED_FILE_REF_SOURCES } from '@main/data/db/backup/exclusions'
+import { frozenMap } from '@main/data/db/backup/freeze'
 import type { FileRefSourceType } from '@shared/data/types/file/ref'
 
 /** Brand marking a genuinely finalized registry instance. */
@@ -78,22 +79,25 @@ export class ReadonlyBackupRegistryImpl implements ReadonlyBackupRegistry {
   readonly [READONLY_REGISTRY]: true = true
 
   constructor(data: FinalizedRegistryData) {
-    this.contributors = data.contributors
-    this.tableOwner = data.tableOwner
-    this.domainDependencies = data.domainDependencies
-    this.finalizedAggregatesByDomain = data.finalizedAggregatesByDomain
+    // Freeze every Map at construction (#17): a Proxy throws on set/delete/clear,
+    // so the registry's derived indexes are runtime-immutable, matching the
+    // deep-frozen contributor constants. Reads (get/has/entries/…) stay transparent.
+    this.contributors = frozenMap(data.contributors)
+    this.tableOwner = frozenMap(data.tableOwner)
+    this.domainDependencies = frozenMap(data.domainDependencies)
+    this.finalizedAggregatesByDomain = frozenMap(data.finalizedAggregatesByDomain)
     this.finalizedAt = data.finalizedAt
     this.schemaCommit = data.schemaCommit
 
-    // Aggregate the two cross-domain indexes in one pass.
+    // Aggregate the two cross-domain indexes in one pass, then freeze them (#17).
     const sourceTypePolicy = new Map<FileRefSourceType, FileRefSourcePolicy>()
     const jsonSoftRefIndex = new Map<string, JsonSoftReferencePolicy>()
     for (const c of data.contributors.values()) {
       for (const p of c.schema.fileRefSourcePolicies) sourceTypePolicy.set(p.sourceType, p)
       for (const j of c.schema.jsonSoftReferences) jsonSoftRefIndex.set(jsonKey(j.table, j.column), j)
     }
-    this.sourceTypePolicy = sourceTypePolicy
-    this.jsonSoftRefIndex = jsonSoftRefIndex
+    this.sourceTypePolicy = frozenMap(sourceTypePolicy)
+    this.jsonSoftRefIndex = frozenMap(jsonSoftRefIndex)
   }
 
   get domains(): readonly BackupDomain[] {

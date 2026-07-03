@@ -12,7 +12,7 @@ import { BACKUP_DOMAINS } from '@main/data/db/backup/domains'
 import { describe, expect, it } from 'vitest'
 
 import { ContributorManager } from '../ContributorManager'
-import { CONTRIBUTORS } from '../index'
+import { contributorManager, CONTRIBUTORS } from '../index'
 
 describe('CONTRIBUTORS registry — real declarations', () => {
   it('covers every BackupDomain exactly (no missing / extra / duplicate)', () => {
@@ -29,5 +29,13 @@ describe('CONTRIBUTORS registry — real declarations', () => {
     // is self-consistent.
     const registry = new ContributorManager(CONTRIBUTORS).getRegistry()
     expect(registry).toBeDefined()
+  })
+
+  it('production singleton `contributorManager` is wired with the real barrel', () => {
+    // Guards the wiring (P0 from review): a bare `new ContributorManager()` would
+    // fail #1 (empty); a synthetic fixture would pass finalize but not expose 14
+    // real domains. Assert the singleton finalizes AND carries all 14 domains.
+    const registry = contributorManager.getRegistry()
+    expect(registry.domains).toHaveLength(BACKUP_DOMAINS.length)
   })
 })
