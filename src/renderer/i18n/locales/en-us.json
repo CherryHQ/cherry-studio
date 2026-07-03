@@ -6827,7 +6827,8 @@
       },
       "upToDate": "Up to date",
       "update": "Update to latest version",
-      "updateAvailable": "Update available"
+      "updateAvailable": "Update available",
+      "updateCheckFailed": "Failed to check for updates"
     },
     "power": {
       "prevent_sleep_when_busy": "Keep the system awake while tasks are running"

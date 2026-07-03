@@ -6827,7 +6827,8 @@
       },
       "upToDate": "已是最新",
       "update": "更新到最新版本",
-      "updateAvailable": "可升級"
+      "updateAvailable": "可升級",
+      "updateCheckFailed": "檢查更新失敗"
     },
     "power": {
       "prevent_sleep_when_busy": "執行任務時保持系統喚醒"

@@ -36,9 +36,18 @@ import {
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { gt as semverGt } from 'semver'
+import { gt as semverGt, valid as semverValid } from 'semver'
 
 const logger = loggerService.withContext('EnvironmentDependencies')
+
+const isNewerVersion = (latest?: string, installed?: string): boolean => {
+  if (!latest || !installed || !semverValid(latest) || !semverValid(installed)) return false
+  try {
+    return semverGt(latest, installed)
+  } catch {
+    return false
+  }
+}
 
 const ToolIcon: FC<{ icon?: string; className?: string }> = ({ icon, className }) => {
   if (icon) {
@@ -68,6 +77,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const { t } = useTranslation()
   const navigate = useNavigate()
   const mountedRef = useRef(true)
+  const latestRequestIdRef = useRef(0)
 
   useEffect(() => {
     mountedRef.current = true
@@ -90,18 +100,26 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     }
   }, [])
 
-  const fetchLatestVersions = useCallback(async (force = false) => {
-    setCheckingUpdates(true)
-    try {
-      const versions = await ipcApi.request('binary.latest_versions', force)
-      if (!mountedRef.current) return
-      setLatestVersions(versions)
-    } catch (error) {
-      logger.error('Failed to fetch latest versions', error as Error)
-    } finally {
-      if (mountedRef.current) setCheckingUpdates(false)
-    }
-  }, [])
+  const fetchLatestVersions = useCallback(
+    async (force = false): Promise<Record<string, string> | null> => {
+      const requestId = ++latestRequestIdRef.current
+      setCheckingUpdates(true)
+      try {
+        const versions = await ipcApi.request('binary.latest_versions', force)
+        if (mountedRef.current && requestId === latestRequestIdRef.current) {
+          setLatestVersions(versions)
+        }
+        return versions
+      } catch (error) {
+        logger.error('Failed to fetch latest versions', error as Error)
+        if (force) window.toast.error(`${t('settings.plugins.updateCheckFailed')}: ${formatErrorMessage(error)}`)
+        return null
+      } finally {
+        if (mountedRef.current && requestId === latestRequestIdRef.current) setCheckingUpdates(false)
+      }
+    },
+    [t]
+  )
 
   useEffect(() => {
     void refreshState()
@@ -125,14 +143,15 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     window.toast.error(`${t('settings.plugins.installError')}: ${names}`)
   })
 
-  const installTool = async (tool: ManagedBinary) => {
+  const installTool = async (tool: ManagedBinary): Promise<boolean> => {
     setInstallingTools((prev) => new Set(prev).add(tool.name))
     try {
       await ipcApi.request('binary.install_tool', tool)
+      return true
     } catch (error) {
       logger.error('Failed to install tool', error as Error)
       window.toast.error(`${t('settings.plugins.installError')}: ${formatErrorMessage(error)}`)
-      throw error
+      return false
     } finally {
       setInstallingTools((prev) => {
         const next = new Set(prev)
@@ -148,12 +167,12 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     let latest = latestVersions?.[tool.name]
 
     if (installed?.version && !latest) {
-      const fresh = await ipcApi.request('binary.latest_versions', true)
-      if (mountedRef.current) setLatestVersions(fresh)
+      const fresh = await fetchLatestVersions(true)
+      if (!fresh) return
       latest = fresh[tool.name]
     }
 
-    if (installed?.version && latest && !semverGt(latest, installed.version)) {
+    if (installed?.version && latest && !isNewerVersion(latest, installed.version)) {
       window.toast.success(t('settings.plugins.upToDate'))
       return
     }
@@ -175,7 +194,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       throw new Error('duplicate')
     }
 
-    await installTool(tool)
+    const installed = await installTool(tool)
+    if (!installed) throw new Error('install failed')
     await setCustomTools([...customTools, tool])
   }
 
@@ -228,7 +248,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
             variant="ghost"
             size="icon-sm"
             className="text-muted-foreground/50 hover:text-foreground"
-            onClick={() => fetchLatestVersions(true)}
+            onClick={() => void fetchLatestVersions(true)}
             disabled={checkingUpdates}
             title={t('settings.plugins.update')}>
             {checkingUpdates ? (
@@ -248,8 +268,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
           const source: ToolSource = installed ? 'managed' : tool.name in bundled ? 'bundled' : 'none'
           const installedVersion = installed?.version ?? bundledVersion ?? undefined
           const latestVersion = latestVersions?.[tool.name]
-          const hasUpdate =
-            !!installed && installedVersion && latestVersion && semverGt(latestVersion, installedVersion)
+          const hasUpdate = !!installed && isNewerVersion(latestVersion, installedVersion)
           return (
             <BinaryToolPresetCard
               key={tool.name}
@@ -283,8 +302,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
             const installed = binaryState?.tools[tool.name]
             const installedVersion = installed?.version
             const latestVersion = latestVersions?.[tool.name]
-            const hasUpdate =
-              !!installed && installedVersion && latestVersion && semverGt(latestVersion, installedVersion)
+            const hasUpdate = !!installed && isNewerVersion(latestVersion, installedVersion)
             return (
               <CustomToolCard
                 key={tool.name}

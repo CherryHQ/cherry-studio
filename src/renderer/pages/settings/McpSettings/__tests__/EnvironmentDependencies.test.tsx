@@ -59,7 +59,8 @@ vi.mock('@data/hooks/usePreference', () => ({
 }))
 
 vi.mock('semver', () => ({
-  gt: vi.fn(() => true)
+  gt: vi.fn(() => true),
+  valid: vi.fn((version: string) => (/^\d+\.\d+\.\d+/.test(version) ? version : null))
 }))
 
 // The shared global @cherrystudio/ui mock omits ConfirmDialog / DialogDescription
@@ -186,7 +187,21 @@ describe('EnvironmentDependencies', () => {
     render(<EnvironmentDependencies />)
 
     await waitFor(() => expect(ipcMocks.latestVersions).toHaveBeenCalled())
-    // The latest version text should not appear (no update needed)
-    await waitFor(() => expect(screen.queryByText('v1.0.0', { exact: false })).toBeInTheDocument())
+    // Only the installed-version badge renders; no second update badge for the same version.
+    await waitFor(() => expect(screen.getAllByText('v1.0.0')).toHaveLength(1))
+  })
+
+  it('does not throw or show update badge for a non-semver latest version', async () => {
+    const { gt } = await import('semver')
+    vi.mocked(gt).mockImplementation(() => {
+      throw new TypeError('Invalid Version')
+    })
+
+    ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: '1.0.0' } } })
+    ipcMocks.latestVersions.mockResolvedValue({ uv: 'nightly' })
+
+    expect(() => render(<EnvironmentDependencies />)).not.toThrow()
+    await waitFor(() => expect(ipcMocks.latestVersions).toHaveBeenCalled())
+    expect(screen.queryByText('vnightly')).not.toBeInTheDocument()
   })
 })

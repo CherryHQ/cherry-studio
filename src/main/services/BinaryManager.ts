@@ -11,12 +11,7 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { isWin } from '@main/core/platform'
 import { regionService } from '@main/services/RegionService'
 import { getBinaryExecutionEnv, getBinaryIsolatedHomeEnv, getBinaryPath } from '@main/utils/process'
-import type {
-  BinaryState,
-  BinaryUpdateCheck,
-  ManagedBinary,
-  ToolInstallState
-} from '@shared/data/preference/preferenceTypes'
+import type { BinaryState, ManagedBinary, ToolInstallState } from '@shared/data/preference/preferenceTypes'
 import { PRESETS_BINARY_TOOLS, TOOL_KEY_RE, validateManagedBinary } from '@shared/data/presets/binaryTools'
 
 const logger = loggerService.withContext('BinaryManager')
@@ -118,6 +113,7 @@ export class BinaryManager extends BaseService {
   private registryCache: Array<{ name: string; tool: string }> | null = null
   private registryCacheTime = 0
   private stateLock: Promise<unknown> = Promise.resolve()
+  private latestVersionsPromise: Promise<Record<string, string>> | null = null
 
   protected async onInit() {
     await this.extractBundledBinaries()
@@ -356,12 +352,8 @@ export class BinaryManager extends BaseService {
    * (e.g. mkdir failure) clears.
    */
   private getIsolatedEnv(): Promise<Record<string, string>> {
-    const currentGhToken = process.env['CHERRY_GITHUB_TOKEN']
     if (this.isolatedEnv) {
-      if (this.isolatedEnv['GITHUB_TOKEN'] === (currentGhToken || undefined)) {
-        return Promise.resolve(this.isolatedEnv)
-      }
-      this.isolatedEnv = null
+      return Promise.resolve(this.isolatedEnv)
     }
     if (!this.isolatedEnvPromise) {
       this.isolatedEnvPromise = this.buildIsolatedEnv().then(
@@ -481,25 +473,7 @@ export class BinaryManager extends BaseService {
           logger.warn('Discarding malformed tool entry from state', { key })
         }
       }
-      const state: BinaryState = { tools: validTools }
-      // Persisted update-check survives restart; validate its shape so a corrupt
-      // entry can't crash consumers. Drift between versions and the managed set
-      // is reconciled lazily in getLatestVersions (force path).
-      const uc = parsed.updateCheck as Record<string, unknown> | undefined
-      if (
-        uc &&
-        typeof uc === 'object' &&
-        typeof uc.checkedAt === 'number' &&
-        uc.versions &&
-        typeof uc.versions === 'object'
-      ) {
-        const validVersions: Record<string, string> = {}
-        for (const [name, v] of Object.entries(uc.versions)) {
-          if (typeof v === 'string') validVersions[name] = v
-        }
-        state.updateCheck = { checkedAt: uc.checkedAt, versions: validVersions }
-      }
-      return state
+      return { tools: validTools }
     } catch (err) {
       // Corrupt JSON or wrong shape: back up the bad file before the next
       // saveState() overwrites it, so the failure stays diagnosable.
@@ -518,10 +492,9 @@ export class BinaryManager extends BaseService {
     const dir = path.dirname(statePath)
     fs.mkdirSync(dir, { recursive: true })
     const tmp = statePath + '.tmp'
-    // Managed-set mutation invalidates the persisted update-check.
-    delete state.updateCheck
     fs.writeFileSync(tmp, JSON.stringify(state, null, 2))
     fs.renameSync(tmp, statePath)
+    application.get('CacheService').deleteShared('feature.binary.latest_versions')
     this.broadcastState(state)
   }
 
@@ -657,16 +630,26 @@ export class BinaryManager extends BaseService {
    * github: backends hits the rate-limited GitHub releases API. Runs with a
    * small worker pool; tools whose lookup fails are omitted.
    *
-   * Persisted in `BinaryState.updateCheck` so the UI can show the last-known
-   * update availability across restarts. Returns the persisted snapshot unless
-   * `force` re-runs `mise latest`. Cleared on managed-set mutation (saveState).
+   * Stored in shared CacheService state for the current app session. A non-force
+   * read is cache-only; only force=true runs `mise latest`.
    */
   async getLatestVersions(force = false): Promise<Record<string, string>> {
-    const state = this.loadState()
-    if (!force && state.updateCheck) {
-      return state.updateCheck.versions
+    const cacheService = application.get('CacheService')
+    const cached = cacheService.getShared('feature.binary.latest_versions')
+    if (!force) {
+      return cached || {}
     }
+    if (this.latestVersionsPromise) {
+      return this.latestVersionsPromise
+    }
+    this.latestVersionsPromise = this.fetchLatestVersions().finally(() => {
+      this.latestVersionsPromise = null
+    })
+    return this.latestVersionsPromise
+  }
 
+  private async fetchLatestVersions(): Promise<Record<string, string>> {
+    const state = this.loadState()
     const result: Record<string, string> = {}
     if (!this.miseBin) {
       return result
@@ -701,21 +684,10 @@ export class BinaryManager extends BaseService {
         .map(([name, { tool }]) => `${name}@${tool}`)
         .join('|')
       if (current === snapshot) {
-        this.saveUpdateCheck({ checkedAt: Date.now(), versions: result })
+        application.get('CacheService').setShared('feature.binary.latest_versions', result)
       }
     })
     return result
-  }
-
-  /** Persist only the update-check field, leaving the managed set untouched.
-   * Separate from saveState, which clears updateCheck on mutations. */
-  private saveUpdateCheck(updateCheck: BinaryUpdateCheck) {
-    const statePath = application.getPath('feature.binary.state_file')
-    const state = this.loadState()
-    state.updateCheck = updateCheck
-    const tmp = statePath + '.tmp'
-    fs.writeFileSync(tmp, JSON.stringify(state, null, 2))
-    fs.renameSync(tmp, statePath)
   }
 
   private broadcastReconcileFailures(failed: ReconcileResult['failed']) {
