@@ -339,7 +339,8 @@ export class PrintService {
         window.webContents.print(
           {
             silent: false,
-            printBackground: true
+            printBackground: true,
+            usePrinterDefaultPageSize: true
           },
           (success, failureReason) => {
             if (success || failureReason === 'Print job canceled') {

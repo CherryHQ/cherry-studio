@@ -180,7 +180,7 @@ describe('PrintService', () => {
     expect(writeFile).not.toHaveBeenCalled()
   })
 
-  it('prints through the main process without overriding the printer page size', async () => {
+  it('prints through the main process using the printer default page size', async () => {
     let finishPrint!: (success: boolean, failureReason: string) => void
     print.mockImplementation((_options, callback) => {
       finishPrint = callback
@@ -200,7 +200,8 @@ describe('PrintService', () => {
     expect(print).toHaveBeenCalledWith(
       {
         silent: false,
-        printBackground: true
+        printBackground: true,
+        usePrinterDefaultPageSize: true
       },
       expect.any(Function)
     )
