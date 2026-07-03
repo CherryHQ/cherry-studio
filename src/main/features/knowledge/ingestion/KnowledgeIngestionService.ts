@@ -71,13 +71,11 @@ export class KnowledgeIngestionService {
     inputs: KnowledgeAddItemInput[],
     conflictStrategy: KnowledgeAddConflictStrategy = DEFAULT_KNOWLEDGE_ADD_CONFLICT_STRATEGY
   ): Promise<KnowledgeAddItemsResult> {
-    assertBaseCanRunRuntimeOperation(baseId, 'addItems')
+    const base = assertBaseCanRunRuntimeOperation(baseId, 'addItems')
 
     if (inputs.length === 0) {
       return { status: 'added' }
     }
-
-    const base = knowledgeBaseService.getById(baseId)
 
     // rename (the default, and every internal caller — restore/migrator): keep all,
     // auto-rename on collision. detect/replace first resolve same-name conflicts

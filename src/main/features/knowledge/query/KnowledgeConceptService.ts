@@ -401,9 +401,8 @@ export class KnowledgeConceptService {
     conceptId: string,
     operation: string
   ): Promise<{ item: KnowledgeItem; text: string }> {
-    assertBaseCanRunRuntimeOperation(baseId, operation)
+    const base = assertBaseCanRunRuntimeOperation(baseId, operation)
 
-    const base = knowledgeBaseService.getById(baseId)
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
     const store = await vectorStoreService.getIndexStore(base)
 
