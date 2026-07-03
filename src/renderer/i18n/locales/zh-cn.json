@@ -340,7 +340,7 @@
       "welcome_title": "今天想聊点什么？"
     },
     "input": {
-      "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择路径， / 选择命令",
+      "placeholder": "输入消息，按 {{key}} 发送，输入 / 搜索路径或命令",
       "soul_placeholder": "帮我连接微信"
     },
     "list": {
@@ -1495,7 +1495,7 @@
       "paste_text_file": "粘贴到输入框",
       "pasted_text_file_name": "已粘贴的文本.txt",
       "pause": "暂停",
-      "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择模型， / 选择工具",
+      "placeholder": "输入消息，按 {{key}} 发送，输入 / 选择工具或操作",
       "placeholder_without_triggers": "在这里输入消息，按 {{key}} 发送",
       "resource_panel": {
         "categories": {
@@ -1506,7 +1506,7 @@
         "description": "从文件、Agents 或 Skills 中选择",
         "loading": "加载中...",
         "no_file_found": {
-          "description": "可访问目录中没有可用文件",
+          "description": "当前工作区没有可搜索的文件",
           "label": "未找到文件"
         },
         "no_items_found": {
@@ -2826,7 +2826,7 @@
       "chunk_size_invalid": "分块大小必须大于 0",
       "chunking": "Chunking",
       "default_separator": "自动（推荐）",
-      "document_count": "请求文档片段数 (Top K)",
+      "document_count": "Top K",
       "embedding_model": "嵌入模型",
       "embedding_model_select": "模型选择",
       "file_processing": "文档处理",
@@ -2848,7 +2848,7 @@
       "hybrid_alpha": "Hybrid Alpha",
       "processor": "处理服务商",
       "rerank_disabled": "不使用",
-      "rerank_model": "重排模型 (Rerank)",
+      "rerank_model": "重排模型",
       "reset_action": "恢复默认",
       "reset_defaults": "恢复默认",
       "retrieval": "Retrieval",
@@ -2907,7 +2907,7 @@
     "subtitle_file": "字幕文件",
     "tabs": {
       "data_source": "数据源",
-      "rag_config": "RAG 配置",
+      "rag_config": "知识库设置",
       "recall_test": "召回测试"
     },
     "title": "知识库",
@@ -6466,7 +6466,7 @@
       "input": {
         "confirm_delete_message": "删除消息前确认",
         "confirm_regenerate_message": "重新生成消息前确认",
-        "enable_quick_triggers": "启用 / 和 @ 触发快捷菜单",
+        "enable_quick_triggers": "启用 / 触发输入快捷面板",
         "send_shortcuts": "发送快捷键",
         "show_estimated_tokens": "显示预估 Token 数",
         "title": "输入设置"
@@ -7216,10 +7216,10 @@
         "unknownServer": "未知 MCP 服务器"
       },
       "multiple": "多选",
-      "noResult": "未找到结果",
+      "noResult": "没有匹配项",
       "page": "翻页",
       "select": "选择",
-      "title": "快捷菜单"
+      "title": "输入快捷面板"
     },
     "quickPhrase": {
       "add": "添加短语",
