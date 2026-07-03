@@ -69,12 +69,19 @@ export class MockMainDbService {
   public getDb = vi.fn(() => this.db)
 
   /**
-   * Write transaction mock. Mirrors `DbService.withWriteTx`: synchronously passes
-   * the current db (or whatever was set via `setDb`) to the synchronous `fn` so
-   * tests exercising the write path do not need a real transaction. Tests can
-   * replace this mock with `vi.spyOn(...)` to assert call order, etc.
+   * Write transaction mock. Mirrors `DbService.withWriteTx`: when a real
+   * better-sqlite3 connection is attached (via `setDb`, e.g. `setupTestDatabase()`),
+   * delegates to its `.transaction()` for real transaction semantics (rollback on
+   * throw, etc.); otherwise falls through to the plain (non-transactional) db stub.
+   * Tests can replace this mock with `vi.spyOn(...)` to assert call order, etc.
    */
-  public withWriteTx = vi.fn(<T>(fn: (tx: unknown) => T): T => fn(this.db))
+  public withWriteTx = vi.fn(<T>(fn: (tx: unknown) => T): T => {
+    const db = this.db as { transaction?: (fn: (tx: unknown) => unknown, options?: unknown) => unknown }
+    if (typeof db?.transaction === 'function') {
+      return db.transaction(fn, { behavior: 'immediate' }) as T
+    }
+    return fn(this.db)
+  })
 
   /** Restore-facing APIs (see src/main/data/db/restore/README.md) — no-op spies. */
   public createSnapshot = vi.fn()
