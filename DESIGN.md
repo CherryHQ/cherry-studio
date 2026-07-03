@@ -43,6 +43,10 @@ When you reach for a value:
 - **Primary Foreground**: `var(--color-primary-foreground)` — contrast text on `bg-primary` surfaces
 - **Primary Hover**: `var(--color-primary-hover)`
 
+### Control Accent
+- **Control Accent**: `var(--color-control-accent)` (token `--cs-control-accent`, seeded from the user-customizable theme color `--cs-theme-control-accent`) — the chromatic accent for interactive controls whose on/active fill should track the user's theme color instead of the neutral primary. Used by the Switch on-state (`bg-control-accent`, loading `bg-control-accent/60!`) and followed by `--color-link`. Use this — not `var(--color-primary)` (neutral) and not a page-local brand hue — when a control needs a chromatic on/active state.
+- **Control Thumb**: `var(--color-control-thumb)` — the Switch thumb fill.
+
 ### Text Colors
 - **Foreground**: `var(--color-foreground)` — primary body text
 - **Foreground Secondary**: `var(--color-foreground-secondary)` — secondary text, helper labels
@@ -103,7 +107,7 @@ Defined in `tokens/colors/status.css`. Use these when a status surface needs mor
 Do not use a page-local chromatic brand color for new UI chrome. `var(--color-brand-*)` exists as a primitive compatibility scale, but new component styling should express action hierarchy through semantic aliases such as `var(--color-primary)` and status through the semantic status tokens.
 
 ### Links
-Links inherit `var(--color-primary)` for color and add an underline on hover. There is no separate `--color-link` token by design — primary is the link color.
+Links use `var(--color-link)` (Tailwind `text-link`) for color and add an underline on hover. `--color-link` follows the control accent (`--cs-theme-control-accent`), i.e. the user-customizable theme color. Do not style links with `var(--color-primary)` — primary is neutral, which would make links indistinguishable from body text.
 
 ### Floating Scrims
 No dedicated public `--color-glass`, `--color-glass-border`, `--color-glass-blur`, or `--color-overlay` aliases are exported today. Use the shared primitive defaults first:
@@ -566,34 +570,34 @@ Source: `PageHeader` from `@cherrystudio/ui`. The single component for any page 
 
 ### Switch
 
-Source: `Switch` and `DescriptionSwitch` from `@cherrystudio/ui` (`packages/ui/src/components/primitives/switch.tsx`). Current implementation uses a quiet gray off state and a brand/primary on state, matching the settings screenshots.
+Source: `Switch` and `DescriptionSwitch` from `@cherrystudio/ui` (`packages/ui/src/components/primitives/switch.tsx`). Current implementation uses a quiet gray off state and a control-accent on state, matching the settings screenshots.
 
 **Anatomy & sizing:**
 
 | Size | Track | Thumb | Travel | Use |
 |------|-------|-------|--------|-----|
-| `xs` | 32 × 18 | 16 × 16 | 14px | Dense inline controls |
-| `sm` | 36 × 20 | 18 × 18 | 16px | Slightly larger settings rows |
-| `md` (default) | 44 × 22 | 19 × 19 | 21px | Standard switch |
-| `lg` | 44 × 24 | 20 × 20 | 18px | Hero / marketing surfaces |
+| `xs` | 24 × 14 | 12 × 12 | 10px | Dense inline controls |
+| `sm` | 28 × 16 | 14 × 14 | 12px | Slightly larger settings rows |
+| `md` (default) | 32 × 18 | 16 × 16 | 14px | Standard switch |
+| `lg` | 36 × 20 | 18 × 18 | 16px | Hero / marketing surfaces |
 
 **Colors:**
 
 | State | Light | Dark |
 |---|---|---|
-| Track — off | `bg-gray-500/20` | `bg-gray-500/20` |
-| Track — on | `bg-brand-600` | `bg-brand-600` |
-| Loading | `bg-brand-300!` | `bg-brand-300!` |
+| Track — off | `color-mix(foreground 15%, transparent)` | `color-mix(foreground 15%, transparent)` |
+| Track — on | `bg-control-accent` | `bg-control-accent` |
+| Loading | `bg-control-accent/60!` | `bg-control-accent/60!` |
 | Thumb glyph | white internal SVG | white internal SVG |
 
 **Other rules:**
 - Track carries `shadow-xs`; do not add extra page-local shadow.
 - The thumb is rendered by the component's internal white SVG glyph. Do not add custom thumb icons from the call site.
-- `loading` state switches root/thumb coloring to `bg-brand-300!` and animates the thumb SVG.
+- `loading` state switches root/thumb coloring to `bg-control-accent/60!` and animates the thumb SVG.
 - Focus ring: `focus-visible:ring-[3px] focus-visible:ring-ring/50` (no track border change).
 
 **Don't:**
-- Don't pass page-local status colors (`bg-success`, `bg-warning`, etc.) to the track. The component owns its brand on state.
+- Don't pass page-local status colors (`bg-success`, `bg-warning`, etc.) to the track. The component owns its control-accent on state.
 - Don't add inline `style={{ ... }}` overrides for switch dimensions. If a new size is needed, add a variant to `switchRootVariants`/`switchThumbVariants` and document it here.
 - Use `<DescriptionSwitch label="..." description="...">` for reusable standalone preference rows. In dense `PageSidePanel` layouts, composing a row label plus a bare `<Switch>` is acceptable when the surrounding row owns spacing and helper text.
 
