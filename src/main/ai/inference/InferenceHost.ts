@@ -5,6 +5,7 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDarwinX64 } from '@main/core/platform'
 import type { LocalModelKind } from '@shared/data/presets/localModel'
+import PQueue from 'p-queue'
 
 import type { InferenceModelSource, InferenceRequest, InferenceResponse, OcrModelPaths } from './inferenceProtocol'
 import { inferenceWorkerSource } from './inferenceWorkerSource'
@@ -53,10 +54,17 @@ interface Pending {
  * releasing the worker via the same idempotent `terminate()`. A loaded model
  * (up to 600MB+) is also released after a period of inactivity, mirroring
  * {@link TesseractRuntimeService}'s idle-release timer.
+ *
+ * Requests are also serialized one-at-a-time through the shared worker (same
+ * `concurrency: 1` queue {@link TesseractRuntimeService} uses): a single CPU
+ * onnxruntime/PaddleOCR session gains nothing from concurrent calls, and
+ * multiple knowledge bases (or files) can independently reach the same
+ * instance's `embed()`/`recognize()` at once with no other coordination.
  */
 abstract class InferenceHostBase extends BaseService {
   private worker: Worker | null = null
   private readonly pending = new Map<string, Pending>()
+  private readonly queue = new PQueue({ concurrency: 1 })
   private idSeq = 0
   private idleReleaseTimer: NodeJS.Timeout | null = null
   private readonly logger: ReturnType<typeof loggerService.withContext>
@@ -156,14 +164,32 @@ abstract class InferenceHostBase extends BaseService {
     this.pending.clear()
   }
 
-  protected send(
+  protected async send(
     request: DistributiveOmit<InferenceRequest, 'id'>,
     opts: { onProgress?: (p: InferenceProgress) => void; signal?: AbortSignal } = {}
   ): Promise<InferenceResult> {
+    // Fail fast on an already-aborted signal rather than occupying a queue slot
+    // (sendNow's own check below only fires once this request reaches the front).
+    if (opts.signal?.aborted) {
+      throw opts.signal.reason instanceof Error ? opts.signal.reason : new Error('aborted')
+    }
     this.clearIdleReleaseTimer()
+    try {
+      const result = await this.queue.add(() => this.sendNow(request, opts))
+      if (!result) throw new Error('inference request queue did not return a result')
+      return result
+    } finally {
+      this.scheduleIdleReleaseIfNeeded()
+    }
+  }
+
+  private sendNow(
+    request: DistributiveOmit<InferenceRequest, 'id'>,
+    opts: { onProgress?: (p: InferenceProgress) => void; signal?: AbortSignal }
+  ): Promise<InferenceResult> {
     const worker = this.ensureWorker()
     const id = String(++this.idSeq)
-    const result = new Promise<InferenceResult>((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       if (opts.signal?.aborted) {
         reject(opts.signal.reason instanceof Error ? opts.signal.reason : new Error('aborted'))
         return
@@ -180,7 +206,6 @@ abstract class InferenceHostBase extends BaseService {
       )
       worker.postMessage({ ...request, id } as InferenceRequest)
     })
-    return result.finally(() => this.scheduleIdleReleaseIfNeeded())
   }
 
   /**
@@ -217,10 +242,10 @@ abstract class InferenceHostBase extends BaseService {
     }
   }
 
-  /** Arms the idle-release timer once a request settles and nothing else is in flight
-   * (mirrors TesseractRuntimeService's scheduleIdleWorkerReleaseIfNeeded). */
+  /** Arms the idle-release timer once a request settles and nothing else is queued or in
+   * flight (mirrors TesseractRuntimeService's scheduleIdleWorkerReleaseIfNeeded). */
   private scheduleIdleReleaseIfNeeded(): void {
-    if (!this.worker || this.pending.size > 0) return
+    if (!this.worker || this.queue.pending > 0 || this.queue.size > 0) return
     this.clearIdleReleaseTimer()
     this.idleReleaseTimer = setTimeout(() => {
       this.idleReleaseTimer = null
@@ -235,7 +260,7 @@ abstract class InferenceHostBase extends BaseService {
   }
 
   private async releaseWorkerIfIdle(): Promise<void> {
-    if (!this.worker || this.pending.size > 0) return
+    if (!this.worker || this.queue.pending > 0 || this.queue.size > 0) return
     this.logger.debug('releasing idle inference worker')
     await this.terminateSafely()
   }

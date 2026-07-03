@@ -105,9 +105,10 @@ describe('InferenceHost worker exit / failAll', () => {
   })
 
   it('terminate() resolves only once the worker has actually exited, not just been asked to', async () => {
-    // terminate() rejects this in-flight request synchronously — swallow it, this
-    // test is only about terminate()'s own returned promise.
-    void embeddingInferenceHost.embed(['hi'], SOURCE, 'org/model', 'q8').catch(() => {})
+    // terminate() rejects this in-flight request synchronously — swallow it here, but still
+    // await it below so the shared queue's concurrency slot is fully released before the
+    // test ends (concurrency: 1 means a lingering unsettled request blocks the next test).
+    const rejected = embeddingInferenceHost.embed(['hi'], SOURCE, 'org/model', 'q8').catch(() => {})
     const worker = fakeWorkers.at(-1)!
     let releaseExit: (code: number) => void = () => {}
     worker.terminate.mockImplementation(() => new Promise<number>((resolve) => (releaseExit = resolve)))
@@ -127,6 +128,7 @@ describe('InferenceHost worker exit / failAll', () => {
 
     releaseExit(0)
     await done
+    await rejected
     expect(settled).toBe(true)
   })
 
@@ -152,9 +154,15 @@ describe('InferenceHost worker exit / failAll', () => {
     await Promise.resolve()
 
     expect(liveRejected).toBe(false)
-    // B is still the live worker: a new request reuses it, no third worker is spawned.
-    void embeddingInferenceHost.embed(['c'], SOURCE, 'org/model', 'q8').catch(() => {})
+    // Settle B's request (queue concurrency: 1 — the next request below stays queued
+    // otherwise) before checking that reusing B spawns no third worker.
+    workerB.emit('message', { type: 'result', id: lastRequestId(workerB), embeddings: [[0.1]] })
+    await live
+
+    const reused = embeddingInferenceHost.embed(['c'], SOURCE, 'org/model', 'q8')
     expect(fakeWorkers).toHaveLength(2)
+    workerB.emit('message', { type: 'result', id: lastPostedId(workerB), embeddings: [[0.2]] })
+    await reused
   })
 
   it("ignores a superseded worker's late error instead of rejecting the live worker's requests", async () => {
@@ -164,7 +172,8 @@ describe('InferenceHost worker exit / failAll', () => {
     await embeddingInferenceHost.terminate()
     await expect(stale).rejects.toThrow(/terminated/)
     const live = embeddingInferenceHost.embed(['b'], SOURCE, 'org/model', 'q8')
-    expect(fakeWorkers.at(-1)!).not.toBe(workerA)
+    const workerB = fakeWorkers.at(-1)!
+    expect(workerB).not.toBe(workerA)
 
     let liveRejected = false
     void live.catch(() => {
@@ -177,6 +186,9 @@ describe('InferenceHost worker exit / failAll', () => {
     await Promise.resolve()
 
     expect(liveRejected).toBe(false)
+    // Settle B's request so the shared queue's concurrency slot is free for the next test.
+    workerB.emit('message', { type: 'result', id: lastRequestId(workerB), embeddings: [[0.1]] })
+    await live
   })
 })
 
@@ -198,11 +210,13 @@ describe('embeddingInferenceHost / ocrInferenceHost isolation', () => {
     )
     const ocrWorker = fakeWorkers.at(-1)!
 
-    void embeddingInferenceHost.embed(['hi'], SOURCE, 'org/model', 'q8').catch(() => {})
+    const embedRejected = embeddingInferenceHost.embed(['hi'], SOURCE, 'org/model', 'q8').catch(() => {})
     const embeddingWorker = fakeWorkers.at(-1)!
     expect(embeddingWorker).not.toBe(ocrWorker)
 
     await embeddingInferenceHost.terminate()
+    // Release the shared queue's concurrency slot before the test ends.
+    await embedRejected
 
     // The two hosts don't share a worker, a pending map, or a terminate() — killing
     // one must never collaterally kill or reject the other's in-flight request.
@@ -269,5 +283,55 @@ describe('InferenceHost idle-release timer', () => {
     await vi.advanceTimersByTimeAsync(1_000)
 
     expect(worker.terminate).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('InferenceHost request queue', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    fakeWorkers.length = 0
+  })
+
+  afterEach(async () => {
+    await embeddingInferenceHost.terminate()
+  })
+
+  it('serializes concurrent requests so only one is in flight to the worker at a time', async () => {
+    const first = embeddingInferenceHost.embed(['a'], SOURCE, 'org/model', 'q8')
+    const worker = fakeWorkers.at(-1)!
+    const second = embeddingInferenceHost.embed(['b'], SOURCE, 'org/model', 'q8')
+
+    const postedRequestCount = () =>
+      worker.postMessage.mock.calls.filter(([msg]) => (msg as { id?: string }).id !== undefined).length
+
+    // The second request is queued — nothing has been posted for it yet.
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(postedRequestCount()).toBe(1)
+
+    worker.emit('message', { type: 'result', id: lastRequestId(worker), embeddings: [[0.1]] })
+    await first
+
+    // Settling the first dispatches the second — still to the same (single) worker.
+    expect(postedRequestCount()).toBe(2)
+    expect(fakeWorkers).toHaveLength(1)
+
+    worker.emit('message', { type: 'result', id: lastPostedId(worker), embeddings: [[0.2]] })
+    await expect(second).resolves.toEqual([[0.2]])
+  })
+
+  it('rejects a queued request immediately once dequeued if its signal was already aborted while waiting', async () => {
+    const first = embeddingInferenceHost.embed(['a'], SOURCE, 'org/model', 'q8')
+    const worker = fakeWorkers.at(-1)!
+    const controller = new AbortController()
+    const second = embeddingInferenceHost.embed(['b'], SOURCE, 'org/model', 'q8', controller.signal)
+
+    controller.abort()
+    worker.emit('message', { type: 'result', id: lastRequestId(worker), embeddings: [[0.1]] })
+    await first
+
+    await expect(second).rejects.toThrow()
+    // The aborted request never reached the worker.
+    expect(worker.postMessage.mock.calls.filter(([msg]) => (msg as { id?: string }).id !== undefined)).toHaveLength(1)
   })
 })
