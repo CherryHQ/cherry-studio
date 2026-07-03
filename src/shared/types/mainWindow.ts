@@ -1,7 +1,5 @@
-import type { SettingsPath } from '@shared/data/types/settingsPath'
-
 export type MainWindowInitData = {
-  kind: 'settings-navigation'
-  path: SettingsPath
+  kind: 'navigation'
+  to: string
   requestId: number
 }

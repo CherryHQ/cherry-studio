@@ -373,7 +373,7 @@ describe('MainWindowService', () => {
 
   describe('showMainWindow init data', () => {
     it('pushes init data to an existing main window', () => {
-      const initData = { kind: 'settings-navigation' as const, path: '/settings/about' as const, requestId: 1 }
+      const initData = { kind: 'navigation' as const, to: '/settings/about' as const, requestId: 1 }
       ;(svc as any).mainWindow = win
 
       svc.showMainWindow(initData)
@@ -383,7 +383,7 @@ describe('MainWindowService', () => {
     })
 
     it('passes init data into WindowManager when creating the main window', () => {
-      const initData = { kind: 'settings-navigation' as const, path: '/settings/provider' as const, requestId: 1 }
+      const initData = { kind: 'navigation' as const, to: '/settings/provider' as const, requestId: 1 }
 
       svc.showMainWindow(initData)
 

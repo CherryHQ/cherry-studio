@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   setActiveTab: vi.fn(),
   updateTab: vi.fn(),
   tabs: [] as Array<{ id: string; type: 'route' | 'miniapp'; url: string; title: string }>,
-  initData: null as { kind: 'settings-navigation'; path: string; requestId: number } | null
+  initData: null as { kind: 'navigation'; to: string; requestId: number } | null
 }))
 
 vi.mock('@renderer/i18n', () => ({
@@ -111,20 +111,27 @@ describe('useMainSettingsTab', () => {
   })
 
   it('opens settings from main-window init data', () => {
-    mocks.initData = { kind: 'settings-navigation', path: '/settings/about', requestId: 1 }
+    mocks.initData = { kind: 'navigation', to: '/settings/about', requestId: 1 }
     render(<MainSettingsTabBridgeHarness />)
 
     expect(mocks.openTab).toHaveBeenCalledWith('/settings/about', { title: 'settings.title' })
   })
 
+  it('ignores non-settings navigation init data', () => {
+    mocks.initData = { kind: 'navigation', to: '/agents', requestId: 1 }
+    render(<MainSettingsTabBridgeHarness />)
+
+    expect(mocks.openTab).not.toHaveBeenCalled()
+  })
+
   it('opens settings again when init data request id changes', () => {
     const { rerender } = render(<MainSettingsTabBridgeHarness />)
 
-    mocks.initData = { kind: 'settings-navigation', path: '/settings/provider', requestId: 1 }
+    mocks.initData = { kind: 'navigation', to: '/settings/provider', requestId: 1 }
     rerender(<MainSettingsTabBridgeHarness />)
 
     mocks.tabs = [{ id: 'settings-1', type: 'route', url: '/settings/provider', title: 'settings.title' }]
-    mocks.initData = { kind: 'settings-navigation', path: '/settings/about', requestId: 2 }
+    mocks.initData = { kind: 'navigation', to: '/settings/about', requestId: 2 }
     rerender(<MainSettingsTabBridgeHarness />)
 
     expect(mocks.openTab).toHaveBeenCalledWith('/settings/provider', { title: 'settings.title' })
@@ -136,7 +143,7 @@ describe('useMainSettingsTab', () => {
   })
 
   it('does not replay the same init data request when tabs change', () => {
-    mocks.initData = { kind: 'settings-navigation', path: '/settings/provider', requestId: 1 }
+    mocks.initData = { kind: 'navigation', to: '/settings/provider', requestId: 1 }
     const { rerender } = render(<MainSettingsTabBridgeHarness />)
 
     expect(mocks.openTab).toHaveBeenCalledTimes(1)

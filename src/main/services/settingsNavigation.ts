@@ -9,8 +9,8 @@ export function openSettingsInMainWindow(path?: SettingsPath): void {
   const targetPath = normalizeSettingsPath(path)
 
   application.get('MainWindowService').showMainWindow({
-    kind: 'settings-navigation',
-    path: targetPath,
+    kind: 'navigation',
+    to: targetPath,
     requestId: nextSettingsNavigationRequestId++
   } satisfies MainWindowInitData)
 }

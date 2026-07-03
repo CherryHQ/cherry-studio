@@ -26,8 +26,8 @@ describe('settingsNavigation', () => {
     openSettingsInMainWindow('/settings/provider?id=openai')
 
     expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledWith({
-      kind: 'settings-navigation',
-      path: '/settings/provider?id=openai',
+      kind: 'navigation',
+      to: '/settings/provider?id=openai',
       requestId: expect.any(Number)
     })
   })
@@ -36,8 +36,8 @@ describe('settingsNavigation', () => {
     openSettingsInMainWindow('/agents' as never)
 
     expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledWith({
-      kind: 'settings-navigation',
-      path: '/settings/provider',
+      kind: 'navigation',
+      to: '/settings/provider',
       requestId: expect.any(Number)
     })
   })

@@ -1,7 +1,7 @@
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import i18n from '@renderer/i18n'
 import { OPEN_SETTINGS_TAB_EVENT, type OpenSettingsTabEvent } from '@renderer/services/settingsNavigation'
-import { normalizeSettingsPath, type SettingsPath } from '@shared/data/types/settingsPath'
+import { isSettingsPath, normalizeSettingsPath, type SettingsPath } from '@shared/data/types/settingsPath'
 import type { MainWindowInitData } from '@shared/types/mainWindow'
 import { useCallback, useEffect, useRef } from 'react'
 
@@ -85,14 +85,15 @@ function useSettingsTabEventBridge(openSettingsRoute: (path: SettingsPath) => vo
 export function useMainSettingsTab() {
   const openSettingsRoute = useOpenSettingsRoute()
   const initData = useWindowInitData<MainWindowInitData>()
-  const handledSettingsNavigationRequestIdRef = useRef<number | null>(null)
+  const handledNavigationRequestIdRef = useRef<number | null>(null)
 
   useEffect(() => {
-    if (initData?.kind !== 'settings-navigation') return
-    if (handledSettingsNavigationRequestIdRef.current === initData.requestId) return
+    if (initData?.kind !== 'navigation') return
+    if (!isSettingsPath(initData.to)) return
+    if (handledNavigationRequestIdRef.current === initData.requestId) return
 
-    handledSettingsNavigationRequestIdRef.current = initData.requestId
-    openSettingsRoute(initData.path)
+    handledNavigationRequestIdRef.current = initData.requestId
+    openSettingsRoute(initData.to)
   }, [initData, openSettingsRoute])
 
   useSettingsTabEventBridge(openSettingsRoute)
