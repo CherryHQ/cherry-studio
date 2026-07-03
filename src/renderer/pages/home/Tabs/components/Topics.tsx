@@ -84,6 +84,8 @@ import { useTopicMenuActions } from './useTopicMenuActions'
 
 const logger = loggerService.withContext('Topics')
 const EMPTY_COLLAPSED_TOPIC_STATE: readonly string[] = []
+const DEFAULT_TOPIC_GROUP_VISIBLE_COUNT = 5
+const LEFT_PANEL_TIME_TOPIC_GROUP_VISIBLE_COUNT = 50
 
 interface Props {
   activeTopic?: Topic
@@ -226,6 +228,11 @@ export function Topics({
     yuque: 'data.export.menus.yuque'
   })
   const displayMode = isRightPanel ? 'time' : (topicDisplayMode ?? 'time')
+  const defaultGroupVisibleCount = isRightPanel
+    ? Number.POSITIVE_INFINITY
+    : displayMode === 'time'
+      ? LEFT_PANEL_TIME_TOPIC_GROUP_VISIBLE_COUNT
+      : DEFAULT_TOPIC_GROUP_VISIBLE_COUNT
   const isAssistantDisplayMode = displayMode === 'assistant'
   const topicExpansion = isAssistantDisplayMode ? topicExpansionAssistant : topicExpansionTime
 
@@ -1036,8 +1043,8 @@ export function Topics({
         sectionBy={topicSectionBy}
         collapsedState={collapsedTopicState}
         revealRequest={revealRequest}
-        defaultGroupVisibleCount={isRightPanel ? Number.POSITIVE_INFINITY : 5}
-        groupLoadStep={isRightPanel ? Number.POSITIVE_INFINITY : 5}
+        defaultGroupVisibleCount={defaultGroupVisibleCount}
+        groupLoadStep={isRightPanel ? Number.POSITIVE_INFINITY : DEFAULT_TOPIC_GROUP_VISIBLE_COUNT}
         getGroupHeaderAction={getGroupHeaderAction}
         getGroupHeaderContextMenu={getGroupHeaderContextMenu}
         getGroupHeaderIcon={getGroupHeaderIcon}

@@ -96,6 +96,8 @@ type SessionsProps = ControlledSessionsProps
 const logger = loggerService.withContext('AgentSessions')
 
 const EMPTY_WORKSPACE_ROWS: AgentWorkspaceEntity[] = []
+const DEFAULT_SESSION_GROUP_VISIBLE_COUNT = 5
+const LEFT_PANEL_TIME_SESSION_GROUP_VISIBLE_COUNT = 50
 type CreateSessionSeed = {
   agentId: string
   workspace?: AgentSessionWorkspaceSource
@@ -307,6 +309,10 @@ const Sessions = ({
     : sessionDisplayMode === 'workdir' || sessionDisplayMode === 'agent'
       ? sessionDisplayMode
       : 'time'
+  const defaultGroupVisibleCount =
+    !isRightPanel && displayMode === 'time'
+      ? LEFT_PANEL_TIME_SESSION_GROUP_VISIBLE_COUNT
+      : DEFAULT_SESSION_GROUP_VISIBLE_COUNT
   const isDraggableMode = displayMode !== 'time'
   const [rightPanelSessionExpansion, setRightPanelSessionExpansion] = useState<string[]>([])
   const sessionExpansion = isRightPanel
@@ -1373,8 +1379,8 @@ const Sessions = ({
       sectionBy={sessionSectionBy}
       collapsedState={collapsedSessionState}
       revealRequest={revealRequest}
-      defaultGroupVisibleCount={5}
-      groupLoadStep={5}
+      defaultGroupVisibleCount={defaultGroupVisibleCount}
+      groupLoadStep={DEFAULT_SESSION_GROUP_VISIBLE_COUNT}
       getSectionHeaderAction={getSectionHeaderAction}
       getGroupHeaderAction={getGroupHeaderAction}
       getGroupHeaderClassName={getGroupHeaderClassName}

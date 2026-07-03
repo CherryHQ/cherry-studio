@@ -1349,7 +1349,7 @@ describe('Topics', () => {
     expect(topicStreamStatusMocks.markSeen).toHaveBeenCalledWith('topic-a')
   })
 
-  it('shows five topics per group and loads five more within that group', () => {
+  it('shows fifty topics in left-panel time groups and expands the remaining items', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     mockUseQuery.mockImplementation((path) => {
       if (path === '/pins') {
@@ -1372,7 +1372,7 @@ describe('Topics', () => {
       }
     })
     mockUseInfiniteQuery.mockReturnValue({
-      pages: [{ items: createTopicPageItems(11) }],
+      pages: [{ items: createTopicPageItems(51) }],
       isLoading: false,
       isRefreshing: false,
       error: undefined,
@@ -1386,19 +1386,18 @@ describe('Topics', () => {
     renderTopicList()
 
     expect(screen.getByText('Today')).toBeInTheDocument()
-    expect(screen.getByText('Topic 5')).toBeInTheDocument()
-    expect(screen.queryByText('Topic 6')).not.toBeInTheDocument()
+    expect(screen.getByText('Topic 50')).toBeInTheDocument()
+    expect(screen.queryByText('Topic 51')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Show more conversations' }))
 
-    expect(screen.getByText('Topic 10')).toBeInTheDocument()
-    expect(screen.getByText('Topic 11')).toBeInTheDocument()
+    expect(screen.getByText('Topic 51')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Collapse conversations' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Collapse conversations' }))
 
-    expect(screen.getByText('Topic 5')).toBeInTheDocument()
-    expect(screen.queryByText('Topic 6')).not.toBeInTheDocument()
+    expect(screen.getByText('Topic 50')).toBeInTheDocument()
+    expect(screen.queryByText('Topic 51')).not.toBeInTheDocument()
   })
 
   it('keeps the expanded topic window after selecting a topic revealed by show more', () => {
@@ -1424,7 +1423,7 @@ describe('Topics', () => {
       }
     })
     mockUseInfiniteQuery.mockReturnValue({
-      pages: [{ items: createTopicPageItems(11) }],
+      pages: [{ items: createTopicPageItems(51) }],
       isLoading: false,
       isRefreshing: false,
       error: undefined,
@@ -1438,14 +1437,13 @@ describe('Topics', () => {
     const { rerenderTopicList, setActiveTopic } = renderTopicList()
 
     fireEvent.click(screen.getByRole('button', { name: 'Show more conversations' }))
-    fireEvent.click(getTopicRow('Topic 6'))
+    fireEvent.click(getTopicRow('Topic 51'))
 
-    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-6' }))
+    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-51' }))
 
-    rerenderTopicList(undefined, createRendererTopic({ id: 'topic-6', name: 'Topic 6' }))
+    rerenderTopicList(undefined, createRendererTopic({ id: 'topic-51', name: 'Topic 51' }))
 
-    expect(screen.getByText('Topic 10')).toBeInTheDocument()
-    expect(screen.getByText('Topic 11')).toBeInTheDocument()
+    expect(screen.getByText('Topic 51')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Collapse conversations' })).toBeInTheDocument()
   })
 
@@ -1505,7 +1503,7 @@ describe('Topics', () => {
   it('does not show the assistant section toggle action in time display mode', () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     mockUseInfiniteQuery.mockReturnValue({
-      pages: [{ items: createTopicPageItems(6) }],
+      pages: [{ items: createTopicPageItems(51) }],
       isLoading: false,
       isRefreshing: false,
       error: undefined,
@@ -1550,7 +1548,7 @@ describe('Topics', () => {
       }
     })
     mockUseInfiniteQuery.mockReturnValue({
-      pages: [{ items: createTopicPageItems(6) }],
+      pages: [{ items: createTopicPageItems(51) }],
       isLoading: false,
       isRefreshing: false,
       error: undefined,
@@ -1566,10 +1564,10 @@ describe('Topics', () => {
       renderTopicList()
 
       const subscribedKeys = subscribeSpy.mock.calls.map(([key]) => key)
-      expect(subscribedKeys).toContain(topicStreamStatusCacheKey('topic-5'))
-      expect(subscribedKeys).toContain(topicStreamLastSeenCompletionCacheKey('topic-5'))
-      expect(subscribedKeys).not.toContain(topicStreamStatusCacheKey('topic-6'))
-      expect(subscribedKeys).not.toContain(topicStreamLastSeenCompletionCacheKey('topic-6'))
+      expect(subscribedKeys).toContain(topicStreamStatusCacheKey('topic-50'))
+      expect(subscribedKeys).toContain(topicStreamLastSeenCompletionCacheKey('topic-50'))
+      expect(subscribedKeys).not.toContain(topicStreamStatusCacheKey('topic-51'))
+      expect(subscribedKeys).not.toContain(topicStreamLastSeenCompletionCacheKey('topic-51'))
     } finally {
       subscribeSpy.mockRestore()
     }
@@ -1717,7 +1715,7 @@ describe('Topics', () => {
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
         {
-          items: createTopicPageItems(6)
+          items: createTopicPageItems(51)
         }
       ],
       isLoading: false,
@@ -1733,12 +1731,12 @@ describe('Topics', () => {
     const { rerenderTopicList } = renderTopicList()
 
     expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.queryByText('Topic 6')).not.toBeInTheDocument()
+    expect(screen.queryByText('Topic 51')).not.toBeInTheDocument()
 
-    rerenderTopicList({ itemId: 'topic-6', requestId: 1, clearFilters: true, clearQuery: true })
+    rerenderTopicList({ itemId: 'topic-51', requestId: 1, clearFilters: true, clearQuery: true })
 
-    expect(await screen.findByText('Topic 6')).toBeInTheDocument()
-    const revealedRow = screen.getByText('Topic 6').closest('[role="option"]')
+    expect(await screen.findByText('Topic 51')).toBeInTheDocument()
+    const revealedRow = screen.getByText('Topic 51').closest('[role="option"]')
     expect(revealedRow).not.toBeNull()
     expect(revealedRow!).toHaveAttribute('data-reveal-focus', 'true')
     expect(revealedRow!).toHaveClass('animation-resource-list-reveal-focus')

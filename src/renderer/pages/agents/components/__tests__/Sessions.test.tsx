@@ -811,6 +811,30 @@ describe('Sessions', () => {
     expect(pinMocks.usePins).not.toHaveBeenCalledWith('agent', { enabled: true })
   })
 
+  it('shows fifty sessions in left-panel time groups and expands the remaining items', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'time')
+    setupSessions({
+      sessions: Array.from({ length: 56 }, (_, index) =>
+        createSession({
+          id: `session-${index + 1}`,
+          name: `Session ${index + 1}`,
+          orderKey: String(index + 1).padStart(3, '0'),
+          updatedAt: CURRENT_SESSION_ISO
+        })
+      )
+    })
+
+    render(<SessionsForTest />)
+
+    expect(screen.getByText('Today')).toBeInTheDocument()
+    expect(screen.getByText('Session 50')).toBeInTheDocument()
+    expect(screen.queryByText('Session 51')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand display' }))
+
+    expect(screen.getByText('Session 56')).toBeInTheDocument()
+  })
+
   it('starts a first-agent draft from the header when there are agents but no sessions', async () => {
     const onStartDraftSession = vi.fn()
     const onStartMissingAgentDraft = vi.fn()
