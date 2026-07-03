@@ -874,7 +874,7 @@ const AgentComposerInner = ({
     [availableSkills, draftCacheKey, reconcileTokens]
   )
 
-  const placeholderText = useMemo(() => t('agent.input.soul_placeholder'), [t])
+  const placeholderText = useMemo(() => t('agent.input.agent_placeholder'), [t])
 
   const buildQueuedPayload = useCallback(
     (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null =>

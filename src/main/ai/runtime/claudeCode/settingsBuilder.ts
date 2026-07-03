@@ -816,7 +816,7 @@ async function buildToolPermissions(
     canUseTool,
     hooks: { PreToolUse: [{ hooks: [disabledToolHook, dependencyIsolationHook, rtkRewriteHook, steerHook] }] },
     // `disabled`-exposure tools (incl. WebSearch/WebFetch) come from the declarative
-    // registry; soul/assistant overlays stay until they migrate to per-tool exposure (PR-7).
+    // registry; agent/assistant overlays stay until they migrate to per-tool exposure (PR-7).
     disallowedTools: [
       ...new Set([
         ...resolveDisallowedTools({ disabledTools: agent.disabledTools }, conditionContext),

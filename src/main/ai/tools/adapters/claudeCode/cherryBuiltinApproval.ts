@@ -26,7 +26,7 @@ export const toCherryBuiltinRuntimeName = (toolName: string): string => `mcp__${
 
 /**
  * cherry-tools that mutate the user's knowledge bases (add / delete / refresh sources) and therefore
- * MUST go through per-call user approval — never auto-approved, even for soul/assistant sessions.
+ * MUST go through per-call user approval — never auto-approved, even for agent/assistant sessions.
  */
 export const CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES: readonly string[] = [KB_MANAGE_TOOL_NAME]
 

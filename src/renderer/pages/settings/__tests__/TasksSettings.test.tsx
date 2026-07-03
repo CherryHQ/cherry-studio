@@ -382,7 +382,7 @@ describe('TasksSettings task logs', () => {
   })
 
   async function clickTaskLogSessionButton() {
-    const viewSessionTooltip = await screen.findByText('agent.cherryClaw.tasks.logs.viewSession')
+    const viewSessionTooltip = await screen.findByText('agent.tasks.logs.viewSession')
     const button = within(viewSessionTooltip.closest('[data-testid="tooltip"]') as HTMLElement).getByRole('button')
 
     fireEvent.click(button)
@@ -426,18 +426,18 @@ describe('TasksSettings task logs', () => {
   it('renders the segmented schedule type selector for the selected task', async () => {
     render(<TasksSettings />)
 
-    await screen.findByText('agent.cherryClaw.tasks.logs.viewSession')
+    await screen.findByText('agent.tasks.logs.viewSession')
 
-    expect(screen.getByPlaceholderText('agent.cherryClaw.tasks.intervalPlaceholder')).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'agent.cherryClaw.tasks.scheduleType.interval' })).toHaveAttribute(
+    expect(screen.getByPlaceholderText('agent.tasks.intervalPlaceholder')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'agent.tasks.scheduleType.interval' })).toHaveAttribute(
       'aria-checked',
       'true'
     )
-    expect(screen.getByRole('radio', { name: 'agent.cherryClaw.tasks.scheduleType.once' })).toHaveAttribute(
+    expect(screen.getByRole('radio', { name: 'agent.tasks.scheduleType.once' })).toHaveAttribute(
       'aria-checked',
       'false'
     )
-    expect(screen.getByRole('radio', { name: 'agent.cherryClaw.tasks.scheduleType.cron' })).toHaveAttribute(
+    expect(screen.getByRole('radio', { name: 'agent.tasks.scheduleType.cron' })).toHaveAttribute(
       'aria-checked',
       'false'
     )
@@ -446,38 +446,35 @@ describe('TasksSettings task logs', () => {
   it('swaps the schedule input when the segmented selector changes type', async () => {
     render(<TasksSettings />)
 
-    await screen.findByText('agent.cherryClaw.tasks.logs.viewSession')
+    await screen.findByText('agent.tasks.logs.viewSession')
 
     // Interval is the task's initial type.
-    expect(screen.getByPlaceholderText('agent.cherryClaw.tasks.intervalPlaceholder')).toBeInTheDocument()
-    expect(screen.queryByPlaceholderText('agent.cherryClaw.tasks.cronPlaceholder')).not.toBeInTheDocument()
+    expect(screen.getByPlaceholderText('agent.tasks.intervalPlaceholder')).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('agent.tasks.cronPlaceholder')).not.toBeInTheDocument()
 
     act(() => {
-      fireEvent.click(screen.getByRole('radio', { name: 'agent.cherryClaw.tasks.scheduleType.cron' }))
+      fireEvent.click(screen.getByRole('radio', { name: 'agent.tasks.scheduleType.cron' }))
     })
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText('agent.cherryClaw.tasks.cronPlaceholder')).toBeInTheDocument()
-      expect(screen.queryByPlaceholderText('agent.cherryClaw.tasks.intervalPlaceholder')).not.toBeInTheDocument()
+      expect(screen.getByPlaceholderText('agent.tasks.cronPlaceholder')).toBeInTheDocument()
+      expect(screen.queryByPlaceholderText('agent.tasks.intervalPlaceholder')).not.toBeInTheDocument()
     })
   })
 
   it('moves run and delete into the task detail more menu', async () => {
     render(<TasksSettings />)
 
-    await screen.findByText('agent.cherryClaw.tasks.logs.viewSession')
+    await screen.findByText('agent.tasks.logs.viewSession')
 
-    expect(screen.getByRole('switch', { name: 'agent.cherryClaw.tasks.status.active' })).toHaveAttribute(
-      'aria-checked',
-      'true'
-    )
-    expect(screen.queryByTitle('agent.cherryClaw.tasks.run')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'agent.cherryClaw.tasks.pause' })).not.toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'agent.tasks.status.active' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.queryByTitle('agent.tasks.run')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'agent.tasks.pause' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
-    expect(screen.getByRole('button', { name: 'agent.cherryClaw.tasks.delete.label' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'agent.tasks.delete.label' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.cherryClaw.tasks.run' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
 
     await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
   })
@@ -485,9 +482,9 @@ describe('TasksSettings task logs', () => {
   it('toggles the selected task status from the header switch', async () => {
     render(<TasksSettings />)
 
-    await screen.findByText('agent.cherryClaw.tasks.logs.viewSession')
+    await screen.findByText('agent.tasks.logs.viewSession')
 
-    fireEvent.click(screen.getByRole('switch', { name: 'agent.cherryClaw.tasks.status.active' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'agent.tasks.status.active' }))
 
     await waitFor(() =>
       expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', { enabled: false })
@@ -503,7 +500,7 @@ describe('TasksSettings task logs', () => {
 
     render(<TasksSettings />)
 
-    const completedBadge = await screen.findByText('agent.cherryClaw.tasks.status.completed')
+    const completedBadge = await screen.findByText('agent.tasks.status.completed')
 
     expect(completedBadge).toHaveClass('border-blue-500/30', 'bg-blue-500/10', 'text-blue-500')
     expect(completedBadge).not.toHaveClass('border-info/30', 'bg-info/10', 'text-info')
@@ -518,7 +515,7 @@ describe('TasksSettings task logs', () => {
 
     render(<TasksSettings />)
 
-    await screen.findByText('agent.cherryClaw.tasks.logs.viewSession')
+    await screen.findByText('agent.tasks.logs.viewSession')
 
     expect(screen.queryByRole('switch')).not.toBeInTheDocument()
 
@@ -526,11 +523,11 @@ describe('TasksSettings task logs', () => {
       fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
     })
 
-    expect(screen.queryByRole('button', { name: 'agent.cherryClaw.tasks.run' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'agent.tasks.run' })).not.toBeInTheDocument()
     act(() => {
-      fireEvent.click(screen.getByRole('button', { name: 'agent.cherryClaw.tasks.delete.label' }))
+      fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.delete.label' }))
     })
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('agent.cherryClaw.tasks.delete.confirm')
+    expect(screen.getByRole('dialog')).toHaveTextContent('agent.tasks.delete.confirm')
   })
 })

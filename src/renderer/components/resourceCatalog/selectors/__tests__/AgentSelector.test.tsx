@@ -123,8 +123,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'common.name': 'Name',
           'common.required_field': 'Required',
           'common.save': 'Save',
-          'agent.cherryClaw.heartbeat.enabledHelper': 'Send heartbeat messages.',
-          'agent.cherryClaw.heartbeat.intervalHelper': 'Heartbeat interval.',
           'agent.edit.title': 'Edit agent',
           'library.config.agent.field.description.hint': 'Short agent summary.',
           'library.config.agent.field.description.label': 'Description',

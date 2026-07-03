@@ -33,7 +33,7 @@ export const useCreateTask = () => {
         return result as unknown as ScheduledTaskEntity
       } catch (error) {
         window.toast.error(
-          formatErrorMessageWithPrefix(error, t('agent.cherryClaw.tasks.error.createFailed', 'Failed to create task'))
+          formatErrorMessageWithPrefix(error, t('agent.tasks.error.createFailed', 'Failed to create task'))
         )
         return undefined
       }
@@ -56,7 +56,7 @@ export const useUpdateTask = () => {
         return result as unknown as ScheduledTaskEntity
       } catch (error) {
         window.toast.error(
-          formatErrorMessageWithPrefix(error, t('agent.cherryClaw.tasks.error.updateFailed', 'Failed to update task'))
+          formatErrorMessageWithPrefix(error, t('agent.tasks.error.updateFailed', 'Failed to update task'))
         )
         return undefined
       }
@@ -72,12 +72,10 @@ export const useRunTask = () => {
     async (taskId: string): Promise<boolean> => {
       try {
         await ipcApi.request('ai.run_agent_task', taskId)
-        window.toast.success({ key: 'run-task', title: t('agent.cherryClaw.tasks.runTriggered') })
+        window.toast.success({ key: 'run-task', title: t('agent.tasks.runTriggered') })
         return true
       } catch (error) {
-        window.toast.error(
-          formatErrorMessageWithPrefix(error, t('agent.cherryClaw.tasks.error.runFailed', 'Failed to run task'))
-        )
+        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.tasks.error.runFailed', 'Failed to run task')))
         return false
       }
     },
@@ -99,7 +97,7 @@ export const useDeleteTask = () => {
         return true
       } catch (error) {
         window.toast.error(
-          formatErrorMessageWithPrefix(error, t('agent.cherryClaw.tasks.error.deleteFailed', 'Failed to delete task'))
+          formatErrorMessageWithPrefix(error, t('agent.tasks.error.deleteFailed', 'Failed to delete task'))
         )
         return false
       }

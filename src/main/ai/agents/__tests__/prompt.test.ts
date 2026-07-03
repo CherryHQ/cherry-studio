@@ -21,8 +21,7 @@ import { PromptBuilder } from '../prompt'
 const baseConfig: AgentConfiguration = {
   permission_mode: 'bypassPermissions',
   max_turns: 100,
-  env_vars: {},
-  soul_enabled: true
+  env_vars: {}
 }
 
 const mockedStat = vi.mocked(stat)

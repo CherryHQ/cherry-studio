@@ -31,262 +31,113 @@
       "submit": "Gửi",
       "title": "Câu hỏi từ Đại lý"
     },
-    "cherryClaw": {
-      "channels": {
-        "add": "Thêm",
-        "bindAgent": "Ràng buộc Đại lý",
-        "chatIdsAutoTrackHint": "Khi để trống, hệ thống sẽ tự động theo dõi: bạn cần gửi tin nhắn đến Bot trên nền tảng trước, sau đó hệ thống sẽ ghi lại Chat ID để gửi thông báo trong tương lai.",
-        "comingSoon": "Sắp ra mắt",
+    "channels": {
+      "add": "Thêm",
+      "bindAgent": "Ràng buộc Đại lý",
+      "chatIdsAutoTrackHint": "Khi để trống, hệ thống sẽ tự động theo dõi: bạn cần gửi tin nhắn đến Bot trên nền tảng trước, sau đó hệ thống sẽ ghi lại Chat ID để gửi thông báo trong tương lai.",
+      "comingSoon": "Sắp ra mắt",
+      "connected": "Đã kết nối",
+      "connecting": "Kết nối",
+      "createError": "Không tạo được kênh",
+      "deleteConfirm": "Xóa kênh \"{{name}}\"?",
+      "deleteError": "Không xóa được kênh",
+      "description": "Kết nối tác nhân của bạn với các nền tảng nhắn tin.",
+      "disconnected": "Ngắt kết nối",
+      "discord": {
+        "botToken": "Mã thông báo Bot",
+        "botTokenPlaceholder": "Nhập mã thông báo bot Discord của bạn",
+        "channelIds": "ID Kênh Được Phép",
+        "channelIdsHint": "Định dạng: channel:id hoặc dm:id. Để trống để cho phép tất cả.",
+        "channelIdsPlaceholder": "kênh:123456789, dm:987654321",
+        "description": "Nhận và phản hồi tin nhắn thông qua bot Discord bằng cổng WebSocket.",
+        "title": "Discord",
+        "whoamiTip": "💡 Mẹo: Gửi /whoami cho bot để lấy ID kênh của bạn ở định dạng chính xác."
+      },
+      "error": "Lỗi",
+      "feishu": {
+        "appId": "ID ứng dụng",
+        "appIdPlaceholder": "Nhập ID ứng dụng Feishu của bạn",
+        "appSecret": "Bí mật ứng dụng",
+        "appSecretPlaceholder": "Nhập bí mật ứng dụng Feishu của bạn",
+        "chatIds": "ID Trò chuyện Được Phép",
+        "chatIdsHint": "Các ID trò chuyện được phân tách bằng dấu phẩy. Để trống để cho phép tất cả các trò chuyện.",
+        "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
         "connected": "Đã kết nối",
-        "connecting": "Kết nối",
-        "createError": "Không tạo được kênh",
-        "deleteConfirm": "Xóa kênh \"{{name}}\"?",
-        "deleteError": "Không xóa được kênh",
-        "description": "Kết nối tác nhân của bạn với các nền tảng nhắn tin.",
-        "disconnected": "Ngắt kết nối",
-        "discord": {
-          "botToken": "Mã thông báo Bot",
-          "botTokenPlaceholder": "Nhập mã thông báo bot Discord của bạn",
-          "channelIds": "ID Kênh Được Phép",
-          "channelIdsHint": "Định dạng: channel:id hoặc dm:id. Để trống để cho phép tất cả.",
-          "channelIdsPlaceholder": "kênh:123456789, dm:987654321",
-          "description": "Nhận và phản hồi tin nhắn thông qua bot Discord bằng cổng WebSocket.",
-          "title": "Discord",
-          "whoamiTip": "💡 Mẹo: Gửi /whoami cho bot để lấy ID kênh của bạn ở định dạng chính xác."
-        },
-        "error": "Lỗi",
-        "feishu": {
-          "appId": "ID ứng dụng",
-          "appIdPlaceholder": "Nhập ID ứng dụng Feishu của bạn",
-          "appSecret": "Bí mật ứng dụng",
-          "appSecretPlaceholder": "Nhập bí mật ứng dụng Feishu của bạn",
-          "chatIds": "ID Trò chuyện Được Phép",
-          "chatIdsHint": "Các ID trò chuyện được phân tách bằng dấu phẩy. Để trống để cho phép tất cả các trò chuyện.",
-          "chatIdsPlaceholder": "oc_xxxxx, oc_yyyyy",
-          "connected": "Đã kết nối",
-          "description": "Nhận và phản hồi tin nhắn qua bot Feishu/Lark bằng WebSocket.",
-          "domain": "Tên miền",
-          "domainFeishu": "Feishu (Trung Quốc)",
-          "domainLark": "Lark (Quốc tế)",
-          "encryptKey": "Khóa Mã Hóa",
-          "encryptKeyPlaceholder": "Nhập Khóa Mã hóa từ ứng dụng Feishu của bạn",
-          "loginHint": "Chưa cấu hình thông tin xác thực. Kích hoạt kênh để bắt đầu đăng ký mã QR hoặc nhập thủ công App ID và App Secret.",
-          "qrExpired": "Mã QR đã hết hạn. Vui lòng thử lại bằng cách chuyển đổi kênh.",
-          "qrHint": "Đang chờ quét mã QR...",
-          "qrScanHint": "Mở Feishu trên điện thoại của bạn và quét mã QR để tạo một ứng dụng bot.",
-          "qrTitle": "Đăng ký QR Feishu",
-          "title": "Feishu",
-          "verificationToken": "Mã Xác Minh",
-          "verificationTokenPlaceholder": "Nhập Mã Xác Minh từ ứng dụng Feishu của bạn"
-        },
-        "logs": "Nhật ký",
-        "noInstances": "Không có kênh {{type}} nào được cấu hình. Nhấp vào \"+ Thêm\" để tạo một kênh.",
-        "noLogs": "Chưa có nhật ký nào",
-        "notifyReceiver": "Nhận thông báo nhiệm vụ",
-        "notifyReceiverHint": "Gửi kết quả nhiệm vụ lập lịch đến kênh này.",
-        "qq": {
-          "appId": "ID ứng dụng",
-          "appIdPlaceholder": "Nhập ID ứng dụng QQ Bot của bạn",
-          "chatIds": "ID Trò chuyện Được Phép",
-          "chatIdsHint": "Định dạng: c2c:openid, group:groupid, channel:channelid. Để trống để cho phép tất cả.",
-          "chatIdsPlaceholder": "c2c:abc123, nhóm:xyz789",
-          "clientSecret": "Bí mật khách hàng",
-          "clientSecretPlaceholder": "Nhập client secret của QQ Bot của bạn",
-          "description": "Nhận và phản hồi tin nhắn qua API chính thức của QQ Bot.",
-          "title": "QQ",
-          "whoamiTip": "💡 Mẹo: Gửi /whoami cho bot để lấy ID cuộc trò chuyện của bạn ở định dạng chính xác."
-        },
-        "security": {
-          "inheritFromAgent": "Kế thừa từ agent",
-          "permissionMode": "Chế độ Quyền của Kênh",
-          "permissionModeHint": "Ghi đè chế độ quyền của agent cho tin nhắn từ kênh này. \"Kế thừa\" sử dụng mặc định của agent."
-        },
-        "selectAgent": "Chọn một đại lý để liên kết",
-        "slack": {
-          "appToken": "Mã thông báo cấp ứng dụng",
-          "appTokenPlaceholder": "xapp-...",
-          "botToken": "Mã thông báo Bot",
-          "botTokenPlaceholder": "xoxb-...",
-          "channelIds": "ID Kênh Được Phép",
-          "channelIdsHint": "ID kênh Slack. Để trống để cho phép tất cả.",
-          "channelIdsPlaceholder": "C01234567, D89012345",
-          "description": "Nhận và phản hồi tin nhắn qua bot Slack bằng Socket Mode.",
-          "title": "Slack",
-          "whoamiTip": "💡 Mẹo: Gửi /whoami cho bot để lấy ID kênh."
-        },
-        "soulModeRequired": "Tác nhân này chưa được bật Chế độ Tự chủ. Các tính năng kênh sẽ không hoạt động. Vui lòng bật trong cài đặt tác nhân.",
-        "tab": "Kênh",
-        "telegram": {
-          "botToken": "Mã thông báo Bot",
-          "botTokenPlaceholder": "Nhập mã thông báo bot Telegram của bạn",
-          "chatIds": "ID Trò chuyện Được Phép",
-          "chatIdsHint": "Cách nhau bằng dấu phẩy. Để trống để cho phép tất cả các cuộc trò chuyện.",
-          "chatIdsPlaceholder": "123456789, 987654321",
-          "description": "Nhận và phản hồi tin nhắn qua bot Telegram bằng cách sử dụng long polling.",
-          "title": "Telegram"
-        },
-        "title": "Kênh",
-        "updateError": "Không thể cập nhật kênh",
-        "wechat": {
-          "addAccount": "Thêm Tài khoản WeChat",
-          "chatIds": "ID Người Dùng Được Phép",
-          "chatIdsHint": "Cách nhau bằng dấu phẩy. Để trống để cho phép tất cả người dùng.",
-          "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
-          "connected": "Đã đăng nhập",
-          "description": "Nhận và phản hồi tin nhắn qua WeChat bằng API iLink Bot.",
-          "disconnected": "Chưa đăng nhập",
-          "loginHint": "Lần đăng nhập đầu tiên yêu cầu quét mã QR. Một mã QR sẽ tự động xuất hiện khi kênh kết nối.",
-          "qrHint": "Mở WeChat trên điện thoại của bạn, quét mã QR để đăng nhập.",
-          "qrTitle": "Đăng nhập bằng mã QR WeChat",
-          "title": "WeChat",
-          "whoamiTip": "Mẹo: Gửi /whoami trong WeChat để lấy ID của người dùng."
-        }
+        "description": "Nhận và phản hồi tin nhắn qua bot Feishu/Lark bằng WebSocket.",
+        "domain": "Tên miền",
+        "domainFeishu": "Feishu (Trung Quốc)",
+        "domainLark": "Lark (Quốc tế)",
+        "encryptKey": "Khóa Mã Hóa",
+        "encryptKeyPlaceholder": "Nhập Khóa Mã hóa từ ứng dụng Feishu của bạn",
+        "loginHint": "Chưa cấu hình thông tin xác thực. Kích hoạt kênh để bắt đầu đăng ký mã QR hoặc nhập thủ công App ID và App Secret.",
+        "qrExpired": "Mã QR đã hết hạn. Vui lòng thử lại bằng cách chuyển đổi kênh.",
+        "qrHint": "Đang chờ quét mã QR...",
+        "qrScanHint": "Mở Feishu trên điện thoại của bạn và quét mã QR để tạo một ứng dụng bot.",
+        "qrTitle": "Đăng ký QR Feishu",
+        "title": "Feishu",
+        "verificationToken": "Mã Xác Minh",
+        "verificationTokenPlaceholder": "Nhập Mã Xác Minh từ ứng dụng Feishu của bạn"
       },
-      "heartbeat": {
-        "enabled": "Bật nhịp tim",
-        "enabledHelper": "Khi được bật và heartbeat.md tồn tại trong không gian làm việc, trình lập lịch đọc nội dung của nó và gửi đến phiên chính theo khoảng thời gian đã cấu hình.",
-        "interval": "Khoảng thời gian (phút)",
-        "intervalHelper": "Tần suất nhịp tim chạy, tính bằng phút."
+      "logs": "Nhật ký",
+      "noInstances": "Không có kênh {{type}} nào được cấu hình. Nhấp vào \"+ Thêm\" để tạo một kênh.",
+      "noLogs": "Chưa có nhật ký nào",
+      "notifyReceiver": "Nhận thông báo nhiệm vụ",
+      "notifyReceiverHint": "Gửi kết quả nhiệm vụ lập lịch đến kênh này.",
+      "qq": {
+        "appId": "ID ứng dụng",
+        "appIdPlaceholder": "Nhập ID ứng dụng QQ Bot của bạn",
+        "chatIds": "ID Trò chuyện Được Phép",
+        "chatIdsHint": "Định dạng: c2c:openid, group:groupid, channel:channelid. Để trống để cho phép tất cả.",
+        "chatIdsPlaceholder": "c2c:abc123, nhóm:xyz789",
+        "clientSecret": "Bí mật khách hàng",
+        "clientSecretPlaceholder": "Nhập client secret của QQ Bot của bạn",
+        "description": "Nhận và phản hồi tin nhắn qua API chính thức của QQ Bot.",
+        "title": "QQ",
+        "whoamiTip": "💡 Mẹo: Gửi /whoami cho bot để lấy ID cuộc trò chuyện của bạn ở định dạng chính xác."
       },
-      "sandbox": {
-        "description": "Giới hạn quyền truy cập hệ thống tập tin và mạng của tác nhân trong thư mục không gian làm việc bằng cách sử dụng cơ chế cách ly ở cấp độ hệ điều hành.",
-        "helper": "Giới hạn quyền truy cập hệ thống tập tin và lệnh chỉ trong đường dẫn không gian làm việc.",
-        "label": "Chế độ Sandbox"
+      "security": {
+        "inheritFromAgent": "Kế thừa từ agent",
+        "permissionMode": "Chế độ Quyền của Kênh",
+        "permissionModeHint": "Ghi đè chế độ quyền của agent cho tin nhắn từ kênh này. \"Kế thừa\" sử dụng mặc định của agent."
       },
-      "scheduler": {
-        "cron": {
-          "helper": "Biểu thức cron chuẩn (ví dụ, '*/30 * * * *' cho mỗi 30 phút).",
-          "label": "Biểu thức Cron",
-          "placeholder": "*/30 * * * *"
-        },
-        "description": "Bộ lập lịch kích hoạt tác nhân một cách tự động theo lịch trình.",
-        "enabled": "Bật Trình lập lịch",
-        "enabledHelper": "Khi được bật, tác nhân sẽ tự động chạy theo lịch trình đã cấu hình.",
-        "errors": {
-          "invalidCron": "Biểu thức cron không hợp lệ",
-          "invalidDelay": "Độ trễ phải là một số dương",
-          "invalidInterval": "Khoảng thời gian phải là một số dương"
-        },
-        "interval": {
-          "helper": "Thường xuyên agent chạy bao lâu một lần, tính bằng giây.",
-          "label": "Khoảng thời gian (giây)"
-        },
-        "lastRun": "Lần Chạy Cuối",
-        "never": "Không bao giờ",
-        "nextRun": "Lần chạy tiếp theo",
-        "oneTime": {
-          "helper": "Độ trễ một lần tính bằng giây trước khi tác nhân chạy.",
-          "label": "Độ trễ (giây)"
-        },
-        "status": {
-          "running": "Chạy",
-          "stopped": "Dừng lại",
-          "tickInProgress": "Đang chạy"
-        },
-        "tab": "Trình lập lịch",
-        "title": "Cấu hình Trình lập lịch",
-        "type": {
-          "cron": "Biểu thức Cron",
-          "interval": "Khoảng thời gian cố định",
-          "label": "Loại lịch trình",
-          "one-time": "Trì hoãn một lần"
-        }
+      "selectAgent": "Chọn một đại lý để liên kết",
+      "slack": {
+        "appToken": "Mã thông báo cấp ứng dụng",
+        "appTokenPlaceholder": "xapp-...",
+        "botToken": "Mã thông báo Bot",
+        "botTokenPlaceholder": "xoxb-...",
+        "channelIds": "ID Kênh Được Phép",
+        "channelIdsHint": "ID kênh Slack. Để trống để cho phép tất cả.",
+        "channelIdsPlaceholder": "C01234567, D89012345",
+        "description": "Nhận và phản hồi tin nhắn qua bot Slack bằng Socket Mode.",
+        "title": "Slack",
+        "whoamiTip": "💡 Mẹo: Gửi /whoami cho bot để lấy ID kênh."
       },
-      "soul": {
-        "description": "Tâm hồn xác định tính cách và hành vi cơ bản của tác nhân. Nó được đọc từ soul.md trong thư mục gốc của workspace.",
-        "empty": "Không tìm thấy soul.md trong thư mục gốc của workspace. Hãy tạo một file để định nghĩa tính cách của agent.",
-        "enabled": "Kích hoạt Soul",
-        "enabledHelper": "Khi được bật, tác nhân sẽ đọc soul.md từ thư mục gốc của không gian làm việc và đặt nó vào đầu lời nhắc hệ thống.",
-        "fileLabel": "tâm hồn.md",
-        "preview": "Xem trước Linh hồn",
-        "tab": "Tâm hồn",
-        "title": "Cấu hình Linh hồn"
+      "tab": "Kênh",
+      "telegram": {
+        "botToken": "Mã thông báo Bot",
+        "botTokenPlaceholder": "Nhập mã thông báo bot Telegram của bạn",
+        "chatIds": "ID Trò chuyện Được Phép",
+        "chatIdsHint": "Cách nhau bằng dấu phẩy. Để trống để cho phép tất cả các cuộc trò chuyện.",
+        "chatIdsPlaceholder": "123456789, 987654321",
+        "description": "Nhận và phản hồi tin nhắn qua bot Telegram bằng cách sử dụng long polling.",
+        "title": "Telegram"
       },
-      "tasks": {
-        "add": "Thêm Nhiệm vụ",
-        "cancel": "Hủy",
-        "channels": {
-          "label": "Gửi đến các kênh",
-          "noActiveChatIds": "Các kênh được chọn không có người nhận khả dụng (Chat ID). Kết quả tác vụ có thể không được gửi đến. Vui lòng gửi tin nhắn đến Bot trên nền tảng trước.",
-          "placeholder": "Chọn các kênh để nhận kết quả"
-        },
-        "cronPlaceholder": "ví dụ: 0 9 * * * (mỗi ngày lúc 9 giờ sáng)",
-        "delete": {
-          "confirm": "Bạn có chắc chắn muốn xóa nhiệm vụ này không?",
-          "label": "Xóa"
-        },
-        "edit": "Chỉnh sửa",
-        "empty": "Không có tác vụ nào được lên lịch. Thêm một tác vụ để bắt đầu.",
-        "error": {
-          "createFailed": "Không thể tạo tác vụ",
-          "deleteFailed": "Không xóa được tác vụ",
-          "loadFailed": "Không tải được nhiệm vụ",
-          "runFailed": "Không thể chạy tác vụ",
-          "updateFailed": "Không thể cập nhật tác vụ"
-        },
-        "frequency": {
-          "everyPrefix": "Mỗi",
-          "everySuffix": "phút",
-          "label": "Tần suất thực thi"
-        },
-        "intervalPlaceholder": "Tối thiểu 1",
-        "intervalUnit": "phút",
-        "lastRun": "Lần chạy cuối",
-        "logs": {
-          "cancelled": "Đã hủy",
-          "completed": "Hoàn thành",
-          "duration": "Thời lượng",
-          "empty": "Chưa có lịch sử chạy nào.",
-          "failed": "Thất bại",
-          "justNow": "vừa mới đây",
-          "label": "Lịch sử chạy",
-          "loadError": "Không tải được lịch sử chạy",
-          "result": "Kết quả",
-          "runAt": "Chạy tại",
-          "running": "Đang chạy...",
-          "search": "Tìm nhật ký...",
-          "status": "Trạng thái",
-          "viewSession": "Xem phiên"
-        },
-        "name": {
-          "label": "Name",
-          "placeholder": "ví dụ: Xem xét mã hàng ngày"
-        },
-        "nextRun": "Lần chạy tiếp theo",
-        "oncePlaceholder": "Chọn ngày và giờ",
-        "pause": "Tạm dừng",
-        "prompt": {
-          "expand": "Mở rộng trình chỉnh sửa",
-          "label": "Lời nhắc",
-          "placeholder": "Đại lý nên làm gì khi nhiệm vụ này chạy?"
-        },
-        "resume": "Sơ yếu lý lịch",
-        "run": "Chạy",
-        "runTriggered": "Nhiệm vụ được kích hoạt",
-        "save": "Lưu",
-        "scheduleType": {
-          "cron": "Cron",
-          "interval": "Interval",
-          "once": "Một khi"
-        },
-        "status": {
-          "active": "Hoạt động",
-          "completed": "Hoàn thành",
-          "paused": "Tạm dừng"
-        },
-        "tab": "Nhiệm vụ",
-        "time": {
-          "hoursAgo": "{{count}}h ago",
-          "minutesAgo": "{{count}} m pli frue"
-        },
-        "timeout": {
-          "label": "Thời gian thực thi tối đa",
-          "placeholder": "Keine Grenzen"
-        },
-        "title": "Các Tác Vụ Đã Lên Lịch"
-      },
-      "warning": {
-        "bypassPermissions": "Các tác nhân CherryClaw hoạt động ở chế độ Tự động hoàn toàn theo mặc định. Mọi công cụ đều thực thi mà không yêu cầu phê duyệt."
+      "title": "Kênh",
+      "updateError": "Không thể cập nhật kênh",
+      "wechat": {
+        "addAccount": "Thêm Tài khoản WeChat",
+        "chatIds": "ID Người Dùng Được Phép",
+        "chatIdsHint": "Cách nhau bằng dấu phẩy. Để trống để cho phép tất cả người dùng.",
+        "chatIdsPlaceholder": "wxid_abc123, wxid_def456",
+        "connected": "Đã đăng nhập",
+        "description": "Nhận và phản hồi tin nhắn qua WeChat bằng API iLink Bot.",
+        "disconnected": "Chưa đăng nhập",
+        "loginHint": "Lần đăng nhập đầu tiên yêu cầu quét mã QR. Một mã QR sẽ tự động xuất hiện khi kênh kết nối.",
+        "qrHint": "Mở WeChat trên điện thoại của bạn, quét mã QR để đăng nhập.",
+        "qrTitle": "Đăng nhập bằng mã QR WeChat",
+        "title": "WeChat",
+        "whoamiTip": "Mẹo: Gửi /whoami trong WeChat để lấy ID của người dùng."
       }
     },
     "delete": {
@@ -340,8 +191,8 @@
       "welcome_title": "Hôm nay chúng ta sẽ nói về điều gì?"
     },
     "input": {
-      "placeholder": "Nhập tin nhắn của bạn ở đây, gửi bằng {{key}} - @ chọn đường dẫn, / chọn lệnh",
-      "soul_placeholder": "Giúp tôi kết nối với Telegram"
+      "agent_placeholder": "Giúp tôi kết nối với Telegram",
+      "placeholder": "Nhập tin nhắn của bạn ở đây, gửi bằng {{key}} - @ chọn đường dẫn, / chọn lệnh"
     },
     "list": {
       "error": {
@@ -712,12 +563,6 @@
         "tab": "Kỹ năng",
         "title": "Kỹ năng đã cài đặt"
       },
-      "soulMode": {
-        "description": "Khi được bật, tác nhân sử dụng lời nhắc hệ thống tùy chỉnh từ các tệp soul trong không gian làm việc, chèn các công cụ quản lý tác vụ tự động và vô hiệu hóa các công cụ tương tác không phù hợp với hoạt động tự động.",
-        "disabledBadge": "Bị vô hiệu hóa bởi Chế độ Tự động",
-        "disabledTooltip": "Công cụ này sẽ tự động bị vô hiệu hóa khi Chế độ Tự động đang hoạt động",
-        "title": "Chế độ tự hành"
-      },
       "tooling": {
         "mcp": {
           "description": "Kết nối các máy chủ MCP để mở khóa các công cụ bổ sung mà bạn có thể phê duyệt ở trên.",
@@ -784,6 +629,89 @@
       }
     },
     "sidebar_title": "Đại lý",
+    "tasks": {
+      "add": "Thêm Nhiệm vụ",
+      "cancel": "Hủy",
+      "channels": {
+        "label": "Gửi đến các kênh",
+        "noActiveChatIds": "Các kênh được chọn không có người nhận khả dụng (Chat ID). Kết quả tác vụ có thể không được gửi đến. Vui lòng gửi tin nhắn đến Bot trên nền tảng trước.",
+        "placeholder": "Chọn các kênh để nhận kết quả"
+      },
+      "cronPlaceholder": "ví dụ: 0 9 * * * (mỗi ngày lúc 9 giờ sáng)",
+      "delete": {
+        "confirm": "Bạn có chắc chắn muốn xóa nhiệm vụ này không?",
+        "label": "Xóa"
+      },
+      "edit": "Chỉnh sửa",
+      "empty": "Không có tác vụ nào được lên lịch. Thêm một tác vụ để bắt đầu.",
+      "error": {
+        "createFailed": "Không thể tạo tác vụ",
+        "deleteFailed": "Không xóa được tác vụ",
+        "loadFailed": "Không tải được nhiệm vụ",
+        "runFailed": "Không thể chạy tác vụ",
+        "updateFailed": "Không thể cập nhật tác vụ"
+      },
+      "frequency": {
+        "everyPrefix": "Mỗi",
+        "everySuffix": "phút",
+        "label": "Tần suất thực thi"
+      },
+      "intervalPlaceholder": "Tối thiểu 1",
+      "intervalUnit": "phút",
+      "lastRun": "Lần chạy cuối",
+      "logs": {
+        "cancelled": "Đã hủy",
+        "completed": "Hoàn thành",
+        "duration": "Thời lượng",
+        "empty": "Chưa có lịch sử chạy nào.",
+        "failed": "Thất bại",
+        "justNow": "vừa mới đây",
+        "label": "Lịch sử chạy",
+        "loadError": "Không tải được lịch sử chạy",
+        "result": "Kết quả",
+        "runAt": "Chạy tại",
+        "running": "Đang chạy...",
+        "search": "Tìm nhật ký...",
+        "status": "Trạng thái",
+        "viewSession": "Xem phiên"
+      },
+      "name": {
+        "label": "Name",
+        "placeholder": "ví dụ: Xem xét mã hàng ngày"
+      },
+      "nextRun": "Lần chạy tiếp theo",
+      "oncePlaceholder": "Chọn ngày và giờ",
+      "pause": "Tạm dừng",
+      "prompt": {
+        "expand": "Mở rộng trình chỉnh sửa",
+        "label": "Lời nhắc",
+        "placeholder": "Đại lý nên làm gì khi nhiệm vụ này chạy?"
+      },
+      "resume": "Sơ yếu lý lịch",
+      "run": "Chạy",
+      "runTriggered": "Nhiệm vụ được kích hoạt",
+      "save": "Lưu",
+      "scheduleType": {
+        "cron": "Cron",
+        "interval": "Interval",
+        "once": "Một khi"
+      },
+      "status": {
+        "active": "Hoạt động",
+        "completed": "Hoàn thành",
+        "paused": "Tạm dừng"
+      },
+      "tab": "Nhiệm vụ",
+      "time": {
+        "hoursAgo": "{{count}}h ago",
+        "minutesAgo": "{{count}} m pli frue"
+      },
+      "timeout": {
+        "label": "Thời gian thực thi tối đa",
+        "placeholder": "Keine Grenzen"
+      },
+      "title": "Các Tác Vụ Đã Lên Lịch"
+    },
     "todo": {
       "mock": {
         "actions": {
@@ -2973,11 +2901,10 @@
             "placeholder": "Đặt tên cho đại lý"
           },
           "permission_mode": {
-            "help": "Chuyển sang bypassPermissions tương đương với việc bật chế độ Soul",
             "label": "Chế độ cấp phép",
             "option": {
               "acceptEdits": "Chấp nhận chỉnh sửa",
-              "bypassPermissions": "Bỏ qua quyền (Soul)",
+              "bypassPermissions": "Bỏ qua quyền",
               "default": "Mặc định",
               "plan": "Chế độ lập kế hoạch"
             }
@@ -2989,10 +2916,6 @@
           "small_model": {
             "hint": "Kiểm tra nhẹ và định dạng",
             "label": "Mô hình nhỏ (tùy chọn)"
-          },
-          "soul_enabled": {
-            "help": "Khi được bật, tự động cấp quyền bypassPermissions",
-            "label": "Chế độ linh hồn"
           }
         },
         "model_config": "Cấu hình mô hình",
@@ -7177,7 +7100,7 @@
     },
     "scheduledTasks": {
       "description": "Quản lý các tác vụ đã lên lịch trên tất cả các tác nhân. Các tác vụ sẽ tự động chạy theo lịch đã cấu hình.",
-      "noAgents": "Các tác vụ theo lịch trình yêu cầu các tác nhân có chế độ Soul hoặc Quyền Bypass được bật. Cập nhật cài đặt của một tác nhân để bắt đầu.",
+      "noAgents": "Không tìm thấy tác nhân nào. Hãy tạo một tác nhân trước để thêm các tác vụ theo lịch trình.",
       "noAgentsTip": "Mẹo: Bạn cũng có thể yêu cầu đại lý của mình tạo các tác vụ theo lịch trình qua trò chuyện.",
       "noTasks": "Không có tác vụ nào được lên lịch. Nhấp vào \"+ Thêm\" để tạo một tác vụ cho tác nhân.",
       "selectTask": "Chọn một nhiệm vụ để xem chi tiết",

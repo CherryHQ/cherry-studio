@@ -151,15 +151,13 @@ const ChannelLogModal: FC<{
       <DialogContent className="max-w-150">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <span>{`${channelName} — ${t('agent.cherryClaw.channels.logs')}`}</span>
+            <span>{`${channelName} — ${t('agent.channels.logs')}`}</span>
             {logs.length > 0 && <CopyButton textToCopy={logsText} size={14} />}
           </DialogTitle>
         </DialogHeader>
         <div className="max-h-100 overflow-y-auto rounded-md bg-background-subtle p-2 font-mono text-[11px] leading-[1.6]">
           {logs.length === 0 && (
-            <div className="py-8 text-center text-muted-foreground text-xs">
-              {t('agent.cherryClaw.channels.noLogs')}
-            </div>
+            <div className="py-8 text-center text-muted-foreground text-xs">{t('agent.channels.noLogs')}</div>
           )}
           {logs.map((entry, i) => (
             <div key={i} className="flex gap-2 whitespace-pre-wrap py-px">
@@ -269,10 +267,10 @@ const ChannelEditModal: FC<EditModalProps> = ({ open, channel, agents, onClose, 
                 />
               </div>
               <div>
-                <label className="mb-1 block font-medium text-xs">{t('agent.cherryClaw.channels.bindAgent')}</label>
+                <label className="mb-1 block font-medium text-xs">{t('agent.channels.bindAgent')}</label>
                 <Select value={agentId ?? NO_AGENT_VALUE} onValueChange={handleAgentChange}>
                   <SelectTrigger size="sm" className="w-full">
-                    <SelectValue placeholder={t('agent.cherryClaw.channels.selectAgent')} />
+                    <SelectValue placeholder={t('agent.channels.selectAgent')} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={NO_AGENT_VALUE}>{t('common.none')}</SelectItem>
@@ -337,7 +335,7 @@ const ChannelInstanceRow: FC<{
       statusColor = 'bg-green-500'
       statusTag = (
         <Badge className="border-success/30 bg-success/10 px-1.5 py-0 text-[10px] text-success leading-3.5">
-          {t('agent.cherryClaw.channels.connected')}
+          {t('agent.channels.connected')}
         </Badge>
       )
     } else if (hasError) {
@@ -345,7 +343,7 @@ const ChannelInstanceRow: FC<{
       statusTag = (
         <Tooltip title={hasError}>
           <Badge className="border-destructive/30 bg-destructive/10 px-1.5 py-0 text-[10px] text-destructive leading-3.5">
-            {t('agent.cherryClaw.channels.error')}
+            {t('agent.channels.error')}
           </Badge>
         </Tooltip>
       )
@@ -365,7 +363,7 @@ const ChannelInstanceRow: FC<{
           {summary}
         </div>
       </div>
-      <Tooltip title={t('agent.cherryClaw.channels.logs')}>
+      <Tooltip title={t('agent.channels.logs')}>
         <Button variant="ghost" size="icon-sm" onClick={onShowLogs}>
           <FileText className="size-4" />
         </Button>
@@ -387,7 +385,7 @@ const ChannelInstanceRow: FC<{
       <ConfirmDialog
         open={deleteConfirmOpen}
         onOpenChange={setDeleteConfirmOpen}
-        title={t('agent.cherryClaw.channels.deleteConfirm', { name: channel.name })}
+        title={t('agent.channels.deleteConfirm', { name: channel.name })}
         confirmText={t('common.confirm')}
         cancelText={t('common.cancel')}
         destructive
@@ -533,12 +531,12 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
               <span className="truncate">{channelDef.name}</span>
             </SettingTitle>
             <p className="mt-1.5 mb-0 text-foreground-muted text-xs">
-              {channelDef.available ? t(channelDef.description) : t('agent.cherryClaw.channels.comingSoon')}
+              {channelDef.available ? t(channelDef.description) : t('agent.channels.comingSoon')}
             </p>
           </div>
           <Button size="sm" disabled={!channelDef.available} variant="outline" onClick={handleAdd}>
             <Plus className="size-4" />
-            {t('agent.cherryClaw.channels.add')}
+            {t('agent.channels.add')}
           </Button>
         </div>
         <SettingDivider className="m-0 mt-2" />
@@ -547,7 +545,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
             <EmptyState
               compact
               preset="no-resource"
-              description={t('agent.cherryClaw.channels.noInstances', { type: channelDef.name })}
+              description={t('agent.channels.noInstances', { type: channelDef.name })}
               className="py-8"
             />
           )}

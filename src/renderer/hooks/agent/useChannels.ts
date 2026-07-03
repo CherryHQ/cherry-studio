@@ -29,7 +29,7 @@ export const useChannels = (type?: AgentChannelType) => {
         return await createTrigger({ body: channelData })
       } catch (err) {
         logger.error('Failed to create channel', err as Error)
-        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.cherryClaw.channels.createError')))
+        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.channels.createError')))
         return null
       }
     },
@@ -45,7 +45,7 @@ export const useChannels = (type?: AgentChannelType) => {
         return await updateTrigger({ params: { channelId: id }, body: updates as never })
       } catch (err) {
         logger.error('Failed to update channel', err as Error)
-        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.cherryClaw.channels.updateError')))
+        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.channels.updateError')))
         return null
       }
     },
@@ -61,7 +61,7 @@ export const useChannels = (type?: AgentChannelType) => {
         await deleteTrigger({ params: { channelId: id } })
       } catch (err) {
         logger.error('Failed to delete channel', err as Error)
-        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.cherryClaw.channels.deleteError')))
+        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.channels.deleteError')))
       }
     },
     [deleteTrigger, t]
