@@ -180,7 +180,7 @@ describe('useResourceLibrary model display names', () => {
     })
     const skill = result.current.allResources.find((resource) => resource.type === 'skill')
 
-    expect(skill?.tags).toEqual([])
+    expect(skill?.tag).toBeUndefined()
   })
 
   it('passes skill search to the backend and ignores activeTag', () => {
@@ -277,8 +277,7 @@ describe('useResourceLibrary model display names', () => {
         type: 'prompt',
         name: '日报模板',
         description: '今日完成 ${task}',
-        avatar: 'Aa',
-        tags: []
+        avatar: 'Aa'
       }
     ])
   })

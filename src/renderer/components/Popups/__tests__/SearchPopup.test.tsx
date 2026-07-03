@@ -51,15 +51,23 @@ vi.mock('@cherrystudio/ui', async () => {
       ) : null,
     DialogContent: ({
       children,
+      className,
       closeOnOverlayClick,
+      overlayClassName,
       overlayProps
-    }: PropsWithChildren<{ closeOnOverlayClick?: boolean; overlayProps?: ComponentProps<'div'> }>) => {
+    }: PropsWithChildren<{
+      className?: string
+      closeOnOverlayClick?: boolean
+      overlayClassName?: string
+      overlayProps?: ComponentProps<'div'>
+    }>) => {
       const context = React.use(DialogContext)
 
       return (
         <>
           <div
             data-testid="dialog-overlay"
+            className={overlayClassName}
             {...overlayProps}
             onClick={(event) => {
               overlayProps?.onClick?.(event)
@@ -69,7 +77,9 @@ vi.mock('@cherrystudio/ui', async () => {
               }
             }}
           />
-          <div data-testid="dialog-content">{children}</div>
+          <div data-testid="dialog-content" className={className}>
+            {children}
+          </div>
         </>
       )
     },
@@ -116,5 +126,16 @@ describe('SearchPopup', () => {
     await waitFor(() => {
       expect(screen.queryByLabelText('Search input')).not.toBeInTheDocument()
     })
+  })
+
+  it('renders above chat shell overlays', () => {
+    mocks.show.mockImplementation((element: ReactElement) => {
+      render(element)
+    })
+
+    void SearchPopup.show()
+
+    expect(screen.getByTestId('dialog-overlay')).toHaveClass('z-1001')
+    expect(screen.getByTestId('dialog-content')).toHaveClass('z-1001')
   })
 })

@@ -60,6 +60,38 @@ function validateKnowledgeBaseConfig(config: {
   return fieldErrors
 }
 
+// Vector and hybrid retrieval need an embedding model; without one a base is
+// BM25-only and cannot run a non-bm25 search mode. Mirrors the `completed`-only
+// gate in `KnowledgeBaseSchema.superRefine`: a failed base's leftover searchMode
+// isn't governed by this invariant until it goes through restore, so callers
+// must only apply it to a base that is (or will become) completed. Only
+// update() calls this: create() always coerces searchMode to 'bm25' up front
+// when there is no model, so the invariant already holds by construction there.
+function validateSearchModeNeedsEmbedding(
+  embeddingModelId: string | null,
+  searchMode: string | null | undefined
+): Record<string, string[]> {
+  if (embeddingModelId == null && searchMode != null && searchMode !== 'bm25') {
+    return { searchMode: ['A knowledge base without an embedding model can only use bm25 search'] }
+  }
+  return {}
+}
+
+// The vector arm of the DB CHECK requires a positive dimensions alongside the model;
+// a no-model base always persists a null dimensions regardless of what is passed. The
+// IPC boundary already rejects a model without dimensions via CreateKnowledgeBaseSchema's
+// refine, so this guards internal callers (e.g. restoreBase) that build a DTO directly,
+// before the write reaches the DB CHECK as an untranslated constraint violation.
+function validateDimensionsForEmbeddingModel(
+  embeddingModelId: string | null,
+  dimensions: number | null | undefined
+): Record<string, string[]> {
+  if (embeddingModelId != null && !(typeof dimensions === 'number' && Number.isInteger(dimensions) && dimensions > 0)) {
+    return { dimensions: ['A knowledge base with an embedding model requires positive dimensions'] }
+  }
+  return {}
+}
+
 function rowToKnowledgeBase(row: KnowledgeBaseRow): KnowledgeBase {
   const clean = nullsToUndefined(row)
   return KnowledgeBaseSchema.parse({
@@ -179,15 +211,25 @@ export class KnowledgeBaseService {
   }
 
   create(dto: CreateKnowledgeBaseDto): KnowledgeBase {
+    // An embedding model is optional. Without one the base is BM25-only: it stores
+    // no dimensions and is forced to lexical search regardless of any requested mode.
+    const embeddingModelId = dto.embeddingModelId?.trim() || null
+    const usesEmbeddings = embeddingModelId !== null
     const createConfig = {
       chunkSize: dto.chunkSize ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
       chunkOverlap: dto.chunkOverlap ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
       chunkStrategy: dto.chunkStrategy ?? DEFAULT_KNOWLEDGE_CHUNK_STRATEGY,
       chunkSeparator: dto.chunkSeparator ?? DEFAULT_KNOWLEDGE_CHUNK_SEPARATOR,
-      searchMode: dto.searchMode ?? DEFAULT_KNOWLEDGE_SEARCH_MODE,
-      hybridAlpha: dto.hybridAlpha
+      searchMode: usesEmbeddings ? (dto.searchMode ?? DEFAULT_KNOWLEDGE_SEARCH_MODE) : 'bm25',
+      hybridAlpha: usesEmbeddings ? dto.hybridAlpha : undefined
     }
-    const createFieldErrors = validateKnowledgeBaseConfig(createConfig)
+    const createFieldErrors = {
+      // Validated against the raw dto.hybridAlpha, not the coerced createConfig value
+      // below, so an explicit hybridAlpha on a no-model base is rejected instead of
+      // silently discarded — create() and update() reject the same input shape.
+      ...validateKnowledgeBaseConfig({ ...createConfig, hybridAlpha: dto.hybridAlpha }),
+      ...validateDimensionsForEmbeddingModel(embeddingModelId, dto.dimensions)
+    }
     if (Object.keys(createFieldErrors).length > 0) {
       throw DataApiErrorFactory.validation(createFieldErrors)
     }
@@ -195,8 +237,8 @@ export class KnowledgeBaseService {
     const createValues: Omit<typeof knowledgeBaseTable.$inferInsert, 'id' | 'createdAt' | 'updatedAt'> = {
       name: dto.name.trim(),
       groupId: dto.groupId ?? null,
-      dimensions: dto.dimensions,
-      embeddingModelId: dto.embeddingModelId.trim(),
+      dimensions: usesEmbeddings ? (dto.dimensions ?? null) : null,
+      embeddingModelId,
       status: DEFAULT_KNOWLEDGE_BASE_STATUS,
       error: null,
       rerankModelId: dto.rerankModelId ?? null,
@@ -241,7 +283,16 @@ export class KnowledgeBaseService {
       nextConfig.hybridAlpha = null
     }
 
-    const updateFieldErrors = validateKnowledgeBaseConfig(nextConfig)
+    // Only a completed base is governed by the no-model=>bm25 invariant (mirrors
+    // KnowledgeBaseSchema.superRefine's own completed-only gate): a failed base
+    // may carry a leftover incompatible searchMode from before it failed/migrated,
+    // and metadata-only updates (rename, move group) must not be blocked by it.
+    const updateFieldErrors = {
+      ...validateKnowledgeBaseConfig(nextConfig),
+      ...(existing.status === 'completed'
+        ? validateSearchModeNeedsEmbedding(existing.embeddingModelId, nextConfig.searchMode)
+        : {})
+    }
     if (Object.keys(updateFieldErrors).length > 0) {
       throw DataApiErrorFactory.validation(updateFieldErrors)
     }
