@@ -35,16 +35,3 @@ You may freely: answer questions, provide information, explain code, perform rea
 export const REPORT_ARTIFACTS_PROMPT = `## Reporting deliverables
 
 When you finish producing the file(s) the user asked for, call the \`report_artifacts\` tool once with the final file path(s) and a one-line summary. List only the final deliverables — never intermediate, scratch, or temporary files. Skip the call entirely if the task produced no files.`
-
-/** Tools not suited for autonomous agent operation — disabled for all agents */
-export const AGENT_DISALLOWED_TOOLS = [
-  'CronCreate',
-  'CronDelete',
-  'CronList',
-  'TodoWrite',
-  'AskUserQuestion',
-  'EnterPlanMode',
-  'ExitPlanMode',
-  'EnterWorktree',
-  'NotebookEdit'
-] as const

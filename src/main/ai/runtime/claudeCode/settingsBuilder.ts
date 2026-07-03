@@ -54,11 +54,7 @@ import { autoDiscoverGitBash } from '@main/utils/commandResolver'
 import { getPathStatus, type PathStatus } from '@main/utils/file'
 import { rtkRewrite } from '@main/utils/rtk'
 import { getShellEnv } from '@main/utils/shellEnv'
-import {
-  AGENT_DISALLOWED_TOOLS,
-  CHANNEL_SECURITY_PROMPT,
-  REPORT_ARTIFACTS_PROMPT
-} from '@shared/ai/claudecode/constants'
+import { CHANNEL_SECURITY_PROMPT, REPORT_ARTIFACTS_PROMPT } from '@shared/ai/claudecode/constants'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -820,7 +816,7 @@ async function buildToolPermissions(
     disallowedTools: [
       ...new Set([
         ...resolveDisallowedTools({ disabledTools: agent.disabledTools }, conditionContext),
-        ...AGENT_DISALLOWED_TOOLS
+        ...(isAssistant ? ['AskUserQuestion'] : [])
       ])
     ],
     toolPolicySnapshot

@@ -393,7 +393,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(new Set(disallowed).size).toBe(disallowed.length)
   })
 
-  it('adds AGENT_DISALLOWED_TOOLS to disallowedTools for every agent', async () => {
+  it('leaves interactive tools available for plain agents (only registry-disabled tools blocked)', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
@@ -412,9 +412,11 @@ describe('buildClaudeCodeSessionSettings', () => {
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
     const disallowed = settings.disallowedTools ?? []
 
-    expect(disallowed).toEqual(
-      expect.arrayContaining(['CronCreate', 'EnterPlanMode', 'AskUserQuestion', 'NotebookEdit'])
-    )
+    // Interactive tools are no longer blanket-disabled now that the soul-mode overlay is gone.
+    expect(disallowed).not.toEqual(expect.arrayContaining(['AskUserQuestion']))
+    expect(disallowed).not.toEqual(expect.arrayContaining(['EnterPlanMode']))
+    // Tools classified `disabled` in the declarative registry stay blocked.
+    expect(disallowed).toEqual(expect.arrayContaining(['CronCreate', 'NotebookEdit', 'TodoWrite']))
     expect(new Set(disallowed).size).toBe(disallowed.length)
   })
 
