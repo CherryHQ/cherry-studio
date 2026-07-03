@@ -1,3 +1,5 @@
+import type { FileRefSourceType } from '@shared/data/types/file/ref'
+
 // Backup neutral layer — global exclusion-set constants.
 //
 // These are global (non-domain-specific) table-exclusion sets, NOT domain business
@@ -37,3 +39,14 @@ export const ALWAYS_STRIP_TABLES: ReadonlySet<string> = new Set<string>([
  *   migrate-forward can detect producer migration position and apply only the delta.
  */
 export const INFRASTRUCTURE_TABLES: ReadonlySet<string> = new Set<string>(['__drizzle_migrations'])
+
+/**
+ * FileRef sourceTypes that are runtime-only (in-memory, no DB rows to back up) —
+ * excluded from the backup universe. finalize invariant #11 treats these as
+ * covered (runtime-only-exclude, contributor-spec §11) so they need no
+ * contributor owner.
+ *
+ * - temp_session: runtime temp-session refs live in CacheService (no table) —
+ *   architecture L193 "temp_session ref 变纯内存" + L283 "excluded（runtime）".
+ */
+export const RUNTIME_EXCLUDED_FILE_REF_SOURCES: readonly FileRefSourceType[] = ['temp_session']
