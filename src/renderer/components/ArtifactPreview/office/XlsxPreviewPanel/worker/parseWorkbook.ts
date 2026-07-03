@@ -65,15 +65,10 @@ function isErrorValue(value: unknown): value is ErrorCellValue {
 }
 
 /**
- * ExcelJS 的 `WorksheetModel` 类型声明未包含 `rows`/`cols`(见 index.d.ts),但运行时
- * `worksheet.model.rows`/`.cols` 确有输出(稀疏,仅含非默认行/列定义)。这里补充本地类型
+ * ExcelJS 的 `WorksheetModel` 类型声明未包含 `cols`(见 index.d.ts),但运行时
+ * `worksheet.model.cols` 确有输出(稀疏,仅含非默认列定义)。这里补充本地类型
  * 覆盖实际使用面,避免用 `any`。
  */
-interface WorksheetModelRow {
-  number?: number
-  height?: number
-  hidden?: boolean
-}
 interface WorksheetModelCol {
   min?: number
   max?: number
@@ -81,8 +76,17 @@ interface WorksheetModelCol {
   hidden?: boolean
 }
 interface WorksheetModelWithLayout {
-  rows?: WorksheetModelRow[]
   cols?: WorksheetModelCol[]
+}
+
+/**
+ * 行定义必须直接读 Worksheet 私有 `_rows` 上的 Row 对象:公开的 `worksheet.model.rows`
+ * 走 Row.model getter 重新序列化,对「无单元格且无高度」的行(如 `<row r="7" hidden="1"/>`
+ * 空隐藏行)返回 null 整行丢弃,导致隐藏行按默认行高显示出来。load 路径在 Row 对象上保留了
+ * 完整行属性(仅 `ht="0"` 因 falsy 判断不可恢复;Excel 对隐藏行总会写 hidden 标记,可忽略)。
+ */
+interface WorksheetWithInternalRows {
+  _rows?: ({ number: number; height?: number; hidden?: boolean } | null | undefined)[]
 }
 
 /**
@@ -508,17 +512,26 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
       }
     }
 
+    // 每 sheet 自定义默认行高/列宽(sheetFormatPr);属性缺失时 ExcelJS 可能给 0,回退全局默认
+    const sheetProps = worksheet.properties
+    const defaultRowHeightPx = sheetProps?.defaultRowHeight
+      ? ptToPx(sheetProps.defaultRowHeight)
+      : DEFAULT_ROW_HEIGHT_PX
+    const defaultColWidthPx = sheetProps?.defaultColWidth
+      ? charWidthToPx(sheetProps.defaultColWidth)
+      : DEFAULT_COL_WIDTH_PX
+
     // 行高列宽(稀疏)
     const rowHeightsPx: Record<number, number> = {}
     const colWidthsPx: Record<number, number> = {}
     const worksheetModel = worksheet.model as ExcelJS.WorksheetModel & WorksheetModelWithLayout
 
-    for (const rowModel of worksheetModel.rows ?? []) {
-      if (rowModel.number === undefined) continue
-      if (rowModel.hidden) {
-        rowHeightsPx[rowModel.number] = 0
-      } else if (rowModel.height !== undefined) {
-        rowHeightsPx[rowModel.number] = ptToPx(rowModel.height)
+    for (const row of (worksheet as unknown as WorksheetWithInternalRows)._rows ?? []) {
+      if (!row) continue
+      if (row.hidden) {
+        rowHeightsPx[row.number] = 0
+      } else if (row.height !== undefined) {
+        rowHeightsPx[row.number] = ptToPx(row.height)
       }
     }
 
@@ -539,14 +552,14 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
     const colX = (col: number): number => {
       let x = 0
       for (let c = 1; c < col; c++) {
-        x += colWidthsPx[c] ?? DEFAULT_COL_WIDTH_PX
+        x += colWidthsPx[c] ?? defaultColWidthPx
       }
       return x
     }
     const rowY = (row: number): number => {
       let y = 0
       for (let r = 1; r < row; r++) {
-        y += rowHeightsPx[r] ?? DEFAULT_ROW_HEIGHT_PX
+        y += rowHeightsPx[r] ?? defaultRowHeightPx
       }
       return y
     }
@@ -609,8 +622,8 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
       hidden: worksheet.state === 'hidden' || worksheet.state === 'veryHidden',
       rowCount,
       colCount,
-      defaultRowHeightPx: DEFAULT_ROW_HEIGHT_PX,
-      defaultColWidthPx: DEFAULT_COL_WIDTH_PX,
+      defaultRowHeightPx,
+      defaultColWidthPx,
       rowHeightsPx,
       colWidthsPx,
       cells,
@@ -684,14 +697,14 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
       colX(col: number) {
         let x = 0
         for (let c = 1; c < col; c++) {
-          x += sheetModel.colWidthsPx[c] ?? DEFAULT_COL_WIDTH_PX
+          x += sheetModel.colWidthsPx[c] ?? sheetModel.defaultColWidthPx
         }
         return x
       },
       rowY(row: number) {
         let y = 0
         for (let r = 1; r < row; r++) {
-          y += sheetModel.rowHeightsPx[r] ?? DEFAULT_ROW_HEIGHT_PX
+          y += sheetModel.rowHeightsPx[r] ?? sheetModel.defaultRowHeightPx
         }
         return y
       }

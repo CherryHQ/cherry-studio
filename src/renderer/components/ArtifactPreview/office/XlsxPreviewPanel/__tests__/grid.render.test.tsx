@@ -347,6 +347,53 @@ describe('XlsxGrid — cell selection', () => {
   })
 })
 
+describe('XlsxGrid — selected cell overlay', () => {
+  beforeEach(() => {
+    showHeaderRange()
+  })
+
+  it('shows an absolutely positioned overlay with the full text when a cell is clicked', () => {
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+
+    expect(screen.queryByTestId('xlsx-grid-selected-overlay')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByText('季度'))
+
+    const overlay = screen.getByTestId('xlsx-grid-selected-overlay')
+    expect(overlay).toHaveTextContent('季度')
+    // A2 rect: col A at x=0 (110px wide), row 2 at y=36 (20px tall). The overlay is at least the
+    // cell rect and absolutely positioned — it overlays neighbours instead of pushing the layout.
+    expect(overlay).toHaveStyle({
+      position: 'absolute',
+      top: '36px',
+      left: '0px',
+      minWidth: '110px',
+      minHeight: '20px'
+    })
+  })
+
+  it('covers the whole merge rect when the selection is a merge master', () => {
+    showTitleMergeRange()
+    const { container } = render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    setScrollViewport(container)
+
+    fireEvent.click(screen.getByTestId('xlsx-grid-merge-cell'))
+
+    const overlay = screen.getByTestId('xlsx-grid-selected-overlay')
+    expect(overlay).toHaveTextContent('2026 年度销售汇总')
+    expect(overlay).toHaveStyle({ minWidth: '302px', minHeight: '36px' })
+  })
+
+  it('removes the overlay when the selection is cleared with Escape', () => {
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+
+    fireEvent.click(screen.getByText('季度'))
+    expect(screen.getByTestId('xlsx-grid-selected-overlay')).toBeInTheDocument()
+
+    fireEvent.keyDown(screen.getByTestId('xlsx-grid-scroll'), { key: 'Escape' })
+    expect(screen.queryByTestId('xlsx-grid-selected-overlay')).not.toBeInTheDocument()
+  })
+})
+
 describe('XlsxGrid — floating layer', () => {
   it('renders a floating image at its scaled position with the resolved object URL', () => {
     setRangeFromCounts(

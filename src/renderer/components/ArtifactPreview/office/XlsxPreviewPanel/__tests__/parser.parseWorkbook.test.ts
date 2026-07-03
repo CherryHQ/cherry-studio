@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs'
+import JSZip from 'jszip'
 import { beforeAll, describe, expect, it } from 'vitest'
 
 import type { CellStyle, WorkbookRenderModel } from '../renderModel'
@@ -206,6 +207,44 @@ describe('parseWorkbook — merges, row/col sizing, hidden', () => {
 
   it('hidden column width is 0', () => {
     expect(model.sheets[0].colWidthsPx[5]).toBe(0)
+  })
+})
+
+describe('parseWorkbook — per-sheet defaults + cell-less row definitions', () => {
+  let model: WorkbookRenderModel
+
+  beforeAll(async () => {
+    const wb = new ExcelJS.Workbook()
+    const ws = wb.addWorksheet('S1', { properties: { defaultRowHeight: 30, defaultColWidth: 16 } })
+    ws.getCell('A1').value = 'x'
+    const buffer = await toArrayBuffer(wb)
+
+    // ExcelJS 写文件时丢弃「无单元格且无高度」的行定义(Row.model 返回 null),这类行
+    // 只会出自其他生成器——用 JSZip 注入原始 XML 还原真实场景。
+    const zip = await JSZip.loadAsync(buffer)
+    const sheetPath = 'xl/worksheets/sheet1.xml'
+    const sheetXml = await zip.file(sheetPath)!.async('string')
+    zip.file(
+      sheetPath,
+      sheetXml.replace('</sheetData>', '<row r="7" hidden="1"/><row r="8" ht="30" customHeight="1"/></sheetData>')
+    )
+    model = await parseWorkbook(await zip.generateAsync({ type: 'arraybuffer' }), 'defaults.xlsx')
+  })
+
+  it('reads sheetFormatPr defaultRowHeight into defaultRowHeightPx (pt -> px)', () => {
+    expect(model.sheets[0].defaultRowHeightPx).toBeCloseTo((30 * 96) / 72)
+  })
+
+  it('reads sheetFormatPr defaultColWidth into defaultColWidthPx (chars -> px)', () => {
+    expect(model.sheets[0].defaultColWidthPx).toBe(Math.round(16 * 7) + 5)
+  })
+
+  it('keeps a hidden row definition that has no cells (height 0)', () => {
+    expect(model.sheets[0].rowHeightsPx[7]).toBe(0)
+  })
+
+  it('keeps a custom-height row definition that has no cells', () => {
+    expect(model.sheets[0].rowHeightsPx[8]).toBeCloseTo((30 * 96) / 72)
   })
 })
 

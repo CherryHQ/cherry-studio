@@ -4,10 +4,13 @@ import {
   axisOffset,
   buildAxisLayout,
   DEFAULT_FONT_SIZE_PX,
+  DEFAULT_ROW_HEIGHT_PX,
   findCoveringMerge,
   mergeRectPx,
   mergesInView,
-  scaledFontSizePx
+  scaledFontSizePx,
+  WRAP_LINE_HEIGHT,
+  wrapClampLines
 } from '../gridLayout'
 
 describe('buildAxisLayout', () => {
@@ -160,5 +163,22 @@ describe('scaledFontSizePx', () => {
 
   it('scales the default font size by the zoom factor too', () => {
     expect(scaledFontSizePx(undefined, 2)).toBeCloseTo(DEFAULT_FONT_SIZE_PX * 2)
+  })
+})
+
+describe('wrapClampLines', () => {
+  it('fits exactly one line in a default-height row at the default font size', () => {
+    expect(wrapClampLines(DEFAULT_ROW_HEIGHT_PX, DEFAULT_FONT_SIZE_PX)).toBe(1)
+  })
+
+  it('only counts whole lines that fully fit the cell height', () => {
+    // 40px / (14.67px * 1.3 ≈ 19.07px per line) ≈ 2.1 → 2 whole lines
+    expect(wrapClampLines(40, DEFAULT_FONT_SIZE_PX)).toBe(2)
+    expect(wrapClampLines(3 * DEFAULT_FONT_SIZE_PX * WRAP_LINE_HEIGHT, DEFAULT_FONT_SIZE_PX)).toBe(3)
+  })
+
+  it('never returns less than one line, even for rows shorter than a line', () => {
+    expect(wrapClampLines(5, DEFAULT_FONT_SIZE_PX)).toBe(1)
+    expect(wrapClampLines(0, DEFAULT_FONT_SIZE_PX)).toBe(1)
   })
 })

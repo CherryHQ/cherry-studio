@@ -5,12 +5,17 @@ import { useTranslation } from 'react-i18next'
 
 import {
   type AxisLayout,
+  axisOffset,
   buildAxisLayout,
   cellAddress,
   colName,
+  mergeRectPx,
   mergesInView,
+  type PxRectLike,
   scaledFontSizePx,
-  type ViewportRect
+  type ViewportRect,
+  WRAP_LINE_HEIGHT,
+  wrapClampLines
 } from './gridLayout'
 import type { BorderEdge, CellRenderModel, CellStyle, ChartModel, SheetRenderModel } from './renderModel'
 
@@ -42,6 +47,8 @@ const EXTRA_ROWS = 20
 const EXTRA_COLS = 5
 /** 默认(未设置边框时)网格线,跟随 DESIGN.md 的边框语义 token */
 const DEFAULT_GRID_LINE = '0.5px solid var(--color-border)'
+/** 选中格弹层的内容最大宽度(px,zoom=1),超出按此宽度换行 */
+const SELECTED_OVERLAY_MAX_WIDTH_PX = 480
 
 /** 单元格内容默认对齐:数字右对齐,布尔/错误居中,其余左对齐(CellStyle.hAlign 未设置时的规则) */
 const defaultHAlign = (cell: CellRenderModel): 'left' | 'center' | 'right' => {
@@ -121,22 +128,35 @@ interface CellViewProps {
   /** 首行/首列补画 top/left 网格线,避免相邻格重叠加粗(见 05 文档) */
   isFirstRow: boolean
   isFirstCol: boolean
-  selected: boolean
   positionStyle: React.CSSProperties
 }
 
+/** 单元格文本 span 的 inline style:超链接着色 + wrap 格按整行裁剪(避免半行乱码) */
+const cellTextStyle = (cell: CellRenderModel, clampLines: number | undefined): React.CSSProperties | undefined => {
+  if (!cell.hyperlink && !clampLines) return undefined
+  return {
+    ...(cell.hyperlink ? { color: 'var(--color-primary)', textDecoration: 'underline' } : undefined),
+    ...(clampLines
+      ? {
+          display: '-webkit-box',
+          WebkitBoxOrient: 'vertical' as const,
+          WebkitLineClamp: clampLines,
+          overflow: 'hidden',
+          lineHeight: WRAP_LINE_HEIGHT
+        }
+      : undefined)
+  }
+}
+
 /** 普通/合并单元格共用的渲染体。合并覆盖但非 master 的单元格由调用方传入 cell=undefined 只保留背景。 */
-const CellView = memo(function CellView({
-  cell,
-  style,
-  zoom,
-  isFirstRow,
-  isFirstCol,
-  selected,
-  positionStyle
-}: CellViewProps) {
+const CellView = memo(function CellView({ cell, style, zoom, isFirstRow, isFirstCol, positionStyle }: CellViewProps) {
   const css = cellStyleToCss(style, zoom)
   const hAlign = style?.hAlign ?? (cell ? defaultHAlign(cell) : 'left')
+  // wrap 格:格高放不下全部换行内容时只显示放得下的整行(默认行高即一行),完整内容由选中弹层展示
+  const clampLines =
+    style?.wrap && typeof positionStyle.height === 'number'
+      ? wrapClampLines(positionStyle.height, css.fontSize as number)
+      : undefined
 
   const finalCss: React.CSSProperties = {
     ...positionStyle,
@@ -153,19 +173,67 @@ const CellView = memo(function CellView({
   }
 
   return (
-    <div
-      className={cn('absolute px-1 text-foreground text-sm', selected && 'z-10 outline outline-primary')}
-      style={finalCss}>
+    <div className="absolute px-1 text-foreground text-sm" style={finalCss}>
       {cell && (
         <span
           className={cn(cell.formulaState === 'unevaluated' && 'text-foreground-muted italic')}
-          style={cell.hyperlink ? { color: 'var(--color-primary)', textDecoration: 'underline' } : undefined}>
+          style={cellTextStyle(cell, clampLines)}>
           {cell.text}
         </span>
       )}
     </div>
   )
 })
+
+interface SelectedCellOverlayProps {
+  cell: CellRenderModel | undefined
+  style: CellStyle | undefined
+  zoom: number
+  /** 被选中单元格(或其合并区)的像素矩形,相对网格原点 */
+  rect: PxRectLike
+}
+
+/**
+ * 选中格弹层:在原格位置覆盖展示完整内容(被格高/格宽裁剪的文本全部可见),
+ * 绝对定位浮于网格之上,只遮挡不挤压——网格布局不因选中而变化。
+ */
+const SelectedCellOverlay = ({ cell, style, zoom, rect }: SelectedCellOverlayProps) => {
+  const css = cellStyleToCss(style, zoom)
+  const hAlign = style?.hAlign ?? (cell ? defaultHAlign(cell) : 'left')
+
+  const finalCss: React.CSSProperties = {
+    ...css,
+    position: 'absolute',
+    top: rect.y,
+    left: rect.x,
+    minWidth: rect.width,
+    minHeight: rect.height,
+    maxWidth: SELECTED_OVERLAY_MAX_WIDTH_PX * zoom,
+    width: 'max-content',
+    display: 'flex',
+    justifyContent: css.justifyContent ?? H_ALIGN_TO_JUSTIFY[hAlign],
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word',
+    lineHeight: WRAP_LINE_HEIGHT,
+    boxSizing: 'border-box',
+    backgroundColor: css.backgroundColor ?? 'var(--color-background)'
+  }
+
+  return (
+    <div
+      data-testid="xlsx-grid-selected-overlay"
+      className="z-10 px-1 text-foreground text-sm shadow-md outline outline-primary"
+      style={finalCss}>
+      {cell && (
+        <span
+          className={cn(cell.formulaState === 'unevaluated' && 'text-foreground-muted italic')}
+          style={cellTextStyle(cell, undefined)}>
+          {cell.text}
+        </span>
+      )}
+    </div>
+  )
+}
 
 interface UnsupportedChartPlaceholderProps {
   chart: ChartModel
@@ -304,6 +372,19 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
     onSelectCell?.(null)
   }, [onSelectCell])
 
+  // 选中格(或其合并区)的像素矩形,供弹层定位;selected 恒为 master(见 selectCell)
+  const selectedRect = useMemo(() => {
+    if (!selected) return null
+    const merge = findMerge(selected.row, selected.col)
+    if (merge) return mergeRectPx(merge, rowLayout, colLayout)
+    return {
+      x: axisOffset(colLayout, selected.col - 1),
+      y: axisOffset(rowLayout, selected.row - 1),
+      width: colLayout.sizes[selected.col - 1] ?? 0,
+      height: rowLayout.sizes[selected.row - 1] ?? 0
+    }
+  }, [selected, findMerge, rowLayout, colLayout])
+
   const totalWidth = colLayout.totalSize + rowHeaderWidth
   const totalHeight = rowLayout.totalSize + colHeaderHeight
 
@@ -372,7 +453,6 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
                     zoom={zoom}
                     isFirstRow={row === 1}
                     isFirstCol={col === 1}
-                    selected={isSelected}
                     positionStyle={{
                       position: 'absolute',
                       top: vr.start,
@@ -406,7 +486,6 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
                   zoom={zoom}
                   isFirstRow={masterRow === 1}
                   isFirstCol={masterCol === 1}
-                  selected={isSelected}
                   positionStyle={{
                     position: 'absolute',
                     top: rect.y,
@@ -463,6 +542,18 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
             )
           })}
         </div>
+
+        {/* 选中格弹层:覆盖展示完整内容,DOM 序在最后、z-10 低于 sticky 表头(z-20) */}
+        {selected && selectedRect && (
+          <div className="absolute" style={{ top: colHeaderHeight, left: rowHeaderWidth }}>
+            <SelectedCellOverlay
+              cell={getCell(selected.row, selected.col)}
+              style={getStyle(getCell(selected.row, selected.col))}
+              zoom={zoom}
+              rect={selectedRect}
+            />
+          </div>
+        )}
       </div>
     </div>
   )

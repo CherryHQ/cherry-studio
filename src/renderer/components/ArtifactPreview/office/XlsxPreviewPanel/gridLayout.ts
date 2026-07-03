@@ -157,3 +157,14 @@ export const DEFAULT_FONT_SIZE_PX = ptToPx(11)
 /** 字号(px,zoom=1)按 zoom 缩放 */
 export const scaledFontSizePx = (fontSizePx: number | undefined, zoom: number): number =>
   (fontSizePx ?? DEFAULT_FONT_SIZE_PX) * zoom
+
+/** wrap 单元格文本的行高系数(无量纲,乘字号) */
+export const WRAP_LINE_HEIGHT = 1.3
+
+/**
+ * wrap 单元格在给定格高内能完整容纳的文本行数(至少 1)。
+ * 用于按整行裁剪(-webkit-line-clamp):行高不足以放下全部换行内容时,
+ * 只显示放得下的整行,避免最后一行被水平切成上下两半的乱码观感。
+ */
+export const wrapClampLines = (cellHeightPx: number, fontSizePx: number): number =>
+  Math.max(1, Math.floor(cellHeightPx / (fontSizePx * WRAP_LINE_HEIGHT)))
