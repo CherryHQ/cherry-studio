@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { deepFreeze } from '../freeze'
+import { deepFreeze, frozenMap } from '../freeze'
 
 // deepFreeze freezes contributor constant object graphs at module load. These tests
 // pin the edge cases documented in freeze.ts: primitives pass through, plain graphs are
@@ -100,5 +100,58 @@ describe('deepFreeze', () => {
     Object.freeze(root)
     deepFreeze(root)
     expect(Object.isFrozen(root.child)).toBe(true)
+  })
+})
+
+// frozenMap wraps a Map in a Proxy that throws on mutating methods (set/delete/clear)
+// while keeping reads transparent. Used by ReadonlyBackupRegistryImpl for invariant #17.
+
+describe('frozenMap', () => {
+  it('read methods (get/has/size/entries/keys/values) stay transparent', () => {
+    const frozen = frozenMap(new Map([['k', 1]]))
+    expect(frozen.get('k')).toBe(1)
+    expect(frozen.has('k')).toBe(true)
+    expect(frozen.size).toBe(1)
+    expect([...frozen.entries()]).toEqual([['k', 1]])
+    expect([...frozen.keys()]).toEqual(['k'])
+    expect([...frozen.values()]).toEqual([1])
+  })
+
+  it('for...of iteration works (Symbol.iterator bound to target)', () => {
+    const frozen = frozenMap(
+      new Map([
+        ['a', 1],
+        ['b', 2]
+      ])
+    )
+    const entries: [string, number][] = []
+    for (const entry of frozen) entries.push(entry)
+    expect(entries).toEqual([
+      ['a', 1],
+      ['b', 2]
+    ])
+  })
+
+  it('forEach works (bound to target)', () => {
+    const frozen = frozenMap(new Map([['k', 1]]))
+    let sum = 0
+    frozen.forEach((v) => {
+      sum += v
+    })
+    expect(sum).toBe(1)
+  })
+
+  it('throws on set / delete / clear (#17 immutability)', () => {
+    const frozen = frozenMap(new Map([['k', 1]])) as Map<string, number>
+    expect(() => frozen.set('x', 2)).toThrow(/Cannot mutate frozen Map/)
+    expect(() => frozen.delete('k')).toThrow(/Cannot mutate frozen Map/)
+    expect(() => frozen.clear()).toThrow(/Cannot mutate frozen Map/)
+  })
+
+  it('throws on index/property assignment (set trap, #17 defense-in-depth)', () => {
+    const frozen = frozenMap(new Map([['k', 1]])) as unknown as Record<string, unknown>
+    expect(() => {
+      frozen['x'] = 1
+    }).toThrow(/Cannot mutate frozen Map/)
   })
 })

@@ -7,13 +7,12 @@
 // Two tiers:
 //  - structural: always enforced (owned∈DB_TABLES, no multi-owner, excluded-not-
 //    owned, known domains). Green on every branch.
-//  - exhaustiveness: a DRIFT gate, not a red progress bar. It asserts the current
-//    coverage gap is a SUBSET of the acknowledged Wave-2 set (WAVE2_* constants
-//    below). Green now; it FAILS only on unintended drift — a table/domain that is
-//    unowned AND not acknowledged here (e.g. a new Drizzle table with no owner, or
-//    a Wave-1 contributor that regressed). As Wave 2 contributors land, the gap
-//    shrinks and the subset still holds, so this needs no per-domain edits; when
-//    all 14 land, tighten these to strict `=== []`.
+//  - exhaustiveness: a STRICT drift gate — every BackupDomain is implemented,
+//    every user table is owned-or-excluded, every FTS content table is covered.
+//    All 14 domains have landed, so the gate is tight: any new Drizzle table with
+//    no owner, or a regressed contributor, fails here. (Previously this was a
+//    subset-of-Wave2 allowlist while Wave 2 was landing; tightened to strict once
+//    all 14 landed — do NOT re-add a Wave2 allowlist, add the owner instead.)
 //
 // This test does NOT connect to SQLite (pure in-memory assertions over the codegen
 // product + the contributor declarations), per contributor-testing.md
@@ -29,34 +28,6 @@ import { CONTRIBUTORS } from '../index'
 const EXCLUDED = new Set<string>([...INFRASTRUCTURE_TABLES, ...ALWAYS_STRIP_TABLES])
 /** All tables currently owned across the wired contributors. */
 const ownedTables = (): Set<string> => new Set(CONTRIBUTORS.flatMap((c) => c.schema.tables as readonly string[]))
-
-/**
- * Acknowledged Wave-2 gap — domains/tables/FTS-content whose contributors are
- * pending their blocking schema PRs (see ~/Downloads/backup-schema-status-2026-06-30.md).
- * The exhaustiveness drift gate asserts the actual gap is a subset of this set.
- */
-const WAVE2_DOMAINS = new Set<BackupDomain>(['PROVIDERS', 'AGENTS', 'MINIAPPS', 'TOPICS', 'PAINTINGS'])
-const WAVE2_TABLES = new Set<string>([
-  'agent',
-  'agent_channel',
-  'agent_channel_task',
-  'agent_mcp_server',
-  'agent_session',
-  'agent_session_message',
-  'agent_skill',
-  'agent_workspace',
-  'chat_message_file_ref',
-  'job_schedule',
-  'message',
-  'mini_app',
-  'painting',
-  'painting_file_ref',
-  'topic',
-  'user_model',
-  'user_provider'
-])
-/** FTS content tables not yet owned (message→TOPICS, agent_session_message→AGENTS). */
-const WAVE2_FTS_CONTENT = new Set<string>(['message', 'agent_session_message'])
 
 describe('coverage — structural (always enforced)', () => {
   it('every owned table is a real Drizzle user table (finalize #2 mirror)', () => {
@@ -96,36 +67,33 @@ describe('coverage — structural (always enforced)', () => {
   })
 })
 
-describe('coverage — exhaustiveness (drift gate; gap ⊆ acknowledged Wave-2 set)', () => {
-  // GREEN now: the Wave-1 gap is entirely inside WAVE2_*. FAILS only on unintended
-  // drift (an unowned/missing table or domain not acknowledged as Wave 2, or a
-  // duplicated domain). Tighten to strict `=== []` once all 14 contributors land.
+describe('coverage — exhaustiveness (strict: all 14 domains landed)', () => {
+  // Tightened from a subset-of-Wave2 gate once all 14 contributors landed. Any
+  // unowned table / missing domain / uncovered FTS content now fails outright —
+  // do NOT re-add an allowlist; add the owner (or exclude the table) instead.
 
-  it('every BackupDomain is implemented, or acknowledged as Wave 2 (no duplicates)', () => {
+  it('every BackupDomain is implemented exactly once (no missing / duplicate)', () => {
     const counts = new Map<BackupDomain, number>()
     for (const c of CONTRIBUTORS) counts.set(c.domain, (counts.get(c.domain) ?? 0) + 1)
     const missing = BACKUP_DOMAINS.filter((d) => !counts.has(d))
     const duplicated = [...counts.entries()].filter(([, n]) => n > 1).map(([d]) => d)
-    const unexpectedMissing = missing.filter((d) => !WAVE2_DOMAINS.has(d))
     expect(
-      { unexpectedMissing, duplicated },
-      `unexpected missing: ${unexpectedMissing.join(', ')} | duplicated: ${duplicated.join(', ')}`
-    ).toEqual({ unexpectedMissing: [], duplicated: [] })
+      { missing, duplicated },
+      `missing: ${missing.join(', ')} | duplicated: ${duplicated.join(', ')}`
+    ).toEqual({ missing: [], duplicated: [] })
   })
 
-  it('every unowned table is excluded or acknowledged as Wave 2 (drift guard)', () => {
+  it('every user table is owned or excluded (no unowned drift)', () => {
     const owned = ownedTables()
     const unowned = DB_TABLES.filter((table) => !owned.has(table) && !EXCLUDED.has(table))
-    const unexpected = unowned.filter((table) => !WAVE2_TABLES.has(table))
-    expect(unexpected, `unexpectedly unowned (not Wave-2-acknowledged): ${unexpected.join(', ')}`).toEqual([])
+    expect(unowned, `unowned (add an owner or exclude): ${unowned.join(', ')}`).toEqual([])
   })
 
-  it('FTS content tables are owned/excluded or acknowledged as Wave 2', () => {
+  it('every FTS content table is owned or excluded', () => {
     const owned = ownedTables()
     const uncovered = Object.entries(DB_FTS_VIRTUAL_TABLES)
       .filter(([, content]) => !owned.has(content) && !EXCLUDED.has(content))
       .map(([, content]) => content)
-    const unexpected = uncovered.filter((content) => !WAVE2_FTS_CONTENT.has(content))
-    expect(unexpected, `FTS content unexpectedly uncovered: ${unexpected.join(', ')}`).toEqual([])
+    expect(uncovered, `FTS content uncovered: ${uncovered.join(', ')}`).toEqual([])
   })
 })
