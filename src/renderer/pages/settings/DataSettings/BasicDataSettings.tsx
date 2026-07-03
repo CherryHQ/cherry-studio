@@ -62,6 +62,11 @@ const BasicDataSettings: React.FC = () => {
       window.toast.error(t('settings.data.app_data.select_error_same_path'))
       return
     }
+    const isOldPathInNewPath = await window.api.isPathInside(appInfo.appDataPath, newAppDataPath)
+    if (isOldPathInNewPath) {
+      window.toast.error(t('settings.data.app_data.select_error_same_path'))
+      return
+    }
 
     // check new app data path is not in app install path
     const isInInstallPath = await window.api.isPathInside(newAppDataPath, appInfo.installPath)
@@ -86,7 +91,7 @@ const BasicDataSettings: React.FC = () => {
 
   // When copying into a non-empty target, ask the user to confirm the
   // overwrite before scheduling the relocation.
-  const doubleConfirmModalBeforeCopyData = (originalPath: string, newPath: string) => {
+  const doubleConfirmModalBeforeCopyData = (newPath: string) => {
     window.modal.confirm({
       title: t('settings.data.app_data.select_not_empty_dir'),
       content: t('settings.data.app_data.select_not_empty_dir_content'),
@@ -180,7 +185,7 @@ const BasicDataSettings: React.FC = () => {
           // confirmation before scheduling, since the preboot copy will
           // overwrite everything under `newPath`.
           if (shouldCopyData && (await window.api.isNotEmptyDir(newPath))) {
-            doubleConfirmModalBeforeCopyData(originalPath, newPath)
+            doubleConfirmModalBeforeCopyData(newPath)
             return
           }
           // Both "copy" and "switch-only" go through the same preboot
