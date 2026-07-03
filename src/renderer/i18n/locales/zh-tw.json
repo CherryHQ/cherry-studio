@@ -1497,6 +1497,7 @@
       "pause": "暫停",
       "placeholder": "在此輸入您的訊息，按 {{key}} 傳送 - @ 選擇模型，/ 包含工具",
       "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
+      "resize_height": "調整輸入框高度",
       "resource_panel": {
         "categories": {
           "agents": "智能體",
@@ -1515,6 +1516,7 @@
         },
         "title": "資源"
       },
+      "restore": "還原",
       "send": "傳送",
       "send_failed": "訊息傳送失敗",
       "settings": "設定",

@@ -1497,6 +1497,7 @@
       "pause": "暂停",
       "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择模型， / 选择工具",
       "placeholder_without_triggers": "在这里输入消息，按 {{key}} 发送",
+      "resize_height": "调整输入框高度",
       "resource_panel": {
         "categories": {
           "agents": "Agents",
@@ -1515,6 +1516,7 @@
         },
         "title": "资源"
       },
+      "restore": "还原",
       "send": "发送",
       "send_failed": "消息发送失败",
       "settings": "设置",

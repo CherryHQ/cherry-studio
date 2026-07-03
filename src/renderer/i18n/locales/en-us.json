@@ -1497,6 +1497,7 @@
       "pause": "Pause",
       "placeholder": "Type your message here, press {{key}} to send - @ to Select Model, / to Include Tools",
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
+      "resize_height": "Resize input height",
       "resource_panel": {
         "categories": {
           "agents": "Agents",
@@ -1515,6 +1516,7 @@
         },
         "title": "Resources"
       },
+      "restore": "Restore",
       "send": "Send",
       "send_failed": "Failed to send message",
       "settings": "Settings",
