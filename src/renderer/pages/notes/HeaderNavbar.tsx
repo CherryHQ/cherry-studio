@@ -106,7 +106,7 @@ const HeaderNavbar = ({
     }
   }, [getCurrentNoteContent, activeNode])
 
-  const getPrintedNotePayload = useCallback(() => {
+  const getPrintableDocumentPayload = useCallback(() => {
     const content = getCurrentNoteContent?.()
     if (!content) {
       window.toast.warning(t('notes.no_content_to_export'))
@@ -118,17 +118,20 @@ const HeaderNavbar = ({
     }
     return {
       title: activeNode.name.replace('.md', ''),
-      markdown: content,
+      source: {
+        type: 'markdown' as const,
+        markdown: content
+      },
       sourcePath: activeNode.externalPath
     }
   }, [activeNode, getCurrentNoteContent])
 
   const handleExportToPDF = useCallback(async () => {
-    const payload = getPrintedNotePayload()
+    const payload = getPrintableDocumentPayload()
     if (!payload) return
 
     try {
-      const saved = await ipcApi.request('note.export_pdf', payload)
+      const saved = await ipcApi.request('print.export_pdf', payload)
       if (saved) {
         window.toast.success(t('notes.export_to_pdf_success'))
       }
@@ -136,19 +139,19 @@ const HeaderNavbar = ({
       logger.error('Failed to export note to PDF:', error as Error)
       window.toast.error(t('notes.export_to_pdf_failed'))
     }
-  }, [getPrintedNotePayload])
+  }, [getPrintableDocumentPayload])
 
   const handlePrint = useCallback(async () => {
-    const payload = getPrintedNotePayload()
+    const payload = getPrintableDocumentPayload()
     if (!payload) return
 
     try {
-      await ipcApi.request('note.print', payload)
+      await ipcApi.request('print.print', payload)
     } catch (error) {
       logger.error('Failed to print note:', error as Error)
       window.toast.error(t('notes.print_failed'))
     }
-  }, [getPrintedNotePayload])
+  }, [getPrintableDocumentPayload])
 
   const handleShowSettings = useCallback(() => {
     void GeneralPopup.show({

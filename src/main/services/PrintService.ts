@@ -10,11 +10,16 @@ import { sanitizeFilename } from '@shared/utils/file/filename'
 import { type BrowserWindow, dialog } from 'electron'
 import MarkdownIt from 'markdown-it'
 
-const logger = loggerService.withContext('NotePrintService')
+const logger = loggerService.withContext('PrintService')
 
-export interface PrintedNotePayload {
-  title: string
+export interface PrintableMarkdownSource {
+  type: 'markdown'
   markdown: string
+}
+
+export interface PrintableDocumentPayload {
+  title: string
+  source: PrintableMarkdownSource
   sourcePath?: string
 }
 
@@ -47,7 +52,7 @@ function toDataUrl(html: string): string {
 }
 
 function getDefaultPdfPath(title: string): string {
-  const sanitized = sanitizeFilename(title.trim()) || 'note'
+  const sanitized = sanitizeFilename(title.trim()) || 'document'
   return `${sanitized}.pdf`
 }
 
@@ -87,8 +92,8 @@ new Promise((resolve, reject) => {
 })`
 }
 
-export function buildPrintedNoteHtml({ title, markdown, sourcePath }: PrintedNotePayload): string {
-  const renderedMarkdown = markdownIt.render(markdown)
+export function buildPrintableHtml({ title, source, sourcePath }: PrintableDocumentPayload): string {
+  const renderedContent = markdownIt.render(source.markdown)
   const escapedTitle = escapeHtml(title.trim() || 'Untitled')
   const baseTag = getBaseTag(sourcePath)
 
@@ -125,7 +130,7 @@ export function buildPrintedNoteHtml({ title, markdown, sourcePath }: PrintedNot
       margin: 0 auto;
     }
 
-    .note-title {
+    .printable-title {
       margin: 0 0 18pt;
       padding-bottom: 10pt;
       border-bottom: 1px solid #d8dee4;
@@ -217,28 +222,28 @@ export function buildPrintedNoteHtml({ title, markdown, sourcePath }: PrintedNot
 </head>
 <body>
   <main>
-    <h1 class="note-title">${escapedTitle}</h1>
-    <article class="printed-note">${renderedMarkdown}</article>
+    <h1 class="printable-title">${escapedTitle}</h1>
+    <article class="printable-document">${renderedContent}</article>
   </main>
 </body>
 </html>`
 }
 
-export class NotePrintService {
-  private async openPrintedNoteWindow(
-    payload: PrintedNotePayload
+export class PrintService {
+  private async openPrintWindow(
+    payload: PrintableDocumentPayload
   ): Promise<{ windowId: string; window: BrowserWindow }> {
     const windowManager = application.get('WindowManager')
-    const windowId = windowManager.open(WindowType.NotePrint)
+    const windowId = windowManager.open(WindowType.Print)
     const window = windowManager.getWindow(windowId)
 
     if (!window) {
       windowManager.close(windowId)
-      throw new Error('Note print window not found')
+      throw new Error('Print window not found')
     }
 
     try {
-      await window.loadURL(toDataUrl(buildPrintedNoteHtml(payload)))
+      await window.loadURL(toDataUrl(buildPrintableHtml(payload)))
       return { windowId, window }
     } catch (error) {
       windowManager.close(windowId)
@@ -246,7 +251,7 @@ export class NotePrintService {
     }
   }
 
-  async exportToPDF(payload: PrintedNotePayload): Promise<boolean> {
+  async exportToPDF(payload: PrintableDocumentPayload): Promise<boolean> {
     const { canceled, filePath } = await dialog.showSaveDialog({
       title: t('dialog.save_as_pdf'),
       defaultPath: getDefaultPdfPath(payload.title),
@@ -257,7 +262,7 @@ export class NotePrintService {
       return false
     }
 
-    const { windowId, window } = await this.openPrintedNoteWindow(payload)
+    const { windowId, window } = await this.openPrintWindow(payload)
     const windowManager = application.get('WindowManager')
 
     try {
@@ -270,21 +275,21 @@ export class NotePrintService {
       await fs.writeFile(filePath, pdfData)
       return true
     } catch (error) {
-      logger.error('Failed to export note to PDF', error as Error)
+      logger.error('Failed to export printable document to PDF', error as Error)
       throw error
     } finally {
       windowManager.close(windowId)
     }
   }
 
-  async print(payload: PrintedNotePayload): Promise<void> {
-    const { windowId, window } = await this.openPrintedNoteWindow(payload)
+  async print(payload: PrintableDocumentPayload): Promise<void> {
+    const { windowId, window } = await this.openPrintWindow(payload)
     const windowManager = application.get('WindowManager')
 
     try {
       await window.webContents.executeJavaScript(buildRendererPrintScript(), true)
     } catch (error) {
-      logger.error('Failed to print note', error as Error)
+      logger.error('Failed to print printable document', error as Error)
       throw error
     } finally {
       windowManager.close(windowId)
@@ -292,4 +297,4 @@ export class NotePrintService {
   }
 }
 
-export const notePrintService = new NotePrintService()
+export const printService = new PrintService()

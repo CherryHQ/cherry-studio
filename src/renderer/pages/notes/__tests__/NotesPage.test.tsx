@@ -267,8 +267,8 @@ describe('NotesPage print payloads', () => {
   })
 
   it.each([
-    ['notes.exportToPDF', 'note.export_pdf'],
-    ['notes.print', 'note.print']
+    ['notes.exportToPDF', 'print.export_pdf'],
+    ['notes.print', 'print.print']
   ])('uses current source editor content for %s', async (label, route) => {
     render(<NotesPage />)
 
@@ -281,19 +281,24 @@ describe('NotesPage print payloads', () => {
     await waitFor(() => {
       expect(mocks.ipcRequest).toHaveBeenCalledWith(route, {
         title: 'note',
-        markdown: mocks.sourceEditorContent,
+        source: {
+          type: 'markdown',
+          markdown: mocks.sourceEditorContent
+        },
         sourcePath: '/notes/note.md'
       })
     })
     expect(mocks.ipcRequest).not.toHaveBeenCalledWith(
       route,
-      expect.objectContaining({ markdown: mocks.currentContent })
+      expect.objectContaining({
+        source: expect.objectContaining({ markdown: mocks.currentContent })
+      })
     )
   })
 
   it.each([
-    ['notes.exportToPDF', 'note.export_pdf'],
-    ['notes.print', 'note.print']
+    ['notes.exportToPDF', 'print.export_pdf'],
+    ['notes.print', 'print.print']
   ])(
     'uses current rich editor markdown for %s when source is the default but rich editor is mounted',
     async (label, route) => {
@@ -313,13 +318,18 @@ describe('NotesPage print payloads', () => {
       await waitFor(() => {
         expect(mocks.ipcRequest).toHaveBeenCalledWith(route, {
           title: 'note',
-          markdown: editedRichContent,
+          source: {
+            type: 'markdown',
+            markdown: editedRichContent
+          },
           sourcePath: '/notes/note.md'
         })
       })
       expect(mocks.ipcRequest).not.toHaveBeenCalledWith(
         route,
-        expect.objectContaining({ markdown: mocks.currentContent })
+        expect.objectContaining({
+          source: expect.objectContaining({ markdown: mocks.currentContent })
+        })
       )
     }
   )

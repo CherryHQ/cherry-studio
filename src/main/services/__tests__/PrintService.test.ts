@@ -3,7 +3,7 @@ import { WindowType } from '@main/core/window/types'
 import { dialog } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { buildPrintedNoteHtml, NotePrintService } from '../NotePrintService'
+import { buildPrintableHtml, PrintService } from '../PrintService'
 
 const { writeFile } = vi.hoisted(() => ({
   writeFile: vi.fn()
@@ -19,7 +19,7 @@ vi.mock('node:fs/promises', () => ({
   }
 }))
 
-const windowId = 'note-print-window-1'
+const windowId = 'print-window-1'
 const loadURL = vi.fn()
 const printToPDF = vi.fn()
 const print = vi.fn()
@@ -37,11 +37,14 @@ const windowManager = {
 
 const payload = {
   title: 'Meeting Notes',
-  markdown: '# Heading\n\nBody text',
+  source: {
+    type: 'markdown' as const,
+    markdown: '# Heading\n\nBody text'
+  },
   sourcePath: '/Users/me/Notes/meeting.md'
 }
 
-describe('NotePrintService', () => {
+describe('PrintService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(application.get).mockImplementation((name: string) => {
@@ -70,9 +73,12 @@ describe('NotePrintService', () => {
   })
 
   it('builds paper-oriented HTML from rendered Markdown and a file base URL', () => {
-    const html = buildPrintedNoteHtml({
+    const html = buildPrintableHtml({
       title: '<Unsafe>',
-      markdown: '# Safe\n\n<script>alert(1)</script>',
+      source: {
+        type: 'markdown',
+        markdown: '# Safe\n\n<script>alert(1)</script>'
+      },
       sourcePath: '/Users/me/Notes/safe.md'
     })
 
@@ -83,8 +89,8 @@ describe('NotePrintService', () => {
     expect(html).toContain('@page')
   })
 
-  it('reports success after exporting the printed note to PDF through a WindowManager-owned print window', async () => {
-    const service = new NotePrintService()
+  it('reports success after exporting a printable document to PDF through a WindowManager-owned print window', async () => {
+    const service = new PrintService()
 
     const result = await service.exportToPDF(payload)
 
@@ -96,7 +102,7 @@ describe('NotePrintService', () => {
         filters: [{ name: 'dialog.pdf_files', extensions: ['pdf'] }]
       })
     )
-    expect(open).toHaveBeenCalledWith(WindowType.NotePrint)
+    expect(open).toHaveBeenCalledWith(WindowType.Print)
     expect(loadURL).toHaveBeenCalledWith(expect.stringMatching(/^data:text\/html;charset=utf-8,/))
     expect(printToPDF).toHaveBeenCalledWith({
       margins: { marginType: 'default' },
@@ -110,7 +116,7 @@ describe('NotePrintService', () => {
 
   it('does not create a print window when PDF export is canceled', async () => {
     vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
-    const service = new NotePrintService()
+    const service = new PrintService()
 
     const result = await service.exportToPDF(payload)
 
@@ -120,11 +126,11 @@ describe('NotePrintService', () => {
 
   it('closes the WindowManager entry when the print window cannot be resolved', async () => {
     getWindow.mockReturnValue(undefined)
-    const service = new NotePrintService()
+    const service = new PrintService()
 
-    await expect(service.exportToPDF(payload)).rejects.toThrow('Note print window not found')
+    await expect(service.exportToPDF(payload)).rejects.toThrow('Print window not found')
 
-    expect(open).toHaveBeenCalledWith(WindowType.NotePrint)
+    expect(open).toHaveBeenCalledWith(WindowType.Print)
     expect(close).toHaveBeenCalledWith(windowId)
     expect(loadURL).not.toHaveBeenCalled()
     expect(printToPDF).not.toHaveBeenCalled()
@@ -133,7 +139,7 @@ describe('NotePrintService', () => {
 
   it('closes the print window when loading the generated print page fails', async () => {
     loadURL.mockRejectedValue(new Error('load failed'))
-    const service = new NotePrintService()
+    const service = new PrintService()
 
     await expect(service.exportToPDF(payload)).rejects.toThrow('load failed')
 
@@ -144,7 +150,7 @@ describe('NotePrintService', () => {
 
   it('closes the print window when PDF generation fails', async () => {
     printToPDF.mockRejectedValue(new Error('pdf failed'))
-    const service = new NotePrintService()
+    const service = new PrintService()
 
     await expect(service.exportToPDF(payload)).rejects.toThrow('pdf failed')
 
@@ -155,13 +161,13 @@ describe('NotePrintService', () => {
   it('prints from the renderer page without flashing the print host window', async () => {
     let finishPrint!: () => void
     executeJavaScript.mockReturnValue(new Promise<void>((resolve) => (finishPrint = resolve)))
-    const service = new NotePrintService()
+    const service = new PrintService()
 
     const printPromise = service.print(payload)
     await Promise.resolve()
     await Promise.resolve()
 
-    expect(open).toHaveBeenCalledWith(WindowType.NotePrint)
+    expect(open).toHaveBeenCalledWith(WindowType.Print)
     expect(loadURL).toHaveBeenCalledWith(expect.stringMatching(/^data:text\/html;charset=utf-8,/))
     expect(showInactive).not.toHaveBeenCalled()
     expect(print).not.toHaveBeenCalled()
@@ -175,7 +181,7 @@ describe('NotePrintService', () => {
   })
 
   it('treats closing the print dialog as a canceled print instead of a failure', async () => {
-    const service = new NotePrintService()
+    const service = new PrintService()
 
     await expect(service.print(payload)).resolves.toBeUndefined()
     expect(close).toHaveBeenCalledWith(windowId)
@@ -183,7 +189,7 @@ describe('NotePrintService', () => {
 
   it('rejects when renderer print execution fails', async () => {
     executeJavaScript.mockRejectedValue(new Error('print execution failed'))
-    const service = new NotePrintService()
+    const service = new PrintService()
 
     await expect(service.print(payload)).rejects.toThrow('print execution failed')
     expect(close).toHaveBeenCalledWith(windowId)

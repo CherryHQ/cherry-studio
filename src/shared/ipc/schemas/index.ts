@@ -5,7 +5,7 @@ import { type BinaryEventSchemas, binaryRequestSchemas } from './binary'
 import { fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
 import { knowledgeRequestSchemas } from './knowledge'
-import { noteRequestSchemas } from './note'
+import { printRequestSchemas } from './print'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
 import { webSearchRequestSchemas } from './webSearch'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
@@ -24,7 +24,7 @@ export const ipcRequestSchemas = {
   ...fileRequestSchemas,
   ...fileProcessingRequestSchemas,
   ...knowledgeRequestSchemas,
-  ...noteRequestSchemas,
+  ...printRequestSchemas,
   ...selectionRequestSchemas,
   ...webSearchRequestSchemas,
   ...windowRequestSchemas

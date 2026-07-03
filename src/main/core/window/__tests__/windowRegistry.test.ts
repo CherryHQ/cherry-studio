@@ -240,9 +240,9 @@ describe('WINDOW_TYPE_REGISTRY Main window — frame contract', () => {
   })
 })
 
-describe('WINDOW_TYPE_REGISTRY NotePrint window — domain-loaded print surface', () => {
-  it('leaves content loading and visibility to NotePrintService', () => {
-    const metadata = WINDOW_TYPE_REGISTRY[WindowType.NotePrint]
+describe('WINDOW_TYPE_REGISTRY Print window — domain-loaded print surface', () => {
+  it('leaves content loading and visibility to PrintService', () => {
+    const metadata = WINDOW_TYPE_REGISTRY[WindowType.Print]
 
     expect(metadata).toBeDefined()
     expect(metadata?.lifecycle).toBe('default')

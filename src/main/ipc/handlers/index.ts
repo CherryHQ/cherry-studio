@@ -7,7 +7,7 @@ import { binaryHandlers } from './binary'
 import { fileHandlers } from './file'
 import { fileProcessingHandlers } from './fileProcessing'
 import { knowledgeHandlers } from './knowledge'
-import { noteHandlers } from './note'
+import { printHandlers } from './print'
 import { selectionHandlers } from './selection'
 import { webSearchHandlers } from './webSearch'
 import { windowHandlers } from './window'
@@ -28,7 +28,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...fileHandlers,
   ...fileProcessingHandlers,
   ...knowledgeHandlers,
-  ...noteHandlers,
+  ...printHandlers,
   ...selectionHandlers,
   ...webSearchHandlers,
   ...windowHandlers

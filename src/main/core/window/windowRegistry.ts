@@ -131,10 +131,10 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     }
   },
 
-  // Hidden one-shot print surface for rendered notes. NotePrintService owns loading
-  // the generated paper HTML and closes the window after print / PDF export.
-  [WindowType.NotePrint]: {
-    type: WindowType.NotePrint,
+  // Hidden one-shot print surface. PrintService owns loading generated paper HTML
+  // and closes the window after print / PDF export.
+  [WindowType.Print]: {
+    type: WindowType.Print,
     lifecycle: 'default',
     htmlPath: '',
     preload: '',
