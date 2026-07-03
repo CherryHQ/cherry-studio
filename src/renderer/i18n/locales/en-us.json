@@ -8,7 +8,7 @@
       },
       "model": {
         "supported_providers": "Supported Providers",
-        "tooltip": "Currently, only models that support Anthropic endpoints are available for the Agent feature.",
+        "tooltip": "Most chat models are available for Agents. Gemini providers are not supported yet.",
         "view_providers": "View supported providers"
       },
       "title": "Add Agent",

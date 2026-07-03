@@ -14,7 +14,7 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
-import { isGeminiProvider } from '@shared/utils/provider'
+import { isAgentSupportedProvider } from '@shared/utils/provider'
 import { useCallback, useMemo } from 'react'
 
 const baseAgentFilter = (model: Model): boolean => !isNonChatModel(model)
@@ -26,10 +26,10 @@ const baseAgentFilter = (model: Model): boolean => !isNonChatModel(model)
 export function useAgentModelFilter(agentType: AgentType | undefined): (model: Model) => boolean {
   const { providers } = useProviders()
 
-  const geminiProviderIds = useMemo(() => {
+  const unsupportedProviderIds = useMemo(() => {
     const ids = new Set<string>()
     for (const provider of providers) {
-      if (isGeminiProvider(provider)) {
+      if (!isAgentSupportedProvider(provider)) {
         ids.add(provider.id)
       }
     }
@@ -40,10 +40,10 @@ export function useAgentModelFilter(agentType: AgentType | undefined): (model: M
     (model: Model) => {
       if (!baseAgentFilter(model)) return false
       if (agentType === 'claude-code') {
-        return !geminiProviderIds.has(model.providerId)
+        return !unsupportedProviderIds.has(model.providerId)
       }
       return true
     },
-    [agentType, geminiProviderIds]
+    [agentType, unsupportedProviderIds]
   )
 }

@@ -8,7 +8,7 @@
       },
       "model": {
         "supported_providers": "支持的服务商",
-        "tooltip": "目前，只有支持 Anthropic 端点的模型可用于智能体功能。",
+        "tooltip": "目前大多数聊天模型可用于智能体，暂不支持 Gemini 服务商。",
         "view_providers": "查看支持的服务商"
       },
       "title": "添加智能体",
