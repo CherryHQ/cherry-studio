@@ -3407,6 +3407,11 @@
       "tags": "標籤",
       "title": "圖書館"
     },
+    "skill_add": {
+      "local_import": "本機匯入",
+      "online_search": "線上搜尋",
+      "title": "新增技能"
+    },
     "skill_detail": {
       "created_at": "建立時間",
       "delete_description": "移除此技能及其所有配置,此操作無法復原",
@@ -3417,6 +3422,15 @@
       "no_description": "暫無描述",
       "source_files": "來源檔案",
       "updated_at": "最近更新"
+    },
+    "skill_marketplace": {
+      "empty_description": "搜尋線上技能源,尋找可安裝的 Claude 技能。",
+      "empty_title": "搜尋技能",
+      "no_results_description": "請嘗試其他關鍵字,或本機匯入 ZIP 檔案/目錄。",
+      "no_results_title": "未找到技能",
+      "search_placeholder": "搜尋技能...",
+      "subtitle": "搜尋線上技能源,並將技能安裝到全域資源庫。",
+      "title": "線上搜尋技能"
     },
     "sort": {
       "created": "依建立時間",

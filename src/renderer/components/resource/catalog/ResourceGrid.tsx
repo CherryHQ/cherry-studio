@@ -13,6 +13,11 @@ import {
   DialogTitle,
   EmptyState,
   Input,
+  MenuItem,
+  MenuList,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   Skeleton
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
@@ -21,7 +26,19 @@ import { useDeleteTag, useRenameTag } from '@renderer/hooks/useTags'
 import type { ResourceItem, ResourceType, TagItem } from '@renderer/types/resourceCatalog'
 import type { Tag as BackendTag } from '@shared/data/types/tag'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronLeft, ChevronRight, Library, Pencil, Plus, Search, Tag, Trash2, Upload, X } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Library,
+  Pencil,
+  Plus,
+  Search,
+  Tag,
+  Trash2,
+  Upload,
+  X
+} from 'lucide-react'
 import type { FC, ReactNode, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -47,6 +64,7 @@ interface Props {
   onImportAssistant: () => void
   /** Open the community assistant library dialog. When omitted the add menu hides the library item. */
   onOpenAssistantLibrary?: () => void
+  onOpenSkillMarketplace: () => void
   tags: TagItem[]
   activeTag: string | null
   onTagFilter: (tagName: string | null) => void
@@ -125,6 +143,47 @@ function AssistantAddActions({ onNew, onImport, onOpenLibrary }: AssistantAddAct
   )
 }
 
+interface SkillAddMenuProps {
+  onSearchMarketplace: () => void
+  onImportLocal: () => void
+}
+
+function SkillAddMenu({ onSearchMarketplace, onImportLocal }: SkillAddMenuProps) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+
+  const selectAction = (action: () => void) => {
+    setOpen(false)
+    action()
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="default" size="sm" className="shrink-0">
+          <Plus size={12} className="lucide-custom" />
+          <span>{t('library.skill_add.title')}</span>
+          <ChevronDown size={12} className="opacity-70" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-44 rounded-md p-1">
+        <MenuList className="gap-0.5">
+          <MenuItem
+            icon={<Search size={14} />}
+            label={t('library.skill_add.online_search')}
+            onClick={() => selectAction(onSearchMarketplace)}
+          />
+          <MenuItem
+            icon={<Upload size={14} />}
+            label={t('library.skill_add.local_import')}
+            onClick={() => selectAction(onImportLocal)}
+          />
+        </MenuList>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 export const ResourceGrid: FC<Props> = ({
   resources,
   isLoading = false,
@@ -138,6 +197,7 @@ export const ResourceGrid: FC<Props> = ({
   onCreate,
   onImportAssistant,
   onOpenAssistantLibrary,
+  onOpenSkillMarketplace,
   tags,
   activeTag,
   onTagFilter,
@@ -287,10 +347,7 @@ export const ResourceGrid: FC<Props> = ({
                 onOpenLibrary={onOpenAssistantLibrary}
               />
             ) : activeResourceType === 'skill' ? (
-              <Button variant="default" size="sm" onClick={() => onCreate('skill')} className="shrink-0">
-                <Upload size={12} className="lucide-custom" />
-                <span>{t('library.create_menu.import', { type: t(RESOURCE_TYPE_META.skill.labelKey) })}</span>
-              </Button>
+              <SkillAddMenu onSearchMarketplace={onOpenSkillMarketplace} onImportLocal={() => onCreate('skill')} />
             ) : (
               <Button variant="default" size="sm" onClick={() => onCreate(activeResourceType)} className="shrink-0">
                 <Plus size={12} className="lucide-custom" />

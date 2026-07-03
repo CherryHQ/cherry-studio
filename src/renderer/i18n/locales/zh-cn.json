@@ -3407,6 +3407,11 @@
       "tags": "标签",
       "title": "资源库"
     },
+    "skill_add": {
+      "local_import": "本地导入",
+      "online_search": "在线搜索",
+      "title": "添加技能"
+    },
     "skill_detail": {
       "created_at": "创建时间",
       "delete_description": "移除此技能及其所有配置,此操作不可恢复",
@@ -3417,6 +3422,15 @@
       "no_description": "暂无描述",
       "source_files": "源文件",
       "updated_at": "最近更新"
+    },
+    "skill_marketplace": {
+      "empty_description": "搜索在线技能源,查找可安装的 Claude 技能。",
+      "empty_title": "搜索技能",
+      "no_results_description": "请尝试其他关键词,或本地导入 ZIP 文件/目录。",
+      "no_results_title": "未找到技能",
+      "search_placeholder": "搜索技能...",
+      "subtitle": "搜索在线技能源,并将技能安装到全局资源库。",
+      "title": "在线搜索技能"
     },
     "sort": {
       "created": "按创建时间",

@@ -3407,6 +3407,11 @@
       "tags": "Tags",
       "title": "Library"
     },
+    "skill_add": {
+      "local_import": "Local import",
+      "online_search": "Online search",
+      "title": "Add skill"
+    },
     "skill_detail": {
       "created_at": "Created",
       "delete_description": "Remove this skill and all of its configuration. This action cannot be undone.",
@@ -3417,6 +3422,15 @@
       "no_description": "No description",
       "source_files": "Source files",
       "updated_at": "Recently updated"
+    },
+    "skill_marketplace": {
+      "empty_description": "Search online registries to find installable Claude skills.",
+      "empty_title": "Search for skills",
+      "no_results_description": "Try another keyword or import a local ZIP or directory.",
+      "no_results_title": "No skills found",
+      "search_placeholder": "Search skills...",
+      "subtitle": "Search online skill registries and install skills into the global library.",
+      "title": "Online skill search"
     },
     "sort": {
       "created": "Sort by created",
