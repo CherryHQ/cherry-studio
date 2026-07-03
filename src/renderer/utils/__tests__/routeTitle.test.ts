@@ -8,7 +8,6 @@ vi.mock('@renderer/i18n', () => ({
         'common.chat': '聊天',
         'agent.session.group.conversation': '对话',
         'agent.sidebar_title': '任务',
-        'title.store': '资源',
         'title.work': '工作',
         'title.paintings': '绘画',
         'title.translate': '翻译',

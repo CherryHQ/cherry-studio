@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   updateTopic: vi.fn(),
   getMessageById: vi.fn(),
   getModelByKey: vi.fn(),
+  getProviderByProviderId: vi.fn(),
   getAgent: vi.fn(),
   getSession: vi.fn(),
   updateSession: vi.fn()
@@ -53,6 +54,12 @@ vi.mock('@main/data/services/MessageService', () => ({
 vi.mock('@data/services/ModelService', () => ({
   modelService: {
     getByKey: mocks.getModelByKey
+  }
+}))
+
+vi.mock('@data/services/ProviderService', () => ({
+  providerService: {
+    getByProviderId: mocks.getProviderByProviderId
   }
 }))
 
@@ -102,6 +109,7 @@ describe('TopicNamingService', () => {
     mockMainLoggerService.debug.mockClear()
     MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.enabled', true)
     mocks.getModelByKey.mockReturnValue({ id: 'openai::gpt-4o-mini' })
+    mocks.getProviderByProviderId.mockReturnValue({ authMethods: ['api-key'] })
     mockRenameInputs()
   })
 
@@ -496,5 +504,49 @@ describe('TopicNamingService', () => {
     expect(mocks.getSession).toHaveBeenCalledTimes(2)
     expect(mocks.updateSession).not.toHaveBeenCalled()
     expect(mocks.broadcast).not.toHaveBeenCalled()
+  })
+
+  it('falls back when topic naming model points to an external-CLI (agent-only) provider', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.model_id', 'claude-code::haiku')
+    mocks.getProviderByProviderId.mockReturnValue({ authMethods: ['external-cli'] })
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      name: 'common.unnamed',
+      isNameManuallyEdited: false
+    })
+
+    await createService().maybeRenameAgentSession('agent-1', 'session-1', 'User request', {
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Agent response' }]
+    } as never)
+
+    expect(mocks.getModelByKey).not.toHaveBeenCalledWith('claude-code', 'haiku')
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uniqueModelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+      })
+    )
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'topic.naming.model_id points to an external-CLI (agent-only) provider; falling back to managed CherryAI default model',
+      { configured: 'claude-code::haiku' }
+    )
+  })
+
+  it('uses an oauth login-based provider (e.g. Codex/Grok) as a topic naming model', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.model_id', 'openai-codex::gpt-5')
+    mocks.getProviderByProviderId.mockReturnValue({ authMethods: ['oauth'] })
+
+    await createService().maybeRenameFromConversationSummary('topic-1', 'assistant-1', 'message-1', {
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Assistant response' }]
+    } as never)
+
+    expect(mocks.getModelByKey).toHaveBeenCalledWith('openai-codex', 'gpt-5')
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uniqueModelId: 'openai-codex::gpt-5'
+      })
+    )
   })
 })

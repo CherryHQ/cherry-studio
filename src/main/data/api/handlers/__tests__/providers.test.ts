@@ -224,6 +224,25 @@ describe('providerHandlers', () => {
       expect(getAuthConfigMock).toHaveBeenCalledWith('vertexai')
       expect(result).toBe(authConfig)
     })
+
+    it('strips oauth access/refresh tokens but keeps non-secret metadata', async () => {
+      getAuthConfigMock.mockReturnValueOnce({
+        type: 'oauth',
+        clientId: 'client-1',
+        accountId: 'acc-1',
+        accessToken: 'secret-access',
+        refreshToken: 'secret-refresh',
+        expiresAt: 123
+      })
+
+      const result = await providerHandlers['/providers/:providerId/auth-config'].GET({
+        params: { providerId: 'cherryin' }
+      } as never)
+
+      expect(result).toEqual({ type: 'oauth', clientId: 'client-1', accountId: 'acc-1', expiresAt: 123 })
+      expect(result).not.toHaveProperty('accessToken')
+      expect(result).not.toHaveProperty('refreshToken')
+    })
   })
 
   describe('/providers/:providerId/api-keys/:keyId', () => {

@@ -1,3 +1,7 @@
+export {
+  ConversationResourceMenu,
+  type ConversationResourceMenuItem
+} from './ConversationResourceMenu'
 export type {
   ResourceListActionMap,
   ResourceListContextValue,

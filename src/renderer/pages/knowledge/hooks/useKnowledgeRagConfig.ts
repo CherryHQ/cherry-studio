@@ -51,8 +51,16 @@ export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
       }))
   }, [fileProcessorOverrides, t])
 
-  const save = async (values: KnowledgeRagConfigFormValues) => {
+  const save = async (
+    values: KnowledgeRagConfigFormValues,
+    embeddingModelOverride?: { embeddingModelId: string | null; dimensions: number | null }
+  ) => {
     const patch = buildKnowledgeRagConfigPatch(initialValues, values)
+
+    if (embeddingModelOverride) {
+      patch.embeddingModelId = embeddingModelOverride.embeddingModelId
+      patch.dimensions = embeddingModelOverride.dimensions
+    }
 
     try {
       return await trigger({

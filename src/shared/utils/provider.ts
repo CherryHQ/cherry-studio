@@ -104,9 +104,41 @@ export function canManageProvider(provider: Provider): boolean {
   return provider.presetProviderId == null || provider.presetProviderId !== provider.id
 }
 
+/**
+ * Providers whose API key is obtained via a hosted OAuth "get key" flow (the
+ * `OauthButton`), keyed by runtime id. Single source of truth: `OauthButton`
+ * supplies one handler per id (a missing handler is a compile error there), and
+ * `isProviderSupportAuth` gates whether the button renders.
+ */
+export const API_KEY_OAUTH_PROVIDER_IDS = ['302ai', 'silicon', 'aihubmix', 'ppio', 'aionly'] as const
+
 export function isProviderSupportAuth(provider: Pick<Provider, 'id'>): boolean {
-  const supportProviders = ['302ai', 'silicon', 'aihubmix', 'ppio', 'aionly']
-  return supportProviders.includes(provider.id)
+  return (API_KEY_OAUTH_PROVIDER_IDS as readonly string[]).includes(provider.id)
+}
+
+/**
+ * Login-based providers authenticate via a sign-in flow (CLI login / hosted
+ * OAuth) and accept no user API key, so the generic API-key/host UI is
+ * suppressed and their sign-in panel renders through the provider registry
+ * instead. Derived from the provider's `authMethods` (registry capability):
+ * login-based ⇔ it declares methods and none is `'api-key'`. Absent ⇒ default
+ * `['api-key']` ⇒ not login-based. CherryIN declares `['api-key', 'oauth']`, so
+ * it is *not* login-based — its key inputs stay alongside the OAuth panel.
+ */
+export function isLoginBasedProvider(provider: Pick<Provider, 'authMethods'>): boolean {
+  const methods = provider.authMethods
+  return methods !== undefined && methods.length > 0 && !methods.includes('api-key')
+}
+
+/**
+ * External-CLI providers (e.g. Claude Code) reuse a CLI's own stored login and
+ * hold no app-side credential, so they cannot serve a normal chat/generation
+ * request: they are surfaced only to agent pickers (hidden from chat selectors,
+ * rejected as a topic-naming model). Capability-derived from `authMethods`, not
+ * keyed to a specific provider id, so a second such provider is covered for free.
+ */
+export function isExternalCliProvider(provider: Pick<Provider, 'authMethods'>): boolean {
+  return provider.authMethods?.includes('external-cli') ?? false
 }
 
 export function isAnthropicSupportedProvider(provider: Provider): boolean {
