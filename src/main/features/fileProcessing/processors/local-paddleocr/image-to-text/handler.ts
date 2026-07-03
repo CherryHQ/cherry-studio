@@ -1,4 +1,4 @@
-import { inferenceHost } from '@main/ai/inference/InferenceHost'
+import { ocrInferenceHost } from '@main/ai/inference/InferenceHost'
 import { isLocalPaddleocrModelDownloaded, ocrModelPaths } from '@main/ai/inference/ocrModelPaths'
 import { FILE_TYPE } from '@shared/types/file'
 
@@ -24,7 +24,7 @@ export const localPaddleocrImageToTextHandler: FileProcessingCapabilityHandler<'
     return {
       mode: 'background',
       async execute(executionContext) {
-        const text = await inferenceHost.recognize(modelPaths, file.path, executionContext.signal)
+        const text = await ocrInferenceHost.recognize(modelPaths, file.path, executionContext.signal)
         return { kind: 'text', text }
       }
     }

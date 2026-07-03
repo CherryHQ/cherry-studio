@@ -25,7 +25,7 @@ vi.mock('node:fs', async () => {
 })
 
 vi.mock('@main/ai/inference/InferenceHost', () => ({
-  inferenceHost: { loadEmbedding, terminate }
+  embeddingInferenceHost: { loadEmbedding, terminate }
 }))
 
 vi.mock('@main/ai/provider/custom/localEmbedding/localEmbeddingRuntime', () => ({

@@ -9,7 +9,7 @@ const { recognizeMock, isLocalPaddleocrModelDownloadedMock, ocrModelPathsMock } 
 }))
 
 vi.mock('@main/ai/inference/InferenceHost', () => ({
-  inferenceHost: { recognize: recognizeMock }
+  ocrInferenceHost: { recognize: recognizeMock }
 }))
 
 vi.mock('@main/ai/inference/ocrModelPaths', () => ({

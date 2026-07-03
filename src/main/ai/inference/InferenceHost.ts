@@ -3,11 +3,10 @@ import { Worker } from 'node:worker_threads'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isDarwinX64 } from '@main/core/platform'
+import type { LocalModelKind } from '@shared/data/presets/localModel'
 
 import type { InferenceModelSource, InferenceRequest, InferenceResponse, OcrModelPaths } from './inferenceProtocol'
 import { inferenceWorkerSource } from './inferenceWorkerSource'
-
-const logger = loggerService.withContext('InferenceHost')
 
 /** Per-member Omit so union variants keep their own fields (built-in Omit drops them). */
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
@@ -34,23 +33,32 @@ interface Pending {
 }
 
 /**
- * Owns the single `worker_threads` worker that runs onnxruntime-node inference
- * off the main thread, so embedding/OCR never blocks the Electron event loop.
+ * Owns a single `worker_threads` worker that runs onnxruntime-node inference off
+ * the main thread. Embedding and OCR get their own instance each (see
+ * {@link EmbeddingInferenceHost}/{@link OcrInferenceHost} below), so
+ * cancelling/removing one model's download can never collaterally reject the
+ * other's in-flight request or evict its loaded pipeline — they don't share a
+ * thread, a `pending` map, or a `terminate()`.
  *
- * The worker source, the wire protocol, and this class's method signatures are
- * all process-agnostic: moving to an Electron `utilityProcess` (for crash
- * isolation) later touches only the spawn/teardown internals of this file.
+ * The worker source, the wire protocol, and the public method signatures are
+ * all process-agnostic: moving to an Electron `utilityProcess` per kind (for
+ * crash isolation) later touches only the spawn/teardown internals here.
  */
-class InferenceHost {
+abstract class InferenceHostBase {
   private worker: Worker | null = null
   private readonly pending = new Map<string, Pending>()
   private idSeq = 0
+  private readonly logger: ReturnType<typeof loggerService.withContext>
+
+  protected constructor(kind: LocalModelKind) {
+    this.logger = loggerService.withContext(`InferenceHost:${kind}`)
+  }
 
   private ensureWorker(): Worker {
     if (this.worker) return this.worker
     // Last line of defense: the settings/KB cards already hide on Intel Mac (see
-    // LocalModelDownloadService.getStatus), but this is the single spawn point
-    // every caller (embed/loadEmbedding/recognize, including the OCR agent tool)
+    // LocalModelDownloadService.getStatus), but this is the spawn point every
+    // caller (embed/loadEmbedding/recognize, including the OCR agent tool)
     // funnels through, so anything that reaches it programmatically fails fast
     // instead of loading a worker that will crash on the missing native binding.
     if (isDarwinX64) {
@@ -78,7 +86,7 @@ class InferenceHost {
       // A non-zero exit is an abnormal crash (native onnxruntime fault, OOM kill). Log it
       // unconditionally — failAll's no-op-when-idle guard below would otherwise swallow the
       // only crash breadcrumb when nothing is pending, leaving the auto-respawn invisible.
-      if (code !== 0) logger.error('inference worker exited abnormally', new Error(`exit code ${code}`))
+      if (code !== 0) this.logger.error('inference worker exited abnormally', new Error(`exit code ${code}`))
       // A clean (code 0) exit with requests still in flight would otherwise hang their
       // promises forever. failAll no-ops when nothing is pending (the normal terminate()
       // path), so this never double-reports.
@@ -96,8 +104,9 @@ class InferenceHost {
   private handleMessage(msg: InferenceResponse): void {
     switch (msg.type) {
       case 'log': {
-        const log = msg.level === 'warn' ? logger.warn : msg.level === 'error' ? logger.error : logger.info
-        log.call(logger, `[worker] ${msg.message}`)
+        const log =
+          msg.level === 'warn' ? this.logger.warn : msg.level === 'error' ? this.logger.error : this.logger.info
+        log.call(this.logger, `[worker] ${msg.message}`)
         return
       }
       case 'progress':
@@ -130,12 +139,12 @@ class InferenceHost {
     // No-op when idle so an intentional terminate() (or a second exit/error event)
     // doesn't log a spurious "worker failed" with nothing to reject.
     if (this.pending.size === 0) return
-    logger.error('inference worker failed', err)
+    this.logger.error('inference worker failed', err)
     for (const [, pending] of this.pending) pending.reject(err)
     this.pending.clear()
   }
 
-  private send(
+  protected send(
     request: DistributiveOmit<InferenceRequest, 'id'>,
     opts: { onProgress?: (p: InferenceProgress) => void; signal?: AbortSignal } = {}
   ): Promise<InferenceResult> {
@@ -160,6 +169,27 @@ class InferenceHost {
     })
   }
 
+  /**
+   * Kill the worker (cancels any in-flight download and frees the model).
+   * Pending requests reject immediately, but the returned promise only
+   * resolves once the OS thread has actually exited — callers that delete
+   * on-disk weights right after (releasing a Windows file lock) must await
+   * this first, or the delete can race the worker's teardown.
+   */
+  async terminate(): Promise<void> {
+    if (!this.worker) return
+    const worker = this.worker
+    this.worker = null
+    this.failAll(new Error('inference host terminated'))
+    await worker.terminate()
+  }
+}
+
+class EmbeddingInferenceHost extends InferenceHostBase {
+  constructor() {
+    super('embedding')
+  }
+
   /** Embed texts off the main thread; loads the model first if it is not cached. */
   async embed(
     texts: string[],
@@ -182,27 +212,19 @@ class InferenceHost {
   ): Promise<void> {
     await this.send({ type: 'embedding.load', modelRepo, dtype, source }, { onProgress, signal })
   }
+}
+
+class OcrInferenceHost extends InferenceHostBase {
+  constructor() {
+    super('ocr')
+  }
 
   /** OCR an image off the main thread; loads the PaddleOCR model first if not cached. */
   async recognize(modelPaths: OcrModelPaths, imagePath: string, signal?: AbortSignal): Promise<string> {
     const result = await this.send({ type: 'ocr.recognize', modelPaths, imagePath }, { signal })
     return result.text ?? ''
   }
-
-  /**
-   * Kill the worker (cancels any in-flight download and frees the model).
-   * Pending requests reject immediately, but the returned promise only
-   * resolves once the OS thread has actually exited — callers that delete
-   * on-disk weights right after (releasing a Windows file lock) must await
-   * this first, or the delete can race the worker's teardown.
-   */
-  async terminate(): Promise<void> {
-    if (!this.worker) return
-    const worker = this.worker
-    this.worker = null
-    this.failAll(new Error('inference host terminated'))
-    await worker.terminate()
-  }
 }
 
-export const inferenceHost = new InferenceHost()
+export const embeddingInferenceHost = new EmbeddingInferenceHost()
+export const ocrInferenceHost = new OcrInferenceHost()

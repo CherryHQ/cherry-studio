@@ -20,7 +20,7 @@ vi.mock('node:worker_threads', () => ({
 // spawn point must refuse before it ever constructs a Worker.
 vi.mock('@main/core/platform', () => ({ isDarwinX64: true }))
 
-const { inferenceHost } = await import('../InferenceHost')
+const { embeddingInferenceHost, ocrInferenceHost } = await import('../InferenceHost')
 
 const SOURCE: InferenceModelSource = {
   remoteHost: 'https://huggingface.co',
@@ -34,18 +34,18 @@ describe('InferenceHost on darwin-x64', () => {
   })
 
   it('rejects embed without spawning a worker', async () => {
-    await expect(inferenceHost.embed(['hi'], SOURCE, 'org/model', 'q8')).rejects.toThrow(/darwin x64/)
+    await expect(embeddingInferenceHost.embed(['hi'], SOURCE, 'org/model', 'q8')).rejects.toThrow(/darwin x64/)
     expect(WorkerCtor).not.toHaveBeenCalled()
   })
 
   it('rejects loadEmbedding without spawning a worker', async () => {
-    await expect(inferenceHost.loadEmbedding(SOURCE, 'org/model', 'q8')).rejects.toThrow(/darwin x64/)
+    await expect(embeddingInferenceHost.loadEmbedding(SOURCE, 'org/model', 'q8')).rejects.toThrow(/darwin x64/)
     expect(WorkerCtor).not.toHaveBeenCalled()
   })
 
   it('rejects recognize (OCR) without spawning a worker', async () => {
     await expect(
-      inferenceHost.recognize({ detection: '/a', recognition: '/b', charactersDictionary: '/c' }, '/img.png')
+      ocrInferenceHost.recognize({ detection: '/a', recognition: '/b', charactersDictionary: '/c' }, '/img.png')
     ).rejects.toThrow(/darwin x64/)
     expect(WorkerCtor).not.toHaveBeenCalled()
   })

@@ -9,7 +9,7 @@ vi.mock('@application', async () => {
 })
 
 vi.mock('@main/ai/inference/InferenceHost', () => ({
-  inferenceHost: { terminate: vi.fn() }
+  ocrInferenceHost: { terminate: vi.fn() }
 }))
 
 // Import the SUT after @application is mocked (its model dir resolves via application.getPath).
@@ -78,8 +78,8 @@ describe('LocalOcrDownloadService.remove — default image-to-text demotion', ()
   })
 
   it('terminates the inference worker before deleting so open OCR handles are released', async () => {
-    const { inferenceHost } = await import('@main/ai/inference/InferenceHost')
-    const terminate = vi.mocked(inferenceHost.terminate)
+    const { ocrInferenceHost } = await import('@main/ai/inference/InferenceHost')
+    const terminate = vi.mocked(ocrInferenceHost.terminate)
 
     await localOcrDownloadService.remove()
 

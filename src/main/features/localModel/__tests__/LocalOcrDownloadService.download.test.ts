@@ -19,7 +19,7 @@ vi.mock('@application', async () => {
 })
 
 vi.mock('@main/ai/inference/InferenceHost', () => ({
-  inferenceHost: { terminate: vi.fn() }
+  ocrInferenceHost: { terminate: vi.fn() }
 }))
 
 // Pin to a supported platform so download() is deterministic regardless of the

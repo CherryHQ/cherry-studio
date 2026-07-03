@@ -31,7 +31,7 @@ vi.mock('node:worker_threads', () => ({
 vi.mock('@main/core/platform', () => ({ isDarwinX64: false }))
 
 // Import the SUT after the worker mock is declared (it constructs a Worker lazily on first send).
-const { inferenceHost } = await import('../InferenceHost')
+const { embeddingInferenceHost, ocrInferenceHost } = await import('../InferenceHost')
 
 const SOURCE: InferenceModelSource = {
   remoteHost: 'https://huggingface.co',
@@ -53,11 +53,11 @@ describe('InferenceHost worker exit / failAll', () => {
 
   // Each test ends with the worker nulled (via exit or terminate), so the singleton is clean.
   afterEach(async () => {
-    await inferenceHost.terminate()
+    await embeddingInferenceHost.terminate()
   })
 
   it('rejects in-flight requests when the worker exits cleanly (code 0) instead of hanging forever', async () => {
-    const pending = inferenceHost.embed(['hi'], SOURCE, 'org/model', 'q8')
+    const pending = embeddingInferenceHost.embed(['hi'], SOURCE, 'org/model', 'q8')
     const worker = fakeWorkers.at(-1)!
 
     worker.emit('exit', 0)
@@ -68,7 +68,7 @@ describe('InferenceHost worker exit / failAll', () => {
   })
 
   it('logs an abnormal (non-zero) exit even when no request is in flight (idle crash visibility)', async () => {
-    const pending = inferenceHost.embed(['hi'], SOURCE, 'org/model', 'q8')
+    const pending = embeddingInferenceHost.embed(['hi'], SOURCE, 'org/model', 'q8')
     const worker = fakeWorkers.at(-1)!
 
     // Settle the request so the worker goes idle (pending empty) before it crashes.
@@ -82,10 +82,10 @@ describe('InferenceHost worker exit / failAll', () => {
   })
 
   it('does not double-report when terminate() is followed by the worker exit event', async () => {
-    const pending = inferenceHost.embed(['hi'], SOURCE, 'org/model', 'q8')
+    const pending = embeddingInferenceHost.embed(['hi'], SOURCE, 'org/model', 'q8')
     const worker = fakeWorkers.at(-1)!
 
-    await inferenceHost.terminate()
+    await embeddingInferenceHost.terminate()
     await expect(pending).rejects.toThrow(/terminated/)
     const afterTerminate = mockMainLoggerService.error.mock.calls.length
 
@@ -98,13 +98,13 @@ describe('InferenceHost worker exit / failAll', () => {
   it('terminate() resolves only once the worker has actually exited, not just been asked to', async () => {
     // terminate() rejects this in-flight request synchronously — swallow it, this
     // test is only about terminate()'s own returned promise.
-    void inferenceHost.embed(['hi'], SOURCE, 'org/model', 'q8').catch(() => {})
+    void embeddingInferenceHost.embed(['hi'], SOURCE, 'org/model', 'q8').catch(() => {})
     const worker = fakeWorkers.at(-1)!
     let releaseExit: (code: number) => void = () => {}
     worker.terminate.mockImplementation(() => new Promise<number>((resolve) => (releaseExit = resolve)))
 
     let settled = false
-    const done = inferenceHost.terminate().then(() => {
+    const done = embeddingInferenceHost.terminate().then(() => {
       settled = true
     })
 
@@ -122,13 +122,13 @@ describe('InferenceHost worker exit / failAll', () => {
   })
 
   it("ignores a superseded worker's late exit instead of tearing down the live worker", async () => {
-    const stale = inferenceHost.embed(['a'], SOURCE, 'org/model', 'q8')
+    const stale = embeddingInferenceHost.embed(['a'], SOURCE, 'org/model', 'q8')
     const workerA = fakeWorkers.at(-1)!
 
     // Tear down A (rejecting its own in-flight), then start a fresh request → worker B.
-    await inferenceHost.terminate()
+    await embeddingInferenceHost.terminate()
     await expect(stale).rejects.toThrow(/terminated/)
-    const live = inferenceHost.embed(['b'], SOURCE, 'org/model', 'q8')
+    const live = embeddingInferenceHost.embed(['b'], SOURCE, 'org/model', 'q8')
     const workerB = fakeWorkers.at(-1)!
     expect(workerB).not.toBe(workerA)
 
@@ -144,17 +144,17 @@ describe('InferenceHost worker exit / failAll', () => {
 
     expect(liveRejected).toBe(false)
     // B is still the live worker: a new request reuses it, no third worker is spawned.
-    void inferenceHost.embed(['c'], SOURCE, 'org/model', 'q8').catch(() => {})
+    void embeddingInferenceHost.embed(['c'], SOURCE, 'org/model', 'q8').catch(() => {})
     expect(fakeWorkers).toHaveLength(2)
   })
 
   it("ignores a superseded worker's late error instead of rejecting the live worker's requests", async () => {
-    const stale = inferenceHost.embed(['a'], SOURCE, 'org/model', 'q8')
+    const stale = embeddingInferenceHost.embed(['a'], SOURCE, 'org/model', 'q8')
     const workerA = fakeWorkers.at(-1)!
 
-    await inferenceHost.terminate()
+    await embeddingInferenceHost.terminate()
     await expect(stale).rejects.toThrow(/terminated/)
-    const live = inferenceHost.embed(['b'], SOURCE, 'org/model', 'q8')
+    const live = embeddingInferenceHost.embed(['b'], SOURCE, 'org/model', 'q8')
     expect(fakeWorkers.at(-1)!).not.toBe(workerA)
 
     let liveRejected = false
@@ -168,5 +168,45 @@ describe('InferenceHost worker exit / failAll', () => {
     await Promise.resolve()
 
     expect(liveRejected).toBe(false)
+  })
+})
+
+describe('embeddingInferenceHost / ocrInferenceHost isolation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    fakeWorkers.length = 0
+  })
+
+  afterEach(async () => {
+    await embeddingInferenceHost.terminate()
+    await ocrInferenceHost.terminate()
+  })
+
+  it('terminating the embedding host does not touch an in-flight OCR request or its worker', async () => {
+    const ocrPending = ocrInferenceHost.recognize(
+      { detection: '/a', recognition: '/b', charactersDictionary: '/c' },
+      '/img.png'
+    )
+    const ocrWorker = fakeWorkers.at(-1)!
+
+    void embeddingInferenceHost.embed(['hi'], SOURCE, 'org/model', 'q8').catch(() => {})
+    const embeddingWorker = fakeWorkers.at(-1)!
+    expect(embeddingWorker).not.toBe(ocrWorker)
+
+    await embeddingInferenceHost.terminate()
+
+    // The two hosts don't share a worker, a pending map, or a terminate() — killing
+    // one must never collaterally kill or reject the other's in-flight request.
+    expect(ocrWorker.terminate).not.toHaveBeenCalled()
+    let ocrSettled = false
+    void ocrPending.finally(() => {
+      ocrSettled = true
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(ocrSettled).toBe(false)
+
+    ocrWorker.emit('message', { type: 'result', id: lastRequestId(ocrWorker), text: 'ok' })
+    await expect(ocrPending).resolves.toBe('ok')
   })
 })
