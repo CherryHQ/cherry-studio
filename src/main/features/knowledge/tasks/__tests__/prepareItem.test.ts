@@ -34,23 +34,21 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('../directory', () => ({
+vi.mock('../../pipeline/sources/directory', () => ({
   expandDirectoryOwnerToTree: expandDirectoryOwnerToTreeMock
 }))
 
-import type { PrepareKnowledgeItemOptions } from '../prepare'
+import type { PrepareKnowledgeItemOptions } from '../prepareItem'
 
-const { prepareKnowledgeItem } = await import('../prepare')
+const { prepareKnowledgeItem } = await import('../prepareItem')
 
 const baseId = 'kb-1'
 
-function createPrepareOptions(item: KnowledgeItem, onCreatedItem = vi.fn()): PrepareKnowledgeItemOptions {
+function createPrepareOptions(item: KnowledgeItem): PrepareKnowledgeItemOptions {
   const signal = new AbortController().signal
   return {
     baseId,
     item,
-    onCreatedItem,
-    runMutation: async (task) => await task(),
     signal
   }
 }
@@ -219,37 +217,6 @@ describe('prepareKnowledgeItem', () => {
       error: 'Directory contains no indexable files'
     })
     expect(knowledgeItemUpdateDirectoryRelativePathMock).not.toHaveBeenCalled()
-  })
-
-  it('reports created children before marking them processing', async () => {
-    const root = createDirectoryItem('dir-root')
-    const fileChild: KnowledgeItem = {
-      id: 'file-child',
-      baseId,
-      groupId: root.id,
-      type: 'file',
-      data: {
-        source: '/docs/file-child.md',
-        relativePath: 'file-child.md'
-      },
-      status: 'idle',
-      error: null,
-      createdAt: '2026-04-08T00:00:00.000Z',
-      updatedAt: '2026-04-08T00:00:00.000Z'
-    }
-    const onCreatedItem = vi.fn()
-    expandDirectoryOwnerToTreeMock.mockResolvedValueOnce({
-      pathPrefix: 'dir-root',
-      children: [{ type: 'file', data: fileChild.data }]
-    })
-    knowledgeItemCreateMock.mockReturnValueOnce(fileChild)
-    knowledgeItemUpdateStatusMock.mockImplementationOnce(() => {
-      throw new Error('status failed')
-    })
-
-    await expect(prepareKnowledgeItem(createPrepareOptions(root, onCreatedItem))).rejects.toThrow('status failed')
-
-    expect(onCreatedItem).toHaveBeenCalledWith(fileChild)
   })
 
   it('stops creating children when the runtime signal is aborted after expansion', async () => {

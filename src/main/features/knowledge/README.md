@@ -36,7 +36,7 @@ orchestration, and it lives in `ingestion/` and `tasks/`.
 | `pipeline/indexing/` | Index stage: offset-preserving splitter + chunker, `AiService` embedding/rerank wrappers, material field derivation. |
 | `pipeline/vectorstore/` | Persist stage: per-base `index.sqlite` lifecycle (`KnowledgeVectorStoreService`), the store itself (`indexStore/`, synchronous better-sqlite3 driver), vector deletion + index space reclamation (`vectorCleanup.ts`). |
 | `query/` | Read side: hybrid search with visibility filtering (`KnowledgeQueryService`), Concept ID tool surface (`KnowledgeConceptService`). |
-| `tasks/` | Job handlers — the pipeline executors (see below). |
+| `tasks/` | Job handlers — the pipeline executors (see below); `prepareItem.ts` is a prepare-root handler-private helper that expands a directory root into child items. |
 | `pathStorage.ts` | `raw/` path allocation: collision-free names, reservation, base file paths. |
 | `items.ts` / `types.ts` | Shared item vocabulary (type aliases, predicates, source probing); branded ids, queue names, idempotency keys. |
 

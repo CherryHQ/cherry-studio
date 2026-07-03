@@ -137,7 +137,7 @@ vi.mock('../../pipeline/readers/KnowledgeReader', () => ({
   loadKnowledgeItemDocuments: loadKnowledgeItemDocumentsMock
 }))
 
-vi.mock('../../pipeline/sources/prepare', () => ({
+vi.mock('../prepareItem', () => ({
   prepareKnowledgeItem: prepareKnowledgeItemMock
 }))
 

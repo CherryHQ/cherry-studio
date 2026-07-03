@@ -28,7 +28,8 @@ describe('prepare-root job handler', () => {
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
 
     expect(knowledgeItemGetSubtreeItemsMock).toHaveBeenCalledWith('kb-1', ['dir-1'])
-    expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', [])
+    // Nothing to purge (no prior expansion) — purgeKnowledgeSubtreeWithinLock is a no-op for an empty subtree.
+    expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
     expect(prepareKnowledgeItemMock).toHaveBeenCalledWith(expect.objectContaining({ baseId: 'kb-1' }))
     expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'leaf-1', 'prepare-job')
     expect(handler.defaultQueue?.({ baseId: 'kb-1', itemId: 'dir-1' })).toBe('base.kb-1')

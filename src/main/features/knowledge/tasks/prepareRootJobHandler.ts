@@ -9,12 +9,10 @@ import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import type { KnowledgeLockManager } from '../base/KnowledgeLockManager'
 import type { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionService'
 import { markUnscheduledKnowledgeItemsFailed } from '../ingestion/statusCleanup'
-import { isIndexableKnowledgeItem } from '../items'
-import { deleteKnowledgeItemFilesBestEffort } from '../pathStorage'
-import { prepareKnowledgeItem } from '../pipeline/sources/prepare'
-import { deleteKnowledgeItemVectors } from '../pipeline/vectorstore/vectorCleanup'
+import { purgeKnowledgeSubtreeWithinLock } from '../ingestion/subtreePurge'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
 import type { KnowledgePrepareRootPayload } from './jobTypes'
+import { prepareKnowledgeItem } from './prepareItem'
 import { isDataApiNotFoundError, markKnowledgeItemFailedOnSettled } from './utils/settled'
 
 const logger = loggerService.withContext('Knowledge:PrepareRootJobHandler')
@@ -98,13 +96,7 @@ async function deletePreviousLeafExpansion(
     const base = knowledgeBaseService.getById(baseId)
     const descendants = knowledgeItemService.getSubtreeItems(baseId, [itemId])
     const removableDescendants = descendants.filter((item) => item.status !== 'deleting')
-    const removableDescendantIds = removableDescendants.map((item) => item.id)
-    const removableLeafIds = removableDescendants.filter(isIndexableKnowledgeItem).map((item) => item.id)
-
-    await deleteKnowledgeItemVectors(base, removableLeafIds)
-    // Best-effort: a file-removal failure must not abort the row deletion below.
-    await deleteKnowledgeItemFilesBestEffort(baseId, removableDescendants, { baseId, itemId })
-    knowledgeItemService.deleteItemsByIds(baseId, removableDescendantIds)
+    await purgeKnowledgeSubtreeWithinLock(base, removableDescendants, { baseId, itemId })
   })
 }
 
@@ -136,8 +128,6 @@ async function scanRootItem(
     const leaves = await prepareKnowledgeItem({
       baseId,
       item: currentItem,
-      onCreatedItem: () => {},
-      runMutation: async (task) => await task(),
       signal: ctx.signal
     })
     if (leaves.length > 0) {

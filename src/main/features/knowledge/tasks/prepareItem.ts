@@ -7,9 +7,9 @@ import {
   type KnowledgeItemType
 } from '@shared/data/types/knowledge'
 
-import { type IndexableKnowledgeItem, isContainerKnowledgeItem, isIndexableKnowledgeItem } from '../../items'
-import { collectKnowledgeReservedRelativePaths } from '../../pathStorage'
-import { expandDirectoryOwnerToTree, type ExpandedDirectoryNode } from './directory'
+import { type IndexableKnowledgeItem, isContainerKnowledgeItem, isIndexableKnowledgeItem } from '../items'
+import { collectKnowledgeReservedRelativePaths } from '../pathStorage'
+import { expandDirectoryOwnerToTree, type ExpandedDirectoryNode } from '../pipeline/sources/directory'
 
 const logger = loggerService.withContext('KnowledgePrepare')
 const EMPTY_DIRECTORY_ERROR = 'Directory contains no indexable files'
@@ -17,16 +17,12 @@ const EMPTY_DIRECTORY_ERROR = 'Directory contains no indexable files'
 export interface PrepareKnowledgeItemOptions {
   baseId: string
   item: KnowledgeItem
-  onCreatedItem: (item: KnowledgeItem) => void
-  runMutation: <T>(task: () => T) => Promise<T>
   signal: AbortSignal
 }
 
 export async function prepareKnowledgeItem({
   baseId,
   item,
-  onCreatedItem,
-  runMutation,
   signal
 }: PrepareKnowledgeItemOptions): Promise<IndexableKnowledgeItem[]> {
   signal.throwIfAborted()
@@ -35,14 +31,12 @@ export async function prepareKnowledgeItem({
     return [item]
   }
 
-  return await prepareDirectoryForRuntime(baseId, item, onCreatedItem, runMutation, signal)
+  return await prepareDirectoryForRuntime(baseId, item, signal)
 }
 
 async function prepareDirectoryForRuntime(
   baseId: string,
   item: KnowledgeItemOf<'directory'>,
-  onCreatedItem: (item: KnowledgeItem) => void,
-  runMutation: <T>(task: () => T) => Promise<T>,
   signal: AbortSignal
 ): Promise<IndexableKnowledgeItem[]> {
   // Exclude this container itself: on reindex it already owns its `relativePath`
@@ -57,15 +51,15 @@ async function prepareDirectoryForRuntime(
       itemId: item.id,
       source: item.data.source
     })
-    await runMutation(() => knowledgeItemService.updateStatus(item.id, 'failed', { error: EMPTY_DIRECTORY_ERROR }))
+    knowledgeItemService.updateStatus(item.id, 'failed', { error: EMPTY_DIRECTORY_ERROR })
     return []
   }
 
   // Pin the deduped `raw/` prefix the children were stored under onto the container, so the
   // UI shows the on-disk name (e.g. `docs_2`) and delete can remove the whole shell by it.
-  await runMutation(() => knowledgeItemService.updateDirectoryRelativePath(item.id, pathPrefix))
+  knowledgeItemService.updateDirectoryRelativePath(item.id, pathPrefix)
 
-  return await createDirectoryChildren(baseId, item.id, children, onCreatedItem, runMutation, signal)
+  return await createDirectoryChildren(baseId, item.id, children, signal)
 }
 
 /**
@@ -91,8 +85,6 @@ async function createDirectoryChildren(
   baseId: string,
   parentId: string,
   children: ExpandedDirectoryNode[],
-  onCreatedItem: (item: KnowledgeItem) => void,
-  runMutation: <T>(task: () => T) => Promise<T>,
   signal: AbortSignal
 ): Promise<IndexableKnowledgeItem[]> {
   const leafItems: IndexableKnowledgeItem[] = []
@@ -108,8 +100,6 @@ async function createDirectoryChildren(
           type: 'file',
           data: child.data
         },
-        onCreatedItem,
-        runMutation,
         signal
       )
       leafItems.push(createdFile)
@@ -123,19 +113,10 @@ async function createDirectoryChildren(
         type: 'directory',
         data: child.data
       },
-      onCreatedItem,
-      runMutation,
       signal
     )
-    const childLeafItems = await createDirectoryChildren(
-      baseId,
-      createdDirectory.id,
-      child.children,
-      onCreatedItem,
-      runMutation,
-      signal
-    )
-    await runMutation(() => knowledgeItemService.updateStatus(createdDirectory.id, 'processing'))
+    const childLeafItems = await createDirectoryChildren(baseId, createdDirectory.id, child.children, signal)
+    knowledgeItemService.updateStatus(createdDirectory.id, 'processing')
     leafItems.push(...childLeafItems)
   }
 
@@ -145,19 +126,14 @@ async function createDirectoryChildren(
 async function createRuntimeItem<T extends KnowledgeItemType>(
   baseId: string,
   item: Extract<CreateKnowledgeItemDto, { type: T }>,
-  onCreatedItem: (item: KnowledgeItem) => void,
-  runMutation: <TResult>(task: () => TResult) => Promise<TResult>,
   signal: AbortSignal
 ): Promise<KnowledgeItemOf<T>> {
   signal.throwIfAborted()
-  const createdItem = await runMutation(() => knowledgeItemService.create(baseId, item))
-  onCreatedItem(createdItem)
+  const createdItem = knowledgeItemService.create(baseId, item)
 
-  const processingItem = await runMutation(() =>
-    isContainerKnowledgeItem(createdItem)
-      ? knowledgeItemService.updateStatus(createdItem.id, 'preparing')
-      : knowledgeItemService.updateStatus(createdItem.id, 'processing')
-  )
+  const processingItem = isContainerKnowledgeItem(createdItem)
+    ? knowledgeItemService.updateStatus(createdItem.id, 'preparing')
+    : knowledgeItemService.updateStatus(createdItem.id, 'processing')
   signal.throwIfAborted()
 
   return processingItem as KnowledgeItemOf<T>
