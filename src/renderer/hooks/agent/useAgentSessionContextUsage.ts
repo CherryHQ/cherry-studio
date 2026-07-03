@@ -2,6 +2,7 @@ import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
   type AgentSessionContextUsage,
+  type AgentSessionContextUsageCacheEntry,
   type AgentSessionContextUsageSnapshot,
   type AgentSessionContextUsageSource
 } from '@shared/ai/agentSessionContextUsage'
@@ -21,13 +22,17 @@ export function useAgentSessionContextUsage(
   expectedModels?: readonly (string | null | undefined)[],
   fallbackSnapshot?: AgentSessionContextUsageSnapshot | null
 ): AgentSessionContextUsageState {
-  const cachedUsage = useSharedCacheValue(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId ?? EMPTY_SESSION_ID))
-  const sessionUsage = sessionId ? (cachedUsage ?? null) : null
+  const cachedEntry = useSharedCacheValue(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId ?? EMPTY_SESSION_ID))
+  const sessionCacheEntry = sessionId ? (cachedEntry ?? null) : null
+  const cachedSnapshot = getContextUsageSnapshot(sessionCacheEntry)
+  const sessionUsage = cachedSnapshot ? null : (sessionCacheEntry as AgentSessionContextUsage | null)
   const liveUsage = isExpectedModelUsage(sessionUsage, expectedModels) ? sessionUsage : null
-  const snapshotUsage =
-    sessionId && isExpectedModelUsage(fallbackSnapshot?.usage ?? null, expectedModels)
-      ? (fallbackSnapshot?.usage ?? null)
-      : null
+  const cacheSnapshotUsage = isExpectedModelUsage(cachedSnapshot?.usage ?? null, expectedModels) ? cachedSnapshot : null
+  const fallbackSnapshotUsage = isExpectedModelUsage(fallbackSnapshot?.usage ?? null, expectedModels)
+    ? fallbackSnapshot
+    : null
+  const effectiveSnapshot = cacheSnapshotUsage ?? fallbackSnapshotUsage
+  const snapshotUsage = sessionId && effectiveSnapshot ? effectiveSnapshot.usage : null
   const effectiveUsage = liveUsage ?? snapshotUsage
   const source: AgentSessionContextUsageSource = liveUsage ? 'live' : snapshotUsage ? 'snapshot' : 'none'
   const percentage =
@@ -37,8 +42,15 @@ export function useAgentSessionContextUsage(
     usage: effectiveUsage,
     percentage,
     source,
-    capturedAt: source === 'snapshot' ? fallbackSnapshot?.capturedAt : undefined
+    capturedAt: source === 'snapshot' ? effectiveSnapshot?.capturedAt : undefined
   }
+}
+
+function getContextUsageSnapshot(
+  value: AgentSessionContextUsageCacheEntry | undefined
+): AgentSessionContextUsageSnapshot | null {
+  if (!value || typeof value !== 'object' || !('usage' in value) || !('capturedAt' in value)) return null
+  return value
 }
 
 function isExpectedModelUsage(
@@ -65,5 +77,10 @@ function normalizeModelId(model: string | null | undefined): string | undefined 
 }
 
 function isSameModel(actual: string, expected: string): boolean {
-  return actual === expected || actual.startsWith(`${expected}-`) || expected.startsWith(`${actual}-`)
+  return actual === expected || isDatedModelAlias(actual, expected)
+}
+
+function isDatedModelAlias(actual: string, expected: string): boolean {
+  const suffix = actual.startsWith(`${expected}-`) ? actual.slice(expected.length + 1) : undefined
+  return !!suffix && /^\d{8}$/.test(suffix)
 }

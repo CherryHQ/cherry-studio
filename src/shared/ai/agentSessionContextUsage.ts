@@ -24,6 +24,7 @@ export const AgentSessionContextUsageSnapshotSchema = z.strictObject({
 })
 
 export type AgentSessionContextUsageSnapshot = z.infer<typeof AgentSessionContextUsageSnapshotSchema>
+export type AgentSessionContextUsageCacheEntry = AgentSessionContextUsage | AgentSessionContextUsageSnapshot | null
 export type AgentSessionContextUsageSource = 'live' | 'snapshot' | 'none'
 
 export const AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY = (sessionId: string) =>
