@@ -55,11 +55,6 @@ export const PROVIDER_SPECIFIC_SETTINGS_REGISTRY: Record<ProviderSpecificPlaceme
       render: () => <OvmsSettings />
     },
     {
-      key: 'dmxapi-settings',
-      when: ({ meta }) => meta.isDmxapi,
-      render: (providerId) => <DmxapiSettings providerId={providerId} />
-    },
-    {
       key: 'claude-code-settings',
       when: ({ provider }) => isClaudeCodeProviderId(provider.id),
       render: (providerId) => <ClaudeCodeSettings providerId={providerId} />
@@ -76,6 +71,11 @@ export const PROVIDER_SPECIFIC_SETTINGS_REGISTRY: Record<ProviderSpecificPlaceme
     }
   ],
   afterAuth: [
+    {
+      key: 'dmxapi-settings',
+      when: ({ meta }) => meta.isDmxapi,
+      render: (providerId) => <DmxapiSettings providerId={providerId} />
+    },
     {
       key: 'lmstudio-settings',
       when: ({ provider }) => matchesPreset(provider, 'lmstudio'),
