@@ -1,3 +1,4 @@
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel/searchAliases'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { filterSupportedFiles } from '@renderer/utils/file'
 import { type ComposerAttachment, toComposerAttachments } from '@renderer/utils/message/composerAttachment'
@@ -68,6 +69,7 @@ const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, 
         order: 10,
         label: t('chat.input.upload.attachment'),
         description: '',
+        searchAliases: getQuickPanelSearchAliases(t, 'chat.input.upload.attachment', ['upload attachment']),
         tooltip: isDocumentOnly ? t('chat.input.upload.image_not_supported') : undefined,
         icon: <Paperclip />,
         suffix: isDocumentOnly ? t('chat.input.upload.document_only') : undefined,

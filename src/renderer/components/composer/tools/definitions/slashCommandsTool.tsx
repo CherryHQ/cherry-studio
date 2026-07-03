@@ -1,3 +1,4 @@
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel/searchAliases'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { defineTool, TopicType } from '@renderer/components/composer/tools/types'
 import { type QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
@@ -81,6 +82,7 @@ const slashCommandsTool = defineTool({
             order: 20 + (index + 1) / 100,
             label: cmd.command,
             description: descriptionKey ? t(descriptionKey, cmd.description || '') : cmd.description || '',
+            searchAliases: descriptionKey ? getQuickPanelSearchAliases(t, descriptionKey) : undefined,
             icon: <Terminal size={16} />,
             action: ({ inputAdapter }) => {
               insertSlashCommand(cmd.command, actions.onTextChange, inputAdapter)

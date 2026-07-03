@@ -10,14 +10,15 @@ vi.mock('@renderer/utils/file', () => ({
   filterSupportedFiles: vi.fn(async (files) => files)
 }))
 
-const t = (key: string) => {
-  const translations: Record<string, string> = {
+const t = (key: string, options?: { lng?: string; defaultValue?: string }) => {
+  const englishTranslations: Record<string, string> = {
     'chat.input.upload.attachment': 'Upload attachment',
     'chat.input.upload.document_only': 'Documents only',
     'chat.input.upload.image_not_supported': 'This model does not support image uploads. Documents only.'
   }
 
-  return translations[key] ?? key
+  if (options?.lng === 'en-US') return englishTranslations[key] ?? options.defaultValue ?? key
+  return key
 }
 
 vi.mock('react-i18next', () => ({
@@ -76,9 +77,10 @@ describe('AttachmentToolRuntime', () => {
     expect(attachmentLauncher).toMatchObject({
       id: 'attachment',
       sources: ['popover'],
-      label: 'Upload attachment',
-      suffix: 'Documents only',
-      tooltip: 'This model does not support image uploads. Documents only.'
+      label: 'chat.input.upload.attachment',
+      searchAliases: expect.arrayContaining(['Upload attachment']),
+      suffix: 'chat.input.upload.document_only',
+      tooltip: 'chat.input.upload.image_not_supported'
     })
   })
 

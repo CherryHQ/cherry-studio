@@ -1,3 +1,4 @@
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel/searchAliases'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
@@ -79,6 +80,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
         order: 80,
         label: t('agent.settings.permissionMode.title', 'Permission Mode'),
         description: '',
+        searchAliases: getQuickPanelSearchAliases(t, 'agent.settings.permissionMode.title'),
         icon: getPermissionModeIcon(currentMode),
         suffix: tooltipTitle,
         submenu: modeSubmenu
