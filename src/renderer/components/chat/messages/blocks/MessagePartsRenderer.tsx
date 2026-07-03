@@ -45,7 +45,7 @@ import CompactBlock from './CompactBlock'
 import CompactionAnchorBlock from './CompactionAnchorBlock'
 import ErrorBlock from './ErrorBlock'
 import ImageBlock from './ImageBlock'
-import MainTextBlock from './MainTextBlock'
+import MainTextBlock, { buildUserMessagePreview } from './MainTextBlock'
 import { useMessageParts, useTranslationOverlayEntry } from './MessagePartsContext'
 import PlaceholderBlock, { type PlaceholderStatus } from './PlaceholderBlock'
 import ThinkingBlock from './ThinkingBlock'
@@ -163,6 +163,11 @@ function getVideoFilePath(part: CherryMessagePart): string | undefined {
 type PartEntry = { part: CherryMessagePart; index: number }
 type GroupedEntry = PartEntry | PartEntry[]
 
+interface RenderGroupedEntryOptions {
+  expandedTextPartIds: ReadonlySet<string>
+  onTextPartExpandedChange: (partId: string, expanded: boolean) => void
+}
+
 function groupPartEntries(entries: readonly PartEntry[]): GroupedEntry[] {
   return entries.reduce<GroupedEntry[]>((acc, entry) => {
     const { part } = entry
@@ -245,12 +250,29 @@ function getComposerFileTokenNames(token: ComposerMessageToken): Set<string> {
   return new Set(names)
 }
 
-function getVisibleComposerFileTokens(parts: readonly CherryMessagePart[]): VisibleComposerFileToken[] {
-  return parts.flatMap((part) => {
+function getComposerTokenDisplayText(
+  part: CherryMessagePart,
+  message: MessageListItem,
+  partId: string,
+  expandedTextPartIds: ReadonlySet<string>
+): string {
+  const text = (part as { text?: string }).text ?? ''
+  if (message.role !== 'user' || expandedTextPartIds.has(partId)) return text
+
+  return buildUserMessagePreview(text).content
+}
+
+function getVisibleComposerFileTokens(
+  parts: readonly CherryMessagePart[],
+  message: MessageListItem,
+  expandedTextPartIds: ReadonlySet<string>
+): VisibleComposerFileToken[] {
+  return parts.flatMap((part, index) => {
     if ((part.type as string) !== 'text') return []
     const composer = getCherryMeta(part)?.composer
     if (!composer) return []
-    const text = (part as { text?: string }).text ?? ''
+    const partId = `${message.id}-part-${index}`
+    const text = getComposerTokenDisplayText(part, message, partId, expandedTextPartIds)
 
     return getDisplayComposerTokens(composer).flatMap((token) => {
       if (token.kind !== 'file' || !isComposerTokenVisibleInText(token, text)) return []
@@ -413,7 +435,8 @@ function renderPart(
   partId: string,
   message: MessageListItem,
   isStreaming: boolean,
-  isTranslationOverlayActive: boolean
+  isTranslationOverlayActive: boolean,
+  options?: RenderGroupedEntryOptions
 ): React.ReactNode {
   const partType = part.type
 
@@ -487,6 +510,10 @@ function renderPart(
           citationReferences={citationReferences}
           role={message.role}
           composer={cherryMeta?.composer}
+          userContentExpanded={message.role === 'user' ? options?.expandedTextPartIds.has(partId) : undefined}
+          onUserContentExpandedChange={
+            message.role === 'user' ? (expanded) => options?.onTextPartExpandedChange(partId, expanded) : undefined
+          }
         />
       )
     }
@@ -588,7 +615,8 @@ function renderGroupedEntry(
   entry: GroupedEntry,
   message: MessageListItem,
   isStreaming: boolean,
-  isTranslationOverlayActive: boolean
+  isTranslationOverlayActive: boolean,
+  options?: RenderGroupedEntryOptions
 ): React.ReactNode {
   if (Array.isArray(entry)) {
     const groupKey = entry.map((e) => `${message.id}-part-${e.index}`).join('-')
@@ -642,7 +670,7 @@ function renderGroupedEntry(
   }
 
   const partId = `${message.id}-part-${entry.index}`
-  const rendered = renderPart(entry.part, partId, message, isStreaming, isTranslationOverlayActive)
+  const rendered = renderPart(entry.part, partId, message, isStreaming, isTranslationOverlayActive, options)
   if (!rendered) return null
 
   return (
@@ -789,6 +817,21 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
   const isStreaming = isTopicStreaming && message.status === 'pending'
   const isTranslationOverlayActive = useTranslationOverlayEntry(message.id) !== undefined
   const renderConfig = useMessageRenderConfig()
+  const [expandedTextPartIds, setExpandedTextPartIds] = React.useState<ReadonlySet<string>>(() => new Set())
+  const handleTextPartExpandedChange = React.useCallback((partId: string, expanded: boolean) => {
+    setExpandedTextPartIds((current) => {
+      const hasPartId = current.has(partId)
+      if (hasPartId === expanded) return current
+
+      const next = new Set(current)
+      if (expanded) {
+        next.add(partId)
+      } else {
+        next.delete(partId)
+      }
+      return next
+    })
+  }, [])
 
   // Beat loader visible only when THIS specific message is the active turn
   // target. The identity predicate lives in `useIsActiveTurnTarget` so
@@ -815,12 +858,22 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
   // Everything not folded into the history group renders flat: the answer after
   // the fold, or all parts when there's no fold (no tools / collapse disabled).
   const visibleEntries = toolHistoryGroup?.resultEntries ?? partEntries
-  const visibleComposerFileTokens = useMemo(() => getVisibleComposerFileTokens(messageParts), [messageParts])
+  const visibleComposerFileTokens = useMemo(
+    () => getVisibleComposerFileTokens(messageParts, message, expandedTextPartIds),
+    [expandedTextPartIds, message, messageParts]
+  )
   const displayEntries = useMemo(
     () => getDisplayEntries(visibleEntries, message, visibleComposerFileTokens),
     [message, visibleComposerFileTokens, visibleEntries]
   )
   const grouped = useMemo(() => (displayEntries.length === 0 ? [] : groupPartEntries(displayEntries)), [displayEntries])
+  const renderOptions = useMemo(
+    () => ({
+      expandedTextPartIds,
+      onTextPartExpandedChange: handleTextPartExpandedChange
+    }),
+    [expandedTextPartIds, handleTextPartExpandedChange]
+  )
 
   // No parts to render — normal for user messages (content is in message text, not parts)
   // But if the message is processing (pending/streaming), show the loading placeholder
@@ -850,7 +903,9 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
           />
         </AnimatedBlockWrapper>
       )}
-      {grouped.map((entry) => renderGroupedEntry(entry, message, isStreaming, isTranslationOverlayActive))}
+      {grouped.map((entry) =>
+        renderGroupedEntry(entry, message, isStreaming, isTranslationOverlayActive, renderOptions)
+      )}
       {reportArtifactToolResponses.length > 0 && (
         <AnimatedBlockWrapper key={`report-artifacts-${message.id}`} enableAnimation={isStreaming} animation="fade">
           <MessageReportArtifacts toolResponses={reportArtifactToolResponses} />

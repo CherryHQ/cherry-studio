@@ -587,6 +587,52 @@ describe('MessagePartsRenderer', () => {
     expect(attachments).toHaveLength(2)
   })
 
+  it('keeps user file attachments until collapsed message expansion makes the composer token visible', () => {
+    const text = ['Line 1', 'Line 2', 'Line 3', 'Line 4', 'Line 5', 'Open late.pdf'].join('\n')
+    renderParts(
+      [
+        {
+          type: 'text',
+          text,
+          providerMetadata: {
+            cherry: {
+              composer: {
+                version: 1,
+                tokens: [
+                  {
+                    id: 'file:source-late',
+                    kind: 'file',
+                    label: 'late.pdf',
+                    index: 0,
+                    textOffset: text.indexOf('late.pdf'),
+                    promptText: 'late.pdf',
+                    payload: { origin_name: 'late.pdf', name: 'late.pdf' }
+                  }
+                ]
+              }
+            }
+          }
+        } as unknown as CherryMessagePart,
+        {
+          type: 'file',
+          url: 'file:///late.pdf',
+          mediaType: 'application/pdf',
+          filename: 'late.pdf',
+          providerMetadata: { cherry: { fileTokenSourceId: 'source-late' } }
+        } as unknown as CherryMessagePart
+      ],
+      msg({ role: 'user' })
+    )
+
+    expect(document.querySelector('[data-composer-token-kind="file"]')).not.toBeInTheDocument()
+    expect(screen.getByTestId('mock-attachments').getAttribute('data-file-name')).toBe('late.pdf')
+
+    fireEvent.click(screen.getByRole('button', { name: 'message.message.user_content.expand' }))
+
+    expect(document.querySelector('[data-composer-token-kind="file"]')).toBeInTheDocument()
+    expect(screen.queryByTestId('mock-attachments')).toBeNull()
+  })
+
   // -- tool (single) --
   it('renders single dynamic-tool via MessageTools', () => {
     renderParts([
