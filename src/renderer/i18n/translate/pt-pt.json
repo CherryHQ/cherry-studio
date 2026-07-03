@@ -863,6 +863,10 @@
           "description": "Executa comandos shell no seu ambiente",
           "label": "Bash"
         },
+        "CherryCron": {
+          "description": "Gerencia o agendador dentro do aplicativo",
+          "label": "Agendador"
+        },
         "CherryKbManage": {
           "description": "Adiciona, exclui ou atualiza documentos em suas bases de conhecimento",
           "label": "Gerenciar Conhecimento"
@@ -878,10 +882,6 @@
         "CherryWebSearch": {
           "description": "Pesquisa na web através do seu provedor configurado",
           "label": "Pesquisa na Web"
-        },
-        "ClawCron": {
-          "description": "Gerencia o agendador dentro do aplicativo",
-          "label": "Agendador"
         },
         "Edit": {
           "description": "Faz edições direcionadas em arquivos específicos",

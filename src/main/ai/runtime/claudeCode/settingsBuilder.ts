@@ -32,8 +32,8 @@ import { loggerService } from '@logger'
 import { isProvisioned, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { PromptBuilder } from '@main/ai/agents/prompt'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
+import CherryServer from '@main/ai/mcp/servers/cherry'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
-import ClawServer from '@main/ai/mcp/servers/claw'
 import WorkspaceMemoryServer from '@main/ai/mcp/servers/workspaceMemory'
 import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSdkMcpServerInstance'
 import { skillService } from '@main/ai/skills/SkillService'
@@ -635,7 +635,7 @@ async function buildToolPermissions(
   const agentConfig = agent.configuration
   const isAssistant = agentConfig?.builtin_role === 'assistant'
 
-  // Raw session context for tool enable-predicates (worktree needs .git; claw notify/config need a
+  // Raw session context for tool enable-predicates (worktree needs .git; cherry notify/config need a
   // connected channel). Channels are fetched once here so the predicates stay synchronous.
   const cwd = session.workspace?.path
   const conditionContext: ClaudeToolContext | undefined = cwd
@@ -666,7 +666,7 @@ async function buildToolPermissions(
       // (CHANNEL_SECURITY_PROMPT). The MUTATING kb_manage tool is carved out below — it modifies the
       // user's knowledge bases, so it must go through per-call approval rather than this prefix.
       'mcp__cherry-tools__',
-      'mcp__claw__',
+      'mcp__cherry__',
       ...(isAssistant ? ['mcp__assistant__'] : [])
     ],
     // Mutating cherry-tools (kb_manage) match the prefix above but must still prompt for approval.
@@ -920,7 +920,7 @@ export function buildMcpServers(
     instance: new CherryBuiltinToolsServer().mcpServer
   }
 
-  // 4. Claw — agent autonomy tools. Use `agent.id` instead of
+  // 4. Cherry — agent autonomy tools. Use `agent.id` instead of
   // `session.agentId` so TS can see the value is non-null after the upstream
   // orphan check in buildClaudeCodeSessionSettings.
   const sourceChannelId = resolveSourceChannel(agent.id, session.id)
@@ -937,8 +937,8 @@ export function buildMcpServers(
       throw new Error(`Unsupported workspace type: ${String(exhaustive)}`)
     }
   }
-  const clawServer = new ClawServer(agent.id, workspaceSource, session.workspace.path, sourceChannelId)
-  mcpList.claw = { type: 'sdk', name: 'claw', instance: clawServer.mcpServer }
+  const cherryServer = new CherryServer(agent.id, workspaceSource, session.workspace.path, sourceChannelId)
+  mcpList.cherry = { type: 'sdk', name: 'cherry', instance: cherryServer.mcpServer }
 
   // agent-memory — the FACT.md / JOURNAL.jsonl memory tool the agent prompt and the
   // workspace bootstrap drive via `mcp__agent-memory__memory`. Without it the documented
@@ -946,7 +946,7 @@ export function buildMcpServers(
   const memoryServer = new WorkspaceMemoryServer(agent.id, session.workspace.path)
   mcpList['agent-memory'] = { type: 'sdk', name: 'agent-memory', instance: memoryServer.mcpServer }
 
-  logger.debug('Injected claw + agent-memory MCP servers', {
+  logger.debug('Injected cherry + agent-memory MCP servers', {
     agentId: agent.id,
     totalMcpServers: Object.keys(mcpList).length
   })
@@ -1028,13 +1028,13 @@ function resolveSourceChannel(agentId: string, sessionId: string): string | unde
 
 /**
  * Auto-approve allowlist for injected built-in MCP servers, so the
- * claw/agent-memory/assistant tools pass without per-call approval.
+ * cherry/agent-memory/assistant tools pass without per-call approval.
  * The read-only cherry-tools are listed explicitly (not a wildcard) so the mutating kb_manage tool is
  * excluded from the SDK pre-approval and routed through per-call approval via canUseTool.
  */
 export function adjustAllowedToolsForMcp(isAssistant: boolean): string[] {
   const result = CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
-  result.push('mcp__claw__*', 'mcp__agent-memory__*')
+  result.push('mcp__cherry__*', 'mcp__agent-memory__*')
   if (isAssistant) result.push('mcp__assistant__*')
   return result
 }

@@ -863,6 +863,10 @@
           "description": "Executes shell commands in your environment",
           "label": "Bash"
         },
+        "CherryCron": {
+          "description": "Manages the in-app scheduler",
+          "label": "Scheduler"
+        },
         "CherryKbManage": {
           "description": "Adds, deletes, or refreshes documents in your knowledge bases",
           "label": "Manage Knowledge"
@@ -878,10 +882,6 @@
         "CherryWebSearch": {
           "description": "Searches the web via your configured provider",
           "label": "Web Search"
-        },
-        "ClawCron": {
-          "description": "Manages the in-app scheduler",
-          "label": "Scheduler"
         },
         "Edit": {
           "description": "Makes targeted edits to specific files",

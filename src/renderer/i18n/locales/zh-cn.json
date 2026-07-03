@@ -863,6 +863,10 @@
           "description": "在你的环境中执行 Shell 命令",
           "label": "Bash"
         },
+        "CherryCron": {
+          "description": "管理应用内的定时调度",
+          "label": "定时任务"
+        },
         "CherryKbManage": {
           "description": "添加、删除或刷新知识库中的文档",
           "label": "知识库管理"
@@ -878,10 +882,6 @@
         "CherryWebSearch": {
           "description": "通过你配置的提供方搜索网页",
           "label": "网页搜索"
-        },
-        "ClawCron": {
-          "description": "管理应用内的定时调度",
-          "label": "定时任务"
         },
         "Edit": {
           "description": "对特定文件进行精确编辑",

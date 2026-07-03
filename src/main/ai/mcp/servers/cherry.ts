@@ -14,7 +14,7 @@ import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { type ChannelConfig, ChannelConfigSchema } from '@shared/data/types/channel'
 import QRCode from 'qrcode'
 
-const logger = loggerService.withContext('McpServer:Claw')
+const logger = loggerService.withContext('McpServer:Cherry')
 
 /**
  * Parse a human-friendly duration string (e.g. '30m', '2h', '1h30m') into minutes.
@@ -218,7 +218,7 @@ const CONFIG_TOOL: Tool = {
   }
 }
 
-class ClawServer {
+class CherryServer {
   public mcpServer: McpServer
   private agentId: string
   private workspace: AgentSessionWorkspaceSource
@@ -237,7 +237,7 @@ class ClawServer {
     this.sourceChannelId = sourceChannelId
     this.mcpServer = new McpServer(
       {
-        name: 'claw',
+        name: 'cherry',
         version: '1.0.0'
       },
       {
@@ -814,4 +814,4 @@ class ClawServer {
   }
 }
 
-export default ClawServer
+export default CherryServer

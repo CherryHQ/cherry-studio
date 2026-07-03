@@ -99,13 +99,13 @@ function makeSession(path: string, type: 'user' | 'system' = 'user'): AgentSessi
 }
 
 describe('adjustAllowedToolsForMcp', () => {
-  it('lists read-only cherry-tools + claw + agent-memory for every agent, excluding the mutating kb_manage', () => {
+  it('lists read-only cherry-tools + cherry + agent-memory for every agent, excluding the mutating kb_manage', () => {
     const allowed = adjustAllowedToolsForMcp(false)
     expect(allowed).toEqual(
       expect.arrayContaining([
         'mcp__cherry-tools__kb_search',
         'mcp__cherry-tools__kb_list',
-        'mcp__claw__*',
+        'mcp__cherry__*',
         'mcp__agent-memory__*'
       ])
     )
@@ -128,7 +128,7 @@ describe('adjustAllowedToolsForMcp', () => {
 describe('buildMcpServers', () => {
   it('injects the agent-memory server for every agent (REGRESSION agents-jobs-3)', async () => {
     const result = buildMcpServers(session, agent, false)
-    expect(Object.keys(result ?? {})).toEqual(expect.arrayContaining(['claw', 'agent-memory']))
+    expect(Object.keys(result ?? {})).toEqual(expect.arrayContaining(['cherry', 'agent-memory']))
   })
 
   it('injects cherry-tools for every session and no longer injects exa', async () => {

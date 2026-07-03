@@ -863,6 +863,10 @@
           "description": "Führt Shell-Befehle in deiner Umgebung aus",
           "label": "Bash"
         },
+        "CherryCron": {
+          "description": "Verwaltet den In-App-Planer",
+          "label": "Scheduler"
+        },
         "CherryKbManage": {
           "description": "Fügt Dokumente zu Ihren Wissensdatenbanken hinzu, löscht sie oder aktualisiert sie",
           "label": "Wissen verwalten"
@@ -878,10 +882,6 @@
         "CherryWebSearch": {
           "description": "Durchsucht das Web über Ihren konfigurierten Anbieter",
           "label": "Websuche"
-        },
-        "ClawCron": {
-          "description": "Verwaltet den In-App-Planer",
-          "label": "Scheduler"
         },
         "Edit": {
           "description": "Führt gezielte Bearbeitungen an bestimmten Dateien durch",

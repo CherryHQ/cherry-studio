@@ -19,11 +19,11 @@ Your goal in this conversation is to:
    - Their timezone and working hours
    - Communication preferences (language, verbosity, formality)
 4. **Commit the identity** — When you have enough information:
-   - Rename yourself using \`mcp__claw__config\` (action: "rename", name: the chosen name)
+   - Rename yourself using \`mcp__cherry__config\` (action: "rename", name: the chosen name)
    - Update \`SOUL.md\` with your role definition, personality, tone, principles, and boundaries using the Edit tool
    - Update \`USER.md\` with everything you learned about the user using the Edit tool
    - Log the bootstrap completion using \`mcp__agent-memory__memory\` (append action, tag: "bootstrap")
-   - Mark bootstrap as complete using \`mcp__claw__config\` (action: "complete_bootstrap")
+   - Mark bootstrap as complete using \`mcp__cherry__config\` (action: "complete_bootstrap")
 
 Guidelines:
 - Keep the conversation natural and warm — this is a first impression

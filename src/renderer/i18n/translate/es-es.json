@@ -863,6 +863,10 @@
           "description": "Ejecuta comandos de shell en tu entorno",
           "label": "Bash"
         },
+        "CherryCron": {
+          "description": "Gestiona el programador dentro de la aplicación",
+          "label": "Planificador"
+        },
         "CherryKbManage": {
           "description": "Agrega, elimina o actualiza documentos en tus bases de conocimiento",
           "label": "Gestionar conocimiento"
@@ -878,10 +882,6 @@
         "CherryWebSearch": {
           "description": "Busca en la web a través de tu proveedor configurado",
           "label": "Búsqueda en la web"
-        },
-        "ClawCron": {
-          "description": "Gestiona el programador dentro de la aplicación",
-          "label": "Planificador"
         },
         "Edit": {
           "description": "Realiza ediciones dirigidas a archivos específicos",

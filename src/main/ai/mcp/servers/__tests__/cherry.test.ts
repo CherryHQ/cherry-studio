@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Mock TaskService before importing ClawServer
+// Mock TaskService before importing CherryServer
 const mockCreateTask = vi.fn()
 const mockListTasks = vi.fn()
 const mockDeleteTask = vi.fn()
@@ -80,17 +80,17 @@ vi.mock('@main/services/MainWindowService', () => ({
   }
 }))
 
-const { default: ClawServer } = await import('../claw')
-type ClawServerInstance = InstanceType<typeof ClawServer>
+const { default: CherryServer } = await import('../cherry')
+type CherryServerInstance = InstanceType<typeof CherryServer>
 const WORKSPACE_SOURCE = { type: 'system' as const }
-const WORKSPACE_PATH = '/tmp/claw-test-workspace'
+const WORKSPACE_PATH = '/tmp/cherry-test-workspace'
 
 function createServer(agentId = 'agent_test', workspacePath = WORKSPACE_PATH) {
-  return new ClawServer(agentId, WORKSPACE_SOURCE, workspacePath)
+  return new CherryServer(agentId, WORKSPACE_SOURCE, workspacePath)
 }
 
 // Helper to call tools via the Server's request handlers
-async function callTool(server: ClawServerInstance, args: Record<string, unknown>, toolName = 'cron') {
+async function callTool(server: CherryServerInstance, args: Record<string, unknown>, toolName = 'cron') {
   // Use the server's internal handler by simulating a CallTool request
   const handlers = (server.mcpServer.server as any)._requestHandlers
   const callToolHandler = handlers?.get('tools/call')
@@ -104,7 +104,7 @@ async function callTool(server: ClawServerInstance, args: Record<string, unknown
   )
 }
 
-async function listTools(server: ClawServerInstance) {
+async function listTools(server: CherryServerInstance) {
   const handlers = (server.mcpServer.server as any)._requestHandlers
   const listHandler = handlers?.get('tools/list')
   if (!listHandler) {
@@ -113,7 +113,7 @@ async function listTools(server: ClawServerInstance) {
   return listHandler({ method: 'tools/list', params: {} }, {})
 }
 
-describe('ClawServer', () => {
+describe('CherryServer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -395,8 +395,8 @@ describe('ClawServer', () => {
       let outside: string
 
       beforeEach(async () => {
-        workspace = await mkdtemp(path.join(tmpdir(), 'claw-notify-'))
-        outside = await mkdtemp(path.join(tmpdir(), 'claw-outside-'))
+        workspace = await mkdtemp(path.join(tmpdir(), 'cherry-notify-'))
+        outside = await mkdtemp(path.join(tmpdir(), 'cherry-outside-'))
       })
 
       afterEach(async () => {

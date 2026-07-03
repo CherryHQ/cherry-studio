@@ -863,6 +863,10 @@
           "description": "Exécute des commandes shell dans votre environnement",
           "label": "Bash"
         },
+        "CherryCron": {
+          "description": "Gère le planificateur intégré à l'application",
+          "label": "Planificateur"
+        },
         "CherryKbManage": {
           "description": "Ajoute, supprime ou actualise des documents dans vos bases de connaissances",
           "label": "Gérer les connaissances"
@@ -878,10 +882,6 @@
         "CherryWebSearch": {
           "description": "Effectue des recherches sur le web via votre fournisseur configuré",
           "label": "Recherche sur le Web"
-        },
-        "ClawCron": {
-          "description": "Gère le planificateur intégré à l'application",
-          "label": "Planificateur"
         },
         "Edit": {
           "description": "Effectue des modifications ciblées sur des fichiers spécifiques",

@@ -72,24 +72,24 @@ describe('resolveDisallowedTools', () => {
   it('treats predicate-gated tools as enabled when no ctx is supplied', () => {
     const disallowed = new Set(resolveDisallowedTools({}))
     expect(disallowed.has('EnterWorktree')).toBe(false)
-    expect(disallowed.has('mcp__claw__notify')).toBe(false)
+    expect(disallowed.has('mcp__cherry__notify')).toBe(false)
   })
 
-  it('disables worktree without .git and claw notify/config without channels', () => {
+  it('disables worktree without .git and cherry notify/config without channels', () => {
     existsSync.mockReturnValue(false) // no .git
     const disallowed = new Set(resolveDisallowedTools({}, { cwd: '/ws', channels: [] }))
     expect(disallowed.has('EnterWorktree')).toBe(true)
     expect(disallowed.has('ExitWorktree')).toBe(true)
-    expect(disallowed.has('mcp__claw__notify')).toBe(true)
-    expect(disallowed.has('mcp__claw__config')).toBe(true)
+    expect(disallowed.has('mcp__cherry__notify')).toBe(true)
+    expect(disallowed.has('mcp__cherry__config')).toBe(true)
   })
 
-  it('enables worktree with .git and claw notify/config with a channel', () => {
+  it('enables worktree with .git and cherry notify/config with a channel', () => {
     existsSync.mockReturnValue(true) // .git present
     const disallowed = new Set(resolveDisallowedTools({}, { cwd: '/ws', channels: [{ id: 'c1' }] }))
     expect(disallowed.has('EnterWorktree')).toBe(false)
     expect(disallowed.has('ExitWorktree')).toBe(false)
-    expect(disallowed.has('mcp__claw__notify')).toBe(false)
-    expect(disallowed.has('mcp__claw__config')).toBe(false)
+    expect(disallowed.has('mcp__cherry__notify')).toBe(false)
+    expect(disallowed.has('mcp__cherry__config')).toBe(false)
   })
 })

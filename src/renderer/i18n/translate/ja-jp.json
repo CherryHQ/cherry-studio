@@ -863,6 +863,10 @@
           "description": "環境でシェルコマンドを実行します",
           "label": "Bash"
         },
+        "CherryCron": {
+          "description": "アプリ内スケジューラを管理します",
+          "label": "スケジューラ"
+        },
         "CherryKbManage": {
           "description": "ナレッジベース内のドキュメントを追加、削除、または更新します",
           "label": "ナレッジ管理"
@@ -878,10 +882,6 @@
         "CherryWebSearch": {
           "description": "設定されたプロバイダーを通じてウェブを検索します",
           "label": "ウェブ検索"
-        },
-        "ClawCron": {
-          "description": "アプリ内スケジューラを管理します",
-          "label": "スケジューラ"
         },
         "Edit": {
           "description": "特定のファイルに対してターゲットを絞った編集を行う",

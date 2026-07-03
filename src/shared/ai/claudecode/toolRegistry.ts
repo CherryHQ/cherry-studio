@@ -36,7 +36,7 @@ export interface ClaudeToolDescriptorDef {
   /** Other tools this one requires — if any is disabled, this tool is disabled too (transitively). */
   dependsOn?: readonly string[]
   /** Set for in-process MCP tools — the server hosting this tool (drives injection). */
-  mcpServer?: 'cherry-tools' | 'claw' | 'agent-memory' | 'skills'
+  mcpServer?: 'cherry-tools' | 'cherry' | 'agent-memory' | 'skills'
 }
 
 /**
@@ -311,28 +311,28 @@ const CLAUDE_TOOL_REGISTRY = {
     description: 'Adds, deletes, or refreshes knowledge base documents',
     mcpServer: 'cherry-tools'
   },
-  // claw (agent autonomy / channels). notify/config need a connected channel to do anything.
-  ClawCron: {
-    name: 'mcp__claw__cron',
+  // cherry (agent autonomy / channels). notify/config need a connected channel to do anything.
+  CherryCron: {
+    name: 'mcp__cherry__cron',
     category: 'orchestration',
     exposure: 'user',
     description: 'Manages the in-app scheduler',
-    mcpServer: 'claw'
+    mcpServer: 'cherry'
   },
   // notify/config are condition-gated (agent has a connected channel) — see toolConditions.ts.
-  ClawNotify: {
-    name: 'mcp__claw__notify',
+  CherryNotify: {
+    name: 'mcp__cherry__notify',
     category: 'orchestration',
     exposure: 'internal',
     description: 'Sends a notification through a connected channel',
-    mcpServer: 'claw'
+    mcpServer: 'cherry'
   },
-  ClawConfig: {
-    name: 'mcp__claw__config',
+  CherryConfig: {
+    name: 'mcp__cherry__config',
     category: 'orchestration',
     exposure: 'internal',
     description: 'Inspects and manages this agent configuration and channels',
-    mcpServer: 'claw'
+    mcpServer: 'cherry'
   },
   // agent-memory (cross-session memory)
   AgentMemory: {
@@ -399,7 +399,7 @@ const MCP_TOOL_LABELS: Record<string, string> = {
   'mcp__cherry-tools__kb_search': 'Knowledge Search',
   'mcp__cherry-tools__kb_manage': 'Manage Knowledge',
   'mcp__agent-memory__memory': 'Memory',
-  mcp__claw__cron: 'Scheduler'
+  mcp__cherry__cron: 'Scheduler'
 }
 
 /**

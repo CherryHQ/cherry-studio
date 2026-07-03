@@ -33,7 +33,7 @@ export const useAgent = (id: string | null) => {
     params: { agentId: id! },
     enabled: !!id,
     swrOptions: {
-      // Agent config may be modified externally (e.g. claw MCP tool in main process),
+      // Agent config may be modified externally (e.g. cherry MCP tool in main process),
       // so always revalidate on mount and reduce dedup window to get fresh data.
       revalidateOnMount: true,
       dedupingInterval: 2000,

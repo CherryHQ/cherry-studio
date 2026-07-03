@@ -863,6 +863,10 @@
           "description": "Thực thi các lệnh shell trong môi trường của bạn",
           "label": "Bash"
         },
+        "CherryCron": {
+          "description": "Quản lý trình lên lịch trong ứng dụng",
+          "label": "Trình lập lịch"
+        },
         "CherryKbManage": {
           "description": "Thêm, xóa hoặc làm mới tài liệu trong cơ sở kiến thức của bạn",
           "label": "Quản lý kiến thức"
@@ -878,10 +882,6 @@
         "CherryWebSearch": {
           "description": "Tìm kiếm trên web thông qua nhà cung cấp đã cấu hình của bạn",
           "label": "Tìm kiếm web"
-        },
-        "ClawCron": {
-          "description": "Quản lý trình lên lịch trong ứng dụng",
-          "label": "Trình lập lịch"
         },
         "Edit": {
           "description": "Thực hiện chỉnh sửa có mục tiêu trên các tập tin cụ thể",

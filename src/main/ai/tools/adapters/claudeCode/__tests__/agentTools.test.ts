@@ -153,6 +153,17 @@ describe('createClaudeAgentToolPolicySnapshot — auto-allow prefix + approval e
     // A sibling read tool under the same prefix is still auto-approved.
     expect(snapshot.resolve('mcp__cherry-tools__kb_read')).toMatchObject({ approval: 'auto' })
   })
+
+  it('keeps the sibling cherry / cherry-tools prefixes from shadowing each other', async () => {
+    // The two production prefixes share the "cherry" stem; the trailing `__` delimiter is what
+    // keeps startsWith() matching exact — an mcp__cherry__ grant must never leak to cherry-tools.
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(), {
+      autoAllowRuntimeNamePrefixes: ['mcp__cherry__']
+    })
+    expect(snapshot.resolve('mcp__cherry__cron')).toMatchObject({ approval: 'auto' })
+    // No cherry-tools prefix was granted, so its tools must fall through (undefined), not auto-allow.
+    expect(snapshot.resolve('mcp__cherry-tools__kb_manage')).toBeUndefined()
+  })
 })
 
 describe('createClaudeAgentToolPolicySnapshot — production approval-gate wiring', () => {

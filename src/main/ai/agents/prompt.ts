@@ -62,20 +62,20 @@ When to act:
 - Before writing to \`FACT.md\`, ask: will this still matter in 6 months? If not, append to the journal instead.
 - Never write to \`memory/FACT.md\` or \`memory/JOURNAL.jsonl\` via direct file tools — always go through the memory tool so writes stay atomic and searchable.`
 
-const CLAW_GUIDANCE = `## Autonomy Tools
+const CHERRY_GUIDANCE = `## Autonomy Tools
 
 You have exclusive access to these tools for interacting with CherryStudio's autonomous features. Always prefer them over manual alternatives.
 
 | Tool | Purpose | When to use |
 |---|---|---|
-| \`mcp__claw__cron\` | Schedule recurring or one-time tasks. Supports \`timeout_minutes\` param (default 2). | Creating reminders, periodic checks, scheduled reports. Never use builtin Cron* tools — they are disabled. |
-| \`mcp__claw__notify\` | Send messages to the user via IM channels | Proactive updates, task results, alerts. Use when the user is not in the current session. |
-| \`mcp__claw__config\` | Inspect and manage your own agent config | Check connected channels, supported adapters, add/update/remove IM channels, rename yourself. |
+| \`mcp__cherry__cron\` | Schedule recurring or one-time tasks. Supports \`timeout_minutes\` param (default 2). | Creating reminders, periodic checks, scheduled reports. Never use builtin Cron* tools — they are disabled. |
+| \`mcp__cherry__notify\` | Send messages to the user via IM channels | Proactive updates, task results, alerts. Use when the user is not in the current session. |
+| \`mcp__cherry__config\` | Inspect and manage your own agent config | Check connected channels, supported adapters, add/update/remove IM channels, rename yourself. |
 
 Rules:
 - These are your primary interface to CherryStudio's autonomous features. Do not attempt workarounds or alternative approaches.
-- When creating scheduled tasks, always use \`mcp__claw__cron\`. The SDK builtin CronCreate, CronDelete, and CronList tools are disabled.
-- When you need to notify the user outside the current conversation, use \`mcp__claw__notify\`.
+- When creating scheduled tasks, always use \`mcp__cherry__cron\`. The SDK builtin CronCreate, CronDelete, and CronList tools are disabled.
+- When you need to notify the user outside the current conversation, use \`mcp__cherry__notify\`.
 - When adding a WeChat channel, the config tool returns a QR code image. Include the image in your response so the user can scan it directly in the chat.
 - Use \`config status\` to check which channels are actually connected. If a channel shows \`connected: false\`, use \`config reconnect_channel\` to trigger a fresh QR scan.`
 
@@ -91,11 +91,11 @@ If the user explicitly needs browser automation (filling forms, clicking, naviga
 
 /**
  * Compose the tool-strategy guidance for an agent. Every section is always
- * present — the claw (cron / notify / config), skills, memory, and web-tools
+ * present — the cherry (cron / notify / config), skills, memory, and web-tools
  * MCP servers are injected for every agent.
  */
 function composeToolGuidance(): string {
-  return [CLAW_GUIDANCE, SKILLS_GUIDANCE, MEMORY_GUIDANCE, WEB_TOOLS_GUIDANCE].join('\n\n')
+  return [CHERRY_GUIDANCE, SKILLS_GUIDANCE, MEMORY_GUIDANCE, WEB_TOOLS_GUIDANCE].join('\n\n')
 }
 
 function memoriesTemplate(workspacePath: string, sections: string): string {
@@ -122,7 +122,7 @@ ${sections}`
  * PromptBuilder assembles the system prompt for CherryStudio agents.
  *
  * {@link buildSystemPrompt} — full custom prompt that REPLACES the SDK preset
- * entirely. Includes the basic identity, the full tool guidance (claw +
+ * entirely. Includes the basic identity, the full tool guidance (cherry +
  * skills + memory + web), bootstrap instructions when needed, and the
  * workspace memory files (SOUL.md / USER.md / FACT.md).
  *
@@ -143,7 +143,7 @@ export class PromptBuilder {
     const basicPrompt = systemPath ? await this.readCachedFile(systemPath) : undefined
     parts.push(basicPrompt ?? DEFAULT_BASIC_PROMPT)
 
-    // Tool guidance — the full set including claw (cron / notify / config)
+    // Tool guidance — the full set including cherry (cron / notify / config)
     parts.push(composeToolGuidance())
 
     // Bootstrap detection: inject bootstrap instructions if not completed

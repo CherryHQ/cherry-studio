@@ -863,6 +863,10 @@
           "description": "Execută comenzi shell în mediul tău",
           "label": "Bash"
         },
+        "CherryCron": {
+          "description": "Gestionează programatorul din aplicație",
+          "label": "Planificator"
+        },
         "CherryKbManage": {
           "description": "Adaugă, șterge sau reîmprospătează documente în bazele tale de cunoștințe",
           "label": "Gestionează cunoștințele"
@@ -878,10 +882,6 @@
         "CherryWebSearch": {
           "description": "Caută pe web prin furnizorul configurat",
           "label": "Căutare pe web"
-        },
-        "ClawCron": {
-          "description": "Gestionează programatorul din aplicație",
-          "label": "Planificator"
         },
         "Edit": {
           "description": "Efectuează editări țintite asupra fișierelor specifice",
