@@ -43,6 +43,12 @@ describe('useAgentModelFilter', () => {
         id: 'vertex',
         defaultChatEndpoint: 'google-generate-content',
         authType: 'iam-gcp'
+      },
+      {
+        id: 'cherryai',
+        presetProviderId: 'cherryai',
+        defaultChatEndpoint: 'openai-chat-completions',
+        authType: 'api-key'
       }
     ]
   })
@@ -61,6 +67,14 @@ describe('useAgentModelFilter', () => {
 
     expect(result.current({ ...model(), providerId: 'gemini', id: 'gemini::gemini-2.5-pro' })).toBe(false)
     expect(result.current({ ...model(), providerId: 'google-custom', id: 'google-custom::gemini-2.5-pro' })).toBe(false)
+  })
+
+  it('filters the managed CherryAI default model for Claude Code agents', () => {
+    const { result } = renderHook(() => useAgentModelFilter('claude-code'))
+
+    expect(
+      result.current({ ...model(), providerId: 'cherryai', id: 'cherryai::qwen', apiModelId: 'qwen', name: 'Qwen' })
+    ).toBe(false)
   })
 
   it('continues to reject non-chat model classes', () => {

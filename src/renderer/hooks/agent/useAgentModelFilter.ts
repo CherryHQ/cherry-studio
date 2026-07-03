@@ -13,8 +13,7 @@
 import { useProviders } from '@renderer/hooks/useProvider'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
-import { isNonChatModel } from '@shared/utils/model'
-import { isAgentSupportedProvider } from '@shared/utils/provider'
+import { isAgentRuntimeSupportedModel, isNonChatModel } from '@shared/utils/model'
 import { useCallback, useMemo } from 'react'
 
 const baseAgentFilter = (model: Model): boolean => !isNonChatModel(model)
@@ -26,24 +25,15 @@ const baseAgentFilter = (model: Model): boolean => !isNonChatModel(model)
 export function useAgentModelFilter(agentType: AgentType | undefined): (model: Model) => boolean {
   const { providers } = useProviders()
 
-  const unsupportedProviderIds = useMemo(() => {
-    const ids = new Set<string>()
-    for (const provider of providers) {
-      if (!isAgentSupportedProvider(provider)) {
-        ids.add(provider.id)
-      }
-    }
-    return ids
-  }, [providers])
+  const providersById = useMemo(() => new Map(providers.map((provider) => [provider.id, provider])), [providers])
 
   return useCallback(
     (model: Model) => {
-      if (!baseAgentFilter(model)) return false
       if (agentType === 'claude-code') {
-        return !unsupportedProviderIds.has(model.providerId)
+        return isAgentRuntimeSupportedModel(model, providersById.get(model.providerId))
       }
-      return true
+      return baseAgentFilter(model)
     },
-    [agentType, unsupportedProviderIds]
+    [agentType, providersById]
   )
 }
