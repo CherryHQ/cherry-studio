@@ -260,26 +260,6 @@
   }
 }
 
-@keyframes animation-migration-backup-progress-indeterminate {
-  0% {
-    transform: translateX(-120%);
-  }
-  100% {
-    transform: translateX(360%);
-  }
-}
-
-.animation-migration-backup-progress-indeterminate {
-  animation: animation-migration-backup-progress-indeterminate 1.15s ease-in-out infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .animation-migration-backup-progress-indeterminate {
-    transform: translateX(100%);
-    animation: none;
-  }
-}
-
 @keyframes animation-migration-confetti-burst {
   0% {
     transform: translate3d(0, 0, 0) rotate(0deg);
