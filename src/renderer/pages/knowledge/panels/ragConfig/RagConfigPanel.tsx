@@ -80,7 +80,11 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
   // treated as "not empty" so the safer restore flow stays the default.
   const canSaveEmbeddingModelDirectly = embeddingModelChanged && itemCount === 0
   const requiresRestore = embeddingModelChanged && !canSaveEmbeddingModelDirectly
-  const canSubmit = canSave || embeddingModelChanged
+  // Restore only ever reads embeddingModelId (it ignores the rest of the dirty
+  // draft), so it can bypass canSave the way it always could. A direct save
+  // re-submits the whole dirty form, including chunk fields, so it must respect
+  // the same chunk validation as a plain save.
+  const canSubmit = canSave || requiresRestore
 
   const handleSave = async () => {
     if (!canSubmit) {
