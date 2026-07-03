@@ -1,4 +1,4 @@
-import { PageHeader } from '@cherrystudio/ui'
+import { Button, PageHeader } from '@cherrystudio/ui'
 import { useReorder } from '@data/hooks/useReorder'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
@@ -33,12 +33,12 @@ export interface ProviderListProps {
 export default function ProviderList({ selectedProviderId, filterModeHint, onSelectProvider }: ProviderListProps) {
   const { t } = useTranslation()
   const { providers } = useProviders()
+  const { models: allModels } = useModels()
   const { applyReorderedList } = useReorder('/providers', { revalidateOnSuccess: false })
   const { isSupported: isOvmsSupported } = useOvmsSupport()
 
   const [filterMode, setFilterMode] = useState<ProviderFilterMode>(filterModeHint ?? 'all')
   const [searchText, setSearchText] = useState('')
-  const { models: allModels } = useModels(undefined, { fetchEnabled: Boolean(searchText.trim()) })
   const [dragging, setDragging] = useState(false)
   const [contextProviderId, setContextProviderId] = useState<string | null>(null)
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
@@ -263,18 +263,20 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   const handleAddAnother = useCallback((template: Provider) => startAddFrom(template), [startAddFrom])
 
   return (
-    <aside className={`${providerListClasses.shell}`}>
+    <aside className={`provider-settings-default-scope ${providerListClasses.shell}`}>
       <PageHeader
         title={t('settings.provider.title')}
         action={
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="sm"
             aria-label={t('settings.provider.add.title')}
             disabled={dragging}
             onClick={startAdd}
-            className={providerListClasses.headerAddButton}>
-            <Plus size={16} strokeWidth={2.5} />
-          </button>
+            className="hover:bg-[var(--color-surface-hover-soft)] [&_svg]:[stroke-width:var(--icon-stroke)]">
+            <Plus size={14} />
+            {t('common.add')}
+          </Button>
         }
       />
       <ProviderListSearchField
@@ -285,9 +287,8 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
           <ProviderListHeaderFilterMenu
             filterMode={filterMode}
             disabled={dragging}
-            triggerClassName={providerListClasses.searchInlineAddButton}
-            triggerIconSize={13}
             onFilterChange={setFilterMode}
+            className={providerListClasses.searchInlineAddButton}
           />
         }
       />

@@ -1,4 +1,4 @@
-import { Search, X } from 'lucide-react'
+import { SearchInput } from '@cherrystudio/ui'
 import type React from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -55,26 +55,16 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
       <div className={modelListClasses.titleRow}>
         <div className="flex min-w-0 flex-1">
           <div className={modelListClasses.titleWrap}>
-            <div className={modelListClasses.searchWrap}>
-              <Search className={modelListClasses.searchIcon} />
-              <input
-                type="text"
-                value={searchText}
-                placeholder={t('models.search.placeholder')}
-                disabled={isBusy}
-                onChange={(event) => setSearchText(event.target.value)}
-                className={modelListClasses.searchInput}
-              />
-              {searchText ? (
-                <button
-                  type="button"
-                  onClick={() => setSearchText('')}
-                  className={modelListClasses.searchClear}
-                  aria-label={t('common.clear')}>
-                  <X size={9} />
-                </button>
-              ) : null}
-            </div>
+            <SearchInput
+              containerClassName={modelListClasses.searchWrap}
+              className={modelListClasses.searchInput}
+              value={searchText}
+              placeholder={t('models.search.placeholder')}
+              disabled={isBusy}
+              onChange={(event) => setSearchText(event.target.value)}
+              onClear={() => setSearchText('')}
+              clearLabel={t('common.clear')}
+            />
             {!hasNoModels ? (
               <ModelListCapabilityChips
                 capabilityOptions={capabilityOptions}

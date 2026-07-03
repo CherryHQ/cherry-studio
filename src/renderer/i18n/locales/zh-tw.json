@@ -6584,6 +6584,10 @@
           "placeholder": "選填，例如 GPT-4",
           "tooltip": "例如 GPT-4"
         },
+        "section": {
+          "capabilities": "能力",
+          "pricing": "價格"
+        },
         "supported_text_delta": {
           "label": "支援增量文字輸出",
           "tooltip": "模型每次回傳文字增量，而不是一次性回傳所有文字，預設開啟，如果模型不支援，請關閉"
