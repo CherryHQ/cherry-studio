@@ -883,10 +883,10 @@ const ChatComposerInner = ({
           return
         }
 
-        const editedParts = await buildEditedMessageParts(draft)
-        if (!editedParts) return
-
         try {
+          const editedParts = await buildEditedMessageParts(draft)
+          if (!editedParts) return
+
           await chatWrite.forkAndResend(editingMessageForCurrentTopic.message.id, editedParts)
           restoreSavedDraft()
           stopEditing()
