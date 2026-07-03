@@ -9,8 +9,9 @@ date: 2026-07-03
 ## What changed
 
 The Soul Mode / Autonomous Mode toggle is gone from agent settings. Every agent
-now always runs with the autonomy features that toggle used to gate: the claw
-cron/notify/config tools, the agent-memory tools, and the workspace persona
+now always runs with the autonomy features that toggle used to gate: the
+`mcp__cherry-tools__cron/notify/config` autonomy tools, the agent-memory
+tools, and the workspace persona
 prompt (SOUL.md and related workspace files). Scheduled tasks and channels no
 longer require Soul Mode or the bypassPermissions permission mode — any agent
 can be used for them.
@@ -40,3 +41,8 @@ autonomy tools can restrict individual tools via the agent's tool settings.
   (`soul_enabled` no longer exists); merge when aggregating.
 - CherryClaw branding was removed in the same PR: UI strings and i18n keys now
   say "channels" / "tasks" without the brand name.
+- The former standalone `claw` MCP server was renamed to `cherry` and then
+  merged into `cherry-tools` in the same PR — the autonomy tools' final names
+  are `mcp__cherry-tools__cron/notify/config`. Persisted `disabledTools`
+  entries using the old `mcp__claw__*` / `mcp__cherry__*` names lose their
+  override (accepted pre-release break, no remap shim).
