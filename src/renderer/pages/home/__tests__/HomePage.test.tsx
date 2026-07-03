@@ -545,11 +545,13 @@ vi.mock('@renderer/components/chat/resources/variants/AssistantResourceList', ()
     activeAssistantId,
     onAddAssistant,
     onActiveAssistantDeleted,
+    onSelectedAssistantClick,
     resourceMenuItems
   }: {
     activeAssistantId?: string | null
     onAddAssistant?: () => void | Promise<void>
     onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
+    onSelectedAssistantClick?: () => void | Promise<void>
     resourceMenuItems?: Array<{ id: string; label: ReactNode; onSelect: () => void | Promise<void> }>
   }) => (
     <div data-active-assistant-id={activeAssistantId ?? ''} data-testid="assistant-resource-list">
@@ -558,6 +560,9 @@ vi.mock('@renderer/components/chat/resources/variants/AssistantResourceList', ()
       </button>
       <button type="button" onClick={() => void onActiveAssistantDeleted?.(activeAssistantId ?? '')}>
         Delete active assistant
+      </button>
+      <button type="button" onClick={() => void onSelectedAssistantClick?.()}>
+        Toggle selected assistant pane
       </button>
       {resourceMenuItems
         ?.filter((item) => item.id === 'assistant-resource-view')
@@ -680,6 +685,16 @@ describe('HomePage', () => {
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-assistant-id', 'assistant-1')
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
     expect(screen.queryByTestId('home-tabs')).not.toBeInTheDocument()
+  })
+
+  it('toggles the classic topic pane when the selected assistant is clicked again', () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle selected assistant pane' }))
+
+    expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.right_pane_open', false)
   })
 
   it('renders the modern topic sidebar when topic display mode is time', () => {

@@ -118,6 +118,18 @@ const AgentPage = () => {
   // survives AgentChat draft→persistent remounts (each branch mounts its own Shell) and app/page
   // re-entry, without bleeding into the assistant surface.
   const [sessionPaneOpen, setSessionPaneOpen] = useClassicLayoutRightPaneOpen('agent', isClassicSessionLayout)
+  const hasAutoOpenedClassicSessionPaneRef = useRef(false)
+
+  useEffect(() => {
+    if (!isClassicSessionLayout) {
+      hasAutoOpenedClassicSessionPaneRef.current = false
+      return
+    }
+
+    if (hasAutoOpenedClassicSessionPaneRef.current) return
+    hasAutoOpenedClassicSessionPaneRef.current = true
+    setSessionPaneOpen(true)
+  }, [isClassicSessionLayout, setSessionPaneOpen])
 
   useEffect(() => {
     pendingSelectedSessionRef.current = null
@@ -945,6 +957,7 @@ const AgentPage = () => {
       }}
       onOpenHistoryRecords={openHistoryRecords}
       onSelectSession={handleResourceSessionSelect}
+      onSelectedAgentClick={() => setSessionPaneOpen(!sessionPaneOpen)}
       onStartDraftAgent={(agentId) => startDraftSession({ agentId })}
       onStartMissingAgentDraft={startMissingAgentDraft}
       resourceMenuItems={resourceMenuItems}

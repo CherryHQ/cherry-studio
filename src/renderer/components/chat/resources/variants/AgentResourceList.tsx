@@ -35,6 +35,7 @@ type AgentResourceListProps = {
   onAddAgent?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
   onSelectSession: (sessionId: string, session: AgentSessionEntity) => void
+  onSelectedAgentClick?: () => void | Promise<void>
   onStartDraftAgent: (agentId: string) => void | Promise<void>
   onStartMissingAgentDraft?: () => void | Promise<void>
   resourceMenuItems?: readonly ConversationResourceMenuItem[]
@@ -51,6 +52,7 @@ export function AgentResourceList({
   onAddAgent,
   onOpenHistoryRecords,
   onSelectSession,
+  onSelectedAgentClick,
   onStartDraftAgent,
   onStartMissingAgentDraft,
   resourceMenuItems,
@@ -263,6 +265,7 @@ export function AgentResourceList({
         variant="agent"
         items={items}
         selectedId={selectedId}
+        selectedClickId={activeAgentId}
         status={listStatus}
         ariaLabel={t('agent.sidebar_title')}
         defaultGroupLabel={t('agent.sidebar_title')}
@@ -279,6 +282,7 @@ export function AgentResourceList({
           />
         }
         onSelect={handleSelect}
+        onSelectedClick={() => void onSelectedAgentClick?.()}
         onReorder={handleReorder}
         getContextMenuActions={getContextMenuActions}
         onContextMenuAction={handleContextMenuAction}

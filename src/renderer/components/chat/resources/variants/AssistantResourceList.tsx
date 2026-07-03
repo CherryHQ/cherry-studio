@@ -32,6 +32,7 @@ type AssistantResourceListProps = {
   onAddAssistant?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
   onSelectTopic: (topic: Topic) => void | boolean
+  onSelectedAssistantClick?: () => void | Promise<void>
   onStartDraftAssistant: (assistantId: string | null) => void | Promise<void>
   resourceMenuItems?: readonly ConversationResourceMenuItem[]
   /**
@@ -47,6 +48,7 @@ export function AssistantResourceList({
   onAddAssistant,
   onOpenHistoryRecords,
   onSelectTopic,
+  onSelectedAssistantClick,
   onStartDraftAssistant,
   resourceMenuItems,
   onActiveAssistantDeleted
@@ -283,6 +285,7 @@ export function AssistantResourceList({
         variant="assistant"
         items={items}
         selectedId={selectedId}
+        selectedClickId={activeAssistantId}
         status={listStatus}
         ariaLabel={t('assistants.abbr')}
         defaultGroupLabel={t('assistants.abbr')}
@@ -300,6 +303,7 @@ export function AssistantResourceList({
           />
         }
         onSelect={handleSelect}
+        onSelectedClick={() => void onSelectedAssistantClick?.()}
         onReorder={handleReorder}
         getContextMenuActions={getContextMenuActions}
         onContextMenuAction={handleContextMenuAction}

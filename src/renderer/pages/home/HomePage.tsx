@@ -759,6 +759,7 @@ const HomePage: FC = () => {
       }}
       onOpenHistoryRecords={openHistoryRecords}
       onSelectTopic={setActiveTopicAndDiscardDraft}
+      onSelectedAssistantClick={() => setTopicPaneOpen(!topicPaneOpen)}
       onStartDraftAssistant={(assistantId) => startDraftAssistantSelection({ assistantId })}
       resourceMenuItems={resourceMenuItems}
       onActiveAssistantDeleted={handleActiveAssistantDeleted}

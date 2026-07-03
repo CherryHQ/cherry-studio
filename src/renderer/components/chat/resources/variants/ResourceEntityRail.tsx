@@ -85,6 +85,8 @@ export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionCon
   onContextMenuAction?: (item: T, action: ResolvedAction<TActionContext>) => void | Promise<void>
   onReorder?: (payload: ResourceListReorderPayload) => void | Promise<void>
   onSelect: (item: T) => void | Promise<void>
+  onSelectedClick?: (item: T) => void | Promise<void>
+  selectedClickId?: string | null
   selectedId?: string | null
   status?: ResourceListStatus
   variant: 'agent' | 'assistant'
@@ -126,6 +128,8 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   onContextMenuAction,
   onReorder,
   onSelect,
+  onSelectedClick,
+  selectedClickId,
   selectedId,
   status = 'idle',
   variant,
@@ -138,6 +142,18 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   const fallbackListRef = useRef<HTMLDivElement>(null)
   const effectiveListRef = listRef ?? fallbackListRef
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
+  const effectiveSelectedId = hasActiveResourceMenuItem ? null : selectedId
+  const effectiveSelectedClickId = selectedClickId ?? selectedId
+  const handleItemClick = useCallback(
+    (item: T) => {
+      if (effectiveSelectedClickId === item.id && onSelectedClick) {
+        void onSelectedClick(item)
+        return
+      }
+      void onSelect(item)
+    },
+    [effectiveSelectedClickId, onSelect, onSelectedClick]
+  )
   const runContextMenuAction = useCallback(
     (item: T, action: ResolvedAction<TActionContext>) => {
       if (!action.availability.enabled || !onContextMenuAction) return
@@ -170,7 +186,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
         ? actionsToCommandMenuExtraItems(actions, (action) => runContextMenuAction(item, action))
         : []
       const row = (
-        <ResourceList.Item item={item} data-testid="resource-entity-rail-row" onClick={() => void onSelect(item)}>
+        <ResourceList.Item item={item} data-testid="resource-entity-rail-row" onClick={() => handleItemClick(item)}>
           <ResourceList.ItemLeadingSlot className={ENTITY_RAIL_LEADING_SLOT_CLASS}>
             {item.icon}
           </ResourceList.ItemLeadingSlot>
@@ -210,7 +226,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
         </ResourceListActionContextMenu>
       )
     },
-    [getContextMenuActions, onContextMenuAction, onSelect, runContextMenuAction, t]
+    [getContextMenuActions, handleItemClick, onContextMenuAction, runContextMenuAction, t]
   )
   const empty = useMemo(() => emptyFallback ?? <div className="min-h-0 flex-1" />, [emptyFallback])
   const providerItems = useMemo(
@@ -257,7 +273,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
     <Provider
       variant={variant}
       items={providerItems}
-      selectedId={hasActiveResourceMenuItem ? null : selectedId}
+      selectedId={effectiveSelectedId}
       status={status}
       groupBy={groupBy}
       sectionBy={sectionBy}

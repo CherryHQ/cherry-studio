@@ -236,6 +236,56 @@ describe('ResourceEntityRail', () => {
     requestAnimationFrameSpy.mockRestore()
   })
 
+  it('toggles the selected entity instead of selecting it again', () => {
+    const onSelect = vi.fn()
+    const onSelectedClick = vi.fn()
+
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants"
+        items={ITEMS}
+        selectedId="assistant-a"
+        variant="assistant"
+        onAdd={vi.fn()}
+        onSelect={onSelect}
+        onSelectedClick={onSelectedClick}
+      />
+    )
+
+    fireEvent.click(screen.getByText('Assistant A').closest('[role="option"]') as HTMLElement)
+    expect(onSelectedClick).toHaveBeenCalledWith(ITEMS[0])
+    expect(onSelect).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByText('Assistant B').closest('[role="option"]') as HTMLElement)
+    expect(onSelect).toHaveBeenCalledWith(ITEMS[1])
+    expect(onSelectedClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses the selected click id for repeat-click toggles when the visual selection is cleared', () => {
+    const onSelect = vi.fn()
+    const onSelectedClick = vi.fn()
+
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants"
+        items={ITEMS}
+        selectedId={null}
+        selectedClickId="assistant-a"
+        variant="assistant"
+        onAdd={vi.fn()}
+        onSelect={onSelect}
+        onSelectedClick={onSelectedClick}
+      />
+    )
+
+    fireEvent.click(screen.getByText('Assistant A').closest('[role="option"]') as HTMLElement)
+
+    expect(onSelectedClick).toHaveBeenCalledWith(ITEMS[0])
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
   it('does not select the entity when a context-menu action is picked', () => {
     const onSelect = vi.fn()
     const onContextMenuAction = vi.fn()

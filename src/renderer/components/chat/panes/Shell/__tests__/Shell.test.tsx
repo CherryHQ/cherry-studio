@@ -336,6 +336,41 @@ describe('Shell.Toggle', () => {
     expect(screen.getByRole('button', { name: 'common.close_sidebar' })).toHaveAttribute('data-state', 'open')
   })
 
+  it('syncs when the owning component changes the default open state', () => {
+    const { rerender } = render(
+      <Shell defaultTab="files" defaultOpen>
+        <Shell.Toggle tab="files" command="topic.sidebar.toggle" />
+        <OpenTraceButton />
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'open trace' }))
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:trace:false')
+
+    rerender(
+      <Shell defaultTab="files" defaultOpen={false}>
+        <Shell.Toggle tab="files" command="topic.sidebar.toggle" />
+        <OpenTraceButton />
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:trace:false')
+
+    rerender(
+      <Shell defaultTab="files" defaultOpen>
+        <Shell.Toggle tab="files" command="topic.sidebar.toggle" />
+        <OpenTraceButton />
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:false')
+  })
+
   it('does not rerender actions-only consumers when shell state changes', () => {
     render(
       <Shell defaultTab="files">

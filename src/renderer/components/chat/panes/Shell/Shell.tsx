@@ -118,6 +118,22 @@ function ShellProvider({
     closeCallbacksRef.current = []
     for (const callback of callbacks) callback()
   }, [])
+
+  useEffect(() => {
+    if (openRef.current === defaultOpen) return
+
+    openRef.current = defaultOpen
+    setOpen(defaultOpen)
+    if (defaultOpen) {
+      setActiveTab(defaultTab)
+      setPdfLayoutPending(true)
+    } else {
+      setMaximized(false)
+      setPdfLayoutPending(false)
+      finishClose()
+    }
+  }, [defaultOpen, defaultTab, finishClose])
+
   const close = useCallback((afterClose?: () => void) => {
     if (!openRef.current) {
       afterClose?.()

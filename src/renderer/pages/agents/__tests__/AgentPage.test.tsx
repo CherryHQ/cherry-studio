@@ -514,11 +514,13 @@ vi.mock('@renderer/components/chat/resources/variants/AgentResourceList', () => 
     activeAgentId,
     onAddAgent,
     onActiveAgentDeleted,
+    onSelectedAgentClick,
     resourceMenuItems
   }: {
     activeAgentId?: string | null
     onAddAgent?: () => void | Promise<void>
     onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
+    onSelectedAgentClick?: () => void | Promise<void>
     resourceMenuItems?: Array<{ id: string; label: ReactNode; onSelect: () => void | Promise<void> }>
   }) => (
     <div data-active-agent-id={activeAgentId ?? ''} data-testid="agent-resource-list">
@@ -527,6 +529,9 @@ vi.mock('@renderer/components/chat/resources/variants/AgentResourceList', () => 
       </button>
       <button type="button" onClick={() => void onActiveAgentDeleted?.(activeAgentId ?? '')}>
         Delete active agent
+      </button>
+      <button type="button" onClick={() => void onSelectedAgentClick?.()}>
+        Toggle selected agent pane
       </button>
       {resourceMenuItems?.map((item) => (
         <button key={item.id} type="button" onClick={() => void item.onSelect()}>
@@ -625,6 +630,19 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('session-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
     expect(screen.getByTestId('session-pane-open')).toHaveTextContent('true')
     expect(screen.queryByTestId('agent-side-panel')).not.toBeInTheDocument()
+  })
+
+  it('toggles the classic session pane when the selected agent is clicked again', () => {
+    agentPageMocks.sessionDisplayMode = 'agent'
+    agentPageMocks.classicLayoutRightPaneOpen = true
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle selected agent pane' }))
+
+    expect(agentPageMocks.setClassicLayoutRightPaneOpen).toHaveBeenCalledWith(false)
   })
 
   it('renders the modern session sidebar when session display mode is time', () => {
@@ -741,7 +759,7 @@ describe('AgentPage', () => {
     await waitFor(() => expect(within(shell).getByTestId('resource-pane-open')).toHaveTextContent('true'))
   })
 
-  it('restores and records the classic-layout agent right pane open state from cache', () => {
+  it('opens the classic-layout agent right pane by default and records manual closes', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     agentPageMocks.classicLayoutRightPaneOpen = false
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
@@ -749,7 +767,8 @@ describe('AgentPage', () => {
 
     render(<AgentPage />)
 
-    expect(screen.getByTestId('session-pane-open')).toHaveTextContent('false')
+    await waitFor(() => expect(screen.getByTestId('session-pane-open')).toHaveTextContent('true'))
+    expect(agentPageMocks.setClassicLayoutRightPaneOpen).toHaveBeenCalledWith(true)
 
     fireEvent.click(screen.getByRole('button', { name: 'Close session pane' }))
 
@@ -1287,14 +1306,17 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
   })
 
-  it('opens the session pane when a global-search locate targets a session in the current tab', () => {
+  it('opens the session pane when a global-search locate targets a session in the current tab', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     agentPageMocks.classicLayoutRightPaneOpen = false
     agentPageMocks.focusExistingTab.mockReturnValue(false)
 
     render(<AgentPage />)
 
-    expect(screen.getByTestId('session-pane-open')).toHaveTextContent('false')
+    await waitFor(() => expect(screen.getByTestId('session-pane-open')).toHaveTextContent('true'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close session pane' }))
+    await waitFor(() => expect(screen.getByTestId('session-pane-open')).toHaveTextContent('false'))
 
     const sessionMessageHandler = vi
       .mocked(EventEmitter.on)
