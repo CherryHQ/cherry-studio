@@ -32,7 +32,7 @@ describe('KnowledgeIndexStore integration (real better-sqlite3)', () => {
   })
 
   afterEach(async () => {
-    await store.close()
+    store.close()
     rmSync(tempDir, { recursive: true, force: true })
   })
 
@@ -63,9 +63,9 @@ describe('KnowledgeIndexStore integration (real better-sqlite3)', () => {
       )
     }
 
-    await store.rebuildMaterial('m1', input)
+    store.rebuildMaterial('m1', input)
 
-    const units = await store.listMaterialUnits('m1')
+    const units = store.listMaterialUnits('m1')
     expect(units).toHaveLength(chunks.length)
     units.forEach((unit, index) => {
       // §5.3: a unit's stored body is the exact content slice, never a rewritten copy.
@@ -74,15 +74,15 @@ describe('KnowledgeIndexStore integration (real better-sqlite3)', () => {
       expect(unit.unitIndex).toBe(index)
     })
 
-    const bm25Hits = await store.search({ queryText: 'embedding', mode: 'bm25', topK: 5 })
+    const bm25Hits = store.search({ queryText: 'embedding', mode: 'bm25', topK: 5 })
     expect(bm25Hits.length).toBeGreaterThan(0)
     expect(bm25Hits.every((hit) => hit.materialId === 'm1')).toBe(true)
 
-    const vectorHits = await store.search({ queryText: '', queryEmbedding: [1, 1, 0], mode: 'vector', topK: 5 })
+    const vectorHits = store.search({ queryText: '', queryEmbedding: [1, 1, 0], mode: 'vector', topK: 5 })
     expect(vectorHits.length).toBeGreaterThan(0)
     expect(vectorHits.every((hit) => hit.materialId === 'm1')).toBe(true)
 
-    const hybridHits = await store.search({
+    const hybridHits = store.search({
       queryText: 'embedding',
       queryEmbedding: [1, 1, 0],
       mode: 'hybrid',

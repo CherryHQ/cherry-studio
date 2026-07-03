@@ -59,7 +59,7 @@ describe('KnowledgeIndexStore hybrid RRF fusion', () => {
     const { driver, limits } = createFakeDriver([], [])
     const store = new KnowledgeIndexStore(driver, vectorIndex)
 
-    await store.search({ queryText: 'query', queryEmbedding: [1, 0], mode: 'hybrid', topK: 4 })
+    store.search({ queryText: 'query', queryEmbedding: [1, 0], mode: 'hybrid', topK: 4 })
 
     expect(limits.vector).toBe(20)
     expect(limits.bm25).toBe(20)
@@ -74,7 +74,7 @@ describe('KnowledgeIndexStore hybrid RRF fusion', () => {
     const store = new KnowledgeIndexStore(driver, vectorIndex)
     const alpha = 0.75
 
-    const results = await store.search({ queryText: 'query', queryEmbedding: [1, 0], mode: 'hybrid', topK: 10, alpha })
+    const results = store.search({ queryText: 'query', queryEmbedding: [1, 0], mode: 'hybrid', topK: 10, alpha })
 
     // score = alpha/(RRF_K + vRank + 1) + (1 - alpha)/(RRF_K + bRank + 1), ranks 0-indexed.
     const scoreA = alpha / (RRF_K + 1) + (1 - alpha) / (RRF_K + 2)
@@ -94,7 +94,7 @@ describe('KnowledgeIndexStore hybrid RRF fusion', () => {
     const { driver } = createFakeDriver([{ unit_id: 'A', material_id: 'mA', unit_index: 0, body: null, dist: 0 }], [])
     const store = new KnowledgeIndexStore(driver, vectorIndex)
 
-    await expect(store.search({ queryText: '', queryEmbedding: [1, 0], mode: 'vector', topK: 5 })).rejects.toThrow(
+    expect(() => store.search({ queryText: '', queryEmbedding: [1, 0], mode: 'vector', topK: 5 })).toThrow(
       'missing the body text for unit A'
     )
   })
@@ -107,7 +107,7 @@ describe('KnowledgeIndexStore hybrid RRF fusion', () => {
     )
     const store = new KnowledgeIndexStore(driver, vectorIndex)
 
-    const results = await store.search({ queryText: 'query', queryEmbedding: [1, 0], mode: 'hybrid', topK: 10 })
+    const results = store.search({ queryText: 'query', queryEmbedding: [1, 0], mode: 'hybrid', topK: 10 })
 
     const scoreById = Object.fromEntries(results.map((match) => [match.unitId, match.score]))
     expect(scoreById.A).toBeCloseTo(scoreById.B, 12)

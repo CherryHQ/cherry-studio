@@ -8,7 +8,14 @@ import type {
   KnowledgeSearchUnit,
   RebuildMaterialInput
 } from './model'
-import type { SqliteDriver, SqliteReclaimOutcome, SqliteTransaction, SqlValue, VectorIndex } from './types'
+import type {
+  SqliteDriver,
+  SqliteExecutor,
+  SqliteReclaimOutcome,
+  SqliteTransaction,
+  SqlValue,
+  VectorIndex
+} from './types'
 import { encodeVectorBlob } from './vectorBlob'
 
 /** RRF constant (1-indexed rank), matching the legacy hybrid fusion. */
@@ -46,7 +53,7 @@ export class KnowledgeIndexStore {
    * transaction so a crash or error can never leave old and new units mixed, and
    * an insert failure rolls back without destroying the prior index (§5.2).
    */
-  async rebuildMaterial(materialId: string, input: RebuildMaterialInput): Promise<void> {
+  rebuildMaterial(materialId: string, input: RebuildMaterialInput): void {
     // usesEmbeddings: false means a BM25-only rebuild — step 6 below writes whatever
     // `embeddings` holds unconditionally (only the step 6b coverage check is gated on
     // the flag), so a caller bug that sets both would silently write orphan vectors
@@ -292,25 +299,12 @@ export class KnowledgeIndexStore {
    * re-reads (the hash is now absent) and re-embeds it. A stale "present" therefore
    * self-corrects rather than leaving a unit silently absent from vector search.
    */
-  async listExistingEmbeddingHashes(hashes: string[]): Promise<Set<string>> {
-    const existing = new Set<string>()
-    // Chunk to stay well under SQLite's bound-parameter limit for large materials.
-    for (let i = 0; i < hashes.length; i += EMBEDDING_HASH_QUERY_BATCH) {
-      const batch = hashes.slice(i, i + EMBEDDING_HASH_QUERY_BATCH)
-      const placeholders = batch.map(() => '?').join(', ')
-      const result = this.driver.execute(
-        `SELECT embedding_text_hash FROM embedding WHERE embedding_text_hash IN (${placeholders})`,
-        batch
-      )
-      for (const row of result.rows) {
-        existing.add(row.embedding_text_hash as string)
-      }
-    }
-    return existing
+  listExistingEmbeddingHashes(hashes: string[]): Set<string> {
+    return this.selectExistingEmbeddingHashes(this.driver, hashes)
   }
 
   /** Read back a material's units (with body text), ordered by unit index. */
-  async listMaterialUnits(materialId: string): Promise<KnowledgeSearchUnit[]> {
+  listMaterialUnits(materialId: string): KnowledgeSearchUnit[] {
     const result = this.driver.execute(
       `SELECT su.unit_id, su.material_id, su.unit_type, su.unit_index, su.title, su.char_start, su.char_end, st.text AS body
        FROM search_unit su
@@ -348,7 +342,7 @@ export class KnowledgeIndexStore {
    * index, so this is the lookup behind the deep-read tools — they re-validate
    * the resolved material against the visible knowledge_item before reading.
    */
-  async getMaterialByRelativePath(relativePath: string): Promise<KnowledgeMaterialRef | null> {
+  getMaterialByRelativePath(relativePath: string): KnowledgeMaterialRef | null {
     const result = this.driver.execute(`SELECT material_id, relative_path FROM material WHERE relative_path = ?`, [
       relativePath
     ])
@@ -369,7 +363,7 @@ export class KnowledgeIndexStore {
    * were sliced from, so `text.slice(unit.charStart, unit.charEnd) === unit.text`
    * holds (the same invariant rebuildMaterial enforces at write time).
    */
-  async readMaterialContent(materialId: string): Promise<string | null> {
+  readMaterialContent(materialId: string): string | null {
     const result = this.driver.execute(
       `SELECT c.text AS text
          FROM material m
@@ -391,7 +385,7 @@ export class KnowledgeIndexStore {
    * text of a unit is the search source for both lanes
    * (knowledge-technical-design.md §6).
    */
-  async search(input: KnowledgeIndexSearchInput): Promise<KnowledgeIndexSearchMatch[]> {
+  search(input: KnowledgeIndexSearchInput): KnowledgeIndexSearchMatch[] {
     if (input.mode === 'bm25') {
       return this.bm25Search(input.queryText, input.topK)
     }
@@ -421,11 +415,11 @@ export class KnowledgeIndexStore {
    * whole-index segment merge — and the FTS table name lives here, with the schema, not
    * in the engine-neutral driver.
    */
-  async reclaimSpace(): Promise<SqliteReclaimOutcome> {
+  reclaimSpace(): SqliteReclaimOutcome {
     return this.driver.reclaim([`INSERT INTO search_text_fts(search_text_fts) VALUES('optimize')`])
   }
 
-  async close(): Promise<void> {
+  close(): void {
     this.driver.close()
   }
 
@@ -562,20 +556,27 @@ export class KnowledgeIndexStore {
     return result.rows.map((row) => toMatch(row, -Number(row.len)))
   }
 
-  /** Throw (rolling back the surrounding rebuild) if any unit hash has no embedding row. */
-  private assertEmbeddingCoverage(tx: SqliteTransaction, materialId: string, hashes: string[]): void {
-    const missing = new Set(hashes)
+  /** Of the given embedding-text hashes, return those already stored — chunked to stay well under SQLite's bound-parameter limit. */
+  private selectExistingEmbeddingHashes(executor: SqliteExecutor, hashes: string[]): Set<string> {
+    const existing = new Set<string>()
     for (let i = 0; i < hashes.length; i += EMBEDDING_HASH_QUERY_BATCH) {
       const batch = hashes.slice(i, i + EMBEDDING_HASH_QUERY_BATCH)
       const placeholders = batch.map(() => '?').join(', ')
-      const result = tx.execute(
+      const result = executor.execute(
         `SELECT embedding_text_hash FROM embedding WHERE embedding_text_hash IN (${placeholders})`,
         batch
       )
       for (const row of result.rows) {
-        missing.delete(row.embedding_text_hash as string)
+        existing.add(row.embedding_text_hash as string)
       }
     }
+    return existing
+  }
+
+  /** Throw (rolling back the surrounding rebuild) if any unit hash has no embedding row. */
+  private assertEmbeddingCoverage(tx: SqliteTransaction, materialId: string, hashes: string[]): void {
+    const present = this.selectExistingEmbeddingHashes(tx, hashes)
+    const missing = new Set(hashes.filter((hash) => !present.has(hash)))
     if (missing.size > 0) {
       throw new Error(
         `Knowledge index rebuild for material ${materialId} left ${missing.size} unit embedding hash(es) without a vector (first: ${[...missing][0]})`

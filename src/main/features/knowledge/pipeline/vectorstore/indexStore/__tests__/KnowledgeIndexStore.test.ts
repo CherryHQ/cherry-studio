@@ -47,7 +47,7 @@ describe('KnowledgeIndexStore', () => {
   })
 
   afterEach(async () => {
-    await store.close()
+    store.close()
     rmSync(tempDir, { recursive: true, force: true })
   })
 
@@ -68,7 +68,7 @@ describe('KnowledgeIndexStore', () => {
     driver.execute(`INSERT INTO search_text_fts(search_text_fts, rank) VALUES('integrity-check', 1)`)
 
   it('persists material, content, units, search_text and embeddings, then lists units in order', async () => {
-    await store.rebuildMaterial(
+    store.rebuildMaterial(
       'm1',
       buildInput('hello world wide', [
         [0, 5],
@@ -76,7 +76,7 @@ describe('KnowledgeIndexStore', () => {
       ])
     )
 
-    const units = await store.listMaterialUnits('m1')
+    const units = store.listMaterialUnits('m1')
     expect(units.map((u) => u.text)).toEqual(['hello', 'world wide'])
     expect(units.map((u) => u.unitIndex)).toEqual([0, 1])
 
@@ -91,7 +91,7 @@ describe('KnowledgeIndexStore', () => {
 
   it('keeps body text equal to the content slice (search §5.3 invariant)', async () => {
     const text = 'alpha beta gamma'
-    await store.rebuildMaterial(
+    store.rebuildMaterial(
       'm1',
       buildInput(text, [
         [0, 5],
@@ -100,24 +100,24 @@ describe('KnowledgeIndexStore', () => {
       ])
     )
 
-    for (const unit of await store.listMaterialUnits('m1')) {
+    for (const unit of store.listMaterialUnits('m1')) {
       expect(unit.text).toBe(text.slice(unit.charStart, unit.charEnd))
     }
   })
 
   it('throws on a unit whose body row is missing instead of fabricating an empty chunk', async () => {
-    await store.rebuildMaterial('m1', buildInput('alpha beta', [[0, 5]]))
+    store.rebuildMaterial('m1', buildInput('alpha beta', [[0, 5]]))
 
     // Corrupt the store: drop the body row out from under the unit. The same
     // damage silently excludes the unit from search (INNER JOIN); the list lane
     // must fail loudly rather than add a third symptom (existing-but-empty chunk).
     driver.execute(`DELETE FROM search_text WHERE target_type = 'search_unit' AND kind = 'body'`)
 
-    await expect(store.listMaterialUnits('m1')).rejects.toThrow('missing the body text for unit')
+    expect(() => store.listMaterialUnits('m1')).toThrow('missing the body text for unit')
   })
 
   it('atomically replaces all prior units on rebuild (no old/new mix)', async () => {
-    await store.rebuildMaterial(
+    store.rebuildMaterial(
       'm1',
       buildInput('one two three', [
         [0, 3],
@@ -127,8 +127,8 @@ describe('KnowledgeIndexStore', () => {
     )
     expect(await count('search_unit')).toBe(3)
 
-    await store.rebuildMaterial('m1', buildInput('solo', [[0, 4]]))
-    const units = await store.listMaterialUnits('m1')
+    store.rebuildMaterial('m1', buildInput('solo', [[0, 4]]))
+    const units = store.listMaterialUnits('m1')
     expect(units).toHaveLength(1)
     expect(units[0].text).toBe('solo')
     expect(await count('search_unit')).toBe(1)
@@ -137,7 +137,7 @@ describe('KnowledgeIndexStore', () => {
 
   it('reuses one embedding row for units sharing identical body text', async () => {
     // Two units with the same slice → same embedding_text_hash → one embedding row.
-    await store.rebuildMaterial(
+    store.rebuildMaterial(
       'm1',
       buildInput('dup', [
         [0, 3],
@@ -150,16 +150,16 @@ describe('KnowledgeIndexStore', () => {
   })
 
   it('keeps the FTS index in sync across rebuilds', async () => {
-    await store.rebuildMaterial('m1', buildInput('the knowledge base', [[0, 18]]))
+    store.rebuildMaterial('m1', buildInput('the knowledge base', [[0, 18]]))
     expect(await ftsMatchCount('knowledge')).toBe(1)
 
-    await store.rebuildMaterial('m1', buildInput('a different subject', [[0, 19]]))
+    store.rebuildMaterial('m1', buildInput('a different subject', [[0, 19]]))
     expect(await ftsMatchCount('knowledge')).toBe(0)
     expect(await ftsMatchCount('different')).toBe(1)
   })
 
   it('rolls back the whole rebuild on a mid-transaction failure', async () => {
-    await store.rebuildMaterial(
+    store.rebuildMaterial(
       'm1',
       buildInput('keep this safe', [
         [0, 4],
@@ -179,9 +179,9 @@ describe('KnowledgeIndexStore', () => {
       usesEmbeddings: true,
       embeddings: [{ embeddingTextHash: hashEmbeddingText('broken'), vector: [0.1, 0.2, 0.3] }]
     }
-    await expect(store.rebuildMaterial('m1', broken)).rejects.toThrow()
+    expect(() => store.rebuildMaterial('m1', broken)).toThrow()
 
-    const units = await store.listMaterialUnits('m1')
+    const units = store.listMaterialUnits('m1')
     expect(units.map((u) => u.text)).toEqual(['keep', 'this'])
     expect(await count('search_unit')).toBe(2)
   })
@@ -196,10 +196,10 @@ describe('KnowledgeIndexStore', () => {
       [0, 5],
       [6, 16]
     ])
-    await store.rebuildMaterial('m1', input)
-    await expect(store.rebuildMaterial('m1', input)).resolves.toBeUndefined()
+    store.rebuildMaterial('m1', input)
+    expect(store.rebuildMaterial('m1', input)).toBeUndefined()
 
-    const units = await store.listMaterialUnits('m1')
+    const units = store.listMaterialUnits('m1')
     expect(units.map((u) => u.text)).toEqual(['hello', 'world wide'])
     expect(await count('search_unit')).toBe(2)
     expect(await count('search_text')).toBe(2)
@@ -211,9 +211,7 @@ describe('KnowledgeIndexStore', () => {
   it('rejects a unit whose charEnd lies beyond the content text', async () => {
     // slice() would clamp silently and persist the lying offset — the store must
     // fail loud at write time instead of corrupting offset-based readers later.
-    await expect(store.rebuildMaterial('m1', buildInput('short', [[0, 99]]))).rejects.toThrow(
-      'beyond the content length'
-    )
+    expect(() => store.rebuildMaterial('m1', buildInput('short', [[0, 99]]))).toThrow('beyond the content length')
 
     expect(await count('material')).toBe(0)
     expect(await count('search_unit')).toBe(0)
@@ -230,14 +228,14 @@ describe('KnowledgeIndexStore', () => {
       usesEmbeddings: false,
       embeddings: [{ embeddingTextHash: hashEmbeddingText('lexical only'), vector: [0.1, 0.2, 0.3] }]
     }
-    await expect(store.rebuildMaterial('m1', contradiction)).rejects.toThrow('usesEmbeddings: false')
+    expect(() => store.rebuildMaterial('m1', contradiction)).toThrow('usesEmbeddings: false')
 
     expect(await count('material')).toBe(0)
     expect(await count('search_unit')).toBe(0)
   })
 
   it('rolls back a rebuild that leaves a unit embedding hash without a vector', async () => {
-    await store.rebuildMaterial('m1', buildInput('keep this safe', [[0, 4]]))
+    store.rebuildMaterial('m1', buildInput('keep this safe', [[0, 4]]))
 
     // A caller that hashes different text than the store re-slices (offset/hash
     // drift) supplies no vector for the unit's body — the coverage check must
@@ -249,10 +247,10 @@ describe('KnowledgeIndexStore', () => {
       usesEmbeddings: true,
       embeddings: [{ embeddingTextHash: hashEmbeddingText('not the sliced body'), vector: [0.1, 0.2, 0.3] }]
     }
-    await expect(store.rebuildMaterial('m1', drifted)).rejects.toThrow('without a vector')
+    expect(() => store.rebuildMaterial('m1', drifted)).toThrow('without a vector')
 
     // Prior index intact (transaction rolled back).
-    const units = await store.listMaterialUnits('m1')
+    const units = store.listMaterialUnits('m1')
     expect(units.map((u) => u.text)).toEqual(['keep'])
   })
 
@@ -275,21 +273,21 @@ describe('KnowledgeIndexStore', () => {
     missingOne.embeddings = missingOne.embeddings.filter(
       (embedding) => embedding.embeddingTextHash !== hashEmbeddingText(words[500])
     )
-    await expect(store.rebuildMaterial('m1', missingOne)).rejects.toThrow('without a vector')
+    expect(() => store.rebuildMaterial('m1', missingOne)).toThrow('without a vector')
     expect(await count('material')).toBe(0)
 
-    await expect(store.rebuildMaterial('m1', buildInput(text, ranges))).resolves.toBeUndefined()
+    expect(store.rebuildMaterial('m1', buildInput(text, ranges))).toBeUndefined()
     expect(await count('search_unit')).toBe(501)
     expect(await count('embedding')).toBe(501)
   })
 
   it('deletes a material and its derived rows, sweeping the now-orphaned embedding and content', async () => {
-    await store.rebuildMaterial('m1', buildInput('the knowledge base', [[0, 18]]))
+    store.rebuildMaterial('m1', buildInput('the knowledge base', [[0, 18]]))
     expect(await ftsMatchCount('knowledge')).toBe(1)
 
     await store.deleteMaterials(['m1'])
 
-    expect(await store.listMaterialUnits('m1')).toEqual([])
+    expect(store.listMaterialUnits('m1')).toEqual([])
     expect(await count('material')).toBe(0)
     expect(await count('search_unit')).toBe(0)
     expect(await count('search_text')).toBe(0)
@@ -300,8 +298,8 @@ describe('KnowledgeIndexStore', () => {
   })
 
   it('shares one content row across materials with identical content', async () => {
-    await store.rebuildMaterial('m1', buildInput('shared content', [[0, 14]], 'a.md'))
-    await store.rebuildMaterial('m2', buildInput('shared content', [[0, 14]], 'b.md'))
+    store.rebuildMaterial('m1', buildInput('shared content', [[0, 14]], 'a.md'))
+    store.rebuildMaterial('m2', buildInput('shared content', [[0, 14]], 'b.md'))
 
     expect(await count('material')).toBe(2)
     expect(await count('content')).toBe(1)
@@ -310,8 +308,8 @@ describe('KnowledgeIndexStore', () => {
 
   it('keeps a shared embedding reachable for the remaining material after deleting one sharer', async () => {
     // m1 and m2 index the identical body → one embedding row, referenced by both.
-    await store.rebuildMaterial('m1', buildInput('shared body text', [[0, 16]], 'a.md'))
-    await store.rebuildMaterial('m2', buildInput('shared body text', [[0, 16]], 'b.md'))
+    store.rebuildMaterial('m1', buildInput('shared body text', [[0, 16]], 'a.md'))
+    store.rebuildMaterial('m2', buildInput('shared body text', [[0, 16]], 'b.md'))
     expect(await count('embedding')).toBe(1)
 
     await store.deleteMaterials(['m1'])
@@ -321,16 +319,16 @@ describe('KnowledgeIndexStore', () => {
     // embedding when m1 was deleted would fail this behavioral assertion — the bare row
     // count in the delete test above cannot catch that.
     expect(await count('embedding')).toBe(1)
-    const matches = await store.search({ queryText: '', queryEmbedding: [0.1, 0.2, 0.3], mode: 'vector', topK: 10 })
+    const matches = store.search({ queryText: '', queryEmbedding: [0.1, 0.2, 0.3], mode: 'vector', topK: 10 })
     expect(matches.map((m) => m.materialId)).toEqual(['m2'])
   })
 
   it('deleteMaterials removes the whole batch in one pass, sweeps only true orphans, and keeps the survivor searchable', async () => {
     // m1, m2 will be deleted; m3 survives. m1 and m3 index the IDENTICAL body, so they
     // share one content row and one embedding row; m2 has its own unique body.
-    await store.rebuildMaterial('m1', buildInput('shared knowledge body', [[0, 21]], 'a.md', [0.1, 0.2, 0.3]))
-    await store.rebuildMaterial('m2', buildInput('unique orphan body', [[0, 18]], 'b.md', [0.4, 0.5, 0.6]))
-    await store.rebuildMaterial('m3', buildInput('shared knowledge body', [[0, 21]], 'c.md', [0.1, 0.2, 0.3]))
+    store.rebuildMaterial('m1', buildInput('shared knowledge body', [[0, 21]], 'a.md', [0.1, 0.2, 0.3]))
+    store.rebuildMaterial('m2', buildInput('unique orphan body', [[0, 18]], 'b.md', [0.4, 0.5, 0.6]))
+    store.rebuildMaterial('m3', buildInput('shared knowledge body', [[0, 21]], 'c.md', [0.1, 0.2, 0.3]))
     expect(await count('material')).toBe(3)
     expect(await count('content')).toBe(2) // shared (m1+m3) + unique (m2)
     expect(await count('embedding')).toBe(2)
@@ -340,8 +338,8 @@ describe('KnowledgeIndexStore', () => {
     await store.deleteMaterials(['m1', 'm2', 'm1'])
 
     expect(driver.execute(`SELECT material_id FROM material`).rows.map((r) => r.material_id)).toEqual(['m3'])
-    expect(await store.listMaterialUnits('m1')).toEqual([])
-    expect(await store.listMaterialUnits('m2')).toEqual([])
+    expect(store.listMaterialUnits('m1')).toEqual([])
+    expect(store.listMaterialUnits('m2')).toEqual([])
     // The single end-of-batch GC must sweep m2's now-orphaned body/embedding/content while
     // keeping the body m3 still references — i.e. the same end state N per-material GCs gave.
     expect(await count('content')).toBe(1)
@@ -352,18 +350,16 @@ describe('KnowledgeIndexStore', () => {
     // the survivor m3 — whose search_text row is untouched — would drop out of keyword
     // search even though it is still present. It must stay both bm25- and vector-reachable.
     expect(await ftsMatchCount('knowledge')).toBe(1)
-    expect((await store.search({ queryText: 'knowledge', mode: 'bm25', topK: 10 })).map((h) => h.materialId)).toEqual([
-      'm3'
-    ])
+    expect(store.search({ queryText: 'knowledge', mode: 'bm25', topK: 10 }).map((h) => h.materialId)).toEqual(['m3'])
     expect(
-      (await store.search({ queryText: '', queryEmbedding: [0.1, 0.2, 0.3], mode: 'vector', topK: 10 })).map(
-        (h) => h.materialId
-      )
+      store
+        .search({ queryText: '', queryEmbedding: [0.1, 0.2, 0.3], mode: 'vector', topK: 10 })
+        .map((h) => h.materialId)
     ).toEqual(['m3'])
   })
 
   it('deleteMaterials is a no-op for an empty batch', async () => {
-    await store.rebuildMaterial('m1', buildInput('keep me', [[0, 7]]))
+    store.rebuildMaterial('m1', buildInput('keep me', [[0, 7]]))
     await expect(store.deleteMaterials([])).resolves.toBeUndefined()
     expect(await count('material')).toBe(1)
   })
@@ -374,9 +370,9 @@ describe('KnowledgeIndexStore', () => {
     // periodic yields. Prove the loop hands control back: drive the MONOTONIC performance.now()
     // past the time budget on every read (deterministic — no real-clock dependency) and confirm
     // the loop schedules a macrotask (setImmediate) per material while still deleting correctly.
-    await store.rebuildMaterial('m1', buildInput('alpha body one', [[0, 14]], 'a.md'))
-    await store.rebuildMaterial('m2', buildInput('bravo body two', [[0, 14]], 'b.md'))
-    await store.rebuildMaterial('m3', buildInput('gamma body six', [[0, 14]], 'c.md'))
+    store.rebuildMaterial('m1', buildInput('alpha body one', [[0, 14]], 'a.md'))
+    store.rebuildMaterial('m2', buildInput('bravo body two', [[0, 14]], 'b.md'))
+    store.rebuildMaterial('m3', buildInput('gamma body six', [[0, 14]], 'c.md'))
 
     // setImmediate is spied (call-through), not stubbed, so the yields still resolve.
     let clock = 0
@@ -402,9 +398,9 @@ describe('KnowledgeIndexStore', () => {
     // DELETE_YIELD_BUDGET_MS must schedule zero macrotasks. Freezing the monotonic clock keeps
     // every delta at 0 — so this fails if the gate is ever replaced by an unconditional
     // yield-per-row (the exact regression the test above cannot, on its own, rule out).
-    await store.rebuildMaterial('m1', buildInput('alpha body one', [[0, 14]], 'a.md'))
-    await store.rebuildMaterial('m2', buildInput('bravo body two', [[0, 14]], 'b.md'))
-    await store.rebuildMaterial('m3', buildInput('gamma body six', [[0, 14]], 'c.md'))
+    store.rebuildMaterial('m1', buildInput('alpha body one', [[0, 14]], 'a.md'))
+    store.rebuildMaterial('m2', buildInput('bravo body two', [[0, 14]], 'b.md'))
+    store.rebuildMaterial('m3', buildInput('gamma body six', [[0, 14]], 'c.md'))
 
     const perfNow = vi.spyOn(performance, 'now').mockReturnValue(1000)
     const immediate = vi.spyOn(global, 'setImmediate')
@@ -427,34 +423,32 @@ describe('KnowledgeIndexStore', () => {
     // because search_text_fts keys on the stable fts_rowid (not the implicit rowid), m2 — whose
     // search_text is untouched — stays aligned. It must remain reachable, and the index intact.
     const hugeText = 'knowledge body filler '.repeat(600_000)
-    await store.rebuildMaterial('m1', buildInput(hugeText, [[0, 20]], 'big.md'))
-    await store.rebuildMaterial('m2', buildInput('shared knowledge body', [[0, 21]], 'keep.md'))
+    store.rebuildMaterial('m1', buildInput(hugeText, [[0, 20]], 'big.md'))
+    store.rebuildMaterial('m2', buildInput('shared knowledge body', [[0, 21]], 'keep.md'))
 
     await store.deleteMaterials(['m1'])
-    const outcome = await store.reclaimSpace()
+    const outcome = store.reclaimSpace()
 
     expect(outcome.vacuumed).toBe(true)
     expect(outcome.reclaimedBytes).toBeGreaterThan(0)
     expect(ftsIntegrityCheck()).toBeDefined()
     // The survivor stays both keyword- and vector-reachable after the rewrite.
     expect(await ftsMatchCount('knowledge')).toBe(1)
-    expect((await store.search({ queryText: 'knowledge', mode: 'bm25', topK: 10 })).map((h) => h.materialId)).toEqual([
-      'm2'
-    ])
+    expect(store.search({ queryText: 'knowledge', mode: 'bm25', topK: 10 }).map((h) => h.materialId)).toEqual(['m2'])
     expect(
-      (await store.search({ queryText: '', queryEmbedding: [0.1, 0.2, 0.3], mode: 'vector', topK: 10 })).map(
-        (h) => h.materialId
-      )
+      store
+        .search({ queryText: '', queryEmbedding: [0.1, 0.2, 0.3], mode: 'vector', topK: 10 })
+        .map((h) => h.materialId)
     ).toEqual(['m2'])
   })
 
   it('reclaimSpace skips the VACUUM (truncates the WAL only) when the freelist is below the threshold', async () => {
     // A tiny delete frees far less than the absolute floor, so the whole-file-rewrite block
     // is not worth it — reclaim just checkpoints and reports nothing reclaimed.
-    await store.rebuildMaterial('m1', buildInput('small knowledge body', [[0, 20]], 'a.md'))
+    store.rebuildMaterial('m1', buildInput('small knowledge body', [[0, 20]], 'a.md'))
     await store.deleteMaterials(['m1'])
 
-    const outcome = await store.reclaimSpace()
+    const outcome = store.reclaimSpace()
 
     expect(outcome).toEqual({ vacuumed: false, reclaimedBytes: 0 })
   })
@@ -467,20 +461,18 @@ describe('KnowledgeIndexStore', () => {
     // before. content stays 13 MB so the freelist clears the VACUUM threshold; the 2 MB
     // body makes the shadow segments measurable.
     const hugeText = 'knowledge body filler '.repeat(600_000)
-    await store.rebuildMaterial('m1', buildInput(hugeText, [[0, 2_000_000]], 'big.md'))
-    await store.rebuildMaterial('m2', buildInput('shared knowledge body', [[0, 21]], 'keep.md'))
+    store.rebuildMaterial('m1', buildInput(hugeText, [[0, 2_000_000]], 'big.md'))
+    store.rebuildMaterial('m2', buildInput('shared knowledge body', [[0, 21]], 'keep.md'))
     const ftsSegmentsBefore = await count('search_text_fts_data')
 
     await store.deleteMaterials(['m1'])
-    const outcome = await store.reclaimSpace()
+    const outcome = store.reclaimSpace()
 
     expect(outcome.vacuumed).toBe(true)
     // optimize merged and dropped m1's dead segments instead of leaving them behind.
     expect(await count('search_text_fts_data')).toBeLessThan(ftsSegmentsBefore)
     // The survivor is still keyword-searchable after the optimize + VACUUM.
-    expect((await store.search({ queryText: 'shared', mode: 'bm25', topK: 10 })).map((h) => h.materialId)).toEqual([
-      'm2'
-    ])
+    expect(store.search({ queryText: 'shared', mode: 'bm25', topK: 10 }).map((h) => h.materialId)).toEqual(['m2'])
     // VACUUM renumbers implicit rowids; assert the external-content FTS did NOT desync. Keyed on the
     // stable fts_rowid it stays aligned by construction — verified with the reliable integrity check
     // (the default integrity-check would pass even on a desync).
@@ -492,10 +484,10 @@ describe('KnowledgeIndexStore', () => {
     // search_text's implicit rowid, and an external-content FTS keyed on that rowid would then
     // silently point at the wrong rows. search_text_fts keys on the stable fts_rowid column instead.
     // The index MUST be populated before the reshuffle, or it cannot expose the bug.
-    await store.rebuildMaterial('m1', buildInput('alpha apple body', [[0, 16]], 'a.md'))
-    await store.rebuildMaterial('m2', buildInput('bravo banana body', [[0, 17]], 'b.md'))
-    await store.rebuildMaterial('m3', buildInput('charlie cherry body', [[0, 19]], 'c.md'))
-    await store.rebuildMaterial('m4', buildInput('delta date body', [[0, 15]], 'd.md'))
+    store.rebuildMaterial('m1', buildInput('alpha apple body', [[0, 16]], 'a.md'))
+    store.rebuildMaterial('m2', buildInput('bravo banana body', [[0, 17]], 'b.md'))
+    store.rebuildMaterial('m3', buildInput('charlie cherry body', [[0, 19]], 'c.md'))
+    store.rebuildMaterial('m4', buildInput('delta date body', [[0, 15]], 'd.md'))
     // Delete a middle material to leave a rowid hole — the precondition the reshuffle needs.
     await store.deleteMaterials(['m2'])
     expect(await ftsMatchCount('cherry')).toBe(1)
@@ -513,17 +505,15 @@ describe('KnowledgeIndexStore', () => {
     // fts_rowid was copied through the rebuild, so the index stays aligned: the reliable check passes
     // and the survivors resolve to the right materials (a rowid-keyed index would return wrong/empty).
     expect(ftsIntegrityCheck()).toBeDefined()
-    expect((await store.search({ queryText: 'cherry', mode: 'bm25', topK: 10 })).map((h) => h.materialId)).toEqual([
-      'm3'
-    ])
-    expect((await store.search({ queryText: 'date', mode: 'bm25', topK: 10 })).map((h) => h.materialId)).toEqual(['m4'])
+    expect(store.search({ queryText: 'cherry', mode: 'bm25', topK: 10 }).map((h) => h.materialId)).toEqual(['m3'])
+    expect(store.search({ queryText: 'date', mode: 'bm25', topK: 10 }).map((h) => h.materialId)).toEqual(['m4'])
     // The reshuffle reassigned implicit rowids while leaving fts_rowid untouched and unique.
     expect(await count('search_text')).toBe(3)
     expect(Number(driver.execute(`SELECT COUNT(DISTINCT fts_rowid) AS n FROM search_text`).rows[0].n)).toBe(3)
   })
 
   it('integrity-check,1 catches a NULL fts_rowid desync (and proves the detector is live)', async () => {
-    await store.rebuildMaterial('m1', buildInput('orphan searchable body', [[0, 22]], 'a.md'))
+    store.rebuildMaterial('m1', buildInput('orphan searchable body', [[0, 22]], 'a.md'))
     expect(await ftsMatchCount('searchable')).toBe(1)
 
     // Simulate a future bulk-insert / restore path that bypassed the AFTER INSERT trigger and left
@@ -540,9 +530,9 @@ describe('KnowledgeIndexStore', () => {
     // current MAX and then inserting REUSES that just-freed rowid — the highest-risk path for a
     // stale external-content entry: the new row lands on the exact key the deleted row had, so a
     // delete trigger that failed to tombstone it would surface the old content under the new row.
-    await store.rebuildMaterial('m1', buildInput('alpha apple body', [[0, 16]], 'a.md'))
-    await store.rebuildMaterial('m2', buildInput('bravo banana body', [[0, 17]], 'b.md'))
-    await store.rebuildMaterial('m3', buildInput('charlie cherry body', [[0, 19]], 'c.md'))
+    store.rebuildMaterial('m1', buildInput('alpha apple body', [[0, 16]], 'a.md'))
+    store.rebuildMaterial('m2', buildInput('bravo banana body', [[0, 17]], 'b.md'))
+    store.rebuildMaterial('m3', buildInput('charlie cherry body', [[0, 19]], 'c.md'))
 
     // m3 holds the current MAX fts_rowid. Delete it to free that rowid.
     const maxBefore = Number(driver.execute(`SELECT MAX(fts_rowid) AS m FROM search_text`).rows[0].m)
@@ -550,7 +540,7 @@ describe('KnowledgeIndexStore', () => {
     expect(await ftsMatchCount('cherry')).toBe(0)
 
     // The next insert's MAX(fts_rowid)+1 reuses the value m3 just vacated.
-    await store.rebuildMaterial('m4', buildInput('delta dragon body', [[0, 17]], 'd.md'))
+    store.rebuildMaterial('m4', buildInput('delta dragon body', [[0, 17]], 'd.md'))
     const reused = Number(
       driver.execute(`SELECT fts_rowid FROM search_text WHERE text LIKE 'delta%'`).rows[0].fts_rowid
     )
@@ -558,49 +548,47 @@ describe('KnowledgeIndexStore', () => {
 
     // The reused rowid resolves to m4 (not stale m3 content), the deleted term stays gone, and the
     // external-content index is consistent under the reliable detector.
-    expect((await store.search({ queryText: 'dragon', mode: 'bm25', topK: 10 })).map((h) => h.materialId)).toEqual([
-      'm4'
-    ])
+    expect(store.search({ queryText: 'dragon', mode: 'bm25', topK: 10 }).map((h) => h.materialId)).toEqual(['m4'])
     expect(await ftsMatchCount('cherry')).toBe(0)
     expect(ftsIntegrityCheck()).toBeDefined()
   })
 
   it('keeps a shared embedding reachable for the other material after rebuilding the one that introduced it', async () => {
     // m1 and m2 index the identical body → one shared embedding row, referenced by both.
-    await store.rebuildMaterial('m1', buildInput('shared body text', [[0, 16]], 'a.md'))
-    await store.rebuildMaterial('m2', buildInput('shared body text', [[0, 16]], 'b.md'))
+    store.rebuildMaterial('m1', buildInput('shared body text', [[0, 16]], 'a.md'))
+    store.rebuildMaterial('m2', buildInput('shared body text', [[0, 16]], 'b.md'))
     expect(await count('embedding')).toBe(1)
 
     // Rebuild m1 with unrelated content carrying a distinct vector, so m1 no longer
     // references the shared embedding — only m2 does now.
-    await store.rebuildMaterial('m1', buildInput('rebuilt unrelated body', [[0, 22]], 'a.md', [0.9, 0.8, 0.7]))
+    store.rebuildMaterial('m1', buildInput('rebuilt unrelated body', [[0, 22]], 'a.md', [0.9, 0.8, 0.7]))
 
     // The shared embedding must survive (m2 still references it), alongside m1's new
     // one → 2 rows. GC dropping the now-singly-referenced shared embedding on rebuild
     // would unjoin m2 from vector search below — the bare row count cannot catch that,
     // but searching the shared vector can.
     expect(await count('embedding')).toBe(2)
-    const matches = await store.search({ queryText: '', queryEmbedding: [0.1, 0.2, 0.3], mode: 'vector', topK: 10 })
+    const matches = store.search({ queryText: '', queryEmbedding: [0.1, 0.2, 0.3], mode: 'vector', topK: 10 })
     expect(matches.map((m) => m.materialId)).toContain('m2')
   })
 
   it('sweeps the orphaned embedding and content when a material is rebuilt with new content', async () => {
-    await store.rebuildMaterial('m1', buildInput('original body', [[0, 13]], 'a.md', [0.1, 0.2, 0.3]))
+    store.rebuildMaterial('m1', buildInput('original body', [[0, 13]], 'a.md', [0.1, 0.2, 0.3]))
     expect(await count('embedding')).toBe(1)
     expect(await count('content')).toBe(1)
 
     // Rebuild with unrelated content + a distinct vector; nothing else references the
     // old embedding or old content, so GC must remove both, leaving only the new ones.
-    await store.rebuildMaterial('m1', buildInput('replacement body', [[0, 16]], 'a.md', [0.9, 0.8, 0.7]))
+    store.rebuildMaterial('m1', buildInput('replacement body', [[0, 16]], 'a.md', [0.9, 0.8, 0.7]))
 
     expect(await count('embedding')).toBe(1)
     expect(await count('content')).toBe(1)
-    const units = await store.listMaterialUnits('m1')
+    const units = store.listMaterialUnits('m1')
     expect(units.map((u) => u.text)).toEqual(['replacement body'])
   })
 
   it('listExistingEmbeddingHashes reports only the hashes already stored', async () => {
-    await store.rebuildMaterial(
+    store.rebuildMaterial(
       'm1',
       buildInput('alpha bravo', [
         [0, 5],
@@ -610,7 +598,7 @@ describe('KnowledgeIndexStore', () => {
     const stored = hashEmbeddingText('alpha')
     const absent = hashEmbeddingText('charlie')
 
-    const existing = await store.listExistingEmbeddingHashes([stored, absent])
+    const existing = store.listExistingEmbeddingHashes([stored, absent])
 
     expect(existing.has(stored)).toBe(true)
     expect(existing.has(absent)).toBe(false)
@@ -618,24 +606,24 @@ describe('KnowledgeIndexStore', () => {
   })
 
   it('listExistingEmbeddingHashes returns an empty set for empty input', async () => {
-    expect((await store.listExistingEmbeddingHashes([])).size).toBe(0)
+    expect(store.listExistingEmbeddingHashes([]).size).toBe(0)
   })
 
   describe('deep-read lookups', () => {
     it('resolves a material by its relative path (the Concept ID) and returns null for an unknown path', async () => {
-      await store.rebuildMaterial('m1', buildInput('hello world', [[0, 11]], 'docs/intro.md'))
+      store.rebuildMaterial('m1', buildInput('hello world', [[0, 11]], 'docs/intro.md'))
 
-      const ref = await store.getMaterialByRelativePath('docs/intro.md')
+      const ref = store.getMaterialByRelativePath('docs/intro.md')
       expect(ref).not.toBeNull()
       expect(ref?.materialId).toBe('m1')
       expect(ref?.relativePath).toBe('docs/intro.md')
 
-      expect(await store.getMaterialByRelativePath('docs/missing.md')).toBeNull()
+      expect(store.getMaterialByRelativePath('docs/missing.md')).toBeNull()
     })
 
     it('reads back the full content text a material was indexed from', async () => {
       const text = 'the quick brown fox jumps over the lazy dog'
-      await store.rebuildMaterial(
+      store.rebuildMaterial(
         'm1',
         buildInput(text, [
           [0, 19],
@@ -643,12 +631,12 @@ describe('KnowledgeIndexStore', () => {
         ])
       )
 
-      expect(await store.readMaterialContent('m1')).toBe(text)
+      expect(store.readMaterialContent('m1')).toBe(text)
     })
 
     it('keeps content readable as the exact source the units were sliced from', async () => {
       const text = 'alpha beta gamma'
-      await store.rebuildMaterial(
+      store.rebuildMaterial(
         'm1',
         buildInput(text, [
           [0, 5],
@@ -656,14 +644,14 @@ describe('KnowledgeIndexStore', () => {
         ])
       )
 
-      const content = await store.readMaterialContent('m1')
-      for (const unit of await store.listMaterialUnits('m1')) {
+      const content = store.readMaterialContent('m1')
+      for (const unit of store.listMaterialUnits('m1')) {
         expect(content?.slice(unit.charStart, unit.charEnd)).toBe(unit.text)
       }
     })
 
     it('returns null content for an unknown material', async () => {
-      expect(await store.readMaterialContent('nope')).toBeNull()
+      expect(store.readMaterialContent('nope')).toBeNull()
     })
   })
 })
