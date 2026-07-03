@@ -186,7 +186,7 @@ describe('Tooltip', () => {
       )
 
       const content = getTooltipContentElement('dark-safe')
-      expect(content).toHaveClass('bg-neutral-900', 'text-neutral-50')
+      expect(content).toHaveClass('bg-primary', 'text-primary-foreground')
       expect(content.className).not.toContain('dark:bg-neutral-100')
       expect(content.className).not.toContain('dark:text-neutral-900')
     })
