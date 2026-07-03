@@ -20,11 +20,10 @@ export const AgentSessionContextUsageSchema = z.custom<AgentSessionContextUsage>
 
 export const AgentSessionContextUsageSnapshotSchema = z.strictObject({
   usage: AgentSessionContextUsageSchema,
-  capturedAt: z.iso.datetime()
+  capturedAt: z.number().int().nonnegative()
 })
 
 export type AgentSessionContextUsageSnapshot = z.infer<typeof AgentSessionContextUsageSnapshotSchema>
-export type AgentSessionContextUsageCacheEntry = AgentSessionContextUsage | AgentSessionContextUsageSnapshot | null
 export type AgentSessionContextUsageSource = 'live' | 'snapshot' | 'none'
 
 export const AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY = (sessionId: string) =>

@@ -28,7 +28,7 @@ interface ContextUsageSummaryProps {
   className?: string
   isCompacting?: boolean
   source?: AgentSessionContextUsageSource
-  capturedAt?: string
+  capturedAt?: number
 }
 
 export function ContextUsageSummary({
@@ -45,7 +45,7 @@ export function ContextUsageSummary({
   const progressColor =
     color ?? (normalizedPercentage === null ? undefined : getAgentContextUsageColor(normalizedPercentage))
   const visibleCategories = usage?.categories.filter((category) => category.tokens > 0).slice(0, 4) ?? []
-  const capturedAtLabel = capturedAt ? new Date(capturedAt).toLocaleString() : undefined
+  const capturedAtLabel = capturedAt !== undefined ? new Date(capturedAt).toLocaleString() : undefined
 
   return (
     <section className={cn('space-y-2 text-xs', className)} aria-busy={isCompacting || undefined}>

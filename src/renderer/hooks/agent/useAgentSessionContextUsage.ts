@@ -2,7 +2,7 @@ import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
   type AgentSessionContextUsage,
-  type AgentSessionContextUsageCacheEntry,
+  AgentSessionContextUsageSchema,
   type AgentSessionContextUsageSnapshot,
   type AgentSessionContextUsageSource
 } from '@shared/ai/agentSessionContextUsage'
@@ -14,7 +14,7 @@ interface AgentSessionContextUsageState {
   usage: AgentSessionContextUsage | null
   percentage: number | null
   source: AgentSessionContextUsageSource
-  capturedAt?: string
+  capturedAt?: number
 }
 
 export function useAgentSessionContextUsage(
@@ -22,16 +22,13 @@ export function useAgentSessionContextUsage(
   expectedModels?: readonly (string | null | undefined)[],
   fallbackSnapshot?: AgentSessionContextUsageSnapshot | null
 ): AgentSessionContextUsageState {
-  const cachedEntry = useSharedCacheValue(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId ?? EMPTY_SESSION_ID))
-  const sessionCacheEntry = sessionId ? (cachedEntry ?? null) : null
-  const cachedSnapshot = getContextUsageSnapshot(sessionCacheEntry)
-  const sessionUsage = cachedSnapshot ? null : (sessionCacheEntry as AgentSessionContextUsage | null)
+  const cachedUsage = useSharedCacheValue(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId ?? EMPTY_SESSION_ID))
+  const sessionUsage = sessionId && isContextUsage(cachedUsage) ? cachedUsage : null
   const liveUsage = isExpectedModelUsage(sessionUsage, expectedModels) ? sessionUsage : null
-  const cacheSnapshotUsage = isExpectedModelUsage(cachedSnapshot?.usage ?? null, expectedModels) ? cachedSnapshot : null
   const fallbackSnapshotUsage = isExpectedModelUsage(fallbackSnapshot?.usage ?? null, expectedModels)
     ? fallbackSnapshot
     : null
-  const effectiveSnapshot = cacheSnapshotUsage ?? fallbackSnapshotUsage
+  const effectiveSnapshot = fallbackSnapshotUsage
   const snapshotUsage = sessionId && effectiveSnapshot ? effectiveSnapshot.usage : null
   const effectiveUsage = liveUsage ?? snapshotUsage
   const source: AgentSessionContextUsageSource = liveUsage ? 'live' : snapshotUsage ? 'snapshot' : 'none'
@@ -46,11 +43,8 @@ export function useAgentSessionContextUsage(
   }
 }
 
-function getContextUsageSnapshot(
-  value: AgentSessionContextUsageCacheEntry | undefined
-): AgentSessionContextUsageSnapshot | null {
-  if (!value || typeof value !== 'object' || !('usage' in value) || !('capturedAt' in value)) return null
-  return value
+function isContextUsage(value: AgentSessionContextUsage | null | undefined): value is AgentSessionContextUsage {
+  return AgentSessionContextUsageSchema.safeParse(value).success
 }
 
 function isExpectedModelUsage(
