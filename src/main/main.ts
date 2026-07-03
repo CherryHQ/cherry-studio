@@ -16,6 +16,7 @@ import { serviceList } from '@main/core/application/serviceRegistry'
 // Preboot phase — order matters. See core/preboot/README.md.
 import { configureChromiumFlags } from '@main/core/preboot/chromiumFlags'
 import { initCrashTelemetry } from '@main/core/preboot/crashTelemetry'
+import { runUserDataRelocationGate } from '@main/core/preboot/relocation/relocationGate'
 import { requireSingleInstance } from '@main/core/preboot/singleInstance'
 import { resolveUserDataLocation } from '@main/core/preboot/userDataLocation'
 import { runV2MigrationGate } from '@main/core/preboot/v2MigrationGate'
@@ -38,6 +39,14 @@ import { versionService } from './services/VersionService'
 const logger = loggerService.withContext('MainEntry')
 
 const startApp = async () => {
+  // Relocation gate runs first: if a userData relocation is pending it takes
+  // over the whole launch (dedicated window → copy → relaunch), so it must
+  // run before the v1→v2 migration gate and before bootstrap — neither
+  // should start against a userData that is about to move.
+  // 'handled' = relocation window took over; caller must return immediately.
+  const relocationResult = await runUserDataRelocationGate()
+  if (relocationResult === 'handled') return
+
   // 'handled' = migration window took over OR fatal error already quit the app.
   const migrationResult = await runV2MigrationGate()
   if (migrationResult === 'handled') return

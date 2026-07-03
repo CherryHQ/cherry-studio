@@ -16,22 +16,10 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { reset } from '@renderer/services/BackupService'
 import type { AppInfo } from '@renderer/types/app'
 import { cn } from '@renderer/utils/style'
-import { FolderInput, FolderOpen, FolderOutput, Loader2, SaveIcon, Wifi } from 'lucide-react'
+import { FolderInput, FolderOpen, FolderOutput, SaveIcon, Wifi } from 'lucide-react'
 import type React from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-/**
- * @deprecated v1 leftover. v2's preboot relocation copies the entire Electron
- * userData directory tree at startup (in `src/main/core/preboot/userDataLocation.ts`),
- * after the previous process has fully exited and no file is locked. The
- * distinction between "occupied" and "non-occupied" directories has no meaning
- * in v2 — the entire tree is opaque and copied as one unit.
- *
- * Only used by the v1 in-process migration flow below, to be rewritten to the new
- * BootConfig `temp.user_data_relocation` protocol. Remove this at the same time.
- */
-const occupiedDirs = ['logs', 'Network', 'Partitions/webview/Network']
 
 const BasicDataSettings: React.FC = () => {
   const { t } = useTranslation()
@@ -96,27 +84,32 @@ const BasicDataSettings: React.FC = () => {
     void showMigrationConfirmModal(appInfo.appDataPath, newAppDataPath, migrationTitle, migrationClassName)
   }
 
-  const doubleConfirmModalBeforeCopyData = (newPath: string) => {
+  // When copying into a non-empty target, ask the user to confirm the
+  // overwrite before scheduling the relocation.
+  const doubleConfirmModalBeforeCopyData = (originalPath: string, newPath: string) => {
     window.modal.confirm({
       title: t('settings.data.app_data.select_not_empty_dir'),
       content: t('settings.data.app_data.select_not_empty_dir_content'),
       centered: true,
       okText: t('common.confirm'),
       cancelText: t('common.cancel'),
-      onOk: () => {
-        window.toast.info({
-          title: t('settings.data.app_data.restart_notice'),
-          timeout: 2000
-        })
-        setTimeoutTimer(
-          'doubleConfirmModalBeforeCopyData',
-          () => {
-            void window.api.application.relaunch({
-              args: ['--new-data-path=' + newPath]
-            })
-          },
-          500
-        )
+      onOk: async () => {
+        try {
+          await window.api.setAppDataPath({ path: newPath, copyData: true })
+          window.toast.info({ title: t('settings.data.app_data.restart_notice'), timeout: 2000 })
+          setTimeoutTimer(
+            'doubleConfirmModalBeforeCopyData',
+            () => {
+              void window.api.application.relaunch()
+            },
+            500
+          )
+        } catch (error) {
+          window.toast.error({
+            title: t('settings.data.app_data.path_change_failed') + ': ' + error,
+            timeout: 5000
+          })
+        }
       }
     })
   }
@@ -183,36 +176,23 @@ const BasicDataSettings: React.FC = () => {
       cancelText: t('common.cancel'),
       onOk: async () => {
         try {
-          if (shouldCopyData) {
-            if (await window.api.isNotEmptyDir(newPath)) {
-              doubleConfirmModalBeforeCopyData(newPath)
-              return
-            }
-
-            window.toast.info({
-              title: t('settings.data.app_data.restart_notice'),
-              timeout: 3000
-            })
-            setTimeoutTimer(
-              'showMigrationConfirmModal_1',
-              () => {
-                void window.api.application.relaunch({
-                  args: ['--new-data-path=' + newPath]
-                })
-              },
-              500
-            )
+          // Copying into a non-empty target: get explicit overwrite
+          // confirmation before scheduling, since the preboot copy will
+          // overwrite everything under `newPath`.
+          if (shouldCopyData && (await window.api.isNotEmptyDir(newPath))) {
+            doubleConfirmModalBeforeCopyData(originalPath, newPath)
             return
           }
-          await window.api.setAppDataPath(newPath)
-          window.toast.success(t('settings.data.app_data.path_changed_without_copy'))
-
-          setAppInfo(await window.api.getAppInfo())
-
+          // Both "copy" and "switch-only" go through the same preboot
+          // relocation protocol: write a `pending` request to BootConfig
+          // and relaunch. The actual copy (if any) and path switch happen
+          // in the preboot relocation gate on the next launch, when no
+          // file in the old userData is locked.
+          await window.api.setAppDataPath({ path: newPath, copyData: shouldCopyData })
+          window.toast.info({ title: t('settings.data.app_data.restart_notice'), timeout: 3000 })
           setTimeoutTimer(
-            'showMigrationConfirmModal_2',
+            'showMigrationConfirmModal',
             () => {
-              window.toast.success(t('settings.data.app_data.select_success'))
               void window.api.application.relaunch()
             },
             500
@@ -226,185 +206,6 @@ const BasicDataSettings: React.FC = () => {
       }
     })
   }
-
-  // 显示进度模态框
-  const showProgressModal = (title: React.ReactNode, className: string, PathsContent: React.FC) => {
-    let currentProgress = 0
-    let progressInterval: NodeJS.Timeout | null = null
-
-    const loadingModal = window.modal.info({
-      title,
-      className,
-      width: 'min(600px, 90vw)',
-      style: { minHeight: '400px' },
-      icon: <Loader2 className="animate-spin" size={18} />,
-      content: (
-        <MigrationModalContent>
-          <PathsContent />
-          <MigrationNotice>
-            <p>{t('settings.data.app_data.copying')}</p>
-            <div style={{ marginTop: '12px' }}>
-              <MigrationProgressBar percent={currentProgress} status="active" strokeWidth={8} />
-            </div>
-            <p style={{ color: 'var(--color-warning)', marginTop: '12px', fontSize: '13px' }}>
-              {t('settings.data.app_data.copying_warning')}
-            </p>
-          </MigrationNotice>
-        </MigrationModalContent>
-      ),
-      centered: true,
-      closable: false,
-      maskClosable: false,
-      okButtonProps: { style: { display: 'none' } }
-    })
-
-    const updateProgress = (progress: number, status: 'active' | 'success' = 'active') => {
-      loadingModal.update({
-        title,
-        content: (
-          <MigrationModalContent>
-            <PathsContent />
-            <MigrationNotice>
-              <p>{t('settings.data.app_data.copying')}</p>
-              <div style={{ marginTop: '12px' }}>
-                <MigrationProgressBar percent={Math.round(progress)} status={status} strokeWidth={8} />
-              </div>
-              <p style={{ color: 'var(--color-warning)', marginTop: '12px', fontSize: '13px' }}>
-                {t('settings.data.app_data.copying_warning')}
-              </p>
-            </MigrationNotice>
-          </MigrationModalContent>
-        )
-      })
-    }
-
-    progressInterval = setInterval(() => {
-      if (currentProgress < 95) {
-        currentProgress += Math.random() * 5 + 1
-        if (currentProgress > 95) currentProgress = 95
-        updateProgress(currentProgress)
-      }
-    }, 500)
-
-    return { loadingModal, progressInterval, updateProgress }
-  }
-
-  // 开始迁移数据
-  const startMigration = async (
-    originalPath: string,
-    newPath: string,
-    progressInterval: NodeJS.Timeout | null,
-    updateProgress: (progress: number, status?: 'active' | 'success') => void,
-    loadingModal: { destroy: () => void }
-  ): Promise<void> => {
-    await window.api.flushAppData()
-
-    await new Promise((resolve) => setTimeoutTimer('startMigration_1', resolve, 2000))
-
-    const copyResult = await window.api.copy(
-      originalPath,
-      newPath,
-      occupiedDirs.map((dir) => originalPath + '/' + dir)
-    )
-
-    if (progressInterval) {
-      clearInterval(progressInterval)
-    }
-
-    updateProgress(100, 'success')
-
-    if (!copyResult.success) {
-      await new Promise<void>((resolve) => {
-        setTimeoutTimer(
-          'startMigration_2',
-          () => {
-            loadingModal.destroy()
-            window.toast.error({
-              title: t('settings.data.app_data.copy_failed') + ': ' + copyResult.error,
-              timeout: 5000
-            })
-            resolve()
-          },
-          500
-        )
-      })
-
-      throw new Error(copyResult.error || 'Unknown error during copy')
-    }
-
-    await window.api.setAppDataPath(newPath)
-
-    await new Promise((resolve) => setTimeoutTimer('startMigration_3', resolve, 500))
-
-    loadingModal.destroy()
-
-    window.toast.success({
-      title: t('settings.data.app_data.copy_success'),
-      timeout: 2000
-    })
-  }
-
-  useEffect(() => {
-    const handleDataMigration = async () => {
-      const newDataPath = await window.api.getDataPathFromArgs()
-      if (!newDataPath) return
-
-      const originalPath = (await window.api.getAppInfo())?.appDataPath
-      if (!originalPath) return
-
-      const title = (
-        <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{t('settings.data.app_data.migration_title')}</div>
-      )
-      const className = 'migration-modal'
-
-      const PathsContent = () => (
-        <div>
-          <MigrationPathRow>
-            <MigrationPathLabel>{t('settings.data.app_data.original_path')}:</MigrationPathLabel>
-            <MigrationPathValue>{originalPath}</MigrationPathValue>
-          </MigrationPathRow>
-          <MigrationPathRow style={{ marginTop: '16px' }}>
-            <MigrationPathLabel>{t('settings.data.app_data.new_path')}:</MigrationPathLabel>
-            <MigrationPathValue>{newDataPath}</MigrationPathValue>
-          </MigrationPathRow>
-        </div>
-      )
-
-      const { loadingModal, progressInterval, updateProgress } = showProgressModal(title, className, PathsContent)
-      const holdId = await window.api.application.preventQuit(t('settings.data.app_data.stop_quit_app_reason'))
-      try {
-        await startMigration(originalPath, newDataPath, progressInterval, updateProgress, loadingModal)
-
-        setAppInfo(await window.api.getAppInfo())
-
-        setTimeoutTimer(
-          'handleDataMigration',
-          () => {
-            window.toast.success(t('settings.data.app_data.select_success'))
-            void window.api.application.allowQuit(holdId)
-            void window.api.application.relaunch({
-              args: ['--user-data-dir=' + newDataPath]
-            })
-          },
-          1000
-        )
-      } catch (error) {
-        void window.api.application.allowQuit(holdId)
-        window.toast.error({
-          title: t('settings.data.app_data.copy_failed') + ': ' + error,
-          timeout: 5000
-        })
-      } finally {
-        if (progressInterval) {
-          clearInterval(progressInterval)
-        }
-        loadingModal.destroy()
-      }
-    }
-
-    void handleDataMigration()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   const handleOpenPath = (path?: string) => {
     if (!path) return
@@ -581,31 +382,6 @@ const PathText = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'
     {...props}
   />
 )
-
-interface MigrationProgressBarProps {
-  percent: number
-  status: 'active' | 'success'
-  strokeWidth: number
-}
-
-const MigrationProgressBar = ({ percent, status, strokeWidth }: MigrationProgressBarProps) => {
-  const normalizedPercent = Math.min(100, Math.max(0, Math.round(percent)))
-
-  return (
-    <div className="flex w-full items-center gap-2">
-      <div className="w-full overflow-hidden rounded-full bg-border" style={{ height: strokeWidth }}>
-        <div
-          className={cn(
-            'h-full rounded-full transition-[width] duration-300',
-            status === 'success' ? 'bg-success' : 'bg-primary'
-          )}
-          style={{ width: `${normalizedPercent}%` }}
-        />
-      </div>
-      <span className="min-w-10 text-right text-foreground-muted text-xs">{normalizedPercent}%</span>
-    </div>
-  )
-}
 
 const PathRow = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof RowFlex>) => (
   <RowFlex className={cn('w-0 min-w-0 flex-1 items-center gap-1.25', className)} {...props} />

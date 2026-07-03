@@ -1,7 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock } = vi.hoisted(() => ({ appGetMock: vi.fn() }))
-vi.mock('@application', () => ({ application: { get: appGetMock } }))
+const { appGetMock, appGetPathMock, requestRelocationMock } = vi.hoisted(() => ({
+  appGetMock: vi.fn(),
+  appGetPathMock: vi.fn(),
+  requestRelocationMock: vi.fn()
+}))
+vi.mock('@application', () => ({ application: { get: appGetMock, getPath: appGetPathMock } }))
+vi.mock('@main/core/preboot/userDataLocation', () => ({
+  requestRelocation: requestRelocationMock
+}))
 
 import { appHandlers } from '../app'
 
@@ -12,6 +19,10 @@ const appUpdaterService = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  appGetPathMock.mockImplementation((name: string) => {
+    if (name === 'app.userdata') return '/current/user/data'
+    throw new Error(`Unexpected application.getPath(${name})`)
+  })
   appGetMock.mockImplementation((name: string) => {
     if (name === 'AppUpdaterService') return appUpdaterService
     throw new Error(`Unexpected application.get(${name})`)
@@ -50,5 +61,23 @@ describe('appHandlers', () => {
 
     expect(appUpdaterService.quitAndInstall).toHaveBeenCalledTimes(1)
     expect(result).toBeUndefined()
+  })
+
+  it('set_user_data_path requests switch-only relocation persistence', async () => {
+    const targetPath = '/new/user/data'
+
+    const result = await appHandlers['app.set_user_data_path']({ path: targetPath, copyData: false }, ctx)
+
+    expect(result).toBe(targetPath)
+    expect(requestRelocationMock).toHaveBeenCalledWith('/current/user/data', targetPath, false)
+  })
+
+  it('set_user_data_path copyData=true requests copy relocation persistence', async () => {
+    const targetPath = '/new/user/data-copy'
+
+    const result = await appHandlers['app.set_user_data_path']({ path: targetPath, copyData: true }, ctx)
+
+    expect(result).toBe(targetPath)
+    expect(requestRelocationMock).toHaveBeenCalledWith('/current/user/data', targetPath, true)
   })
 })

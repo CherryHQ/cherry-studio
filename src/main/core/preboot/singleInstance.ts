@@ -25,14 +25,10 @@ const logger = loggerService.withContext('SingleInstance')
  *   - Packaged runs also resolve userData before this lock. That keeps
  *     the lock aligned with the final BootConfig/portable userData path,
  *     so a second packaged instance using the same data directory exits
- *     before migration gate or bootstrap work begins. Trade-off vs. the
- *     previous single-instance-first ordering: the doomed second instance
- *     still runs the full `resolveUserDataLocation()` first, including Step
- *     1's `executePendingRelocation()` `fs.cpSync` over the userData tree.
- *     Two processes could therefore both execute a pending
- *     `temp.user_data_relocation`. Harmless today because nothing writes a
- *     `pending` state yet; gate pending relocation behind this lock when the
- *     pending-writer lands.
+ *     before relocation gate, migration gate, or bootstrap work begins. That
+ *     ordering is intentional: a second packaged instance must not execute a
+ *     pending `temp.user_data_relocation` while the primary instance is
+ *     already moving the same userData tree.
  *   - Does not depend on any lifecycle-managed service: `application.quit()`
  *     is the container's own top-level method, identical in spirit to
  *     how v2MigrationGate uses it on its fatal branches.

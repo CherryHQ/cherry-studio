@@ -4,7 +4,6 @@ import db from '@renderer/databases/db'
 import { useAppUpdateHandler } from '@renderer/hooks/useAppUpdate'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import i18n, { setDayjsLocale } from '@renderer/i18n/resolver'
-import { navigationService } from '@renderer/services/NavigationService'
 import { setInlineFilePathHomePath } from '@renderer/utils/filePath'
 import { defaultLanguage } from '@shared/utils/languages'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -29,14 +28,6 @@ export function useAppInit() {
     // appropriate here.
     // eslint-disable-next-line no-restricted-syntax
     console.timeEnd('init')
-  }, [])
-
-  useEffect(() => {
-    void window.api.getDataPathFromArgs().then((dataPath) => {
-      if (dataPath) {
-        void navigationService.navigate?.({ to: '/settings/data', replace: true })
-      }
-    })
   }, [])
 
   // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
