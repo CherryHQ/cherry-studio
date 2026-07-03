@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   openedKeepAliveMiniApps: [] as MiniApp[],
   openMiniAppKeepAlive: vi.fn(),
   updateTab: vi.fn(),
+  isActiveTab: true,
   currentTab: {
     id: 'launchpad-tab',
     type: 'route',
@@ -55,6 +56,7 @@ vi.mock('@renderer/pages/miniApps/components/WebviewSearch', () => ({
 vi.mock('@renderer/hooks/tab', () => ({
   useCurrentTab: () => mocks.currentTab,
   useCurrentTabId: () => mocks.currentTab.id,
+  useIsActiveTab: () => mocks.isActiveTab,
   useOptionalTabsContext: () => ({
     tabs: [mocks.currentTab],
     updateTab: mocks.updateTab
@@ -111,6 +113,7 @@ describe('MiniAppPage', () => {
       })
     ]
     mocks.openedKeepAliveMiniApps = []
+    mocks.isActiveTab = true
     mocks.currentTab = {
       id: 'launchpad-tab',
       type: 'route',
@@ -138,5 +141,22 @@ describe('MiniAppPage', () => {
       })
     )
     expect(mocks.openMiniAppKeepAlive).toHaveBeenCalledWith(mocks.allApps[0])
+  })
+
+  it('does not drive the keep-alive pool from a background (non-active) tab', async () => {
+    // A backgrounded mini-app page (e.g. a pinned mini-app tab still mounted via
+    // keep-alive) must not touch the global currentMiniAppId / LRU order — that
+    // is what ping-pongs two mounted pages into an infinite render loop.
+    mocks.isActiveTab = false
+
+    render(<MiniAppPage />)
+
+    await waitFor(() =>
+      expect(mocks.updateTab).toHaveBeenCalledWith('launchpad-tab', {
+        title: 'ChatGPT',
+        icon: 'chat-logo'
+      })
+    )
+    expect(mocks.openMiniAppKeepAlive).not.toHaveBeenCalled()
   })
 })
