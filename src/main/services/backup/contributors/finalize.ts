@@ -396,10 +396,12 @@ export function finalize(
   }
 
   // ── polymorphicEntityMap validation (architecture L201) ───────────────────────
-  // Record<EntityType, BackupDomain | 'excluded'> is compile-time exhaustive over keys,
-  // so the runtime check is thin: every VALUE must be a known BackupDomain or 'excluded'.
-  // A value that is neither (a typo or a stale domain after a rename) would route rows
-  // to a non-existent owner and silently drop them.
+  // Reuses invariant #21 as the payload id (an identity-routing deviation, shared with
+  // the platformSpecificKeys check above) and disambiguates via the `deviation` subkey —
+  // see contributor-spec.md §4.2. Record<EntityType, BackupDomain | 'excluded'> is
+  // compile-time exhaustive over keys, so the runtime check is thin: every VALUE must
+  // be a known BackupDomain or 'excluded'. A value that is neither (a typo or a stale
+  // domain after a rename) would route rows to a non-existent owner and silently drop them.
   for (const c of contributors) {
     const map = c.schema.polymorphicEntityMap
     if (map === undefined) continue
