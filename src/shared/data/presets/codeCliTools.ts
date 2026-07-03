@@ -43,14 +43,6 @@ export const CLI_TOOL_PRESETS: CliToolPreset[] = [
     miseTool: 'npm:openclaw'
   },
   {
-    id: CodeCli.HERMES,
-    name: 'Hermes',
-    descriptionKey: 'code.tool_description.hermes',
-    repoUrl: 'https://github.com/NousResearch/hermes-agent',
-    homepage: 'https://hermes-agent.nousresearch.com',
-    miseTool: 'pipx:hermes-agent'
-  },
-  {
     id: CodeCli.GEMINI_CLI,
     name: 'Gemini CLI',
     descriptionKey: 'code.tool_description.gemini_cli',

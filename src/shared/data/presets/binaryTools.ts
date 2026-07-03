@@ -91,6 +91,6 @@ export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
     repoUrl: 'https://github.com/earendil-works/pi',
     homepage: 'https://pi.dev'
   }
-  // CLI code tools (claude, codex, opencode, hermes, openclaw) are managed
+  // CLI code tools (claude, codex, opencode, openclaw) are managed
   // in the Code CLI page instead of here.
 ]

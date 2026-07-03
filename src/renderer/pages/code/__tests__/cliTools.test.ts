@@ -1,7 +1,7 @@
 import { CodeCli } from '@shared/types/codeCli'
 import { describe, expect, it } from 'vitest'
 
-import { CLI_TOOLS } from '../cliTools'
+import { CLI_TOOLS } from '../constants/cliTools'
 
 describe('CLI_TOOLS', () => {
   it('exposes every CodeCli enum value with a renderable icon component', () => {

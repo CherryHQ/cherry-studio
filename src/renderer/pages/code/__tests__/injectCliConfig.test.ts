@@ -3,7 +3,7 @@ import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { injectCliConfig } from '../injectCliConfig'
+import { injectCliConfig } from '../cliConfig'
 
 /** Per-path DataApi.get mock returning provider / api-keys / model payloads.
  * Prefixes are matched longest-first so `/providers/:id/api-keys` is not
@@ -80,9 +80,8 @@ describe('injectCliConfig', () => {
     vi.restoreAllMocks()
   })
 
-  it('is a no-op for hermes / openclaw (still injected in main run())', async () => {
+  it('is a no-op for openclaw (handled by OpenClawService)', async () => {
     mockGet({})
-    await injectCliConfig({ cliTool: CodeCli.HERMES, modelId: 'p::m' })
     await injectCliConfig({ cliTool: CodeCli.OPENCLAW, modelId: 'p::m' })
     expect(written).toBeNull()
     expect(dataApiService.get).not.toHaveBeenCalled()
@@ -143,7 +142,7 @@ describe('injectCliConfig', () => {
     })
 
     it('drops previous config quick-options / model-roles / attribution on switch', async () => {
-      // Simulate a native file written by a previous config that had every
+      // Simulate a CLI config file written by a previous config that had every
       // Cherry-managed field set. The new config asserts none of them, so all
       // Cherry-managed keys must be cleared (each config is independent).
       existing['/resolved~/.claude/settings.json'] = JSON.stringify({
@@ -618,7 +617,7 @@ describe('injectCliConfig', () => {
         theme: 'dark',
         env: { ANTHROPIC_AUTH_TOKEN: 'sk-injected', KEEP: '1' }
       })
-      const { clearCliConfig } = await import('../injectCliConfig')
+      const { clearCliConfig } = await import('../cliConfig')
       await clearCliConfig({ cliTool: CodeCli.CLAUDE_CODE })
 
       const afterClear = JSON.parse(writes.at(-1)!.content)
@@ -628,7 +627,7 @@ describe('injectCliConfig', () => {
     })
   })
 
-  describe('parse-failure safety (never overwrite a malformed native file)', () => {
+  describe('parse-failure safety (never overwrite a malformed CLI config file)', () => {
     it('aborts the codex write instead of clobbering a malformed config.toml', async () => {
       existing['/resolved~/.codex/config.toml'] = 'this is = = not valid toml [[['
       mockGet({

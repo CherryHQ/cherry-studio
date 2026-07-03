@@ -3,7 +3,6 @@ export enum CodeCli {
   OPENAI_CODEX = 'openai-codex',
   OPEN_CODE = 'opencode',
   OPENCLAW = 'openclaw',
-  HERMES = 'hermes',
   GEMINI_CLI = 'gemini-cli',
   QWEN_CODE = 'qwen-code',
   KIMI_CODE = 'kimi-code',
@@ -65,18 +64,4 @@ export interface CodexChatReasoning {
   effortParam?: CodexChatEffortParam
   effortValueMode?: CodexChatEffortValueMode
   outputFormat?: CodexChatReasoningOutputFormat
-}
-
-/**
- * Hermes provider config (→ ~/.hermes/config.yaml).
- */
-export interface HermesProviderConfig {
-  apiKey: string
-  baseUrl: string
-  apiMode: string
-  model: string
-  modelName: string
-  providerName: string
-  contextLength?: number
-  maxTokens?: number
 }

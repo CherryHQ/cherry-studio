@@ -21,20 +21,16 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
-import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { regionService } from '@main/services/RegionService'
 import { getBinaryExecutionEnv, getBinaryPath, isBinaryExists } from '@main/utils/process'
 import { removeEnvProxy } from '@main/utils/shell-env'
-import type { Model } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import { CodeCli, TerminalApp, type TerminalConfig, type TerminalConfigWithCommand } from '@shared/types/codeCli'
 import type { CodeToolsRunResult } from '@shared/types/codeTools'
 import { spawn } from 'child_process'
 import { promisify } from 'util'
 
 import { sanitizeEnvForLogging } from './envRedaction'
-import { writeHermesConfig } from './hermesConfig'
 import {
   MACOS_TERMINALS,
   MACOS_TERMINALS_WITH_COMMANDS,
@@ -103,8 +99,6 @@ export class CodeCliService extends BaseService {
         return 'opencode-ai'
       case CodeCli.OPENCLAW:
         return 'openclaw'
-      case CodeCli.HERMES:
-        return 'hermes-agent'
       case CodeCli.GEMINI_CLI:
         return '@google/gemini-cli'
       case CodeCli.QWEN_CODE:
@@ -130,8 +124,6 @@ export class CodeCliService extends BaseService {
         return { name: 'opencode', tool: 'opencode' }
       case CodeCli.OPENCLAW:
         return { name: 'openclaw', tool: 'npm:openclaw' }
-      case CodeCli.HERMES:
-        return { name: 'hermes', tool: 'pipx:hermes-agent' }
       case CodeCli.GEMINI_CLI:
         return { name: 'gemini', tool: 'npm:@google/gemini-cli' }
       case CodeCli.QWEN_CODE:
@@ -157,8 +149,6 @@ export class CodeCliService extends BaseService {
         return 'opencode'
       case CodeCli.OPENCLAW:
         return 'openclaw'
-      case CodeCli.HERMES:
-        return 'hermes'
       case CodeCli.GEMINI_CLI:
         return 'gemini'
       case CodeCli.QWEN_CODE:
@@ -583,56 +573,6 @@ export class CodeCliService extends BaseService {
     }
   }
 
-  /**
-   * Write provider credentials for the tools whose injection still lives in
-   * main at launch time (hermes, openclaw). The file-based tools
-   * (claude-code / codex / opencode) are injected from the renderer at
-   * "enable config" time. API keys are never stored in Preference.
-   */
-  private async resolveAndApplyConfig(cliTool: string, model: string, providerId: string): Promise<void> {
-    const provider = await providerService.getByProviderId(providerId)
-    const apiKeys = await providerService.getApiKeys(providerId, { enabled: true })
-    const apiKey = apiKeys[0]?.key ?? ''
-
-    switch (cliTool) {
-      case CodeCli.HERMES: {
-        const isAnthropic = !!provider.endpointConfigs?.['anthropic-messages']?.baseUrl
-        const endpointType = isAnthropic
-          ? 'anthropic-messages'
-          : (provider.defaultChatEndpoint ?? 'openai-chat-completions')
-        const baseUrl = this.getEndpointBaseUrl(provider, endpointType)
-        const providerName = this.sanitizeProviderName(provider.name, provider.id)
-        let modelRecord: Model | null = null
-        try {
-          modelRecord = await modelService.getByKey(providerId, model)
-        } catch {
-          /* use defaults */
-        }
-        await writeHermesConfig({
-          apiKey,
-          baseUrl,
-          apiMode: isAnthropic ? 'anthropic_messages' : 'chat_completions',
-          model,
-          modelName: modelRecord?.name ?? model,
-          providerName
-        })
-        return
-      }
-      case CodeCli.OPENCLAW: {
-        // OpenClaw config is synced via OpenClawService, not a file writer.
-        await application.get('OpenClawService').syncConfig(`${providerId}::${model}`)
-        return
-      }
-      default:
-        return
-    }
-  }
-
-  /** Get the primary chat endpoint base URL for a provider. */
-  private getEndpointBaseUrl(provider: Provider, endpointType: string): string {
-    return provider.endpointConfigs?.[endpointType]?.baseUrl ?? ''
-  }
-
   /** Sanitize a provider display name for use in config file keys. */
   private sanitizeProviderName(name: string, fallback: string): string {
     const sanitized = name.replace(/[^a-zA-Z0-9_\s.-]/g, '').replace(/\s+/g, '-')
@@ -652,8 +592,9 @@ export class CodeCliService extends BaseService {
     logger.debug(`Environment variables:`, Object.keys(env))
     logger.debug(`Options:`, options)
 
-    // Validate directory exists before proceeding
-    if (!directory || !fs.existsSync(directory)) {
+    // OpenClaw runs as a background gateway and opens in an in-app tab, so it
+    // does not need a project directory.
+    if (cliTool !== CodeCli.OPENCLAW && (!directory || !fs.existsSync(directory))) {
       const errorMessage = `Directory does not exist: ${directory}`
       logger.error(errorMessage)
       return {
@@ -663,11 +604,9 @@ export class CodeCliService extends BaseService {
       }
     }
 
-    // hermes/openclaw only — claude-code/codex/opencode are injected from the renderer.
-    // qoder and copilot start directly — no provider config writing needed.
-    if (cliTool === CodeCli.HERMES || cliTool === CodeCli.OPENCLAW) {
+    if (cliTool === CodeCli.OPENCLAW) {
       try {
-        await this.resolveAndApplyConfig(cliTool, model, providerId)
+        await application.get('OpenClawService').syncConfig(`${providerId}::${model}`)
       } catch (error) {
         const message = `Failed to write ${cliTool} config: ${error instanceof Error ? error.message : String(error)}`
         logger.error(message, error as Error)

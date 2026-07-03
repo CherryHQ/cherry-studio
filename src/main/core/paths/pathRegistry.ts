@@ -152,7 +152,6 @@ export function buildPathRegistry() {
     'external.codex.config': path.join(os.homedir(), '.codex'),
     'external.opencode.config': path.join(os.homedir(), '.config', 'opencode'),
     'external.openclaw.config': path.join(os.homedir(), '.openclaw'),
-    'external.hermes.config': path.join(os.homedir(), '.hermes'),
     // Nested ternary (not object literal) to satisfy file-level ESLint constraint
     'external.obsidian.config_file': isWin
       ? path.join(app.getPath('appData'), 'obsidian', 'obsidian.json')

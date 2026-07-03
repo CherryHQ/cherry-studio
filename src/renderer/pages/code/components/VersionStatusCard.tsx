@@ -1,9 +1,9 @@
 import { Button } from '@cherrystudio/ui'
-import { ArrowUpCircle, Download, Play, Trash2 } from 'lucide-react'
+import { ArrowUpCircle, Download, Play, Square, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { VersionStatus } from '../types'
+import type { VersionStatus } from '../types/codeCli'
 import { CLIIcon } from './CLIIcon'
 
 interface VersionStatusCardProps {
@@ -14,10 +14,13 @@ interface VersionStatusCardProps {
   onUpgrade?: () => void
   onRemove?: () => void
   onLaunch?: () => void
+  onStop?: () => void
   isInstalling?: boolean
   isUpgrading?: boolean
   canLaunch?: boolean
   launching?: boolean
+  running?: boolean
+  stopping?: boolean
 }
 
 export const VersionStatusCard: FC<VersionStatusCardProps> = ({
@@ -28,10 +31,13 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
   onUpgrade,
   onRemove,
   onLaunch,
+  onStop,
   isInstalling,
   isUpgrading,
   canLaunch,
-  launching
+  launching,
+  running,
+  stopping
 }) => {
   const { t } = useTranslation()
   const isInstalled = status.installed
@@ -100,10 +106,20 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
           {isInstalled ? (
             <button
               type="button"
-              onClick={onLaunch}
-              disabled={!canLaunch || launching}
-              className="flex shrink-0 items-center gap-1.5 rounded-md border border-border/60 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-border hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50">
-              {launching ? (
+              onClick={running ? onStop : onLaunch}
+              disabled={running ? stopping : !canLaunch || launching}
+              className="flex shrink-0 items-center gap-1.5 rounded-md border border-border/60 px-3 py-1.5 text-muted-foreground text-xs transition-colors hover:border-border hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50">
+              {running && stopping ? (
+                <>
+                  <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
+                  {t('openclaw.gateway.stop')}
+                </>
+              ) : running ? (
+                <>
+                  <Square size={12} />
+                  {t('openclaw.gateway.stop')}
+                </>
+              ) : launching ? (
                 <>
                   <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
                   {t('code.launching')}
@@ -120,7 +136,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
               type="button"
               onClick={onInstall}
               disabled={isInstalling}
-              className="flex shrink-0 items-center gap-1.5 rounded-md border border-border/60 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-border hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50">
+              className="flex shrink-0 items-center gap-1.5 rounded-md border border-border/60 px-3 py-1.5 text-muted-foreground text-xs transition-colors hover:border-border hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50">
               {isInstalling ? (
                 <>
                   <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />

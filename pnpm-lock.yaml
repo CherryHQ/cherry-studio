@@ -104,9 +104,6 @@ importers:
       gray-matter:
         specifier: 4.0.3
         version: 4.0.3
-      js-yaml:
-        specifier: ^4.1.0
-        version: 4.1.1
       jsdom:
         specifier: 26.1.0
         version: 26.1.0

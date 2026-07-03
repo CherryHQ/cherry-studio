@@ -4,8 +4,8 @@ import { ArrowUpCircle, Loader2 } from 'lucide-react'
 import { type FC, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { CLI_TOOLS } from '../cliTools'
-import type { CodeToolMeta, VersionStatus } from '../types'
+import type { CLI_TOOLS } from '../constants/cliTools'
+import type { CodeToolMeta, VersionStatus } from '../types/codeCli'
 import { CLIIcon } from './CLIIcon'
 
 type CliToolOption = (typeof CLI_TOOLS)[number]

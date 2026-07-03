@@ -1,38 +1,55 @@
 import { ConfirmDialog } from '@cherrystudio/ui'
+import { dataApiService } from '@data/DataApiService'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
+import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
-import type { CodeCli } from '@shared/types/codeCli'
+import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
+import { CodeCli } from '@shared/types/codeCli'
 import { useNavigate } from '@tanstack/react-router'
 import { ExternalLink } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { CLI_TOOLS, PROVIDERLESS_CLI_TOOLS } from './cliTools'
+import {
+  clearCliConfig,
+  type CliConfigConnection,
+  cliConfigConnectionMatchesProvider,
+  type CliConfigFileDraft,
+  extractConnectionFromCliConfigDraft,
+  injectCliConfig,
+  readCliConfigFiles,
+  writeCliConfigDraft
+} from './cliConfig'
 import { CodeCliSidebar } from './components/CodeCliSidebar'
 import { ConfigEditPanel } from './components/configEditPanel/ConfigEditPanel'
 import { ConfigList } from './components/ConfigList'
 import { LaunchDialog } from './components/LaunchDialog'
 import { VersionStatusCard } from './components/VersionStatusCard'
-import { clearCliConfig, injectCliConfig } from './injectCliConfig'
-import type { CodeToolMeta, VersionStatus } from './types'
-import { useAvailableTerminals } from './useAvailableTerminals'
-import { useBinaryActions } from './useBinaryActions'
-import { useCliVersionStatuses } from './useCliVersionStatuses'
-import { useConfigMetadata } from './useConfigMetadata'
+import { CLI_TOOLS, PROVIDERLESS_CLI_TOOLS } from './constants/cliTools'
+import { useAvailableTerminals } from './hooks/useAvailableTerminals'
+import { useBinaryActions } from './hooks/useBinaryActions'
+import { useCliVersionStatuses } from './hooks/useCliVersionStatuses'
+import { useConfigMetadata } from './hooks/useConfigMetadata'
+import type { CodeToolMeta, VersionStatus } from './types/codeCli'
 
 const logger = loggerService.withContext('CodeCliPage')
 
 type CliToolOption = (typeof CLI_TOOLS)[number]
+type OpenClawGatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
 
 const CLI_TOOL_IDS = CLI_TOOLS.map((tool) => tool.value)
+
+async function readProviderApiKeys(providerId: string): Promise<ApiKeyEntry[]> {
+  const result = (await dataApiService.get(`/providers/${providerId}/api-keys`)) as { keys?: ApiKeyEntry[] } | undefined
+  return result?.keys ?? []
+}
 
 const toMeta = (tool: CliToolOption): CodeToolMeta => ({
   id: tool.value,
@@ -60,31 +77,64 @@ const CodeCliPage: FC = () => {
   } = useCodeCli()
 
   const { install, upgrade, remove, installingTools, upgradingTools } = useBinaryActions()
+  const { openSmartMiniApp } = useMiniAppPopup()
   const availableTerminals = useAvailableTerminals()
   const { providers } = useProviders()
   const { filterProviders, makeModelFilter, resolveProviderMeta, firstModelByProvider } =
     useConfigMetadata(selectedCliTool)
   const navigate = useNavigate()
+  const [optimisticProviderOrder, setOptimisticProviderOrder] = useState<{ toolId: CodeCli; ids: string[] } | null>(
+    null
+  )
 
   const supportedProviders = useMemo(() => {
     const filtered = filterProviders(providers)
     const entries = new Map(Object.entries(currentToolState.providers))
-    // Sort by explicit sortIndex; providers without one appear at the end.
-    return [...filtered].sort((a, b) => {
-      const ai = entries.get(a.id)?.sortIndex
-      const bi = entries.get(b.id)?.sortIndex
+    const baseSorted = [...filtered]
+      .map((provider, index) => ({
+        provider,
+        index,
+        sortIndex: entries.get(provider.id)?.sortIndex
+      }))
+      .sort((a, b) => {
+        if (a.sortIndex !== undefined && b.sortIndex !== undefined && a.sortIndex !== b.sortIndex) {
+          return a.sortIndex - b.sortIndex
+        }
+        if (a.sortIndex !== undefined && b.sortIndex === undefined) return -1
+        if (a.sortIndex === undefined && b.sortIndex !== undefined) return 1
+        return a.index - b.index
+      })
+      .map(({ provider }) => provider)
+
+    const orderedIds = optimisticProviderOrder?.toolId === selectedCliTool ? optimisticProviderOrder.ids : null
+    if (!orderedIds) return baseSorted
+
+    const optimisticIndex = new Map(orderedIds.map((id, index) => [id, index]))
+    const stableIndex = new Map(baseSorted.map((provider, index) => [provider.id, index]))
+    return [...baseSorted].sort((a, b) => {
+      const ai = optimisticIndex.get(a.id)
+      const bi = optimisticIndex.get(b.id)
       if (ai !== undefined && bi !== undefined) return ai - bi
       if (ai !== undefined) return -1
       if (bi !== undefined) return 1
-      return 0
+      return (stableIndex.get(a.id) ?? 0) - (stableIndex.get(b.id) ?? 0)
     })
-  }, [filterProviders, providers, currentToolState])
+  }, [filterProviders, providers, currentToolState, optimisticProviderOrder, selectedCliTool])
 
   const handleReorder = useCallback(
-    (nextProviders: Provider[]) => {
-      void reorderProviders(nextProviders.map((p) => p.id))
+    async (nextProviders: Provider[]) => {
+      const orderedIds = nextProviders.map((p) => p.id)
+      setOptimisticProviderOrder({ toolId: selectedCliTool, ids: orderedIds })
+      try {
+        await reorderProviders(orderedIds)
+      } catch (error) {
+        setOptimisticProviderOrder(null)
+        logger.error('Failed to reorder CLI providers:', error as Error)
+        window.toast.error(t('code.apply_failed'))
+        throw error
+      }
     },
-    [reorderProviders]
+    [reorderProviders, selectedCliTool, t]
   )
 
   const enabledProvider = currentProviderId ? supportedProviders.find((p) => p.id === currentProviderId) : undefined
@@ -92,26 +142,50 @@ const CodeCliPage: FC = () => {
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
   const [launchOpen, setLaunchOpen] = useState(false)
   const [launching, setLaunching] = useState(false)
+  const [openClawGatewayStatus, setOpenClawGatewayStatus] = useState<OpenClawGatewayStatus>('stopped')
+  const [stoppingOpenClaw, setStoppingOpenClaw] = useState(false)
   const [removeTarget, setRemoveTarget] = useState<CodeCli | null>(null)
+  const [currentCliConfigConnection, setCurrentCliConfigConnection] = useState<CliConfigConnection | null>(null)
   const openConfigurePanel = useCallback((provider: Provider) => setEditingProvider(provider), [])
   const closePanel = useCallback(() => setEditingProvider(null), [])
 
   const handlePanelSubmit = useCallback(
-    async (values: { modelId: UniqueModelId; config?: Record<string, unknown> }) => {
+    async (values: {
+      modelId?: UniqueModelId
+      config?: Record<string, unknown>
+      cliConfigFiles?: CliConfigFileDraft[]
+      cliConfigOnly?: boolean
+    }) => {
       if (!editingProvider) return
+      if (values.cliConfigOnly) {
+        if (!values.cliConfigFiles?.length) {
+          throw new Error('Cannot save CLI config without config files')
+        }
+        const files = values.cliConfigFiles
+        await writeCliConfigDraft({
+          cliTool: selectedCliTool,
+          files
+        })
+        setCurrentCliConfigConnection(extractConnectionFromCliConfigDraft(selectedCliTool, files))
+        logger.info('Updated CLI config file draft', { toolId: selectedCliTool })
+        return
+      }
+      if (!values.modelId) return
       await upsertProviderConfig(editingProvider.id, {
         modelId: values.modelId,
         ...(values.config ? { config: values.config } : {})
       })
       logger.info('Updated CLI provider config', { toolId: selectedCliTool, providerId: editingProvider.id })
-      // Re-apply to the native file when editing the currently active provider.
+      // Re-apply to the CLI config file when editing the currently active provider.
       if (currentProviderId === editingProvider.id) {
         try {
-          await injectCliConfig({
+          await writeCliConfigDraft({
             cliTool: selectedCliTool,
             modelId: values.modelId,
-            configBlob: values.config
+            configBlob: values.config,
+            files: values.cliConfigFiles
           })
+          setCurrentCliConfigConnection(null)
         } catch (err) {
           logger.error('Failed to inject CLI config on edit:', err as Error)
           window.toast.error(t('code.apply_failed'))
@@ -133,6 +207,7 @@ const CodeCliPage: FC = () => {
             window.toast.error(t('code.apply_failed'))
           }
           await setCurrentProvider(null)
+          setCurrentCliConfigConnection(null)
           return
         }
         // Ensure the provider has a config + modelId before injecting. Auto-pick
@@ -150,7 +225,7 @@ const CodeCliPage: FC = () => {
           cfg = providerConfigs[provider.id]
         }
         // Inject first; only mark as current on success so the UI never shows a
-        // provider as active while its native file failed to write.
+        // provider as active while its CLI config file failed to write.
         try {
           await injectCliConfig({
             cliTool: selectedCliTool,
@@ -158,6 +233,7 @@ const CodeCliPage: FC = () => {
             configBlob: cfg?.config
           })
           await setCurrentProvider(provider.id)
+          setCurrentCliConfigConnection(null)
         } catch (err) {
           logger.error('Failed to inject CLI config on enable:', err as Error)
           window.toast.error(t('code.apply_failed'))
@@ -175,6 +251,35 @@ const CodeCliPage: FC = () => {
     ]
   )
 
+  useEffect(() => {
+    let cancelled = false
+    if (!enabledProvider) {
+      setCurrentCliConfigConnection(null)
+      return
+    }
+
+    void (async () => {
+      const files = await readCliConfigFiles(selectedCliTool)
+      const connection = extractConnectionFromCliConfigDraft(selectedCliTool, files)
+      if (!connection) {
+        if (!cancelled) setCurrentCliConfigConnection(null)
+        return
+      }
+      const apiKeys = await readProviderApiKeys(enabledProvider.id)
+      if (cancelled) return
+      setCurrentCliConfigConnection(
+        cliConfigConnectionMatchesProvider(selectedCliTool, connection, enabledProvider, apiKeys) ? null : connection
+      )
+    })().catch((error) => {
+      logger.error('Failed to read current CLI config connection:', error as Error)
+      if (!cancelled) setCurrentCliConfigConnection(null)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [enabledProvider, selectedCliTool])
+
   const handleSelectFolder = useCallback(async () => {
     try {
       await selectFolder()
@@ -183,7 +288,7 @@ const CodeCliPage: FC = () => {
     }
   }, [selectFolder])
 
-  // The native config file is written at "enable" time, not here — launch only
+  // The CLI config file is written at "enable" time, not here — launch only
   // opens a terminal running the CLI in the provider's directory. Provider-less
   // tools (qoder / copilot) launch with a directory only.
   const handleLaunch = useCallback(async () => {
@@ -219,12 +324,75 @@ const CodeCliPage: FC = () => {
     }
   }, [enabledProvider, currentProviderConfig, directory, selectedCliTool, selectedTerminal, t])
 
+  const handleOpenClawLaunch = useCallback(async () => {
+    if (!enabledProvider || !currentProviderConfig?.modelId) {
+      window.toast.error(t('openclaw.error.select_provider_model'))
+      return
+    }
+
+    const { providerId, modelId: rawModelId } = isUniqueModelId(currentProviderConfig.modelId)
+      ? parseUniqueModelId(currentProviderConfig.modelId)
+      : { providerId: enabledProvider.id, modelId: currentProviderConfig.modelId }
+
+    try {
+      setLaunching(true)
+      setOpenClawGatewayStatus('starting')
+      const syncResult = await ipcApi.request('openclaw.sync_config', `${providerId}::${rawModelId}`)
+      if (!syncResult.success) {
+        setOpenClawGatewayStatus('error')
+        window.toast.error(syncResult.message || t('code.launch.error'))
+        return
+      }
+
+      const startResult = await ipcApi.request('openclaw.start_gateway', undefined)
+      if (!startResult.success) {
+        setOpenClawGatewayStatus('error')
+        window.toast.error(startResult.message || t('code.launch.error'))
+        return
+      }
+
+      const dashboardUrl = await ipcApi.request('openclaw.get_dashboard_url')
+      openSmartMiniApp({
+        appId: 'openclaw-dashboard',
+        name: 'OpenClaw',
+        url: dashboardUrl,
+        logo: 'openclaw'
+      })
+      setOpenClawGatewayStatus('running')
+    } catch (err) {
+      setOpenClawGatewayStatus('error')
+      logger.error('Failed to launch OpenClaw dashboard:', err as Error)
+      window.toast.error(t('code.launch.error'))
+    } finally {
+      setLaunching(false)
+    }
+  }, [currentProviderConfig, enabledProvider, openSmartMiniApp, t])
+
+  const handleOpenClawStop = useCallback(async () => {
+    try {
+      setStoppingOpenClaw(true)
+      const result = await ipcApi.request('openclaw.stop_gateway')
+      if (!result.success) {
+        window.toast.error(result.message || t('code.launch.error'))
+        return
+      }
+      setOpenClawGatewayStatus('stopped')
+    } catch (err) {
+      logger.error('Failed to stop OpenClaw gateway:', err as Error)
+      window.toast.error(t('code.launch.error'))
+    } finally {
+      setStoppingOpenClaw(false)
+    }
+  }, [t])
+
   const activeTool = useMemo<CliToolOption | undefined>(
     () => CLI_TOOLS.find((ti) => ti.value === selectedCliTool),
     [selectedCliTool]
   )
   const isProviderlessTool = PROVIDERLESS_CLI_TOOLS.has(selectedCliTool)
   const canLaunch = isProviderlessTool || !!enabledProvider
+  const isOpenClawTool = selectedCliTool === CodeCli.OPENCLAW
+  const isOpenClawGatewayRunning = isOpenClawTool && openClawGatewayStatus === 'running'
   const activeMeta = activeTool ? toMeta(activeTool) : null
   const statuses = useCliVersionStatuses(CLI_TOOL_IDS)
   const versionStatus: VersionStatus = statuses[selectedCliTool] ?? { installed: false, canUpgrade: false }
@@ -245,6 +413,29 @@ const CodeCliPage: FC = () => {
       cancelled = true
     }
   }, [setIsBunInstalled])
+
+  useEffect(() => {
+    if (!isOpenClawTool) return
+
+    let cancelled = false
+    const refreshStatus = async () => {
+      try {
+        const status = await ipcApi.request('openclaw.get_status')
+        if (!cancelled) {
+          setOpenClawGatewayStatus(status.status)
+        }
+      } catch (error) {
+        logger.error('Failed to read OpenClaw gateway status:', error as Error)
+      }
+    }
+
+    void refreshStatus()
+    const interval = window.setInterval(refreshStatus, 5000)
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+    }
+  }, [isOpenClawTool])
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden text-foreground">
@@ -274,9 +465,12 @@ const CodeCliPage: FC = () => {
                     onInstall={() => void install(selectedCliTool)}
                     onUpgrade={() => void upgrade(selectedCliTool)}
                     onRemove={() => setRemoveTarget(selectedCliTool)}
-                    onLaunch={() => setLaunchOpen(true)}
+                    onLaunch={() => (isOpenClawTool ? void handleOpenClawLaunch() : setLaunchOpen(true))}
+                    onStop={() => void handleOpenClawStop()}
                     canLaunch={canLaunch}
-                    launching={launching}
+                    launching={launching || (isOpenClawTool && openClawGatewayStatus === 'starting')}
+                    running={isOpenClawGatewayRunning}
+                    stopping={stoppingOpenClaw}
                     isInstalling={installingTools.has(selectedCliTool)}
                     isUpgrading={upgradingTools.has(selectedCliTool)}
                   />
@@ -284,7 +478,7 @@ const CodeCliPage: FC = () => {
 
                 {/* Enabled-provider list */}
                 {isProviderlessTool ? (
-                  <div className="rounded-lg border border-border/40 bg-accent/10 px-4 py-3 text-xs text-muted-foreground">
+                  <div className="rounded-lg border border-border/40 bg-accent/10 px-4 py-3 text-muted-foreground text-xs">
                     {t('code.providerless_hint')}
                   </div>
                 ) : (
@@ -293,6 +487,9 @@ const CodeCliPage: FC = () => {
                       providers={supportedProviders}
                       providerConfigs={providerConfigs}
                       currentProviderId={currentProviderId}
+                      currentProviderModelName={
+                        currentCliConfigConnection ? t('code.cli_config.unknown_provider') : undefined
+                      }
                       resolveMeta={resolveProviderMeta}
                       onConfigure={openConfigurePanel}
                       onToggleCurrent={handleToggleCurrent}
@@ -302,7 +499,7 @@ const CodeCliPage: FC = () => {
                     <button
                       type="button"
                       onClick={() => void navigate({ to: '/settings/provider' })}
-                      className="flex w-full items-center justify-center gap-1 rounded-xl border border-border/50 border-dashed py-2 text-xs text-muted-foreground/55 transition-colors hover:border-border hover:text-foreground">
+                      className="flex w-full items-center justify-center gap-1 rounded-xl border border-border/50 border-dashed py-2 text-muted-foreground/55 text-xs transition-colors hover:border-border hover:text-foreground">
                       {t('code.add_provider_hint')}
                       <ExternalLink size={10} />
                     </button>
@@ -350,6 +547,7 @@ const CodeCliPage: FC = () => {
           cliTool={selectedCliTool}
           provider={editingProvider}
           providerConfig={providerConfigs[editingProvider.id] ?? null}
+          isCurrentProvider={currentProviderId === editingProvider.id}
           defaultModelId={firstModelByProvider.get(editingProvider.id)}
           modelFilter={makeModelFilter(editingProvider.id)}
           onSubmit={handlePanelSubmit}

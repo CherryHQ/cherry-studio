@@ -37,6 +37,7 @@ function setupUpdaterMock(configs: CodeCliConfigs) {
 const cfg = (overrides: Partial<CliProviderConfig> = {}): CliProviderConfig => ({
   modelId: overrides.modelId ?? 'anthropic::claude-4',
   ...(overrides.config ? { config: overrides.config } : {}),
+  ...(overrides.sortIndex !== undefined ? { sortIndex: overrides.sortIndex } : {}),
   ...(overrides.createdAt ? { createdAt: overrides.createdAt } : {})
 })
 
@@ -104,6 +105,21 @@ describe('useCodeCli', () => {
       expect(lastWrite['claude-code'].providers['openrouter']?.sortIndex).toBe(0)
       expect(lastWrite['claude-code'].providers['anthropic']?.sortIndex).toBe(1)
     })
+
+    it('should not fabricate missing provider configs while reordering', async () => {
+      const mockSetter = setupUpdaterMock({
+        'claude-code': state({ anthropic: cfg() }, 'anthropic')
+      } as unknown as CodeCliConfigs)
+      const { result } = renderHook(() => useCodeCli())
+
+      await act(async () => {
+        await result.current.reorderProviders(['openrouter', 'anthropic'])
+      })
+
+      const lastWrite = mockSetter.mock.calls.at(-1)?.[0] as CodeCliConfigs
+      expect(lastWrite['claude-code'].providers['openrouter']).toBeUndefined()
+      expect(lastWrite['claude-code'].providers['anthropic']?.sortIndex).toBe(1)
+    })
   })
 
   describe('upsertProviderConfig', () => {
@@ -141,6 +157,23 @@ describe('useCodeCli', () => {
       const updated = lastWrite['claude-code'].providers['anthropic']
       expect(updated.modelId).toBe('anthropic::claude-5')
       expect(updated.config).toEqual({ foo: 1 })
+    })
+
+    it('should preserve existing sortIndex when updating model/config', async () => {
+      const mockSetter = setupUpdaterMock({
+        'claude-code': state({ anthropic: cfg({ sortIndex: 2 }) }, 'anthropic')
+      } as unknown as CodeCliConfigs)
+      const { result } = renderHook(() => useCodeCli())
+
+      await act(async () => {
+        await result.current.upsertProviderConfig('anthropic', {
+          modelId: 'anthropic::claude-5',
+          config: { foo: 1 }
+        })
+      })
+
+      const lastWrite = mockSetter.mock.calls.at(-1)?.[0] as CodeCliConfigs
+      expect(lastWrite['claude-code'].providers['anthropic']?.sortIndex).toBe(2)
     })
   })
 

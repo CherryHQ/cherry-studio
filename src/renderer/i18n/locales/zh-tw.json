@@ -2056,6 +2056,13 @@
     "auto_update_to_latest": "檢查更新並安裝最新版本",
     "bun_required_message": "運作 CLI 工具需要安裝 Bun 環境",
     "can_upgrade": "可升級",
+    "cli_config": {
+      "format_failed": "格式化失敗，請檢查檔案格式",
+      "hint": "這裡顯示將寫入系統 CLI 設定檔的內容，API Key 不會儲存到偏好設定",
+      "title": "CLI 設定檔",
+      "unknown_model": "未知模型",
+      "unknown_provider": "未知供應商"
+    },
     "cli_tool": "CLI 工具",
     "cli_tool_placeholder": "選擇要使用的 CLI 工具",
     "config_json_hint": "貼上或編輯原始 JSON，可與上方參數雙向同步",
@@ -2125,7 +2132,6 @@
       "claude_code": "Anthropic 官方 CLI 程式助理",
       "gemini_cli": "Google 官方 Gemini CLI 程式助理",
       "github_copilot_cli": "GitHub Copilot CLI 程式助理",
-      "hermes": "Nous Research 智能編程 CLI",
       "kimi_cli": "Moonshot Kimi CLI 程式助理",
       "openai_codex": "OpenAI 官方程式碼產生 CLI",
       "openclaw": "多通道個人 AI 助手，支援 Gateway 常駐服務",
@@ -2653,9 +2659,6 @@
       "title": "保持活躍時間"
     },
     "title": "GPUStack"
-  },
-  "hermes": {
-    "title": "Hermes"
   },
   "history": {
     "continue_chat": "繼續聊天",
@@ -6967,7 +6970,6 @@
         "codex": "OpenAI 的開源編程代理，可讀取、編輯和執行本機倉庫中的程式碼。",
         "fd": "快速檔案搜尋工具，find 的替代方案。",
         "gh": "GitHub CLI，用於倉庫和工作流程管理。",
-        "hermes": "Nous Research 開發的自我進化 AI 編程代理，能從經驗中建立技能並跨對話持久化知識。",
         "lark-cli": "飛書官方 CLI，涵蓋即時通訊、文件、多維表格、日曆等 200+ 指令及 AI Agent 技能。",
         "ntn": "Notion 官方 CLI，支援身份驗證、Workers 管理和完整的 Notion API 終端存取。",
         "openclaw": "跨平台個人 AI 助手，提供聊天、語音、畫布、攝影機和螢幕擷取等功能。",

@@ -28,6 +28,13 @@ export const openclawHandlers: IpcHandlersFor<typeof openclawRequestSchemas> = {
   'openclaw.get_dashboard_url': async () => {
     return application.get('OpenClawService').getDashboardUrl()
   },
+  'openclaw.sync_config': async (input) => {
+    try {
+      return await application.get('OpenClawService').syncConfig(input)
+    } catch (error: any) {
+      return { success: false, message: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  },
   'openclaw.get_channels': async () => {
     return application.get('OpenClawService').getChannelStatus()
   },

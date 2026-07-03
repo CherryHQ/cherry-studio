@@ -2056,6 +2056,13 @@
     "auto_update_to_latest": "Automatically update to latest version",
     "bun_required_message": "Bun environment is required to run CLI tools",
     "can_upgrade": "Upgrade available",
+    "cli_config": {
+      "format_failed": "Format failed. Check the file syntax.",
+      "hint": "This is the content that will be written to the system CLI config file. API keys are not saved to preferences.",
+      "title": "CLI Config File",
+      "unknown_model": "Unknown model",
+      "unknown_provider": "Unknown Provider"
+    },
     "cli_tool": "CLI Tool",
     "cli_tool_placeholder": "Select the CLI tool to use",
     "config_json_hint": "Paste or edit raw JSON; it stays in sync with the fields above",
@@ -2125,7 +2132,6 @@
       "claude_code": "Anthropic's official command-line AI coding assistant",
       "gemini_cli": "Google's official Gemini command-line AI coding agent",
       "github_copilot_cli": "GitHub Copilot command-line AI coding assistant",
-      "hermes": "Nous Research agentic coding CLI",
       "kimi_cli": "Moonshot Kimi command-line AI coding agent",
       "openai_codex": "OpenAI's official code generation CLI",
       "openclaw": "Multi-channel personal AI assistant with gateway service",
@@ -2653,9 +2659,6 @@
       "title": "Keep Alive Time"
     },
     "title": "GPUStack"
-  },
-  "hermes": {
-    "title": "Hermes"
   },
   "history": {
     "continue_chat": "Continue Chatting",
@@ -6967,7 +6970,6 @@
         "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
         "fd": "Fast file finder, alternative to find.",
         "gh": "GitHub CLI for repository and workflow management.",
-        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
         "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
         "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
         "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",

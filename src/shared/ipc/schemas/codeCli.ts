@@ -5,8 +5,7 @@ import { defineRoute } from '../define'
 /**
  * Code CLI runtime schemas — launch/binary/terminal management.
  * Config injection for file-based CLIs (Claude Code, Codex, OpenCode) is
- * renderer-side; Hermes and OpenClaw configs are written in the main-process
- * `run()` path.
+ * renderer-side; OpenClaw config is written by its own main-process service.
  */
 const codeToolsRunResultSchema = z.object({
   success: z.boolean(),

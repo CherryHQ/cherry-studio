@@ -10,6 +10,7 @@ export interface ConfigListProps {
   providers: Provider[]
   providerConfigs: Record<string, CliProviderConfig>
   currentProviderId: string | null
+  currentProviderModelName?: string
   resolveMeta: (provider: Provider, cfg?: CliProviderConfig) => { providerName: string; modelName?: string }
   onConfigure: (provider: Provider) => void
   onToggleCurrent: (provider: Provider) => void
@@ -22,6 +23,7 @@ export const ConfigList: FC<ConfigListProps> = ({
   providers,
   providerConfigs,
   currentProviderId,
+  currentProviderModelName,
   resolveMeta,
   onConfigure,
   onToggleCurrent,
@@ -48,11 +50,13 @@ export const ConfigList: FC<ConfigListProps> = ({
       renderItem={(provider, _index, { dragging }) => {
         const cfg = providerConfigs[provider.id]
         const meta = resolveMeta(provider, cfg)
+        const modelName =
+          currentProviderId === provider.id && currentProviderModelName ? currentProviderModelName : meta.modelName
         return (
           <ProviderCard
             provider={provider}
             providerName={meta.providerName}
-            modelName={meta.modelName}
+            modelName={modelName}
             isCurrent={currentProviderId === provider.id}
             dragging={dragging}
             onConfigure={onConfigure}

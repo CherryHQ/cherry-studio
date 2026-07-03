@@ -63,16 +63,16 @@ export const useCodeCli = () => {
   )
 
   const upsertProviderConfig = useCallback(
-    async (
-      providerId: string,
-      partial: Pick<CliProviderConfig, 'modelId'> & Partial<CliProviderConfig>
-    ): Promise<string> => {
+    async (providerId: string, partial: { modelId: string } & Partial<CliProviderConfig>): Promise<string> => {
       const toolId = selectedCliTool as CodeCliId
       const now = Date.now()
       const existing = getToolState(toolId, configsRef.current).providers[providerId]
       const next: CliProviderConfig = {
         modelId: partial.modelId,
         ...(partial.config || existing?.config ? { config: partial.config ?? existing?.config } : {}),
+        ...(partial.sortIndex !== undefined || existing?.sortIndex !== undefined
+          ? { sortIndex: partial.sortIndex ?? existing?.sortIndex }
+          : {}),
         createdAt: existing?.createdAt ?? now
       }
       await patchToolState(toolId, (prev) => ({
@@ -113,12 +113,13 @@ export const useCodeCli = () => {
     async (orderedIds: string[]) => {
       const toolId = selectedCliTool as CodeCliId
       await patchToolState(toolId, (prev) => {
+        const now = Date.now()
         const nextProviders = { ...prev.providers }
         for (let i = 0; i < orderedIds.length; i++) {
           const id = orderedIds[i]
-          if (nextProviders[id]) {
-            nextProviders[id] = { ...nextProviders[id], sortIndex: i }
-          }
+          const existing = nextProviders[id]
+          if (!existing) continue
+          nextProviders[id] = { ...existing, sortIndex: i, createdAt: existing.createdAt ?? now }
         }
         return { ...prev, providers: nextProviders }
       })

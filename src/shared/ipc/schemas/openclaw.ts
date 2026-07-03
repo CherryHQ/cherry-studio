@@ -45,6 +45,10 @@ export const openclawRequestSchemas = {
     input: z.void(),
     output: z.string()
   }),
+  'openclaw.sync_config': defineRoute({
+    input: z.string(),
+    output: gatewayStatusResultSchema
+  }),
   'openclaw.get_channels': defineRoute({
     input: z.void(),
     output: z.array(channelInfoSchema)
