@@ -298,6 +298,7 @@
           "system_tools": "Systemtools"
         },
         "context_usage": "Kontextverwendung",
+        "context_usage_snapshot": "Zuletzt gemessen",
         "label": "Sitzungsinformation",
         "more": "+{{count}} weitere",
         "no_artifacts": "Keine erklärten Liefergegenstände",

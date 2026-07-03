@@ -1,6 +1,6 @@
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
-import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionContextUsageTable, agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { pinTable } from '@data/db/schemas/pin'
@@ -293,6 +293,55 @@ describe('AgentSessionService', () => {
     expect(traceId).toMatch(/^[0-9a-f]{32}$/)
     expect(agentSessionService.ensureTraceId(session.id)).toBe(traceId)
     expect(agentSessionService.getById(session.id).traceId).toBe(traceId)
+  })
+
+  it('persists the last context usage snapshot without updating the session row', async () => {
+    const session = await createSession('Context usage')
+    const usage = {
+      categories: [{ name: 'Messages', tokens: 42, color: '#fff' }],
+      totalTokens: 42,
+      maxTokens: 100,
+      rawMaxTokens: 100,
+      percentage: 42,
+      gridRows: [],
+      model: 'claude-sonnet-4-5',
+      memoryFiles: [],
+      mcpTools: [],
+      agents: [],
+      isAutoCompactEnabled: false,
+      apiUsage: null
+    }
+    const [before] = await dbh.db
+      .select({ updatedAt: agentSessionTable.updatedAt })
+      .from(agentSessionTable)
+      .where(eq(agentSessionTable.id, session.id))
+
+    agentSessionService.upsertContextUsageSnapshot(session.id, usage)
+
+    const loaded = agentSessionService.getById(session.id)
+    expect(loaded.lastContextUsage).toMatchObject({
+      usage,
+      capturedAt: expect.any(String)
+    })
+    // Context usage is detail-only: list projections omit it to avoid shipping the blob per row.
+    const listed = agentSessionService.listByCursor().items.find((item) => item.id === session.id)
+    expect(listed).toBeDefined()
+    expect(listed).not.toHaveProperty('lastContextUsage')
+    const [after] = await dbh.db
+      .select({ updatedAt: agentSessionTable.updatedAt })
+      .from(agentSessionTable)
+      .where(eq(agentSessionTable.id, session.id))
+    expect(after.updatedAt).toBe(before.updatedAt)
+
+    const updatedUsage = { ...usage, totalTokens: 64, percentage: 64 }
+    agentSessionService.upsertContextUsageSnapshot(session.id, updatedUsage)
+
+    expect(agentSessionService.getById(session.id).lastContextUsage?.usage).toMatchObject(updatedUsage)
+    const rows = await dbh.db
+      .select()
+      .from(agentSessionContextUsageTable)
+      .where(eq(agentSessionContextUsageTable.sessionId, session.id))
+    expect(rows).toHaveLength(1)
   })
 
   it('updates a session and returns the updated entity', async () => {

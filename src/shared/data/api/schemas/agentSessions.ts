@@ -2,6 +2,7 @@
  * Agent session domain API Schema definitions.
  */
 
+import { AgentSessionContextUsageSnapshotSchema } from '@shared/ai/agentSessionContextUsage'
 import { TraceIdSchema } from '@shared/data/types/trace'
 import * as z from 'zod'
 
@@ -35,6 +36,12 @@ export const AgentSessionEntitySchema = z.strictObject({
   workspace: AgentWorkspaceEntitySchema,
   /** Container-level OTel trace id — one trace tree per session. */
   traceId: TraceIdSchema.optional(),
+  /**
+   * Latest context-usage snapshot. Populated only by detail reads (`getById`); list
+   * projections omit it (`undefined`) to avoid shipping the snapshot blob per row.
+   * `null` means loaded with no snapshot yet.
+   */
+  lastContextUsage: AgentSessionContextUsageSnapshotSchema.nullable().optional(),
   orderKey: z.string(),
   createdAt: z.string(),
   updatedAt: z.string()

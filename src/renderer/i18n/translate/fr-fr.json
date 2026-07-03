@@ -298,6 +298,7 @@
           "system_tools": "Outils système"
         },
         "context_usage": "Utilisation du contexte",
+        "context_usage_snapshot": "Dernière mesure",
         "label": "Informations de session",
         "more": "+{{count}} de plus",
         "no_artifacts": "Aucun livrable déclaré",

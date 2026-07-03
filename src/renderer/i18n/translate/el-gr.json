@@ -298,6 +298,7 @@
           "system_tools": "Εργαλεία συστήματος"
         },
         "context_usage": "Χρήση πλαισίου",
+        "context_usage_snapshot": "Τελευταία μέτρηση",
         "label": "Πληροφορίες συνεδρίας",
         "more": "+{{count}} ακόμα",
         "no_artifacts": "Καμία δηλωμένη παράδοση",

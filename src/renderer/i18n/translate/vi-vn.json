@@ -298,6 +298,7 @@
           "system_tools": "Công cụ hệ thống"
         },
         "context_usage": "Sử dụng ngữ cảnh",
+        "context_usage_snapshot": "Lần đo trước",
         "label": "Thông tin phiên",
         "more": "+{{count}} nữa",
         "no_artifacts": "Không có sản phẩm giao nộo nào được khai báo",

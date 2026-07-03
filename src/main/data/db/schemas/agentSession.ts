@@ -1,3 +1,4 @@
+import type { AgentSessionContextUsageSnapshot } from '@shared/ai/agentSessionContextUsage'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
@@ -25,3 +26,14 @@ export const agentSessionTable = sqliteTable(
 
 export type AgentSessionRow = typeof agentSessionTable.$inferSelect
 export type InsertAgentSessionRow = typeof agentSessionTable.$inferInsert
+
+export const agentSessionContextUsageTable = sqliteTable('agent_session_context_usage', {
+  sessionId: text()
+    .primaryKey()
+    .references(() => agentSessionTable.id, { onDelete: 'cascade' }),
+  snapshot: text({ mode: 'json' }).$type<AgentSessionContextUsageSnapshot>().notNull(),
+  ...createUpdateTimestamps
+})
+
+export type AgentSessionContextUsageRow = typeof agentSessionContextUsageTable.$inferSelect
+export type InsertAgentSessionContextUsageRow = typeof agentSessionContextUsageTable.$inferInsert

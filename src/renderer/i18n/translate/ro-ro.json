@@ -298,6 +298,7 @@
           "system_tools": "Unelte de sistem"
         },
         "context_usage": "Utilizarea contextului",
+        "context_usage_snapshot": "Ultima măsurare",
         "label": "Informații despre sesiune",
         "more": "+{{count}} mai multe",
         "no_artifacts": "Niciun livrabil declarat",

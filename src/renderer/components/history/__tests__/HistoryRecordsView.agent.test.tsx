@@ -311,6 +311,7 @@ function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessio
     description: 'Planning notes',
     workspaceId: 'ws-/Users/jd/project-a',
     workspace: makeWorkspace('/Users/jd/project-a'),
+    lastContextUsage: null,
     orderKey: 'a',
     createdAt: '2026-05-13T08:00:00.000Z',
     updatedAt: '2026-05-14T08:00:00.000Z',
