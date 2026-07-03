@@ -12,8 +12,8 @@ import * as numfmt from 'numfmt'
  * workbook.properties.date1904 把 1904 体系文件里的原始 serial 换算成了正确的 Date)。
  * 因此本函数把 Date 转回 serial 时只需算 1900 体系下这个真实日期对应的 serial(供 numfmt
  * 用它固有的 1900 约定正确渲染),不需要再对 date1904 做二次偏移——`date1904` 参数目前没有
- * 分支需要用到,保留在签名中是为了匹配契约 §8 的冻结签名(未来若接入表示"原始 serial 数字"
- * 而非 Date 的输入路径,例如公式引擎直接产出 date serial,则需要在那条路径上应用
+ * 分支需要用到,保留在签名中是为了让调用方显式传递日期体系(未来若接入表示"原始 serial 数字"
+ * 而非 Date 的输入路径,例如公式引擎直接产出 date serial,则应在那条路径上应用
  * 1904 体系 serial = 1900 体系 serial - 1462 的偏移)。
  */
 

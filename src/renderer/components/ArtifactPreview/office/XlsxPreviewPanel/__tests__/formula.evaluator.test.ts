@@ -17,9 +17,8 @@ interface StubCell {
 type StubSheet = Record<string, StubCell>
 
 /**
- * 手写 EvalContext stub:模拟 A 包按契约描述的行为——公式单元格的 getCellValue
+ * 手写 EvalContext stub:模拟解析流水线的行为——公式单元格的 getCellValue
  * 递归调用同一个 evaluator 的 evaluate(),从而天然形成链式/环形递归。
- * 不依赖 A 的实现进度。
  */
 function makeStubContext(sheets: Record<string, StubSheet>): {
   ctx: EvalContext

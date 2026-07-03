@@ -97,6 +97,17 @@ interface ImageRangeWithExt {
   ext?: { width: number; height: number }
 }
 
+interface AxisExtent {
+  count: number
+  truncated: boolean
+}
+
+interface RectUsedRange {
+  rowCount: number
+  colCount: number
+  truncated: boolean
+}
+
 /** 'A1:D1' → MergeRange(1-based,闭区间) */
 function parseMergeRef(ref: string): MergeRange | null {
   const match = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(ref)
@@ -122,6 +133,41 @@ function colNameToIndex(name: string): number {
     n = n * 26 + (name.charCodeAt(i) - 64)
   }
   return n
+}
+
+function axisCountForPxExtent(
+  endPx: number,
+  defaultSizePx: number,
+  overrides: Record<number, number>,
+  maxCount: number
+): AxisExtent {
+  if (!Number.isFinite(endPx) || endPx <= 0) return { count: 0, truncated: false }
+
+  let offset = 0
+  for (let i = 1; i <= maxCount; i++) {
+    offset += Math.max(overrides[i] ?? defaultSizePx, 0)
+    if (offset >= endPx) return { count: i, truncated: false }
+  }
+  return { count: maxCount, truncated: endPx > offset }
+}
+
+function usedRangeForPxRect(
+  rect: { x: number; y: number; width: number; height: number },
+  defaultRowHeightPx: number,
+  defaultColWidthPx: number,
+  rowHeightsPx: Record<number, number>,
+  colWidthsPx: Record<number, number>
+): RectUsedRange {
+  const right = rect.x + Math.max(rect.width, 0)
+  const bottom = rect.y + Math.max(rect.height, 0)
+  const rowExtent = axisCountForPxExtent(bottom, defaultRowHeightPx, rowHeightsPx, MAX_ROWS)
+  const colExtent = axisCountForPxExtent(right, defaultColWidthPx, colWidthsPx, MAX_COLS)
+
+  return {
+    rowCount: rowExtent.count,
+    colCount: colExtent.count,
+    truncated: rowExtent.truncated || colExtent.truncated
+  }
 }
 
 /** A1 风格区间引用(可含 sheet 名,如 `Sheet1!$A$1:$B$3` 或 `A1`)解析结果 */
@@ -602,9 +648,13 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
         continue
       }
 
-      floatingImages.push({ rect: { x, y, width, height }, imageId: renderImageId })
-      maxRow = Math.max(maxRow, Math.ceil(tl.nativeRow + 1))
-      maxCol = Math.max(maxCol, Math.ceil(tl.nativeCol + 1))
+      const rect = { x, y, width, height }
+      floatingImages.push({ rect, imageId: renderImageId })
+
+      const usedRange = usedRangeForPxRect(rect, defaultRowHeightPx, defaultColWidthPx, rowHeightsPx, colWidthsPx)
+      maxRow = Math.max(maxRow, Math.ceil(tl.nativeRow + 1), usedRange.rowCount)
+      maxCol = Math.max(maxCol, Math.ceil(tl.nativeCol + 1), usedRange.colCount)
+      if (usedRange.truncated) warnings.add('sheet-truncated')
     }
 
     // frozen panes
@@ -731,6 +781,18 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
     try {
       const { charts, warnings: chartWarnings } = await parseCharts(zip, worksheet.name, layout, dataAccessor)
       sheetModel.charts = charts
+      for (const chart of charts) {
+        const usedRange = usedRangeForPxRect(
+          chart.rect,
+          sheetModel.defaultRowHeightPx,
+          sheetModel.defaultColWidthPx,
+          sheetModel.rowHeightsPx,
+          sheetModel.colWidthsPx
+        )
+        sheetModel.rowCount = Math.max(sheetModel.rowCount, usedRange.rowCount)
+        sheetModel.colCount = Math.max(sheetModel.colCount, usedRange.colCount)
+        if (usedRange.truncated) warnings.add('sheet-truncated')
+      }
       chartWarnings.forEach((w) => warnings.add(w))
     } catch (err) {
       warnings.add(`chart-parse-failed:${err instanceof Error ? err.message : String(err)}`)

@@ -1,5 +1,6 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { loggerService } from '@logger'
 import { EmptyState, LoadingState } from '@renderer/components/chat'
 import { AlertCircle, FileSpreadsheet, ZoomIn, ZoomOut } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -10,6 +11,8 @@ import type { ChartModel, SheetRenderModel, WorkbookRenderModel } from './render
 import { useXlsxWorkbook } from './useXlsxWorkbook'
 import type { SelectedCellInfo } from './XlsxGrid'
 import XlsxGrid from './XlsxGrid'
+
+const logger = loggerService.withContext('XlsxPreviewPanel')
 
 interface XlsxPreviewPanelProps {
   filePath: string
@@ -101,9 +104,15 @@ const XlsxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize, actions 
   useEffect(() => {
     if (chartRenderer || !sheets.some((sheet) => sheetHasChart(sheet))) return
     let cancelled = false
-    void loadChartRenderer().then((renderer) => {
-      if (!cancelled) setChartRenderer(renderer)
-    })
+    void loadChartRenderer()
+      .then((renderer) => {
+        if (!cancelled) setChartRenderer(renderer)
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        const normalized = err instanceof Error ? err : new Error(String(err))
+        logger.error('Failed to load xlsx chart renderer', normalized)
+      })
     return () => {
       cancelled = true
     }

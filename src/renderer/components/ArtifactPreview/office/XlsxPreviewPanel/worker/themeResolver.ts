@@ -2,11 +2,11 @@ import { XMLParser } from 'fast-xml-parser'
 
 /**
  * theme1.xml 主题色解析 + tint/indexed 颜色求解。
- * 索引映射与 tint 算法见契约 §6(注意 dk1/lt1 互换)。
+ * 注意 Excel 主题索引中的 dk1/lt1 顺序与 XML 内 clrScheme 顺序不同。
  */
 
 export interface ResolvedTheme {
-  /** 索引即契约 §6 映射后的顺序:[lt1, dk1, lt2, dk2, accent1..6, hlink, folHlink] */
+  /** 映射后的索引顺序:[lt1, dk1, lt2, dk2, accent1..6, hlink, folHlink] */
   colors: string[]
 }
 
@@ -156,7 +156,7 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
 
 const clampByte = (n: number): number => Math.min(255, Math.max(0, n))
 
-/** 对 6 位 RGB hex(无 alpha)应用 tint,契约 §6 算法 */
+/** 对 6 位 RGB hex(无 alpha)应用 tint */
 function applyTint(rgbHex: string, tint: number): string {
   const r = parseInt(rgbHex.slice(0, 2), 16)
   const g = parseInt(rgbHex.slice(2, 4), 16)
@@ -212,7 +212,7 @@ export function parseTheme(themeXml: string | null): ResolvedTheme {
     }
   }
 
-  // 契约索引顺序:[lt1, dk1, lt2, dk2, accent1..6, hlink, folHlink](与 XML 内 dk1/lt1 顺序互换)
+  // 主题索引顺序:[lt1, dk1, lt2, dk2, accent1..6, hlink, folHlink](与 XML 内 dk1/lt1 顺序互换)
   const colors = [
     scheme.lt1,
     scheme.dk1,

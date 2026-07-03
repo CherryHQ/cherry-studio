@@ -25,7 +25,7 @@ const SAMPLE_THEME_XML = `<?xml version="1.0"?>
 describe('parseTheme', () => {
   it('null input falls back to Office default theme colors', () => {
     const theme = parseTheme(null)
-    // 契约索引顺序:[lt1, dk1, lt2, dk2, accent1..6, hlink, folHlink]
+    // 主题索引顺序:[lt1, dk1, lt2, dk2, accent1..6, hlink, folHlink]
     expect(theme.colors[0]).toBe('#ffffff') // lt1
     expect(theme.colors[1]).toBe('#000000') // dk1
     expect(theme.colors).toHaveLength(12)

@@ -4,7 +4,6 @@ import type { ChartModel, ChartSeries } from '../renderModel'
 
 /**
  * ChartModel → echarts option 的纯映射函数(可测,不依赖 DOM/echarts 实例)。
- * 见 .context/xlsx-preview/04-wp-charts.md Part 2 映射规则。
  */
 
 /** echarts 用 '-' 表示空值 */

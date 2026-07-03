@@ -1,6 +1,6 @@
 /**
  * 公式 best-effort 求值(三级策略的第 2/3 级;调用方已确认无缓存值才会调 evaluate)。
- * 错误分类语义、环检测、memo、预算见 .context/xlsx-preview/03-wp-formula.md。
+ * 覆盖错误分类、环检测、memo 和预算控制。
  *
  * fast-formula-parser 实际行为(与该文档描述有出入之处,已用 node 直接探测确认,
  * 详见完成报告):

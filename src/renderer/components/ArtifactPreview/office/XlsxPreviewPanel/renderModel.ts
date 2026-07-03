@@ -1,7 +1,7 @@
 /**
  * xlsx 预览的中间渲染模型 — Worker 产出、UI 消费的唯一契约层。
  * 全部类型必须可结构化克隆(纯数据,无类实例、无函数)。
- * 契约文档:.context/xlsx-preview/01-CONTRACT.md — 修改需经编排者裁决。
+ * 修改时需同步更新 worker/parser 与 UI 消费侧。
  */
 
 export interface WorkbookRenderModel {

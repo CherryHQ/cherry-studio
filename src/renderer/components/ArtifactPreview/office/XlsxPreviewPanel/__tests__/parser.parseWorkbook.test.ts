@@ -259,8 +259,7 @@ describe('parseWorkbook — formulas: three states', () => {
     ws.getCell('A2').value = 20
     // cached: has result baked in by the writer
     ws.getCell('A3').value = { formula: 'A1+A2', result: 30 }
-    // no cache: parser must invoke the formula evaluator (skeleton returns unevaluated
-    // unless WP-B has since implemented it; assert on the contractually-guaranteed shape)
+    // no cache: parser must invoke the formula evaluator
     ws.getCell('A4').value = { formula: 'A1*A2' }
     // an evaluator-unfriendly / unknown function should remain unevaluated
     ws.getCell('A5').value = { formula: 'NOTAREALFUNCTION(A1)' }
@@ -502,6 +501,20 @@ describe('parseWorkbook — floating images', () => {
     expect(twoCell!.rect.width).toBeGreaterThan(0)
     expect(twoCell!.rect.height).toBeGreaterThan(0)
   })
+
+  it('expands the used range to cover the full floating image bounds', async () => {
+    const wb = new ExcelJS.Workbook()
+    const ws = wb.addWorksheet('S1')
+    const imgId = wb.addImage({ base64: PNG_BASE64, extension: 'png' })
+    ws.addImage(imgId, { tl: { col: 0, row: 0 }, br: { col: 20, row: 40 } } as unknown as ExcelJS.ImageRange)
+
+    const parsed = await parseWorkbook(await toArrayBuffer(wb), 'image-range.xlsx')
+    const sheet = parsed.sheets[0]
+
+    expect(sheet.floatingImages[0].rect).toEqual({ x: 0, y: 0, width: 1280, height: 800 })
+    expect(sheet.rowCount).toBeGreaterThanOrEqual(40)
+    expect(sheet.colCount).toBeGreaterThanOrEqual(20)
+  })
 })
 
 describe('parseWorkbook — corrupted input', () => {
@@ -522,6 +535,8 @@ describe('parseWorkbook — openpyxl default-namespace chart drawings must not c
     const model = await parseWorkbook(buffer, name)
 
     expect(model.sheets.length).toBeGreaterThan(0)
+    expect(model.sheets[0].rowCount).toBeGreaterThan(5)
+    expect(model.sheets[0].colCount).toBeGreaterThan(3)
     const charts = model.sheets.flatMap((sheet) => sheet.charts)
     expect(charts.length).toBeGreaterThan(0)
     for (const chart of charts) {

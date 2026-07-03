@@ -15,8 +15,12 @@ const mocks = vi.hoisted(() => ({
   gridProps: [] as unknown[],
   chartRendererRender: vi.fn(() => () => {}),
   chartRendererModuleLoadCount: 0,
+  chartRendererModuleShouldReject: false,
   createObjectURL: vi.fn(),
-  revokeObjectURL: vi.fn()
+  revokeObjectURL: vi.fn(),
+  logger: {
+    error: vi.fn()
+  }
 }))
 
 vi.mock('../useXlsxWorkbook', () => ({
@@ -61,10 +65,17 @@ vi.mock('../XlsxGrid', () => ({
 
 vi.mock('../charts/EchartsChartRenderer', () => {
   mocks.chartRendererModuleLoadCount += 1
+  if (mocks.chartRendererModuleShouldReject) {
+    throw new Error('chart renderer chunk failed')
+  }
   return {
     echartsChartRenderer: { render: mocks.chartRendererRender }
   }
 })
+
+vi.mock('@logger', () => ({
+  loggerService: { withContext: () => mocks.logger }
+}))
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'button'>>) => (
@@ -122,6 +133,7 @@ describe('XlsxPreviewPanel', () => {
     mocks.useXlsxWorkbookCalls.length = 0
     mocks.gridProps.length = 0
     mocks.chartRendererRender.mockImplementation(() => () => {})
+    mocks.chartRendererModuleShouldReject = false
     mocks.createObjectURL.mockReturnValue('blob:xlsx-image')
     setWorkbookState({ status: 'loading' })
     Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: mocks.createObjectURL })
@@ -296,6 +308,18 @@ describe('XlsxPreviewPanel', () => {
     unmount()
 
     expect(mocks.revokeObjectURL).toHaveBeenCalledWith('blob:xlsx-image')
+  })
+
+  it('logs and keeps chart rendering disabled when the chart renderer chunk fails', async () => {
+    mocks.chartRendererModuleShouldReject = true
+    setWorkbookState({ status: 'ready', model: createMockWorkbookModel() })
+
+    renderPanel()
+
+    await waitFor(() =>
+      expect(mocks.logger.error).toHaveBeenCalledWith('Failed to load xlsx chart renderer', expect.any(Error))
+    )
+    expect(screen.getByTestId('xlsx-grid')).toHaveAttribute('data-has-render-chart', 'false')
   })
 
   it('lazily loads the echarts renderer once a sheet has charts and wires renderChart into the grid', async () => {

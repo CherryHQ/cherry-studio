@@ -1,5 +1,5 @@
 /**
- * fast-formula-parser 未随包提供类型声明的最小 shim,按 WP-B 实际使用面收紧。
+ * fast-formula-parser 未随包提供类型声明的最小 shim,按公式求值器实际使用面收紧。
  *
  * 与包的真实运行时形状对齐(源码读自 node_modules/fast-formula-parser@1.0.19):
  * - `index.js` 是 `module.exports = FormulaParser`(class 本身作为默认导出),

@@ -6,7 +6,6 @@ import type { ChartModel, ChartSeries, ChartType, PxRect } from '../renderModel'
 
 /**
  * drawing + chart XML → ChartModel[]:OPC 部件链、cache 优先/引用回填、锚点换算
- * 见 .context/xlsx-preview/04-wp-charts.md。
  */
 
 export interface SheetDataAccessor {

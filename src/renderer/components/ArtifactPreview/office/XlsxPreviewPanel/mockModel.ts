@@ -2,7 +2,7 @@ import { DEFAULT_COL_WIDTH_PX, DEFAULT_ROW_HEIGHT_PX } from './gridLayout'
 import type { WorkbookRenderModel } from './renderModel'
 
 /**
- * 供 WP-D 开发/测试用的手写样例模型(冻结)。
+ * 供开发/测试用的手写样例模型。
  * 覆盖:多 sheet(含 hidden)、样式、合并区、隐藏行列、非默认尺寸、
  * 三种公式态、超链接、浮动图片、bar 图表、unsupported 图表占位。
  * 测试可在此基础上浅拷贝改造,不要直接改本文件。
