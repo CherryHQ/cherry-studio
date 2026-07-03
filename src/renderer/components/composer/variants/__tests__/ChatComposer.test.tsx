@@ -211,7 +211,8 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   useComposerToolLauncherActions: () => ({
     getLaunchers: vi.fn(() => []),
     dispatchLauncher: vi.fn()
-  })
+  }),
+  useComposerToolLauncherVersion: () => 0
 }))
 
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
@@ -328,7 +329,7 @@ vi.mock('@renderer/components/resource', () => ({
   )
 }))
 
-vi.mock('@renderer/components/resource/dialogs/ResourceEditDialogHost', () => ({
+vi.mock('@renderer/components/resource/dialogs/edit/ResourceEditDialogHost', () => ({
   ResourceEditDialogHost: ({ target, onOpenChange }: any) => (
     <div data-testid="resource-edit-dialog-host" data-kind={target?.kind ?? ''} data-id={target?.id ?? ''}>
       <button type="button" onClick={() => onOpenChange(false)}>
@@ -972,37 +973,97 @@ describe('ChatComposer', () => {
     expect(screen.queryByTestId('resource-edit-dialog-host')).not.toBeInTheDocument()
   })
 
-  it('renders the classic-layout empty topic action before the tool menu and passes the selected assistant', () => {
+  it('puts the classic-layout empty topic action first in the slash panel and passes the selected assistant', () => {
     mocks.topicLayout = 'classic'
     const onCreateEmptyTopic = vi.fn()
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} onCreateEmptyTopic={onCreateEmptyTopic} />)
 
     const leftControls = screen.getByTestId('composer-left-controls')
-    const newTopicButton = within(leftControls).getByRole('button', { name: 'chat.conversation.new' })
     const modelButton = within(leftControls).getByRole('button', { name: /Model A/ })
     const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
-    expect(newTopicButton.querySelector('svg')).toHaveClass('lucide-message-square-plus')
-    expect(newTopicButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(modelButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(toolMenuButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(within(leftControls).queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
 
-    fireEvent.click(newTopicButton)
+    const newTopicItem = mocks.surfaceProps?.rootPanelLeadingItems?.[0]
+    expect(newTopicItem).toEqual(
+      expect.objectContaining({
+        id: 'composer:new-conversation',
+        label: 'chat.conversation.new',
+        disabled: false,
+        filterText: 'chat.conversation.new'
+      })
+    )
+    newTopicItem?.action?.({
+      context: {} as any,
+      action: 'enter',
+      item: newTopicItem
+    })
 
     expect(onCreateEmptyTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
   })
 
-  it('hides the empty topic action outside classic layout or without a handler', () => {
+  it('disables the classic-layout empty topic slash action while the assistant is loading', () => {
+    mocks.topicLayout = 'classic'
+    mocks.assistantLoading = true
+    const onCreateEmptyTopic = vi.fn()
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} onCreateEmptyTopic={onCreateEmptyTopic} />)
+
+    expect(mocks.surfaceProps?.rootPanelLeadingItems?.[0]).toEqual(
+      expect.objectContaining({
+        id: 'composer:new-conversation',
+        disabled: true
+      })
+    )
+
+    mocks.commandHandlers.get('topic.create')?.()
+
+    expect(onCreateEmptyTopic).not.toHaveBeenCalled()
+  })
+
+  it('puts the modern-layout new topic action first in the slash panel', () => {
+    mocks.topicLayout = 'modern'
+    const onNewTopic = vi.fn()
+    const onCreateEmptyTopic = vi.fn()
+
+    render(
+      <ChatComposer topic={topic} onSend={vi.fn()} onNewTopic={onNewTopic} onCreateEmptyTopic={onCreateEmptyTopic} />
+    )
+
+    expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
+
+    const newTopicItem = mocks.surfaceProps?.rootPanelLeadingItems?.[0]
+    expect(newTopicItem).toEqual(
+      expect.objectContaining({
+        id: 'composer:new-conversation',
+        label: 'chat.conversation.new'
+      })
+    )
+    newTopicItem?.action?.({
+      context: {} as any,
+      action: 'enter',
+      item: newTopicItem
+    })
+
+    expect(onNewTopic).toHaveBeenCalledWith(undefined)
+    expect(onCreateEmptyTopic).not.toHaveBeenCalled()
+  })
+
+  it('hides the empty topic slash panel action without a handler for the active layout', () => {
     mocks.topicLayout = 'modern'
     const onCreateEmptyTopic = vi.fn()
 
     const { rerender } = render(<ChatComposer topic={topic} onSend={vi.fn()} onCreateEmptyTopic={onCreateEmptyTopic} />)
 
     expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
+    expect(mocks.surfaceProps?.rootPanelLeadingItems).toEqual([])
 
     mocks.topicLayout = 'classic'
     rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
+    expect(mocks.surfaceProps?.rootPanelLeadingItems).toEqual([])
   })
 
   it('sends unlinked home topics through the default model fallback', async () => {

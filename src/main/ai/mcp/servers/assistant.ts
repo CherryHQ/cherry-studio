@@ -57,7 +57,7 @@ function resolveRealOrNearestExistingPath(targetPath: string): string {
 
 // Allowed route prefixes to prevent arbitrary navigation
 const ALLOWED_ROUTES = [
-  '/settings/',
+  '/settings',
   '/agents',
   '/knowledge',
   '/openclaw',
@@ -67,10 +67,13 @@ const ALLOWED_ROUTES = [
   '/notes',
   '/apps',
   '/code',
-  '/store',
-  '/launchpad',
-  '/'
+  '/launchpad'
 ]
+
+export function isAllowedAssistantNavigationPath(path: string): boolean {
+  if (path === '/') return true
+  return ALLOWED_ROUTES.some((route) => path === route || path.startsWith(`${route}/`))
+}
 
 const NAVIGATE_TOOL: Tool = {
   name: 'navigate',
@@ -180,7 +183,7 @@ class AssistantServer {
 
     const normalizedPath = targetPath.startsWith('/') ? targetPath : `/${targetPath}`
 
-    if (!ALLOWED_ROUTES.some((route) => normalizedPath === route || normalizedPath.startsWith(route))) {
+    if (!isAllowedAssistantNavigationPath(normalizedPath)) {
       throw new McpError(ErrorCode.InvalidParams, `Blocked navigation to disallowed route: ${normalizedPath}`)
     }
 

@@ -1599,6 +1599,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "[to be translated]:Cache {{hit_rate}}%",
+        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+      },
       "editing_current": "Esta mensagem está sendo editada no compositor",
       "flow": {
         "branches": "ramos",
@@ -4781,6 +4785,7 @@
     "tencent-cloud-ti": "Nuvem TI da Tencent",
     "tesseract": "Tesseract",
     "together": "Juntos",
+    "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "XiRang do Nuvem Telecom",
