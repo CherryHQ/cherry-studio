@@ -180,7 +180,7 @@ describe('PrintService', () => {
     expect(writeFile).not.toHaveBeenCalled()
   })
 
-  it('prints through the main process using the printer default page size', async () => {
+  it('prints through the main process without passing native print options', async () => {
     let finishPrint!: (success: boolean, failureReason: string) => void
     print.mockImplementation((_options, callback) => {
       finishPrint = callback
@@ -197,14 +197,7 @@ describe('PrintService', () => {
     expect(showInactive).not.toHaveBeenCalled()
     expect(executeJavaScript).toHaveBeenCalledWith(expect.stringContaining('document.fonts.ready'), true)
     expect(executeJavaScript).toHaveBeenCalledTimes(1)
-    expect(print).toHaveBeenCalledWith(
-      {
-        silent: false,
-        printBackground: true,
-        usePrinterDefaultPageSize: true
-      },
-      expect.any(Function)
-    )
+    expect(print).toHaveBeenCalledWith(undefined, expect.any(Function))
     expect(close).not.toHaveBeenCalled()
 
     finishPrint(true, '')

@@ -336,20 +336,13 @@ export class PrintService {
 
     try {
       await new Promise<void>((resolve, reject) => {
-        window.webContents.print(
-          {
-            silent: false,
-            printBackground: true,
-            usePrinterDefaultPageSize: true
-          },
-          (success, failureReason) => {
-            if (success || failureReason === 'Print job canceled') {
-              resolve()
-              return
-            }
-            reject(new Error(failureReason || 'Print job failed'))
+        window.webContents.print(undefined, (success, failureReason) => {
+          if (success || failureReason === 'Print job canceled') {
+            resolve()
+            return
           }
-        )
+          reject(new Error(failureReason || 'Print job failed'))
+        })
       })
     } catch (error) {
       logger.error('Failed to print printable document', error as Error)
