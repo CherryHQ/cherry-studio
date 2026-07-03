@@ -90,31 +90,12 @@ describe('Dialog primitive', () => {
     expect(handleAncestorPointerDown).not.toHaveBeenCalled()
   })
 
-  it('does not close on overlay click by default', () => {
+  it('closes on overlay click by default', () => {
     const handleOpenChange = vi.fn()
 
     render(
       <Dialog open onOpenChange={handleOpenChange}>
         <DialogContent aria-describedby={undefined}>
-          <DialogTitle>Rename item</DialogTitle>
-        </DialogContent>
-      </Dialog>
-    )
-
-    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
-    expect(overlay).toBeInTheDocument()
-
-    fireEvent.click(overlay!)
-
-    expect(handleOpenChange).not.toHaveBeenCalled()
-  })
-
-  it('closes when overlay click close is explicitly enabled', () => {
-    const handleOpenChange = vi.fn()
-
-    render(
-      <Dialog open onOpenChange={handleOpenChange}>
-        <DialogContent aria-describedby={undefined} closeOnOverlayClick>
           <DialogTitle>Rename item</DialogTitle>
         </DialogContent>
       </Dialog>

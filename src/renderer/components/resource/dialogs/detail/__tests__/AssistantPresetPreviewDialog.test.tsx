@@ -65,7 +65,7 @@ describe('AssistantPresetPreviewDialog overlay close', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('keeps the dialog open when clicking the overlay while adding', () => {
+  it('closes when clicking the overlay while adding', () => {
     const onOpenChange = vi.fn()
 
     render(
@@ -84,6 +84,6 @@ describe('AssistantPresetPreviewDialog overlay close', () => {
 
     fireEvent.click(overlay!)
 
-    expect(onOpenChange).not.toHaveBeenCalled()
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 })

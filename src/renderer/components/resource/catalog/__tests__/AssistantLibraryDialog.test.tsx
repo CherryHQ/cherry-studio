@@ -86,15 +86,9 @@ vi.mock('@cherrystudio/ui', () => {
       dialogOnOpenChange = onOpenChange
       return open ? <>{children}</> : null
     },
-    DialogContent: ({
-      children,
-      closeOnOverlayClick,
-      ...props
-    }: ComponentProps<'div'> & { closeOnOverlayClick?: boolean }) => (
+    DialogContent: ({ children, ...props }: ComponentProps<'div'>) => (
       <>
-        {closeOnOverlayClick && (
-          <button type="button" data-testid="dialog-overlay" onClick={() => dialogOnOpenChange?.(false)} />
-        )}
+        <button type="button" data-testid="dialog-overlay" onClick={() => dialogOnOpenChange?.(false)} />
         <div {...props}>{children}</div>
       </>
     ),
