@@ -1,8 +1,16 @@
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { renderHook } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAgentModelFilter } from '../useAgentModelFilter'
+
+const providersMock = vi.hoisted(() => ({
+  providers: [] as Array<Record<string, unknown>>
+}))
+
+vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviders: () => ({ providers: providersMock.providers })
+}))
 
 function model(capabilities: Model['capabilities'] = []): Model {
   return {
@@ -17,15 +25,42 @@ function model(capabilities: Model['capabilities'] = []): Model {
 }
 
 describe('useAgentModelFilter', () => {
+  beforeEach(() => {
+    providersMock.providers = [
+      {
+        id: 'gemini',
+        presetProviderId: 'gemini',
+        defaultChatEndpoint: 'google-generate-content',
+        authType: 'api-key'
+      },
+      {
+        id: 'google-custom',
+        presetProviderId: 'gemini',
+        defaultChatEndpoint: 'google-generate-content',
+        authType: 'api-key'
+      },
+      {
+        id: 'vertex',
+        defaultChatEndpoint: 'google-generate-content',
+        authType: 'iam-gcp'
+      }
+    ]
+  })
+
   it('allows chat-capable models from non-Anthropic providers for Claude Code agents', () => {
     const { result } = renderHook(() => useAgentModelFilter('claude-code'))
 
     expect(result.current(model())).toBe(true)
     expect(result.current({ ...model(), providerId: 'anthropic', id: 'anthropic::claude-sonnet' })).toBe(true)
     expect(result.current({ ...model(), providerId: 'custom-openai', id: 'custom-openai::gpt-4o' })).toBe(true)
-    expect(result.current({ ...model(), providerId: 'gemini', id: 'gemini::gemini-2.5-pro' })).toBe(true)
-    expect(result.current({ ...model(), providerId: 'google-custom', id: 'google-custom::gemini-2.5-pro' })).toBe(true)
     expect(result.current({ ...model(), providerId: 'vertex', id: 'vertex::gemini-2.5-pro' })).toBe(true)
+  })
+
+  it('filters Gemini provider models for Claude Code agents', () => {
+    const { result } = renderHook(() => useAgentModelFilter('claude-code'))
+
+    expect(result.current({ ...model(), providerId: 'gemini', id: 'gemini::gemini-2.5-pro' })).toBe(false)
+    expect(result.current({ ...model(), providerId: 'google-custom', id: 'google-custom::gemini-2.5-pro' })).toBe(false)
   })
 
   it('continues to reject non-chat model classes', () => {
