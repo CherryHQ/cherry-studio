@@ -1599,6 +1599,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "[to be translated]:Cache {{hit_rate}}%",
+        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+      },
       "editing_current": "Это сообщение редактируется в композере",
       "flow": {
         "branches": "ветви",
@@ -4781,6 +4785,7 @@
     "tencent-cloud-ti": "Tencent Cloud TI",
     "tesseract": "Тессеракт",
     "together": "Together",
+    "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "State Cloud Xirang",

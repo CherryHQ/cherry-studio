@@ -181,12 +181,14 @@ function RegisteredTopicCreate({ onExecute }: { onExecute: () => void }) {
 function renderMenu({
   extraItems = [],
   onExecute = vi.fn(),
+  onOpenChange,
   getExtraItems,
   pendingExtraItems,
   location = 'chat.input.tools.context'
 }: {
   extraItems?: readonly CommandContextMenuExtraItem[]
   onExecute?: () => void
+  onOpenChange?: (open: boolean) => void
   getExtraItems?: (
     event: ReactMouseEvent
   ) => readonly CommandContextMenuExtraItem[] | PromiseLike<readonly CommandContextMenuExtraItem[]>
@@ -201,6 +203,7 @@ function renderMenu({
           location={location}
           extraItems={extraItems}
           pendingExtraItems={pendingExtraItems}
+          onOpenChange={onOpenChange}
           getExtraItems={getExtraItems}>
           <button type="button">trigger</button>
         </CommandContextMenu>
@@ -290,6 +293,25 @@ describe('CommandContextMenu', () => {
 
     await waitFor(() => {
       expect(onExecute).toHaveBeenCalledOnce()
+    })
+  })
+
+  it('triggers onOpenChange around native context menus', async () => {
+    const onOpenChange = vi.fn()
+    showNativePopupMenuMock.mockResolvedValueOnce(null)
+
+    renderMenu({
+      location: 'webcontents.context',
+      onOpenChange,
+      extraItems: [{ type: 'item', id: 'tool:branch', label: 'Branch', onSelect: vi.fn() }]
+    })
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'trigger' }))
+
+    expect(onOpenChange).toHaveBeenCalledWith(true)
+
+    await waitFor(() => {
+      expect(showNativePopupMenuMock).toHaveBeenCalled()
+      expect(onOpenChange).toHaveBeenLastCalledWith(false)
     })
   })
 

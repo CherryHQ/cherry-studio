@@ -52,11 +52,26 @@ export const UpdateKnowledgeBaseSchema = KnowledgeBaseEntitySchema.pick(KNOWLEDG
     // Paired like create/restore: a vector base needs both, a BM25-only base
     // needs neither. Only enforced when the caller is actually touching one of
     // them — omitting both leaves the existing pairing untouched.
-    if ((value.embeddingModelId !== undefined) !== (value.dimensions !== undefined)) {
+    const embeddingModelIdProvided = value.embeddingModelId !== undefined
+    const dimensionsProvided = value.dimensions !== undefined
+
+    if (embeddingModelIdProvided !== dimensionsProvided) {
       ctx.addIssue({
         code: 'custom',
         path: ['dimensions'],
         message: 'Embedding model and dimensions must be provided together'
+      })
+      return
+    }
+
+    // Both provided: reject a half-null pair (e.g. a null model with a leftover
+    // non-null dimensions) — presence alone isn't enough, since that combination
+    // would otherwise reach the DB CHECK as an untranslated constraint violation.
+    if (embeddingModelIdProvided && (value.embeddingModelId === null) !== (value.dimensions === null)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['dimensions'],
+        message: 'Embedding model and dimensions must be both null or both set'
       })
     }
   })

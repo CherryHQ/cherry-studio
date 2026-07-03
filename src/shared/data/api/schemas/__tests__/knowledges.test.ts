@@ -656,6 +656,14 @@ it('rejects a half-set embedding model / dimensions pair in patch schema', () =>
   expect(UpdateKnowledgeBaseSchema.safeParse({ embeddingModelId: null }).success).toBe(false)
 })
 
+it('rejects a half-null embedding model / dimensions pair in patch schema even when both are provided', () => {
+  expect(UpdateKnowledgeBaseSchema.safeParse({ embeddingModelId: null, dimensions: 1536 }).success).toBe(false)
+  expect(
+    UpdateKnowledgeBaseSchema.safeParse({ embeddingModelId: 'openai::text-embedding-3-small', dimensions: null })
+      .success
+  ).toBe(false)
+})
+
 it('accepts nullable model and processor clears in patch schema', () => {
   const result = UpdateKnowledgeBaseSchema.safeParse({
     rerankModelId: null,

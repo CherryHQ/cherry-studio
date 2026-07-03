@@ -8,7 +8,7 @@ import {
   Scrollbar
 } from '@cherrystudio/ui'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import { DEFAULT_KNOWLEDGE_SEARCH_MODE, type KnowledgeBase } from '@shared/data/types/knowledge'
 import { RotateCcw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -89,7 +89,11 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
   // treated as "not empty" so the safer restore flow stays the default.
   const canSaveEmbeddingModelDirectly = embeddingModelChanged && itemCount === 0
   const requiresRestore = embeddingModelChanged && !canSaveEmbeddingModelDirectly
-  const canSubmit = canSave || embeddingModelChanged
+  // Restore only ever reads embeddingModelId (it ignores the rest of the dirty
+  // draft), so it can bypass canSave the way it always could. A direct save
+  // re-submits the whole dirty form, including chunk fields, so it must respect
+  // the same chunk validation as a plain save.
+  const canSubmit = canSave || requiresRestore
 
   const handleSave = async () => {
     if (!canSubmit) {
@@ -114,7 +118,14 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
       }
 
       try {
-        await save(values, { embeddingModelId: values.embeddingModelId, dimensions })
+        const saveValues =
+          initialValues.embeddingModelId === null &&
+          values.embeddingModelId !== null &&
+          values.searchMode === initialValues.searchMode
+            ? { ...values, searchMode: DEFAULT_KNOWLEDGE_SEARCH_MODE, hybridAlpha: null }
+            : values
+
+        await save(saveValues, { embeddingModelId: values.embeddingModelId, dimensions })
         window.toast.success(t('knowledge.rag.saved'))
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))

@@ -114,7 +114,7 @@ src/main/data/migration/v2/
 
 - `window/MigrationIpcHandler.ts` exposes IPC channels for the migration UI:
   - Receives Redux data and Dexie export path, starts the engine, and streams progress back to renderer.
-  - Manages backup flow (dialogs via `BackupManager`) and retry/cancel/restart actions.
+  - Manages retry/cancel/restart/skip actions.
 - `window/MigrationWindowManager.ts` creates the frameless migration window, handles lifecycle, and relaunch instructions after completion in production.
 
 ## Implementation Checklist for New Migrators

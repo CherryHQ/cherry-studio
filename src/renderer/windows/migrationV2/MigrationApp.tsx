@@ -4,7 +4,6 @@ import {
   AccordionItem,
   AccordionTrigger,
   Alert,
-  Badge,
   Button,
   MenuItem,
   MenuList,
@@ -25,12 +24,9 @@ import { isMac } from '@renderer/utils/platform'
 import { MigrationIpcChannels, type MigrationStage } from '@shared/data/migration/v2/types'
 import {
   AlertTriangle,
-  ArrowLeft,
   ArrowRight,
   Check,
-  CheckCircle2,
   Database,
-  FolderOpen,
   Loader2,
   Monitor,
   Moon,
@@ -58,7 +54,6 @@ import { useMigrationActions, useMigrationProgress } from './hooks/useMigrationP
 const logger = loggerService.withContext('MigrationApp')
 
 type BadgeTone = 'primary' | 'success' | 'warning' | 'destructive' | 'neutral'
-type BackupDialogResult = { success: boolean; error?: string; canceled?: boolean }
 
 const badgeToneClass: Record<BadgeTone, string> = {
   primary: 'border-primary-mute bg-primary/10 text-primary',
@@ -78,39 +73,30 @@ const StageBadge: React.FC<{ tone?: BadgeTone; children: React.ReactNode }> = ({
   </div>
 )
 
-const ProgressBar: React.FC<{ value: number; indeterminate?: boolean }> = ({ value, indeterminate = false }) => (
+const ProgressBar: React.FC<{ value: number }> = ({ value }) => (
   <div className="relative h-2 w-full overflow-hidden rounded-full bg-secondary">
     <div
-      className={cn(
-        'h-full rounded-full bg-primary transition-[width] duration-300',
-        indeterminate &&
-          'animation-migration-backup-progress-indeterminate absolute left-0 w-1/3 min-w-20 bg-linear-to-r from-primary/0 via-primary to-primary/0 transition-none'
-      )}
-      style={indeterminate ? undefined : { width: `${Math.max(0, Math.min(100, value))}%` }}
+      className="h-full rounded-full bg-primary transition-[width] duration-300"
+      style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
     />
   </div>
 )
 
 const RAIL_STEPS = [
   { n: 1, labelKey: 'migration.stages.introduction' },
-  { n: 2, labelKey: 'migration.stages.backup' },
-  { n: 3, labelKey: 'migration.stages.migration' },
-  { n: 4, labelKey: 'migration.stages.completed' }
+  { n: 2, labelKey: 'migration.stages.migration' },
+  { n: 3, labelKey: 'migration.stages.completed' }
 ] as const
 
 function stageStepNumber(stage: MigrationStage): number | null {
   switch (stage) {
     case 'introduction':
       return 1
-    case 'backup_required':
-    case 'backup_progress':
-    case 'backup_confirmed':
-      return 2
     case 'migration':
     case 'error':
-      return 3
+      return 2
     case 'completed':
-      return 4
+      return 3
     case 'version_incompatible':
       return null
     default:
@@ -189,39 +175,6 @@ const StepRail: React.FC<{ stage: MigrationStage }> = ({ stage }) => {
   )
 }
 
-const BackupChoiceRow: React.FC<{
-  selected: boolean
-  onSelect: () => void
-  icon: React.ReactNode
-  title: string
-  description: string
-  badge?: React.ReactNode
-}> = ({ selected, onSelect, icon, title, description, badge }) => (
-  <button
-    type="button"
-    onClick={onSelect}
-    className={cn(
-      'flex w-full items-start gap-3 rounded-xl border px-4 py-3 text-left transition-colors',
-      selected ? 'border-border-active bg-accent' : 'border-border bg-muted/10 hover:bg-muted/20'
-    )}>
-    <span className={cn('mt-0.5 shrink-0', selected ? 'text-foreground' : 'text-foreground-muted')}>{icon}</span>
-    <div className="min-w-0 flex-1">
-      <div className="flex min-w-0 items-center gap-2">
-        <p className="truncate font-medium text-foreground text-sm">{title}</p>
-        {badge}
-      </div>
-      <p className="mt-1 text-foreground-muted text-xs leading-relaxed">{description}</p>
-    </div>
-    <span
-      className={cn(
-        'mt-0.5 flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full',
-        selected ? 'bg-foreground text-background' : 'border border-border'
-      )}>
-      {selected && <Check size={11} strokeWidth={2.75} className="lucide-custom text-background" />}
-    </span>
-  </button>
-)
-
 const Stat: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="flex flex-col items-center justify-center gap-1 px-2 text-center">{children}</div>
 )
@@ -236,9 +189,10 @@ type MigrationToolsMenuProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSkipMigration: () => void
+  disabled?: boolean
 }
 
-const MigrationToolsMenu: React.FC<MigrationToolsMenuProps> = ({ open, onOpenChange, onSkipMigration }) => {
+const MigrationToolsMenu: React.FC<MigrationToolsMenuProps> = ({ open, onOpenChange, onSkipMigration, disabled }) => {
   const { t } = useTranslation()
 
   const handleSkipMigration = () => {
@@ -253,6 +207,7 @@ const MigrationToolsMenu: React.FC<MigrationToolsMenuProps> = ({ open, onOpenCha
           type="button"
           variant="ghost"
           size="icon-sm"
+          disabled={disabled}
           aria-label={t('migration.buttons.more_options')}
           className="text-foreground-muted/60 hover:text-foreground-muted">
           <Wrench size={15} />
@@ -280,23 +235,18 @@ const themeLabelKey: Record<string, string> = {
 
 const MigrationApp: React.FC = () => {
   const { t, i18n } = useTranslation()
-  const { progress, lastError, returnToIntroduction, returnToBackupChoice } = useMigrationProgress()
+  const { progress, lastError } = useMigrationProgress()
   const actions = useMigrationActions()
   const [isLoading, setIsLoading] = useState(false)
-  const [backupLoading, setBackupLoading] = useState(false)
-  const [backupChoice, setBackupChoice] = useState<'create' | 'existing'>('create')
-  const [backupError, setBackupError] = useState<string | null>(null)
   // Some runMigration failures happen before progress can reliably move to error.
   const [localMigrationError, setLocalMigrationError] = useState<string | null>(null)
   const [skipOpen, setSkipOpen] = useState(false)
   const [skipMenuOpen, setSkipMenuOpen] = useState(false)
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false)
-  // Set when the user confirmed quit but main deferred it because a backup/migration write
+  // Set when the user confirmed quit but main deferred it because a migration write
   // is still in flight; drives the non-blocking "closing after the current step" notice.
   const [quitDeferred, setQuitDeferred] = useState(false)
-  const [backupCompressionDelayed, setBackupCompressionDelayed] = useState(false)
   const startGuardRef = useRef(false)
-  const isBackupCompressing = progress.stage === 'backup_progress' && progress.isCompressing === true
 
   const [themeMode, setThemeMode] = useState<string>(() => localStorage.getItem(THEME_STORAGE_KEY) ?? 'system')
   const toggleTheme = () => {
@@ -348,42 +298,8 @@ const MigrationApp: React.FC = () => {
     }
   }, [progress.stage])
 
-  useEffect(() => {
-    if (!isBackupCompressing) {
-      setBackupCompressionDelayed(false)
-      return
-    }
-
-    setBackupCompressionDelayed(false)
-    const timer = window.setTimeout(() => {
-      setBackupCompressionDelayed(true)
-    }, 10_000)
-
-    return () => window.clearTimeout(timer)
-  }, [isBackupCompressing])
-
-  // Create-backup path: enter a loading/disabled state immediately on click and
-  // hold it until main returns (success → backup_confirmed, cancel → backup_required).
-  const handleCreateBackup = async () => {
-    if (backupLoading) {
-      return
-    }
-    setBackupError(null)
-    setBackupLoading(true)
-    try {
-      const result = (await actions.showBackupDialog()) as BackupDialogResult | undefined
-      if (result && !result.success && !result.canceled && result.error) {
-        setBackupError(result.error)
-      }
-    } catch (error) {
-      setBackupError(errorMessage(error))
-    } finally {
-      setBackupLoading(false)
-    }
-  }
-
   // Runs the renderer-side exporters then hands off to main's StartMigration. Only ever
-  // invoked from the backup_confirmed Start button, so it carries no stage guard.
+  // invoked from the introduction Start button, so it carries no stage guard.
   const runMigration = async () => {
     if (startGuardRef.current) {
       return
@@ -500,171 +416,18 @@ const MigrationApp: React.FC = () => {
             </div>
 
             <div className="space-y-2.5">
-              <Button variant="default" size="lg" className="w-full gap-2" onClick={() => actions.proceedToBackup()}>
-                {t('migration.buttons.next')}
-                <ArrowRight size={14} />
-              </Button>
-            </div>
-          </div>
-        )
-
-      case 'backup_required':
-        return (
-          <div className="space-y-5">
-            <TopContent>
-              <StageBadge tone="neutral">
-                <Shield size={26} strokeWidth={1.5} />
-              </StageBadge>
-              <h2 className="font-semibold text-foreground text-lg tracking-tight">
-                {t('migration.backup_required.title')}
-              </h2>
-              <p className="mt-1.5 text-foreground-muted text-sm leading-relaxed">
-                {t('migration.backup_required.description')}
-              </p>
-            </TopContent>
-
-            <div className="space-y-2">
-              <BackupChoiceRow
-                selected={backupChoice === 'create'}
-                onSelect={() => {
-                  setBackupChoice('create')
-                  setBackupError(null)
-                }}
-                icon={<Database size={16} />}
-                title={t('migration.buttons.create_backup')}
-                description={t('migration.backup_required.create_desc')}
-                badge={
-                  <Badge className="border-info-bg-hover bg-info-bg px-2 py-0 font-medium text-info">
-                    {t('migration.backup_required.recommended')}
-                  </Badge>
-                }
-              />
-              <BackupChoiceRow
-                selected={backupChoice === 'existing'}
-                onSelect={() => {
-                  setBackupChoice('existing')
-                  setBackupError(null)
-                }}
-                icon={<Shield size={16} />}
-                title={t('migration.buttons.already_backed_up')}
-                description={t('migration.backup_required.existing_desc')}
-              />
-            </div>
-
-            {backupError && (
-              <Alert type="error" showIcon message={t('migration.backup_required.failure', { reason: backupError })} />
-            )}
-
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="lg"
-                className="gap-1.5"
-                disabled={backupLoading}
-                onClick={() => {
-                  setBackupError(null)
-                  returnToIntroduction()
-                }}>
-                <ArrowLeft size={13} />
-                {t('migration.buttons.back')}
-              </Button>
               <Button
                 variant="default"
                 size="lg"
-                className="flex-1 gap-2"
-                disabled={backupLoading}
-                loading={backupChoice === 'create' && backupLoading}
-                onClick={() => {
-                  if (backupChoice === 'create') {
-                    void handleCreateBackup()
-                  } else {
-                    void actions.confirmBackup()
-                  }
-                }}>
-                {backupChoice === 'create' ? <Database size={14} /> : <ArrowRight size={14} />}
-                {backupChoice === 'create'
-                  ? t('migration.buttons.create_backup')
-                  : t('migration.buttons.confirm_and_continue')}
-              </Button>
-            </div>
-          </div>
-        )
-
-      case 'backup_progress': {
-        return (
-          <div className="space-y-5">
-            <TopContent>
-              <StageBadge tone="neutral">
-                <Loader2 size={26} strokeWidth={1.5} className="animate-spin" />
-              </StageBadge>
-              <h2 className="font-medium text-foreground text-lg">{t('migration.backup_progress.title')}</h2>
-              <p className="mt-1.5 text-foreground-muted text-sm">
-                {isBackupCompressing
-                  ? t(
-                      backupCompressionDelayed
-                        ? 'migration.backup_progress.compressing_long'
-                        : 'migration.backup_progress.compressing'
-                    )
-                  : progressMessage}
-              </p>
-            </TopContent>
-            <ProgressBar value={progress.overallProgress} indeterminate={isBackupCompressing} />
-          </div>
-        )
-      }
-
-      case 'backup_confirmed': {
-        const hasCreatedBackup = Boolean(progress.backupInfo?.createdBackupPath)
-        return (
-          <div className="space-y-5">
-            <TopContent>
-              <StageBadge tone={hasCreatedBackup ? 'success' : 'neutral'}>
-                {hasCreatedBackup ? (
-                  <CheckCircle2 size={26} strokeWidth={1.5} />
-                ) : (
-                  <Shield size={26} strokeWidth={1.5} />
-                )}
-              </StageBadge>
-              <h2 className="font-semibold text-foreground text-lg tracking-tight">
-                {t(
-                  hasCreatedBackup
-                    ? 'migration.backup_confirmed.created_title'
-                    : 'migration.backup_confirmed.existing_title'
-                )}
-              </h2>
-              <p className="mt-1.5 text-foreground-muted text-sm leading-relaxed">
-                {t(
-                  hasCreatedBackup
-                    ? 'migration.backup_confirmed.created_description'
-                    : 'migration.backup_confirmed.existing_description'
-                )}
-              </p>
-            </TopContent>
-            <div className="flex items-center gap-2">
-              {!hasCreatedBackup && (
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className="gap-1.5"
-                  disabled={isLoading}
-                  onClick={returnToBackupChoice}>
-                  <ArrowLeft size={13} />
-                  {t('migration.buttons.back')}
-                </Button>
-              )}
-              <Button
-                variant="default"
-                size="lg"
-                className="flex-1 gap-2"
+                className="w-full gap-2"
                 loading={isLoading}
                 onClick={() => void runMigration()}>
-                <ArrowRight size={14} />
                 {t('migration.buttons.start_migration')}
+                <ArrowRight size={14} />
               </Button>
             </div>
           </div>
         )
-      }
 
       case 'migration':
         return (
@@ -689,7 +452,6 @@ const MigrationApp: React.FC = () => {
 
       case 'completed': {
         const summary = progress.summary
-        const backupPath = progress.backupInfo?.createdBackupPath
         const warnings = progress.warnings ?? []
         return (
           <div className="space-y-5">
@@ -724,16 +486,6 @@ const MigrationApp: React.FC = () => {
                   </span>
                   <span className="text-foreground-muted text-xs">{t('migration.completed.duration_label')}</span>
                 </Stat>
-              </div>
-            )}
-
-            {backupPath && (
-              <div className="flex items-start gap-2.5 rounded-xl border border-border bg-muted/10 px-4 py-2.5">
-                <FolderOpen size={13} className="mt-0.5 shrink-0 text-foreground-muted" />
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-foreground-muted text-xs">{t('migration.completed.backup_heading')}</p>
-                  <p className="mt-0.5 break-all font-mono text-foreground-secondary text-xs">{backupPath}</p>
-                </div>
               </div>
             )}
 
@@ -889,6 +641,7 @@ const MigrationApp: React.FC = () => {
                 open={skipMenuOpen}
                 onOpenChange={setSkipMenuOpen}
                 onSkipMigration={() => setSkipOpen(true)}
+                disabled={isLoading}
               />
             </div>
           )}
@@ -910,7 +663,7 @@ const MigrationApp: React.FC = () => {
         }}
         onConfirm={async () => {
           setCloseConfirmOpen(false)
-          // Main returns false when it defers the quit until an in-flight backup/migration
+          // Main returns false when it defers the quit until an in-flight migration
           // write settles; show a notice instead of quitting right away.
           const quitting = await window.electron.ipcRenderer.invoke(MigrationIpcChannels.ConfirmQuit)
           if (!quitting) {

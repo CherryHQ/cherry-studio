@@ -470,6 +470,28 @@ describe('RagConfigPanel', () => {
     })
   })
 
+  it('keeps the rebuild flow submittable despite invalid chunk fields, since restore ignores the dirty draft', () => {
+    const onRestoreBase = vi.fn()
+
+    renderRagConfigPanel(onRestoreBase)
+
+    // Invalidate chunk config first (overlap === size) — the rebuild path must stay
+    // submittable through this, since restore only ever reads embeddingModelId off
+    // the base and never sends the locally-edited chunk draft.
+    fireEvent.change(screen.getByDisplayValue('64'), { target: { value: '512' } })
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'voyage::voyage-3-large' } })
+
+    const rebuildButton = screen.getByRole('button', { name: '重建' })
+    expect(rebuildButton).not.toBeDisabled()
+
+    fireEvent.click(rebuildButton)
+
+    expect(mockSave).not.toHaveBeenCalled()
+    expect(onRestoreBase).toHaveBeenCalledWith(expect.objectContaining({ id: 'base-1' }), {
+      embeddingModelId: 'voyage::voyage-3-large'
+    })
+  })
+
   it('opens the rebuild flow when a BM25-only base gains an embedding model', () => {
     const onRestoreBase = vi.fn()
 
@@ -539,6 +561,49 @@ describe('RagConfigPanel', () => {
     expect(window.toast.success).toHaveBeenCalledWith('已保存')
   })
 
+  it('defaults retrieval mode when an empty BM25-only base gains an embedding model directly', async () => {
+    const onRestoreBase = vi.fn()
+    mockUseKnowledgeRagConfig.mockReturnValue({
+      initialValues: {
+        fileProcessorId: null,
+        chunkSize: '512',
+        chunkOverlap: '64',
+        chunkStrategy: 'structured',
+        chunkSeparator: '\\n\\n',
+        embeddingModelId: null,
+        rerankModelId: null,
+        documentCount: 6,
+        threshold: 0.1,
+        searchMode: 'bm25',
+        hybridAlpha: null
+      },
+      fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
+      save: mockSave,
+      isLoading: false,
+      error: undefined
+    })
+
+    renderRagConfigPanel(onRestoreBase, { embeddingModelId: null, dimensions: null, searchMode: 'bm25' }, 0)
+
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => {
+      expect(mockSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          embeddingModelId: 'openai::text-embedding-3-small',
+          searchMode: 'hybrid',
+          hybridAlpha: null
+        }),
+        {
+          embeddingModelId: 'openai::text-embedding-3-small',
+          dimensions: 2048
+        }
+      )
+    })
+    expect(onRestoreBase).not.toHaveBeenCalled()
+  })
+
   it('shows a dimension-fetch failure toast and does not save when saving the embedding model directly fails', async () => {
     mockEmbedMany.mockRejectedValueOnce(new Error('probe failed'))
     const onRestoreBase = vi.fn()
@@ -551,6 +616,26 @@ describe('RagConfigPanel', () => {
     await waitFor(() => {
       expect(window.toast.error).toHaveBeenCalledWith('获取嵌入维度失败: probe failed')
     })
+    expect(mockSave).not.toHaveBeenCalled()
+    expect(onRestoreBase).not.toHaveBeenCalled()
+  })
+
+  it('keeps the direct-save button disabled when chunk fields are invalid, even after changing the embedding model', () => {
+    const onRestoreBase = vi.fn()
+
+    renderRagConfigPanel(onRestoreBase, {}, 0)
+
+    // Invalidate chunk config first (overlap === size), then change the embedding
+    // model on the same empty base. Direct save re-submits the whole dirty form
+    // (unlike the restore flow, which only ever reads embeddingModelId), so it
+    // must stay gated by the same chunk validation as a plain save.
+    fireEvent.change(screen.getByDisplayValue('64'), { target: { value: '512' } })
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'voyage::voyage-3-large' } })
+
+    const saveButton = screen.getByRole('button', { name: '保存' })
+    expect(saveButton).toBeDisabled()
+
+    fireEvent.click(saveButton)
     expect(mockSave).not.toHaveBeenCalled()
     expect(onRestoreBase).not.toHaveBeenCalled()
   })
