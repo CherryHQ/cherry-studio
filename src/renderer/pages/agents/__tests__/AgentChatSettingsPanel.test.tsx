@@ -46,12 +46,14 @@ vi.mock('@renderer/components/chat', () => ({
   ),
   ConversationShell: ({
     topBar,
+    topRightTool,
     sidePanel,
     center,
     rightPane,
     overlay
   }: {
     topBar?: ReactNode
+    topRightTool?: ReactNode
     sidePanel?: ReactNode
     center?: ReactNode
     rightPane?: ReactNode
@@ -59,6 +61,7 @@ vi.mock('@renderer/components/chat', () => ({
   }) => (
     <div>
       <div data-testid="agent-top-bar">{topBar}</div>
+      <div data-testid="agent-top-right-tool">{topRightTool}</div>
       <div data-testid="agent-side-panel">{sidePanel}</div>
       <div>{center}</div>
       <div>{overlay}</div>
@@ -227,9 +230,9 @@ vi.mock('../components/AgentRightPane', () => {
           Files
         </button>
       ),
-      InfoCard: ({ disabled }: { disabled?: boolean }) => (
+      Shortcuts: ({ disabled }: { disabled?: boolean }) => (
         <button type="button" disabled={disabled}>
-          Info
+          Shortcuts
         </button>
       )
     }
@@ -324,6 +327,13 @@ describe('AgentChat settings panel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'close citations' }))
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('keeps the right-pane expand button next to the tab shortcuts', () => {
+    renderAgentChat()
+
+    expect(screen.getByRole('button', { name: 'Shortcuts' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Files' })).toBeInTheDocument()
   })
 
   it('normalizes blank agent avatars before passing them to the right pane', () => {

@@ -8,7 +8,11 @@ import { useTranslation } from 'react-i18next'
 import { KnowledgeDialogFooter } from '../../components/KnowledgeDialogLayout'
 import KnowledgePanelShell from '../../components/KnowledgePanelShell'
 import { useKnowledgeRagConfig } from '../../hooks'
-import { getKnowledgeBaseFailureReason, getKnowledgeRagConfigFormState } from '../../utils'
+import {
+  buildKnowledgeSearchModeOptions,
+  getKnowledgeBaseFailureReason,
+  getKnowledgeRagConfigFormState
+} from '../../utils'
 import ChunkingSection from './ChunkingSection'
 import EmbeddingSection from './EmbeddingSection'
 import FileProcessingSection from './FileProcessingSection'
@@ -48,13 +52,20 @@ const FailedRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
 
 const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
   const { t } = useTranslation()
-  const { initialValues, fileProcessorOptions, searchModeOptions, save, isLoading } = useKnowledgeRagConfig(base)
+  const { initialValues, fileProcessorOptions, save, isLoading } = useKnowledgeRagConfig(base)
   const [values, setValues] = useState(initialValues)
 
   useEffect(() => {
     setValues(initialValues)
   }, [initialValues])
 
+  // Keyed on the pending form value (not the persisted base) so picking a model and a
+  // search mode in the same edit works instead of only offering bm25 until the restore
+  // this triggers completes.
+  const searchModeOptions = useMemo(
+    () => buildKnowledgeSearchModeOptions(values.embeddingModelId, t),
+    [t, values.embeddingModelId]
+  )
   const formState = useMemo(() => getKnowledgeRagConfigFormState(initialValues, values), [initialValues, values])
   const { validationErrorCodes, isDirty, canSave } = formState
   // Changing the embedding model re-embeds existing content, so it routes through the

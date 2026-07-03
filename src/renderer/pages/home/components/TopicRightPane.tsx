@@ -153,7 +153,7 @@ function TopicRightPaneSurface({
 
   // The TabList absorbs the navbar's right cluster while the pane is open: pin/back-to-main
   // when we're in a sub-window, plus the pane toggle (closes the open pane). Navbar suppresses
-  // its own copy via useOptionalShellState — see ConversationShellTopRightTool.
+  // its own copy via useOptionalShellState — see ConversationShell's topbar cluster.
   const tabListTrailing = (
     <>
       {isWindow ? chrome?.titleTrailing : null}
@@ -229,8 +229,30 @@ function TopicRightPaneToggle() {
   )
 }
 
+function TopicRightPaneShortcuts({ topicId }: { topicId?: string }) {
+  const { t } = useTranslation()
+  const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
+  const hasBranchPanel = !!topicId
+
+  return (
+    <>
+      {hasBranchPanel && (
+        <Shell.TabShortcut
+          tab="branch"
+          label={t('chat.message.flow.title')}
+          icon={<GitBranch className="size-3.5" />}
+        />
+      )}
+      {hasBranchPanel && enableDeveloperMode && (
+        <Shell.TabShortcut tab="trace" label={t('trace.label')} icon={<Activity className="size-3.5" />} />
+      )}
+    </>
+  )
+}
+
 export const TopicRightPane = Object.assign(TopicRightPaneProvider, {
   Host: TopicRightPaneHost,
   MaximizedOverlay: TopicRightPaneMaximizedOverlay,
-  Toggle: TopicRightPaneToggle
+  Toggle: TopicRightPaneToggle,
+  Shortcuts: TopicRightPaneShortcuts
 })

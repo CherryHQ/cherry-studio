@@ -8,9 +8,11 @@ import { loggerService } from '@logger'
 import { createInMemoryMcpServer } from '@main/ai/mcp/servers/factory'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
+import { getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
+import { findCommandInShellEnv } from '@main/utils/commandResolver'
 import { defaultAppHeaders } from '@main/utils/http'
-import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
-import getLoginShellEnvironment, { removeEnvProxy } from '@main/utils/shell-env'
+import { removeEnvProxy } from '@main/utils/processRunner'
+import { getShellEnv } from '@main/utils/shellEnv'
 import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import type { SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
@@ -486,8 +488,8 @@ export class McpRuntimeService extends BaseService {
             const connectEnv: Record<string, string> = { ...server.env }
 
             // Get login shell environment first - needed for command detection and server execution
-            // Note: getLoginShellEnvironment() is memoized, so subsequent calls are fast
-            const loginShellEnv = await getLoginShellEnvironment()
+            // Note: getShellEnv() is memoized, so subsequent calls are fast
+            const loginShellEnv = await getShellEnv()
 
             // For package servers, use resolved configuration with platform overrides and variable substitution
             if (server.dxtPath) {
@@ -1104,8 +1106,8 @@ export class McpRuntimeService extends BaseService {
 
   public async getInstallInfo() {
     const dir = await getBinaryPath()
-    const uvName = await getBinaryName('uv')
-    const bunName = await getBinaryName('bun')
+    const uvName = getBinaryName('uv')
+    const bunName = getBinaryName('bun')
     const uvPath = path.join(dir, uvName)
     const bunPath = path.join(dir, bunName)
     return { dir, uvPath, bunPath }

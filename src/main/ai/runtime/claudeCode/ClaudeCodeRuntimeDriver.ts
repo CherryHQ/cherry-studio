@@ -382,6 +382,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const promptTokens = v3Usage.inputTokens.total ?? 0
     const completionTokens = v3Usage.outputTokens.total ?? 0
     const reasoningTokens = v3Usage.outputTokens.reasoning
+    const noCacheTokens = v3Usage.inputTokens.noCache
+    const cacheReadTokens = v3Usage.inputTokens.cacheRead
+    const cacheWriteTokens = v3Usage.inputTokens.cacheWrite
     this.eventQueue.push({
       type: 'chunk',
       chunk: {
@@ -390,7 +393,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           totalTokens: promptTokens + completionTokens,
           promptTokens,
           completionTokens,
-          ...(reasoningTokens !== undefined ? { thoughtsTokens: reasoningTokens } : {})
+          ...(reasoningTokens !== undefined ? { thoughtsTokens: reasoningTokens } : {}),
+          ...(noCacheTokens !== undefined ? { noCacheTokens } : {}),
+          ...(cacheReadTokens !== undefined ? { cacheReadTokens } : {}),
+          ...(cacheWriteTokens !== undefined ? { cacheWriteTokens } : {})
         }
       }
     })

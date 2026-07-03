@@ -101,4 +101,60 @@ describe('CodeBlockView', () => {
       })
     )
   })
+
+  it('enables editor auto-scroll while a streaming code block is collapsed', () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.code.collapsible': true
+    })
+
+    render(
+      <CodeBlockView language="javascript" editable onSave={vi.fn()} isStreaming>
+        const value = 1
+      </CodeBlockView>
+    )
+
+    expect(mocks.CodeEditor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        autoScrollToBottom: true,
+        expanded: false
+      }),
+      undefined
+    )
+  })
+
+  it('enables viewer auto-scroll while a streaming readonly code block is collapsed', () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.code.collapsible': true
+    })
+
+    render(
+      <CodeBlockView language="javascript" editable={false} onSave={vi.fn()} isStreaming>
+        const value = 1
+      </CodeBlockView>
+    )
+
+    expect(mocks.CodeViewer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        autoScrollToBottom: true,
+        expanded: false
+      }),
+      undefined
+    )
+  })
+
+  it('leaves internal auto-scroll disabled when the streaming code block is expanded', () => {
+    render(
+      <CodeBlockView language="javascript" editable onSave={vi.fn()} isStreaming>
+        const value = 1
+      </CodeBlockView>
+    )
+
+    expect(mocks.CodeEditor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        autoScrollToBottom: false,
+        expanded: true
+      }),
+      undefined
+    )
+  })
 })

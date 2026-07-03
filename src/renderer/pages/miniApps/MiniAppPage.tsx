@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { LogoAvatar } from '@renderer/components/Icons'
 import { getMiniAppsLogo } from '@renderer/components/Icons/miniAppsLogo'
-import { useCurrentTab, useCurrentTabId } from '@renderer/hooks/tab'
+import { useCurrentTab, useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
@@ -32,6 +32,7 @@ const MiniAppPage: FC = () => {
   const { appId } = useParams({ strict: false })
   const currentTabId = useCurrentTabId()
   const currentTab = useCurrentTab()
+  const isActiveTab = useIsActiveTab()
   const tabsContext = useOptionalTabsContext()
   const updateTab = tabsContext?.updateTab
   const { openMiniAppKeepAlive } = useMiniAppPopup()
@@ -63,16 +64,24 @@ const MiniAppPage: FC = () => {
   }, [app, currentTab, currentTabId, displayName, updateTab])
 
   useEffect(() => {
+    // Only the active tab drives the keep-alive pool. `openMiniAppKeepAlive`
+    // mutates *global* state — `currentMiniAppId` and the LRU order of the
+    // shared keep-alive list. Background mini-app pages stay mounted (React 19
+    // Activity keep-alive), so without this guard two mounted pages — e.g. a
+    // pinned mini-app tab plus the one just opened — would each keep claiming
+    // `currentMiniAppId` and reordering themselves to the tail, ping-ponging the
+    // shared state into an infinite render loop (Maximum update depth). Each app
+    // still registers itself when it becomes active and, being kept alive, stays
+    // in the pool afterward.
+    if (!isActiveTab) return
     if (isLoading) return
     if (error) {
       logger.error('Failed to load mini apps', error instanceof Error ? error : new Error(String(error)))
       return
     }
     if (!app) return
-    // Ensure the keep-alive pool picks up this app and currentMiniAppId stays
-    // in sync with the route-changed appId.
     openMiniAppKeepAlive(app)
-  }, [app, openMiniAppKeepAlive, isLoading, error])
+  }, [isActiveTab, app, openMiniAppKeepAlive, isLoading, error])
 
   // -------------- Tab Shell logic --------------
   // Hooks must be called before any return, so define them early with null-checks inside

@@ -1,6 +1,10 @@
 import { Button, Input, PageSidePanelItem, Switch, Tooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { cn } from '@renderer/utils/style'
+import {
+  ANTHROPIC_CACHE_DEFAULT_LAST_N_MESSAGES,
+  ANTHROPIC_CACHE_DEFAULT_TOKEN_THRESHOLD
+} from '@shared/ai/anthropicCache'
 import type { Provider, RuntimeApiFeatures } from '@shared/data/types/provider'
 import { isAnthropicSupportedProvider } from '@shared/utils/provider'
 import { Info } from 'lucide-react'
@@ -63,8 +67,9 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
   const { provider, updateProvider } = useProvider(providerId)
 
   const cacheControl = provider?.settings?.cacheControl
-  const cacheTokenThreshold = cacheControl?.tokenThreshold ?? 0
-  const cacheLastNMessages = cacheControl?.cacheLastNMessages ?? 0
+  const cacheTokenThreshold =
+    cacheControl?.enabled === false ? 0 : (cacheControl?.tokenThreshold ?? ANTHROPIC_CACHE_DEFAULT_TOKEN_THRESHOLD)
+  const cacheLastNMessages = cacheControl?.cacheLastNMessages ?? ANTHROPIC_CACHE_DEFAULT_LAST_N_MESSAGES
   const [tokenThresholdDraft, setTokenThresholdDraft] = useState(String(cacheTokenThreshold))
   const [cacheLastNDraft, setCacheLastNDraft] = useState(String(cacheLastNMessages))
   const effectiveCacheTokenThreshold = clampInteger(tokenThresholdDraft, 0, CACHE_TOKEN_THRESHOLD_MAX)
@@ -154,9 +159,9 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
       }
 
       const next = {
-        tokenThreshold: 0,
+        tokenThreshold: ANTHROPIC_CACHE_DEFAULT_TOKEN_THRESHOLD,
         cacheSystemMessage: true,
-        cacheLastNMessages: 0,
+        cacheLastNMessages: ANTHROPIC_CACHE_DEFAULT_LAST_N_MESSAGES,
         ...provider.settings.cacheControl,
         ...updates
       }

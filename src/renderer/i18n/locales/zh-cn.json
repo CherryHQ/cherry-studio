@@ -1601,6 +1601,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "缓存 {{hit_rate}}%",
+        "tooltip": "缓存读取 {{cache_read}} / 写入 {{cache_write}} / 未缓存 {{no_cache}} · 节省 {{saved}} 输入 Token"
+      },
       "editing_current": "这条消息正在输入框中编辑",
       "flow": {
         "branches": "分支",
@@ -2378,6 +2382,7 @@
       "no_match_description": "当前筛选条件下没有文件",
       "no_match_title": "没有找到匹配的文件"
     },
+    "empty_trash": "清空回收站",
     "error": {
       "delete_failed": "删除文件失败",
       "delete_partial_failed": "部分文件删除失败",
@@ -2395,6 +2400,7 @@
     "missing": "缺失",
     "modified_at": "修改时间",
     "name": "文件名",
+    "no_actions": "暂无可用操作",
     "open": "打开",
     "other": "其他",
     "permanent_delete": "永久删除",
@@ -2408,13 +2414,18 @@
     "remove_from_library": "从库中移除",
     "rename": "重命名",
     "restore": "恢复",
+    "select_all": "全选当前列表",
+    "select_all_short": "全选",
+    "select_file": "选择 {{name}}",
     "selected_count": "已选择 {{count}} 个文件",
+    "selected_missing_hint": "所选文件中有缺失文件，只能定位或移除记录",
     "show_in_folder": "打开所在文件夹",
     "size": "大小",
     "text": "文本",
     "title": "文件",
     "trash": "回收站",
     "type": "类型",
+    "upload": "上传文件",
     "video": "视频"
   },
   "globalSearch": {
@@ -2798,7 +2809,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} 数据源",
-      "documents_count": "{{count}} 文档",
       "updated_at": "更新于 {{time}}"
     },
     "name_required": "知识库名称为必填项",
@@ -2930,8 +2940,8 @@
     "apps": "应用",
     "minapps": "小程序",
     "miniApps": "小程序",
-    "pin_to_sidebar": "固定到侧边栏",
-    "unpin_from_sidebar": "取消固定"
+    "pin_to_sidebar": "添加到侧边栏",
+    "unpin_from_sidebar": "从侧边栏移除"
   },
   "library": {
     "action": {
@@ -4784,6 +4794,7 @@
     "tencent-cloud-ti": "腾讯云 TI",
     "tesseract": "Tesseract",
     "together": "Together",
+    "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "天翼云息壤",

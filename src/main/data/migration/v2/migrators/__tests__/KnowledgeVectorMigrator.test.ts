@@ -1772,6 +1772,7 @@ describe('KnowledgeVectorMigrator', () => {
           material: { relativePath: itemId },
           content: { text },
           units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: text.length }],
+          usesEmbeddings: true,
           embeddings: [{ embeddingTextHash: hashEmbeddingText(text), vector }]
         }
       })
@@ -1826,6 +1827,7 @@ describe('KnowledgeVectorMigrator', () => {
                 material: { relativePath: 'item-0' },
                 content: { text: 'doc' },
                 units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: 3 }],
+                usesEmbeddings: true,
                 embeddings: [{ embeddingTextHash: hashEmbeddingText('doc'), vector: [1, 2] }]
               }
             }

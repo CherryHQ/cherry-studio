@@ -240,6 +240,32 @@ describe('CodeBlock', () => {
       )
     })
 
+    it('should pass Streamdown incomplete fence state to standard code blocks', () => {
+      mocks.isCodeFenceIncomplete = true
+
+      render(<CodeBlock {...defaultProps} />)
+
+      expect(mocks.CodeBlockView).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isStreaming: true
+        }),
+        undefined
+      )
+    })
+
+    it('should pass parent streaming state to standard code blocks after the fence is complete', () => {
+      mocks.isCodeFenceIncomplete = false
+
+      render(<CodeBlock {...defaultProps} isStreaming />)
+
+      expect(mocks.CodeBlockView).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isStreaming: true
+        }),
+        undefined
+      )
+    })
+
     it('should pass editable=false for HTML artifacts in readonly surfaces', () => {
       mocks.messageListUi = { readonly: true }
       const htmlProps = {
