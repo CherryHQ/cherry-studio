@@ -11,7 +11,7 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
-  SettingDivider,
+  SettingCard,
   SettingGroup,
   SettingRow,
   SettingRowTitle,
@@ -68,34 +68,35 @@ const ObsidianSettings: FC = () => {
   return (
     <SettingGroup>
       <SettingTitle>{t('settings.data.obsidian.title')}</SettingTitle>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.obsidian.default_vault')}</SettingRowTitle>
-        <RowFlex className="gap-1.25">
-          {loading ? (
-            <Spinner text={t('common.loading')} />
-          ) : vaults.length > 0 ? (
-            <Select value={defaultObsidianVault || undefined} onValueChange={handleChange}>
-              <SelectTrigger className="w-75 max-w-full">
-                <SelectValue placeholder={t('settings.data.obsidian.default_vault_placeholder')} />
-              </SelectTrigger>
-              <SelectContent>
-                {vaults.map((vault) => (
-                  <SelectItem key={vault.name} value={vault.name}>
-                    {vault.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <EmptyState
-              compact
-              preset="no-resource"
-              description={error || t('settings.data.obsidian.default_vault_no_vaults')}
-            />
-          )}
-        </RowFlex>
-      </SettingRow>
+      <SettingCard>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.obsidian.default_vault')}</SettingRowTitle>
+          <RowFlex className="min-w-0 max-w-75 flex-1 justify-end gap-1.25">
+            {loading ? (
+              <Spinner text={t('common.loading')} />
+            ) : vaults.length > 0 ? (
+              <Select value={defaultObsidianVault || undefined} onValueChange={handleChange}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={t('settings.data.obsidian.default_vault_placeholder')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {vaults.map((vault) => (
+                    <SelectItem key={vault.name} value={vault.name}>
+                      {vault.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <EmptyState
+                compact
+                preset="no-resource"
+                description={error || t('settings.data.obsidian.default_vault_no_vaults')}
+              />
+            )}
+          </RowFlex>
+        </SettingRow>
+      </SettingCard>
     </SettingGroup>
   )
 }

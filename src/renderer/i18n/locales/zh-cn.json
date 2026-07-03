@@ -6723,6 +6723,7 @@
       },
       "more_actions": "更多模型列表操作",
       "not_enabled_models": "已禁用",
+      "page_description": "配置各项功能使用的默认模型",
       "provider_id": "服务商 ID",
       "provider_key_add_confirm": "是否要为 {{provider}} 添加 API 密钥？",
       "provider_key_add_failed_by_empty_data": "添加服务商 API 密钥失败，数据为空",

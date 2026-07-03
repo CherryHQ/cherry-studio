@@ -4,9 +4,8 @@ import BackupPopup from '@renderer/components/Popups/BackupPopup'
 import { LanTransferPopup } from '@renderer/components/Popups/LanTransferPopup'
 import RestorePopup from '@renderer/components/Popups/RestorePopup'
 import {
-  SettingDivider,
+  SettingCard,
   SettingGroup,
-  SettingHelpText,
   SettingRow,
   SettingRowTitle,
   SettingTitle
@@ -446,123 +445,130 @@ const BasicDataSettings: React.FC = () => {
     <>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-          <RowFlex className="justify-between gap-1.25">
-            <Button onClick={() => BackupPopup.show()} variant="outline">
-              <SaveIcon size={14} />
-              {t('settings.general.backup.button')}
-            </Button>
-            <Button onClick={RestorePopup.show} variant="outline">
-              <FolderOpen size={14} />
-              {t('settings.general.restore.button')}
-            </Button>
-          </RowFlex>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-          <Switch checked={skipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
-        </SettingRow>
-        <SettingRow>
-          <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
-        </SettingRow>
+        <SettingCard>
+          <SettingRow>
+            <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
+            <RowFlex className="min-w-0 flex-wrap justify-end gap-1.25">
+              <Button onClick={() => BackupPopup.show()} variant="outline">
+                <SaveIcon size={14} strokeWidth={1.6} />
+                {t('settings.general.backup.button')}
+              </Button>
+              <Button onClick={RestorePopup.show} variant="outline">
+                <FolderOpen size={14} />
+                {t('settings.general.restore.button')}
+              </Button>
+            </RowFlex>
+          </SettingRow>
+          <SettingRow>
+            <SettingRowTitle tip={t('settings.data.backup.skip_file_data_help')}>
+              {t('settings.data.backup.skip_file_data_title')}
+            </SettingRowTitle>
+            <Switch checked={skipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
+          </SettingRow>
+        </SettingCard>
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.export_to_phone.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.data.export_to_phone.lan.title')}</SettingRowTitle>
-          <RowFlex className="justify-between gap-1.25">
-            <Button onClick={LanTransferPopup.show} variant="outline">
-              <Wifi size={14} />
-              {t('settings.data.export_to_phone.lan.button')}
-            </Button>
-          </RowFlex>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.data.export_to_phone.file.title')}</SettingRowTitle>
-          <RowFlex className="justify-between gap-1.25">
-            <Button onClick={() => BackupPopup.show('lan-transfer')} variant="outline">
-              <FolderInput size={14} />
-              {t('settings.data.export_to_phone.file.button')}
-            </Button>
-          </RowFlex>
-        </SettingRow>
+        <SettingCard>
+          <SettingRow>
+            <SettingRowTitle>{t('settings.data.export_to_phone.lan.title')}</SettingRowTitle>
+            <RowFlex className="min-w-0 flex-wrap justify-end gap-1.25">
+              <Button onClick={LanTransferPopup.show} variant="outline">
+                <Wifi size={14} strokeWidth={1.6} />
+                {t('settings.data.export_to_phone.lan.button')}
+              </Button>
+            </RowFlex>
+          </SettingRow>
+          <SettingRow>
+            <SettingRowTitle>{t('settings.data.export_to_phone.file.title')}</SettingRowTitle>
+            <RowFlex className="min-w-0 flex-wrap justify-end gap-1.25">
+              <Button
+                onClick={() => BackupPopup.show('lan-transfer')}
+                variant="outline"
+                className="[&_svg]:[stroke-width:var(--icon-stroke)]">
+                <FolderInput size={14} />
+                {t('settings.data.export_to_phone.file.button')}
+              </Button>
+            </RowFlex>
+          </SettingRow>
+        </SettingCard>
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.data.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.data.app_data.label')}</SettingRowTitle>
-          <PathRow>
-            <PathText
-              style={{ color: 'var(--color-foreground-muted)' }}
-              onClick={() => handleOpenPath(appInfo?.appDataPath)}>
-              {appInfo?.appDataPath}
-            </PathText>
-            <Tooltip title={t('settings.data.app_data.select')}>
-              <FolderOutput onClick={handleSelectAppDataPath} style={{ cursor: 'pointer' }} size={16} />
-            </Tooltip>
-            <RowFlex className="ml-2 gap-1.25">
-              <Button onClick={() => handleOpenPath(appInfo?.appDataPath)} variant="outline">
-                {t('settings.data.app_data.open')}
+        <SettingCard>
+          <SettingRow>
+            <SettingRowTitle className="flex-none">{t('settings.data.app_data.label')}</SettingRowTitle>
+            <PathRow>
+              <PathText
+                style={{ color: 'var(--color-foreground-muted)' }}
+                onClick={() => handleOpenPath(appInfo?.appDataPath)}>
+                {appInfo?.appDataPath}
+              </PathText>
+              <Tooltip title={t('settings.data.app_data.select')}>
+                <FolderOutput
+                  onClick={handleSelectAppDataPath}
+                  style={{ cursor: 'pointer' }}
+                  size={16}
+                  strokeWidth={1.6}
+                  className="text-foreground-muted"
+                />
+              </Tooltip>
+              <RowFlex className="ml-2 gap-1.25">
+                <Button onClick={() => handleOpenPath(appInfo?.appDataPath)} variant="outline">
+                  {t('settings.data.app_data.open')}
+                </Button>
+              </RowFlex>
+            </PathRow>
+          </SettingRow>
+          <SettingRow>
+            <SettingRowTitle className="flex-none">{t('settings.data.app_logs.label')}</SettingRowTitle>
+            <PathRow>
+              <PathText
+                style={{ color: 'var(--color-foreground-muted)' }}
+                onClick={() => handleOpenPath(appInfo?.logsPath)}>
+                {appInfo?.logsPath}
+              </PathText>
+              <RowFlex className="ml-2 gap-1.25">
+                <Button onClick={() => handleOpenPath(appInfo?.logsPath)} variant="outline">
+                  {t('settings.data.app_logs.button')}
+                </Button>
+              </RowFlex>
+            </PathRow>
+          </SettingRow>
+          <SettingRow>
+            <SettingRowTitle>
+              {t('settings.data.clear_cache.title')}
+              {cacheSize && <CacheText>({cacheSize}MB)</CacheText>}
+            </SettingRowTitle>
+            <RowFlex className="gap-1.25">
+              <Button onClick={handleClearCache} variant="outline">
+                {t('settings.data.clear_cache.button')}
               </Button>
             </RowFlex>
-          </PathRow>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.data.app_logs.label')}</SettingRowTitle>
-          <PathRow>
-            <PathText
-              style={{ color: 'var(--color-foreground-muted)' }}
-              onClick={() => handleOpenPath(appInfo?.logsPath)}>
-              {appInfo?.logsPath}
-            </PathText>
-            <RowFlex className="ml-2 gap-1.25">
-              <Button onClick={() => handleOpenPath(appInfo?.logsPath)} variant="outline">
-                {t('settings.data.app_logs.button')}
+          </SettingRow>
+          <SettingRow>
+            <SettingRowTitle>{t('settings.general.reset.title')}</SettingRowTitle>
+            <RowFlex className="gap-1.25">
+              <Button onClick={reset} variant="destructive">
+                {t('settings.general.reset.title')}
               </Button>
             </RowFlex>
-          </PathRow>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>
-            {t('settings.data.clear_cache.title')}
-            {cacheSize && <CacheText>({cacheSize}MB)</CacheText>}
-          </SettingRowTitle>
-          <RowFlex className="gap-1.25">
-            <Button onClick={handleClearCache} variant="outline">
-              {t('settings.data.clear_cache.button')}
-            </Button>
-          </RowFlex>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.general.reset.title')}</SettingRowTitle>
-          <RowFlex className="gap-1.25">
-            <Button onClick={reset} variant="destructive">
-              {t('settings.general.reset.title')}
-            </Button>
-          </RowFlex>
-        </SettingRow>
+          </SettingRow>
+        </SettingCard>
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.privacy.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.privacy.enable_privacy_mode')}</SettingRowTitle>
-          <Switch
-            checked={enableDataCollection}
-            onCheckedChange={(v) => {
-              void setEnableDataCollection(v)
-            }}
-          />
-        </SettingRow>
+        <SettingCard>
+          <SettingRow>
+            <SettingRowTitle>{t('settings.privacy.enable_privacy_mode')}</SettingRowTitle>
+            <Switch
+              checked={enableDataCollection}
+              onCheckedChange={(v) => {
+                void setEnableDataCollection(v)
+              }}
+            />
+          </SettingRow>
+        </SettingCard>
       </SettingGroup>
     </>
   )
@@ -624,7 +630,7 @@ const MigrationPathRow = ({ className, ...props }: React.ComponentPropsWithoutRe
 )
 
 const MigrationPathLabel = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('font-semibold text-[15px] text-foreground', className)} {...props} />
+  <div className={cn('text-(length:--font-size-body-md) font-semibold text-foreground', className)} {...props} />
 )
 
 const MigrationPathValue = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
