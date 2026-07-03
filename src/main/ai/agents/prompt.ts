@@ -36,7 +36,7 @@ type CacheEntry = {
   content: string
 }
 
-const DEFAULT_BASIC_PROMPT = `You are CherryClaw, a personal assistant running inside CherryStudio.
+const DEFAULT_BASIC_PROMPT = `You are a personal assistant running inside Cherry Studio.
 
 `
 
@@ -62,7 +62,7 @@ When to act:
 - Before writing to \`FACT.md\`, ask: will this still matter in 6 months? If not, append to the journal instead.
 - Never write to \`memory/FACT.md\` or \`memory/JOURNAL.jsonl\` via direct file tools — always go through the memory tool so writes stay atomic and searchable.`
 
-const CLAW_GUIDANCE = `## CherryClaw Tools
+const CLAW_GUIDANCE = `## Autonomy Tools
 
 You have exclusive access to these tools for interacting with CherryStudio's autonomous features. Always prefer them over manual alternatives.
 
@@ -90,19 +90,12 @@ You have two web tools: \`mcp__cherry-tools__web_search\` for structured search 
 If the user explicitly needs browser automation (filling forms, clicking, navigating live pages), tell them this capability is not currently available rather than attempting a workaround.`
 
 /**
- * Compose the tool-strategy guidance for an agent based on which MCP servers
- * have actually been injected. The skills, memory, and web-tools sections are
- * always present (those servers are injected for every agent); the claw
- * section is only included for autonomous (Soul Mode) agents that get the
- * cron / notify / config tools.
+ * Compose the tool-strategy guidance for an agent. Every section is always
+ * present — the claw (cron / notify / config), skills, memory, and web-tools
+ * MCP servers are injected for every agent.
  */
-function composeToolGuidance(opts: { hasClaw: boolean }): string {
-  const parts: string[] = []
-  if (opts.hasClaw) parts.push(CLAW_GUIDANCE)
-  parts.push(SKILLS_GUIDANCE)
-  parts.push(MEMORY_GUIDANCE)
-  parts.push(WEB_TOOLS_GUIDANCE)
-  return parts.join('\n\n')
+function composeToolGuidance(): string {
+  return [CLAW_GUIDANCE, SKILLS_GUIDANCE, MEMORY_GUIDANCE, WEB_TOOLS_GUIDANCE].join('\n\n')
 }
 
 function memoriesTemplate(workspacePath: string, sections: string): string {
@@ -128,20 +121,12 @@ ${sections}`
 /**
  * PromptBuilder assembles the system prompt for CherryStudio agents.
  *
- * Two entry points:
+ * {@link buildSystemPrompt} — full custom prompt that REPLACES the SDK preset
+ * entirely. Includes the basic identity, the full tool guidance (claw +
+ * skills + memory + web), bootstrap instructions when needed, and the
+ * workspace memory files (SOUL.md / USER.md / FACT.md).
  *
- * 1. {@link buildSystemPrompt} — full custom prompt for Soul Mode agents that
- *    REPLACES the SDK preset entirely. Includes the basic identity, the full
- *    tool guidance (claw + skills + memory + web), bootstrap instructions when
- *    needed, and the workspace memory files (SOUL.md / USER.md / FACT.md).
- *
- * 2. {@link buildToolGuidance} — lightweight tool-strategy suffix for
- *    non-Soul agents. Does not touch workspace files; intended to be APPENDED
- *    to the SDK's `claude_code` preset so the model gets cross-tool strategy
- *    guidance (skills + memory + web) on top of the standard Claude Code
- *    instructions. Returns a synchronous string — no I/O.
- *
- * Memory files layout (Soul Mode only):
+ * Memory files layout:
  *   {workspace}/SOUL.md          — personality, tone, communication style
  *   {workspace}/USER.md          — user profile, preferences, context
  *   {workspace}/memory/FACT.md   — durable project knowledge, technical decisions
@@ -158,8 +143,8 @@ export class PromptBuilder {
     const basicPrompt = systemPath ? await this.readCachedFile(systemPath) : undefined
     parts.push(basicPrompt ?? DEFAULT_BASIC_PROMPT)
 
-    // Tool guidance — Soul Mode gets the full set including claw (cron / notify / config)
-    parts.push(composeToolGuidance({ hasClaw: true }))
+    // Tool guidance — the full set including claw (cron / notify / config)
+    parts.push(composeToolGuidance())
 
     // Bootstrap detection: inject bootstrap instructions if not completed
     const needsBootstrap = await this.shouldRunBootstrap(workspacePath, config)
@@ -178,31 +163,18 @@ export class PromptBuilder {
   }
 
   /**
-   * Build the cross-tool strategy guidance string for a non-Soul agent. The
-   * returned text is meant to be APPENDED to the Claude Code SDK preset so
-   * the model gets explicit "when to use which tool" guidance on top of the
-   * SDK's built-in instructions. The skills + memory + web sections are
-   * always included (those MCP servers are injected for every agent); the
-   * claw section is excluded by default (non-Soul agents do not get cron /
-   * notify / config).
-   */
-  buildToolGuidance(opts: { hasClaw?: boolean } = {}): string {
-    return composeToolGuidance({ hasClaw: opts.hasClaw ?? false })
-  }
-
-  /**
-   * Build a "## Workspace Knowledge" section for non-Soul agents that loads
-   * just the workspace's `memory/FACT.md` content. This is the recall side of
+   * Build a "## Workspace Knowledge" section that loads just the workspace's
+   * `memory/FACT.md` content. This is the recall side of
    * the cross-session learning loop — agents write durable knowledge to
    * FACT.md via \`mcp__agent-memory__memory\` action="update", and this method
    * loads it back into the system prompt at the start of the next session so
    * the agent remembers what it learned (e.g. parameter shapes that previously
    * failed, project conventions, user corrections).
    *
-   * Distinct from {@link buildSystemPrompt}'s memories section which is Soul
-   * Mode only and also includes the SOUL.md / USER.md persona files. Returns
-   * undefined when no FACT.md exists, so callers can omit the section
-   * entirely rather than emitting an empty wrapper.
+   * Distinct from {@link buildSystemPrompt}'s memories section which also
+   * includes the SOUL.md / USER.md persona files. Returns undefined when no
+   * FACT.md exists, so callers can omit the section entirely rather than
+   * emitting an empty wrapper.
    */
   async buildFactsSection(workspacePath: string): Promise<string | undefined> {
     const memoryDir = path.join(workspacePath, 'memory')

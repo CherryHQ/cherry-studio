@@ -58,7 +58,7 @@ vi.mock('@data/services/JobScheduleService', () => ({
 vi.mock('@data/services/JobService', () => ({
   jobService: { getById: vi.fn() }
 }))
-vi.mock('@main/ai/agents/cherryclaw/heartbeat', () => ({
+vi.mock('@main/ai/agents/heartbeat', () => ({
   readHeartbeat: vi.fn()
 }))
 
@@ -68,7 +68,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
-import { readHeartbeat } from '@main/ai/agents/cherryclaw/heartbeat'
+import { readHeartbeat } from '@main/ai/agents/heartbeat'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 
 import { runAgentTask } from '../runAgentTask'

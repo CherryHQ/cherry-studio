@@ -72,9 +72,31 @@ describe('PromptBuilder', () => {
 
     const result = await builder.buildSystemPrompt('/workspace')
 
-    expect(result).toContain('You are CherryClaw')
-    expect(result).toContain('## CherryClaw Tools')
+    expect(result).toContain('You are a personal assistant running inside Cherry Studio')
+    expect(result).toContain('## Autonomy Tools')
     expect(result).not.toContain('## Memories')
+  })
+
+  it('embeds tool guidance sections in order (claw, skills, memory, web)', async () => {
+    setupFiles({})
+
+    const result = await builder.buildSystemPrompt('/workspace')
+
+    const clawIdx = result.indexOf('## Autonomy Tools')
+    const skillsIdx = result.indexOf('## Skills')
+    const memoryIdx = result.indexOf('## Workspace Memory')
+    const webIdx = result.indexOf('## Web Search Strategy')
+    expect(clawIdx).toBeGreaterThanOrEqual(0)
+    expect(clawIdx).toBeLessThan(skillsIdx)
+    expect(skillsIdx).toBeLessThan(memoryIdx)
+    expect(memoryIdx).toBeLessThan(webIdx)
+    expect(result).toContain('mcp__claw__cron')
+    expect(result).toContain('mcp__skills__skills')
+    expect(result).toContain('mcp__agent-memory__memory')
+    expect(result).toContain('mcp__cherry-tools__web_search')
+    expect(result).toContain('mcp__cherry-tools__web_fetch')
+    // Guard against the removed Exa tool name leaking back into the guidance.
+    expect(result).not.toContain('mcp__exa__web_search_exa')
   })
 
   it('overrides basic prompt with system.md from workspace', async () => {
@@ -85,7 +107,7 @@ describe('PromptBuilder', () => {
     const result = await builder.buildSystemPrompt('/workspace')
 
     expect(result).toContain('You are CustomBot')
-    expect(result).not.toContain('You are CherryClaw')
+    expect(result).not.toContain('You are a personal assistant running inside Cherry Studio')
   })
 
   it('includes soul.md in memories section', async () => {
@@ -132,7 +154,7 @@ describe('PromptBuilder', () => {
     setupFiles({
       '/workspace/soul.md': 'Be concise.',
       '/workspace/user.md': 'Name: V',
-      '/workspace/memory/FACT.md': 'Project: CherryClaw'
+      '/workspace/memory/FACT.md': 'Project: Cherry Studio'
     })
 
     const result = await builder.buildSystemPrompt('/workspace')
@@ -253,83 +275,6 @@ describe('PromptBuilder', () => {
     })
   })
 
-  describe('buildToolGuidance', () => {
-    it('returns skills, memory, and web sections without claw by default', () => {
-      const result = builder.buildToolGuidance()
-
-      expect(result).toContain('## Skills')
-      expect(result).toContain('mcp__skills__skills')
-      expect(result).toContain('## Workspace Memory')
-      expect(result).toContain('mcp__agent-memory__memory')
-      expect(result).toContain('## Web Search Strategy')
-      expect(result).toContain('mcp__cherry-tools__web_search')
-      expect(result).toContain('mcp__cherry-tools__web_fetch')
-      // Guard against the removed Exa tool name leaking back into the guidance.
-      expect(result).not.toContain('mcp__exa__web_search_exa')
-      expect(result).not.toContain('## CherryClaw Tools')
-      expect(result).not.toContain('mcp__claw__cron')
-      expect(result).not.toContain('mcp__claw__notify')
-      expect(result).not.toContain('mcp__claw__config')
-    })
-
-    it('includes claw section when hasClaw is true', () => {
-      const result = builder.buildToolGuidance({ hasClaw: true })
-
-      expect(result).toContain('## CherryClaw Tools')
-      expect(result).toContain('mcp__claw__cron')
-      expect(result).toContain('mcp__claw__notify')
-      expect(result).toContain('mcp__claw__config')
-      // Skills, memory, and web are still included
-      expect(result).toContain('mcp__skills__skills')
-      expect(result).toContain('mcp__agent-memory__memory')
-      expect(result).toContain('## Web Search Strategy')
-    })
-
-    it('places claw guidance before skills/memory when present', () => {
-      const result = builder.buildToolGuidance({ hasClaw: true })
-
-      const clawIdx = result.indexOf('## CherryClaw Tools')
-      const skillsIdx = result.indexOf('## Skills')
-      const memoryIdx = result.indexOf('## Workspace Memory')
-      const webIdx = result.indexOf('## Web Search Strategy')
-
-      expect(clawIdx).toBeGreaterThanOrEqual(0)
-      expect(clawIdx).toBeLessThan(skillsIdx)
-      expect(skillsIdx).toBeLessThan(memoryIdx)
-      expect(memoryIdx).toBeLessThan(webIdx)
-    })
-
-    it('teaches when to act for skills (init/register and patching)', () => {
-      const result = builder.buildToolGuidance()
-
-      expect(result).toMatch(/init.*register|register.*init/)
-      expect(result).toMatch(/edit.*in place|patch|outdated/i)
-    })
-
-    it('teaches when to act for memory (search-before-ask, FACT vs JOURNAL)', () => {
-      const result = builder.buildToolGuidance()
-
-      expect(result).toMatch(/search.*before|before.*ask/i)
-      expect(result).toContain('FACT.md')
-      expect(result).toContain('JOURNAL')
-      expect(result).toMatch(/6 months|durable/i)
-    })
-
-    it('returns the same content soul-mode buildSystemPrompt embeds (with claw)', async () => {
-      setupFiles({})
-      const soulPrompt = await builder.buildSystemPrompt('/workspace')
-      const guidance = builder.buildToolGuidance({ hasClaw: true })
-
-      // The Soul prompt should embed every section the with-claw guidance has.
-      expect(soulPrompt).toContain('## CherryClaw Tools')
-      expect(soulPrompt).toContain('## Skills')
-      expect(soulPrompt).toContain('## Workspace Memory')
-      expect(soulPrompt).toContain('## Web Search Strategy')
-      // And the guidance string is a contiguous substring of the soul prompt.
-      expect(soulPrompt).toContain(guidance)
-    })
-  })
-
   describe('buildFactsSection', () => {
     it('returns undefined when no FACT.md exists', async () => {
       setupFiles({})
@@ -378,7 +323,7 @@ describe('PromptBuilder', () => {
       expect(result).toBeUndefined()
     })
 
-    it('does not include SOUL.md or USER.md content (those are Soul-only)', async () => {
+    it('does not include SOUL.md or USER.md content (those are persona files)', async () => {
       setupFiles({
         '/workspace/SOUL.md': 'Warm but direct.',
         '/workspace/user.md': 'Name: V',

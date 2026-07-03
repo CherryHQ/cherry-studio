@@ -1,5 +1,5 @@
 /**
- * Regression for agents-jobs-3: the CherryClaw prompt/bootstrap drive memory via
+ * Regression for agents-jobs-3: the agent prompt/bootstrap drive memory via
  * `mcp__agent-memory__memory`, so every agent must actually get the `agent-memory`
  * server injected into the runtime MCP list AND allow its tools — not just reference the name.
  */

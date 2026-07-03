@@ -516,7 +516,7 @@ describe('ClawServer', () => {
 
     const agentWithConfig = {
       id: 'agent_1',
-      name: 'CherryClaw',
+      name: 'Test Agent',
       model: 'claude-sonnet-4-20250514',
       configuration: {
         heartbeat_enabled: true
@@ -525,7 +525,7 @@ describe('ClawServer', () => {
 
     const agentNoConfig = {
       id: 'agent_1',
-      name: 'CherryClaw',
+      name: 'Test Agent',
       model: 'claude-sonnet-4-20250514',
       configuration: {}
     }

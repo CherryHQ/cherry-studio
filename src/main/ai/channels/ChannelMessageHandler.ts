@@ -371,7 +371,7 @@ export class ChannelMessageHandler {
         }
         case 'help': {
           const agent = agentService.getAgent(agentId)
-          const name = agent?.name ?? 'CherryClaw'
+          const name = agent?.name ?? 'Cherry Studio'
           const description = agent?.description ?? ''
           const helpText = [
             `*${name}*`,

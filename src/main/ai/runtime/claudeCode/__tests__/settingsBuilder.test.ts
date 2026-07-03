@@ -84,7 +84,7 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
   provisionBuiltinAgent: vi.fn()
 }))
 
-vi.mock('@main/ai/agents/cherryclaw/prompt', () => ({
+vi.mock('@main/ai/agents/prompt', () => ({
   PromptBuilder: vi.fn(() => ({ buildSystemPrompt: vi.fn(async () => 'soul prompt') }))
 }))
 

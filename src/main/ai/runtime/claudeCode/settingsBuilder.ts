@@ -30,7 +30,7 @@ import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { isProvisioned, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
-import { PromptBuilder } from '@main/ai/agents/cherryclaw/prompt'
+import { PromptBuilder } from '@main/ai/agents/prompt'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
 import ClawServer from '@main/ai/mcp/servers/claw'
@@ -944,7 +944,7 @@ export function buildMcpServers(
   const clawServer = new ClawServer(agent.id, workspaceSource, session.workspace.path, sourceChannelId)
   mcpList.claw = { type: 'sdk', name: 'claw', instance: clawServer.mcpServer }
 
-  // agent-memory — the FACT.md / JOURNAL.jsonl memory tool the CherryClaw prompt and the
+  // agent-memory — the FACT.md / JOURNAL.jsonl memory tool the agent prompt and the
   // workspace bootstrap drive via `mcp__agent-memory__memory`. Without it the documented
   // "log completion" step (and all memory writes) have no backing server.
   const memoryServer = new WorkspaceMemoryServer(agent.id, session.workspace.path)
