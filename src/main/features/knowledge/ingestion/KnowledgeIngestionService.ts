@@ -467,38 +467,38 @@ export class KnowledgeIngestionService {
   }
 
   private async assertSubtreesCanReindex(baseId: string, rootItemIds: string[]): Promise<void> {
-    const blockingStatusCounts = new Map<KnowledgeItemStatus, number>()
+    // rootItemIds comes from getOutermostSelectedItemIds, which guarantees the roots are mutually
+    // non-descendant (disjoint subtrees), so one batched query's union equals the per-root sum.
+    const subtreeItems = knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true })
+    const rootIdSet = new Set(rootItemIds)
+    const roots = subtreeItems.filter((item) => rootIdSet.has(item.id))
+
+    // Reindex deletes the subtree's vectors before re-reading the source (reindexSubtreeJobHandler),
+    // so a root whose source is gone would lose its vectors with nothing to rebuild from — reject up
+    // front. Only the root's own source matters: a directory is rescanned from data.source and its
+    // children recreated (never read from their raw/ files), a file leaf reads its own raw/ file, and
+    // note/url always rebuild from the DB / network. A v1-migrated folder child reindexed on its own
+    // is a file root whose raw/ file never existed, so this rejects it too. Distinguish a genuinely
+    // missing source (delete-and-re-add) from one we could not verify (transient/permission error,
+    // which should retry rather than be destroyed).
+    const sourceStates = await Promise.all(roots.map((root) => classifyKnowledgeItemSource(baseId, root)))
+
     const missingSourceItemIds: string[] = []
     const unverifiableSourceItemIds: string[] = []
-
-    for (const rootItemId of rootItemIds) {
-      const subtreeItems = knowledgeItemService.getSubtreeItems(baseId, [rootItemId], { includeRoots: true })
-
-      // Reindex deletes the subtree's vectors before re-reading the source (reindexSubtreeJobHandler),
-      // so a root whose source is gone would lose its vectors with nothing to rebuild from — reject up
-      // front. Only the root's own source matters: a directory is rescanned from data.source and its
-      // children recreated (never read from their raw/ files), a file leaf reads its own raw/ file, and
-      // note/url always rebuild from the DB / network. A v1-migrated folder child reindexed on its own
-      // is a file root whose raw/ file never existed, so this rejects it too. Distinguish a genuinely
-      // missing source (delete-and-re-add) from one we could not verify (transient/permission error,
-      // which should retry rather than be destroyed).
-      const root = subtreeItems.find((item) => item.id === rootItemId)
-      if (root) {
-        const sourceState = await classifyKnowledgeItemSource(baseId, root)
-        if (sourceState === 'missing') {
-          missingSourceItemIds.push(rootItemId)
-        } else if (sourceState === 'unverifiable') {
-          unverifiableSourceItemIds.push(rootItemId)
-        }
+    roots.forEach((root, index) => {
+      if (sourceStates[index] === 'missing') {
+        missingSourceItemIds.push(root.id)
+      } else if (sourceStates[index] === 'unverifiable') {
+        unverifiableSourceItemIds.push(root.id)
       }
+    })
 
-      for (const item of subtreeItems) {
-        if (REINDEX_ALLOWED_STATUSES.has(item.status)) {
-          continue
-        }
-
-        blockingStatusCounts.set(item.status, (blockingStatusCounts.get(item.status) ?? 0) + 1)
+    const blockingStatusCounts = new Map<KnowledgeItemStatus, number>()
+    for (const item of subtreeItems) {
+      if (REINDEX_ALLOWED_STATUSES.has(item.status)) {
+        continue
       }
+      blockingStatusCounts.set(item.status, (blockingStatusCounts.get(item.status) ?? 0) + 1)
     }
 
     if (missingSourceItemIds.length > 0) {
