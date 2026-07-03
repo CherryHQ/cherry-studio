@@ -674,6 +674,48 @@ describe('HomePage', () => {
     expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
   })
 
+  it('keeps the assistant resource view open while opening the classic-layout assistant picker', () => {
+    homeMocks.preferenceValues.set('topic.layout', 'classic')
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.assistant' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open assistant picker' }))
+
+    expect(screen.getByTestId('assistant-conversation-picker')).toBeInTheDocument()
+    expect(screen.getByTestId('resource-catalog-assistant')).toBeInTheDocument()
+    expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
+  })
+
+  it('keeps the assistant resource view open until the selected assistant topic is ready', async () => {
+    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    let resolveCreateTopic!: (topic: Topic) => void
+    homeMocks.createTopic.mockReturnValue(
+      new Promise<Topic>((resolve) => {
+        resolveCreateTopic = resolve
+      })
+    )
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.assistant' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open assistant picker' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select my assistant' }))
+
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
+    expect(screen.queryByTestId('assistant-conversation-picker')).not.toBeInTheDocument()
+    expect(screen.getByTestId('resource-catalog-assistant')).toBeInTheDocument()
+    expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
+
+    await act(async () => {
+      resolveCreateTopic({ ...createdTopic, assistantId: 'assistant-2' })
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created'))
+    expect(screen.queryByTestId('resource-catalog-assistant')).not.toBeInTheDocument()
+  })
+
   it('keeps a sidebar toggle beside resource search so a collapsed pane can be reopened', async () => {
     homeMocks.preferenceValues.set('topic.tab.show', true)
 

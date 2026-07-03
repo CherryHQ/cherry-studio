@@ -454,7 +454,6 @@ const AgentPage = () => {
 
   const handleAgentConversationSelect = useCallback(
     async (agentId: string) => {
-      closeResourceView()
       // Close the picker first so the session/state churn below doesn't refresh the dialog while it's
       // still visible (which reads as a black/white flash + the dialog reopening).
       setAgentPickerOpen(false)
@@ -491,6 +490,7 @@ const AgentPage = () => {
           isUserWorkspaceSession(session) ? session.workspaceId : undefined
         )
         setActiveSessionId(session.id)
+        closeResourceView()
         if (!reusableSession) {
           void invalidateCache(['/agent-sessions', '/agent-workspaces', `/agent-sessions/${session.id}`]).catch(
             (err) => {
@@ -941,7 +941,6 @@ const AgentPage = () => {
     <AgentResourceList
       activeAgentId={activeResourceAgentId}
       onAddAgent={() => {
-        closeResourceView()
         setAgentPickerOpen(true)
       }}
       onOpenHistoryRecords={openHistoryRecords}

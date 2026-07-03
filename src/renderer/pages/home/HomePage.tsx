@@ -543,7 +543,6 @@ const HomePage: FC = () => {
     async (selection: AssistantConversationSelection) => {
       if (isCreatingTopicRef.current) return
       isCreatingTopicRef.current = true
-      closeResourceView()
       // Close the picker first so the topic/assistant data churn below doesn't refresh the dialog
       // while it's still visible (which reads as a black/white flash + the dialog reopening).
       setAssistantPickerOpen(false)
@@ -571,22 +570,13 @@ const HomePage: FC = () => {
         isCreatingTopicRef.current = false
       }
     },
-    [
-      closeResourceView,
-      createTopic,
-      classicLayoutTopics,
-      refreshTopics,
-      resolveAssistantIdForSelection,
-      setActiveTopicAndDiscardDraft,
-      t
-    ]
+    [createTopic, classicLayoutTopics, refreshTopics, resolveAssistantIdForSelection, setActiveTopicAndDiscardDraft, t]
   )
 
   const createAndActivateEmptyTopic = useCallback(
     async (payload?: AddNewTopicPayload) => {
       if (isCreatingTopicRef.current) return
       isCreatingTopicRef.current = true
-      closeResourceView()
       try {
         const selection = resolveDraftAssistantTarget(payload?.assistantId)
         const reusableTopic = findReusableEmptyTopic(classicLayoutTopics, selection.assistantId)
@@ -612,15 +602,7 @@ const HomePage: FC = () => {
         isCreatingTopicRef.current = false
       }
     },
-    [
-      closeResourceView,
-      createTopic,
-      classicLayoutTopics,
-      refreshTopics,
-      resolveDraftAssistantTarget,
-      setActiveTopicAndDiscardDraft,
-      t
-    ]
+    [createTopic, classicLayoutTopics, refreshTopics, resolveDraftAssistantTarget, setActiveTopicAndDiscardDraft, t]
   )
 
   // "去对话" from the assistant library (after adding a preset). The legacy navigate-to-chat no longer
@@ -750,7 +732,6 @@ const HomePage: FC = () => {
     <AssistantResourceList
       activeAssistantId={visibleAssistantId ?? null}
       onAddAssistant={() => {
-        closeResourceView()
         setAssistantPickerOpen(true)
       }}
       onOpenHistoryRecords={openHistoryRecords}

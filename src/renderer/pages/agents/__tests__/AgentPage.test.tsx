@@ -638,6 +638,75 @@ describe('AgentPage', () => {
     expect(screen.queryByTestId('agent-chat')).not.toBeInTheDocument()
   })
 
+  it('keeps the agent resource view open while opening the classic-layout agent picker', () => {
+    agentPageMocks.sessionLayout = 'classic'
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.agent' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
+
+    expect(screen.getByTestId('agent-conversation-picker')).toBeInTheDocument()
+    expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
+    expect(screen.queryByTestId('agent-chat')).not.toBeInTheDocument()
+  })
+
+  it('keeps the agent resource view open until the selected agent session is ready', async () => {
+    agentPageMocks.sessionLayout = 'classic'
+    agentPageMocks.routeSearch = {}
+    agentPageMocks.agents = [
+      { id: 'agent-a', model: 'model-a', name: 'Agent A' },
+      { id: 'agent-b', model: 'model-b', name: 'Agent B' }
+    ]
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+    let resolveSession!: (session: unknown) => void
+    agentPageMocks.dataApiPost.mockReturnValue(
+      new Promise<unknown>((resolve) => {
+        resolveSession = resolve
+      })
+    )
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.agent' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select resource agent' }))
+
+    await waitFor(() =>
+      expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
+        body: {
+          agentId: 'agent-b',
+          name: '',
+          workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+        }
+      })
+    )
+    expect(screen.queryByTestId('agent-conversation-picker')).not.toBeInTheDocument()
+    expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
+    expect(screen.queryByTestId('agent-chat')).not.toBeInTheDocument()
+
+    await act(async () => {
+      resolveSession({
+        ...agentPageMocks.persistedSession,
+        id: 'session-picker',
+        agentId: 'agent-b',
+        workspaceId: undefined,
+        workspace: {
+          type: 'system',
+          name: 'No project',
+          path: ''
+        }
+      })
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(screen.getByTestId('active-session')).toHaveTextContent('session-picker'))
+    expect(screen.queryByTestId('resource-catalog-agent')).not.toBeInTheDocument()
+  })
+
   it('keeps a sidebar toggle beside agent resource search so a collapsed pane can be reopened', async () => {
     agentPageMocks.showSidebar = true
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
