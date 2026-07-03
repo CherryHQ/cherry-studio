@@ -22,13 +22,12 @@ import type { SqliteExecutor } from './types'
  *
  * Engine portability (technical-design §5.6 / decision A1):
  * - All DDL is plain, engine-neutral SQLite — no engine-specific column types
- *   or functions. The same statements run on libsql today and on
- *   better-sqlite3 + sqlite-vec later, with zero user migration.
+ *   or functions. The same statements run on better-sqlite3 + sqlite-vec and
+ *   would run unchanged on any other SQLite engine, with zero user migration.
  * - `embedding.vector_blob` is a plain `BLOB` holding raw little-endian float32
- *   bytes (NOT libsql's proprietary `F32_BLOB`). Both engines read the same
- *   bytes; vector similarity is computed by each engine's scalar distance
- *   function at query time (libsql `vector_distance_cos`, sqlite-vec
- *   `vec_distance_cosine`). No derived ANN index is created in this version.
+ *   bytes (a standard SQLite BLOB, engine-portable). Vector similarity is
+ *   computed by sqlite-vec's `vec_distance_cosine` scalar function at query
+ *   time. No derived ANN index is created in this version.
  * - Because the embedding column is a dimensionless BLOB, the DDL takes no
  *   runtime parameters and is a static statement array — the same shape as
  *   `MESSAGE_FTS_STATEMENTS` in `src/main/data/db/schemas/message.ts`.
@@ -159,8 +158,8 @@ export const KNOWLEDGE_INDEX_SCHEMA_STATEMENTS: readonly string[] = [
   `CREATE INDEX IF NOT EXISTS search_text_embedding_hash_idx ON search_text(embedding_text_hash)`,
   `CREATE INDEX IF NOT EXISTS search_text_kind_idx ON search_text(kind)`,
   // UNIQUE so its backing index makes the trigger's per-row MAX(fts_rowid)+1 an O(log N) lookup and
-  // rejects any duplicate loudly (the assignment is race-free only because the driver serializes
-  // writes through its write mutex — see LibsqlDriver).
+  // rejects any duplicate loudly (the assignment is race-free only because all writes to a base's
+  // index are serialized upstream by KnowledgeLockManager.withBaseMutationLock — see BetterSqlite3Driver).
   `CREATE UNIQUE INDEX IF NOT EXISTS search_text_fts_rowid_uniq ON search_text(fts_rowid)`,
 
   // embedding — current embedding vector keyed by embedding-text hash.
@@ -205,19 +204,19 @@ export const KNOWLEDGE_INDEX_SCHEMA_STATEMENTS: readonly string[] = [
 
 /**
  * Apply the index schema through an engine-neutral {@link SqliteExecutor} (e.g.
- * a LibsqlDriver). Statements run sequentially and are auto-committed
+ * a BetterSqlite3Driver). Statements run sequentially and are auto-committed
  * per-statement (no wrapping transaction); recovery from a mid-way failure
  * relies on every statement being `IF NOT EXISTS`, so re-running completes the
  * job — it is NOT all-or-nothing.
  *
  * Does NOT set `PRAGMA foreign_keys` — the driver's opener owns that and must
- * set it outside a transaction (see module doc; openLibsqlIndexDriver does).
+ * set it outside a transaction (see module doc; openBetterSqlite3IndexDriver does).
  * Does NOT insert the `meta` row — that requires a runtime value (the base id)
  * and is owned by the store-open path.
  */
-export async function createKnowledgeIndexSchema(executor: SqliteExecutor): Promise<void> {
+export function createKnowledgeIndexSchema(executor: SqliteExecutor): void {
   for (const statement of KNOWLEDGE_INDEX_SCHEMA_STATEMENTS) {
-    await executor.execute(statement)
+    executor.execute(statement)
   }
 }
 
@@ -250,9 +249,9 @@ export const KNOWLEDGE_INDEX_DROP_STATEMENTS: readonly string[] = [
  * the base simply re-indexes. Drops run first (autocommit per statement), then the
  * current DDL is reapplied. Callers must restamp `meta` afterwards (the DROP removes it).
  */
-export async function resetKnowledgeIndexSchema(executor: SqliteExecutor): Promise<void> {
+export function resetKnowledgeIndexSchema(executor: SqliteExecutor): void {
   for (const statement of KNOWLEDGE_INDEX_DROP_STATEMENTS) {
-    await executor.execute(statement)
+    executor.execute(statement)
   }
-  await createKnowledgeIndexSchema(executor)
+  createKnowledgeIndexSchema(executor)
 }

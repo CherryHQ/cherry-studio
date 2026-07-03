@@ -170,7 +170,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // in-memory entry map is empty, so every such row is stale. Mirrors AiStreamManager's chat
     // reconcile so both message tables are settled on restart (neither stays a frozen "thinking"
     // bubble); agent sessions additionally recover conversation context via the resume token.
-    await this.reconcileStalePendingMessages()
+    this.reconcileStalePendingMessages()
 
     this.registerDisposable(
       agentService.onAgentUpdated(({ agentId, updates, agent }) => {
@@ -181,12 +181,12 @@ export class AgentSessionRuntimeService extends BaseService {
     )
   }
 
-  private async reconcileStalePendingMessages(): Promise<void> {
+  private reconcileStalePendingMessages(): void {
     try {
-      const staleIds = await agentSessionMessageService.findPendingAssistantMessageIds()
+      const staleIds = agentSessionMessageService.findPendingAssistantMessageIds()
       if (staleIds.length === 0) return
       logger.info('Reconciling crash-orphaned pending agent-session messages', { count: staleIds.length })
-      await agentSessionMessageService.markMessagesError(staleIds)
+      agentSessionMessageService.markMessagesError(staleIds)
     } catch (error) {
       logger.error('Failed to reconcile stale pending agent-session messages', { error })
     }
@@ -273,9 +273,9 @@ export class AgentSessionRuntimeService extends BaseService {
         return
       }
 
-      const session = await agentSessionService.getById(sessionId)
+      const session = agentSessionService.getById(sessionId)
       if (!session?.agentId) return
-      const agent = await agentService.getAgent(session.agentId)
+      const agent = agentService.getAgent(session.agentId)
       if (!agent?.model) return
       if (!runtimeDriverRegistry.getAgentSessionDriver(agent.type)) return
 
@@ -283,9 +283,9 @@ export class AgentSessionRuntimeService extends BaseService {
       // trace context the first turn will. The connection is reused across turns, so without this its
       // subprocess would start without TRACEPARENT and its spans would never join the session trace
       // tree. Idempotent with the dispatch path (`ensureTraceId` returns the same id).
-      const sessionTraceId = (await agentSessionService.ensureTraceId(sessionId).catch(() => undefined)) ?? undefined
+      const sessionTraceId = agentSessionService.ensureTraceId(sessionId)
 
-      // A real turn may have created the entry while we awaited the lookups — defer to it.
+      // A real turn may have created the entry while we resolved the session — defer to it.
       const raced = this.entries.get(sessionId)
       if (raced) {
         void this.ensureConnection(raced)
@@ -595,7 +595,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const driver = runtimeDriverRegistry.getAgentSessionDriver(entry.agentType)
     if (!driver) throw new Error(`Unsupported agent runtime type: ${entry.agentType}`)
 
-    await this.hydrateResumeToken(entry)
+    this.hydrateResumeToken(entry)
     if (!this.isCurrentEntry(entry)) return false
 
     const connection = await driver.connect({
@@ -622,9 +622,9 @@ export class AgentSessionRuntimeService extends BaseService {
     return true
   }
 
-  private async hydrateResumeToken(entry: AgentSessionRuntimeEntry): Promise<void> {
+  private hydrateResumeToken(entry: AgentSessionRuntimeEntry): void {
     if (entry.lastResumeToken) return
-    const runtimeResumeToken = await agentSessionMessageService.getLastRuntimeResumeToken(entry.sessionId)
+    const runtimeResumeToken = agentSessionMessageService.getLastRuntimeResumeToken(entry.sessionId)
     if (runtimeResumeToken) entry.lastResumeToken = runtimeResumeToken
   }
 
@@ -851,10 +851,10 @@ export class AgentSessionRuntimeService extends BaseService {
   private scheduleNextTurn(entry: AgentSessionRuntimeEntry): void {
     if (entry.startingNextTurn) return
     entry.startingNextTurn = true
-    // Keep `startingNextTurn` set for the WHOLE drain — `startNextTurn` spans a DB round-trip,
-    // and `isSessionBusy` relies on this flag so a concurrent dispatch landing in the inter-turn
-    // window enqueues instead of beginning a clobbering fresh turn. Clear it only once the drain
-    // settles (turn established, bailed, or errored).
+    // Keep `startingNextTurn` set for the WHOLE drain — `startNextTurn` runs on a deferred
+    // microtask, and `isSessionBusy` relies on this flag so a concurrent dispatch landing in the
+    // inter-turn window enqueues instead of beginning a clobbering fresh turn. Clear it only once
+    // the drain settles (turn established, bailed, or errored).
     queueMicrotask(() => {
       void this.startNextTurn(entry)
         .catch((error) => {
@@ -876,7 +876,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const rootSpan = this.startRuntimeRootSpan(entry)
     let assistantMessage: Awaited<ReturnType<typeof agentSessionMessageService.saveMessage>>
     try {
-      assistantMessage = await agentSessionMessageService.saveMessage({
+      assistantMessage = agentSessionMessageService.saveMessage({
         sessionId: entry.sessionId,
         message: {
           role: 'assistant',
@@ -894,16 +894,6 @@ export class AgentSessionRuntimeService extends BaseService {
       rootSpan?.end()
       application.get('AiStreamManager').broadcastTopicError(entry.topicId, entry.modelId, serializeError(error))
       this.markTurnTerminal(entry.sessionId, 'error')
-      return
-    }
-
-    // The DB save above yields the event loop; the session may have been torn down
-    // (shutdown / a fresh beginTurn) in the meantime. Re-check before mutating the entry,
-    // mirroring every other async method here — otherwise a dead entry gets resurrected
-    // into a doomed runtime turn with no backing agent connection.
-    if (!this.isCurrentEntry(entry)) {
-      rootSpan?.setStatus({ code: SpanStatusCode.ERROR, message: 'Entry invalidated mid-turn' })
-      rootSpan?.end()
       return
     }
 
@@ -977,7 +967,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const rootSpan = this.startRuntimeRootSpan(entry)
     let assistantMessage: Awaited<ReturnType<typeof agentSessionMessageService.saveMessage>>
     try {
-      assistantMessage = await agentSessionMessageService.saveMessage({
+      assistantMessage = agentSessionMessageService.saveMessage({
         sessionId: entry.sessionId,
         message: {
           role: 'assistant',
@@ -994,11 +984,6 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.rollBuffer = undefined
       application.get('AiStreamManager').broadcastTopicError(entry.topicId, entry.modelId, serializeError(error))
       this.markTurnTerminal(entry.sessionId, 'error')
-      return
-    }
-
-    if (!this.isCurrentEntry(entry)) {
-      rootSpan?.end()
       return
     }
 

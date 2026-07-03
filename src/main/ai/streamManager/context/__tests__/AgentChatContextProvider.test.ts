@@ -82,15 +82,15 @@ describe('AgentChatContextProvider', () => {
       validateSession: mocks.runtimeValidateSession,
       listAvailableTools: vi.fn().mockResolvedValue([])
     })
-    mocks.getSession.mockResolvedValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp' } })
-    mocks.ensureTraceId.mockResolvedValue('a'.repeat(32))
-    mocks.getAgent.mockResolvedValue({
+    mocks.getSession.mockReturnValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp' } })
+    mocks.ensureTraceId.mockReturnValue('a'.repeat(32))
+    mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
       model: 'anthropic::claude-sonnet',
       modelName: 'Claude Sonnet'
     })
-    mocks.saveMessage.mockImplementation(async ({ sessionId, message }) => ({
+    mocks.saveMessage.mockImplementation(({ sessionId, message }) => ({
       id: message.id,
       sessionId,
       role: message.role,
@@ -104,7 +104,7 @@ describe('AgentChatContextProvider', () => {
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z'
     }))
-    mocks.saveMessages.mockImplementation(async ({ sessionId, messages }) =>
+    mocks.saveMessages.mockImplementation(({ sessionId, messages }) =>
       messages.map((message) => ({
         id: message.id,
         sessionId,
@@ -243,7 +243,7 @@ describe('AgentChatContextProvider', () => {
 
   it('rejects agent sessions without a registered runtime driver', async () => {
     runtimeDriverRegistry.clearForTest()
-    mocks.getAgent.mockResolvedValue({ id: 'agent-1', type: 'custom-runtime', model: 'anthropic::claude-sonnet' })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'custom-runtime', model: 'anthropic::claude-sonnet' })
 
     await expect(provider.prepareDispatch(makeSubscriber(), openReq())).rejects.toThrow(
       'Unsupported agent runtime type: custom-runtime'

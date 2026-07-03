@@ -125,14 +125,14 @@ describe('AgentSessionRuntimeService', () => {
     BaseService.resetInstances()
     runtimeDriverRegistry.clearForTest()
     vi.clearAllMocks()
-    mocks.saveMessage.mockImplementation(async ({ message }) => ({
+    mocks.saveMessage.mockImplementation(({ message }) => ({
       ...message,
       id: message.id ?? 'generated-message-id'
     }))
-    mocks.getLastRuntimeResumeToken.mockResolvedValue(null)
-    mocks.findPendingAssistantMessageIds.mockResolvedValue([])
-    mocks.markMessagesError.mockResolvedValue(undefined)
-    mocks.ensureTraceId.mockResolvedValue('b'.repeat(32))
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+    mocks.findPendingAssistantMessageIds.mockReturnValue([])
+    mocks.markMessagesError.mockReturnValue(undefined)
+    mocks.ensureTraceId.mockReturnValue('b'.repeat(32))
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'AiStreamManager') {
         return {
@@ -166,56 +166,25 @@ describe('AgentSessionRuntimeService', () => {
       service.beginTurn(baseTurnInput)
       service.enqueueUserMessage('session-1', userMessage('user-2'))
 
-      // Hold the drain's assistant-placeholder save so we can observe the in-flight window.
-      const deferred = createDeferred<any>()
-      mocks.saveMessage.mockImplementationOnce(() => deferred.promise)
-
       service.markTurnTerminal('session-1', 'success') // current turn → terminal, schedules the drain
-      await new Promise((resolve) => setTimeout(resolve, 0)) // flush microtasks → drain parks on saveMessage
 
       const entry = getEntry(service)
-      // The bug window: the queued message was shifted (pendingTurns empty) and the old turn is
-      // terminal — pre-fix nothing reported the session busy here.
-      expect(entry.pendingTurns.length).toBe(0)
+      // The bug window: the current turn is terminal and the follow-up drain is scheduled but has
+      // not yet swapped in the fresh turn — pre-fix nothing reported the session busy here.
+      expect(entry.pendingTurns.length).toBe(1)
       expect(entry.currentTurn.terminalStatus).toBe('success')
       expect(entry.startingNextTurn).toBe(true) // flag now spans the whole drain
       expect(service.isSessionBusy('session-1')).toBe(true)
 
-      deferred.resolve({ id: 'assistant-2' })
       await new Promise((resolve) => setTimeout(resolve, 0)) // drain completes → fresh live turn
       expect(service.isSessionBusy('session-1')).toBe(true)
       expect(getEntry(service).startingNextTurn).toBe(false)
-    })
-
-    it('does not resurrect a session torn down during the next-turn placeholder save (REGRESSION agent-session-1)', async () => {
-      const service = new AgentSessionRuntimeService()
-      service.beginTurn(baseTurnInput)
-      service.enqueueUserMessage('session-1', userMessage('user-2'))
-
-      // Hold the drain's placeholder save so we can tear the session down mid-await.
-      const deferred = createDeferred<any>()
-      mocks.saveMessage.mockImplementationOnce(() => deferred.promise)
-
-      service.markTurnTerminal('session-1', 'success') // schedules the drain → parks on saveMessage
-      await new Promise((resolve) => setTimeout(resolve, 0))
-
-      const startCallsBefore = mocks.startRuntimeTurn.mock.calls.length
-
-      // Session is torn down (shutdown / a fresh beginTurn) while the save is still in flight.
-      service.closeSession('session-1')
-
-      deferred.resolve({ id: 'assistant-2' })
-      await new Promise((resolve) => setTimeout(resolve, 0))
-
-      // The dead entry must NOT be resurrected into a runtime turn.
-      expect(mocks.startRuntimeTurn.mock.calls.length).toBe(startCallsBefore)
-      expect(getEntry(service)).toBeUndefined()
     })
   })
 
   describe('reconcileStalePendingMessages — boot crash recovery', () => {
     it('marks crash-orphaned pending assistant messages as errored on init', async () => {
-      mocks.findPendingAssistantMessageIds.mockResolvedValue(['stale-1', 'stale-2'])
+      mocks.findPendingAssistantMessageIds.mockReturnValue(['stale-1', 'stale-2'])
       const service = new AgentSessionRuntimeService()
 
       await (service as any).onInit()
@@ -225,7 +194,7 @@ describe('AgentSessionRuntimeService', () => {
     })
 
     it('does not mark anything when there are no stale messages', async () => {
-      mocks.findPendingAssistantMessageIds.mockResolvedValue([])
+      mocks.findPendingAssistantMessageIds.mockReturnValue([])
       const service = new AgentSessionRuntimeService()
 
       await (service as any).onInit()
@@ -235,7 +204,9 @@ describe('AgentSessionRuntimeService', () => {
 
     it('logs and does not rethrow when the reconcile lookup throws, so boot is not blocked', async () => {
       const failure = new Error('db down')
-      mocks.findPendingAssistantMessageIds.mockRejectedValue(failure)
+      mocks.findPendingAssistantMessageIds.mockImplementation(() => {
+        throw failure
+      })
       const service = new AgentSessionRuntimeService()
 
       await expect((service as any).onInit()).resolves.toBeUndefined()
@@ -755,8 +726,8 @@ describe('AgentSessionRuntimeService', () => {
         validateSession: vi.fn(),
         listAvailableTools: vi.fn().mockResolvedValue([])
       })
-      mocks.getSessionById.mockResolvedValue({ id: 'session-1', agentId: 'agent-1' })
-      mocks.getAgent.mockResolvedValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
 
       const service = new AgentSessionRuntimeService()
       await service.primeConnection('session-1')
@@ -776,7 +747,7 @@ describe('AgentSessionRuntimeService', () => {
     })
 
     it('is a no-op for a session whose agent was deleted', async () => {
-      mocks.getSessionById.mockResolvedValue({ id: 'session-1', agentId: null })
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: null })
       const service = new AgentSessionRuntimeService()
       await service.primeConnection('session-1')
       expect(service.inspect('session-1')).toBeUndefined()
@@ -798,8 +769,8 @@ describe('AgentSessionRuntimeService', () => {
         validateSession: vi.fn(),
         listAvailableTools: vi.fn().mockResolvedValue([])
       })
-      mocks.getSessionById.mockResolvedValue({ id: 'session-1', agentId: 'agent-1' })
-      mocks.getAgent.mockResolvedValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
 
       const service = new AgentSessionRuntimeService()
       await service.primeConnection('session-1')
@@ -1175,7 +1146,7 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   it('hydrates the persisted resume token before connecting a cold historical session', async () => {
-    mocks.getLastRuntimeResumeToken.mockResolvedValue('resume-db')
+    mocks.getLastRuntimeResumeToken.mockReturnValue('resume-db')
     const events = createAsyncQueue<any>()
     const connection = {
       events: events.iterable,
@@ -1676,7 +1647,9 @@ describe('AgentSessionRuntimeService', () => {
     entry.pendingTurns.push(queued)
 
     const saveError = new Error('db down')
-    mocks.saveMessage.mockRejectedValueOnce(saveError)
+    mocks.saveMessage.mockImplementationOnce(() => {
+      throw saveError
+    })
 
     // The placeholder save failed: re-queuing would just fail again and the idle TTL would
     // silently clear it, so the message is dropped, the failure is surfaced to the live renderer,
@@ -1705,7 +1678,9 @@ describe('AgentSessionRuntimeService', () => {
     entry.rollSteerInputs = [{ message: userMessage('user-2'), systemReminder: true }] as any
 
     const saveError = new Error('db down')
-    mocks.saveMessage.mockRejectedValueOnce(saveError)
+    mocks.saveMessage.mockImplementationOnce(() => {
+      throw saveError
+    })
 
     // The A2 placeholder save failed: abandon the roll (drop the buffered post-steer chunks), surface
     // the failure to the live renderer, and settle the turn to `error` instead of idling on a doomed roll.

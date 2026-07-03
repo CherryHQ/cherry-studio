@@ -66,6 +66,7 @@ export function useAssistantMutations() {
   const duplicateAssistant = useCallback(
     async (source: Assistant): Promise<Assistant> => {
       const duplicateName = t('library.duplicate_name', { name: source.name })
+      const tagId = source.tags[0]?.id
 
       return createTrigger({
         body: {
@@ -77,7 +78,7 @@ export function useAssistantMutations() {
           settings: source.settings,
           mcpServerIds: source.mcpServerIds,
           knowledgeBaseIds: source.knowledgeBaseIds,
-          tagIds: source.tags.map((tag) => tag.id)
+          tagIds: tagId ? [tagId] : []
         }
       })
     },
@@ -100,7 +101,7 @@ export function useAssistantMutationsById(id: string) {
     refresh: ['/assistants', '/assistants/*']
   })
   const { trigger: deleteTrigger } = useMutation('DELETE', path, {
-    refresh: ['/assistants', '/assistants/*']
+    refresh: ['/assistants', '/assistants/*', '/pins']
   })
 
   const updateAssistant = useCallback(

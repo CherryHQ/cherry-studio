@@ -19,13 +19,12 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
 
 import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { jobScheduleTable, jobTable } from '@data/db/schemas/job'
-import { createClient } from '@libsql/client'
 import { setupTestDatabase } from '@test-helpers/db'
+import Database from 'better-sqlite3'
 import { eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
@@ -35,9 +34,9 @@ const AGENT_ID = 'agent-v1-001'
 const CHANNEL_ID = 'channel-v1-001'
 
 async function seedLegacyDb(path: string): Promise<void> {
-  const client = createClient({ url: pathToFileURL(path).href })
+  const db = new Database(path)
   try {
-    await client.execute(`
+    db.exec(`
       CREATE TABLE scheduled_tasks (
         id TEXT PRIMARY KEY,
         agent_id TEXT NOT NULL,
@@ -55,7 +54,7 @@ async function seedLegacyDb(path: string): Promise<void> {
       )
     `)
 
-    await client.execute(`
+    db.exec(`
       CREATE TABLE task_run_logs (
         id TEXT PRIMARY KEY,
         task_id TEXT NOT NULL,
@@ -68,7 +67,7 @@ async function seedLegacyDb(path: string): Promise<void> {
       )
     `)
 
-    await client.execute(`
+    db.exec(`
       CREATE TABLE channel_task_subscriptions (
         channel_id TEXT NOT NULL,
         task_id TEXT NOT NULL,
@@ -76,47 +75,42 @@ async function seedLegacyDb(path: string): Promise<void> {
       )
     `)
 
-    await client.execute({
-      sql: `INSERT INTO scheduled_tasks (id, agent_id, name, prompt, schedule_type, schedule_value, timeout_minutes, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: ['task-cron', AGENT_ID, 'Daily standup', 'Run standup', 'cron', '0 9 * * *', 5, 'active']
-    })
-    await client.execute({
-      sql: `INSERT INTO scheduled_tasks (id, agent_id, name, prompt, schedule_type, schedule_value, timeout_minutes, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: ['task-interval', AGENT_ID, 'Hourly ping', 'Ping', 'interval', '60', null, 'paused']
-    })
-    await client.execute({
-      sql: `INSERT INTO scheduled_tasks (id, agent_id, name, prompt, schedule_type, schedule_value, timeout_minutes, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: ['task-once', AGENT_ID, 'One-off', 'Run once', 'once', '2026-05-20T12:00:00.000Z', 2, 'active']
-    })
+    db.prepare(
+      `INSERT INTO scheduled_tasks (id, agent_id, name, prompt, schedule_type, schedule_value, timeout_minutes, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run('task-cron', AGENT_ID, 'Daily standup', 'Run standup', 'cron', '0 9 * * *', 5, 'active')
+    db.prepare(
+      `INSERT INTO scheduled_tasks (id, agent_id, name, prompt, schedule_type, schedule_value, timeout_minutes, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run('task-interval', AGENT_ID, 'Hourly ping', 'Ping', 'interval', '60', null, 'paused')
+    db.prepare(
+      `INSERT INTO scheduled_tasks (id, agent_id, name, prompt, schedule_type, schedule_value, timeout_minutes, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run('task-once', AGENT_ID, 'One-off', 'Run once', 'once', '2026-05-20T12:00:00.000Z', 2, 'active')
 
     // Two run-log rows that MUST be discarded by the migration.
-    await client.execute({
-      sql: `INSERT INTO task_run_logs (id, task_id, session_id, run_at, duration_ms, status, result, error)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: ['log-1', 'task-cron', null, '2026-05-19T09:00:00.000Z', 1234, 'success', 'ok', null]
-    })
-    await client.execute({
-      sql: `INSERT INTO task_run_logs (id, task_id, session_id, run_at, duration_ms, status, result, error)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: ['log-2', 'task-interval', null, '2026-05-19T10:00:00.000Z', 567, 'error', null, 'boom']
-    })
+    db.prepare(
+      `INSERT INTO task_run_logs (id, task_id, session_id, run_at, duration_ms, status, result, error)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run('log-1', 'task-cron', null, '2026-05-19T09:00:00.000Z', 1234, 'success', 'ok', null)
+    db.prepare(
+      `INSERT INTO task_run_logs (id, task_id, session_id, run_at, duration_ms, status, result, error)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run('log-2', 'task-interval', null, '2026-05-19T10:00:00.000Z', 567, 'error', null, 'boom')
 
     // Two subscriptions — one pointing at a task that survives the migration,
     // one pointing at a task whose agent does NOT exist in target → migrator
     // must skip the dangling row instead of FK-failing.
-    await client.execute({
-      sql: `INSERT INTO channel_task_subscriptions (channel_id, task_id) VALUES (?, ?)`,
-      args: [CHANNEL_ID, 'task-cron']
-    })
-    await client.execute({
-      sql: `INSERT INTO channel_task_subscriptions (channel_id, task_id) VALUES (?, ?)`,
-      args: [CHANNEL_ID, 'orphan-task']
-    })
+    db.prepare(`INSERT INTO channel_task_subscriptions (channel_id, task_id) VALUES (?, ?)`).run(
+      CHANNEL_ID,
+      'task-cron'
+    )
+    db.prepare(`INSERT INTO channel_task_subscriptions (channel_id, task_id) VALUES (?, ?)`).run(
+      CHANNEL_ID,
+      'orphan-task'
+    )
   } finally {
-    client.close()
+    db.close()
   }
 }
 
@@ -161,14 +155,14 @@ describe('AgentsMigrator > migrateScheduledTasksTs', () => {
    *  then DETACH. Encapsulates the surrounding scaffolding so each test
    *  only deals with assertions. */
   async function runTsLoop(): Promise<void> {
-    await dbh.db.run(sql.raw(`ATTACH DATABASE '${legacyPath}' AS agents_legacy`))
+    dbh.db.run(sql.raw(`ATTACH DATABASE '${legacyPath}' AS agents_legacy`))
     try {
       const migrator = new AgentsMigrator()
       await (
         migrator as unknown as { migrateScheduledTasksTs: (db: typeof dbh.db) => Promise<void> }
       ).migrateScheduledTasksTs(dbh.db)
     } finally {
-      await dbh.db.run(sql.raw('DETACH DATABASE agents_legacy'))
+      dbh.db.run(sql.raw('DETACH DATABASE agents_legacy'))
     }
   }
 
@@ -270,9 +264,9 @@ describe('AgentsMigrator > migrateScheduledTasksTs > duplicate v1 task names', (
   beforeAll(async () => {
     tempDir = mkdtempSync(join(tmpdir(), 'cs-agents-task-dup-test-'))
     legacyPath = join(tempDir, 'agents.db')
-    const client = createClient({ url: pathToFileURL(legacyPath).href })
+    const db = new Database(legacyPath)
     try {
-      await client.execute(`
+      db.exec(`
         CREATE TABLE scheduled_tasks (
           id TEXT PRIMARY KEY,
           agent_id TEXT NOT NULL,
@@ -284,7 +278,7 @@ describe('AgentsMigrator > migrateScheduledTasksTs > duplicate v1 task names', (
           status TEXT NOT NULL
         )
       `)
-      await client.execute(`
+      db.exec(`
         CREATE TABLE channel_task_subscriptions (
           channel_id TEXT NOT NULL,
           task_id TEXT NOT NULL,
@@ -294,18 +288,16 @@ describe('AgentsMigrator > migrateScheduledTasksTs > duplicate v1 task names', (
       // Two distinct v1 tasks sharing the SAME name. Both map to
       // (type='agent.task', name='Daily standup') and would collide on the
       // unique index unless the migrator disambiguates.
-      await client.execute({
-        sql: `INSERT INTO scheduled_tasks (id, agent_id, name, prompt, schedule_type, schedule_value, timeout_minutes, status)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: ['task-dup-1', AGENT_ID, 'Daily standup', 'Run standup A', 'cron', '0 9 * * *', 5, 'active']
-      })
-      await client.execute({
-        sql: `INSERT INTO scheduled_tasks (id, agent_id, name, prompt, schedule_type, schedule_value, timeout_minutes, status)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: ['task-dup-2', AGENT_ID, 'Daily standup', 'Run standup B', 'cron', '0 10 * * *', 5, 'active']
-      })
+      db.prepare(
+        `INSERT INTO scheduled_tasks (id, agent_id, name, prompt, schedule_type, schedule_value, timeout_minutes, status)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run('task-dup-1', AGENT_ID, 'Daily standup', 'Run standup A', 'cron', '0 9 * * *', 5, 'active')
+      db.prepare(
+        `INSERT INTO scheduled_tasks (id, agent_id, name, prompt, schedule_type, schedule_value, timeout_minutes, status)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run('task-dup-2', AGENT_ID, 'Daily standup', 'Run standup B', 'cron', '0 10 * * *', 5, 'active')
     } finally {
-      client.close()
+      db.close()
     }
   })
 
@@ -325,7 +317,7 @@ describe('AgentsMigrator > migrateScheduledTasksTs > duplicate v1 task names', (
   })
 
   it('migrates both same-named v1 tasks without throwing, disambiguating one name', async () => {
-    await dbh.db.run(sql.raw(`ATTACH DATABASE '${legacyPath}' AS agents_legacy`))
+    dbh.db.run(sql.raw(`ATTACH DATABASE '${legacyPath}' AS agents_legacy`))
     try {
       const migrator = new AgentsMigrator()
       await expect(
@@ -334,7 +326,7 @@ describe('AgentsMigrator > migrateScheduledTasksTs > duplicate v1 task names', (
         ).migrateScheduledTasksTs(dbh.db)
       ).resolves.toBeUndefined()
     } finally {
-      await dbh.db.run(sql.raw('DETACH DATABASE agents_legacy'))
+      dbh.db.run(sql.raw('DETACH DATABASE agents_legacy'))
     }
 
     const schedules = await dbh.db.select().from(jobScheduleTable).where(eq(jobScheduleTable.type, 'agent.task'))

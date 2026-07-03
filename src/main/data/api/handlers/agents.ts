@@ -15,6 +15,7 @@ import {
   type AgentSchemas,
   CreateAgentSchema,
   CreateTaskSchema,
+  DeleteAgentQuerySchema,
   ListAgentsQuerySchema,
   type ListQuery,
   ListQuerySchema,
@@ -42,20 +43,20 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
       if (!parsed.success) throw toDataApiError(parsed.error)
       const { search, page, limit } = parsed.data
       const offset = (page - 1) * limit
-      const { agents, total } = await agentService.listAgents({ limit, offset, search })
+      const { agents, total } = agentService.listAgents({ limit, offset, search })
       return { items: agents, total, page }
     },
 
     POST: async ({ body }) => {
       const parsed = CreateAgentSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await agentService.createAgent(parsed.data)
+      return agentService.createAgent(parsed.data)
     }
   },
 
   '/agents/:agentId': {
     GET: async ({ params }) => {
-      const agent = await agentService.getAgent(params.agentId)
+      const agent = agentService.getAgent(params.agentId)
       if (!agent) throw DataApiErrorFactory.notFound('Agent', params.agentId)
       return agent
     },
@@ -63,13 +64,17 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     PATCH: async ({ params, body }) => {
       const parsed = UpdateAgentSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      const agent = await agentService.updateAgent(params.agentId, parsed.data)
+      const agent = agentService.updateAgent(params.agentId, parsed.data)
       if (!agent) throw DataApiErrorFactory.notFound('Agent', params.agentId)
       return agent
     },
 
-    DELETE: async ({ params }) => {
-      const deleted = await agentService.deleteAgent(params.agentId)
+    DELETE: async ({ params, query }) => {
+      const parsed = DeleteAgentQuerySchema.safeParse(query ?? {})
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      const deleted = agentService.deleteAgent(params.agentId, {
+        deleteSessions: parsed.data.deleteSessions === true
+      })
       if (!deleted) throw DataApiErrorFactory.notFound('Agent', params.agentId)
       return undefined
     }
@@ -78,7 +83,7 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
   '/agents/:agentId/tasks': {
     GET: async ({ params, query }) => {
       const { page, limit, offset } = paginationFromQuery(parseListQuery(query))
-      const { tasks, total } = await taskService.listTasks(params.agentId, { limit, offset })
+      const { tasks, total } = taskService.listTasks(params.agentId, { limit, offset })
       return { items: tasks, total, page }
     },
 
@@ -91,7 +96,7 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
 
   '/agents/:agentId/tasks/:taskId': {
     GET: async ({ params }) => {
-      const task = await taskService.getTask(params.agentId, params.taskId)
+      const task = taskService.getTask(params.agentId, params.taskId)
       if (!task) throw DataApiErrorFactory.notFound('Task', params.taskId)
       return task
     },
@@ -113,10 +118,10 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
 
   '/agents/:agentId/tasks/:taskId/logs': {
     GET: async ({ params, query }) => {
-      const task = await taskService.getTask(params.agentId, params.taskId)
+      const task = taskService.getTask(params.agentId, params.taskId)
       if (!task) throw DataApiErrorFactory.notFound('Task', params.taskId)
       const { page, limit, offset } = paginationFromQuery(parseListQuery(query))
-      const { logs, total } = await taskService.getTaskLogs(params.taskId, { limit, offset })
+      const { logs, total } = taskService.getTaskLogs(params.taskId, { limit, offset })
       return { items: logs, total, page }
     }
   },
@@ -124,7 +129,7 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
   '/agents/:id/order': {
     PATCH: async ({ params, body }) => {
       const parsed = OrderRequestSchema.parse(body)
-      await agentService.reorder(params.id, parsed)
+      agentService.reorder(params.id, parsed)
       return undefined
     }
   },
@@ -132,7 +137,7 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
   '/agents/order:batch': {
     PATCH: async ({ body }) => {
       const parsed = OrderBatchRequestSchema.parse(body)
-      await agentService.reorderBatch(parsed.moves)
+      agentService.reorderBatch(parsed.moves)
       return undefined
     }
   }

@@ -21,9 +21,9 @@ const UI_DEFAULT_MAX_TOOL_CALLS = 20
  * Flat form state for the Assistant edit dialog. Every editable field lives
  * here so the dialog commits in a single PATCH.
  *
- * `tags` stores user-facing names, not ids — tag-id resolution happens
- * at save time via `ensureTags` so the user can freely type new tags without
- * paying a network round-trip per keystroke.
+ * `tagName` stores one user-facing name, not an id — tag-id resolution happens
+ * at save time via `ensureTags`, keeping the form state independent from
+ * backend tag ids.
  */
 export interface AssistantFormState {
   // columns
@@ -46,9 +46,13 @@ export interface AssistantFormState {
   customParameters: CustomParameter[]
   mcpMode: AssistantSettings['mcpMode']
   // relations
-  tags: string[]
+  tagName: string | null
   knowledgeBaseIds: string[]
   mcpServerIds: string[]
+}
+
+function normalizeAssistantTagName(tags: readonly string[]): string | null {
+  return tags[0] ?? null
 }
 
 function buildAssistantSettingsFromForm(
@@ -90,7 +94,7 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     enableMaxToolCalls: settings.enableMaxToolCalls ?? true,
     customParameters: settings.customParameters ?? [],
     mcpMode: settings.mcpMode ?? 'auto',
-    tags: (assistant.tags ?? []).map((t) => t.name),
+    tagName: normalizeAssistantTagName((assistant.tags ?? []).map((t) => t.name)),
     knowledgeBaseIds: assistant.knowledgeBaseIds ?? [],
     mcpServerIds: assistant.mcpServerIds ?? []
   }
@@ -160,7 +164,7 @@ export function diffAssistantUpdate(
     baseline.mcpMode !== form.mcpMode ||
     customParametersChanged
 
-  const tagsChanged = !sameStringSet(baseline.tags, form.tags)
+  const tagsChanged = baseline.tagName !== form.tagName
   const knowledgeBaseIdsChanged = !sameIdSet(baseline.knowledgeBaseIds, form.knowledgeBaseIds)
   const mcpServerIdsChanged = !sameIdSet(baseline.mcpServerIds, form.mcpServerIds)
 
@@ -183,7 +187,7 @@ export function diffAssistantUpdate(
     ...(mcpServerIdsChanged ? { mcpServerIds: form.mcpServerIds } : {})
   }
 
-  return { dto, tagsChanged, tagNames: form.tags }
+  return { dto, tagsChanged, tagNames: form.tagName ? [form.tagName] : [] }
 }
 
 export function diffAssistantSaveIntent(
@@ -207,10 +211,4 @@ function sameIdSet(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false
   const set = new Set(a)
   return b.every((id) => set.has(id))
-}
-
-function sameStringSet(a: readonly string[], b: readonly string[]): boolean {
-  if (a.length !== b.length) return false
-  const set = new Set(a)
-  return b.every((v) => set.has(v))
 }

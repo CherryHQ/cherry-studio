@@ -27,7 +27,7 @@ describe('ProviderService.update', () => {
     const withWriteTx = application.get('DbService').withWriteTx as Mock
     withWriteTx.mockClear()
 
-    const updated = await providerService.update('openai', {
+    const updated = providerService.update('openai', {
       providerSettings: {
         summaryText: 'detailed'
       }
@@ -61,7 +61,7 @@ describe('ProviderService.update', () => {
       providerSettings: null
     })
 
-    await providerService.update('p-null', {
+    providerService.update('p-null', {
       providerSettings: { serviceTier: 'auto' }
     })
 
@@ -77,7 +77,7 @@ describe('ProviderService.update', () => {
       providerSettings: { serviceTier: 'auto' }
     })
 
-    await providerService.update('p-noop', { providerSettings: {} })
+    providerService.update('p-noop', { providerSettings: {} })
 
     const [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'p-noop'))
     expect(row.providerSettings).toEqual({ serviceTier: 'auto' })
@@ -91,7 +91,7 @@ describe('ProviderService.update', () => {
       providerSettings: { summaryText: 'auto' }
     })
 
-    await providerService.update('p-null-override', { providerSettings: { summaryText: null } })
+    providerService.update('p-null-override', { providerSettings: { summaryText: null } })
 
     const [row] = await dbh.db
       .select()
@@ -109,7 +109,7 @@ describe('ProviderService.update', () => {
       providerSettings: { serviceTier: 'auto', summaryText: 'detailed' }
     })
 
-    await providerService.update('p-undef', { providerSettings: { summaryText: undefined } })
+    providerService.update('p-undef', { providerSettings: { summaryText: undefined } })
 
     const [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'p-undef'))
     // undefined overwrites the stored value in the merge, then the JSON write drops the key entirely.
@@ -117,9 +117,13 @@ describe('ProviderService.update', () => {
   })
 
   it('throws notFound when providerId does not exist', async () => {
-    await expect(
+    let err: unknown
+    try {
       providerService.update('missing', { providerSettings: { serviceTier: 'auto' } })
-    ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    } catch (e) {
+      err = e
+    }
+    expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
   })
 
   it('rejects PATCHes for the managed CherryAI provider', async () => {
@@ -130,7 +134,13 @@ describe('ProviderService.update', () => {
       isEnabled: true
     })
 
-    await expect(providerService.update(CHERRYAI_PROVIDER_ID, { isEnabled: false })).rejects.toMatchObject({
+    let err: unknown
+    try {
+      providerService.update(CHERRYAI_PROVIDER_ID, { isEnabled: false })
+    } catch (e) {
+      err = e
+    }
+    expect(err).toMatchObject({
       code: ErrorCode.INVALID_OPERATION,
       status: 400
     })
@@ -150,26 +160,19 @@ describe('ProviderService.update', () => {
       providerSettings: {}
     })
 
-    // Give the withWriteTx mock the production mutex (serialize callbacks). This is what the
-    // call-count assertion can't: it distinguishes read-merge-write INSIDE the tx from a partial
-    // revert that moves the SELECT outside it — if the read leaks out of serialization, both PATCHes
-    // read `{}` and the second write clobbers the first.
+    // Route the (now synchronous) withWriteTx through the real test DB. Because update() reads,
+    // merges, and writes inside a single synchronous withWriteTx callback, each PATCH runs to
+    // completion before the next begins — the second merges on the row the first just wrote,
+    // so neither clobbers the other's keys.
     const withWriteTx = application.get('DbService').withWriteTx as Mock
-    let chain: Promise<unknown> = Promise.resolve()
-    withWriteTx.mockImplementation((fn: (tx: unknown) => Promise<unknown>) => {
-      const run = chain.then(() => fn(dbh.db))
-      chain = run.catch(() => {})
-      return run
-    })
+    withWriteTx.mockImplementation((fn: (tx: unknown) => unknown) => fn(dbh.db))
 
     try {
-      await Promise.all([
-        providerService.update('p-concurrent', { providerSettings: { serviceTier: 'auto' } }),
-        providerService.update('p-concurrent', { providerSettings: { verbosity: 'low' } })
-      ])
+      providerService.update('p-concurrent', { providerSettings: { serviceTier: 'auto' } })
+      providerService.update('p-concurrent', { providerSettings: { verbosity: 'low' } })
     } finally {
-      // Restore the default passthrough so the mutex doesn't leak into other tests.
-      withWriteTx.mockImplementation((fn: (tx: unknown) => Promise<unknown>) => fn(dbh.db))
+      // Restore the default passthrough so the override doesn't leak into other tests.
+      withWriteTx.mockImplementation((fn: (tx: unknown) => unknown) => fn(dbh.db))
     }
 
     const [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'p-concurrent'))

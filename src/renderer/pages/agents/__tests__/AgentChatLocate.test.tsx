@@ -1,4 +1,4 @@
-import { render, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import type * as MotionReact from 'motion/react'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
@@ -10,8 +10,13 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   ...(await importOriginal()),
   Badge: ({ children }: PropsWithChildren) => <span>{children}</span>,
   Button: ({ children, ...props }: PropsWithChildren<Record<string, unknown>>) => (
-    <button {...props}>{children}</button>
+    <button type="button" {...props}>
+      {children}
+    </button>
   ),
+  HoverCard: ({ children }: PropsWithChildren) => <div>{children}</div>,
+  HoverCardContent: ({ children }: PropsWithChildren) => <div>{children}</div>,
+  HoverCardTrigger: ({ children }: PropsWithChildren) => <>{children}</>,
   Tabs: ({ children }: PropsWithChildren) => <div>{children}</div>,
   TabsContent: ({ children }: PropsWithChildren) => <div>{children}</div>,
   TabsList: ({ children }: PropsWithChildren) => <div>{children}</div>,
@@ -110,6 +115,14 @@ vi.mock('@renderer/components/chat', () => ({
   )
 }))
 
+vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
+  RightPaneHost: ({ children, open }: PropsWithChildren<{ open?: boolean }>) => (
+    <section data-testid="agent-right-pane" data-open={String(Boolean(open))}>
+      {open ? children : null}
+    </section>
+  )
+}))
+
 vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
   ARTIFACT_PANE_WIDTH: 460,
   ArtifactFilePreview: () => <div />,
@@ -117,6 +130,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
     rawPath.startsWith(`${workspacePath}/`) ? rawPath.slice(workspacePath.length + 1) : rawPath,
   resolveArtifactPaneFileSelection: (workspacePath: string | undefined, rawPath: string) =>
     workspacePath ? { workspacePath, filePath: rawPath.replace(`${workspacePath}/`, '') } : null,
+  ArtifactPaneView: () => <div />,
   default: () => <div />
 }))
 
@@ -395,5 +409,96 @@ describe('AgentChat locate pending message', () => {
       )
       expect(onLocateMessageHandled).toHaveBeenCalledTimes(1)
     })
+  })
+
+  it('opens the classic-layout resource pane when a locate reveal request arrives on the same session branch', async () => {
+    const resourcePane = { node: <div data-testid="session-resource-list">Sessions</div>, label: 'title.work' }
+    const baseProps = {
+      ...activeSessionProps(),
+      pane: <aside data-testid="session-pane" />,
+      paneOpen: true,
+      panePosition: 'left' as const,
+      resourcePane,
+      sessionPaneOpen: false,
+      onSessionPaneOpenChange: vi.fn()
+    }
+
+    const { rerender } = render(<AgentChat {...baseProps} />)
+
+    expect(screen.getByTestId('agent-right-pane')).toHaveAttribute('data-open', 'false')
+
+    rerender(
+      <AgentChat
+        {...baseProps}
+        resourcePaneRevealRequest={{ itemId: 'session-2', requestId: 1, clearFilters: true, clearQuery: true }}
+      />
+    )
+
+    await waitFor(() => expect(screen.getByTestId('agent-right-pane')).toHaveAttribute('data-open', 'true'))
+    expect(screen.getByTestId('session-resource-list')).toBeInTheDocument()
+  })
+
+  it('seeds the classic-layout resource pane open on the first frame when the session pane is persisted open', () => {
+    const resourcePane = { node: <div data-testid="session-resource-list">Sessions</div>, label: 'title.work' }
+
+    render(
+      <AgentChat
+        {...activeSessionProps()}
+        pane={<aside data-testid="session-pane" />}
+        paneOpen={true}
+        panePosition="left"
+        resourcePane={resourcePane}
+        sessionPaneOpen={true}
+        onSessionPaneOpenChange={vi.fn()}
+      />
+    )
+
+    // No reveal request: the persistent branch must seed `open` directly from sessionPaneOpen
+    // (AgentChatSessionFrame's defaultOpen). Dropping that defaultOpen would render this closed.
+    expect(screen.getByTestId('agent-right-pane')).toHaveAttribute('data-open', 'true')
+  })
+
+  it('keeps the classic-layout resource pane open across the draft → persistent session handoff', async () => {
+    const resourcePane = { node: <div data-testid="session-resource-list">Sessions</div>, label: 'title.work' }
+    const draftConversation = {
+      agentId: 'agent-1',
+      workspaceSource: { type: 'system' as const },
+      workspace: { type: 'system' as const, path: '/tmp/workspace' }
+    }
+
+    const { rerender } = render(
+      <AgentChat
+        activeSession={undefined}
+        activeSessionLoading={false}
+        activeSessionSource="none"
+        draftConversation={draftConversation}
+        pane={<aside data-testid="session-pane" />}
+        paneOpen={true}
+        panePosition="left"
+        resourcePane={resourcePane}
+        sessionPaneOpen={true}
+        onSessionPaneOpenChange={vi.fn()}
+      />
+    )
+
+    // The draft branch seeds the pane open from the persisted sessionPaneOpen.
+    expect(screen.getByTestId('agent-right-pane')).toHaveAttribute('data-open', 'true')
+
+    // Hand off to the persisted session: the AgentRightPane/Shell remounts under a different
+    // branch, so it must re-seed `open` from sessionPaneOpen rather than slamming shut.
+    rerender(
+      <AgentChat
+        {...activeSessionProps()}
+        draftConversation={null}
+        pane={<aside data-testid="session-pane" />}
+        paneOpen={true}
+        panePosition="left"
+        resourcePane={resourcePane}
+        sessionPaneOpen={true}
+        onSessionPaneOpenChange={vi.fn()}
+      />
+    )
+
+    await waitFor(() => expect(screen.getByTestId('agent-right-pane')).toHaveAttribute('data-open', 'true'))
   })
 })
