@@ -1,4 +1,12 @@
-import { Alert, Button, Scrollbar } from '@cherrystudio/ui'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+  Alert,
+  Button,
+  Scrollbar
+} from '@cherrystudio/ui'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { RotateCcw } from 'lucide-react'
@@ -16,6 +24,7 @@ import {
 import ChunkingSection from './ChunkingSection'
 import EmbeddingSection from './EmbeddingSection'
 import FileProcessingSection from './FileProcessingSection'
+import RerankSection from './RerankSection'
 import RetrievalSection from './RetrievalSection'
 
 export interface KnowledgeRestoreBaseInitialValues {
@@ -137,31 +146,14 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
             }
           />
 
-          <ChunkingSection
-            chunkStrategy={values.chunkStrategy}
-            chunkSeparator={values.chunkSeparator}
-            chunkSize={values.chunkSize}
-            chunkOverlap={values.chunkOverlap}
-            chunkSizeErrorCode={validationErrorCodes.chunkSize}
-            chunkOverlapErrorCode={validationErrorCodes.chunkOverlap}
-            chunkSeparatorErrorCode={validationErrorCodes.chunkSeparator}
-            onChunkStrategyChange={(chunkStrategy) =>
-              setValues((currentValues) => ({ ...currentValues, chunkStrategy }))
-            }
-            onChunkSeparatorChange={(chunkSeparator) =>
-              setValues((currentValues) => ({ ...currentValues, chunkSeparator }))
-            }
-            onChunkSizeChange={(chunkSize) =>
-              setValues((currentValues) => ({ ...currentValues, chunkSize: chunkSize.replace(/\D/g, '') }))
-            }
-            onChunkOverlapChange={(chunkOverlap) =>
-              setValues((currentValues) => ({ ...currentValues, chunkOverlap: chunkOverlap.replace(/\D/g, '') }))
-            }
-          />
-
           <EmbeddingSection
             embeddingModelId={values.embeddingModelId}
             onEmbeddingModelChange={handleEmbeddingModelChange}
+          />
+
+          <RerankSection
+            rerankModelId={values.rerankModelId}
+            onRerankModelChange={(rerankModelId) => setValues((currentValues) => ({ ...currentValues, rerankModelId }))}
           />
 
           <RetrievalSection
@@ -177,8 +169,38 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
             onThresholdChange={(threshold) => setValues((currentValues) => ({ ...currentValues, threshold }))}
             onSearchModeChange={(searchMode) => setValues((currentValues) => ({ ...currentValues, searchMode }))}
             onHybridAlphaChange={(hybridAlpha) => setValues((currentValues) => ({ ...currentValues, hybridAlpha }))}
-            onRerankModelChange={(rerankModelId) => setValues((currentValues) => ({ ...currentValues, rerankModelId }))}
           />
+
+          {/* Chunking knobs are set-and-forget internals, so they live under a
+              collapsed "Advanced" section to keep the essentials on top. */}
+          <Accordion type="single" collapsible>
+            <AccordionItem value="advanced" className="border-border-subtle last:border-b">
+              <AccordionTrigger>{t('common.advanced_settings')}</AccordionTrigger>
+              <AccordionContent className="flex flex-col gap-4">
+                <ChunkingSection
+                  chunkStrategy={values.chunkStrategy}
+                  chunkSeparator={values.chunkSeparator}
+                  chunkSize={values.chunkSize}
+                  chunkOverlap={values.chunkOverlap}
+                  chunkSizeErrorCode={validationErrorCodes.chunkSize}
+                  chunkOverlapErrorCode={validationErrorCodes.chunkOverlap}
+                  chunkSeparatorErrorCode={validationErrorCodes.chunkSeparator}
+                  onChunkStrategyChange={(chunkStrategy) =>
+                    setValues((currentValues) => ({ ...currentValues, chunkStrategy }))
+                  }
+                  onChunkSeparatorChange={(chunkSeparator) =>
+                    setValues((currentValues) => ({ ...currentValues, chunkSeparator }))
+                  }
+                  onChunkSizeChange={(chunkSize) =>
+                    setValues((currentValues) => ({ ...currentValues, chunkSize: chunkSize.replace(/\D/g, '') }))
+                  }
+                  onChunkOverlapChange={(chunkOverlap) =>
+                    setValues((currentValues) => ({ ...currentValues, chunkOverlap: chunkOverlap.replace(/\D/g, '') }))
+                  }
+                />
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </div>
       </Scrollbar>
 
