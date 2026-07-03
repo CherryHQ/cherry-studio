@@ -24,16 +24,17 @@ import * as z from 'zod'
 
 /**
  * Preset icon id / `icon:<id>` ref. Short — uploads go through the set-logo
- * command. Inline bytes (`data:`) and stored-file refs (`file:` / `file://`) are
- * rejected: a key must never carry image bytes or mint a stored-image ref with
- * no `logo_file_id` FK / `file_ref` ownership. Legacy URL/data values stay
- * isolated to the migration/compat boundary, not this write contract.
+ * command. Inline bytes (`data:`), stored-file refs (`file:` / `file://`), and
+ * remote URLs (`http:` / `https:`) are rejected: a key must never carry image
+ * bytes, mint a stored-image ref with no `logo_file_id` FK / `file_ref`
+ * ownership, or (re)open a remote-image write surface. Legacy URL/data values
+ * stay isolated to the migration/compat boundary, not this write contract.
  */
 export const LogoKeySchema = z
   .string()
   .min(1)
   .max(2048)
-  .refine((v) => !/^(data:|file:)/i.test(v), 'logo key must not be a data: or file: ref')
+  .refine((v) => !/^(data:|file:|https?:)/i.test(v), 'logo key must not be a data:, file:, or http(s): ref')
 
 const LogoKeyVariant = z.strictObject({ kind: z.literal('key'), key: LogoKeySchema })
 const LogoFileVariant = z.strictObject({ kind: z.literal('file'), fileId: FileEntryIdSchema })

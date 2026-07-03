@@ -6,14 +6,14 @@ import { defineRoute } from '../define'
  * Preset icon id / `icon:<id>` ref. Mirrors `LogoKeySchema` in
  * `@shared/data/api/schemas/logo` (kept local so the IPC schema graph does not
  * depend on the DataApi DTO module and its `file_entry` brand) — including the
- * rejection of `data:` / `file:` refs so a key can never smuggle inline bytes or
- * a stored-file ref into `logo_key`.
+ * rejection of `data:` / `file:` / `http(s):` refs so a key can never smuggle
+ * inline bytes, a stored-file ref, or a remote-image URL into `logo_key`.
  */
 const LogoKeySchema = z
   .string()
   .min(1)
   .max(2048)
-  .refine((v) => !/^(data:|file:)/i.test(v), 'logo key must not be a data: or file: ref')
+  .refine((v) => !/^(data:|file:|https?:)/i.test(v), 'logo key must not be a data:, file:, or http(s): ref')
 
 /**
  * Entity-image set commands (provider / mini-app logo; the avatar variant lives

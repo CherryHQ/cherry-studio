@@ -91,8 +91,14 @@ describe('LogoImageIntentSchema key variant', () => {
     expect(LogoImageIntentSchema.safeParse({ kind: 'key', key: 'icon:openai' }).success).toBe(true)
   })
 
-  it('rejects a data:/file: key — bytes / stored-file refs are not preset keys', () => {
-    for (const key of ['data:image/png;base64,abc', `file:${FILE_ID}`, 'file:///tmp/x.png']) {
+  it('rejects a data:/file:/http(s): key — bytes / stored-file refs / remote URLs are not preset keys', () => {
+    for (const key of [
+      'data:image/png;base64,abc',
+      `file:${FILE_ID}`,
+      'file:///tmp/x.png',
+      'http://example.com/logo.png',
+      'https://example.com/logo.png'
+    ]) {
       expect(LogoImageIntentSchema.safeParse({ kind: 'key', key }).success).toBe(false)
     }
   })
