@@ -10,7 +10,7 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
-import { isOllamaProvider } from '@shared/utils/provider'
+import { isGeminiProvider, isOllamaProvider } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
@@ -103,6 +103,11 @@ async function resolveClaudeCodeRuntimeRoute(
   const sonnetRef = resolveRuntimeModelRef(agent.planModel ?? agent.model, primaryRef)
   const haikuRef = resolveRuntimeModelRef(agent.smallModel ?? agent.model, primaryRef)
   const modelRefs = [primaryRef, opusRef, sonnetRef, haikuRef]
+
+  const geminiRef = modelRefs.find((ref) => ref.provider && isGeminiProvider(ref.provider))
+  if (geminiRef) {
+    throw new Error(`Gemini provider models are not supported by Claude Code agents: ${geminiRef.providerId}`)
+  }
 
   const shouldUseGateway = modelRefs.some(
     (ref) => ref.providerId !== primaryProvider.id || !ref.provider || !supportsAnthropicMessages(ref.provider)
