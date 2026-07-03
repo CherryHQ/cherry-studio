@@ -13,7 +13,11 @@
   --cs-font-weight-medium: 500;
   --cs-font-weight-bold: 700;
 
+  /* Icon stroke width — default settings/UI icon outline thickness. */
+  --cs-icon-stroke: 1.8;
+
   /* Font Sizes - Body */
+  --cs-font-size-body-2xs: 0.625rem; /* 10px */
   --cs-font-size-body-xs: 0.75rem; /* 12px */
   --cs-font-size-body-sm: 0.875rem; /* 14px */
   --cs-font-size-body-md: 1rem; /* 16px */
@@ -26,6 +30,9 @@
   --cs-font-size-heading-lg: 2.5rem; /* 40px */
   --cs-font-size-heading-xl: 3rem; /* 48px */
   --cs-font-size-heading-2xl: 3.75rem; /* 60px */
+
+  /* Letter Spacing — tight is the Brainwave 2.0 button/heading tracking (-2% in Figma). */
+  --cs-letter-spacing-tight: -0.02em;
 
   /* Line Heights - Body */
   --cs-line-height-body-xs: 1.25rem; /* 20px */

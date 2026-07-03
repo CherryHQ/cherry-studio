@@ -21,8 +21,11 @@
     }
   }
 
+  /* Icons follow their surrounding text color by default, so they match the
+   * adjacent label / button tone (and the sidebar) everywhere. Spots that want a
+   * quiet icon opt in explicitly via text-icon-muted. */
   .lucide:not(.lucide-custom) {
-    color: var(--color-icon);
+    color: inherit;
   }
 }
 
