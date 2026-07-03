@@ -184,7 +184,12 @@ class LocalOcrDownloadService extends LocalModelDownloadService {
 
   private async promoteToDefault(): Promise<void> {
     try {
-      await application.get('PreferenceService').set('feature.file_processing.default_image_to_text', 'local-paddleocr')
+      const preference = application.get('PreferenceService')
+      const current = preference.get('feature.file_processing.default_image_to_text')
+      // Only step into an empty slot (or re-affirm ourselves on a re-download) —
+      // never clobber an engine the user already explicitly chose.
+      if (current !== null && current !== 'local-paddleocr') return
+      await preference.set('feature.file_processing.default_image_to_text', 'local-paddleocr')
     } catch (error) {
       logger.warn('failed to set local OCR as default image-to-text processor', { error: String(error) })
     }

@@ -85,6 +85,18 @@ describe('LocalOcrDownloadService.download — mirror fallback + min-size guard'
     expect(MockMainPreferenceServiceUtils.getPreferenceValue(DEFAULT_KEY)).toBe('local-paddleocr')
   })
 
+  it('does not clobber an engine the user already explicitly chose', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue(DEFAULT_KEY, 'mistral')
+    vi.mocked(net.fetch).mockImplementation((async (url: string) =>
+      url.endsWith('.yml') ? dictResponse() : weightResponse(VALID_WEIGHT_BYTES)) as unknown as typeof net.fetch)
+
+    await localOcrDownloadService.download()
+
+    // The model still downloads successfully — it's just not silently made the
+    // active default when the user already picked something else.
+    expect(MockMainPreferenceServiceUtils.getPreferenceValue(DEFAULT_KEY)).toBe('mistral')
+  })
+
   it('falls back to the next mirror when the locale-default mirror fails', async () => {
     const urls: string[] = []
     vi.mocked(net.fetch).mockImplementation((async (url: string) => {
